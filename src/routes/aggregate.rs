@@ -1,3 +1,5 @@
+//! `GET /api/aggregate` — bucket-aggregated data for bar / heatmap charts.
+
 use axum::{
     extract::{Query, State},
     response::Response,
@@ -5,15 +7,15 @@ use axum::{
 
 use crate::error::AppError;
 use crate::pipeline::{self, Reduction, ResponseMeta};
-use crate::query::{self, DataQuery};
+use crate::query::{self, AggregateQuery};
 use crate::state::AppState;
 
 #[tracing::instrument(skip(state))]
-pub async fn get_data(
+pub async fn get_aggregate(
     State(state): State<AppState>,
-    Query(params): Query<DataQuery>,
+    Query(params): Query<AggregateQuery>,
 ) -> Result<Response, AppError> {
-    tracing::info!("get_data called with params: {:?}", params);
+    tracing::info!("get_aggregate called with params: {:?}", params);
 
     let df_lock = state.df.read().await;
     let df = df_lock.clone();
@@ -32,26 +34,28 @@ pub async fn get_data(
     // Stage 1: filter
     let filtered = pipeline::filter_time_range(df, start_ts, end_ts, &value_cols)?;
 
-    // Stage 2: reduce (LTTB for line charts)
-    let target_points = params.width * 2;
-    let (reduced, was_downsampled) = pipeline::apply_reduction(
+    // Stage 2: bucket aggregation
+    let (aggregated, _) = pipeline::apply_reduction(
         &filtered,
         &value_cols,
-        &Reduction::Lttb { target_points },
+        &Reduction::BucketAgg {
+            buckets: params.buckets,
+            agg: params.agg,
+        },
     )?;
-    let returned_rows = reduced.height();
+    let returned_rows = aggregated.height();
 
-    // Stage 3: serialize + respond
+    // Stage 3: serialize
     let format = query::output_format(&params.format);
     pipeline::build_response(
-        reduced,
+        aggregated,
         &value_cols,
         format,
         &dtype,
         ResponseMeta {
-            is_downsampled: was_downsampled,
+            is_downsampled: true,
             returned_rows,
-            target_points,
+            target_points: params.buckets,
         },
     )
 }

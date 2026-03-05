@@ -17,6 +17,8 @@ use tokio::sync::RwLock;
 mod state;
 mod error;
 mod ingest;
+pub mod query;
+pub mod pipeline;
 pub mod routes;
 pub mod downsample;
 pub mod arrow_export;
@@ -59,6 +61,7 @@ async fn main() {
         .fallback_service(ServeDir::new("frontend"))
         .route("/api/health", get(routes::health))
         .route("/api/data", get(routes::data::get_data).layer(cache_layer))
+        .route("/api/aggregate", get(routes::aggregate::get_aggregate))
         .route("/api/metadata", get(routes::metadata::get_metadata))
         .route("/api/upload", post(routes::upload::upload_data))
         .route("/api/upload/preview", post(routes::upload::preview_upload_data))

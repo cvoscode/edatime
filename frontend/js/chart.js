@@ -1,23 +1,8 @@
 import { createChart } from '../libs/chartgpu/dist/index.js?v=3';
+import { DEBUG, dbg } from './debug.js';
 
 const COLORS = ['#00E5FF', '#FF0055', '#00FF00', '#FFFF00', '#FF00FF'];
 const CHART_GRID = { left: 112, right: 20, top: 16, bottom: 36 };
-
-const DEBUG = (() => {
-    try {
-        const qs = new URLSearchParams(window.location.search);
-        if (qs.get('debug') === '1') return true;
-        if (qs.get('debug') === 'true') return true;
-        return window.localStorage?.getItem('edatimeDebug') === '1';
-    } catch (_) {
-        return false;
-    }
-})();
-
-function dbg(...args) {
-    if (!DEBUG) return;
-    console.log('[edatime:chart]', ...args);
-}
 
 function computeFiniteMinMax(xs) {
     if (!xs) return null;

@@ -1,20 +1,6 @@
+import { DEBUG, dbg } from './debug.js';
+
 let tableFromIPCFn = null;
-
-const DEBUG = (() => {
-    try {
-        const qs = new URLSearchParams(window.location.search);
-        if (qs.get('debug') === '1') return true;
-        if (qs.get('debug') === 'true') return true;
-        return window.localStorage?.getItem('edatimeDebug') === '1';
-    } catch (_) {
-        return false;
-    }
-})();
-
-function dbg(...args) {
-    if (!DEBUG) return;
-    console.log('[edatime:data]', ...args);
-}
 
 async function ensureArrowParser() {
     if (tableFromIPCFn) return tableFromIPCFn;
@@ -156,4 +142,36 @@ export async function fetchData(start, end, width, columns = "value") {
     });
 
     return dataObj;
+}
+
+/**
+ * Fetch bucket-aggregated data from /api/aggregate.
+ * Used by bar/heatmap chart types (Phase 7).
+ *
+ * @param {string} start  ISO-8601
+ * @param {string} end    ISO-8601
+ * @param {string} columns  Comma-separated column names
+ * @param {number} buckets  Number of buckets (default 50)
+ * @param {string} agg   Aggregation function: mean|sum|min|max|count
+ * @param {string} format  'arrow' | 'json'
+ * @returns {Promise<object>}
+ */
+export async function fetchAggregate(start, end, columns = 'value', buckets = 50, agg = 'mean', format = 'json') {
+    const params = new URLSearchParams({ start, end, columns, buckets: String(buckets), agg, format });
+    const url = `/api/aggregate?${params.toString()}`;
+    dbg('GET (aggregate)', url);
+
+    const res = await fetch(url);
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Aggregate fetch failed (${res.status}) ${text}`);
+    }
+
+    if (format === 'arrow') {
+        const tableFromIPC = await ensureArrowParser();
+        const buffer = await res.arrayBuffer();
+        return tableFromIPC(buffer);
+    }
+
+    return res.json();
 }

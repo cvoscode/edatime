@@ -1,3 +1,4 @@
+pub mod aggregate;
 pub mod data;
 pub mod metadata;
 pub mod upload;
