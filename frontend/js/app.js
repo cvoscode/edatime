@@ -208,7 +208,7 @@ async function ensureChartModules() {
     if (fetchMetadata && fetchData && DataChart) return;
     const [dataClient, chartModule] = await Promise.all([
         import('./dataClient.js?v=11'),
-        import('./chart.js?v=32'),
+        import('./chart.js?v=33'),
     ]);
     fetchMetadata = dataClient.fetchMetadata;
     fetchData = dataClient.fetchData;
@@ -413,6 +413,8 @@ function showFatalError(message) {
 let appState = {
     metadata: null,
     numericCols: [],
+    columnProfiles: [],
+    profileFilterText: '',
     filterText: '',
     selectedCols: [],
     columnRanges: {},
@@ -427,7 +429,27 @@ let appState = {
     zoomHistory: [],         // up to 5 snapshots of { xMin, xMax, yMin, yMax }
     pendingYMode: 'fit',     // 'fit' | 'restore' | null
     pendingRestoreY: null,   // { min, max } when pendingYMode === 'restore'
+    profileGridBound: false,
+    profileGridHeaderBound: false,
+    profileGridSort: { key: 'name', dir: 'asc' },
+    profileGridColWidths: [220, 120, 140, 100, 130, 130, 260],
 };
+
+const PROFILE_ROW_HEIGHT = 38;
+const PROFILE_OVERSCAN = 8;
+const PROFILE_COLUMNS = [
+    { key: 'name', minWidth: 160, defaultWidth: 220, sortable: true },
+    { key: 'dtype', minWidth: 110, defaultWidth: 120, sortable: true },
+    { key: 'nonNullCount', minWidth: 130, defaultWidth: 140, sortable: true },
+    { key: 'nullCount', minWidth: 90, defaultWidth: 100, sortable: true },
+    { key: 'min', minWidth: 120, defaultWidth: 130, sortable: true },
+    { key: 'max', minWidth: 120, defaultWidth: 130, sortable: true },
+    { key: 'histCounts', minWidth: 220, defaultWidth: 260, sortable: false },
+];
+
+function getDefaultProfileColumnWidths() {
+    return PROFILE_COLUMNS.map((col) => col.defaultWidth);
+}
 
 // Handy for interactive debugging from DevTools.
 window.__edatime = { get state() { return appState; }, DEBUG };
@@ -460,6 +482,403 @@ function formatAnalysisNumber(value) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     });
+}
+
+function setUploadPreviewStatus(text, kind = '') {
+    const el = document.getElementById('upload-preview-status');
+    if (!el) return;
+    el.textContent = text;
+    el.className = `upload-preview-status ${kind}`.trim();
+}
+
+function isTemporalDtype(dtype) {
+    const dt = String(dtype || '').toLowerCase();
+    return dt.includes('datetime') || dt === 'date' || dt.startsWith('date[');
+}
+
+function normalizeDtypeLabel(dtype) {
+    if (isTemporalDtype(dtype)) return 'datetime[ns]';
+    return String(dtype || '');
+}
+
+function formatProfileValue(value, dtype) {
+    if (value == null || !Number.isFinite(Number(value))) return '—';
+    const numeric = Number(value);
+    if (isTemporalDtype(dtype)) {
+        const d = new Date(numeric);
+        if (!Number.isFinite(d.getTime())) return '—';
+        return d.toLocaleString();
+    }
+    return formatAnalysisNumber(numeric);
+}
+
+function formatCount(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 0) return '0';
+    return Math.round(n).toLocaleString();
+}
+
+function formatToDatetimeLocal(ms) {
+    const value = Number(ms);
+    if (!Number.isFinite(value)) return '';
+    const d = new Date(value);
+    if (!Number.isFinite(d.getTime())) return '';
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const mm = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const min = pad(d.getMinutes());
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+}
+
+function applyPartialTimeRangeFromMetadata(metadata, overwriteInputs = true) {
+    const startInput = document.getElementById('time-start-input');
+    const endInput = document.getElementById('time-end-input');
+    const hint = document.getElementById('time-range-hint');
+    if (!startInput || !endInput) return;
+
+    const minMs = Number(metadata?.time_range?.min);
+    const maxMs = Number(metadata?.time_range?.max);
+    if (!Number.isFinite(minMs) || !Number.isFinite(maxMs)) {
+        if (hint) hint.textContent = 'Time range not detected in this file.';
+        startInput.min = '';
+        startInput.max = '';
+        endInput.min = '';
+        endInput.max = '';
+        return;
+    }
+
+    const minLocal = formatToDatetimeLocal(minMs);
+    const maxLocal = formatToDatetimeLocal(maxMs);
+
+    startInput.min = minLocal;
+    startInput.max = maxLocal;
+    endInput.min = minLocal;
+    endInput.max = maxLocal;
+
+    if (overwriteInputs || !startInput.value) startInput.value = minLocal;
+    if (overwriteInputs || !endInput.value) endInput.value = maxLocal;
+
+    if (hint) {
+        hint.textContent = `Detected: ${formatAnalysisTime(minMs)} → ${formatAnalysisTime(maxMs)}`;
+    }
+}
+
+function toFiniteNumberOrNull(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
+function hydrateColumnProfiles(metadata) {
+    const incoming = Array.isArray(metadata?.column_profiles) ? metadata.column_profiles : [];
+    const cols = Array.isArray(metadata?.columns) ? metadata.columns : [];
+    const profileByName = new Map();
+
+    for (const raw of incoming) {
+        const name = String(raw?.name || '').trim();
+        if (!name) continue;
+
+        const counts = Array.isArray(raw?.histogram?.counts)
+            ? raw.histogram.counts.map((c) => Math.max(0, Number(c) || 0))
+            : [];
+
+        profileByName.set(name, {
+            name,
+            dtype: String(raw?.dtype || ''),
+            nonNullCount: Math.max(0, Number(raw?.non_null_count) || 0),
+            nullCount: Math.max(0, Number(raw?.null_count) || 0),
+            min: toFiniteNumberOrNull(raw?.min),
+            max: toFiniteNumberOrNull(raw?.max),
+            histCounts: counts,
+        });
+    }
+
+    for (const col of cols) {
+        const name = String(col?.name || '').trim();
+        if (!name || profileByName.has(name)) continue;
+        profileByName.set(name, {
+            name,
+            dtype: String(col?.dtype || ''),
+            nonNullCount: 0,
+            nullCount: 0,
+            min: null,
+            max: null,
+            histCounts: [],
+        });
+    }
+
+    appState.columnProfiles = Array.from(profileByName.values());
+}
+
+function getFilteredColumnProfiles() {
+    const profiles = appState.columnProfiles || [];
+    const q = (appState.profileFilterText || '').trim().toLowerCase();
+    const filtered = !q
+        ? [...profiles]
+        : profiles.filter((p) => p.name.toLowerCase().includes(q) || p.dtype.toLowerCase().includes(q));
+
+    const { key, dir } = appState.profileGridSort || {};
+    const sortDir = dir === 'desc' ? -1 : 1;
+    const sortable = new Set(PROFILE_COLUMNS.filter((c) => c.sortable).map((c) => c.key));
+    if (!sortable.has(key)) return filtered;
+
+    filtered.sort((a, b) => {
+        let av = a?.[key];
+        let bv = b?.[key];
+
+        if (key === 'name' || key === 'dtype') {
+            av = String(av || '').toLowerCase();
+            bv = String(bv || '').toLowerCase();
+            if (av < bv) return -1 * sortDir;
+            if (av > bv) return 1 * sortDir;
+            return 0;
+        }
+
+        const an = Number(av);
+        const bn = Number(bv);
+        const aFinite = Number.isFinite(an);
+        const bFinite = Number.isFinite(bn);
+        if (!aFinite && !bFinite) return 0;
+        if (!aFinite) return 1;
+        if (!bFinite) return -1;
+        return (an - bn) * sortDir;
+    });
+
+    return filtered;
+}
+
+function applyProfileGridColumnsTemplate() {
+    const grid = document.getElementById('profile-grid');
+    if (!grid) return;
+
+    const widths = appState.profileGridColWidths || getDefaultProfileColumnWidths();
+    const template = widths
+        .map((w, idx) => `${Math.max(PROFILE_COLUMNS[idx].minWidth, Math.round(Number(w) || PROFILE_COLUMNS[idx].defaultWidth))}px`)
+        .join(' ');
+
+    grid.style.setProperty('--profile-grid-cols', template);
+}
+
+function updateProfileGridHeaderState() {
+    const header = document.querySelector('.profile-grid-header');
+    if (!header) return;
+
+    const sortKey = appState.profileGridSort?.key;
+    const sortDir = appState.profileGridSort?.dir;
+    const cells = Array.from(header.children);
+    for (const cell of cells) {
+        const key = cell.dataset.sortKey;
+        const sortable = cell.dataset.sortable === '1';
+        cell.classList.toggle('sortable', sortable);
+        cell.classList.remove('sorted-asc', 'sorted-desc');
+        cell.removeAttribute('aria-sort');
+        if (!sortable || !key) continue;
+
+        if (key === sortKey) {
+            const cls = sortDir === 'desc' ? 'sorted-desc' : 'sorted-asc';
+            const aria = sortDir === 'desc' ? 'descending' : 'ascending';
+            cell.classList.add(cls);
+            cell.setAttribute('aria-sort', aria);
+        } else {
+            cell.setAttribute('aria-sort', 'none');
+        }
+    }
+}
+
+function initProfileGridHeaderControls() {
+    if (appState.profileGridHeaderBound) return;
+
+    const header = document.querySelector('.profile-grid-header');
+    if (!header) return;
+
+    const cells = Array.from(header.children);
+    cells.forEach((cell, idx) => {
+        const def = PROFILE_COLUMNS[idx];
+        if (!def) return;
+
+        cell.dataset.sortKey = def.key;
+        cell.dataset.sortable = def.sortable ? '1' : '0';
+
+        if (def.sortable) {
+            cell.tabIndex = 0;
+            cell.addEventListener('click', () => {
+                const current = appState.profileGridSort || { key: def.key, dir: 'asc' };
+                if (current.key === def.key) {
+                    appState.profileGridSort = { key: def.key, dir: current.dir === 'asc' ? 'desc' : 'asc' };
+                } else {
+                    appState.profileGridSort = { key: def.key, dir: 'asc' };
+                }
+                updateProfileGridHeaderState();
+                renderColumnProfilesGrid(true);
+            });
+            cell.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                cell.click();
+            });
+        }
+
+        if (idx < cells.length - 1) {
+            const resizer = document.createElement('span');
+            resizer.className = 'profile-col-resizer';
+            resizer.setAttribute('role', 'separator');
+            resizer.setAttribute('aria-orientation', 'vertical');
+            resizer.addEventListener('pointerdown', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const startX = event.clientX;
+                const startW = Number(appState.profileGridColWidths[idx]) || def.defaultWidth;
+
+                const onMove = (moveEvent) => {
+                    const dx = moveEvent.clientX - startX;
+                    const next = Math.max(def.minWidth, startW + dx);
+                    appState.profileGridColWidths[idx] = next;
+                    applyProfileGridColumnsTemplate();
+                };
+
+                const onUp = () => {
+                    window.removeEventListener('pointermove', onMove);
+                    window.removeEventListener('pointerup', onUp);
+                };
+
+                window.addEventListener('pointermove', onMove);
+                window.addEventListener('pointerup', onUp);
+            });
+            cell.appendChild(resizer);
+        }
+    });
+
+    updateProfileGridHeaderState();
+    appState.profileGridHeaderBound = true;
+}
+
+function createProfileCell(text, extraClass = '') {
+    const cell = document.createElement('div');
+    cell.className = `profile-cell ${extraClass}`.trim();
+    cell.textContent = text;
+    return cell;
+}
+
+function createHistogramCell(profile) {
+    const cell = document.createElement('div');
+    cell.className = 'profile-cell';
+
+    const counts = Array.isArray(profile.histCounts) ? profile.histCounts : [];
+    if (counts.length === 0) {
+        const empty = document.createElement('span');
+        empty.className = 'profile-hist-empty';
+        empty.textContent = '—';
+        cell.appendChild(empty);
+        return cell;
+    }
+
+    const maxCount = Math.max(...counts);
+    if (!Number.isFinite(maxCount) || maxCount <= 0) {
+        const empty = document.createElement('span');
+        empty.className = 'profile-hist-empty';
+        empty.textContent = '—';
+        cell.appendChild(empty);
+        return cell;
+    }
+
+    const hist = document.createElement('div');
+    hist.className = 'profile-hist';
+
+    for (const count of counts) {
+        const bar = document.createElement('span');
+        bar.className = 'profile-hist-bar';
+        const height = Math.max(1, Math.round((count / maxCount) * 22));
+        bar.style.height = `${height}px`;
+        bar.title = formatCount(count);
+        hist.appendChild(bar);
+    }
+
+    cell.appendChild(hist);
+    return cell;
+}
+
+function renderColumnProfilesGrid(resetScroll = false) {
+    const viewport = document.getElementById('profile-grid-viewport');
+    const spacer = document.getElementById('profile-grid-spacer');
+    const rows = document.getElementById('profile-grid-rows');
+    if (!viewport || !spacer || !rows) return;
+
+    if (resetScroll) viewport.scrollTop = 0;
+
+    const profiles = getFilteredColumnProfiles();
+    const total = profiles.length;
+    const viewportHeight = Math.max(1, viewport.clientHeight || 1);
+
+    spacer.style.height = `${Math.max(total * PROFILE_ROW_HEIGHT, viewportHeight)}px`;
+
+    if (total === 0) {
+        rows.style.transform = 'translateY(0px)';
+        rows.innerHTML = '';
+        const row = document.createElement('div');
+        row.className = 'profile-grid-row';
+        row.appendChild(createProfileCell('No columns match this filter', 'muted'));
+        row.appendChild(createProfileCell('', 'muted'));
+        row.appendChild(createProfileCell('', 'muted'));
+        row.appendChild(createProfileCell('', 'muted'));
+        row.appendChild(createProfileCell('', 'muted'));
+        row.appendChild(createProfileCell('', 'muted'));
+        row.appendChild(createProfileCell('', 'muted'));
+        rows.appendChild(row);
+        return;
+    }
+
+    const scrollTop = Math.max(0, viewport.scrollTop);
+    const visibleRows = Math.ceil(viewportHeight / PROFILE_ROW_HEIGHT);
+    const start = Math.max(0, Math.floor(scrollTop / PROFILE_ROW_HEIGHT) - PROFILE_OVERSCAN);
+    const end = Math.min(total, start + visibleRows + PROFILE_OVERSCAN * 2);
+
+    rows.style.transform = `translateY(${start * PROFILE_ROW_HEIGHT}px)`;
+    rows.innerHTML = '';
+
+    for (let idx = start; idx < end; idx++) {
+        const profile = profiles[idx];
+        const totalCount = profile.nonNullCount + profile.nullCount;
+        const nonNullPct = totalCount > 0 ? (profile.nonNullCount / totalCount) * 100 : 0;
+
+        const row = document.createElement('div');
+        row.className = 'profile-grid-row';
+        row.setAttribute('role', 'row');
+
+        row.appendChild(createProfileCell(profile.name));
+        row.appendChild(createProfileCell(normalizeDtypeLabel(profile.dtype), 'muted'));
+        row.appendChild(createProfileCell(`${formatCount(profile.nonNullCount)} (${nonNullPct.toFixed(1)}%)`, 'num'));
+        row.appendChild(createProfileCell(formatCount(profile.nullCount), 'num'));
+        row.appendChild(createProfileCell(formatProfileValue(profile.min, profile.dtype), 'num'));
+        row.appendChild(createProfileCell(formatProfileValue(profile.max, profile.dtype), 'num'));
+        row.appendChild(createHistogramCell(profile));
+
+        rows.appendChild(row);
+    }
+}
+
+function initColumnProfilesGrid() {
+    if (appState.profileGridBound) return;
+    const viewport = document.getElementById('profile-grid-viewport');
+    const header = document.querySelector('.profile-grid-header');
+    if (!viewport) return;
+
+    viewport.addEventListener('scroll', () => {
+        renderColumnProfilesGrid(false);
+        if (header) {
+            header.style.transform = `translateX(${-viewport.scrollLeft}px)`;
+        }
+    });
+
+    const resizeObserver = new ResizeObserver(() => renderColumnProfilesGrid(false));
+    resizeObserver.observe(viewport);
+
+    initProfileGridHeaderControls();
+    applyProfileGridColumnsTemplate();
+
+    appState.profileGridBound = true;
 }
 
 function sanitizeSelectedColumns() {
@@ -913,6 +1332,52 @@ function initUploadPanel() {
     }
 
     let selectedFile = null;
+    let previewController = null;
+
+    async function runFilePreview(file) {
+        if (!file) {
+            setUploadPreviewStatus('Select a file to preview columns');
+            return;
+        }
+
+        if (previewController) previewController.abort();
+        previewController = new AbortController();
+
+        setUploadPreviewStatus('Profiling file…', 'loading');
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const res = await fetch('/api/upload/preview', {
+                method: 'POST',
+                body: formData,
+                signal: previewController.signal,
+            });
+
+            if (!res.ok) {
+                const txt = await res.text().catch(() => 'Preview failed');
+                throw new Error(txt || 'Preview failed');
+            }
+
+            const result = await res.json();
+            const previewMetadata = result?.metadata;
+            if (!previewMetadata || !Array.isArray(previewMetadata.columns)) {
+                throw new Error('Preview response missing metadata');
+            }
+
+            hydrateColumnProfiles(previewMetadata);
+            renderColumnProfilesGrid(true);
+            applyPartialTimeRangeFromMetadata(previewMetadata, true);
+
+            const previewRows = Number(previewMetadata.total_rows || result?.preview_rows || 0);
+            setUploadPreviewStatus(`Preview ready (${formatCount(previewRows)} sampled rows, fast mode)`);
+        } catch (e) {
+            if (e?.name === 'AbortError') return;
+            setUploadPreviewStatus(`Preview failed: ${e.message}`, 'error');
+            applyPartialTimeRangeFromMetadata(null, false);
+        }
+    }
 
     // Panel open/close
     if (toggleBtn) {
@@ -935,6 +1400,7 @@ function initUploadPanel() {
     fileInput.addEventListener('change', () => {
         selectedFile = fileInput.files[0] || null;
         fileDisplay.textContent = selectedFile ? selectedFile.name : '';
+        runFilePreview(selectedFile);
     });
 
     // Drag and drop
@@ -945,6 +1411,7 @@ function initUploadPanel() {
         dropZone.classList.remove('dragover');
         selectedFile = e.dataTransfer.files[0] || null;
         fileDisplay.textContent = selectedFile ? selectedFile.name : '';
+        runFilePreview(selectedFile);
     });
 
     // Partial load toggle
@@ -980,6 +1447,8 @@ function initUploadPanel() {
         nRowsInput.value = String(defaultRows);
         nRowsDisp.textContent = fmtRows(defaultRows);
     }
+
+    applyPartialTimeRangeFromMetadata(appState.metadata, false);
 
     // Upload submit
     uploadBtn.addEventListener('click', async () => {
@@ -1186,6 +1655,7 @@ async function init() {
     initPages();
     // Initialize upload panel immediately so it always works regardless of WebGPU
     initUploadPanel();
+    initColumnProfilesGrid();
     initAnalysisControls();
     initColumnFilterModal();
     initChartPageFilterGesture();
@@ -1224,6 +1694,19 @@ async function init() {
                 buildColumnToggles();
             });
         }
+
+        const profileFilterInput = document.getElementById('profile-filter-input');
+        if (profileFilterInput) {
+            profileFilterInput.addEventListener('input', (e) => {
+                appState.profileFilterText = (e.target.value || '').trim().toLowerCase();
+                renderColumnProfilesGrid(true);
+            });
+        }
+
+        hydrateColumnProfiles(appState.metadata);
+        renderColumnProfilesGrid(true);
+        applyPartialTimeRangeFromMetadata(appState.metadata, false);
+        setUploadPreviewStatus('Showing current dataset profile. Drop/select a file to preview before loading.');
 
         buildColumnToggles();
         buildMetaBar(appState.metadata);

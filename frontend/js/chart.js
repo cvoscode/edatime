@@ -97,7 +97,19 @@ export class DataChart {
     }
 
     _buildYAxisOption() {
-        return { type: 'value' };
+        return {
+            type: 'value',
+            axisLabel: {
+                formatter: (value) => {
+                    const n = Number(value);
+                    if (!Number.isFinite(n)) return '—';
+                    return n.toLocaleString(undefined, {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 2,
+                    });
+                },
+            },
+        };
     }
 
     _applyYRange(min, max, sourceKind = 'api', setAuto = null) {

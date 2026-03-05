@@ -61,6 +61,7 @@ async fn main() {
         .route("/api/data", get(routes::data::get_data).layer(cache_layer))
         .route("/api/metadata", get(routes::metadata::get_metadata))
         .route("/api/upload", post(routes::upload::upload_data))
+        .route("/api/upload/preview", post(routes::upload::preview_upload_data))
         .layer(DefaultBodyLimit::disable())
         .layer(TraceLayer::new_for_http())
         .layer(cors)

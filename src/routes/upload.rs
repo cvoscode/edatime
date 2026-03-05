@@ -6,15 +6,40 @@ use axum::{
 use chrono::{DateTime, Utc};
 use std::io::Write;
 use tempfile::NamedTempFile;
-use crate::{state::AppState, error::AppError, ingest::load_dataframe_partial};
+use crate::{
+    state::AppState,
+    error::AppError,
+    ingest::load_dataframe_partial,
+    routes::metadata::build_dataset_metadata,
+};
 
-#[tracing::instrument(skip(state, multipart))]
-pub async fn upload_data(
-    State(state): State<AppState>,
+fn parse_time_ms(text: &str) -> Option<i64> {
+    let t = text.trim();
+    if t.is_empty() {
+        return None;
+    }
+    if let Ok(dt) = DateTime::parse_from_rfc3339(t) {
+        let utc: DateTime<Utc> = dt.with_timezone(&Utc);
+        return Some(utc.timestamp_millis());
+    }
+    if let Ok(ms) = t.parse::<i64>() {
+        return Some(ms);
+    }
+    None
+}
+
+fn move_to_real_extension(mut path: std::path::PathBuf, is_parquet: bool) -> std::path::PathBuf {
+    if is_parquet {
+        let new_path = path.with_extension("parquet");
+        std::fs::rename(&path, &new_path).ok();
+        path = new_path;
+    }
+    path
+}
+
+async fn extract_upload_parts(
     mut multipart: Multipart,
-) -> Result<impl IntoResponse, AppError> {
-    tracing::info!("Received file upload request");
-
+) -> Result<(std::path::PathBuf, bool, Option<usize>, usize, Option<i64>, Option<i64>, bool), AppError> {
     let mut temp_file = NamedTempFile::new().map_err(|e| AppError::IoError(e.to_string()))?;
     let mut is_parquet = false;
     let mut has_file = false;
@@ -22,23 +47,6 @@ pub async fn upload_data(
     let mut skip_rows: usize = 0;
     let mut time_start_ms: Option<i64> = None;
     let mut time_end_ms: Option<i64> = None;
-
-    fn parse_time_ms(text: &str) -> Option<i64> {
-        let t = text.trim();
-        if t.is_empty() {
-            return None;
-        }
-        // Prefer RFC3339 (frontend sends toISOString() with 'Z').
-        if let Ok(dt) = DateTime::parse_from_rfc3339(t) {
-            let utc: DateTime<Utc> = dt.with_timezone(&Utc);
-            return Some(utc.timestamp_millis());
-        }
-        // Best-effort: unix ms.
-        if let Ok(ms) = t.parse::<i64>() {
-            return Some(ms);
-        }
-        None
-    }
 
     while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(e.to_string()))? {
         let field_name = field.name().unwrap_or("").to_string();
@@ -65,7 +73,6 @@ pub async fn upload_data(
                 tracing::debug!("partial load: time_end_ms = {:?}", time_end_ms);
             }
             _ => {
-                // Treat any other field as the file
                 let file_name = field.file_name().unwrap_or("unknown").to_string();
                 if file_name.ends_with(".parquet") {
                     is_parquet = true;
@@ -86,15 +93,23 @@ pub async fn upload_data(
     }
 
     let temp_path = temp_file.into_temp_path();
-    let file_path = temp_path.to_string_lossy().to_string();
+    let path = temp_path
+        .keep()
+        .map_err(|e| AppError::IoError(e.error.to_string()))?;
+    Ok((path, is_parquet, n_rows, skip_rows, time_start_ms, time_end_ms, has_file))
+}
+
+#[tracing::instrument(skip(state, multipart))]
+pub async fn upload_data(
+    State(state): State<AppState>,
+    multipart: Multipart,
+) -> Result<impl IntoResponse, AppError> {
+    tracing::info!("Received file upload request");
+
+    let (path, is_parquet, n_rows, skip_rows, time_start_ms, time_end_ms, _) = extract_upload_parts(multipart).await?;
 
     let df = tokio::task::block_in_place(|| {
-        let mut final_path = std::path::PathBuf::from(file_path.clone());
-        if is_parquet {
-            let new_path = final_path.with_extension("parquet");
-            std::fs::rename(&final_path, &new_path).ok();
-            final_path = new_path;
-        }
+        let final_path = move_to_real_extension(path, is_parquet);
 
         let res = load_dataframe_partial(&final_path, n_rows, skip_rows, time_start_ms, time_end_ms);
 
@@ -125,5 +140,65 @@ pub async fn upload_data(
         "skip_rows": skip_rows,
         "time_start_ms": time_start_ms,
         "time_end_ms": time_end_ms,
+    })))
+}
+
+#[tracing::instrument(skip(multipart))]
+pub async fn preview_upload_data(
+    mut multipart: Multipart,
+) -> Result<impl IntoResponse, AppError> {
+    tracing::info!("Received upload preview request");
+
+    let mut temp_file = NamedTempFile::new().map_err(|e| AppError::IoError(e.to_string()))?;
+    let mut is_parquet = false;
+    let mut has_file = false;
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(e.to_string()))? {
+        let name = field.name().unwrap_or("").to_string();
+        if name == "preview_rows" {
+            continue;
+        }
+
+        let file_name = field.file_name().unwrap_or("unknown").to_string();
+        if file_name.ends_with(".parquet") {
+            is_parquet = true;
+        }
+
+        let mut field = field;
+        while let Some(chunk) = field.chunk().await.map_err(|e| AppError::BadRequest(e.to_string()))? {
+            temp_file
+                .write_all(&chunk)
+                .map_err(|e| AppError::IoError(e.to_string()))?;
+        }
+        has_file = true;
+    }
+
+    if !has_file {
+        return Err(AppError::BadRequest("No file selected for preview".to_string()));
+    }
+
+    let temp_path = temp_file.into_temp_path();
+    let path = temp_path
+        .keep()
+        .map_err(|e| AppError::IoError(e.error.to_string()))?;
+    let preview_rows = Some(150_000usize);
+
+    let metadata = tokio::task::block_in_place(|| {
+        let final_path = move_to_real_extension(path, is_parquet);
+
+        let res = load_dataframe_partial(&final_path, preview_rows, 0, None, None)
+            .map_err(AppError::from)
+            .and_then(|df| build_dataset_metadata(&df, false));
+
+        if is_parquet {
+            std::fs::remove_file(&final_path).ok();
+        }
+        res
+    })?;
+
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "preview_rows": metadata.total_rows,
+        "metadata": metadata,
     })))
 }
