@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EdaTime</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="css/style.css?v=8">
+</head>
+<body>
+
+<!-- ==================== Header ==================== -->
+<header>
+  <div class="header-brand">
+    <div class="brand-icon">
+      <!-- timeseries waveform icon -->
+      <svg viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="1,9 4,5 7,11 10,3 13,8 15,6"/>
+      </svg>
+    </div>
+    <span class="brand-name">EdaTime</span>
+  </div>
+
+  <div class="header-meta" id="header-meta">
+    <div class="meta-stat" id="stat-rows"><span>Loading&hellip;</span></div>
+  </div>
+</header>
+
+<!-- ==================== Toolbar ==================== -->
+<div class="toolbar">
+  <span class="toolbar-label">Series</span>
+  <input type="text" id="column-filter-input" class="column-filter-input" placeholder="Filter columns…" aria-label="Filter columns">
+  <div class="series-toggles" id="column-toggles"></div>
+
+  <!-- Upload toggle button -->
+  <button class="btn btn-ghost" id="upload-toggle-btn" title="Upload dataset">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 11V3M5 6l3-3 3 3"/>
+      <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1"/>
+    </svg>
+    Upload
+  </button>
+</div>
+
+<div class="range-toolbar" id="column-range-controls"></div>
+
+<div class="analysis-toolbar" id="analysis-toolbar">
+  <span class="toolbar-label">Analysis</span>
+  <div class="analysis-controls">
+    <button class="btn btn-ghost" id="zoom-reset-btn" type="button">Reset View</button>
+  </div>
+  <div class="analysis-stats">
+    <span id="analysis-zoom">Range: —</span>
+    <span id="analysis-y">Y: —</span>
+    <span id="analysis-cursor">Cursor: —</span>
+    <span id="analysis-click">Click: —</span>
+  </div>
+</div>
+
+<!-- ==================== Upload Panel (collapsed by default) ==================== -->
+<div id="upload-panel" class="open">
+  <div class="upload-inner">
+
+    <!-- Column 1: Drop zone -->
+    <div class="drop-zone" id="drop-zone">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <span class="dz-title">Drop CSV or Parquet here</span>
+      <span class="dz-sub">or</span>
+      <button class="btn btn-ghost" id="browse-btn" type="button">Browse file</button>
+      <input type="file" id="file-upload" accept=".csv,.parquet" hidden>
+      <span class="dz-filename" id="file-name-display"></span>
+    </div>
+
+    <!-- Column 2: Partial load options -->
+    <div class="partial-section">
+      <div class="partial-section-title">Load options</div>
+
+      <label class="toggle-row" id="partial-toggle-row">
+        <span class="switch">
+          <input type="checkbox" id="partial-enabled">
+          <span class="switch-slider"></span>
+        </span>
+        <span>
+          <div class="toggle-label-text">Partial load</div>
+          <div class="toggle-sub">Limit the rows ingested from the file</div>
+        </span>
+      </label>
+
+      <div class="partial-fields" id="partial-fields">
+        <div class="field-group">
+          <label for="n-rows-input">Max rows to load</label>
+          <div class="row">
+            <input type="number" id="n-rows-input" placeholder="All rows" min="1" step="1000">
+            <input type="range"  id="n-rows-range" min="1000" max="5000000" step="1000" value="1000000">
+            <span class="range-value" id="n-rows-display">1 000 000</span>
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="skip-rows-input">Skip first N rows</label>
+          <div class="row">
+            <input type="number" id="skip-rows-input" placeholder="0" min="0" value="0">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Column 3: Actions -->
+    <div class="upload-actions">
+      <button class="btn btn-primary" id="upload-btn">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 11V3M5 6l3-3 3 3"/>
+          <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1"/>
+        </svg>
+        Upload &amp; Ingest
+      </button>
+      <div class="progress-bar-wrap" id="progress-wrap" style="display:none">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <div class="upload-status" id="upload-status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== Chart ==================== -->
+<main class="main">
+  <div id="main-chart"></div>
+</main>
+
+<script type="module" src="js/app.js?v=31"></script>
+</body>
+</html>

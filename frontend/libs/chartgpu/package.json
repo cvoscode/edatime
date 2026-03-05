@@ -1,0 +1,67 @@
+{
+  "name": "chartgpu",
+  "version": "0.3.2",
+  "description": "High-performance WebGPU charting library",
+  "keywords": [
+    "webgpu",
+    "chart",
+    "visualization",
+    "gpu",
+    "typescript",
+    "echarts"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chartgpu/chartgpu.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chartgpu/chartgpu/issues"
+  },
+  "homepage": "https://github.com/chartgpu/chartgpu#readme",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "dev": "vite",
+    "test": "vitest",
+    "acceptance:animation-controller": "tsx examples/acceptance/animation-controller.ts",
+    "acceptance:sampling-config": "tsx examples/acceptance/sampling-config.ts",
+    "acceptance:zoom-state": "tsx examples/acceptance/zoom-state.ts",
+    "acceptance:lttb-sample": "tsx examples/acceptance/lttb-sample.ts",
+    "acceptance:auto-scroll-policy": "tsx examples/acceptance/auto-scroll-policy.ts",
+    "acceptance:data-store-append": "tsx examples/acceptance/data-store-append.ts",
+    "acceptance:easing": "tsx examples/acceptance/easing.ts",
+    "acceptance:line-style-color": "tsx examples/acceptance/line-style-color.ts",
+    "acceptance:area-style-color": "tsx examples/acceptance/area-style-color.ts",
+    "acceptance:ohlc-sample": "tsx examples/acceptance/ohlc-sample.ts",
+    "acceptance:auto-scroll-zoom-sync": "tsx examples/acceptance/auto-scroll-zoom-sync.ts",
+    "acceptance:line-gaps": "tsx examples/acceptance/line-gaps.ts",
+    "benchmark:transfer": "tsx benchmarks/data-transfer-benchmark.ts",
+    "build": "tsc && vite build",
+    "build:examples": "vite build --config examples/vite.config.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.9",
+    "@webgpu/types": "^0.1.69",
+    "jsdom": "^28.1.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0",
+    "vitest": "^4.0.18"
+  }
+}
