@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "chartgpu": "^0.3.2"
+  }
+}

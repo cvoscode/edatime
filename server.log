@@ -1,0 +1,3 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running `target/debug/edatime`
+[2m2026-03-01T19:34:37.326643Z[0m [32m INFO[0m [2medatime[0m[2m:[0m listening on 127.0.0.1:3000

@@ -2,7 +2,7 @@ use axum::{
     extract::{Query, State},
     Json,
     response::{IntoResponse, Response},
-    http::header,
+    http::{header, HeaderValue},
 };
 use serde::Deserialize;
 use chrono::{DateTime, Utc};
@@ -74,9 +74,11 @@ pub async fn get_data(
     drop(df_lock);
     
     let target_points = query.width * 2;
+    let is_downsampled = filtered_df.height() > target_points;
 
     let downsampled = downsample_multi_columns(&filtered_df, "ts", &value_cols, target_points)
         .map_err(|e| AppError::Internal(format!("Failed to downsample multi: {:?}", e)))?;
+    let returned_rows = downsampled.height();
 
     let requested_format = query.format.as_deref().unwrap_or("arrow");
     if requested_format.eq_ignore_ascii_case("json") {
@@ -130,11 +132,32 @@ pub async fn get_data(
             values.insert(col_name.to_string(), json!(vals));
         }
 
-        return Ok(Json(json!({
+        let mut response = Json(json!({
             "ts": ts,
             "values": values,
         }))
-        .into_response());
+        .into_response();
+
+        response.headers_mut().insert(
+            "x-edatime-downsampled",
+            if is_downsampled {
+                HeaderValue::from_static("1")
+            } else {
+                HeaderValue::from_static("0")
+            },
+        );
+        response.headers_mut().insert(
+            "x-edatime-returned-rows",
+            HeaderValue::from_str(&returned_rows.to_string())
+                .unwrap_or(HeaderValue::from_static("0")),
+        );
+        response.headers_mut().insert(
+            "x-edatime-target-points",
+            HeaderValue::from_str(&target_points.to_string())
+                .unwrap_or(HeaderValue::from_static("0")),
+        );
+
+        return Ok(response);
     }
 
     let ipc_bytes = dataframe_to_arrow_ipc(downsampled)
@@ -142,10 +165,31 @@ pub async fn get_data(
 
     tracing::debug!("Successfully generated IPC response of {} bytes", ipc_bytes.len());
 
-    Ok((
+    let mut response = (
         [(header::CONTENT_TYPE, "application/vnd.apache.arrow.stream")],
         ipc_bytes,
-    ).into_response())
+    ).into_response();
+
+    response.headers_mut().insert(
+        "x-edatime-downsampled",
+        if is_downsampled {
+            HeaderValue::from_static("1")
+        } else {
+            HeaderValue::from_static("0")
+        },
+    );
+    response.headers_mut().insert(
+        "x-edatime-returned-rows",
+        HeaderValue::from_str(&returned_rows.to_string())
+            .unwrap_or(HeaderValue::from_static("0")),
+    );
+    response.headers_mut().insert(
+        "x-edatime-target-points",
+        HeaderValue::from_str(&target_points.to_string())
+            .unwrap_or(HeaderValue::from_static("0")),
+    );
+
+    Ok(response)
 }
 
 fn downsample_multi_columns(

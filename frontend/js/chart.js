@@ -1,6 +1,7 @@
 import { createChart } from '../libs/chartgpu/dist/index.js?v=3';
 
 const COLORS = ['#00E5FF', '#FF0055', '#00FF00', '#FFFF00', '#FF00FF'];
+const CHART_GRID = { left: 112, right: 20, top: 16, bottom: 36 };
 
 const DEBUG = (() => {
     try {
@@ -46,11 +47,25 @@ export class DataChart {
         this._selectionBox = null;
         this._yMin = null;
         this._yMax = null;
+        this._yAuto = true;
         this._lastDataYMin = null;
         this._lastDataYMax = null;
         this._lastSeriesList = null;
         this._lastXDomainMin = null;
         this._lastXDomainMax = null;
+    }
+
+    _setAutoYFromBounds(min, max, sourceKind = 'api') {
+        if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+        if (max <= min) {
+            const center = Number.isFinite(min) ? min : 0;
+            min = center - 1;
+            max = center + 1;
+        }
+
+        this._lastDataYMin = min;
+        this._lastDataYMax = max;
+        if (this.onYRangeCallback) this.onYRangeCallback(min, max, sourceKind);
     }
 
     /** Set the visible X-axis range using real timestamp values. */
@@ -68,6 +83,7 @@ export class DataChart {
 
         // createChart is async — must be awaited
         this.chartInstance = await createChart(container, {
+            grid: CHART_GRID,
             xAxis: { type: 'time' },
             yAxis: { type: 'value' },
             series: [],
@@ -81,13 +97,16 @@ export class DataChart {
     }
 
     _buildYAxisOption() {
-        const yAxis = { type: 'value' };
-        if (Number.isFinite(this._yMin) && Number.isFinite(this._yMax) && this._yMax > this._yMin) {
-            yAxis.min = this._yMin;
-            yAxis.max = this._yMax;
-            yAxis.autoBounds = 'visible';
-        }
-        return yAxis;
+        return { type: 'value' };
+    }
+
+    _applyYRange(min, max, sourceKind = 'api', setAuto = null) {
+        if (setAuto === true) this._yAuto = true;
+        if (setAuto === false) this._yAuto = false;
+        if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return;
+        this._yMin = min;
+        this._yMax = max;
+        if (this.onYRangeCallback) this.onYRangeCallback(min, max, sourceKind);
     }
 
     supportsZoomControls() {
@@ -104,91 +123,31 @@ export class DataChart {
     setYRange(min, max) {
         if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return;
 
-        if (Number.isFinite(this._lastDataYMin) && Number.isFinite(this._lastDataYMax) && this._lastDataYMax > this._lastDataYMin) {
-            const dataMin = this._lastDataYMin;
-            const dataMax = this._lastDataYMax;
-            const dataSpan = dataMax - dataMin;
-
-            let nextMin = Math.max(dataMin, min);
-            let nextMax = Math.min(dataMax, max);
-            if (!(nextMax > nextMin)) {
-                nextMin = dataMin;
-                nextMax = dataMax;
-            }
-
-            const minSpan = Math.max(1e-12, dataSpan * 0.005);
-            if (nextMax - nextMin < minSpan) {
-                const center = (nextMin + nextMax) * 0.5;
-                nextMin = Math.max(dataMin, center - minSpan * 0.5);
-                nextMax = Math.min(dataMax, center + minSpan * 0.5);
-                if (!(nextMax > nextMin)) {
-                    nextMin = dataMin;
-                    nextMax = dataMax;
-                }
-            }
-
-            min = nextMin;
-            max = nextMax;
-        }
-
-        this._yMin = min;
-        this._yMax = max;
-        if (this.onYRangeCallback) {
-            this.onYRangeCallback(min, max, 'api');
-        }
-        if (!this.chartInstance) return;
-
-        // IMPORTANT: ChartGPU's option application may not deep-merge. If we
-        // only set { yAxis }, it can drop the current series and look like
-        // "no data". Always re-apply the full option with the last series.
-        const series = this._lastSeriesList ?? [];
-        const xAxis = {
-            type: 'time',
-            min: Number.isFinite(this._lastXDomainMin) ? this._lastXDomainMin : undefined,
-            max: Number.isFinite(this._lastXDomainMax) ? this._lastXDomainMax : undefined,
-        };
-        this.chartInstance.setOption({
-            xAxis,
-            yAxis: this._buildYAxisOption(),
-            series,
-        });
+        // Explicit y range disables auto-fit until fitYToData is called.
+        this._applyYRange(min, max, 'api', false);
     }
 
     getYRange() {
-        if (Number.isFinite(this._yMin) && Number.isFinite(this._yMax) && this._yMax > this._yMin) {
-            return { min: this._yMin, max: this._yMax };
-        }
         if (Number.isFinite(this._lastDataYMin) && Number.isFinite(this._lastDataYMax) && this._lastDataYMax > this._lastDataYMin) {
             return { min: this._lastDataYMin, max: this._lastDataYMax };
+        }
+        if (Number.isFinite(this._yMin) && Number.isFinite(this._yMax) && this._yMax > this._yMin) {
+            return { min: this._yMin, max: this._yMax };
         }
         return null;
     }
 
     zoomY(factor, anchorNormalized = 0.5) {
-        if (!Number.isFinite(factor) || factor <= 0) return;
-        if (!Number.isFinite(this._yMin) || !Number.isFinite(this._yMax) || this._yMax <= this._yMin) return;
-
-        const anchor = Math.max(0, Math.min(1, anchorNormalized));
-        const span = this._yMax - this._yMin;
-        const newSpan = Math.max(1e-12, span * factor);
-        const focal = this._yMin + anchor * span;
-
-        const nextMin = focal - anchor * newSpan;
-        const nextMax = nextMin + newSpan;
-        this.setYRange(nextMin, nextMax);
+        return;
     }
 
     resetYRange() {
-        this.fitYToData();
+        return;
     }
 
     fitYToData() {
         if (!Number.isFinite(this._lastDataYMin) || !Number.isFinite(this._lastDataYMax)) return;
-        if (this._lastDataYMax <= this._lastDataYMin) {
-            this.setYRange(this._lastDataYMin - 1, this._lastDataYMax + 1);
-            return;
-        }
-        this.setYRange(this._lastDataYMin, this._lastDataYMax);
+        if (this.onYRangeCallback) this.onYRangeCallback(this._lastDataYMin, this._lastDataYMax, 'data');
     }
 
     onCrosshairMove(callback) {
@@ -274,8 +233,6 @@ export class DataChart {
             }
             if (xSpan < 8 && ySpan < 8) return;
 
-            const minYSpanPx = Math.max(24, height * 0.08);
-
             if (xSpan >= 8) {
                 // Map pixel position directly to timestamps using the current
                 // displayed x-axis range (_xMin / _xMax set by setXRange).
@@ -289,20 +246,6 @@ export class DataChart {
                     }
                 } else if (DEBUG) {
                     dbg('cannot compute zoom: missing xRange');
-                }
-            }
-
-            if (ySpan >= minYSpanPx) {
-                const yRange = this.getYRange();
-                if (yRange) {
-                    const yMin = yRange.min;
-                    const yMax = yRange.max;
-                    const span = yMax - yMin;
-                    if (span > 0) {
-                        const selectedMax = yMin + (1 - top / height) * span;
-                        const selectedMin = yMin + (1 - bottom / height) * span;
-                        this.setYRange(selectedMin, selectedMax);
-                    }
                 }
             }
 
@@ -320,21 +263,7 @@ export class DataChart {
             if (this.onZoomOutCallback) this.onZoomOutCallback();
         });
 
-        container.addEventListener('wheel', (event) => {
-            if (!event.shiftKey) return;
-            event.preventDefault();
-            const rect = container.getBoundingClientRect();
-            const y = event.clientY - rect.top;
-            const anchor = 1 - Math.max(0, Math.min(1, y / Math.max(1, rect.height)));
-            const factor = event.deltaY < 0 ? 0.85 : 1.18;
-            this.zoomY(factor, anchor);
-        }, { passive: false });
-
-        container.addEventListener('dblclick', (event) => {
-            if (!event.shiftKey) return;
-            if (DEBUG) dbg('shift+dblclick resetYRange');
-            this.resetYRange();
-        });
+        // Y zoom gestures are intentionally disabled so ChartGPU controls Y-axis bounds.
     }
 
     _renderSelectionBox() {
@@ -360,76 +289,113 @@ export class DataChart {
 
     updateDataMulti(dataObj, columns) {
         if (!this.chartInstance) return;
+        const showMarkers = dataObj?._meta?.downsampled === false;
 
         let dataYMin = Number.POSITIVE_INFINITY;
         let dataYMax = Number.NEGATIVE_INFINITY;
 
         let xDomainMin = Number.POSITIVE_INFINITY;
         let xDomainMax = Number.NEGATIVE_INFINITY;
+        const seriesDebug = [];
 
         const seriesList = columns
-            .filter(colName => dataObj.values?.[colName] || dataObj.series?.[colName])
+            .filter((colName) => {
+                const name = String(colName || '').toLowerCase();
+                if (name === 'ts' || name === 'timestamp' || name === 'time') return false;
+                return dataObj.values?.[colName] || dataObj.series?.[colName];
+            })
             .map((colName, idx) => {
                 const seriesData = dataObj.series?.[colName];
                 const yValues = seriesData ? seriesData.y : dataObj.values[colName];
                 const xValues = seriesData ? seriesData.x : dataObj.ts;
 
-                const mm = computeFiniteMinMax(xValues);
-                if (mm) {
-                    if (mm.min < xDomainMin) xDomainMin = mm.min;
-                    if (mm.max > xDomainMax) xDomainMax = mm.max;
+                const points = [];
+                const n = Math.min(xValues?.length ?? 0, yValues?.length ?? 0);
+                let localYMin = Number.POSITIVE_INFINITY;
+                let localYMax = Number.NEGATIVE_INFINITY;
+                for (let i = 0; i < n; i++) {
+                    const x = Number(xValues[i]);
+                    const y = Number(yValues[i]);
+                    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+                    points.push([x, y]);
+                    if (x < xDomainMin) xDomainMin = x;
+                    if (x > xDomainMax) xDomainMax = x;
+                    if (y < dataYMin) dataYMin = y;
+                    if (y > dataYMax) dataYMax = y;
+                    if (y < localYMin) localYMin = y;
+                    if (y > localYMax) localYMax = y;
                 }
 
-                if (yValues) {
-                    for (let i = 0; i < yValues.length; i++) {
-                        const value = Number(yValues[i]);
-                        if (!Number.isFinite(value)) continue;
-                        if (value < dataYMin) dataYMin = value;
-                        if (value > dataYMax) dataYMax = value;
-                    }
-                }
-                return {
+                seriesDebug.push({
+                    name: colName,
+                    points: points.length,
+                    yMin: Number.isFinite(localYMin) ? localYMin : null,
+                    yMax: Number.isFinite(localYMax) ? localYMax : null,
+                    firstY: points.length > 0 ? points[0][1] : null,
+                    lastY: points.length > 0 ? points[points.length - 1][1] : null,
+                });
+
+                const color = COLORS[idx % COLORS.length];
+                const lineSeries = {
                     type: 'line',
                     name: colName,
-                    color: COLORS[idx % COLORS.length],
-                    // XYArraysData format: { x: ArrayLike<number>, y: ArrayLike<number> }
-                    data: seriesData
-                        ? { x: seriesData.x, y: seriesData.y }
-                        : { x: dataObj.ts, y: dataObj.values[colName] },
+                    color,
+                    // Use point arrays for maximum compatibility in bounds + tooltip + rendering.
+                    data: points,
                 };
+
+                if (!showMarkers) {
+                    return [lineSeries];
+                }
+
+                const markerSeries = {
+                    type: 'scatter',
+                    name: `${colName}__markers`,
+                    color,
+                    symbolSize: 2,
+                    data: points,
+                };
+
+                return [lineSeries, markerSeries];
             });
 
+        const flattenedSeriesList = seriesList.flat();
+
         // Persist for later axis updates (e.g. setYRange/fitYToData).
-        this._lastSeriesList = seriesList;
+        this._lastSeriesList = flattenedSeriesList;
         this._lastXDomainMin = Number.isFinite(xDomainMin) ? xDomainMin : null;
         this._lastXDomainMax = Number.isFinite(xDomainMax) ? xDomainMax : null;
 
         if (DEBUG) {
-            dbg('updateDataMulti series', seriesList.map(s => s.name));
+            dbg('updateDataMulti series', flattenedSeriesList.map(s => s.name));
             if (Number.isFinite(xDomainMin) && Number.isFinite(xDomainMax)) {
                 dbg('computed xDomain', { min: xDomainMin, max: xDomainMax });
             } else {
                 dbg('computed xDomain missing');
             }
+            dbg('computed yDomain', {
+                min: Number.isFinite(dataYMin) ? dataYMin : null,
+                max: Number.isFinite(dataYMax) ? dataYMax : null,
+                seriesDebug,
+            });
         }
 
         if (Number.isFinite(dataYMin) && Number.isFinite(dataYMax)) {
             this._lastDataYMin = dataYMin;
             this._lastDataYMax = dataYMax;
-            if (!Number.isFinite(this._yMin) || !Number.isFinite(this._yMax)) {
-                this.fitYToData();
-            }
+            if (this.onYRangeCallback) this.onYRangeCallback(dataYMin, dataYMax, 'data');
         }
 
-        if (seriesList.length > 0) {
+        if (flattenedSeriesList.length > 0) {
             const nextOption = {
+                grid: CHART_GRID,
                 xAxis: {
                     type: 'time',
                     min: Number.isFinite(xDomainMin) ? xDomainMin : undefined,
                     max: Number.isFinite(xDomainMax) ? xDomainMax : undefined,
                 },
                 yAxis: this._buildYAxisOption(),
-                series: seriesList,
+                series: flattenedSeriesList,
             };
             try {
                 this.chartInstance.setOption(nextOption);

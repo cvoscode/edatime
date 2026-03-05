@@ -5,9 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EdaTime</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="css/style.css?v=8">
+  <link rel="stylesheet" href="css/style.css?v=15">
 </head>
 <body>
+
+<div class="app-layout">
+
+  <!-- ==================== Sidebar ==================== -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-title">EdaTime</div>
+    <button class="nav-item" type="button" data-page="upload" title="Upload">
+      <span class="nav-icon">U</span>
+      <span class="nav-text">Upload</span>
+    </button>
+    <button class="nav-item active" type="button" data-page="chart" title="Chart">
+      <span class="nav-icon">C</span>
+      <span class="nav-text">Chart</span>
+    </button>
+
+    <div class="sidebar-spacer"></div>
+    <button class="nav-item nav-collapse" id="sidebar-collapse-btn" type="button" title="Collapse">
+      <span class="nav-icon">≡</span>
+      <span class="nav-text">Collapse</span>
+    </button>
+  </nav>
+
+  <div class="app-content">
 
 <!-- ==================== Header ==================== -->
 <header>
@@ -26,40 +49,26 @@
   </div>
 </header>
 
-<!-- ==================== Toolbar ==================== -->
-<div class="toolbar">
-  <span class="toolbar-label">Series</span>
-  <input type="text" id="column-filter-input" class="column-filter-input" placeholder="Filter columns…" aria-label="Filter columns">
-  <div class="series-toggles" id="column-toggles"></div>
+<!-- ==================== Pages ==================== -->
 
-  <!-- Upload toggle button -->
-  <button class="btn btn-ghost" id="upload-toggle-btn" title="Upload dataset">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M8 11V3M5 6l3-3 3 3"/>
-      <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1"/>
-    </svg>
-    Upload
-  </button>
-</div>
-
-<div class="range-toolbar" id="column-range-controls"></div>
-
-<div class="analysis-toolbar" id="analysis-toolbar">
-  <span class="toolbar-label">Analysis</span>
-  <div class="analysis-controls">
-    <button class="btn btn-ghost" id="zoom-reset-btn" type="button">Reset View</button>
+<!-- ===== Chart page ===== -->
+<section class="page" id="page-chart" data-page-name="chart">
+  <!-- ==================== Toolbar (Chart only) ==================== -->
+  <div class="toolbar">
+    <span class="toolbar-label">Series</span>
+    <input type="text" id="column-filter-input" class="column-filter-input" placeholder="Filter columns…" aria-label="Filter columns">
+    <div class="series-toggles" id="column-toggles"></div>
   </div>
-  <div class="analysis-stats">
-    <span id="analysis-zoom">Range: —</span>
-    <span id="analysis-y">Y: —</span>
-    <span id="analysis-cursor">Cursor: —</span>
-    <span id="analysis-click">Click: —</span>
-  </div>
-</div>
 
-<!-- ==================== Upload Panel (collapsed by default) ==================== -->
-<div id="upload-panel" class="open">
-  <div class="upload-inner">
+  <main class="main">
+    <div id="main-chart"></div>
+  </main>
+</section>
+
+<!-- ===== Upload page ===== -->
+<section class="page page-upload" id="page-upload" data-page-name="upload" hidden>
+  <div id="upload-panel" class="open">
+    <div class="upload-inner">
 
     <!-- Column 1: Drop zone -->
     <div class="drop-zone" id="drop-zone">
@@ -105,6 +114,13 @@
             <input type="number" id="skip-rows-input" placeholder="0" min="0" value="0">
           </div>
         </div>
+        <div class="field-group">
+          <label>Time range (optional)</label>
+          <div class="row">
+            <input type="datetime-local" id="time-start-input" aria-label="Start time">
+            <input type="datetime-local" id="time-end-input" aria-label="End time">
+          </div>
+        </div>
       </div>
     </div>
 
@@ -123,13 +139,51 @@
       <div class="upload-status" id="upload-status"></div>
     </div>
   </div>
+
+  </div>
+</section>
+
+<!-- ==================== Column Filter Modal ==================== -->
+<div id="column-filter-modal" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="column-filter-title">
+    <div class="modal-header">
+      <div class="modal-title" id="column-filter-title">Filter column</div>
+      <button class="btn btn-ghost" id="column-filter-close-btn" type="button">Close</button>
+    </div>
+
+    <div class="modal-body">
+      <label class="modal-field">
+        <span class="modal-label">Column</span>
+        <select id="column-filter-col" class="modal-select" aria-label="Select column"></select>
+      </label>
+
+      <div class="modal-grid">
+        <label class="modal-field">
+          <span class="modal-label">Min</span>
+          <input id="column-filter-min" class="modal-input" type="number" step="any" aria-label="Minimum value">
+        </label>
+        <label class="modal-field">
+          <span class="modal-label">Max</span>
+          <input id="column-filter-max" class="modal-input" type="number" step="any" aria-label="Maximum value">
+        </label>
+      </div>
+
+      <div class="modal-hint" id="column-filter-hint"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="column-filter-clear-btn" type="button">Clear</button>
+      <div class="modal-actions-right">
+        <button class="btn btn-ghost" id="column-filter-cancel-btn" type="button">Cancel</button>
+        <button class="btn btn-primary" id="column-filter-apply-btn" type="button">Apply</button>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- ==================== Chart ==================== -->
-<main class="main">
-  <div id="main-chart"></div>
-</main>
+  </div>
+</div>
 
-<script type="module" src="js/app.js?v=31"></script>
+<script type="module" src="js/app.js?v=45"></script>
 </body>
 </html>

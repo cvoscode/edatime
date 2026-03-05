@@ -2,7 +2,7 @@ use polars::prelude::*;
 use std::path::Path;
 
 pub fn load_dataframe<P: AsRef<Path>>(path: P) -> PolarsResult<DataFrame> {
-    load_dataframe_partial(path, None, 0)
+    load_dataframe_partial(path, None, 0, None, None)
 }
 
 /// Load a DataFrame with optional row-level limits.
@@ -12,6 +12,8 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
     path: P,
     n_rows: Option<usize>,
     skip_rows: usize,
+    time_start_ms: Option<i64>,
+    time_end_ms: Option<i64>,
 ) -> PolarsResult<DataFrame> {
     let path_ref = path.as_ref();
     let is_parquet = path_ref.extension().map_or(false, |ext| ext == "parquet");
@@ -41,6 +43,7 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
         reader.finish()?.collect()?
     };
 
+    // If the partial read returns empty, fail early before attempting column inference.
     if df.height() == 0 {
         return Err(PolarsError::ComputeError(
             "No rows loaded for the selected partial range. Reduce skip_rows or increase n_rows.".into(),
@@ -78,8 +81,32 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
         df.rename(old_name.as_str().into(), "ts".into())?;
     }
 
+    // Apply optional time filtering + ensure a consistent ts dtype.
+    let mut lf = df.lazy().with_column(
+        col("ts")
+            .cast(DataType::Datetime(TimeUnit::Milliseconds, None))
+            .alias("ts"),
+    );
+
+    if let Some(start_ms) = time_start_ms {
+        lf = lf.filter(
+            col("ts").gt_eq(lit(start_ms).cast(DataType::Datetime(TimeUnit::Milliseconds, None))),
+        );
+    }
+    if let Some(end_ms) = time_end_ms {
+        lf = lf.filter(
+            col("ts").lt_eq(lit(end_ms).cast(DataType::Datetime(TimeUnit::Milliseconds, None))),
+        );
+    }
+
     // LTTB requires data to be sorted by X
-    df = df.lazy().sort(["ts"], SortMultipleOptions::default()).collect()?;
+    df = lf.sort(["ts"], SortMultipleOptions::default()).collect()?;
+
+    if df.height() == 0 {
+        return Err(PolarsError::ComputeError(
+            "No rows loaded for the selected time range. Widen the time range or remove time filters.".into(),
+        ));
+    }
 
     Ok(df)
 }

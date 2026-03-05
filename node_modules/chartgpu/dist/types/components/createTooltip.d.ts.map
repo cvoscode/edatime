@@ -1,1 +1,0 @@
-{"version":3,"file":"createTooltip.d.ts","sourceRoot":"","sources":["../../../src/components/createTooltip.ts"],"names":[],"mappings":"AAAA,MAAM,WAAW,OAAO;IACtB;;;;OAIG;IACH,IAAI,CAAC,CAAC,EAAE,MAAM,EAAE,CAAC,EAAE,MAAM,EAAE,OAAO,EAAE,MAAM,GAAG,IAAI,CAAC;IAClD,IAAI,IAAI,IAAI,CAAC;IACb,OAAO,IAAI,IAAI,CAAC;CACjB;AASD,wBAAgB,aAAa,CAAC,SAAS,EAAE,WAAW,GAAG,OAAO,CAsL7D"}

@@ -56,6 +56,21 @@ export async function fetchData(start, end, width, columns = "value") {
         dbg('content-length', res.headers.get('content-length'));
     }
 
+    const downsampledHeader = res.headers.get('x-edatime-downsampled');
+    const returnedRowsHeader = res.headers.get('x-edatime-returned-rows');
+    const targetPointsHeader = res.headers.get('x-edatime-target-points');
+
+    const hasDownsampleHeader = downsampledHeader === '0' || downsampledHeader === '1';
+    let isDownsampled = downsampledHeader === '1';
+    const returnedRows = Number.parseInt(returnedRowsHeader ?? '', 10);
+    const targetPoints = Number.parseInt(targetPointsHeader ?? '', 10);
+
+    if (DEBUG) {
+        dbg('x-edatime-downsampled', downsampledHeader);
+        dbg('x-edatime-returned-rows', returnedRowsHeader);
+        dbg('x-edatime-target-points', targetPointsHeader);
+    }
+
     if (!res.ok) {
         const text = await res.text().catch(() => '');
         throw new Error(`Data fetch failed (${res.status}) ${text}`);
@@ -107,10 +122,26 @@ export async function fetchData(start, end, width, columns = "value") {
         dbg('ts epoch-ms first/last', first, last);
     }
 
+    if (!hasDownsampleHeader) {
+        // Fallback heuristic when server does not expose downsample metadata:
+        // if returned rows hit/exceed the request cap (width*2), treat as downsampled.
+        isDownsampled = len >= width * 2;
+    }
+
     const dataObj = {
         ts: tsArray,
-        values: {}
+        values: {},
+        _meta: {
+            downsampled: isDownsampled,
+            downsampleKnown: hasDownsampleHeader,
+            returnedRows: Number.isFinite(returnedRows) ? returnedRows : len,
+            targetPoints: Number.isFinite(targetPoints) ? targetPoints : width * 2,
+        },
     };
+
+    if (DEBUG) {
+        dbg('downsample meta', dataObj._meta);
+    }
 
     const requestedCols = columns.split(',');
     requestedCols.forEach(colName => {

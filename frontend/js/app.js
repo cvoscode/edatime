@@ -34,6 +34,47 @@ if (DEBUG) {
     });
 }
 
+// ─── Pages (Sidebar navigation) ───────────────────────────────────────────
+function initPages() {
+    const navButtons = Array.from(document.querySelectorAll('.sidebar .nav-item[data-page]'));
+    const pages = Array.from(document.querySelectorAll('.page[data-page-name]'));
+    if (navButtons.length === 0 || pages.length === 0) return;
+
+    const layout = document.querySelector('.app-layout');
+    const collapseBtn = document.getElementById('sidebar-collapse-btn');
+    if (layout && collapseBtn && !collapseBtn.dataset.bound) {
+        collapseBtn.addEventListener('click', () => {
+            layout.classList.toggle('sidebar-collapsed');
+            // Ensure chart resizes when layout changes.
+            requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+        });
+        collapseBtn.dataset.bound = '1';
+    }
+
+    function showPage(pageName) {
+        for (const p of pages) {
+            const hide = (p.dataset.pageName !== pageName);
+            p.hidden = hide;
+            // Avoid any CSS overriding [hidden].
+            p.style.display = hide ? 'none' : 'flex';
+        }
+        for (const btn of navButtons) {
+            btn.classList.toggle('active', btn.dataset.page === pageName);
+        }
+
+        if (pageName === 'chart') {
+            requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+        }
+    }
+
+    for (const btn of navButtons) {
+        btn.addEventListener('click', () => showPage(btn.dataset.page));
+    }
+
+    // Default page.
+    showPage('chart');
+}
+
 class FallbackChart {
     constructor(containerId) {
         this.containerId = containerId;
@@ -166,12 +207,179 @@ class FallbackChart {
 async function ensureChartModules() {
     if (fetchMetadata && fetchData && DataChart) return;
     const [dataClient, chartModule] = await Promise.all([
-        import('./dataClient.js?v=10'),
-        import('./chart.js?v=26'),
+        import('./dataClient.js?v=11'),
+        import('./chart.js?v=32'),
     ]);
     fetchMetadata = dataClient.fetchMetadata;
     fetchData = dataClient.fetchData;
     DataChart = chartModule.DataChart;
+}
+
+// ─── Column filter modal ───────────────────────────────────────────────────
+function initColumnFilterModal() {
+    const openBtn = document.getElementById('column-filter-open-btn');
+    const modal = document.getElementById('column-filter-modal');
+    const closeBtn = document.getElementById('column-filter-close-btn');
+    const cancelBtn = document.getElementById('column-filter-cancel-btn');
+    const applyBtn = document.getElementById('column-filter-apply-btn');
+    const clearBtn = document.getElementById('column-filter-clear-btn');
+    const colSelect = document.getElementById('column-filter-col');
+    const minInput = document.getElementById('column-filter-min');
+    const maxInput = document.getElementById('column-filter-max');
+    const hint = document.getElementById('column-filter-hint');
+
+    const openBtns = [openBtn].filter(Boolean);
+    if (!modal || !closeBtn || !cancelBtn || !applyBtn || !clearBtn || !colSelect || !minInput || !maxInput || !hint) return;
+    if (modal.dataset.bound) return;
+
+    function setHint(text) {
+        hint.textContent = text || '';
+    }
+
+    function getFullBoundsForCol(col) {
+        const values = appState.lastFetchedData?.values?.[col];
+        if (!values) return null;
+        return computeBounds(values);
+    }
+
+    function populateColumns(selectedCol = null) {
+        const cols = appState.selectedCols || [];
+        colSelect.innerHTML = '';
+
+        if (cols.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'No series selected';
+            colSelect.appendChild(opt);
+            colSelect.value = '';
+            return;
+        }
+
+        for (const col of cols) {
+            const opt = document.createElement('option');
+            opt.value = col;
+            opt.textContent = col;
+            colSelect.appendChild(opt);
+        }
+
+        if (selectedCol && cols.includes(selectedCol)) colSelect.value = selectedCol;
+        else colSelect.value = cols[0];
+    }
+
+    function refreshInputsForCol(col) {
+        if (!col) {
+            minInput.value = '';
+            maxInput.value = '';
+            applyBtn.disabled = true;
+            clearBtn.disabled = true;
+            setHint('Select a column to filter.');
+            return;
+        }
+
+        if (!appState.lastFetchedData) {
+            applyBtn.disabled = true;
+            clearBtn.disabled = true;
+            setHint('Data not loaded yet.');
+            return;
+        }
+
+        const full = getFullBoundsForCol(col);
+        if (!full) {
+            applyBtn.disabled = true;
+            clearBtn.disabled = true;
+            setHint('No data for this column in the current range.');
+            return;
+        }
+
+        const cur = appState.columnRanges[col] ?? { from: full.min, to: full.max };
+        minInput.value = String(cur.from);
+        maxInput.value = String(cur.to);
+        applyBtn.disabled = false;
+        clearBtn.disabled = false;
+        setHint(`Full range: ${formatAnalysisNumber(full.min)} → ${formatAnalysisNumber(full.max)}`);
+    }
+
+    function openModalForCol(col) {
+        populateColumns(col || colSelect.value || appState.selectedCols?.[0] || null);
+        refreshInputsForCol(colSelect.value);
+        modal.hidden = false;
+        try { minInput.focus(); } catch (_) {}
+    }
+
+    function closeModal() {
+        modal.hidden = true;
+        setHint('');
+    }
+
+    // Expose helper so range chips can open the modal directly.
+    window.__edatime = window.__edatime || {};
+    window.__edatime.openFilterForCol = openModalForCol;
+
+    for (const btn of openBtns) {
+        btn.addEventListener('click', () => openModalForCol(null));
+    }
+    closeBtn.addEventListener('click', () => closeModal());
+    cancelBtn.addEventListener('click', () => closeModal());
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    window.addEventListener('keydown', (e) => {
+        if (modal.hidden) return;
+        if (e.key === 'Escape') closeModal();
+    });
+
+    colSelect.addEventListener('change', () => {
+        refreshInputsForCol(colSelect.value);
+    });
+
+    clearBtn.addEventListener('click', () => {
+        const col = colSelect.value;
+        const full = getFullBoundsForCol(col);
+        if (!col || !full) return;
+
+        appState.columnRanges[col] = { from: full.min, to: full.max };
+        buildRangeControls();
+        renderCurrentData();
+        appState.chart?.fitYToData?.();
+        const yr = appState.chart?.getYRange?.();
+        if (yr) updateAnalysisYRange(yr.min, yr.max, 'filter');
+        refreshInputsForCol(col);
+    });
+
+    applyBtn.addEventListener('click', () => {
+        const col = colSelect.value;
+        if (!col) return;
+
+        let from = Number.parseFloat(minInput.value);
+        let to = Number.parseFloat(maxInput.value);
+
+        const full = getFullBoundsForCol(col);
+        if (full) {
+            if (!Number.isFinite(from)) from = full.min;
+            if (!Number.isFinite(to)) to = full.max;
+        }
+
+        if (!Number.isFinite(from) || !Number.isFinite(to)) {
+            setHint('Enter a valid min and max.');
+            return;
+        }
+
+        if (from > to) {
+            const tmp = from;
+            from = to;
+            to = tmp;
+        }
+
+        appState.columnRanges[col] = { from, to };
+        buildRangeControls();
+        renderCurrentData();
+        appState.chart?.fitYToData?.();
+        const yr = appState.chart?.getYRange?.();
+        if (yr) updateAnalysisYRange(yr.min, yr.max, 'filter');
+        closeModal();
+    });
+
+    modal.dataset.bound = '1';
 }
 
 // ─── Colour palette (matches CSS) ──────────────────────────────────────────
@@ -217,7 +425,7 @@ let appState = {
     refetchOnZoom: true,
     initialView: null,       // { xMin, xMax, yMin, yMax } captured after first data load
     zoomHistory: [],         // up to 5 snapshots of { xMin, xMax, yMin, yMax }
-    pendingYMode: null,      // 'fit' | 'restore' | null
+    pendingYMode: 'fit',     // 'fit' | 'restore' | null
     pendingRestoreY: null,   // { min, max } when pendingYMode === 'restore'
 };
 
@@ -232,7 +440,7 @@ function setMetaText(text) {
 
 function buildMetaBar(metadata) {
     const rows = metadata.total_rows?.toLocaleString() ?? '?';
-    const cols = metadata.numeric_columns?.length ?? 0;
+    const cols = appState.numericCols?.length ?? 0;
     const series = appState.selectedCols.join(', ') || '—';
     document.getElementById('header-meta').innerHTML = `
         <div class="meta-stat live"><strong>${rows}</strong> rows</div>
@@ -248,7 +456,81 @@ function formatAnalysisTime(tsMs) {
 
 function formatAnalysisNumber(value) {
     if (!Number.isFinite(value)) return '—';
-    return Math.abs(value) >= 1000 ? value.toLocaleString(undefined, { maximumFractionDigits: 3 }) : value.toFixed(4).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+    return value.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+}
+
+function sanitizeSelectedColumns() {
+    const blockedNames = new Set(['ts', 'timestamp', 'time']);
+    const datetimeCols = new Set(
+        (appState.metadata?.columns || [])
+            .filter((col) => /date|time/i.test(String(col?.dtype || '')))
+            .map((col) => String(col?.name || '').toLowerCase())
+    );
+
+    appState.selectedCols = (appState.selectedCols || []).filter((col) => {
+        const name = String(col || '').trim();
+        if (!name) return false;
+        const lower = name.toLowerCase();
+        if (blockedNames.has(lower)) return false;
+        if (datetimeCols.has(lower)) return false;
+        return true;
+    });
+
+    if (appState.selectedCols.length === 0) {
+        const fallback = (appState.numericCols || []).find((col) => {
+            const lower = String(col || '').toLowerCase();
+            return !blockedNames.has(lower) && !datetimeCols.has(lower);
+        });
+        if (fallback) appState.selectedCols = [fallback];
+    }
+}
+
+function computeRenderedYDebugSnapshot() {
+    if (!appState.lastFetchedData) return null;
+
+    const filtered = applyColumnRanges(appState.lastFetchedData);
+    let globalMin = Number.POSITIVE_INFINITY;
+    let globalMax = Number.NEGATIVE_INFINITY;
+    const perSeries = [];
+
+    for (const col of appState.selectedCols || []) {
+        const seriesData = filtered.series?.[col];
+        const yValues = seriesData ? seriesData.y : filtered.values?.[col];
+        if (!yValues) continue;
+
+        let min = Number.POSITIVE_INFINITY;
+        let max = Number.NEGATIVE_INFINITY;
+        let count = 0;
+        for (let i = 0; i < yValues.length; i++) {
+            const y = Number(yValues[i]);
+            if (!Number.isFinite(y)) continue;
+            count += 1;
+            if (y < min) min = y;
+            if (y > max) max = y;
+        }
+
+        if (count > 0) {
+            if (min < globalMin) globalMin = min;
+            if (max > globalMax) globalMax = max;
+        }
+
+        perSeries.push({
+            name: col,
+            points: count,
+            yMin: count > 0 ? min : null,
+            yMax: count > 0 ? max : null,
+        });
+    }
+
+    return {
+        selectedCols: [...(appState.selectedCols || [])],
+        globalYMin: Number.isFinite(globalMin) ? globalMin : null,
+        globalYMax: Number.isFinite(globalMax) ? globalMax : null,
+        perSeries,
+    };
 }
 
 function setAnalysisStatus(id, text) {
@@ -285,6 +567,16 @@ function updateAnalysisClick(payload) {
     const y = Number(payload.value[1]);
     const seriesName = payload.seriesName || 'series';
     setAnalysisStatus('analysis-click', `Click: ${seriesName}=${formatAnalysisNumber(y)} @ ${formatAnalysisTime(x)}`);
+
+    if (DEBUG) {
+        const snapshot = computeRenderedYDebugSnapshot();
+        dbgGroup('click-debug', () => {
+            dbg('payload', payload);
+            dbg('tooltipValueY', y);
+            dbg('renderedSnapshot', snapshot);
+            dbg('chartYRange', appState.chart?.getYRange?.());
+        });
+    }
 }
 
 function refreshZoomControlsState() {
@@ -385,6 +677,19 @@ function bindAnalysisChartEvents() {
             if (dom?.min && Number.isFinite(dom.min)) x = dom.min + x;
         }
         updateAnalysisCursor(x);
+
+        if (DEBUG) {
+            const now = Date.now();
+            const last = appState._debugLastCrosshairLogTs ?? 0;
+            if (now - last >= 500) {
+                appState._debugLastCrosshairLogTs = now;
+                dbg('crosshair-debug', {
+                    payload,
+                    xAbs: x,
+                    chartYRange: appState.chart?.getYRange?.(),
+                });
+            }
+        }
     });
 
     appState.chart.onClick?.((payload) => {
@@ -405,9 +710,27 @@ function bindAnalysisChartEvents() {
 
 // ─── Column toggles (chips) ─────────────────────────────────────────────────
 function buildColumnToggles() {
+    sanitizeSelectedColumns();
     const container = document.getElementById('column-toggles');
     if (!container) return;
     container.innerHTML = '';
+
+    // Double-click a chip to open the filter modal for that column.
+    if (!container.dataset.dblBound) {
+        container.addEventListener('dblclick', (e) => {
+            const chip = e.target?.closest?.('.series-chip');
+            if (!chip) return;
+            const input = chip.querySelector('input[type="checkbox"]');
+            const col = input?.value;
+            if (!col) return;
+            const open = window.__edatime?.openFilterForCol;
+            if (typeof open !== 'function') return;
+            e.preventDefault();
+            e.stopPropagation();
+            open(col);
+        });
+        container.dataset.dblBound = '1';
+    }
 
     const visibleCols = appState.numericCols.filter((col) => {
         if (!appState.filterText) return true;
@@ -495,34 +818,29 @@ function buildRangeControls() {
         if (!range) continue;
 
         const chip = document.createElement('div');
-        chip.className = 'range-chip';
+        chip.className = 'range-chip range-chip--clickable';
+        chip.setAttribute('role', 'button');
+        chip.setAttribute('tabindex', '0');
+        chip.setAttribute('aria-label', `Filter ${col}`);
         chip.innerHTML = `
             <span class="name">${col}</span>
-            <input type="number" step="any" value="${range.from}" data-col="${col}" data-kind="from" aria-label="${col} minimum">
-            <input type="number" step="any" value="${range.to}" data-col="${col}" data-kind="to" aria-label="${col} maximum">
+            <span class="range">${formatAnalysisNumber(range.from)} → ${formatAnalysisNumber(range.to)}</span>
         `;
+
+        const open = () => {
+            const fn = window.__edatime?.openFilterForCol;
+            if (typeof fn === 'function') fn(col);
+        };
+
+        chip.addEventListener('click', open);
+        chip.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                open();
+            }
+        });
         container.appendChild(chip);
     }
-
-    container.querySelectorAll('input[data-col]').forEach((input) => {
-        input.addEventListener('change', (e) => {
-            const col = e.target.dataset.col;
-            const kind = e.target.dataset.kind;
-            const value = Number.parseFloat(e.target.value);
-            if (!col || !kind || !Number.isFinite(value) || !appState.columnRanges[col]) return;
-
-            appState.columnRanges[col][kind] = value;
-
-            if (appState.columnRanges[col].from > appState.columnRanges[col].to) {
-                const tmp = appState.columnRanges[col].from;
-                appState.columnRanges[col].from = appState.columnRanges[col].to;
-                appState.columnRanges[col].to = tmp;
-                buildRangeControls();
-            }
-
-            renderCurrentData();
-        });
-    });
 }
 
 function applyColumnRanges(dataObj) {
@@ -580,12 +898,14 @@ function initUploadPanel() {
     const nRowsRange  = document.getElementById('n-rows-range');
     const nRowsDisp   = document.getElementById('n-rows-display');
     const skipInput   = document.getElementById('skip-rows-input');
+    const timeStartInput = document.getElementById('time-start-input');
+    const timeEndInput = document.getElementById('time-end-input');
     const uploadBtn   = document.getElementById('upload-btn');
     const statusEl    = document.getElementById('upload-status');
     const progressWrap = document.getElementById('progress-wrap');
     const progressBar  = document.getElementById('progress-bar');
 
-    if (!toggleBtn || !panel || !browseBtn || !fileInput || !dropZone || !fileDisplay ||
+    if (!panel || !browseBtn || !fileInput || !dropZone || !fileDisplay ||
         !partialChk || !partialFlds || !nRowsInput || !nRowsRange || !nRowsDisp ||
         !skipInput || !uploadBtn || !statusEl || !progressWrap || !progressBar) {
         console.error('Upload panel is missing required elements.');
@@ -595,11 +915,16 @@ function initUploadPanel() {
     let selectedFile = null;
 
     // Panel open/close
-    toggleBtn.addEventListener('click', () => {
-        panel.classList.toggle('open');
-        toggleBtn.classList.toggle('btn-primary');
-        toggleBtn.classList.toggle('btn-ghost');
-    });
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            panel.classList.toggle('open');
+            toggleBtn.classList.toggle('btn-primary');
+            toggleBtn.classList.toggle('btn-ghost');
+        });
+    } else {
+        // In the sidebar Upload page layout the panel should be visible.
+        panel.classList.add('open');
+    }
 
     // Browse / choose
     dropZone.addEventListener('click', (e) => {
@@ -626,6 +951,9 @@ function initUploadPanel() {
     partialChk.addEventListener('change', () => {
         partialFlds.classList.toggle('visible', partialChk.checked);
     });
+
+    // Set initial state
+    partialFlds.classList.toggle('visible', partialChk.checked);
 
     // Sync range ↔ number input
     function fmtRows(n) {
@@ -676,6 +1004,18 @@ function initUploadPanel() {
                 return;
             }
             if (skipRows > 0) formData.append('skip_rows', String(skipRows));
+
+            const toIsoOrNull = (datetimeLocalValue) => {
+                const v = (datetimeLocalValue || '').trim();
+                if (!v) return null;
+                const ms = Date.parse(v);
+                if (!Number.isFinite(ms)) return null;
+                return new Date(ms).toISOString();
+            };
+            const tStartIso = toIsoOrNull(timeStartInput?.value);
+            const tEndIso = toIsoOrNull(timeEndInput?.value);
+            if (tStartIso) formData.append('time_start', tStartIso);
+            if (tEndIso) formData.append('time_end', tEndIso);
         }
 
         uploadBtn.disabled = true;
@@ -728,6 +1068,25 @@ function initUploadPanel() {
     }
 }
 
+// ─── Chart page gestures ───────────────────────────────────────────────────
+function initChartPageFilterGesture() {
+    const pageChart = document.getElementById('page-chart');
+    if (!pageChart) return;
+    if (pageChart.dataset.filterDblBound) return;
+
+    pageChart.addEventListener('dblclick', (e) => {
+        // Keep double-click on the plot itself for zoom-out history.
+        const inPlot = e.target?.closest?.('#main-chart');
+        if (inPlot) return;
+
+        const open = window.__edatime?.openFilterForCol;
+        if (typeof open !== 'function') return;
+        open(null);
+    });
+
+    pageChart.dataset.filterDblBound = '1';
+}
+
 // ─── Zoom handler (called from drag-select in chart.js) ─────────────────────
 function onZoomRangeChange(newStart, newEnd, sourceKind = 'user') {
     if (appState.fetchDebounceId) clearTimeout(appState.fetchDebounceId);
@@ -763,6 +1122,7 @@ function onZoomRangeChange(newStart, newEnd, sourceKind = 'user') {
 // ─── Fetch + render ──────────────────────────────────────────────────────────
 async function fetchAndRender() {
     try {
+        sanitizeSelectedColumns();
         const startIso = new Date(appState.currentStart).toISOString();
         const endIso   = new Date(appState.currentEnd).toISOString();
         const width    = document.getElementById('main-chart').clientWidth || 1200;
@@ -770,6 +1130,7 @@ async function fetchAndRender() {
 
         dbgGroup('fetchAndRender', () => {
             dbg('request', { startIso, endIso, width, cols });
+            dbg('selectedCols', appState.selectedCols);
         });
 
         const data = await fetchData(startIso, endIso, width, cols);
@@ -797,12 +1158,13 @@ async function fetchAndRender() {
 
         renderCurrentData();
 
-        // Apply pending Y mode after the new data is in.
-        if (appState.pendingYMode === 'restore' && appState.pendingRestoreY) {
-            appState.chart?.setYRange?.(appState.pendingRestoreY.min, appState.pendingRestoreY.max);
-        } else if (appState.pendingYMode === 'fit') {
-            appState.chart?.fitYToData?.();
+        if (DEBUG) {
+            const snapshot = computeRenderedYDebugSnapshot();
+            window.__edatime.debugYSnapshot = snapshot;
+            dbg('post-render renderedSnapshot', snapshot);
         }
+
+        // Y axis is fully managed by ChartGPU (no app-level min/max forcing).
 
         const yr = appState.chart?.getYRange?.();
         if (yr) updateAnalysisYRange(yr.min, yr.max, 'data');
@@ -821,9 +1183,12 @@ async function fetchAndRender() {
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 async function init() {
+    initPages();
     // Initialize upload panel immediately so it always works regardless of WebGPU
     initUploadPanel();
     initAnalysisControls();
+    initColumnFilterModal();
+    initChartPageFilterGesture();
     try {
         await ensureChartModules();
     } catch (e) {
@@ -847,8 +1212,10 @@ async function init() {
             return;
         }
 
-        appState.numericCols  = appState.metadata.numeric_columns || [];
+        appState.numericCols = (appState.metadata.numeric_columns || [])
+            .filter((col) => col && col.toLowerCase() !== 'ts');
         appState.selectedCols = appState.numericCols.length > 0 ? [appState.numericCols[0]] : ['value'];
+        sanitizeSelectedColumns();
 
         const columnFilterInput = document.getElementById('column-filter-input');
         if (columnFilterInput) {

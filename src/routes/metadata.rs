@@ -48,7 +48,7 @@ pub async fn get_metadata(State(state): State<AppState>) -> Result<Json<DatasetM
                 dtype: dt.to_string(),
             });
 
-            if dt.is_numeric() {
+            if dt.is_numeric() && name != "ts" {
                 numeric_columns.push(name.clone());
             }
         }
