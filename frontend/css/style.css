@@ -154,6 +154,42 @@ body {
   display: none !important;
 }
 
+/* ─── Chart Text Overlays (Title + Axis Labels) ───────────────────────── */
+.chart-text-overlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 7;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.2;
+  text-shadow: 0 1px 0 rgba(0,0,0,.35);
+}
+
+.chart-title-overlay {
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.chart-xlabel-overlay {
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--text-dim);
+}
+
+.chart-ylabel-overlay {
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%) rotate(-90deg);
+  transform-origin: left top;
+  color: var(--text-dim);
+}
+
+
+
 /* ─── Header ─────────────────────────────────────────────────── */
 header {
   flex-shrink: 0;

@@ -208,7 +208,7 @@ async function ensureChartModules() {
     if (fetchMetadata && fetchData && DataChart) return;
     const [dataClient, chartModule] = await Promise.all([
         import('./dataClient.js?v=11'),
-        import('./chart.js?v=33'),
+        import('./chart.js?v=41'),
     ]);
     fetchMetadata = dataClient.fetchMetadata;
     fetchData = dataClient.fetchData;
@@ -433,6 +433,7 @@ let appState = {
     profileGridHeaderBound: false,
     profileGridSort: { key: 'name', dir: 'asc' },
     profileGridColWidths: [220, 120, 140, 100, 130, 130, 260],
+    chartText: { title: '', xLabel: '', yLabel: '' },
 };
 
 const PROFILE_ROW_HEIGHT = 38;
@@ -1081,6 +1082,70 @@ function initAnalysisControls() {
         zoomResetBtn.addEventListener('click', () => resetZoom());
         zoomResetBtn.dataset.bound = '1';
     }
+
+    // Drawing Controls
+    const drawTool = document.getElementById('draw-tool');
+    const drawColor = document.getElementById('draw-color');
+    const drawWidth = document.getElementById('draw-width');
+    const drawClearBtn = document.getElementById('draw-clear-btn');
+
+    const updateDrawMode = () => {
+        if (appState.chart && appState.chart.setDrawMode) {
+            appState.chart.setDrawMode(drawTool.value, drawColor.value, parseInt(drawWidth.value, 10));
+        }
+    };
+
+    if (drawTool) drawTool.addEventListener('change', updateDrawMode);
+    if (drawColor) drawColor.addEventListener('input', updateDrawMode);
+    if (drawWidth) drawWidth.addEventListener('input', updateDrawMode);
+    if (drawClearBtn) {
+        drawClearBtn.addEventListener('click', () => {
+            if (appState.chart && appState.chart.clearDrawings) appState.chart.clearDrawings();
+        });
+    }
+
+    // Export Controls
+    const exportPngBtn = document.getElementById('export-png-btn');
+    const exportSvgBtn = document.getElementById('export-svg-btn');
+    const exportHtmlBtn = document.getElementById('export-html-btn');
+
+    if (exportPngBtn) exportPngBtn.addEventListener('click', () => appState.chart?.exportPNG?.());
+    if (exportSvgBtn) exportSvgBtn.addEventListener('click', () => appState.chart?.exportSVG?.());
+    if (exportHtmlBtn) exportHtmlBtn.addEventListener('click', () => appState.chart?.exportHTML?.());
+
+    // Title + axis label controls
+    const titleInput = document.getElementById('chart-title-input');
+    const xLabelInput = document.getElementById('x-axis-label-input');
+    const yLabelInput = document.getElementById('y-axis-label-input');
+
+    const applyChartText = () => {
+        appState.chartText = {
+            title: titleInput?.value ?? appState.chartText.title,
+            xLabel: xLabelInput?.value ?? appState.chartText.xLabel,
+            yLabel: yLabelInput?.value ?? appState.chartText.yLabel,
+        };
+        appState.chart?.setChartText?.(appState.chartText.title, appState.chartText.xLabel, appState.chartText.yLabel);
+    };
+
+    if (titleInput && !titleInput.dataset.bound) {
+        titleInput.value = appState.chartText.title || '';
+        titleInput.addEventListener('input', applyChartText);
+        titleInput.dataset.bound = '1';
+    }
+    if (xLabelInput && !xLabelInput.dataset.bound) {
+        xLabelInput.value = appState.chartText.xLabel || '';
+        xLabelInput.addEventListener('input', applyChartText);
+        xLabelInput.dataset.bound = '1';
+    }
+    if (yLabelInput && !yLabelInput.dataset.bound) {
+        yLabelInput.value = appState.chartText.yLabel || '';
+        yLabelInput.addEventListener('input', applyChartText);
+        yLabelInput.dataset.bound = '1';
+    }
+
+    // Apply once on init in case chart already exists.
+    applyChartText();
+
     refreshZoomControlsState();
 }
 
@@ -1727,6 +1792,7 @@ async function init() {
         bindAnalysisChartEvents();
         refreshZoomControlsState();
         appState.chart?.setXRange?.(appState.currentStart, appState.currentEnd);
+        appState.chart?.setChartText?.(appState.chartText?.title || '', appState.chartText?.xLabel || '', appState.chartText?.yLabel || '');
 
         await fetchAndRender();
         // Save the initial full view (X + auto-fit Y) so Reset always returns here.

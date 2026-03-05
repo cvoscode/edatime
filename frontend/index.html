@@ -48,9 +48,34 @@
 
 <section class="page" id="page-chart" data-page-name="chart">
   <div class="toolbar">
-    <span class="toolbar-label">Series</span>
-    <input type="text" id="column-filter-input" class="column-filter-input" placeholder="Filter columns…" aria-label="Filter columns">
-    <div class="series-toggles" id="column-toggles"></div>
+    <div class="toolbar-group" style="display:flex; align-items:center; gap:0.5rem;">
+      <span class="toolbar-label">Series</span>
+      <input type="text" id="column-filter-input" class="column-filter-input" placeholder="Filter columns…" aria-label="Filter columns">
+      <div class="series-toggles" id="column-toggles"></div>
+    </div>
+    <div class="toolbar-group draw-toolbar" style="display:flex; align-items:center; gap:0.5rem; margin-left: auto;">
+      <span class="toolbar-label">Draw</span>
+      <select id="draw-tool" class="draw-select" style="padding: 0.2rem; background: var(--surface-2); color: var(--text-1); border: 1px solid var(--border);">
+        <option value="none">None (Pan)</option>
+        <option value="arrow">Arrow</option>
+        <option value="box">Box</option>
+      </select>
+      <input type="color" id="draw-color" value="#ff0055" title="Color" style="cursor: pointer; padding: 0; width: 24px; height: 24px; background: none; border: none;">
+      <input type="number" id="draw-width" value="2" min="1" max="10" title="Thickness" style="width: 40px; padding: 0.2rem; background: var(--surface-2); color: var(--text-1); border: 1px solid var(--border);">
+      <button class="btn btn-ghost" id="draw-clear-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Clear</button>
+    </div>
+    <div class="toolbar-group labels-toolbar" style="display:flex; align-items:center; gap:0.35rem; margin-left: 0.5rem; border-left: 1px solid var(--border); padding-left: 0.5rem;">
+      <span class="toolbar-label">Labels</span>
+      <input type="text" id="chart-title-input" placeholder="Title" aria-label="Chart title" style="width: 140px; padding: 0.2rem 0.35rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+      <input type="text" id="x-axis-label-input" placeholder="X" aria-label="X axis label" style="width: 90px; padding: 0.2rem 0.35rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+      <input type="text" id="y-axis-label-input" placeholder="Y" aria-label="Y axis label" style="width: 90px; padding: 0.2rem 0.35rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+    </div>
+    <div class="toolbar-group export-toolbar" style="display:flex; align-items:center; gap:0.25rem; margin-left: 0.5rem; border-left: 1px solid var(--border); padding-left: 0.5rem;">
+      <span class="toolbar-label">Export</span>
+      <button class="btn btn-ghost" id="export-png-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">PNG</button>
+      <button class="btn btn-ghost" id="export-svg-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">SVG</button>
+      <button class="btn btn-ghost" id="export-html-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">HTML</button>
+    </div>
   </div>
 
   <main class="main">
@@ -198,6 +223,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=49"></script>
+<script type="module" src="js/app.js?v=57"></script>
 </body>
 </html>
