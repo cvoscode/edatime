@@ -10,7 +10,7 @@ use crate::{
     state::AppState,
     error::AppError,
     ingest::load_dataframe_partial,
-    routes::metadata::build_dataset_metadata,
+    routes::metadata::build_dataset_metadata_from_path,
 };
 
 fn parse_time_ms(text: &str) -> Option<i64> {
@@ -39,7 +39,7 @@ fn move_to_real_extension(mut path: std::path::PathBuf, is_parquet: bool) -> std
 
 async fn extract_upload_parts(
     mut multipart: Multipart,
-) -> Result<(std::path::PathBuf, bool, Option<usize>, usize, Option<i64>, Option<i64>, bool), AppError> {
+) -> Result<(std::path::PathBuf, bool, Option<usize>, usize, Option<i64>, Option<i64>, Option<Vec<String>>, bool), AppError> {
     let mut temp_file = NamedTempFile::new().map_err(|e| AppError::IoError(e.to_string()))?;
     let mut is_parquet = false;
     let mut has_file = false;
@@ -47,6 +47,7 @@ async fn extract_upload_parts(
     let mut skip_rows: usize = 0;
     let mut time_start_ms: Option<i64> = None;
     let mut time_end_ms: Option<i64> = None;
+    let mut selected_columns: Option<Vec<String>> = None;
 
     while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(e.to_string()))? {
         let field_name = field.name().unwrap_or("").to_string();
@@ -72,6 +73,16 @@ async fn extract_upload_parts(
                 time_end_ms = parse_time_ms(&text);
                 tracing::debug!("partial load: time_end_ms = {:?}", time_end_ms);
             }
+            "columns" => {
+                let text = field.text().await.unwrap_or_default();
+                selected_columns = serde_json::from_str::<Vec<String>>(&text).ok().map(|cols| {
+                    cols.into_iter()
+                        .map(|col| col.trim().to_string())
+                        .filter(|col| !col.is_empty())
+                        .collect::<Vec<_>>()
+                }).filter(|cols| !cols.is_empty());
+                tracing::debug!("upload columns = {:?}", selected_columns);
+            }
             _ => {
                 let file_name = field.file_name().unwrap_or("unknown").to_string();
                 if file_name.ends_with(".parquet") {
@@ -96,7 +107,7 @@ async fn extract_upload_parts(
     let path = temp_path
         .keep()
         .map_err(|e| AppError::IoError(e.error.to_string()))?;
-    Ok((path, is_parquet, n_rows, skip_rows, time_start_ms, time_end_ms, has_file))
+    Ok((path, is_parquet, n_rows, skip_rows, time_start_ms, time_end_ms, selected_columns, has_file))
 }
 
 #[tracing::instrument(skip(state, multipart))]
@@ -106,12 +117,19 @@ pub async fn upload_data(
 ) -> Result<impl IntoResponse, AppError> {
     tracing::info!("Received file upload request");
 
-    let (path, is_parquet, n_rows, skip_rows, time_start_ms, time_end_ms, _) = extract_upload_parts(multipart).await?;
+    let (path, is_parquet, n_rows, skip_rows, time_start_ms, time_end_ms, selected_columns, _) = extract_upload_parts(multipart).await?;
 
     let df = tokio::task::block_in_place(|| {
         let final_path = move_to_real_extension(path, is_parquet);
 
-        let res = load_dataframe_partial(&final_path, n_rows, skip_rows, time_start_ms, time_end_ms);
+        let res = load_dataframe_partial(
+            &final_path,
+            n_rows,
+            skip_rows,
+            time_start_ms,
+            time_end_ms,
+            selected_columns.as_deref(),
+        );
 
         if is_parquet {
             std::fs::remove_file(&final_path).ok();
@@ -140,6 +158,7 @@ pub async fn upload_data(
         "skip_rows": skip_rows,
         "time_start_ms": time_start_ms,
         "time_end_ms": time_end_ms,
+        "selected_columns": selected_columns,
     })))
 }
 
@@ -181,14 +200,11 @@ pub async fn preview_upload_data(
     let path = temp_path
         .keep()
         .map_err(|e| AppError::IoError(e.error.to_string()))?;
-    let preview_rows = Some(150_000usize);
 
     let metadata = tokio::task::block_in_place(|| {
         let final_path = move_to_real_extension(path, is_parquet);
 
-        let res = load_dataframe_partial(&final_path, preview_rows, 0, None, None)
-            .map_err(AppError::from)
-            .and_then(|df| build_dataset_metadata(&df, false));
+        let res = build_dataset_metadata_from_path(&final_path);
 
         if is_parquet {
             std::fs::remove_file(&final_path).ok();
@@ -198,7 +214,6 @@ pub async fn preview_upload_data(
 
     Ok(Json(serde_json::json!({
         "status": "ok",
-        "preview_rows": metadata.total_rows,
         "metadata": metadata,
     })))
 }

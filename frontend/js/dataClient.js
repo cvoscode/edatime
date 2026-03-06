@@ -175,3 +175,59 @@ export async function fetchAggregate(start, end, columns = 'value', buckets = 50
 
     return res.json();
 }
+
+export async function fetchScatterPoints(x, y, limit = 1_000_000, color = null, options = null) {
+    const payload = {
+        x: String(x),
+        y: String(y),
+        limit: Number(limit),
+    };
+    if (color !== null && color !== undefined && String(color).trim() !== '') {
+        payload.color = String(color);
+    }
+    const start = Number(options?.start);
+    const end = Number(options?.end);
+    if (Number.isFinite(start) && Number.isFinite(end)) {
+        payload.start = start;
+        payload.end = end;
+    }
+    if (Array.isArray(options?.filters) && options.filters.length > 0) {
+        payload.filters = JSON.stringify(options.filters);
+    }
+    if (Array.isArray(options?.lineFilters) && options.lineFilters.length > 0) {
+        payload.line_filters = JSON.stringify(options.lineFilters);
+    }
+    const url = '/api/scatter/points';
+    dbg('POST (scatter points)', { url, payload });
+
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Scatter points fetch failed (${res.status}) ${text}`);
+    }
+    return res.json();
+}
+
+export async function fetchScatterCorrelations(base, threshold = 0.7) {
+    const params = new URLSearchParams({
+        threshold: String(threshold),
+    });
+    if (base !== null && base !== undefined && String(base).trim() !== '') {
+        params.set('base', String(base));
+    }
+    const url = `/api/scatter/correlations?${params.toString()}`;
+    dbg('GET (scatter correlations)', url);
+
+    const res = await fetch(url);
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Scatter correlations fetch failed (${res.status}) ${text}`);
+    }
+    return res.json();
+}

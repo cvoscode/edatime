@@ -14,6 +14,7 @@ export const SERIES_COLORS = [
 export const PROFILE_ROW_HEIGHT = 38;
 export const PROFILE_OVERSCAN = 8;
 export const PROFILE_COLUMNS = [
+    { key: 'selected',     minWidth: 56,  defaultWidth: 56,  sortable: false },
     { key: 'name',         minWidth: 160, defaultWidth: 220, sortable: true },
     { key: 'dtype',        minWidth: 110, defaultWidth: 120, sortable: true },
     { key: 'nonNullCount', minWidth: 130, defaultWidth: 140, sortable: true },
@@ -31,11 +32,17 @@ export function getDefaultProfileColumnWidths() {
 export const appState = {
     metadata: null,
     numericCols: [],
+    seriesColors: {},
     columnProfiles: [],
+    previewSelectedColumns: [],
+    previewTimeColumn: null,
     profileFilterText: '',
     filterText: '',
     selectedCols: [],
+    adaptiveFilterColumn: null,
     columnRanges: {},
+    adaptiveLineFilters: [],
+    pendingAdaptivePoint: null,
     lastFetchedData: null,
     currentStart: null,
     currentEnd: null,
@@ -50,7 +57,7 @@ export const appState = {
     profileGridBound: false,
     profileGridHeaderBound: false,
     profileGridSort: { key: 'name', dir: 'asc' },
-    profileGridColWidths: [220, 120, 140, 100, 130, 130, 260],
+    profileGridColWidths: [56, 220, 120, 140, 100, 130, 130, 260],
     chartText: { title: '', xLabel: '', yLabel: '' },
 };
 
@@ -58,6 +65,29 @@ export const appState = {
 window.__edatime = window.__edatime || {};
 Object.defineProperty(window.__edatime, 'state', { get: () => appState });
 window.__edatime.DEBUG = true;
+
+export function normalizeSeriesColor(value) {
+    const text = String(value || '').trim();
+    return /^#[0-9a-fA-F]{6}$/.test(text) ? text.toLowerCase() : null;
+}
+
+export function getSeriesColor(column, fallbackIndex = 0) {
+    const name = String(column || '').trim();
+    const custom = normalizeSeriesColor(appState.seriesColors?.[name]);
+    if (custom) return custom;
+    return SERIES_COLORS[Math.abs(fallbackIndex) % SERIES_COLORS.length];
+}
+
+export function setSeriesColor(column, value) {
+    const name = String(column || '').trim();
+    const normalized = normalizeSeriesColor(value);
+    if (!name || !normalized) return null;
+    appState.seriesColors = {
+        ...(appState.seriesColors || {}),
+        [name]: normalized,
+    };
+    return normalized;
+}
 
 // ─── Format helpers (used in multiple modules) ─────────────────────────────
 
@@ -192,25 +222,90 @@ export function ensureRangeStateFromData(dataObj) {
     }
 }
 
+function buildAdaptiveLineY(filter, tsMs) {
+    const x1 = Number(filter?.x1);
+    const x2 = Number(filter?.x2);
+    const y1 = Number(filter?.y1);
+    const y2 = Number(filter?.y2);
+    const x = Number(tsMs);
+    if (!Number.isFinite(x1) || !Number.isFinite(x2) || !Number.isFinite(y1) || !Number.isFinite(y2) || !Number.isFinite(x) || x1 === x2) {
+        return null;
+    }
+    const minX = Math.min(x1, x2);
+    const maxX = Math.max(x1, x2);
+    if (x < minX || x > maxX) return null;
+    const slope = (y2 - y1) / (x2 - x1);
+    return y1 + (x - x1) * slope;
+}
+
+function passesAdaptiveLineFilters(tsMs, valuesByColumn) {
+    const filters = Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters : [];
+    for (const filter of filters) {
+        const column = String(filter?.column || '');
+        if (!column) continue;
+        const y = Number(valuesByColumn?.[column]);
+        if (!Number.isFinite(y)) return false;
+
+        const lineY = buildAdaptiveLineY(filter, tsMs);
+        if (!Number.isFinite(lineY)) continue;
+
+        const keepAbove = !!filter.keepAbove;
+        if (keepAbove) {
+            if (y < lineY) return false;
+        } else if (y > lineY) {
+            return false;
+        }
+    }
+    return true;
+}
+
+export function buildAdaptiveLineFiltersForQuery() {
+    return (appState.adaptiveLineFilters || []).map((filter) => ({
+        column: filter.column,
+        x1: Number(filter.x1),
+        y1: Number(filter.y1),
+        x2: Number(filter.x2),
+        y2: Number(filter.y2),
+        keepAbove: !!filter.keepAbove,
+    })).filter((filter) => (
+        filter.column
+        && Number.isFinite(filter.x1)
+        && Number.isFinite(filter.y1)
+        && Number.isFinite(filter.x2)
+        && Number.isFinite(filter.y2)
+        && filter.x1 !== filter.x2
+    ));
+}
+
 export function applyColumnRanges(dataObj) {
     const filtered = { ...dataObj, series: {} };
+    const lineFilters = Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters : [];
+
     for (const col of appState.selectedCols) {
         const yValues = dataObj.values?.[col];
         if (!yValues) continue;
 
         const range = appState.columnRanges[col];
-        if (!range) {
-            filtered.series[col] = { x: dataObj.ts, y: yValues };
-            continue;
-        }
 
         const xs = [];
         const ys = [];
         for (let i = 0; i < yValues.length; i++) {
             const y = yValues[i];
+            const ts = dataObj.ts?.[i];
             if (!Number.isFinite(y)) continue;
-            if (y < range.from || y > range.to) continue;
-            xs.push(dataObj.ts[i]);
+            if (!Number.isFinite(ts)) continue;
+            if (range && (y < range.from || y > range.to)) continue;
+
+            if (lineFilters.length > 0) {
+                const valuesByColumn = {};
+                const neededColumns = new Set([...(appState.selectedCols || []), ...lineFilters.map((filter) => filter.column)]);
+                for (const name of neededColumns) {
+                    valuesByColumn[name] = dataObj.values?.[name]?.[i];
+                }
+                if (!passesAdaptiveLineFilters(ts, valuesByColumn)) continue;
+            }
+
+            xs.push(ts);
             ys.push(y);
         }
 

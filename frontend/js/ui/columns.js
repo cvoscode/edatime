@@ -3,33 +3,48 @@
  */
 
 import {
-    appState, SERIES_COLORS, formatAnalysisNumber,
+    appState, formatAnalysisNumber,
     computeBounds, buildMetaBar, sanitizeSelectedColumns,
-} from '../state.js';
+    getSeriesColor, setSeriesColor,
+} from '../state.js?v=2';
 
 // ─── Column toggles (chips) ─────────────────────────────────────────────────
 
-export function buildColumnToggles(fetchAndRender, buildRangeControlsFn) {
+export function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn = null) {
     sanitizeSelectedColumns();
+    if (!appState.selectedCols.includes(appState.adaptiveFilterColumn)) {
+        appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
+    }
     const container = document.getElementById('column-toggles');
     if (!container) return;
     container.innerHTML = '';
 
-    // Double-click a chip to open the filter modal for that column.
-    if (!container.dataset.dblBound) {
-        container.addEventListener('dblclick', (e) => {
+    // Double-right-click a chip to open the filter modal for that column.
+    if (!container.dataset.ctxBound) {
+        let lastContextTs = 0;
+        let lastContextCol = '';
+        container.addEventListener('contextmenu', (e) => {
             const chip = e.target?.closest?.('.series-chip');
             if (!chip) return;
             const input = chip.querySelector('input[type="checkbox"]');
             const col = input?.value;
             if (!col) return;
-            const open = window.__edatime?.openFilterForCol;
-            if (typeof open !== 'function') return;
             e.preventDefault();
             e.stopPropagation();
+
+            const now = performance.now();
+            const isDoubleContext = lastContextCol === col && (now - lastContextTs) <= 450;
+            lastContextTs = now;
+            lastContextCol = col;
+            if (!isDoubleContext) return;
+
+            lastContextTs = 0;
+            lastContextCol = '';
+            const open = window.__edatime?.openFilterForCol;
+            if (typeof open !== 'function') return;
             open(col);
         });
-        container.dataset.dblBound = '1';
+        container.dataset.ctxBound = '1';
     }
 
     const visibleCols = appState.numericCols.filter((col) => {
@@ -46,16 +61,42 @@ export function buildColumnToggles(fetchAndRender, buildRangeControlsFn) {
     }
 
     visibleCols.forEach((col, idx) => {
-        const color = SERIES_COLORS[idx % SERIES_COLORS.length];
+        const color = getSeriesColor(col, idx);
         const isActive = appState.selectedCols.includes(col);
+        const isAdaptiveTarget = isActive && appState.adaptiveFilterColumn === col;
 
         const chip = document.createElement('label');
-        chip.className = 'series-chip' + (isActive ? ' active' : '');
+        chip.className = 'series-chip' + (isActive ? ' active' : '') + (isAdaptiveTarget ? ' adaptive-target' : '');
+        chip.title = isAdaptiveTarget
+            ? `Adaptive filter target: ${col}`
+            : `Ctrl+click to target adaptive filters to ${col}`;
         chip.innerHTML = `
             <input type="checkbox" ${isActive ? 'checked' : ''} value="${col}">
             <span class="chip-dot" style="background:${color}"></span>
             <span class="chip-label">${col}</span>
+            <input type="color" class="chip-color-picker" value="${color}" aria-label="Set ${col} color" title="Set ${col} color">
         `;
+
+        chip.addEventListener('click', (e) => {
+            if (e.target?.closest?.('.chip-color-picker')) return;
+            if (!e.ctrlKey) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            const hadColumn = appState.selectedCols.includes(col);
+            if (!hadColumn) appState.selectedCols.push(col);
+            appState.adaptiveFilterColumn = col;
+            appState.pendingAdaptivePoint = null;
+
+            buildMetaBar(appState.metadata);
+            buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
+            buildRangeControlsFn();
+            appState.chart?.requestOverlayRender?.();
+
+            if (!hadColumn) {
+                fetchAndRender();
+            }
+        }, true);
 
         chip.querySelector('input').addEventListener('change', (e) => {
             if (e.target.checked) {
@@ -70,9 +111,27 @@ export function buildColumnToggles(fetchAndRender, buildRangeControlsFn) {
                 appState.selectedCols.push(col);
                 chip.classList.add('active');
             }
+            if (!appState.selectedCols.includes(appState.adaptiveFilterColumn)) {
+                appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
+            }
             buildMetaBar(appState.metadata);
             buildRangeControlsFn();
+            appState.chart?.requestOverlayRender?.();
             fetchAndRender();
+        });
+
+        const colorInput = chip.querySelector('.chip-color-picker');
+        ['pointerdown', 'mousedown', 'click', 'dblclick'].forEach((eventName) => {
+            colorInput.addEventListener(eventName, (event) => {
+                event.stopPropagation();
+            });
+        });
+        colorInput.addEventListener('input', (event) => {
+            const nextColor = setSeriesColor(col, event.target.value);
+            if (!nextColor) return;
+            const dot = chip.querySelector('.chip-dot');
+            if (dot) dot.style.background = nextColor;
+            renderCurrentDataFn?.();
         });
 
         container.appendChild(chip);
@@ -85,6 +144,16 @@ export function buildRangeControls() {
     const container = document.getElementById('column-range-controls');
     if (!container) return;
     container.innerHTML = '';
+
+    if (appState.adaptiveFilterColumn && appState.selectedCols.includes(appState.adaptiveFilterColumn)) {
+        const targetChip = document.createElement('div');
+        targetChip.className = 'range-chip';
+        targetChip.innerHTML = `
+            <span class="name">Adaptive target</span>
+            <span class="range">${appState.adaptiveFilterColumn}</span>
+        `;
+        container.appendChild(targetChip);
+    }
 
     for (const col of appState.selectedCols) {
         const range = appState.columnRanges[col];
@@ -114,6 +183,63 @@ export function buildRangeControls() {
         });
         container.appendChild(chip);
     }
+
+    for (const filter of appState.adaptiveLineFilters || []) {
+        const chip = document.createElement('div');
+        chip.className = 'range-chip range-chip--clickable';
+        chip.setAttribute('role', 'button');
+        chip.setAttribute('tabindex', '0');
+        chip.setAttribute('aria-label', `Remove adaptive filter for ${filter.column}`);
+        chip.innerHTML = `
+            <span class="name">Adaptive ${filter.column}</span>
+            <span class="range">${filter.keepAbove ? 'keep above' : 'keep below'}</span>
+        `;
+
+        const remove = () => {
+            appState.adaptiveLineFilters = (appState.adaptiveLineFilters || []).filter((item) => item.id !== filter.id);
+            appState.pendingAdaptivePoint = null;
+            buildRangeControls();
+            window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
+        };
+
+        chip.addEventListener('click', remove);
+        chip.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                remove();
+            }
+        });
+        container.appendChild(chip);
+    }
+
+    if ((appState.adaptiveLineFilters || []).length > 0 || appState.pendingAdaptivePoint) {
+        const clearChip = document.createElement('div');
+        clearChip.className = 'range-chip range-chip--clickable';
+        clearChip.setAttribute('role', 'button');
+        clearChip.setAttribute('tabindex', '0');
+        clearChip.setAttribute('aria-label', 'Clear adaptive filters');
+        clearChip.innerHTML = `
+            <span class="name">Adaptive filters</span>
+            <span class="range">Clear all</span>
+        `;
+
+        const clearAll = () => {
+            appState.adaptiveLineFilters = [];
+            appState.pendingAdaptivePoint = null;
+            buildRangeControls();
+            appState.chart?.requestOverlayRender?.();
+            window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
+        };
+
+        clearChip.addEventListener('click', clearAll);
+        clearChip.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                clearAll();
+            }
+        });
+        container.appendChild(clearChip);
+    }
 }
 
 // ─── Column filter modal ───────────────────────────────────────────────────
@@ -127,19 +253,159 @@ export function initColumnFilterModal(renderCurrentData, updateAnalysisYRange) {
     const colSelect = document.getElementById('column-filter-col');
     const minInput = document.getElementById('column-filter-min');
     const maxInput = document.getElementById('column-filter-max');
+    const minRangeInput = document.getElementById('column-filter-min-range');
+    const maxRangeInput = document.getElementById('column-filter-max-range');
+    const rangeFill = document.getElementById('column-filter-range-fill');
+    const rangeMinValue = document.getElementById('column-filter-range-min-value');
+    const rangeMaxValue = document.getElementById('column-filter-range-max-value');
     const hint = document.getElementById('column-filter-hint');
     const openBtn = document.getElementById('column-filter-open-btn');
     const openBtns = [openBtn].filter(Boolean);
 
-    if (!modal || !closeBtn || !cancelBtn || !applyBtn || !clearBtn || !colSelect || !minInput || !maxInput || !hint) return;
+    if (!modal || !closeBtn || !cancelBtn || !applyBtn || !clearBtn || !colSelect || !minInput || !maxInput || !minRangeInput || !maxRangeInput || !rangeFill || !rangeMinValue || !rangeMaxValue || !hint) return;
     if (modal.dataset.bound) return;
+
+    let activeBounds = null;
+
+    function emitColumnFiltersChange() {
+        window.dispatchEvent(new CustomEvent('edatime:column-filters-change'));
+    }
 
     function setHint(text) { hint.textContent = text || ''; }
 
+    function formatInputValue(value) {
+        const n = Number(value);
+        return Number.isFinite(n) ? n.toFixed(2) : '';
+    }
+
+    function clampToBounds(value, bounds) {
+        if (!bounds || !Number.isFinite(value)) return value;
+        return Math.min(bounds.max, Math.max(bounds.min, value));
+    }
+
+    function computeSliderStep(bounds) {
+        if (!bounds) return 0.01;
+        const span = Math.abs(bounds.max - bounds.min);
+        if (!(span > 0)) return 0.01;
+        return Math.max(span / 500, 0.01);
+    }
+
+    function updateRangeFill(from, to) {
+        rangeMinValue.textContent = formatAnalysisNumber(from);
+        rangeMaxValue.textContent = formatAnalysisNumber(to);
+
+        if (!activeBounds) {
+            rangeFill.style.left = '0%';
+            rangeFill.style.width = '0%';
+            return;
+        }
+
+        const span = activeBounds.max - activeBounds.min;
+        if (!(span > 0)) {
+            rangeFill.style.left = '0%';
+            rangeFill.style.width = '100%';
+            return;
+        }
+
+        const leftPct = ((from - activeBounds.min) / span) * 100;
+        const rightPct = ((to - activeBounds.min) / span) * 100;
+        const clampedLeft = Math.max(0, Math.min(100, leftPct));
+        const clampedRight = Math.max(clampedLeft, Math.min(100, rightPct));
+
+        rangeFill.style.left = `${clampedLeft}%`;
+        rangeFill.style.width = `${Math.max(0, clampedRight - clampedLeft)}%`;
+    }
+
+    function updateSliderConfig(bounds) {
+        activeBounds = bounds;
+        if (!bounds) {
+            minRangeInput.disabled = true;
+            maxRangeInput.disabled = true;
+            updateRangeFill(0, 0);
+            return;
+        }
+
+        const step = computeSliderStep(bounds);
+        const min = String(bounds.min);
+        const max = String(bounds.max);
+        const disabled = !(bounds.max > bounds.min);
+
+        for (const input of [minRangeInput, maxRangeInput]) {
+            input.min = min;
+            input.max = max;
+            input.step = String(step);
+            input.disabled = disabled;
+        }
+
+        updateRangeFill(bounds.min, bounds.max);
+    }
+
+    function syncSliderValues(from, to) {
+        minRangeInput.value = String(from);
+        maxRangeInput.value = String(to);
+    }
+
+    function syncInputsFromValues(from, to) {
+        minInput.value = formatInputValue(from);
+        maxInput.value = formatInputValue(to);
+        syncSliderValues(from, to);
+        updateRangeFill(from, to);
+    }
+
+    function readInputs() {
+        let from = Number.parseFloat(minInput.value);
+        let to = Number.parseFloat(maxInput.value);
+
+        if (activeBounds) {
+            if (!Number.isFinite(from)) from = activeBounds.min;
+            if (!Number.isFinite(to)) to = activeBounds.max;
+            from = clampToBounds(from, activeBounds);
+            to = clampToBounds(to, activeBounds);
+        }
+
+        if (from > to) {
+            const tmp = from;
+            from = to;
+            to = tmp;
+        }
+
+        return { from, to };
+    }
+
+    function syncFromNumericInputs() {
+        const { from, to } = readInputs();
+        syncInputsFromValues(from, to);
+    }
+
+    function syncFromRangeInputs(changed) {
+        let from = Number.parseFloat(minRangeInput.value);
+        let to = Number.parseFloat(maxRangeInput.value);
+
+        if (changed === 'min' && from > to) to = from;
+        if (changed === 'max' && to < from) from = to;
+
+        if (activeBounds) {
+            from = clampToBounds(from, activeBounds);
+            to = clampToBounds(to, activeBounds);
+        }
+
+        syncInputsFromValues(from, to);
+    }
+
     function getFullBoundsForCol(col) {
-        const values = appState.lastFetchedData?.values?.[col];
-        if (!values) return null;
-        return computeBounds(values);
+        const rawValues = appState.lastFetchedData?.values?.[col];
+        const filteredValues = appState.lastFetchedData?.series?.[col]?.y;
+        const dataBounds = computeBounds(rawValues || filteredValues || []);
+        if (dataBounds) return dataBounds;
+
+        const profile = (appState.metadata?.column_profiles || []).find((item) => item?.name === col);
+        const min = Number(profile?.min);
+        const max = Number(profile?.max);
+        if (Number.isFinite(min) && Number.isFinite(max)) {
+            return { min, max };
+        }
+
+        return null;
     }
 
     function populateColumns(selectedCol = null) {
@@ -167,12 +433,14 @@ export function initColumnFilterModal(renderCurrentData, updateAnalysisYRange) {
         if (!col) {
             minInput.value = '';
             maxInput.value = '';
+            updateSliderConfig(null);
             applyBtn.disabled = true;
             clearBtn.disabled = true;
             setHint('Select a column to filter.');
             return;
         }
         if (!appState.lastFetchedData) {
+            updateSliderConfig(null);
             applyBtn.disabled = true;
             clearBtn.disabled = true;
             setHint('Data not loaded yet.');
@@ -182,15 +450,16 @@ export function initColumnFilterModal(renderCurrentData, updateAnalysisYRange) {
         if (!full) {
             applyBtn.disabled = true;
             clearBtn.disabled = true;
-            setHint('No data for this column in the current range.');
+            updateSliderConfig(null);
+            setHint('No numeric range is available for this column.');
             return;
         }
         const cur = appState.columnRanges[col] ?? { from: full.min, to: full.max };
-        minInput.value = String(cur.from);
-        maxInput.value = String(cur.to);
+        updateSliderConfig(full);
+        syncInputsFromValues(cur.from, cur.to);
         applyBtn.disabled = false;
         clearBtn.disabled = false;
-        setHint(`Full range: ${formatAnalysisNumber(full.min)} → ${formatAnalysisNumber(full.max)}`);
+        setHint(`Available range: ${formatAnalysisNumber(full.min)} → ${formatAnalysisNumber(full.max)}`);
     }
 
     function openModalForCol(col) {
@@ -220,6 +489,10 @@ export function initColumnFilterModal(renderCurrentData, updateAnalysisYRange) {
     });
 
     colSelect.addEventListener('change', () => refreshInputsForCol(colSelect.value));
+    minInput.addEventListener('input', syncFromNumericInputs);
+    maxInput.addEventListener('input', syncFromNumericInputs);
+    minRangeInput.addEventListener('input', () => syncFromRangeInputs('min'));
+    maxRangeInput.addEventListener('input', () => syncFromRangeInputs('max'));
 
     clearBtn.addEventListener('click', () => {
         const col = colSelect.value;
@@ -231,14 +504,14 @@ export function initColumnFilterModal(renderCurrentData, updateAnalysisYRange) {
         appState.chart?.fitYToData?.();
         const yr = appState.chart?.getYRange?.();
         if (yr) updateAnalysisYRange(yr.min, yr.max, 'filter');
+        emitColumnFiltersChange();
         refreshInputsForCol(col);
     });
 
     applyBtn.addEventListener('click', () => {
         const col = colSelect.value;
         if (!col) return;
-        let from = Number.parseFloat(minInput.value);
-        let to = Number.parseFloat(maxInput.value);
+        let { from, to } = readInputs();
         const full = getFullBoundsForCol(col);
         if (full) {
             if (!Number.isFinite(from)) from = full.min;
@@ -255,6 +528,7 @@ export function initColumnFilterModal(renderCurrentData, updateAnalysisYRange) {
         appState.chart?.fitYToData?.();
         const yr = appState.chart?.getYRange?.();
         if (yr) updateAnalysisYRange(yr.min, yr.max, 'filter');
+        emitColumnFiltersChange();
         closeModal();
     });
 

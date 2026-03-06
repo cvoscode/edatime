@@ -6643,6 +6643,8 @@ function cf(e, t = "right", n) {
           x.textContent = Fs(T == null ? void 0 : T.name, D), x.style.textDecoration = A ? "none" : "line-through", b.appendChild(m), b.appendChild(x), p.push(b);
         }
       else {
+          if (R.showInLegend === !1)
+            continue;
         const D = R.visible !== !1, T = document.createElement("div");
         T.style.display = "flex", T.style.alignItems = "center", T.style.gap = "6px", T.style.lineHeight = "1.1", T.style.whiteSpace = "nowrap", T.style.cursor = n ? "pointer" : "default", T.style.opacity = D ? "1" : "0.5", T.style.transition = "opacity 0.2s", n && (T.setAttribute("role", "button"), T.setAttribute("aria-pressed", String(D)), T.setAttribute("aria-label", `Toggle ${Ss(R, M)} visibility`), T.tabIndex = 0, T.dataset.seriesIndex = String(M));
         const A = document.createElement("div");

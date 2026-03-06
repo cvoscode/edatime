@@ -5,7 +5,7 @@
 import {
     appState, formatAnalysisTime, formatAnalysisNumber, formatCount,
     formatToDatetimeLocal, toFiniteNumberOrNull,
-} from '../state.js';
+} from '../state.js?v=2';
 
 export function setUploadPreviewStatus(text, kind = '') {
     const el = document.getElementById('upload-preview-status');
@@ -66,6 +66,9 @@ export function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid)
     const statusEl    = document.getElementById('upload-status');
     const progressWrap = document.getElementById('progress-wrap');
     const progressBar  = document.getElementById('progress-bar');
+    const selectAllBtn = document.getElementById('profile-select-all-btn');
+    const selectNoneBtn = document.getElementById('profile-select-none-btn');
+    const selectAllCheckbox = document.getElementById('profile-select-all-checkbox');
 
     if (!panel || !browseBtn || !fileInput || !dropZone || !fileDisplay ||
         !partialChk || !partialFlds || !nRowsInput || !nRowsRange || !nRowsDisp ||
@@ -76,6 +79,26 @@ export function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid)
 
     let selectedFile = null;
     let previewController = null;
+
+    function applyPreviewColumnSelection(metadata) {
+        const columns = Array.isArray(metadata?.columns) ? metadata.columns : [];
+        const timeColumn = columns.find((col) => /date|time/i.test(String(col?.dtype || '')))?.name || null;
+        appState.previewTimeColumn = timeColumn;
+        appState.previewSelectedColumns = columns
+            .map((col) => String(col?.name || '').trim())
+            .filter(Boolean);
+    }
+
+    function setSelectionMode(mode) {
+        const columns = Array.isArray(appState.columnProfiles) ? appState.columnProfiles.map((profile) => profile.name) : [];
+        const next = new Set();
+        if (appState.previewTimeColumn) next.add(appState.previewTimeColumn);
+        if (mode === 'all') {
+            for (const name of columns) next.add(name);
+        }
+        appState.previewSelectedColumns = Array.from(next);
+        renderColumnProfilesGrid(false);
+    }
 
     async function runFilePreview(file) {
         if (!file) {
@@ -103,10 +126,11 @@ export function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid)
                 throw new Error('Preview response missing metadata');
             }
             hydrateColumnProfiles(previewMetadata);
+            applyPreviewColumnSelection(previewMetadata);
             renderColumnProfilesGrid(true);
             applyPartialTimeRangeFromMetadata(previewMetadata, true);
             const previewRows = Number(previewMetadata.total_rows || result?.preview_rows || 0);
-            setUploadPreviewStatus(`Preview ready (${formatCount(previewRows)} sampled rows, fast mode)`);
+            setUploadPreviewStatus(`Preview ready (${formatCount(previewRows)} rows)`);
         } catch (e) {
             if (e?.name === 'AbortError') return;
             setUploadPreviewStatus(`Preview failed: ${e.message}`, 'error');
@@ -182,6 +206,12 @@ export function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid)
 
     applyPartialTimeRangeFromMetadata(appState.metadata, false);
 
+    selectAllBtn?.addEventListener('click', () => setSelectionMode('all'));
+    selectNoneBtn?.addEventListener('click', () => setSelectionMode('none'));
+    selectAllCheckbox?.addEventListener('change', () => {
+        setSelectionMode(selectAllCheckbox.checked ? 'all' : 'none');
+    });
+
     // Upload submit
     uploadBtn.addEventListener('click', async () => {
         if (!selectedFile) {
@@ -216,6 +246,13 @@ export function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid)
             const tEndIso = toIsoOrNull(timeEndInput?.value);
             if (tStartIso) formData.append('time_start', tStartIso);
             if (tEndIso) formData.append('time_end', tEndIso);
+        }
+
+        const selectedColumns = Array.isArray(appState.previewSelectedColumns)
+            ? appState.previewSelectedColumns.filter(Boolean)
+            : [];
+        if (selectedColumns.length > 0) {
+            formData.append('columns', JSON.stringify(selectedColumns));
         }
 
         uploadBtn.disabled = true;

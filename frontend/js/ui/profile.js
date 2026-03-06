@@ -6,7 +6,7 @@ import {
     appState, PROFILE_ROW_HEIGHT, PROFILE_OVERSCAN, PROFILE_COLUMNS,
     getDefaultProfileColumnWidths, formatCount, formatProfileValue,
     normalizeDtypeLabel, toFiniteNumberOrNull,
-} from '../state.js';
+} from '../state.js?v=2';
 
 // ─── Hydrate column profiles from metadata ──────────────────────────────────
 
@@ -100,6 +100,31 @@ function applyProfileGridColumnsTemplate() {
         .map((w, idx) => `${Math.max(PROFILE_COLUMNS[idx].minWidth, Math.round(Number(w) || PROFILE_COLUMNS[idx].defaultWidth))}px`)
         .join(' ');
     grid.style.setProperty('--profile-grid-cols', template);
+}
+
+function getSelectablePreviewColumns(profiles = appState.columnProfiles || []) {
+    return profiles
+        .map((profile) => profile.name)
+        .filter((name) => name && name !== appState.previewTimeColumn);
+}
+
+function syncUploadSelectionUI(profiles = appState.columnProfiles || []) {
+    const statusEl = document.getElementById('profile-selection-status');
+    const allCheckbox = document.getElementById('profile-select-all-checkbox');
+    const selectable = getSelectablePreviewColumns(profiles);
+    const selected = new Set(appState.previewSelectedColumns || []);
+    const selectedCount = selectable.filter((name) => selected.has(name)).length;
+
+    if (statusEl) {
+        const totalCount = selectable.length + (appState.previewTimeColumn ? 1 : 0);
+        const effectiveSelected = selectedCount + (appState.previewTimeColumn ? 1 : 0);
+        statusEl.textContent = `${effectiveSelected}/${totalCount} columns selected`;
+    }
+
+    if (allCheckbox) {
+        allCheckbox.checked = selectable.length > 0 && selectedCount === selectable.length;
+        allCheckbox.indeterminate = selectedCount > 0 && selectedCount < selectable.length;
+    }
 }
 
 function updateProfileGridHeaderState() {
@@ -199,6 +224,34 @@ function createProfileCell(text, extraClass = '') {
     return cell;
 }
 
+function createSelectionCell(profile) {
+    const cell = document.createElement('div');
+    cell.className = 'profile-cell profile-cell-check';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = (appState.previewSelectedColumns || []).includes(profile.name);
+    checkbox.setAttribute('aria-label', `Select ${profile.name} for upload`);
+
+    if (profile.name === appState.previewTimeColumn) {
+        checkbox.disabled = true;
+        checkbox.checked = true;
+        checkbox.title = 'Time column is required';
+    }
+
+    checkbox.addEventListener('change', () => {
+        const selected = new Set(appState.previewSelectedColumns || []);
+        if (checkbox.checked) selected.add(profile.name);
+        else selected.delete(profile.name);
+        if (appState.previewTimeColumn) selected.add(appState.previewTimeColumn);
+        appState.previewSelectedColumns = Array.from(selected);
+        syncUploadSelectionUI();
+    });
+
+    cell.appendChild(checkbox);
+    return cell;
+}
+
 function createHistogramCell(profile) {
     const cell = document.createElement('div');
     cell.className = 'profile-cell';
@@ -254,10 +307,11 @@ export function renderColumnProfilesGrid(resetScroll = false) {
         rows.innerHTML = '';
         const row = document.createElement('div');
         row.className = 'profile-grid-row';
-        for (let i = 0; i < 7; i++) {
-            row.appendChild(createProfileCell(i === 0 ? 'No columns match this filter' : '', 'muted'));
+        for (let i = 0; i < PROFILE_COLUMNS.length; i++) {
+            row.appendChild(createProfileCell(i === 1 ? 'No columns match this filter' : '', 'muted'));
         }
         rows.appendChild(row);
+        syncUploadSelectionUI(profiles);
         return;
     }
 
@@ -278,6 +332,7 @@ export function renderColumnProfilesGrid(resetScroll = false) {
         row.className = 'profile-grid-row';
         row.setAttribute('role', 'row');
 
+        row.appendChild(createSelectionCell(profile));
         row.appendChild(createProfileCell(profile.name));
         row.appendChild(createProfileCell(normalizeDtypeLabel(profile.dtype), 'muted'));
         row.appendChild(createProfileCell(`${formatCount(profile.nonNullCount)} (${nonNullPct.toFixed(1)}%)`, 'num'));
@@ -288,6 +343,8 @@ export function renderColumnProfilesGrid(resetScroll = false) {
 
         rows.appendChild(row);
     }
+
+    syncUploadSelectionUI(profiles);
 }
 
 export function initColumnProfilesGrid() {

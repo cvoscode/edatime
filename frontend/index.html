@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EdaTime</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="css/style.css?v=19">
+  <link rel="stylesheet" href="css/style.css?v=26">
 </head>
 <body>
 
@@ -20,6 +20,10 @@
     <button class="nav-item active" type="button" data-page="chart" title="Chart">
       <span class="nav-icon">C</span>
       <span class="nav-text">Chart</span>
+    </button>
+    <button class="nav-item" type="button" data-page="scatter" title="Scatter Density">
+      <span class="nav-icon">S</span>
+      <span class="nav-text">Scatter</span>
     </button>
 
     <div class="sidebar-spacer"></div>
@@ -63,6 +67,7 @@
       <input type="color" id="draw-color" value="#ff0055" title="Color" style="cursor: pointer; padding: 0; width: 24px; height: 24px; background: none; border: none;">
       <input type="number" id="draw-width" value="2" min="1" max="10" title="Thickness" style="width: 40px; padding: 0.2rem; background: var(--surface-2); color: var(--text-1); border: 1px solid var(--border);">
       <button class="btn btn-ghost" id="draw-clear-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Clear</button>
+      <button class="btn btn-ghost" id="adaptive-clear-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Clear Filter</button>
     </div>
     <div class="toolbar-group labels-toolbar" style="display:flex; align-items:center; gap:0.35rem; margin-left: 0.5rem; border-left: 1px solid var(--border); padding-left: 0.5rem;">
       <span class="toolbar-label">Labels</span>
@@ -80,6 +85,95 @@
 
   <main class="main">
     <div id="main-chart"></div>
+  </main>
+</section>
+
+<section class="page" id="page-scatter" data-page-name="scatter" hidden>
+  <div class="toolbar scatter-toolbar">
+    <div class="toolbar-group" style="display:flex; align-items:center; gap:0.5rem;">
+      <span class="toolbar-label">Scatter</span>
+      <label class="scatter-inline-label" for="scatter-x-col">X</label>
+      <select id="scatter-x-col" class="modal-select" aria-label="Scatter X column"></select>
+      <label class="scatter-inline-label" for="scatter-y-col">Y</label>
+      <select id="scatter-y-col" class="modal-select" aria-label="Scatter Y column"></select>
+    </div>
+
+    <div class="toolbar-group" style="display:flex; align-items:center; gap:0.5rem; margin-left:auto;">
+      <span class="toolbar-label">Mode</span>
+      <select id="scatter-render-mode" class="modal-select" aria-label="Scatter render mode">
+        <option value="density" selected>Density</option>
+        <option value="scatter">Scatter</option>
+      </select>
+
+      <label class="scatter-link-toggle" for="scatter-link-brush">
+        <input id="scatter-link-brush" type="checkbox" checked>
+        <span>Link chart range</span>
+      </label>
+
+      <div id="scatter-color-controls" class="scatter-toolbar-group-inline">
+        <span class="toolbar-label">Color By</span>
+        <select id="scatter-color-column" class="modal-select" aria-label="Scatter color-by column">
+          <option value="">None</option>
+        </select>
+        <select id="scatter-color-scale" class="modal-select" aria-label="Scatter color scale">
+          <option value="viridis">Viridis</option>
+          <option value="plasma">Plasma</option>
+          <option value="inferno">Inferno</option>
+        </select>
+      </div>
+
+      <div id="scatter-density-controls" class="scatter-toolbar-group-inline">
+        <span class="toolbar-label">Density</span>
+        <label class="scatter-inline-label" for="scatter-bin-size">Bin</label>
+        <input id="scatter-bin-size" type="range" min="2" max="64" step="1" value="10" style="width:110px;">
+        <span id="scatter-bin-size-value" class="range-value">10</span>
+        <select id="scatter-colormap" class="modal-select" aria-label="Density colormap">
+          <option value="viridis">Viridis</option>
+          <option value="inferno">Inferno</option>
+          <option value="plasma">Plasma</option>
+        </select>
+        <select id="scatter-normalization" class="modal-select" aria-label="Density normalization">
+          <option value="linear">Linear</option>
+          <option value="log">Log</option>
+        </select>
+      </div>
+
+      <div class="scatter-toolbar-group-inline scatter-export-group">
+        <span class="toolbar-label">Export</span>
+        <button class="btn btn-ghost" id="scatter-export-png-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">PNG</button>
+        <button class="btn btn-ghost" id="scatter-export-svg-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">SVG</button>
+        <button class="btn btn-ghost" id="scatter-export-html-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">HTML</button>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="analysis-toolbar scatter-stats-bar">
+    <span id="scatter-total-points">Total points: —</span>
+    <span id="scatter-binned-points">Visible points: —</span>
+    <span id="scatter-pearson">Pearson: —</span>
+    <span id="scatter-spearman">Spearman: —</span>
+  </div>
+
+  <div class="range-toolbar scatter-suggestions-bar">
+    <span class="toolbar-label">Suggestions (|corr| ≥ 0.7)</span>
+    <div id="scatter-suggestions" class="scatter-suggestions"></div>
+  </div>
+
+  <main class="main">
+    <div id="scatter-chart"></div>
+    <div class="scatter-overlay-stack">
+      <div id="scatter-correlation-overlay" class="scatter-correlation-overlay">Pearson correlation: —<br>Spearman correlation: —</div>
+      <div id="scatter-colorbar-wrap" class="scatter-colorbar-wrap" hidden>
+        <span id="scatter-colorbar-name" class="scatter-colorbar-name">Color scale</span>
+        <div class="scatter-colorbar-scale">
+          <span id="scatter-colorbar-min" class="scatter-colorbar-bound">0.00</span>
+          <div id="scatter-colorbar" class="scatter-colorbar"></div>
+          <span id="scatter-colorbar-max" class="scatter-colorbar-bound">1.00</span>
+        </div>
+      </div>
+    </div>
+    <div id="scatter-error" class="scatter-error" hidden></div>
   </main>
 </section>
 
@@ -158,12 +252,20 @@
     <div class="upload-preview">
       <div class="upload-preview-head">
         <span class="toolbar-label">File Preview</span>
+        <div class="upload-preview-selection">
+          <button class="btn btn-ghost" id="profile-select-all-btn" type="button">All</button>
+          <button class="btn btn-ghost" id="profile-select-none-btn" type="button">None</button>
+          <span class="upload-preview-selection-text" id="profile-selection-status">All columns selected</span>
+        </div>
         <input type="text" id="profile-filter-input" class="column-filter-input" placeholder="Filter columns…" aria-label="Filter profile columns">
         <span class="upload-preview-status" id="upload-preview-status">Select a file to preview columns</span>
       </div>
 
       <div class="profile-grid" id="profile-grid" role="table" aria-label="Column profile table">
         <div class="profile-grid-header" role="row">
+          <div class="profile-col profile-col-check" role="columnheader">
+            <input id="profile-select-all-checkbox" type="checkbox" aria-label="Select all upload columns">
+          </div>
           <div class="profile-col profile-col-name" role="columnheader">Column</div>
           <div class="profile-col profile-col-type" role="columnheader">Type</div>
           <div class="profile-col profile-col-count" role="columnheader">Non-null</div>
@@ -199,12 +301,30 @@
       <div class="modal-grid">
         <label class="modal-field">
           <span class="modal-label">Min</span>
-          <input id="column-filter-min" class="modal-input" type="number" step="any" aria-label="Minimum value">
+          <input id="column-filter-min" class="modal-input" type="number" step="0.01" aria-label="Minimum value">
         </label>
         <label class="modal-field">
           <span class="modal-label">Max</span>
-          <input id="column-filter-max" class="modal-input" type="number" step="any" aria-label="Maximum value">
+          <input id="column-filter-max" class="modal-input" type="number" step="0.01" aria-label="Maximum value">
         </label>
+      </div>
+
+      <div class="modal-range-stack">
+        <span class="modal-label">Range slider</span>
+        <div class="modal-range-values" aria-hidden="true">
+          <span id="column-filter-range-min-value" class="modal-range-value">0.00</span>
+          <span id="column-filter-range-max-value" class="modal-range-value">1.00</span>
+        </div>
+        <div class="modal-range-dual" aria-hidden="true">
+          <div class="modal-range-track"></div>
+          <div id="column-filter-range-fill" class="modal-range-fill"></div>
+          <input id="column-filter-min-range" class="modal-range-input modal-range-input--min" type="range" min="0" max="1" step="0.01" value="0" aria-label="Minimum range slider">
+          <input id="column-filter-max-range" class="modal-range-input modal-range-input--max" type="range" min="0" max="1" step="0.01" value="1" aria-label="Maximum range slider">
+        </div>
+        <div class="modal-range-captions">
+          <span>Min</span>
+          <span>Max</span>
+        </div>
       </div>
 
       <div class="modal-hint" id="column-filter-hint"></div>
@@ -223,6 +343,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=60"></script>
+<script type="module" src="js/app.js?v=79"></script>
 </body>
 </html>

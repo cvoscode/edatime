@@ -3,7 +3,7 @@
  * Mirrors the ChartAdapter interface expected by the chart registry.
  */
 
-import { SERIES_COLORS } from '../state.js';
+import { SERIES_COLORS } from '../state.js?v=2';
 
 export class FallbackChart {
     constructor(containerId) {

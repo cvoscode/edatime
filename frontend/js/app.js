@@ -22,9 +22,9 @@ import {
     setMetaText, buildMetaBar, sanitizeSelectedColumns,
     ensureRangeStateFromData, applyColumnRanges,
     formatAnalysisTime,
-} from './state.js';
+} from './state.js?v=2';
 
-import { buildColumnToggles, buildRangeControls, initColumnFilterModal } from './ui/columns.js';
+import { buildColumnToggles, buildRangeControls, initColumnFilterModal } from './ui/columns.js?v=7';
 import { setUploadPreviewStatus, applyPartialTimeRangeFromMetadata, initUploadPanel } from './ui/upload.js';
 import { hydrateColumnProfiles, renderColumnProfilesGrid, initColumnProfilesGrid } from './ui/profile.js';
 import {
@@ -33,7 +33,8 @@ import {
     zoomOut, resetZoom,
     initAnalysisControls, bindAnalysisChartEvents,
     initChartPageFilterGesture, initPages,
-} from './ui/toolbar.js';
+} from './ui/toolbar.js?v=2';
+import { initScatterPage } from './scatterPage.js?v=16';
 
 import { registerChartType, getChartType } from './charts/registry.js';
 import { FallbackChart } from './charts/fallback.js';
@@ -47,8 +48,8 @@ let DataChart = null;
 async function ensureChartModules() {
     if (fetchMetadata && fetchData && DataChart) return;
     const [dataClient, chartModule] = await Promise.all([
-        import('./dataClient.js?v=12'),
-        import('./chart.js?v=42'),
+        import('./dataClient.js?v=14'),
+        import('./chart.js?v=48'),
     ]);
     fetchMetadata = dataClient.fetchMetadata;
     fetchData = dataClient.fetchData;
@@ -149,6 +150,138 @@ function renderCurrentData() {
     appState.chart.updateDataMulti(filtered, appState.selectedCols);
 }
 
+function emitAdaptiveFiltersChange() {
+    window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change', {
+        detail: {
+            count: (appState.adaptiveLineFilters || []).length,
+        },
+    }));
+}
+
+function buildAdaptiveFilterFromPoints(column, firstPoint, secondPoint) {
+    if (!column || !firstPoint || !secondPoint) return null;
+    if (!appState.lastFetchedData) return null;
+
+    const filtered = applyColumnRanges(appState.lastFetchedData);
+    const series = filtered.series?.[column];
+    const xs = series?.x;
+    const ys = series?.y;
+    if (!xs || !ys || xs.length === 0 || xs.length !== ys.length) return null;
+
+    const x1 = Number(firstPoint.x);
+    const y1 = Number(firstPoint.y);
+    const x2 = Number(secondPoint.x);
+    const y2 = Number(secondPoint.y);
+    if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2) || x1 === x2) return null;
+
+    const minX = Math.min(x1, x2);
+    const maxX = Math.max(x1, x2);
+    const slope = (y2 - y1) / (x2 - x1);
+    let above = 0;
+    let below = 0;
+
+    for (let idx = 0; idx < xs.length; idx++) {
+        const x = Number(xs[idx]);
+        const y = Number(ys[idx]);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || x < minX || x > maxX) continue;
+        const lineY = y1 + (x - x1) * slope;
+        if (!Number.isFinite(lineY)) continue;
+        if (y >= lineY) above += 1;
+        else below += 1;
+    }
+
+    return {
+        id: `adaptive-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        column,
+        x1,
+        y1,
+        x2,
+        y2,
+        keepAbove: above > below,
+    };
+}
+
+function applyAdaptiveFiltersLocally(sourceKind = 'adaptive') {
+    buildRangeControls();
+    renderCurrentData();
+    appState.chart?.requestOverlayRender?.();
+    appState.chart?.fitYToData?.();
+    const yr = appState.chart?.getYRange?.();
+    if (yr) updateAnalysisYRange(yr.min, yr.max, sourceKind);
+    emitAdaptiveFiltersChange();
+}
+
+function initAdaptiveFilterGesture() {
+    const container = document.getElementById('main-chart');
+    if (!container || container.dataset.adaptiveBound) return;
+
+    container.addEventListener('click', (event) => {
+        if (!event.ctrlKey || event.button !== 0) return;
+        if (!appState.chart?.cssPointToData) return;
+        const activeColumn = appState.selectedCols?.includes(appState.adaptiveFilterColumn)
+            ? appState.adaptiveFilterColumn
+            : appState.selectedCols?.[0];
+        if (!activeColumn) return;
+
+        const point = appState.chart.cssPointToData(event.clientX, event.clientY);
+        if (!point) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const pending = appState.pendingAdaptivePoint;
+        if (!pending || pending.column !== activeColumn) {
+            appState.pendingAdaptivePoint = { column: activeColumn, x: point.x, y: point.y };
+            appState.chart?.requestOverlayRender?.();
+            return;
+        }
+
+        const filter = buildAdaptiveFilterFromPoints(activeColumn, pending, point);
+        appState.pendingAdaptivePoint = { column: activeColumn, x: point.x, y: point.y };
+        if (!filter) return;
+
+        appState.adaptiveLineFilters = [...(appState.adaptiveLineFilters || []), filter];
+        applyAdaptiveFiltersLocally();
+    }, true);
+
+    window.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            appState.pendingAdaptivePoint = null;
+            appState.chart?.requestOverlayRender?.();
+        }
+    });
+
+    window.addEventListener('keyup', (event) => {
+        if (event.key === 'Control' && appState.pendingAdaptivePoint) {
+            appState.pendingAdaptivePoint = null;
+            appState.chart?.requestOverlayRender?.();
+        }
+    });
+
+    window.addEventListener('edatime:adaptive-filters-change', () => {
+        if (!appState.lastFetchedData) return;
+        buildRangeControls();
+        renderCurrentData();
+        appState.chart?.requestOverlayRender?.();
+        appState.chart?.fitYToData?.();
+        const yr = appState.chart?.getYRange?.();
+        if (yr) updateAnalysisYRange(yr.min, yr.max, 'adaptive');
+    });
+
+    container.dataset.adaptiveBound = '1';
+}
+
+function emitChartRangeChange(sourceKind = 'data') {
+    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
+    window.dispatchEvent(new CustomEvent('edatime:chart-range-change', {
+        detail: {
+            start: appState.currentStart,
+            end: appState.currentEnd,
+            source: sourceKind,
+        },
+    }));
+}
+
 async function fetchAndRender() {
     try {
         sanitizeSelectedColumns();
@@ -180,6 +313,7 @@ async function fetchAndRender() {
         buildRangeControls();
         appState.chart?.setXRange?.(appState.currentStart, appState.currentEnd);
         renderCurrentData();
+        emitChartRangeChange('data');
 
         if (DEBUG) {
             const snapshot = computeRenderedYDebugSnapshot();
@@ -226,6 +360,7 @@ function onZoomRangeChange(newStart, newEnd, sourceKind = 'user') {
     appState.pendingRestoreY = null;
 
     updateAnalysisZoom(newStart, newEnd, sourceKind);
+    emitChartRangeChange(sourceKind);
     if (!appState.refetchOnZoom) return;
     appState.fetchDebounceId = setTimeout(fetchAndRender, 150);
 }
@@ -257,6 +392,8 @@ async function init() {
         dbgGroup('metadata', () => dbg(appState.metadata));
         setMetaText('Loading chart…');
 
+        await initScatterPage(appState.metadata);
+
         if (!appState.metadata.time_range) {
             setMetaText('No valid time range found.');
             return;
@@ -265,6 +402,7 @@ async function init() {
         appState.numericCols = (appState.metadata.numeric_columns || [])
             .filter((col) => col && col.toLowerCase() !== 'ts');
         appState.selectedCols = appState.numericCols.length > 0 ? [appState.numericCols[0]] : ['value'];
+        appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
         sanitizeSelectedColumns();
 
         // Column search filter
@@ -272,7 +410,7 @@ async function init() {
         if (columnFilterInput) {
             columnFilterInput.addEventListener('input', (e) => {
                 appState.filterText = (e.target.value || '').trim().toLowerCase();
-                buildColumnToggles(fetchAndRender, buildRangeControls);
+                buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
             });
         }
 
@@ -290,13 +428,14 @@ async function init() {
         applyPartialTimeRangeFromMetadata(appState.metadata, false);
         setUploadPreviewStatus('Showing current dataset profile. Drop/select a file to preview before loading.');
 
-        buildColumnToggles(fetchAndRender, buildRangeControls);
+        buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
         buildMetaBar(appState.metadata);
         buildRangeControls();
 
         appState.currentStart = Number(appState.metadata.time_range.min);
         appState.currentEnd   = Number(appState.metadata.time_range.max);
         updateAnalysisZoom(appState.currentStart, appState.currentEnd, 'initial');
+        emitChartRangeChange('initial');
 
         dbg('initial X range (ms)', { start: appState.currentStart, end: appState.currentEnd });
 
@@ -319,6 +458,7 @@ async function init() {
 
         appState.analysisBound = false;
         bindAnalysisChartEvents();
+        initAdaptiveFilterGesture();
         refreshZoomControlsState();
         appState.chart?.setXRange?.(appState.currentStart, appState.currentEnd);
         appState.chart?.setChartText?.(

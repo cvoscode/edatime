@@ -1,63 +1,144 @@
 # edatime
 
-`edatime` is a high-performance web application designed for fast, interactive exploratory data analysis (EDA) of large time-series datasets.
+edatime is an interactive exploratory data analysis app for time-series datasets. It combines a Rust/Axum/Polars backend with a framework-free frontend and GPU-accelerated chart rendering.
+
+## Current highlights
+
+- Interactive multi-series time-series chart
+- Per-series custom colors on the main chart
+- Server-side time filtering with Arrow IPC transport for main series data
+- MinMaxLTTB downsampling for large ranges
+- Column range filters on temporal views
+- Adaptive line filters created directly on the time-series plot
+- Linked scatter and density plots
+- Correlation suggestions for scatter plot exploration
+- Upload preview with dataset profiling and selectable upload columns
+- Partial ingestion by row count, skipped rows, and optional time range
+- Chart drawing tools and PNG/SVG/HTML export
+- WebGPU guard plus fallback chart registration
 
 ## Architecture
 
-The project is built with a focus on speed and efficient memory usage across the entire stack:
+### Backend
 
-- **Backend (Rust):**
-  - **Framework:** [Axum](https://github.com/tokio-rs/axum) for a fast, async HTTP server.
-  - **Data Processing:** [Polars](https://pola.rs/) for rapid ingestion and manipulation of CSV and Parquet files.
-  - **Downsampling:** [minmaxlttb](https://crates.io/crates/minmaxlttb) (Largest Triangle Three Buckets algorithm) to intelligently reduce the number of data points sent to the client while preserving the visual shape of the time series.
-  - **Serialization:** [Apache Arrow IPC](https://arrow.apache.org/) format is used to serialize the downsampled data efficiently for wire transfer.
+- Rust + Axum HTTP server
+- Polars for ingestion, filtering, aggregation, and lazy query execution
+- Apache Arrow IPC for large tabular responses where columnar transport matters most
+- `minmaxlttb` for downsampling time-series responses
+- Shared in-memory `DataFrame` stored behind `Arc<RwLock<_>>`
 
-- **Frontend (Vanilla HTML/JS/CSS):**
-  - Uses the `chartgpu` library for WebGL-accelerated rendering of the time-series data.
-  - Directly consumes Apache Arrow IPC data from the backend, avoiding expensive JSON parsing and enabling zero-copy data reads.
+Key backend routes:
 
-## Features
+- `GET /api/health`
+- `GET /api/metadata`
+- `GET /api/data`
+- `GET /api/aggregate`
+- `GET /api/scatter/correlations`
+- `GET /api/scatter/points`
+- `POST /api/scatter/points`
+- `POST /api/upload`
+- `POST /api/upload/preview`
 
-- **File Upload:** Upload large CSV or Parquet files containing time-series data.
-- **Data Preview:** Preview the contents and schema of uploaded datasets before full processing.
-- **Dynamic Downsampling:** The backend dynamically downsamples queries based on screen resolution to minimize payload size and improve rendering performance.
-- **Responsive WebGL Charting:** Fluid zooming and panning powered by GPU-accelerated charting on the web.
+### Frontend
 
-## Getting Started
+- Vanilla JavaScript, HTML, and CSS
+- ChartGPU-backed temporal and scatter rendering
+- Shared app state in `frontend/js/state.js`
+- Modular UI logic in `frontend/js/ui/*`
 
-### Prerequisites
+Important frontend modules:
 
-- [Rust](https://rustup.rs/) (latest stable)
-- Node.js & npm (for potential frontend dependencies)
+- `frontend/js/app.js` — main app bootstrap and temporal chart orchestration
+- `frontend/js/chart.js` — time-series chart adapter, overlay rendering, exports, zoom
+- `frontend/js/dataClient.js` — metadata, Arrow IPC, scatter, and aggregate fetch helpers
+- `frontend/js/scatterPage.js` — scatter/density analytics page
+- `frontend/js/ui/columns.js` — series chips, range chips, adaptive filter targeting, series color pickers
+- `frontend/js/ui/toolbar.js` — zoom, draw, export, and chart controls
+- `frontend/js/ui/upload.js` — upload preview and ingest flow
+- `frontend/js/ui/profile.js` — upload preview column profile grid
 
-### Running the App
+## Data flow
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository_url>
-    cd edatime
-    ```
+### Main time-series page
 
-2.  **Start the backend server:**
-    ```bash
-    cargo run
-    ```
-    This will start the Axum web server, typically on `http://127.0.0.1:3000`. By default, it will gracefully fallback to loading a `sample.csv` file if present, or start with an empty state.
+1. Frontend loads metadata from `/api/metadata`.
+2. User selects one or more numeric columns.
+3. Frontend requests `/api/data` with time range, width, and selected columns.
+4. Backend filters by time range and downsamples if needed.
+5. Backend returns Arrow IPC.
+6. Frontend decodes Arrow IPC and renders the selected series.
+7. Local range filters, adaptive line filters, and custom series colors are applied in the frontend render/state flow.
+8. Zooming triggers a debounced refetch.
 
-3.  **Access the application:**
-    Open your browser and navigate to `http://127.0.0.1:3000`. The frontend assets are served directly by the Axum server from the `frontend/` directory.
+### Scatter / density page
 
-## File Structure overview
+1. Frontend requests `/api/scatter/correlations` to build suggestions.
+2. Frontend requests `/api/scatter/points` for the current X/Y pair.
+3. Linked chart range, numeric filters, and adaptive line filters are sent with the scatter request.
+4. Backend applies lazy Polars filtering and returns scatter points.
+5. Scatter mode renders sampled points; density mode renders density bins.
 
-- `src/`: Rust backend source code.
-  - `main.rs`: Entry point and Axum router setup.
-  - `state.rs`: Application state holding the Polars DataFrame.
-  - `routes/`: API endpoint handlers (`upload`, `data`, `metadata`, etc.).
-  - `downsample.rs`: Integration with LTTB downsampling algorithms.
-  - `arrow_export.rs`: Utilities for serializing dataframes to Arrow IPC.
-- `frontend/`: Static assets for the web interface.
-  - `index.html`: Main HTML document.
-  - `js/app.js`: Application logic.
-  - `js/chart.js`: Chart initialization and WebGL interaction.
-  - `js/dataClient.js`: Handles fetching and parsing Arrow IPC data from the backend.
-  - `libs/chartgpu/`: Local copy/build of the `chartgpu` library.
+### Upload flow
+
+1. Frontend uploads a file to `/api/upload/preview`.
+2. Backend scans the file and returns metadata plus column profile information.
+3. User optionally selects a subset of columns and partial-load settings.
+4. Frontend uploads the file to `/api/upload` with the chosen options.
+5. Backend ingests the filtered selection into the shared in-memory dataframe.
+
+## Transport choices
+
+- Arrow IPC is the preferred transport for large time-series and aggregate payloads.
+- Scatter points currently use JSON over both `GET` and `POST`, with `POST` used by the frontend to avoid long query strings when many filters are active.
+- Metadata, upload preview, and correlation suggestions remain JSON because they are nested and not naturally columnar.
+
+## Usage notes
+
+- Ctrl+click a selected series chip to choose which column receives new adaptive line filters.
+- Ctrl+click twice on the temporal chart to create adaptive filter segments.
+- Use the chip color picker to change a series color without refetching.
+- Use `Clear Filter` to remove adaptive line filters from the main chart.
+- Double right-click a series chip to open its numeric range filter.
+
+## Development
+
+### Requirements
+
+- Rust stable toolchain
+- A modern browser with WebGPU support recommended
+
+### Run
+
+```bash
+cargo run
+```
+
+Then open http://127.0.0.1:3000.
+
+### Validate
+
+```bash
+cargo check
+node --check frontend/js/app.js
+node --check frontend/js/chart.js
+node --check frontend/js/dataClient.js
+node --check frontend/js/scatterPage.js
+node --check frontend/js/ui/columns.js
+node --check frontend/js/ui/toolbar.js
+```
+
+## Project structure
+
+- `src/`
+  - `main.rs` — Axum router and server bootstrap
+  - `pipeline.rs` — filter/reduce/serialize pipeline helpers
+  - `query.rs` — shared query parsing and output format helpers
+  - `routes/` — HTTP handlers
+  - `ingest.rs` — CSV/Parquet ingest logic
+  - `downsample.rs` — MinMaxLTTB integration
+  - `arrow_export.rs` — Arrow IPC serialization helpers
+- `frontend/`
+  - `index.html` — application shell
+  - `css/style.css` — application styling
+  - `js/` — frontend modules
+  - `libs/chartgpu/` — bundled chart renderer

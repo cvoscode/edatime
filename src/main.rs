@@ -63,6 +63,8 @@ async fn main() {
         .route("/api/data", get(routes::data::get_data).layer(cache_layer))
         .route("/api/aggregate", get(routes::aggregate::get_aggregate))
         .route("/api/metadata", get(routes::metadata::get_metadata))
+        .route("/api/scatter/points", get(routes::scatter::get_scatter_points).post(routes::scatter::post_scatter_points))
+        .route("/api/scatter/correlations", get(routes::scatter::get_scatter_correlations))
         .route("/api/upload", post(routes::upload::upload_data))
         .route("/api/upload/preview", post(routes::upload::preview_upload_data))
         .layer(DefaultBodyLimit::disable())

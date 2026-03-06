@@ -2,7 +2,7 @@ use polars::prelude::*;
 use std::path::Path;
 
 pub fn load_dataframe<P: AsRef<Path>>(path: P) -> PolarsResult<DataFrame> {
-    load_dataframe_partial(path, None, 0, None, None)
+    load_dataframe_partial(path, None, 0, None, None, None)
 }
 
 /// Load a DataFrame with optional row-level limits.
@@ -14,6 +14,7 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
     skip_rows: usize,
     time_start_ms: Option<i64>,
     time_end_ms: Option<i64>,
+    selected_columns: Option<&[String]>,
 ) -> PolarsResult<DataFrame> {
     let path_ref = path.as_ref();
     let is_parquet = path_ref.extension().map_or(false, |ext| ext == "parquet");
@@ -54,14 +55,10 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
     let dtypes = df.dtypes();
 
     let mut time_col_name = None;
-    let mut has_numeric = false;
 
     for (i, dt) in dtypes.iter().enumerate() {
         if time_col_name.is_none() && matches!(dt, DataType::Datetime(_, _) | DataType::Date) {
             time_col_name = Some(col_names[i].to_string());
-        }
-        if dt.is_numeric() {
-            has_numeric = true;
         }
     }
 
@@ -70,6 +67,34 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
             "DataFrame must contain at least one datetime column".into(),
         )
     })?;
+
+    if let Some(selected_columns) = selected_columns {
+        let requested: std::collections::HashSet<&str> = selected_columns
+            .iter()
+            .map(|name| name.trim())
+            .filter(|name| !name.is_empty())
+            .collect();
+
+        if !requested.is_empty() {
+            let mut keep: Vec<PlSmallStr> = Vec::new();
+            for name in df.get_column_names() {
+                let name_str = name.as_str();
+                if requested.contains(name_str) {
+                    keep.push(name.clone());
+                }
+            }
+
+            if !keep.iter().any(|name| name.as_str() == old_name.as_str()) {
+                keep.push(old_name.clone().into());
+            }
+
+            if keep.len() < df.width() {
+                df = df.select(keep)?;
+            }
+        }
+    }
+
+    let has_numeric = df.dtypes().iter().any(|dt| dt.is_numeric());
 
     if !has_numeric {
         return Err(PolarsError::ComputeError(

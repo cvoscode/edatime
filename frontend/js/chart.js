@@ -1,8 +1,37 @@
 import { createChart } from '../libs/chartgpu/dist/index.js?v=3';
 import { DEBUG, dbg } from './debug.js';
+import { appState, getSeriesColor } from './state.js?v=2';
 
-const COLORS = ['#00E5FF', '#FF0055', '#00FF00', '#FFFF00', '#FF00FF'];
-const CHART_GRID = { left: 112, right: 20, top: 16, bottom: 36 };
+const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
+const EURO_DATE_ONLY = new Intl.DateTimeFormat('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+});
+const EURO_DATE_TIME = new Intl.DateTimeFormat('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+});
+const EURO_DATE_TIME_SECONDS = new Intl.DateTimeFormat('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+});
+
+function formatTwoDecimals(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '—';
+    return n.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+}
 
 function computeFiniteMinMax(xs) {
     if (!xs) return null;
@@ -94,27 +123,46 @@ function niceTimeTicks(minMs, maxMs, count = 6) {
 function formatTimeTick(ms, spanMs) {
     try {
         const d = new Date(ms);
+        if (!Number.isFinite(d.getTime())) return String(ms);
         if (spanMs <= 2 * 60_000) {
-            return new Intl.DateTimeFormat(undefined, {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-            }).format(d);
+            return EURO_DATE_TIME_SECONDS.format(d);
         }
         if (spanMs <= 2 * 24 * 60 * 60_000) {
-            return new Intl.DateTimeFormat(undefined, {
-                hour: '2-digit',
-                minute: '2-digit',
-            }).format(d);
+            return EURO_DATE_TIME.format(d);
         }
-        return new Intl.DateTimeFormat(undefined, {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-        }).format(d);
+        return EURO_DATE_ONLY.format(d);
     } catch (_) {
         return String(ms);
     }
+}
+
+function formatTimeTooltip(ms, spanMs) {
+    try {
+        const d = new Date(ms);
+        if (!Number.isFinite(d.getTime())) return String(ms);
+        if (spanMs <= 2 * 60_000) {
+            return EURO_DATE_TIME_SECONDS.format(d);
+        }
+        return EURO_DATE_TIME.format(d);
+    } catch (_) {
+        return String(ms);
+    }
+}
+
+function buildAdaptiveLineY(filter, tsMs) {
+    const x1 = Number(filter?.x1);
+    const x2 = Number(filter?.x2);
+    const y1 = Number(filter?.y1);
+    const y2 = Number(filter?.y2);
+    const x = Number(tsMs);
+    if (!Number.isFinite(x1) || !Number.isFinite(x2) || !Number.isFinite(y1) || !Number.isFinite(y2) || !Number.isFinite(x) || x1 === x2) {
+        return null;
+    }
+    const minX = Math.min(x1, x2);
+    const maxX = Math.max(x1, x2);
+    if (x < minX || x > maxX) return null;
+    const slope = (y2 - y1) / (x2 - x1);
+    return y1 + (x - x1) * slope;
 }
 
 export class DataChart {
@@ -176,6 +224,10 @@ export class DataChart {
     clearDrawings() {
         this._drawings = [];
         this._currentDraw = null;
+        this._renderDrawings();
+    }
+
+    requestOverlayRender() {
         this._renderDrawings();
     }
 
@@ -360,6 +412,7 @@ export class DataChart {
         if (!this._overlayCtx || !this._overlayCanvas) return;
         const ctx = this._overlayCtx;
         ctx.clearRect(0, 0, this._overlayCanvas.width, this._overlayCanvas.height);
+        this._renderAdaptiveFilterLinesToCtx(ctx, { x: 1, y: 1 });
 
         const allDraws = [...this._drawings];
         if (this._currentDraw) allDraws.push(this._currentDraw);
@@ -385,19 +438,91 @@ export class DataChart {
         }
     }
 
+    _renderAdaptiveFilterLinesToCtx(ctx, scale = { x: 1, y: 1 }) {
+        const filters = Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters : [];
+        const pending = appState.pendingAdaptivePoint;
+        if ((filters.length === 0 && !pending) || !this._container) return;
+
+        const visibleCols = new Set(appState.selectedCols || []);
+        const xMin = Number(this._xMin);
+        const xMax = Number(this._xMax);
+        const yRange = this.getYRange();
+        if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !(xMax > xMin) || !yRange) return;
+
+        const rect = this._container.getBoundingClientRect();
+        const cssWidth = Math.max(1, rect.width || this._overlayCanvas?.width || 1);
+        const cssHeight = Math.max(1, rect.height || this._overlayCanvas?.height || 1);
+        const plotLeft = CHART_GRID.left * scale.x;
+        const plotTop = CHART_GRID.top * scale.y;
+        const plotRight = Math.max(plotLeft + 1, (cssWidth - CHART_GRID.right) * scale.x);
+        const plotBottom = Math.max(plotTop + 1, (cssHeight - CHART_GRID.bottom) * scale.y);
+        const plotWidth = Math.max(1, plotRight - plotLeft);
+        const plotHeight = Math.max(1, plotBottom - plotTop);
+        const strokeScale = Math.min(scale.x, scale.y);
+
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.setLineDash([8 * strokeScale, 6 * strokeScale]);
+
+        for (const filter of filters) {
+            if (!visibleCols.has(filter?.column)) continue;
+
+            const segStart = Math.max(xMin, Math.min(Number(filter.x1), Number(filter.x2)));
+            const segEnd = Math.min(xMax, Math.max(Number(filter.x1), Number(filter.x2)));
+            if (!Number.isFinite(segStart) || !Number.isFinite(segEnd) || !(segEnd > segStart)) continue;
+
+            const y1 = buildAdaptiveLineY(filter, segStart);
+            const y2 = buildAdaptiveLineY(filter, segEnd);
+            if (!Number.isFinite(y1) || !Number.isFinite(y2)) continue;
+
+            const sx = plotLeft + ((segStart - xMin) / (xMax - xMin)) * plotWidth;
+            const ex = plotLeft + ((segEnd - xMin) / (xMax - xMin)) * plotWidth;
+            const sy = plotBottom - ((y1 - yRange.min) / Math.max(1e-9, yRange.max - yRange.min)) * plotHeight;
+            const ey = plotBottom - ((y2 - yRange.min) / Math.max(1e-9, yRange.max - yRange.min)) * plotHeight;
+
+            const stroke = filter.keepAbove ? 'rgba(0, 200, 150, 0.95)' : 'rgba(255, 74, 110, 0.95)';
+            ctx.strokeStyle = stroke;
+            ctx.lineWidth = 2 * strokeScale;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(ex, ey);
+            ctx.stroke();
+
+            const label = `${filter.column} ${filter.keepAbove ? 'keep above' : 'keep below'}`;
+            ctx.fillStyle = stroke;
+            ctx.font = `${Math.max(10, 11 * strokeScale)}px Inter, system-ui, -apple-system, sans-serif`;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(label, Math.min(ex, plotRight - 140 * strokeScale), Math.min(sy, ey) - 4 * strokeScale);
+        }
+
+        if (pending && visibleCols.has(pending?.column)) {
+            const px = Number(pending.x);
+            const py = Number(pending.y);
+            if (Number.isFinite(px) && Number.isFinite(py) && px >= xMin && px <= xMax) {
+                const sx = plotLeft + ((px - xMin) / (xMax - xMin)) * plotWidth;
+                const sy = plotBottom - ((py - yRange.min) / Math.max(1e-9, yRange.max - yRange.min)) * plotHeight;
+                if (Number.isFinite(sx) && Number.isFinite(sy)) {
+                    ctx.setLineDash([]);
+                    ctx.fillStyle = 'rgba(0, 212, 255, 0.95)';
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, Math.max(3, 4 * strokeScale), 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+                    ctx.lineWidth = Math.max(1, 1.5 * strokeScale);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        ctx.restore();
+    }
+
     _buildYAxisOption() {
         return {
             type: 'value',
-            axisLabel: {
-                formatter: (value) => {
-                    const n = Number(value);
-                    if (!Number.isFinite(n)) return '—';
-                    return n.toLocaleString(undefined, {
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 2,
-                    });
-                },
-            },
+            tickFormatter: (value) => formatTwoDecimals(value),
         };
     }
 
@@ -436,6 +561,32 @@ export class DataChart {
             return { min: this._yMin, max: this._yMax };
         }
         return null;
+    }
+
+    cssPointToData(clientX, clientY) {
+        if (!this._container) return null;
+        if (!Number.isFinite(this._xMin) || !Number.isFinite(this._xMax) || this._xMax <= this._xMin) return null;
+
+        const yRange = this.getYRange();
+        if (!yRange || !Number.isFinite(yRange.min) || !Number.isFinite(yRange.max) || yRange.max <= yRange.min) return null;
+
+        const rect = this._container.getBoundingClientRect();
+        const localX = clientX - rect.left;
+        const localY = clientY - rect.top;
+        const plotLeft = CHART_GRID.left;
+        const plotTop = CHART_GRID.top;
+        const plotRight = Math.max(plotLeft + 1, rect.width - CHART_GRID.right);
+        const plotBottom = Math.max(plotTop + 1, rect.height - CHART_GRID.bottom);
+
+        if (localX < plotLeft || localX > plotRight || localY < plotTop || localY > plotBottom) return null;
+
+        const xNorm = (localX - plotLeft) / Math.max(1, plotRight - plotLeft);
+        const yNorm = (localY - plotTop) / Math.max(1, plotBottom - plotTop);
+
+        return {
+            x: this._xMin + xNorm * (this._xMax - this._xMin),
+            y: yRange.max - yNorm * (yRange.max - yRange.min),
+        };
     }
 
     zoomY(factor, anchorNormalized = 0.5) {
@@ -484,7 +635,7 @@ export class DataChart {
         this._selectionBox = selection;
 
         container.addEventListener('pointerdown', (event) => {
-            if (event.button !== 0 || this._drawMode !== 'none') return;
+            if (event.button !== 0 || this._drawMode !== 'none' || event.ctrlKey) return;
             if (DEBUG) dbg('pointerdown', { x: event.clientX, y: event.clientY });
             const rect = container.getBoundingClientRect();
             const startX = event.clientX - rect.left;
@@ -559,7 +710,7 @@ export class DataChart {
         container.addEventListener('pointercancel', finishDrag);
 
         container.addEventListener('dblclick', (event) => {
-            if (event.shiftKey) return;
+            if (event.shiftKey || event.ctrlKey) return;
             if (DEBUG) dbg('dblclick zoomOut');
             if (this.onZoomOutCallback) this.onZoomOutCallback();
         });
@@ -638,7 +789,7 @@ export class DataChart {
                     lastY: points.length > 0 ? points[points.length - 1][1] : null,
                 });
 
-                const color = COLORS[idx % COLORS.length];
+                const color = getSeriesColor(colName, idx);
                 const visible = prevVisibility.get(colName) !== false;
                 const lineSeries = {
                     type: 'line',
@@ -655,9 +806,10 @@ export class DataChart {
 
                 const markerSeries = {
                     type: 'scatter',
-                    name: `${colName}__markers`,
+                    name: '',
                     color,
                     visible,
+                    showInLegend: false,
                     symbolSize: 2,
                     data: points,
                 };
@@ -693,14 +845,69 @@ export class DataChart {
         }
 
         if (flattenedSeriesList.length > 0) {
+            const escapeHtml = (text) => String(text)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+
+            const formatY2 = (value) => {
+                const n = Number(value);
+                if (!Number.isFinite(n)) return '—';
+                return n.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
+            };
+
+            const tooltipFormatter = (params) => {
+                const rawList = Array.isArray(params) ? params : [params];
+                const list = rawList.filter((p) => {
+                    const name = String(p?.seriesName ?? '');
+                    return name && !name.endsWith('__markers');
+                });
+                if (!Array.isArray(list) || list.length === 0) return '';
+                const x = Number(list[0]?.value?.[0]);
+                const spanMs = Number.isFinite(xDomainMin) && Number.isFinite(xDomainMax)
+                    ? Math.max(1, xDomainMax - xDomainMin)
+                    : 24 * 60 * 60_000;
+                const header = Number.isFinite(x) ? formatTimeTooltip(x, spanMs) : '';
+
+                const rows = list
+                    .map((p) => {
+                        const name = escapeHtml(p?.seriesName ?? 'series');
+                        const y = formatY2(p?.value?.[1]);
+                        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+  <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>
+  <span style="font-variant-numeric:tabular-nums;white-space:nowrap;">${escapeHtml(y)}</span>
+</div>`;
+                    })
+                    .join('');
+
+                if (!header) return rows;
+                return `<div style="opacity:0.8;margin-bottom:6px;">${escapeHtml(header)}</div>${rows}`;
+            };
+
             const nextOption = {
                 grid: CHART_GRID,
                 xAxis: {
                     type: 'time',
                     min: Number.isFinite(xDomainMin) ? xDomainMin : undefined,
                     max: Number.isFinite(xDomainMax) ? xDomainMax : undefined,
+                    tickFormatter: (value) => formatTimeTick(
+                        value,
+                        Number.isFinite(xDomainMin) && Number.isFinite(xDomainMax)
+                            ? Math.max(1, xDomainMax - xDomainMin)
+                            : 24 * 60 * 60_000,
+                    ),
                 },
                 yAxis: this._buildYAxisOption(),
+                tooltip: {
+                    show: true,
+                    trigger: 'axis',
+                    formatter: tooltipFormatter,
+                },
                 series: flattenedSeriesList,
             };
             try {
@@ -719,6 +926,8 @@ export class DataChart {
                 console.error('[edatime:chart] setOption failed', e);
             }
         }
+
+        this._renderDrawings();
     }
 
     _getChartCanvas() {
@@ -884,7 +1093,7 @@ export class DataChart {
             ctx.lineTo(plotLeft, py);
             ctx.stroke();
 
-            const label = Number(y).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+            const label = formatTwoDecimals(y);
             ctx.fillText(label, plotLeft - tickLen - labelPad, py);
         }
 

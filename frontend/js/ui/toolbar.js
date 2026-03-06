@@ -2,7 +2,7 @@
  * Toolbar controls: zoom, draw, labels, export, analysis status.
  */
 
-import { appState, formatAnalysisTime, formatAnalysisNumber } from '../state.js';
+import { appState, formatAnalysisTime, formatAnalysisNumber } from '../state.js?v=2';
 import { DEBUG, dbg, dbgGroup } from '../debug.js';
 
 // ─── Analysis status ────────────────────────────────────────────────────────
@@ -120,6 +120,7 @@ export function initAnalysisControls(fetchAndRender) {
     const drawColor = document.getElementById('draw-color');
     const drawWidth = document.getElementById('draw-width');
     const drawClearBtn = document.getElementById('draw-clear-btn');
+    const adaptiveClearBtn = document.getElementById('adaptive-clear-btn');
 
     const updateDrawMode = () => {
         if (appState.chart && appState.chart.setDrawMode) {
@@ -134,6 +135,15 @@ export function initAnalysisControls(fetchAndRender) {
         drawClearBtn.addEventListener('click', () => {
             if (appState.chart && appState.chart.clearDrawings) appState.chart.clearDrawings();
         });
+    }
+    if (adaptiveClearBtn && !adaptiveClearBtn.dataset.bound) {
+        adaptiveClearBtn.addEventListener('click', () => {
+            appState.adaptiveLineFilters = [];
+            appState.pendingAdaptivePoint = null;
+            appState.chart?.requestOverlayRender?.();
+            window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
+        });
+        adaptiveClearBtn.dataset.bound = '1';
     }
 
     // Export Controls
@@ -227,17 +237,27 @@ export function bindAnalysisChartEvents() {
 export function initChartPageFilterGesture() {
     const pageChart = document.getElementById('page-chart');
     if (!pageChart) return;
-    if (pageChart.dataset.filterDblBound) return;
+    if (pageChart.dataset.filterCtxBound) return;
 
-    pageChart.addEventListener('dblclick', (e) => {
+    let lastContextTs = 0;
+
+    pageChart.addEventListener('contextmenu', (e) => {
         const inPlot = e.target?.closest?.('#main-chart');
         if (inPlot) return;
         const open = window.__edatime?.openFilterForCol;
         if (typeof open !== 'function') return;
+        e.preventDefault();
+
+        const now = performance.now();
+        const isDoubleContext = (now - lastContextTs) <= 450;
+        lastContextTs = now;
+        if (!isDoubleContext) return;
+
+        lastContextTs = 0;
         open(null);
     });
 
-    pageChart.dataset.filterDblBound = '1';
+    pageChart.dataset.filterCtxBound = '1';
 }
 
 // ─── Sidebar pages ─────────────────────────────────────────────────────────
@@ -266,9 +286,13 @@ export function initPages() {
         for (const btn of navButtons) {
             btn.classList.toggle('active', btn.dataset.page === pageName);
         }
-        if (pageName === 'chart') {
-            requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
-        }
+
+        requestAnimationFrame(() => {
+            window.dispatchEvent(new Event('resize'));
+            window.dispatchEvent(new CustomEvent('edatime:page-change', {
+                detail: { page: pageName },
+            }));
+        });
     }
 
     for (const btn of navButtons) {
