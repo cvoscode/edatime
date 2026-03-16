@@ -1,212 +1,326 @@
 # edatime
 
-edatime is an interactive exploratory data analysis app for time-series datasets. It combines a Rust/Axum/Polars backend with a framework-free frontend and GPU-accelerated chart rendering.
+edatime is a self-hosted, browser-based time-series exploratory data analysis (EDA) tool. You point it at a CSV or Parquet file, and it gives you an interactive multi-series chart, scatter analytics, column profiling, and filtering — all rendered with GPU-accelerated graphics directly in your browser.
 
-## Feature set
+The backend is written in Rust (Axum + Polars) and streams data as Apache Arrow IPC for fast, low-overhead transport. The frontend is plain HTML and JavaScript with no framework dependency, using ChartGPU for WebGPU-accelerated rendering.
 
-### Time-series analysis
+---
 
-- Interactive multi-series time-series chart
-- Per-series custom colors set directly from the series chips
-- Server-side time filtering with Arrow IPC transport for main series data
-- MinMaxLTTB downsampling for large ranges
-- Zoom, zoom history, and reset-to-initial-view behavior
-- Live analysis readouts for current range, Y-range, cursor, and clicked point
-- Local numeric range filters on plotted columns
-- Adaptive line filters created directly on the time-series plot
-- Adaptive filter target selection via Ctrl+click on the active series chip
-- Adaptive filter clear controls and overlay rendering
-- Chart title, X-axis label, and Y-axis label overlays
-- Drawing tools for arrows and boxes on the main chart
-- PNG, SVG, HTML, CSV, and JSON export actions
-
-### Scatter and density analysis
-
-- Dedicated scatter and density analytics page
-- Correlation suggestions for choosing X/Y pairs
-- Scatter plot matrix for quick pairwise comparison
-- Distribution cards for active scatter axes and color channels
-- Linked time-range propagation from the main chart
-- Linked numeric range and adaptive line filter propagation into scatter queries
-- Scatter point rendering and density bin rendering modes
-- Optional scatter color encoding with selectable color scales
-- Scatter zoom and visibility stats
-- Matrix cell selection keeps scatter exploration linked to the active pair
-
-### Upload and profiling
-
-- Upload preview before ingest
-- Dataset metadata and time-range detection
-- Upload-time column subset selection
-- Partial ingestion by row count, skipped rows, and optional time range
-- Column profile grid with null counts, bounds, and histograms
-- Sortable, resizable, virtualized profile table
-
-### Runtime and transport
-
-- WebGPU availability guard with user-facing error handling
-- Canvas fallback chart registration
-- Arrow IPC as the default transport for large tabular payloads
-- JSON transport for metadata, upload preview, correlation suggestions, and scatter payloads
-
-## Architecture
-
-### Backend
-
-- Rust + Axum HTTP server
-- Polars for ingestion, filtering, aggregation, and lazy query execution
-- Apache Arrow IPC for large tabular responses where columnar transport matters most
-- `minmaxlttb` for downsampling time-series responses
-- Shared in-memory `DataFrame` stored behind `Arc<RwLock<_>>`
-
-Key backend routes:
-
-- `GET /api/health`
-- `GET /api/v1/health`
-- `GET /api/metadata`
-- `GET /api/data`
-- `GET /api/aggregate`
-- `GET /api/metrics`
-- `GET /api/scatter/correlations`
-- `GET /api/scatter/points`
-- `POST /api/scatter/points`
-- `POST /api/upload`
-- `POST /api/upload/preview`
-
-All current routes are also exposed under `/api/v1/*` so existing frontend calls can stay on `/api/*` while external clients move to a stable versioned API surface.
-
-### Frontend
-
-- Vanilla JavaScript, HTML, and CSS
-- ChartGPU-backed temporal and scatter rendering
-- Chart-type registry with a Canvas fallback renderer
-- Shared app state in `frontend/js/state.js`
-- Modular UI logic in `frontend/js/ui/*`
-
-Important frontend modules:
-
-- `frontend/js/app.js` — main app bootstrap and temporal chart orchestration
-- `frontend/js/chart.js` — time-series chart adapter, overlay rendering, exports, zoom
-- `frontend/js/dataClient.js` — metadata, Arrow IPC, scatter, and aggregate fetch helpers
-- `frontend/js/scatterPage.js` — scatter/density analytics page
-- `frontend/js/ui/columns.js` — series chips, range chips, adaptive filter targeting, series color pickers
-- `frontend/js/ui/toolbar.js` — zoom, draw, export, and chart controls
-- `frontend/js/ui/upload.js` — upload preview and ingest flow
-- `frontend/js/ui/profile.js` — upload preview column profile grid
-
-## Data flow
-
-### Main time-series page
-
-1. Frontend loads metadata from `/api/metadata`.
-2. Frontend builds series chips, range controls, analysis controls, upload/profile UI, and shared chart state.
-3. User selects one or more numeric columns and optionally customizes per-series colors locally.
-4. Frontend requests `/api/data` with time range, viewport width, and selected columns.
-5. Backend filters by time range and downsamples if needed.
-6. Backend returns Arrow IPC.
-7. Frontend decodes Arrow IPC and rebuilds the selected series.
-8. Local numeric range filters, adaptive line filters, and custom series colors are applied in the frontend render path.
-9. Zooming triggers a debounced refetch, while purely presentational changes like series colors do not.
-
-### Scatter / density page
-
-1. Frontend requests `/api/scatter/correlations` to build X/Y suggestions.
-2. Frontend requests `/api/scatter/points` for the selected X/Y pair.
-3. Linked chart range, numeric filters, and adaptive line filters are included in the scatter request.
-4. Backend applies lazy Polars filtering and returns scatter points as JSON.
-5. Scatter mode renders sampled points directly; density mode renders density bins.
-6. Optional color-column and color-scale settings are applied on the scatter side without changing main-chart series colors.
-
-### Upload flow
-
-1. Frontend uploads a file to `/api/upload/preview`.
-2. Backend returns preview metadata and column profile information for the pending file.
-3. Frontend hydrates the profile grid and lets the user select columns and partial-load settings.
-4. Frontend uploads the file to `/api/upload` with the chosen options.
-5. Backend ingests the filtered selection into the shared in-memory dataframe.
-6. Frontend reloads against the new dataset metadata and time range.
-
-## Transport choices
-
-- Arrow IPC is the preferred transport for large time-series and aggregate payloads.
-- Scatter points currently use JSON over both `GET` and `POST`, with `POST` used by the frontend to avoid long query strings when many filters are active.
-- Metadata, upload preview, and correlation suggestions remain JSON because they are nested and not naturally columnar.
-
-## Runtime safeguards
-
-- `/api/data` responses are cached in memory for short-lived repeated range requests and invalidated automatically when a new dataset is uploaded.
-- Query-heavy endpoints validate time windows, bucket counts, viewport widths, selected columns, and scatter limits before entering the Polars pipeline.
-- Uploads are bounded by a request-size limit and cleaned up through temporary-file lifetimes instead of persistent temp paths.
-- `/api/metrics` exposes request counts, cache hit/miss counters, rate-limit counters, scatter sampling stats, and dataset revision metadata.
-
-## Configuration
-
-- The backend can load optional runtime configuration from `config.toml` or from a path set in `EDATIME_CONFIG`.
-- Environment overrides are supported for host, port, sample data path, cache sizing, rate limits, and max upload size.
-- Useful variables include `EDATIME_HOST`, `EDATIME_PORT`, `EDATIME_SAMPLE_DATA`, `EDATIME_CACHE_TTL_SECONDS`, `EDATIME_RATE_LIMIT_MAX_REQUESTS`, and `EDATIME_MAX_UPLOAD_BYTES`.
-
-## Usage notes
-
-- Ctrl+click a selected series chip to choose which column receives new adaptive line filters.
-- Ctrl+click twice on the temporal chart to create adaptive filter segments.
-- Use the chip color picker to change a series color without refetching.
-- Series colors affect the main time-series chart only; scatter color scales are configured separately on the scatter page.
-- Use `Clear Filter` to remove adaptive line filters from the main chart.
-- Double right-click a series chip to open its numeric range filter.
-
-## Development
-
-Additional docs:
-
-- `docs/developer-guide.md` - local development, validation, benchmarks, and release workflow
-- `SECURITY.md` - supported versions, reporting path, and automated audit coverage
+## Installation
 
 ### Requirements
 
-- Rust stable toolchain
-- A modern browser with WebGPU support recommended
+| Requirement | Notes |
+|---|---|
+| **Rust stable toolchain** | Install from [rustup.rs](https://rustup.rs) |
+| **A modern browser** | Chrome 113+, Edge 113+, or any browser with WebGPU support recommended. Firefox works via a Canvas fallback. |
+| **Node.js** *(optional)* | Only needed if you want to run the frontend syntax checker (`npm run check:frontend`) |
 
-### Run
+There are no native dependencies, no database, and no external services to configure. The backend compiles to a single binary that serves the frontend itself.
 
-```bash
-cargo run
-```
+### Build
 
-Then open http://127.0.0.1:3000.
-
-### Validate
-
-```bash
-cargo check
-cargo test
-npm run check:frontend
-```
-
-### Benchmarks
+Clone the repository and compile in release mode for best performance:
 
 ```bash
-cargo bench --bench pipeline_bench
+git clone <repo-url>
+cd edatime
+cargo build --release
 ```
 
-### Security audit
+The compiled binary lands at `target/release/edatime`.
+
+For a quick development build (faster compile, slower runtime):
 
 ```bash
-cargo install cargo-audit --locked
-cargo audit
+cargo build
 ```
+
+---
+
+## Running
+
+### Start the server
+
+```bash
+cargo run --release
+```
+
+Or run the pre-built binary directly:
+
+```bash
+./target/release/edatime
+```
+
+Then open your browser at:
+
+```
+http://127.0.0.1:3000
+```
+
+The server binds to `127.0.0.1:3000` by default.
+
+### Start with a pre-loaded dataset
+
+Set `EDATIME_SAMPLE_DATA` to a CSV or Parquet file path and the dataset will be loaded automatically on startup — no manual upload needed:
+
+```bash
+EDATIME_SAMPLE_DATA=./my_data.csv cargo run --release
+```
+
+### Configuration
+
+You can tune the server via a `config.toml` file or environment variables. All settings are optional — the defaults work out of the box.
+
+**Using a config file:**
+
+```bash
+EDATIME_CONFIG=./config.toml cargo run --release
+```
+
+**Example `config.toml`:**
+
+```toml
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[cache]
+ttl_seconds = 120
+max_entries = 256
+max_bytes = 67108864   # 64 MB
+
+[rate_limit]
+max_requests = 200
+window_seconds = 60
+
+[upload]
+max_upload_bytes = 536870912   # 512 MB
+
+[data]
+sample_data_path = "./my_data.csv"
+```
+
+**Environment variable overrides** (take precedence over the config file):
+
+| Variable | Default | Description |
+|---|---|---|
+| `EDATIME_HOST` | `127.0.0.1` | Bind address |
+| `EDATIME_PORT` | `3000` | Listen port |
+| `EDATIME_SAMPLE_DATA` | *(none)* | CSV/Parquet file to load on startup |
+| `EDATIME_CACHE_TTL_SECONDS` | `60` | How long query cache entries live |
+| `EDATIME_RATE_LIMIT_MAX_REQUESTS` | `100` | Max requests per client per window |
+| `EDATIME_MAX_UPLOAD_BYTES` | `268435456` | Max upload file size (256 MB) |
+
+---
+
+## Usage
+
+### Getting data in — the Upload page
+
+Start on the **Upload** page (sidebar: **U**) or press `Alt+1`.
+
+1. Drag and drop a **CSV** or **Parquet** file onto the upload area, or click to browse.
+2. A **preview** panel appears immediately showing every column's name, type, null count, min/max, and a small histogram — before any data is committed.
+3. Optionally adjust partial-load settings:
+   - **Column subset** — deselect columns you don't need to reduce memory use.
+   - **Row limit / skip** — load only the first N rows, or skip the first N.
+   - **Time slice** — restrict ingest to a specific date/time window.
+4. Click **Ingest** to load the data. The app reloads automatically and switches to the Timeseries page.
+
+Your dataset stays in memory for the lifetime of the server process. Uploading a new file replaces the current dataset.
+
+---
+
+### Exploring time series — the Timeseries page
+
+Navigate via the sidebar (**T**) or press `Alt+2`.
+
+#### Selecting series
+
+- Numeric columns appear as **chips** along the top of the chart area.
+- Click a chip to toggle that column on/off in the chart.
+- Each active series gets its own colored line. Click the **color swatch** on a chip to change it — color changes are instant and don't trigger a refetch.
+
+#### Zooming
+
+- **Scroll** (mouse wheel) or **drag** to zoom into a region.
+- The server automatically refetches and resamples data for the new viewport.
+- Use the **zoom history** buttons to step back, or press `Shift+R` to reset to the full dataset view.
+
+#### Analysis readouts
+
+A live status bar shows:
+- Current visible time **range**
+- **Y-range** of the visible portion
+- **Cursor** coordinates as you hover
+- **Clicked point** value when you click on the chart
+
+#### Numeric range filters
+
+- **Double right-click** a series chip to open its numeric range filter.
+- Enter a min and/or max value to hide points outside that range in the rendered chart.
+- Filters propagate to the scatter page automatically when linked filtering is active.
+
+#### Adaptive line filters
+
+Adaptive filters let you draw reference segments directly on the chart and filter data relative to them.
+
+1. **Ctrl+click** a series chip to make it the adaptive filter target.
+2. **Ctrl+click** two points on the chart to define a line segment.
+3. Points above or below the segment are filtered out in the chart view.
+4. Click **Clear Filter** to remove all adaptive segments.
+
+#### Chart overlays and annotations
+
+- Use the **toolbar** to add a chart title, X-axis label, or Y-axis label.
+- Use **drawing tools** to place arrows or boxes on the chart for annotation.
+
+#### Exporting
+
+The toolbar export menu supports:
+
+| Format | Contents |
+|---|---|
+| PNG | Screenshot of the current chart view |
+| SVG | Vector version of the chart |
+| HTML | Self-contained interactive chart file |
+| CSV | Visible data points |
+| JSON | Visible data points as JSON |
+
+---
+
+### Scatter and density analysis — the Scatter page
+
+Navigate via the sidebar (**S**) or press `Alt+3`.
+
+- The page opens with **correlation suggestions** — pairs of columns ranked by how strongly they correlate, to help you pick a useful X/Y combination.
+- Select an **X column** and **Y column** from the dropdowns (or pick a suggested pair).
+- Switch between **Scatter** mode (individual sampled points) and **Density** mode (hexbin density heatmap).
+- The current **time range and filters** from the Timeseries page are propagated into the scatter query automatically — zoom into a region on the Timeseries page, then check the Scatter page to see only those points.
+- Optionally select a **color column** to encode a third variable as color. Choose a color scale from the dropdown below the chart.
+- The scatter legend and stats panel shows the count of visible points and zoom level.
+
+---
+
+### Scatter matrix — the Matrix page
+
+Navigate via the sidebar (**M**).
+
+- Renders a grid of scatter plots for every pair of active numeric columns in one view.
+- Click any cell to open that pair on the full Scatter page for deeper analysis.
+
+---
+
+### Distributions page
+
+Navigate via the sidebar (**D**).
+
+- Shows distribution cards (histogram + stats) for the columns currently active on the Scatter page.
+
+---
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `Alt+1` | Go to Upload page |
+| `Alt+2` | Go to Timeseries page |
+| `Alt+3` | Go to Scatter page |
+| `Shift+R` | Reset chart zoom to full dataset view |
+| `Ctrl+click` chip | Set series as adaptive filter target |
+| `Ctrl+click` chart ×2 | Draw an adaptive filter segment |
+| Double right-click chip | Open numeric range filter for that series |
+
+---
+
+## Runtime metrics
+
+`GET /api/metrics` returns a JSON snapshot of server-side counters:
+
+- Total request counts per endpoint
+- Cache hit/miss counts and current entry count
+- Rate-limit rejection counts
+- Scatter sampling stats
+- Current dataset revision
+
+This endpoint is useful for monitoring a shared deployment.
+
+---
+
+## Data format requirements
+
+edatime expects your file to have:
+
+- **At least one timestamp column** — ISO 8601 strings (`2023-01-15T08:30:00`), Unix epoch integers, or any format Polars can parse as datetime.
+- **At least one numeric column** to plot.
+- CSV files should have a header row. Parquet files are read as-is.
+
+A minimal CSV example:
+
+```csv
+ts,temperature,pressure
+2024-01-01T00:00:00,20.3,1013.2
+2024-01-01T01:00:00,20.1,1013.5
+2024-01-01T02:00:00,19.8,1013.8
+```
+
+---
 
 ## Project structure
 
-- `src/`
-  - `main.rs` — Axum router and server bootstrap
-  - `pipeline.rs` — filter/reduce/serialize pipeline helpers
-  - `query.rs` — shared query parsing and output format helpers
-  - `routes/` — HTTP handlers
-  - `ingest.rs` — CSV/Parquet ingest logic
-  - `downsample.rs` — MinMaxLTTB integration
-  - `arrow_export.rs` — Arrow IPC serialization helpers
-- `frontend/`
-  - `index.html` — application shell
-  - `css/style.css` — application styling
-  - `js/` — frontend modules
-  - `libs/chartgpu/` — bundled chart renderer
+```
+edatime/
+├── src/
+│   ├── main.rs           — Axum router and server startup
+│   ├── config.rs         — Configuration loading and defaults
+│   ├── ingest.rs         — CSV / Parquet ingestion
+│   ├── pipeline.rs       — Filter, downsample, and serialize pipeline
+│   ├── downsample.rs     — MinMaxLTTB downsampling integration
+│   ├── arrow_export.rs   — Apache Arrow IPC serialization
+│   ├── query.rs          — Shared query parsing helpers
+│   ├── cache.rs          — In-memory response cache
+│   ├── rates.rs          — Per-client rate limiting
+│   ├── metrics.rs        — Runtime counters
+│   └── routes/           — HTTP route handlers
+├── frontend/
+│   ├── index.html        — Application shell
+│   ├── css/style.css     — Dark UI styling
+│   └── js/
+│       ├── app.js        — Bootstrap and page orchestration
+│       ├── chart.js      — Time-series chart adapter (ChartGPU)
+│       ├── dataClient.js — HTTP/Arrow fetch helpers
+│       ├── scatterPage.js — Scatter/density analytics
+│       ├── state.js      — Shared frontend state
+│       └── ui/           — Series chips, toolbar, upload, profile grid
+├── docs/
+│   └── developer-guide.md — Development, benchmarks, CI details
+├── sample.csv            — Minimal example dataset
+└── Cargo.toml
+```
+
+---
+
+## Development
+
+See [docs/developer-guide.md](docs/developer-guide.md) for the full development workflow.
+
+Quick reference:
+
+```bash
+# Check for compile errors
+cargo check --all-targets
+
+# Run tests
+cargo test
+
+# Validate frontend syntax
+npm run check:frontend
+
+# Run benchmarks
+cargo bench --bench pipeline_bench
+
+# Security audit
+cargo install cargo-audit --locked
+cargo audit
+```
