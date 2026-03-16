@@ -12,9 +12,10 @@
  *   charts/fallback.js — Canvas 2D fallback chart
  *   chart.js        — DataChart (ChartGPU WebGPU adapter)
  *   dataClient.js   — Arrow IPC fetch + aggregate fetch
+ *   scatterPage.js  — full scatter page with plot/distributions/matrix views
  */
 
-// ─── Imports ────────────────────────────────────────────────────────────────
+// ─── Imports ───────────────────────────────────────────────────────
 
 import { DEBUG, dbg, dbgGroup } from './debug.js';
 import {
@@ -33,13 +34,12 @@ import {
     zoomOut, resetZoom,
     initAnalysisControls, bindAnalysisChartEvents,
     initChartPageFilterGesture, initPages,
-} from './ui/toolbar.js?v=2';
-import { initScatterPage } from './scatterPage.js?v=16';
+} from './ui/toolbar.js?v=4';
 
 import { registerChartType, getChartType } from './charts/registry.js';
 import { FallbackChart } from './charts/fallback.js';
 
-// ─── Lazy-loaded modules ────────────────────────────────────────────────────
+// ─── Lazy-loaded modules ────────────────────────────────────────────
 
 let fetchMetadata = null;
 let fetchData = null;
@@ -142,7 +142,7 @@ function computeRenderedYDebugSnapshot() {
     };
 }
 
-// ─── Core data pipeline ─────────────────────────────────────────────────────
+// ─── Core data pipeline ────────────────────────────────────────────────
 
 function renderCurrentData() {
     if (!appState.chart || !appState.lastFetchedData) return;
@@ -283,6 +283,8 @@ function emitChartRangeChange(sourceKind = 'data') {
 }
 
 async function fetchAndRender() {
+    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
+    if (appState.currentStart >= appState.currentEnd) return;
     try {
         sanitizeSelectedColumns();
         const startIso = new Date(appState.currentStart).toISOString();
@@ -365,6 +367,100 @@ function onZoomRangeChange(newStart, newEnd, sourceKind = 'user') {
     appState.fetchDebounceId = setTimeout(fetchAndRender, 150);
 }
 
+function isTypingTarget(target) {
+    if (!target) return false;
+    if (target.isContentEditable) return true;
+    const tagName = String(target.tagName || '').toLowerCase();
+    return tagName === 'input' || tagName === 'textarea' || tagName === 'select';
+}
+
+function currentPageName() {
+    return document.querySelector('.page[data-page-name]:not([hidden])')?.dataset?.pageName || 'timeseries';
+}
+
+function showPage(pageName) {
+    document.querySelector(`.sidebar .nav-item[data-page="${pageName}"]`)?.click?.();
+}
+
+function initKeyboardShortcuts() {
+    if (window.__edatime?.keyboardShortcutsBound) return;
+    window.__edatime = window.__edatime || {};
+
+    window.addEventListener('keydown', (event) => {
+        if (event.defaultPrevented || isTypingTarget(event.target)) return;
+
+        const key = String(event.key || '').toLowerCase();
+        if (event.altKey && !event.ctrlKey && !event.metaKey) {
+            if (key === '1') {
+                event.preventDefault();
+                showPage('upload');
+                return;
+            }
+            if (key === '2') {
+                event.preventDefault();
+                showPage('timeseries');
+                return;
+            }
+            if (key === '3') {
+                event.preventDefault();
+                showPage('scatter');
+                return;
+            }
+            if (key === '4') {
+                event.preventDefault();
+                showPage('scattermatrix');
+                return;
+            }
+            if (key === '5') {
+                event.preventDefault();
+                showPage('distributions');
+                return;
+            }
+        }
+
+        if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+
+        if (key === 'r' && currentPageName() === 'timeseries') {
+            event.preventDefault();
+            resetZoom(fetchAndRender);
+            return;
+        }
+        if (key === 'z' && currentPageName() === 'timeseries') {
+            event.preventDefault();
+            zoomOut(fetchAndRender);
+            return;
+        }
+        if (key === 'c' && currentPageName() === 'timeseries') {
+            event.preventDefault();
+            document.getElementById('adaptive-clear-btn')?.click?.();
+            return;
+        }
+        if (key === 'e') {
+            event.preventDefault();
+            if (currentPageName() === 'scatter') {
+                document.getElementById('scatter-export-csv-btn')?.click?.();
+            } else {
+                window.__edatime?.exportChartFilteredData?.('csv');
+            }
+        }
+    });
+
+    window.__edatime.keyboardShortcutsBound = true;
+}
+
+// ─── Scatter page init ────────────────────────────────────────────────────────
+
+async function initScatterPageModule() {
+    const scatterPage = document.getElementById('page-scatter');
+    if (!scatterPage) return null;
+
+    const scatterPageModule = await import('./scatterPage.js?v=24');
+    const { initScatterPage } = scatterPageModule;
+
+    const metadata = appState.metadata;
+    return initScatterPage(metadata);
+}
+
 // ─── Init ────────────────────────────────────────────────────────────────────
 
 async function init() {
@@ -375,6 +471,7 @@ async function init() {
     initAnalysisControls(fetchAndRender);
     initColumnFilterModal(renderCurrentData, updateAnalysisYRange);
     initChartPageFilterGesture();
+    initKeyboardShortcuts();
 
     try {
         await ensureChartModules();
@@ -392,7 +489,7 @@ async function init() {
         dbgGroup('metadata', () => dbg(appState.metadata));
         setMetaText('Loading chart…');
 
-        await initScatterPage(appState.metadata);
+        await initScatterPageModule();
 
         if (!appState.metadata.time_range) {
             setMetaText('No valid time range found.');

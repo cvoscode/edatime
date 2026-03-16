@@ -2,8 +2,71 @@
  * Toolbar controls: zoom, draw, labels, export, analysis status.
  */
 
-import { appState, formatAnalysisTime, formatAnalysisNumber } from '../state.js?v=2';
+import { appState, formatAnalysisTime, formatAnalysisNumber, applyColumnRanges } from '../state.js?v=2';
 import { DEBUG, dbg, dbgGroup } from '../debug.js';
+
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+}
+
+function buildFilteredSeriesRows() {
+    if (!appState.lastFetchedData || !Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
+        return [];
+    }
+
+    const filtered = applyColumnRanges(appState.lastFetchedData);
+    const rows = [];
+    for (const column of appState.selectedCols) {
+        const series = filtered.series?.[column];
+        const xs = series?.x || [];
+        const ys = series?.y || [];
+        const len = Math.min(xs.length, ys.length);
+        for (let index = 0; index < len; index++) {
+            const tsMs = Number(xs[index]);
+            const value = Number(ys[index]);
+            if (!Number.isFinite(tsMs) || !Number.isFinite(value)) continue;
+            rows.push({
+                ts_ms: tsMs,
+                ts_iso: new Date(tsMs).toISOString(),
+                series: column,
+                value,
+            });
+        }
+    }
+
+    rows.sort((a, b) => a.ts_ms - b.ts_ms || a.series.localeCompare(b.series));
+    return rows;
+}
+
+export function exportChartFilteredData(format = 'csv') {
+    const rows = buildFilteredSeriesRows();
+    if (rows.length === 0) return false;
+
+    if (format === 'json') {
+        downloadBlob(
+            new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json;charset=utf-8' }),
+            'edatime_filtered_series.json',
+        );
+        return true;
+    }
+
+    const lines = [
+        'ts_ms,ts_iso,series,value',
+        ...rows.map((row) => `${row.ts_ms},"${row.ts_iso}","${String(row.series).replaceAll('"', '""')}",${row.value}`),
+    ];
+    downloadBlob(
+        new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }),
+        'edatime_filtered_series.csv',
+    );
+    return true;
+}
 
 // ─── Analysis status ────────────────────────────────────────────────────────
 
@@ -109,6 +172,9 @@ export function resetZoom(fetchAndRender) {
 // ─── Init controls (draw, export, labels, zoom) ────────────────────────────
 
 export function initAnalysisControls(fetchAndRender) {
+    window.__edatime = window.__edatime || {};
+    window.__edatime.exportChartFilteredData = exportChartFilteredData;
+
     const zoomResetBtn = document.getElementById('zoom-reset-btn');
     if (zoomResetBtn && !zoomResetBtn.dataset.bound) {
         zoomResetBtn.addEventListener('click', () => resetZoom(fetchAndRender));
@@ -150,10 +216,20 @@ export function initAnalysisControls(fetchAndRender) {
     const exportPngBtn = document.getElementById('export-png-btn');
     const exportSvgBtn = document.getElementById('export-svg-btn');
     const exportHtmlBtn = document.getElementById('export-html-btn');
+    const exportDataCsvBtn = document.getElementById('export-data-csv-btn');
+    const exportDataJsonBtn = document.getElementById('export-data-json-btn');
 
     if (exportPngBtn) exportPngBtn.addEventListener('click', () => appState.chart?.exportPNG?.());
     if (exportSvgBtn) exportSvgBtn.addEventListener('click', () => appState.chart?.exportSVG?.());
     if (exportHtmlBtn) exportHtmlBtn.addEventListener('click', () => appState.chart?.exportHTML?.());
+    if (exportDataCsvBtn && !exportDataCsvBtn.dataset.bound) {
+        exportDataCsvBtn.addEventListener('click', () => exportChartFilteredData('csv'));
+        exportDataCsvBtn.dataset.bound = '1';
+    }
+    if (exportDataJsonBtn && !exportDataJsonBtn.dataset.bound) {
+        exportDataJsonBtn.addEventListener('click', () => exportChartFilteredData('json'));
+        exportDataJsonBtn.dataset.bound = '1';
+    }
 
     // Title + axis label controls
     const titleInput = document.getElementById('chart-title-input');
@@ -235,7 +311,7 @@ export function bindAnalysisChartEvents() {
 // ─── Chart page gestures ───────────────────────────────────────────────────
 
 export function initChartPageFilterGesture() {
-    const pageChart = document.getElementById('page-chart');
+    const pageChart = document.getElementById('page-timeseries');
     if (!pageChart) return;
     if (pageChart.dataset.filterCtxBound) return;
 
@@ -266,6 +342,11 @@ export function initPages() {
     const navButtons = Array.from(document.querySelectorAll('.sidebar .nav-item[data-page]'));
     const pages = Array.from(document.querySelectorAll('.page[data-page-name]'));
     if (navButtons.length === 0 || pages.length === 0) return;
+    const analyticsViews = {
+        scatter: 'plot',
+        scattermatrix: 'matrix',
+        distributions: 'distributions',
+    };
 
     const layout = document.querySelector('.app-layout');
     const collapseBtn = document.getElementById('sidebar-collapse-btn');
@@ -278,8 +359,11 @@ export function initPages() {
     }
 
     function showPage(pageName) {
+        const analyticsView = analyticsViews[pageName] || null;
+        const resolvedPageName = analyticsView ? 'scatter' : pageName;
+
         for (const p of pages) {
-            const hide = (p.dataset.pageName !== pageName);
+            const hide = (p.dataset.pageName !== resolvedPageName);
             p.hidden = hide;
             p.style.display = hide ? 'none' : 'flex';
         }
@@ -290,7 +374,11 @@ export function initPages() {
         requestAnimationFrame(() => {
             window.dispatchEvent(new Event('resize'));
             window.dispatchEvent(new CustomEvent('edatime:page-change', {
-                detail: { page: pageName },
+                detail: {
+                    page: resolvedPageName,
+                    navPage: pageName,
+                    analyticsView,
+                },
             }));
         });
     }
@@ -299,5 +387,5 @@ export function initPages() {
         btn.addEventListener('click', () => showPage(btn.dataset.page));
     }
 
-    showPage('chart');
+    showPage('timeseries');
 }

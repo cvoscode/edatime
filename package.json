@@ -1,4 +1,9 @@
 {
+  "private": true,
+  "scripts": {
+    "check:frontend": "node scripts/check-frontend.mjs",
+    "validate": "npm run check:frontend"
+  },
   "dependencies": {
     "chartgpu": "^0.3.2"
   }

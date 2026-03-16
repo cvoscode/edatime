@@ -1,348 +1,469 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EdaTime</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="css/style.css?v=26">
+  <link rel="stylesheet" href="css/style.css?v=30">
 </head>
+
 <body>
 
-<div class="app-layout">
+  <div class="app-layout">
 
-  <nav class="sidebar" id="sidebar">
-    <div class="sidebar-title">EdaTime</div>
-    <button class="nav-item" type="button" data-page="upload" title="Upload">
-      <span class="nav-icon">U</span>
-      <span class="nav-text">Upload</span>
-    </button>
-    <button class="nav-item active" type="button" data-page="chart" title="Chart">
-      <span class="nav-icon">C</span>
-      <span class="nav-text">Chart</span>
-    </button>
-    <button class="nav-item" type="button" data-page="scatter" title="Scatter Density">
-      <span class="nav-icon">S</span>
-      <span class="nav-text">Scatter</span>
-    </button>
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-title">EdaTime</div>
+      <button class="nav-item" type="button" data-page="upload" title="Upload">
+        <span class="nav-icon">U</span>
+        <span class="nav-text">Upload</span>
+      </button>
+      <button class="nav-item active" type="button" data-page="timeseries" title="Timeseries">
+        <span class="nav-icon">T</span>
+        <span class="nav-text">Timeseries</span>
+      </button>
+      <button class="nav-item" type="button" data-page="scatter" title="Scatter">
+        <span class="nav-icon">S</span>
+        <span class="nav-text">Scatter</span>
+      </button>
+      <button class="nav-item" type="button" data-page="scattermatrix" title="Scatter Matrix">
+        <span class="nav-icon">M</span>
+        <span class="nav-text">Matrix</span>
+      </button>
+      <button class="nav-item" type="button" data-page="distributions" title="Distributions">
+        <span class="nav-icon">D</span>
+        <span class="nav-text">Distributions</span>
+      </button>
 
-    <div class="sidebar-spacer"></div>
-    <button class="nav-item nav-collapse" id="sidebar-collapse-btn" type="button" title="Collapse">
-      <span class="nav-icon">≡</span>
-      <span class="nav-text">Collapse</span>
-    </button>
-  </nav>
+      <div class="sidebar-spacer"></div>
+      <button class="nav-item nav-collapse" id="sidebar-collapse-btn" type="button" title="Collapse">
+        <span class="nav-icon">≡</span>
+        <span class="nav-text">Collapse</span>
+      </button>
+    </nav>
 
-  <div class="app-content">
+    <div class="app-content">
 
-<header>
-  <div class="header-brand">
-    <div class="brand-icon">
-      <svg viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="1,9 4,5 7,11 10,3 13,8 15,6"/>
-      </svg>
-    </div>
-    <span class="brand-name">EdaTime</span>
-  </div>
-
-  <div class="header-meta" id="header-meta">
-    <div class="meta-stat" id="stat-rows"><span>Loading&hellip;</span></div>
-  </div>
-</header>
-
-<section class="page" id="page-chart" data-page-name="chart">
-  <div class="toolbar">
-    <div class="toolbar-group" style="display:flex; align-items:center; gap:0.5rem;">
-      <span class="toolbar-label">Series</span>
-      <input type="text" id="column-filter-input" class="column-filter-input" placeholder="Filter columns…" aria-label="Filter columns">
-      <div class="series-toggles" id="column-toggles"></div>
-    </div>
-    <div class="toolbar-group draw-toolbar" style="display:flex; align-items:center; gap:0.5rem; margin-left: auto;">
-      <span class="toolbar-label">Draw</span>
-      <select id="draw-tool" class="draw-select" style="padding: 0.2rem; background: var(--surface-2); color: var(--text-1); border: 1px solid var(--border);">
-        <option value="none">None (Pan)</option>
-        <option value="arrow">Arrow</option>
-        <option value="box">Box</option>
-      </select>
-      <input type="color" id="draw-color" value="#ff0055" title="Color" style="cursor: pointer; padding: 0; width: 24px; height: 24px; background: none; border: none;">
-      <input type="number" id="draw-width" value="2" min="1" max="10" title="Thickness" style="width: 40px; padding: 0.2rem; background: var(--surface-2); color: var(--text-1); border: 1px solid var(--border);">
-      <button class="btn btn-ghost" id="draw-clear-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Clear</button>
-      <button class="btn btn-ghost" id="adaptive-clear-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Clear Filter</button>
-    </div>
-    <div class="toolbar-group labels-toolbar" style="display:flex; align-items:center; gap:0.35rem; margin-left: 0.5rem; border-left: 1px solid var(--border); padding-left: 0.5rem;">
-      <span class="toolbar-label">Labels</span>
-      <input type="text" id="chart-title-input" placeholder="Title" aria-label="Chart title" style="width: 140px; padding: 0.2rem 0.35rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
-      <input type="text" id="x-axis-label-input" placeholder="X" aria-label="X axis label" style="width: 90px; padding: 0.2rem 0.35rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
-      <input type="text" id="y-axis-label-input" placeholder="Y" aria-label="Y axis label" style="width: 90px; padding: 0.2rem 0.35rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
-    </div>
-    <div class="toolbar-group export-toolbar" style="display:flex; align-items:center; gap:0.25rem; margin-left: 0.5rem; border-left: 1px solid var(--border); padding-left: 0.5rem;">
-      <span class="toolbar-label">Export</span>
-      <button class="btn btn-ghost" id="export-png-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">PNG</button>
-      <button class="btn btn-ghost" id="export-svg-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">SVG</button>
-      <button class="btn btn-ghost" id="export-html-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">HTML</button>
-    </div>
-  </div>
-
-  <main class="main">
-    <div id="main-chart"></div>
-  </main>
-</section>
-
-<section class="page" id="page-scatter" data-page-name="scatter" hidden>
-  <div class="toolbar scatter-toolbar">
-    <div class="toolbar-group" style="display:flex; align-items:center; gap:0.5rem;">
-      <span class="toolbar-label">Scatter</span>
-      <label class="scatter-inline-label" for="scatter-x-col">X</label>
-      <select id="scatter-x-col" class="modal-select" aria-label="Scatter X column"></select>
-      <label class="scatter-inline-label" for="scatter-y-col">Y</label>
-      <select id="scatter-y-col" class="modal-select" aria-label="Scatter Y column"></select>
-    </div>
-
-    <div class="toolbar-group" style="display:flex; align-items:center; gap:0.5rem; margin-left:auto;">
-      <span class="toolbar-label">Mode</span>
-      <select id="scatter-render-mode" class="modal-select" aria-label="Scatter render mode">
-        <option value="density" selected>Density</option>
-        <option value="scatter">Scatter</option>
-      </select>
-
-      <label class="scatter-link-toggle" for="scatter-link-brush">
-        <input id="scatter-link-brush" type="checkbox" checked>
-        <span>Link chart range</span>
-      </label>
-
-      <div id="scatter-color-controls" class="scatter-toolbar-group-inline">
-        <span class="toolbar-label">Color By</span>
-        <select id="scatter-color-column" class="modal-select" aria-label="Scatter color-by column">
-          <option value="">None</option>
-        </select>
-        <select id="scatter-color-scale" class="modal-select" aria-label="Scatter color scale">
-          <option value="viridis">Viridis</option>
-          <option value="plasma">Plasma</option>
-          <option value="inferno">Inferno</option>
-        </select>
-      </div>
-
-      <div id="scatter-density-controls" class="scatter-toolbar-group-inline">
-        <span class="toolbar-label">Density</span>
-        <label class="scatter-inline-label" for="scatter-bin-size">Bin</label>
-        <input id="scatter-bin-size" type="range" min="2" max="64" step="1" value="10" style="width:110px;">
-        <span id="scatter-bin-size-value" class="range-value">10</span>
-        <select id="scatter-colormap" class="modal-select" aria-label="Density colormap">
-          <option value="viridis">Viridis</option>
-          <option value="inferno">Inferno</option>
-          <option value="plasma">Plasma</option>
-        </select>
-        <select id="scatter-normalization" class="modal-select" aria-label="Density normalization">
-          <option value="linear">Linear</option>
-          <option value="log">Log</option>
-        </select>
-      </div>
-
-      <div class="scatter-toolbar-group-inline scatter-export-group">
-        <span class="toolbar-label">Export</span>
-        <button class="btn btn-ghost" id="scatter-export-png-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">PNG</button>
-        <button class="btn btn-ghost" id="scatter-export-svg-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">SVG</button>
-        <button class="btn btn-ghost" id="scatter-export-html-btn" type="button" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">HTML</button>
-      </div>
-
-    </div>
-  </div>
-
-  <div class="analysis-toolbar scatter-stats-bar">
-    <span id="scatter-total-points">Total points: —</span>
-    <span id="scatter-binned-points">Visible points: —</span>
-    <span id="scatter-pearson">Pearson: —</span>
-    <span id="scatter-spearman">Spearman: —</span>
-  </div>
-
-  <div class="range-toolbar scatter-suggestions-bar">
-    <span class="toolbar-label">Suggestions (|corr| ≥ 0.7)</span>
-    <div id="scatter-suggestions" class="scatter-suggestions"></div>
-  </div>
-
-  <main class="main">
-    <div id="scatter-chart"></div>
-    <div class="scatter-overlay-stack">
-      <div id="scatter-correlation-overlay" class="scatter-correlation-overlay">Pearson correlation: —<br>Spearman correlation: —</div>
-      <div id="scatter-colorbar-wrap" class="scatter-colorbar-wrap" hidden>
-        <span id="scatter-colorbar-name" class="scatter-colorbar-name">Color scale</span>
-        <div class="scatter-colorbar-scale">
-          <span id="scatter-colorbar-min" class="scatter-colorbar-bound">0.00</span>
-          <div id="scatter-colorbar" class="scatter-colorbar"></div>
-          <span id="scatter-colorbar-max" class="scatter-colorbar-bound">1.00</span>
+      <header>
+        <div class="header-brand">
+          <div class="brand-icon">
+            <svg viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"
+              stroke-linejoin="round">
+              <polyline points="1,9 4,5 7,11 10,3 13,8 15,6" />
+            </svg>
+          </div>
+          <span class="brand-name">EdaTime</span>
         </div>
-      </div>
-    </div>
-    <div id="scatter-error" class="scatter-error" hidden></div>
-  </main>
-</section>
 
-<section class="page page-upload" id="page-upload" data-page-name="upload" hidden>
-  <div id="upload-panel" class="open">
-    <div class="upload-inner">
+        <div class="header-meta" id="header-meta">
+          <div class="meta-stat" id="stat-rows"><span>Loading&hellip;</span></div>
+        </div>
+      </header>
 
-      <div class="drop-zone" id="drop-zone">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-        <span class="dz-title">Drop CSV or Parquet here</span>
-        <span class="dz-sub">or</span>
-        <button class="btn btn-ghost" id="browse-btn" type="button">Browse file</button>
-        <input type="file" id="file-upload" accept=".csv,.parquet" hidden>
-        <span class="dz-filename" id="file-name-display"></span>
-      </div>
+      <section class="page" id="page-timeseries" data-page-name="timeseries">
+        <div class="toolbar">
+          <div class="toolbar-group" style="display:flex; align-items:center; gap:0.5rem;">
+            <span class="toolbar-label">Series</span>
+            <input type="text" id="column-filter-input" class="column-filter-input" placeholder="Filter columns…"
+              aria-label="Filter columns">
+            <div class="series-toggles" id="column-toggles"></div>
+          </div>
+          <div class="toolbar-group draw-toolbar"
+            style="display:flex; align-items:center; gap:0.5rem; margin-left: auto;">
+            <span class="toolbar-label">Draw</span>
+            <select id="draw-tool" class="draw-select"
+              style="padding: 0.2rem; background: var(--surface-2); color: var(--text-1); border: 1px solid var(--border);">
+              <option value="none">None (Pan)</option>
+              <option value="arrow">Arrow</option>
+              <option value="box">Box</option>
+            </select>
+            <input type="color" id="draw-color" value="#ff0055" title="Color"
+              style="cursor: pointer; padding: 0; width: 24px; height: 24px; background: none; border: none;">
+            <input type="number" id="draw-width" value="2" min="1" max="10" title="Thickness"
+              style="width: 40px; padding: 0.2rem; background: var(--surface-2); color: var(--text-1); border: 1px solid var(--border);">
+            <button class="btn btn-ghost" id="draw-clear-btn" type="button"
+              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Clear</button>
+            <button class="btn btn-ghost" id="adaptive-clear-btn" type="button"
+              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Clear Filter</button>
+          </div>
+          <div class="toolbar-group labels-toolbar"
+            style="display:flex; align-items:center; gap:0.35rem; margin-left: 0.5rem; border-left: 1px solid var(--border); padding-left: 0.5rem;">
+            <span class="toolbar-label">Labels</span>
+            <input type="text" id="chart-title-input" placeholder="Title" aria-label="Chart title"
+              style="width: 140px; padding: 0.2rem 0.35rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+            <input type="text" id="x-axis-label-input" placeholder="X" aria-label="X axis label"
+              style="width: 90px; padding: 0.2rem 0.35rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+            <input type="text" id="y-axis-label-input" placeholder="Y" aria-label="Y axis label"
+              style="width: 90px; padding: 0.2rem 0.35rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+          </div>
+          <div class="toolbar-group export-toolbar"
+            style="display:flex; align-items:center; gap:0.25rem; margin-left: 0.5rem; border-left: 1px solid var(--border); padding-left: 0.5rem;">
+            <span class="toolbar-label">Export</span>
+            <button class="btn btn-ghost" id="export-png-btn" type="button"
+              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">PNG</button>
+            <button class="btn btn-ghost" id="export-svg-btn" type="button"
+              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">SVG</button>
+            <button class="btn btn-ghost" id="export-html-btn" type="button"
+              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">HTML</button>
+            <button class="btn btn-ghost" id="export-data-csv-btn" type="button"
+              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">CSV</button>
+            <button class="btn btn-ghost" id="export-data-json-btn" type="button"
+              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">JSON</button>
+          </div>
+        </div>
 
-      <div class="partial-section">
-        <div class="partial-section-title">Load options</div>
+        <main class="main">
+          <div id="main-chart"></div>
+        </main>
+      </section>
 
-        <label class="toggle-row" id="partial-toggle-row">
-          <span class="switch">
-            <input type="checkbox" id="partial-enabled">
-            <span class="switch-slider"></span>
-          </span>
-          <span>
-            <div class="toggle-label-text">Partial load</div>
-            <div class="toggle-sub">Limit the rows ingested from the file</div>
-          </span>
-        </label>
+      <section class="page" id="page-scatter" data-page-name="scatter" hidden>
+        <div class="toolbar scatter-toolbar">
+          <div class="toolbar-group" style="display:flex; align-items:center; gap:0.5rem;">
+            <span class="toolbar-label">Analytics</span>
+            <label class="scatter-inline-label" for="scatter-x-col">X</label>
+            <select id="scatter-x-col" class="modal-select" aria-label="Scatter X column"></select>
+            <label class="scatter-inline-label" for="scatter-y-col">Y</label>
+            <select id="scatter-y-col" class="modal-select" aria-label="Scatter Y column"></select>
+            <span id="scatter-mode-label" class="toolbar-label">Mode</span>
+            <select id="scatter-render-mode" class="modal-select" aria-label="Scatter render mode">
+              <option value="density" selected>Density</option>
+              <option value="scatter">Scatter</option>
+            </select>
+            <label class="scatter-inline-label" for="scatter-diagonal-mode">Distribution</label>
+            <select id="scatter-diagonal-mode" class="modal-select" aria-label="Distribution plot mode">
+              <option value="histogram" selected>Histogram</option>
+              <option value="kde">KDE</option>
+              <option value="boxplot">Box Plot</option>
+            </select>
+            <label class="scatter-link-toggle" for="scatter-link-brush">
+              <input id="scatter-link-brush" type="checkbox" checked>
+              <span>Link chart range</span>
+            </label>
+          </div>
 
-        <div class="partial-fields" id="partial-fields">
-          <div class="field-group">
-            <label for="n-rows-input">Max rows to load</label>
-            <div class="row">
-              <input type="number" id="n-rows-input" placeholder="All rows" min="1" step="1000">
-              <input type="range" id="n-rows-range" min="1000" max="5000000" step="1000" value="1000000">
-              <span class="range-value" id="n-rows-display">1 000 000</span>
+          <div class="toolbar-group" style="display:flex; align-items:center; gap:0.5rem; margin-left:auto;">
+            <div id="scatter-color-controls" class="scatter-toolbar-group-inline">
+              <span class="toolbar-label">Color By</span>
+              <select id="scatter-color-column" class="modal-select" aria-label="Scatter color-by column">
+                <option value="">None</option>
+              </select>
+              <select id="scatter-color-scale" class="modal-select" aria-label="Scatter color scale">
+                <option value="viridis">Viridis</option>
+                <option value="plasma">Plasma</option>
+                <option value="inferno">Inferno</option>
+              </select>
+            </div>
+
+            <div id="scatter-density-controls" class="scatter-toolbar-group-inline">
+              <span class="toolbar-label">Density</span>
+              <label class="scatter-inline-label" for="scatter-bin-size">Bin</label>
+              <input id="scatter-bin-size" type="range" min="2" max="64" step="1" value="10" style="width:110px;">
+              <span id="scatter-bin-size-value" class="range-value">10</span>
+              <select id="scatter-colormap" class="modal-select" aria-label="Density colormap">
+                <option value="viridis">Viridis</option>
+                <option value="inferno">Inferno</option>
+                <option value="plasma">Plasma</option>
+              </select>
+              <select id="scatter-normalization" class="modal-select" aria-label="Density normalization">
+                <option value="linear">Linear</option>
+                <option value="log">Log</option>
+              </select>
+            </div>
+
+            <div class="scatter-toolbar-group-inline scatter-export-group">
+              <span class="toolbar-label">Export</span>
+              <button class="btn btn-ghost" id="scatter-export-png-btn" type="button"
+                style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">PNG</button>
+              <button class="btn btn-ghost" id="scatter-export-svg-btn" type="button"
+                style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">SVG</button>
+              <button class="btn btn-ghost" id="scatter-export-html-btn" type="button"
+                style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">HTML</button>
+              <button class="btn btn-ghost" id="scatter-export-csv-btn" type="button"
+                style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">CSV</button>
+              <button class="btn btn-ghost" id="scatter-export-json-btn" type="button"
+                style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">JSON</button>
             </div>
           </div>
-          <div class="field-group">
-            <label for="skip-rows-input">Skip first N rows</label>
-            <div class="row">
-              <input type="number" id="skip-rows-input" placeholder="0" min="0" value="0">
+        </div>
+
+        <div class="analysis-toolbar scatter-stats-bar">
+          <span id="scatter-total-points">Total points: —</span>
+          <span id="scatter-binned-points">Visible points: —</span>
+          <span id="scatter-pearson">Pearson: —</span>
+          <span id="scatter-spearman">Spearman: —</span>
+        </div>
+
+        <div class="range-toolbar scatter-suggestions-bar">
+          <span class="toolbar-label">Suggestions (|corr| ≥ 0.7)</span>
+          <div id="scatter-suggestions" class="scatter-suggestions"></div>
+        </div>
+
+        <div class="scatter-view" data-scatter-view-panel="plot">
+          <main class="main">
+            <div id="scatter-chart"></div>
+            <div class="scatter-overlay-stack">
+              <div id="scatter-correlation-overlay" class="scatter-correlation-overlay">Pearson correlation:
+                —<br>Spearman correlation: —</div>
+              <div id="scatter-colorbar-wrap" class="scatter-colorbar-wrap" hidden>
+                <span id="scatter-colorbar-name" class="scatter-colorbar-name">Color scale</span>
+                <div class="scatter-colorbar-scale">
+                  <span id="scatter-colorbar-min" class="scatter-colorbar-bound">0.00</span>
+                  <div id="scatter-colorbar" class="scatter-colorbar"></div>
+                  <span id="scatter-colorbar-max" class="scatter-colorbar-bound">1.00</span>
+                </div>
+              </div>
+            </div>
+            <div id="scatter-error" class="scatter-error" hidden></div>
+          </main>
+        </div>
+
+        <div class="scatter-view" data-scatter-view-panel="matrix" hidden>
+          <div class="scatter-panel">
+            <div class="scatter-panel-head">
+              <span class="toolbar-label">Scatter Matrix</span>
+              <span id="scatter-matrix-status" class="scatter-panel-status">Shows pairwise scatter plots with
+                configurable diagonal distributions.</span>
+            </div>
+            <div id="scatter-matrix" class="scatter-matrix"></div>
+          </div>
+        </div>
+
+        <div class="scatter-view" data-scatter-view-panel="distributions" hidden>
+          <div class="scatter-panel" style="display:flex; gap:1rem;">
+            <div class="scatter-panel" style="flex:1;">
+              <div class="scatter-panel-head">
+                <span class="toolbar-label">Distributions</span>
+                <span id="scatter-distribution-status" class="scatter-panel-status">Histogram, KDE, or box plot for the
+                  active axes and color channel.</span>
+              </div>
+              <div id="scatter-distributions" class="scatter-distributions"></div>
+            </div>
+
+            <div class="scatter-panel" style="width:300px;">
+              <div class="scatter-panel-head">
+                <span class="toolbar-label">Statistics</span>
+              </div>
+              <div id="distributions-stats-panel" class="distributions-stats-panel">
+                <div class="stat-row">
+                  <span class="stat-label">Mean</span>
+                  <span id="stat-mean" class="stat-value">—</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Std Dev</span>
+                  <span id="stat-std" class="stat-value">—</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Min</span>
+                  <span id="stat-min" class="stat-value">—</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Max</span>
+                  <span id="stat-max" class="stat-value">—</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Median</span>
+                  <span id="stat-median" class="stat-value">—</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Q1</span>
+                  <span id="stat-q1" class="stat-value">—</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Q3</span>
+                  <span id="stat-q3" class="stat-value">—</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">IQR</span>
+                  <span id="stat-iqr" class="stat-value">—</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Skewness</span>
+                  <span id="stat-skewness" class="stat-value">—</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Kurtosis</span>
+                  <span id="stat-kurtosis" class="stat-value">—</span>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="field-group">
-            <label>Time range (optional)</label>
-            <div class="row row-time">
-              <input type="datetime-local" id="time-start-input" aria-label="Start time">
-              <input type="datetime-local" id="time-end-input" aria-label="End time">
+        </div>
+      </section>
+
+      <section class="page page-upload" id="page-upload" data-page-name="upload" hidden>
+        <div id="upload-panel" class="open">
+          <div class="upload-inner">
+
+            <div class="drop-zone" id="drop-zone">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <span class="dz-title">Drop CSV or Parquet here</span>
+              <span class="dz-sub">or</span>
+              <button class="btn btn-ghost" id="browse-btn" type="button">Browse file</button>
+              <input type="file" id="file-upload" accept=".csv,.parquet" hidden>
+              <span class="dz-filename" id="file-name-display"></span>
             </div>
-            <div class="time-range-hint" id="time-range-hint">Detected range will appear after preview.</div>
+
+            <div class="partial-section">
+              <div class="partial-section-title">Load options</div>
+
+              <label class="toggle-row" id="partial-toggle-row">
+                <span class="switch">
+                  <input type="checkbox" id="partial-enabled">
+                  <span class="switch-slider"></span>
+                </span>
+                <span>
+                  <div class="toggle-label-text">Partial load</div>
+                  <div class="toggle-sub">Limit the rows ingested from the file</div>
+                </span>
+              </label>
+
+              <div class="partial-fields" id="partial-fields">
+                <div class="field-group">
+                  <label for="n-rows-input">Max rows to load</label>
+                  <div class="row">
+                    <input type="number" id="n-rows-input" placeholder="All rows" min="1" step="1000">
+                    <input type="range" id="n-rows-range" min="1000" max="5000000" step="1000" value="1000000">
+                    <span class="range-value" id="n-rows-display">1 000 000</span>
+                  </div>
+                </div>
+                <div class="field-group">
+                  <label for="skip-rows-input">Skip first N rows</label>
+                  <div class="row">
+                    <input type="number" id="skip-rows-input" placeholder="0" min="0" value="0">
+                  </div>
+                </div>
+                <div class="field-group">
+                  <label>Time range (optional)</label>
+                  <div class="row row-time">
+                    <input type="datetime-local" id="time-start-input" aria-label="Start time">
+                    <input type="datetime-local" id="time-end-input" aria-label="End time">
+                  </div>
+                  <div class="time-range-hint" id="time-range-hint">Detected range will appear after preview.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="upload-actions">
+              <button class="btn btn-primary" id="upload-btn">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <path d="M8 11V3M5 6l3-3 3 3" />
+                  <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" />
+                </svg>
+                Upload & Ingest
+              </button>
+              <div class="progress-bar-wrap" id="progress-wrap" style="display:none">
+                <div class="progress-bar" id="progress-bar"></div>
+              </div>
+              <div class="upload-status" id="upload-status"></div>
+            </div>
+          </div>
+
+          <div class="upload-preview">
+            <div class="upload-preview-head">
+              <span class="toolbar-label">File Preview</span>
+              <div class="upload-preview-selection">
+                <button class="btn btn-ghost" id="profile-select-all-btn" type="button">All</button>
+                <button class="btn btn-ghost" id="profile-select-none-btn" type="button">None</button>
+                <span class="upload-preview-selection-text" id="profile-selection-status">All columns selected</span>
+              </div>
+              <input type="text" id="profile-filter-input" class="column-filter-input" placeholder="Filter columns…"
+                aria-label="Filter profile columns">
+              <span class="upload-preview-status" id="upload-preview-status">Select a file to preview columns</span>
+            </div>
+
+            <div class="profile-grid" id="profile-grid" role="table" aria-label="Column profile table">
+              <div class="profile-grid-header" role="row">
+                <div class="profile-col profile-col-check" role="columnheader">
+                  <input id="profile-select-all-checkbox" type="checkbox" aria-label="Select all upload columns">
+                </div>
+                <div class="profile-col profile-col-name" role="columnheader">Column</div>
+                <div class="profile-col profile-col-type" role="columnheader">Type</div>
+                <div class="profile-col profile-col-count" role="columnheader">Non-null</div>
+                <div class="profile-col profile-col-count" role="columnheader">Nulls</div>
+                <div class="profile-col profile-col-num" role="columnheader">Min</div>
+                <div class="profile-col profile-col-num" role="columnheader">Max</div>
+                <div class="profile-col profile-col-hist" role="columnheader">Distribution</div>
+              </div>
+
+              <div class="profile-grid-viewport" id="profile-grid-viewport" role="rowgroup">
+                <div class="profile-grid-spacer" id="profile-grid-spacer">
+                  <div class="profile-grid-rows" id="profile-grid-rows"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div id="column-filter-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="column-filter-title">
+          <div class="modal-header">
+            <div class="modal-title" id="column-filter-title">Filter column</div>
+            <button class="btn btn-ghost" id="column-filter-close-btn" type="button">Close</button>
+          </div>
+
+          <div class="modal-body">
+            <label class="modal-field">
+              <span class="modal-label">Column</span>
+              <select id="column-filter-col" class="modal-select" aria-label="Select column"></select>
+            </label>
+
+            <div class="modal-grid">
+              <label class="modal-field">
+                <span class="modal-label">Min</span>
+                <input id="column-filter-min" class="modal-input" type="number" step="0.01" aria-label="Minimum value">
+              </label>
+              <label class="modal-field">
+                <span class="modal-label">Max</span>
+                <input id="column-filter-max" class="modal-input" type="number" step="0.01" aria-label="Maximum value">
+              </label>
+            </div>
+
+            <div class="modal-range-stack">
+              <span class="modal-label">Range slider</span>
+              <div class="modal-range-values" aria-hidden="true">
+                <span id="column-filter-range-min-value" class="modal-range-value">0.00</span>
+                <span id="column-filter-range-max-value" class="modal-range-value">1.00</span>
+              </div>
+              <div class="modal-range-dual" aria-hidden="true">
+                <div class="modal-range-track"></div>
+                <div id="column-filter-range-fill" class="modal-range-fill"></div>
+                <input id="column-filter-min-range" class="modal-range-input modal-range-input--min" type="range"
+                  min="0" max="1" step="0.01" value="0" aria-label="Minimum range slider">
+                <input id="column-filter-max-range" class="modal-range-input modal-range-input--max" type="range"
+                  min="0" max="1" step="0.01" value="1" aria-label="Maximum range slider">
+              </div>
+              <div class="modal-range-captions">
+                <span>Min</span>
+                <span>Max</span>
+              </div>
+            </div>
+
+            <div class="modal-hint" id="column-filter-hint"></div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn btn-ghost" id="column-filter-clear-btn" type="button">Clear</button>
+            <div class="modal-actions-right">
+              <button class="btn btn-ghost" id="column-filter-cancel-btn" type="button">Cancel</button>
+              <button class="btn btn-primary" id="column-filter-apply-btn" type="button">Apply</button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="upload-actions">
-        <button class="btn btn-primary" id="upload-btn">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 11V3M5 6l3-3 3 3"/>
-            <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1"/>
-          </svg>
-          Upload &amp; Ingest
-        </button>
-        <div class="progress-bar-wrap" id="progress-wrap" style="display:none">
-          <div class="progress-bar" id="progress-bar"></div>
-        </div>
-        <div class="upload-status" id="upload-status"></div>
-      </div>
-    </div>
-
-    <div class="upload-preview">
-      <div class="upload-preview-head">
-        <span class="toolbar-label">File Preview</span>
-        <div class="upload-preview-selection">
-          <button class="btn btn-ghost" id="profile-select-all-btn" type="button">All</button>
-          <button class="btn btn-ghost" id="profile-select-none-btn" type="button">None</button>
-          <span class="upload-preview-selection-text" id="profile-selection-status">All columns selected</span>
-        </div>
-        <input type="text" id="profile-filter-input" class="column-filter-input" placeholder="Filter columns…" aria-label="Filter profile columns">
-        <span class="upload-preview-status" id="upload-preview-status">Select a file to preview columns</span>
-      </div>
-
-      <div class="profile-grid" id="profile-grid" role="table" aria-label="Column profile table">
-        <div class="profile-grid-header" role="row">
-          <div class="profile-col profile-col-check" role="columnheader">
-            <input id="profile-select-all-checkbox" type="checkbox" aria-label="Select all upload columns">
-          </div>
-          <div class="profile-col profile-col-name" role="columnheader">Column</div>
-          <div class="profile-col profile-col-type" role="columnheader">Type</div>
-          <div class="profile-col profile-col-count" role="columnheader">Non-null</div>
-          <div class="profile-col profile-col-count" role="columnheader">Nulls</div>
-          <div class="profile-col profile-col-num" role="columnheader">Min</div>
-          <div class="profile-col profile-col-num" role="columnheader">Max</div>
-          <div class="profile-col profile-col-hist" role="columnheader">Distribution</div>
-        </div>
-
-        <div class="profile-grid-viewport" id="profile-grid-viewport" role="rowgroup">
-          <div class="profile-grid-spacer" id="profile-grid-spacer">
-            <div class="profile-grid-rows" id="profile-grid-rows"></div>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
-</section>
 
-<div id="column-filter-modal" class="modal-backdrop" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="column-filter-title">
-    <div class="modal-header">
-      <div class="modal-title" id="column-filter-title">Filter column</div>
-      <button class="btn btn-ghost" id="column-filter-close-btn" type="button">Close</button>
-    </div>
-
-    <div class="modal-body">
-      <label class="modal-field">
-        <span class="modal-label">Column</span>
-        <select id="column-filter-col" class="modal-select" aria-label="Select column"></select>
-      </label>
-
-      <div class="modal-grid">
-        <label class="modal-field">
-          <span class="modal-label">Min</span>
-          <input id="column-filter-min" class="modal-input" type="number" step="0.01" aria-label="Minimum value">
-        </label>
-        <label class="modal-field">
-          <span class="modal-label">Max</span>
-          <input id="column-filter-max" class="modal-input" type="number" step="0.01" aria-label="Maximum value">
-        </label>
-      </div>
-
-      <div class="modal-range-stack">
-        <span class="modal-label">Range slider</span>
-        <div class="modal-range-values" aria-hidden="true">
-          <span id="column-filter-range-min-value" class="modal-range-value">0.00</span>
-          <span id="column-filter-range-max-value" class="modal-range-value">1.00</span>
-        </div>
-        <div class="modal-range-dual" aria-hidden="true">
-          <div class="modal-range-track"></div>
-          <div id="column-filter-range-fill" class="modal-range-fill"></div>
-          <input id="column-filter-min-range" class="modal-range-input modal-range-input--min" type="range" min="0" max="1" step="0.01" value="0" aria-label="Minimum range slider">
-          <input id="column-filter-max-range" class="modal-range-input modal-range-input--max" type="range" min="0" max="1" step="0.01" value="1" aria-label="Maximum range slider">
-        </div>
-        <div class="modal-range-captions">
-          <span>Min</span>
-          <span>Max</span>
-        </div>
-      </div>
-
-      <div class="modal-hint" id="column-filter-hint"></div>
-    </div>
-
-    <div class="modal-actions">
-      <button class="btn btn-ghost" id="column-filter-clear-btn" type="button">Clear</button>
-      <div class="modal-actions-right">
-        <button class="btn btn-ghost" id="column-filter-cancel-btn" type="button">Cancel</button>
-        <button class="btn btn-primary" id="column-filter-apply-btn" type="button">Apply</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-  </div>
-</div>
-
-<script type="module" src="js/app.js?v=79"></script>
+  <script type="module" src="js/app.js?v=83"></script>
 </body>
+
 </html>

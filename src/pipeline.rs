@@ -31,7 +31,7 @@ pub fn filter_time_range(
             .select(exprs)
             .collect()
     })
-    .map_err(|e| AppError::PolarsError(e.to_string()))
+    .map_err(|e| AppError::io(e.to_string()))
 }
 
 // ── Stage 2: Reduction strategies ──────────────────────────────────────────
@@ -62,13 +62,11 @@ pub fn apply_reduction(
             }
             let col_refs: Vec<&str> = value_cols.iter().map(|s| s.as_str()).collect();
             let out = crate::downsample::downsample_dataframe_multi(df, "ts", &col_refs, target)
-                .map_err(|e| AppError::Internal(format!("Downsample error: {}", e)))?;
+                .map_err(|e| AppError::io(format!("Downsample error: {}", e)))?;
             Ok((out, true))
         }
 
-        Reduction::BucketAgg { buckets, agg } => {
-            bucket_aggregate(df, value_cols, *buckets, *agg)
-        }
+        Reduction::BucketAgg { buckets, agg } => bucket_aggregate(df, value_cols, *buckets, *agg),
     }
 }
 
@@ -84,22 +82,27 @@ fn bucket_aggregate(
 
     let ts_series = df
         .column("ts")
-        .map_err(|e| AppError::BadRequest(format!("Missing ts column: {}", e)))?
-        .as_materialized_series();
+        .map(|c| c.as_materialized_series())
+        .map_err(|e| AppError::bad_request(format!("Missing ts column: {}", e)))?
+        .clone();
 
     let ts_i64 = ts_series
         .cast(&DataType::Int64)
-        .map_err(|e| AppError::Internal(format!("ts cast: {}", e)))?;
+        .map_err(|e| AppError::io(format!("ts cast: {}", e)))?;
     let ts_ca = ts_i64
         .i64()
-        .map_err(|e| AppError::Internal(format!("ts i64: {}", e)))?;
+        .map_err(|e| AppError::io(format!("ts i64: {}", e)))?;
 
     let (ts_min, ts_max) = {
         let mut lo = i64::MAX;
         let mut hi = i64::MIN;
         for v in ts_ca.into_iter().flatten() {
-            if v < lo { lo = v; }
-            if v > hi { hi = v; }
+            if v < lo {
+                lo = v;
+            }
+            if v > hi {
+                hi = v;
+            }
         }
         if lo > hi {
             return Ok((DataFrame::default(), true));
@@ -126,7 +129,7 @@ fn bucket_aggregate(
     let mut with_bucket = df.clone();
     with_bucket
         .with_column(bucket_series.into())
-        .map_err(|e| AppError::Internal(format!("add bucket col: {}", e)))?;
+        .map_err(|e| AppError::io(format!("add bucket col: {}", e)))?;
 
     // Build aggregation expressions.
     let mut agg_exprs: Vec<Expr> = Vec::new();
@@ -143,7 +146,10 @@ fn bucket_aggregate(
             AggFn::Sum => col(c.as_str()).sum().alias(c.as_str()),
             AggFn::Min => col(c.as_str()).min().alias(c.as_str()),
             AggFn::Max => col(c.as_str()).max().alias(c.as_str()),
-            AggFn::Count => col(c.as_str()).count().cast(DataType::Float64).alias(c.as_str()),
+            AggFn::Count => col(c.as_str())
+                .count()
+                .cast(DataType::Float64)
+                .alias(c.as_str()),
         };
         agg_exprs.push(e);
     }
@@ -163,7 +169,7 @@ fn bucket_aggregate(
             })
             .collect()
     })
-    .map_err(|e| AppError::PolarsError(e.to_string()))?;
+    .map_err(|e| AppError::io(e.to_string()))?;
 
     // Cast ts back to datetime for consistent Arrow IPC serialization.
     let ts_dtype = df
@@ -176,7 +182,7 @@ fn bucket_aggregate(
             .lazy()
             .with_column(col("ts").cast(ts_dtype).alias("ts"))
             .collect()
-            .map_err(|e| AppError::Internal(format!("ts recast: {}", e)))?
+            .map_err(|e| AppError::io(format!("ts recast: {}", e)))?
     } else {
         result
     };
@@ -189,7 +195,7 @@ fn bucket_aggregate(
 /// Serialize a DataFrame to Arrow IPC bytes.
 pub fn serialize_arrow(df: DataFrame) -> Result<Vec<u8>, AppError> {
     dataframe_to_arrow_ipc(df)
-        .map_err(|e| AppError::Internal(format!("Arrow IPC serialization: {:?}", e)))
+        .map_err(|e| AppError::io(format!("Arrow IPC serialization: {:?}", e)))
 }
 
 /// Serialize a DataFrame to a JSON value with `ts` and `values` keys.
@@ -208,14 +214,17 @@ pub fn serialize_json(
 
     let ts_series = df
         .column("ts")
-        .map_err(|e| AppError::Internal(format!("Missing ts: {}", e)))?
-        .as_materialized_series()
-        .cast(&DataType::Int64)
-        .map_err(|e| AppError::Internal(format!("ts cast: {}", e)))?;
+        .map(|c| c.as_materialized_series())
+        .map_err(|e| AppError::io(format!("Missing ts: {}", e)))?
+        .clone();
 
-    let ts: Vec<f64> = ts_series
+    let ts_i64 = ts_series
+        .cast(&DataType::Int64)
+        .map_err(|e| AppError::io(format!("ts cast: {}", e)))?;
+
+    let ts: Vec<f64> = ts_i64
         .i64()
-        .map_err(|e| AppError::Internal(format!("ts i64: {}", e)))?
+        .map_err(|e| AppError::io(format!("ts i64: {}", e)))?
         .into_iter()
         .map(|v| {
             v.map(|raw| {
@@ -233,14 +242,17 @@ pub fn serialize_json(
     for col_name in value_cols {
         let col_series = df
             .column(col_name.as_str())
-            .map_err(|e| AppError::Internal(format!("Missing '{}': {}", col_name, e)))?
-            .as_materialized_series()
+            .map(|c| c.as_materialized_series())
+            .map_err(|e| AppError::io(format!("Missing '{}': {}", col_name, e)))?
+            .clone();
+
+        let col_series = col_series
             .cast(&DataType::Float64)
-            .map_err(|e| AppError::Internal(format!("Cast '{}': {}", col_name, e)))?;
+            .map_err(|e| AppError::io(format!("Cast '{}': {}", col_name, e)))?;
 
         let vals: Vec<f64> = col_series
             .f64()
-            .map_err(|e| AppError::Internal(format!("Read '{}': {}", col_name, e)))?
+            .map_err(|e| AppError::io(format!("Read '{}': {}", col_name, e)))?
             .into_iter()
             .map(|v| v.unwrap_or(f64::NAN))
             .collect();
@@ -256,9 +268,9 @@ pub fn serialize_json(
 
 // ── Convenience: build a full response ─────────────────────────────────────
 
-use axum::http::{header, HeaderValue};
-use axum::response::{IntoResponse, Response};
 use axum::Json;
+use axum::http::{HeaderValue, header};
+use axum::response::{IntoResponse, Response};
 
 /// Metadata attached to every data response via custom headers.
 pub struct ResponseMeta {

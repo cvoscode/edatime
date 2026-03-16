@@ -2,6 +2,11 @@
 
 edatime is an interactive time-series analytics app with a Rust/Axum/Polars backend and a vanilla-JS frontend built around ChartGPU. The main time-series transport is Apache Arrow IPC over HTTP. Secondary analytics endpoints currently use a mix of Arrow IPC and JSON depending on payload shape.
 
+## Runtime configuration
+
+- The backend can load optional runtime configuration from `config.toml` or a path supplied through `EDATIME_CONFIG`.
+- Prefer wiring operational defaults through `src/config.rs` instead of hardcoding them in handlers or `main.rs`.
+
 ## Current stack
 
 - Backend: Rust, Axum, Tokio, Polars, Arrow IPC, minmaxlttb, tracing
@@ -17,15 +22,48 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
   - downsamples with `minmaxlttb` when needed
   - returns Arrow IPC with `application/vnd.apache.arrow.stream`
 - `GET /api/metadata`
+  - returns dataset schema, numeric columns, time range, and column profiles
 - `GET /api/health`
 - `GET /api/aggregate`
   - supports Arrow IPC or JSON output
+- `GET /api/metrics`
+  - returns in-memory runtime metrics for request counts, caching, rate limiting, scatter sampling, and dataset revision
 - `GET /api/scatter/correlations`
+  - returns correlation suggestions and candidate columns for scatter analysis
 - `GET /api/scatter/points`
 - `POST /api/scatter/points`
   - frontend currently uses POST to avoid long query strings when many filters are active
 - `POST /api/upload`
+  - supports partial ingestion, column subset selection, and optional time slicing
 - `POST /api/upload/preview`
+  - returns preview metadata used to populate the profile grid before ingest
+- All API routes are also available under `/api/v1/*` for versioned clients
+
+### Frontend runtime structure
+
+- Main app bootstrap in `frontend/js/app.js`
+  - loads metadata
+  - initializes upload/profile, chart, scatter page, and analysis controls
+  - coordinates refetches and local re-rendering
+- Shared state in `frontend/js/state.js`
+  - selected series
+  - per-series custom colors
+  - numeric range filters
+  - adaptive line filters
+  - current chart viewport
+  - chart text overlays
+- Main chart adapter in `frontend/js/chart.js`
+  - ChartGPU-backed time-series rendering
+  - overlay rendering for adaptive filters and drawings
+  - zoom handling
+  - export helpers
+- Chart registry in `frontend/js/charts/registry.js`
+  - registers the primary ChartGPU line chart and Canvas fallback chart
+- Scatter analytics in `frontend/js/scatterPage.js`
+  - correlation suggestions
+  - scatter/density rendering
+  - linked filter propagation
+  - optional scatter color-column rendering
 
 ### Frontend modules
 
@@ -34,6 +72,8 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
 - `frontend/js/chart.js`
 - `frontend/js/ui/columns.js`
 - `frontend/js/ui/toolbar.js`
+- `frontend/js/charts/registry.js`
+- `frontend/js/charts/fallback.js`
 
 #### Scatter / density analytics page
 - `frontend/js/scatterPage.js`
@@ -50,17 +90,25 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
 
 - Multi-series temporal charting
 - Per-series custom colors for the time-series plot
+- Zooming with history and reset-to-initial-view support
+- Live analysis status for range, Y-range, cursor, and clicked point
 - Server-side time filtering with Arrow IPC streaming
 - MinMaxLTTB downsampling
+- Chart title and axis label overlays
 - Upload preview and partial ingestion
 - Upload-time column subset selection
-- Column profile grid
+- Dataset metadata and time-range detection during preview
+- Column profile grid with sorting, resizing, and virtualization
+- Short-lived in-memory caching for repeated `/api/data` requests
+- Request validation and upload-size enforcement on backend routes
+- In-memory runtime metrics and per-client rate limiting
 - Numeric range filters on temporal data
 - Adaptive line filters created from Ctrl+click interactions on the main chart
 - Adaptive filter target selection via Ctrl+click on a selected series chip
 - Adaptive filter clear controls
 - Drawing tools and export actions on the main chart
 - Scatter and density analytics page with correlation suggestions
+- Optional scatter color encoding with selectable color scales
 - Linked brush/filter propagation from the main chart into scatter queries
 - WebGPU availability guard with a user-facing error
 - Canvas fallback chart registration
@@ -69,21 +117,23 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
 
 ### Main chart page
 1. Frontend fetches `/api/metadata`.
-2. Frontend builds series chips, range controls, upload/profile UI, and chart state.
-3. Frontend requests `/api/data?start=...&end=...&width=...&columns=...`.
-4. Backend filters and downsamples in Polars.
-5. Backend returns Arrow IPC.
-6. Frontend decodes Arrow and renders through ChartGPU.
-7. Frontend applies local numeric range filters, adaptive line filters, and custom series colors.
-8. Zooming triggers a debounced re-fetch.
+2. Frontend builds series chips, range controls, upload/profile UI, analysis controls, and chart state.
+3. User may locally change per-series chart colors from the series chips.
+4. Frontend requests `/api/data?start=...&end=...&width=...&columns=...`.
+5. Backend filters and downsamples in Polars.
+6. Backend returns Arrow IPC.
+7. Frontend decodes Arrow and renders through ChartGPU.
+8. Frontend applies local numeric range filters, adaptive line filters, and custom series colors.
+9. Zooming triggers a debounced re-fetch, while purely presentational changes stay local.
 
 ### Scatter page
 1. Frontend fetches `/api/scatter/correlations` for X/Y suggestions.
 2. Frontend sends a `POST /api/scatter/points` request for the selected X/Y pair.
-3. Request payload may include linked time range, numeric filters, and adaptive line filters.
+3. Request payload may include linked time range, numeric filters, adaptive line filters, and an optional scatter color column.
 4. Backend applies lazy Polars filtering.
 5. Backend returns scatter points as JSON.
 6. Scatter mode renders points directly; density mode renders density bins.
+7. Scatter-only color scale settings are applied in the scatter renderer.
 
 ### Upload flow
 1. Frontend uploads a file to `/api/upload/preview`.
@@ -91,6 +141,7 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
 3. User optionally selects partial-load settings and a subset of columns.
 4. Frontend uploads the file to `/api/upload` with those options.
 5. Backend ingests the selection into the shared `DataFrame`.
+6. Frontend reloads against the newly ingested dataset and rebuilds UI state from metadata.
 
 ## Transport guidance
 
@@ -123,7 +174,7 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
 - `src/routes/*.rs`: document route changes in `src/main.rs`, `src/routes/mod.rs`, README, and this instructions file.
 - `frontend/js/chart.js`: preserve external zoom/refetch behavior and overlay rendering.
 - `frontend/js/scatterPage.js`: keep scatter/density rendering, color legend behavior, and linked filtering in sync.
-- `frontend/js/ui/columns.js`: series chips, adaptive filter targeting, and range/filter controls live here.
+- `frontend/js/ui/columns.js`: series chips, per-series color pickers, adaptive filter targeting, and range/filter controls live here.
 
 ## Implementation preferences
 
@@ -133,11 +184,13 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
 - Numeric filter inputs should remain easy to adjust and human-readable.
 - New controls should match the existing compact toolbar/modal style.
 - Avoid refetching when a purely presentational change can be handled locally, such as series color changes.
+- Keep main-chart series colors and scatter-page color-column rendering conceptually separate.
 
 ## Practical reminders
 
 - If a change affects both the time-series page and scatter page, verify both flows.
 - Keep scatter legend and color behavior aligned with render mode.
+- If you change series chip behavior, verify color picking, adaptive target selection, and filter modal entry points together.
 - If adaptive filtering changes, verify overlay rendering, local filtering, and scatter propagation together.
 - If upload behavior changes, verify preview, selection, and final ingest flows together.
 

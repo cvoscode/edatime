@@ -1,11 +1,21 @@
-use minmaxlttb::{minmaxlttb, Point};
+use minmaxlttb::{Point, minmaxlttb};
 use polars::prelude::*;
 
-pub fn downsample_dataframe(df: &DataFrame, x_col: &str, y_col: &str, target_points: usize) -> PolarsResult<DataFrame> {
+pub fn downsample_dataframe(
+    df: &DataFrame,
+    x_col: &str,
+    y_col: &str,
+    target_points: usize,
+) -> PolarsResult<DataFrame> {
     downsample_dataframe_multi(df, x_col, &[y_col], target_points)
 }
 
-pub fn downsample_dataframe_multi(df: &DataFrame, ts_col: &str, value_cols: &[&str], target_points: usize) -> PolarsResult<DataFrame> {
+pub fn downsample_dataframe_multi(
+    df: &DataFrame,
+    ts_col: &str,
+    value_cols: &[&str],
+    target_points: usize,
+) -> PolarsResult<DataFrame> {
     if df.height() <= target_points || target_points < 3 {
         let mut cols = vec![ts_col];
         cols.extend_from_slice(value_cols);
@@ -24,9 +34,8 @@ pub fn downsample_dataframe_multi(df: &DataFrame, ts_col: &str, value_cols: &[&s
         points.push(Point::new(x_val, y_val));
     }
 
-    let downsampled_points = minmaxlttb(&points, target_points, 4).map_err(|e| {
-        PolarsError::ComputeError(format!("Downsampling error: {:?}", e).into())
-    })?;
+    let downsampled_points = minmaxlttb(&points, target_points, 4)
+        .map_err(|e| PolarsError::ComputeError(format!("Downsampling error: {:?}", e).into()))?;
 
     let mut selected_rows: Vec<u32> = downsampled_points
         .iter()
@@ -37,18 +46,26 @@ pub fn downsample_dataframe_multi(df: &DataFrame, ts_col: &str, value_cols: &[&s
 
     selected_rows.sort_unstable();
     selected_rows.dedup();
-    
+
     let mut cols = vec![ts_col];
     cols.extend_from_slice(value_cols);
 
     let row_df = DataFrame::new(
         selected_rows.len(),
         vec![Series::new("row_nr".into(), selected_rows).into()],
-    )?.lazy();
+    )?
+    .lazy();
 
-    let out_df = df.clone().lazy()
+    let out_df = df
+        .clone()
+        .lazy()
         .with_row_index("row_nr", None)
-        .join(row_df, [col("row_nr")], [col("row_nr")], JoinArgs::new(JoinType::Inner))
+        .join(
+            row_df,
+            [col("row_nr")],
+            [col("row_nr")],
+            JoinArgs::new(JoinType::Inner),
+        )
         .select(cols.iter().map(|c| col(*c)).collect::<Vec<_>>())
         .collect()?;
 

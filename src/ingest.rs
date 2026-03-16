@@ -47,7 +47,8 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
     // If the partial read returns empty, fail early before attempting column inference.
     if df.height() == 0 {
         return Err(PolarsError::ComputeError(
-            "No rows loaded for the selected partial range. Reduce skip_rows or increase n_rows.".into(),
+            "No rows loaded for the selected partial range. Reduce skip_rows or increase n_rows."
+                .into(),
         ));
     }
 
@@ -63,9 +64,7 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
     }
 
     let old_name = time_col_name.ok_or_else(|| {
-        PolarsError::ComputeError(
-            "DataFrame must contain at least one datetime column".into(),
-        )
+        PolarsError::ComputeError("DataFrame must contain at least one datetime column".into())
     })?;
 
     if let Some(selected_columns) = selected_columns {
@@ -134,4 +133,44 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
     }
 
     Ok(df)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn write_temp_csv(contents: &str) -> tempfile::TempPath {
+        let file = tempfile::NamedTempFile::new().expect("tempfile");
+        fs::write(file.path(), contents).expect("write csv");
+        file.into_temp_path()
+    }
+
+    #[test]
+    fn partial_load_respects_row_limit_and_selection() {
+        let path = write_temp_csv(
+            "time,value,other\n2024-01-01T00:00:00Z,1,10\n2024-01-01T00:00:01Z,2,20\n2024-01-01T00:00:02Z,3,30\n",
+        );
+        let selected = vec!["value".to_string()];
+
+        let df = load_dataframe_partial(&path, Some(2), 0, None, None, Some(&selected))
+            .expect("partial load");
+
+        assert_eq!(df.height(), 2);
+        let column_names = df
+            .get_column_names()
+            .iter()
+            .map(|name| name.as_str())
+            .collect::<Vec<_>>();
+        assert!(column_names.contains(&"ts"));
+        assert!(column_names.contains(&"value"));
+        assert_eq!(column_names.len(), 2);
+    }
+
+    #[test]
+    fn partial_load_rejects_missing_temporal_column() {
+        let path = write_temp_csv("value,other\n1,10\n2,20\n");
+        let err = load_dataframe_partial(&path, None, 0, None, None, None).unwrap_err();
+        assert!(err.to_string().contains("datetime column"));
+    }
 }

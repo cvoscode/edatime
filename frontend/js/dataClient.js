@@ -231,3 +231,27 @@ export async function fetchScatterCorrelations(base, threshold = 0.7) {
     }
     return res.json();
 }
+
+export async function fetchDistributions(columns, context = {}) {
+    const body = {
+        columns: Array.isArray(columns) ? columns : [columns],
+    };
+    if (Number.isFinite(context?.start)) body.start = context.start;
+    if (Number.isFinite(context?.end)) body.end = context.end;
+    if (Array.isArray(context?.filters) && context.filters.length > 0) body.filters = context.filters;
+    if (Array.isArray(context?.lineFilters) && context.lineFilters.length > 0) body.line_filters = context.lineFilters;
+
+    const url = '/api/scatter/distributions';
+    dbg('POST (distributions)', { url, columns: body.columns.length });
+
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Distributions fetch failed (${res.status}) ${text}`);
+    }
+    return res.json();
+}

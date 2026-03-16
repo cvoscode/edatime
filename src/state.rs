@@ -1,16 +1,57 @@
 use polars::prelude::DataFrame;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+
+use crate::cache::ResponseCache;
+use crate::config::AppConfig;
+use crate::metrics::AppMetrics;
+use crate::repository::InMemoryDataRepository;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub df: Arc<RwLock<DataFrame>>,
+    pub repository: Arc<InMemoryDataRepository>,
+    pub cache: Arc<ResponseCache>,
+    pub metrics: Arc<AppMetrics>,
+    pub config: Arc<AppConfig>,
+}
+
+impl AppState {
+    pub fn new(df: DataFrame, config: AppConfig) -> Self {
+        Self {
+            repository: Arc::new(InMemoryDataRepository::new(df)),
+            cache: Arc::new(ResponseCache::new(config.cache.to_runtime_config())),
+            metrics: Arc::new(AppMetrics::new()),
+            config: Arc::new(config),
+        }
+    }
+
+    pub async fn dataset_snapshot(&self) -> DataFrame {
+        use crate::repository::DataRepository;
+
+        self.repository.shared_frame().read().await.clone()
+    }
+
+    pub async fn replace_dataset(&self, df: DataFrame) -> u64 {
+        use crate::repository::DataRepository;
+
+        *self.repository.shared_frame().write().await = df;
+        self.repository.bump_revision()
+    }
+
+    pub async fn dataset_rows(&self) -> usize {
+        use crate::repository::DataRepository;
+
+        self.repository.shared_frame().read().await.height()
+    }
+
+    pub fn dataset_revision(&self) -> u64 {
+        use crate::repository::DataRepository;
+
+        self.repository.revision()
+    }
 }
 
 impl Default for AppState {
     fn default() -> Self {
-        Self {
-            df: Arc::new(RwLock::new(DataFrame::default())),
-        }
+        Self::new(DataFrame::default(), AppConfig::default())
     }
 }

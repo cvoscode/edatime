@@ -1,6 +1,6 @@
 import { createChart } from '../libs/chartgpu/dist/index.js?v=3';
-import { fetchScatterCorrelations, fetchScatterPoints } from './dataClient.js?v=14';
-import { appState, buildAdaptiveLineFiltersForQuery } from './state.js?v=2';
+import { fetchDistributions, fetchScatterCorrelations, fetchScatterPoints } from './dataClient.js?v=15';
+import { appState, buildAdaptiveLineFiltersForQuery, SERIES_COLORS } from './state.js?v=2';
 
 const fmt = new Intl.NumberFormat(undefined);
 const EURO_DATE_ONLY = new Intl.DateTimeFormat('de-DE', {
@@ -28,10 +28,14 @@ const state = {
     chart: null,
     initialized: false,
     pageInitialized: false,
+    activeView: 'plot',
+    selectedDistributionColumn: '',
+    metadata: null,
     totalPoints: 0,
     allPoints: [],
     points: [],
     allColorValues: null,
+    allColorLabels: null,
     full: { xMin: 0, xMax: 1, yMin: 0, yMax: 1 },
     view: { xMin: 0, xMax: 1, yMin: 0, yMax: 1 },
     zoomHistory: [],
@@ -39,6 +43,7 @@ const state = {
     selectionBox: null,
     colorColumn: '',
     colorValues: null,
+    colorLabels: null,
     colorMin: null,
     colorMax: null,
     correlationsByColumn: new Map(),
@@ -49,7 +54,21 @@ const state = {
     columnTypes: new Map(),
     lastSuggestions: [],
     lastRenderSignature: '',
+    matrixCache: new Map(),
+    overviewRequestId: 0,
+    distributionData: null,
+    distributionsFetchId: 0,
 };
+
+const MATRIX_POINT_LIMIT = 8_000;
+const MATRIX_MAX_COLUMNS = 4;
+const HISTOGRAM_BINS = 24;
+const KDE_SAMPLES = 64;
+const LOW_CARDINALITY_LIMIT = 8;
+const DISTRIBUTION_GROUP_COLORS = [
+    ...SERIES_COLORS,
+    '#5ad8a6', '#ff9d4d', '#7ec8ff', '#f78fb3', '#9bde6d', '#ffd166',
+];
 
 function getEl(id) {
     return document.getElementById(id);
@@ -65,6 +84,809 @@ function showError(message) {
     }
     el.textContent = String(message);
     el.hidden = false;
+}
+
+function setPanelStatus(id, message) {
+    const el = getEl(id);
+    if (!el) return;
+    el.textContent = String(message || '');
+}
+
+function setSidebarAnalyticsSelection(viewName) {
+    const navPage = viewName === 'matrix'
+        ? 'scattermatrix'
+        : (viewName === 'distributions' ? 'distributions' : 'scatter');
+    for (const button of document.querySelectorAll('.sidebar .nav-item[data-page]')) {
+        const page = button.dataset.page;
+        const active = page === navPage;
+        if (page === 'scatter' || page === 'scattermatrix' || page === 'distributions') {
+            button.classList.toggle('active', active);
+        }
+    }
+}
+
+function setScatterView(viewName, options = {}) {
+    const nextView = viewName || 'plot';
+    const renderView = options.render !== false;
+    state.activeView = nextView;
+    setSidebarAnalyticsSelection(nextView);
+    syncModeUI();
+
+    const panels = document.querySelectorAll('[data-scatter-view-panel]');
+
+    for (const panel of panels) {
+        panel.hidden = panel.dataset.scatterViewPanel !== nextView;
+    }
+
+    if (!renderView) return Promise.resolve();
+    if (nextView === 'matrix') return renderScatterMatrixView();
+    if (nextView === 'distributions') {
+        return fetchAndRenderDistributions();
+    }
+
+    requestAnimationFrame(() => state.chart?.resize?.());
+    return Promise.resolve();
+}
+
+function normalizeAnalyticsView(viewName) {
+    if (viewName === 'matrix' || viewName === 'distributions') return viewName;
+    return 'plot';
+}
+
+function refreshActiveScatterView() {
+    return setScatterView(state.activeView, { render: true });
+}
+
+function buildOverviewContextKey(context) {
+    return JSON.stringify({
+        start: Number.isFinite(context?.start) ? context.start : null,
+        end: Number.isFinite(context?.end) ? context.end : null,
+        filters: Array.isArray(context?.filters) ? context.filters : [],
+        lineFilters: Array.isArray(context?.lineFilters) ? context.lineFilters : [],
+    });
+}
+
+function downloadBlob(blob, filename) {
+    downloadUrl(URL.createObjectURL(blob), filename);
+}
+
+function getDevicePixelRatio() {
+    return Math.max(1, window.devicePixelRatio || 1);
+}
+
+function createMiniCanvas(className, heightPx) {
+    const canvas = document.createElement('canvas');
+    canvas.className = className;
+    canvas.dataset.cssHeight = String(heightPx);
+    return canvas;
+}
+
+function getCanvasFrame(canvas, fallbackWidth = 180, fallbackHeight = 92) {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const rect = canvas.getBoundingClientRect();
+    const width = Math.max(1, Math.round(rect.width || fallbackWidth));
+    const height = Math.max(1, Math.round(rect.height || Number(canvas.dataset.cssHeight) || fallbackHeight));
+    const dpr = getDevicePixelRatio();
+    const pixelWidth = Math.max(1, Math.round(width * dpr));
+    const pixelHeight = Math.max(1, Math.round(height * dpr));
+
+    if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+    if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    return { ctx, width, height };
+}
+
+function buildVisibleScatterRows() {
+    const controls = currentControls();
+    const rows = [];
+    const xSpan = Math.max(1, state.view.xMax - state.view.xMin);
+    const ySpan = Math.max(1, state.view.yMax - state.view.yMin);
+
+    for (let index = 0; index < state.points.length; index++) {
+        const point = state.points[index];
+        const x = Number(point?.[0]);
+        const y = Number(point?.[1]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        if (x < state.view.xMin || x > state.view.xMax || y < state.view.yMin || y > state.view.yMax) continue;
+
+        const row = {
+            x,
+            y,
+            x_label: formatValueForColumn(controls.x, x, xSpan),
+            y_label: formatValueForColumn(controls.y, y, ySpan),
+        };
+        if (controls.selectedColorColumn && Array.isArray(state.colorLabels)) {
+            row.color = normalizeCategoryLabel(state.colorLabels[index]);
+        } else if (controls.selectedColorColumn && Array.isArray(state.colorValues)) {
+            const colorValue = Number(state.colorValues[index]);
+            row.color = Number.isFinite(colorValue) ? colorValue : null;
+        }
+        rows.push(row);
+    }
+
+    return rows;
+}
+
+function exportScatterData(format = 'csv') {
+    const controls = currentControls();
+    const rows = buildVisibleScatterRows();
+    if (rows.length === 0) return false;
+
+    if (format === 'json') {
+        downloadBlob(
+            new Blob([JSON.stringify({
+                x: controls.x,
+                y: controls.y,
+                color: controls.selectedColorColumn || null,
+                rows,
+            }, null, 2)], { type: 'application/json;charset=utf-8' }),
+            'edatime_scatter_filtered.json',
+        );
+        return true;
+    }
+
+    const header = ['x', 'y', 'x_label', 'y_label'];
+    if (controls.selectedColorColumn) header.push('color');
+    const lines = [header.join(',')];
+    for (const row of rows) {
+        const values = [
+            row.x,
+            row.y,
+            `"${String(row.x_label).replaceAll('"', '""')}"`,
+            `"${String(row.y_label).replaceAll('"', '""')}"`,
+        ];
+        if (controls.selectedColorColumn) values.push(row.color == null ? '' : String(row.color));
+        lines.push(values.join(','));
+    }
+    downloadBlob(
+        new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }),
+        'edatime_scatter_filtered.csv',
+    );
+    return true;
+}
+
+function buildHistogramFromValues(values, binCount = HISTOGRAM_BINS) {
+    if (!Array.isArray(values) || values.length === 0) return null;
+
+    const finite = values
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value));
+    if (finite.length === 0) return null;
+
+    let min = finite[0];
+    let max = finite[0];
+    for (let index = 1; index < finite.length; index++) {
+        const value = finite[index];
+        if (value < min) min = value;
+        if (value > max) max = value;
+    }
+
+    if (!(max > min)) {
+        return {
+            min,
+            max,
+            counts: [finite.length],
+            edges: [min, max],
+        };
+    }
+
+    const counts = Array.from({ length: binCount }, () => 0);
+    const edges = [];
+    const span = max - min;
+    for (let edgeIndex = 0; edgeIndex <= binCount; edgeIndex++) {
+        edges.push(min + (span * edgeIndex) / binCount);
+    }
+    for (const value of finite) {
+        let bucket = Math.floor(((value - min) / span) * binCount);
+        if (bucket < 0) bucket = 0;
+        if (bucket >= binCount) bucket = binCount - 1;
+        counts[bucket] += 1;
+    }
+
+    return { min, max, counts, edges };
+}
+
+function getProfileForColumn(column) {
+    return state.metadata?.column_profiles?.find((entry) => entry?.name === column) || null;
+}
+
+function isDistributionCompatibleColumn(column) {
+    if (!column) return false;
+    const dtype = state.columnTypes.get(String(column).toLowerCase()) || '';
+    // Polars 0.53 serialises types as: f64, f32, i64, i32, u64, u32, etc.
+    // Also accept older "Float64", "Int64" style strings and temporal types.
+    return /date|time|int|float|decimal|f\d+|u\d+|i\d+/i.test(dtype);
+}
+
+function normalizeCategoryLabel(label) {
+    if (label == null) return 'Missing';
+    const text = String(label).trim();
+    return text || 'Missing';
+}
+
+function getCategoryColor(index) {
+    return DISTRIBUTION_GROUP_COLORS[index % DISTRIBUTION_GROUP_COLORS.length];
+}
+
+function buildCategoricalColorGroups(labels = state.colorLabels) {
+    if (!Array.isArray(labels) || labels.length === 0) return null;
+
+    const categories = [];
+    const labelToIndex = new Map();
+    for (const rawLabel of labels) {
+        const label = normalizeCategoryLabel(rawLabel);
+        if (labelToIndex.has(label)) continue;
+        labelToIndex.set(label, categories.length);
+        categories.push(label);
+        if (categories.length > LOW_CARDINALITY_LIMIT) return null;
+    }
+
+    if (categories.length === 0) return null;
+
+    return {
+        categories,
+        colorByLabel: new Map(categories.map((label, index) => [label, getCategoryColor(index)])),
+    };
+}
+
+function getDistributionColumns(controls = currentControls()) {
+    const columns = [];
+    const push = (column) => {
+        if (!column || columns.includes(column) || !isDistributionCompatibleColumn(column)) return;
+        columns.push(column);
+    };
+
+    push(controls.x);
+    push(controls.y);
+    push(controls.selectedColorColumn);
+    for (const entry of state.metadata?.columns || []) {
+        push(entry?.name);
+    }
+    return columns;
+}
+
+function getProfileHistogram(column) {
+    const profile = getProfileForColumn(column);
+    const counts = Array.isArray(profile?.histogram?.counts)
+        ? profile.histogram.counts.map((value) => Math.max(0, Number(value) || 0))
+        : [];
+    const edges = Array.isArray(profile?.histogram?.bin_edges)
+        ? profile.histogram.bin_edges.map((value) => Number(value)).filter((value) => Number.isFinite(value))
+        : [];
+    if (counts.length === 0 || edges.length !== counts.length + 1) return null;
+    return {
+        min: Number(edges[0]),
+        max: Number(edges[edges.length - 1]),
+        counts,
+        edges,
+    };
+}
+
+function expandHistogramValues(histogram, maxSamples = 320) {
+    const counts = Array.isArray(histogram?.counts) ? histogram.counts : [];
+    const edges = Array.isArray(histogram?.edges) ? histogram.edges : [];
+    if (counts.length === 0 || edges.length !== counts.length + 1) return [];
+
+    const total = counts.reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
+    if (total <= 0) return [];
+
+    const targetSamples = Math.max(Math.min(maxSamples, total), Math.min(counts.length * 4, maxSamples));
+    const values = [];
+    for (let index = 0; index < counts.length; index++) {
+        const count = Math.max(0, Number(counts[index]) || 0);
+        if (count <= 0) continue;
+        const left = Number(edges[index]);
+        const right = Number(edges[index + 1]);
+        const midpoint = Number.isFinite(left) && Number.isFinite(right)
+            ? (left + right) / 2
+            : Number.isFinite(left)
+                ? left
+                : right;
+        if (!Number.isFinite(midpoint)) continue;
+        const bucketSamples = Math.max(1, Math.round((count / total) * targetSamples));
+        for (let sampleIndex = 0; sampleIndex < bucketSamples; sampleIndex++) {
+            values.push(midpoint);
+        }
+    }
+
+    if (values.length <= maxSamples) return values;
+
+    const reduced = [];
+    const stride = values.length / maxSamples;
+    for (let index = 0; index < maxSamples; index++) {
+        reduced.push(values[Math.min(values.length - 1, Math.floor(index * stride))]);
+    }
+    return reduced;
+}
+
+function getDistributionSeriesData(column) {
+    // Use live filtered histogram when available
+    if (state.distributionData?.columns) {
+        const liveEntry = state.distributionData.columns.find((c) => c.name === column);
+        if (liveEntry?.histogram) {
+            const histogram = {
+                edges: liveEntry.histogram.bin_edges,
+                counts: liveEntry.histogram.counts,
+                min: liveEntry.min,
+                max: liveEntry.max,
+            };
+            const values = expandHistogramValues(histogram);
+            return { profile: getProfileForColumn(column), histogram, values, live: true };
+        }
+    }
+    const profile = getProfileForColumn(column);
+    const histogram = getProfileHistogram(column);
+    const values = histogram ? expandHistogramValues(histogram) : getCurrentScatterValues(column);
+    return {
+        profile,
+        histogram,
+        values,
+    };
+}
+
+function computeDistributionStats(values) {
+    if (!Array.isArray(values) || values.length === 0) return null;
+
+    const sorted = values
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value))
+        .sort((a, b) => a - b);
+    if (sorted.length === 0) return null;
+
+    const count = sorted.length;
+    const min = sorted[0];
+    const max = sorted[count - 1];
+    const mean = sorted.reduce((sum, value) => sum + value, 0) / count;
+    const variance = sorted.reduce((sum, value) => sum + (value - mean) ** 2, 0) / count;
+    const std = Math.sqrt(variance);
+    const median = quantileSorted(sorted, 0.5);
+    const q1 = quantileSorted(sorted, 0.25);
+    const q3 = quantileSorted(sorted, 0.75);
+    const iqr = Number.isFinite(q1) && Number.isFinite(q3) ? q3 - q1 : null;
+
+    let skewness = null;
+    let kurtosis = null;
+    if (std > 0) {
+        const m3 = sorted.reduce((sum, value) => sum + (value - mean) ** 3, 0) / count;
+        const m4 = sorted.reduce((sum, value) => sum + (value - mean) ** 4, 0) / count;
+        skewness = m3 / (std ** 3);
+        kurtosis = m4 / (std ** 4) - 3;
+    }
+
+    return {
+        mean,
+        std,
+        min,
+        max,
+        median,
+        q1,
+        q3,
+        iqr,
+        skewness,
+        kurtosis,
+    };
+}
+
+function resolveSelectedDistributionColumn(entries = getDistributionColumns()) {
+    if (entries.includes(state.selectedDistributionColumn)) return state.selectedDistributionColumn;
+    state.selectedDistributionColumn = entries[0] || '';
+    return state.selectedDistributionColumn;
+}
+
+function describeDistributionColumnKind(column, controls = currentControls()) {
+    const kinds = [];
+    if (column === controls.x) kinds.push('x-axis');
+    if (column === controls.y) kinds.push('y-axis');
+    if (column === controls.selectedColorColumn) kinds.push('color');
+    return kinds.join(' / ') || 'dataset';
+}
+
+function getCurrentScatterValues(column) {
+    const controls = currentControls();
+    if (column === controls.x) {
+        return state.points.map((point) => Number(point?.[0])).filter((value) => Number.isFinite(value));
+    }
+    if (column === controls.y) {
+        return state.points.map((point) => Number(point?.[1])).filter((value) => Number.isFinite(value));
+    }
+    if (column === controls.selectedColorColumn && Array.isArray(state.colorValues)) {
+        return state.colorValues.map((value) => Number(value)).filter((value) => Number.isFinite(value));
+    }
+    return [];
+}
+
+function buildGroupedDistributionSeries(values, labels = state.colorLabels) {
+    const groups = buildCategoricalColorGroups(labels);
+    if (!groups || !Array.isArray(values) || values.length !== labels.length) return null;
+
+    const seriesByLabel = new Map(groups.categories.map((label) => [label, []]));
+    for (let index = 0; index < values.length; index++) {
+        const value = Number(values[index]);
+        if (!Number.isFinite(value)) continue;
+        const label = normalizeCategoryLabel(labels[index]);
+        const bucket = seriesByLabel.get(label);
+        if (bucket) bucket.push(value);
+    }
+
+    const series = [];
+    for (const label of groups.categories) {
+        const groupValues = seriesByLabel.get(label) || [];
+        if (groupValues.length === 0) continue;
+        series.push({
+            label,
+            color: groups.colorByLabel.get(label) || '#4a9eff',
+            values: groupValues,
+        });
+    }
+
+    return series.length > 1 ? series : null;
+}
+
+function getScatterDistributionData(column) {
+    const values = getCurrentScatterValues(column);
+    const controls = currentControls();
+    const groupedSeries = controls.selectedColorColumn && controls.selectedColorColumn !== column
+        ? buildGroupedDistributionSeries(values)
+        : null;
+
+    return {
+        values,
+        groupedSeries,
+        histogram: buildHistogramFromValues(values),
+    };
+}
+
+function quantileSorted(sortedValues, ratio) {
+    if (!Array.isArray(sortedValues) || sortedValues.length === 0) return null;
+    if (sortedValues.length === 1) return sortedValues[0];
+    const position = Math.max(0, Math.min(sortedValues.length - 1, ratio * (sortedValues.length - 1)));
+    const lower = Math.floor(position);
+    const upper = Math.ceil(position);
+    if (lower === upper) return sortedValues[lower];
+    const weight = position - lower;
+    return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight;
+}
+
+function formatDistributionStat(value) {
+    return Number.isFinite(value) ? formatAxisNumber(value) : '—';
+}
+
+function setDistributionStats(stats, column) {
+    const values = {
+        'stat-mean': stats?.mean,
+        'stat-std': stats?.std,
+        'stat-min': stats?.min,
+        'stat-max': stats?.max,
+        'stat-median': stats?.median,
+        'stat-q1': stats?.q1,
+        'stat-q3': stats?.q3,
+        'stat-iqr': stats?.iqr,
+        'stat-skewness': stats?.skewness,
+        'stat-kurtosis': stats?.kurtosis,
+    };
+
+    for (const [id, value] of Object.entries(values)) {
+        const el = getEl(id);
+        if (el) el.textContent = formatDistributionStat(value);
+    }
+
+    const statsPanel = getEl('distributions-stats-panel');
+    if (statsPanel) {
+        statsPanel.dataset.column = column || '';
+        statsPanel.setAttribute('aria-label', column ? `Summary statistics for ${column}` : 'Summary statistics');
+    }
+}
+
+function updateDistributionStats() {
+    const targetColumn = resolveSelectedDistributionColumn();
+
+    // Use precise backend-computed statistics when live filtered data is available
+    if (state.distributionData?.columns) {
+        const liveEntry = state.distributionData.columns.find((c) => c.name === targetColumn);
+        if (liveEntry) {
+            const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+            const q1 = toNum(liveEntry.q1);
+            const q3 = toNum(liveEntry.q3);
+            setDistributionStats({
+                mean: toNum(liveEntry.mean),
+                std: toNum(liveEntry.std_dev),
+                min: toNum(liveEntry.min),
+                max: toNum(liveEntry.max),
+                median: toNum(liveEntry.median),
+                q1,
+                q3,
+                iqr: q1 !== null && q3 !== null ? q3 - q1 : null,
+                skewness: null,
+                kurtosis: null,
+            }, targetColumn);
+            return;
+        }
+    }
+
+    const { profile, values } = getDistributionSeriesData(targetColumn);
+    const stats = computeDistributionStats(values);
+    if (!stats) {
+        setDistributionStats(null, targetColumn);
+        return;
+    }
+
+    setDistributionStats({
+        ...stats,
+        min: Number.isFinite(profile?.min) ? Number(profile.min) : stats.min,
+        max: Number.isFinite(profile?.max) ? Number(profile.max) : stats.max,
+    }, targetColumn);
+}
+
+function drawMiniScatterCanvas(canvas, points, options = {}) {
+    const frame = getCanvasFrame(canvas, 180, 92);
+    if (!frame) return;
+    const { ctx, width, height } = frame;
+
+    const config = typeof options === 'string'
+        ? { color: options }
+        : (options || {});
+    const baseColor = config.color || '#4a9eff';
+    const colorValues = Array.isArray(config.colorValues) ? config.colorValues : null;
+    const colorLabels = Array.isArray(config.colorLabels) ? config.colorLabels : null;
+    const colorScale = config.colorScale || 'viridis';
+    const categoryColors = config.categoryColors instanceof Map ? config.categoryColors : null;
+
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    for (const point of points) {
+        const x = Number(point?.[0]);
+        const y = Number(point?.[1]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+    }
+
+    if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minY) || !Number.isFinite(maxY)) {
+        ctx.fillStyle = 'rgba(122, 134, 164, 0.7)';
+        ctx.font = '12px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('No points', width / 2, height / 2);
+        return;
+    }
+
+    const pad = 8;
+    const xSpan = Math.max(1e-9, maxX - minX);
+    const ySpan = Math.max(1e-9, maxY - minY);
+    const stride = Math.max(1, Math.ceil(points.length / 1200));
+
+    ctx.strokeStyle = 'rgba(54, 63, 98, 0.7)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+
+    const palette = paletteForScale(colorScale);
+    const colorExtent = computeColorExtent(colorValues);
+    ctx.globalAlpha = 0.45;
+    for (let index = 0; index < points.length; index += stride) {
+        const x = Number(points[index]?.[0]);
+        const y = Number(points[index]?.[1]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        const px = pad + ((x - minX) / xSpan) * (width - pad * 2);
+        const py = height - pad - ((y - minY) / ySpan) * (height - pad * 2);
+        let fill = baseColor;
+        if (colorLabels && categoryColors) {
+            const label = normalizeCategoryLabel(colorLabels[index]);
+            fill = categoryColors.get(label) || baseColor;
+        } else if (colorValues && colorExtent && colorExtent.max > colorExtent.min) {
+            const value = Number(colorValues[index]);
+            if (Number.isFinite(value)) {
+                fill = sampleGradient(palette, (value - colorExtent.min) / (colorExtent.max - colorExtent.min));
+            }
+        }
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+}
+
+function computeValueBounds(seriesList) {
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    for (const series of seriesList) {
+        for (const value of series.values || []) {
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric)) continue;
+            if (numeric < min) min = numeric;
+            if (numeric > max) max = numeric;
+        }
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+    return { min, max };
+}
+
+function buildHistogramForDomain(values, min, max, binCount = HISTOGRAM_BINS) {
+    const finite = values.map((value) => Number(value)).filter((value) => Number.isFinite(value));
+    if (finite.length === 0 || !Number.isFinite(min) || !Number.isFinite(max)) return null;
+    if (!(max > min)) {
+        return { min, max, counts: [finite.length], edges: [min, max] };
+    }
+
+    const counts = Array.from({ length: binCount }, () => 0);
+    const span = max - min;
+    const edges = Array.from({ length: binCount + 1 }, (_, index) => min + (span * index) / binCount);
+    for (const value of finite) {
+        let bucket = Math.floor(((value - min) / span) * binCount);
+        if (bucket < 0) bucket = 0;
+        if (bucket >= binCount) bucket = binCount - 1;
+        counts[bucket] += 1;
+    }
+    return { min, max, counts, edges };
+}
+
+function estimateBandwidth(values) {
+    if (!Array.isArray(values) || values.length < 2) return 1;
+    const sorted = [...values].sort((a, b) => a - b);
+    const q1 = quantileSorted(sorted, 0.25);
+    const q3 = quantileSorted(sorted, 0.75);
+    const mean = sorted.reduce((sum, value) => sum + value, 0) / sorted.length;
+    const variance = sorted.reduce((sum, value) => sum + (value - mean) ** 2, 0) / sorted.length;
+    const std = Math.sqrt(variance);
+    const sigma = Math.min(std || 0, ((q3 ?? mean) - (q1 ?? mean)) / 1.34 || std || 1) || 1;
+    return Math.max(1e-3, 0.9 * sigma * (sorted.length ** -0.2));
+}
+
+function buildKdeCurve(values, min, max, sampleCount = KDE_SAMPLES) {
+    const finite = values.map((value) => Number(value)).filter((value) => Number.isFinite(value));
+    if (finite.length === 0) return [];
+    if (!(max > min)) {
+        return [{ x: min, y: 1 }, { x: max, y: 1 }];
+    }
+
+    const bandwidth = estimateBandwidth(finite);
+    const scale = 1 / (finite.length * bandwidth * Math.sqrt(2 * Math.PI));
+    const points = [];
+    for (let index = 0; index < sampleCount; index++) {
+        const x = min + ((max - min) * index) / Math.max(1, sampleCount - 1);
+        let sum = 0;
+        for (const value of finite) {
+            const z = (x - value) / bandwidth;
+            sum += Math.exp(-0.5 * z * z);
+        }
+        points.push({ x, y: sum * scale });
+    }
+    return points;
+}
+
+function computeBoxStats(values) {
+    const sorted = values.map((value) => Number(value)).filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+    if (sorted.length === 0) return null;
+    return {
+        min: sorted[0],
+        q1: quantileSorted(sorted, 0.25),
+        median: quantileSorted(sorted, 0.5),
+        q3: quantileSorted(sorted, 0.75),
+        max: sorted[sorted.length - 1],
+    };
+}
+
+function drawDistributionCanvas(canvas, mode, seriesList) {
+    const frame = getCanvasFrame(canvas, 320, 120);
+    if (!frame) return;
+    const { ctx, width, height } = frame;
+
+    const usableSeries = (seriesList || []).filter((series) => Array.isArray(series?.values) && series.values.length > 0);
+    if (usableSeries.length === 0) {
+        ctx.fillStyle = 'rgba(122, 134, 164, 0.7)';
+        ctx.font = '12px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('No distribution', width / 2, height / 2);
+        return;
+    }
+
+    ctx.strokeStyle = 'rgba(54, 63, 98, 0.7)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+
+    const padX = 10;
+    const padY = 10;
+    const bounds = computeValueBounds(usableSeries);
+    if (!bounds) return;
+    const min = bounds.min;
+    const max = bounds.max;
+    const span = Math.max(1e-9, max - min);
+    const projectX = (value) => padX + ((value - min) / span) * (width - padX * 2);
+
+    if (mode === 'boxplot') {
+        const rowHeight = (height - padY * 2) / usableSeries.length;
+        usableSeries.forEach((series, index) => {
+            const stats = computeBoxStats(series.values);
+            if (!stats) return;
+            const centerY = padY + rowHeight * index + rowHeight / 2;
+            const boxHeight = Math.max(8, rowHeight * 0.36);
+            ctx.strokeStyle = series.color;
+            ctx.fillStyle = `${series.color}33`;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(projectX(stats.min), centerY);
+            ctx.lineTo(projectX(stats.q1), centerY);
+            ctx.moveTo(projectX(stats.q3), centerY);
+            ctx.lineTo(projectX(stats.max), centerY);
+            ctx.stroke();
+            ctx.fillRect(projectX(stats.q1), centerY - boxHeight / 2, Math.max(2, projectX(stats.q3) - projectX(stats.q1)), boxHeight);
+            ctx.strokeRect(projectX(stats.q1), centerY - boxHeight / 2, Math.max(2, projectX(stats.q3) - projectX(stats.q1)), boxHeight);
+            ctx.beginPath();
+            ctx.moveTo(projectX(stats.median), centerY - boxHeight / 2);
+            ctx.lineTo(projectX(stats.median), centerY + boxHeight / 2);
+            ctx.stroke();
+        });
+        return;
+    }
+
+    if (mode === 'kde') {
+        const curves = usableSeries.map((series) => ({
+            ...series,
+            curve: buildKdeCurve(series.values, min, max),
+        }));
+        const maxDensity = curves.reduce((best, series) => {
+            const peak = series.curve.reduce((localBest, point) => Math.max(localBest, point.y), 0);
+            return Math.max(best, peak);
+        }, 0);
+        const projectY = (value) => height - padY - ((value / Math.max(1e-9, maxDensity)) * (height - padY * 2));
+
+        for (const series of curves) {
+            if (series.curve.length === 0) continue;
+            ctx.beginPath();
+            ctx.moveTo(projectX(series.curve[0].x), height - padY);
+            for (const point of series.curve) {
+                ctx.lineTo(projectX(point.x), projectY(point.y));
+            }
+            ctx.lineTo(projectX(series.curve[series.curve.length - 1].x), height - padY);
+            ctx.closePath();
+            ctx.fillStyle = `${series.color}22`;
+            ctx.fill();
+
+            ctx.beginPath();
+            series.curve.forEach((point, index) => {
+                const x = projectX(point.x);
+                const y = projectY(point.y);
+                if (index === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.strokeStyle = series.color;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+        return;
+    }
+
+    const histograms = usableSeries.map((series) => ({
+        ...series,
+        histogram: buildHistogramForDomain(series.values, min, max),
+    }));
+    const maxCount = histograms.reduce((best, series) => {
+        const localMax = series.histogram?.counts?.reduce((acc, value) => Math.max(acc, Number(value) || 0), 0) || 0;
+        return Math.max(best, localMax);
+    }, 0);
+    const binCount = histograms[0]?.histogram?.counts?.length || HISTOGRAM_BINS;
+    const barWidth = (width - padX * 2) / Math.max(1, binCount);
+
+    histograms.forEach((series, seriesIndex) => {
+        const counts = series.histogram?.counts || [];
+        counts.forEach((count, index) => {
+            const ratio = maxCount > 0 ? (Number(count) || 0) / maxCount : 0;
+            const barHeight = Math.max(2, ratio * (height - padY * 2));
+            ctx.fillStyle = series.color;
+            ctx.globalAlpha = usableSeries.length > 1 ? 0.18 + seriesIndex * 0.05 : 0.35 + ratio * 0.45;
+            ctx.fillRect(padX + index * barWidth + 1, height - padY - barHeight, Math.max(1, barWidth - 2), barHeight);
+        });
+    });
+    ctx.globalAlpha = 1;
 }
 
 function lowerBoundByX(points, x) {
@@ -116,10 +938,12 @@ function currentControls() {
     const colormapSelect = getEl('scatter-colormap');
     const normalizationSelect = getEl('scatter-normalization');
     const renderModeSelect = getEl('scatter-render-mode');
+    const diagonalModeSelect = getEl('scatter-diagonal-mode');
     const colorColumnSelect = getEl('scatter-color-column');
     const colorScaleSelect = getEl('scatter-color-scale');
 
     const renderMode = renderModeSelect?.value || 'density';
+    const selectedColorColumn = colorColumnSelect?.value || '';
 
     return {
         x: xSelect?.value,
@@ -128,8 +952,9 @@ function currentControls() {
         colormap: colormapSelect?.value ?? 'viridis',
         normalization: normalizationSelect?.value ?? 'linear',
         renderMode,
-        colorColumn: renderMode === 'density' ? '' : (colorColumnSelect?.value || ''),
-        selectedColorColumn: colorColumnSelect?.value || '',
+        diagonalMode: diagonalModeSelect?.value || 'histogram',
+        colorColumn: renderMode === 'density' ? '' : selectedColorColumn,
+        selectedColorColumn,
         colorScale: colorScaleSelect?.value || 'viridis',
     };
 }
@@ -154,15 +979,66 @@ function buildScatterQueryContext() {
     };
 }
 
+function buildDistributionsContext() {
+    const start = Number(appState.currentStart);
+    const end = Number(appState.currentEnd);
+    const filters = Object.entries(appState.columnRanges || {})
+        .map(([column, range]) => {
+            const from = Number(range?.from);
+            const to = Number(range?.to);
+            if (!column || !Number.isFinite(from) || !Number.isFinite(to)) return null;
+            return { column, from, to };
+        })
+        .filter(Boolean);
+
+    // Always include the time range for distributions (not gated by the link-brush toggle)
+    return {
+        start: Number.isFinite(start) ? start : undefined,
+        end: Number.isFinite(end) ? end : undefined,
+        filters,
+        lineFilters: buildAdaptiveLineFiltersForQuery(),
+    };
+}
+
+async function fetchAndRenderDistributions() {
+    const controls = currentControls();
+    const entries = getDistributionColumns(controls);
+
+    if (entries.length === 0) {
+        state.distributionData = null;
+        renderDistributionCards();
+        return;
+    }
+
+    const context = buildDistributionsContext();
+    const fetchId = ++state.distributionsFetchId;
+
+    const statusEl = getEl('scatter-distribution-status');
+    if (statusEl) statusEl.textContent = 'Loading filtered distributions…';
+
+    try {
+        const data = await fetchDistributions(entries, context);
+        if (fetchId !== state.distributionsFetchId) return;
+        state.distributionData = data;
+    } catch (err) {
+        if (fetchId !== state.distributionsFetchId) return;
+        console.warn('Distribution fetch failed, using profile data:', err);
+        state.distributionData = null;
+    }
+
+    renderDistributionCards();
+}
+
 function buildRenderSignature(controls) {
     return [
         controls.x || '',
         controls.y || '',
         controls.renderMode || '',
-        controls.colorColumn || '',
+        controls.selectedColorColumn || '',
         controls.colorScale || '',
         controls.colormap || '',
         controls.normalization || '',
+        controls.diagonalMode || '',
     ].join('|');
 }
 
@@ -443,10 +1319,15 @@ function scatterTooltipFormatterFactory(controls) {
             `<div><span style="opacity:0.85;">${escapeHtml(controls.y || 'Y')}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatValueForColumn(controls.y, y, ySpan))}</span></div>`,
         ];
 
-        if (controls.colorColumn && Array.isArray(state.colorValues)) {
+        if (controls.selectedColorColumn && Array.isArray(state.colorLabels)) {
+            const label = p?.seriesName || null;
+            if (label) {
+                parts.push(`<div><span style="opacity:0.85;">${escapeHtml(controls.selectedColorColumn)}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(String(label))}</span></div>`);
+            }
+        } else if (controls.selectedColorColumn && Array.isArray(state.colorValues)) {
             const colorValue = Number(state.colorValues[Number(p?.dataIndex)]);
             if (Number.isFinite(colorValue)) {
-                parts.push(`<div><span style="opacity:0.85;">${escapeHtml(controls.colorColumn)}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatAxisNumber(colorValue))}</span></div>`);
+                parts.push(`<div><span style="opacity:0.85;">${escapeHtml(controls.selectedColorColumn)}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatAxisNumber(colorValue))}</span></div>`);
             }
         }
 
@@ -463,17 +1344,18 @@ function setColorbarVisible(visible) {
 function updateColorbarUI() {
     const ctl = currentControls();
     const isDensity = ctl.renderMode === 'density';
-    if (!isDensity && !ctl.colorColumn) {
+    const hasContinuousColor = !!ctl.selectedColorColumn
+        && Array.isArray(state.colorValues)
+        && !Array.isArray(state.colorLabels)
+        && Number.isFinite(state.colorMin)
+        && Number.isFinite(state.colorMax)
+        && state.colorMax > state.colorMin;
+    if (!isDensity && !hasContinuousColor) {
         setColorbarVisible(false);
         return;
     }
 
-    const show = isDensity || (
-        !!ctl.colorColumn
-        && Number.isFinite(state.colorMin)
-        && Number.isFinite(state.colorMax)
-        && state.colorMax > state.colorMin
-    );
+    const show = isDensity || hasContinuousColor;
 
     setColorbarVisible(show);
     if (!show) return;
@@ -488,7 +1370,7 @@ function updateColorbarUI() {
         if (minEl) minEl.textContent = 'Low';
         if (maxEl) maxEl.textContent = 'High';
     } else {
-        if (nameEl) nameEl.textContent = `${ctl.colorColumn} (${ctl.colorScale})`;
+        if (nameEl) nameEl.textContent = `${ctl.selectedColorColumn} (${ctl.colorScale})`;
         if (minEl) minEl.textContent = formatTwoDecimals(state.colorMin);
         if (maxEl) maxEl.textContent = formatTwoDecimals(state.colorMax);
     }
@@ -511,8 +1393,27 @@ function setCorrelationOverlayText(pearson, spearman) {
 }
 
 function buildNormalScatterSeries(points, controls) {
-    const colorColumn = controls.colorColumn;
+    const colorColumn = controls.selectedColorColumn;
     const values = state.colorValues;
+    const categoricalGroups = colorColumn ? buildCategoricalColorGroups(state.colorLabels) : null;
+
+    if (categoricalGroups) {
+        return categoricalGroups.categories.map((label) => {
+            const data = [];
+            for (let index = 0; index < points.length; index++) {
+                if (normalizeCategoryLabel(state.colorLabels?.[index]) !== label) continue;
+                data.push(points[index]);
+            }
+            return {
+                type: 'scatter',
+                name: label,
+                data,
+                symbolSize: 3,
+                color: categoricalGroups.colorByLabel.get(label) || '#4a9eff',
+                sampling: 'none',
+            };
+        }).filter((series) => series.data.length > 0);
+    }
 
     if (!colorColumn || !Array.isArray(values) || values.length !== points.length) {
         return [
@@ -649,6 +1550,7 @@ function computeDomains(points) {
 function applyScatterStateFromCache(resetView = true) {
     state.points = Array.isArray(state.allPoints) ? state.allPoints.slice() : [];
     state.colorValues = Array.isArray(state.allColorValues) ? state.allColorValues.slice() : null;
+    state.colorLabels = Array.isArray(state.allColorLabels) ? state.allColorLabels.slice() : null;
 
     const colorExtent = computeColorExtent(state.colorValues);
     state.colorMin = colorExtent?.min ?? null;
@@ -735,15 +1637,47 @@ function buildOption(points, container) {
 
 function syncModeUI() {
     const ctl = currentControls();
-    const isDensity = ctl.renderMode === 'density';
-    const densityControls = getEl('scatter-density-controls');
-    const colorControls = getEl('scatter-color-controls');
+    const view = state.activeView || 'plot';
+    const isPlot = view === 'plot';
+    const isDist = view === 'distributions';
+    const isDensity = isPlot && ctl.renderMode === 'density';
+    const toggle = (el, visible) => { if (el) el.style.display = visible ? '' : 'none'; };
 
-    if (densityControls) densityControls.style.display = isDensity ? '' : 'none';
-    if (colorControls) colorControls.style.display = isDensity ? 'none' : '';
+    // X/Y column selectors: plot + matrix
+    toggle(document.querySelector('label[for="scatter-x-col"]'), !isDist);
+    toggle(getEl('scatter-x-col'), !isDist);
+    toggle(document.querySelector('label[for="scatter-y-col"]'), !isDist);
+    toggle(getEl('scatter-y-col'), !isDist);
+
+    // Render mode selector: plot only
+    toggle(getEl('scatter-mode-label'), isPlot);
+    toggle(getEl('scatter-render-mode'), isPlot);
+
+    // Link brush toggle: plot + matrix
+    toggle(document.querySelector('.scatter-link-toggle'), !isDist);
+
+    // Density controls: plot in density mode only
+    const densityControls = getEl('scatter-density-controls');
+    toggle(densityControls, isDensity);
+
+    // Color controls: plot + matrix (not distributions)
+    const colorControls = getEl('scatter-color-controls');
+    toggle(colorControls, !isDist);
+
+    // Color scale: plot in non-density mode only
+    const colorScaleSelect = getEl('scatter-color-scale');
+    toggle(colorScaleSelect, isPlot && !isDensity);
+
+    // Export group: plot only
+    toggle(document.querySelector('.scatter-export-group'), isPlot);
+
+    // Stats bar: plot only
+    toggle(document.querySelector('.scatter-stats-bar'), isPlot);
+
+    // Suggestions bar: plot + matrix (not distributions)
+    toggle(document.querySelector('.scatter-suggestions-bar'), !isDist);
 
     updateColorbarUI();
-
 }
 
 function clampView(view) {
@@ -850,7 +1784,7 @@ function initSelectionZoom(container) {
 
         try {
             container.setPointerCapture(event.pointerId);
-        } catch (_) {}
+        } catch (_) { }
         renderSelectionBox();
     });
 
@@ -880,7 +1814,7 @@ function initSelectionZoom(container) {
         if ((right - left) < 8 || (bottom - top) < 8) {
             try {
                 container.releasePointerCapture(event.pointerId);
-            } catch (_) {}
+            } catch (_) { }
             return;
         }
 
@@ -897,7 +1831,7 @@ function initSelectionZoom(container) {
 
         try {
             container.releasePointerCapture(event.pointerId);
-        } catch (_) {}
+        } catch (_) { }
     };
 
     container.addEventListener('pointerup', finishDrag);
@@ -986,6 +1920,339 @@ function renderSuggestions(suggestions) {
     }
 }
 
+function buildOverviewColumns() {
+    const controls = currentControls();
+    const columns = [];
+    const push = (column) => {
+        if (!column || columns.includes(column)) return;
+        columns.push(column);
+    };
+
+    push(controls.x);
+    push(controls.y);
+    for (const item of state.lastSuggestions || []) {
+        push(item?.column);
+        if (columns.length >= MATRIX_MAX_COLUMNS) break;
+    }
+    for (const column of state.metadata?.numeric_columns || []) {
+        push(column);
+        if (columns.length >= MATRIX_MAX_COLUMNS) break;
+    }
+    return columns.slice(0, MATRIX_MAX_COLUMNS);
+}
+
+async function fetchMatrixCellData(x, y, context, colorColumn) {
+    const cacheKey = `${x}|${y}|${colorColumn || ''}|${buildOverviewContextKey(context)}`;
+    const cached = state.matrixCache.get(cacheKey);
+    if (cached) {
+        return cached;
+    }
+
+    const request = fetchScatterPoints(x, y, MATRIX_POINT_LIMIT, colorColumn || null, context)
+        .then((response) => ({
+            totalPoints: Number(response?.total_points ?? 0),
+            points: Array.isArray(response?.points) ? response.points : [],
+            colorValues: Array.isArray(response?.color_values) ? response.color_values : null,
+            colorLabels: Array.isArray(response?.color_labels) ? response.color_labels : null,
+        }))
+        .catch((error) => {
+            state.matrixCache.delete(cacheKey);
+            throw error;
+        });
+
+    state.matrixCache.set(cacheKey, request);
+    return request;
+}
+
+async function selectMatrixPair(x, y) {
+    const xSelect = getEl('scatter-x-col');
+    const ySelect = getEl('scatter-y-col');
+    if (!xSelect || !ySelect) return;
+
+    xSelect.value = x;
+    await refreshCorrelationsAndSuggestions();
+    ySelect.value = y;
+    updateCorrelationStats();
+    await setScatterView('plot', { render: false });
+    await renderScatter();
+}
+
+function describeDistributionMode(mode) {
+    if (mode === 'kde') return 'KDE';
+    if (mode === 'boxplot') return 'Box Plot';
+    return 'Histogram';
+}
+
+function appendDistributionLegend(head, groupedSeries) {
+    if (!Array.isArray(groupedSeries) || groupedSeries.length === 0) return;
+    const legend = document.createElement('div');
+    legend.className = 'scatter-distribution-legend';
+    for (const series of groupedSeries) {
+        const item = document.createElement('span');
+        item.className = 'scatter-distribution-legend-item';
+        item.innerHTML = `<span class="scatter-distribution-legend-swatch" style="background:${escapeHtml(series.color)}"></span><span>${escapeHtml(series.label)}</span>`;
+        legend.appendChild(item);
+    }
+    head.appendChild(legend);
+}
+
+function buildDistributionMeta(column, values) {
+    // Use precise backend counts and bounds when live filtered data is available
+    if (state.distributionData?.columns) {
+        const liveEntry = state.distributionData.columns.find((c) => c.name === column);
+        if (liveEntry) {
+            const span = Number.isFinite(Number(liveEntry.min)) && Number.isFinite(Number(liveEntry.max))
+                ? Math.max(1, Number(liveEntry.max) - Number(liveEntry.min))
+                : 1;
+            const minText = Number.isFinite(Number(liveEntry.min))
+                ? formatValueForColumn(column, Number(liveEntry.min), span)
+                : '—';
+            const maxText = Number.isFinite(Number(liveEntry.max))
+                ? formatValueForColumn(column, Number(liveEntry.max), span)
+                : '—';
+            return { minText, maxText, count: Math.max(0, liveEntry.count || 0) };
+        }
+    }
+    const profile = getProfileForColumn(column);
+    const histogram = getProfileHistogram(column) || buildHistogramFromValues(values);
+    const minValue = Number.isFinite(profile?.min) ? Number(profile.min) : histogram?.min;
+    const maxValue = Number.isFinite(profile?.max) ? Number(profile.max) : histogram?.max;
+    const span = histogram ? Math.max(1, histogram.max - histogram.min) : Math.max(1, (maxValue ?? 0) - (minValue ?? 0));
+    const minText = Number.isFinite(minValue) ? formatValueForColumn(column, minValue, span) : '—';
+    const maxText = Number.isFinite(maxValue) ? formatValueForColumn(column, maxValue, span) : '—';
+    return {
+        minText,
+        maxText,
+        count: Math.max(0, Number(profile?.non_null_count) || values.length),
+    };
+}
+
+function renderDistributionCards() {
+    const container = getEl('scatter-distributions');
+    if (!container) return;
+
+    const controls = currentControls();
+    const entries = getDistributionColumns(controls);
+    container.innerHTML = '';
+
+    if (entries.length === 0) {
+        container.innerHTML = '<div class="scatter-placeholder">No numeric or temporal columns are available for distributions.</div>';
+        setDistributionStats(null, '');
+        return;
+    }
+
+    const selectedColumn = resolveSelectedDistributionColumn(entries);
+    const dataNote = state.distributionData ? 'Showing filtered data.' : 'Showing full dataset profiles.';
+    const statusText = `${describeDistributionMode(controls.diagonalMode)} for ${entries.length} numeric or temporal columns. ${dataNote}`;
+    setPanelStatus('scatter-distribution-status', statusText);
+
+    const drawJobs = [];
+    for (const column of entries) {
+        const { values } = getDistributionSeriesData(column);
+        const card = document.createElement('article');
+        card.className = 'scatter-distribution-card';
+        card.tabIndex = 0;
+        card.setAttribute('role', 'button');
+        card.setAttribute('aria-pressed', column === selectedColumn ? 'true' : 'false');
+        card.classList.toggle('active', column === selectedColumn);
+        card.addEventListener('click', () => {
+            if (state.selectedDistributionColumn === column) return;
+            state.selectedDistributionColumn = column;
+            renderDistributionCards();
+        });
+        card.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            card.click();
+        });
+
+        const head = document.createElement('div');
+        head.className = 'scatter-distribution-head';
+        const title = document.createElement('div');
+        title.className = 'scatter-distribution-title';
+        title.textContent = column;
+        const kind = document.createElement('div');
+        kind.className = 'scatter-distribution-kind';
+        kind.textContent = describeDistributionColumnKind(column, controls);
+        head.append(title, kind);
+
+        const chartWrap = document.createElement('div');
+        chartWrap.className = 'scatter-distribution-chart-wrap';
+        const canvas = createMiniCanvas('scatter-distribution-chart', 120);
+        canvas.className = 'scatter-distribution-chart';
+        chartWrap.appendChild(canvas);
+        drawJobs.push(() => {
+            drawDistributionCanvas(
+                canvas,
+                controls.diagonalMode,
+                [{ label: column, color: column === selectedColumn ? '#f5a623' : '#00d4ff', values }],
+            );
+        });
+
+        const metaInfo = buildDistributionMeta(column, values);
+        const meta = document.createElement('div');
+        meta.className = 'scatter-distribution-meta';
+        meta.innerHTML = `<span>Min ${escapeHtml(String(metaInfo.minText))}</span><span>${escapeHtml(fmt.format(metaInfo.count))} samples</span><span>Max ${escapeHtml(String(metaInfo.maxText))}</span>`;
+
+        card.append(head, chartWrap, meta);
+        container.appendChild(card);
+    }
+
+    for (const draw of drawJobs) {
+        draw();
+    }
+
+    updateDistributionStats();
+}
+
+function renderMatrixGrid(columns, datasets) {
+    const container = getEl('scatter-matrix');
+    if (!container) return;
+
+    container.innerHTML = '';
+    if (!Array.isArray(columns) || columns.length < 2) {
+        container.innerHTML = '<div class="scatter-placeholder">At least two numeric columns are required for the scatter matrix.</div>';
+        return;
+    }
+
+    const controls = currentControls();
+    const diagonalMode = controls.diagonalMode;
+    const grid = document.createElement('div');
+    grid.className = 'scatter-matrix-grid';
+    grid.style.gridTemplateColumns = `minmax(92px, 0.7fr) repeat(${columns.length}, minmax(132px, 1fr))`;
+
+    const corner = document.createElement('div');
+    corner.className = 'scatter-matrix-corner';
+    corner.innerHTML = '<span class="scatter-matrix-corner-axis">Y</span><span class="scatter-matrix-corner-sep">/</span><span class="scatter-matrix-corner-axis">X</span>';
+    grid.appendChild(corner);
+
+    for (const column of columns) {
+        const header = document.createElement('div');
+        header.className = 'scatter-matrix-header';
+        header.textContent = column;
+        grid.appendChild(header);
+    }
+
+    const drawJobs = [];
+    for (const rowColumn of columns) {
+        const rowHeader = document.createElement('div');
+        rowHeader.className = 'scatter-matrix-row-header';
+        rowHeader.textContent = rowColumn;
+        grid.appendChild(rowHeader);
+
+        for (const column of columns) {
+            const data = datasets.get(`${column}|${rowColumn}`) || { totalPoints: 0, points: [], colorValues: null, colorLabels: null };
+            if (rowColumn === column) {
+                const diagonal = document.createElement('div');
+                diagonal.className = 'scatter-matrix-diagonal';
+                const canvas = createMiniCanvas('scatter-matrix-diagonal-canvas', 92);
+                const values = data.points.map((point) => Number(point?.[0])).filter((value) => Number.isFinite(value));
+                const groupedSeries = controls.selectedColorColumn
+                    ? buildGroupedDistributionSeries(values, data.colorLabels)
+                    : null;
+                drawJobs.push(() => {
+                    drawDistributionCanvas(
+                        canvas,
+                        diagonalMode,
+                        groupedSeries || [{ label: column, color: '#00c896', values }],
+                    );
+                });
+                const meta = document.createElement('div');
+                meta.className = 'scatter-diagonal-meta';
+                meta.textContent = groupedSeries
+                    ? `${describeDistributionMode(diagonalMode)} grouped by ${controls.selectedColorColumn}`
+                    : describeDistributionMode(diagonalMode);
+                diagonal.append(canvas, meta);
+                grid.appendChild(diagonal);
+                continue;
+            }
+
+            const cell = document.createElement('button');
+            cell.type = 'button';
+            cell.className = 'scatter-matrix-cell';
+            if (controls.x === column && controls.y === rowColumn) {
+                cell.classList.add('active');
+            }
+
+            const canvas = createMiniCanvas('scatter-matrix-cell-canvas', 92);
+            const categoryGroups = buildCategoricalColorGroups(data.colorLabels);
+            drawJobs.push(() => {
+                drawMiniScatterCanvas(canvas, data.points, {
+                    color: '#4a9eff',
+                    colorValues: data.colorValues,
+                    colorLabels: categoryGroups ? data.colorLabels : null,
+                    colorScale: controls.colorScale,
+                    categoryColors: categoryGroups?.colorByLabel,
+                });
+            });
+
+            const meta = document.createElement('div');
+            meta.className = 'scatter-matrix-meta';
+            meta.innerHTML = `<span>${escapeHtml(column)} → ${escapeHtml(rowColumn)}</span><span>${escapeHtml(fmt.format(Number(data.totalPoints || data.points.length || 0)))} pts</span>`;
+
+            cell.append(canvas, meta);
+            cell.addEventListener('click', async () => {
+                try {
+                    await selectMatrixPair(column, rowColumn);
+                } catch (error) {
+                    console.error(error);
+                    showError(String(error?.message ?? error));
+                }
+            });
+            grid.appendChild(cell);
+        }
+    }
+
+    container.appendChild(grid);
+    for (const draw of drawJobs) {
+        draw();
+    }
+}
+
+async function renderScatterOverview() {
+    const columns = buildOverviewColumns();
+    if (columns.length < 2) {
+        renderMatrixGrid(columns, new Map());
+        return;
+    }
+
+    const controls = currentControls();
+    setPanelStatus('scatter-matrix-status', 'Refreshing matrix for the current filters and linked time window...');
+    const context = buildScatterQueryContext();
+    const requestId = ++state.overviewRequestId;
+    const pairs = [];
+    for (const rowColumn of columns) {
+        for (const column of columns) {
+            pairs.push([column, rowColumn]);
+        }
+    }
+
+    try {
+        const resolved = await Promise.all(pairs.map(async ([column, rowColumn]) => {
+            const data = await fetchMatrixCellData(column, rowColumn, context, controls.selectedColorColumn);
+            return { key: `${column}|${rowColumn}`, data };
+        }));
+        if (requestId !== state.overviewRequestId) return;
+
+        const datasets = new Map(resolved.map((entry) => [entry.key, entry.data]));
+        renderMatrixGrid(columns, datasets);
+        const groups = buildCategoricalColorGroups(state.colorLabels);
+        const groupText = groups && controls.selectedColorColumn
+            ? ` Grouped distributions use ${controls.selectedColorColumn}.`
+            : '';
+        setPanelStatus('scatter-matrix-status', `Matrix shows ${columns.length} linked columns with ${describeDistributionMode(controls.diagonalMode)} diagonals.${groupText}`);
+    } catch (error) {
+        if (requestId !== state.overviewRequestId) return;
+        console.error(error);
+        renderMatrixGrid(columns, new Map());
+        setPanelStatus('scatter-matrix-status', 'Matrix preview is temporarily unavailable for this query.');
+    }
+}
+
+async function renderScatterMatrixView() {
+    await renderScatterOverview();
+}
+
 function ensureOptions(selectEl, values, preferredValue) {
     if (!selectEl) return null;
 
@@ -1027,7 +2294,7 @@ async function refreshCorrelationsAndSuggestions() {
     const selectedY = ensureOptions(ySelect, yCandidates, ySelect.value);
 
     if (colorSelect) {
-        const colorOptions = [''].concat(numeric);
+        const colorOptions = [''].concat((state.metadata?.columns || []).map((column) => String(column?.name || '')).filter(Boolean));
         const preferredColor = state.colorColumn || colorSelect.value;
         colorSelect.innerHTML = '';
         for (const col of colorOptions) {
@@ -1067,7 +2334,7 @@ async function renderScatter() {
     showError('');
     const ctl = currentControls();
     const renderSignature = buildRenderSignature(ctl);
-    const colorColumn = ctl.colorColumn || null;
+    const colorColumn = ctl.selectedColorColumn || null;
     const response = await fetchScatterPoints(
         xSelect.value,
         ySelect.value,
@@ -1082,6 +2349,7 @@ async function renderScatter() {
     state.totalPoints = Number(response.total_points ?? points.length);
     state.allPoints = points;
     state.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
+    state.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
     state.colorColumn = response.color || '';
     applyScatterStateFromCache(true);
 
@@ -1113,14 +2381,19 @@ async function renderScatter() {
     updateBinnedReadout();
     updateCorrelationStats();
     renderSuggestions(state.lastSuggestions);
+    await refreshActiveScatterView();
 }
 
-function rerenderScatterFromCache(resetView = true) {
-    if (!state.chart || !Array.isArray(state.allPoints) || state.allPoints.length === 0) return;
-    applyScatterStateFromCache(resetView);
-    renderCurrentOption();
-    updateCorrelationStats();
-    renderSuggestions(state.lastSuggestions);
+async function rerenderScatterFromCache(resetView = true) {
+    if (Array.isArray(state.allPoints) && state.allPoints.length > 0) {
+        applyScatterStateFromCache(resetView);
+        if (state.chart) {
+            renderCurrentOption();
+        }
+        updateCorrelationStats();
+        renderSuggestions(state.lastSuggestions);
+    }
+    await refreshActiveScatterView();
 }
 
 function buildLinearTicks(min, max, count = 6) {
@@ -1149,6 +2422,7 @@ function drawScatterSeriesToCanvas(ctx, plotLeft, plotTop, plotWidth, plotHeight
     const xSpan = Math.max(1e-9, state.view.xMax - state.view.xMin);
     const ySpan = Math.max(1e-9, state.view.yMax - state.view.yMin);
     const points = Array.isArray(state.points) ? state.points : [];
+    const categoricalGroups = buildCategoricalColorGroups(state.colorLabels);
 
     if (controls.renderMode === 'density') {
         const binSize = Math.max(2, (Number(controls.binSize) || 10) * scale);
@@ -1204,7 +2478,9 @@ function drawScatterSeriesToCanvas(ctx, plotLeft, plotTop, plotWidth, plotHeight
         const py = plotTop + (1 - ((y - state.view.yMin) / ySpan)) * plotHeight;
 
         let fill = '#4a9eff';
-        if (controls.colorColumn && Array.isArray(state.colorValues) && Number.isFinite(state.colorMin) && Number.isFinite(state.colorMax)) {
+        if (controls.selectedColorColumn && categoricalGroups) {
+            fill = categoricalGroups.colorByLabel.get(normalizeCategoryLabel(state.colorLabels?.[index])) || fill;
+        } else if (controls.selectedColorColumn && Array.isArray(state.colorValues) && Number.isFinite(state.colorMin) && Number.isFinite(state.colorMax)) {
             const value = Number(state.colorValues[index]);
             if (Number.isFinite(value) && state.colorMax > state.colorMin) {
                 const ratio = (value - state.colorMin) / (state.colorMax - state.colorMin);
@@ -1359,7 +2635,14 @@ function renderScatterExportToCanvas(canvas) {
     ctx.fillText(`Spearman correlation: ${Number.isFinite(corr?.spearman) ? corr.spearman.toFixed(3) : '—'}`, corrX + 10 * scale, corrY + 24 * scale);
     ctx.restore();
 
-    if (controls.renderMode === 'density' || controls.colorColumn) {
+    const showContinuousLegend = controls.renderMode === 'density' || (
+        controls.selectedColorColumn
+        && !buildCategoricalColorGroups(state.colorLabels)
+        && Number.isFinite(state.colorMin)
+        && Number.isFinite(state.colorMax)
+        && state.colorMax > state.colorMin
+    );
+    if (showContinuousLegend) {
         const palette = paletteForScale(controls.renderMode === 'density' ? controls.colormap : controls.colorScale);
         const legendX = viewport.width - 250 * scale;
         const legendY = 64 * scale;
@@ -1380,7 +2663,7 @@ function renderScatterExportToCanvas(canvas) {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
         ctx.fillText(
-            controls.renderMode === 'density' ? `Density (${controls.colormap})` : `${controls.colorColumn} (${controls.colorScale})`,
+            controls.renderMode === 'density' ? `Density (${controls.colormap})` : `${controls.selectedColorColumn} (${controls.colorScale})`,
             legendX + 10 * scale,
             legendY + 6 * scale,
         );
@@ -1453,17 +2736,24 @@ function bindControls() {
     const colormapSelect = getEl('scatter-colormap');
     const normalizationSelect = getEl('scatter-normalization');
     const renderModeSelect = getEl('scatter-render-mode');
+    const diagonalModeSelect = getEl('scatter-diagonal-mode');
     const colorColumnSelect = getEl('scatter-color-column');
     const colorScaleSelect = getEl('scatter-color-scale');
     const linkBrushInput = getEl('scatter-link-brush');
     const exportPngBtn = getEl('scatter-export-png-btn');
     const exportSvgBtn = getEl('scatter-export-svg-btn');
     const exportHtmlBtn = getEl('scatter-export-html-btn');
+    const exportCsvBtn = getEl('scatter-export-csv-btn');
+    const exportJsonBtn = getEl('scatter-export-json-btn');
 
     if (!xSelect || !ySelect || !binSizeInput || !binSizeValue || !colormapSelect || !normalizationSelect || !renderModeSelect) return;
 
+    window.__edatime = window.__edatime || {};
+    window.__edatime.exportScatterData = exportScatterData;
+
     binSizeValue.textContent = binSizeInput.value;
     syncModeUI();
+    void setScatterView(state.activeView, { render: false });
 
     const rerender = () => {
         const container = getEl('scatter-chart');
@@ -1488,6 +2778,9 @@ function bindControls() {
         syncModeUI();
         applyDensity();
     });
+    diagonalModeSelect?.addEventListener('change', () => {
+        void refreshActiveScatterView();
+    });
     colorColumnSelect?.addEventListener('change', async () => {
         await renderScatter();
     });
@@ -1507,6 +2800,8 @@ function bindControls() {
     exportPngBtn?.addEventListener('click', () => exportScatterPNG());
     exportSvgBtn?.addEventListener('click', () => exportScatterSVG());
     exportHtmlBtn?.addEventListener('click', () => exportScatterHTML());
+    exportCsvBtn?.addEventListener('click', () => exportScatterData('csv'));
+    exportJsonBtn?.addEventListener('click', () => exportScatterData('json'));
 
     ySelect.addEventListener('change', async () => {
         updateCorrelationStats();
@@ -1524,9 +2819,13 @@ function bindControls() {
 
     window.addEventListener('edatime:chart-range-change', async () => {
         const page = getEl('page-scatter');
-        if (page?.hidden || !isLinkedBrushEnabled()) return;
+        if (page?.hidden) return;
         try {
-            await renderScatter();
+            if (state.activeView === 'distributions') {
+                await fetchAndRenderDistributions();
+            } else if (isLinkedBrushEnabled()) {
+                await renderScatter();
+            }
         } catch (err) {
             console.error(err);
             showError(String(err?.message ?? err));
@@ -1537,7 +2836,11 @@ function bindControls() {
         const page = getEl('page-scatter');
         if (page?.hidden) return;
         try {
-            await renderScatter();
+            if (state.activeView === 'distributions') {
+                await fetchAndRenderDistributions();
+            } else {
+                await renderScatter();
+            }
         } catch (err) {
             console.error(err);
             showError(String(err?.message ?? err));
@@ -1548,7 +2851,11 @@ function bindControls() {
         const page = getEl('page-scatter');
         if (page?.hidden) return;
         try {
-            await renderScatter();
+            if (state.activeView === 'distributions') {
+                await fetchAndRenderDistributions();
+            } else {
+                await renderScatter();
+            }
         } catch (err) {
             console.error(err);
             showError(String(err?.message ?? err));
@@ -1557,6 +2864,8 @@ function bindControls() {
 
     window.addEventListener('edatime:page-change', async (ev) => {
         if (ev?.detail?.page !== 'scatter') return;
+        state.activeView = normalizeAnalyticsView(ev?.detail?.analyticsView);
+        await setScatterView(state.activeView, { render: false });
         if (!state.pageInitialized) {
             refreshCorrelationsAndSuggestions()
                 .then(() => renderScatter())
@@ -1572,14 +2881,14 @@ function bindControls() {
                 if (isLinkedBrushEnabled() || Object.keys(appState.columnRanges || {}).length > 0 || (appState.adaptiveLineFilters || []).length > 0) {
                     await renderScatter();
                 } else {
-                    rerenderScatterFromCache(true);
+                    await rerenderScatterFromCache(true);
                 }
             } catch (err) {
                 console.error(err);
                 showError(String(err?.message ?? err));
             }
         }
-        requestAnimationFrame(() => state.chart?.resize?.());
+        void refreshActiveScatterView();
     });
 }
 
@@ -1591,6 +2900,8 @@ export async function initScatterPage(metadata) {
     if (!page || !xSelect || !ySelect) return;
 
     const numeric = (metadata?.numeric_columns || []).filter((c) => c);
+    state.metadata = metadata || null;
+    state.selectedDistributionColumn = '';
     state.columnTypes = new Map(
         (metadata?.columns || []).map((col) => [
             String(col?.name || '').toLowerCase(),

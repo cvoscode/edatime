@@ -11,6 +11,7 @@ use serde::Deserialize;
 
 /// Common time-range + viewport query used by the data endpoint.
 #[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct DataQuery {
     pub start: DateTime<Utc>,
     pub end: DateTime<Utc>,
@@ -22,6 +23,7 @@ pub struct DataQuery {
 
 /// Query for bucket-aggregation endpoints (bar charts, histograms, etc.).
 #[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct AggregateQuery {
     pub start: DateTime<Utc>,
     pub end: DateTime<Utc>,
@@ -57,23 +59,27 @@ pub enum AggFn {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 /// Parse the `columns` query param into a list of column name strings.
-/// Falls back to `["value"]` when absent.
+/// Falls back to `["value"]` when absent or empty.
 pub fn parse_columns(raw: &Option<String>) -> Vec<String> {
-    raw.as_deref()
-        .map(|s| s.split(',').map(|c| c.trim().to_string()).filter(|c| !c.is_empty()).collect())
-        .unwrap_or_else(|| vec!["value".to_string()])
+    let trimmed = raw.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
+    match trimmed {
+        Some(s) => s
+            .split(',')
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty())
+            .collect(),
+        None => vec!["value".to_string()],
+    }
 }
 
 /// Detect the time-unit multiplier so we can convert epoch-ms timestamps from
 /// the query into the internal representation used by the DataFrame's `ts`
 /// column.
 pub fn unit_multiplier_for_ts(df: &DataFrame) -> Result<i64, crate::error::AppError> {
-    let ts_dtype = df
+    let ts_col = df
         .column("ts")
-        .map_err(|e| crate::error::AppError::BadRequest(format!("Missing ts column: {}", e)))?
-        .as_materialized_series()
-        .dtype()
-        .clone();
+        .map_err(|e| crate::error::AppError::bad_request(format!("Missing ts column: {}", e)))?;
+    let ts_dtype = ts_col.dtype().clone();
 
     Ok(match ts_dtype {
         DataType::Datetime(TimeUnit::Nanoseconds, _) => 1_000_000,
@@ -87,7 +93,7 @@ pub fn unit_multiplier_for_ts(df: &DataFrame) -> Result<i64, crate::error::AppEr
 pub fn ts_dtype(df: &DataFrame) -> Result<DataType, crate::error::AppError> {
     Ok(df
         .column("ts")
-        .map_err(|e| crate::error::AppError::BadRequest(format!("Missing ts column: {}", e)))?
+        .map_err(|e| crate::error::AppError::bad_request(format!("Missing ts column: {}", e)))?
         .as_materialized_series()
         .dtype()
         .clone())
