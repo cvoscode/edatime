@@ -1,0 +1,117 @@
+//! HTTP middleware: rate limiting, client IP extraction, request tracking.
+
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Instant;
+
+use axum::{extract::ConnectInfo, http::HeaderValue, middleware::Next, response::IntoResponse};
+
+use crate::error::AppError;
+use crate::metrics::AppMetrics;
+use crate::rates::RateLimiter;
+
+/// Proxy header names examined when resolving the real client IP, in priority
+/// order.  The first non-empty value wins.
+const FORWARDED_HEADERS: &[&str] = &[
+    "x-forwarded-for",
+    "cf-connecting-ip",
+    "x-real-ip",
+    "true-client-ip",
+];
+
+/// Resolve the client IP address from proxy headers, falling back to the
+/// direct TCP peer address recorded in [`ConnectInfo`].
+pub fn extract_client_ip(req: &axum::extract::Request) -> String {
+    let headers = req.headers();
+
+    for &header_name in FORWARDED_HEADERS {
+        if let Some(ip) = headers
+            .get(header_name)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.split(',').next())
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+        {
+            return ip.to_string();
+        }
+    }
+
+    req.extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|info| info.0.ip().to_string())
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+/// Rate-limiting middleware that integrates with [`AppMetrics`].
+///
+/// Records per-request metrics (method, path, status, duration) regardless of
+/// whether the request is rate-limited or not.
+pub fn rate_limit_middleware(
+    rate_limiter: Arc<RateLimiter>,
+    metrics: Arc<AppMetrics>,
+) -> impl Fn(
+    axum::extract::Request,
+    Next,
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<axum::response::Response, AppError>> + Send>,
+> + Clone
++ Send {
+    move |req: axum::extract::Request, next: Next| {
+        let rate_limiter = Arc::clone(&rate_limiter);
+        let metrics = Arc::clone(&metrics);
+
+        Box::pin(async move {
+            let method = req.method().to_string();
+            let path = req.uri().path().to_string();
+            let started_at = Instant::now();
+            let client_ip = extract_client_ip(&req);
+
+            let result = rate_limiter.check(&client_ip);
+
+            if !result.allowed {
+                metrics.record_rate_limited();
+                let mut response =
+                    AppError::rate_limit("Rate limit exceeded. Please try again later.")
+                        .into_response();
+                if let Some(retry_after) = result.retry_after_seconds {
+                    if let Ok(value) = HeaderValue::from_str(&retry_after.to_string()) {
+                        response
+                            .headers_mut()
+                            .insert(axum::http::header::RETRY_AFTER, value);
+                    }
+                }
+                metrics.record_request(
+                    &method,
+                    &path,
+                    response.status().as_u16(),
+                    started_at.elapsed().as_nanos() as u64,
+                );
+                return Ok(response);
+            }
+
+            let mut response = next.run(req).await;
+            if let Ok(value) = HeaderValue::from_str(&result.remaining_requests.to_string()) {
+                response
+                    .headers_mut()
+                    .insert("x-ratelimit-remaining", value);
+            }
+            metrics.record_request(
+                &method,
+                &path,
+                response.status().as_u16(),
+                started_at.elapsed().as_nanos() as u64,
+            );
+            Ok(response)
+        })
+    }
+}
+
+/// Content-Security-Policy value applied to all responses.
+pub fn csp_header_value() -> HeaderValue {
+    HeaderValue::from_static(
+        "default-src 'self' unpkg.com esm.sh; \
+         script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh; \
+         style-src 'self' 'unsafe-inline'; \
+         connect-src 'self' unpkg.com esm.sh blob:;",
+    )
+}

@@ -7,18 +7,20 @@ pub fn downsample_dataframe(
     y_col: &str,
     target_points: usize,
 ) -> PolarsResult<DataFrame> {
-    downsample_dataframe_multi(df, x_col, &[y_col], target_points)
+    downsample_dataframe_multi(df, x_col, &[y_col], &[], target_points)
 }
 
 pub fn downsample_dataframe_multi(
     df: &DataFrame,
     ts_col: &str,
     value_cols: &[&str],
+    extra_cols: &[&str],
     target_points: usize,
 ) -> PolarsResult<DataFrame> {
     if df.height() <= target_points || target_points < 3 {
         let mut cols = vec![ts_col];
         cols.extend_from_slice(value_cols);
+        cols.extend_from_slice(extra_cols);
         return df.select(cols);
     }
 
@@ -49,6 +51,7 @@ pub fn downsample_dataframe_multi(
 
     let mut cols = vec![ts_col];
     cols.extend_from_slice(value_cols);
+    cols.extend_from_slice(extra_cols);
 
     let row_df = DataFrame::new(
         selected_rows.len(),

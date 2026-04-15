@@ -1,0 +1,30 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "outDir": "frontend/js",
+        "rootDir": "frontend/src",
+        "strict": true,
+        "declaration": false,
+        "sourceMap": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "noEmit": true,
+        "lib": [
+            "ES2022",
+            "DOM",
+            "DOM.Iterable"
+        ]
+    },
+    "include": [
+        "frontend/src/**/*.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "target"
+    ]
+}

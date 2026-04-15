@@ -1,5 +1,6 @@
 pub mod aggregate;
 pub mod data;
+pub mod export;
 pub mod metadata;
 pub mod metrics;
 pub mod scatter;
@@ -17,11 +18,16 @@ pub fn api_router() -> Router<AppState> {
         .route("/health", get(health))
         .route("/data", get(data::get_data))
         .route("/aggregate", get(aggregate::get_aggregate))
+        .route("/export/parquet", get(export::export_parquet))
         .route("/metadata", get(metadata::get_metadata))
         .route("/metrics", get(metrics::get_metrics))
         .route(
             "/scatter/points",
             get(scatter::get_scatter_points).post(scatter::post_scatter_points),
+        )
+        .route(
+            "/scatter/export/parquet",
+            post(scatter::post_scatter_export_parquet),
         )
         .route(
             "/scatter/correlations",

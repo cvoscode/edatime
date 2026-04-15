@@ -54,6 +54,7 @@ fn bench_time_filter_and_downsample(c: &mut Criterion) {
             let (reduced, was_downsampled) = apply_reduction(
                 black_box(&filtered),
                 black_box(&columns),
+                black_box(&[] as &[String]),
                 black_box(&reduction),
             )
             .expect("apply lttb reduction");

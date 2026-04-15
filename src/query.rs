@@ -17,6 +17,7 @@ pub struct DataQuery {
     pub end: DateTime<Utc>,
     pub width: usize,
     pub columns: Option<String>,
+    pub color_column: Option<String>,
     /// `"arrow"` (default) or `"json"`.
     pub format: Option<String>,
 }
@@ -31,6 +32,13 @@ pub struct AggregateQuery {
     /// Number of time buckets to split the range into.
     #[serde(default = "default_buckets")]
     pub buckets: usize,
+    /// Windowing mode for aggregation.
+    #[serde(default = "default_aggregate_window_mode")]
+    pub window_mode: AggregateWindowMode,
+    /// Window size in milliseconds for tumbling/sliding windows.
+    pub window_ms: Option<i64>,
+    /// Step size in milliseconds for sliding windows.
+    pub step_ms: Option<i64>,
     /// Aggregation function: `"mean"`, `"sum"`, `"min"`, `"max"`, `"count"`.
     #[serde(default = "default_agg_fn")]
     pub agg: AggFn,
@@ -45,6 +53,10 @@ fn default_agg_fn() -> AggFn {
     AggFn::Mean
 }
 
+fn default_aggregate_window_mode() -> AggregateWindowMode {
+    AggregateWindowMode::Buckets
+}
+
 /// Supported aggregation functions.
 #[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -54,6 +66,15 @@ pub enum AggFn {
     Min,
     Max,
     Count,
+}
+
+/// Supported aggregate windowing modes.
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AggregateWindowMode {
+    Buckets,
+    Tumbling,
+    Sliding,
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────

@@ -641,7 +641,9 @@ header {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 100px;
+  max-width: 72%;
   overflow-x: auto;
   padding-bottom: 2px;
   /* prevent scrollbar overlap */
@@ -656,6 +658,28 @@ header {
   border-radius: 2px;
 }
 
+@media (max-width: 900px) {
+  .series-toggles {
+    max-width: 62%;
+  }
+}
+
+@media (max-width: 600px) {
+  .toolbar {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 44px;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .series-toggles {
+    flex: 1 1 100%;
+    max-width: 100%;
+    order: 10;
+  }
+}
+
 .series-empty {
   font-size: 12px;
   color: var(--text-muted);
@@ -663,6 +687,7 @@ header {
 }
 
 .series-chip {
+  --chip-accent: var(--accent);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -723,8 +748,9 @@ header {
 }
 
 .series-chip.active {
-  border-color: var(--border-hi);
-  background: var(--surface-3);
+  border-color: color-mix(in srgb, var(--chip-accent) 72%, var(--border-hi));
+  background: color-mix(in srgb, var(--chip-accent) 16%, var(--surface-3));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--chip-accent) 26%, transparent), 0 0 14px color-mix(in srgb, var(--chip-accent) 16%, transparent);
 }
 
 .series-chip.active .chip-label {
@@ -732,13 +758,13 @@ header {
 }
 
 .series-chip.adaptive-target {
-  border-color: color-mix(in srgb, var(--cyan) 70%, var(--border-hi));
-  box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.18), 0 0 14px rgba(0, 212, 255, 0.12);
+  border-color: color-mix(in srgb, var(--chip-accent) 82%, var(--border-hi));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--chip-accent) 30%, transparent), 0 0 18px color-mix(in srgb, var(--chip-accent) 18%, transparent);
 }
 
 .series-chip.adaptive-target .chip-label::after {
   content: ' • filter';
-  color: var(--cyan);
+  color: var(--chip-accent);
   font-weight: 600;
 }
 
@@ -1388,33 +1414,127 @@ input[type=range]::-webkit-slider-thumb:hover {
 }
 
 #scatter-chart {
-  width: 100%;
+  width: calc(100% - var(--scatter-right, 72px));
   height: 100%;
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  transition: top 0.15s ease, height 0.15s ease, width 0.15s ease;
 }
 
-.scatter-correlation-overlay {
-  padding: 8px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.4;
-  font-variant-numeric: tabular-nums;
+#scatter-chart.with-x-marginal {
+  top: 64px;
+  height: calc(100% - 64px);
+}
+
+.scatter-marginal-x {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: var(--scatter-right, 72px);
+  height: 64px;
+  z-index: 6;
+  pointer-events: none;
+  background: transparent;
+  display: block;
+}
+
+/* Right panel: contains Y marginal canvas + vertical colorbar */
+.scatter-right-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--scatter-right, 72px);
+  z-index: 7;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
   pointer-events: none;
 }
 
-.scatter-overlay-stack {
+.scatter-right-panel[hidden] {
+  display: none !important;
+}
+
+/* Y marginal: fills height of right panel */
+.scatter-marginal-y-right {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 0;
+  /* flex will expand */
+  height: 100%;
+  pointer-events: none;
+  background: transparent;
+  display: block;
+}
+
+/* Vertical colorbar column */
+.scatter-colorbar-vertical {
+  flex-shrink: 0;
+  width: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: stretch;
+  padding: 12px 0 8px;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.scatter-colorbar-vertical[hidden] {
+  display: none !important;
+}
+
+.scatter-colorbar-vbar {
+  flex: 1 1 auto;
+  width: 14px;
+  min-height: 60px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  display: block;
+}
+
+.scatter-colorbar-vtick {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: center;
+  line-height: 1;
+}
+
+.scatter-colorbar-vname {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+  max-height: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 4px;
+}
+
+/* Correlation overlay: compact pill, bottom-left of scatter chart */
+.scatter-correlation-overlay {
   position: absolute;
-  right: 16px;
-  top: 12px;
-  z-index: 7;
-  display: grid;
-  gap: 10px;
-  justify-items: end;
+  left: 80px;
+  bottom: 58px;
+  z-index: 8;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
 
@@ -1444,7 +1564,8 @@ input[type=range]::-webkit-slider-thumb:hover {
 
 .scatter-toolbar .modal-select {
   height: 28px;
-  min-width: 130px;
+  min-width: 0;
+  width: fit-content;
   padding: 0 8px;
 }
 
@@ -1468,11 +1589,26 @@ input[type=range]::-webkit-slider-thumb:hover {
 .scatter-colorbar-wrap {
   display: grid;
   gap: 6px;
-  min-width: 280px;
+  min-width: 200px;
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+}
+
+.scatter-colorbar-wrap-inline {
+  min-width: 200px;
+  max-width: 280px;
+  padding: 8px 10px;
+}
+
+.scatter-colorbar-wrap-inline .scatter-colorbar-name {
+  max-width: 240px;
+}
+
+/* Correlation overlay inside the scatter overlay stack */
+#scatter-correlation-overlay {
+  pointer-events: none;
 }
 
 .scatter-colorbar-name {
@@ -1643,11 +1779,14 @@ input[type=range]::-webkit-slider-thumb:hover {
 }
 
 .scatter-matrix-row-header {
-  min-height: 116px;
+  min-height: 0;
   font-weight: 600;
   text-align: center;
   line-height: 1.2;
   word-break: break-word;
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+  padding: 6px 4px;
 }
 
 .scatter-matrix-corner {
@@ -1866,6 +2005,136 @@ input[type=range]::-webkit-slider-thumb:hover {
 
   .scatter-panel-status {
     text-align: left;
+  }
+
+  .scatter-colorbar-wrap-inline {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+}
+
+/* ─── Responsive: tablets (≤ 1024px) ──────────────────────────── */
+@media (max-width: 1024px) {
+  .app-layout {
+    grid-template-columns: 180px 1fr;
+  }
+
+  .toolbar {
+    height: auto;
+    flex-wrap: wrap;
+    row-gap: 4px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .series-toggles {
+    max-width: 55%;
+  }
+
+  .scatter-toolbar .toolbar-group:last-child {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+}
+
+/* ─── Responsive: small screens (≤ 640px) ─────────────────────── */
+@media (max-width: 640px) {
+  .app-layout {
+    grid-template-columns: 40px 1fr;
+  }
+
+  .sidebar {
+    padding: 10px 4px;
+    gap: 4px;
+  }
+
+  .sidebar-title {
+    display: none;
+  }
+
+  .nav-text {
+    display: none;
+  }
+
+  .nav-item {
+    justify-content: center;
+    padding: 0;
+    height: 36px;
+  }
+
+  .nav-collapse .nav-icon {
+    display: block;
+  }
+
+  header {
+    padding: 0 8px;
+  }
+
+  .brand-name {
+    display: none;
+  }
+
+  .toolbar {
+    padding-left: 8px;
+    padding-right: 8px;
+    gap: 6px;
+  }
+
+  .toolbar-label {
+    display: none;
+  }
+
+  .series-toggles {
+    max-width: 100%;
+  }
+
+  .scatter-marginal-x {
+    height: 56px;
+  }
+
+  #scatter-chart.with-x-marginal {
+    top: 56px;
+    height: calc(100% - 56px);
+  }
+
+  /* Overlay stack collapses to a narrower panel on mobile */
+  .scatter-overlay-stack {
+    width: 220px;
+  }
+
+  #scatter-chart {
+    right: 220px;
+    width: calc(100% - 220px);
+  }
+
+  .scatter-marginal-x {
+    right: 220px;
+  }
+}
+
+/* ─── Responsive: very small (≤ 480px) ─────────────────────────── */
+@media (max-width: 480px) {
+  .scatter-overlay-stack {
+    width: 160px;
+  }
+
+  #scatter-chart {
+    right: 160px;
+    width: calc(100% - 160px);
+  }
+
+  .scatter-marginal-x {
+    right: 160px;
+  }
+
+  .scatter-stats-bar {
+    flex-wrap: wrap;
+    height: auto;
+  }
+
+  .scatter-stats-bar span {
+    white-space: normal;
   }
 }
 

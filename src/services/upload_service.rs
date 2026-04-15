@@ -6,7 +6,8 @@ use serde_json::Value;
 use tempfile::{Builder, TempPath};
 
 use crate::error::AppError;
-use crate::routes::metadata::build_dataset_metadata_from_path;
+use crate::ingest::IngestParams;
+use crate::routes::metadata::build_dataset_metadata_from_path_with_time_column;
 use crate::state::AppState;
 use crate::validation::validate_upload_size_with_limit;
 
@@ -21,19 +22,10 @@ impl UploadService {
     }
 
     pub async fn upload_data(&self, multipart: Multipart) -> Result<Value, AppError> {
-        let (path, n_rows, skip_rows, time_start_ms, time_end_ms, selected_columns) =
-            self.extract_upload_parts(multipart).await?;
-        let selected_columns_for_load = selected_columns.clone();
+        let (path, ingest_params) = self.extract_upload_parts(multipart).await?;
 
         let df = tokio::task::spawn_blocking(move || {
-            crate::ingest::load_dataframe_partial(
-                &path,
-                n_rows,
-                skip_rows,
-                time_start_ms,
-                time_end_ms,
-                selected_columns_for_load.as_deref(),
-            )
+            crate::ingest::load_dataframe_partial(&path, &ingest_params)
         })
         .await
         .map_err(|error| AppError::internal(format!("Failed to join upload task: {error:?}")))?
@@ -46,22 +38,16 @@ impl UploadService {
         Ok(serde_json::json!({
             "status": "success",
             "rows": df.height(),
-            "n_rows_limit": n_rows,
-            "skip_rows": skip_rows,
-            "time_start_ms": time_start_ms,
-            "time_end_ms": time_end_ms,
-            "selected_columns": selected_columns,
         }))
     }
 
     pub async fn preview_upload_data(&self, multipart: Multipart) -> Result<Value, AppError> {
-        let path = self.extract_preview_file(multipart).await?;
-        let metadata =
-            tokio::task::spawn_blocking(move || build_dataset_metadata_from_path(path.as_ref()))
-                .await
-                .map_err(|error| {
-                    AppError::internal(format!("Failed to join preview task: {error:?}"))
-                })??;
+        let (path, time_column) = self.extract_preview_file(multipart).await?;
+        let metadata = tokio::task::spawn_blocking(move || {
+            build_dataset_metadata_from_path_with_time_column(path.as_ref(), time_column.as_deref())
+        })
+        .await
+        .map_err(|error| AppError::internal(format!("Failed to join preview task: {error:?}")))??;
 
         Ok(serde_json::json!({
             "status": "ok",
@@ -72,24 +58,10 @@ impl UploadService {
     async fn extract_upload_parts(
         &self,
         mut multipart: Multipart,
-    ) -> Result<
-        (
-            TempPath,
-            Option<usize>,
-            usize,
-            Option<i64>,
-            Option<i64>,
-            Option<Vec<String>>,
-        ),
-        AppError,
-    > {
+    ) -> Result<(TempPath, IngestParams), AppError> {
         let mut temp_file = None;
         let mut has_file = false;
-        let mut n_rows = None;
-        let mut skip_rows = 0usize;
-        let mut time_start_ms = None;
-        let mut time_end_ms = None;
-        let mut selected_columns: Option<Vec<String>> = None;
+        let mut params = IngestParams::default();
         let mut total_bytes = 0usize;
 
         while let Some(field) = multipart
@@ -102,23 +74,23 @@ impl UploadService {
             match field_name.as_str() {
                 "n_rows" => {
                     let text = field.text().await.unwrap_or_default();
-                    n_rows = text.trim().parse::<usize>().ok().filter(|count| *count > 0);
+                    params.n_rows = text.trim().parse::<usize>().ok().filter(|count| *count > 0);
                 }
                 "skip_rows" => {
                     let text = field.text().await.unwrap_or_default();
-                    skip_rows = text.trim().parse::<usize>().unwrap_or(0);
+                    params.skip_rows = text.trim().parse::<usize>().unwrap_or(0);
                 }
                 "time_start" => {
                     let text = field.text().await.unwrap_or_default();
-                    time_start_ms = parse_time_ms(&text);
+                    params.time_start_ms = parse_time_ms(&text);
                 }
                 "time_end" => {
                     let text = field.text().await.unwrap_or_default();
-                    time_end_ms = parse_time_ms(&text);
+                    params.time_end_ms = parse_time_ms(&text);
                 }
                 "columns" => {
                     let text = field.text().await.unwrap_or_default();
-                    selected_columns = serde_json::from_str::<Vec<String>>(&text)
+                    params.selected_columns = serde_json::from_str::<Vec<String>>(&text)
                         .ok()
                         .map(|columns| {
                             columns
@@ -128,6 +100,10 @@ impl UploadService {
                                 .collect::<Vec<_>>()
                         })
                         .filter(|columns| !columns.is_empty());
+                }
+                "time_column" => {
+                    let text = field.text().await.unwrap_or_default();
+                    params.time_column = Some(text.trim().to_string()).filter(|v| !v.is_empty());
                 }
                 _ => {
                     if temp_file.is_none() {
@@ -169,64 +145,71 @@ impl UploadService {
             .ok_or_else(|| AppError::bad_request("No file part found in multipart upload"))?
             .into_temp_path();
 
-        Ok((
-            temp_path,
-            n_rows,
-            skip_rows,
-            time_start_ms,
-            time_end_ms,
-            selected_columns,
-        ))
+        Ok((temp_path, params))
     }
 
-    async fn extract_preview_file(&self, mut multipart: Multipart) -> Result<TempPath, AppError> {
+    async fn extract_preview_file(
+        &self,
+        mut multipart: Multipart,
+    ) -> Result<(TempPath, Option<String>), AppError> {
         let mut temp_file = None;
         let mut has_file = false;
         let mut total_bytes = 0usize;
+        let mut time_column: Option<String> = None;
 
         while let Some(field) = multipart
             .next_field()
             .await
             .map_err(|error| AppError::bad_request(error.to_string()))?
         {
-            if field.name().unwrap_or("") == "preview_rows" {
-                continue;
-            }
+            let field_name = field.name().unwrap_or("").to_string();
 
-            if temp_file.is_none() {
-                temp_file = Some(create_temp_upload_file(
-                    field.file_name(),
-                    "edatime-preview-",
-                )?);
-            }
+            match field_name.as_str() {
+                "time_column" => {
+                    let text = field.text().await.unwrap_or_default();
+                    time_column = Some(text.trim().to_string()).filter(|v| !v.is_empty());
+                }
 
-            let mut field = field;
-            while let Some(chunk) = field
-                .chunk()
-                .await
-                .map_err(|error| AppError::bad_request(error.to_string()))?
-            {
-                total_bytes = total_bytes.saturating_add(chunk.len());
-                validate_upload_size_with_limit(
-                    total_bytes,
-                    self.state.config.upload.max_upload_bytes,
-                )?;
-                temp_file
-                    .as_mut()
-                    .expect("preview temp file should exist")
-                    .write_all(&chunk)
-                    .map_err(|error| AppError::io(error.to_string()))?;
+                _ => {
+                    if temp_file.is_none() {
+                        temp_file = Some(create_temp_upload_file(
+                            field.file_name(),
+                            "edatime-preview-",
+                        )?);
+                    }
+
+                    let mut field = field;
+                    while let Some(chunk) = field
+                        .chunk()
+                        .await
+                        .map_err(|error| AppError::bad_request(error.to_string()))?
+                    {
+                        total_bytes = total_bytes.saturating_add(chunk.len());
+                        validate_upload_size_with_limit(
+                            total_bytes,
+                            self.state.config.upload.max_upload_bytes,
+                        )?;
+                        temp_file
+                            .as_mut()
+                            .expect("preview temp file should exist")
+                            .write_all(&chunk)
+                            .map_err(|error| AppError::io(error.to_string()))?;
+                    }
+                    has_file = true;
+                }
             }
-            has_file = true;
         }
 
         if !has_file {
             return Err(AppError::bad_request("No file selected for preview"));
         }
 
-        Ok(temp_file
-            .ok_or_else(|| AppError::bad_request("No file selected for preview"))?
-            .into_temp_path())
+        Ok((
+            temp_file
+                .ok_or_else(|| AppError::bad_request("No file selected for preview"))?
+                .into_temp_path(),
+            time_column,
+        ))
     }
 }
 

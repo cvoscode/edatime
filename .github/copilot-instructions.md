@@ -108,10 +108,57 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
 - Adaptive filter clear controls
 - Drawing tools and export actions on the main chart
 - Scatter and density analytics page with correlation suggestions
+- Scatter matrix view for pairwise comparisons
+- Distribution cards (histogram/KDE/box) for numeric columns
 - Optional scatter color encoding with selectable color scales
 - Linked brush/filter propagation from the main chart into scatter queries
+- Filtered scatter export to PNG/SVG/HTML/CSV/JSON
+- Filtered chart export to CSV/JSON
+- Keyboard shortcuts for chart/scatter workflows
 - WebGPU availability guard with a user-facing error
 - Canvas fallback chart registration
+
+## Known active issue (priority)
+
+- Scatter color-by-column is currently unreliable in some datasets/modes and should be treated as the first implementation priority before broader roadmap changes.
+
+## Roadmap priorities (2026-04-07)
+
+Execution order: fix scatter color-by-column first, then deliver the requested feature set below.
+
+1. Color-by-column reliability (scatter first)
+  - Ensure `/api/scatter/points` returns a consistent color contract for numeric vs categorical color columns.
+  - Make frontend scatter rendering resilient when color arrays are partially missing or contain non-finite values.
+  - Verify colorbar and legend behavior across scatter and density modes.
+
+2. UI installation without npm (`ui Installation ohne npm`)
+  - Keep runtime/distribution npm-free (Rust backend + vendored frontend libs).
+  - Treat Node tooling as optional developer convenience only.
+  - Preserve Rust-based frontend validation path.
+
+3. Time-series color column (`time series Plot color column`)
+  - Support category and numeric color columns in the main time-series chart.
+  - Keep legend/colorbar behavior consistent with column dtype.
+
+4. Time-series UI with more columns (`ui timeseries Plot mehr columns`)
+  - Improve column toggle ergonomics for wide schemas (scroll/overflow behavior).
+  - Preserve chip actions: selection, custom color, adaptive-target interactions.
+
+5. CSV import time parsing (`import csv time column Unix/string`)
+  - Support Unix timestamps and string-formatted time columns with predictable parsing.
+  - Keep preview metadata and ingest behavior aligned.
+
+6. Scatter layout refinements (`scatter: colorscale und Pearson sind zu sehr im Plot`)
+  - Rework scatter toolbar/overlay layout so color scale and Pearson/Spearman stats do not crowd the plot.
+  - Keep responsive behavior for small screens.
+
+7. Aggregation windows (`Features aggregationen Windows`)
+  - Extend aggregate APIs with window-oriented semantics (initially tumbling windows, optional sliding later).
+  - Add compatible frontend controls once API semantics are stable.
+
+8. Export parquet (`Export in parquet`)
+  - Add filtered dataset export as Parquet from backend routes.
+  - Wire main chart/scatter export controls to the new endpoint.
 
 ## Current data flow
 

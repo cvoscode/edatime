@@ -1,10 +1,13 @@
 use axum::{
     Json,
     extract::{Query, State},
+    http::{HeaderValue, header},
+    response::Response,
 };
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::arrow_export::dataframe_to_parquet;
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::validation::{MAX_SCATTER_LIMIT, validate_scatter_limit, validate_time_window};
@@ -67,6 +70,12 @@ pub struct ScatterPointsResponse {
 enum ScatterColorColumn {
     Continuous(Vec<Option<f64>>),
     Categorical(Vec<Option<String>>),
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum ScatterColorKind {
+    Continuous,
+    Categorical,
 }
 
 struct SampledScatterRow {
@@ -211,12 +220,12 @@ fn series_to_label_values(df: &DataFrame, name: &str) -> Result<Vec<Option<Strin
         .map_err(|e| AppError::bad_request(format!("Missing column '{}': {}", name, e)))?
         .as_materialized_series();
 
-    let casted = series.cast(&DataType::String).map_err(|e| {
-        AppError::internal(format!("Failed to cast '{}' to String: {}", name, e))
-    })?;
-    let values = casted.str().map_err(|e| {
-        AppError::internal(format!("Failed to read '{}' as String: {}", name, e))
-    })?;
+    let casted = series
+        .cast(&DataType::String)
+        .map_err(|e| AppError::internal(format!("Failed to cast '{}' to String: {}", name, e)))?;
+    let values = casted
+        .str()
+        .map_err(|e| AppError::internal(format!("Failed to read '{}' as String: {}", name, e)))?;
 
     Ok(values
         .into_iter()
@@ -256,21 +265,31 @@ fn collect_sampled_xyc_rows(
     y: &str,
     color: Option<&str>,
     limit: usize,
-) -> Result<(usize, Vec<SampledScatterRow>), AppError> {
+) -> Result<(usize, Vec<SampledScatterRow>, Option<ScatterColorKind>), AppError> {
     let x_vals = series_to_scatter_values(df, x)?;
     let y_vals = series_to_scatter_values(df, y)?;
     let c_vals = if let Some(c) = color {
         let series = df
             .column(c)
             .map_err(|e| AppError::bad_request(format!("Missing column '{}': {}", c, e)))?;
-        if series.dtype().is_numeric() || matches!(series.dtype(), DataType::Datetime(_, _) | DataType::Date) {
-            Some(ScatterColorColumn::Continuous(series_to_scatter_values(df, c)?))
+        if series.dtype().is_numeric()
+            || matches!(series.dtype(), DataType::Datetime(_, _) | DataType::Date)
+        {
+            Some(ScatterColorColumn::Continuous(series_to_scatter_values(
+                df, c,
+            )?))
         } else {
-            Some(ScatterColorColumn::Categorical(series_to_label_values(df, c)?))
+            Some(ScatterColorColumn::Categorical(series_to_label_values(
+                df, c,
+            )?))
         }
     } else {
         None
     };
+    let color_kind = c_vals.as_ref().map(|column| match column {
+        ScatterColorColumn::Continuous(_) => ScatterColorKind::Continuous,
+        ScatterColorColumn::Categorical(_) => ScatterColorKind::Categorical,
+    });
 
     let mut sampled = Vec::with_capacity(limit.min(df.height()));
     let mut total_points = 0usize;
@@ -294,10 +313,9 @@ fn collect_sampled_xyc_rows(
                     .filter(|value| value.is_finite()),
                 None,
             ),
-            Some(ScatterColorColumn::Categorical(values)) => (
-                None,
-                values.get(idx).cloned().flatten(),
-            ),
+            Some(ScatterColorColumn::Categorical(values)) => {
+                (None, values.get(idx).cloned().flatten())
+            }
             None => (None, None),
         };
 
@@ -319,10 +337,10 @@ fn collect_sampled_xyc_rows(
     }
 
     sampled.sort_by(|a, b| a.x.total_cmp(&b.x));
-    Ok((total_points, sampled))
+    Ok((total_points, sampled, color_kind))
 }
 
-fn parse_scatter_filters(raw: Option<&str>) -> Result<Vec<ScatterFilterSpec>, AppError> {
+pub(crate) fn parse_scatter_filters(raw: Option<&str>) -> Result<Vec<ScatterFilterSpec>, AppError> {
     let Some(raw) = raw.map(str::trim).filter(|value| !value.is_empty()) else {
         return Ok(Vec::new());
     };
@@ -331,7 +349,9 @@ fn parse_scatter_filters(raw: Option<&str>) -> Result<Vec<ScatterFilterSpec>, Ap
         .map_err(|e| AppError::bad_request(format!("Invalid scatter filters payload: {}", e)))
 }
 
-fn parse_scatter_line_filters(raw: Option<&str>) -> Result<Vec<ScatterLineFilterSpec>, AppError> {
+pub(crate) fn parse_scatter_line_filters(
+    raw: Option<&str>,
+) -> Result<Vec<ScatterLineFilterSpec>, AppError> {
     let Some(raw) = raw.map(str::trim).filter(|value| !value.is_empty()) else {
         return Ok(Vec::new());
     };
@@ -407,7 +427,7 @@ fn build_temporal_range_expr(
         .and(col(column).cast(DataType::Int64).lt_eq(lit(end))))
 }
 
-fn apply_scatter_filters(
+pub(crate) fn apply_scatter_filters(
     df: &DataFrame,
     start: Option<f64>,
     end: Option<f64>,
@@ -501,7 +521,7 @@ fn apply_scatter_filters(
     Ok(lf)
 }
 
-fn collect_filtered_scatter_frame(
+pub(crate) fn collect_filtered_scatter_frame(
     df: &DataFrame,
     x: &str,
     y: &str,
@@ -526,14 +546,53 @@ fn collect_filtered_scatter_frame(
         }
     }
 
-    let select_exprs = selected_columns
-        .into_iter()
-        .map(col)
-        .collect::<Vec<_>>();
+    let select_exprs = selected_columns.into_iter().map(col).collect::<Vec<_>>();
 
     lf.select(select_exprs)
         .collect()
         .map_err(|e| AppError::io(e.to_string()))
+}
+
+#[tracing::instrument(skip(state))]
+pub async fn post_scatter_export_parquet(
+    State(state): State<AppState>,
+    Json(params): Json<ScatterPointsQuery>,
+) -> Result<Response, AppError> {
+    let df = state.dataset_snapshot().await;
+
+    let x = params.x.clone();
+    let y = params.y.clone();
+    let color = params.color.clone().filter(|s| !s.trim().is_empty());
+    let filters = parse_scatter_filters(params.filters.as_deref())?;
+    let line_filters = parse_scatter_line_filters(params.line_filters.as_deref())?;
+
+    let filtered = tokio::task::spawn_blocking(move || {
+        collect_filtered_scatter_frame(
+            &df,
+            &x,
+            &y,
+            color.as_deref(),
+            params.start,
+            params.end,
+            &filters,
+            &line_filters,
+        )
+    })
+    .await
+    .map_err(|e| AppError::internal(format!("Failed to join scatter export task: {:?}", e)))??;
+
+    let bytes = dataframe_to_parquet(filtered)
+        .map_err(|e| AppError::io(format!("Parquet serialization: {}", e)))?;
+    let mut response = Response::new(bytes.into());
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/x-parquet"),
+    );
+    response.headers_mut().insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_static("attachment; filename=edatime_scatter_filtered.parquet"),
+    );
+    Ok(response)
 }
 
 fn pearson_from_pairs(pairs: &[[f64; 2]]) -> Option<f64> {
@@ -686,18 +745,22 @@ async fn scatter_points_response(
             &filters,
             &line_filters,
         )?;
-        let (total_points, sampled_rows) =
+        let (total_points, sampled_rows, color_kind) =
             collect_sampled_xyc_rows(&filtered_df, &x, &y, color.as_deref(), limit)?;
 
         let mut points: Vec<[f64; 2]> = Vec::with_capacity(sampled_rows.len());
-        let mut color_values: Option<Vec<f64>> = color
-            .as_ref()
-            .map(|_| Vec::with_capacity(sampled_rows.len()));
+        let mut color_values: Option<Vec<f64>> = match color_kind {
+            Some(ScatterColorKind::Continuous) => Some(Vec::with_capacity(sampled_rows.len())),
+            _ => None,
+        };
 
         let mut cmin = f64::INFINITY;
         let mut cmax = f64::NEG_INFINITY;
 
-        let mut color_labels: Option<Vec<Option<String>>> = color.as_ref().map(|_| Vec::new());
+        let mut color_labels: Option<Vec<Option<String>>> = match color_kind {
+            Some(ScatterColorKind::Categorical) => Some(Vec::with_capacity(sampled_rows.len())),
+            _ => None,
+        };
 
         for row in sampled_rows {
             points.push([row.x, row.y]);
@@ -716,10 +779,6 @@ async fn scatter_points_response(
             if let Some(ref mut out_labels) = color_labels {
                 out_labels.push(row.color_label);
             }
-        }
-
-        if color_values.is_some() {
-            color_labels = None;
         }
 
         Ok::<ScatterPointsResponse, AppError>(ScatterPointsResponse {
@@ -877,7 +936,12 @@ pub struct DistributionsResponse {
     pub columns: Vec<ColumnDistributionResult>,
 }
 
-fn build_distribution_histogram(values: &[f64], min: f64, max: f64, bins: usize) -> Option<ColumnHistogramData> {
+fn build_distribution_histogram(
+    values: &[f64],
+    min: f64,
+    max: f64,
+    bins: usize,
+) -> Option<ColumnHistogramData> {
     if values.is_empty() {
         return None;
     }
@@ -908,7 +972,15 @@ fn build_distribution_histogram(values: &[f64], min: f64, max: f64, bins: usize)
 
 fn compute_column_stats(
     values: &[f64],
-) -> (Option<f64>, Option<f64>, Option<f64>, Option<f64>, Option<f64>, Option<f64>, Option<f64>) {
+) -> (
+    Option<f64>,
+    Option<f64>,
+    Option<f64>,
+    Option<f64>,
+    Option<f64>,
+    Option<f64>,
+    Option<f64>,
+) {
     if values.is_empty() {
         return (None, None, None, None, None, None, None);
     }
@@ -962,7 +1034,16 @@ pub async fn get_distributions(
     let filters = parse_scatter_filters(query.filters.as_deref())?;
     let line_filters = parse_scatter_line_filters(query.line_filters.as_deref())?;
     let bins = query.bins.unwrap_or(24);
-    compute_distributions(state, columns, query.start, query.end, filters, line_filters, bins).await
+    compute_distributions(
+        state,
+        columns,
+        query.start,
+        query.end,
+        filters,
+        line_filters,
+        bins,
+    )
+    .await
 }
 
 #[tracing::instrument(skip(state))]
@@ -973,7 +1054,16 @@ pub async fn post_distributions(
     let bins = body.bins.unwrap_or(24);
     let filters = body.filters.unwrap_or_default();
     let line_filters = body.line_filters.unwrap_or_default();
-    compute_distributions(state, body.columns, body.start, body.end, filters, line_filters, bins).await
+    compute_distributions(
+        state,
+        body.columns,
+        body.start,
+        body.end,
+        filters,
+        line_filters,
+        bins,
+    )
+    .await
 }
 
 async fn compute_distributions(
@@ -1011,8 +1101,7 @@ async fn compute_distributions(
             }
             if let Ok(series) = df.column(trimmed) {
                 let dtype = series.dtype();
-                if dtype.is_numeric()
-                    || matches!(dtype, DataType::Datetime(_, _) | DataType::Date)
+                if dtype.is_numeric() || matches!(dtype, DataType::Datetime(_, _) | DataType::Date)
                 {
                     if !valid_columns.iter().any(|c: &String| c == trimmed) {
                         valid_columns.push(trimmed.to_string());
@@ -1079,4 +1168,49 @@ async fn compute_distributions(
     })
     .await
     .map_err(|e| AppError::internal(format!("Failed to join distributions task: {:?}", e)))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ScatterColorKind, collect_sampled_xyc_rows};
+    use polars::df;
+
+    #[test]
+    fn sampled_rows_report_continuous_color_kind() {
+        let df = df!(
+            "x" => &[1.0_f64, 2.0, 3.0],
+            "y" => &[10.0_f64, 20.0, 30.0],
+            "color" => &[0.1_f64, 0.5, 0.9],
+        )
+        .expect("test dataframe should be created");
+
+        let (total, rows, color_kind) = collect_sampled_xyc_rows(&df, "x", "y", Some("color"), 16)
+            .expect("sampling should succeed");
+
+        assert_eq!(total, 3);
+        assert_eq!(rows.len(), 3);
+        assert_eq!(color_kind, Some(ScatterColorKind::Continuous));
+        assert!(rows.iter().all(|row| row.color_value.is_some()));
+        assert!(rows.iter().all(|row| row.color_label.is_none()));
+    }
+
+    #[test]
+    fn sampled_rows_report_categorical_color_kind() {
+        let df = df!(
+            "x" => &[1.0_f64, 2.0, 3.0],
+            "y" => &[10.0_f64, 20.0, 30.0],
+            "category" => &[Some("alpha"), None, Some("beta")],
+        )
+        .expect("test dataframe should be created");
+
+        let (total, rows, color_kind) =
+            collect_sampled_xyc_rows(&df, "x", "y", Some("category"), 16)
+                .expect("sampling should succeed");
+
+        assert_eq!(total, 3);
+        assert_eq!(rows.len(), 3);
+        assert_eq!(color_kind, Some(ScatterColorKind::Categorical));
+        assert!(rows.iter().all(|row| row.color_value.is_none()));
+        assert!(rows.iter().any(|row| row.color_label.is_some()));
+    }
 }

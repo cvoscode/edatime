@@ -25,19 +25,25 @@ cargo check --all-targets
 cargo test
 ```
 
-Frontend syntax validation:
+Frontend syntax validation (pure Rust):
+
+```bash
+cargo run --bin validate_frontend
+```
+
+Optional development workflow with Node.js:
 
 ```bash
 npm run check:frontend
 ```
 
-Combined local validation sequence:
+Combined local validation sequence (pure Rust):
 
 ```bash
 cargo fmt --check
 cargo check --all-targets
 cargo test
-npm run check:frontend
+cargo run --bin validate_frontend
 ```
 
 ## Benchmarks

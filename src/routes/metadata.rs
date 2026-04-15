@@ -16,6 +16,7 @@ pub struct DatasetMetadata {
     pub total_rows: usize,
     pub columns: Vec<ColumnMetadata>,
     pub numeric_columns: Vec<String>,
+    pub time_column: Option<String>,
     pub time_range: Option<TimeRange>,
     pub column_profiles: Vec<ColumnProfile>,
 }
@@ -26,7 +27,7 @@ pub struct ColumnMetadata {
     pub dtype: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct TimeRange {
     pub min: i64,
     pub max: i64,
@@ -62,22 +63,57 @@ fn unit_divisor_for_dtype(dtype: &DataType) -> i64 {
 }
 
 fn temporal_to_epoch_ms(value: i64, dtype: &DataType) -> f64 {
+    if matches!(dtype, DataType::Int64 | DataType::Int32) {
+        // Heuristic: treat large integers as milliseconds, small ones as seconds
+        if value.abs() > 10_000_000_000 {
+            return value as f64;
+        }
+        return (value * 1000) as f64;
+    }
+
     match dtype {
         DataType::Date => (value * 86_400_000) as f64,
         _ => (value / unit_divisor_for_dtype(dtype)) as f64,
     }
 }
 
-fn detect_time_column(schema: &polars::prelude::Schema) -> Option<(String, DataType)> {
+fn detect_time_column(
+    schema: &polars::prelude::Schema,
+    override_column: Option<&str>,
+) -> Option<(String, DataType)> {
+    // If user explicitly specified a column, use it regardless of type
+    if let Some(column_name) = override_column {
+        if let Some(dtype) = schema.get(column_name) {
+            return Some((column_name.to_string(), dtype.clone()));
+        }
+    }
+
     if let Some(dtype) = schema.get("ts") {
-        if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
+        if matches!(
+            dtype,
+            DataType::Datetime(_, _) | DataType::Date | DataType::Int64 | DataType::Int32
+        ) {
             return Some(("ts".to_string(), dtype.clone()));
         }
     }
 
-    schema.iter_fields().find_map(|field| {
+    // Prefer explicit temporal columns first.
+    if let Some(field) = schema.iter_fields().find(|field| {
         let dtype = field.dtype();
-        if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
+        matches!(dtype, DataType::Datetime(_, _) | DataType::Date)
+    }) {
+        return Some((field.name().to_string(), field.dtype().clone()));
+    }
+
+    // Fallback to integer-based timestamp heuristic in name.
+    schema.iter_fields().find_map(|field| {
+        let name_lower = field.name().to_lowercase();
+        let dtype = field.dtype();
+        if matches!(dtype, DataType::Int64 | DataType::Int32)
+            && (name_lower.contains("ts")
+                || name_lower.contains("time")
+                || name_lower.contains("timestamp"))
+        {
             Some((field.name().to_string(), dtype.clone()))
         } else {
             None
@@ -122,18 +158,24 @@ fn cast_u64_to_usize(value: u64) -> usize {
     usize::try_from(value).unwrap_or(usize::MAX)
 }
 
-fn build_dataset_metadata_from_lazyframe(lf: LazyFrame) -> Result<DatasetMetadata, AppError> {
+fn build_dataset_metadata_from_lazyframe(
+    lf: LazyFrame,
+    time_column_override: Option<&str>,
+) -> Result<DatasetMetadata, AppError> {
     let schema_ref = lf
         .clone()
         .collect_schema()
         .map_err(|e| AppError::bad_request(format!("Failed to infer schema: {e}")))?;
     let schema = schema_ref.as_ref();
 
-    let time_col = detect_time_column(schema).ok_or_else(|| {
-        AppError::bad_request("File must contain at least one datetime/date column")
-    })?;
-    let time_col_name = time_col.0;
-    let time_col_dtype = time_col.1;
+    let time_col = detect_time_column(schema, time_column_override);
+    let time_col_name = time_col.as_ref().map(|(name, _)| name.clone());
+
+    if time_col.is_none() && time_column_override.is_some() {
+        return Err(AppError::bad_request(
+            "Specified time column not found in the file",
+        ));
+    }
 
     let mut columns = Vec::with_capacity(schema.len());
     let mut numeric_columns = Vec::new();
@@ -149,7 +191,7 @@ fn build_dataset_metadata_from_lazyframe(lf: LazyFrame) -> Result<DatasetMetadat
             dtype: dtype.to_string(),
         });
 
-        if dtype.is_numeric() && name != time_col_name {
+        if dtype.is_numeric() && Some(name.as_str()) != time_col_name.as_ref().map(|s| s.as_str()) {
             numeric_columns.push(name.clone());
         }
 
@@ -278,27 +320,78 @@ fn build_dataset_metadata_from_lazyframe(lf: LazyFrame) -> Result<DatasetMetadat
         column_profiles.push(profile);
     }
 
-    let time_range = schema
-        .iter_fields()
-        .enumerate()
-        .find(|(_, field)| field.name().as_str() == time_col_name)
-        .and_then(|(index, _)| {
-            let min_raw = aggregate
-                .column(&format!("__{index}_tmin"))
-                .ok()
-                .and_then(|series| series.i64().ok())
-                .and_then(|values| values.get(0));
-            let max_raw = aggregate
-                .column(&format!("__{index}_tmax"))
-                .ok()
-                .and_then(|series| series.i64().ok())
-                .and_then(|values| values.get(0));
-            match (min_raw, max_raw) {
-                (Some(min_raw), Some(max_raw)) => Some(TimeRange {
-                    min: temporal_to_epoch_ms(min_raw, &time_col_dtype).round() as i64,
-                    max: temporal_to_epoch_ms(max_raw, &time_col_dtype).round() as i64,
-                }),
-                _ => None,
+    let time_range = time_col_name
+        .as_ref()
+        .and_then(|time_col_name| {
+            schema
+                .iter_fields()
+                .enumerate()
+                .find(|(_, field)| field.name().as_str() == time_col_name)
+        })
+        .and_then(|(index, field)| {
+            let dtype = field.dtype();
+
+            // For explicitly overridden time columns, we try to treat values as timestamps.
+            // For auto-detected temporal columns, use the normal path.
+            if time_column_override.is_some() {
+                let min_raw = aggregate
+                    .column(&format!("__{index}_min"))
+                    .ok()
+                    .and_then(|series| series.f64().ok())
+                    .and_then(|values| values.get(0));
+                let max_raw = aggregate
+                    .column(&format!("__{index}_max"))
+                    .ok()
+                    .and_then(|series| series.f64().ok())
+                    .and_then(|values| values.get(0));
+
+                match (min_raw, max_raw) {
+                    (Some(min_raw), Some(max_raw)) => Some(TimeRange {
+                        min: temporal_to_epoch_ms(min_raw.round() as i64, &DataType::Int64).round()
+                            as i64,
+                        max: temporal_to_epoch_ms(max_raw.round() as i64, &DataType::Int64).round()
+                            as i64,
+                    }),
+                    _ => None,
+                }
+            } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
+                let min_raw = aggregate
+                    .column(&format!("__{index}_tmin"))
+                    .ok()
+                    .and_then(|series| series.i64().ok())
+                    .and_then(|values| values.get(0));
+                let max_raw = aggregate
+                    .column(&format!("__{index}_tmax"))
+                    .ok()
+                    .and_then(|series| series.i64().ok())
+                    .and_then(|values| values.get(0));
+                match (min_raw, max_raw) {
+                    (Some(min_raw), Some(max_raw)) => Some(TimeRange {
+                        min: temporal_to_epoch_ms(min_raw, &dtype).round() as i64,
+                        max: temporal_to_epoch_ms(max_raw, &dtype).round() as i64,
+                    }),
+                    _ => None,
+                }
+            } else if matches!(dtype, DataType::Int64 | DataType::Int32) {
+                let min_raw = aggregate
+                    .column(&format!("__{index}_min"))
+                    .ok()
+                    .and_then(|series| series.f64().ok())
+                    .and_then(|values| values.get(0));
+                let max_raw = aggregate
+                    .column(&format!("__{index}_max"))
+                    .ok()
+                    .and_then(|series| series.f64().ok())
+                    .and_then(|values| values.get(0));
+                match (min_raw, max_raw) {
+                    (Some(min_raw), Some(max_raw)) => Some(TimeRange {
+                        min: temporal_to_epoch_ms(min_raw.round() as i64, &dtype).round() as i64,
+                        max: temporal_to_epoch_ms(max_raw.round() as i64, &dtype).round() as i64,
+                    }),
+                    _ => None,
+                }
+            } else {
+                None
             }
         });
 
@@ -306,6 +399,7 @@ fn build_dataset_metadata_from_lazyframe(lf: LazyFrame) -> Result<DatasetMetadat
         total_rows,
         columns,
         numeric_columns,
+        time_column: time_col_name,
         time_range,
         column_profiles,
     })
@@ -317,7 +411,7 @@ pub fn build_dataset_metadata(
 ) -> Result<DatasetMetadata, AppError> {
     let total_rows = df.height();
     let schema = df.schema();
-    let time_col = detect_time_column(schema.as_ref());
+    let time_col = detect_time_column(schema.as_ref(), None);
     let time_col_name = time_col
         .as_ref()
         .map(|(name, _)| name.as_str())
@@ -406,7 +500,8 @@ pub fn build_dataset_metadata(
         column_profiles.push(profile);
     }
 
-    let time_range = time_col.and_then(|(name, dtype)| {
+    let time_col_for_range = time_col.clone();
+    let time_range = time_col_for_range.and_then(|(name, dtype)| {
         let series = df.column(&name).ok()?.as_materialized_series().clone();
         let casted = series.cast(&DataType::Int64).ok()?;
         let ints = casted.i64().ok()?;
@@ -428,12 +523,16 @@ pub fn build_dataset_metadata(
         total_rows,
         columns,
         numeric_columns,
+        time_column: time_col.as_ref().map(|(name, _)| name.clone()),
         time_range,
         column_profiles,
     })
 }
 
-pub fn build_dataset_metadata_from_path(path: &Path) -> Result<DatasetMetadata, AppError> {
+pub fn build_dataset_metadata_from_path_with_time_column(
+    path: &Path,
+    time_column_override: Option<&str>,
+) -> Result<DatasetMetadata, AppError> {
     let path_str = path
         .to_str()
         .ok_or_else(|| AppError::bad_request("Invalid upload path"))?;
@@ -443,13 +542,21 @@ pub fn build_dataset_metadata_from_path(path: &Path) -> Result<DatasetMetadata, 
         LazyFrame::scan_parquet(path_str.into(), ScanArgsParquet::default())
             .map_err(|e| AppError::bad_request(format!("Failed to scan parquet: {e}")))?
     } else {
-        LazyCsvReader::new(path_str.into())
-            .with_try_parse_dates(true)
-            .finish()
-            .map_err(|e| AppError::bad_request(format!("Failed to scan csv: {e}")))?
+        // First pass: normal parse.
+        let base = LazyCsvReader::new(path_str.into()).with_try_parse_dates(true);
+        match base.clone().finish() {
+            Ok(f) => f,
+            Err(_) => {
+                // Retry with relaxed parser behavior for malformed values.
+                base.with_ignore_errors(true)
+                    .with_infer_schema_length(Some(10000))
+                    .finish()
+                    .map_err(|e| AppError::bad_request(format!("Failed to scan csv: {e}")))?
+            }
+        }
     };
 
-    build_dataset_metadata_from_lazyframe(lf)
+    build_dataset_metadata_from_lazyframe(lf, time_column_override)
 }
 
 #[tracing::instrument(skip(state))]
@@ -486,8 +593,18 @@ mod tests {
         assert_eq!(metadata.numeric_columns, vec!["value".to_string()]);
         assert_eq!(metadata.total_rows, 2);
         assert!(metadata.time_range.is_some());
-        assert!(metadata.column_profiles.iter().any(|profile| profile.name == "ts" && profile.histogram.is_some()));
-        assert!(metadata.column_profiles.iter().any(|profile| profile.name == "value" && profile.histogram.is_some()));
+        assert!(
+            metadata
+                .column_profiles
+                .iter()
+                .any(|profile| profile.name == "ts" && profile.histogram.is_some())
+        );
+        assert!(
+            metadata
+                .column_profiles
+                .iter()
+                .any(|profile| profile.name == "value" && profile.histogram.is_some())
+        );
     }
 
     #[test]
@@ -499,12 +616,43 @@ mod tests {
         )
         .expect("write csv");
 
-        let metadata = build_dataset_metadata_from_path(file.path()).expect("metadata from path");
+        let metadata = build_dataset_metadata_from_path_with_time_column(file.path(), None)
+            .expect("metadata from path");
         assert_eq!(metadata.total_rows, 2);
         assert_eq!(
             metadata.numeric_columns,
             vec!["value".to_string(), "other".to_string()]
         );
         assert!(metadata.time_range.is_some());
+    }
+
+    #[test]
+    fn builds_metadata_from_csv_path_without_time_column() {
+        let file = tempfile::NamedTempFile::new().expect("tempfile");
+        fs::write(file.path(), "value,other\n1,10\n2,20\n").expect("write csv");
+
+        let metadata = build_dataset_metadata_from_path_with_time_column(file.path(), None)
+            .expect("metadata from path");
+        assert_eq!(metadata.total_rows, 2);
+        assert_eq!(metadata.time_column, None);
+        assert_eq!(metadata.time_range, None);
+        assert_eq!(
+            metadata.numeric_columns,
+            vec!["value".to_string(), "other".to_string()]
+        );
+    }
+
+    #[test]
+    fn builds_metadata_from_csv_path_with_unix_time_seconds() {
+        let file = tempfile::NamedTempFile::new().expect("tempfile");
+        fs::write(file.path(), "timestamp,value\n1700000000,1\n1700000001,2\n").expect("write csv");
+
+        let metadata = build_dataset_metadata_from_path_with_time_column(file.path(), None)
+            .expect("metadata from path");
+        assert_eq!(metadata.total_rows, 2);
+        assert!(metadata.time_range.is_some());
+        let tr = metadata.time_range.unwrap();
+        assert_eq!(tr.min, 1700000000000);
+        assert_eq!(tr.max, 1700000001000);
     }
 }

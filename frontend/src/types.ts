@@ -1,0 +1,298 @@
+/** Shared type definitions for the EdaTime frontend. */
+
+// ── API response types ─────────────────────────────────────────────────────
+
+export interface ColumnMetadata {
+    name: string;
+    dtype: string;
+}
+
+export interface TimeRange {
+    min: number;
+    max: number;
+}
+
+export interface Histogram {
+    bin_edges: number[];
+    counts: number[];
+}
+
+export interface ColumnProfile {
+    name: string;
+    dtype: string;
+    count: number;
+    non_null_count: number;
+    null_count: number;
+    min: any;
+    max: any;
+    mean: any;
+    median: any;
+    std: any;
+    unique: any;
+    top: any;
+    freq: any;
+    histogram: Histogram | null;
+}
+
+export interface DatasetMetadata {
+    total_rows: number;
+    columns: ColumnMetadata[];
+    numeric_columns: string[];
+    time_column: string | null;
+    time_range: TimeRange | null;
+    column_profiles: ColumnProfile[];
+}
+
+export interface DataFetchMeta {
+    downsampled: boolean;
+    downsampleKnown: boolean;
+    returnedRows: number;
+    targetPoints: number;
+}
+
+export interface DataObject {
+    ts: Float64Array;
+    values: Record<string, Float64Array>;
+    color: (number | string | null)[] | null;
+    color_column: string | null;
+    _meta: DataFetchMeta;
+}
+
+export interface FilteredDataObject {
+    ts?: Float64Array;
+    values?: Record<string, Float64Array>;
+    color?: (number | string | null)[] | null;
+    color_column?: string | null;
+    _meta?: DataFetchMeta;
+    series: Record<string, SeriesData>;
+    colorByColumn: Record<string, (number | string | null)[]>;
+}
+
+export interface SeriesData {
+    x: Float64Array;
+    y: Float64Array;
+}
+
+export interface ScatterPointsResponse {
+    x: string;
+    y: string;
+    color: string | null;
+    total_points: number;
+    returned_points: number;
+    points: [number, number][];
+    color_values: number[] | null;
+    color_labels: (string | null)[] | null;
+    color_min: number | null;
+    color_max: number | null;
+}
+
+export interface CorrelationItem {
+    column: string;
+    count: number;
+    pearson: number | null;
+    spearman: number | null;
+}
+
+export interface ScatterCorrelationsResponse {
+    base_column: string;
+    threshold: number;
+    numeric_columns: string[];
+    correlations: CorrelationItem[];
+    suggestions: CorrelationItem[];
+}
+
+export interface ColumnDistributionResult {
+    name: string;
+    dtype: string;
+    count: number;
+    min: number | null;
+    max: number | null;
+    mean: number | null;
+    std_dev: number | null;
+    median: number | null;
+    q1: number | null;
+    q3: number | null;
+    histogram: Histogram | null;
+}
+
+export interface DistributionsResponse {
+    total_rows: number;
+    columns: ColumnDistributionResult[];
+}
+
+// ── State types ────────────────────────────────────────────────────────────
+
+export interface ColumnRange {
+    from: number;
+    to: number;
+}
+
+export interface AdaptiveLineFilter {
+    column: string;
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    keepAbove: boolean;
+}
+
+export interface PendingAdaptivePoint {
+    column: string;
+    x: number;
+    y: number;
+}
+
+export interface ChartTextOverlays {
+    title: string;
+    xLabel: string;
+    yLabel: string;
+}
+
+export interface ZoomEntry {
+    start: number;
+    end: number;
+}
+
+export interface ViewSnapshot {
+    xMin: number | null;
+    xMax: number | null;
+    yMin: number | null;
+    yMax: number | null;
+}
+
+export type YMode = 'fit' | 'lock' | 'restore';
+
+export interface ProfileGridSort {
+    key: string | null;
+    dir: 'asc' | 'desc';
+}
+
+export interface ProfileColumnDef {
+    key: string;
+    label: string;
+    minWidth: number;
+    defaultWidth: number;
+    sortable: boolean;
+}
+
+export interface AppStateType {
+    metadata: DatasetMetadata | null;
+    numericCols: string[];
+    seriesColors: Record<string, string>;
+    columnProfiles: any[];
+    previewSelectedColumns: string[];
+    previewTimeColumn: string | null;
+    profileFilterText: string;
+    filterText: string;
+    selectedCols: string[];
+    adaptiveFilterColumn: string | null;
+    columnRanges: Record<string, ColumnRange>;
+    adaptiveLineFilters: AdaptiveLineFilter[];
+    pendingAdaptivePoint: PendingAdaptivePoint | null;
+    lastFetchedData: DataObject | null;
+    currentStart: number | null;
+    currentEnd: number | null;
+    chart: ChartInstance | null;
+    fetchDebounceId: ReturnType<typeof setTimeout> | null;
+    selectedColorColumn: string | null;
+    analysisBound: boolean;
+    refetchOnZoom: boolean;
+    initialView: ViewSnapshot | null;
+    zoomHistory: ViewSnapshot[];
+    pendingYMode: YMode | null;
+    pendingRestoreY: { min: number; max: number } | null;
+    profileGridBound: boolean;
+    profileGridHeaderBound: boolean;
+    profileGridSort: ProfileGridSort;
+    profileGridColWidths: number[];
+    chartText: ChartTextOverlays;
+}
+
+// ── Chart adapter interface ────────────────────────────────────────────────
+
+export interface ChartInstance {
+    init(): Promise<void>;
+    updateDataMulti(dataObj: FilteredDataObject, columns: string[]): void;
+    setXRange(min: number, max: number): void;
+    setChartText(title: string, xLabel: string, yLabel: string): void;
+    onCrosshairMove(callback: (data: CrosshairData | null) => void): void;
+    onClick(callback: (data: ClickData | null) => void): void;
+    supportsZoomControls(): boolean;
+    getXDomain(): { min: number; max: number } | null;
+    getYRange(): { min: number; max: number } | null;
+    fitYToData(): void;
+    setDrawMode(mode: string, color: string, width: number): void;
+    clearDrawings(): void;
+    exportPNG(): void;
+    exportSVG(): void;
+    exportHTML(): void;
+    requestOverlayRender?(): void;
+    cssPointToData?(clientX: number, clientY: number): { x: number; y: number } | null;
+    destroy?(): void;
+}
+
+export interface ChartAdapter {
+    label?: string;
+    create(containerId: string, callbacks?: Record<string, unknown>): ChartInstance;
+}
+
+export interface CrosshairData {
+    x: number;
+    y: number;
+    seriesValues?: Record<string, number>;
+}
+
+export interface ClickData {
+    x: number;
+    y: number;
+    seriesValues?: Record<string, number>;
+}
+
+// ── Scatter filter types ───────────────────────────────────────────────────
+
+export interface ScatterFilterSpec {
+    column: string;
+    from: number;
+    to: number;
+}
+
+export interface ScatterLineFilterSpec {
+    column: string;
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    keepAbove: boolean;
+}
+
+export interface ScatterFetchOptions {
+    start?: number;
+    end?: number;
+    filters?: ScatterFilterSpec[];
+    lineFilters?: ScatterLineFilterSpec[];
+}
+
+export interface DistributionFetchContext {
+    start?: number;
+    end?: number;
+    filters?: ScatterFilterSpec[];
+    lineFilters?: ScatterLineFilterSpec[];
+}
+
+// ── Augment window for debug namespace ─────────────────────────────────────
+
+declare global {
+    interface Window {
+        __edatime: {
+            state?: AppStateType;
+            DEBUG?: boolean;
+            debugYSnapshot?: unknown;
+            [key: string]: unknown;
+        };
+    }
+    interface Navigator {
+        gpu?: {
+            requestAdapter(): Promise<any | null>;
+        };
+    }
+}

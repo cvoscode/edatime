@@ -5,6 +5,7 @@ pub mod downsample;
 pub mod error;
 pub mod ingest;
 pub mod metrics;
+pub mod middleware;
 pub mod pipeline;
 pub mod query;
 pub mod rates;

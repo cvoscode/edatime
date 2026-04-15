@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::cache::ResponseCache;
 use crate::config::AppConfig;
 use crate::metrics::AppMetrics;
-use crate::repository::InMemoryDataRepository;
+use crate::repository::{DataRepository, InMemoryDataRepository};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -25,27 +25,19 @@ impl AppState {
     }
 
     pub async fn dataset_snapshot(&self) -> DataFrame {
-        use crate::repository::DataRepository;
-
         self.repository.shared_frame().read().await.clone()
     }
 
     pub async fn replace_dataset(&self, df: DataFrame) -> u64 {
-        use crate::repository::DataRepository;
-
         *self.repository.shared_frame().write().await = df;
         self.repository.bump_revision()
     }
 
     pub async fn dataset_rows(&self) -> usize {
-        use crate::repository::DataRepository;
-
         self.repository.shared_frame().read().await.height()
     }
 
     pub fn dataset_revision(&self) -> u64 {
-        use crate::repository::DataRepository;
-
         self.repository.revision()
     }
 }

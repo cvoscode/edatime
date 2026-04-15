@@ -10,11 +10,9 @@ The backend is written in Rust (Axum + Polars) and streams data as Apache Arrow 
 
 ### Requirements
 
-| Requirement | Notes |
-|---|---|
 | **Rust stable toolchain** | Install from [rustup.rs](https://rustup.rs) |
 | **A modern browser** | Chrome 113+, Edge 113+, or any browser with WebGPU support recommended. Firefox works via a Canvas fallback. |
-| **Node.js** *(optional)* | Only needed if you want to run the frontend syntax checker (`npm run check:frontend`) |
+| **Node.js** *(optional)* | Only needed for development workflow; runtime does not require npm |
 
 There are no native dependencies, no database, and no external services to configure. The backend compiles to a single binary that serves the frontend itself.
 
@@ -35,6 +33,8 @@ For a quick development build (faster compile, slower runtime):
 ```bash
 cargo build
 ```
+
+**Note:** The build process is pure Rust - no npm or Node.js required for distribution. ChartGPU is fully vendored in `frontend/libs/chartgpu/`.
 
 ---
 

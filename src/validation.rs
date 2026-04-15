@@ -38,6 +38,24 @@ pub fn validate_bucket_count(buckets: usize) -> Result<(), AppError> {
     Ok(())
 }
 
+pub fn validate_window_ms(window_ms: i64, step_ms: Option<i64>) -> Result<(), AppError> {
+    if window_ms <= 0 {
+        return Err(AppError::bad_request_code(
+            ErrorCode::InvalidBuckets,
+            "Window size must be greater than 0 ms",
+        ));
+    }
+    if let Some(step) = step_ms {
+        if step <= 0 {
+            return Err(AppError::bad_request_code(
+                ErrorCode::InvalidBuckets,
+                "Window step must be greater than 0 ms",
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub fn validate_scatter_limit(limit: usize) -> Result<(), AppError> {
     if limit == 0 || limit > MAX_SCATTER_LIMIT {
         return Err(AppError::bad_request_code(

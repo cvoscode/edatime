@@ -21,7 +21,9 @@ pub fn filter_time_range(
 ) -> Result<DataFrame, AppError> {
     let mut exprs = vec![col("ts")];
     for c in select_cols {
-        exprs.push(col(c.as_str()));
+        if c != "ts" {
+            exprs.push(col(c.as_str()));
+        }
     }
 
     tokio::task::block_in_place(|| {
@@ -42,6 +44,12 @@ pub enum Reduction {
     Lttb { target_points: usize },
     /// Bucket-aggregation for bar / heatmap charts.
     BucketAgg { buckets: usize, agg: AggFn },
+    /// Window aggregation for time-windowed summaries.
+    WindowAgg {
+        window_size_native: i64,
+        step_size_native: i64,
+        agg: AggFn,
+    },
     /// No reduction — pass data through.
     None,
 }
@@ -50,24 +58,177 @@ pub enum Reduction {
 pub fn apply_reduction(
     df: &DataFrame,
     value_cols: &[String],
+    extra_cols: &[String],
     strategy: &Reduction,
 ) -> Result<(DataFrame, bool), AppError> {
     match strategy {
-        Reduction::None => Ok((df.clone(), false)),
+        Reduction::None => {
+            let mut select_cols = vec!["ts".to_string()];
+            select_cols.extend_from_slice(value_cols);
+            select_cols.extend_from_slice(extra_cols);
+            let out = df
+                .select(select_cols)
+                .map_err(|e| AppError::io(format!("select error: {}", e)))?;
+            Ok((out, false))
+        }
 
         Reduction::Lttb { target_points } => {
             let target = *target_points;
             if df.height() <= target {
-                return Ok((df.clone(), false));
+                let mut select_cols = vec!["ts".to_string()];
+                select_cols.extend_from_slice(value_cols);
+                select_cols.extend_from_slice(extra_cols);
+                let out = df
+                    .select(select_cols)
+                    .map_err(|e| AppError::io(format!("select error: {}", e)))?;
+                return Ok((out, false));
             }
             let col_refs: Vec<&str> = value_cols.iter().map(|s| s.as_str()).collect();
-            let out = crate::downsample::downsample_dataframe_multi(df, "ts", &col_refs, target)
-                .map_err(|e| AppError::io(format!("Downsample error: {}", e)))?;
+            let extra_refs: Vec<&str> = extra_cols.iter().map(|s| s.as_str()).collect();
+            let out = crate::downsample::downsample_dataframe_multi(
+                df,
+                "ts",
+                &col_refs,
+                &extra_refs,
+                target,
+            )
+            .map_err(|e| AppError::io(format!("Downsample error: {}", e)))?;
             Ok((out, true))
         }
 
         Reduction::BucketAgg { buckets, agg } => bucket_aggregate(df, value_cols, *buckets, *agg),
+        Reduction::WindowAgg {
+            window_size_native,
+            step_size_native,
+            agg,
+        } => window_aggregate(df, value_cols, *window_size_native, *step_size_native, *agg),
     }
+}
+
+fn reduce_window_values(values: &[f64], agg_fn: AggFn) -> Option<f64> {
+    if values.is_empty() {
+        return None;
+    }
+
+    match agg_fn {
+        AggFn::Mean => Some(values.iter().sum::<f64>() / values.len() as f64),
+        AggFn::Sum => Some(values.iter().sum::<f64>()),
+        AggFn::Min => values.iter().copied().reduce(f64::min),
+        AggFn::Max => values.iter().copied().reduce(f64::max),
+        AggFn::Count => Some(values.len() as f64),
+    }
+}
+
+fn window_aggregate(
+    df: &DataFrame,
+    value_cols: &[String],
+    window_size_native: i64,
+    step_size_native: i64,
+    agg_fn: AggFn,
+) -> Result<(DataFrame, bool), AppError> {
+    if df.height() == 0 {
+        return Ok((DataFrame::default(), true));
+    }
+    if window_size_native <= 0 || step_size_native <= 0 {
+        return Err(AppError::bad_request(
+            "Window and step sizes must be positive",
+        ));
+    }
+
+    let ts_i64 = df
+        .column("ts")
+        .map(|c| c.as_materialized_series())
+        .map_err(|e| AppError::bad_request(format!("Missing ts column: {}", e)))?
+        .cast(&DataType::Int64)
+        .map_err(|e| AppError::io(format!("ts cast: {}", e)))?;
+    let ts_values = ts_i64
+        .i64()
+        .map_err(|e| AppError::io(format!("ts i64: {}", e)))?;
+
+    let mut ts_vec = Vec::with_capacity(df.height());
+    for value in ts_values.into_iter().flatten() {
+        ts_vec.push(value);
+    }
+    if ts_vec.is_empty() {
+        return Ok((DataFrame::default(), true));
+    }
+
+    let ts_min = ts_vec.iter().copied().min().unwrap_or(0);
+    let ts_max = ts_vec.iter().copied().max().unwrap_or(0);
+
+    let mut per_col_values: Vec<Vec<Option<f64>>> = Vec::with_capacity(value_cols.len());
+    for col_name in value_cols {
+        let casted = df
+            .column(col_name)
+            .map(|c| c.as_materialized_series())
+            .map_err(|e| AppError::bad_request(format!("Missing '{}': {}", col_name, e)))?
+            .cast(&DataType::Float64)
+            .map_err(|e| AppError::io(format!("Cast '{}': {}", col_name, e)))?;
+        let values = casted
+            .f64()
+            .map_err(|e| AppError::io(format!("Read '{}': {}", col_name, e)))?
+            .into_iter()
+            .map(|v| v.filter(|f| f.is_finite()))
+            .collect::<Vec<_>>();
+        per_col_values.push(values);
+    }
+
+    let mut out_ts: Vec<i64> = Vec::new();
+    let mut out_cols: Vec<Vec<Option<f64>>> = vec![Vec::new(); value_cols.len()];
+
+    let mut window_start = ts_min;
+    loop {
+        if window_start > ts_max {
+            break;
+        }
+
+        let window_end = window_start.saturating_add(window_size_native);
+        let midpoint = window_start.saturating_add(window_size_native / 2);
+
+        let mut window_indices = Vec::new();
+        for (idx, ts) in ts_vec.iter().enumerate() {
+            if *ts >= window_start && *ts < window_end {
+                window_indices.push(idx);
+            }
+        }
+
+        if !window_indices.is_empty() {
+            out_ts.push(midpoint);
+            for (col_idx, source_values) in per_col_values.iter().enumerate() {
+                let mut window_vals = Vec::new();
+                for idx in &window_indices {
+                    if let Some(value) = source_values.get(*idx).copied().flatten() {
+                        window_vals.push(value);
+                    }
+                }
+                out_cols[col_idx].push(reduce_window_values(&window_vals, agg_fn));
+            }
+        }
+
+        window_start = window_start.saturating_add(step_size_native);
+    }
+
+    let mut columns: Vec<Column> = Vec::with_capacity(1 + value_cols.len());
+    columns.push(Series::new("ts".into(), out_ts).into());
+    for (idx, name) in value_cols.iter().enumerate() {
+        columns.push(Series::new(name.as_str().into(), out_cols[idx].clone()).into());
+    }
+    let mut result = DataFrame::new(columns.len(), columns)
+        .map_err(|e| AppError::io(format!("window aggregate frame: {}", e)))?;
+
+    let ts_dtype = df
+        .column("ts")
+        .map(|c| c.as_materialized_series().dtype().clone())
+        .unwrap_or(DataType::Int64);
+    if matches!(ts_dtype, DataType::Datetime(_, _)) {
+        result = result
+            .lazy()
+            .with_column(col("ts").cast(ts_dtype).alias("ts"))
+            .collect()
+            .map_err(|e| AppError::io(format!("ts recast: {}", e)))?;
+    }
+
+    Ok((result, true))
 }
 
 /// Bucket-aggregate: split the time range into N equal-width buckets and
@@ -202,6 +363,7 @@ pub fn serialize_arrow(df: DataFrame) -> Result<Vec<u8>, AppError> {
 pub fn serialize_json(
     df: &DataFrame,
     value_cols: &[String],
+    color_col: Option<&String>,
     ts_dtype: &DataType,
 ) -> Result<serde_json::Value, AppError> {
     let ts_ms_divisor: i64 = match ts_dtype {
@@ -260,10 +422,39 @@ pub fn serialize_json(
         values.insert(col_name.clone(), serde_json::json!(vals));
     }
 
-    Ok(serde_json::json!({
-        "ts": ts,
-        "values": values,
-    }))
+    let mut payload = serde_json::Map::new();
+    payload.insert("ts".to_string(), serde_json::json!(ts));
+    payload.insert("values".to_string(), serde_json::json!(values));
+
+    if let Some(color_column) = color_col {
+        if let Ok(color_series) = df.column(color_column) {
+            let mut color_vals = Vec::with_capacity(df.height());
+            for i in 0..df.height() {
+                let json_val = match color_series.get(i) {
+                    Ok(AnyValue::Null) => serde_json::Value::Null,
+                    Ok(AnyValue::String(s)) => serde_json::json!(s),
+                    Ok(AnyValue::StringOwned(s)) => serde_json::Value::String(s.to_string()),
+                    Ok(AnyValue::Boolean(v)) => serde_json::json!(v),
+                    Ok(av) => {
+                        // Numeric and temporal types: extract as f64 where possible.
+                        let series = color_series.as_materialized_series();
+                        series
+                            .cast(&DataType::Float64)
+                            .ok()
+                            .and_then(|c| c.f64().ok().and_then(|ca| ca.get(i)))
+                            .map(|v| serde_json::json!(v))
+                            .unwrap_or_else(|| serde_json::Value::String(format!("{av}")))
+                    }
+                    Err(_) => serde_json::Value::Null,
+                };
+                color_vals.push(json_val);
+            }
+            payload.insert("color".to_string(), serde_json::json!(color_vals));
+            payload.insert("color_column".to_string(), serde_json::json!(color_column));
+        }
+    }
+
+    Ok(serde_json::Value::Object(payload))
 }
 
 // ── Convenience: build a full response ─────────────────────────────────────
@@ -297,7 +488,7 @@ pub fn build_response(
                 .into_response()
         }
         OutputFormat::Json => {
-            let json = serialize_json(&df, value_cols, ts_dtype)?;
+            let json = serialize_json(&df, value_cols, None, ts_dtype)?;
             Json(json).into_response()
         }
     };

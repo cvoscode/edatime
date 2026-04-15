@@ -2,9 +2,11 @@ use axum::response::Response;
 
 use crate::error::AppError;
 use crate::pipeline::{self, Reduction, ResponseMeta};
-use crate::query::{self, AggregateQuery};
+use crate::query::{self, AggregateQuery, AggregateWindowMode};
 use crate::state::AppState;
-use crate::validation::{validate_bucket_count, validate_numeric_columns, validate_time_window};
+use crate::validation::{
+    validate_bucket_count, validate_numeric_columns, validate_time_window, validate_window_ms,
+};
 
 #[derive(Clone)]
 pub struct AggregateService {
@@ -18,7 +20,9 @@ impl AggregateService {
 
     pub async fn get_aggregate(&self, params: AggregateQuery) -> Result<Response, AppError> {
         validate_time_window(params.start, params.end)?;
-        validate_bucket_count(params.buckets)?;
+        if matches!(params.window_mode, AggregateWindowMode::Buckets) {
+            validate_bucket_count(params.buckets)?;
+        }
 
         let df = self.state.dataset_snapshot().await;
         let value_cols = validate_numeric_columns(&df, &query::parse_columns(&params.columns))?;
@@ -28,15 +32,41 @@ impl AggregateService {
         let start_ts = params.start.timestamp_millis() * multiplier;
         let end_ts = params.end.timestamp_millis() * multiplier;
 
-        let filtered = pipeline::filter_time_range(df, start_ts, end_ts, &value_cols)?;
-        let (aggregated, _) = pipeline::apply_reduction(
-            &filtered,
-            &value_cols,
-            &Reduction::BucketAgg {
+        let reduction = match params.window_mode {
+            AggregateWindowMode::Buckets => Reduction::BucketAgg {
                 buckets: params.buckets,
                 agg: params.agg,
             },
-        )?;
+            AggregateWindowMode::Tumbling | AggregateWindowMode::Sliding => {
+                let window_ms = params.window_ms.unwrap_or(60_000);
+                let requested_step_ms = params.step_ms;
+                validate_window_ms(window_ms, requested_step_ms)?;
+
+                // Sliding windows are accepted when an explicit step is given.
+                // Tumbling windows are represented by step == window.
+                let step_ms = match params.window_mode {
+                    AggregateWindowMode::Tumbling => window_ms,
+                    AggregateWindowMode::Sliding => requested_step_ms.unwrap_or(window_ms),
+                    AggregateWindowMode::Buckets => window_ms,
+                };
+
+                let window_native = window_ms.checked_mul(multiplier).ok_or_else(|| {
+                    AppError::bad_request("Window size is too large for the current timestamp unit")
+                })?;
+                let step_native = step_ms.checked_mul(multiplier).ok_or_else(|| {
+                    AppError::bad_request("Window step is too large for the current timestamp unit")
+                })?;
+
+                Reduction::WindowAgg {
+                    window_size_native: window_native,
+                    step_size_native: step_native,
+                    agg: params.agg,
+                }
+            }
+        };
+
+        let filtered = pipeline::filter_time_range(df, start_ts, end_ts, &value_cols)?;
+        let (aggregated, _) = pipeline::apply_reduction(&filtered, &value_cols, &[], &reduction)?;
         let returned_rows = aggregated.height();
 
         pipeline::build_response(

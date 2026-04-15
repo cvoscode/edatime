@@ -149,6 +149,12 @@ impl From<std::io::Error> for AppError {
     }
 }
 
+impl From<serde_json::Error> for AppError {
+    fn from(value: serde_json::Error) -> Self {
+        AppError::internal(format!("JSON serialization error: {value}"))
+    }
+}
+
 fn next_correlation_id() -> String {
     let ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)

@@ -24,18 +24,41 @@ impl DataService {
         let df = self.state.dataset_snapshot().await;
         let value_cols = validate_numeric_columns(&df, &query::parse_columns(&params.columns))?;
 
+        let color_column = params
+            .color_column
+            .as_ref()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+
+        if let Some(color_col) = color_column.as_ref() {
+            if !df.get_column_names().iter().any(|c| *c == color_col) {
+                return Err(AppError::bad_request(format!(
+                    "Color column '{}' is not present in dataset",
+                    color_col
+                )));
+            }
+        }
+
+        let mut output_cols = value_cols.clone();
+        if let Some(color_col) = color_column.as_ref() {
+            if !output_cols.iter().any(|c| c == color_col) {
+                output_cols.push(color_col.clone());
+            }
+        }
+
         let multiplier = query::unit_multiplier_for_ts(&df)?;
         let dtype = query::ts_dtype(&df)?;
         let start_ts = params.start.timestamp_millis() * multiplier;
         let end_ts = params.end.timestamp_millis() * multiplier;
         let format = query::output_format(&params.format);
         let cache_key = format!(
-            "data:v{}:{}:{}:{}:{}:{:?}",
+            "data:v{}:{}:{}:{}:{}:{}:{:?}",
             self.state.dataset_revision(),
             params.start.timestamp_millis(),
             params.end.timestamp_millis(),
             params.width,
             value_cols.join(","),
+            color_column.as_ref().unwrap_or(&String::new()),
             format,
         );
 
@@ -45,10 +68,19 @@ impl DataService {
         }
         self.state.metrics.record_cache_miss();
 
-        let filtered = pipeline::filter_time_range(df, start_ts, end_ts, &value_cols)?;
+        let filtered = pipeline::filter_time_range(df, start_ts, end_ts, &output_cols)?;
         let target_points = params.width * 2;
-        let (reduced, was_downsampled) =
-            pipeline::apply_reduction(&filtered, &value_cols, &Reduction::Lttb { target_points })?;
+        let extra_cols = color_column
+            .iter()
+            .filter(|color_col| !value_cols.iter().any(|value_col| value_col == *color_col))
+            .cloned()
+            .collect::<Vec<String>>();
+        let (reduced, was_downsampled) = pipeline::apply_reduction(
+            &filtered,
+            &value_cols,
+            &extra_cols,
+            &Reduction::Lttb { target_points },
+        )?;
         let returned_rows = reduced.height();
 
         let cached = match format {
@@ -59,10 +91,15 @@ impl DataService {
                 target_points,
             ),
             query::OutputFormat::Json => CachedResponse::json(
-                serde_json::to_vec(&pipeline::serialize_json(&reduced, &value_cols, &dtype)?)
-                    .map_err(|error| {
-                        AppError::internal(format!("Failed to encode JSON response: {error}"))
-                    })?,
+                serde_json::to_vec(&pipeline::serialize_json(
+                    &reduced,
+                    &value_cols,
+                    color_column.as_ref(),
+                    &dtype,
+                )?)
+                .map_err(|error| {
+                    AppError::internal(format!("Failed to encode JSON response: {error}"))
+                })?,
                 was_downsampled,
                 returned_rows,
                 target_points,
