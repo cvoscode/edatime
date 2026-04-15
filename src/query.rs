@@ -4,7 +4,6 @@
 //! types so that adding new chart-type endpoints doesn't duplicate parsing logic.
 
 use chrono::{DateTime, Utc};
-use polars::prelude::*;
 use serde::Deserialize;
 
 // ── Query parameter structs ────────────────────────────────────────────────
@@ -93,32 +92,8 @@ pub fn parse_columns(raw: &Option<String>) -> Vec<String> {
     }
 }
 
-/// Detect the time-unit multiplier so we can convert epoch-ms timestamps from
-/// the query into the internal representation used by the DataFrame's `ts`
-/// column.
-pub fn unit_multiplier_for_ts(df: &DataFrame) -> Result<i64, crate::error::AppError> {
-    let ts_col = df
-        .column("ts")
-        .map_err(|e| crate::error::AppError::bad_request(format!("Missing ts column: {}", e)))?;
-    let ts_dtype = ts_col.dtype().clone();
-
-    Ok(match ts_dtype {
-        DataType::Datetime(TimeUnit::Nanoseconds, _) => 1_000_000,
-        DataType::Datetime(TimeUnit::Microseconds, _) => 1_000,
-        DataType::Datetime(TimeUnit::Milliseconds, _) => 1,
-        _ => 1_000,
-    })
-}
-
-/// Return the `DataType` of the `ts` column.
-pub fn ts_dtype(df: &DataFrame) -> Result<DataType, crate::error::AppError> {
-    Ok(df
-        .column("ts")
-        .map_err(|e| crate::error::AppError::bad_request(format!("Missing ts column: {}", e)))?
-        .as_materialized_series()
-        .dtype()
-        .clone())
-}
+// Re-export temporal helpers so existing callers keep compiling.
+pub use crate::temporal::{ts_dtype, unit_multiplier_for_ts};
 
 /// Determine the requested output format (defaults to `"arrow"`).
 pub fn output_format(raw: &Option<String>) -> OutputFormat {

@@ -6,6 +6,7 @@ import {
   appState,
   applyColumnRanges,
   buildAdaptiveLineFiltersForQuery,
+  buildAdaptiveLineY,
   buildMetaBar,
   computeBounds,
   ensureRangeStateFromData,
@@ -23,7 +24,8 @@ import {
   setMetaText,
   setSeriesColor,
   toFiniteNumberOrNull
-} from "./chunk-UZD72PDA.js";
+} from "./chunk-DJBC4VTI.js";
+import "./chunk-LZAZQ2R3.js";
 export {
   PROFILE_COLUMNS,
   PROFILE_OVERSCAN,
@@ -32,6 +34,7 @@ export {
   appState,
   applyColumnRanges,
   buildAdaptiveLineFiltersForQuery,
+  buildAdaptiveLineY,
   buildMetaBar,
   computeBounds,
   ensureRangeStateFromData,

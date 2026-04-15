@@ -14,11 +14,8 @@ import {
   computeDomains,
   computeValueBounds,
   createMiniCanvas,
-  downloadBlob,
-  downloadUrl,
   drawDistributionCanvas,
   drawMiniScatterCanvas,
-  escapeHtml,
   estimateBandwidth,
   expandHistogramValues,
   fmt,
@@ -26,7 +23,6 @@ import {
   getCanvasFrame,
   getCategoryColor,
   getDevicePixelRatio,
-  getEl,
   hexToRgb,
   isDistributionCompatibleColumn,
   isTemporalColumn,
@@ -40,9 +36,15 @@ import {
   setPanelStatus,
   showError,
   upperBoundByX
-} from "../chunk-76MF3RJR.js";
-import "../chunk-6X7ODBV6.js";
-import "../chunk-UZD72PDA.js";
+} from "../chunk-4C6INKRU.js";
+import {
+  downloadBlob,
+  downloadUrl,
+  escapeHtml,
+  getEl
+} from "../chunk-QF7GDSH3.js";
+import "../chunk-DJBC4VTI.js";
+import "../chunk-LZAZQ2R3.js";
 export {
   DISTRIBUTION_GROUP_COLORS,
   HISTOGRAM_BINS,

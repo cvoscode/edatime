@@ -9,8 +9,8 @@ use serde::Deserialize;
 
 use crate::arrow_export::dataframe_to_parquet;
 use crate::error::AppError;
+use crate::filters::{apply_filters, parse_line_filters, parse_range_filters};
 use crate::query;
-use crate::routes::scatter::{apply_scatter_filters, parse_scatter_filters, parse_scatter_line_filters};
 use crate::state::AppState;
 use crate::validation::{validate_numeric_columns, validate_time_window};
 
@@ -33,14 +33,14 @@ pub async fn export_parquet(
 
     let df = state.dataset_snapshot().await;
     let value_cols = validate_numeric_columns(&df, &query::parse_columns(&params.columns))?;
-    let filters = parse_scatter_filters(params.filters.as_deref())?;
-    let line_filters = parse_scatter_line_filters(params.line_filters.as_deref())?;
+    let filters = parse_range_filters(params.filters.as_deref())?;
+    let line_filters = parse_line_filters(params.line_filters.as_deref())?;
 
     let start_ms = params.start.timestamp_millis() as f64;
     let end_ms = params.end.timestamp_millis() as f64;
 
     let filtered = tokio::task::spawn_blocking(move || {
-        let lf = apply_scatter_filters(
+        let lf = apply_filters(
             &df,
             Some(start_ms),
             Some(end_ms),

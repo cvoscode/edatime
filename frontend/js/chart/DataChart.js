@@ -2,23 +2,31 @@ import {
   Ad
 } from "../chunk-UUSB2KLH.js";
 import {
+  downloadBlob,
+  downloadUrl,
+  escapeHtml
+} from "../chunk-QF7GDSH3.js";
+import {
   VIRIDIS,
   analyzeColorValues,
   baseSeriesName,
   buildColorizedSeries,
   categoryColorFor
-} from "../chunk-KPK5KJKJ.js";
+} from "../chunk-4MQ6TADT.js";
 import {
-  formatTimeTick,
-  formatTimeTooltip,
-  formatTwoDecimalsLocal,
   niceLinearTicks,
   niceTimeTicks
-} from "../chunk-NRFZ3NBE.js";
+} from "../chunk-WOMYKIXN.js";
 import {
   appState,
+  buildAdaptiveLineY,
   getSeriesColor
-} from "../chunk-UZD72PDA.js";
+} from "../chunk-DJBC4VTI.js";
+import {
+  formatTimeTooltip,
+  formatTimestamp,
+  formatTwoDecimals
+} from "../chunk-LZAZQ2R3.js";
 import {
   DEBUG,
   dbg
@@ -26,19 +34,6 @@ import {
 
 // frontend/src/chart/DataChart.ts
 var CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
-function buildAdaptiveLineY(filter, tsMs) {
-  const x1 = Number(filter?.x1);
-  const x2 = Number(filter?.x2);
-  const y1 = Number(filter?.y1);
-  const y2 = Number(filter?.y2);
-  const x = Number(tsMs);
-  if (!Number.isFinite(x1) || !Number.isFinite(x2) || !Number.isFinite(y1) || !Number.isFinite(y2) || !Number.isFinite(x) || x1 === x2) return null;
-  const minX = Math.min(x1, x2);
-  const maxX = Math.max(x1, x2);
-  if (x < minX || x > maxX) return null;
-  const slope = (y2 - y1) / (x2 - x1);
-  return y1 + (x - x1) * slope;
-}
 var DataChart = class {
   containerId;
   onZoomCallback;
@@ -260,8 +255,8 @@ var DataChart = class {
           colorbarWrap.hidden = false;
           colorbarWrap.style.display = "grid";
           document.getElementById("timeseries-colorbar-name").textContent = colorColumn;
-          document.getElementById("timeseries-colorbar-min").textContent = formatTwoDecimalsLocal(scaleInfo.min);
-          document.getElementById("timeseries-colorbar-max").textContent = formatTwoDecimalsLocal(scaleInfo.max);
+          document.getElementById("timeseries-colorbar-min").textContent = formatTwoDecimals(scaleInfo.min);
+          document.getElementById("timeseries-colorbar-max").textContent = formatTwoDecimals(scaleInfo.max);
           document.getElementById("timeseries-colorbar").style.background = `linear-gradient(90deg, ${VIRIDIS.join(",")})`;
         }
       } else if (categoricalWrap) {
@@ -288,12 +283,6 @@ var DataChart = class {
       if (this.onYRangeCallback) this.onYRangeCallback(dataYMin, dataYMax, "data");
     }
     if (flattenedSeriesList.length > 0) {
-      const escapeHtml = (text) => String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
-      const formatY2 = (value) => {
-        const n = Number(value);
-        if (!Number.isFinite(n)) return "\u2014";
-        return n.toLocaleString(void 0, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      };
       const tooltipFormatter = (params) => {
         const rawList = Array.isArray(params) ? params : [params];
         const seen = /* @__PURE__ */ new Set();
@@ -309,7 +298,7 @@ var DataChart = class {
         const header = Number.isFinite(x) ? formatTimeTooltip(x, spanMs) : "";
         const rows = list.map((p) => {
           const name = escapeHtml(baseSeriesName(p?.seriesName ?? "series") || "series");
-          const y = formatY2(p?.value?.[1]);
+          const y = formatTwoDecimals(p?.value?.[1]);
           return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span><span style="font-variant-numeric:tabular-nums;white-space:nowrap;">${escapeHtml(y)}</span></div>`;
         }).join("");
         return header ? `<div style="opacity:0.8;margin-bottom:6px;">${escapeHtml(header)}</div>${rows}` : rows;
@@ -320,7 +309,7 @@ var DataChart = class {
           type: "time",
           min: Number.isFinite(xDomainMin) ? xDomainMin : void 0,
           max: Number.isFinite(xDomainMax) ? xDomainMax : void 0,
-          tickFormatter: (value) => formatTimeTick(
+          tickFormatter: (value) => formatTimestamp(
             value,
             Number.isFinite(xDomainMin) && Number.isFinite(xDomainMax) ? Math.max(1, xDomainMax - xDomainMin) : 864e5
           )
@@ -345,7 +334,7 @@ var DataChart = class {
   async exportPNG() {
     const canvas = await this._getCombinedExportCanvas(true);
     if (!canvas) return;
-    this._downloadLink(canvas.toDataURL("image/png"), "edatime_chart.png");
+    downloadUrl(canvas.toDataURL("image/png"), "edatime_chart.png");
   }
   async exportSVG() {
     const canvas = await this._getCombinedExportCanvas(false);
@@ -360,7 +349,7 @@ var DataChart = class {
     svg += this.exportSVGDrawings(w, h);
     svg += "</svg>";
     const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-    this._downloadLink(URL.createObjectURL(blob), "edatime_chart.svg");
+    downloadBlob(blob, "edatime_chart.svg");
   }
   async exportHTML() {
     const canvas = await this._getCombinedExportCanvas(true);
@@ -368,7 +357,7 @@ var DataChart = class {
     const dataUrl = canvas.toDataURL("image/png");
     const html = `<!DOCTYPE html><html><head><title>EdaTime Export</title><style>body{margin:0;background:#1a1a1a;display:flex;justify-content:center;align-items:center;min-height:100vh}img{max-width:100%;height:auto;box-shadow:0 4px 12px rgba(0,0,0,0.5)}</style></head><body><img src="${dataUrl}" alt="EdaTime Chart"/></body></html>`;
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    this._downloadLink(URL.createObjectURL(blob), "edatime_chart.html");
+    downloadBlob(blob, "edatime_chart.html");
   }
   exportSVGDrawings(viewWidth, viewHeight) {
     const allDraws = [...this._drawings];
@@ -404,7 +393,7 @@ var DataChart = class {
     if (this.onYRangeCallback) this.onYRangeCallback(min, max, sourceKind);
   }
   _buildYAxisOption() {
-    return { type: "value", tickFormatter: (value) => formatTwoDecimalsLocal(value) };
+    return { type: "value", tickFormatter: (value) => formatTwoDecimals(value) };
   }
   _getVisibilityByBaseNameFromChart() {
     const vis = /* @__PURE__ */ new Map();
@@ -777,7 +766,7 @@ var DataChart = class {
       ctx.moveTo(plotLeft - tickLen, py);
       ctx.lineTo(plotLeft, py);
       ctx.stroke();
-      ctx.fillText(formatTwoDecimalsLocal(y), plotLeft - tickLen - labelPad, py);
+      ctx.fillText(formatTwoDecimals(y), plotLeft - tickLen - labelPad, py);
     }
     const xTicks = niceTimeTicks(domains.xMin, domains.xMax, 6);
     const spanMs = domains.xMax - domains.xMin;
@@ -798,7 +787,7 @@ var DataChart = class {
       ctx.moveTo(px, plotBottom);
       ctx.lineTo(px, plotBottom + tickLen);
       ctx.stroke();
-      ctx.fillText(formatTimeTick(x, spanMs), px, plotBottom + tickLen + labelPad);
+      ctx.fillText(formatTimestamp(x, spanMs), px, plotBottom + tickLen + labelPad);
     }
     const title = String(this._chartTitle ?? "").trim();
     if (title) {
@@ -915,15 +904,6 @@ var DataChart = class {
     d += ` L ${endX - headlen * Math.cos(angle + Math.PI / 6)} ${endY - headlen * Math.sin(angle + Math.PI / 6)}`;
     return `  <path d="${d}" fill="none" stroke="${item.color}" stroke-width="${item.width * strokeScale}" stroke-linecap="round" stroke-linejoin="round" />
 `;
-  }
-  _downloadLink(url, filename) {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    if (url.startsWith("blob:")) setTimeout(() => URL.revokeObjectURL(url), 100);
   }
 };
 export {

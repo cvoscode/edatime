@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::cache::ResponseCache;
 use crate::config::AppConfig;
 use crate::metrics::AppMetrics;
-use crate::repository::{DataRepository, InMemoryDataRepository};
+use crate::repository::InMemoryDataRepository;
 
 #[derive(Clone)]
 pub struct AppState {

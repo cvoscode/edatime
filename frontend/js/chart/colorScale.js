@@ -6,8 +6,9 @@ import {
   categoryColorFor,
   colorForScaleValue,
   getInterpolatedColor
-} from "../chunk-KPK5KJKJ.js";
-import "../chunk-UZD72PDA.js";
+} from "../chunk-4MQ6TADT.js";
+import "../chunk-DJBC4VTI.js";
+import "../chunk-LZAZQ2R3.js";
 export {
   VIRIDIS,
   analyzeColorValues,

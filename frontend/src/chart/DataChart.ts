@@ -5,34 +5,19 @@
 
 import { createChart } from '../../libs/chartgpu/dist/index.js';
 import { DEBUG, dbg } from '../debug.js';
-import { appState, getSeriesColor } from '../state.js';
+import { escapeHtml, downloadUrl, downloadBlob } from '../utils/dom.js';
+import { formatTwoDecimals } from '../formatUtils.js';
+import { appState, getSeriesColor, buildAdaptiveLineY } from '../state.js';
 import type { AdaptiveLineFilter, ChartTextOverlays, DataObject, FilteredDataObject } from '../types.js';
 import {
     VIRIDIS, analyzeColorValues, baseSeriesName,
     buildColorizedSeries, categoryColorFor, colorForScaleValue,
 } from './colorScale.js';
 import {
-    formatTwoDecimalsLocal as formatTwoDecimals,
     niceLinearTicks, niceTimeTicks, formatTimeTick, formatTimeTooltip,
 } from './ticks.js';
 
 const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
-
-/* ── Adaptive-line Y interpolation ──────────────────────── */
-
-function buildAdaptiveLineY(filter: AdaptiveLineFilter, tsMs: number): number | null {
-    const x1 = Number(filter?.x1);
-    const x2 = Number(filter?.x2);
-    const y1 = Number(filter?.y1);
-    const y2 = Number(filter?.y2);
-    const x = Number(tsMs);
-    if (!Number.isFinite(x1) || !Number.isFinite(x2) || !Number.isFinite(y1) || !Number.isFinite(y2) || !Number.isFinite(x) || x1 === x2) return null;
-    const minX = Math.min(x1, x2);
-    const maxX = Math.max(x1, x2);
-    if (x < minX || x > maxX) return null;
-    const slope = (y2 - y1) / (x2 - x1);
-    return y1 + (x - x1) * slope;
-}
 
 /* ── Drawing item ──────────────────────────────────────── */
 
@@ -341,15 +326,6 @@ export class DataChart {
         }
 
         if (flattenedSeriesList.length > 0) {
-            const escapeHtml = (text: string): string => String(text)
-                .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-                .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-            const formatY2 = (value: unknown): string => {
-                const n = Number(value);
-                if (!Number.isFinite(n)) return '—';
-                return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            };
-
             const tooltipFormatter = (params: any): string => {
                 const rawList: any[] = Array.isArray(params) ? params : [params];
                 const seen = new Set<string>();
@@ -366,7 +342,7 @@ export class DataChart {
                 const header = Number.isFinite(x) ? formatTimeTooltip(x, spanMs) : '';
                 const rows = list.map((p: any) => {
                     const name = escapeHtml(baseSeriesName(p?.seriesName ?? 'series') || 'series');
-                    const y = formatY2(p?.value?.[1]);
+                    const y = formatTwoDecimals(p?.value?.[1]);
                     return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span><span style="font-variant-numeric:tabular-nums;white-space:nowrap;">${escapeHtml(y)}</span></div>`;
                 }).join('');
                 return header ? `<div style="opacity:0.8;margin-bottom:6px;">${escapeHtml(header)}</div>${rows}` : rows;
@@ -407,7 +383,7 @@ export class DataChart {
     async exportPNG(): Promise<void> {
         const canvas = await this._getCombinedExportCanvas(true);
         if (!canvas) return;
-        this._downloadLink(canvas.toDataURL('image/png'), 'edatime_chart.png');
+        downloadUrl(canvas.toDataURL('image/png'), 'edatime_chart.png');
     }
 
     async exportSVG(): Promise<void> {
@@ -421,7 +397,7 @@ export class DataChart {
         svg += this.exportSVGDrawings(w, h);
         svg += '</svg>';
         const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-        this._downloadLink(URL.createObjectURL(blob), 'edatime_chart.svg');
+        downloadBlob(blob, 'edatime_chart.svg');
     }
 
     async exportHTML(): Promise<void> {
@@ -430,7 +406,7 @@ export class DataChart {
         const dataUrl = canvas.toDataURL('image/png');
         const html = `<!DOCTYPE html><html><head><title>EdaTime Export</title><style>body{margin:0;background:#1a1a1a;display:flex;justify-content:center;align-items:center;min-height:100vh}img{max-width:100%;height:auto;box-shadow:0 4px 12px rgba(0,0,0,0.5)}</style></head><body><img src="${dataUrl}" alt="EdaTime Chart"/></body></html>`;
         const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-        this._downloadLink(URL.createObjectURL(blob), 'edatime_chart.html');
+        downloadBlob(blob, 'edatime_chart.html');
     }
 
     exportSVGDrawings(viewWidth: number, viewHeight: number): string {
@@ -983,13 +959,4 @@ export class DataChart {
         return `  <path d="${d}" fill="none" stroke="${item.color}" stroke-width="${item.width * strokeScale}" stroke-linecap="round" stroke-linejoin="round" />\n`;
     }
 
-    private _downloadLink(url: string, filename: string): void {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        if (url.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(url), 100);
-    }
 }

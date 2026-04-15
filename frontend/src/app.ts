@@ -229,9 +229,19 @@ function emitChartRangeChange(sourceKind = 'data'): void {
     }));
 }
 
+/* ── Data fetch with AbortController ──────────────────── */
+
+let dataFetchController: AbortController | null = null;
+
 async function fetchAndRender(): Promise<void> {
     if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
     if (appState.currentStart! >= appState.currentEnd!) return;
+
+    // Cancel any in-flight data fetch
+    if (dataFetchController) dataFetchController.abort();
+    dataFetchController = new AbortController();
+    const signal = dataFetchController.signal;
+
     try {
         sanitizeSelectedColumns();
         const startIso = new Date(appState.currentStart!).toISOString();
@@ -246,7 +256,7 @@ async function fetchAndRender(): Promise<void> {
             dbg('selectedColorColumn', appState.selectedColorColumn);
         });
 
-        const data = await fetchData!(startIso, endIso, width, cols, colorCol);
+        const data = await fetchData!(startIso, endIso, width, cols, colorCol, signal);
         appState.lastFetchedData = data;
 
         if (DEBUG) {
@@ -276,6 +286,7 @@ async function fetchAndRender(): Promise<void> {
         appState.pendingYMode = null;
         appState.pendingRestoreY = null;
     } catch (err: any) {
+        if (err?.name === 'AbortError') return;
         console.error('Failed to fetch data:', err);
         setMetaText('Error: ' + err.message);
     }

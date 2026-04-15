@@ -3,13 +3,14 @@ use std::path::Path;
 use axum::{Json, extract::State};
 use polars::prelude::{
     DataFrame, DataType, Expr, LazyCsvReader, LazyFileListReader, LazyFrame, ScanArgsParquet,
-    SchemaExt, TimeUnit, col, len,
+    SchemaExt, col, len,
 };
 use serde::Serialize;
 
 use crate::error::AppError;
-use crate::services::metadata_service::MetadataService;
 use crate::state::AppState;
+use crate::stats;
+use crate::temporal;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DatasetMetadata {
@@ -41,40 +42,7 @@ pub struct ColumnProfile {
     pub null_count: usize,
     pub min: Option<f64>,
     pub max: Option<f64>,
-    pub histogram: Option<Histogram>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct Histogram {
-    pub bin_edges: Vec<f64>,
-    pub counts: Vec<u64>,
-}
-
-const HISTOGRAM_BINS: usize = 24;
-
-fn unit_divisor_for_dtype(dtype: &DataType) -> i64 {
-    match dtype {
-        DataType::Datetime(TimeUnit::Nanoseconds, _) => 1_000_000,
-        DataType::Datetime(TimeUnit::Microseconds, _) => 1_000,
-        DataType::Datetime(TimeUnit::Milliseconds, _) => 1,
-        DataType::Date => 1,
-        _ => 1,
-    }
-}
-
-fn temporal_to_epoch_ms(value: i64, dtype: &DataType) -> f64 {
-    if matches!(dtype, DataType::Int64 | DataType::Int32) {
-        // Heuristic: treat large integers as milliseconds, small ones as seconds
-        if value.abs() > 10_000_000_000 {
-            return value as f64;
-        }
-        return (value * 1000) as f64;
-    }
-
-    match dtype {
-        DataType::Date => (value * 86_400_000) as f64,
-        _ => (value / unit_divisor_for_dtype(dtype)) as f64,
-    }
+    pub histogram: Option<stats::Histogram>,
 }
 
 fn detect_time_column(
@@ -119,39 +87,6 @@ fn detect_time_column(
             None
         }
     })
-}
-
-fn build_histogram(values: &[f64], min: f64, max: f64) -> Option<Histogram> {
-    if values.is_empty() {
-        return None;
-    }
-
-    if max <= min {
-        return Some(Histogram {
-            bin_edges: vec![min, max],
-            counts: vec![values.len() as u64],
-        });
-    }
-
-    let span = max - min;
-    let mut counts = vec![0u64; HISTOGRAM_BINS];
-    for value in values {
-        let mut idx = (((*value - min) / span) * HISTOGRAM_BINS as f64).floor() as isize;
-        if idx < 0 {
-            idx = 0;
-        }
-        if idx >= HISTOGRAM_BINS as isize {
-            idx = HISTOGRAM_BINS as isize - 1;
-        }
-        counts[idx as usize] += 1;
-    }
-
-    let mut bin_edges = Vec::with_capacity(HISTOGRAM_BINS + 1);
-    for edge_idx in 0..=HISTOGRAM_BINS {
-        bin_edges.push(min + span * edge_idx as f64 / HISTOGRAM_BINS as f64);
-    }
-
-    Some(Histogram { bin_edges, counts })
 }
 
 fn cast_u64_to_usize(value: u64) -> usize {
@@ -308,13 +243,13 @@ fn build_dataset_metadata_from_lazyframe(
                 .ok()
                 .and_then(|series| series.i64().ok())
                 .and_then(|values| values.get(0))
-                .map(|value| temporal_to_epoch_ms(value, &dtype));
+                .map(|value| temporal::native_to_epoch_ms(value, &dtype));
             profile.max = aggregate
                 .column(&format!("__{index}_tmax"))
                 .ok()
                 .and_then(|series| series.i64().ok())
                 .and_then(|values| values.get(0))
-                .map(|value| temporal_to_epoch_ms(value, &dtype));
+                .map(|value| temporal::native_to_epoch_ms(value, &dtype));
         }
 
         column_profiles.push(profile);
@@ -347,9 +282,9 @@ fn build_dataset_metadata_from_lazyframe(
 
                 match (min_raw, max_raw) {
                     (Some(min_raw), Some(max_raw)) => Some(TimeRange {
-                        min: temporal_to_epoch_ms(min_raw.round() as i64, &DataType::Int64).round()
+                        min: temporal::native_to_epoch_ms(min_raw.round() as i64, &DataType::Int64).round()
                             as i64,
-                        max: temporal_to_epoch_ms(max_raw.round() as i64, &DataType::Int64).round()
+                        max: temporal::native_to_epoch_ms(max_raw.round() as i64, &DataType::Int64).round()
                             as i64,
                     }),
                     _ => None,
@@ -367,8 +302,8 @@ fn build_dataset_metadata_from_lazyframe(
                     .and_then(|values| values.get(0));
                 match (min_raw, max_raw) {
                     (Some(min_raw), Some(max_raw)) => Some(TimeRange {
-                        min: temporal_to_epoch_ms(min_raw, &dtype).round() as i64,
-                        max: temporal_to_epoch_ms(max_raw, &dtype).round() as i64,
+                        min: temporal::native_to_epoch_ms(min_raw, &dtype).round() as i64,
+                        max: temporal::native_to_epoch_ms(max_raw, &dtype).round() as i64,
                     }),
                     _ => None,
                 }
@@ -385,8 +320,8 @@ fn build_dataset_metadata_from_lazyframe(
                     .and_then(|values| values.get(0));
                 match (min_raw, max_raw) {
                     (Some(min_raw), Some(max_raw)) => Some(TimeRange {
-                        min: temporal_to_epoch_ms(min_raw.round() as i64, &dtype).round() as i64,
-                        max: temporal_to_epoch_ms(max_raw.round() as i64, &dtype).round() as i64,
+                        min: temporal::native_to_epoch_ms(min_raw.round() as i64, &dtype).round() as i64,
+                        max: temporal::native_to_epoch_ms(max_raw.round() as i64, &dtype).round() as i64,
                     }),
                     _ => None,
                 }
@@ -468,7 +403,7 @@ pub fn build_dataset_metadata(
                 profile.min = Some(min);
                 profile.max = Some(max);
                 if include_histograms {
-                    profile.histogram = build_histogram(&finite_values, min, max);
+                    profile.histogram = stats::build_histogram(&finite_values, min, max);
                 }
             }
         } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
@@ -481,18 +416,18 @@ pub fn build_dataset_metadata(
                 min_raw = Some(min_raw.map_or(value, |current| current.min(value)));
                 max_raw = Some(max_raw.map_or(value, |current| current.max(value)));
                 if include_histograms {
-                    temporal_values.push(temporal_to_epoch_ms(value, &dtype));
+                    temporal_values.push(temporal::native_to_epoch_ms(value, &dtype));
                 }
             }
             if let Some(value) = min_raw {
-                profile.min = Some(temporal_to_epoch_ms(value, &dtype));
+                profile.min = Some(temporal::native_to_epoch_ms(value, &dtype));
             }
             if let Some(value) = max_raw {
-                profile.max = Some(temporal_to_epoch_ms(value, &dtype));
+                profile.max = Some(temporal::native_to_epoch_ms(value, &dtype));
             }
             if include_histograms {
                 if let (Some(min), Some(max)) = (profile.min, profile.max) {
-                    profile.histogram = build_histogram(&temporal_values, min, max);
+                    profile.histogram = stats::build_histogram(&temporal_values, min, max);
                 }
             }
         }
@@ -514,8 +449,8 @@ pub fn build_dataset_metadata(
         let min_raw = min_raw?;
         let max_raw = max_raw?;
         Some(TimeRange {
-            min: temporal_to_epoch_ms(min_raw, &dtype).round() as i64,
-            max: temporal_to_epoch_ms(max_raw, &dtype).round() as i64,
+            min: temporal::native_to_epoch_ms(min_raw, &dtype).round() as i64,
+            max: temporal::native_to_epoch_ms(max_raw, &dtype).round() as i64,
         })
     });
 
@@ -563,13 +498,17 @@ pub fn build_dataset_metadata_from_path_with_time_column(
 pub async fn get_metadata(
     State(state): State<AppState>,
 ) -> Result<Json<DatasetMetadata>, AppError> {
-    Ok(Json(MetadataService::new(state).get_metadata().await?))
+    let df = state.dataset_snapshot().await;
+    let metadata = tokio::task::spawn_blocking(move || build_dataset_metadata(&df, true))
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to join metadata task: {e:?}")))?;
+    Ok(Json(metadata?))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use polars::prelude::NamedFrom;
+    use polars::prelude::{NamedFrom, TimeUnit};
     use std::fs;
 
     #[test]

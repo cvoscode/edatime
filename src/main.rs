@@ -13,6 +13,7 @@ pub mod cache;
 pub mod config;
 pub mod downsample;
 pub mod error;
+pub mod filters;
 pub mod ingest;
 pub mod metrics;
 pub mod middleware;
@@ -21,8 +22,9 @@ pub mod query;
 pub mod rates;
 pub mod repository;
 pub mod routes;
-pub mod services;
 pub mod state;
+pub mod stats;
+pub mod temporal;
 pub mod validation;
 
 use config::AppConfig;

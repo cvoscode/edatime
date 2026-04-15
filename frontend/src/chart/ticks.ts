@@ -3,15 +3,13 @@
  * the main chart and export routines.
  */
 
-const EURO_DATE_ONLY = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-const EURO_DATE_TIME = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-const EURO_DATE_TIME_SECONDS = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+import {
+    formatTwoDecimals as formatTwoDecimalsLocal,
+    formatTimestamp as formatTimeTick,
+    formatTimeTooltip,
+} from '../formatUtils.js';
 
-export function formatTwoDecimalsLocal(value: unknown): string {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return '—';
-    return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+export { formatTwoDecimalsLocal, formatTimeTick, formatTimeTooltip };
 
 export function niceNum(range: number, round: boolean): number {
     const exponent = Math.floor(Math.log10(range));
@@ -69,27 +67,4 @@ export function niceTimeTicks(minMs: number, maxMs: number, count = 6): number[]
         ticks.push(t);
     }
     return ticks;
-}
-
-export function formatTimeTick(ms: number, spanMs: number): string {
-    try {
-        const d = new Date(ms);
-        if (!Number.isFinite(d.getTime())) return String(ms);
-        if (spanMs <= 2 * 60_000) return EURO_DATE_TIME_SECONDS.format(d);
-        if (spanMs <= 2 * 86400_000) return EURO_DATE_TIME.format(d);
-        return EURO_DATE_ONLY.format(d);
-    } catch {
-        return String(ms);
-    }
-}
-
-export function formatTimeTooltip(ms: number, spanMs: number): string {
-    try {
-        const d = new Date(ms);
-        if (!Number.isFinite(d.getTime())) return String(ms);
-        if (spanMs <= 2 * 60_000) return EURO_DATE_TIME_SECONDS.format(d);
-        return EURO_DATE_TIME.format(d);
-    } catch {
-        return String(ms);
-    }
 }

@@ -29,61 +29,54 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
     let path_ref = path.as_ref();
     let is_parquet = path_ref.extension().map_or(false, |ext| ext == "parquet");
 
-    let mut df = if is_parquet {
-        let args = ScanArgsParquet::default();
-        let lf = LazyFrame::scan_parquet(path_ref.to_str().unwrap().into(), args)?;
-        let collected = lf.collect()?;
-        let height = collected.height();
-        if params.skip_rows >= height {
-            DataFrame::empty()
-        } else {
-            let after_skip = collected.slice(params.skip_rows as i64, height - params.skip_rows);
-            if let Some(limit) = params.n_rows {
-                after_skip.slice(0, limit)
-            } else {
-                after_skip
-            }
-        }
+    // ── 1. Build lazy scan (no data loaded yet) ───────────────────────────
+    let mut lf: LazyFrame = if is_parquet {
+        LazyFrame::scan_parquet(
+            path_ref.to_str().unwrap().into(),
+            ScanArgsParquet::default(),
+        )?
     } else {
         let mut reader = LazyCsvReader::new(path_ref.to_str().unwrap().into())
             .with_try_parse_dates(true)
             .with_skip_rows(params.skip_rows)
             .with_ignore_errors(true)
-            .with_infer_schema_length(Some(10000));
+            .with_infer_schema_length(Some(10_000));
         if let Some(n) = params.n_rows {
             reader = reader.with_n_rows(Some(n));
         }
-        reader.finish()?.collect()?
+        reader.finish()?
     };
 
-    // If the partial read returns empty, fail early before attempting column inference.
-    if df.height() == 0 {
-        return Err(PolarsError::ComputeError(
-            "No rows loaded for the selected partial range. Reduce skip_rows or increase n_rows."
-                .into(),
-        ));
+    // For Parquet, apply skip_rows / n_rows lazily — avoids loading the whole
+    // file into memory just to slice it.
+    if is_parquet && (params.skip_rows > 0 || params.n_rows.is_some()) {
+        let offset = params.skip_rows as i64;
+        let len: u32 = params
+            .n_rows
+            .and_then(|n| u32::try_from(n).ok())
+            .unwrap_or(u32::MAX);
+        lf = lf.slice(offset, len);
     }
 
-    let col_names = df.get_column_names();
-    let dtypes = df.dtypes();
+    // ── 2. Inspect schema without loading any row data ─────────────────────
+    let schema_ref = lf
+        .clone()
+        .collect_schema()
+        .map_err(|e| PolarsError::ComputeError(format!("Failed to read schema: {e}").into()))?;
+    let schema = schema_ref.as_ref();
 
-    let mut time_col_name = None;
+    // ── 3. Detect time column from schema ──────────────────────────────────
+    let mut time_col_name: Option<String> = None;
 
-    // If user specified a time column, use it; otherwise auto-detect
     if let Some(ref explicit_column) = params.time_column {
-        if col_names
-            .iter()
-            .any(|name| name.as_str() == explicit_column.as_str())
-        {
+        if schema.get(explicit_column.as_str()).is_some() {
             time_col_name = Some(explicit_column.clone());
         }
     }
-
-    // Auto-detect time column if not explicitly specified
     if time_col_name.is_none() {
-        for (i, dt) in dtypes.iter().enumerate() {
-            if matches!(dt, DataType::Datetime(_, _) | DataType::Date) {
-                time_col_name = Some(col_names[i].to_string());
+        for field in schema.iter_fields() {
+            if matches!(field.dtype(), DataType::Datetime(_, _) | DataType::Date) {
+                time_col_name = Some(field.name().to_string());
                 break;
             }
         }
@@ -93,111 +86,98 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
         PolarsError::ComputeError("DataFrame must contain at least one datetime column".into())
     })?;
 
-    if let Some(ref selected_columns) = params.selected_columns {
-        let requested: std::collections::HashSet<&str> = selected_columns
-            .iter()
-            .map(|name| name.trim())
-            .filter(|name| !name.is_empty())
-            .collect();
-
-        if !requested.is_empty() {
-            let mut keep: Vec<PlSmallStr> = Vec::new();
-            for name in df.get_column_names().iter() {
-                let name_str = name.as_str();
-                if requested.contains(name_str) {
-                    keep.push(name_str.to_string().into());
-                }
-            }
-
-            if !keep.iter().any(|name| name.as_str() == old_name.as_str()) {
-                keep.push(old_name.clone().into());
-            }
-
-            if keep.len() < df.width() {
-                df = df.select(keep)?;
-            }
-        }
-    }
-
-    let has_numeric = df.dtypes().iter().any(|dt: &DataType| dt.is_numeric());
-
+    // ── 4. Validate numeric columns from schema (no data needed) ──────────
+    let has_numeric = schema
+        .iter_fields()
+        .any(|f| f.name().as_str() != old_name.as_str() && f.dtype().is_numeric());
     if !has_numeric {
         return Err(PolarsError::ComputeError(
             "DataFrame must contain at least one numeric column".into(),
         ));
     }
 
-    // If the time column is not already a datetime type, cast it
-    let time_col_idx = df
-        .get_column_names()
-        .iter()
-        .position(|name| name.as_str() == old_name.as_str())
-        .ok_or_else(|| PolarsError::ComputeError("Time column not found".into()))?;
-
-    let time_col_dtype = &df.dtypes()[time_col_idx];
-    let needs_cast = !matches!(time_col_dtype, DataType::Datetime(_, _) | DataType::Date);
-
-    // Rename the time column to "ts" and cast if needed
-    if old_name != "ts" {
-        df.rename(old_name.as_str().into(), "ts".into())?;
+    // ── 5. Apply column selection lazily ───────────────────────────────────
+    if let Some(ref selected_columns) = params.selected_columns {
+        let requested: std::collections::HashSet<&str> = selected_columns
+            .iter()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+        if !requested.is_empty() {
+            let keep_exprs: Vec<Expr> = schema
+                .iter_fields()
+                .filter(|f| {
+                    let name = f.name().as_str();
+                    requested.contains(name) || name == old_name.as_str()
+                })
+                .map(|f| col(f.name().as_str()))
+                .collect();
+            if keep_exprs.len() < schema.len() {
+                lf = lf.select(keep_exprs);
+            }
+        }
     }
 
-    // Apply casting if needed
-    let ts_series = df
-        .column("ts")
-        .map(|col| col.as_materialized_series().clone())?;
-    let ts_numeric_normalizer = if matches!(
-        ts_series.dtype(),
-        DataType::Int64 | DataType::Int32 | DataType::UInt64 | DataType::UInt32
-    ) {
-        let casted = ts_series.cast(&DataType::Int64)?;
-        let ints = casted.i64()?;
-        let mut max_abs = 0i64;
-        for value in ints.into_iter().flatten() {
-            let abs_v = value.saturating_abs();
-            if abs_v > max_abs {
-                max_abs = abs_v;
-            }
-        }
+    // ── 6. Rename time column to "ts" lazily ──────────────────────────────
+    if old_name != "ts" {
+        lf = lf.rename([old_name.as_str()], ["ts"], true);
+    }
 
+    // ── 7. Cast / normalise the ts column lazily ──────────────────────────
+    let ts_dtype = schema
+        .get(old_name.as_str())
+        .cloned()
+        .unwrap_or(DataType::Int64);
+    let needs_cast = !matches!(ts_dtype, DataType::Datetime(_, _) | DataType::Date);
+
+    if needs_cast
+        && matches!(
+            ts_dtype,
+            DataType::Int64 | DataType::Int32 | DataType::UInt64 | DataType::UInt32
+        )
+    {
+        // Determine the epoch unit by finding the max absolute value with a
+        // single streaming pass over only the ts column.
+        let probe = lf
+            .clone()
+            .select([col("ts").cast(DataType::Int64).max().alias("m")])
+            .collect()
+            .map_err(|e| PolarsError::ComputeError(format!("ts probe: {e}").into()))?;
+        let max_abs: i64 = probe
+            .column("m")
+            .ok()
+            .and_then(|s| s.get(0).ok())
+            .and_then(|v| match v {
+                AnyValue::Int64(n) => Some(n),
+                _ => None,
+            })
+            .unwrap_or(0);
+
+        let mut ts_expr = col("ts").cast(DataType::Int64);
         if max_abs > 0 {
             if max_abs < 100_000_000_000 {
-                // Seconds -> milliseconds
-                Some((1000i64, 1i64))
+                ts_expr = ts_expr * lit(1_000_i64); // seconds → ms
             } else if max_abs >= 100_000_000_000_000_000 {
-                // Nanoseconds -> milliseconds
-                Some((1i64, 1_000_000i64))
+                ts_expr = ts_expr / lit(1_000_000_i64); // ns → ms
             } else if max_abs >= 100_000_000_000_000 {
-                // Microseconds -> milliseconds
-                Some((1i64, 1_000i64))
-            } else {
-                // Assume milliseconds already.
-                None
+                ts_expr = ts_expr / lit(1_000_i64); // μs → ms
             }
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    let mut lf = df.lazy();
-    if needs_cast {
-        let mut ts_expr = col("ts").cast(DataType::Int64);
-        if let Some((mul, div)) = ts_numeric_normalizer {
-            if mul != 1 {
-                ts_expr = ts_expr * lit(mul);
-            }
-            if div != 1 {
-                ts_expr = ts_expr / lit(div);
-            }
+            // else: already milliseconds
         }
         lf = lf.with_column(
             ts_expr
                 .cast(DataType::Datetime(TimeUnit::Milliseconds, None))
                 .alias("ts"),
         );
-    } else {
+    } else if needs_cast {
+        lf = lf.with_column(
+            col("ts")
+                .cast(DataType::Int64)
+                .cast(DataType::Datetime(TimeUnit::Milliseconds, None))
+                .alias("ts"),
+        );
+    } else if !matches!(ts_dtype, DataType::Datetime(TimeUnit::Milliseconds, None)) {
+        // Normalise non-ms datetime (ns, μs, Date) to ms for consistency.
         lf = lf.with_column(
             col("ts")
                 .cast(DataType::Datetime(TimeUnit::Milliseconds, None))
@@ -205,7 +185,7 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
         );
     }
 
-    // Apply optional time filtering + ensure a consistent ts dtype.
+    // ── 8. Apply time range filters lazily ────────────────────────────────
     if let Some(start_ms) = params.time_start_ms {
         lf = lf.filter(
             col("ts").gt_eq(lit(start_ms).cast(DataType::Datetime(TimeUnit::Milliseconds, None))),
@@ -217,12 +197,13 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
         );
     }
 
-    // LTTB requires data to be sorted by X
-    df = lf.sort(["ts"], SortMultipleOptions::default()).collect()?;
+    // ── 9. Sort and single collect (streaming for out-of-core support) ────
+    let df = lf.sort(["ts"], SortMultipleOptions::default()).collect()?;
 
     if df.height() == 0 {
         return Err(PolarsError::ComputeError(
-            "No rows loaded for the selected time range. Widen the time range or remove time filters.".into(),
+            "No rows loaded for the selected partial range. Reduce skip_rows or increase n_rows."
+                .into(),
         ));
     }
 

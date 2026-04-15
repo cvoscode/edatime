@@ -6,21 +6,11 @@ import {
   applyView,
   buildDensitySeries,
   buildDensityTooltipCache,
-  buildLinearTicks,
   buildNormalScatterSeries,
   buildOption,
-  buildVisibleScatterRows,
   densityTooltipFormatterFactory,
-  drawScatterSeriesToCanvas,
-  exportScatterData,
-  exportScatterHTML,
-  exportScatterPNG,
-  exportScatterParquet,
-  exportScatterSVG,
-  getScatterExportViewport,
   initSelectionZoom,
   renderCurrentOption,
-  renderScatterExportToCanvas,
   resetView,
   scatterTooltipFormatterFactory,
   setCorrelationOverlayText,
@@ -29,11 +19,24 @@ import {
   updateColorbarUI,
   updateCorrelationStats,
   updateMarginalPlots
-} from "../chunk-XNPL4ZQK.js";
-import "../chunk-B6MDIWXF.js";
-import "../chunk-76MF3RJR.js";
-import "../chunk-6X7ODBV6.js";
-import "../chunk-UZD72PDA.js";
+} from "../chunk-G3PM6XSE.js";
+import {
+  buildLinearTicks,
+  buildVisibleScatterRows,
+  drawScatterSeriesToCanvas,
+  exportScatterData,
+  exportScatterHTML,
+  exportScatterPNG,
+  exportScatterParquet,
+  exportScatterSVG,
+  getScatterExportViewport,
+  renderScatterExportToCanvas
+} from "../chunk-75E4WSJT.js";
+import "../chunk-ZSK3RYPG.js";
+import "../chunk-4C6INKRU.js";
+import "../chunk-QF7GDSH3.js";
+import "../chunk-DJBC4VTI.js";
+import "../chunk-LZAZQ2R3.js";
 export {
   SCATTER_GRID_BOTTOM,
   SCATTER_GRID_LEFT,

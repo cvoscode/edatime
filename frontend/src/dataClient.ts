@@ -49,6 +49,7 @@ export async function fetchData(
     width: number,
     columns = 'value',
     colorColumn: string | null = null,
+    signal?: AbortSignal,
 ): Promise<DataObject> {
     const params = new URLSearchParams({
         start,
@@ -62,7 +63,7 @@ export async function fetchData(
     const url = `/api/data?${params.toString()}`;
 
     dbg('GET', url);
-    const res = await fetch(url);
+    const res = await fetch(url, signal ? { signal } : undefined);
 
     if (DEBUG) {
         dbg('status', res.status, res.statusText);

@@ -1,17 +1,12 @@
 import {
   renderScatterMatrixView,
   selectMatrixPair
-} from "../chunk-QP2MRNH3.js";
+} from "../chunk-37CI75XC.js";
 import {
   fetchAndRenderDistributions
-} from "../chunk-RCXZ4YYT.js";
+} from "../chunk-FJVF4M2G.js";
 import {
   buildOption,
-  exportScatterData,
-  exportScatterHTML,
-  exportScatterPNG,
-  exportScatterParquet,
-  exportScatterSVG,
   initSelectionZoom,
   renderCurrentOption,
   syncModeUI,
@@ -19,7 +14,14 @@ import {
   updateColorbarUI,
   updateCorrelationStats,
   updateMarginalPlots
-} from "../chunk-XNPL4ZQK.js";
+} from "../chunk-G3PM6XSE.js";
+import {
+  exportScatterData,
+  exportScatterHTML,
+  exportScatterPNG,
+  exportScatterParquet,
+  exportScatterSVG
+} from "../chunk-75E4WSJT.js";
 import {
   applyScatterStateFromCache,
   buildRenderSignature,
@@ -31,22 +33,24 @@ import {
   normalizeAnalyticsView,
   resetScatterContainer,
   state
-} from "../chunk-B6MDIWXF.js";
+} from "../chunk-ZSK3RYPG.js";
 import {
-  getEl,
   showError
-} from "../chunk-76MF3RJR.js";
-import "../chunk-6X7ODBV6.js";
+} from "../chunk-4C6INKRU.js";
 import {
   Ad
 } from "../chunk-UUSB2KLH.js";
 import {
+  getEl
+} from "../chunk-QF7GDSH3.js";
+import {
   appState
-} from "../chunk-UZD72PDA.js";
+} from "../chunk-DJBC4VTI.js";
+import "../chunk-LZAZQ2R3.js";
 import {
   fetchScatterCorrelations,
   fetchScatterPoints
-} from "../chunk-5ZUOH3TN.js";
+} from "../chunk-J3CKBFCC.js";
 import "../chunk-44BHGKBD.js";
 
 // frontend/src/scatter/scatterPage.ts

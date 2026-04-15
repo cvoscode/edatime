@@ -1,0 +1,233 @@
+//! Scatter analytics routes — points, correlations, distributions, and export.
+
+mod correlations;
+mod distributions;
+mod points;
+
+use polars::prelude::*;
+use serde::{Deserialize, Serialize};
+
+use crate::error::AppError;
+use crate::temporal;
+use crate::validation::MAX_SCATTER_LIMIT;
+
+// Re-export filter types used by export.rs and other consumers.
+pub use crate::filters::{
+    LineFilter as ScatterLineFilterSpec, RangeFilter as ScatterFilterSpec,
+    apply_filters as apply_scatter_filters, parse_line_filters as parse_scatter_line_filters,
+    parse_range_filters as parse_scatter_filters,
+};
+
+// Re-export route handlers for the router.
+pub use correlations::get_scatter_correlations;
+pub use distributions::{get_distributions, post_distributions};
+pub use points::{get_scatter_points, post_scatter_export_parquet, post_scatter_points};
+
+// ── Shared types ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ScatterPointsQuery {
+    pub x: String,
+    pub y: String,
+    pub color: Option<String>,
+    pub start: Option<f64>,
+    pub end: Option<f64>,
+    pub filters: Option<String>,
+    pub line_filters: Option<String>,
+    #[serde(default = "default_scatter_limit")]
+    pub limit: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ScatterPointsResponse {
+    pub x: String,
+    pub y: String,
+    pub color: Option<String>,
+    pub total_points: usize,
+    pub returned_points: usize,
+    pub points: Vec<[f64; 2]>,
+    pub color_values: Option<Vec<f64>>,
+    pub color_labels: Option<Vec<Option<String>>>,
+    pub color_min: Option<f64>,
+    pub color_max: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct CorrelationItem {
+    pub column: String,
+    pub count: usize,
+    pub pearson: Option<f64>,
+    pub spearman: Option<f64>,
+}
+
+// ── Shared helpers ───────────────────────────────────────────────────────────
+
+fn default_scatter_limit() -> usize {
+    1_000_000
+}
+
+fn clamp_limit(limit: usize) -> usize {
+    limit.clamp(1, MAX_SCATTER_LIMIT)
+}
+
+fn numeric_columns(df: &DataFrame) -> Vec<String> {
+    df.get_column_names()
+        .iter()
+        .filter_map(|name| {
+            let name_str = name.as_str();
+            match df.column(name_str) {
+                Ok(col)
+                    if col.dtype().is_numeric()
+                        || matches!(col.dtype(), DataType::Datetime(_, _) | DataType::Date) =>
+                {
+                    Some(name_str.to_string())
+                }
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+fn validate_scatter_column(df: &DataFrame, name: &str) -> Result<(), AppError> {
+    let col = df
+        .column(name)
+        .map_err(|e| AppError::bad_request(format!("Unknown column '{}': {}", name, e)))?;
+
+    if !(col.dtype().is_numeric()
+        || matches!(col.dtype(), DataType::Datetime(_, _) | DataType::Date))
+    {
+        return Err(AppError::bad_request(format!(
+            "Column '{}' is not numeric or temporal",
+            name
+        )));
+    }
+
+    Ok(())
+}
+
+fn validate_existing_column(df: &DataFrame, name: &str) -> Result<(), AppError> {
+    df.column(name)
+        .map(|_| ())
+        .map_err(|e| AppError::bad_request(format!("Unknown column '{}': {}", name, e)))
+}
+
+fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option<f64>>, AppError> {
+    let series = df
+        .column(name)
+        .map_err(|e| AppError::bad_request(format!("Missing column '{}': {}", name, e)))?
+        .as_materialized_series();
+
+    match series.dtype() {
+        dt if dt.is_numeric() => {
+            let casted = series.cast(&DataType::Float64).map_err(|e| {
+                AppError::internal(format!("Failed to cast '{}' to Float64: {}", name, e))
+            })?;
+            let vals = casted.f64().map_err(|e| {
+                AppError::internal(format!("Failed to read '{}' as Float64: {}", name, e))
+            })?;
+            Ok(vals
+                .into_iter()
+                .map(|v| v.filter(|f| f.is_finite()))
+                .collect())
+        }
+        DataType::Datetime(_, _) | DataType::Date => {
+            let casted = series.cast(&DataType::Int64).map_err(|e| {
+                AppError::internal(format!(
+                    "Failed to cast temporal '{}' to Int64: {}",
+                    name, e
+                ))
+            })?;
+            let vals = casted.i64().map_err(|e| {
+                AppError::internal(format!("Failed to read '{}' as Int64: {}", name, e))
+            })?;
+
+            let dtype = series.dtype();
+            let divisor = temporal::unit_multiplier(dtype);
+
+            Ok(vals
+                .into_iter()
+                .map(|v| {
+                    v.map(|raw| {
+                        if matches!(dtype, DataType::Date) {
+                            (raw * 86_400_000) as f64
+                        } else {
+                            (raw / divisor) as f64
+                        }
+                    })
+                })
+                .collect())
+        }
+        _ => Err(AppError::bad_request(format!(
+            "Column '{}' is not numeric or temporal",
+            name
+        ))),
+    }
+}
+
+fn series_to_label_values(df: &DataFrame, name: &str) -> Result<Vec<Option<String>>, AppError> {
+    let series = df
+        .column(name)
+        .map_err(|e| AppError::bad_request(format!("Missing column '{}': {}", name, e)))?
+        .as_materialized_series();
+
+    let casted = series
+        .cast(&DataType::String)
+        .map_err(|e| AppError::internal(format!("Failed to cast '{}' to String: {}", name, e)))?;
+    let values = casted
+        .str()
+        .map_err(|e| AppError::internal(format!("Failed to read '{}' as String: {}", name, e)))?;
+
+    Ok(values
+        .into_iter()
+        .map(|value| value.map(|text| text.to_string()))
+        .collect())
+}
+
+fn collect_xy_pairs(df: &DataFrame, x: &str, y: &str) -> Result<Vec<[f64; 2]>, AppError> {
+    let x_vals = series_to_scatter_values(df, x)?;
+    let y_vals = series_to_scatter_values(df, y)?;
+
+    let mut out = Vec::with_capacity(df.height());
+    for (ox, oy) in x_vals.iter().zip(y_vals.iter()) {
+        if let (Some(xv), Some(yv)) = (ox, oy) {
+            if xv.is_finite() && yv.is_finite() {
+                out.push([*xv, *yv]);
+            }
+        }
+    }
+
+    Ok(out)
+}
+
+pub(crate) fn collect_filtered_scatter_frame(
+    df: &DataFrame,
+    x: &str,
+    y: &str,
+    color: Option<&str>,
+    start: Option<f64>,
+    end: Option<f64>,
+    filters: &[ScatterFilterSpec],
+    line_filters: &[ScatterLineFilterSpec],
+) -> Result<DataFrame, AppError> {
+    validate_scatter_column(df, x)?;
+    validate_scatter_column(df, y)?;
+    if let Some(c) = color {
+        validate_existing_column(df, c)?;
+    }
+
+    let lf = apply_scatter_filters(df, start, end, filters, line_filters)?;
+
+    let mut selected_columns = Vec::with_capacity(3);
+    for name in [Some(x), Some(y), color].into_iter().flatten() {
+        if !selected_columns.contains(&name) {
+            selected_columns.push(name);
+        }
+    }
+
+    let select_exprs = selected_columns.into_iter().map(col).collect::<Vec<_>>();
+
+    lf.select(select_exprs)
+        .collect()
+        .map_err(|e| AppError::io(e.to_string()))
+}

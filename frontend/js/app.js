@@ -2,12 +2,12 @@ import {
   buildColumnToggles,
   buildRangeControls,
   initColumnFilterModal
-} from "./chunk-2MNTF6DE.js";
+} from "./chunk-46CWFQDH.js";
 import {
   hydrateColumnProfiles,
   initColumnProfilesGrid,
   renderColumnProfilesGrid
-} from "./chunk-4XXNSLY7.js";
+} from "./chunk-Y2YVH4CB.js";
 import {
   bindAnalysisChartEvents,
   getCurrentView,
@@ -19,15 +19,16 @@ import {
   updateAnalysisYRange,
   updateAnalysisZoom,
   zoomOut
-} from "./chunk-USUPCIYD.js";
+} from "./chunk-YMX7HW53.js";
 import {
   applyPartialTimeRangeFromMetadata,
   initUploadPanel,
   setUploadPreviewStatus
-} from "./chunk-NWXUSCBX.js";
+} from "./chunk-26FFPJIT.js";
+import "./chunk-QF7GDSH3.js";
 import {
   FallbackChart
-} from "./chunk-WNQN3AWD.js";
+} from "./chunk-MRDWG7JI.js";
 import {
   appState,
   applyColumnRanges,
@@ -35,7 +36,8 @@ import {
   ensureRangeStateFromData,
   sanitizeSelectedColumns,
   setMetaText
-} from "./chunk-UZD72PDA.js";
+} from "./chunk-DJBC4VTI.js";
+import "./chunk-LZAZQ2R3.js";
 import {
   getChartType,
   registerChartType
@@ -234,9 +236,13 @@ function emitChartRangeChange(sourceKind = "data") {
     detail: { start: appState.currentStart, end: appState.currentEnd, source: sourceKind }
   }));
 }
+var dataFetchController = null;
 async function fetchAndRender() {
   if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
   if (appState.currentStart >= appState.currentEnd) return;
+  if (dataFetchController) dataFetchController.abort();
+  dataFetchController = new AbortController();
+  const signal = dataFetchController.signal;
   try {
     sanitizeSelectedColumns();
     const startIso = new Date(appState.currentStart).toISOString();
@@ -249,7 +255,7 @@ async function fetchAndRender() {
       dbg("selectedCols", appState.selectedCols);
       dbg("selectedColorColumn", appState.selectedColorColumn);
     });
-    const data = await fetchData(startIso, endIso, width, cols, colorCol);
+    const data = await fetchData(startIso, endIso, width, cols, colorCol, signal);
     appState.lastFetchedData = data;
     if (DEBUG) {
       const n = data?.ts?.length ?? 0;
@@ -278,6 +284,7 @@ async function fetchAndRender() {
     appState.pendingYMode = null;
     appState.pendingRestoreY = null;
   } catch (err) {
+    if (err?.name === "AbortError") return;
     console.error("Failed to fetch data:", err);
     setMetaText("Error: " + err.message);
   }

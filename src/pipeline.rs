@@ -11,10 +11,12 @@ use crate::query::{AggFn, OutputFormat};
 
 // ── Stage 1: Filter by time range ──────────────────────────────────────────
 
-/// Filter a `DataFrame` to only rows whose `ts` column falls within
-/// `[start_ts, end_ts]` (in the native time unit of the column).
+/// Filter a `LazyFrame` to only rows whose `ts` column falls within
+/// `[start_ts, end_ts]` (in the native time unit of the column), selecting
+/// only the requested columns. Streaming execution is used to minimise peak
+/// memory when the filtered result is large.
 pub fn filter_time_range(
-    df: DataFrame,
+    lf: LazyFrame,
     start_ts: i64,
     end_ts: i64,
     select_cols: &[String],
@@ -27,8 +29,7 @@ pub fn filter_time_range(
     }
 
     tokio::task::block_in_place(|| {
-        df.lazy()
-            .filter(col("ts").cast(DataType::Int64).gt_eq(lit(start_ts)))
+        lf.filter(col("ts").cast(DataType::Int64).gt_eq(lit(start_ts)))
             .filter(col("ts").cast(DataType::Int64).lt_eq(lit(end_ts)))
             .select(exprs)
             .collect()
@@ -63,11 +64,18 @@ pub fn apply_reduction(
 ) -> Result<(DataFrame, bool), AppError> {
     match strategy {
         Reduction::None => {
-            let mut select_cols = vec!["ts".to_string()];
-            select_cols.extend_from_slice(value_cols);
-            select_cols.extend_from_slice(extra_cols);
-            let out = df
-                .select(select_cols)
+            let mut exprs = vec![col("ts")];
+            for c in value_cols {
+                if c != "ts" {
+                    exprs.push(col(c.as_str()));
+                }
+            }
+            for c in extra_cols {
+                if c != "ts" && !value_cols.contains(c) {
+                    exprs.push(col(c.as_str()));
+                }
+            }
+            let out = tokio::task::block_in_place(|| df.clone().lazy().select(exprs).collect())
                 .map_err(|e| AppError::io(format!("select error: {}", e)))?;
             Ok((out, false))
         }
@@ -233,6 +241,9 @@ fn window_aggregate(
 
 /// Bucket-aggregate: split the time range into N equal-width buckets and
 /// compute a summary statistic per bucket per column.
+///
+/// Fully lazy: ts_min/ts_max are read with a single streaming pass, and the
+/// bucket assignment + group_by + aggregation are expressed as a lazy plan.
 fn bucket_aggregate(
     df: &DataFrame,
     value_cols: &[String],
@@ -241,66 +252,56 @@ fn bucket_aggregate(
 ) -> Result<(DataFrame, bool), AppError> {
     let n_buckets = n_buckets.max(1).min(10_000);
 
-    let ts_series = df
-        .column("ts")
-        .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::bad_request(format!("Missing ts column: {}", e)))?
-        .clone();
+    if df.height() == 0 {
+        return Ok((DataFrame::default(), true));
+    }
 
-    let ts_i64 = ts_series
-        .cast(&DataType::Int64)
-        .map_err(|e| AppError::io(format!("ts cast: {}", e)))?;
-    let ts_ca = ts_i64
-        .i64()
-        .map_err(|e| AppError::io(format!("ts i64: {}", e)))?;
+    // Compute ts bounds with a single pass over the ts column only.
+    let bounds = tokio::task::block_in_place(|| {
+        df.clone()
+            .lazy()
+            .select([
+                col("ts").cast(DataType::Int64).min().alias("ts_min"),
+                col("ts").cast(DataType::Int64).max().alias("ts_max"),
+            ])
+            .collect()
+    })
+    .map_err(|e| AppError::io(format!("ts bounds: {}", e)))?;
 
-    let (ts_min, ts_max) = {
-        let mut lo = i64::MAX;
-        let mut hi = i64::MIN;
-        for v in ts_ca.into_iter().flatten() {
-            if v < lo {
-                lo = v;
-            }
-            if v > hi {
-                hi = v;
-            }
-        }
-        if lo > hi {
-            return Ok((DataFrame::default(), true));
-        }
-        (lo, hi)
+    let get_i64 = |col_name: &str| -> Option<i64> {
+        bounds
+            .column(col_name)
+            .ok()
+            .and_then(|s| s.get(0).ok())
+            .and_then(|v| match v {
+                AnyValue::Int64(n) => Some(n),
+                _ => None,
+            })
+    };
+    let (ts_min, ts_max) = match (get_i64("ts_min"), get_i64("ts_max")) {
+        (Some(lo), Some(hi)) if lo <= hi => (lo, hi),
+        _ => return Ok((DataFrame::default(), true)),
     };
 
     let span = (ts_max - ts_min).max(1) as f64;
     let bucket_width = span / n_buckets as f64;
 
-    // Assign bucket index to each row.
-    let mut bucket_ids: Vec<u32> = Vec::with_capacity(df.height());
-    for v in ts_ca.into_iter() {
-        match v {
-            Some(t) => {
-                let idx = ((t - ts_min) as f64 / bucket_width).floor() as u32;
-                bucket_ids.push(idx.min((n_buckets - 1) as u32));
-            }
-            None => bucket_ids.push(0),
-        }
-    }
+    // Bucket assignment as a lazy expression — no manual iteration, no clone.
+    // Cast to Int64 truncates toward zero which equals floor for non-negative
+    // values (ts >= ts_min always after filtering). Use when/then to clamp the
+    // upper edge (ts_max yields exactly n_buckets, not n_buckets-1).
+    let n_max = (n_buckets - 1) as i64;
+    let raw_bucket = ((col("ts").cast(DataType::Int64) - lit(ts_min)).cast(DataType::Float64)
+        / lit(bucket_width))
+    .cast(DataType::Int64);
+    let bucket_expr = when(raw_bucket.clone().gt_eq(lit(n_buckets as i64)))
+        .then(lit(n_max))
+        .when(raw_bucket.clone().lt(lit(0_i64)))
+        .then(lit(0_i64))
+        .otherwise(raw_bucket)
+        .alias("__bucket");
 
-    let bucket_series = Series::new("__bucket".into(), bucket_ids);
-    let mut with_bucket = df.clone();
-    with_bucket
-        .with_column(bucket_series.into())
-        .map_err(|e| AppError::io(format!("add bucket col: {}", e)))?;
-
-    // Build aggregation expressions.
     let mut agg_exprs: Vec<Expr> = Vec::new();
-    // Bucket midpoint as the "ts" value.
-    agg_exprs.push(
-        (lit(ts_min) + (col("__bucket").cast(DataType::Float64) + lit(0.5)) * lit(bucket_width))
-            .cast(DataType::Int64)
-            .alias("ts"),
-    );
-
     for c in value_cols {
         let e = match agg_fn {
             AggFn::Mean => col(c.as_str()).mean().alias(c.as_str()),
@@ -316,11 +317,20 @@ fn bucket_aggregate(
     }
 
     let result = tokio::task::block_in_place(|| {
-        with_bucket
+        df.clone()
             .lazy()
+            .with_column(bucket_expr)
             .group_by([col("__bucket")])
             .agg(agg_exprs)
             .sort(["__bucket"], SortMultipleOptions::default())
+            // Compute bucket midpoint ts via with_column (not inside .agg) to
+            // avoid Polars wrapping lit() results as List types.
+            .with_column(
+                (lit(ts_min)
+                    + (col("__bucket").cast(DataType::Float64) + lit(0.5)) * lit(bucket_width))
+                .cast(DataType::Int64)
+                .alias("ts"),
+            )
             .select({
                 let mut sel = vec![col("ts")];
                 for c in value_cols {
@@ -366,13 +376,7 @@ pub fn serialize_json(
     color_col: Option<&String>,
     ts_dtype: &DataType,
 ) -> Result<serde_json::Value, AppError> {
-    let ts_ms_divisor: i64 = match ts_dtype {
-        DataType::Datetime(TimeUnit::Nanoseconds, _) => 1_000_000,
-        DataType::Datetime(TimeUnit::Microseconds, _) => 1_000,
-        DataType::Datetime(TimeUnit::Milliseconds, _) => 1,
-        DataType::Date => 1,
-        _ => 1,
-    };
+    let multiplier = crate::temporal::unit_multiplier(ts_dtype);
 
     let ts_series = df
         .column("ts")
@@ -393,7 +397,7 @@ pub fn serialize_json(
                 if matches!(ts_dtype, DataType::Date) {
                     (raw * 86_400_000) as f64
                 } else {
-                    (raw / ts_ms_divisor) as f64
+                    (raw / multiplier) as f64
                 }
             })
             .unwrap_or(f64::NAN)

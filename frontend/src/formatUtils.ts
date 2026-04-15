@@ -1,12 +1,12 @@
 // ─── Shared date/number formatting utilities ─────────────────────────────────
 
-const EURO_DATE_ONLY = new Intl.DateTimeFormat('de-DE', {
+export const EURO_DATE_ONLY = new Intl.DateTimeFormat('de-DE', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
 });
 
-const EURO_DATE_TIME = new Intl.DateTimeFormat('de-DE', {
+export const EURO_DATE_TIME = new Intl.DateTimeFormat('de-DE', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -14,7 +14,7 @@ const EURO_DATE_TIME = new Intl.DateTimeFormat('de-DE', {
     minute: '2-digit',
 });
 
-const EURO_DATE_TIME_SECONDS = new Intl.DateTimeFormat('de-DE', {
+export const EURO_DATE_TIME_SECONDS = new Intl.DateTimeFormat('de-DE', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -40,6 +40,18 @@ export function formatTimestamp(ms: number, spanMs: number): string {
         if (spanMs <= 2 * 60_000) return EURO_DATE_TIME_SECONDS.format(d);
         if (spanMs <= 2 * 24 * 60 * 60_000) return EURO_DATE_TIME.format(d);
         return EURO_DATE_ONLY.format(d);
+    } catch {
+        return String(ms);
+    }
+}
+
+/** Like formatTimestamp but always shows at least date+time for wide spans (tooltip use). */
+export function formatTimeTooltip(ms: number, spanMs: number): string {
+    try {
+        const d = new Date(ms);
+        if (!Number.isFinite(d.getTime())) return String(ms);
+        if (spanMs <= 2 * 60_000) return EURO_DATE_TIME_SECONDS.format(d);
+        return EURO_DATE_TIME.format(d);
     } catch {
         return String(ms);
     }

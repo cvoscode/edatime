@@ -19,6 +19,7 @@ import type {
     YMode,
     ZoomEntry,
 } from './types.js';
+import { formatTwoDecimals } from './formatUtils.js';
 
 // ─── Colour palette (matches CSS) ──────────────────────────────────────────
 export const SERIES_COLORS: string[] = [
@@ -114,13 +115,7 @@ export function formatAnalysisTime(tsMs: number): string {
     return new Date(tsMs).toLocaleString();
 }
 
-export function formatAnalysisNumber(value: number): string {
-    if (!Number.isFinite(value)) return '—';
-    return value.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
-}
+export const formatAnalysisNumber = formatTwoDecimals;
 
 export function formatCount(value: unknown): string {
     const n = Number(value);
@@ -243,7 +238,7 @@ export function ensureRangeStateFromData(dataObj: DataObject): void {
     }
 }
 
-function buildAdaptiveLineY(filter: AdaptiveLineFilter, tsMs: number): number | null {
+export function buildAdaptiveLineY(filter: AdaptiveLineFilter, tsMs: number): number | null {
     const x1 = Number(filter?.x1);
     const x2 = Number(filter?.x2);
     const y1 = Number(filter?.y1);

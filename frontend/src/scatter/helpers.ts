@@ -2,8 +2,9 @@
  * Scatter-page shared utilities: palettes, formatting, helpers.
  */
 
-import { SERIES_COLORS } from '../state.js';
+import { SERIES_COLORS, isTemporalDtype } from '../state.js';
 import { formatTwoDecimals, formatTimestamp } from '../formatUtils.js';
+import { escapeHtml, downloadUrl, downloadBlob, getEl } from '../utils/dom.js';
 
 export const MATRIX_POINT_LIMIT = 8_000;
 export const MATRIX_MAX_COLUMNS = 4;
@@ -17,11 +18,7 @@ export const DISTRIBUTION_GROUP_COLORS = [
 
 export const fmt = new Intl.NumberFormat(undefined);
 
-/* ── DOM helpers ───────────────────────────────────────── */
-
-export function getEl(id: string): HTMLElement | null {
-    return document.getElementById(id);
-}
+export { escapeHtml, downloadUrl, downloadBlob, getEl };
 
 export function showError(message: string | null): void {
     const el = getEl('scatter-error');
@@ -34,28 +31,6 @@ export function showError(message: string | null): void {
 export function setPanelStatus(id: string, message: string): void {
     const el = getEl(id);
     if (el) el.textContent = String(message || '');
-}
-
-export function escapeHtml(text: string): string {
-    return String(text)
-        .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-}
-
-/* ── Download helpers ──────────────────────────────────── */
-
-export function downloadUrl(url: string, filename: string): void {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    if (url.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(url), 100);
-}
-
-export function downloadBlob(blob: Blob, filename: string): void {
-    downloadUrl(URL.createObjectURL(blob), filename);
 }
 
 /* ── Color palettes ───────────────────────────────────── */
@@ -200,7 +175,7 @@ export function getCanvasFrame(canvas: HTMLCanvasElement, fallbackWidth = 180, f
 
 export function isTemporalColumn(name: string, columnTypes: Map<string, string>): boolean {
     const dtype = columnTypes.get(String(name || '').toLowerCase()) || '';
-    return /date|time/i.test(dtype);
+    return isTemporalDtype(dtype);
 }
 
 export function formatValueForColumn(columnName: string, value: number, spanMs: number, columnTypes: Map<string, string>): string {
