@@ -20,6 +20,7 @@ import type {
     ZoomEntry,
 } from './types.js';
 import { formatTwoDecimals } from './formatUtils.js';
+import { escapeHtml } from './utils/dom.js';
 
 // ─── Colour palette (matches CSS) ──────────────────────────────────────────
 export const SERIES_COLORS: string[] = [
@@ -187,7 +188,7 @@ export function setMetaText(text: string): void {
 export function buildMetaBar(metadata: { total_rows?: number } | null): void {
     const rows = metadata?.total_rows?.toLocaleString() ?? '?';
     const cols = appState.numericCols?.length ?? 0;
-    const series = appState.selectedCols.join(', ') || '—';
+    const series = escapeHtml(appState.selectedCols.join(', ') || '—');
     const el = document.getElementById('header-meta');
     if (el) {
         el.innerHTML = `

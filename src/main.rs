@@ -72,7 +72,7 @@ async fn main() {
 
     let csp_layer = tower_http::set_header::SetResponseHeaderLayer::overriding(
         axum::http::header::CONTENT_SECURITY_POLICY,
-        middleware::csp_header_value(),
+        middleware::csp_header_value(&config.server.csp_extra_origins),
     );
 
     let rate_limit_fn = middleware::rate_limit_middleware(rate_limiter, state.metrics.clone());
@@ -90,21 +90,32 @@ async fn main() {
         .layer(from_fn(rate_limit_fn))
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind(&bind_address)
-        .await
-        .expect("failed to bind TCP listener");
-    tracing::info!(
-        "listening on {}",
-        listener.local_addr().expect("listener has local addr")
-    );
+    let listener = match tokio::net::TcpListener::bind(&bind_address).await {
+        Ok(l) => l,
+        Err(e) => {
+            tracing::error!("failed to bind TCP listener on {}: {}", bind_address, e);
+            std::process::exit(1);
+        }
+    };
+    let local_addr = match listener.local_addr() {
+        Ok(addr) => addr,
+        Err(e) => {
+            tracing::error!("failed to read local address: {}", e);
+            std::process::exit(1);
+        }
+    };
+    tracing::info!("listening on {}", local_addr);
 
-    axum::serve(
+    if let Err(e) = axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .with_graceful_shutdown(shutdown_signal())
     .await
-    .expect("server error");
+    {
+        tracing::error!("server error: {}", e);
+        std::process::exit(1);
+    }
 }
 
 async fn shutdown_signal() {

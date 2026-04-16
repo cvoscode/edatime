@@ -93,6 +93,99 @@ fn cast_u64_to_usize(value: u64) -> usize {
     usize::try_from(value).unwrap_or(usize::MAX)
 }
 
+/// Extract a u64 aggregate column, cast to usize.
+fn read_u64_agg(agg: &DataFrame, col_name: &str) -> usize {
+    agg.column(col_name)
+        .ok()
+        .and_then(|s| s.u64().ok())
+        .and_then(|v| v.get(0))
+        .map(cast_u64_to_usize)
+        .unwrap_or(0)
+}
+
+/// Extract an f64 aggregate column.
+fn read_f64_agg(agg: &DataFrame, col_name: &str) -> Option<f64> {
+    agg.column(col_name)
+        .ok()
+        .and_then(|s| s.f64().ok())
+        .and_then(|v| v.get(0))
+}
+
+/// Extract an i64 aggregate column.
+fn read_i64_agg(agg: &DataFrame, col_name: &str) -> Option<i64> {
+    agg.column(col_name)
+        .ok()
+        .and_then(|s| s.i64().ok())
+        .and_then(|v| v.get(0))
+}
+
+/// Build a `ColumnProfile` from pre-computed aggregate columns.
+fn profile_from_aggregate(
+    agg: &DataFrame,
+    index: usize,
+    name: &str,
+    dtype: &DataType,
+) -> ColumnProfile {
+    let non_null_count = read_u64_agg(agg, &format!("__{index}_non_null"));
+    let null_count = read_u64_agg(agg, &format!("__{index}_null"));
+
+    let (min, max) = if dtype.is_numeric() {
+        (
+            read_f64_agg(agg, &format!("__{index}_min")),
+            read_f64_agg(agg, &format!("__{index}_max")),
+        )
+    } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
+        (
+            read_i64_agg(agg, &format!("__{index}_tmin"))
+                .map(|v| temporal::native_to_epoch_ms(v, dtype)),
+            read_i64_agg(agg, &format!("__{index}_tmax"))
+                .map(|v| temporal::native_to_epoch_ms(v, dtype)),
+        )
+    } else {
+        (None, None)
+    };
+
+    ColumnProfile {
+        name: name.to_string(),
+        dtype: dtype.to_string(),
+        non_null_count,
+        null_count,
+        min,
+        max,
+        histogram: None,
+    }
+}
+
+/// Resolve a `TimeRange` from aggregate columns for a detected time column.
+fn time_range_from_aggregate(
+    agg: &DataFrame,
+    index: usize,
+    dtype: &DataType,
+    is_override: bool,
+) -> Option<TimeRange> {
+    if is_override || matches!(dtype, DataType::Int64 | DataType::Int32) {
+        // Numeric / overridden time columns: read as f64, round to i64,
+        // then apply the integer heuristic in `native_to_epoch_ms`.
+        let min_raw = read_f64_agg(agg, &format!("__{index}_min"))?;
+        let max_raw = read_f64_agg(agg, &format!("__{index}_max"))?;
+        Some(TimeRange {
+            min: temporal::native_to_epoch_ms(min_raw.round() as i64, &DataType::Int64).round()
+                as i64,
+            max: temporal::native_to_epoch_ms(max_raw.round() as i64, &DataType::Int64).round()
+                as i64,
+        })
+    } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
+        let min_raw = read_i64_agg(agg, &format!("__{index}_tmin"))?;
+        let max_raw = read_i64_agg(agg, &format!("__{index}_tmax"))?;
+        Some(TimeRange {
+            min: temporal::native_to_epoch_ms(min_raw, dtype).round() as i64,
+            max: temporal::native_to_epoch_ms(max_raw, dtype).round() as i64,
+        })
+    } else {
+        None
+    }
+}
+
 fn build_dataset_metadata_from_lazyframe(
     lf: LazyFrame,
     time_column_override: Option<&str>,
@@ -189,70 +282,16 @@ fn build_dataset_metadata_from_lazyframe(
         ));
     }
 
-    let total_rows = aggregate
-        .column("__total_rows")
-        .ok()
-        .and_then(|series| series.u64().ok())
-        .and_then(|values| values.get(0))
-        .map(cast_u64_to_usize)
-        .unwrap_or(0);
+    let total_rows = read_u64_agg(&aggregate, "__total_rows");
 
     let mut column_profiles = Vec::with_capacity(schema.len());
     for (index, field) in schema.iter_fields().enumerate() {
-        let name = field.name().to_string();
-        let dtype = field.dtype().clone();
-        let non_null_count = aggregate
-            .column(&format!("__{index}_non_null"))
-            .ok()
-            .and_then(|series| series.u64().ok())
-            .and_then(|values| values.get(0))
-            .map(cast_u64_to_usize)
-            .unwrap_or(0);
-        let null_count = aggregate
-            .column(&format!("__{index}_null"))
-            .ok()
-            .and_then(|series| series.u64().ok())
-            .and_then(|values| values.get(0))
-            .map(cast_u64_to_usize)
-            .unwrap_or(0);
-
-        let mut profile = ColumnProfile {
-            name,
-            dtype: dtype.to_string(),
-            non_null_count,
-            null_count,
-            min: None,
-            max: None,
-            histogram: None,
-        };
-
-        if dtype.is_numeric() {
-            profile.min = aggregate
-                .column(&format!("__{index}_min"))
-                .ok()
-                .and_then(|series| series.f64().ok())
-                .and_then(|values| values.get(0));
-            profile.max = aggregate
-                .column(&format!("__{index}_max"))
-                .ok()
-                .and_then(|series| series.f64().ok())
-                .and_then(|values| values.get(0));
-        } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
-            profile.min = aggregate
-                .column(&format!("__{index}_tmin"))
-                .ok()
-                .and_then(|series| series.i64().ok())
-                .and_then(|values| values.get(0))
-                .map(|value| temporal::native_to_epoch_ms(value, &dtype));
-            profile.max = aggregate
-                .column(&format!("__{index}_tmax"))
-                .ok()
-                .and_then(|series| series.i64().ok())
-                .and_then(|values| values.get(0))
-                .map(|value| temporal::native_to_epoch_ms(value, &dtype));
-        }
-
-        column_profiles.push(profile);
+        column_profiles.push(profile_from_aggregate(
+            &aggregate,
+            index,
+            &field.name().to_string(),
+            field.dtype(),
+        ));
     }
 
     let time_range = time_col_name
@@ -264,70 +303,12 @@ fn build_dataset_metadata_from_lazyframe(
                 .find(|(_, field)| field.name().as_str() == time_col_name)
         })
         .and_then(|(index, field)| {
-            let dtype = field.dtype();
-
-            // For explicitly overridden time columns, we try to treat values as timestamps.
-            // For auto-detected temporal columns, use the normal path.
-            if time_column_override.is_some() {
-                let min_raw = aggregate
-                    .column(&format!("__{index}_min"))
-                    .ok()
-                    .and_then(|series| series.f64().ok())
-                    .and_then(|values| values.get(0));
-                let max_raw = aggregate
-                    .column(&format!("__{index}_max"))
-                    .ok()
-                    .and_then(|series| series.f64().ok())
-                    .and_then(|values| values.get(0));
-
-                match (min_raw, max_raw) {
-                    (Some(min_raw), Some(max_raw)) => Some(TimeRange {
-                        min: temporal::native_to_epoch_ms(min_raw.round() as i64, &DataType::Int64).round()
-                            as i64,
-                        max: temporal::native_to_epoch_ms(max_raw.round() as i64, &DataType::Int64).round()
-                            as i64,
-                    }),
-                    _ => None,
-                }
-            } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
-                let min_raw = aggregate
-                    .column(&format!("__{index}_tmin"))
-                    .ok()
-                    .and_then(|series| series.i64().ok())
-                    .and_then(|values| values.get(0));
-                let max_raw = aggregate
-                    .column(&format!("__{index}_tmax"))
-                    .ok()
-                    .and_then(|series| series.i64().ok())
-                    .and_then(|values| values.get(0));
-                match (min_raw, max_raw) {
-                    (Some(min_raw), Some(max_raw)) => Some(TimeRange {
-                        min: temporal::native_to_epoch_ms(min_raw, &dtype).round() as i64,
-                        max: temporal::native_to_epoch_ms(max_raw, &dtype).round() as i64,
-                    }),
-                    _ => None,
-                }
-            } else if matches!(dtype, DataType::Int64 | DataType::Int32) {
-                let min_raw = aggregate
-                    .column(&format!("__{index}_min"))
-                    .ok()
-                    .and_then(|series| series.f64().ok())
-                    .and_then(|values| values.get(0));
-                let max_raw = aggregate
-                    .column(&format!("__{index}_max"))
-                    .ok()
-                    .and_then(|series| series.f64().ok())
-                    .and_then(|values| values.get(0));
-                match (min_raw, max_raw) {
-                    (Some(min_raw), Some(max_raw)) => Some(TimeRange {
-                        min: temporal::native_to_epoch_ms(min_raw.round() as i64, &dtype).round() as i64,
-                        max: temporal::native_to_epoch_ms(max_raw.round() as i64, &dtype).round() as i64,
-                    }),
-                    _ => None,
-                }
-            } else {
-                None
-            }
+            time_range_from_aggregate(
+                &aggregate,
+                index,
+                field.dtype(),
+                time_column_override.is_some(),
+            )
         });
 
     Ok(DatasetMetadata {

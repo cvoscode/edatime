@@ -8,7 +8,7 @@ import {
   getDefaultProfileColumnWidths,
   normalizeDtypeLabel,
   toFiniteNumberOrNull
-} from "./chunk-DJBC4VTI.js";
+} from "./chunk-EXJWZBL5.js";
 
 // frontend/src/ui/profile.ts
 function hydrateColumnProfiles(metadata) {
@@ -310,4 +310,4 @@ export {
   renderColumnProfilesGrid,
   initColumnProfilesGrid
 };
-//# sourceMappingURL=chunk-Y2YVH4CB.js.map
+//# sourceMappingURL=chunk-DTP7LXTH.js.map

@@ -1,0 +1,150 @@
+/* ─── Modals ──────────────────────────────────────────────────── */
+.modal-backdrop[hidden] { display: none; }
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 200;
+  background: rgba(8, 11, 20, 0.72);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.modal {
+  width: min(560px, 100%);
+  background: rgba(18, 23, 38, 0.97);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--border);
+}
+.modal-title { font-weight: 700; font-size: 0.875rem; letter-spacing: -0.2px; }
+.modal-body  { padding: 16px; display: grid; gap: 14px; }
+.modal-field { display: grid; gap: 6px; }
+.modal-label {
+  font-size: 0.6875rem;
+  color: var(--text-dim);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modal-range-stack  { display: grid; gap: 10px; }
+.modal-range-values { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.modal-range-value {
+  min-width: 72px;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 168, 255, 0.08);
+  border: 1px solid rgba(0, 168, 255, 0.20);
+  color: var(--text);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.modal-range-dual { position: relative; height: 30px; }
+
+/* .modal-input / .modal-select extend the base control with full width */
+.modal-input,
+.modal-select { width: 100%; }
+
+/* ─── Dual range slider ───────────────────────────────────────── */
+.modal-range-input {
+  width: 100%;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+}
+.modal-range-input--min,
+.modal-range-input--max {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  background: transparent;
+  z-index: 2;
+}
+.modal-range-input--min::-webkit-slider-thumb,
+.modal-range-input--max::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  pointer-events: auto;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  margin-top: -6px;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  border: 2px solid rgba(255, 255, 255, 0.30);
+  box-shadow: 0 0 8px rgba(0, 168, 255, 0.40);
+}
+.modal-range-input--min::-moz-range-thumb,
+.modal-range-input--max::-moz-range-thumb {
+  pointer-events: auto;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  border: 2px solid rgba(255, 255, 255, 0.30);
+  box-shadow: 0 0 8px rgba(0, 168, 255, 0.40);
+}
+.modal-range-input::-webkit-slider-runnable-track { height: 6px; background: transparent; }
+.modal-range-input::-moz-range-track { height: 6px; background: transparent; border: 0; }
+
+.modal-range-track {
+  position: absolute;
+  left: 0; right: 0; top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+.modal-range-fill {
+  position: absolute;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--accent), var(--cyan));
+  box-shadow: 0 0 12px rgba(0, 168, 255, 0.35);
+  pointer-events: none;
+}
+.modal-range-captions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.6875rem;
+  color: var(--text-dim);
+}
+.modal-hint { font-size: 0.75rem; color: var(--text-muted); }
+.modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid var(--border);
+}
+.modal-actions-right { display: inline-flex; gap: 8px; }
+
+/* Scatter toolbar uses compact selects */
+.scatter-toolbar .modal-select,
+.scatter-toolbar select {
+  height: var(--ctrl-h-sm);
+  min-width: 0;
+  width: fit-content;
+  padding-left: 8px;
+}

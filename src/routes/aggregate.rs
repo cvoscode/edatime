@@ -22,12 +22,13 @@ pub async fn get_aggregate(
     tracing::info!("get_aggregate called with params: {:?}", params);
 
     validate_time_window(params.start, params.end)?;
+    let limits = &state.config.validation;
     if matches!(params.window_mode, AggregateWindowMode::Buckets) {
-        validate_bucket_count(params.buckets)?;
+        validate_bucket_count(params.buckets, limits)?;
     }
 
     let df = state.dataset_snapshot().await;
-    let value_cols = validate_numeric_columns(&df, &query::parse_columns(&params.columns))?;
+    let value_cols = validate_numeric_columns(&df, &query::parse_columns(&params.columns), limits)?;
 
     let multiplier = query::unit_multiplier_for_ts(&df)?;
     let dtype = query::ts_dtype(&df)?;

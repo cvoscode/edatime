@@ -71,6 +71,7 @@ export class DataChart {
 
     _overlayCanvas: HTMLCanvasElement | null = null;
     _overlayCtx: CanvasRenderingContext2D | null = null;
+    _drawingResizeObserver: ResizeObserver | null = null;
     _drawings: DrawItem[] = [];
     _currentDraw: DrawItem | null = null;
     _drawMode: string = 'none';
@@ -91,6 +92,12 @@ export class DataChart {
     }
 
     /* ── Public surface ─────────────────────────────────── */
+
+    destroy(): void {
+        this._drawingResizeObserver?.disconnect();
+        this._drawingResizeObserver = null;
+        this.chartInstance = null;
+    }
 
     setChartText(title: string, xLabel: string, yLabel: string): void {
         this._chartTitle = String(title ?? '').trim();
@@ -509,6 +516,7 @@ export class DataChart {
             }
         });
         ro.observe(container);
+        this._drawingResizeObserver = ro;
         container.appendChild(overlay);
         this._overlayCanvas = overlay;
         this._overlayCtx = overlay.getContext('2d');

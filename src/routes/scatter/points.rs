@@ -14,9 +14,9 @@ use crate::state::AppState;
 use crate::validation::{validate_scatter_limit, validate_time_window};
 
 use super::{
-    ScatterPointsQuery, ScatterPointsResponse,
-    clamp_limit, collect_filtered_scatter_frame, parse_scatter_filters,
-    parse_scatter_line_filters, series_to_label_values, series_to_scatter_values,
+    ScatterPointsQuery, ScatterPointsResponse, clamp_limit, collect_filtered_scatter_frame,
+    parse_scatter_filters, parse_scatter_line_filters, series_to_label_values,
+    series_to_scatter_values,
 };
 
 // ── Internal types ───────────────────────────────────────────────────────────
@@ -123,7 +123,7 @@ async fn scatter_points_response(
     let filters = parse_scatter_filters(params.filters.as_deref())?;
     let line_filters = parse_scatter_line_filters(params.line_filters.as_deref())?;
     let limit = clamp_limit(params.limit);
-    validate_scatter_limit(limit)?;
+    validate_scatter_limit(limit, &state.config.validation)?;
     if let (Some(start_ms), Some(end_ms)) = (start, end) {
         let start_dt = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(start_ms as i64)
             .ok_or_else(|| {

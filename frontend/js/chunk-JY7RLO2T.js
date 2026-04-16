@@ -13,7 +13,7 @@ function downloadUrl(url, filename) {
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   downloadUrl(url, filename);
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1e3);
 }
 function getEl(id) {
   return document.getElementById(id);
@@ -25,4 +25,4 @@ export {
   downloadBlob,
   getEl
 };
-//# sourceMappingURL=chunk-QF7GDSH3.js.map
+//# sourceMappingURL=chunk-JY7RLO2T.js.map

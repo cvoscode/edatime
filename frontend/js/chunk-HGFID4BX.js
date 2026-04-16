@@ -3,14 +3,14 @@ import {
   computeDomains,
   fmt,
   isDistributionCompatibleColumn
-} from "./chunk-4C6INKRU.js";
-import {
-  getEl
-} from "./chunk-QF7GDSH3.js";
+} from "./chunk-L4I3JKPU.js";
 import {
   appState,
   buildAdaptiveLineFiltersForQuery
-} from "./chunk-DJBC4VTI.js";
+} from "./chunk-EXJWZBL5.js";
+import {
+  getEl
+} from "./chunk-JY7RLO2T.js";
 
 // frontend/src/scatter/state.ts
 var state = {
@@ -307,4 +307,4 @@ export {
   resetScatterContainer,
   ensureOptions
 };
-//# sourceMappingURL=chunk-ZSK3RYPG.js.map
+//# sourceMappingURL=chunk-HGFID4BX.js.map

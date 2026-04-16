@@ -21,10 +21,11 @@ pub async fn get_data(
     tracing::info!("get_data called with params: {:?}", params);
 
     validate_time_window(params.start, params.end)?;
-    validate_width(params.width)?;
+    let limits = &state.config.validation;
+    validate_width(params.width, limits)?;
 
     let df = state.dataset_snapshot().await;
-    let value_cols = validate_numeric_columns(&df, &query::parse_columns(&params.columns))?;
+    let value_cols = validate_numeric_columns(&df, &query::parse_columns(&params.columns), limits)?;
 
     let color_column = params
         .color_column

@@ -1,0 +1,84 @@
+/* ─── Toolbars ────────────────────────────────────────────────── */
+/*
+   .toolbar-group          — flex row of related controls
+   .toolbar-group--sep     — adds a left border separator
+   .toolbar-group--push    — pushes content to the right
+   .toolbar-label          — uppercase micro label inside a toolbar
+*/
+.toolbar {
+  flex-shrink: 0;
+  background: rgba(11, 15, 24, 0.90);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.range-toolbar {
+  flex-shrink: 0;
+  background: rgba(11, 15, 24, 0.88);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 20px;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+}
+
+.analysis-toolbar {
+  flex-shrink: 0;
+  background: rgba(11, 15, 24, 0.88);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.analysis-controls { display: inline-flex; align-items: center; gap: 8px; }
+.analysis-controls .btn { padding: 4px 10px; }
+.analysis-stats { display: flex; align-items: center; gap: 14px; min-width: 0; overflow-x: auto; }
+.analysis-stats span { font-size: 0.6875rem; color: var(--text-dim); white-space: nowrap; }
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.toolbar-group--sep {
+  padding-left: 12px;
+  margin-left: 4px;
+  border-left: 1px solid var(--border);
+}
+.toolbar-group--push { margin-left: auto; }
+
+.draw-toolbar   { flex-shrink: 0; }
+.export-toolbar { flex-shrink: 0; }
+
+.toolbar-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Column filter */
+.column-filter-input { width: 220px; }
+.upload-preview-head .column-filter-input { width: 220px; }
+
+/* Draw toolbar — specific overrides */
+#draw-color   { width: 24px; height: 24px; flex-shrink: 0; }
+#draw-width   { width: 44px; }
+
+/* Label inputs */
+#chart-title-input   { width: 140px; }
+#x-axis-label-input,
+#y-axis-label-input  { width: 90px; }

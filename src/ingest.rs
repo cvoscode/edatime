@@ -16,6 +16,9 @@ pub struct IngestParams {
     pub selected_columns: Option<Vec<String>>,
     /// Explicit time column name, bypassing auto-detection.
     pub time_column: Option<String>,
+    /// Explicit epoch unit for integer time columns: "s", "ms", "us", "ns".
+    /// When set, skips the max-abs heuristic.
+    pub time_unit: Option<String>,
 }
 
 pub fn load_dataframe<P: AsRef<Path>>(path: P) -> PolarsResult<DataFrame> {
@@ -136,34 +139,48 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
             DataType::Int64 | DataType::Int32 | DataType::UInt64 | DataType::UInt32
         )
     {
-        // Determine the epoch unit by finding the max absolute value with a
-        // single streaming pass over only the ts column.
-        let probe = lf
-            .clone()
-            .select([col("ts").cast(DataType::Int64).max().alias("m")])
-            .collect()
-            .map_err(|e| PolarsError::ComputeError(format!("ts probe: {e}").into()))?;
-        let max_abs: i64 = probe
-            .column("m")
-            .ok()
-            .and_then(|s| s.get(0).ok())
-            .and_then(|v| match v {
-                AnyValue::Int64(n) => Some(n),
-                _ => None,
-            })
-            .unwrap_or(0);
-
         let mut ts_expr = col("ts").cast(DataType::Int64);
-        if max_abs > 0 {
-            if max_abs < 100_000_000_000 {
-                ts_expr = ts_expr * lit(1_000_i64); // seconds → ms
-            } else if max_abs >= 100_000_000_000_000_000 {
-                ts_expr = ts_expr / lit(1_000_000_i64); // ns → ms
-            } else if max_abs >= 100_000_000_000_000 {
-                ts_expr = ts_expr / lit(1_000_i64); // μs → ms
+
+        // If the caller provided an explicit time_unit, use it directly
+        // instead of probing the data.
+        if let Some(ref unit) = params.time_unit {
+            match unit.to_ascii_lowercase().as_str() {
+                "s" => ts_expr = ts_expr * lit(1_000_i64),
+                "ms" => {} // already milliseconds
+                "us" | "μs" => ts_expr = ts_expr / lit(1_000_i64),
+                "ns" => ts_expr = ts_expr / lit(1_000_000_i64),
+                _ => {} // unrecognised — fall through to heuristic below
             }
-            // else: already milliseconds
+        } else {
+            // Determine the epoch unit by finding the max absolute value with a
+            // single streaming pass over only the ts column.
+            let probe = lf
+                .clone()
+                .select([col("ts").cast(DataType::Int64).max().alias("m")])
+                .collect()
+                .map_err(|e| PolarsError::ComputeError(format!("ts probe: {e}").into()))?;
+            let max_abs: i64 = probe
+                .column("m")
+                .ok()
+                .and_then(|s| s.get(0).ok())
+                .and_then(|v| match v {
+                    AnyValue::Int64(n) => Some(n),
+                    _ => None,
+                })
+                .unwrap_or(0);
+
+            if max_abs > 0 {
+                if max_abs < 100_000_000_000 {
+                    ts_expr = ts_expr * lit(1_000_i64); // seconds → ms
+                } else if max_abs >= 100_000_000_000_000_000 {
+                    ts_expr = ts_expr / lit(1_000_000_i64); // ns → ms
+                } else if max_abs >= 100_000_000_000_000 {
+                    ts_expr = ts_expr / lit(1_000_i64); // μs → ms
+                }
+                // else: already milliseconds
+            }
         }
+
         lf = lf.with_column(
             ts_expr
                 .cast(DataType::Datetime(TimeUnit::Milliseconds, None))

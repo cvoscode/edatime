@@ -37,10 +37,44 @@ async function ensureArrowParser(): Promise<TableFromIPCFn> {
     }
 }
 
+// ── Runtime response guards ──────────────────────────────────────────────────
+
+function isObject(v: unknown): v is Record<string, unknown> {
+    return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function assertDatasetMetadata(data: unknown): asserts data is DatasetMetadata {
+    if (!isObject(data)) throw new Error('Metadata response is not an object');
+    if (typeof (data as any).total_rows !== 'number') throw new Error('Metadata missing total_rows');
+    if (!Array.isArray((data as any).columns)) throw new Error('Metadata missing columns array');
+    if (!Array.isArray((data as any).numeric_columns)) throw new Error('Metadata missing numeric_columns');
+}
+
+function assertScatterPoints(data: unknown): asserts data is ScatterPointsResponse {
+    if (!isObject(data)) throw new Error('Scatter points response is not an object');
+    if (typeof (data as any).x !== 'string') throw new Error('Scatter response missing x column name');
+    if (typeof (data as any).y !== 'string') throw new Error('Scatter response missing y column name');
+    if (!Array.isArray((data as any).points)) throw new Error('Scatter response missing points array');
+}
+
+function assertScatterCorrelations(data: unknown): asserts data is ScatterCorrelationsResponse {
+    if (!isObject(data)) throw new Error('Correlations response is not an object');
+    if (!Array.isArray((data as any).correlations)) throw new Error('Correlations response missing correlations array');
+}
+
+function assertDistributions(data: unknown): asserts data is DistributionsResponse {
+    if (!isObject(data)) throw new Error('Distributions response is not an object');
+    if (!Array.isArray((data as any).columns)) throw new Error('Distributions response missing columns array');
+}
+
+// ── Fetch helpers ────────────────────────────────────────────────────────────
+
 export async function fetchMetadata(): Promise<DatasetMetadata> {
     const res = await fetch('/api/metadata');
     if (!res.ok) throw new Error('Metadata check failed');
-    return await res.json();
+    const data = await res.json();
+    assertDatasetMetadata(data);
+    return data;
 }
 
 export async function fetchData(
@@ -119,9 +153,14 @@ export async function fetchData(
         if (value instanceof Date) return value.getTime();
         const numericValue = typeof value === 'bigint' ? Number(value) : Number(value);
         const abs = Math.abs(numericValue);
+        // Thresholds aligned with backend (ingest.rs):
+        //   < 1e11  → seconds  → × 1000
+        //   1e11–1e14 → milliseconds (passthrough)
+        //   1e14–1e17 → microseconds → ÷ 1000
+        //   >= 1e17 → nanoseconds → ÷ 1e6
         if (abs >= 1e17) return numericValue / 1e6;
         if (abs >= 1e14) return numericValue / 1e3;
-        if (abs >= 1e12) return numericValue;
+        if (abs >= 1e11) return numericValue;
         return numericValue * 1e3;
     }
 
@@ -248,7 +287,9 @@ export async function fetchScatterPoints(
         const text = await res.text().catch(() => '');
         throw new Error(`Scatter points fetch failed (${res.status}) ${text}`);
     }
-    return res.json();
+    const data = await res.json();
+    assertScatterPoints(data);
+    return data;
 }
 
 export async function fetchScatterCorrelations(
@@ -267,7 +308,9 @@ export async function fetchScatterCorrelations(
         const text = await res.text().catch(() => '');
         throw new Error(`Scatter correlations fetch failed (${res.status}) ${text}`);
     }
-    return res.json();
+    const data = await res.json();
+    assertScatterCorrelations(data);
+    return data;
 }
 
 export async function fetchDistributions(
@@ -294,5 +337,7 @@ export async function fetchDistributions(
         const text = await res.text().catch(() => '');
         throw new Error(`Distributions fetch failed (${res.status}) ${text}`);
     }
-    return res.json();
+    const data = await res.json();
+    assertDistributions(data);
+    return data;
 }

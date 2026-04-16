@@ -80,7 +80,15 @@ pub fn compute_column_stats(values: &[f64]) -> ColumnStats {
     let min = values.iter().cloned().fold(f64::INFINITY, f64::min);
     let max = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
     let mean = values.iter().sum::<f64>() / n;
-    let variance = values.iter().map(|&v| (v - mean).powi(2)).sum::<f64>() / n;
+    // Two-pass variance (numerically stable for large/small values).
+    let variance = values
+        .iter()
+        .map(|&v| {
+            let d = v - mean;
+            d * d
+        })
+        .sum::<f64>()
+        / n;
     let std_dev = variance.sqrt();
 
     let mut sorted = values.to_vec();

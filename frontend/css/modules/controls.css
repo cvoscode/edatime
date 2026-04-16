@@ -1,0 +1,125 @@
+/* ─── Controls — unified base for ALL inputs / selects ───────── */
+/*
+   Every form control shares one visual spec:
+     • transparent-dark background
+     • 1px var(--border) border
+     • accent focus ring (border + soft box-shadow)
+     • unified height via --ctrl-h tokens
+     • same font, border-radius, color
+
+   Compact variant:
+     .ctrl-sm  → height --ctrl-h-sm (28 px) — also applied to .toolbar controls
+*/
+input[type="text"],
+input[type="number"],
+input[type="datetime-local"],
+select {
+  height: var(--ctrl-h);
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.75rem;
+  outline: none;
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    box-shadow var(--transition);
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="datetime-local"]:focus,
+select:focus {
+  border-color: var(--accent);
+  background: rgba(0, 168, 255, 0.05);
+  box-shadow: 0 0 0 3px rgba(0, 168, 255, 0.12);
+}
+
+/* Placeholder */
+input::placeholder { color: var(--text-muted); }
+
+/* Select — custom chevron, no native arrow */
+select {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23788BAE' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 10px 6px;
+}
+
+/* Compact controls — any control inside a .toolbar */
+.toolbar select,
+.toolbar input[type="text"],
+.toolbar input[type="number"],
+.ctrl-sm {
+  height: var(--ctrl-h-sm);
+}
+
+/* Number field */
+input[type="number"] { width: 80px; }
+
+/* Datetime */
+input[type="datetime-local"] { width: 100%; }
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(72%) sepia(8%) saturate(395%) hue-rotate(184deg) brightness(96%) contrast(88%);
+}
+
+/* Range */
+input[type="range"] {
+  -webkit-appearance: none;
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: box-shadow var(--transition);
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 0 4px rgba(0, 168, 255, 0.20);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border: none;
+  border-radius: 50%;
+}
+
+.range-value {
+  font-size: 0.6875rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  min-width: 60px;
+  text-align: right;
+}
+
+/* Color swatch */
+input[type="color"] {
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* Checkbox */
+input[type="checkbox"] { accent-color: var(--accent); }

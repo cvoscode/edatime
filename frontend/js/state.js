@@ -24,7 +24,8 @@ import {
   setMetaText,
   setSeriesColor,
   toFiniteNumberOrNull
-} from "./chunk-DJBC4VTI.js";
+} from "./chunk-EXJWZBL5.js";
+import "./chunk-JY7RLO2T.js";
 import "./chunk-LZAZQ2R3.js";
 export {
   PROFILE_COLUMNS,

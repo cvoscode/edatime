@@ -32,7 +32,8 @@ pub async fn export_parquet(
     validate_time_window(params.start, params.end)?;
 
     let df = state.dataset_snapshot().await;
-    let value_cols = validate_numeric_columns(&df, &query::parse_columns(&params.columns))?;
+    let limits = &state.config.validation;
+    let value_cols = validate_numeric_columns(&df, &query::parse_columns(&params.columns), limits)?;
     let filters = parse_range_filters(params.filters.as_deref())?;
     let line_filters = parse_line_filters(params.line_filters.as_deref())?;
 
@@ -40,13 +41,7 @@ pub async fn export_parquet(
     let end_ms = params.end.timestamp_millis() as f64;
 
     let filtered = tokio::task::spawn_blocking(move || {
-        let lf = apply_filters(
-            &df,
-            Some(start_ms),
-            Some(end_ms),
-            &filters,
-            &line_filters,
-        )?;
+        let lf = apply_filters(&df, Some(start_ms), Some(end_ms), &filters, &line_filters)?;
 
         let mut select_exprs = vec![col("ts")];
         for col_name in &value_cols {

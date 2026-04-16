@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 use crate::temporal;
-use crate::validation::MAX_SCATTER_LIMIT;
 
 // Re-export filter types used by export.rs and other consumers.
 pub use crate::filters::{
@@ -68,7 +67,9 @@ fn default_scatter_limit() -> usize {
 }
 
 fn clamp_limit(limit: usize) -> usize {
-    limit.clamp(1, MAX_SCATTER_LIMIT)
+    use crate::config::ValidationSettings;
+    let max = ValidationSettings::default().max_scatter_limit;
+    limit.clamp(1, max)
 }
 
 fn numeric_columns(df: &DataFrame) -> Vec<String> {

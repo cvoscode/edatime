@@ -13,20 +13,7 @@ import {
     getDefaultProfileColumnWidths, formatCount, formatProfileValue,
     normalizeDtypeLabel, toFiniteNumberOrNull,
 } from '../state.js';
-import type { DatasetMetadata } from '../types.js';
-
-// ─── Internal profile row shape (matches original JS) ───────────────────────
-
-interface ProfileRow {
-    name: string;
-    dtype: string;
-    nonNullCount: number;
-    nullCount: number;
-    min: number | null;
-    max: number | null;
-    histCounts: number[];
-    [key: string]: unknown;
-}
+import type { DatasetMetadata, ProfileRow } from '../types.js';
 
 // ─── Hydrate column profiles from metadata ──────────────────────────────────
 

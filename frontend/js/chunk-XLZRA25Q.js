@@ -4,7 +4,7 @@ import {
   getPlotMetrics,
   setStats,
   state
-} from "./chunk-ZSK3RYPG.js";
+} from "./chunk-HGFID4BX.js";
 import {
   buildCategoricalColorGroups,
   buildHistogramForDomain,
@@ -17,11 +17,11 @@ import {
   paletteForScale,
   sampleGradient,
   upperBoundByX
-} from "./chunk-4C6INKRU.js";
+} from "./chunk-L4I3JKPU.js";
 import {
   escapeHtml,
   getEl
-} from "./chunk-QF7GDSH3.js";
+} from "./chunk-JY7RLO2T.js";
 import {
   formatTimestamp,
   formatTwoDecimals
@@ -538,4 +538,4 @@ export {
   initSelectionZoom,
   syncModeUI
 };
-//# sourceMappingURL=chunk-G3PM6XSE.js.map
+//# sourceMappingURL=chunk-XLZRA25Q.js.map

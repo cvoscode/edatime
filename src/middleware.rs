@@ -21,6 +21,9 @@ const FORWARDED_HEADERS: &[&str] = &[
 
 /// Resolve the client IP address from proxy headers, falling back to the
 /// direct TCP peer address recorded in [`ConnectInfo`].
+///
+/// The returned string is sanitised to avoid log-injection attacks (newlines,
+/// control characters and excess length are stripped).
 pub fn extract_client_ip(req: &axum::extract::Request) -> String {
     let headers = req.headers();
 
@@ -32,7 +35,7 @@ pub fn extract_client_ip(req: &axum::extract::Request) -> String {
             .map(str::trim)
             .filter(|v| !v.is_empty())
         {
-            return ip.to_string();
+            return sanitize_ip(ip);
         }
     }
 
@@ -40,6 +43,16 @@ pub fn extract_client_ip(req: &axum::extract::Request) -> String {
         .get::<ConnectInfo<SocketAddr>>()
         .map(|info| info.0.ip().to_string())
         .unwrap_or_else(|| "unknown".to_string())
+}
+
+/// Strip control characters, newlines, and clamp length to prevent
+/// log injection from spoofed proxy headers.
+fn sanitize_ip(raw: &str) -> String {
+    const MAX_IP_LEN: usize = 45; // max IPv6 textual length
+    raw.chars()
+        .filter(|c| !c.is_control())
+        .take(MAX_IP_LEN)
+        .collect()
 }
 
 /// Rate-limiting middleware that integrates with [`AppMetrics`].
@@ -107,11 +120,30 @@ pub fn rate_limit_middleware(
 }
 
 /// Content-Security-Policy value applied to all responses.
-pub fn csp_header_value() -> HeaderValue {
-    HeaderValue::from_static(
-        "default-src 'self' unpkg.com esm.sh; \
-         script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh; \
+///
+/// `extra_origins` are appended to every directive that references external
+/// hosts (default-src, script-src, connect-src).  The built-in origins
+/// (`unpkg.com`, `esm.sh`) are always included.
+pub fn csp_header_value(extra_origins: &[String]) -> HeaderValue {
+    let extra = if extra_origins.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", extra_origins.join(" "))
+    };
+    let value = format!(
+        "default-src 'self' unpkg.com esm.sh{extra}; \
+         script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh{extra}; \
          style-src 'self' 'unsafe-inline'; \
-         connect-src 'self' unpkg.com esm.sh blob:;",
-    )
+         connect-src 'self' unpkg.com esm.sh{extra} blob:;"
+    );
+    HeaderValue::from_str(&value).unwrap_or_else(|_| {
+        // Fall back to the static default when the user-supplied origins
+        // contain characters that are invalid in a header value.
+        HeaderValue::from_static(
+            "default-src 'self' unpkg.com esm.sh; \
+             script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh; \
+             style-src 'self' 'unsafe-inline'; \
+             connect-src 'self' unpkg.com esm.sh blob:;",
+        )
+    })
 }

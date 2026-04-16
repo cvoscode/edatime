@@ -129,7 +129,7 @@ async fn extract_upload_parts(
                     )?;
                     temp_file
                         .as_mut()
-                        .expect("upload temp file should exist")
+                        .ok_or_else(|| AppError::internal("Upload temp file unexpectedly absent"))?
                         .write_all(&chunk)
                         .map_err(|error| AppError::io(error.to_string()))?;
                 }
@@ -194,7 +194,7 @@ async fn extract_preview_file(
                     )?;
                     temp_file
                         .as_mut()
-                        .expect("preview temp file should exist")
+                        .ok_or_else(|| AppError::internal("Preview temp file unexpectedly absent"))?
                         .write_all(&chunk)
                         .map_err(|error| AppError::io(error.to_string()))?;
                 }

@@ -2,12 +2,12 @@ import {
   buildColumnToggles,
   buildRangeControls,
   initColumnFilterModal
-} from "./chunk-46CWFQDH.js";
+} from "./chunk-TLAAIWSJ.js";
 import {
   hydrateColumnProfiles,
   initColumnProfilesGrid,
   renderColumnProfilesGrid
-} from "./chunk-Y2YVH4CB.js";
+} from "./chunk-DTP7LXTH.js";
 import {
   bindAnalysisChartEvents,
   getCurrentView,
@@ -19,24 +19,25 @@ import {
   updateAnalysisYRange,
   updateAnalysisZoom,
   zoomOut
-} from "./chunk-YMX7HW53.js";
+} from "./chunk-C2NSY6HO.js";
 import {
   applyPartialTimeRangeFromMetadata,
   initUploadPanel,
   setUploadPreviewStatus
-} from "./chunk-26FFPJIT.js";
-import "./chunk-QF7GDSH3.js";
+} from "./chunk-HHYYDIYU.js";
 import {
   FallbackChart
-} from "./chunk-MRDWG7JI.js";
+} from "./chunk-BDAK4F5V.js";
 import {
   appState,
   applyColumnRanges,
+  buildAdaptiveLineY,
   buildMetaBar,
   ensureRangeStateFromData,
   sanitizeSelectedColumns,
   setMetaText
-} from "./chunk-DJBC4VTI.js";
+} from "./chunk-EXJWZBL5.js";
+import "./chunk-JY7RLO2T.js";
 import "./chunk-LZAZQ2R3.js";
 import {
   getChartType,
@@ -49,6 +50,12 @@ import {
 } from "./chunk-44BHGKBD.js";
 
 // frontend/src/app.ts
+var _appCleanups = [];
+function teardownApp() {
+  for (const fn of _appCleanups) fn();
+  _appCleanups.length = 0;
+  appState.chart?.destroy?.();
+}
 var fetchMetadata = null;
 var fetchData = null;
 var DataChartCtor = null;
@@ -152,14 +159,14 @@ function buildAdaptiveFilterFromPoints(column, firstPoint, secondPoint) {
   if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2) || x1 === x2) return null;
   const minX = Math.min(x1, x2);
   const maxX = Math.max(x1, x2);
-  const slope = (y2 - y1) / (x2 - x1);
+  const tempFilter = { column, x1, y1, x2, y2, keepAbove: true };
   let above = 0;
   let below = 0;
   for (let idx = 0; idx < xs.length; idx++) {
     const x = Number(xs[idx]);
     const y = Number(ys[idx]);
     if (!Number.isFinite(x) || !Number.isFinite(y) || x < minX || x > maxX) continue;
-    const lineY = y1 + (x - x1) * slope;
+    const lineY = buildAdaptiveLineY(tempFilter, x);
     if (!Number.isFinite(lineY)) continue;
     if (y >= lineY) above += 1;
     else below += 1;
@@ -207,19 +214,19 @@ function initAdaptiveFilterGesture() {
     appState.adaptiveLineFilters = [...appState.adaptiveLineFilters || [], filter];
     applyAdaptiveFiltersLocally();
   }, true);
-  window.addEventListener("keydown", (e) => {
+  const onEscape = (e) => {
     if (e.key === "Escape") {
       appState.pendingAdaptivePoint = null;
       appState.chart?.requestOverlayRender?.();
     }
-  });
-  window.addEventListener("keyup", (e) => {
+  };
+  const onCtrlUp = (e) => {
     if (e.key === "Control" && appState.pendingAdaptivePoint) {
       appState.pendingAdaptivePoint = null;
       appState.chart?.requestOverlayRender?.();
     }
-  });
-  window.addEventListener("edatime:adaptive-filters-change", () => {
+  };
+  const onAdaptiveChange = () => {
     if (!appState.lastFetchedData) return;
     buildRangeControls();
     renderCurrentData();
@@ -227,7 +234,15 @@ function initAdaptiveFilterGesture() {
     appState.chart?.fitYToData?.();
     const yr = appState.chart?.getYRange?.();
     if (yr) updateAnalysisYRange(yr.min, yr.max, "adaptive");
-  });
+  };
+  window.addEventListener("keydown", onEscape);
+  window.addEventListener("keyup", onCtrlUp);
+  window.addEventListener("edatime:adaptive-filters-change", onAdaptiveChange);
+  _appCleanups.push(
+    () => window.removeEventListener("keydown", onEscape),
+    () => window.removeEventListener("keyup", onCtrlUp),
+    () => window.removeEventListener("edatime:adaptive-filters-change", onAdaptiveChange)
+  );
   container.dataset.adaptiveBound = "1";
 }
 function emitChartRangeChange(sourceKind = "data") {
@@ -327,7 +342,7 @@ function showPage(pageName) {
 function initKeyboardShortcuts() {
   if (window.__edatime?.keyboardShortcutsBound) return;
   window.__edatime = window.__edatime || {};
-  window.addEventListener("keydown", (event) => {
+  const onKeydown = (event) => {
     if (event.defaultPrevented || isTypingTarget(event.target)) return;
     const key = String(event.key || "").toLowerCase();
     if (event.altKey && !event.ctrlKey && !event.metaKey) {
@@ -378,7 +393,9 @@ function initKeyboardShortcuts() {
       if (currentPageName() === "scatter") document.getElementById("scatter-export-csv-btn")?.click?.();
       else window.__edatime?.exportChartFilteredData?.("csv");
     }
-  });
+  };
+  window.addEventListener("keydown", onKeydown);
+  _appCleanups.push(() => window.removeEventListener("keydown", onKeydown));
   window.__edatime.keyboardShortcutsBound = true;
 }
 async function initScatterPageModule() {
@@ -491,4 +508,7 @@ async function init() {
   }
 }
 init();
+export {
+  teardownApp
+};
 //# sourceMappingURL=app.js.map

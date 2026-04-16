@@ -1,10 +1,10 @@
 import {
-  getEl
-} from "./chunk-QF7GDSH3.js";
-import {
   SERIES_COLORS,
   isTemporalDtype
-} from "./chunk-DJBC4VTI.js";
+} from "./chunk-EXJWZBL5.js";
+import {
+  getEl
+} from "./chunk-JY7RLO2T.js";
 import {
   formatTimestamp,
   formatTwoDecimals
@@ -520,4 +520,4 @@ export {
   drawDistributionCanvas,
   drawMiniScatterCanvas
 };
-//# sourceMappingURL=chunk-4C6INKRU.js.map
+//# sourceMappingURL=chunk-L4I3JKPU.js.map

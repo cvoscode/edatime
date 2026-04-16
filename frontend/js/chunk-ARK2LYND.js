@@ -1,12 +1,12 @@
 import {
   buildGroupedDistributionSeries
-} from "./chunk-FJVF4M2G.js";
+} from "./chunk-GWTW4UYR.js";
 import {
   buildOverviewContextKey,
   buildScatterQueryContext,
   currentControls,
   state
-} from "./chunk-ZSK3RYPG.js";
+} from "./chunk-HGFID4BX.js";
 import {
   MATRIX_MAX_COLUMNS,
   MATRIX_POINT_LIMIT,
@@ -16,14 +16,14 @@ import {
   drawMiniScatterCanvas,
   fmt,
   setPanelStatus
-} from "./chunk-4C6INKRU.js";
+} from "./chunk-L4I3JKPU.js";
 import {
   escapeHtml,
   getEl
-} from "./chunk-QF7GDSH3.js";
+} from "./chunk-JY7RLO2T.js";
 import {
   fetchScatterPoints
-} from "./chunk-J3CKBFCC.js";
+} from "./chunk-6RPKOPEP.js";
 
 // frontend/src/scatter/matrix.ts
 function buildOverviewColumns() {
@@ -59,6 +59,15 @@ async function fetchMatrixCellData(x, y, context, colorColumn) {
     throw error;
   });
   state.matrixCache.set(cacheKey, request);
+  const MAX_MATRIX_CACHE = 256;
+  if (state.matrixCache.size > MAX_MATRIX_CACHE) {
+    const keys = state.matrixCache.keys();
+    let toRemove = state.matrixCache.size - MAX_MATRIX_CACHE;
+    for (const k of keys) {
+      if (toRemove-- <= 0) break;
+      state.matrixCache.delete(k);
+    }
+  }
   return request;
 }
 async function selectMatrixPair(x, y, refreshCorrelations, renderScatter, setScatterView) {
@@ -195,4 +204,4 @@ export {
   renderScatterOverview,
   renderScatterMatrixView
 };
-//# sourceMappingURL=chunk-37CI75XC.js.map
+//# sourceMappingURL=chunk-ARK2LYND.js.map

@@ -1,6 +1,6 @@
 import {
   SERIES_COLORS
-} from "./chunk-DJBC4VTI.js";
+} from "./chunk-EXJWZBL5.js";
 
 // frontend/src/charts/fallback.ts
 var FallbackChart = class {
@@ -140,4 +140,4 @@ var FallbackChart = class {
 export {
   FallbackChart
 };
-//# sourceMappingURL=chunk-MRDWG7JI.js.map
+//# sourceMappingURL=chunk-BDAK4F5V.js.map

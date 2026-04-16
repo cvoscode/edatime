@@ -1,12 +1,8 @@
 use chrono::{DateTime, Utc};
 use polars::prelude::DataFrame;
 
+use crate::config::ValidationSettings;
 use crate::error::{AppError, ErrorCode};
-
-pub const MAX_SELECTED_COLUMNS: usize = 100;
-pub const MAX_VIEWPORT_WIDTH: usize = 20_000;
-pub const MAX_BUCKETS: usize = 10_000;
-pub const MAX_SCATTER_LIMIT: usize = 5_000_000;
 
 pub fn validate_time_window(start: DateTime<Utc>, end: DateTime<Utc>) -> Result<(), AppError> {
     if start >= end {
@@ -18,21 +14,24 @@ pub fn validate_time_window(start: DateTime<Utc>, end: DateTime<Utc>) -> Result<
     Ok(())
 }
 
-pub fn validate_width(width: usize) -> Result<(), AppError> {
-    if width == 0 || width > MAX_VIEWPORT_WIDTH {
+pub fn validate_width(width: usize, limits: &ValidationSettings) -> Result<(), AppError> {
+    if width == 0 || width > limits.max_viewport_width {
         return Err(AppError::bad_request_code(
             ErrorCode::InvalidWidth,
-            format!("Width must be between 1 and {} pixels", MAX_VIEWPORT_WIDTH),
+            format!(
+                "Width must be between 1 and {} pixels",
+                limits.max_viewport_width
+            ),
         ));
     }
     Ok(())
 }
 
-pub fn validate_bucket_count(buckets: usize) -> Result<(), AppError> {
-    if buckets == 0 || buckets > MAX_BUCKETS {
+pub fn validate_bucket_count(buckets: usize, limits: &ValidationSettings) -> Result<(), AppError> {
+    if buckets == 0 || buckets > limits.max_buckets {
         return Err(AppError::bad_request_code(
             ErrorCode::InvalidBuckets,
-            format!("Buckets must be between 1 and {}", MAX_BUCKETS),
+            format!("Buckets must be between 1 and {}", limits.max_buckets),
         ));
     }
     Ok(())
@@ -56,11 +55,14 @@ pub fn validate_window_ms(window_ms: i64, step_ms: Option<i64>) -> Result<(), Ap
     Ok(())
 }
 
-pub fn validate_scatter_limit(limit: usize) -> Result<(), AppError> {
-    if limit == 0 || limit > MAX_SCATTER_LIMIT {
+pub fn validate_scatter_limit(limit: usize, limits: &ValidationSettings) -> Result<(), AppError> {
+    if limit == 0 || limit > limits.max_scatter_limit {
         return Err(AppError::bad_request_code(
             ErrorCode::InvalidScatterLimit,
-            format!("Scatter limit must be between 1 and {}", MAX_SCATTER_LIMIT),
+            format!(
+                "Scatter limit must be between 1 and {}",
+                limits.max_scatter_limit
+            ),
         ));
     }
     Ok(())
@@ -85,13 +87,14 @@ pub fn validate_upload_size_with_limit(
 pub fn validate_numeric_columns(
     df: &DataFrame,
     columns: &[String],
+    limits: &ValidationSettings,
 ) -> Result<Vec<String>, AppError> {
-    if columns.len() > MAX_SELECTED_COLUMNS {
+    if columns.len() > limits.max_selected_columns {
         return Err(AppError::bad_request_code(
             ErrorCode::InvalidColumnSelection,
             format!(
                 "At most {} columns may be requested at once",
-                MAX_SELECTED_COLUMNS
+                limits.max_selected_columns
             ),
         ));
     }
@@ -136,7 +139,8 @@ mod tests {
 
     #[test]
     fn rejects_invalid_width() {
-        let err = validate_width(0).unwrap_err();
+        let limits = ValidationSettings::default();
+        let err = validate_width(0, &limits).unwrap_err();
         assert!(err.to_string().contains("Width must be"));
     }
 

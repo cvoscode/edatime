@@ -1,6 +1,6 @@
 import {
   getSeriesColor
-} from "./chunk-DJBC4VTI.js";
+} from "./chunk-EXJWZBL5.js";
 
 // frontend/src/chart/colorScale.ts
 var VIRIDIS = ["#440154", "#414487", "#2a788e", "#22a884", "#7ad151", "#fde725"];
@@ -119,4 +119,4 @@ export {
   buildColorizedSeries,
   baseSeriesName
 };
-//# sourceMappingURL=chunk-4MQ6TADT.js.map
+//# sourceMappingURL=chunk-BIOCGUSD.js.map

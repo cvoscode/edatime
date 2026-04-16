@@ -105,11 +105,23 @@ struct CacheEntry {
     response: CachedResponse,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct CacheState {
     entries: HashMap<String, CacheEntry>,
     order: VecDeque<String>,
     total_bytes: usize,
+    last_pruned: Instant,
+}
+
+impl Default for CacheState {
+    fn default() -> Self {
+        Self {
+            entries: HashMap::new(),
+            order: VecDeque::new(),
+            total_bytes: 0,
+            last_pruned: Instant::now(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -128,13 +140,13 @@ impl ResponseCache {
 
     pub async fn get(&self, key: &str) -> Option<CachedResponse> {
         let mut state = self.state.lock().await;
-        Self::prune_expired(&mut state, self.config.ttl);
+        self.maybe_prune(&mut state);
         state.entries.get(key).map(|entry| entry.response.clone())
     }
 
     pub async fn insert(&self, key: String, response: CachedResponse) {
         let mut state = self.state.lock().await;
-        Self::prune_expired(&mut state, self.config.ttl);
+        self.maybe_prune(&mut state);
 
         if let Some(previous) = state.entries.remove(&key) {
             state.total_bytes = state
@@ -162,6 +174,17 @@ impl ResponseCache {
             if let Some(entry) = state.entries.remove(&oldest_key) {
                 state.total_bytes = state.total_bytes.saturating_sub(entry.response.body_len());
             }
+        }
+    }
+
+    /// Only run the O(n) TTL sweep when at least half the TTL has elapsed
+    /// since the last prune, avoiding needless work on every cache access.
+    fn maybe_prune(&self, state: &mut CacheState) {
+        let now = Instant::now();
+        let half_ttl = self.config.ttl / 2;
+        if now.duration_since(state.last_pruned) >= half_ttl {
+            Self::prune_expired(state, self.config.ttl);
+            state.last_pruned = now;
         }
     }
 

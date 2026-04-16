@@ -2,17 +2,12 @@ import {
   Ad
 } from "../chunk-UUSB2KLH.js";
 import {
-  downloadBlob,
-  downloadUrl,
-  escapeHtml
-} from "../chunk-QF7GDSH3.js";
-import {
   VIRIDIS,
   analyzeColorValues,
   baseSeriesName,
   buildColorizedSeries,
   categoryColorFor
-} from "../chunk-4MQ6TADT.js";
+} from "../chunk-BIOCGUSD.js";
 import {
   niceLinearTicks,
   niceTimeTicks
@@ -21,7 +16,12 @@ import {
   appState,
   buildAdaptiveLineY,
   getSeriesColor
-} from "../chunk-DJBC4VTI.js";
+} from "../chunk-EXJWZBL5.js";
+import {
+  downloadBlob,
+  downloadUrl,
+  escapeHtml
+} from "../chunk-JY7RLO2T.js";
 import {
   formatTimeTooltip,
   formatTimestamp,
@@ -61,6 +61,7 @@ var DataChart = class {
   _yLabelEl = null;
   _overlayCanvas = null;
   _overlayCtx = null;
+  _drawingResizeObserver = null;
   _drawings = [];
   _currentDraw = null;
   _drawMode = "none";
@@ -74,6 +75,11 @@ var DataChart = class {
     this.chartInstance = null;
   }
   /* ── Public surface ─────────────────────────────────── */
+  destroy() {
+    this._drawingResizeObserver?.disconnect();
+    this._drawingResizeObserver = null;
+    this.chartInstance = null;
+  }
   setChartText(title, xLabel, yLabel) {
     this._chartTitle = String(title ?? "").trim();
     this._xAxisLabel = String(xLabel ?? "").trim();
@@ -450,6 +456,7 @@ var DataChart = class {
       }
     });
     ro.observe(container);
+    this._drawingResizeObserver = ro;
     container.appendChild(overlay);
     this._overlayCanvas = overlay;
     this._overlayCtx = overlay.getContext("2d");

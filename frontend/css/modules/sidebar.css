@@ -1,0 +1,108 @@
+/* ─── Sidebar & Nav ───────────────────────────────────────────── */
+.sidebar {
+  background: rgba(11, 15, 24, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-right: 1px solid var(--border);
+  padding: 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-spacer { flex: 1; }
+
+.sidebar-title {
+  font-weight: 800;
+  font-size: 0.875rem;
+  letter-spacing: -0.3px;
+  color: var(--text);
+  padding: 6px 10px 10px;
+}
+
+.nav-item {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    color var(--transition);
+}
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+.nav-item.active {
+  background: rgba(32, 226, 215, 0.07);
+  color: var(--text);
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 6px; bottom: 6px;
+  width: 3px;
+  background: var(--cyan);
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 8px rgba(32, 226, 215, 0.55);
+}
+
+.nav-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  flex-shrink: 0;
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    color var(--transition);
+}
+.nav-icon svg { width: 14px; height: 14px; }
+.nav-item.active .nav-icon {
+  background: rgba(32, 226, 215, 0.10);
+  border-color: rgba(32, 226, 215, 0.28);
+  color: var(--cyan);
+}
+
+.nav-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  flex: 1;
+}
+
+.nav-shortcut {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 5px;
+  min-width: 20px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-family: inherit;
+  flex-shrink: 0;
+  white-space: nowrap;
+}

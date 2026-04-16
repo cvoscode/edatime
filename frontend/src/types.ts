@@ -23,14 +23,14 @@ export interface ColumnProfile {
     count: number;
     non_null_count: number;
     null_count: number;
-    min: any;
-    max: any;
-    mean: any;
-    median: any;
-    std: any;
-    unique: any;
-    top: any;
-    freq: any;
+    min: number | string | null;
+    max: number | string | null;
+    mean: number | null;
+    median: number | null;
+    std: number | null;
+    unique: number | null;
+    top: string | null;
+    freq: number | null;
     histogram: Histogram | null;
 }
 
@@ -122,6 +122,18 @@ export interface DistributionsResponse {
 
 // ── State types ────────────────────────────────────────────────────────────
 
+/** Hydrated column profile as stored in app state (differs from raw API ColumnProfile). */
+export interface ProfileRow {
+    name: string;
+    dtype: string;
+    nonNullCount: number;
+    nullCount: number;
+    min: number | null;
+    max: number | null;
+    histCounts: number[];
+    [key: string]: unknown;
+}
+
 export interface ColumnRange {
     from: number;
     to: number;
@@ -179,7 +191,7 @@ export interface AppStateType {
     metadata: DatasetMetadata | null;
     numericCols: string[];
     seriesColors: Record<string, string>;
-    columnProfiles: any[];
+    columnProfiles: ProfileRow[];
     previewSelectedColumns: string[];
     previewTimeColumn: string | null;
     profileFilterText: string;

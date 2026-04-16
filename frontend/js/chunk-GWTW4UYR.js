@@ -8,7 +8,7 @@ import {
   getProfileHistogram,
   resolveSelectedDistributionColumn,
   state
-} from "./chunk-ZSK3RYPG.js";
+} from "./chunk-HGFID4BX.js";
 import {
   buildCategoricalColorGroups,
   buildHistogramFromValues,
@@ -20,17 +20,17 @@ import {
   formatValueForColumn,
   normalizeCategoryLabel,
   setPanelStatus
-} from "./chunk-4C6INKRU.js";
+} from "./chunk-L4I3JKPU.js";
 import {
   escapeHtml,
   getEl
-} from "./chunk-QF7GDSH3.js";
+} from "./chunk-JY7RLO2T.js";
 import {
   formatTwoDecimals
 } from "./chunk-LZAZQ2R3.js";
 import {
   fetchDistributions
-} from "./chunk-J3CKBFCC.js";
+} from "./chunk-6RPKOPEP.js";
 
 // frontend/src/scatter/distributions.ts
 function setDistributionStats(stats, column) {
@@ -250,4 +250,4 @@ export {
   fetchAndRenderDistributions,
   renderDistributionCards
 };
-//# sourceMappingURL=chunk-FJVF4M2G.js.map
+//# sourceMappingURL=chunk-GWTW4UYR.js.map

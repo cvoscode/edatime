@@ -13,6 +13,7 @@ pub struct AppConfig {
     pub rate_limit: RateLimitSettings,
     pub upload: UploadSettings,
     pub data: DataSettings,
+    pub validation: ValidationSettings,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -20,6 +21,7 @@ pub struct AppConfig {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
+    pub csp_extra_origins: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -49,6 +51,15 @@ pub struct DataSettings {
     pub sample_data_path: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct ValidationSettings {
+    pub max_selected_columns: usize,
+    pub max_viewport_width: usize,
+    pub max_buckets: usize,
+    pub max_scatter_limit: usize,
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -57,6 +68,7 @@ impl Default for AppConfig {
             rate_limit: RateLimitSettings::default(),
             upload: UploadSettings::default(),
             data: DataSettings::default(),
+            validation: ValidationSettings::default(),
         }
     }
 }
@@ -66,6 +78,7 @@ impl Default for ServerConfig {
         Self {
             host: "127.0.0.1".to_string(),
             port: 3000,
+            csp_extra_origins: Vec::new(),
         }
     }
 }
@@ -83,7 +96,9 @@ impl Default for CacheSettings {
 impl Default for RateLimitSettings {
     fn default() -> Self {
         Self {
-            max_requests: 120,
+            // High default — this is a local analytics tool; rate limiting guards
+            // against runaway loops, not public traffic.
+            max_requests: 1000,
             window_seconds: 60,
         }
     }
@@ -101,6 +116,17 @@ impl Default for DataSettings {
     fn default() -> Self {
         Self {
             sample_data_path: "sample.csv".to_string(),
+        }
+    }
+}
+
+impl Default for ValidationSettings {
+    fn default() -> Self {
+        Self {
+            max_selected_columns: 100,
+            max_viewport_width: 20_000,
+            max_buckets: 10_000,
+            max_scatter_limit: 5_000_000,
         }
     }
 }
@@ -129,7 +155,8 @@ impl AppConfig {
 
     fn apply_env_overrides(&mut self) {
         if let Ok(host) = env::var("EDATIME_HOST") {
-            if !host.trim().is_empty() {
+            let host = host.trim().to_string();
+            if !host.is_empty() {
                 self.server.host = host;
             }
         }
@@ -139,7 +166,8 @@ impl AppConfig {
             }
         }
         if let Ok(sample_data_path) = env::var("EDATIME_SAMPLE_DATA") {
-            if !sample_data_path.trim().is_empty() {
+            let sample_data_path = sample_data_path.trim().to_string();
+            if !sample_data_path.is_empty() {
                 self.data.sample_data_path = sample_data_path;
             }
         }

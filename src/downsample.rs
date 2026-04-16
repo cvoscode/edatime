@@ -53,24 +53,8 @@ pub fn downsample_dataframe_multi(
     cols.extend_from_slice(value_cols);
     cols.extend_from_slice(extra_cols);
 
-    let row_df = DataFrame::new(
-        selected_rows.len(),
-        vec![Series::new("row_nr".into(), selected_rows).into()],
-    )?
-    .lazy();
-
-    let out_df = df
-        .clone()
-        .lazy()
-        .with_row_index("row_nr", None)
-        .join(
-            row_df,
-            [col("row_nr")],
-            [col("row_nr")],
-            JoinArgs::new(JoinType::Inner),
-        )
-        .select(cols.iter().map(|c| col(*c)).collect::<Vec<_>>())
-        .collect()?;
+    let idx_ca = IdxCa::new("idx".into(), &selected_rows);
+    let out_df = df.select(cols)?.take(&idx_ca)?;
 
     Ok(out_df)
 }

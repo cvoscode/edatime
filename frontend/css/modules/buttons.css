@@ -1,0 +1,65 @@
+/* ─── Buttons ─────────────────────────────────────────────────── */
+/*
+   .btn            base
+   .btn-primary    filled accent gradient
+   .btn-ghost      transparent + border
+   .btn-danger     red tinted
+   .btn-sm         compact size for toolbars (composes with any variant)
+*/
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    box-shadow var(--transition),
+    transform var(--transition);
+}
+.btn svg { width: 14px; height: 14px; }
+
+.btn-primary {
+  background: linear-gradient(
+    135deg,
+    var(--accent),
+    color-mix(in srgb, var(--accent) 68%, var(--cyan))
+  );
+  color: #fff;
+}
+.btn-primary:hover {
+  box-shadow: 0 0 20px rgba(0, 168, 255, 0.40);
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-dim);
+  border-color: var(--border);
+}
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border-hi);
+  color: var(--text);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--red);
+  border-color: rgba(255, 107, 107, 0.28);
+}
+.btn-danger:hover { background: rgba(255, 107, 107, 0.08); }
+
+/* Compact size for all toolbar buttons */
+.btn-sm {
+  padding: 3px 9px;
+  font-size: 0.6875rem;
+}

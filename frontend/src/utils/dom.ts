@@ -20,11 +20,12 @@ export function downloadUrl(url: string, filename: string): void {
     document.body.removeChild(a);
 }
 
-/** Trigger a browser download for a Blob. Revokes the object URL after click. */
+/** Trigger a browser download for a Blob. Revokes the object URL after a short delay. */
 export function downloadBlob(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
     downloadUrl(url, filename);
-    URL.revokeObjectURL(url);
+    // Delay revocation so the browser has time to start the download.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /** Type-safe `getElementById` with a cast. */

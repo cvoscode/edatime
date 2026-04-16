@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EdaTime</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="css/style.css?v=34">
+  <link rel="stylesheet" href="css/style.css?v=38">
 </head>
 
 <body>
@@ -15,30 +15,73 @@
 
     <nav class="sidebar" id="sidebar">
       <div class="sidebar-title">EdaTime</div>
-      <button class="nav-item" type="button" data-page="upload" title="Upload">
-        <span class="nav-icon">U</span>
+      <button class="nav-item" type="button" data-page="upload" title="Upload (Alt+1)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3"/>
+            <polyline points="11 5 8 2 5 5"/>
+            <line x1="8" y1="2" x2="8" y2="11"/>
+          </svg>
+        </span>
         <span class="nav-text">Upload</span>
+        <kbd class="nav-shortcut">⌥1</kbd>
       </button>
-      <button class="nav-item active" type="button" data-page="timeseries" title="Timeseries">
-        <span class="nav-icon">T</span>
+      <button class="nav-item active" type="button" data-page="timeseries" title="Timeseries (Alt+2)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1,10 4,6 7,12 10,3 13,8 15,7"/>
+          </svg>
+        </span>
         <span class="nav-text">Timeseries</span>
+        <kbd class="nav-shortcut">⌥2</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="scatter" title="Scatter">
-        <span class="nav-icon">S</span>
+      <button class="nav-item" type="button" data-page="scatter" title="Scatter (Alt+3)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="4" cy="11" r="1.2"/>
+            <circle cx="8" cy="6" r="1.2"/>
+            <circle cx="12" cy="9" r="1.2"/>
+            <circle cx="6" cy="13" r="1.2"/>
+            <circle cx="11" cy="3" r="1.2"/>
+          </svg>
+        </span>
         <span class="nav-text">Scatter</span>
+        <kbd class="nav-shortcut">⌥3</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="scattermatrix" title="Scatter Matrix">
-        <span class="nav-icon">M</span>
+      <button class="nav-item" type="button" data-page="scattermatrix" title="Scatter Matrix (Alt+4)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="2" width="5" height="5" rx="1"/>
+            <rect x="9" y="2" width="5" height="5" rx="1"/>
+            <rect x="2" y="9" width="5" height="5" rx="1"/>
+            <rect x="9" y="9" width="5" height="5" rx="1"/>
+          </svg>
+        </span>
         <span class="nav-text">Matrix</span>
+        <kbd class="nav-shortcut">⌥4</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="distributions" title="Distributions">
-        <span class="nav-icon">D</span>
+      <button class="nav-item" type="button" data-page="distributions" title="Distributions (Alt+5)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="9" width="2.5" height="5" rx="0.5"/>
+            <rect x="6" y="5" width="2.5" height="9" rx="0.5"/>
+            <rect x="10" y="7" width="2.5" height="7" rx="0.5"/>
+            <rect x="14" y="11" width="0" height="0"/>
+          </svg>
+        </span>
         <span class="nav-text">Distributions</span>
+        <kbd class="nav-shortcut">⌥5</kbd>
       </button>
 
       <div class="sidebar-spacer"></div>
-      <button class="nav-item nav-collapse" id="sidebar-collapse-btn" type="button" title="Collapse">
-        <span class="nav-icon">≡</span>
+      <button class="nav-item nav-collapse" id="sidebar-collapse-btn" type="button" title="Collapse sidebar">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <line x1="2" y1="4" x2="14" y2="4"/>
+            <line x1="2" y1="8" x2="14" y2="8"/>
+            <line x1="2" y1="12" x2="14" y2="12"/>
+          </svg>
+        </span>
         <span class="nav-text">Collapse</span>
       </button>
     </nav>
@@ -57,78 +100,67 @@
         </div>
 
         <div class="header-meta" id="header-meta">
-          <div class="meta-stat" id="stat-rows"><span>Loading&hellip;</span></div>
+          <div class="meta-stat" id="stat-rows">
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="1" y="1" width="10" height="10" rx="1.5"/>
+              <line x1="1" y1="4.5" x2="11" y2="4.5"/>
+              <line x1="4" y1="4.5" x2="4" y2="11"/>
+            </svg>
+            <span>Loading&hellip;</span>
+          </div>
         </div>
       </header>
 
       <section class="page" id="page-timeseries" data-page-name="timeseries">
         <div class="toolbar">
-          <div class="toolbar-group" style="display:flex; align-items:center; gap:0.5rem;">
+          <div class="toolbar-group">
             <span class="toolbar-label">Series</span>
             <input type="text" id="column-filter-input" class="column-filter-input" placeholder="Filter columns…"
               aria-label="Filter columns">
             <div class="series-toggles" id="column-toggles"></div>
           </div>
-          <div class="toolbar-group draw-toolbar"
-            style="display:flex; align-items:center; gap:0.5rem; margin-left: auto;">
+          <div class="toolbar-group draw-toolbar toolbar-group--push">
             <span class="toolbar-label">Draw</span>
-            <select id="draw-tool" class="draw-select"
-              style="padding: 0.2rem; background: var(--surface-2); color: var(--text-1); border: 1px solid var(--border);">
+            <select id="draw-tool" class="draw-select" aria-label="Draw tool">
               <option value="none">None (Pan)</option>
               <option value="arrow">Arrow</option>
               <option value="box">Box</option>
             </select>
-            <input type="color" id="draw-color" value="#ff0055" title="Color"
-              style="cursor: pointer; padding: 0; width: 24px; height: 24px; background: none; border: none;">
-            <input type="number" id="draw-width" value="2" min="1" max="10" title="Thickness"
-              style="width: 40px; padding: 0.2rem; background: var(--surface-2); color: var(--text-1); border: 1px solid var(--border);">
-            <button class="btn btn-ghost" id="draw-clear-btn" type="button"
-              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Clear</button>
-            <button class="btn btn-ghost" id="adaptive-clear-btn" type="button"
-              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Clear Filter</button>
+            <input type="color" id="draw-color" value="#ff0055" title="Color">
+            <input type="number" id="draw-width" value="2" min="1" max="10" title="Thickness">
+            <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button">Clear</button>
+            <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button">Clear Filter</button>
           </div>
-          <div class="toolbar-group labels-toolbar"
-            style="display:flex; align-items:center; gap:0.35rem; margin-left: 0.5rem; border-left: 1px solid var(--border); padding-left: 0.5rem;">
+          <div class="toolbar-group labels-toolbar toolbar-group--sep">
             <span class="toolbar-label">Labels</span>
-            <input type="text" id="chart-title-input" placeholder="Title" aria-label="Chart title"
-              style="width: 140px; padding: 0.2rem 0.35rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
-            <input type="text" id="x-axis-label-input" placeholder="X" aria-label="X axis label"
-              style="width: 90px; padding: 0.2rem 0.35rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
-            <input type="text" id="y-axis-label-input" placeholder="Y" aria-label="Y axis label"
-              style="width: 90px; padding: 0.2rem 0.35rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+            <input type="text" id="chart-title-input" placeholder="Title" aria-label="Chart title">
+            <input type="text" id="x-axis-label-input" placeholder="X" aria-label="X axis label">
+            <input type="text" id="y-axis-label-input" placeholder="Y" aria-label="Y axis label">
           </div>
-          <div class="toolbar-group export-toolbar"
-            style="display:flex; align-items:center; gap:0.25rem; margin-left: 0.5rem; border-left: 1px solid var(--border); padding-left: 0.5rem;">
+          <div class="toolbar-group export-toolbar toolbar-group--sep">
             <span class="toolbar-label">Export</span>
-            <button class="btn btn-ghost" id="export-png-btn" type="button"
-              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">PNG</button>
-            <button class="btn btn-ghost" id="export-svg-btn" type="button"
-              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">SVG</button>
-            <button class="btn btn-ghost" id="export-html-btn" type="button"
-              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">HTML</button>
-            <button class="btn btn-ghost" id="export-data-csv-btn" type="button"
-              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">CSV</button>
-            <button class="btn btn-ghost" id="export-data-json-btn" type="button"
-              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">JSON</button>
-            <button class="btn btn-ghost" id="export-data-parquet-btn" type="button"
-              style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Parquet</button>
+            <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button">PNG</button>
+            <button class="btn btn-ghost btn-sm" id="export-svg-btn" type="button">SVG</button>
+            <button class="btn btn-ghost btn-sm" id="export-html-btn" type="button">HTML</button>
+            <button class="btn btn-ghost btn-sm" id="export-data-csv-btn" type="button">CSV</button>
+            <button class="btn btn-ghost btn-sm" id="export-data-json-btn" type="button">JSON</button>
+            <button class="btn btn-ghost btn-sm" id="export-data-parquet-btn" type="button">Parquet</button>
           </div>
         </div>
 
-        <main class="main" style="position: relative;">
+        <main class="main">
           <div id="main-chart"></div>
-          <div class="scatter-overlay-stack" style="width: 200px; z-index: 5;" id="timeseries-overlays">
-            <div id="timeseries-colorbar-wrap" class="scatter-colorbar-wrap" style="min-width: unset;" hidden>
-              <span id="timeseries-colorbar-name" class="scatter-colorbar-name" style="max-width: 100%;">Color</span>
-              <div class="scatter-colorbar-scale" style="grid-template-columns: auto 1fr auto;">
+          <div class="scatter-overlay-stack" id="timeseries-overlays">
+            <div id="timeseries-colorbar-wrap" class="scatter-colorbar-wrap scatter-colorbar-wrap--ts" hidden>
+              <span id="timeseries-colorbar-name" class="scatter-colorbar-name">Color</span>
+              <div class="scatter-colorbar-scale">
                 <span id="timeseries-colorbar-min" class="scatter-colorbar-bound">0</span>
-                <div id="timeseries-colorbar" class="scatter-colorbar" style="min-width: 30px;"></div>
+                <div id="timeseries-colorbar" class="scatter-colorbar"></div>
                 <span id="timeseries-colorbar-max" class="scatter-colorbar-bound">1</span>
               </div>
             </div>
-            <div id="timeseries-categorical-wrap" class="scatter-colorbar-wrap" style="min-width: unset;" hidden>
-              <span id="timeseries-categorical-name" class="scatter-colorbar-name"
-                style="max-width: 100%;">Category</span>
+            <div id="timeseries-categorical-wrap" class="scatter-colorbar-wrap scatter-colorbar-wrap--ts" hidden>
+              <span id="timeseries-categorical-name" class="scatter-colorbar-name">Category</span>
               <div id="timeseries-categorical-legend" class="scatter-distribution-legend" style="margin-top: 8px;">
               </div>
             </div>
@@ -138,7 +170,7 @@
 
       <section class="page" id="page-scatter" data-page-name="scatter" hidden>
         <div class="toolbar scatter-toolbar">
-          <div class="toolbar-group" style="display:flex; align-items:center; gap:0.5rem;">
+          <div class="toolbar-group">
             <span class="toolbar-label">Analytics</span>
             <label class="scatter-inline-label" for="scatter-x-col">X</label>
             <select id="scatter-x-col" class="modal-select" aria-label="Scatter X column"></select>
@@ -161,7 +193,7 @@
             </label>
           </div>
 
-          <div class="toolbar-group" style="display:flex; align-items:center; gap:0.5rem; margin-left:auto;">
+          <div class="toolbar-group toolbar-group--push">
             <div id="scatter-color-controls" class="scatter-toolbar-group-inline">
               <span class="toolbar-label">Color By</span>
               <select id="scatter-color-column" class="modal-select" aria-label="Scatter color-by column">
@@ -192,18 +224,12 @@
 
             <div class="scatter-toolbar-group-inline scatter-export-group">
               <span class="toolbar-label">Export</span>
-              <button class="btn btn-ghost" id="scatter-export-png-btn" type="button"
-                style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">PNG</button>
-              <button class="btn btn-ghost" id="scatter-export-svg-btn" type="button"
-                style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">SVG</button>
-              <button class="btn btn-ghost" id="scatter-export-html-btn" type="button"
-                style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">HTML</button>
-              <button class="btn btn-ghost" id="scatter-export-csv-btn" type="button"
-                style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">CSV</button>
-              <button class="btn btn-ghost" id="scatter-export-json-btn" type="button"
-                style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">JSON</button>
-              <button class="btn btn-ghost" id="scatter-export-parquet-btn" type="button"
-                style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Parquet</button>
+              <button class="btn btn-ghost btn-sm" id="scatter-export-png-btn" type="button">PNG</button>
+              <button class="btn btn-ghost btn-sm" id="scatter-export-svg-btn" type="button">SVG</button>
+              <button class="btn btn-ghost btn-sm" id="scatter-export-html-btn" type="button">HTML</button>
+              <button class="btn btn-ghost btn-sm" id="scatter-export-csv-btn" type="button">CSV</button>
+              <button class="btn btn-ghost btn-sm" id="scatter-export-json-btn" type="button">JSON</button>
+              <button class="btn btn-ghost btn-sm" id="scatter-export-parquet-btn" type="button">Parquet</button>
             </div>
           </div>
         </div>
@@ -250,8 +276,8 @@
         </div>
 
         <div class="scatter-view" data-scatter-view-panel="distributions" hidden>
-          <div class="scatter-panel" style="display:flex; gap:1rem;">
-            <div class="scatter-panel" style="flex:1;">
+          <div class="scatter-panel scatter-dist-layout">
+            <div class="scatter-panel scatter-dist-main">
               <div class="scatter-panel-head">
                 <span class="toolbar-label">Distributions</span>
                 <span id="scatter-distribution-status" class="scatter-panel-status">Histogram, KDE, or box plot for the
@@ -260,7 +286,7 @@
               <div id="scatter-distributions" class="scatter-distributions"></div>
             </div>
 
-            <div class="scatter-panel" style="width:300px;">
+            <div class="scatter-panel scatter-dist-stats">
               <div class="scatter-panel-head">
                 <span class="toolbar-label">Statistics</span>
               </div>
@@ -368,8 +394,7 @@
                 </div>
                 <div class="field-group">
                   <label for="time-column-select">Time column (optional)</label>
-                  <select id="time-column-select"
-                    style="width: 100%; padding: 0.4rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+                  <select id="time-column-select" class="modal-select" aria-label="Time column">
                     <option value="">Auto-detect</option>
                   </select>
                   <div class="time-range-hint">Select if multiple time-like columns exist.</div>

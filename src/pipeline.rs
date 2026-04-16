@@ -181,6 +181,9 @@ fn window_aggregate(
         per_col_values.push(values);
     }
 
+    // ts_vec is already sorted (DataFrame sorted on ingest).  Use
+    // partition_point (binary search) to find window bounds in O(log n)
+    // instead of O(n) per window.
     let mut out_ts: Vec<i64> = Vec::new();
     let mut out_cols: Vec<Vec<Option<f64>>> = vec![Vec::new(); value_cols.len()];
 
@@ -193,19 +196,15 @@ fn window_aggregate(
         let window_end = window_start.saturating_add(window_size_native);
         let midpoint = window_start.saturating_add(window_size_native / 2);
 
-        let mut window_indices = Vec::new();
-        for (idx, ts) in ts_vec.iter().enumerate() {
-            if *ts >= window_start && *ts < window_end {
-                window_indices.push(idx);
-            }
-        }
+        let lo = ts_vec.partition_point(|&ts| ts < window_start);
+        let hi = ts_vec.partition_point(|&ts| ts < window_end);
 
-        if !window_indices.is_empty() {
+        if lo < hi {
             out_ts.push(midpoint);
             for (col_idx, source_values) in per_col_values.iter().enumerate() {
                 let mut window_vals = Vec::new();
-                for idx in &window_indices {
-                    if let Some(value) = source_values.get(*idx).copied().flatten() {
+                for idx in lo..hi {
+                    if let Some(value) = source_values.get(idx).copied().flatten() {
                         window_vals.push(value);
                     }
                 }

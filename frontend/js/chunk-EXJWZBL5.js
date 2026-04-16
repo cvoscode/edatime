@@ -1,4 +1,7 @@
 import {
+  escapeHtml
+} from "./chunk-JY7RLO2T.js";
+import {
   formatTwoDecimals
 } from "./chunk-LZAZQ2R3.js";
 
@@ -145,7 +148,7 @@ function setMetaText(text) {
 function buildMetaBar(metadata) {
   const rows = metadata?.total_rows?.toLocaleString() ?? "?";
   const cols = appState.numericCols?.length ?? 0;
-  const series = appState.selectedCols.join(", ") || "\u2014";
+  const series = escapeHtml(appState.selectedCols.join(", ") || "\u2014");
   const el = document.getElementById("header-meta");
   if (el) {
     el.innerHTML = `
@@ -303,4 +306,4 @@ export {
   buildAdaptiveLineFiltersForQuery,
   applyColumnRanges
 };
-//# sourceMappingURL=chunk-DJBC4VTI.js.map
+//# sourceMappingURL=chunk-EXJWZBL5.js.map

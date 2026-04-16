@@ -1,0 +1,20 @@
+/* ─── Scrollbars ──────────────────────────────────────────────── */
+/*
+   Global default: hidden (0px). Visible scrollbars are opt-in
+   only on containers that actually need them.
+*/
+::-webkit-scrollbar          { width: 0; height: 0; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: rgba(255, 255, 255, 0.10); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.17); }
+
+/* Containers that need a visible scrollbar */
+.series-toggles::-webkit-scrollbar,
+.scatter-matrix::-webkit-scrollbar,
+.scatter-distributions::-webkit-scrollbar,
+.profile-grid-viewport::-webkit-scrollbar,
+.upload-inner::-webkit-scrollbar,
+.page-upload::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}

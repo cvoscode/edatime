@@ -67,6 +67,19 @@ export async function fetchMatrixCellData(
         .catch((error: any) => { state.matrixCache.delete(cacheKey); throw error; });
 
     state.matrixCache.set(cacheKey, request);
+
+    // Evict oldest entries when the cache exceeds a reasonable size to
+    // prevent unbounded memory growth on long-lived sessions.
+    const MAX_MATRIX_CACHE = 256;
+    if (state.matrixCache.size > MAX_MATRIX_CACHE) {
+        const keys = state.matrixCache.keys();
+        let toRemove = state.matrixCache.size - MAX_MATRIX_CACHE;
+        for (const k of keys) {
+            if (toRemove-- <= 0) break;
+            state.matrixCache.delete(k);
+        }
+    }
+
     return request;
 }
 

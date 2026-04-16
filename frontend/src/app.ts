@@ -20,6 +20,7 @@ import {
     appState, SERIES_COLORS,
     setMetaText, buildMetaBar, sanitizeSelectedColumns,
     ensureRangeStateFromData, applyColumnRanges,
+    buildAdaptiveLineY,
     formatAnalysisTime,
 } from './state.js';
 import { buildColumnToggles, buildRangeControls, initColumnFilterModal } from './ui/columns.js';
@@ -37,6 +38,15 @@ import { FallbackChart } from './charts/fallback.js';
 import type { DatasetMetadata } from './types.js';
 
 /* ── Lazy-loaded modules ──────────────────────────────── */
+
+const _appCleanups: Array<() => void> = [];
+
+/** Remove all global event listeners registered by the app. */
+export function teardownApp(): void {
+    for (const fn of _appCleanups) fn();
+    _appCleanups.length = 0;
+    appState.chart?.destroy?.();
+}
 
 let fetchMetadata: ((signal?: AbortSignal) => Promise<DatasetMetadata>) | null = null;
 let fetchData: ((...args: any[]) => Promise<any>) | null = null;
@@ -153,14 +163,14 @@ function buildAdaptiveFilterFromPoints(column: string, firstPoint: { x: number; 
     if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2) || x1 === x2) return null;
 
     const minX = Math.min(x1, x2); const maxX = Math.max(x1, x2);
-    const slope = (y2 - y1) / (x2 - x1);
+    const tempFilter = { column, x1, y1, x2, y2, keepAbove: true } as any;
     let above = 0; let below = 0;
     for (let idx = 0; idx < xs.length; idx++) {
         const x = Number(xs[idx]); const y = Number(ys[idx]);
         if (!Number.isFinite(x) || !Number.isFinite(y) || x < minX || x > maxX) continue;
-        const lineY = y1 + (x - x1) * slope;
-        if (!Number.isFinite(lineY)) continue;
-        if (y >= lineY) above += 1; else below += 1;
+        const lineY = buildAdaptiveLineY(tempFilter, x);
+        if (!Number.isFinite(lineY!)) continue;
+        if (y >= lineY!) above += 1; else below += 1;
     }
 
     return {
@@ -208,16 +218,25 @@ function initAdaptiveFilterGesture(): void {
         applyAdaptiveFiltersLocally();
     }, true);
 
-    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') { appState.pendingAdaptivePoint = null; appState.chart?.requestOverlayRender?.(); } });
-    window.addEventListener('keyup', (e) => { if (e.key === 'Control' && appState.pendingAdaptivePoint) { appState.pendingAdaptivePoint = null; appState.chart?.requestOverlayRender?.(); } });
-
-    window.addEventListener('edatime:adaptive-filters-change', () => {
+    const onEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') { appState.pendingAdaptivePoint = null; appState.chart?.requestOverlayRender?.(); } };
+    const onCtrlUp = (e: KeyboardEvent) => { if (e.key === 'Control' && appState.pendingAdaptivePoint) { appState.pendingAdaptivePoint = null; appState.chart?.requestOverlayRender?.(); } };
+    const onAdaptiveChange = () => {
         if (!appState.lastFetchedData) return;
         buildRangeControls(); renderCurrentData();
         appState.chart?.requestOverlayRender?.(); appState.chart?.fitYToData?.();
         const yr = appState.chart?.getYRange?.();
         if (yr) updateAnalysisYRange(yr.min, yr.max, 'adaptive');
-    });
+    };
+
+    window.addEventListener('keydown', onEscape);
+    window.addEventListener('keyup', onCtrlUp);
+    window.addEventListener('edatime:adaptive-filters-change', onAdaptiveChange as EventListener);
+
+    _appCleanups.push(
+        () => window.removeEventListener('keydown', onEscape),
+        () => window.removeEventListener('keyup', onCtrlUp),
+        () => window.removeEventListener('edatime:adaptive-filters-change', onAdaptiveChange as EventListener),
+    );
 
     (container as any).dataset.adaptiveBound = '1';
 }
@@ -344,7 +363,7 @@ function initKeyboardShortcuts(): void {
     if ((window as any).__edatime?.keyboardShortcutsBound) return;
     (window as any).__edatime = (window as any).__edatime || {};
 
-    window.addEventListener('keydown', (event) => {
+    const onKeydown = (event: KeyboardEvent) => {
         if (event.defaultPrevented || isTypingTarget(event.target)) return;
         const key = String(event.key || '').toLowerCase();
 
@@ -365,7 +384,10 @@ function initKeyboardShortcuts(): void {
             if (currentPageName() === 'scatter') document.getElementById('scatter-export-csv-btn')?.click?.();
             else (window as any).__edatime?.exportChartFilteredData?.('csv');
         }
-    });
+    };
+
+    window.addEventListener('keydown', onKeydown);
+    _appCleanups.push(() => window.removeEventListener('keydown', onKeydown));
 
     (window as any).__edatime.keyboardShortcutsBound = true;
 }

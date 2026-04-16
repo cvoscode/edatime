@@ -7,6 +7,7 @@ import {
     computeBounds, buildMetaBar, sanitizeSelectedColumns,
     getSeriesColor, setSeriesColor,
 } from '../state.js';
+import { escapeHtml } from '../utils/dom.js';
 
 // ─── Column toggles (chips) ─────────────────────────────────────────────────
 
@@ -59,11 +60,10 @@ export function buildColumnToggles(
     // Add color-by selector for time series point coloring.
     const colorControl = document.createElement('div');
     colorControl.className = 'series-color-selector';
-    colorControl.style.margin = '0.35rem 0 0.8rem';
     colorControl.innerHTML = `
-    <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.8rem;color:var(--text-muted);">
+    <label>
       <span>Color by</span>
-      <select id="color-column-select" style="flex:1;padding:0.2rem;border:1px solid var(--border);background:var(--surface-2);color:var(--text);border-radius:6px;"></select>
+      <select id="color-column-select" aria-label="Color-by column"></select>
     </label>
   `;
     container.appendChild(colorControl);
@@ -114,10 +114,10 @@ export function buildColumnToggles(
             ? `Adaptive filter target: ${col}`
             : `Ctrl+click to target adaptive filters to ${col}`;
         chip.innerHTML = `
-      <input type="checkbox" ${isActive ? 'checked' : ''} value="${col}">
-      <span class="chip-dot" style="background:${color}"></span>
-      <span class="chip-label">${col}</span>
-      <input type="color" class="chip-color-picker" value="${color}" aria-label="Set ${col} color" title="Set ${col} color">
+      <input type="checkbox" ${isActive ? 'checked' : ''} value="${escapeHtml(col)}">
+      <span class="chip-dot" style="background:${escapeHtml(color)}"></span>
+      <span class="chip-label">${escapeHtml(col)}</span>
+      <input type="color" class="chip-color-picker" value="${escapeHtml(color)}" aria-label="Set ${escapeHtml(col)} color" title="Set ${escapeHtml(col)} color">
     `;
 
         chip.addEventListener(

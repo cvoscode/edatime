@@ -18,10 +18,35 @@ async function ensureArrowParser() {
     throw new Error(`Failed to load Apache Arrow parser: ${e.message}`);
   }
 }
+function isObject(v) {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function assertDatasetMetadata(data) {
+  if (!isObject(data)) throw new Error("Metadata response is not an object");
+  if (typeof data.total_rows !== "number") throw new Error("Metadata missing total_rows");
+  if (!Array.isArray(data.columns)) throw new Error("Metadata missing columns array");
+  if (!Array.isArray(data.numeric_columns)) throw new Error("Metadata missing numeric_columns");
+}
+function assertScatterPoints(data) {
+  if (!isObject(data)) throw new Error("Scatter points response is not an object");
+  if (typeof data.x !== "string") throw new Error("Scatter response missing x column name");
+  if (typeof data.y !== "string") throw new Error("Scatter response missing y column name");
+  if (!Array.isArray(data.points)) throw new Error("Scatter response missing points array");
+}
+function assertScatterCorrelations(data) {
+  if (!isObject(data)) throw new Error("Correlations response is not an object");
+  if (!Array.isArray(data.correlations)) throw new Error("Correlations response missing correlations array");
+}
+function assertDistributions(data) {
+  if (!isObject(data)) throw new Error("Distributions response is not an object");
+  if (!Array.isArray(data.columns)) throw new Error("Distributions response missing columns array");
+}
 async function fetchMetadata() {
   const res = await fetch("/api/metadata");
   if (!res.ok) throw new Error("Metadata check failed");
-  return await res.json();
+  const data = await res.json();
+  assertDatasetMetadata(data);
+  return data;
 }
 async function fetchData(start, end, width, columns = "value", colorColumn = null, signal) {
   const params = new URLSearchParams({
@@ -79,7 +104,7 @@ async function fetchData(start, end, width, columns = "value", colorColumn = nul
     const abs = Math.abs(numericValue);
     if (abs >= 1e17) return numericValue / 1e6;
     if (abs >= 1e14) return numericValue / 1e3;
-    if (abs >= 1e12) return numericValue;
+    if (abs >= 1e11) return numericValue;
     return numericValue * 1e3;
   }
   for (let i = 0; i < len; i++) {
@@ -178,7 +203,9 @@ async function fetchScatterPoints(x, y, limit = 1e6, color = null, options = nul
     const text = await res.text().catch(() => "");
     throw new Error(`Scatter points fetch failed (${res.status}) ${text}`);
   }
-  return res.json();
+  const data = await res.json();
+  assertScatterPoints(data);
+  return data;
 }
 async function fetchScatterCorrelations(base, threshold = 0.7) {
   const params = new URLSearchParams({ threshold: String(threshold) });
@@ -192,7 +219,9 @@ async function fetchScatterCorrelations(base, threshold = 0.7) {
     const text = await res.text().catch(() => "");
     throw new Error(`Scatter correlations fetch failed (${res.status}) ${text}`);
   }
-  return res.json();
+  const data = await res.json();
+  assertScatterCorrelations(data);
+  return data;
 }
 async function fetchDistributions(columns, context = {}) {
   const body = {
@@ -213,7 +242,9 @@ async function fetchDistributions(columns, context = {}) {
     const text = await res.text().catch(() => "");
     throw new Error(`Distributions fetch failed (${res.status}) ${text}`);
   }
-  return res.json();
+  const data = await res.json();
+  assertDistributions(data);
+  return data;
 }
 
 export {
@@ -224,4 +255,4 @@ export {
   fetchScatterCorrelations,
   fetchDistributions
 };
-//# sourceMappingURL=chunk-J3CKBFCC.js.map
+//# sourceMappingURL=chunk-6RPKOPEP.js.map
