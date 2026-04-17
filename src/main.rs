@@ -8,6 +8,7 @@ use tower_http::{
 };
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
+pub mod analytics;
 pub mod arrow_export;
 pub mod cache;
 pub mod config;

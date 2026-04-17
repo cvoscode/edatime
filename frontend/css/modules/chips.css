@@ -15,7 +15,11 @@
   padding-bottom: 2px;
 }
 
-.series-empty { font-size: 0.75rem; color: var(--text-muted); padding: 2px 4px; }
+.series-empty {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 2px 4px;
+}
 
 /* Color-by selector — chip-style, same pill as series chips */
 .series-color-selector {
@@ -24,6 +28,7 @@
   flex-shrink: 0;
   margin: 0;
 }
+
 .series-color-selector label {
   display: flex;
   align-items: center;
@@ -37,7 +42,8 @@
   font-size: 0.6875rem !important;
   color: var(--text-dim) !important;
 }
-.series-color-selector label > span {
+
+.series-color-selector label>span {
   font-weight: 600;
   font-size: 0.6875rem;
   color: var(--text-muted);
@@ -57,6 +63,7 @@
   font-size: 0.75rem !important;
   color: var(--text) !important;
 }
+
 #color-column-select:focus {
   background: rgba(0, 168, 255, 0.08) !important;
   box-shadow: none !important;
@@ -80,20 +87,28 @@
     background var(--transition),
     box-shadow var(--transition);
 }
-.series-chip input[type="checkbox"] { display: none; }
+
+.series-chip input[type="checkbox"] {
+  display: none;
+}
+
 .series-chip .chip-dot {
-  width: 8px; height: 8px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
+
 .series-chip .chip-label {
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--text-dim);
   transition: color var(--transition);
 }
+
 .series-chip .chip-color-picker {
-  width: 18px; height: 18px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   margin-left: 2px;
   border: 1px solid var(--border-hi);
@@ -104,9 +119,20 @@
   appearance: none;
   -webkit-appearance: none;
 }
-.series-chip .chip-color-picker::-webkit-color-swatch-wrapper { padding: 0; }
-.series-chip .chip-color-picker::-webkit-color-swatch { border: none; border-radius: var(--radius-pill); }
-.series-chip .chip-color-picker::-moz-color-swatch  { border: none; border-radius: var(--radius-pill); }
+
+.series-chip .chip-color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.series-chip .chip-color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: var(--radius-pill);
+}
+
+.series-chip .chip-color-picker::-moz-color-swatch {
+  border: none;
+  border-radius: var(--radius-pill);
+}
 
 /* Active state */
 .series-chip.active {
@@ -116,7 +142,10 @@
     0 0 0 1px color-mix(in srgb, var(--chip-accent) 20%, transparent),
     0 0 16px color-mix(in srgb, var(--chip-accent) 12%, transparent);
 }
-.series-chip.active .chip-label { color: var(--text); }
+
+.series-chip.active .chip-label {
+  color: var(--text);
+}
 
 /* Adaptive-filter target — slightly stronger glow, no label change */
 .series-chip.adaptive-target {
@@ -124,4 +153,80 @@
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--chip-accent) 28%, transparent),
     0 0 20px color-mix(in srgb, var(--chip-accent) 16%, transparent);
+}
+
+/* ── FFT traces bar ──────────────────────────────────────── */
+.fft-traces-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg, #0e1220);
+  min-height: 34px;
+  flex-shrink: 0;
+}
+
+.fft-trace-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill, 9999px);
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+  white-space: nowrap;
+}
+
+.fft-trace-chip:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.fft-trace-chip:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.fft-trace-chip.active {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.fft-trace-chip.loading {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.fft-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.fft-chip-label {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fft-chip-remove {
+  margin-left: 2px;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.45;
+  pointer-events: auto;
+}
+
+.fft-trace-chip.active:hover .fft-chip-remove {
+  opacity: 0.9;
 }

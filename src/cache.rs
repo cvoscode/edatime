@@ -204,4 +204,12 @@ impl ResponseCache {
             keep
         });
     }
+
+    /// Clear all cached entries.
+    pub async fn invalidate_all(&self) {
+        let mut state = self.state.lock().await;
+        state.entries.clear();
+        state.order.clear();
+        state.total_bytes = 0;
+    }
 }

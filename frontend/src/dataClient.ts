@@ -341,3 +341,129 @@ export async function fetchDistributions(
     assertDistributions(data);
     return data;
 }
+
+// ── Analytics endpoints ─────────────────────────────────────────────────────
+
+export interface RollingBand {
+    column: string;
+    ts: number[];
+    mean: (number | null)[];
+    upper1: (number | null)[];
+    lower1: (number | null)[];
+    upper2: (number | null)[];
+    lower2: (number | null)[];
+}
+
+export interface RollingResponse {
+    bands: RollingBand[];
+}
+
+export async function fetchRollingBands(
+    start: string,
+    end: string,
+    columns: string,
+    window = 50,
+    signal?: AbortSignal,
+): Promise<RollingResponse> {
+    const params = new URLSearchParams({ start, end, columns, window: String(window) });
+    const url = `/api/analytics/rolling?${params.toString()}`;
+    dbg('GET (rolling)', url);
+
+    const res = await fetch(url, signal ? { signal } : undefined);
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Rolling bands fetch failed (${res.status}) ${text}`);
+    }
+    return res.json();
+}
+
+export interface AnomalyRegion {
+    column: string;
+    method: string;
+    start_ms: number;
+    end_ms: number;
+    score: number;
+}
+
+export interface AnomalyResponse {
+    method: string;
+    threshold: number;
+    regions: AnomalyRegion[];
+}
+
+export async function fetchAnomalies(
+    start: string,
+    end: string,
+    columns: string,
+    method = 'zscore',
+    threshold?: number,
+    signal?: AbortSignal,
+): Promise<AnomalyResponse> {
+    const params = new URLSearchParams({ start, end, columns, method });
+    if (threshold !== undefined) params.set('threshold', String(threshold));
+    const url = `/api/analytics/anomalies?${params.toString()}`;
+    dbg('GET (anomalies)', url);
+
+    const res = await fetch(url, signal ? { signal } : undefined);
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Anomaly detection failed (${res.status}) ${text}`);
+    }
+    return res.json();
+}
+
+export interface FftResult {
+    column: string;
+    frequencies: number[];
+    magnitudes: number[];
+    psd: number[];
+}
+
+export interface FftResponse {
+    sample_count: number;
+    results: FftResult[];
+}
+
+export async function fetchFft(
+    start: string,
+    end: string,
+    columns: string,
+    maxPoints = 8192,
+    signal?: AbortSignal,
+): Promise<FftResponse> {
+    const params = new URLSearchParams({ start, end, columns, max_points: String(maxPoints) });
+    const url = `/api/analytics/fft?${params.toString()}`;
+    dbg('GET (fft)', url);
+
+    const res = await fetch(url, signal ? { signal } : undefined);
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`FFT fetch failed (${res.status}) ${text}`);
+    }
+    return res.json();
+}
+
+export interface TransformResponse {
+    status: string;
+    column: string;
+    expression: string;
+}
+
+export async function postTransform(
+    expression: string,
+    outputName: string,
+): Promise<TransformResponse> {
+    const url = '/api/transform';
+    dbg('POST (transform)', { expression, outputName });
+
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expression, output_name: outputName }),
+    });
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Transform failed (${res.status}) ${text}`);
+    }
+    return res.json();
+}

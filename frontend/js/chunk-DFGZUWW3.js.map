@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../src/charts/registry.ts"],
-  "sourcesContent": ["/**\n * Chart type registry \u2014 enables plugging in new chart types\n * without modifying the core app logic.\n */\n\nimport type { ChartAdapter, ChartInstance } from '../types.js';\n\nconst _registry = new Map<string, ChartAdapter>();\n\nexport function registerChartType(name: string, adapter: ChartAdapter): void {\n    if (!name || typeof adapter?.create !== 'function') {\n        throw new Error(`Invalid chart adapter for \"${name}\"`);\n    }\n    _registry.set(name, adapter);\n}\n\nexport function getChartType(name: string): ChartAdapter | undefined {\n    return _registry.get(name);\n}\n\n\n"],
-  "mappings": ";AAOA,IAAM,YAAY,oBAAI,IAA0B;AAEzC,SAAS,kBAAkB,MAAc,SAA6B;AACzE,MAAI,CAAC,QAAQ,OAAO,SAAS,WAAW,YAAY;AAChD,UAAM,IAAI,MAAM,8BAA8B,IAAI,GAAG;AAAA,EACzD;AACA,YAAU,IAAI,MAAM,OAAO;AAC/B;AAEO,SAAS,aAAa,MAAwC;AACjE,SAAO,UAAU,IAAI,IAAI;AAC7B;",
-  "names": []
-}

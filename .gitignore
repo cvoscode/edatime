@@ -3,3 +3,13 @@ server.pid
 server.log
 temp_query
 node_modules/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.python-version
+pyproject.toml
+poetry.lock
+uv.lock
+*.py

@@ -1,3 +1,4 @@
+pub mod analytics;
 pub mod arrow_export;
 pub mod cache;
 pub mod config;

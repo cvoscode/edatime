@@ -2,7 +2,7 @@
  * Scatter matrix view: pairwise grid with mini scatter canvases and diagonal distributions.
  */
 
-import { fetchScatterPoints } from '../dataClient.js';
+import { fetchScatterPoints, fetchFft } from '../dataClient.js';
 import {
     getEl,
     fmt,
@@ -10,6 +10,7 @@ import {
     setPanelStatus,
     createMiniCanvas,
     drawMiniScatterCanvas,
+    drawMiniDensityCanvas,
     drawDistributionCanvas,
     buildCategoricalColorGroups,
     MATRIX_POINT_LIMIT,
@@ -126,9 +127,11 @@ export function renderMatrixGrid(
 
     const controls = currentControls();
     const diagonalMode = controls.diagonalMode;
+    const matrixMode = controls.matrixMode;
+    const cellSize = controls.matrixCellSize;
     const grid = document.createElement('div');
     grid.className = 'scatter-matrix-grid';
-    grid.style.gridTemplateColumns = `60px repeat(${columns.length}, minmax(132px, 1fr))`;
+    grid.style.gridTemplateColumns = `60px repeat(${columns.length}, ${cellSize}px)`;
 
     const corner = document.createElement('div');
     corner.className = 'scatter-matrix-corner';
@@ -155,7 +158,10 @@ export function renderMatrixGrid(
             if (rowColumn === column) {
                 const diagonal = document.createElement('div');
                 diagonal.className = 'scatter-matrix-diagonal';
-                const canvas = createMiniCanvas('scatter-matrix-diagonal-canvas', 92);
+                diagonal.style.width = `${cellSize}px`;
+                diagonal.style.height = `${cellSize}px`;
+                const canvas = createMiniCanvas('scatter-matrix-diagonal-canvas', cellSize - 32);
+                canvas.style.width = '100%';
                 const values = data.points.map((p: any) => Number(p?.[0])).filter((v: number) => Number.isFinite(v));
                 const groupedSeries = controls.selectedColorColumn
                     ? buildGroupedDistributionSeries(values, data.colorLabels)
@@ -179,17 +185,24 @@ export function renderMatrixGrid(
             const cell = document.createElement('button');
             cell.type = 'button';
             cell.className = 'scatter-matrix-cell';
+            cell.style.width = `${cellSize}px`;
+            cell.style.height = `${cellSize}px`;
             if (controls.x === column && controls.y === rowColumn) cell.classList.add('active');
-            const canvas = createMiniCanvas('scatter-matrix-cell-canvas', 92);
+            const canvas = createMiniCanvas('scatter-matrix-cell-canvas', cellSize - 32);
+            canvas.style.width = '100%';
             const categoryGroups = buildCategoricalColorGroups(data.colorLabels);
             drawJobs.push(() => {
-                drawMiniScatterCanvas(canvas, data.points, {
-                    color: '#4a9eff',
-                    colorValues: data.colorValues,
-                    colorLabels: categoryGroups ? data.colorLabels : null,
-                    colorScale: controls.colorScale,
-                    categoryColors: categoryGroups?.colorByLabel,
-                });
+                if (matrixMode === 'density') {
+                    drawMiniDensityCanvas(canvas, data.points, { colorScale: controls.colorScale });
+                } else {
+                    drawMiniScatterCanvas(canvas, data.points, {
+                        color: '#4a9eff',
+                        colorValues: data.colorValues,
+                        colorLabels: categoryGroups ? data.colorLabels : null,
+                        colorScale: controls.colorScale,
+                        categoryColors: categoryGroups?.colorByLabel,
+                    });
+                }
             });
             const meta = document.createElement('div');
             meta.className = 'scatter-matrix-meta';
@@ -244,5 +257,135 @@ export async function renderScatterOverview(
 export async function renderScatterMatrixView(
     onCellClick: (x: string, y: string) => void,
 ): Promise<void> {
-    await renderScatterOverview(onCellClick);
+    await Promise.all([
+        renderScatterOverview(onCellClick),
+        renderMatrixFftPanel(),
+    ]);
+}
+
+/* ── Matrix FFT panel ─────────────────────────────────── */
+
+function drawMiniFftCanvas(canvas: HTMLCanvasElement, frequencies: number[], values: number[], label: string): void {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(rect.width || 200, 60);
+    const h = Math.max(rect.height || 120, 60);
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const pad = { left: 8, right: 8, top: 22, bottom: 8 };
+    const plotW = w - pad.left - pad.right;
+    const plotH = h - pad.top - pad.bottom;
+
+    // Log-transform for readability
+    const yVals = values.map((v) => (v > 0 ? Math.log10(v) : -10));
+    let yMin = Infinity, yMax = -Infinity, xMaxRaw = 0;
+    for (let i = 0; i < frequencies.length; i++) {
+        if (frequencies[i] > xMaxRaw) xMaxRaw = frequencies[i];
+        if (Number.isFinite(yVals[i])) {
+            if (yVals[i] < yMin) yMin = yVals[i];
+            if (yVals[i] > yMax) yMax = yVals[i];
+        }
+    }
+    if (!Number.isFinite(yMin)) yMin = 0;
+    if (!Number.isFinite(yMax)) yMax = 1;
+    if (yMax <= yMin) yMax = yMin + 1;
+
+    // Auto-scale x axis
+    let xScale = 1;
+    if (xMaxRaw > 0 && xMaxRaw < 0.001) xScale = 1e6;
+    else if (xMaxRaw > 0 && xMaxRaw < 1) xScale = 1000;
+    else if (xMaxRaw >= 1000) xScale = 0.001;
+    const xMax = Math.max(xMaxRaw * xScale, 1e-12);
+
+    ctx.fillStyle = 'rgba(14, 18, 32, 0.95)';
+    ctx.fillRect(0, 0, w, h);
+
+    // Column label
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.font = `bold 11px Inter, system-ui, sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(label, pad.left, 6);
+
+    // Data line
+    ctx.strokeStyle = '#7ad151';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < frequencies.length; i++) {
+        if (!Number.isFinite(yVals[i])) continue;
+        const px = pad.left + ((frequencies[i] * xScale) / xMax) * plotW;
+        const py = pad.top + plotH - ((yVals[i] - yMin) / (yMax - yMin)) * plotH;
+        if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Border
+    ctx.strokeStyle = 'rgba(54, 63, 98, 0.7)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+}
+
+export async function renderMatrixFftPanel(): Promise<void> {
+    const panel = getEl('scatter-matrix-fft-panel');
+    const chartsContainer = getEl('scatter-matrix-fft-charts');
+    if (!panel || !chartsContainer) return;
+
+    const context = buildScatterQueryContext();
+    if (!context.start || !context.end) {
+        (panel as HTMLElement).hidden = true;
+        return;
+    }
+
+    const columns = buildOverviewColumns();
+    if (columns.length < 1) { (panel as HTMLElement).hidden = true; return; }
+
+    (panel as HTMLElement).hidden = false;
+    setPanelStatus('scatter-matrix-fft-status', 'Computing FFT…');
+
+    try {
+        const startIso = new Date(context.start).toISOString();
+        const endIso = new Date(context.end).toISOString();
+        const resp = await fetchFft(startIso, endIso, columns.join(','), 4096);
+
+        chartsContainer.innerHTML = '';
+        for (const result of resp.results || []) {
+            const card = document.createElement('div');
+            card.className = 'scatter-matrix-fft-card';
+            const canvas = document.createElement('canvas');
+            canvas.className = 'scatter-matrix-fft-canvas';
+            canvas.style.width = '100%';
+            canvas.style.height = '120px';
+            card.appendChild(canvas);
+            chartsContainer.appendChild(card);
+
+            // Navigate to FFT page and compute for this column on click
+            const colName = result.column;
+            card.title = `Open FFT page for ${colName}`;
+            card.style.cursor = 'pointer';
+            card.addEventListener('click', () => {
+                const navBtn = document.querySelector('.sidebar .nav-item[data-page="fft"]') as HTMLElement | null;
+                navBtn?.click();
+                // Activate the column chip on the FFT page after navigation
+                requestAnimationFrame(() => {
+                    const chip = document.querySelector<HTMLElement>(`.fft-trace-chip[data-col="${colName}"]`);
+                    if (chip && !chip.classList.contains('active')) chip.click();
+                });
+            });
+
+            // Defer draw until canvas is in DOM and has layout
+            requestAnimationFrame(() => {
+                drawMiniFftCanvas(canvas, result.frequencies, result.magnitudes, result.column);
+            });
+        }
+
+        setPanelStatus('scatter-matrix-fft-status', `${resp.sample_count ?? 0} samples`);
+    } catch {
+        setPanelStatus('scatter-matrix-fft-status', 'FFT unavailable for current range.');
+        (panel as HTMLElement).hidden = true;
+    }
 }

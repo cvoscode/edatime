@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EdaTime</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="css/style.css?v=38">
+  <link rel="stylesheet" href="css/style.css?v=46">
 </head>
 
 <body>
@@ -17,10 +17,11 @@
       <div class="sidebar-title">EdaTime</div>
       <button class="nav-item" type="button" data-page="upload" title="Upload (Alt+1)">
         <span class="nav-icon">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3"/>
-            <polyline points="11 5 8 2 5 5"/>
-            <line x1="8" y1="2" x2="8" y2="11"/>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3" />
+            <polyline points="11 5 8 2 5 5" />
+            <line x1="8" y1="2" x2="8" y2="11" />
           </svg>
         </span>
         <span class="nav-text">Upload</span>
@@ -28,8 +29,9 @@
       </button>
       <button class="nav-item active" type="button" data-page="timeseries" title="Timeseries (Alt+2)">
         <span class="nav-icon">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="1,10 4,6 7,12 10,3 13,8 15,7"/>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+            stroke-linejoin="round">
+            <polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />
           </svg>
         </span>
         <span class="nav-text">Timeseries</span>
@@ -37,12 +39,13 @@
       </button>
       <button class="nav-item" type="button" data-page="scatter" title="Scatter (Alt+3)">
         <span class="nav-icon">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="4" cy="11" r="1.2"/>
-            <circle cx="8" cy="6" r="1.2"/>
-            <circle cx="12" cy="9" r="1.2"/>
-            <circle cx="6" cy="13" r="1.2"/>
-            <circle cx="11" cy="3" r="1.2"/>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+            stroke-linejoin="round">
+            <circle cx="4" cy="11" r="1.2" />
+            <circle cx="8" cy="6" r="1.2" />
+            <circle cx="12" cy="9" r="1.2" />
+            <circle cx="6" cy="13" r="1.2" />
+            <circle cx="11" cy="3" r="1.2" />
           </svg>
         </span>
         <span class="nav-text">Scatter</span>
@@ -50,11 +53,12 @@
       </button>
       <button class="nav-item" type="button" data-page="scattermatrix" title="Scatter Matrix (Alt+4)">
         <span class="nav-icon">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="2" width="5" height="5" rx="1"/>
-            <rect x="9" y="2" width="5" height="5" rx="1"/>
-            <rect x="2" y="9" width="5" height="5" rx="1"/>
-            <rect x="9" y="9" width="5" height="5" rx="1"/>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+            stroke-linejoin="round">
+            <rect x="2" y="2" width="5" height="5" rx="1" />
+            <rect x="9" y="2" width="5" height="5" rx="1" />
+            <rect x="2" y="9" width="5" height="5" rx="1" />
+            <rect x="9" y="9" width="5" height="5" rx="1" />
           </svg>
         </span>
         <span class="nav-text">Matrix</span>
@@ -62,24 +66,35 @@
       </button>
       <button class="nav-item" type="button" data-page="distributions" title="Distributions (Alt+5)">
         <span class="nav-icon">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="9" width="2.5" height="5" rx="0.5"/>
-            <rect x="6" y="5" width="2.5" height="9" rx="0.5"/>
-            <rect x="10" y="7" width="2.5" height="7" rx="0.5"/>
-            <rect x="14" y="11" width="0" height="0"/>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+            stroke-linejoin="round">
+            <rect x="2" y="9" width="2.5" height="5" rx="0.5" />
+            <rect x="6" y="5" width="2.5" height="9" rx="0.5" />
+            <rect x="10" y="7" width="2.5" height="7" rx="0.5" />
+            <rect x="14" y="11" width="0" height="0" />
           </svg>
         </span>
         <span class="nav-text">Distributions</span>
         <kbd class="nav-shortcut">⌥5</kbd>
+      </button>
+      <button class="nav-item" type="button" data-page="fft" title="FFT / PSD (Alt+6)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+            stroke-linejoin="round">
+            <polyline points="1,8 3,4 5,10 7,2 9,12 11,6 13,8 15,8" />
+          </svg>
+        </span>
+        <span class="nav-text">FFT</span>
+        <kbd class="nav-shortcut">⌥6</kbd>
       </button>
 
       <div class="sidebar-spacer"></div>
       <button class="nav-item nav-collapse" id="sidebar-collapse-btn" type="button" title="Collapse sidebar">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
-            <line x1="2" y1="4" x2="14" y2="4"/>
-            <line x1="2" y1="8" x2="14" y2="8"/>
-            <line x1="2" y1="12" x2="14" y2="12"/>
+            <line x1="2" y1="4" x2="14" y2="4" />
+            <line x1="2" y1="8" x2="14" y2="8" />
+            <line x1="2" y1="12" x2="14" y2="12" />
           </svg>
         </span>
         <span class="nav-text">Collapse</span>
@@ -101,10 +116,11 @@
 
         <div class="header-meta" id="header-meta">
           <div class="meta-stat" id="stat-rows">
-            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="1" y="1" width="10" height="10" rx="1.5"/>
-              <line x1="1" y1="4.5" x2="11" y2="4.5"/>
-              <line x1="4" y1="4.5" x2="4" y2="11"/>
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
+              stroke-linejoin="round">
+              <rect x="1" y="1" width="10" height="10" rx="1.5" />
+              <line x1="1" y1="4.5" x2="11" y2="4.5" />
+              <line x1="4" y1="4.5" x2="4" y2="11" />
             </svg>
             <span>Loading&hellip;</span>
           </div>
@@ -112,14 +128,19 @@
       </header>
 
       <section class="page" id="page-timeseries" data-page-name="timeseries">
-        <div class="toolbar">
+        <!-- Row 1: Series chips -->
+        <div class="toolbar toolbar--series">
           <div class="toolbar-group">
             <span class="toolbar-label">Series</span>
             <input type="text" id="column-filter-input" class="column-filter-input" placeholder="Filter columns…"
               aria-label="Filter columns">
             <div class="series-toggles" id="column-toggles"></div>
           </div>
-          <div class="toolbar-group draw-toolbar toolbar-group--push">
+        </div>
+
+        <!-- Row 2: Draw | Labels | Export | Analytics -->
+        <div class="toolbar toolbar--tools">
+          <div class="toolbar-group draw-toolbar">
             <span class="toolbar-label">Draw</span>
             <select id="draw-tool" class="draw-select" aria-label="Draw tool">
               <option value="none">None (Pan)</option>
@@ -146,6 +167,30 @@
             <button class="btn btn-ghost btn-sm" id="export-data-json-btn" type="button">JSON</button>
             <button class="btn btn-ghost btn-sm" id="export-data-parquet-btn" type="button">Parquet</button>
           </div>
+          <div class="toolbar-group analytics-toolbar toolbar-group--sep toolbar-group--push">
+            <span class="toolbar-label">Analytics</span>
+            <label class="scatter-link-toggle" for="rolling-enabled" title="Show rolling mean ± σ bands">
+              <input id="rolling-enabled" type="checkbox">
+              <span>Bands</span>
+            </label>
+            <label class="scatter-inline-label" for="rolling-window">Win</label>
+            <input id="rolling-window" type="number" class="modal-input" value="50" min="3" max="5000" step="1"
+              style="width:58px;" title="Rolling window size">
+            <span class="toolbar-group-divider"></span>
+            <label class="scatter-link-toggle" for="anomaly-enabled" title="Show anomaly detection regions">
+              <input id="anomaly-enabled" type="checkbox">
+              <span>Anomalies</span>
+            </label>
+            <select id="anomaly-method" class="modal-select" style="width:84px;" title="Anomaly detection method">
+              <option value="zscore">Z-score</option>
+              <option value="iqr">IQR</option>
+            </select>
+            <input id="anomaly-threshold" type="number" class="modal-input" value="3" min="0.5" max="10" step="0.1"
+              style="width:52px;" title="Anomaly threshold">
+            <span class="toolbar-group-divider"></span>
+            <button class="btn btn-ghost btn-sm" id="transform-open-btn" type="button"
+              title="Column transform expression">Transform…</button>
+          </div>
         </div>
 
         <main class="main">
@@ -170,7 +215,7 @@
 
       <section class="page" id="page-scatter" data-page-name="scatter" hidden>
         <div class="toolbar scatter-toolbar">
-          <div class="toolbar-group">
+          <div class="toolbar-group" id="scatter-analytics-group">
             <span class="toolbar-label">Analytics</span>
             <label class="scatter-inline-label" for="scatter-x-col">X</label>
             <select id="scatter-x-col" class="modal-select" aria-label="Scatter X column"></select>
@@ -270,8 +315,31 @@
               <span class="toolbar-label">Scatter Matrix</span>
               <span id="scatter-matrix-status" class="scatter-panel-status">Shows pairwise scatter plots with
                 configurable diagonal distributions.</span>
+              <div class="scatter-matrix-controls">
+                <label class="scatter-inline-label" for="scatter-matrix-mode">Cells</label>
+                <select id="scatter-matrix-mode" class="modal-select" aria-label="Matrix cell render mode">
+                  <option value="scatter" selected>Scatter</option>
+                  <option value="density">Density</option>
+                </select>
+                <label class="scatter-inline-label" for="scatter-matrix-cell-size">Size</label>
+                <input id="scatter-matrix-cell-size" type="range" min="80" max="320" step="20" value="160"
+                  style="width:90px;" aria-label="Matrix cell size">
+                <span id="scatter-matrix-cell-size-value" class="range-value">160</span>
+                <label class="scatter-link-toggle" for="scatter-matrix-link-range"
+                  title="Link scatter matrix and FFT to the current chart time window">
+                  <input id="scatter-matrix-link-range" type="checkbox">
+                  <span>Link range</span>
+                </label>
+              </div>
             </div>
             <div id="scatter-matrix" class="scatter-matrix"></div>
+          </div>
+          <div class="scatter-panel scatter-matrix-fft-panel" id="scatter-matrix-fft-panel" hidden>
+            <div class="scatter-panel-head">
+              <span class="toolbar-label">FFT / PSD</span>
+              <span id="scatter-matrix-fft-status" class="scatter-panel-status"></span>
+            </div>
+            <div id="scatter-matrix-fft-charts" class="scatter-matrix-fft-charts"></div>
           </div>
         </div>
 
@@ -335,6 +403,31 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <section class="page" id="page-fft" data-page-name="fft" hidden>
+        <div class="toolbar">
+          <div class="toolbar-group">
+            <span class="toolbar-label">FFT / Power Spectral Density</span>
+            <label class="scatter-inline-label" for="fft-mode-select">Mode</label>
+            <select id="fft-mode-select" class="modal-select" aria-label="FFT display mode">
+              <option value="magnitude">Magnitude</option>
+              <option value="psd">PSD</option>
+            </select>
+            <label class="scatter-link-toggle" for="fft-log-scale">
+              <input id="fft-log-scale" type="checkbox" checked>
+              <span>Log scale</span>
+            </label>
+          </div>
+          <div class="toolbar-group toolbar-group--push">
+            <button id="fft-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button" hidden>↩ Zoom out</button>
+            <span class="toolbar-label" id="fft-status">Select a column chip below.</span>
+          </div>
+        </div>
+        <div class="fft-traces-bar" id="fft-traces-bar" hidden></div>
+        <main class="main">
+          <div id="fft-chart" style="width:100%;height:100%;"></div>
+        </main>
       </section>
 
       <section class="page page-upload" id="page-upload" data-page-name="upload" hidden>
@@ -512,10 +605,42 @@
         </div>
       </div>
 
+      <div id="transform-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="transform-title">
+          <div class="modal-header">
+            <div class="modal-title" id="transform-title">Column Transform</div>
+            <button class="btn btn-ghost" id="transform-close-btn" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <label class="modal-field">
+              <span class="modal-label">Expression</span>
+              <input id="transform-expression" class="modal-input" type="text" placeholder="e.g. log(col_a) + col_b * 2"
+                aria-label="Transform expression">
+            </label>
+            <label class="modal-field">
+              <span class="modal-label">Output column name</span>
+              <input id="transform-output-name" class="modal-input" type="text" placeholder="e.g. my_derived_col"
+                aria-label="Output column name">
+            </label>
+            <div class="modal-hint" id="transform-hint">
+              Supported: +, -, *, /, %, abs(), log(), log2(), log10(), sqrt(), exp(), sin(), cos(), tan(), ceil(),
+              floor(), round()
+            </div>
+            <div class="modal-hint" id="transform-error" style="color:#ff4a6e;"></div>
+          </div>
+          <div class="modal-actions">
+            <div class="modal-actions-right">
+              <button class="btn btn-ghost" id="transform-cancel-btn" type="button">Cancel</button>
+              <button class="btn btn-primary" id="transform-apply-btn" type="button">Apply</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=87"></script>
+  <script type="module" src="js/app.js?v=95"></script>
 </body>
 
 </html>

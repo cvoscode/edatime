@@ -1,36 +1,263 @@
 import {
+  DEBUG,
+  dbg
+} from "../chunk-P2MGEQ7G.js";
+import {
   Ad
 } from "../chunk-UUSB2KLH.js";
 import {
-  VIRIDIS,
-  analyzeColorValues,
-  baseSeriesName,
-  buildColorizedSeries,
-  categoryColorFor
-} from "../chunk-BIOCGUSD.js";
-import {
-  niceLinearTicks,
-  niceTimeTicks
-} from "../chunk-WOMYKIXN.js";
-import {
   appState,
   buildAdaptiveLineY,
-  getSeriesColor
-} from "../chunk-EXJWZBL5.js";
-import {
   downloadBlob,
   downloadUrl,
-  escapeHtml
-} from "../chunk-JY7RLO2T.js";
-import {
+  escapeHtml,
   formatTimeTooltip,
   formatTimestamp,
-  formatTwoDecimals
-} from "../chunk-LZAZQ2R3.js";
-import {
-  DEBUG,
-  dbg
-} from "../chunk-44BHGKBD.js";
+  formatTwoDecimals,
+  getSeriesColor
+} from "../chunk-IXP3VB4N.js";
+
+// frontend/src/chart/colorScale.ts
+var VIRIDIS = ["#440154", "#414487", "#2a788e", "#22a884", "#7ad151", "#fde725"];
+var VIRIDIS_RGB = VIRIDIS.map((hex) => [
+  parseInt(hex.slice(1, 3), 16),
+  parseInt(hex.slice(3, 5), 16),
+  parseInt(hex.slice(5, 7), 16)
+]);
+function getInterpolatedColor(t) {
+  if (!Number.isFinite(t)) return VIRIDIS[0];
+  const clamped = Math.max(0, Math.min(1, t));
+  const scaled = clamped * (VIRIDIS_RGB.length - 1);
+  const leftIndex = Math.floor(scaled);
+  const rightIndex = Math.min(VIRIDIS_RGB.length - 1, leftIndex + 1);
+  const weight = scaled - leftIndex;
+  const left = VIRIDIS_RGB[leftIndex];
+  const right = VIRIDIS_RGB[rightIndex];
+  const r = Math.round(left[0] + (right[0] - left[0]) * weight);
+  const g = Math.round(left[1] + (right[1] - left[1]) * weight);
+  const b = Math.round(left[2] + (right[2] - left[2]) * weight);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+var COLOR_BUCKETS = 64;
+var _bucketPalette = [];
+for (let i = 0; i < COLOR_BUCKETS; i++) {
+  _bucketPalette.push(getInterpolatedColor(i / (COLOR_BUCKETS - 1)));
+}
+function bucketIndexForValue(value, min, span) {
+  if (span <= 0) return 0;
+  const t = (value - min) / span;
+  return Math.max(0, Math.min(COLOR_BUCKETS - 1, Math.floor(t * (COLOR_BUCKETS - 1) + 0.5)));
+}
+function categoryColorFor(label, categories) {
+  const index = categories.indexOf(label);
+  return getSeriesColor(label, index >= 0 ? index : categories.length);
+}
+function analyzeColorValues(values) {
+  if (!Array.isArray(values) || values.length === 0) return null;
+  const uniqueValues = /* @__PURE__ */ new Set();
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  let numericCount = 0;
+  let nonNumericCount = 0;
+  const sampleSize = Math.min(values.length, 1e3);
+  for (let i = 0; i < sampleSize; i++) {
+    const raw = values[i];
+    if (raw == null) continue;
+    uniqueValues.add(String(raw));
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric)) numericCount += 1;
+    else nonNumericCount += 1;
+  }
+  const isNumeric = numericCount > 0 && nonNumericCount === 0;
+  if (isNumeric) {
+    for (let i = 0; i < values.length; i++) {
+      const value = Number(values[i]);
+      if (!Number.isFinite(value)) continue;
+      if (value < min) min = value;
+      if (value > max) max = value;
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+    return { isNumeric: true, min, max, categories: [] };
+  }
+  const categories = [];
+  for (const value of uniqueValues) categories.push(value);
+  return { isNumeric: false, min: null, max: null, categories };
+}
+function colorForScaleValue(rawValue, scaleInfo) {
+  if (!scaleInfo) return null;
+  if (scaleInfo.isNumeric) {
+    const numeric = Number(rawValue);
+    if (!Number.isFinite(numeric)) return null;
+    const span = scaleInfo.max - scaleInfo.min;
+    const t = span > 0 ? (numeric - scaleInfo.min) / span : 0;
+    return getInterpolatedColor(t);
+  }
+  return categoryColorFor(String(rawValue), scaleInfo.categories);
+}
+function buildColorizedSeries(colName, points, colorValues, scaleInfo, visible, showMarkers) {
+  const series = [];
+  const annotations = [];
+  if (!Array.isArray(points) || points.length === 0 || !Array.isArray(colorValues) || !scaleInfo) {
+    return { series, annotations };
+  }
+  if (points.length === 1) {
+    const pointColor = colorForScaleValue(colorValues[0], scaleInfo) || getSeriesColor(colName, 0);
+    series.push({ type: "line", name: colName, color: pointColor, visible, data: [points[0], points[0]] });
+    if (showMarkers && visible) {
+      annotations.push({ type: "point", x: points[0][0], y: points[0][1], layer: "aboveSeries", marker: { symbol: "circle", size: 5, style: { color: pointColor } } });
+    }
+    return { series, annotations };
+  }
+  if (scaleInfo.isNumeric) {
+    const min = scaleInfo.min;
+    const span = scaleInfo.max - min;
+    const buckets = new Uint8Array(points.length);
+    for (let i = 0; i < points.length; i++) {
+      const v = Number(colorValues[i]);
+      buckets[i] = Number.isFinite(v) ? bucketIndexForValue(v, min, span) : 0;
+    }
+    let segIdx = 0;
+    let runStart = 0;
+    while (runStart < points.length) {
+      const bucket = buckets[runStart];
+      let runEnd = runStart + 1;
+      while (runEnd < points.length && buckets[runEnd] === bucket) runEnd++;
+      const segStart = runStart;
+      const segEnd = Math.min(runEnd, points.length);
+      const segData = [];
+      for (let j = segStart; j < segEnd; j++) segData.push(points[j]);
+      if (segEnd < points.length) segData.push(points[segEnd]);
+      const color = _bucketPalette[bucket];
+      series.push({
+        type: "line",
+        name: segIdx === 0 ? colName : `__color_segment__${colName}::${segIdx}`,
+        color,
+        visible,
+        showInLegend: segIdx === 0,
+        data: segData
+      });
+      segIdx++;
+      runStart = runEnd;
+    }
+  } else {
+    const labels = colorValues.map((v) => String(v ?? ""));
+    let segIdx = 0;
+    let runStart = 0;
+    while (runStart < labels.length) {
+      const label = labels[runStart];
+      let runEnd = runStart + 1;
+      while (runEnd < labels.length && labels[runEnd] === label) runEnd++;
+      const segStart = runStart;
+      const segEnd = Math.min(runEnd, points.length);
+      const segData = [];
+      for (let j = segStart; j < segEnd; j++) segData.push(points[j]);
+      if (segEnd < points.length) segData.push(points[segEnd]);
+      const color = categoryColorFor(label, scaleInfo.categories);
+      series.push({
+        type: "line",
+        name: segIdx === 0 ? colName : `__color_segment__${colName}::${segIdx}`,
+        color,
+        visible,
+        showInLegend: segIdx === 0,
+        data: segData
+      });
+      segIdx++;
+      runStart = runEnd;
+    }
+  }
+  if (showMarkers && visible && points.length <= 500) {
+    for (let i = 0; i < points.length; i++) {
+      const pointColor = colorForScaleValue(colorValues[i], scaleInfo) || getSeriesColor(colName, 0);
+      annotations.push({ type: "point", x: points[i][0], y: points[i][1], layer: "aboveSeries", marker: { symbol: "circle", size: 5, style: { color: pointColor } } });
+    }
+  }
+  return { series, annotations };
+}
+function baseSeriesName(name) {
+  const text = String(name || "");
+  if (!text) return "";
+  if (text.endsWith("__markers")) return text.slice(0, -"__markers".length);
+  if (text.startsWith("__color_segment__")) {
+    const body = text.slice("__color_segment__".length);
+    return body.split("::")[0] || "";
+  }
+  if (text.startsWith("__color_markers__")) {
+    const body = text.slice("__color_markers__".length);
+    return body.split("::")[0] || "";
+  }
+  return text;
+}
+
+// frontend/src/chart/ticks.ts
+function niceNum(range, round) {
+  const exponent = Math.floor(Math.log10(range));
+  const fraction = range / Math.pow(10, exponent);
+  let niceFraction;
+  if (round) {
+    if (fraction < 1.5) niceFraction = 1;
+    else if (fraction < 3) niceFraction = 2;
+    else if (fraction < 7) niceFraction = 5;
+    else niceFraction = 10;
+  } else {
+    if (fraction <= 1) niceFraction = 1;
+    else if (fraction <= 2) niceFraction = 2;
+    else if (fraction <= 5) niceFraction = 5;
+    else niceFraction = 10;
+  }
+  return niceFraction * Math.pow(10, exponent);
+}
+function niceLinearTicks(min, max, count = 6) {
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return [];
+  const n = Math.max(2, Math.floor(count));
+  const range = niceNum(max - min, false);
+  const step = niceNum(range / (n - 1), true);
+  const niceMin = Math.floor(min / step) * step;
+  const niceMax = Math.ceil(max / step) * step;
+  const ticks = [];
+  const guard = Math.max(2, Math.min(1024, Math.ceil((niceMax - niceMin) / step) + 2));
+  for (let i = 0; i < guard; i++) {
+    const v = niceMin + i * step;
+    if (v > niceMax + step * 0.5) break;
+    ticks.push(v);
+  }
+  return ticks;
+}
+function niceTimeTicks(minMs, maxMs, count = 6) {
+  if (!Number.isFinite(minMs) || !Number.isFinite(maxMs) || maxMs <= minMs) return [];
+  const span = maxMs - minMs;
+  const n = Math.max(2, Math.floor(count));
+  const target = span / (n - 1);
+  const steps = [
+    1e3,
+    2e3,
+    5e3,
+    1e4,
+    3e4,
+    6e4,
+    2 * 6e4,
+    5 * 6e4,
+    10 * 6e4,
+    30 * 6e4,
+    60 * 6e4,
+    2 * 36e5,
+    6 * 36e5,
+    12 * 36e5,
+    864e5,
+    2 * 864e5,
+    7 * 864e5,
+    30 * 864e5
+  ];
+  const step = steps.find((s) => s >= target) ?? steps[steps.length - 1];
+  const start = Math.ceil(minMs / step) * step;
+  const ticks = [];
+  const guard = Math.max(2, Math.min(2048, Math.ceil((maxMs - start) / step) + 3));
+  for (let i = 0; i < guard; i++) {
+    const t = start + i * step;
+    if (t > maxMs + step * 0.25) break;
+    ticks.push(t);
+  }
+  return ticks;
+}
 
 // frontend/src/chart/DataChart.ts
 var CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
@@ -501,6 +728,8 @@ var DataChart = class {
     if (!this._overlayCtx || !this._overlayCanvas) return;
     const ctx = this._overlayCtx;
     ctx.clearRect(0, 0, this._overlayCanvas.width, this._overlayCanvas.height);
+    this._renderRollingBandsToCtx(ctx, { x: 1, y: 1 });
+    this._renderAnomalyRegionsToCtx(ctx, { x: 1, y: 1 });
     this._renderAdaptiveFilterLinesToCtx(ctx, { x: 1, y: 1 });
     const allDraws = [...this._drawings];
     if (this._currentDraw) allDraws.push(this._currentDraw);
@@ -516,6 +745,122 @@ var DataChart = class {
         ctx.stroke();
       }
     }
+  }
+  _renderRollingBandsToCtx(ctx, scale) {
+    const bands = appState.rollingBands;
+    if (!bands || bands.length === 0 || !appState.rollingEnabled) return;
+    if (!this._container) return;
+    const xMin = Number(this._xMin);
+    const xMax = Number(this._xMax);
+    const yRange = this.getYRange();
+    if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !(xMax > xMin) || !yRange) return;
+    const rect = this._container.getBoundingClientRect();
+    const cssWidth = Math.max(1, rect.width || this._overlayCanvas?.width || 1);
+    const cssHeight = Math.max(1, rect.height || this._overlayCanvas?.height || 1);
+    const plotLeft = CHART_GRID.left * scale.x;
+    const plotTop = CHART_GRID.top * scale.y;
+    const plotRight = Math.max(plotLeft + 1, (cssWidth - CHART_GRID.right) * scale.x);
+    const plotBottom = Math.max(plotTop + 1, (cssHeight - CHART_GRID.bottom) * scale.y);
+    const plotWidth = Math.max(1, plotRight - plotLeft);
+    const plotHeight = Math.max(1, plotBottom - plotTop);
+    const ySpan = Math.max(1e-9, yRange.max - yRange.min);
+    const toX = (ms) => plotLeft + (ms - xMin) / (xMax - xMin) * plotWidth;
+    const toY = (v) => plotBottom - (v - yRange.min) / ySpan * plotHeight;
+    ctx.save();
+    for (const band of bands) {
+      const n = band.ts.length;
+      if (n < 2) continue;
+      ctx.fillStyle = "rgba(100, 180, 255, 0.22)";
+      ctx.beginPath();
+      let started = false;
+      for (let i = 0; i < n; i++) {
+        const v = band.upper2[i];
+        if (v == null) continue;
+        const px = toX(band.ts[i]);
+        const py = toY(v);
+        if (!started) {
+          ctx.moveTo(px, py);
+          started = true;
+        } else ctx.lineTo(px, py);
+      }
+      for (let i = n - 1; i >= 0; i--) {
+        const v = band.lower2[i];
+        if (v == null) continue;
+        ctx.lineTo(toX(band.ts[i]), toY(v));
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(100, 180, 255, 0.38)";
+      ctx.beginPath();
+      started = false;
+      for (let i = 0; i < n; i++) {
+        const v = band.upper1[i];
+        if (v == null) continue;
+        const px = toX(band.ts[i]);
+        const py = toY(v);
+        if (!started) {
+          ctx.moveTo(px, py);
+          started = true;
+        } else ctx.lineTo(px, py);
+      }
+      for (let i = n - 1; i >= 0; i--) {
+        const v = band.lower1[i];
+        if (v == null) continue;
+        ctx.lineTo(toX(band.ts[i]), toY(v));
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(180, 220, 255, 0.90)";
+      ctx.lineWidth = 1.5 * Math.min(scale.x, scale.y);
+      ctx.setLineDash([6, 3]);
+      ctx.beginPath();
+      started = false;
+      for (let i = 0; i < n; i++) {
+        const v = band.mean[i];
+        if (v == null) continue;
+        const px = toX(band.ts[i]);
+        const py = toY(v);
+        if (!started) {
+          ctx.moveTo(px, py);
+          started = true;
+        } else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
+  _renderAnomalyRegionsToCtx(ctx, scale) {
+    const regions = appState.anomalyRegions;
+    if (!regions || regions.length === 0 || !appState.anomalyEnabled) return;
+    if (!this._container) return;
+    const xMin = Number(this._xMin);
+    const xMax = Number(this._xMax);
+    if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !(xMax > xMin)) return;
+    const rect = this._container.getBoundingClientRect();
+    const cssWidth = Math.max(1, rect.width || this._overlayCanvas?.width || 1);
+    const cssHeight = Math.max(1, rect.height || this._overlayCanvas?.height || 1);
+    const plotLeft = CHART_GRID.left * scale.x;
+    const plotTop = CHART_GRID.top * scale.y;
+    const plotRight = Math.max(plotLeft + 1, (cssWidth - CHART_GRID.right) * scale.x);
+    const plotBottom = Math.max(plotTop + 1, (cssHeight - CHART_GRID.bottom) * scale.y);
+    const plotWidth = Math.max(1, plotRight - plotLeft);
+    const plotHeight = Math.max(1, plotBottom - plotTop);
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 74, 110, 0.15)";
+    ctx.strokeStyle = "rgba(255, 74, 110, 0.5)";
+    ctx.lineWidth = 1 * Math.min(scale.x, scale.y);
+    for (const region of regions) {
+      const rStart = Math.max(xMin, region.start_ms);
+      const rEnd = Math.min(xMax, region.end_ms);
+      if (rStart >= rEnd) continue;
+      const sx = plotLeft + (rStart - xMin) / (xMax - xMin) * plotWidth;
+      const ex = plotLeft + (rEnd - xMin) / (xMax - xMin) * plotWidth;
+      const w = Math.max(2, ex - sx);
+      ctx.fillRect(sx, plotTop, w, plotHeight);
+      ctx.strokeRect(sx, plotTop, w, plotHeight);
+    }
+    ctx.restore();
   }
   _renderAdaptiveFilterLinesToCtx(ctx, scale) {
     const filters = Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters : [];

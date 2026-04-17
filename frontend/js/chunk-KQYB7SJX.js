@@ -1,7 +1,7 @@
 import {
   DEBUG,
   dbg
-} from "./chunk-44BHGKBD.js";
+} from "./chunk-P2MGEQ7G.js";
 
 // frontend/src/dataClient.ts
 var tableFromIPCFn = null;
@@ -246,6 +246,54 @@ async function fetchDistributions(columns, context = {}) {
   assertDistributions(data);
   return data;
 }
+async function fetchRollingBands(start, end, columns, window = 50, signal) {
+  const params = new URLSearchParams({ start, end, columns, window: String(window) });
+  const url = `/api/analytics/rolling?${params.toString()}`;
+  dbg("GET (rolling)", url);
+  const res = await fetch(url, signal ? { signal } : void 0);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Rolling bands fetch failed (${res.status}) ${text}`);
+  }
+  return res.json();
+}
+async function fetchAnomalies(start, end, columns, method = "zscore", threshold, signal) {
+  const params = new URLSearchParams({ start, end, columns, method });
+  if (threshold !== void 0) params.set("threshold", String(threshold));
+  const url = `/api/analytics/anomalies?${params.toString()}`;
+  dbg("GET (anomalies)", url);
+  const res = await fetch(url, signal ? { signal } : void 0);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Anomaly detection failed (${res.status}) ${text}`);
+  }
+  return res.json();
+}
+async function fetchFft(start, end, columns, maxPoints = 8192, signal) {
+  const params = new URLSearchParams({ start, end, columns, max_points: String(maxPoints) });
+  const url = `/api/analytics/fft?${params.toString()}`;
+  dbg("GET (fft)", url);
+  const res = await fetch(url, signal ? { signal } : void 0);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`FFT fetch failed (${res.status}) ${text}`);
+  }
+  return res.json();
+}
+async function postTransform(expression, outputName) {
+  const url = "/api/transform";
+  dbg("POST (transform)", { expression, outputName });
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ expression, output_name: outputName })
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Transform failed (${res.status}) ${text}`);
+  }
+  return res.json();
+}
 
 export {
   fetchMetadata,
@@ -253,6 +301,10 @@ export {
   fetchAggregate,
   fetchScatterPoints,
   fetchScatterCorrelations,
-  fetchDistributions
+  fetchDistributions,
+  fetchRollingBands,
+  fetchAnomalies,
+  fetchFft,
+  postTransform
 };
-//# sourceMappingURL=chunk-6RPKOPEP.js.map
+//# sourceMappingURL=chunk-KQYB7SJX.js.map

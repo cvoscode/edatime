@@ -1,4 +1,5 @@
 pub mod aggregate;
+pub mod analytics;
 pub mod data;
 pub mod export;
 pub mod metadata;
@@ -39,6 +40,11 @@ pub fn api_router() -> Router<AppState> {
         )
         .route("/upload", post(upload::upload_data))
         .route("/upload/preview", post(upload::preview_upload_data))
+        // Analytics endpoints
+        .route("/analytics/rolling", get(analytics::get_rolling))
+        .route("/analytics/anomalies", get(analytics::get_anomalies))
+        .route("/analytics/fft", get(analytics::get_fft))
+        .route("/transform", post(analytics::post_transform))
 }
 
 #[tracing::instrument]

@@ -336,6 +336,72 @@ export function initAnalysisControls(fetchAndRender: () => void): void {
     }
 
     applyChartText();
+
+    // ── Analytics overlay controls ──────────────────────────────────────────
+    const rollingCheck = document.getElementById('rolling-enabled') as HTMLInputElement | null;
+    const rollingWindowInput = document.getElementById('rolling-window') as HTMLInputElement | null;
+    const anomalyCheck = document.getElementById('anomaly-enabled') as HTMLInputElement | null;
+    const anomalyMethodSelect = document.getElementById('anomaly-method') as HTMLSelectElement | null;
+    const anomalyThresholdInput = document.getElementById('anomaly-threshold') as HTMLInputElement | null;
+    const transformOpenBtn = document.getElementById('transform-open-btn') as HTMLElement | null;
+
+    if (rollingCheck && !rollingCheck.dataset.bound) {
+        rollingCheck.addEventListener('change', () => {
+            appState.rollingEnabled = rollingCheck.checked;
+            window.dispatchEvent(new CustomEvent('edatime:analytics-change'));
+        });
+        rollingCheck.dataset.bound = '1';
+    }
+    if (rollingWindowInput && !rollingWindowInput.dataset.bound) {
+        let rollingDebounce: any = null;
+        rollingWindowInput.addEventListener('input', () => {
+            const v = parseInt(rollingWindowInput.value, 10);
+            if (Number.isFinite(v) && v >= 3) {
+                appState.rollingWindow = v;
+                if (appState.rollingEnabled) {
+                    clearTimeout(rollingDebounce);
+                    rollingDebounce = setTimeout(() => window.dispatchEvent(new CustomEvent('edatime:analytics-change')), 300);
+                }
+            }
+        });
+        rollingWindowInput.dataset.bound = '1';
+    }
+    if (anomalyCheck && !anomalyCheck.dataset.bound) {
+        anomalyCheck.addEventListener('change', () => {
+            appState.anomalyEnabled = anomalyCheck.checked;
+            window.dispatchEvent(new CustomEvent('edatime:analytics-change'));
+        });
+        anomalyCheck.dataset.bound = '1';
+    }
+    if (anomalyMethodSelect && !anomalyMethodSelect.dataset.bound) {
+        anomalyMethodSelect.addEventListener('change', () => {
+            appState.anomalyMethod = anomalyMethodSelect.value;
+            if (appState.anomalyEnabled) window.dispatchEvent(new CustomEvent('edatime:analytics-change'));
+        });
+        anomalyMethodSelect.dataset.bound = '1';
+    }
+    if (anomalyThresholdInput && !anomalyThresholdInput.dataset.bound) {
+        let threshDebounce: any = null;
+        anomalyThresholdInput.addEventListener('input', () => {
+            const v = parseFloat(anomalyThresholdInput.value);
+            if (Number.isFinite(v) && v > 0) {
+                appState.anomalyThreshold = v;
+                if (appState.anomalyEnabled) {
+                    clearTimeout(threshDebounce);
+                    threshDebounce = setTimeout(() => window.dispatchEvent(new CustomEvent('edatime:analytics-change')), 300);
+                }
+            }
+        });
+        anomalyThresholdInput.dataset.bound = '1';
+    }
+    if (transformOpenBtn && !transformOpenBtn.dataset.bound) {
+        transformOpenBtn.addEventListener('click', () => {
+            const modal = document.getElementById('transform-modal');
+            if (modal) modal.hidden = false;
+        });
+        transformOpenBtn.dataset.bound = '1';
+    }
+
     refreshZoomControlsState();
 }
 

@@ -77,6 +77,15 @@ export const appState: AppStateType = {
     profileGridSort: { key: 'name', dir: 'asc' },
     profileGridColWidths: [56, 220, 120, 140, 100, 130, 130, 260],
     chartText: { title: '', xLabel: '', yLabel: '' },
+
+    // Analytics overlays
+    rollingEnabled: false,
+    rollingWindow: 50,
+    rollingBands: null,
+    anomalyEnabled: false,
+    anomalyMethod: 'zscore',
+    anomalyThreshold: 3.0,
+    anomalyRegions: null,
 };
 
 // Interactive debugging from DevTools.

@@ -562,6 +562,8 @@ export class DataChart {
         if (!this._overlayCtx || !this._overlayCanvas) return;
         const ctx = this._overlayCtx;
         ctx.clearRect(0, 0, this._overlayCanvas.width, this._overlayCanvas.height);
+        this._renderRollingBandsToCtx(ctx, { x: 1, y: 1 });
+        this._renderAnomalyRegionsToCtx(ctx, { x: 1, y: 1 });
         this._renderAdaptiveFilterLinesToCtx(ctx, { x: 1, y: 1 });
         const allDraws = [...this._drawings];
         if (this._currentDraw) allDraws.push(this._currentDraw);
@@ -577,6 +579,128 @@ export class DataChart {
                 ctx.stroke();
             }
         }
+    }
+
+    private _renderRollingBandsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
+        const bands = appState.rollingBands;
+        if (!bands || bands.length === 0 || !appState.rollingEnabled) return;
+        if (!this._container) return;
+
+        const xMin = Number(this._xMin);
+        const xMax = Number(this._xMax);
+        const yRange = this.getYRange();
+        if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !(xMax > xMin) || !yRange) return;
+
+        const rect = this._container.getBoundingClientRect();
+        const cssWidth = Math.max(1, rect.width || this._overlayCanvas?.width || 1);
+        const cssHeight = Math.max(1, rect.height || this._overlayCanvas?.height || 1);
+        const plotLeft = CHART_GRID.left * scale.x;
+        const plotTop = CHART_GRID.top * scale.y;
+        const plotRight = Math.max(plotLeft + 1, (cssWidth - CHART_GRID.right) * scale.x);
+        const plotBottom = Math.max(plotTop + 1, (cssHeight - CHART_GRID.bottom) * scale.y);
+        const plotWidth = Math.max(1, plotRight - plotLeft);
+        const plotHeight = Math.max(1, plotBottom - plotTop);
+        const ySpan = Math.max(1e-9, yRange.max - yRange.min);
+
+        const toX = (ms: number) => plotLeft + ((ms - xMin) / (xMax - xMin)) * plotWidth;
+        const toY = (v: number) => plotBottom - ((v - yRange.min) / ySpan) * plotHeight;
+
+        ctx.save();
+        for (const band of bands) {
+            const n = band.ts.length;
+            if (n < 2) continue;
+
+            // 2-sigma band (lighter)
+            ctx.fillStyle = 'rgba(100, 180, 255, 0.22)';
+            ctx.beginPath();
+            let started = false;
+            for (let i = 0; i < n; i++) {
+                const v = band.upper2[i];
+                if (v == null) continue;
+                const px = toX(band.ts[i]); const py = toY(v);
+                if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+            }
+            for (let i = n - 1; i >= 0; i--) {
+                const v = band.lower2[i];
+                if (v == null) continue;
+                ctx.lineTo(toX(band.ts[i]), toY(v));
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            // 1-sigma band (slightly darker)
+            ctx.fillStyle = 'rgba(100, 180, 255, 0.38)';
+            ctx.beginPath();
+            started = false;
+            for (let i = 0; i < n; i++) {
+                const v = band.upper1[i];
+                if (v == null) continue;
+                const px = toX(band.ts[i]); const py = toY(v);
+                if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+            }
+            for (let i = n - 1; i >= 0; i--) {
+                const v = band.lower1[i];
+                if (v == null) continue;
+                ctx.lineTo(toX(band.ts[i]), toY(v));
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            // Mean line
+            ctx.strokeStyle = 'rgba(180, 220, 255, 0.90)';
+            ctx.lineWidth = 1.5 * Math.min(scale.x, scale.y);
+            ctx.setLineDash([6, 3]);
+            ctx.beginPath();
+            started = false;
+            for (let i = 0; i < n; i++) {
+                const v = band.mean[i];
+                if (v == null) continue;
+                const px = toX(band.ts[i]); const py = toY(v);
+                if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        ctx.restore();
+    }
+
+    private _renderAnomalyRegionsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
+        const regions = appState.anomalyRegions;
+        if (!regions || regions.length === 0 || !appState.anomalyEnabled) return;
+        if (!this._container) return;
+
+        const xMin = Number(this._xMin);
+        const xMax = Number(this._xMax);
+        if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !(xMax > xMin)) return;
+
+        const rect = this._container.getBoundingClientRect();
+        const cssWidth = Math.max(1, rect.width || this._overlayCanvas?.width || 1);
+        const cssHeight = Math.max(1, rect.height || this._overlayCanvas?.height || 1);
+        const plotLeft = CHART_GRID.left * scale.x;
+        const plotTop = CHART_GRID.top * scale.y;
+        const plotRight = Math.max(plotLeft + 1, (cssWidth - CHART_GRID.right) * scale.x);
+        const plotBottom = Math.max(plotTop + 1, (cssHeight - CHART_GRID.bottom) * scale.y);
+        const plotWidth = Math.max(1, plotRight - plotLeft);
+        const plotHeight = Math.max(1, plotBottom - plotTop);
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 74, 110, 0.15)';
+        ctx.strokeStyle = 'rgba(255, 74, 110, 0.5)';
+        ctx.lineWidth = 1 * Math.min(scale.x, scale.y);
+
+        for (const region of regions) {
+            const rStart = Math.max(xMin, region.start_ms);
+            const rEnd = Math.min(xMax, region.end_ms);
+            if (rStart >= rEnd) continue;
+
+            const sx = plotLeft + ((rStart - xMin) / (xMax - xMin)) * plotWidth;
+            const ex = plotLeft + ((rEnd - xMin) / (xMax - xMin)) * plotWidth;
+            const w = Math.max(2, ex - sx);
+
+            ctx.fillRect(sx, plotTop, w, plotHeight);
+            ctx.strokeRect(sx, plotTop, w, plotHeight);
+        }
+        ctx.restore();
     }
 
     private _renderAdaptiveFilterLinesToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {

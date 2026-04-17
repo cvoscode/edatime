@@ -154,6 +154,8 @@ export interface ScatterControls {
     colorColumn: string;
     selectedColorColumn: string;
     colorScale: string;
+    matrixMode: string;
+    matrixCellSize: number;
 }
 
 export function currentControls(): ScatterControls {
@@ -166,6 +168,8 @@ export function currentControls(): ScatterControls {
     const diagonalModeSelect = getEl('scatter-diagonal-mode') as HTMLSelectElement | null;
     const colorColumnSelect = getEl('scatter-color-column') as HTMLSelectElement | null;
     const colorScaleSelect = getEl('scatter-color-scale') as HTMLSelectElement | null;
+    const matrixModeSelect = getEl('scatter-matrix-mode') as HTMLSelectElement | null;
+    const matrixSizeInput = getEl('scatter-matrix-cell-size') as HTMLInputElement | null;
 
     const renderMode = renderModeSelect?.value || 'density';
     const selectedColorColumn = colorColumnSelect?.value || '';
@@ -181,6 +185,8 @@ export function currentControls(): ScatterControls {
         colorColumn: renderMode === 'density' ? '' : selectedColorColumn,
         selectedColorColumn,
         colorScale: colorScaleSelect?.value || 'viridis',
+        matrixMode: matrixModeSelect?.value || 'scatter',
+        matrixCellSize: Math.max(80, Math.min(400, Number(matrixSizeInput?.value ?? 160))),
     };
 }
 
@@ -194,7 +200,8 @@ export interface ScatterQueryContext {
 }
 
 export function isLinkedBrushEnabled(): boolean {
-    return !!(getEl('scatter-link-brush') as HTMLInputElement | null)?.checked;
+    return !!(getEl('scatter-link-brush') as HTMLInputElement | null)?.checked
+        || !!(getEl('scatter-matrix-link-range') as HTMLInputElement | null)?.checked;
 }
 
 export function buildScatterQueryContext(): ScatterQueryContext {

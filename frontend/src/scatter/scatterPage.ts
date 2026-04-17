@@ -293,6 +293,16 @@ function bindControls(): void {
         try { await renderScatter(); } catch (err: any) { console.error(err); showError(String(err?.message ?? err)); }
     });
 
+    // Matrix mode and cell size controls
+    const matrixModeSelect = getEl('scatter-matrix-mode') as HTMLSelectElement | null;
+    const matrixSizeInput = getEl('scatter-matrix-cell-size') as HTMLInputElement | null;
+    const matrixSizeValue = getEl('scatter-matrix-cell-size-value');
+    matrixModeSelect?.addEventListener('change', () => { void refreshActiveScatterView(); });
+    matrixSizeInput?.addEventListener('input', () => {
+        if (matrixSizeValue) matrixSizeValue.textContent = matrixSizeInput.value;
+        if (state.activeView === 'matrix') void refreshActiveScatterView();
+    });
+
     // Export buttons
     getEl('scatter-export-png-btn')?.addEventListener('click', () => exportScatterPNG());
     getEl('scatter-export-svg-btn')?.addEventListener('click', () => exportScatterSVG());

@@ -489,3 +489,74 @@ export function drawMiniScatterCanvas(canvas: HTMLCanvasElement, points: [number
     }
     ctx.globalAlpha = 1;
 }
+
+/** 2D density heat-map for mini matrix cells. Uses a simple grid bin count. */
+export function drawMiniDensityCanvas(
+    canvas: HTMLCanvasElement,
+    points: [number, number][],
+    options: { colorScale?: string } = {},
+): void {
+    const frame = getCanvasFrame(canvas, 180, 92);
+    if (!frame) return;
+    const { ctx, width, height } = frame;
+
+    if (!points.length) {
+        ctx.fillStyle = 'rgba(122, 134, 164, 0.7)';
+        ctx.font = '12px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('No points', width / 2, height / 2);
+        return;
+    }
+
+    const BINS = 20;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of points) {
+        const x = Number(p?.[0]); const y = Number(p?.[1]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+    if (!Number.isFinite(minX)) {
+        ctx.fillStyle = 'rgba(122, 134, 164, 0.7)';
+        ctx.font = '12px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('No points', width / 2, height / 2);
+        return;
+    }
+
+    const xSpan = Math.max(1e-9, maxX - minX);
+    const ySpan = Math.max(1e-9, maxY - minY);
+    const grid = new Float32Array(BINS * BINS);
+    let maxCount = 0;
+
+    for (const p of points) {
+        const x = Number(p?.[0]); const y = Number(p?.[1]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        const bx = Math.min(BINS - 1, Math.floor(((x - minX) / xSpan) * BINS));
+        const by = Math.min(BINS - 1, Math.floor(((y - minY) / ySpan) * BINS));
+        const idx = (BINS - 1 - by) * BINS + bx;
+        grid[idx] += 1;
+        if (grid[idx] > maxCount) maxCount = grid[idx];
+    }
+
+    if (maxCount === 0) return;
+
+    const palette = paletteForScale(options.colorScale || 'viridis');
+    const pad = 0;
+    const cellW = (width - pad * 2) / BINS;
+    const cellH = (height - pad * 2) / BINS;
+
+    for (let row = 0; row < BINS; row++) {
+        for (let col = 0; col < BINS; col++) {
+            const count = grid[row * BINS + col];
+            if (count === 0) continue;
+            const t = Math.sqrt(count / maxCount); // sqrt for perceptual scaling
+            ctx.fillStyle = sampleGradient(palette, t);
+            ctx.fillRect(pad + col * cellW, pad + row * cellH, Math.ceil(cellW), Math.ceil(cellH));
+        }
+    }
+    ctx.strokeStyle = 'rgba(54, 63, 98, 0.7)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+}

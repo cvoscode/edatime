@@ -528,22 +528,19 @@ export function syncModeUI(): void {
     const view = state.activeView || 'plot';
     const isPlot = view === 'plot';
     const isDist = view === 'distributions';
+    const isMatrix = view === 'matrix';
     const isDensity = isPlot && ctl.renderMode === 'density';
     const toggle = (el: HTMLElement | null, visible: boolean) => { if (el) el.style.display = visible ? '' : 'none'; };
 
-    toggle(document.querySelector('label[for="scatter-x-col"]'), !isDist);
-    toggle(getEl('scatter-x-col'), !isDist);
-    toggle(document.querySelector('label[for="scatter-y-col"]'), !isDist);
-    toggle(getEl('scatter-y-col'), !isDist);
+    toggle(getEl('scatter-analytics-group'), !isMatrix);
     toggle(getEl('scatter-mode-label'), isPlot);
     toggle(getEl('scatter-render-mode'), isPlot);
-    toggle(document.querySelector('.scatter-link-toggle'), !isDist);
     toggle(getEl('scatter-density-controls'), isDensity);
     toggle(getEl('scatter-color-controls'), !isDist);
     toggle(getEl('scatter-color-scale'), isPlot && !isDensity);
     toggle(document.querySelector('.scatter-export-group'), isPlot);
     toggle(document.querySelector('.scatter-stats-bar'), isPlot);
-    toggle(document.querySelector('.scatter-suggestions-bar'), !isDist);
+    toggle(document.querySelector('.scatter-suggestions-bar'), !isDist && !isMatrix);
     updateColorbarUI();
 }
 

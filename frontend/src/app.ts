@@ -36,6 +36,7 @@ import {
 import { registerChartType, getChartType } from './charts/registry.js';
 import { FallbackChart } from './charts/fallback.js';
 import type { DatasetMetadata } from './types.js';
+import type { FftTrace } from './chart/FftChart.js';
 
 /* ── Lazy-loaded modules ──────────────────────────────── */
 
@@ -50,17 +51,28 @@ export function teardownApp(): void {
 
 let fetchMetadata: ((signal?: AbortSignal) => Promise<DatasetMetadata>) | null = null;
 let fetchData: ((...args: any[]) => Promise<any>) | null = null;
+let fetchRollingBands: ((...args: any[]) => Promise<any>) | null = null;
+let fetchAnomalies: ((...args: any[]) => Promise<any>) | null = null;
+let fetchFft: ((...args: any[]) => Promise<any>) | null = null;
+let postTransform: ((...args: any[]) => Promise<any>) | null = null;
 let DataChartCtor: (new (...args: any[]) => any) | null = null;
+let FftChartCtor: (new (...args: any[]) => any) | null = null;
 
 async function ensureChartModules(): Promise<void> {
     if (fetchMetadata && fetchData && DataChartCtor) return;
-    const [dataClient, chartModule] = await Promise.all([
+    const [dataClient, chartModule, fftModule] = await Promise.all([
         import('./dataClient.js'),
         import('./chart/DataChart.js'),
+        import('./chart/FftChart.js'),
     ]);
     fetchMetadata = dataClient.fetchMetadata;
     fetchData = dataClient.fetchData;
+    fetchRollingBands = dataClient.fetchRollingBands;
+    fetchAnomalies = dataClient.fetchAnomalies;
+    fetchFft = dataClient.fetchFft;
+    postTransform = dataClient.postTransform;
     DataChartCtor = chartModule.DataChart;
+    FftChartCtor = fftModule.FftChart;
 
     registerChartType('line', {
         label: 'Line',
@@ -137,10 +149,50 @@ function computeRenderedYDebugSnapshot() {
 
 /* ── Core data pipeline ───────────────────────────────── */
 
+function computeFrontendRollingBands(data: any, cols: string[], windowSize: number): any[] {
+    const ts = data?.ts;
+    if (!ts || ts.length < 2) return [];
+    const n = ts.length;
+    const half = Math.floor((windowSize - 1) / 2);
+    const bands: any[] = [];
+    for (const col of cols) {
+        const ys = data?.series?.[col]?.y;
+        if (!ys || ys.length !== n) continue;
+        const tsOut = new Array(n);
+        const mean: (number | null)[] = new Array(n).fill(null);
+        const upper1: (number | null)[] = new Array(n).fill(null);
+        const lower1: (number | null)[] = new Array(n).fill(null);
+        const upper2: (number | null)[] = new Array(n).fill(null);
+        const lower2: (number | null)[] = new Array(n).fill(null);
+        for (let i = 0; i < n; i++) {
+            tsOut[i] = Number(ts[i]);
+            const start = Math.max(0, i - half);
+            const end = Math.min(n, i + half + 1);
+            let sum = 0, sumSq = 0, cnt = 0;
+            for (let j = start; j < end; j++) {
+                const v = Number(ys[j]);
+                if (Number.isFinite(v)) { sum += v; sumSq += v * v; cnt++; }
+            }
+            if (cnt >= 2) {
+                const m = sum / cnt;
+                const std = Math.sqrt(Math.max(0, (sumSq / cnt) - m * m));
+                mean[i] = m; upper1[i] = m + std; lower1[i] = m - std;
+                upper2[i] = m + 2 * std; lower2[i] = m - 2 * std;
+            }
+        }
+        bands.push({ column: col, ts: tsOut, mean, upper1, lower1, upper2, lower2 });
+    }
+    return bands;
+}
+
 function renderCurrentData(): void {
     if (!appState.chart || !appState.lastFetchedData) return;
     const filtered = applyColumnRanges(appState.lastFetchedData);
     appState.chart.updateDataMulti(filtered, appState.selectedCols);
+    if (appState.rollingEnabled) {
+        appState.rollingBands = computeFrontendRollingBands(filtered, appState.selectedCols, (appState as any).rollingWindow || 50);
+        appState.chart?.requestOverlayRender?.();
+    }
 }
 
 function emitAdaptiveFiltersChange(): void {
@@ -288,9 +340,15 @@ async function fetchAndRender(): Promise<void> {
 
         ensureRangeStateFromData(data);
         buildRangeControls();
+        // Call setXRange before renderCurrentData so overlay has correct x mapping
         appState.chart?.setXRange?.(appState.currentStart!, appState.currentEnd!);
         renderCurrentData();
         emitChartRangeChange('data');
+
+        // Rolling bands computed client-side in renderCurrentData; only anomaly needs backend
+        if (appState.anomalyEnabled) {
+            fetchAndRenderAnalytics().catch(() => { /* non-fatal */ });
+        }
 
         if (DEBUG) {
             const snapshot = computeRenderedYDebugSnapshot();
@@ -373,6 +431,7 @@ function initKeyboardShortcuts(): void {
             if (key === '3') { event.preventDefault(); showPage('scatter'); return; }
             if (key === '4') { event.preventDefault(); showPage('scattermatrix'); return; }
             if (key === '5') { event.preventDefault(); showPage('distributions'); return; }
+            if (key === '6') { event.preventDefault(); showPage('fft'); return; }
         }
 
         if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -401,6 +460,225 @@ async function initScatterPageModule(): Promise<void> {
     await initScatterPage(appState.metadata!);
 }
 
+/* ── Analytics overlay fetch ──────────────────────────── */
+
+let analyticsController: AbortController | null = null;
+
+async function fetchAndRenderAnalytics(): Promise<void> {
+    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
+    if (analyticsController) analyticsController.abort();
+    analyticsController = new AbortController();
+    const signal = analyticsController.signal;
+
+    const startIso = new Date(appState.currentStart!).toISOString();
+    const endIso = new Date(appState.currentEnd!).toISOString();
+    const cols = appState.selectedCols.join(',');
+
+    // Rolling bands are now computed client-side in renderCurrentData
+    if (!appState.rollingEnabled) appState.rollingBands = null;
+
+    try {
+        if (appState.anomalyEnabled && fetchAnomalies) {
+            const resp = await fetchAnomalies(startIso, endIso, cols, appState.anomalyMethod, appState.anomalyThreshold, signal);
+            appState.anomalyRegions = resp?.regions || null;
+        } else {
+            appState.anomalyRegions = null;
+        }
+    } catch (e: any) {
+        if (e?.name !== 'AbortError') console.warn('Anomaly fetch failed:', e);
+        appState.anomalyRegions = null;
+    }
+
+    appState.chart?.requestOverlayRender?.();
+}
+
+function initAnalyticsListeners(): void {
+    window.addEventListener('edatime:analytics-change', () => {
+        // Recompute client-side rolling bands when settings change
+        if (appState.lastFetchedData) {
+            if (appState.rollingEnabled) {
+                const filtered = applyColumnRanges(appState.lastFetchedData);
+                appState.rollingBands = computeFrontendRollingBands(
+                    filtered, appState.selectedCols, (appState as any).rollingWindow || 50);
+            } else {
+                appState.rollingBands = null;
+            }
+            appState.chart?.requestOverlayRender?.();
+        }
+        fetchAndRenderAnalytics().catch(() => { });
+    });
+}
+
+/* ── Transform modal ──────────────────────────────────── */
+
+function initTransformModal(): void {
+    const modal = document.getElementById('transform-modal') as HTMLElement | null;
+    const closeBtn = document.getElementById('transform-close-btn');
+    const cancelBtn = document.getElementById('transform-cancel-btn');
+    const applyBtn = document.getElementById('transform-apply-btn');
+    const exprInput = document.getElementById('transform-expression') as HTMLInputElement | null;
+    const nameInput = document.getElementById('transform-output-name') as HTMLInputElement | null;
+    const errorEl = document.getElementById('transform-error') as HTMLElement | null;
+
+    if (!modal) return;
+
+    const close = () => { modal.hidden = true; if (errorEl) errorEl.textContent = ''; };
+    closeBtn?.addEventListener('click', close);
+    cancelBtn?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+    applyBtn?.addEventListener('click', async () => {
+        const expr = exprInput?.value?.trim();
+        const name = nameInput?.value?.trim();
+        if (!expr) { if (errorEl) errorEl.textContent = 'Expression is required.'; return; }
+        if (!name) { if (errorEl) errorEl.textContent = 'Output column name is required.'; return; }
+        if (errorEl) errorEl.textContent = '';
+
+        try {
+            applyBtn.textContent = 'Applying…';
+            (applyBtn as HTMLButtonElement).disabled = true;
+            await postTransform!(expr, name);
+            close();
+            // Reload metadata and data after transform
+            if (fetchMetadata) {
+                appState.metadata = await fetchMetadata();
+                appState.numericCols = ((appState.metadata as any).numeric_columns || [])
+                    .filter((col: string) => col && col.toLowerCase() !== 'ts');
+                if (!appState.selectedCols.includes(name)) appState.selectedCols.push(name);
+                sanitizeSelectedColumns();
+                buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
+                buildMetaBar(appState.metadata);
+                await fetchAndRender();
+            }
+        } catch (e: any) {
+            if (errorEl) errorEl.textContent = e?.message || 'Transform failed.';
+        } finally {
+            applyBtn.textContent = 'Apply';
+            (applyBtn as HTMLButtonElement).disabled = false;
+        }
+    });
+}
+
+/* ── FFT page ─────────────────────────────────────────── */
+
+let _fftTraces: FftTrace[] = [];
+let _fftMode = 'magnitude';
+let _fftLogScale = true;
+let _fftChart: any = null;
+const _FFT_CHIP_COLORS = ['#7ad151', '#4ac3e8', '#f97316', '#e879f9', '#facc15', '#60a5fa', '#f43f5e'];
+
+function _fftUpdateZoomBtn(isZoomed?: boolean): void {
+    const btn = document.getElementById('fft-zoom-reset-btn') as HTMLButtonElement | null;
+    if (btn) btn.hidden = !(isZoomed ?? _fftChart?.getIsZoomed() ?? false);
+}
+
+function _fftRerenderOrClear(): void {
+    if (!_fftChart) return;
+    if (_fftTraces.length === 0) {
+        _fftChart.clear();
+    } else {
+        _fftChart.updateData(_fftTraces, _fftMode, _fftLogScale);
+    }
+}
+
+function _fftRenderChips(): void {
+    const bar = document.getElementById('fft-traces-bar');
+    const statusEl = document.getElementById('fft-status') as HTMLElement | null;
+    if (!bar || !appState.metadata) return;
+    const allCols: string[] = ((appState.metadata as any).numeric_columns || [])
+        .filter((c: string) => c.toLowerCase() !== 'ts');
+
+    const existing = new Map<string, HTMLElement>();
+    for (const el of bar.querySelectorAll<HTMLElement>('.fft-trace-chip')) {
+        const col = (el as any).dataset.col as string;
+        if (allCols.includes(col)) existing.set(col, el);
+        else el.remove();
+    }
+
+    const zoomBtn = bar.querySelector('#fft-zoom-reset-btn');
+    for (const col of allCols) {
+        const activeIdx = _fftTraces.findIndex(t => t.column === col);
+        const isActive = activeIdx >= 0;
+        const color = isActive ? _FFT_CHIP_COLORS[activeIdx % _FFT_CHIP_COLORS.length] : '';
+        let chip = existing.get(col) as HTMLButtonElement | undefined;
+        if (!chip) {
+            chip = document.createElement('button') as HTMLButtonElement;
+            chip.className = 'fft-trace-chip';
+            chip.type = 'button';
+            (chip as any).dataset.col = col;
+            chip.addEventListener('click', async (e) => {
+                const c = (chip as any).dataset.col as string;
+                if ((e.target as HTMLElement).classList.contains('fft-chip-remove')) {
+                    _fftTraces = _fftTraces.filter(t => t.column !== c);
+                    _fftRenderChips();
+                    _fftRerenderOrClear();
+                    if (statusEl) statusEl.textContent = _fftTraces.length
+                        ? _fftTraces.map(t => t.column).join(', ')
+                        : 'Select a column chip to compute its FFT.';
+                    return;
+                }
+                if (_fftTraces.some(t => t.column === c)) return;
+                chip!.classList.add('loading');
+                chip!.disabled = true;
+                if (statusEl) statusEl.textContent = `Computing FFT for ${c}…`;
+                try {
+                    await _fftFetchAndAdd(c);
+                    _fftRenderChips();
+                    _fftRerenderOrClear();
+                    const bins = _fftTraces.find(t => t.column === c)?.frequencies.length ?? 0;
+                    if (statusEl) statusEl.textContent = `${_fftTraces.map(t => t.column).join(', ')} · ${bins} bins`;
+                } catch (e2: any) {
+                    if (statusEl) statusEl.textContent = `FFT failed for ${c}: ${e2?.message || 'error'}`;
+                } finally {
+                    chip!.classList.remove('loading');
+                    chip!.disabled = false;
+                }
+            });
+            bar.insertBefore(chip, zoomBtn || null);
+        }
+        chip.className = `fft-trace-chip${isActive ? ' active' : ''}`;
+        chip.innerHTML = `<span class="fft-chip-dot" style="${isActive ? `background:${color}` : 'border:1px solid rgba(255,255,255,0.25)'}"></span>`
+            + `<span class="fft-chip-label">${col}</span>`
+            + (isActive ? '<span class="fft-chip-remove" aria-hidden="true">×</span>' : '');
+    }
+
+    bar.hidden = allCols.length === 0;
+}
+
+async function _fftFetchAndAdd(col: string): Promise<void> {
+    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
+    const startIso = new Date(appState.currentStart!).toISOString();
+    const endIso = new Date(appState.currentEnd!).toISOString();
+    const resp = await fetchFft!(startIso, endIso, col);
+    if (!resp?.results?.length) throw new Error('No results');
+    const result = resp.results[0];
+    _fftTraces = _fftTraces.filter(t => t.column !== col);
+    _fftTraces.push({ column: result.column, frequencies: result.frequencies, magnitudes: result.magnitudes, psd: result.psd });
+}
+
+async function initFftPage(): Promise<void> {
+    const modeSelect = document.getElementById('fft-mode-select') as HTMLSelectElement | null;
+    const logCheck = document.getElementById('fft-log-scale') as HTMLInputElement | null;
+    const zoomResetBtn = document.getElementById('fft-zoom-reset-btn') as HTMLButtonElement | null;
+
+    _fftChart = new FftChartCtor!('fft-chart');
+    await _fftChart.init();
+
+    _fftChart.onZoomChange = (isZoomed: boolean) => _fftUpdateZoomBtn(isZoomed);
+
+    const populateChips = () => { if (appState.metadata) _fftRenderChips(); };
+    populateChips();
+    window.addEventListener('edatime:page-change', populateChips);
+
+    modeSelect?.addEventListener('change', () => { _fftMode = modeSelect.value; _fftRerenderOrClear(); });
+    logCheck?.addEventListener('change', () => { _fftLogScale = logCheck.checked; _fftRerenderOrClear(); });
+    zoomResetBtn?.addEventListener('click', () => _fftChart?.resetView());
+
+    _fftRerenderOrClear();
+}
+
+
+
 /* ── Main init ────────────────────────────────────────── */
 
 async function init(): Promise<void> {
@@ -411,6 +689,8 @@ async function init(): Promise<void> {
     initColumnFilterModal(renderCurrentData, updateAnalysisYRange);
     initChartPageFilterGesture();
     initKeyboardShortcuts();
+    initTransformModal();
+    initAnalyticsListeners();
 
     try { await ensureChartModules(); } catch (e: any) {
         console.error('Chart/data modules failed to load:', e);
@@ -426,6 +706,7 @@ async function init(): Promise<void> {
         dbgGroup('metadata', () => dbg(appState.metadata));
         setMetaText('Loading chart…');
         await initScatterPageModule();
+        await initFftPage();
 
         if (!(appState.metadata as any).time_range) { setMetaText('No valid time range found.'); return; }
 

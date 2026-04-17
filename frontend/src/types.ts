@@ -218,6 +218,33 @@ export interface AppStateType {
     profileGridSort: ProfileGridSort;
     profileGridColWidths: number[];
     chartText: ChartTextOverlays;
+
+    // Analytics overlays
+    rollingEnabled: boolean;
+    rollingWindow: number;
+    rollingBands: RollingBandData[] | null;
+    anomalyEnabled: boolean;
+    anomalyMethod: string;
+    anomalyThreshold: number;
+    anomalyRegions: AnomalyRegionData[] | null;
+}
+
+export interface RollingBandData {
+    column: string;
+    ts: number[];
+    mean: (number | null)[];
+    upper1: (number | null)[];
+    lower1: (number | null)[];
+    upper2: (number | null)[];
+    lower2: (number | null)[];
+}
+
+export interface AnomalyRegionData {
+    column: string;
+    method: string;
+    start_ms: number;
+    end_ms: number;
+    score: number;
 }
 
 // ── Chart adapter interface ────────────────────────────────────────────────

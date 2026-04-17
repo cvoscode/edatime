@@ -39,10 +39,30 @@
   align-items: center;
   gap: 14px;
 }
-.analysis-controls { display: inline-flex; align-items: center; gap: 8px; }
-.analysis-controls .btn { padding: 4px 10px; }
-.analysis-stats { display: flex; align-items: center; gap: 14px; min-width: 0; overflow-x: auto; }
-.analysis-stats span { font-size: 0.6875rem; color: var(--text-dim); white-space: nowrap; }
+
+.analysis-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.analysis-controls .btn {
+  padding: 4px 10px;
+}
+
+.analysis-stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.analysis-stats span {
+  font-size: 0.6875rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
 
 .toolbar-group {
   display: flex;
@@ -50,15 +70,59 @@
   gap: 8px;
   flex-shrink: 0;
 }
+
 .toolbar-group--sep {
   padding-left: 12px;
   margin-left: 4px;
   border-left: 1px solid var(--border);
 }
-.toolbar-group--push { margin-left: auto; }
 
-.draw-toolbar   { flex-shrink: 0; }
-.export-toolbar { flex-shrink: 0; }
+.toolbar-group--push {
+  margin-left: auto;
+}
+
+.draw-toolbar {
+  flex-shrink: 0;
+}
+
+.export-toolbar {
+  flex-shrink: 0;
+}
+
+.analytics-toolbar {
+  flex-shrink: 0;
+}
+
+/* Series row — allows chips to scroll horizontally */
+.toolbar--series {
+  height: 44px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Tools row — all the action groups */
+.toolbar--tools {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Thin vertical divider between analytics sub-groups */
+.toolbar-group-divider {
+  display: inline-block;
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex-shrink: 0;
+  margin: 0 2px;
+}
+
+/* Active state for analytics toggle labels */
+.analytics-toolbar .scatter-link-toggle:has(input:checked) span {
+  color: var(--cyan);
+  font-weight: 600;
+}
+
+.analytics-toolbar .scatter-link-toggle:has(input:checked) {
+  color: var(--cyan);
+}
 
 .toolbar-label {
   font-size: 0.6875rem;
@@ -71,14 +135,31 @@
 }
 
 /* Column filter */
-.column-filter-input { width: 220px; }
-.upload-preview-head .column-filter-input { width: 220px; }
+.column-filter-input {
+  width: 220px;
+}
+
+.upload-preview-head .column-filter-input {
+  width: 220px;
+}
 
 /* Draw toolbar — specific overrides */
-#draw-color   { width: 24px; height: 24px; flex-shrink: 0; }
-#draw-width   { width: 44px; }
+#draw-color {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+#draw-width {
+  width: 44px;
+}
 
 /* Label inputs */
-#chart-title-input   { width: 140px; }
+#chart-title-input {
+  width: 140px;
+}
+
 #x-axis-label-input,
-#y-axis-label-input  { width: 90px; }
+#y-axis-label-input {
+  width: 90px;
+}

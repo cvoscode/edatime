@@ -10,6 +10,7 @@ axum = { version = "0.8.8", features = ["multipart"] }
 chrono = { version = "0.4.41", features = ["serde"] }
 minmaxlttb = "0.1.4"
 polars = { version = "0.53.0", features = ["lazy", "temporal", "parquet", "csv", "dtype-datetime", "ipc", "ipc_streaming"] }
+rustfft = "6.2.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 tempfile = "3.26.0"
