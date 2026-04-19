@@ -126,3 +126,56 @@ pub async fn get_scatter_correlations(
     .await
     .map_err(|e| AppError::internal(format!("Failed to join scatter correlation task: {:?}", e)))?
 }
+
+// ── Full NxN Correlation Matrix ────────────────────────────────────────────
+
+#[derive(Debug, serde::Serialize)]
+pub struct CorrelationMatrixResponse {
+    pub columns: Vec<String>,
+    pub pearson: Vec<Vec<Option<f64>>>,
+    pub spearman: Vec<Vec<Option<f64>>>,
+}
+
+#[tracing::instrument(skip(state))]
+pub async fn get_correlation_matrix(
+    State(state): State<AppState>,
+) -> Result<Json<CorrelationMatrixResponse>, AppError> {
+    let df = state.dataset_snapshot().await;
+
+    tokio::task::spawn_blocking(move || {
+        let mut numeric = numeric_columns(&df);
+        numeric.sort();
+
+        if numeric.len() < 2 {
+            return Err(AppError::bad_request(
+                "Need at least two numeric columns for correlation matrix",
+            ));
+        }
+
+        let n = numeric.len();
+        let mut pearson = vec![vec![None; n]; n];
+        let mut spearman = vec![vec![None; n]; n];
+
+        for i in 0..n {
+            pearson[i][i] = Some(1.0);
+            spearman[i][i] = Some(1.0);
+            for j in (i + 1)..n {
+                let pairs = collect_xy_pairs(&df, &numeric[i], &numeric[j])?;
+                let p = stats::pearson(&pairs);
+                let s = stats::spearman(&pairs);
+                pearson[i][j] = p;
+                pearson[j][i] = p;
+                spearman[i][j] = s;
+                spearman[j][i] = s;
+            }
+        }
+
+        Ok(Json(CorrelationMatrixResponse {
+            columns: numeric,
+            pearson,
+            spearman,
+        }))
+    })
+    .await
+    .map_err(|e| AppError::internal(format!("Failed to join correlation matrix task: {:?}", e)))?
+}

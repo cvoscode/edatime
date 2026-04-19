@@ -152,6 +152,9 @@ export interface PendingAdaptivePoint {
     column: string;
     x: number;
     y: number;
+    /** Second endpoint — when set, a preview line is drawn instead of a dot. */
+    x2?: number;
+    y2?: number;
 }
 
 export interface ChartTextOverlays {

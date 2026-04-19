@@ -75,10 +75,6 @@ impl AppError {
         Self::new(ErrorKind::RateLimit, ErrorCode::RateLimitExceeded, msg)
     }
 
-    pub fn not_found(msg: impl Into<String>) -> Self {
-        Self::new(ErrorKind::NotFound, ErrorCode::NotFound, msg)
-    }
-
     fn new(kind: ErrorKind, code: ErrorCode, msg: impl Into<String>) -> Self {
         Self {
             kind,

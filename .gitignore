@@ -13,3 +13,4 @@ pyproject.toml
 poetry.lock
 uv.lock
 *.py
+tigramite/

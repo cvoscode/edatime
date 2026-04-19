@@ -26,7 +26,7 @@ let tableFromIPCFn: TableFromIPCFn | null = null;
 async function ensureArrowParser(): Promise<TableFromIPCFn> {
     if (tableFromIPCFn) return tableFromIPCFn;
     try {
-        const arrow = await import('https://esm.sh/apache-arrow@16.0.0?bundle' as string);
+        const arrow = await import('apache-arrow');
         if (!arrow?.tableFromIPC) {
             throw new Error('Apache Arrow module loaded but tableFromIPC is missing.');
         }
@@ -69,10 +69,33 @@ function assertDistributions(data: unknown): asserts data is DistributionsRespon
 
 // ── Fetch helpers ────────────────────────────────────────────────────────────
 
+async function getJson<T>(url: string, label: string, signal?: AbortSignal): Promise<T> {
+    dbg(`GET (${label})`, url);
+    const res = await fetch(url, signal ? { signal } : undefined);
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`${label} failed (${res.status}) ${text}`);
+    }
+    return res.json();
+}
+
+async function postJson<T>(url: string, body: unknown, label: string, signal?: AbortSignal): Promise<T> {
+    dbg(`POST (${label})`, { url, body });
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal,
+    });
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`${label} failed (${res.status}) ${text}`);
+    }
+    return res.json();
+}
+
 export async function fetchMetadata(): Promise<DatasetMetadata> {
-    const res = await fetch('/api/metadata');
-    if (!res.ok) throw new Error('Metadata check failed');
-    const data = await res.json();
+    const data = await getJson<unknown>('/api/metadata', 'Metadata');
     assertDatasetMetadata(data);
     return data;
 }
@@ -220,39 +243,13 @@ export async function fetchData(
     return dataObj;
 }
 
-export async function fetchAggregate(
-    start: string,
-    end: string,
-    columns = 'value',
-    buckets = 50,
-    agg = 'mean',
-    format: 'arrow' | 'json' = 'json',
-): Promise<unknown> {
-    const params = new URLSearchParams({ start, end, columns, buckets: String(buckets), agg, format });
-    const url = `/api/aggregate?${params.toString()}`;
-    dbg('GET (aggregate)', url);
-
-    const res = await fetch(url);
-    if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Aggregate fetch failed (${res.status}) ${text}`);
-    }
-
-    if (format === 'arrow') {
-        const tableFromIPC = await ensureArrowParser();
-        const buffer = await res.arrayBuffer();
-        return tableFromIPC(buffer);
-    }
-
-    return res.json();
-}
-
 export async function fetchScatterPoints(
     x: string,
     y: string,
     limit = 1_000_000,
     color: string | null = null,
     options: ScatterFetchOptions | null = null,
+    signal?: AbortSignal,
 ): Promise<ScatterPointsResponse> {
     const payload: Record<string, unknown> = {
         x: String(x),
@@ -276,18 +273,7 @@ export async function fetchScatterPoints(
     }
 
     const url = '/api/scatter/points';
-    dbg('POST (scatter points)', { url, payload });
-
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Scatter points fetch failed (${res.status}) ${text}`);
-    }
-    const data = await res.json();
+    const data = await postJson<unknown>(url, payload, 'Scatter points', signal);
     assertScatterPoints(data);
     return data;
 }
@@ -301,14 +287,7 @@ export async function fetchScatterCorrelations(
         params.set('base', String(base));
     }
     const url = `/api/scatter/correlations?${params.toString()}`;
-    dbg('GET (scatter correlations)', url);
-
-    const res = await fetch(url);
-    if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Scatter correlations fetch failed (${res.status}) ${text}`);
-    }
-    const data = await res.json();
+    const data = await getJson<unknown>(url, 'Scatter correlations');
     assertScatterCorrelations(data);
     return data;
 }
@@ -326,18 +305,7 @@ export async function fetchDistributions(
     if (Array.isArray(context?.lineFilters) && context.lineFilters!.length > 0) body.line_filters = context.lineFilters;
 
     const url = '/api/scatter/distributions';
-    dbg('POST (distributions)', { url, columns: (body.columns as string[]).length });
-
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Distributions fetch failed (${res.status}) ${text}`);
-    }
-    const data = await res.json();
+    const data = await postJson<unknown>(url, body, 'Distributions');
     assertDistributions(data);
     return data;
 }
@@ -367,14 +335,7 @@ export async function fetchRollingBands(
 ): Promise<RollingResponse> {
     const params = new URLSearchParams({ start, end, columns, window: String(window) });
     const url = `/api/analytics/rolling?${params.toString()}`;
-    dbg('GET (rolling)', url);
-
-    const res = await fetch(url, signal ? { signal } : undefined);
-    if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Rolling bands fetch failed (${res.status}) ${text}`);
-    }
-    return res.json();
+    return getJson<RollingResponse>(url, 'Rolling bands', signal);
 }
 
 export interface AnomalyRegion {
@@ -402,14 +363,7 @@ export async function fetchAnomalies(
     const params = new URLSearchParams({ start, end, columns, method });
     if (threshold !== undefined) params.set('threshold', String(threshold));
     const url = `/api/analytics/anomalies?${params.toString()}`;
-    dbg('GET (anomalies)', url);
-
-    const res = await fetch(url, signal ? { signal } : undefined);
-    if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Anomaly detection failed (${res.status}) ${text}`);
-    }
-    return res.json();
+    return getJson<AnomalyResponse>(url, 'Anomaly detection', signal);
 }
 
 export interface FftResult {
@@ -433,14 +387,87 @@ export async function fetchFft(
 ): Promise<FftResponse> {
     const params = new URLSearchParams({ start, end, columns, max_points: String(maxPoints) });
     const url = `/api/analytics/fft?${params.toString()}`;
-    dbg('GET (fft)', url);
+    return getJson<FftResponse>(url, 'FFT', signal);
+}
 
-    const res = await fetch(url, signal ? { signal } : undefined);
-    if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`FFT fetch failed (${res.status}) ${text}`);
-    }
-    return res.json();
+// ── Spectrogram (STFT) ────────────────────────────────────────────────────
+
+export interface SpectrogramResult {
+    column: string;
+    times_ms: number[];
+    frequencies: number[];
+    magnitudes: number[][];
+}
+
+export interface SpectrogramResponse {
+    sample_count: number;
+    result: SpectrogramResult;
+}
+
+export async function fetchSpectrogram(
+    start: string,
+    end: string,
+    column: string,
+    windowSize = 256,
+    hopSize?: number,
+    maxPoints = 32768,
+    signal?: AbortSignal,
+): Promise<SpectrogramResponse> {
+    const params = new URLSearchParams({
+        start, end, column,
+        window_size: String(windowSize),
+        max_points: String(maxPoints),
+    });
+    if (hopSize != null) params.set('hop_size', String(hopSize));
+    const url = `/api/analytics/spectrogram?${params.toString()}`;
+    return getJson<SpectrogramResponse>(url, 'Spectrogram', signal);
+}
+
+// ── Causal Graph (Tigramite) ──────────────────────────────────────────────
+
+export interface CausalLink {
+    source: string;
+    target: string;
+    lag: number;
+    type: string;
+    value: number;
+    pvalue: number;
+}
+
+export interface CausalGraphResponse {
+    columns: string[];
+    tau_max: number;
+    links: CausalLink[];
+    graph: string[][][];
+    val_matrix: number[][][];
+    p_matrix: number[][][];
+}
+
+export async function fetchCausalGraph(
+    columns: string[],
+    tauMax = 3,
+    alpha = 0.05,
+    method = 'pcmci',
+    maxPoints = 5000,
+    signal?: AbortSignal,
+    pcAlpha = 0.2,
+    test = 'par_corr',
+    maxCondsDim?: number,
+    fdrMethod = 'none',
+): Promise<CausalGraphResponse> {
+    const url = '/api/analytics/causal';
+    const body: Record<string, unknown> = {
+        columns: columns.join(','),
+        tau_max: tauMax,
+        alpha,
+        method,
+        max_points: maxPoints,
+        pc_alpha: pcAlpha,
+        test,
+        fdr_method: fdrMethod,
+    };
+    if (maxCondsDim != null) body.max_conds_dim = maxCondsDim;
+    return postJson<CausalGraphResponse>(url, body, 'Causal graph', signal);
 }
 
 export interface TransformResponse {
@@ -454,16 +481,75 @@ export async function postTransform(
     outputName: string,
 ): Promise<TransformResponse> {
     const url = '/api/transform';
-    dbg('POST (transform)', { expression, outputName });
+    return postJson<TransformResponse>(url, { expression, output_name: outputName }, 'Transform');
+}
 
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expression, output_name: outputName }),
-    });
-    if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Transform failed (${res.status}) ${text}`);
-    }
-    return res.json();
+// ── Correlation Matrix ─────────────────────────────────────────────────────
+
+export interface CorrelationMatrixResponse {
+    columns: string[];
+    pearson: (number | null)[][];
+    spearman: (number | null)[][];
+}
+
+export async function fetchCorrelationMatrix(): Promise<CorrelationMatrixResponse> {
+    return getJson<CorrelationMatrixResponse>('/api/scatter/correlations/matrix', 'Correlation matrix');
+}
+
+// ── Outlier Removal ────────────────────────────────────────────────────────
+
+export interface OutlierRemovalResult {
+    method: string;
+    columns: string[];
+    rows_before: number;
+    rows_after: number;
+    rows_removed: number;
+}
+
+export async function postRemoveOutliers(
+    columns: string[] | null,
+    method = 'zscore',
+    threshold?: number,
+    window?: number,
+): Promise<OutlierRemovalResult> {
+    const body: Record<string, unknown> = { method };
+    if (columns) body.columns = columns.join(',');
+    if (threshold !== undefined) body.threshold = threshold;
+    if (window !== undefined) body.window = window;
+
+    const url = '/api/analytics/remove_outliers';
+    return postJson<OutlierRemovalResult>(url, body, 'Outlier removal');
+}
+
+// ── Time Distributions ─────────────────────────────────────────────────────
+
+export interface TimeDistributionBin {
+    window_start_ms: number;
+    window_end_ms: number;
+    bin_edges: number[];
+    counts: number[];
+}
+
+export interface TimeDistributionColumn {
+    column: string;
+    windows: TimeDistributionBin[];
+    global_min: number;
+    global_max: number;
+}
+
+export interface TimeDistributionsResponse {
+    columns: TimeDistributionColumn[];
+}
+
+export async function fetchTimeDistributions(
+    start: string,
+    end: string,
+    columns: string,
+    windows = 20,
+    bins = 24,
+    signal?: AbortSignal,
+): Promise<TimeDistributionsResponse> {
+    const params = new URLSearchParams({ start, end, columns, windows: String(windows), bins: String(bins) });
+    const url = `/api/analytics/time_distributions?${params.toString()}`;
+    return getJson<TimeDistributionsResponse>(url, 'Time distributions', signal);
 }

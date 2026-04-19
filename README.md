@@ -286,15 +286,26 @@ edatime/
 ├── frontend/
 │   ├── index.html        — Application shell
 │   ├── css/style.css     — Dark UI styling
-│   └── js/
-│       ├── app.js        — Bootstrap and page orchestration
-│       ├── chart.js      — Time-series chart adapter (ChartGPU)
-│       ├── dataClient.js — HTTP/Arrow fetch helpers
-│       ├── scatterPage.js — Scatter/density analytics
-│       ├── state.js      — Shared frontend state
+│   └── src/              — TypeScript source (compiled to js/ by esbuild)
+│       ├── app.ts        — Bootstrap and page orchestration
+│       ├── chart/
+│       │   ├── DataChart.ts         — Time-series chart adapter (ChartGPU)
+│       │   ├── FftChart.ts          — FFT / PSD chart adapter
+│       │   ├── chartInteractions.ts — Shared chart interaction utilities
+│       │   ├── colorScale.ts        — Color scale helpers
+│       │   └── ticks.ts             — Axis tick formatting
+│       ├── dataClient.ts — HTTP/Arrow fetch helpers
+│       ├── scatter/       — Scatter/density analytics page
+│       ├── state.ts      — Shared frontend state
+│       ├── utils/dom.ts  — DOM utilities (debounce, escapeHtml, download)
 │       └── ui/           — Series chips, toolbar, upload, profile grid
+├── scripts/
+│   ├── build-frontend.mjs — esbuild bundler (--prod for minification)
+│   └── check-frontend.mjs — Syntax validator
 ├── docs/
 │   └── developer-guide.md — Development, benchmarks, CI details
+├── Dockerfile            — Multi-stage Docker build
+├── Makefile              — Common build/run targets
 ├── sample.csv            — Minimal example dataset
 └── Cargo.toml
 ```
@@ -317,10 +328,42 @@ cargo test
 # Validate frontend syntax
 npm run check:frontend
 
+# Type-check TypeScript
+npm run typecheck
+
+# Build frontend for production (minified)
+npm run build:frontend:prod
+
 # Run benchmarks
 cargo bench --bench pipeline_bench
 
 # Security audit
 cargo install cargo-audit --locked
 cargo audit
+```
+
+### Using Make
+
+Common targets are available via the included Makefile:
+
+```bash
+make build          # cargo build (debug)
+make build-release  # cargo build --release
+make run            # cargo run --release
+make dev            # build frontend + cargo run (debug)
+make check          # cargo check + clippy + tsc
+make test           # cargo test + frontend syntax check
+make frontend-prod  # minified frontend build (requires Node)
+```
+
+### Docker
+
+Build and run as a container — no Rust toolchain or Node needed on the host:
+
+```bash
+docker build -t edatime .
+docker run --rm -p 3000:3000 edatime
+
+# Or pre-load a dataset:
+docker run --rm -p 3000:3000 -v ./data:/data -e EDATIME_SAMPLE_DATA=/data/my_data.csv edatime
 ```

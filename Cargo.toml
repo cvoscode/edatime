@@ -8,14 +8,20 @@ arrow = "58.0.0"
 arrow-ipc = "58.0.0"
 axum = { version = "0.8.8", features = ["multipart"] }
 chrono = { version = "0.4.41", features = ["serde"] }
+deadpool-postgres = { version = "0.14", features = ["serde"] }
 minmaxlttb = "0.1.4"
+ndarray = { version = "0.16", features = ["rayon"] }
 polars = { version = "0.53.0", features = ["lazy", "temporal", "parquet", "csv", "dtype-datetime", "ipc", "ipc_streaming"] }
+rand = "0.8"
+rayon = "1.10"
 rustfft = "6.2.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
+statrs = "0.18"
 tempfile = "3.26.0"
 tokio = { version = "1.49.0", features = ["full"] }
-tower-http = { version = "0.6.8", features = ["cors", "fs", "set-header", "trace"] }
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
+tower-http = { version = "0.6.8", features = ["cors", "compression-gzip", "fs", "set-header", "trace"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 toml = "0.8.23"

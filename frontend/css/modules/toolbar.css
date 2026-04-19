@@ -81,14 +81,8 @@
   margin-left: auto;
 }
 
-.draw-toolbar {
-  flex-shrink: 0;
-}
-
-.export-toolbar {
-  flex-shrink: 0;
-}
-
+.draw-toolbar,
+.export-toolbar,
 .analytics-toolbar {
   flex-shrink: 0;
 }
@@ -136,10 +130,6 @@
 
 /* Column filter */
 .column-filter-input {
-  width: 220px;
-}
-
-.upload-preview-head .column-filter-input {
   width: 220px;
 }
 

@@ -57,6 +57,8 @@ function cleanStaleOutputs(dir, relBase) {
 }
 cleanStaleOutputs(OUT_DIR, '');
 
+const isProd = process.argv.includes('--prod');
+
 const buildOptions = {
     entryPoints,
     outdir: OUT_DIR,
@@ -66,12 +68,14 @@ const buildOptions = {
     sourcemap: true,
     target: 'es2022',
     platform: 'browser',
+    minify: isProd,
+    treeShaking: true,
     external: [
-        'https://esm.sh/*',
         'https://unpkg.com/*',
     ],
     outExtension: { '.js': '.js' },
     logLevel: 'info',
+    metafile: isProd,
 };
 
 if (isWatch) {
@@ -79,6 +83,10 @@ if (isWatch) {
     await ctx.watch();
     console.log('Watching for changes...');
 } else {
-    await esbuild.build(buildOptions);
-    console.log('Frontend build complete.');
+    const result = await esbuild.build(buildOptions);
+    if (isProd && result.metafile) {
+        const analysis = await esbuild.analyzeMetafile(result.metafile);
+        console.log(analysis);
+    }
+    console.log(`Frontend build complete${isProd ? ' (minified)' : ''}.`);
 }

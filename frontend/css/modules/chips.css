@@ -75,9 +75,10 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px 3px 8px;
+  padding: 3px 10px 3px 10px;
   border-radius: 20px;
   border: 1px solid var(--border);
+  border-left: 3px solid var(--chip-accent, var(--border));
   background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
   white-space: nowrap;
@@ -92,12 +93,7 @@
   display: none;
 }
 
-.series-chip .chip-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
+
 
 .series-chip .chip-label {
   font-size: 0.75rem;
@@ -169,25 +165,28 @@
 }
 
 .fft-trace-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px 3px 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill, 9999px);
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: var(--text-dim);
-  cursor: pointer;
-  user-select: none;
-  background: transparent;
-  transition: background var(--transition), color var(--transition), border-color var(--transition);
-  white-space: nowrap;
+  gap: 6px;
 }
 
-.fft-trace-chip:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text);
+.fft-trace-chip .chip-color-picker {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin-left: 2px;
+}
+
+.fft-trace-chip .chip-color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.fft-trace-chip .chip-color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: 999px;
+}
+
+.fft-trace-chip .chip-color-picker::-moz-color-swatch {
+  border: none;
+  border-radius: 999px;
 }
 
 .fft-trace-chip:disabled {
@@ -196,9 +195,9 @@
 }
 
 .fft-trace-chip.active {
-  color: var(--text);
-  border-color: rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--chip-accent) 20%, transparent),
+    0 0 16px color-mix(in srgb, var(--chip-accent) 12%, transparent);
 }
 
 .fft-trace-chip.loading {
@@ -206,14 +205,9 @@
   cursor: wait;
 }
 
-.fft-chip-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
 
-.fft-chip-label {
+
+.fft-trace-chip .chip-label {
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -229,4 +223,69 @@
 
 .fft-trace-chip.active:hover .fft-chip-remove {
   opacity: 0.9;
+}
+
+/* ─── Adaptive-filter trace picker popup ─────────────────────── */
+.adaptive-trace-picker {
+  position: fixed;
+  z-index: 400;
+  min-width: 160px;
+  background: rgba(18, 23, 38, 0.97);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-lg, 10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Nudge so the popup doesn't go offscreen */
+  transform: translate(4px, 4px);
+}
+
+.adaptive-trace-picker__label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #788bae);
+  text-transform: uppercase;
+  padding: 4px 6px 2px;
+}
+
+.adaptive-trace-picker__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: var(--radius-pill, 9999px);
+  background: transparent;
+  color: var(--text-dim, #9fb1d1);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition, 120ms), color var(--transition, 120ms);
+  white-space: nowrap;
+}
+
+.adaptive-trace-picker__option::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pick-accent, #9fb1d1);
+  flex-shrink: 0;
+}
+
+.adaptive-trace-picker__option:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text, #eef4ff);
+}
+
+.adaptive-trace-picker__option.current {
+  color: var(--text, #eef4ff);
+  background: color-mix(in srgb, var(--pick-accent, #fff) 14%, transparent);
 }

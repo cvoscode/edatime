@@ -15,7 +15,11 @@ header {
   z-index: 10;
 }
 
-.header-brand { display: flex; align-items: center; gap: 10px; }
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
 .brand-icon {
   width: 30px;
@@ -28,7 +32,11 @@ header {
   flex-shrink: 0;
   box-shadow: 0 0 14px rgba(0, 168, 255, 0.30);
 }
-.brand-icon svg { width: 16px; height: 16px; }
+
+.brand-icon svg {
+  width: 16px;
+  height: 16px;
+}
 
 .brand-name {
   font-size: 0.9375rem;
@@ -48,6 +56,23 @@ header {
   gap: 6px;
 }
 
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+
+.theme-toggle:hover {
+  color: var(--text);
+}
+
 .meta-stat {
   display: inline-flex;
   align-items: center;
@@ -60,8 +85,20 @@ header {
   color: var(--text-dim);
   transition: border-color var(--transition);
 }
-.meta-stat svg { width: 11px; height: 11px; flex-shrink: 0; color: var(--text-muted); }
-.meta-stat strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.meta-stat svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.meta-stat strong {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .meta-stat.live::before {
   content: '';
   display: inline-block;

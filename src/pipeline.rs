@@ -166,19 +166,11 @@ fn window_aggregate(
 
     let mut per_col_values: Vec<Vec<Option<f64>>> = Vec::with_capacity(value_cols.len());
     for col_name in value_cols {
-        let casted = df
+        let series = df
             .column(col_name)
             .map(|c| c.as_materialized_series())
-            .map_err(|e| AppError::bad_request(format!("Missing '{}': {}", col_name, e)))?
-            .cast(&DataType::Float64)
-            .map_err(|e| AppError::io(format!("Cast '{}': {}", col_name, e)))?;
-        let values = casted
-            .f64()
-            .map_err(|e| AppError::io(format!("Read '{}': {}", col_name, e)))?
-            .into_iter()
-            .map(|v| v.filter(|f| f.is_finite()))
-            .collect::<Vec<_>>();
-        per_col_values.push(values);
+            .map_err(|e| AppError::bad_request(format!("Missing '{}': {}", col_name, e)))?;
+        per_col_values.push(crate::stats::series_to_finite_f64(series, col_name)?);
     }
 
     // ts_vec is already sorted (DataFrame sorted on ingest).  Use

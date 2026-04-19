@@ -1,10 +1,23 @@
 use polars::prelude::DataFrame;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 use crate::cache::ResponseCache;
 use crate::config::AppConfig;
+use crate::db::DbPool;
 use crate::metrics::AppMetrics;
 use crate::repository::InMemoryDataRepository;
+
+/// Live database connection state, set after a successful `/api/database/connect`.
+#[derive(Clone, Debug)]
+pub struct DbConnectionInfo {
+    /// Logical schema the selected table lives in.
+    pub schema: String,
+    /// Table (or hypertable) being queried.
+    pub table: String,
+    /// Time column used for range filtering.
+    pub time_column: Option<String>,
+}
 
 #[derive(Clone)]
 pub struct AppState {
@@ -12,6 +25,10 @@ pub struct AppState {
     pub cache: Arc<ResponseCache>,
     pub metrics: Arc<AppMetrics>,
     pub config: Arc<AppConfig>,
+    /// Optional live Postgres / TimescaleDB connection pool.
+    pub db_pool: Arc<RwLock<Option<Arc<DbPool>>>>,
+    /// Connection metadata set alongside the pool.
+    pub db_info: Arc<RwLock<Option<DbConnectionInfo>>>,
 }
 
 impl AppState {
@@ -21,7 +38,14 @@ impl AppState {
             cache: Arc::new(ResponseCache::new(config.cache.to_runtime_config())),
             metrics: Arc::new(AppMetrics::new()),
             config: Arc::new(config),
+            db_pool: Arc::new(RwLock::new(None)),
+            db_info: Arc::new(RwLock::new(None)),
         }
+    }
+
+    /// Returns `true` if a live database connection is active.
+    pub async fn has_db_connection(&self) -> bool {
+        self.db_pool.read().await.is_some()
     }
 
     pub async fn dataset_snapshot(&self) -> DataFrame {

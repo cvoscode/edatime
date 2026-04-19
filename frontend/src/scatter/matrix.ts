@@ -29,7 +29,7 @@ import { buildGroupedDistributionSeries } from './distributions.js';
 
 /* ── Column selection ─────────────────────────────────── */
 
-export function buildOverviewColumns(): string[] {
+function buildOverviewColumns(): string[] {
     const controls = currentControls();
     const columns: string[] = [];
     const push = (c: string) => { if (!c || columns.includes(c)) return; columns.push(c); };
@@ -48,7 +48,7 @@ export function buildOverviewColumns(): string[] {
 
 /* ── Data fetch ───────────────────────────────────────── */
 
-export async function fetchMatrixCellData(
+async function fetchMatrixCellData(
     x: string,
     y: string,
     context: ReturnType<typeof buildScatterQueryContext>,

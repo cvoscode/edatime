@@ -14,6 +14,7 @@ pub struct AppConfig {
     pub upload: UploadSettings,
     pub data: DataSettings,
     pub validation: ValidationSettings,
+    pub database: DatabaseSettings,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -60,6 +61,26 @@ pub struct ValidationSettings {
     pub max_scatter_limit: usize,
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+pub struct DatabaseSettings {
+    pub enabled: bool,
+    pub backend: DatabaseBackend,
+    pub connection_string: Option<String>,
+    pub table: Option<String>,
+    pub time_column: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum DatabaseBackend {
+    #[default]
+    None,
+    Postgres,
+    Timescale,
+    Sqlite,
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -69,6 +90,7 @@ impl Default for AppConfig {
             upload: UploadSettings::default(),
             data: DataSettings::default(),
             validation: ValidationSettings::default(),
+            database: DatabaseSettings::default(),
         }
     }
 }
@@ -199,6 +221,20 @@ impl AppConfig {
         if let Ok(max_upload_bytes) = env::var("EDATIME_MAX_UPLOAD_BYTES") {
             if let Ok(max_upload_bytes) = max_upload_bytes.parse::<usize>() {
                 self.upload.max_upload_bytes = max_upload_bytes;
+            }
+        }
+        if let Ok(db_url) = env::var("EDATIME_DATABASE_URL") {
+            let db_url = db_url.trim().to_string();
+            if !db_url.is_empty() {
+                self.database.connection_string = Some(db_url);
+                self.database.enabled = true;
+            }
+        }
+        if let Ok(db_backend) = env::var("EDATIME_DATABASE_BACKEND") {
+            match db_backend.trim().to_lowercase().as_str() {
+                "postgres" => self.database.backend = DatabaseBackend::Postgres,
+                "sqlite" => self.database.backend = DatabaseBackend::Sqlite,
+                _ => {}
             }
         }
     }

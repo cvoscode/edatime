@@ -1,6 +1,7 @@
 import {
-  fetchAggregate,
   fetchAnomalies,
+  fetchCausalGraph,
+  fetchCorrelationMatrix,
   fetchData,
   fetchDistributions,
   fetchFft,
@@ -8,12 +9,17 @@ import {
   fetchRollingBands,
   fetchScatterCorrelations,
   fetchScatterPoints,
+  fetchSpectrogram,
+  fetchTimeDistributions,
+  postRemoveOutliers,
   postTransform
-} from "./chunk-KQYB7SJX.js";
+} from "./chunk-OV247G5O.js";
 import "./chunk-P2MGEQ7G.js";
+import "./chunk-PZ5AY32C.js";
 export {
-  fetchAggregate,
   fetchAnomalies,
+  fetchCausalGraph,
+  fetchCorrelationMatrix,
   fetchData,
   fetchDistributions,
   fetchFft,
@@ -21,6 +27,9 @@ export {
   fetchRollingBands,
   fetchScatterCorrelations,
   fetchScatterPoints,
+  fetchSpectrogram,
+  fetchTimeDistributions,
+  postRemoveOutliers,
   postTransform
 };
 //# sourceMappingURL=dataClient.js.map

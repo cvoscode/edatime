@@ -115,7 +115,6 @@ export function buildColumnToggles(
             : `Ctrl+click to target adaptive filters to ${col}`;
         chip.innerHTML = `
       <input type="checkbox" ${isActive ? 'checked' : ''} value="${escapeHtml(col)}">
-      <span class="chip-dot" style="background:${escapeHtml(color)}"></span>
       <span class="chip-label">${escapeHtml(col)}</span>
       <input type="color" class="chip-color-picker" value="${escapeHtml(color)}" aria-label="Set ${escapeHtml(col)} color" title="Set ${escapeHtml(col)} color">
     `;
@@ -174,8 +173,6 @@ export function buildColumnToggles(
             const nextColor = setSeriesColor(col, (event.target as HTMLInputElement).value);
             if (!nextColor) return;
             chip.style.setProperty('--chip-accent', nextColor);
-            const dot = chip.querySelector('.chip-dot') as HTMLElement | null;
-            if (dot) dot.style.background = nextColor;
             renderCurrentDataFn?.();
         });
 

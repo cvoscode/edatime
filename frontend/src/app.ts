@@ -21,14 +21,14 @@ import {
     setMetaText, buildMetaBar, sanitizeSelectedColumns,
     ensureRangeStateFromData, applyColumnRanges,
     buildAdaptiveLineY,
-    formatAnalysisTime,
 } from './state.js';
 import { buildColumnToggles, buildRangeControls, initColumnFilterModal } from './ui/columns.js';
 import { setUploadPreviewStatus, applyPartialTimeRangeFromMetadata, initUploadPanel } from './ui/upload.js';
 import { hydrateColumnProfiles, renderColumnProfilesGrid, initColumnProfilesGrid } from './ui/profile.js';
+import { debounce } from './utils/dom.js';
 import {
     updateAnalysisZoom, updateAnalysisYRange,
-    refreshZoomControlsState, getCurrentView, applyViewport,
+    refreshZoomControlsState, getCurrentView,
     zoomOut, resetZoom,
     initAnalysisControls, bindAnalysisChartEvents,
     initChartPageFilterGesture, initPages,
@@ -38,20 +38,33 @@ import { FallbackChart } from './charts/fallback.js';
 import type { DatasetMetadata } from './types.js';
 import type { FftTrace } from './chart/FftChart.js';
 
-/* ── Lazy-loaded modules ──────────────────────────────── */
-
 const _appCleanups: Array<() => void> = [];
 
-/** Remove all global event listeners registered by the app. */
-export function teardownApp(): void {
-    for (const fn of _appCleanups) fn();
-    _appCleanups.length = 0;
-    appState.chart?.destroy?.();
+/* ── UI Helpers ───────────────────────────────────────── */
+
+/** Wire close/cancel/backdrop-click for a modal dialog. Returns the close function. */
+function initModalClose(modalId: string, closeBtnId: string, cancelBtnId: string, onClose?: () => void): (() => void) | null {
+    const modal = document.getElementById(modalId) as HTMLElement | null;
+    if (!modal) return null;
+    const close = () => { modal.hidden = true; onClose?.(); };
+    document.getElementById(closeBtnId)?.addEventListener('click', close);
+    document.getElementById(cancelBtnId)?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    return close;
 }
+
+/** Set a compute button + loading overlay into loading or idle state. */
+function setComputeLoading(btnId: string, overlayId: string, loading: boolean, label = 'Compute'): void {
+    const btn = document.getElementById(btnId) as HTMLButtonElement | null;
+    const overlay = document.getElementById(overlayId) as HTMLElement | null;
+    if (btn) { btn.disabled = loading; btn.textContent = loading ? 'Computing…' : label; }
+    if (overlay) overlay.hidden = !loading;
+}
+
+/* ── Lazy-loaded modules ──────────────────────────────── */
 
 let fetchMetadata: ((signal?: AbortSignal) => Promise<DatasetMetadata>) | null = null;
 let fetchData: ((...args: any[]) => Promise<any>) | null = null;
-let fetchRollingBands: ((...args: any[]) => Promise<any>) | null = null;
 let fetchAnomalies: ((...args: any[]) => Promise<any>) | null = null;
 let fetchFft: ((...args: any[]) => Promise<any>) | null = null;
 let postTransform: ((...args: any[]) => Promise<any>) | null = null;
@@ -67,7 +80,6 @@ async function ensureChartModules(): Promise<void> {
     ]);
     fetchMetadata = dataClient.fetchMetadata;
     fetchData = dataClient.fetchData;
-    fetchRollingBands = dataClient.fetchRollingBands;
     fetchAnomalies = dataClient.fetchAnomalies;
     fetchFft = dataClient.fetchFft;
     postTransform = dataClient.postTransform;
@@ -107,8 +119,12 @@ async function checkWebGPU(): Promise<string | null> {
 
 function showFatalError(message: string): void {
     const container = document.getElementById('main-chart');
-    if (container)
-        container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ff4a6e;font-size:1rem;padding:2rem;text-align:center;">${message}</div>`;
+    if (container) {
+        const div = document.createElement('div');
+        div.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:#ff4a6e;font-size:1rem;padding:2rem;text-align:center;';
+        div.textContent = message;
+        container.replaceChildren(div);
+    }
     setMetaText('Error — rendering unavailable');
 }
 
@@ -245,33 +261,132 @@ function initAdaptiveFilterGesture(): void {
     const container = document.getElementById('main-chart');
     if (!container || (container as any).dataset.adaptiveBound) return;
 
-    container.addEventListener('click', (event) => {
-        if (!event.ctrlKey || event.button !== 0) return;
-        if (!appState.chart?.cssPointToData) return;
-        const activeColumn = appState.selectedCols?.includes(appState.adaptiveFilterColumn!)
-            ? appState.adaptiveFilterColumn!
-            : appState.selectedCols?.[0];
-        if (!activeColumn) return;
-        const point = appState.chart.cssPointToData(event.clientX, event.clientY);
-        if (!point) return;
-        event.preventDefault(); event.stopPropagation();
+    let _activePicker: HTMLElement | null = null;
+    let _firstPoint: { x: number; y: number } | null = null;
+    let _secondPoint: { x: number; y: number } | null = null;
+    // Screen position of the last click — used to anchor the picker popup.
+    let _lastClickX = 0;
+    let _lastClickY = 0;
 
-        const pending = appState.pendingAdaptivePoint;
-        if (!pending || pending.column !== activeColumn) {
-            appState.pendingAdaptivePoint = { column: activeColumn, x: point.x, y: point.y };
-            appState.chart?.requestOverlayRender?.();
-            return;
+    const dismissPicker = () => { _activePicker?.remove(); _activePicker = null; };
+
+    const cancelPending = () => {
+        _firstPoint = null;
+        _secondPoint = null;
+        appState.pendingAdaptivePoint = null;
+        appState.chart?.requestOverlayRender?.();
+    };
+
+    const updateOverlay = () => {
+        if (!_firstPoint) { appState.pendingAdaptivePoint = null; return; }
+        const col = appState.adaptiveFilterColumn ?? (appState.selectedCols?.[0] ?? '');
+        if (_secondPoint) {
+            appState.pendingAdaptivePoint = {
+                column: col, x: _firstPoint.x, y: _firstPoint.y,
+                x2: _secondPoint.x, y2: _secondPoint.y,
+            };
+        } else {
+            appState.pendingAdaptivePoint = { column: col, x: _firstPoint.x, y: _firstPoint.y };
         }
+        appState.chart?.requestOverlayRender?.();
+    };
 
-        const filter = buildAdaptiveFilterFromPoints(activeColumn, pending, point);
-        appState.pendingAdaptivePoint = { column: activeColumn, x: point.x, y: point.y };
+    const applyFilterForColumn = (column: string, p1: { x: number; y: number }, p2: { x: number; y: number }) => {
+        appState.adaptiveFilterColumn = column;
+        const filter = buildAdaptiveFilterFromPoints(column, p1, p2);
         if (!filter) return;
         appState.adaptiveLineFilters = [...(appState.adaptiveLineFilters || []), filter];
         applyAdaptiveFiltersLocally();
+        buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
+    };
+
+    // Show the trace-selection popup. Called on Ctrl release when a line is drawn.
+    const showTracePicker = (p1: { x: number; y: number }, p2: { x: number; y: number }) => {
+        const cols = appState.selectedCols;
+        if (!cols?.length) return;
+
+        if (cols.length === 1) { applyFilterForColumn(cols[0], p1, p2); return; }
+
+        dismissPicker();
+        const picker = document.createElement('div');
+        picker.className = 'adaptive-trace-picker';
+        picker.style.left = `${_lastClickX}px`;
+        picker.style.top = `${_lastClickY}px`;
+
+        const label = document.createElement('div');
+        label.className = 'adaptive-trace-picker__label';
+        label.textContent = 'Filter which trace?';
+        picker.appendChild(label);
+
+        cols.forEach((col, idx) => {
+            const color = appState.seriesColors?.[col] ?? SERIES_COLORS[idx % SERIES_COLORS.length];
+            const isCurrentTarget = col === appState.adaptiveFilterColumn;
+            const btn = document.createElement('button');
+            btn.className = 'adaptive-trace-picker__option' + (isCurrentTarget ? ' current' : '');
+            btn.type = 'button';
+            btn.style.setProperty('--pick-accent', color);
+            btn.textContent = col;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dismissPicker();
+                applyFilterForColumn(col, p1, p2);
+            });
+            picker.appendChild(btn);
+        });
+
+        document.body.appendChild(picker);
+        _activePicker = picker;
+
+        const onOutside = (e: MouseEvent) => {
+            if (!picker.contains(e.target as Node)) {
+                dismissPicker();
+                document.removeEventListener('click', onOutside, true);
+            }
+        };
+        document.addEventListener('click', onOutside, true);
+    };
+
+    container.addEventListener('click', (event) => {
+        if (!event.ctrlKey || event.button !== 0) return;
+
+        const cols = appState.selectedCols;
+        if (!cols?.length) return;
+
+        const point = appState.chart?.cssPointToData?.(event.clientX, event.clientY) ?? null;
+        if (!point) return;
+
+        event.preventDefault(); event.stopPropagation();
+        _lastClickX = event.clientX;
+        _lastClickY = event.clientY;
+
+        if (!_firstPoint) {
+            // First click: anchor the start of the line.
+            _firstPoint = point;
+            _secondPoint = null;
+        } else {
+            // Each subsequent Ctrl+click moves the second endpoint forward.
+            _secondPoint = point;
+        }
+        updateOverlay();
     }, true);
 
-    const onEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') { appState.pendingAdaptivePoint = null; appState.chart?.requestOverlayRender?.(); } };
-    const onCtrlUp = (e: KeyboardEvent) => { if (e.key === 'Control' && appState.pendingAdaptivePoint) { appState.pendingAdaptivePoint = null; appState.chart?.requestOverlayRender?.(); } };
+    const onEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') { dismissPicker(); cancelPending(); }
+    };
+
+    // Releasing Ctrl: if a line is fully drawn, show the picker; otherwise cancel.
+    const onCtrlUp = (e: KeyboardEvent) => {
+        if (e.key !== 'Control') return;
+        if (_firstPoint && _secondPoint) {
+            const p1 = _firstPoint;
+            const p2 = _secondPoint;
+            cancelPending();
+            showTracePicker(p1, p2);
+        } else {
+            cancelPending();
+        }
+    };
+
     const onAdaptiveChange = () => {
         if (!appState.lastFetchedData) return;
         buildRangeControls(); renderCurrentData();
@@ -312,6 +427,9 @@ async function fetchAndRender(): Promise<void> {
     if (dataFetchController) dataFetchController.abort();
     dataFetchController = new AbortController();
     const signal = dataFetchController.signal;
+
+    const loadingEl = document.getElementById('main-chart-loading');
+    if (loadingEl) loadingEl.hidden = false;
 
     try {
         sanitizeSelectedColumns();
@@ -366,6 +484,9 @@ async function fetchAndRender(): Promise<void> {
         if (err?.name === 'AbortError') return;
         console.error('Failed to fetch data:', err);
         setMetaText('Error: ' + err.message);
+    } finally {
+        const loadingEl = document.getElementById('main-chart-loading');
+        if (loadingEl) loadingEl.hidden = true;
     }
 }
 
@@ -397,7 +518,7 @@ function onZoomRangeChange(newStart: number, newEnd: number, sourceKind = 'user'
     updateAnalysisZoom(newStart, newEnd, sourceKind);
     emitChartRangeChange(sourceKind);
     if (!appState.refetchOnZoom) return;
-    appState.fetchDebounceId = setTimeout(fetchAndRender, 150) as unknown as number;
+    appState.fetchDebounceId = setTimeout(fetchAndRender, 150);
 }
 
 /* ── Keyboard shortcuts ───────────────────────────────── */
@@ -432,6 +553,9 @@ function initKeyboardShortcuts(): void {
             if (key === '4') { event.preventDefault(); showPage('scattermatrix'); return; }
             if (key === '5') { event.preventDefault(); showPage('distributions'); return; }
             if (key === '6') { event.preventDefault(); showPage('fft'); return; }
+            if (key === '7') { event.preventDefault(); showPage('heatmap'); return; }
+            if (key === '8') { event.preventDefault(); showPage('spectrogram'); return; }
+            if (key === '9') { event.preventDefault(); showPage('causal'); return; }
         }
 
         if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -512,20 +636,14 @@ function initAnalyticsListeners(): void {
 /* ── Transform modal ──────────────────────────────────── */
 
 function initTransformModal(): void {
-    const modal = document.getElementById('transform-modal') as HTMLElement | null;
-    const closeBtn = document.getElementById('transform-close-btn');
-    const cancelBtn = document.getElementById('transform-cancel-btn');
     const applyBtn = document.getElementById('transform-apply-btn');
     const exprInput = document.getElementById('transform-expression') as HTMLInputElement | null;
     const nameInput = document.getElementById('transform-output-name') as HTMLInputElement | null;
     const errorEl = document.getElementById('transform-error') as HTMLElement | null;
 
-    if (!modal) return;
-
-    const close = () => { modal.hidden = true; if (errorEl) errorEl.textContent = ''; };
-    closeBtn?.addEventListener('click', close);
-    cancelBtn?.addEventListener('click', close);
-    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    const close = initModalClose('transform-modal', 'transform-close-btn', 'transform-cancel-btn',
+        () => { if (errorEl) errorEl.textContent = ''; });
+    if (!close) return;
 
     applyBtn?.addEventListener('click', async () => {
         const expr = exprInput?.value?.trim();
@@ -566,6 +684,16 @@ let _fftMode = 'magnitude';
 let _fftLogScale = true;
 let _fftChart: any = null;
 const _FFT_CHIP_COLORS = ['#7ad151', '#4ac3e8', '#f97316', '#e879f9', '#facc15', '#60a5fa', '#f43f5e'];
+const _fftTraceColors: Record<string, string> = {};
+
+function _fftColumns(): string[] {
+    return ((appState.metadata?.numeric_columns || []) as string[])
+        .filter((c: string) => c.toLowerCase() !== 'ts');
+}
+
+function _fftColorFor(col: string, fallbackIdx: number): string {
+    return _fftTraceColors[col] || _FFT_CHIP_COLORS[Math.max(0, fallbackIdx) % _FFT_CHIP_COLORS.length];
+}
 
 function _fftUpdateZoomBtn(isZoomed?: boolean): void {
     const btn = document.getElementById('fft-zoom-reset-btn') as HTMLButtonElement | null;
@@ -585,8 +713,7 @@ function _fftRenderChips(): void {
     const bar = document.getElementById('fft-traces-bar');
     const statusEl = document.getElementById('fft-status') as HTMLElement | null;
     if (!bar || !appState.metadata) return;
-    const allCols: string[] = ((appState.metadata as any).numeric_columns || [])
-        .filter((c: string) => c.toLowerCase() !== 'ts');
+    const allCols = _fftColumns();
 
     const existing = new Map<string, HTMLElement>();
     for (const el of bar.querySelectorAll<HTMLElement>('.fft-trace-chip')) {
@@ -596,18 +723,19 @@ function _fftRenderChips(): void {
     }
 
     const zoomBtn = bar.querySelector('#fft-zoom-reset-btn');
-    for (const col of allCols) {
+    for (const [idx, col] of allCols.entries()) {
         const activeIdx = _fftTraces.findIndex(t => t.column === col);
         const isActive = activeIdx >= 0;
-        const color = isActive ? _FFT_CHIP_COLORS[activeIdx % _FFT_CHIP_COLORS.length] : '';
+        const color = _fftColorFor(col, idx);
         let chip = existing.get(col) as HTMLButtonElement | undefined;
         if (!chip) {
             chip = document.createElement('button') as HTMLButtonElement;
-            chip.className = 'fft-trace-chip';
+            chip.className = 'series-chip fft-trace-chip';
             chip.type = 'button';
             (chip as any).dataset.col = col;
             chip.addEventListener('click', async (e) => {
                 const c = (chip as any).dataset.col as string;
+                if ((e.target as HTMLElement)?.closest?.('.chip-color-picker')) return;
                 if ((e.target as HTMLElement).classList.contains('fft-chip-remove')) {
                     _fftTraces = _fftTraces.filter(t => t.column !== c);
                     _fftRenderChips();
@@ -620,6 +748,8 @@ function _fftRenderChips(): void {
                 if (_fftTraces.some(t => t.column === c)) return;
                 chip!.classList.add('loading');
                 chip!.disabled = true;
+                const fftLoadingEl = document.getElementById('fft-chart-loading');
+                if (fftLoadingEl) fftLoadingEl.hidden = false;
                 if (statusEl) statusEl.textContent = `Computing FFT for ${c}…`;
                 try {
                     await _fftFetchAndAdd(c);
@@ -632,14 +762,33 @@ function _fftRenderChips(): void {
                 } finally {
                     chip!.classList.remove('loading');
                     chip!.disabled = false;
+                    if (fftLoadingEl) fftLoadingEl.hidden = true;
                 }
             });
             bar.insertBefore(chip, zoomBtn || null);
+
         }
-        chip.className = `fft-trace-chip${isActive ? ' active' : ''}`;
-        chip.innerHTML = `<span class="fft-chip-dot" style="${isActive ? `background:${color}` : 'border:1px solid rgba(255,255,255,0.25)'}"></span>`
-            + `<span class="fft-chip-label">${col}</span>`
+        chip.className = `series-chip fft-trace-chip${isActive ? ' active' : ''}`;
+        chip.style.setProperty('--chip-accent', color);
+        chip.innerHTML = `<span class="chip-label">${col}</span>`
+            + `<input type="color" class="chip-color-picker fft-chip-color-picker" value="${color}" aria-label="Set ${col} FFT color" title="Set ${col} FFT color">`
             + (isActive ? '<span class="fft-chip-remove" aria-hidden="true">×</span>' : '');
+        const colorInput = chip.querySelector('.chip-color-picker') as HTMLInputElement | null;
+        if (colorInput) {
+            for (const eventName of ['pointerdown', 'mousedown', 'click', 'dblclick'] as const) {
+                colorInput.addEventListener(eventName, (event) => event.stopPropagation());
+            }
+            colorInput.addEventListener('input', (event) => {
+                const nextColor = (event.target as HTMLInputElement).value;
+                _fftTraceColors[col] = nextColor;
+                chip!.style.setProperty('--chip-accent', nextColor);
+                const trace = _fftTraces.find((item) => item.column === col);
+                if (trace) {
+                    trace.color = nextColor;
+                    _fftRerenderOrClear();
+                }
+            });
+        }
     }
 
     bar.hidden = allCols.length === 0;
@@ -653,7 +802,8 @@ async function _fftFetchAndAdd(col: string): Promise<void> {
     if (!resp?.results?.length) throw new Error('No results');
     const result = resp.results[0];
     _fftTraces = _fftTraces.filter(t => t.column !== col);
-    _fftTraces.push({ column: result.column, frequencies: result.frequencies, magnitudes: result.magnitudes, psd: result.psd });
+    const color = _fftColorFor(col, _fftColumns().indexOf(col));
+    _fftTraces.push({ column: result.column, frequencies: result.frequencies, magnitudes: result.magnitudes, psd: result.psd, color });
 }
 
 async function initFftPage(): Promise<void> {
@@ -679,10 +829,778 @@ async function initFftPage(): Promise<void> {
 
 
 
+/* ── Correlation Heatmap page ─────────────────────────── */
+
+let _heatmapLoaded = false;
+let _heatmapCellSize = 36;
+
+async function initHeatmapPage(): Promise<void> {
+    if (_heatmapLoaded) return;
+    _heatmapLoaded = true;
+
+    const container = document.getElementById('heatmap-container');
+    const statusEl = document.getElementById('heatmap-status') as HTMLElement | null;
+    const metricSelect = document.getElementById('heatmap-metric') as HTMLSelectElement | null;
+    const sizeInput = document.getElementById('heatmap-cell-size') as HTMLInputElement | null;
+    const sizeValue = document.getElementById('heatmap-cell-size-value') as HTMLElement | null;
+    if (!container) return;
+
+    let matrixData: any = null;
+    let metric = 'pearson';
+
+    function renderHeatmap() {
+        if (!matrixData || !container) return;
+        const cols: string[] = matrixData.columns;
+        const data: (number | null)[][] = metric === 'spearman' ? matrixData.spearman : matrixData.pearson;
+        const n = cols.length;
+
+        const cellSize = _heatmapCellSize;
+        const labelWidth = Math.max(84, Math.min(180, Math.round(cellSize * 2.5)));
+
+        let html = `<div class="heatmap-grid" style="display:inline-grid;grid-template-columns:${labelWidth}px repeat(${n},${cellSize}px);grid-template-rows:${labelWidth}px repeat(${n},${cellSize}px);gap:1px;font-size:0.65rem;">`;
+
+        // Top-left corner
+        html += `<div></div>`;
+        // Column headers
+        for (const col of cols) {
+            html += `<div class="heatmap-header" style="writing-mode:vertical-rl;text-orientation:mixed;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;color:var(--text-dim);padding:4px 2px;" title="${col}">${col}</div>`;
+        }
+        // Rows
+        for (let i = 0; i < n; i++) {
+            html += `<div class="heatmap-row-label" style="display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${cols[i]}">${cols[i]}</div>`;
+            for (let j = 0; j < n; j++) {
+                const val = data[i][j];
+                const displayVal = val !== null ? val.toFixed(2) : '—';
+                const bg = val !== null ? correlationColor(val) : 'transparent';
+                const textColor = val !== null && Math.abs(val) > 0.5 ? '#fff' : 'var(--text)';
+                html += `<div class="heatmap-cell" style="display:flex;align-items:center;justify-content:center;background:${bg};color:${textColor};border-radius:2px;cursor:default;font-variant-numeric:tabular-nums;" title="${cols[i]} × ${cols[j]}: ${displayVal}">${displayVal}</div>`;
+            }
+        }
+        html += `</div>`;
+
+        // Colorbar legend
+        html += `<div style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:0.7rem;color:var(--text-dim);">`;
+        html += `<span>-1.0</span>`;
+        html += `<div style="flex:0 0 200px;height:12px;border-radius:4px;background:linear-gradient(90deg,#2166AC,#67A9CF,#F7F7F7,#EF8A62,#B2182B);"></div>`;
+        html += `<span>+1.0</span>`;
+        html += `</div>`;
+
+        container.innerHTML = html;
+    }
+
+    function correlationColor(v: number): string {
+        // Diverging RdBu colormap: -1 = blue, 0 = white, +1 = red
+        const clamped = Math.max(-1, Math.min(1, v));
+        if (clamped >= 0) {
+            const t = clamped;
+            const r = Math.round(247 - t * (247 - 178));
+            const g = Math.round(247 - t * (247 - 24));
+            const b = Math.round(247 - t * (247 - 43));
+            return `rgb(${r},${g},${b})`;
+        } else {
+            const t = -clamped;
+            const r = Math.round(247 - t * (247 - 33));
+            const g = Math.round(247 - t * (247 - 102));
+            const b = Math.round(247 - t * (247 - 172));
+            return `rgb(${r},${g},${b})`;
+        }
+    }
+
+    async function loadMatrix() {
+        if (statusEl) statusEl.textContent = 'Loading correlation matrix…';
+        try {
+            const { fetchCorrelationMatrix } = await import('./dataClient.js');
+            matrixData = await fetchCorrelationMatrix();
+            if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns · ${_heatmapCellSize}px cells`;
+            renderHeatmap();
+        } catch (e: any) {
+            if (statusEl) statusEl.textContent = `Error: ${e?.message || 'failed'}`;
+        }
+    }
+
+    metricSelect?.addEventListener('change', () => {
+        metric = metricSelect.value;
+        renderHeatmap();
+    });
+    sizeInput?.addEventListener('input', () => {
+        _heatmapCellSize = Math.max(24, Math.min(72, Number(sizeInput.value || 36)));
+        if (sizeValue) sizeValue.textContent = String(_heatmapCellSize);
+        if (statusEl && matrixData) statusEl.textContent = `${matrixData.columns.length} columns · ${_heatmapCellSize}px cells`;
+        renderHeatmap();
+    });
+
+    // Reload when page becomes visible
+    window.addEventListener('edatime:page-change', (e: any) => {
+        if (e?.detail?.page === 'heatmap') loadMatrix();
+    });
+
+    loadMatrix();
+}
+
+/* ── Spectrogram page ─────────────────────────────────── */
+
+let _spectrogramLoaded = false;
+let _spectrogramChart: any = null;
+let _spectrogramResizeObserver: ResizeObserver | null = null;
+let _spectrogramResult: { column: string; times_ms: number[]; frequencies: number[]; magnitudes: number[][] } | null = null;
+let _spectrogramSampleCount = 0;
+
+async function initSpectrogramPage(): Promise<void> {
+    if (_spectrogramLoaded) return;
+    _spectrogramLoaded = true;
+
+    const colSelect = document.getElementById('spectrogram-col-select') as HTMLSelectElement | null;
+    const winSelect = document.getElementById('spectrogram-win-size') as HTMLSelectElement | null;
+    const logCheck = document.getElementById('spectrogram-log-scale') as HTMLInputElement | null;
+    const computeBtn = document.getElementById('spectrogram-compute-btn') as HTMLButtonElement | null;
+    const resetZoomBtn = document.getElementById('spectrogram-zoom-reset-btn') as HTMLButtonElement | null;
+    const statusEl = document.getElementById('spectrogram-status') as HTMLElement | null;
+    const chartEl = document.getElementById('spectrogram-chart') as HTMLDivElement | null;
+
+    if (!chartEl || !colSelect) return;
+
+    const ensureSpectrogramChart = async () => {
+        if (_spectrogramChart) return _spectrogramChart;
+        const echarts = await import('echarts');
+        _spectrogramChart = echarts.init(chartEl, undefined, { renderer: 'canvas' });
+        _spectrogramResizeObserver?.disconnect();
+        _spectrogramResizeObserver = new ResizeObserver(() => _spectrogramChart?.resize());
+        _spectrogramResizeObserver.observe(chartEl);
+
+        // ── Native drag-box zoom (same convention as timeseries / FFT) ──────
+        // The selection box is pointer-events:none so ECharts tooltip still works.
+        if (chartEl.style.position === '' || chartEl.style.position === 'static') {
+            chartEl.style.position = 'relative';
+        }
+        const selBox = document.createElement('div');
+        selBox.style.cssText =
+            'position:absolute;top:0;left:0;width:0;height:0;'
+            + 'border:1px solid rgba(0,212,255,0.9);background:rgba(0,212,255,0.15);'
+            + 'pointer-events:none;display:none;z-index:5';
+        chartEl.appendChild(selBox);
+
+        let _dragStart: { x: number; y: number; pid: number } | null = null;
+        let _dragEnd = { x: 0, y: 0 };
+
+        // Grid margins must stay in sync with the setOption grid config below.
+        const SPEC_GRID = { left: 72, right: 110, top: 24, bottom: 80 };
+
+        chartEl.addEventListener('pointerdown', (e: PointerEvent) => {
+            if (e.button !== 0) return;
+            const rect = chartEl.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            // Ignore clicks outside the plot area (e.g. over the colorscale / visualMap).
+            if (x > rect.width - SPEC_GRID.right || x < SPEC_GRID.left
+                || y < SPEC_GRID.top || y > rect.height - SPEC_GRID.bottom) return;
+            _dragStart = { x, y, pid: e.pointerId };
+            _dragEnd = { x, y };
+            try { chartEl.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+        });
+
+        chartEl.addEventListener('pointermove', (e: PointerEvent) => {
+            if (!_dragStart || e.pointerId !== _dragStart.pid) return;
+            const rect = chartEl.getBoundingClientRect();
+            _dragEnd = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            const left = Math.min(_dragStart.x, _dragEnd.x);
+            const top = Math.min(_dragStart.y, _dragEnd.y);
+            selBox.style.left = `${left}px`;
+            selBox.style.top = `${top}px`;
+            selBox.style.width = `${Math.abs(_dragEnd.x - _dragStart.x)}px`;
+            selBox.style.height = `${Math.abs(_dragEnd.y - _dragStart.y)}px`;
+            selBox.style.display = 'block';
+        });
+
+        const finishDrag = (e: PointerEvent) => {
+            if (!_dragStart || e.pointerId !== _dragStart.pid) return;
+            const start = _dragStart;
+            _dragStart = null;
+            selBox.style.display = 'none';
+            try { chartEl.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+
+            const dx = Math.abs(_dragEnd.x - start.x);
+            const dy = Math.abs(_dragEnd.y - start.y);
+            if (dx < 8 || dy < 8) return; // too small — treat as click, ignore
+
+            const chart = _spectrogramChart;
+            if (!chart || !_spectrogramResult) return;
+
+            // Map screen pixels → category indices via ECharts coordinate system.
+            const p0 = chart.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 } as any, [start.x, start.y]) as [number, number] | null;
+            const p1 = chart.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 } as any, [_dragEnd.x, _dragEnd.y]) as [number, number] | null;
+            if (!p0 || !p1) return;
+
+            const xLen = _spectrogramResult.times_ms.length;
+            const yLen = _spectrogramResult.frequencies.length;
+            const xStartPct = Math.max(0, Math.min(100, (Math.min(p0[0], p1[0]) / (xLen - 1)) * 100));
+            const xEndPct = Math.max(0, Math.min(100, (Math.max(p0[0], p1[0]) / (xLen - 1)) * 100));
+            const yStartPct = Math.max(0, Math.min(100, (Math.min(p0[1], p1[1]) / (yLen - 1)) * 100));
+            const yEndPct = Math.max(0, Math.min(100, (Math.max(p0[1], p1[1]) / (yLen - 1)) * 100));
+            if (xEndPct <= xStartPct || yEndPct <= yStartPct) return;
+
+            chart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 0, start: xStartPct, end: xEndPct });
+            chart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 1, start: yStartPct, end: yEndPct });
+        };
+        chartEl.addEventListener('pointerup', finishDrag);
+        chartEl.addEventListener('pointercancel', (e: PointerEvent) => {
+            if (_dragStart?.pid === e.pointerId) {
+                _dragStart = null;
+                selBox.style.display = 'none';
+            }
+        });
+
+        // Double-click resets zoom — same convention as every other chart.
+        // Dispatch explicit 0-100% dataZoom instead of 'restore' which is
+        // unreliable for inside-type dataZoom components.
+        chartEl.addEventListener('dblclick', () => {
+            if (!_spectrogramChart) return;
+            _spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 0, start: 0, end: 100 });
+            _spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 1, start: 0, end: 100 });
+        });
+
+        return _spectrogramChart;
+    };
+
+    const formatSpectrogramTime = (tsMs: number): string => {
+        return new Date(tsMs).toLocaleString([], {
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+        });
+    };
+
+    const formatSpectrogramFrequency = (freq: number): string => {
+        if (!Number.isFinite(freq)) return '—';
+        if (freq >= 1000) return `${(freq / 1000).toFixed(2)} kHz`;
+        if (freq >= 1) return `${freq.toFixed(2)} Hz`;
+        return `${(freq * 1000).toFixed(2)} mHz`;
+    };
+
+    const renderSpectrogramChart = async () => {
+        if (!_spectrogramResult) return;
+        const chart = await ensureSpectrogramChart();
+        const logScale = logCheck?.checked ?? true;
+        const points: [number, number, number, number, number, number][] = [];
+        const timeAxis = _spectrogramResult.times_ms;
+        const freqAxis = _spectrogramResult.frequencies;
+        let minValue = Number.POSITIVE_INFINITY;
+        let maxValue = Number.NEGATIVE_INFINITY;
+
+        for (let timeIndex = 0; timeIndex < timeAxis.length; timeIndex++) {
+            const timeMs = timeAxis[timeIndex];
+            const row = _spectrogramResult.magnitudes[timeIndex] || [];
+            for (let freqIndex = 0; freqIndex < freqAxis.length; freqIndex++) {
+                const freq = freqAxis[freqIndex];
+                const rawMagnitude = Number(row[freqIndex] ?? 0);
+                const displayMagnitude = logScale
+                    ? Math.log10(Math.max(rawMagnitude, 1e-30))
+                    : rawMagnitude;
+                if (!Number.isFinite(displayMagnitude)) continue;
+                minValue = Math.min(minValue, displayMagnitude);
+                maxValue = Math.max(maxValue, displayMagnitude);
+                points.push([timeIndex, freqIndex, displayMagnitude, timeMs, freq, rawMagnitude]);
+            }
+        }
+
+        if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
+            minValue = 0;
+            maxValue = 1;
+        }
+
+        // Show ~10 evenly-spaced ticks on each axis to avoid label crowding.
+        const xTickInterval = Math.max(0, Math.floor(timeAxis.length / 10) - 1);
+        const yTickInterval = Math.max(0, Math.floor(freqAxis.length / 10) - 1);
+
+        chart.setOption({
+            backgroundColor: 'transparent',
+            animation: false,
+            grid: { left: 72, right: 110, top: 24, bottom: 80 },
+            toolbox: {
+                right: 12,
+                feature: {
+                    restore: { title: 'Reset zoom' },
+                    saveAsImage: { title: 'Save image' },
+                },
+            },
+            tooltip: {
+                trigger: 'item',
+                backgroundColor: 'rgba(8, 12, 20, 0.94)',
+                borderColor: 'rgba(126, 158, 212, 0.28)',
+                textStyle: { color: '#eef4ff' },
+                formatter: (params: any) => {
+                    const value = params?.value || [];
+                    const timeMs = Number(value[3]);
+                    const freq = Number(value[4]);
+                    const displayMagnitude = Number(value[2]);
+                    const rawMagnitude = Number(value[5]);
+                    return [
+                        `<strong>${_spectrogramResult?.column || 'Spectrogram'}</strong>`,
+                        `Time: ${formatSpectrogramTime(timeMs)}`,
+                        `Frequency: ${formatSpectrogramFrequency(freq)}`,
+                        `Intensity: ${displayMagnitude.toFixed(4)}${logScale ? ' log10' : ''}`,
+                        `Raw magnitude: ${rawMagnitude.toExponential(4)}`,
+                    ].join('<br>');
+                },
+            },
+            xAxis: {
+                type: 'category',
+                data: timeAxis,
+                name: 'Time',
+                nameLocation: 'middle',
+                nameGap: 48,
+                axisLabel: {
+                    color: '#9fb1d1',
+                    rotate: 30,
+                    interval: xTickInterval,
+                    formatter: (value: string | number) => {
+                        const date = new Date(Number(value));
+                        return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}\n${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+                    },
+                },
+                splitLine: { show: false },
+            },
+            yAxis: {
+                type: 'category',
+                data: freqAxis,
+                name: 'Frequency (Hz)',
+                nameLocation: 'middle',
+                nameGap: 56,
+                axisLabel: {
+                    color: '#9fb1d1',
+                    interval: yTickInterval,
+                    formatter: (value: string | number) => formatSpectrogramFrequency(Number(value)),
+                },
+                splitLine: { show: false },
+            },
+            visualMap: {
+                min: minValue,
+                max: maxValue,
+                calculable: true,
+                orient: 'vertical',
+                right: 18,
+                top: 'middle',
+                text: [logScale ? 'High log10' : 'High', logScale ? 'Low log10' : 'Low'],
+                textStyle: { color: '#9fb1d1' },
+                inRange: {
+                    color: ['#440154', '#414487', '#2a788e', '#22a884', '#7ad151', '#fde725'],
+                },
+            },
+            // dataZoom components are registered so dispatchAction works,
+            // but all built-in mouse interactions are disabled — the native
+            // pointer-drag overlay above handles zoom, dblclick resets.
+            dataZoom: [
+                {
+                    type: 'inside', xAxisIndex: 0, filterMode: 'none',
+                    zoomOnMouseWheel: false, moveOnMouseMove: false, moveOnMouseWheel: false
+                },
+                {
+                    type: 'inside', yAxisIndex: 0, filterMode: 'none',
+                    zoomOnMouseWheel: false, moveOnMouseMove: false, moveOnMouseWheel: false
+                },
+            ],
+            series: [{
+                name: _spectrogramResult.column,
+                type: 'heatmap',
+                progressive: 0,
+                emphasis: { itemStyle: { borderColor: '#ffffff', borderWidth: 1 } },
+                data: points,
+            }],
+        });
+
+        statusEl!.textContent = `${_spectrogramResult.column} · ${_spectrogramResult.times_ms.length} windows × ${_spectrogramResult.frequencies.length} bins · ${_spectrogramSampleCount} samples`;
+    };
+
+    // Populate column select from metadata
+    if (appState.metadata) {
+        for (const col of appState.metadata.numeric_columns) {
+            const opt = document.createElement('option');
+            opt.value = col;
+            opt.textContent = col;
+            colSelect.appendChild(opt);
+        }
+    }
+
+    computeBtn?.addEventListener('click', async () => {
+        const column = colSelect.value;
+        if (!column) { if (statusEl) statusEl.textContent = 'Select a column.'; return; }
+        if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) {
+            if (statusEl) statusEl.textContent = 'No time range available.';
+            return;
+        }
+
+        const winSize = parseInt(winSelect?.value || '256', 10);
+        try {
+            setComputeLoading('spectrogram-compute-btn', 'spectrogram-loading', true);
+            if (statusEl) statusEl.textContent = 'Fetching spectrogram…';
+
+            const { fetchSpectrogram } = await import('./dataClient.js');
+            const startIso = new Date(appState.currentStart!).toISOString();
+            const endIso = new Date(appState.currentEnd!).toISOString();
+            const resp = await fetchSpectrogram(startIso, endIso, column, winSize);
+
+            _spectrogramResult = resp.result;
+            _spectrogramSampleCount = resp.sample_count;
+            await renderSpectrogramChart();
+        } catch (e: any) {
+            if (statusEl) statusEl.textContent = `Error: ${e?.message || 'failed'}`;
+        } finally {
+            setComputeLoading('spectrogram-compute-btn', 'spectrogram-loading', false);
+        }
+    });
+
+    logCheck?.addEventListener('change', () => {
+        if (_spectrogramResult) void renderSpectrogramChart();
+    });
+    resetZoomBtn?.addEventListener('click', () => {
+        if (!_spectrogramChart) return;
+        _spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 0, start: 0, end: 100 });
+        _spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 1, start: 0, end: 100 });
+    });
+
+    window.addEventListener('edatime:page-change', (e: any) => {
+        if (e?.detail?.page === 'spectrogram' && appState.metadata) {
+            // Refresh column list if metadata changed
+            const currentOpts = new Set(Array.from(colSelect.options).map(o => o.value));
+            for (const col of appState.metadata.numeric_columns) {
+                if (!currentOpts.has(col)) {
+                    const opt = document.createElement('option');
+                    opt.value = col;
+                    opt.textContent = col;
+                    colSelect.appendChild(opt);
+                }
+            }
+            _spectrogramChart?.resize?.();
+        }
+    });
+}
+
+async function initCausalPage(): Promise<void> {
+    const { initCausalPage: init } = await import('./causal/causalPage.js');
+    init({
+        getMetadata: () => appState.metadata,
+        chipColor: _fftColorFor,
+        numericColumns: _fftColumns,
+        setLoading: setComputeLoading,
+    });
+}
+
+/* ── Outlier removal modal ────────────────────────────── */
+
+function initOutlierModal(): void {
+    const openBtn = document.getElementById('outlier-open-btn');
+    const applyBtn = document.getElementById('outlier-apply-btn');
+    const methodSelect = document.getElementById('outlier-method') as HTMLSelectElement | null;
+    const thresholdInput = document.getElementById('outlier-threshold') as HTMLInputElement | null;
+    const windowInput = document.getElementById('outlier-window') as HTMLInputElement | null;
+    const errorEl = document.getElementById('outlier-error') as HTMLElement | null;
+    const resultEl = document.getElementById('outlier-result') as HTMLElement | null;
+
+    const close = initModalClose('outlier-modal', 'outlier-close-btn', 'outlier-cancel-btn',
+        () => { if (errorEl) errorEl.textContent = ''; if (resultEl) resultEl.textContent = ''; });
+    if (!close) return;
+
+    const modal = document.getElementById('outlier-modal')!;
+    openBtn?.addEventListener('click', () => { modal.hidden = false; });
+
+    // Update default threshold when method changes
+    methodSelect?.addEventListener('change', () => {
+        if (thresholdInput) {
+            thresholdInput.value = methodSelect.value === 'iqr' ? '1.5' : '3';
+        }
+    });
+
+    applyBtn?.addEventListener('click', async () => {
+        if (errorEl) errorEl.textContent = '';
+        if (resultEl) resultEl.textContent = '';
+
+        const method = methodSelect?.value || 'zscore';
+        const threshold = parseFloat(thresholdInput?.value || '3');
+        const windowSize = parseInt(windowInput?.value || '0', 10);
+        const cols = appState.selectedCols.length > 0 ? appState.selectedCols : null;
+
+        try {
+            (applyBtn as HTMLButtonElement).disabled = true;
+            applyBtn.textContent = 'Removing…';
+
+            const { postRemoveOutliers } = await import('./dataClient.js');
+            const result = await postRemoveOutliers(
+                cols,
+                method,
+                threshold,
+                windowSize > 0 ? windowSize : undefined,
+            );
+
+            if (resultEl) resultEl.textContent = `Removed ${result.rows_removed} rows (${result.rows_before} → ${result.rows_after})`;
+
+            // Reload metadata and data
+            if (fetchMetadata) {
+                appState.metadata = await fetchMetadata();
+                appState.numericCols = ((appState.metadata as any).numeric_columns || [])
+                    .filter((col: string) => col && col.toLowerCase() !== 'ts');
+                sanitizeSelectedColumns();
+                buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
+                buildMetaBar(appState.metadata);
+                await fetchAndRender();
+            }
+        } catch (e: any) {
+            if (errorEl) errorEl.textContent = e?.message || 'Outlier removal failed.';
+        } finally {
+            (applyBtn as HTMLButtonElement).disabled = false;
+            applyBtn.textContent = 'Remove Outliers';
+        }
+    });
+}
+
+/* ── Time distribution modal ──────────────────────────── */
+
+function initTimeDistributionModal(): void {
+    const computeBtn = document.getElementById('timedist-compute-btn');
+    const windowsInput = document.getElementById('timedist-windows') as HTMLInputElement | null;
+    const binsInput = document.getElementById('timedist-bins') as HTMLInputElement | null;
+    const canvas = document.getElementById('timedist-canvas') as HTMLCanvasElement | null;
+    const statusEl = document.getElementById('timedist-status') as HTMLElement | null;
+
+    const close = initModalClose('timedist-modal', 'timedist-close-btn', 'timedist-cancel-btn');
+    if (!close || !canvas) return;
+
+    const modal = document.getElementById('timedist-modal')!;
+    const openBtn = document.getElementById('timedist-open-btn');
+    openBtn?.addEventListener('click', () => { modal.hidden = false; });
+
+    computeBtn?.addEventListener('click', async () => {
+        if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
+        const cols = appState.selectedCols.length > 0 ? appState.selectedCols[0] : null;
+        if (!cols) { if (statusEl) statusEl.textContent = 'Select a column first.'; return; }
+
+        const windows = parseInt(windowsInput?.value || '20', 10);
+        const bins = parseInt(binsInput?.value || '24', 10);
+
+        try {
+            (computeBtn as HTMLButtonElement).disabled = true;
+            computeBtn.textContent = 'Computing…';
+            if (statusEl) statusEl.textContent = 'Fetching data…';
+
+            const { fetchTimeDistributions } = await import('./dataClient.js');
+            const startIso = new Date(appState.currentStart!).toISOString();
+            const endIso = new Date(appState.currentEnd!).toISOString();
+            const result = await fetchTimeDistributions(startIso, endIso, cols, windows, bins);
+
+            if (result.columns.length === 0) {
+                if (statusEl) statusEl.textContent = 'No data returned.';
+                return;
+            }
+
+            renderTimeDistBoxPlots(canvas, result.columns[0], windows, bins);
+            if (statusEl) statusEl.textContent = `${cols}: ${result.columns[0].windows.length} windows × ${bins} bins (box plot)`;
+        } catch (e: any) {
+            if (statusEl) statusEl.textContent = `Error: ${e?.message || 'failed'}`;
+        } finally {
+            (computeBtn as HTMLButtonElement).disabled = false;
+            computeBtn.textContent = 'Compute';
+        }
+    });
+}
+
+function renderTimeDistBoxPlots(
+    canvas: HTMLCanvasElement,
+    data: { windows: Array<{ window_start_ms: number; window_end_ms: number; bin_edges: number[]; counts: number[] }>; global_min: number; global_max: number },
+    _nWindows: number,
+    _nBins: number,
+): void {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const wins = data.windows;
+    if (wins.length === 0) return;
+
+    const nW = wins.length;
+    const W = canvas.width;
+    const H = canvas.height;
+    const marginL = 60;
+    const marginB = 30;
+    const marginT = 10;
+    const marginR = 16;
+    const plotW = W - marginL - marginR;
+    const plotH = H - marginT - marginB;
+
+    // Compute box plot stats per window from histogram counts
+    const stats: Array<{ q1: number; median: number; q3: number; min: number; max: number; total: number }> = [];
+    for (const w of wins) {
+        const edges = w.bin_edges;
+        const counts = w.counts;
+        let total = 0;
+        for (const c of counts) total += c;
+
+        if (total === 0) {
+            stats.push({ q1: 0, median: 0, q3: 0, min: 0, max: 0, total: 0 });
+            continue;
+        }
+
+        // Build CDF to compute percentiles
+        const percentile = (p: number): number => {
+            const target = p * total;
+            let cumul = 0;
+            for (let i = 0; i < counts.length; i++) {
+                cumul += counts[i];
+                if (cumul >= target) {
+                    const lo = edges[i], hi = edges[i + 1] ?? edges[i];
+                    const frac = counts[i] > 0 ? (target - (cumul - counts[i])) / counts[i] : 0.5;
+                    return lo + frac * (hi - lo);
+                }
+            }
+            return edges[edges.length - 1] ?? 0;
+        };
+
+        // Find actual min/max (first/last non-zero bin)
+        let minVal = edges[0] ?? 0;
+        let maxVal = edges[edges.length - 1] ?? 0;
+        for (let i = 0; i < counts.length; i++) {
+            if (counts[i] > 0) { minVal = edges[i]; break; }
+        }
+        for (let i = counts.length - 1; i >= 0; i--) {
+            if (counts[i] > 0) { maxVal = edges[i + 1] ?? edges[i]; break; }
+        }
+
+        const q1 = percentile(0.25);
+        const median = percentile(0.5);
+        const q3 = percentile(0.75);
+        const iqr = q3 - q1;
+        const whiskerLo = Math.max(minVal, q1 - 1.5 * iqr);
+        const whiskerHi = Math.min(maxVal, q3 + 1.5 * iqr);
+
+        stats.push({ q1, median, q3, min: whiskerLo, max: whiskerHi, total });
+    }
+
+    const gMin = data.global_min;
+    const gMax = data.global_max;
+    const gRange = gMax - gMin || 1;
+    const toY = (v: number) => marginT + plotH - ((v - gMin) / gRange) * plotH;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    ctx.fillStyle = getComputedStyle(canvas).getPropertyValue('--bg').trim() || '#0b0f18';
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(120, 139, 174, 0.12)';
+    ctx.lineWidth = 0.5;
+    const ySteps = 6;
+    for (let i = 0; i <= ySteps; i++) {
+        const y = marginT + (plotH / ySteps) * i;
+        ctx.beginPath();
+        ctx.moveTo(marginL, y);
+        ctx.lineTo(W - marginR, y);
+        ctx.stroke();
+    }
+
+    const boxGap = 2;
+    const slotW = plotW / nW;
+    const boxW = Math.max(4, slotW - boxGap * 2);
+
+    const accent = getComputedStyle(canvas).getPropertyValue('--accent').trim() || '#00a8ff';
+
+    for (let i = 0; i < nW; i++) {
+        const s = stats[i];
+        if (s.total === 0) continue;
+
+        const cx = marginL + slotW * i + slotW / 2;
+        const halfBox = boxW / 2;
+
+        // Whisker line
+        ctx.strokeStyle = 'rgba(120, 139, 174, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, toY(s.min));
+        ctx.lineTo(cx, toY(s.max));
+        ctx.stroke();
+
+        // Whisker caps
+        const capW = boxW * 0.4;
+        ctx.beginPath();
+        ctx.moveTo(cx - capW, toY(s.min));
+        ctx.lineTo(cx + capW, toY(s.min));
+        ctx.moveTo(cx - capW, toY(s.max));
+        ctx.lineTo(cx + capW, toY(s.max));
+        ctx.stroke();
+
+        // Box (Q1 to Q3)
+        const boxTop = toY(s.q3);
+        const boxBot = toY(s.q1);
+        ctx.fillStyle = accent + '33';
+        ctx.fillRect(cx - halfBox, boxTop, boxW, boxBot - boxTop);
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(cx - halfBox, boxTop, boxW, boxBot - boxTop);
+
+        // Median line
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        const medY = toY(s.median);
+        ctx.moveTo(cx - halfBox, medY);
+        ctx.lineTo(cx + halfBox, medY);
+        ctx.stroke();
+    }
+
+    // Y-axis labels
+    ctx.fillStyle = '#788BAE';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= ySteps; i++) {
+        const frac = i / ySteps;
+        const val = gMin + frac * gRange;
+        const y = marginT + plotH - frac * plotH;
+        ctx.fillText(val.toFixed(1), marginL - 4, y + 3);
+    }
+
+    // X-axis labels (time)
+    ctx.textAlign = 'center';
+    const xSteps = Math.min(5, nW);
+    for (let i = 0; i <= xSteps; i++) {
+        const idx = Math.round(i / xSteps * (nW - 1));
+        const t = wins[idx].window_start_ms;
+        const date = new Date(t);
+        const label = `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        ctx.fillText(label, marginL + idx * slotW + slotW / 2, H - 6);
+    }
+}
+
+/* ── Theme toggle ─────────────────────────────────────── */
+
+function initThemeToggle(): void {
+    const btn = document.getElementById('theme-toggle-btn');
+    const iconDark = document.getElementById('theme-icon-dark');
+    const iconLight = document.getElementById('theme-icon-light');
+    if (!btn) return;
+
+    const saved = localStorage.getItem('edatime-theme');
+    if (saved === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        if (iconDark) iconDark.hidden = true;
+        if (iconLight) iconLight.hidden = false;
+    }
+
+    btn.addEventListener('click', () => {
+        const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+        if (isLight) {
+            document.documentElement.removeAttribute('data-theme');
+            localStorage.setItem('edatime-theme', 'dark');
+            if (iconDark) iconDark.hidden = false;
+            if (iconLight) iconLight.hidden = true;
+        } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+            localStorage.setItem('edatime-theme', 'light');
+            if (iconDark) iconDark.hidden = true;
+            if (iconLight) iconLight.hidden = false;
+        }
+    });
+}
+
 /* ── Main init ────────────────────────────────────────── */
 
 async function init(): Promise<void> {
     initPages();
+    initThemeToggle();
     initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid);
     initColumnProfilesGrid();
     initAnalysisControls(fetchAndRender);
@@ -690,6 +1608,8 @@ async function init(): Promise<void> {
     initChartPageFilterGesture();
     initKeyboardShortcuts();
     initTransformModal();
+    initOutlierModal();
+    initTimeDistributionModal();
     initAnalyticsListeners();
 
     try { await ensureChartModules(); } catch (e: any) {
@@ -699,7 +1619,6 @@ async function init(): Promise<void> {
     }
 
     const gpuError = await checkWebGPU();
-    if (gpuError) { showFatalError(gpuError); return; }
 
     try {
         appState.metadata = await fetchMetadata!();
@@ -707,6 +1626,9 @@ async function init(): Promise<void> {
         setMetaText('Loading chart…');
         await initScatterPageModule();
         await initFftPage();
+        await initHeatmapPage();
+        await initSpectrogramPage();
+        initCausalPage();
 
         if (!(appState.metadata as any).time_range) { setMetaText('No valid time range found.'); return; }
 
@@ -716,22 +1638,24 @@ async function init(): Promise<void> {
         appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
         sanitizeSelectedColumns();
 
-        // Column search filter
+        // Column search filter (debounced to avoid thrashing DOM on fast typing)
         const columnFilterInput = document.getElementById('column-filter-input') as HTMLInputElement | null;
         if (columnFilterInput) {
-            columnFilterInput.addEventListener('input', () => {
+            const onFilterInput = debounce(() => {
                 appState.filterText = (columnFilterInput.value || '').trim().toLowerCase();
                 buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
-            });
+            }, 120);
+            columnFilterInput.addEventListener('input', onFilterInput);
         }
 
-        // Profile search filter
+        // Profile search filter (debounced)
         const profileFilterInput = document.getElementById('profile-filter-input') as HTMLInputElement | null;
         if (profileFilterInput) {
-            profileFilterInput.addEventListener('input', () => {
+            const onProfileFilterInput = debounce(() => {
                 appState.profileFilterText = (profileFilterInput.value || '').trim().toLowerCase();
                 renderColumnProfilesGrid(true);
-            });
+            }, 120);
+            profileFilterInput.addEventListener('input', onProfileFilterInput);
         }
 
         hydrateColumnProfiles(appState.metadata);
@@ -760,6 +1684,8 @@ async function init(): Promise<void> {
         } else {
             appState.chart = new DataChartCtor!('main-chart', onZoomRangeChange, updateAnalysisYRange, () => zoomOut(fetchAndRender));
         }
+
+        if (gpuError) throw new Error(gpuError);
 
         await Promise.race([
             appState.chart!.init(),

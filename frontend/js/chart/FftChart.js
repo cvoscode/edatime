@@ -1,6 +1,15 @@
 import {
+  createCanvasOverlay,
+  ensureRelativePosition,
+  initBoxZoom,
+  initWheelZoom,
+  tooltipRow,
+  tooltipWrap
+} from "../chunk-667JW4DN.js";
+import {
   Ad
 } from "../chunk-UUSB2KLH.js";
+import "../chunk-PZ5AY32C.js";
 
 // frontend/src/chart/FftChart.ts
 var FFT_GRID = { left: 80, right: 24, top: 20, bottom: 44 };
@@ -17,9 +26,8 @@ var FftChart = class {
   _containerId;
   _container = null;
   _chart = null;
-  _selectionBox = null;
   _overlayCanvas = null;
-  _drag = null;
+  _overlayObserver = null;
   _xMin = 0;
   _xMax = 0;
   // 0 = "use full range"
@@ -38,9 +46,7 @@ var FftChart = class {
     const container = document.getElementById(this._containerId);
     if (!container) return;
     this._container = container;
-    if (window.getComputedStyle(container).position === "static") {
-      container.style.position = "relative";
-    }
+    ensureRelativePosition(container);
     this._chart = await Ad(container, {
       grid: FFT_GRID,
       xAxis: { type: "value" },
@@ -76,6 +82,10 @@ var FftChart = class {
     if (m >= 1e3) return 1e-3;
     return 1;
   }
+  _yAxisLabel() {
+    const base = this._mode === "psd" ? "PSD" : "Magnitude";
+    return this._logScale ? `log10(${base})` : base;
+  }
   /* ── Data update ───────────────────────────────────── */
   updateData(traces, mode, logScale) {
     if (!this._chart) return;
@@ -106,7 +116,7 @@ var FftChart = class {
       return {
         type: "line",
         name: t.column,
-        color: FFT_TRACE_COLORS[ti % FFT_TRACE_COLORS.length],
+        color: t.color || FFT_TRACE_COLORS[ti % FFT_TRACE_COLORS.length],
         data: points
       };
     });
@@ -119,9 +129,9 @@ var FftChart = class {
         const name = String(p?.seriesName ?? "");
         const y = Number(p?.value?.[1]);
         const yStr = Number.isFinite(y) ? y.toFixed(4) : "";
-        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><span style="white-space:nowrap;">${name}</span><span style="font-variant-numeric:tabular-nums;white-space:nowrap;">${yStr}</span></div>`;
+        return tooltipRow(name, yStr);
       }).join("");
-      return freqLabel ? `<div style="opacity:0.8;margin-bottom:6px;">${freqLabel}</div>${rows}` : rows;
+      return freqLabel ? tooltipWrap(freqLabel, rows) : rows;
     };
     this._chart.setOption({
       grid: FFT_GRID,
@@ -167,6 +177,8 @@ var FftChart = class {
     this._renderOverlay();
   }
   destroy() {
+    this._overlayObserver?.disconnect();
+    this._overlayObserver = null;
     this._chart?.dispose?.();
     this._chart = null;
   }
@@ -174,18 +186,9 @@ var FftChart = class {
   _initOverlay() {
     const container = this._container;
     if (!container) return;
-    const overlay = document.createElement("canvas");
-    overlay.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:6";
-    container.appendChild(overlay);
-    this._overlayCanvas = overlay;
-    const ro = new ResizeObserver((entries) => {
-      for (const en of entries) {
-        overlay.width = en.contentRect.width;
-        overlay.height = en.contentRect.height;
-        this._renderOverlay();
-      }
-    });
-    ro.observe(container);
+    const { canvas, observer } = createCanvasOverlay(container, () => this._renderOverlay());
+    this._overlayCanvas = canvas;
+    this._overlayObserver = observer;
   }
   _renderOverlay() {
     const canvas = this._overlayCanvas;
@@ -193,7 +196,6 @@ var FftChart = class {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (this._annotations.length === 0) return;
     const w = canvas.width;
     const xMin = this._getXMin();
     const xMax = this._getXMax();
@@ -205,6 +207,16 @@ var FftChart = class {
     const plotW = w - FFT_GRID.left - FFT_GRID.right;
     const plotH = canvas.height - FFT_GRID.top - FFT_GRID.bottom;
     if (plotW <= 0 || plotH <= 0) return;
+    ctx.save();
+    ctx.fillStyle = "rgba(159, 177, 209, 0.92)";
+    ctx.font = "11px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(`Frequency (${unit})`, plotL + plotW / 2, canvas.height - 10);
+    ctx.translate(16, plotT + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(this._yAxisLabel(), 0, 0);
+    ctx.restore();
+    if (this._annotations.length === 0) return;
     ctx.save();
     ctx.font = "11px Inter, system-ui, sans-serif";
     for (const freqHz of this._annotations) {
@@ -229,58 +241,18 @@ var FftChart = class {
   _initInteractions() {
     const container = this._container;
     if (!container) return;
-    const selection = document.createElement("div");
-    selection.style.cssText = "position:absolute;top:0;left:0;width:0;height:0;border:1px solid rgba(0,212,255,0.9);background:rgba(0,212,255,0.15);pointer-events:none;display:none;z-index:5";
-    container.appendChild(selection);
-    this._selectionBox = selection;
-    container.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0) return;
-      const rect = container.getBoundingClientRect();
-      this._drag = {
-        pointerId: e.pointerId,
-        startX: e.clientX - rect.left,
-        endX: e.clientX - rect.left,
-        startY: e.clientY - rect.top,
-        endY: e.clientY - rect.top
-      };
-      try {
-        container.setPointerCapture(e.pointerId);
-      } catch {
-      }
-    });
-    container.addEventListener("pointermove", (e) => {
-      if (!this._drag || e.pointerId !== this._drag.pointerId) return;
-      const rect = container.getBoundingClientRect();
-      this._drag.endX = e.clientX - rect.left;
-      this._drag.endY = e.clientY - rect.top;
-      this._showSelBox(rect);
-    });
-    const finishDrag = (e) => {
-      if (!this._drag || e.pointerId !== this._drag.pointerId) return;
-      const rect = container.getBoundingClientRect();
-      const { startX, endX } = this._drag;
-      this._drag = null;
-      selection.style.display = "none";
-      try {
-        container.releasePointerCapture(e.pointerId);
-      } catch {
-      }
-      const dx = Math.abs(endX - startX);
-      const plotL = FFT_GRID.left;
-      const plotW = Math.max(1, rect.width - FFT_GRID.left - FFT_GRID.right);
-      if (dx >= 8 && this._traces.length > 0) {
-        const x0 = Math.max(plotL, Math.min(startX, endX));
-        const x1 = Math.min(plotL + plotW, Math.max(startX, endX));
-        const curMin = this._getXMin();
-        const curMax = this._getXMax();
-        const xRange = curMax - curMin;
-        const newMin = curMin + (x0 - plotL) / plotW * xRange;
-        const newMax = curMin + (x1 - plotL) / plotW * xRange;
-        if (newMax > newMin) {
-          this.setView(Math.max(0, newMin), Math.min(this._fullXMax, newMax));
-        }
-      } else if (dx < 4 && this._traces.length > 0) {
-        const cssX = startX;
+    initBoxZoom({
+      container,
+      grid: FFT_GRID,
+      getXRange: () => ({ min: this._getXMin(), max: this._getXMax() }),
+      onZoom: (min, max) => {
+        this.setView(Math.max(0, min), Math.min(this._fullXMax, max));
+      },
+      onClick: (cssX) => {
+        if (this._traces.length === 0) return;
+        const rect = container.getBoundingClientRect();
+        const plotL = FFT_GRID.left;
+        const plotW = Math.max(1, rect.width - FFT_GRID.left - FFT_GRID.right);
         if (cssX < plotL || cssX > plotL + plotW) return;
         const xMin = this._getXMin();
         const xMax = this._getXMax();
@@ -293,54 +265,22 @@ var FftChart = class {
         if (existIdx >= 0) this._annotations.splice(existIdx, 1);
         else this._annotations.push(freqHz);
         this._renderOverlay();
-      }
-    };
-    container.addEventListener("pointerup", finishDrag);
-    container.addEventListener("pointercancel", (e) => {
-      if (this._drag?.pointerId === e.pointerId) {
-        this._drag = null;
-        selection.style.display = "none";
+      },
+      onDblClick: () => {
+        this._annotations = [];
+        this.resetView();
       }
     });
-    container.addEventListener("dblclick", () => {
-      this._annotations = [];
-      this.resetView();
+    initWheelZoom({
+      container,
+      grid: FFT_GRID,
+      getXRange: () => ({ min: this._getXMin(), max: this._getXMax() }),
+      onZoom: (min, max) => this.setView(min, max),
+      clamp: { min: 0, max: this._fullXMax }
     });
-    container.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      if (this._traces.length === 0) return;
-      const rect = container.getBoundingClientRect();
-      const plotL = FFT_GRID.left;
-      const plotW = Math.max(1, rect.width - FFT_GRID.left - FFT_GRID.right);
-      const xNorm = Math.max(0, Math.min(1, (e.clientX - rect.left - plotL) / plotW));
-      const curMin = this._getXMin();
-      const curMax = this._getXMax();
-      const range = curMax - curMin;
-      const focus = curMin + xNorm * range;
-      const factor = e.deltaY > 0 ? 1.25 : 0.8;
-      const newRange = range * factor;
-      const newMin = Math.max(0, focus - xNorm * newRange);
-      const newMax = Math.min(this._fullXMax, newMin + newRange);
-      if (newMax > newMin + 1e-30) this.setView(newMin, newMax);
-    }, { passive: false });
-  }
-  _showSelBox(rect) {
-    const sel = this._selectionBox;
-    if (!sel || !this._drag) return;
-    const { startX, endX, startY, endY } = this._drag;
-    const left = Math.max(0, Math.min(startX, endX));
-    const right = Math.min(rect.width, Math.max(startX, endX));
-    const top = Math.max(0, Math.min(startY, endY));
-    const bottom = Math.min(rect.height, Math.max(startY, endY));
-    sel.style.left = `${left}px`;
-    sel.style.width = `${Math.max(0, right - left)}px`;
-    sel.style.top = `${top}px`;
-    sel.style.height = `${Math.max(0, bottom - top)}px`;
-    sel.style.display = "block";
   }
 };
 export {
-  FFT_TRACE_COLORS,
   FftChart
 };
 //# sourceMappingURL=FftChart.js.map

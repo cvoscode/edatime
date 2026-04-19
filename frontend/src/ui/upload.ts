@@ -365,4 +365,158 @@ export function initUploadPanel(
         }, 120);
         return () => clearInterval(t);
     }
+
+    /* ── Database connection ─────────────────────────────── */
+    const dbChk = document.getElementById('db-enabled') as HTMLInputElement | null;
+    const dbFlds = document.getElementById('db-fields');
+    const dbConnectBtn = document.getElementById('db-connect-btn') as HTMLButtonElement | null;
+    const dbLoadBtn = document.getElementById('db-load-btn') as HTMLButtonElement | null;
+    const dbDisconnectBtn = document.getElementById('db-disconnect-btn') as HTMLButtonElement | null;
+    const dbStatus = document.getElementById('db-status');
+    const dbTableSelect = document.getElementById('db-table-select') as HTMLSelectElement | null;
+
+    if (dbChk && dbFlds) {
+        dbChk.addEventListener('change', () => {
+            dbFlds.classList.toggle('visible', dbChk.checked);
+        });
+    }
+
+    /** Populate the table <select> from the /api/database/tables endpoint. */
+    async function refreshDbTables(): Promise<void> {
+        if (!dbTableSelect) return;
+        try {
+            const r = await fetch('/api/database/tables');
+            if (!r.ok) return;
+            const data = await r.json();
+            const tables: Array<{ schema: string; name: string; kind: string }> = data.tables ?? [];
+            dbTableSelect.innerHTML = '<option value="">— select table —</option>';
+            for (const t of tables) {
+                const opt = document.createElement('option');
+                opt.value = t.name;
+                opt.textContent = t.kind === 'hypertable' ? `⏱ ${t.schema}.${t.name}` : `${t.schema}.${t.name}`;
+                dbTableSelect.appendChild(opt);
+            }
+        } catch {
+            // ignore; user can still type the name manually
+        }
+    }
+
+    /** Sync table select → text input. */
+    dbTableSelect?.addEventListener('change', () => {
+        const tableInput = document.getElementById('db-table-input') as HTMLInputElement | null;
+        if (tableInput && dbTableSelect.value) tableInput.value = dbTableSelect.value;
+    });
+
+    /** Connect button — establishes the pool, no data load yet. */
+    if (dbConnectBtn) {
+        dbConnectBtn.addEventListener('click', async () => {
+            const connectionString = (document.getElementById('db-connection-input') as HTMLInputElement | null)?.value ?? '';
+            const schema = (document.getElementById('db-schema-input') as HTMLInputElement | null)?.value.trim() || 'public';
+
+            if (!connectionString.trim()) {
+                if (dbStatus) { dbStatus.textContent = 'Connection string is required.'; dbStatus.className = 'upload-status error'; }
+                return;
+            }
+
+            dbConnectBtn.disabled = true;
+            if (dbStatus) { dbStatus.textContent = 'Connecting…'; dbStatus.className = 'upload-status loading'; }
+
+            try {
+                const res = await fetch('/api/database/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        connection_string: connectionString.trim(),
+                        schema,
+                        load_snapshot: false,
+                    }),
+                });
+                const result = await res.json();
+                if (res.ok) {
+                    if (dbStatus) { dbStatus.textContent = 'Connected. Choose a table and click Load data.'; dbStatus.className = 'upload-status success'; }
+                    if (dbLoadBtn) dbLoadBtn.disabled = false;
+                    if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
+                    await refreshDbTables();
+                } else {
+                    if (dbStatus) { dbStatus.textContent = result.message ?? result.error ?? 'Connection failed.'; dbStatus.className = 'upload-status error'; }
+                }
+            } catch (e: any) {
+                if (dbStatus) { dbStatus.textContent = 'Error: ' + e.message; dbStatus.className = 'upload-status error'; }
+            } finally {
+                dbConnectBtn.disabled = false;
+            }
+        });
+    }
+
+    /** Load data button — pulls selected table into in-memory store. */
+    if (dbLoadBtn) {
+        dbLoadBtn.addEventListener('click', async () => {
+            const schema = (document.getElementById('db-schema-input') as HTMLInputElement | null)?.value.trim() || 'public';
+            const table = (document.getElementById('db-table-input') as HTMLInputElement | null)?.value.trim()
+                ?? dbTableSelect?.value ?? '';
+            const timeColumn = (document.getElementById('db-time-col-input') as HTMLInputElement | null)?.value.trim();
+
+            if (!table) {
+                if (dbStatus) { dbStatus.textContent = 'Select or enter a table name.'; dbStatus.className = 'upload-status error'; }
+                return;
+            }
+
+            dbLoadBtn.disabled = true;
+            if (dbStatus) { dbStatus.textContent = 'Loading data…'; dbStatus.className = 'upload-status loading'; }
+
+            try {
+                const res = await fetch('/api/database/load', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        schema,
+                        table,
+                        time_column: timeColumn || null,
+                        limit: 1_000_000,
+                    }),
+                });
+                const result = await res.json();
+                if (res.ok) {
+                    if (dbStatus) {
+                        dbStatus.textContent = `Loaded ${(result.rows_loaded as number).toLocaleString()} rows from ${table}.`;
+                        dbStatus.className = 'upload-status success';
+                    }
+                    // Trigger a full metadata reload so the chart page refreshes.
+                    window.dispatchEvent(new CustomEvent('edatime:dataset-changed', { detail: { source: 'database', table } }));
+                } else {
+                    if (dbStatus) { dbStatus.textContent = result.message ?? result.error ?? 'Load failed.'; dbStatus.className = 'upload-status error'; }
+                }
+            } catch (e: any) {
+                if (dbStatus) { dbStatus.textContent = 'Error: ' + e.message; dbStatus.className = 'upload-status error'; }
+            } finally {
+                dbLoadBtn.disabled = false;
+            }
+        });
+    }
+
+    /** Disconnect button. */
+    if (dbDisconnectBtn) {
+        dbDisconnectBtn.addEventListener('click', async () => {
+            try {
+                await fetch('/api/database/connect', { method: 'DELETE' });
+            } catch { /* ignore */ }
+            if (dbStatus) { dbStatus.textContent = 'Disconnected.'; dbStatus.className = 'upload-status'; }
+            if (dbLoadBtn) dbLoadBtn.disabled = true;
+            if (dbDisconnectBtn) dbDisconnectBtn.hidden = true;
+            if (dbTableSelect) {
+                dbTableSelect.innerHTML = '<option value="">— connect first —</option>';
+            }
+        });
+    }
+
+    // On init check connection status.
+    fetch('/api/database/status').then(r => r.json()).then((s: any) => {
+        if (s.connected) {
+            if (dbChk) { dbChk.checked = true; dbFlds?.classList.add('visible'); }
+            if (dbLoadBtn) dbLoadBtn.disabled = false;
+            if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
+            if (dbStatus) { dbStatus.textContent = `Connected to ${s.table || '(no table loaded)'}`; dbStatus.className = 'upload-status success'; }
+            void refreshDbTables();
+        }
+    }).catch(() => { });
 }

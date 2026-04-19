@@ -14,6 +14,7 @@ import {
   buildAdaptiveLineY,
   buildMetaBar,
   computeBounds,
+  debounce,
   downloadBlob,
   ensureRangeStateFromData,
   escapeHtml,
@@ -29,7 +30,8 @@ import {
   setMetaText,
   setSeriesColor,
   toFiniteNumberOrNull
-} from "./chunk-IXP3VB4N.js";
+} from "./chunk-BMP4455Z.js";
+import "./chunk-PZ5AY32C.js";
 
 // frontend/src/ui/columns.ts
 function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrentDataFn = null) {
@@ -115,7 +117,6 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
     chip.title = isAdaptiveTarget ? `Adaptive filter target: ${col}` : `Ctrl+click to target adaptive filters to ${col}`;
     chip.innerHTML = `
       <input type="checkbox" ${isActive ? "checked" : ""} value="${escapeHtml(col)}">
-      <span class="chip-dot" style="background:${escapeHtml(color)}"></span>
       <span class="chip-label">${escapeHtml(col)}</span>
       <input type="color" class="chip-color-picker" value="${escapeHtml(color)}" aria-label="Set ${escapeHtml(col)} color" title="Set ${escapeHtml(col)} color">
     `;
@@ -168,8 +169,6 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
       const nextColor = setSeriesColor(col, event.target.value);
       if (!nextColor) return;
       chip.style.setProperty("--chip-accent", nextColor);
-      const dot = chip.querySelector(".chip-dot");
-      if (dot) dot.style.background = nextColor;
       renderCurrentDataFn?.();
     });
     container.appendChild(chip);
@@ -829,6 +828,174 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
     }, 120);
     return () => clearInterval(t);
   }
+  const dbChk = document.getElementById("db-enabled");
+  const dbFlds = document.getElementById("db-fields");
+  const dbConnectBtn = document.getElementById("db-connect-btn");
+  const dbLoadBtn = document.getElementById("db-load-btn");
+  const dbDisconnectBtn = document.getElementById("db-disconnect-btn");
+  const dbStatus = document.getElementById("db-status");
+  const dbTableSelect = document.getElementById("db-table-select");
+  if (dbChk && dbFlds) {
+    dbChk.addEventListener("change", () => {
+      dbFlds.classList.toggle("visible", dbChk.checked);
+    });
+  }
+  async function refreshDbTables() {
+    if (!dbTableSelect) return;
+    try {
+      const r = await fetch("/api/database/tables");
+      if (!r.ok) return;
+      const data = await r.json();
+      const tables = data.tables ?? [];
+      dbTableSelect.innerHTML = '<option value="">\u2014 select table \u2014</option>';
+      for (const t of tables) {
+        const opt = document.createElement("option");
+        opt.value = t.name;
+        opt.textContent = t.kind === "hypertable" ? `\u23F1 ${t.schema}.${t.name}` : `${t.schema}.${t.name}`;
+        dbTableSelect.appendChild(opt);
+      }
+    } catch {
+    }
+  }
+  dbTableSelect?.addEventListener("change", () => {
+    const tableInput = document.getElementById("db-table-input");
+    if (tableInput && dbTableSelect.value) tableInput.value = dbTableSelect.value;
+  });
+  if (dbConnectBtn) {
+    dbConnectBtn.addEventListener("click", async () => {
+      const connectionString = document.getElementById("db-connection-input")?.value ?? "";
+      const schema = document.getElementById("db-schema-input")?.value.trim() || "public";
+      if (!connectionString.trim()) {
+        if (dbStatus) {
+          dbStatus.textContent = "Connection string is required.";
+          dbStatus.className = "upload-status error";
+        }
+        return;
+      }
+      dbConnectBtn.disabled = true;
+      if (dbStatus) {
+        dbStatus.textContent = "Connecting\u2026";
+        dbStatus.className = "upload-status loading";
+      }
+      try {
+        const res = await fetch("/api/database/connect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            connection_string: connectionString.trim(),
+            schema,
+            load_snapshot: false
+          })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          if (dbStatus) {
+            dbStatus.textContent = "Connected. Choose a table and click Load data.";
+            dbStatus.className = "upload-status success";
+          }
+          if (dbLoadBtn) dbLoadBtn.disabled = false;
+          if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
+          await refreshDbTables();
+        } else {
+          if (dbStatus) {
+            dbStatus.textContent = result.message ?? result.error ?? "Connection failed.";
+            dbStatus.className = "upload-status error";
+          }
+        }
+      } catch (e) {
+        if (dbStatus) {
+          dbStatus.textContent = "Error: " + e.message;
+          dbStatus.className = "upload-status error";
+        }
+      } finally {
+        dbConnectBtn.disabled = false;
+      }
+    });
+  }
+  if (dbLoadBtn) {
+    dbLoadBtn.addEventListener("click", async () => {
+      const schema = document.getElementById("db-schema-input")?.value.trim() || "public";
+      const table = document.getElementById("db-table-input")?.value.trim() ?? dbTableSelect?.value ?? "";
+      const timeColumn = document.getElementById("db-time-col-input")?.value.trim();
+      if (!table) {
+        if (dbStatus) {
+          dbStatus.textContent = "Select or enter a table name.";
+          dbStatus.className = "upload-status error";
+        }
+        return;
+      }
+      dbLoadBtn.disabled = true;
+      if (dbStatus) {
+        dbStatus.textContent = "Loading data\u2026";
+        dbStatus.className = "upload-status loading";
+      }
+      try {
+        const res = await fetch("/api/database/load", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            schema,
+            table,
+            time_column: timeColumn || null,
+            limit: 1e6
+          })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          if (dbStatus) {
+            dbStatus.textContent = `Loaded ${result.rows_loaded.toLocaleString()} rows from ${table}.`;
+            dbStatus.className = "upload-status success";
+          }
+          window.dispatchEvent(new CustomEvent("edatime:dataset-changed", { detail: { source: "database", table } }));
+        } else {
+          if (dbStatus) {
+            dbStatus.textContent = result.message ?? result.error ?? "Load failed.";
+            dbStatus.className = "upload-status error";
+          }
+        }
+      } catch (e) {
+        if (dbStatus) {
+          dbStatus.textContent = "Error: " + e.message;
+          dbStatus.className = "upload-status error";
+        }
+      } finally {
+        dbLoadBtn.disabled = false;
+      }
+    });
+  }
+  if (dbDisconnectBtn) {
+    dbDisconnectBtn.addEventListener("click", async () => {
+      try {
+        await fetch("/api/database/connect", { method: "DELETE" });
+      } catch {
+      }
+      if (dbStatus) {
+        dbStatus.textContent = "Disconnected.";
+        dbStatus.className = "upload-status";
+      }
+      if (dbLoadBtn) dbLoadBtn.disabled = true;
+      if (dbDisconnectBtn) dbDisconnectBtn.hidden = true;
+      if (dbTableSelect) {
+        dbTableSelect.innerHTML = '<option value="">\u2014 connect first \u2014</option>';
+      }
+    });
+  }
+  fetch("/api/database/status").then((r) => r.json()).then((s) => {
+    if (s.connected) {
+      if (dbChk) {
+        dbChk.checked = true;
+        dbFlds?.classList.add("visible");
+      }
+      if (dbLoadBtn) dbLoadBtn.disabled = false;
+      if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
+      if (dbStatus) {
+        dbStatus.textContent = `Connected to ${s.table || "(no table loaded)"}`;
+        dbStatus.className = "upload-status success";
+      }
+      void refreshDbTables();
+    }
+  }).catch(() => {
+  });
 }
 
 // frontend/src/ui/profile.ts
@@ -1697,14 +1864,31 @@ var FallbackChart = class {
 
 // frontend/src/app.ts
 var _appCleanups = [];
-function teardownApp() {
-  for (const fn of _appCleanups) fn();
-  _appCleanups.length = 0;
-  appState.chart?.destroy?.();
+function initModalClose(modalId, closeBtnId, cancelBtnId, onClose) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return null;
+  const close = () => {
+    modal.hidden = true;
+    onClose?.();
+  };
+  document.getElementById(closeBtnId)?.addEventListener("click", close);
+  document.getElementById(cancelBtnId)?.addEventListener("click", close);
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) close();
+  });
+  return close;
+}
+function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
+  const btn = document.getElementById(btnId);
+  const overlay = document.getElementById(overlayId);
+  if (btn) {
+    btn.disabled = loading;
+    btn.textContent = loading ? "Computing\u2026" : label;
+  }
+  if (overlay) overlay.hidden = !loading;
 }
 var fetchMetadata = null;
 var fetchData = null;
-var fetchRollingBands = null;
 var fetchAnomalies = null;
 var fetchFft = null;
 var postTransform = null;
@@ -1719,7 +1903,6 @@ async function ensureChartModules() {
   ]);
   fetchMetadata = dataClient.fetchMetadata;
   fetchData = dataClient.fetchData;
-  fetchRollingBands = dataClient.fetchRollingBands;
   fetchAnomalies = dataClient.fetchAnomalies;
   fetchFft = dataClient.fetchFft;
   postTransform = dataClient.postTransform;
@@ -1751,12 +1934,6 @@ async function checkWebGPU() {
     return `WebGPU adapter request failed: ${e.message}`;
   }
   return null;
-}
-function showFatalError(message) {
-  const container = document.getElementById("main-chart");
-  if (container)
-    container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ff4a6e;font-size:1rem;padding:2rem;text-align:center;">${message}</div>`;
-  setMetaText("Error \u2014 rendering unavailable");
 }
 function computeRenderedYDebugSnapshot() {
   if (!appState.lastFetchedData) return null;
@@ -1896,37 +2073,122 @@ function applyAdaptiveFiltersLocally(sourceKind = "adaptive") {
 function initAdaptiveFilterGesture() {
   const container = document.getElementById("main-chart");
   if (!container || container.dataset.adaptiveBound) return;
-  container.addEventListener("click", (event) => {
-    if (!event.ctrlKey || event.button !== 0) return;
-    if (!appState.chart?.cssPointToData) return;
-    const activeColumn = appState.selectedCols?.includes(appState.adaptiveFilterColumn) ? appState.adaptiveFilterColumn : appState.selectedCols?.[0];
-    if (!activeColumn) return;
-    const point = appState.chart.cssPointToData(event.clientX, event.clientY);
-    if (!point) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const pending = appState.pendingAdaptivePoint;
-    if (!pending || pending.column !== activeColumn) {
-      appState.pendingAdaptivePoint = { column: activeColumn, x: point.x, y: point.y };
-      appState.chart?.requestOverlayRender?.();
+  let _activePicker = null;
+  let _firstPoint = null;
+  let _secondPoint = null;
+  let _lastClickX = 0;
+  let _lastClickY = 0;
+  const dismissPicker = () => {
+    _activePicker?.remove();
+    _activePicker = null;
+  };
+  const cancelPending = () => {
+    _firstPoint = null;
+    _secondPoint = null;
+    appState.pendingAdaptivePoint = null;
+    appState.chart?.requestOverlayRender?.();
+  };
+  const updateOverlay = () => {
+    if (!_firstPoint) {
+      appState.pendingAdaptivePoint = null;
       return;
     }
-    const filter = buildAdaptiveFilterFromPoints(activeColumn, pending, point);
-    appState.pendingAdaptivePoint = { column: activeColumn, x: point.x, y: point.y };
+    const col = appState.adaptiveFilterColumn ?? (appState.selectedCols?.[0] ?? "");
+    if (_secondPoint) {
+      appState.pendingAdaptivePoint = {
+        column: col,
+        x: _firstPoint.x,
+        y: _firstPoint.y,
+        x2: _secondPoint.x,
+        y2: _secondPoint.y
+      };
+    } else {
+      appState.pendingAdaptivePoint = { column: col, x: _firstPoint.x, y: _firstPoint.y };
+    }
+    appState.chart?.requestOverlayRender?.();
+  };
+  const applyFilterForColumn = (column, p1, p2) => {
+    appState.adaptiveFilterColumn = column;
+    const filter = buildAdaptiveFilterFromPoints(column, p1, p2);
     if (!filter) return;
     appState.adaptiveLineFilters = [...appState.adaptiveLineFilters || [], filter];
     applyAdaptiveFiltersLocally();
+    buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
+  };
+  const showTracePicker = (p1, p2) => {
+    const cols = appState.selectedCols;
+    if (!cols?.length) return;
+    if (cols.length === 1) {
+      applyFilterForColumn(cols[0], p1, p2);
+      return;
+    }
+    dismissPicker();
+    const picker = document.createElement("div");
+    picker.className = "adaptive-trace-picker";
+    picker.style.left = `${_lastClickX}px`;
+    picker.style.top = `${_lastClickY}px`;
+    const label = document.createElement("div");
+    label.className = "adaptive-trace-picker__label";
+    label.textContent = "Filter which trace?";
+    picker.appendChild(label);
+    cols.forEach((col, idx) => {
+      const color = appState.seriesColors?.[col] ?? SERIES_COLORS[idx % SERIES_COLORS.length];
+      const isCurrentTarget = col === appState.adaptiveFilterColumn;
+      const btn = document.createElement("button");
+      btn.className = "adaptive-trace-picker__option" + (isCurrentTarget ? " current" : "");
+      btn.type = "button";
+      btn.style.setProperty("--pick-accent", color);
+      btn.textContent = col;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        dismissPicker();
+        applyFilterForColumn(col, p1, p2);
+      });
+      picker.appendChild(btn);
+    });
+    document.body.appendChild(picker);
+    _activePicker = picker;
+    const onOutside = (e) => {
+      if (!picker.contains(e.target)) {
+        dismissPicker();
+        document.removeEventListener("click", onOutside, true);
+      }
+    };
+    document.addEventListener("click", onOutside, true);
+  };
+  container.addEventListener("click", (event) => {
+    if (!event.ctrlKey || event.button !== 0) return;
+    const cols = appState.selectedCols;
+    if (!cols?.length) return;
+    const point = appState.chart?.cssPointToData?.(event.clientX, event.clientY) ?? null;
+    if (!point) return;
+    event.preventDefault();
+    event.stopPropagation();
+    _lastClickX = event.clientX;
+    _lastClickY = event.clientY;
+    if (!_firstPoint) {
+      _firstPoint = point;
+      _secondPoint = null;
+    } else {
+      _secondPoint = point;
+    }
+    updateOverlay();
   }, true);
   const onEscape = (e) => {
     if (e.key === "Escape") {
-      appState.pendingAdaptivePoint = null;
-      appState.chart?.requestOverlayRender?.();
+      dismissPicker();
+      cancelPending();
     }
   };
   const onCtrlUp = (e) => {
-    if (e.key === "Control" && appState.pendingAdaptivePoint) {
-      appState.pendingAdaptivePoint = null;
-      appState.chart?.requestOverlayRender?.();
+    if (e.key !== "Control") return;
+    if (_firstPoint && _secondPoint) {
+      const p1 = _firstPoint;
+      const p2 = _secondPoint;
+      cancelPending();
+      showTracePicker(p1, p2);
+    } else {
+      cancelPending();
     }
   };
   const onAdaptiveChange = () => {
@@ -1961,6 +2223,8 @@ async function fetchAndRender() {
   if (dataFetchController) dataFetchController.abort();
   dataFetchController = new AbortController();
   const signal = dataFetchController.signal;
+  const loadingEl = document.getElementById("main-chart-loading");
+  if (loadingEl) loadingEl.hidden = false;
   try {
     sanitizeSelectedColumns();
     const startIso = new Date(appState.currentStart).toISOString();
@@ -2009,6 +2273,9 @@ async function fetchAndRender() {
     if (err?.name === "AbortError") return;
     console.error("Failed to fetch data:", err);
     setMetaText("Error: " + err.message);
+  } finally {
+    const loadingEl2 = document.getElementById("main-chart-loading");
+    if (loadingEl2) loadingEl2.hidden = true;
   }
 }
 function onZoomRangeChange(newStart, newEnd, sourceKind = "user") {
@@ -2081,6 +2348,21 @@ function initKeyboardShortcuts() {
       if (key === "6") {
         event.preventDefault();
         showPage("fft");
+        return;
+      }
+      if (key === "7") {
+        event.preventDefault();
+        showPage("heatmap");
+        return;
+      }
+      if (key === "8") {
+        event.preventDefault();
+        showPage("spectrogram");
+        return;
+      }
+      if (key === "9") {
+        event.preventDefault();
+        showPage("causal");
         return;
       }
     }
@@ -2159,23 +2441,19 @@ function initAnalyticsListeners() {
   });
 }
 function initTransformModal() {
-  const modal = document.getElementById("transform-modal");
-  const closeBtn = document.getElementById("transform-close-btn");
-  const cancelBtn = document.getElementById("transform-cancel-btn");
   const applyBtn = document.getElementById("transform-apply-btn");
   const exprInput = document.getElementById("transform-expression");
   const nameInput = document.getElementById("transform-output-name");
   const errorEl = document.getElementById("transform-error");
-  if (!modal) return;
-  const close = () => {
-    modal.hidden = true;
-    if (errorEl) errorEl.textContent = "";
-  };
-  closeBtn?.addEventListener("click", close);
-  cancelBtn?.addEventListener("click", close);
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) close();
-  });
+  const close = initModalClose(
+    "transform-modal",
+    "transform-close-btn",
+    "transform-cancel-btn",
+    () => {
+      if (errorEl) errorEl.textContent = "";
+    }
+  );
+  if (!close) return;
   applyBtn?.addEventListener("click", async () => {
     const expr = exprInput?.value?.trim();
     const name = nameInput?.value?.trim();
@@ -2215,6 +2493,13 @@ var _fftMode = "magnitude";
 var _fftLogScale = true;
 var _fftChart = null;
 var _FFT_CHIP_COLORS = ["#7ad151", "#4ac3e8", "#f97316", "#e879f9", "#facc15", "#60a5fa", "#f43f5e"];
+var _fftTraceColors = {};
+function _fftColumns() {
+  return (appState.metadata?.numeric_columns || []).filter((c) => c.toLowerCase() !== "ts");
+}
+function _fftColorFor(col, fallbackIdx) {
+  return _fftTraceColors[col] || _FFT_CHIP_COLORS[Math.max(0, fallbackIdx) % _FFT_CHIP_COLORS.length];
+}
 function _fftUpdateZoomBtn(isZoomed) {
   const btn = document.getElementById("fft-zoom-reset-btn");
   if (btn) btn.hidden = !(isZoomed ?? _fftChart?.getIsZoomed() ?? false);
@@ -2231,7 +2516,7 @@ function _fftRenderChips() {
   const bar = document.getElementById("fft-traces-bar");
   const statusEl = document.getElementById("fft-status");
   if (!bar || !appState.metadata) return;
-  const allCols = (appState.metadata.numeric_columns || []).filter((c) => c.toLowerCase() !== "ts");
+  const allCols = _fftColumns();
   const existing = /* @__PURE__ */ new Map();
   for (const el of bar.querySelectorAll(".fft-trace-chip")) {
     const col = el.dataset.col;
@@ -2239,18 +2524,19 @@ function _fftRenderChips() {
     else el.remove();
   }
   const zoomBtn = bar.querySelector("#fft-zoom-reset-btn");
-  for (const col of allCols) {
+  for (const [idx, col] of allCols.entries()) {
     const activeIdx = _fftTraces.findIndex((t) => t.column === col);
     const isActive = activeIdx >= 0;
-    const color = isActive ? _FFT_CHIP_COLORS[activeIdx % _FFT_CHIP_COLORS.length] : "";
+    const color = _fftColorFor(col, idx);
     let chip = existing.get(col);
     if (!chip) {
       chip = document.createElement("button");
-      chip.className = "fft-trace-chip";
+      chip.className = "series-chip fft-trace-chip";
       chip.type = "button";
       chip.dataset.col = col;
       chip.addEventListener("click", async (e) => {
         const c = chip.dataset.col;
+        if (e.target?.closest?.(".chip-color-picker")) return;
         if (e.target.classList.contains("fft-chip-remove")) {
           _fftTraces = _fftTraces.filter((t) => t.column !== c);
           _fftRenderChips();
@@ -2261,6 +2547,8 @@ function _fftRenderChips() {
         if (_fftTraces.some((t) => t.column === c)) return;
         chip.classList.add("loading");
         chip.disabled = true;
+        const fftLoadingEl = document.getElementById("fft-chart-loading");
+        if (fftLoadingEl) fftLoadingEl.hidden = false;
         if (statusEl) statusEl.textContent = `Computing FFT for ${c}\u2026`;
         try {
           await _fftFetchAndAdd(c);
@@ -2273,12 +2561,30 @@ function _fftRenderChips() {
         } finally {
           chip.classList.remove("loading");
           chip.disabled = false;
+          if (fftLoadingEl) fftLoadingEl.hidden = true;
         }
       });
       bar.insertBefore(chip, zoomBtn || null);
     }
-    chip.className = `fft-trace-chip${isActive ? " active" : ""}`;
-    chip.innerHTML = `<span class="fft-chip-dot" style="${isActive ? `background:${color}` : "border:1px solid rgba(255,255,255,0.25)"}"></span><span class="fft-chip-label">${col}</span>` + (isActive ? '<span class="fft-chip-remove" aria-hidden="true">\xD7</span>' : "");
+    chip.className = `series-chip fft-trace-chip${isActive ? " active" : ""}`;
+    chip.style.setProperty("--chip-accent", color);
+    chip.innerHTML = `<span class="chip-label">${col}</span><input type="color" class="chip-color-picker fft-chip-color-picker" value="${color}" aria-label="Set ${col} FFT color" title="Set ${col} FFT color">` + (isActive ? '<span class="fft-chip-remove" aria-hidden="true">\xD7</span>' : "");
+    const colorInput = chip.querySelector(".chip-color-picker");
+    if (colorInput) {
+      for (const eventName of ["pointerdown", "mousedown", "click", "dblclick"]) {
+        colorInput.addEventListener(eventName, (event) => event.stopPropagation());
+      }
+      colorInput.addEventListener("input", (event) => {
+        const nextColor = event.target.value;
+        _fftTraceColors[col] = nextColor;
+        chip.style.setProperty("--chip-accent", nextColor);
+        const trace = _fftTraces.find((item) => item.column === col);
+        if (trace) {
+          trace.color = nextColor;
+          _fftRerenderOrClear();
+        }
+      });
+    }
   }
   bar.hidden = allCols.length === 0;
 }
@@ -2290,7 +2596,8 @@ async function _fftFetchAndAdd(col) {
   if (!resp?.results?.length) throw new Error("No results");
   const result = resp.results[0];
   _fftTraces = _fftTraces.filter((t) => t.column !== col);
-  _fftTraces.push({ column: result.column, frequencies: result.frequencies, magnitudes: result.magnitudes, psd: result.psd });
+  const color = _fftColorFor(col, _fftColumns().indexOf(col));
+  _fftTraces.push({ column: result.column, frequencies: result.frequencies, magnitudes: result.magnitudes, psd: result.psd, color });
 }
 async function initFftPage() {
   const modeSelect = document.getElementById("fft-mode-select");
@@ -2315,8 +2622,672 @@ async function initFftPage() {
   zoomResetBtn?.addEventListener("click", () => _fftChart?.resetView());
   _fftRerenderOrClear();
 }
+var _heatmapLoaded = false;
+var _heatmapCellSize = 36;
+async function initHeatmapPage() {
+  if (_heatmapLoaded) return;
+  _heatmapLoaded = true;
+  const container = document.getElementById("heatmap-container");
+  const statusEl = document.getElementById("heatmap-status");
+  const metricSelect = document.getElementById("heatmap-metric");
+  const sizeInput = document.getElementById("heatmap-cell-size");
+  const sizeValue = document.getElementById("heatmap-cell-size-value");
+  if (!container) return;
+  let matrixData = null;
+  let metric = "pearson";
+  function renderHeatmap() {
+    if (!matrixData || !container) return;
+    const cols = matrixData.columns;
+    const data = metric === "spearman" ? matrixData.spearman : matrixData.pearson;
+    const n = cols.length;
+    const cellSize = _heatmapCellSize;
+    const labelWidth = Math.max(84, Math.min(180, Math.round(cellSize * 2.5)));
+    let html = `<div class="heatmap-grid" style="display:inline-grid;grid-template-columns:${labelWidth}px repeat(${n},${cellSize}px);grid-template-rows:${labelWidth}px repeat(${n},${cellSize}px);gap:1px;font-size:0.65rem;">`;
+    html += `<div></div>`;
+    for (const col of cols) {
+      html += `<div class="heatmap-header" style="writing-mode:vertical-rl;text-orientation:mixed;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;color:var(--text-dim);padding:4px 2px;" title="${col}">${col}</div>`;
+    }
+    for (let i = 0; i < n; i++) {
+      html += `<div class="heatmap-row-label" style="display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${cols[i]}">${cols[i]}</div>`;
+      for (let j = 0; j < n; j++) {
+        const val = data[i][j];
+        const displayVal = val !== null ? val.toFixed(2) : "\u2014";
+        const bg = val !== null ? correlationColor(val) : "transparent";
+        const textColor = val !== null && Math.abs(val) > 0.5 ? "#fff" : "var(--text)";
+        html += `<div class="heatmap-cell" style="display:flex;align-items:center;justify-content:center;background:${bg};color:${textColor};border-radius:2px;cursor:default;font-variant-numeric:tabular-nums;" title="${cols[i]} \xD7 ${cols[j]}: ${displayVal}">${displayVal}</div>`;
+      }
+    }
+    html += `</div>`;
+    html += `<div style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:0.7rem;color:var(--text-dim);">`;
+    html += `<span>-1.0</span>`;
+    html += `<div style="flex:0 0 200px;height:12px;border-radius:4px;background:linear-gradient(90deg,#2166AC,#67A9CF,#F7F7F7,#EF8A62,#B2182B);"></div>`;
+    html += `<span>+1.0</span>`;
+    html += `</div>`;
+    container.innerHTML = html;
+  }
+  function correlationColor(v) {
+    const clamped = Math.max(-1, Math.min(1, v));
+    if (clamped >= 0) {
+      const t = clamped;
+      const r = Math.round(247 - t * (247 - 178));
+      const g = Math.round(247 - t * (247 - 24));
+      const b = Math.round(247 - t * (247 - 43));
+      return `rgb(${r},${g},${b})`;
+    } else {
+      const t = -clamped;
+      const r = Math.round(247 - t * (247 - 33));
+      const g = Math.round(247 - t * (247 - 102));
+      const b = Math.round(247 - t * (247 - 172));
+      return `rgb(${r},${g},${b})`;
+    }
+  }
+  async function loadMatrix() {
+    if (statusEl) statusEl.textContent = "Loading correlation matrix\u2026";
+    try {
+      const { fetchCorrelationMatrix } = await import("./dataClient.js");
+      matrixData = await fetchCorrelationMatrix();
+      if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns \xB7 ${_heatmapCellSize}px cells`;
+      renderHeatmap();
+    } catch (e) {
+      if (statusEl) statusEl.textContent = `Error: ${e?.message || "failed"}`;
+    }
+  }
+  metricSelect?.addEventListener("change", () => {
+    metric = metricSelect.value;
+    renderHeatmap();
+  });
+  sizeInput?.addEventListener("input", () => {
+    _heatmapCellSize = Math.max(24, Math.min(72, Number(sizeInput.value || 36)));
+    if (sizeValue) sizeValue.textContent = String(_heatmapCellSize);
+    if (statusEl && matrixData) statusEl.textContent = `${matrixData.columns.length} columns \xB7 ${_heatmapCellSize}px cells`;
+    renderHeatmap();
+  });
+  window.addEventListener("edatime:page-change", (e) => {
+    if (e?.detail?.page === "heatmap") loadMatrix();
+  });
+  loadMatrix();
+}
+var _spectrogramLoaded = false;
+var _spectrogramChart = null;
+var _spectrogramResizeObserver = null;
+var _spectrogramResult = null;
+var _spectrogramSampleCount = 0;
+async function initSpectrogramPage() {
+  if (_spectrogramLoaded) return;
+  _spectrogramLoaded = true;
+  const colSelect = document.getElementById("spectrogram-col-select");
+  const winSelect = document.getElementById("spectrogram-win-size");
+  const logCheck = document.getElementById("spectrogram-log-scale");
+  const computeBtn = document.getElementById("spectrogram-compute-btn");
+  const resetZoomBtn = document.getElementById("spectrogram-zoom-reset-btn");
+  const statusEl = document.getElementById("spectrogram-status");
+  const chartEl = document.getElementById("spectrogram-chart");
+  if (!chartEl || !colSelect) return;
+  const ensureSpectrogramChart = async () => {
+    if (_spectrogramChart) return _spectrogramChart;
+    const echarts = await import("./echarts-SD7KWPBA.js");
+    _spectrogramChart = echarts.init(chartEl, void 0, { renderer: "canvas" });
+    _spectrogramResizeObserver?.disconnect();
+    _spectrogramResizeObserver = new ResizeObserver(() => _spectrogramChart?.resize());
+    _spectrogramResizeObserver.observe(chartEl);
+    if (chartEl.style.position === "" || chartEl.style.position === "static") {
+      chartEl.style.position = "relative";
+    }
+    const selBox = document.createElement("div");
+    selBox.style.cssText = "position:absolute;top:0;left:0;width:0;height:0;border:1px solid rgba(0,212,255,0.9);background:rgba(0,212,255,0.15);pointer-events:none;display:none;z-index:5";
+    chartEl.appendChild(selBox);
+    let _dragStart = null;
+    let _dragEnd = { x: 0, y: 0 };
+    const SPEC_GRID = { left: 72, right: 110, top: 24, bottom: 80 };
+    chartEl.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      const rect = chartEl.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      if (x > rect.width - SPEC_GRID.right || x < SPEC_GRID.left || y < SPEC_GRID.top || y > rect.height - SPEC_GRID.bottom) return;
+      _dragStart = { x, y, pid: e.pointerId };
+      _dragEnd = { x, y };
+      try {
+        chartEl.setPointerCapture(e.pointerId);
+      } catch {
+      }
+    });
+    chartEl.addEventListener("pointermove", (e) => {
+      if (!_dragStart || e.pointerId !== _dragStart.pid) return;
+      const rect = chartEl.getBoundingClientRect();
+      _dragEnd = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      const left = Math.min(_dragStart.x, _dragEnd.x);
+      const top = Math.min(_dragStart.y, _dragEnd.y);
+      selBox.style.left = `${left}px`;
+      selBox.style.top = `${top}px`;
+      selBox.style.width = `${Math.abs(_dragEnd.x - _dragStart.x)}px`;
+      selBox.style.height = `${Math.abs(_dragEnd.y - _dragStart.y)}px`;
+      selBox.style.display = "block";
+    });
+    const finishDrag = (e) => {
+      if (!_dragStart || e.pointerId !== _dragStart.pid) return;
+      const start = _dragStart;
+      _dragStart = null;
+      selBox.style.display = "none";
+      try {
+        chartEl.releasePointerCapture(e.pointerId);
+      } catch {
+      }
+      const dx = Math.abs(_dragEnd.x - start.x);
+      const dy = Math.abs(_dragEnd.y - start.y);
+      if (dx < 8 || dy < 8) return;
+      const chart = _spectrogramChart;
+      if (!chart || !_spectrogramResult) return;
+      const p0 = chart.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [start.x, start.y]);
+      const p1 = chart.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [_dragEnd.x, _dragEnd.y]);
+      if (!p0 || !p1) return;
+      const xLen = _spectrogramResult.times_ms.length;
+      const yLen = _spectrogramResult.frequencies.length;
+      const xStartPct = Math.max(0, Math.min(100, Math.min(p0[0], p1[0]) / (xLen - 1) * 100));
+      const xEndPct = Math.max(0, Math.min(100, Math.max(p0[0], p1[0]) / (xLen - 1) * 100));
+      const yStartPct = Math.max(0, Math.min(100, Math.min(p0[1], p1[1]) / (yLen - 1) * 100));
+      const yEndPct = Math.max(0, Math.min(100, Math.max(p0[1], p1[1]) / (yLen - 1) * 100));
+      if (xEndPct <= xStartPct || yEndPct <= yStartPct) return;
+      chart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: xStartPct, end: xEndPct });
+      chart.dispatchAction({ type: "dataZoom", dataZoomIndex: 1, start: yStartPct, end: yEndPct });
+    };
+    chartEl.addEventListener("pointerup", finishDrag);
+    chartEl.addEventListener("pointercancel", (e) => {
+      if (_dragStart?.pid === e.pointerId) {
+        _dragStart = null;
+        selBox.style.display = "none";
+      }
+    });
+    chartEl.addEventListener("dblclick", () => {
+      if (!_spectrogramChart) return;
+      _spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: 0, end: 100 });
+      _spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 1, start: 0, end: 100 });
+    });
+    return _spectrogramChart;
+  };
+  const formatSpectrogramTime = (tsMs) => {
+    return new Date(tsMs).toLocaleString([], {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+  };
+  const formatSpectrogramFrequency = (freq) => {
+    if (!Number.isFinite(freq)) return "\u2014";
+    if (freq >= 1e3) return `${(freq / 1e3).toFixed(2)} kHz`;
+    if (freq >= 1) return `${freq.toFixed(2)} Hz`;
+    return `${(freq * 1e3).toFixed(2)} mHz`;
+  };
+  const renderSpectrogramChart = async () => {
+    if (!_spectrogramResult) return;
+    const chart = await ensureSpectrogramChart();
+    const logScale = logCheck?.checked ?? true;
+    const points = [];
+    const timeAxis = _spectrogramResult.times_ms;
+    const freqAxis = _spectrogramResult.frequencies;
+    let minValue = Number.POSITIVE_INFINITY;
+    let maxValue = Number.NEGATIVE_INFINITY;
+    for (let timeIndex = 0; timeIndex < timeAxis.length; timeIndex++) {
+      const timeMs = timeAxis[timeIndex];
+      const row = _spectrogramResult.magnitudes[timeIndex] || [];
+      for (let freqIndex = 0; freqIndex < freqAxis.length; freqIndex++) {
+        const freq = freqAxis[freqIndex];
+        const rawMagnitude = Number(row[freqIndex] ?? 0);
+        const displayMagnitude = logScale ? Math.log10(Math.max(rawMagnitude, 1e-30)) : rawMagnitude;
+        if (!Number.isFinite(displayMagnitude)) continue;
+        minValue = Math.min(minValue, displayMagnitude);
+        maxValue = Math.max(maxValue, displayMagnitude);
+        points.push([timeIndex, freqIndex, displayMagnitude, timeMs, freq, rawMagnitude]);
+      }
+    }
+    if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
+      minValue = 0;
+      maxValue = 1;
+    }
+    const xTickInterval = Math.max(0, Math.floor(timeAxis.length / 10) - 1);
+    const yTickInterval = Math.max(0, Math.floor(freqAxis.length / 10) - 1);
+    chart.setOption({
+      backgroundColor: "transparent",
+      animation: false,
+      grid: { left: 72, right: 110, top: 24, bottom: 80 },
+      toolbox: {
+        right: 12,
+        feature: {
+          restore: { title: "Reset zoom" },
+          saveAsImage: { title: "Save image" }
+        }
+      },
+      tooltip: {
+        trigger: "item",
+        backgroundColor: "rgba(8, 12, 20, 0.94)",
+        borderColor: "rgba(126, 158, 212, 0.28)",
+        textStyle: { color: "#eef4ff" },
+        formatter: (params) => {
+          const value = params?.value || [];
+          const timeMs = Number(value[3]);
+          const freq = Number(value[4]);
+          const displayMagnitude = Number(value[2]);
+          const rawMagnitude = Number(value[5]);
+          return [
+            `<strong>${_spectrogramResult?.column || "Spectrogram"}</strong>`,
+            `Time: ${formatSpectrogramTime(timeMs)}`,
+            `Frequency: ${formatSpectrogramFrequency(freq)}`,
+            `Intensity: ${displayMagnitude.toFixed(4)}${logScale ? " log10" : ""}`,
+            `Raw magnitude: ${rawMagnitude.toExponential(4)}`
+          ].join("<br>");
+        }
+      },
+      xAxis: {
+        type: "category",
+        data: timeAxis,
+        name: "Time",
+        nameLocation: "middle",
+        nameGap: 48,
+        axisLabel: {
+          color: "#9fb1d1",
+          rotate: 30,
+          interval: xTickInterval,
+          formatter: (value) => {
+            const date = new Date(Number(value));
+            return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}
+${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+          }
+        },
+        splitLine: { show: false }
+      },
+      yAxis: {
+        type: "category",
+        data: freqAxis,
+        name: "Frequency (Hz)",
+        nameLocation: "middle",
+        nameGap: 56,
+        axisLabel: {
+          color: "#9fb1d1",
+          interval: yTickInterval,
+          formatter: (value) => formatSpectrogramFrequency(Number(value))
+        },
+        splitLine: { show: false }
+      },
+      visualMap: {
+        min: minValue,
+        max: maxValue,
+        calculable: true,
+        orient: "vertical",
+        right: 18,
+        top: "middle",
+        text: [logScale ? "High log10" : "High", logScale ? "Low log10" : "Low"],
+        textStyle: { color: "#9fb1d1" },
+        inRange: {
+          color: ["#440154", "#414487", "#2a788e", "#22a884", "#7ad151", "#fde725"]
+        }
+      },
+      // dataZoom components are registered so dispatchAction works,
+      // but all built-in mouse interactions are disabled — the native
+      // pointer-drag overlay above handles zoom, dblclick resets.
+      dataZoom: [
+        {
+          type: "inside",
+          xAxisIndex: 0,
+          filterMode: "none",
+          zoomOnMouseWheel: false,
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false
+        },
+        {
+          type: "inside",
+          yAxisIndex: 0,
+          filterMode: "none",
+          zoomOnMouseWheel: false,
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false
+        }
+      ],
+      series: [{
+        name: _spectrogramResult.column,
+        type: "heatmap",
+        progressive: 0,
+        emphasis: { itemStyle: { borderColor: "#ffffff", borderWidth: 1 } },
+        data: points
+      }]
+    });
+    statusEl.textContent = `${_spectrogramResult.column} \xB7 ${_spectrogramResult.times_ms.length} windows \xD7 ${_spectrogramResult.frequencies.length} bins \xB7 ${_spectrogramSampleCount} samples`;
+  };
+  if (appState.metadata) {
+    for (const col of appState.metadata.numeric_columns) {
+      const opt = document.createElement("option");
+      opt.value = col;
+      opt.textContent = col;
+      colSelect.appendChild(opt);
+    }
+  }
+  computeBtn?.addEventListener("click", async () => {
+    const column = colSelect.value;
+    if (!column) {
+      if (statusEl) statusEl.textContent = "Select a column.";
+      return;
+    }
+    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) {
+      if (statusEl) statusEl.textContent = "No time range available.";
+      return;
+    }
+    const winSize = parseInt(winSelect?.value || "256", 10);
+    try {
+      setComputeLoading("spectrogram-compute-btn", "spectrogram-loading", true);
+      if (statusEl) statusEl.textContent = "Fetching spectrogram\u2026";
+      const { fetchSpectrogram } = await import("./dataClient.js");
+      const startIso = new Date(appState.currentStart).toISOString();
+      const endIso = new Date(appState.currentEnd).toISOString();
+      const resp = await fetchSpectrogram(startIso, endIso, column, winSize);
+      _spectrogramResult = resp.result;
+      _spectrogramSampleCount = resp.sample_count;
+      await renderSpectrogramChart();
+    } catch (e) {
+      if (statusEl) statusEl.textContent = `Error: ${e?.message || "failed"}`;
+    } finally {
+      setComputeLoading("spectrogram-compute-btn", "spectrogram-loading", false);
+    }
+  });
+  logCheck?.addEventListener("change", () => {
+    if (_spectrogramResult) void renderSpectrogramChart();
+  });
+  resetZoomBtn?.addEventListener("click", () => {
+    if (!_spectrogramChart) return;
+    _spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: 0, end: 100 });
+    _spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 1, start: 0, end: 100 });
+  });
+  window.addEventListener("edatime:page-change", (e) => {
+    if (e?.detail?.page === "spectrogram" && appState.metadata) {
+      const currentOpts = new Set(Array.from(colSelect.options).map((o) => o.value));
+      for (const col of appState.metadata.numeric_columns) {
+        if (!currentOpts.has(col)) {
+          const opt = document.createElement("option");
+          opt.value = col;
+          opt.textContent = col;
+          colSelect.appendChild(opt);
+        }
+      }
+      _spectrogramChart?.resize?.();
+    }
+  });
+}
+async function initCausalPage() {
+  const { initCausalPage: init2 } = await import("./causalPage-YXZLMPHG.js");
+  init2({
+    getMetadata: () => appState.metadata,
+    chipColor: _fftColorFor,
+    numericColumns: _fftColumns,
+    setLoading: setComputeLoading
+  });
+}
+function initOutlierModal() {
+  const openBtn = document.getElementById("outlier-open-btn");
+  const applyBtn = document.getElementById("outlier-apply-btn");
+  const methodSelect = document.getElementById("outlier-method");
+  const thresholdInput = document.getElementById("outlier-threshold");
+  const windowInput = document.getElementById("outlier-window");
+  const errorEl = document.getElementById("outlier-error");
+  const resultEl = document.getElementById("outlier-result");
+  const close = initModalClose(
+    "outlier-modal",
+    "outlier-close-btn",
+    "outlier-cancel-btn",
+    () => {
+      if (errorEl) errorEl.textContent = "";
+      if (resultEl) resultEl.textContent = "";
+    }
+  );
+  if (!close) return;
+  const modal = document.getElementById("outlier-modal");
+  openBtn?.addEventListener("click", () => {
+    modal.hidden = false;
+  });
+  methodSelect?.addEventListener("change", () => {
+    if (thresholdInput) {
+      thresholdInput.value = methodSelect.value === "iqr" ? "1.5" : "3";
+    }
+  });
+  applyBtn?.addEventListener("click", async () => {
+    if (errorEl) errorEl.textContent = "";
+    if (resultEl) resultEl.textContent = "";
+    const method = methodSelect?.value || "zscore";
+    const threshold = parseFloat(thresholdInput?.value || "3");
+    const windowSize = parseInt(windowInput?.value || "0", 10);
+    const cols = appState.selectedCols.length > 0 ? appState.selectedCols : null;
+    try {
+      applyBtn.disabled = true;
+      applyBtn.textContent = "Removing\u2026";
+      const { postRemoveOutliers } = await import("./dataClient.js");
+      const result = await postRemoveOutliers(
+        cols,
+        method,
+        threshold,
+        windowSize > 0 ? windowSize : void 0
+      );
+      if (resultEl) resultEl.textContent = `Removed ${result.rows_removed} rows (${result.rows_before} \u2192 ${result.rows_after})`;
+      if (fetchMetadata) {
+        appState.metadata = await fetchMetadata();
+        appState.numericCols = (appState.metadata.numeric_columns || []).filter((col) => col && col.toLowerCase() !== "ts");
+        sanitizeSelectedColumns();
+        buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
+        buildMetaBar(appState.metadata);
+        await fetchAndRender();
+      }
+    } catch (e) {
+      if (errorEl) errorEl.textContent = e?.message || "Outlier removal failed.";
+    } finally {
+      applyBtn.disabled = false;
+      applyBtn.textContent = "Remove Outliers";
+    }
+  });
+}
+function initTimeDistributionModal() {
+  const computeBtn = document.getElementById("timedist-compute-btn");
+  const windowsInput = document.getElementById("timedist-windows");
+  const binsInput = document.getElementById("timedist-bins");
+  const canvas = document.getElementById("timedist-canvas");
+  const statusEl = document.getElementById("timedist-status");
+  const close = initModalClose("timedist-modal", "timedist-close-btn", "timedist-cancel-btn");
+  if (!close || !canvas) return;
+  const modal = document.getElementById("timedist-modal");
+  const openBtn = document.getElementById("timedist-open-btn");
+  openBtn?.addEventListener("click", () => {
+    modal.hidden = false;
+  });
+  computeBtn?.addEventListener("click", async () => {
+    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
+    const cols = appState.selectedCols.length > 0 ? appState.selectedCols[0] : null;
+    if (!cols) {
+      if (statusEl) statusEl.textContent = "Select a column first.";
+      return;
+    }
+    const windows = parseInt(windowsInput?.value || "20", 10);
+    const bins = parseInt(binsInput?.value || "24", 10);
+    try {
+      computeBtn.disabled = true;
+      computeBtn.textContent = "Computing\u2026";
+      if (statusEl) statusEl.textContent = "Fetching data\u2026";
+      const { fetchTimeDistributions } = await import("./dataClient.js");
+      const startIso = new Date(appState.currentStart).toISOString();
+      const endIso = new Date(appState.currentEnd).toISOString();
+      const result = await fetchTimeDistributions(startIso, endIso, cols, windows, bins);
+      if (result.columns.length === 0) {
+        if (statusEl) statusEl.textContent = "No data returned.";
+        return;
+      }
+      renderTimeDistBoxPlots(canvas, result.columns[0], windows, bins);
+      if (statusEl) statusEl.textContent = `${cols}: ${result.columns[0].windows.length} windows \xD7 ${bins} bins (box plot)`;
+    } catch (e) {
+      if (statusEl) statusEl.textContent = `Error: ${e?.message || "failed"}`;
+    } finally {
+      computeBtn.disabled = false;
+      computeBtn.textContent = "Compute";
+    }
+  });
+}
+function renderTimeDistBoxPlots(canvas, data, _nWindows, _nBins) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const wins = data.windows;
+  if (wins.length === 0) return;
+  const nW = wins.length;
+  const W = canvas.width;
+  const H = canvas.height;
+  const marginL = 60;
+  const marginB = 30;
+  const marginT = 10;
+  const marginR = 16;
+  const plotW = W - marginL - marginR;
+  const plotH = H - marginT - marginB;
+  const stats = [];
+  for (const w of wins) {
+    const edges = w.bin_edges;
+    const counts = w.counts;
+    let total = 0;
+    for (const c of counts) total += c;
+    if (total === 0) {
+      stats.push({ q1: 0, median: 0, q3: 0, min: 0, max: 0, total: 0 });
+      continue;
+    }
+    const percentile = (p) => {
+      const target = p * total;
+      let cumul = 0;
+      for (let i = 0; i < counts.length; i++) {
+        cumul += counts[i];
+        if (cumul >= target) {
+          const lo = edges[i], hi = edges[i + 1] ?? edges[i];
+          const frac = counts[i] > 0 ? (target - (cumul - counts[i])) / counts[i] : 0.5;
+          return lo + frac * (hi - lo);
+        }
+      }
+      return edges[edges.length - 1] ?? 0;
+    };
+    let minVal = edges[0] ?? 0;
+    let maxVal = edges[edges.length - 1] ?? 0;
+    for (let i = 0; i < counts.length; i++) {
+      if (counts[i] > 0) {
+        minVal = edges[i];
+        break;
+      }
+    }
+    for (let i = counts.length - 1; i >= 0; i--) {
+      if (counts[i] > 0) {
+        maxVal = edges[i + 1] ?? edges[i];
+        break;
+      }
+    }
+    const q1 = percentile(0.25);
+    const median = percentile(0.5);
+    const q3 = percentile(0.75);
+    const iqr = q3 - q1;
+    const whiskerLo = Math.max(minVal, q1 - 1.5 * iqr);
+    const whiskerHi = Math.min(maxVal, q3 + 1.5 * iqr);
+    stats.push({ q1, median, q3, min: whiskerLo, max: whiskerHi, total });
+  }
+  const gMin = data.global_min;
+  const gMax = data.global_max;
+  const gRange = gMax - gMin || 1;
+  const toY = (v) => marginT + plotH - (v - gMin) / gRange * plotH;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = getComputedStyle(canvas).getPropertyValue("--bg").trim() || "#0b0f18";
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = "rgba(120, 139, 174, 0.12)";
+  ctx.lineWidth = 0.5;
+  const ySteps = 6;
+  for (let i = 0; i <= ySteps; i++) {
+    const y = marginT + plotH / ySteps * i;
+    ctx.beginPath();
+    ctx.moveTo(marginL, y);
+    ctx.lineTo(W - marginR, y);
+    ctx.stroke();
+  }
+  const boxGap = 2;
+  const slotW = plotW / nW;
+  const boxW = Math.max(4, slotW - boxGap * 2);
+  const accent = getComputedStyle(canvas).getPropertyValue("--accent").trim() || "#00a8ff";
+  for (let i = 0; i < nW; i++) {
+    const s = stats[i];
+    if (s.total === 0) continue;
+    const cx = marginL + slotW * i + slotW / 2;
+    const halfBox = boxW / 2;
+    ctx.strokeStyle = "rgba(120, 139, 174, 0.5)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx, toY(s.min));
+    ctx.lineTo(cx, toY(s.max));
+    ctx.stroke();
+    const capW = boxW * 0.4;
+    ctx.beginPath();
+    ctx.moveTo(cx - capW, toY(s.min));
+    ctx.lineTo(cx + capW, toY(s.min));
+    ctx.moveTo(cx - capW, toY(s.max));
+    ctx.lineTo(cx + capW, toY(s.max));
+    ctx.stroke();
+    const boxTop = toY(s.q3);
+    const boxBot = toY(s.q1);
+    ctx.fillStyle = accent + "33";
+    ctx.fillRect(cx - halfBox, boxTop, boxW, boxBot - boxTop);
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(cx - halfBox, boxTop, boxW, boxBot - boxTop);
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    const medY = toY(s.median);
+    ctx.moveTo(cx - halfBox, medY);
+    ctx.lineTo(cx + halfBox, medY);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#788BAE";
+  ctx.font = "9px sans-serif";
+  ctx.textAlign = "right";
+  for (let i = 0; i <= ySteps; i++) {
+    const frac = i / ySteps;
+    const val = gMin + frac * gRange;
+    const y = marginT + plotH - frac * plotH;
+    ctx.fillText(val.toFixed(1), marginL - 4, y + 3);
+  }
+  ctx.textAlign = "center";
+  const xSteps = Math.min(5, nW);
+  for (let i = 0; i <= xSteps; i++) {
+    const idx = Math.round(i / xSteps * (nW - 1));
+    const t = wins[idx].window_start_ms;
+    const date = new Date(t);
+    const label = `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+    ctx.fillText(label, marginL + idx * slotW + slotW / 2, H - 6);
+  }
+}
+function initThemeToggle() {
+  const btn = document.getElementById("theme-toggle-btn");
+  const iconDark = document.getElementById("theme-icon-dark");
+  const iconLight = document.getElementById("theme-icon-light");
+  if (!btn) return;
+  const saved = localStorage.getItem("edatime-theme");
+  if (saved === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+    if (iconDark) iconDark.hidden = true;
+    if (iconLight) iconLight.hidden = false;
+  }
+  btn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    if (isLight) {
+      document.documentElement.removeAttribute("data-theme");
+      localStorage.setItem("edatime-theme", "dark");
+      if (iconDark) iconDark.hidden = false;
+      if (iconLight) iconLight.hidden = true;
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+      localStorage.setItem("edatime-theme", "light");
+      if (iconDark) iconDark.hidden = true;
+      if (iconLight) iconLight.hidden = false;
+    }
+  });
+}
 async function init() {
   initPages();
+  initThemeToggle();
   initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid);
   initColumnProfilesGrid();
   initAnalysisControls(fetchAndRender);
@@ -2324,6 +3295,8 @@ async function init() {
   initChartPageFilterGesture();
   initKeyboardShortcuts();
   initTransformModal();
+  initOutlierModal();
+  initTimeDistributionModal();
   initAnalyticsListeners();
   try {
     await ensureChartModules();
@@ -2333,16 +3306,15 @@ async function init() {
     return;
   }
   const gpuError = await checkWebGPU();
-  if (gpuError) {
-    showFatalError(gpuError);
-    return;
-  }
   try {
     appState.metadata = await fetchMetadata();
     dbgGroup("metadata", () => dbg(appState.metadata));
     setMetaText("Loading chart\u2026");
     await initScatterPageModule();
     await initFftPage();
+    await initHeatmapPage();
+    await initSpectrogramPage();
+    initCausalPage();
     if (!appState.metadata.time_range) {
       setMetaText("No valid time range found.");
       return;
@@ -2353,17 +3325,19 @@ async function init() {
     sanitizeSelectedColumns();
     const columnFilterInput = document.getElementById("column-filter-input");
     if (columnFilterInput) {
-      columnFilterInput.addEventListener("input", () => {
+      const onFilterInput = debounce(() => {
         appState.filterText = (columnFilterInput.value || "").trim().toLowerCase();
         buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
-      });
+      }, 120);
+      columnFilterInput.addEventListener("input", onFilterInput);
     }
     const profileFilterInput = document.getElementById("profile-filter-input");
     if (profileFilterInput) {
-      profileFilterInput.addEventListener("input", () => {
+      const onProfileFilterInput = debounce(() => {
         appState.profileFilterText = (profileFilterInput.value || "").trim().toLowerCase();
         renderColumnProfilesGrid(true);
-      });
+      }, 120);
+      profileFilterInput.addEventListener("input", onProfileFilterInput);
     }
     hydrateColumnProfiles(appState.metadata);
     renderColumnProfilesGrid(true);
@@ -2387,6 +3361,7 @@ async function init() {
     } else {
       appState.chart = new DataChartCtor("main-chart", onZoomRangeChange, updateAnalysisYRange, () => zoomOut(fetchAndRender));
     }
+    if (gpuError) throw new Error(gpuError);
     await Promise.race([
       appState.chart.init(),
       new Promise((_, reject) => setTimeout(() => reject(new Error("ChartGPU init timed out")), 6e3))
@@ -2422,7 +3397,4 @@ async function init() {
   }
 }
 init();
-export {
-  teardownApp
-};
 //# sourceMappingURL=app.js.map

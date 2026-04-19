@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EdaTime</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="css/style.css?v=46">
+  <link rel="stylesheet" href="css/style.css?v=51">
 </head>
 
 <body>
@@ -87,6 +87,52 @@
         <span class="nav-text">FFT</span>
         <kbd class="nav-shortcut">⌥6</kbd>
       </button>
+      <button class="nav-item" type="button" data-page="heatmap" title="Correlation Heatmap (Alt+7)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+            stroke-linejoin="round">
+            <rect x="1" y="1" width="4" height="4" rx="0.5" />
+            <rect x="6" y="1" width="4" height="4" rx="0.5" />
+            <rect x="11" y="1" width="4" height="4" rx="0.5" />
+            <rect x="1" y="6" width="4" height="4" rx="0.5" />
+            <rect x="6" y="6" width="4" height="4" rx="0.5" />
+            <rect x="11" y="6" width="4" height="4" rx="0.5" />
+            <rect x="1" y="11" width="4" height="4" rx="0.5" />
+            <rect x="6" y="11" width="4" height="4" rx="0.5" />
+            <rect x="11" y="11" width="4" height="4" rx="0.5" />
+          </svg>
+        </span>
+        <span class="nav-text">Heatmap</span>
+        <kbd class="nav-shortcut">⌥7</kbd>
+      </button>
+      <button class="nav-item" type="button" data-page="spectrogram" title="Spectrogram (Alt+8)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+            stroke-linejoin="round">
+            <rect x="1" y="2" width="2" height="12" rx="0.3" />
+            <rect x="4" y="4" width="2" height="8" rx="0.3" />
+            <rect x="7" y="1" width="2" height="14" rx="0.3" />
+            <rect x="10" y="5" width="2" height="6" rx="0.3" />
+            <rect x="13" y="3" width="2" height="10" rx="0.3" />
+          </svg>
+        </span>
+        <span class="nav-text">Spectrogram</span>
+        <kbd class="nav-shortcut">⌥8</kbd>
+      </button>
+      <button class="nav-item" type="button" data-page="causal" title="Causal Graph (Alt+9)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+            stroke-linejoin="round">
+            <circle cx="3" cy="8" r="2" />
+            <circle cx="13" cy="4" r="2" />
+            <circle cx="13" cy="12" r="2" />
+            <line x1="5" y1="7.2" x2="11" y2="4.8" />
+            <line x1="5" y1="8.8" x2="11" y2="11.2" />
+          </svg>
+        </span>
+        <span class="nav-text">Causal</span>
+        <kbd class="nav-shortcut">⌥9</kbd>
+      </button>
 
       <div class="sidebar-spacer"></div>
       <button class="nav-item nav-collapse" id="sidebar-collapse-btn" type="button" title="Collapse sidebar">
@@ -115,6 +161,25 @@
         </div>
 
         <div class="header-meta" id="header-meta">
+          <button class="btn btn-ghost btn-sm theme-toggle" id="theme-toggle-btn" type="button"
+            title="Toggle light/dark theme">
+            <svg id="theme-icon-dark" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+              stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 8.5A6.5 6.5 0 017.5 2 6.5 6.5 0 1014 8.5z" />
+            </svg>
+            <svg id="theme-icon-light" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+              stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" hidden>
+              <circle cx="8" cy="8" r="3.5" />
+              <line x1="8" y1="1" x2="8" y2="3" />
+              <line x1="8" y1="13" x2="8" y2="15" />
+              <line x1="1" y1="8" x2="3" y2="8" />
+              <line x1="13" y1="8" x2="15" y2="8" />
+              <line x1="3.05" y1="3.05" x2="4.46" y2="4.46" />
+              <line x1="11.54" y1="11.54" x2="12.95" y2="12.95" />
+              <line x1="3.05" y1="12.95" x2="4.46" y2="11.54" />
+              <line x1="11.54" y1="4.46" x2="12.95" y2="3.05" />
+            </svg>
+          </button>
           <div class="meta-stat" id="stat-rows">
             <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
               stroke-linejoin="round">
@@ -190,11 +255,19 @@
             <span class="toolbar-group-divider"></span>
             <button class="btn btn-ghost btn-sm" id="transform-open-btn" type="button"
               title="Column transform expression">Transform…</button>
+            <button class="btn btn-ghost btn-sm" id="outlier-open-btn" type="button"
+              title="Remove outliers from dataset">Outliers…</button>
+            <button class="btn btn-ghost btn-sm" id="timedist-open-btn" type="button"
+              title="Show distribution over time axis">Time Dist…</button>
           </div>
         </div>
 
         <main class="main">
           <div id="main-chart"></div>
+          <div id="main-chart-loading" class="chart-loading-overlay" hidden>
+            <div class="chart-loading-spinner"></div>
+            <span class="chart-loading-label">Loading data…</span>
+          </div>
           <div class="scatter-overlay-stack" id="timeseries-overlays">
             <div id="timeseries-colorbar-wrap" class="scatter-colorbar-wrap scatter-colorbar-wrap--ts" hidden>
               <span id="timeseries-colorbar-name" class="scatter-colorbar-name">Color</span>
@@ -295,6 +368,9 @@
           <main class="main">
             <canvas id="scatter-marginal-x" class="scatter-marginal-x" aria-hidden="true" hidden></canvas>
             <div id="scatter-chart"></div>
+            <div id="scatter-chart-loading" class="chart-loading-overlay" hidden>
+              <div class="chart-loading-spinner"></div>
+            </div>
             <div id="scatter-right-panel" class="scatter-right-panel" hidden>
               <canvas id="scatter-marginal-y" class="scatter-marginal-y-right" aria-hidden="true"></canvas>
               <div id="scatter-colorbar-wrap" class="scatter-colorbar-vertical" hidden>
@@ -333,6 +409,10 @@
               </div>
             </div>
             <div id="scatter-matrix" class="scatter-matrix"></div>
+            <div id="scatter-matrix-loading" class="chart-loading-overlay" hidden>
+              <div class="chart-loading-spinner"></div>
+              <span class="chart-loading-label">Loading scatter…</span>
+            </div>
           </div>
           <div class="scatter-panel scatter-matrix-fft-panel" id="scatter-matrix-fft-panel" hidden>
             <div class="scatter-panel-head">
@@ -427,7 +507,175 @@
         <div class="fft-traces-bar" id="fft-traces-bar" hidden></div>
         <main class="main">
           <div id="fft-chart" style="width:100%;height:100%;"></div>
+          <div id="fft-chart-loading" class="chart-loading-overlay" hidden>
+            <div class="chart-loading-spinner"></div>
+            <span class="chart-loading-label">Computing FFT…</span>
+          </div>
         </main>
+      </section>
+
+      <section class="page" id="page-heatmap" data-page-name="heatmap" hidden>
+        <div class="toolbar">
+          <div class="toolbar-group">
+            <span class="toolbar-label">Correlation Heatmap</span>
+            <label class="scatter-inline-label" for="heatmap-metric">Metric</label>
+            <select id="heatmap-metric" class="modal-select" aria-label="Correlation metric">
+              <option value="pearson" selected>Pearson</option>
+              <option value="spearman">Spearman</option>
+            </select>
+            <label class="scatter-inline-label" for="heatmap-cell-size">Size</label>
+            <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36"
+              aria-label="Heatmap cell size">
+            <span id="heatmap-cell-size-value" class="range-value">36</span>
+          </div>
+          <div class="toolbar-group toolbar-group--push">
+            <span class="toolbar-label" id="heatmap-status">Loading…</span>
+          </div>
+        </div>
+        <main class="main" style="overflow:auto;padding:12px;">
+          <div id="heatmap-container" class="heatmap-container"></div>
+        </main>
+      </section>
+
+      <section class="page" id="page-spectrogram" data-page-name="spectrogram" hidden>
+        <div class="toolbar">
+          <div class="toolbar-group">
+            <span class="toolbar-label">Spectrogram</span>
+            <label class="scatter-inline-label" for="spectrogram-col-select">Column</label>
+            <select id="spectrogram-col-select" class="modal-select" aria-label="Column"></select>
+            <label class="scatter-inline-label" for="spectrogram-win-size">Window</label>
+            <select id="spectrogram-win-size" class="modal-select" aria-label="FFT window size">
+              <option value="64">64</option>
+              <option value="128">128</option>
+              <option value="256" selected>256</option>
+              <option value="512">512</option>
+              <option value="1024">1024</option>
+            </select>
+            <label class="scatter-link-toggle" for="spectrogram-log-scale">
+              <input id="spectrogram-log-scale" type="checkbox" checked>
+              <span>Log scale</span>
+            </label>
+          </div>
+          <div class="toolbar-group toolbar-group--push">
+            <button id="spectrogram-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button">Reset zoom</button>
+            <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">Compute</button>
+            <span class="toolbar-label" id="spectrogram-status">Select a column and press Compute.</span>
+          </div>
+        </div>
+        <main class="main" style="position:relative;">
+          <div id="spectrogram-chart" style="width:100%;height:100%;display:block;"></div>
+          <div id="spectrogram-loading" class="chart-loading-overlay" hidden>
+            <div class="chart-loading-spinner"></div>
+            <span class="chart-loading-label">Computing spectrogram…</span>
+          </div>
+        </main>
+      </section>
+
+      <section class="page" id="page-causal" data-page-name="causal" hidden>
+        <div class="toolbar">
+          <div class="toolbar-group">
+            <span class="toolbar-label"
+              title="Causal discovery using tigramite algorithms. Select columns, configure parameters, and press Compute.">Causal
+              Discovery (Tigramite)</span>
+            <span class="causal-info-icon" tabindex="0"
+              data-causal-tip="Tigramite references used by this page.&#10;• Package: Tigramite, causal inference for time series datasets.&#10;• Overview: Runge, Gerhardus, Varando et al. Causal inference for time series. Nat Rev Earth Environ (2023).&#10;• PCMCI: Runge et al. Detecting and quantifying causal associations in large nonlinear time series datasets. Sci Adv (2019).&#10;• PCMCI+: Runge. Discovering contemporaneous and lagged causal relations in autocorrelated nonlinear time series datasets. UAI (2020).&#10;• LPCMCI: Gerhardus and Runge. High-recall causal discovery for autocorrelated time series with latent confounders. NeurIPS (2020).">ⓘ</span>
+            <label class="scatter-inline-label" for="causal-method-select">Method</label>
+            <select id="causal-method-select" class="modal-select" aria-label="PCMCI method">
+              <option value="pcmci" selected>PCMCI</option>
+              <option value="pcmciplus">PCMCI+</option>
+              <option value="fullci">FullCI</option>
+              <option value="bivci">BivCI</option>
+              <option value="lpcmci">LPCMCI</option>
+            </select>
+            <span class="causal-info-icon" tabindex="0"
+              data-causal-tip="Causal discovery algorithm.&#10;• PCMCI: Two-step PC parent selection plus MCI testing. Reference: Runge et al., Sci Adv (2019).&#10;• PCMCI+: Adds contemporaneous link orientation. Reference: Runge, UAI (2020).&#10;• FullCI: Conditions on all lagged variables directly; no PC pre-selection.&#10;• BivCI: Bivariate screening against the target's own past; fastest but weakest adjustment.&#10;• LPCMCI: Extends PCMCI to latent confounding. Reference: Gerhardus and Runge, NeurIPS (2020).&#10;Controls disabled in the toolbar are ignored by the selected method.">ⓘ</span>
+            <label class="scatter-inline-label" for="causal-test-select">Test</label>
+            <select id="causal-test-select" class="modal-select" aria-label="Independence test">
+              <option value="par_corr" selected>ParCorr</option>
+              <option value="robust_parcorr">RobustParCorr</option>
+              <option value="cmi_knn">CMI-KNN</option>
+              <option value="gsquared">G-squared</option>
+              <option value="cmi_symb">CMI-Symb</option>
+            </select>
+            <span class="causal-info-icon" tabindex="0"
+              data-causal-tip="Conditional independence test used inside the Tigramite-style causal engine.&#10;• ParCorr: Linear partial correlation; best when relations are near-Gaussian and linear.&#10;• RobustParCorr: Rank/non-paranormal style preprocessing plus ParCorr.&#10;• CMI-KNN: Nonlinear conditional mutual information. Reference: Runge, AISTATS (2018).&#10;• G-squared: Discrete/categorical likelihood-ratio test.&#10;• CMI-Symb: Symbolic/discretized mutual information test.&#10;Backend causal discovery is still numeric-data oriented even if non-numeric columns are shown as manual graph nodes.">ⓘ</span>
+            <label class="scatter-inline-label" for="causal-tau-max">τ max</label>
+            <input id="causal-tau-max" type="number" min="1" max="10" value="3" class="modal-input" style="width:50px;">
+            <span class="causal-info-icon" tabindex="0"
+              data-causal-tip="Maximum time lag τ to test (1–10). Higher means more lagged relationships are evaluated, but runtime grows quickly.">ⓘ</span>
+            <label class="scatter-inline-label" for="causal-alpha">α</label>
+            <input id="causal-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.05" class="modal-input"
+              style="width:60px;">
+            <span class="causal-info-icon" tabindex="0"
+              data-causal-tip="Final significance threshold α. Links with p-values above α are removed from the final result.">ⓘ</span>
+            <label class="scatter-inline-label" for="causal-pc-alpha">PC α</label>
+            <input id="causal-pc-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.2" class="modal-input"
+              style="width:60px;">
+            <span class="causal-info-icon" tabindex="0"
+              data-causal-tip="Significance threshold for the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI. Disabled for FullCI and BivCI because those methods do not run the PC step.">ⓘ</span>
+            <label class="scatter-inline-label" for="causal-max-conds">Max conds</label>
+            <input id="causal-max-conds" type="number" min="1" max="20" value="" placeholder="auto" class="modal-input"
+              style="width:60px;">
+            <span class="causal-info-icon" tabindex="0"
+              data-causal-tip="Maximum conditioning-set size used in the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI only. &quot;auto&quot; lets the backend decide.">ⓘ</span>
+            <label class="scatter-inline-label" for="causal-fdr-select">FDR</label>
+            <select id="causal-fdr-select" class="modal-select" aria-label="FDR correction">
+              <option value="none" selected>None</option>
+              <option value="fdr_bh">Benjamini-Hochberg</option>
+            </select>
+            <span class="causal-info-icon" tabindex="0"
+              data-causal-tip="False Discovery Rate correction.&#10;• None: Raw p-values.&#10;• Benjamini-Hochberg: Controls FDR across all tested links.">ⓘ</span>
+          </div>
+          <div class="toolbar-group toolbar-group--push">
+            <button id="causal-add-edge-btn" class="btn btn-ghost btn-sm" type="button"
+              title="Click two nodes to add an edge between them">+ Edge</button>
+            <div style="position:relative;display:inline-flex;">
+              <button id="causal-export-btn" class="btn btn-ghost btn-sm" type="button" title="Export graph">Export
+                ▾</button>
+              <div id="causal-export-menu" class="causal-export-menu" hidden>
+                <button class="causal-export-item" data-fmt="json" type="button">JSON (full graph)</button>
+                <button class="causal-export-item" data-fmt="glm" type="button">GLM formula (.txt)</button>
+                <button class="causal-export-item" data-fmt="torch" type="button">torch_geometric (.json)</button>
+              </div>
+            </div>
+            <button id="causal-compute-btn" class="btn btn-accent btn-sm" type="button">Compute</button>
+            <span class="toolbar-label" id="causal-status">Select columns and press Compute.</span>
+          </div>
+        </div>
+        <!-- Progress bar -->
+        <div id="causal-progress" class="causal-progress-wrap" hidden>
+          <div class="causal-progress-track">
+            <div class="causal-progress-fill" id="causal-progress-fill"></div>
+          </div>
+          <span class="causal-progress-label" id="causal-progress-label"></span>
+        </div>
+        <div class="fft-traces-bar" id="causal-columns-bar"
+          style="flex-wrap:wrap;gap:6px;padding:6px 12px;border-bottom:1px solid var(--border);min-height:34px;">
+        </div>
+        <main class="main" style="position:relative;flex:1;min-height:0;overflow:hidden;">
+          <div id="causal-chart" style="width:100%;height:100%;"></div>
+          <div id="causal-loading" class="chart-loading-overlay" hidden>
+            <div class="chart-loading-spinner"></div>
+            <span class="chart-loading-label">Running causal discovery…</span>
+          </div>
+        </main>
+        <!-- Context menu (right-click on node / edge) -->
+        <div id="causal-ctx-menu" class="causal-ctx-menu" hidden>
+          <button class="causal-ctx-item" id="causal-ctx-edit" type="button">✎ Edit attributes</button>
+          <button class="causal-ctx-item causal-ctx-danger" id="causal-ctx-delete" type="button">✕ Delete</button>
+        </div>
+        <!-- Edit panel (slides in from the right) -->
+        <div id="causal-edit-panel" class="causal-edit-panel" hidden>
+          <div class="causal-edit-header">
+            <span id="causal-edit-title">Edit</span>
+            <button class="causal-edit-close" id="causal-edit-close" type="button" aria-label="Close">✕</button>
+          </div>
+          <div id="causal-edit-body" class="causal-edit-body"></div>
+          <div class="causal-edit-footer">
+            <button class="btn btn-accent btn-sm" id="causal-edit-apply" type="button">Apply</button>
+            <button class="btn btn-ghost btn-sm causal-ctx-danger" id="causal-edit-delete" type="button">Delete</button>
+          </div>
+        </div>
       </section>
 
       <section class="page page-upload" id="page-upload" data-page-name="upload" hidden>
@@ -508,6 +756,76 @@
                 <div class="progress-bar" id="progress-bar"></div>
               </div>
               <div class="upload-status" id="upload-status"></div>
+            </div>
+
+            <div class="db-section">
+              <div class="partial-section-title">Database Connection</div>
+
+              <label class="toggle-row" id="db-toggle-row">
+                <span class="switch">
+                  <input type="checkbox" id="db-enabled">
+                  <span class="switch-slider"></span>
+                </span>
+                <span>
+                  <div class="toggle-label-text">Load from database</div>
+                  <div class="toggle-sub">Connect to PostgreSQL or SQLite</div>
+                </span>
+              </label>
+
+              <div class="db-fields" id="db-fields">
+                <div class="field-group">
+                  <label for="db-backend-select">Backend</label>
+                  <select id="db-backend-select" class="modal-select" aria-label="Database backend">
+                    <option value="timescale">TimescaleDB</option>
+                    <option value="postgres">PostgreSQL</option>
+                  </select>
+                </div>
+                <div class="field-group">
+                  <label for="db-connection-input">Connection string</label>
+                  <input type="text" id="db-connection-input" class="modal-input"
+                    placeholder="postgres://user:pass@host/db" aria-label="Connection string">
+                </div>
+                <div class="field-group">
+                  <label for="db-schema-input">Schema</label>
+                  <input type="text" id="db-schema-input" class="modal-input" placeholder="public"
+                    aria-label="Schema name" value="public">
+                </div>
+                <div class="field-group" id="db-table-group">
+                  <label for="db-table-select">Table / Hypertable</label>
+                  <div class="row" style="gap:6px">
+                    <select id="db-table-select" class="modal-select" aria-label="Table">
+                      <option value="">— connect first —</option>
+                    </select>
+                    <input type="text" id="db-table-input" class="modal-input" placeholder="or type name"
+                      aria-label="Table name" style="flex:0 0 140px">
+                  </div>
+                </div>
+                <div class="field-group">
+                  <label for="db-time-col-input">Time column (optional)</label>
+                  <input type="text" id="db-time-col-input" class="modal-input" placeholder="Auto-detect"
+                    aria-label="Time column">
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn btn-primary" id="db-connect-btn" type="button">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                      stroke-linejoin="round">
+                      <path d="M14 8a6 6 0 01-6 6 6 6 0 01-6-6 6 6 0 016-6 6 6 0 016 6z" />
+                      <path d="M8 5v3l2 1" />
+                    </svg>
+                    Connect
+                  </button>
+                  <button class="btn btn-primary" id="db-load-btn" type="button" disabled>
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                      stroke-linejoin="round">
+                      <path d="M8 3v7M5 7l3 3 3-3" />
+                      <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" />
+                    </svg>
+                    Load data
+                  </button>
+                  <button class="btn btn-ghost" id="db-disconnect-btn" type="button" hidden>Disconnect</button>
+                </div>
+                <div class="upload-status" id="db-status"></div>
+              </div>
             </div>
           </div>
 
@@ -637,10 +955,81 @@
         </div>
       </div>
 
+      <div id="outlier-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="outlier-title">
+          <div class="modal-header">
+            <div class="modal-title" id="outlier-title">Remove Outliers</div>
+            <button class="btn btn-ghost" id="outlier-close-btn" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <label class="modal-field">
+              <span class="modal-label">Method</span>
+              <select id="outlier-method" class="modal-select" aria-label="Outlier detection method">
+                <option value="zscore" selected>Z-score</option>
+                <option value="iqr">IQR</option>
+              </select>
+            </label>
+            <label class="modal-field">
+              <span class="modal-label">Threshold</span>
+              <input id="outlier-threshold" class="modal-input" type="number" value="3" min="0.5" max="10" step="0.1"
+                aria-label="Outlier threshold">
+            </label>
+            <label class="modal-field">
+              <span class="modal-label">Window size (0 = global)</span>
+              <input id="outlier-window" class="modal-input" type="number" value="0" min="0" max="10000" step="10"
+                aria-label="Rolling window size">
+            </label>
+            <div class="modal-hint">Removes rows from the dataset where selected columns contain outliers.</div>
+            <div class="modal-hint" id="outlier-error" style="color:#ff4a6e;"></div>
+            <div class="modal-hint" id="outlier-result" style="color:var(--green);"></div>
+          </div>
+          <div class="modal-actions">
+            <div class="modal-actions-right">
+              <button class="btn btn-ghost" id="outlier-cancel-btn" type="button">Cancel</button>
+              <button class="btn btn-primary" id="outlier-apply-btn" type="button">Remove Outliers</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="timedist-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="timedist-title" style="max-width:800px;">
+          <div class="modal-header">
+            <div class="modal-title" id="timedist-title">Distribution Over Time</div>
+            <button class="btn btn-ghost" id="timedist-close-btn" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-grid">
+              <label class="modal-field">
+                <span class="modal-label">Windows</span>
+                <input id="timedist-windows" class="modal-input" type="number" value="20" min="2" max="100"
+                  aria-label="Number of time windows">
+              </label>
+              <label class="modal-field">
+                <span class="modal-label">Bins</span>
+                <input id="timedist-bins" class="modal-input" type="number" value="24" min="4" max="100"
+                  aria-label="Bins per window">
+              </label>
+            </div>
+            <div id="timedist-canvas-wrap" style="width:100%;overflow-x:auto;margin-top:12px;">
+              <canvas id="timedist-canvas" width="760" height="300" style="display:block;width:100%;"></canvas>
+            </div>
+            <div class="modal-hint" id="timedist-status">Click "Compute" to generate the time distribution heatmap.
+            </div>
+          </div>
+          <div class="modal-actions">
+            <div class="modal-actions-right">
+              <button class="btn btn-ghost" id="timedist-cancel-btn" type="button">Close</button>
+              <button class="btn btn-primary" id="timedist-compute-btn" type="button">Compute</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=95"></script>
+  <script type="module" src="js/app.js?v=123"></script>
 </body>
 
 </html>

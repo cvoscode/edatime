@@ -1,15 +1,6 @@
 use minmaxlttb::{Point, minmaxlttb};
 use polars::prelude::*;
 
-pub fn downsample_dataframe(
-    df: &DataFrame,
-    x_col: &str,
-    y_col: &str,
-    target_points: usize,
-) -> PolarsResult<DataFrame> {
-    downsample_dataframe_multi(df, x_col, &[y_col], &[], target_points)
-}
-
 pub fn downsample_dataframe_multi(
     df: &DataFrame,
     ts_col: &str,

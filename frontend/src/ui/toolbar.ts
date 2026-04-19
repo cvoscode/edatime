@@ -11,6 +11,7 @@ import {
 } from '../state.js';
 import { DEBUG, dbg, dbgGroup } from '../debug.js';
 import { downloadBlob } from '../utils/dom.js';
+import type { ViewSnapshot } from '../types.js';
 
 interface FilteredRow {
     ts_ms: number;
@@ -170,13 +171,6 @@ export function refreshZoomControlsState(): void {
 }
 
 // ─── View helpers ───────────────────────────────────────────────────────────
-
-export interface ViewSnapshot {
-    xMin: number | null;
-    xMax: number | null;
-    yMin: number | null;
-    yMax: number | null;
-}
 
 export function getCurrentView(): ViewSnapshot {
     const yr = appState.chart?.getYRange?.();

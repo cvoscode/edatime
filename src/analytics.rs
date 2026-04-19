@@ -6,6 +6,129 @@ use serde::Serialize;
 
 use crate::error::AppError;
 
+// ── Shared helpers ─────────────────────────────────────────────────────────
+
+/// Extract the "ts" column as epoch-millisecond f64 values.
+pub fn extract_ts_epoch_ms(df: &DataFrame) -> Result<Vec<f64>, AppError> {
+    let ts_col = df
+        .column("ts")
+        .map(|c| c.as_materialized_series())
+        .map_err(|e| AppError::internal(format!("Missing ts column: {e}")))?;
+    let ts_i64 = ts_col
+        .cast(&DataType::Int64)
+        .map_err(|e| AppError::internal(format!("ts cast: {e}")))?;
+    let ts_dtype = crate::temporal::ts_dtype(df)?;
+    Ok(ts_i64
+        .i64()
+        .map_err(|e| AppError::internal(format!("ts i64: {e}")))?
+        .into_iter()
+        .map(|v| {
+            v.map(|t| crate::temporal::native_to_epoch_ms(t, &ts_dtype))
+                .unwrap_or(f64::NAN)
+        })
+        .collect())
+}
+
+/// Extract a named column as `Vec<Option<f64>>`, filtering non-finite values to `None`.
+pub fn extract_f64_column_opt(df: &DataFrame, col_name: &str) -> Result<Vec<Option<f64>>, AppError> {
+    let series = df
+        .column(col_name)
+        .map(|c| c.as_materialized_series())
+        .map_err(|e| AppError::internal(format!("Missing column '{}': {e}", col_name)))?;
+    let f64_series = series
+        .cast(&DataType::Float64)
+        .map_err(|e| AppError::internal(format!("Cast '{}': {e}", col_name)))?;
+    Ok(f64_series
+        .f64()
+        .map_err(|e| AppError::internal(format!("Read '{}': {e}", col_name)))?
+        .into_iter()
+        .map(|v| v.filter(|f| f.is_finite()))
+        .collect())
+}
+
+/// Extract a named column as `Vec<f64>`, replacing non-finite/null values with 0.0.
+pub fn extract_f64_column(df: &DataFrame, col_name: &str) -> Result<Vec<f64>, AppError> {
+    let series = df
+        .column(col_name)
+        .map(|c| c.as_materialized_series())
+        .map_err(|e| AppError::internal(format!("Missing '{}': {e}", col_name)))?;
+    let f64_series = series
+        .cast(&DataType::Float64)
+        .map_err(|e| AppError::internal(format!("Cast '{}': {e}", col_name)))?;
+    Ok(f64_series
+        .f64()
+        .map_err(|e| AppError::internal(format!("Read '{}': {e}", col_name)))?
+        .into_iter()
+        .map(|v| v.unwrap_or(0.0))
+        .collect())
+}
+
+/// Extract multiple columns as `Vec<Vec<f64>>` with optional subsampling.
+/// Non-finite values are replaced with each column's mean.
+pub fn extract_columns_f64_mean(
+    df: &DataFrame,
+    col_names: &[String],
+    max_points: usize,
+) -> Result<Vec<Vec<f64>>, AppError> {
+    let height = df.height().min(max_points);
+    let step = if df.height() > max_points { df.height() / max_points } else { 1 };
+
+    let mut result: Vec<Vec<f64>> = Vec::with_capacity(col_names.len());
+    for col_name in col_names {
+        let series = df
+            .column(col_name)
+            .map(|c| c.as_materialized_series())
+            .map_err(|e| AppError::internal(format!("Missing '{}': {e}", col_name)))?;
+        let f64_series = series
+            .cast(&DataType::Float64)
+            .map_err(|e| AppError::internal(format!("Cast '{}': {e}", col_name)))?;
+        let raw: Vec<f64> = f64_series
+            .f64()
+            .map_err(|e| AppError::internal(format!("Read '{}': {e}", col_name)))?
+            .into_iter()
+            .step_by(step)
+            .take(height)
+            .map(|v| v.unwrap_or(f64::NAN))
+            .collect();
+
+        // Replace NaN with column mean
+        let finite_sum: f64 = raw.iter().filter(|x| x.is_finite()).sum();
+        let finite_count = raw.iter().filter(|x| x.is_finite()).count();
+        let mean = if finite_count > 0 { finite_sum / finite_count as f64 } else { 0.0 };
+        let clean: Vec<f64> = raw.iter().map(|&v| if v.is_finite() { v } else { mean }).collect();
+        result.push(clean);
+    }
+    Ok(result)
+}
+
+/// Estimate sample rate in Hz from epoch-ms timestamps using median delta.
+fn estimate_sample_rate_hz(ts_ms: &[f64]) -> f64 {
+    if ts_ms.len() < 2 {
+        return 1.0;
+    }
+    let mut deltas: Vec<f64> = ts_ms
+        .windows(2)
+        .filter_map(|pair| {
+            let dt = pair[1] - pair[0];
+            if dt.is_finite() && dt > 0.0 {
+                Some(dt)
+            } else {
+                None
+            }
+        })
+        .collect();
+    if deltas.is_empty() {
+        return 1.0;
+    }
+    deltas.sort_by(|a, b| a.total_cmp(b));
+    let median_dt_ms = deltas[deltas.len() / 2];
+    if median_dt_ms > 0.0 {
+        1000.0 / median_dt_ms
+    } else {
+        1.0
+    }
+}
+
 // ── Rolling Statistics ─────────────────────────────────────────────────────
 
 /// Result of rolling statistics computation for a single column.
@@ -28,42 +151,13 @@ pub fn compute_rolling_bands(
     columns: &[String],
     window_size: usize,
 ) -> Result<Vec<RollingBands>, AppError> {
-    let ts_col = df
-        .column("ts")
-        .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::internal(format!("Missing ts column: {e}")))?;
-    let ts_i64 = ts_col
-        .cast(&DataType::Int64)
-        .map_err(|e| AppError::internal(format!("ts cast: {e}")))?;
-
-    let ts_dtype = crate::temporal::ts_dtype(df)?;
-    let ts_values: Vec<f64> = ts_i64
-        .i64()
-        .map_err(|e| AppError::internal(format!("ts i64: {e}")))?
-        .into_iter()
-        .map(|v| {
-            v.map(|t| crate::temporal::native_to_epoch_ms(t, &ts_dtype))
-                .unwrap_or(f64::NAN)
-        })
-        .collect();
+    let ts_values = extract_ts_epoch_ms(df)?;
 
     let window = window_size.max(2);
     let mut results = Vec::with_capacity(columns.len());
 
     for col_name in columns {
-        let series = df
-            .column(col_name)
-            .map(|c| c.as_materialized_series())
-            .map_err(|e| AppError::internal(format!("Missing column '{}': {e}", col_name)))?;
-        let f64_series = series
-            .cast(&DataType::Float64)
-            .map_err(|e| AppError::internal(format!("Cast '{}': {e}", col_name)))?;
-        let values: Vec<Option<f64>> = f64_series
-            .f64()
-            .map_err(|e| AppError::internal(format!("Read '{}': {e}", col_name)))?
-            .into_iter()
-            .map(|v| v.filter(|f| f.is_finite()))
-            .collect();
+        let values = extract_f64_column_opt(df, col_name)?;
 
         let n = values.len();
         let mut mean_out = vec![None; n];
@@ -137,40 +231,12 @@ pub fn detect_anomalies_zscore(
     columns: &[String],
     threshold: f64,
 ) -> Result<Vec<AnomalyRegion>, AppError> {
-    let ts_col = df
-        .column("ts")
-        .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::internal(format!("Missing ts: {e}")))?;
-    let ts_i64 = ts_col
-        .cast(&DataType::Int64)
-        .map_err(|e| AppError::internal(format!("ts cast: {e}")))?;
-    let ts_dtype = crate::temporal::ts_dtype(df)?;
-    let ts_values: Vec<f64> = ts_i64
-        .i64()
-        .map_err(|e| AppError::internal(format!("ts i64: {e}")))?
-        .into_iter()
-        .map(|v| {
-            v.map(|t| crate::temporal::native_to_epoch_ms(t, &ts_dtype))
-                .unwrap_or(f64::NAN)
-        })
-        .collect();
+    let ts_values = extract_ts_epoch_ms(df)?;
 
     let mut regions = Vec::new();
 
     for col_name in columns {
-        let series = df
-            .column(col_name)
-            .map(|c| c.as_materialized_series())
-            .map_err(|e| AppError::internal(format!("Missing '{}': {e}", col_name)))?;
-        let f64_series = series
-            .cast(&DataType::Float64)
-            .map_err(|e| AppError::internal(format!("Cast '{}': {e}", col_name)))?;
-        let values: Vec<Option<f64>> = f64_series
-            .f64()
-            .map_err(|e| AppError::internal(format!("Read '{}': {e}", col_name)))?
-            .into_iter()
-            .map(|v| v.filter(|f| f.is_finite()))
-            .collect();
+        let values = extract_f64_column_opt(df, col_name)?;
 
         // Compute mean and std
         let finite_vals: Vec<f64> = values.iter().copied().flatten().collect();
@@ -255,40 +321,12 @@ pub fn detect_anomalies_iqr(
     columns: &[String],
     k: f64,
 ) -> Result<Vec<AnomalyRegion>, AppError> {
-    let ts_col = df
-        .column("ts")
-        .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::internal(format!("Missing ts: {e}")))?;
-    let ts_i64 = ts_col
-        .cast(&DataType::Int64)
-        .map_err(|e| AppError::internal(format!("ts cast: {e}")))?;
-    let ts_dtype = crate::temporal::ts_dtype(df)?;
-    let ts_values: Vec<f64> = ts_i64
-        .i64()
-        .map_err(|e| AppError::internal(format!("ts i64: {e}")))?
-        .into_iter()
-        .map(|v| {
-            v.map(|t| crate::temporal::native_to_epoch_ms(t, &ts_dtype))
-                .unwrap_or(f64::NAN)
-        })
-        .collect();
+    let ts_values = extract_ts_epoch_ms(df)?;
 
     let mut regions = Vec::new();
 
     for col_name in columns {
-        let series = df
-            .column(col_name)
-            .map(|c| c.as_materialized_series())
-            .map_err(|e| AppError::internal(format!("Missing '{}': {e}", col_name)))?;
-        let f64_series = series
-            .cast(&DataType::Float64)
-            .map_err(|e| AppError::internal(format!("Cast '{}': {e}", col_name)))?;
-        let values: Vec<Option<f64>> = f64_series
-            .f64()
-            .map_err(|e| AppError::internal(format!("Read '{}': {e}", col_name)))?
-            .into_iter()
-            .map(|v| v.filter(|f| f.is_finite()))
-            .collect();
+        let values = extract_f64_column_opt(df, col_name)?;
 
         let stats = crate::stats::compute_column_stats(
             &values.iter().copied().flatten().collect::<Vec<_>>(),
@@ -397,69 +435,14 @@ pub fn compute_fft(
     columns: &[String],
     sample_rate_hz: Option<f64>,
 ) -> Result<Vec<FftResult>, AppError> {
-    let ts_col = df
-        .column("ts")
-        .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::internal(format!("Missing ts: {e}")))?;
-    let ts_i64 = ts_col
-        .cast(&DataType::Int64)
-        .map_err(|e| AppError::internal(format!("ts cast: {e}")))?;
-    let ts_dtype = crate::temporal::ts_dtype(df)?;
-    let ts_ms: Vec<f64> = ts_i64
-        .i64()
-        .map_err(|e| AppError::internal(format!("ts i64: {e}")))?
-        .into_iter()
-        .map(|v| {
-            v.map(|t| crate::temporal::native_to_epoch_ms(t, &ts_dtype))
-                .unwrap_or(f64::NAN)
-        })
-        .collect();
-
-    // Estimate sample rate from median time delta
-    let fs = sample_rate_hz.unwrap_or_else(|| {
-        if ts_ms.len() < 2 {
-            return 1.0;
-        }
-        let mut deltas: Vec<f64> = ts_ms
-            .windows(2)
-            .filter_map(|pair| {
-                let dt = pair[1] - pair[0];
-                if dt.is_finite() && dt > 0.0 {
-                    Some(dt)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        if deltas.is_empty() {
-            return 1.0;
-        }
-        deltas.sort_by(|a, b| a.total_cmp(b));
-        let median_dt_ms = deltas[deltas.len() / 2];
-        if median_dt_ms > 0.0 {
-            1000.0 / median_dt_ms
-        } else {
-            1.0
-        }
-    });
+    let ts_ms = extract_ts_epoch_ms(df)?;
+    let fs = sample_rate_hz.unwrap_or_else(|| estimate_sample_rate_hz(&ts_ms));
 
     let mut results = Vec::with_capacity(columns.len());
     let mut planner = FftPlanner::<f64>::new();
 
     for col_name in columns {
-        let series = df
-            .column(col_name)
-            .map(|c| c.as_materialized_series())
-            .map_err(|e| AppError::internal(format!("Missing '{}': {e}", col_name)))?;
-        let f64_series = series
-            .cast(&DataType::Float64)
-            .map_err(|e| AppError::internal(format!("Cast '{}': {e}", col_name)))?;
-        let values: Vec<f64> = f64_series
-            .f64()
-            .map_err(|e| AppError::internal(format!("Read '{}': {e}", col_name)))?
-            .into_iter()
-            .map(|v| v.unwrap_or(0.0))
-            .collect();
+        let values = extract_f64_column(df, col_name)?;
 
         let n = values.len();
         if n < 4 {
@@ -506,6 +489,100 @@ pub fn compute_fft(
     }
 
     Ok(results)
+}
+
+// ── Spectrogram (STFT) ────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct SpectrogramResult {
+    pub column: String,
+    /// Centre-time of each window in epoch-ms
+    pub times_ms: Vec<f64>,
+    /// Frequency bins in Hz
+    pub frequencies: Vec<f64>,
+    /// 2-D magnitude grid: magnitudes[time_idx][freq_idx]
+    pub magnitudes: Vec<Vec<f64>>,
+}
+
+/// Compute an STFT spectrogram for one column.
+///
+/// `window_size` – number of samples per FFT window (default 256).
+/// `hop_size`    – step between successive windows (default window_size / 2).
+pub fn compute_spectrogram(
+    df: &DataFrame,
+    column: &str,
+    window_size: usize,
+    hop_size: usize,
+) -> Result<SpectrogramResult, AppError> {
+    let ts_ms = extract_ts_epoch_ms(df)?;
+    let fs = estimate_sample_rate_hz(&ts_ms);
+    let values = extract_f64_column(df, column)?;
+
+    let n = values.len();
+    if n < window_size {
+        return Err(AppError::bad_request(format!(
+            "Not enough data ({n} samples) for window size {window_size}"
+        )));
+    }
+
+    let half = window_size / 2 + 1;
+    let df_freq = fs / window_size as f64;
+    let frequencies: Vec<f64> = (0..half).map(|i| i as f64 * df_freq).collect();
+
+    // Pre-compute Hann window
+    let hann: Vec<f64> = (0..window_size)
+        .map(|i| {
+            0.5 * (1.0 - (2.0 * std::f64::consts::PI * i as f64 / (window_size as f64 - 1.0)).cos())
+        })
+        .collect();
+
+    let mut planner = FftPlanner::<f64>::new();
+    let fft = planner.plan_fft_forward(window_size);
+
+    let mut times_ms = Vec::new();
+    let mut magnitudes = Vec::new();
+
+    let mut pos = 0usize;
+    while pos + window_size <= n {
+        // Centre time of window
+        let centre_idx = pos + window_size / 2;
+        let t = if centre_idx < ts_ms.len() {
+            ts_ms[centre_idx]
+        } else {
+            f64::NAN
+        };
+        times_ms.push(t);
+
+        let mean: f64 = values[pos..pos + window_size].iter().sum::<f64>() / window_size as f64;
+        let mut buffer: Vec<Complex<f64>> = values[pos..pos + window_size]
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| Complex::new((v - mean) * hann[i], 0.0))
+            .collect();
+
+        fft.process(&mut buffer);
+
+        let row: Vec<f64> = (0..half)
+            .map(|i| {
+                let mag = buffer[i].norm() / window_size as f64;
+                if i == 0 || i == window_size / 2 {
+                    mag
+                } else {
+                    2.0 * mag
+                }
+            })
+            .collect();
+        magnitudes.push(row);
+
+        pos += hop_size;
+    }
+
+    Ok(SpectrogramResult {
+        column: column.to_string(),
+        times_ms,
+        frequencies,
+        magnitudes,
+    })
 }
 
 // ── Column Transformations ─────────────────────────────────────────────────
@@ -690,4 +767,317 @@ fn float_map(expr: Expr, f: fn(f64) -> f64) -> Expr {
         },
         |_schema: &Schema, _field: &Field| Ok(Field::new("".into(), DataType::Float64)),
     )
+}
+
+// ── Outlier Removal ────────────────────────────────────────────────────────
+
+/// Result of outlier removal.
+#[derive(Debug, Serialize)]
+pub struct OutlierRemovalResult {
+    pub method: String,
+    pub columns: Vec<String>,
+    pub rows_before: usize,
+    pub rows_after: usize,
+    pub rows_removed: usize,
+}
+
+/// Remove outliers from the dataset using the specified method applied globally.
+/// Returns a new DataFrame with outlier rows removed.
+pub fn remove_outliers_global(
+    df: &DataFrame,
+    columns: &[String],
+    method: &str,
+    threshold: f64,
+) -> Result<(DataFrame, OutlierRemovalResult), AppError> {
+    let rows_before = df.height();
+    let mut mask = polars::prelude::BooleanChunked::from_iter_values(
+        "mask".into(),
+        std::iter::repeat_n(true, rows_before),
+    );
+
+    for col_name in columns {
+        let series = df
+            .column(col_name)
+            .map(|c| c.as_materialized_series())
+            .map_err(|e| AppError::internal(format!("Missing column '{}': {e}", col_name)))?;
+        let f64_series = series
+            .cast(&DataType::Float64)
+            .map_err(|e| AppError::internal(format!("Cast '{}': {e}", col_name)))?;
+        let values = f64_series
+            .f64()
+            .map_err(|e| AppError::internal(format!("Read '{}': {e}", col_name)))?;
+
+        let col_mask = match method {
+            "iqr" => {
+                let finite: Vec<f64> = values
+                    .into_iter()
+                    .flatten()
+                    .filter(|v| v.is_finite())
+                    .collect();
+                let stats = crate::stats::compute_column_stats(&finite);
+                match (stats.q1, stats.q3) {
+                    (Some(q1), Some(q3)) => {
+                        let iqr = q3 - q1;
+                        let lower = q1 - threshold * iqr;
+                        let upper = q3 + threshold * iqr;
+                        BooleanChunked::from_iter_values(
+                            "m".into(),
+                            values.into_iter().map(|v| match v {
+                                Some(val) if val.is_finite() => val >= lower && val <= upper,
+                                None => true, // keep nulls
+                                _ => false,
+                            }),
+                        )
+                    }
+                    _ => continue,
+                }
+            }
+            _ => {
+                // zscore
+                let finite: Vec<f64> = values
+                    .into_iter()
+                    .flatten()
+                    .filter(|v| v.is_finite())
+                    .collect();
+                if finite.len() < 2 {
+                    continue;
+                }
+                let n = finite.len() as f64;
+                let mean = finite.iter().sum::<f64>() / n;
+                let variance = finite.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n;
+                let std = variance.sqrt();
+                if std < f64::EPSILON {
+                    continue;
+                }
+
+                BooleanChunked::from_iter_values(
+                    "m".into(),
+                    values.into_iter().map(|v| match v {
+                        Some(val) if val.is_finite() => ((val - mean) / std).abs() <= threshold,
+                        None => true,
+                        _ => false,
+                    }),
+                )
+            }
+        };
+
+        mask = mask & col_mask;
+    }
+
+    let filtered = df
+        .filter(&mask)
+        .map_err(|e| AppError::internal(format!("Filter: {e}")))?;
+    let rows_after = filtered.height();
+
+    Ok((
+        filtered,
+        OutlierRemovalResult {
+            method: method.to_string(),
+            columns: columns.to_vec(),
+            rows_before,
+            rows_after,
+            rows_removed: rows_before - rows_after,
+        },
+    ))
+}
+
+/// Remove outliers using a rolling window approach.
+/// Within each window, outliers are identified and flagged.
+pub fn remove_outliers_windowed(
+    df: &DataFrame,
+    columns: &[String],
+    method: &str,
+    threshold: f64,
+    window_size: usize,
+) -> Result<(DataFrame, OutlierRemovalResult), AppError> {
+    let rows_before = df.height();
+    let n = rows_before;
+    let window = window_size.max(4);
+    let half = (window - 1) / 2;
+
+    let mut keep = vec![true; n];
+
+    for col_name in columns {
+        let series = df
+            .column(col_name)
+            .map(|c| c.as_materialized_series())
+            .map_err(|e| AppError::internal(format!("Missing column '{}': {e}", col_name)))?;
+        let f64_series = series
+            .cast(&DataType::Float64)
+            .map_err(|e| AppError::internal(format!("Cast '{}': {e}", col_name)))?;
+        let values: Vec<Option<f64>> = f64_series
+            .f64()
+            .map_err(|e| AppError::internal(format!("Read '{}': {e}", col_name)))?
+            .into_iter()
+            .map(|v| v.filter(|f| f.is_finite()))
+            .collect();
+
+        for i in 0..n {
+            let start = i.saturating_sub(half);
+            let end = (i + half + 1).min(n);
+            let window_vals: Vec<f64> = values[start..end].iter().copied().flatten().collect();
+            if window_vals.len() < 4 {
+                continue;
+            }
+
+            let val = match values[i] {
+                Some(v) => v,
+                None => continue,
+            };
+
+            let is_outlier = match method {
+                "iqr" => {
+                    let stats = crate::stats::compute_column_stats(&window_vals);
+                    match (stats.q1, stats.q3) {
+                        (Some(q1), Some(q3)) => {
+                            let iqr = q3 - q1;
+                            val < q1 - threshold * iqr || val > q3 + threshold * iqr
+                        }
+                        _ => false,
+                    }
+                }
+                _ => {
+                    let wn = window_vals.len() as f64;
+                    let mean = window_vals.iter().sum::<f64>() / wn;
+                    let variance = window_vals.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / wn;
+                    let std = variance.sqrt();
+                    std > f64::EPSILON && ((val - mean) / std).abs() > threshold
+                }
+            };
+
+            if is_outlier {
+                keep[i] = false;
+            }
+        }
+    }
+
+    let mask = BooleanChunked::from_iter_values("keep".into(), keep.into_iter());
+    let filtered = df
+        .filter(&mask)
+        .map_err(|e| AppError::internal(format!("Filter: {e}")))?;
+    let rows_after = filtered.height();
+
+    Ok((
+        filtered,
+        OutlierRemovalResult {
+            method: format!("{}_windowed", method),
+            columns: columns.to_vec(),
+            rows_before,
+            rows_after,
+            rows_removed: rows_before - rows_after,
+        },
+    ))
+}
+
+// ── Distribution Over Time ─────────────────────────────────────────────────
+
+/// A single time-window distribution bin.
+#[derive(Debug, Serialize)]
+pub struct TimeDistributionBin {
+    pub window_start_ms: f64,
+    pub window_end_ms: f64,
+    pub bin_edges: Vec<f64>,
+    pub counts: Vec<u64>,
+}
+
+/// Result of distribution-over-time computation for a column.
+#[derive(Debug, Serialize)]
+pub struct TimeDistributionResult {
+    pub column: String,
+    pub windows: Vec<TimeDistributionBin>,
+    pub global_min: f64,
+    pub global_max: f64,
+}
+
+/// Compute distribution histograms across time windows for the given columns.
+pub fn compute_time_distributions(
+    df: &DataFrame,
+    columns: &[String],
+    n_windows: usize,
+    n_bins: usize,
+) -> Result<Vec<TimeDistributionResult>, AppError> {
+    let ts_values = extract_ts_epoch_ms(df)?;
+
+    if ts_values.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let finite_ts: Vec<f64> = ts_values
+        .iter()
+        .copied()
+        .filter(|t| t.is_finite())
+        .collect();
+    if finite_ts.is_empty() {
+        return Ok(Vec::new());
+    }
+    let ts_min = finite_ts.iter().copied().fold(f64::INFINITY, f64::min);
+    let ts_max = finite_ts.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let ts_span = ts_max - ts_min;
+    if ts_span <= 0.0 {
+        return Ok(Vec::new());
+    }
+
+    let windows = n_windows.clamp(2, 200);
+    let bins = n_bins.clamp(2, 100);
+    let window_size = ts_span / windows as f64;
+
+    let mut results = Vec::with_capacity(columns.len());
+
+    for col_name in columns {
+        let values = extract_f64_column_opt(df, col_name)?;
+
+        // Global min/max for consistent bin edges
+        let finite_vals: Vec<f64> = values.iter().copied().flatten().collect();
+        if finite_vals.is_empty() {
+            continue;
+        }
+        let global_min = finite_vals.iter().copied().fold(f64::INFINITY, f64::min);
+        let global_max = finite_vals
+            .iter()
+            .copied()
+            .fold(f64::NEG_INFINITY, f64::max);
+
+        let mut time_bins = Vec::with_capacity(windows);
+
+        for w in 0..windows {
+            let w_start = ts_min + w as f64 * window_size;
+            let w_end = if w == windows - 1 {
+                ts_max + 1.0
+            } else {
+                ts_min + (w + 1) as f64 * window_size
+            };
+
+            let window_vals: Vec<f64> = values
+                .iter()
+                .zip(ts_values.iter())
+                .filter_map(|(v, &t)| {
+                    if t.is_finite() && t >= w_start && t < w_end {
+                        *v
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if let Some(hist) =
+                crate::stats::build_histogram_with_bins(&window_vals, global_min, global_max, bins)
+            {
+                time_bins.push(TimeDistributionBin {
+                    window_start_ms: w_start,
+                    window_end_ms: w_end,
+                    bin_edges: hist.bin_edges,
+                    counts: hist.counts,
+                });
+            }
+        }
+
+        results.push(TimeDistributionResult {
+            column: col_name.clone(),
+            windows: time_bins,
+            global_min,
+            global_max,
+        });
+    }
+
+    Ok(results)
 }

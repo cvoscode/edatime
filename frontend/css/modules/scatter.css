@@ -332,6 +332,7 @@
 
 /* Scatter panel card */
 .scatter-panel {
+  position: relative;
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -555,4 +556,25 @@
   width: 100%;
   height: 120px;
   image-rendering: crisp-edges;
+}
+
+/* ─── Correlation heatmap ─────────────────────────────── */
+.heatmap-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.heatmap-grid {
+  line-height: 1;
+}
+
+.heatmap-cell {
+  transition: opacity 0.12s ease;
+}
+
+.heatmap-cell:hover {
+  opacity: 0.8;
+  outline: 1px solid var(--accent);
 }

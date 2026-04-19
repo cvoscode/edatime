@@ -1,4 +1,9 @@
 import {
+  createCanvasOverlay,
+  ensureRelativePosition,
+  initBoxZoom
+} from "../chunk-667JW4DN.js";
+import {
   DEBUG,
   dbg
 } from "../chunk-P2MGEQ7G.js";
@@ -15,7 +20,8 @@ import {
   formatTimestamp,
   formatTwoDecimals,
   getSeriesColor
-} from "../chunk-IXP3VB4N.js";
+} from "../chunk-BMP4455Z.js";
+import "../chunk-PZ5AY32C.js";
 
 // frontend/src/chart/colorScale.ts
 var VIRIDIS = ["#440154", "#414487", "#2a788e", "#22a884", "#7ad151", "#fde725"];
@@ -270,7 +276,6 @@ var DataChart = class {
   _xMin = null;
   _xMax = null;
   _container = null;
-  _dragState = null;
   _selectionBox = null;
   _yMin = null;
   _yMax = null;
@@ -294,6 +299,7 @@ var DataChart = class {
   _drawMode = "none";
   _drawColor = "#ff0055";
   _drawWidth = 2;
+  _drawingRafId = null;
   constructor(containerId, onZoomCallback, onYRangeCallback = null, onZoomOutCallback = null) {
     this.containerId = containerId;
     this.onZoomCallback = onZoomCallback;
@@ -303,6 +309,10 @@ var DataChart = class {
   }
   /* ── Public surface ─────────────────────────────────── */
   destroy() {
+    if (this._drawingRafId !== null) {
+      cancelAnimationFrame(this._drawingRafId);
+      this._drawingRafId = null;
+    }
     this._drawingResizeObserver?.disconnect();
     this._drawingResizeObserver = null;
     this.chartInstance = null;
@@ -328,6 +338,14 @@ var DataChart = class {
   }
   requestOverlayRender() {
     this._renderDrawings();
+  }
+  /** Schedule a drawing render on the next animation frame (coalesces rapid calls). */
+  _scheduleDrawingRender() {
+    if (this._drawingRafId !== null) return;
+    this._drawingRafId = requestAnimationFrame(() => {
+      this._drawingRafId = null;
+      this._renderDrawings();
+    });
   }
   setXRange(minMs, maxMs) {
     if (!Number.isFinite(minMs) || !Number.isFinite(maxMs) || maxMs <= minMs) return;
@@ -644,7 +662,7 @@ var DataChart = class {
   _initTextOverlays() {
     if (!this._container) return;
     const container = this._container;
-    if (window.getComputedStyle(container).position === "static") container.style.position = "relative";
+    ensureRelativePosition(container);
     const mk = (cls) => {
       const el = document.createElement("div");
       el.className = `chart-text-overlay ${cls}`;
@@ -672,42 +690,32 @@ var DataChart = class {
   _initDrawingOverlay() {
     if (!this._container) return;
     const container = this._container;
-    if (window.getComputedStyle(container).position === "static") container.style.position = "relative";
-    const overlay = document.createElement("canvas");
-    overlay.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:6";
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        overlay.width = entry.contentRect.width;
-        overlay.height = entry.contentRect.height;
-        this._renderDrawings();
-      }
-    });
-    ro.observe(container);
-    this._drawingResizeObserver = ro;
-    container.appendChild(overlay);
-    this._overlayCanvas = overlay;
-    this._overlayCtx = overlay.getContext("2d");
-    overlay.addEventListener("pointerdown", (e) => {
+    ensureRelativePosition(container);
+    const { canvas, observer } = createCanvasOverlay(container, () => this._renderDrawings());
+    this._drawingResizeObserver = observer;
+    this._overlayCanvas = canvas;
+    this._overlayCtx = canvas.getContext("2d");
+    canvas.addEventListener("pointerdown", (e) => {
       if (e.button !== 0 || this._drawMode === "none") return;
-      const rect = overlay.getBoundingClientRect();
+      const rect = canvas.getBoundingClientRect();
       this._currentDraw = { type: this._drawMode, color: this._drawColor, width: this._drawWidth, startX: e.clientX - rect.left, startY: e.clientY - rect.top, endX: e.clientX - rect.left, endY: e.clientY - rect.top };
-      overlay.setPointerCapture(e.pointerId);
+      canvas.setPointerCapture(e.pointerId);
     });
-    overlay.addEventListener("pointermove", (e) => {
+    canvas.addEventListener("pointermove", (e) => {
       if (!this._currentDraw || this._drawMode === "none") return;
-      const rect = overlay.getBoundingClientRect();
+      const rect = canvas.getBoundingClientRect();
       this._currentDraw.endX = e.clientX - rect.left;
       this._currentDraw.endY = e.clientY - rect.top;
-      this._renderDrawings();
+      this._scheduleDrawingRender();
     });
-    overlay.addEventListener("pointerup", (e) => {
+    canvas.addEventListener("pointerup", (e) => {
       if (!this._currentDraw || this._drawMode === "none") return;
       this._drawings.push(this._currentDraw);
       this._currentDraw = null;
-      overlay.releasePointerCapture(e.pointerId);
+      canvas.releasePointerCapture(e.pointerId);
       this._renderDrawings();
     });
-    overlay.addEventListener("pointercancel", () => {
+    canvas.addEventListener("pointercancel", () => {
       this._currentDraw = null;
       this._renderDrawings();
     });
@@ -915,7 +923,36 @@ var DataChart = class {
     if (pending && visibleCols.has(pending.column)) {
       const px = Number(pending.x);
       const py = Number(pending.y);
-      if (Number.isFinite(px) && Number.isFinite(py) && px >= xMin && px <= xMax) {
+      const hasTwoPoints = Number.isFinite(pending.x2) && Number.isFinite(pending.y2);
+      if (hasTwoPoints) {
+        const px2 = Number(pending.x2);
+        const py2 = Number(pending.y2);
+        const toSx = (v) => plotLeft + (v - xMin) / (xMax - xMin) * plotWidth;
+        const toSy = (v) => plotBottom - (v - yRange.min) / Math.max(1e-9, yRange.max - yRange.min) * plotHeight;
+        const sx1 = toSx(px);
+        const sy1 = toSy(py);
+        const sx2 = toSx(px2);
+        const sy2 = toSy(py2);
+        if (Number.isFinite(sx1) && Number.isFinite(sy1) && Number.isFinite(sx2) && Number.isFinite(sy2)) {
+          ctx.setLineDash([6 * strokeScale, 4 * strokeScale]);
+          ctx.strokeStyle = "rgba(0, 212, 255, 0.85)";
+          ctx.lineWidth = 2 * strokeScale;
+          ctx.beginPath();
+          ctx.moveTo(sx1, sy1);
+          ctx.lineTo(sx2, sy2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          for (const [ex, ey] of [[sx1, sy1], [sx2, sy2]]) {
+            ctx.fillStyle = "rgba(0, 212, 255, 0.95)";
+            ctx.beginPath();
+            ctx.arc(ex, ey, Math.max(3, 4 * strokeScale), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "rgba(255,255,255,0.9)";
+            ctx.lineWidth = Math.max(1, 1.5 * strokeScale);
+            ctx.stroke();
+          }
+        }
+      } else if (Number.isFinite(px) && Number.isFinite(py) && px >= xMin && px <= xMax) {
         const sx = plotLeft + (px - xMin) / (xMax - xMin) * plotWidth;
         const sy = plotBottom - (py - yRange.min) / Math.max(1e-9, yRange.max - yRange.min) * plotHeight;
         if (Number.isFinite(sx) && Number.isFinite(sy)) {
@@ -936,74 +973,14 @@ var DataChart = class {
   _initMouseSelectionZoom() {
     if (!this._container) return;
     const container = this._container;
-    if (window.getComputedStyle(container).position === "static") container.style.position = "relative";
-    const selection = document.createElement("div");
-    selection.style.cssText = "position:absolute;top:0;height:0;left:0;width:0;border:1px solid rgba(0,212,255,0.9);background:rgba(0,212,255,0.15);pointer-events:none;display:none;z-index:5";
-    container.appendChild(selection);
-    this._selectionBox = selection;
-    container.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0 || this._drawMode !== "none" || event.ctrlKey) return;
-      const rect = container.getBoundingClientRect();
-      const startX = event.clientX - rect.left;
-      this._dragState = { pointerId: event.pointerId, startX, endX: startX, startY: event.clientY - rect.top, endY: event.clientY - rect.top };
-      try {
-        container.setPointerCapture(event.pointerId);
-      } catch {
-      }
-      this._renderSelectionBox();
+    this._selectionBox = initBoxZoom({
+      container,
+      grid: CHART_GRID,
+      getXRange: () => ({ min: this._xMin ?? 0, max: this._xMax ?? 0 }),
+      onZoom: (min, max) => this.onZoomCallback?.(min, max, "user"),
+      shouldIgnore: (e) => this._drawMode !== "none" || e.ctrlKey,
+      onDblClick: () => this.onZoomOutCallback?.()
     });
-    container.addEventListener("pointermove", (event) => {
-      if (!this._dragState || event.pointerId !== this._dragState.pointerId) return;
-      const rect = container.getBoundingClientRect();
-      this._dragState.endX = event.clientX - rect.left;
-      this._dragState.endY = event.clientY - rect.top;
-      this._renderSelectionBox();
-    });
-    const finishDrag = (event) => {
-      if (!this._dragState || event.pointerId !== this._dragState.pointerId) return;
-      const rect = container.getBoundingClientRect();
-      const width = Math.max(1, rect.width);
-      const { startX, endX } = this._dragState;
-      this._dragState = null;
-      this._hideSelectionBox();
-      const left = Math.max(0, Math.min(startX, endX));
-      const right = Math.min(width, Math.max(startX, endX));
-      if (right - left < 8) return;
-      if (Number.isFinite(this._xMin) && Number.isFinite(this._xMax)) {
-        const span = this._xMax - this._xMin;
-        const startMs = this._xMin + left / width * span;
-        const endMs = this._xMin + right / width * span;
-        this.onZoomCallback?.(startMs, endMs, "user");
-      }
-      try {
-        container.releasePointerCapture(event.pointerId);
-      } catch {
-      }
-    };
-    container.addEventListener("pointerup", finishDrag);
-    container.addEventListener("pointercancel", finishDrag);
-    container.addEventListener("dblclick", (event) => {
-      if (event.shiftKey || event.ctrlKey) return;
-      this.onZoomOutCallback?.();
-    });
-  }
-  _renderSelectionBox() {
-    if (!this._selectionBox || !this._dragState || !this._container) return;
-    const rect = this._container.getBoundingClientRect();
-    const width = Math.max(1, rect.width);
-    const height = Math.max(1, rect.height);
-    const left = Math.max(0, Math.min(this._dragState.startX, this._dragState.endX));
-    const right = Math.min(width, Math.max(this._dragState.startX, this._dragState.endX));
-    const top = Math.max(0, Math.min(this._dragState.startY, this._dragState.endY));
-    const bottom = Math.min(height, Math.max(this._dragState.startY, this._dragState.endY));
-    this._selectionBox.style.left = `${left}px`;
-    this._selectionBox.style.width = `${Math.max(0, right - left)}px`;
-    this._selectionBox.style.top = `${top}px`;
-    this._selectionBox.style.height = `${Math.max(0, bottom - top)}px`;
-    this._selectionBox.style.display = "block";
-  }
-  _hideSelectionBox() {
-    if (this._selectionBox) this._selectionBox.style.display = "none";
   }
   /* ── Export internals ───────────────────────────────── */
   _getExportViewport() {

@@ -18,7 +18,7 @@ pub use crate::filters::{
 };
 
 // Re-export route handlers for the router.
-pub use correlations::get_scatter_correlations;
+pub use correlations::{get_correlation_matrix, get_scatter_correlations};
 pub use distributions::{get_distributions, post_distributions};
 pub use points::{get_scatter_points, post_scatter_export_parquet, post_scatter_points};
 
@@ -120,18 +120,7 @@ fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option<f64
         .as_materialized_series();
 
     match series.dtype() {
-        dt if dt.is_numeric() => {
-            let casted = series.cast(&DataType::Float64).map_err(|e| {
-                AppError::internal(format!("Failed to cast '{}' to Float64: {}", name, e))
-            })?;
-            let vals = casted.f64().map_err(|e| {
-                AppError::internal(format!("Failed to read '{}' as Float64: {}", name, e))
-            })?;
-            Ok(vals
-                .into_iter()
-                .map(|v| v.filter(|f| f.is_finite()))
-                .collect())
-        }
+        dt if dt.is_numeric() => crate::stats::series_to_finite_f64(series, name),
         DataType::Datetime(_, _) | DataType::Date => {
             let casted = series.cast(&DataType::Int64).map_err(|e| {
                 AppError::internal(format!(

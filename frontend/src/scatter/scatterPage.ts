@@ -10,6 +10,12 @@ import {
     fmt,
     showError,
 } from './helpers.js';
+
+/** Log + display an error. */
+function handleErr(err: unknown): void {
+    console.error(err);
+    showError(String((err as any)?.message ?? err));
+}
 import {
     state,
     currentControls,
@@ -118,7 +124,7 @@ function renderSuggestions(suggestions: Array<{ column: string; pearson?: number
             ySelect.value = item.column;
             updateCorrelationStats();
             renderSuggestions(state.lastSuggestions);
-            try { await renderScatter(); } catch (err: any) { console.error(err); showError(String(err?.message ?? err)); }
+            try { await renderScatter(); } catch (err: any) { handleErr(err); }
         });
         box.appendChild(btn);
     }
@@ -171,6 +177,14 @@ async function refreshCorrelationsAndSuggestions(): Promise<void> {
 
 /* ── Main render pipeline ─────────────────────────────── */
 
+let _scatterAbort: AbortController | null = null;
+let _scatterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function renderScatterDebounced(): void {
+    if (_scatterDebounceTimer) clearTimeout(_scatterDebounceTimer);
+    _scatterDebounceTimer = setTimeout(() => { _scatterDebounceTimer = null; renderScatter(); }, 32);
+}
+
 async function renderScatter(): Promise<void> {
     const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
     const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
@@ -178,55 +192,68 @@ async function renderScatter(): Promise<void> {
 
     if (!container || !xSelect || !ySelect || !xSelect.value || !ySelect.value) return;
 
+    // Cancel any in-flight request
+    if (_scatterAbort) { _scatterAbort.abort(); _scatterAbort = null; }
+
     showError('');
-    const ctl = currentControls();
-    const renderSignature = buildRenderSignature(ctl);
-    const colorColumn = ctl.selectedColorColumn || null;
+    const scatterLoading = getEl('scatter-chart-loading');
+    if (scatterLoading) scatterLoading.hidden = false;
+    try {
+        const ctl = currentControls();
+        const renderSignature = buildRenderSignature(ctl);
+        const colorColumn = ctl.selectedColorColumn || null;
 
-    const response = await fetchScatterPoints(
-        xSelect.value, ySelect.value, 1_000_000,
-        colorColumn, buildScatterQueryContext(),
-    );
+        _scatterAbort = new AbortController();
+        const response = await fetchScatterPoints(
+            xSelect.value, ySelect.value, 1_000_000,
+            colorColumn, buildScatterQueryContext(), _scatterAbort.signal,
+        );
+        _scatterAbort = null;
 
-    const points: [number, number][] = Array.isArray(response.points) ? response.points : [];
-    points.sort((a, b) => Number(a[0]) - Number(b[0]));
+        const points: [number, number][] = Array.isArray(response.points) ? response.points : [];
 
-    state.totalPoints = Number(response.total_points ?? points.length);
-    state.allPoints = points;
-    state.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
-    state.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
-    state.colorColumn = response.color || '';
-    applyScatterStateFromCache(true);
+        state.totalPoints = Number(response.total_points ?? points.length);
+        state.allPoints = points;
+        state.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
+        state.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
+        state.colorColumn = response.color || '';
+        applyScatterStateFromCache(true);
 
-    if (state.chart && state.lastRenderSignature !== renderSignature) {
-        disposeScatterChart();
-        container = resetScatterContainer() || getEl('scatter-chart');
+        if (state.chart && state.lastRenderSignature !== renderSignature) {
+            disposeScatterChart();
+            container = resetScatterContainer() || getEl('scatter-chart');
+        }
+
+        const nextOption = buildOption(state.points, container);
+
+        if (!state.chart) {
+            state.chart = await createChart(container!, nextOption);
+            state.lastRenderSignature = renderSignature;
+            initSelectionZoom(container!);
+            state.chart.onPerformanceUpdate?.(() => {
+                const now = performance.now();
+                if (now - state.lastUpdateMs < 100) return;
+                state.lastUpdateMs = now;
+                updateBinnedReadout();
+            });
+        } else {
+            state.chart.setOption(nextOption);
+            state.lastRenderSignature = renderSignature;
+            requestAnimationFrame(() => state.chart?.resize?.());
+        }
+
+        updateColorbarUI();
+        updateBinnedReadout();
+        updateCorrelationStats();
+        renderSuggestions(state.lastSuggestions);
+        updateMarginalPlots();
+        await refreshActiveScatterView();
+    } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        throw err;
+    } finally {
+        if (scatterLoading) scatterLoading.hidden = true;
     }
-
-    const nextOption = buildOption(state.points, container);
-
-    if (!state.chart) {
-        state.chart = await createChart(container!, nextOption);
-        state.lastRenderSignature = renderSignature;
-        initSelectionZoom(container!);
-        state.chart.onPerformanceUpdate?.(() => {
-            const now = performance.now();
-            if (now - state.lastUpdateMs < 100) return;
-            state.lastUpdateMs = now;
-            updateBinnedReadout();
-        });
-    } else {
-        state.chart.setOption(nextOption);
-        state.lastRenderSignature = renderSignature;
-        requestAnimationFrame(() => state.chart?.resize?.());
-    }
-
-    updateColorbarUI();
-    updateBinnedReadout();
-    updateCorrelationStats();
-    renderSuggestions(state.lastSuggestions);
-    updateMarginalPlots();
-    await refreshActiveScatterView();
 }
 
 async function rerenderScatterFromCache(resetViewFlag = true): Promise<void> {
@@ -242,11 +269,15 @@ async function rerenderScatterFromCache(resetViewFlag = true): Promise<void> {
 /* ── Matrix cell click handler ────────────────────────── */
 
 async function onMatrixCellClick(x: string, y: string): Promise<void> {
+    // Show the spinner on the matrix panel (which is still visible at click time).
+    const matrixLoading = getEl('scatter-matrix-loading');
+    if (matrixLoading) matrixLoading.hidden = false;
     try {
         await selectMatrixPair(x, y, refreshCorrelationsAndSuggestions, renderScatter, setScatterView);
     } catch (error: any) {
-        console.error(error);
-        showError(String(error?.message ?? error));
+        handleErr(error);
+    } finally {
+        if (matrixLoading) matrixLoading.hidden = true;
     }
 }
 
@@ -290,7 +321,7 @@ function bindControls(): void {
     colorColumnSelect?.addEventListener('change', () => { void renderScatter(); });
     colorScaleSelect?.addEventListener('change', () => { rerender(); updateColorbarUI(); });
     linkBrushInput?.addEventListener('change', async () => {
-        try { await renderScatter(); } catch (err: any) { console.error(err); showError(String(err?.message ?? err)); }
+        try { await renderScatter(); } catch (err: any) { handleErr(err); }
     });
 
     // Matrix mode and cell size controls
@@ -310,39 +341,25 @@ function bindControls(): void {
     getEl('scatter-export-csv-btn')?.addEventListener('click', () => exportScatterData('csv'));
     getEl('scatter-export-json-btn')?.addEventListener('click', () => exportScatterData('json'));
     getEl('scatter-export-parquet-btn')?.addEventListener('click', async () => {
-        try { await exportScatterParquet(); } catch (error: any) { console.error('Scatter parquet export failed:', error); showError(String(error?.message ?? error)); }
+        try { await exportScatterParquet(); } catch (error: any) { handleErr(error); }
     });
 
     ySelect.addEventListener('change', async () => { updateCorrelationStats(); await renderScatter(); });
     xSelect.addEventListener('change', async () => { await refreshCorrelationsAndSuggestions(); await renderScatter(); });
     window.addEventListener('resize', () => { state.chart?.resize?.(); });
 
-    window.addEventListener('edatime:chart-range-change', async () => {
+    const handleFilterEvent = async (requireLinkedBrush: boolean) => {
         const page = getEl('page-scatter');
         if (page?.hidden) return;
         try {
             if (state.activeView === 'distributions') await fetchAndRenderDistributions();
-            else if (isLinkedBrushEnabled()) await renderScatter();
-        } catch (err: any) { console.error(err); showError(String(err?.message ?? err)); }
-    });
+            else if (!requireLinkedBrush || isLinkedBrushEnabled()) renderScatterDebounced();
+        } catch (err: any) { handleErr(err); }
+    };
 
-    window.addEventListener('edatime:column-filters-change', async () => {
-        const page = getEl('page-scatter');
-        if (page?.hidden) return;
-        try {
-            if (state.activeView === 'distributions') await fetchAndRenderDistributions();
-            else await renderScatter();
-        } catch (err: any) { console.error(err); showError(String(err?.message ?? err)); }
-    });
-
-    window.addEventListener('edatime:adaptive-filters-change', async () => {
-        const page = getEl('page-scatter');
-        if (page?.hidden) return;
-        try {
-            if (state.activeView === 'distributions') await fetchAndRenderDistributions();
-            else await renderScatter();
-        } catch (err: any) { console.error(err); showError(String(err?.message ?? err)); }
-    });
+    window.addEventListener('edatime:chart-range-change', () => handleFilterEvent(true));
+    window.addEventListener('edatime:column-filters-change', () => handleFilterEvent(false));
+    window.addEventListener('edatime:adaptive-filters-change', () => handleFilterEvent(false));
 
     window.addEventListener('edatime:page-change', async (ev: any) => {
         if (ev?.detail?.page !== 'scatter') return;
@@ -352,7 +369,7 @@ function bindControls(): void {
             refreshCorrelationsAndSuggestions()
                 .then(() => renderScatter())
                 .then(() => { state.pageInitialized = true; })
-                .catch((err: any) => { console.error(err); showError(String(err?.message ?? err)); });
+                .catch((err: any) => { handleErr(err); });
         } else {
             try {
                 if (isLinkedBrushEnabled() || Object.keys(appState.columnRanges || {}).length > 0 || (appState.adaptiveLineFilters || []).length > 0) {
@@ -360,7 +377,7 @@ function bindControls(): void {
                 } else {
                     await rerenderScatterFromCache(true);
                 }
-            } catch (err: any) { console.error(err); showError(String(err?.message ?? err)); }
+            } catch (err: any) { handleErr(err); }
         }
         void refreshActiveScatterView();
     });
@@ -400,7 +417,6 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
         await renderScatter();
         state.pageInitialized = true;
     } catch (err: any) {
-        console.error(err);
-        showError(String(err?.message ?? err));
+        handleErr(err);
     }
 }

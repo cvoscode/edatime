@@ -34,7 +34,7 @@ import {
 
 /* ── Stats panel ──────────────────────────────────────── */
 
-export function setDistributionStats(stats: Record<string, number | null> | null, column: string): void {
+function setDistributionStats(stats: Record<string, number | null> | null, column: string): void {
     const values: Record<string, number | null | undefined> = {
         'stat-mean': stats?.mean,
         'stat-std': stats?.std,
@@ -60,7 +60,7 @@ export function setDistributionStats(stats: Record<string, number | null> | null
     }
 }
 
-export function updateDistributionStats(): void {
+function updateDistributionStats(): void {
     const targetColumn = resolveSelectedDistributionColumn();
 
     if (state.distributionData?.columns) {
@@ -102,7 +102,7 @@ export function updateDistributionStats(): void {
 
 /* ── Series data resolution ───────────────────────────── */
 
-export function getDistributionSeriesData(column: string): { profile: any; histogram: any; values: number[]; live?: boolean } {
+function getDistributionSeriesData(column: string): { profile: any; histogram: any; values: number[]; live?: boolean } {
     if (state.distributionData?.columns) {
         const liveEntry = state.distributionData.columns.find((c) => c.name === column);
         if (liveEntry?.histogram) {

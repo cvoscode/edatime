@@ -1,6 +1,8 @@
 pub mod aggregate;
 pub mod analytics;
+pub mod config;
 pub mod data;
+pub mod database;
 pub mod export;
 pub mod metadata;
 pub mod metrics;
@@ -35,16 +37,49 @@ pub fn api_router() -> Router<AppState> {
             get(scatter::get_scatter_correlations),
         )
         .route(
+            "/scatter/correlations/matrix",
+            get(scatter::get_correlation_matrix),
+        )
+        .route(
             "/scatter/distributions",
             get(scatter::get_distributions).post(scatter::post_distributions),
         )
         .route("/upload", post(upload::upload_data))
         .route("/upload/preview", post(upload::preview_upload_data))
+        // Database / TimescaleDB endpoints
+        .route(
+            "/database/connect",
+            post(database::post_connect).delete(database::delete_connect),
+        )
+        .route("/database/status", get(database::get_status))
+        .route("/database/tables", get(database::get_tables))
+        .route("/database/columns", get(database::get_columns))
+        .route("/database/load", post(database::post_load))
+        // Config endpoints
+        .route(
+            "/config/database",
+            get(config::get_database_config).post(config::post_database_config),
+        )
         // Analytics endpoints
-        .route("/analytics/rolling", get(analytics::get_rolling))
-        .route("/analytics/anomalies", get(analytics::get_anomalies))
-        .route("/analytics/fft", get(analytics::get_fft))
+        .nest("/analytics", analytics_router())
         .route("/transform", post(analytics::post_transform))
+}
+
+fn analytics_router() -> Router<AppState> {
+    Router::new()
+        .route("/rolling", get(analytics::get_rolling))
+        .route("/anomalies", get(analytics::get_anomalies))
+        .route("/fft", get(analytics::get_fft))
+        .route("/spectrogram", get(analytics::get_spectrogram))
+        .route("/causal", post(analytics::post_causal_graph))
+        .route(
+            "/time_distributions",
+            get(analytics::get_time_distributions),
+        )
+        .route(
+            "/remove_outliers",
+            post(analytics::post_remove_outliers),
+        )
 }
 
 #[tracing::instrument]

@@ -31,10 +31,10 @@ import {
 
 /* ── Grid constants (must match buildOption) ──────────── */
 
-export const SCATTER_GRID_LEFT = 72;
-export const SCATTER_GRID_RIGHT = 72;
-export const SCATTER_GRID_TOP = 24;
-export const SCATTER_GRID_BOTTOM = 50;
+const SCATTER_GRID_LEFT = 72;
+const SCATTER_GRID_RIGHT = 72;
+const SCATTER_GRID_TOP = 24;
+const SCATTER_GRID_BOTTOM = 50;
 
 /* ── Series builders ──────────────────────────────────── */
 

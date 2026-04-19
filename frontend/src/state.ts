@@ -317,6 +317,11 @@ export function applyColumnRanges(dataObj: DataObject): FilteredDataObject {
     const filtered: FilteredDataObject = { ...dataObj, series: {}, colorByColumn: {} };
     const lineFilters = Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters : [];
 
+    // Pre-compute the set of columns needed for adaptive filter evaluation (once, outside loops)
+    const neededColumns: string[] = lineFilters.length > 0
+        ? [...new Set([...(appState.selectedCols || []), ...lineFilters.map((f) => f.column)])]
+        : [];
+
     for (const col of appState.selectedCols) {
         const yValues = dataObj.values?.[col];
         if (!yValues) continue;
@@ -335,10 +340,6 @@ export function applyColumnRanges(dataObj: DataObject): FilteredDataObject {
 
             if (lineFilters.length > 0) {
                 const valuesByColumn: Record<string, number | undefined> = {};
-                const neededColumns = new Set([
-                    ...(appState.selectedCols || []),
-                    ...lineFilters.map((f) => f.column),
-                ]);
                 for (const name of neededColumns) {
                     valuesByColumn[name] = dataObj.values?.[name]?.[i];
                 }

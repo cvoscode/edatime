@@ -11,7 +11,7 @@ import {
 
 export { formatTwoDecimalsLocal, formatTimeTick, formatTimeTooltip };
 
-export function niceNum(range: number, round: boolean): number {
+function niceNum(range: number, round: boolean): number {
     const exponent = Math.floor(Math.log10(range));
     const fraction = range / Math.pow(10, exponent);
     let niceFraction: number;

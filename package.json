@@ -5,6 +5,7 @@
     "validate": "npm run check:frontend",
     "typecheck": "tsc --noEmit",
     "build:frontend": "node scripts/build-frontend.mjs",
+    "build:frontend:prod": "node scripts/build-frontend.mjs --prod",
     "watch:frontend": "node scripts/build-frontend.mjs --watch",
     "dev": "npm run build:frontend"
   },
@@ -12,6 +13,8 @@
     "chartgpu": "^0.3.2"
   },
   "devDependencies": {
+    "apache-arrow": "^16.1.0",
+    "echarts": "^5.6.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.8.0"
   }

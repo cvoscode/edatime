@@ -1,43 +1,50 @@
 /* ─── Tokens — CSS custom properties ─────────────────────────── */
 :root {
   /* Backgrounds */
-  --bg:            #12161D;
-  --surface:       rgba(16, 21, 33, 0.92);
-  --surface-2:     rgba(21, 27, 44, 0.88);
-  --surface-3:     rgba(27, 34, 54, 0.80);
+  --bg: #12161D;
+  --surface: rgba(16, 21, 33, 0.92);
+  --surface-2: rgba(21, 27, 44, 0.88);
+  --surface-3: rgba(27, 34, 54, 0.80);
 
   /* Borders */
-  --border:        rgba(255, 255, 255, 0.07);
-  --border-hi:     rgba(255, 255, 255, 0.14);
+  --border: rgba(255, 255, 255, 0.07);
+  --border-hi: rgba(255, 255, 255, 0.14);
 
   /* Brand palette */
-  --accent:        #00A8FF;
-  --accent-dim:    rgba(0, 168, 255, 0.13);
-  --accent-glow:   rgba(0, 168, 255, 0.32);
-  --cyan:          #20E2D7;
-  --cyan-dim:      rgba(32, 226, 215, 0.13);
-  --green:         #00C896;
-  --red:           #FF6B6B;
-  --amber:         #FFC041;
+  --accent: #00A8FF;
+  --accent-dim: rgba(0, 168, 255, 0.13);
+  /* reserved */
+  --accent-glow: rgba(0, 168, 255, 0.32);
+  /* reserved */
+  --cyan: #20E2D7;
+  --cyan-dim: rgba(32, 226, 215, 0.13);
+  /* reserved */
+  --green: #00C896;
+  --red: #FF6B6B;
+  --amber: #FFC041;
+  /* reserved */
 
   /* Typography */
-  --text:          #D2DAF0;
-  --text-dim:      #788BAE;
-  --text-muted:    #4A566E;
+  --text: #D2DAF0;
+  --text-dim: #788BAE;
+  --text-muted: #4A566E;
 
   /* Control sizing — single source of truth */
-  --ctrl-h:        32px;    /* standard control */
-  --ctrl-h-sm:     28px;    /* compact toolbar control */
-  --ctrl-h-xs:     22px;    /* chip-embedded micro control */
+  --ctrl-h: 32px;
+  /* standard control */
+  --ctrl-h-sm: 28px;
+  /* compact toolbar control */
+  --ctrl-h-xs: 22px;
+  /* chip-embedded micro control */
 
   /* Shape */
-  --radius:        8px;
-  --radius-lg:     14px;
-  --radius-pill:   999px;
+  --radius: 8px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
 
   /* Effects */
-  --shadow:        0 8px 32px rgba(0,0,0,.60), 0 2px 8px rgba(0,0,0,.30);
-  --transition:    0.18s ease;
+  --shadow: 0 8px 32px rgba(0, 0, 0, .60), 0 2px 8px rgba(0, 0, 0, .30);
+  --transition: 0.18s ease;
 
   /* Profile grid column widths */
   --profile-grid-cols: 220px 120px 140px 100px 130px 130px 260px;
@@ -46,4 +53,32 @@
 
   /* Force dark color-scheme so native form controls (select, etc.) use dark rendering */
   color-scheme: dark;
+}
+
+/* ─── Light theme ─────────────────────────────────────── */
+:root[data-theme="light"] {
+  --bg: #F4F5F7;
+  --surface: rgba(255, 255, 255, 0.95);
+  --surface-2: rgba(245, 246, 250, 0.92);
+  --surface-3: rgba(235, 237, 244, 0.88);
+
+  --border: rgba(0, 0, 0, 0.08);
+  --border-hi: rgba(0, 0, 0, 0.16);
+
+  --accent: #0078D4;
+  --accent-dim: rgba(0, 120, 212, 0.10);
+  --accent-glow: rgba(0, 120, 212, 0.25);
+  --cyan: #0097A7;
+  --cyan-dim: rgba(0, 151, 167, 0.10);
+  --green: #00875A;
+  --red: #DE350B;
+  --amber: #FF991F;
+
+  --text: #1B2638;
+  --text-dim: #5E6C84;
+  --text-muted: #97A0AF;
+
+  --shadow: 0 4px 16px rgba(0, 0, 0, .10), 0 1px 4px rgba(0, 0, 0, .06);
+
+  color-scheme: light;
 }

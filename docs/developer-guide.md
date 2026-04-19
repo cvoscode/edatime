@@ -35,6 +35,10 @@ Optional development workflow with Node.js:
 
 ```bash
 npm run check:frontend
+npm run typecheck          # TypeScript type-check (no emit)
+npm run build:frontend     # dev build with sourcemaps
+npm run build:frontend:prod # minified production build
+npm run watch:frontend     # watch mode for dev
 ```
 
 Combined local validation sequence (pure Rust):
@@ -75,6 +79,33 @@ The main CI workflow lives in `.github/workflows/ci.yml` and runs:
 
 This is intentionally a validation pipeline, not a deployment pipeline. There is no production release automation in the repository yet.
 
+## Docker
+
+A multi-stage `Dockerfile` is included for containerized builds:
+
+```bash
+docker build -t edatime .
+docker run --rm -p 3000:3000 edatime
+```
+
+The image uses `rust:1.86-bookworm` for the build stage and `debian:bookworm-slim` for the runtime — no Node.js required. The final image contains only the compiled binary and the frontend static files.
+
+## Makefile
+
+Common targets:
+
+| Target | Description |
+|---|---|
+| `make build` | Debug build |
+| `make build-release` | Release build |
+| `make run` | Run in release mode |
+| `make dev` | Build frontend + run in debug mode |
+| `make check` | `cargo check` + `clippy` + `tsc` |
+| `make test` | `cargo test` + frontend syntax check |
+| `make frontend-prod` | Minified production frontend build |
+| `make docker` | Build Docker image |
+| `make docker-run` | Run Docker image |
+
 ## Security process
 
 The automated dependency audit lives in `.github/workflows/security.yml`.
@@ -103,10 +134,81 @@ Current chart and navigation shortcuts:
 - `Alt+1` opens the upload page
 - `Alt+2` opens the main chart page
 - `Alt+3` opens the scatter page
+- `Alt+5` opens the distributions page
+- `Alt+6` opens the FFT page
+- `Alt+7` opens the correlation heatmap page
 - `Shift+R` resets the main chart zoom
 - `Shift+Z` zooms out one step on the main chart
 - `Shift+C` clears adaptive line filters on the main chart
 - `Shift+E` exports visible filtered data as CSV for the active page
+
+## API reference
+
+All routes are available under both `/api/` and `/api/v1/`.
+
+### Data
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/data` | Time-filtered, downsampled series data (Arrow IPC) |
+| `GET` | `/api/metadata` | Dataset schema, numeric columns, time range, profiles |
+| `GET` | `/api/health` | Health check |
+| `GET` | `/api/metrics` | Runtime metrics (request counts, caching, rate limiting) |
+
+Query params for `/api/data`: `start`, `end`, `width`, `columns`.
+
+### Aggregation
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/aggregate` | Aggregated stats (Arrow IPC or JSON) |
+
+### Scatter analytics
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/scatter/correlations` | Correlation suggestions and candidate columns |
+| `GET` | `/api/scatter/correlations/matrix` | Full NxN Pearson + Spearman correlation matrix |
+| `GET`/`POST` | `/api/scatter/points` | Scatter data points with optional color column |
+
+### Analytics
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/analytics/remove_outliers` | Remove outliers (zscore/IQR, optional windowed) |
+| `GET` | `/api/analytics/time_distributions` | Distribution histograms across time windows |
+| `POST` | `/api/analytics/transform` | Apply column transforms |
+
+### Upload
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/upload` | Upload CSV/Parquet with optional column subset and time slicing |
+| `POST` | `/api/upload/preview` | Preview upload metadata and column profiles |
+
+### Export
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/export/parquet` | Export filtered dataset as Parquet |
+
+### Configuration
+
+Runtime configuration via `config.toml` or environment variables:
+
+| Setting | Env var | Default |
+|---|---|---|
+| Server host | `EDATIME_HOST` | `127.0.0.1` |
+| Server port | `EDATIME_PORT` | `3000` |
+| Sample data path | `EDATIME_SAMPLE_DATA` | `sample.csv` |
+| Cache TTL (seconds) | `EDATIME_CACHE_TTL_SECONDS` | `60` |
+| Cache max entries | `EDATIME_CACHE_MAX_ENTRIES` | `64` |
+| Cache max bytes | `EDATIME_CACHE_MAX_BYTES` | `67108864` |
+| Rate limit requests | `EDATIME_RATE_LIMIT_MAX_REQUESTS` | `1000` |
+| Rate limit window | `EDATIME_RATE_LIMIT_WINDOW_SECONDS` | `60` |
+| Max upload size | `EDATIME_MAX_UPLOAD_BYTES` | `268435456` |
+| Database URL | `EDATIME_DATABASE_URL` | — |
+| Database backend | `EDATIME_DATABASE_BACKEND` | `none` |
 
 ## Phase 4 feature notes
 

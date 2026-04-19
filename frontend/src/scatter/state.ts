@@ -284,9 +284,9 @@ export function clampView(view: ScatterView): ScatterView {
 }
 
 export function applyScatterStateFromCache(resetView = true): void {
-    state.points = Array.isArray(state.allPoints) ? state.allPoints.slice() : [];
-    state.colorValues = Array.isArray(state.allColorValues) ? state.allColorValues.slice() : null;
-    state.colorLabels = Array.isArray(state.allColorLabels) ? state.allColorLabels.slice() : null;
+    state.points = Array.isArray(state.allPoints) ? state.allPoints : [];
+    state.colorValues = Array.isArray(state.allColorValues) ? state.allColorValues : null;
+    state.colorLabels = Array.isArray(state.allColorLabels) ? state.allColorLabels : null;
 
     const colorExtent = computeColorExtent(state.colorValues);
     state.colorMin = colorExtent?.min ?? null;

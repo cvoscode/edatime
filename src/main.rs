@@ -2,6 +2,7 @@ use axum::{Router, extract::DefaultBodyLimit, http::Method, middleware::from_fn}
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::{
+    compression::CompressionLayer,
     cors::{Any, CorsLayer},
     services::ServeDir,
     trace::TraceLayer,
@@ -11,7 +12,9 @@ use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitEx
 pub mod analytics;
 pub mod arrow_export;
 pub mod cache;
+pub mod causal;
 pub mod config;
+pub mod db;
 pub mod downsample;
 pub mod error;
 pub mod filters;
@@ -78,13 +81,16 @@ async fn main() {
 
     let rate_limit_fn = middleware::rate_limit_middleware(rate_limiter, state.metrics.clone());
 
-    let frontend_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("frontend");
+    let frontend_dir = std::env::var("EDATIME_FRONTEND_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("frontend"));
 
     let app = Router::new()
         .nest("/api", routes::api_router())
         .nest("/api/v1", routes::api_router())
         .fallback_service(ServeDir::new(frontend_dir))
         .layer(DefaultBodyLimit::max(max_upload_bytes))
+        .layer(CompressionLayer::new().gzip(true))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .layer(csp_layer)

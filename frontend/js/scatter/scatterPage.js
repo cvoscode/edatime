@@ -3,7 +3,7 @@ import {
   fetchFft,
   fetchScatterCorrelations,
   fetchScatterPoints
-} from "../chunk-KQYB7SJX.js";
+} from "../chunk-OV247G5O.js";
 import "../chunk-P2MGEQ7G.js";
 import {
   Ad
@@ -52,7 +52,7 @@ import {
   showError,
   state,
   upperBoundByX
-} from "../chunk-Y7M4I4FB.js";
+} from "../chunk-VKP6Y3YA.js";
 import {
   appState,
   downloadBlob,
@@ -61,7 +61,8 @@ import {
   formatTimestamp,
   formatTwoDecimals,
   getEl
-} from "../chunk-IXP3VB4N.js";
+} from "../chunk-BMP4455Z.js";
+import "../chunk-PZ5AY32C.js";
 
 // frontend/src/scatter/export.ts
 function buildLinearTicks(min, max, count = 6) {
@@ -1371,6 +1372,10 @@ async function renderMatrixFftPanel() {
 }
 
 // frontend/src/scatter/scatterPage.ts
+function handleErr(err) {
+  console.error(err);
+  showError(String(err?.message ?? err));
+}
 function setSidebarAnalyticsSelection(viewName) {
   const navPage = viewName === "matrix" ? "scattermatrix" : viewName === "distributions" ? "distributions" : "scatter";
   for (const button of document.querySelectorAll(".sidebar .nav-item[data-page]")) {
@@ -1433,8 +1438,7 @@ function renderSuggestions(suggestions) {
       try {
         await renderScatter();
       } catch (err) {
-        console.error(err);
-        showError(String(err?.message ?? err));
+        handleErr(err);
       }
     });
     box.appendChild(btn);
@@ -1475,56 +1479,80 @@ async function refreshCorrelationsAndSuggestions() {
   updateCorrelationStats();
   updateColorbarUI();
 }
+var _scatterAbort = null;
+var _scatterDebounceTimer = null;
+function renderScatterDebounced() {
+  if (_scatterDebounceTimer) clearTimeout(_scatterDebounceTimer);
+  _scatterDebounceTimer = setTimeout(() => {
+    _scatterDebounceTimer = null;
+    renderScatter();
+  }, 32);
+}
 async function renderScatter() {
   const xSelect = getEl("scatter-x-col");
   const ySelect = getEl("scatter-y-col");
   let container = getEl("scatter-chart");
   if (!container || !xSelect || !ySelect || !xSelect.value || !ySelect.value) return;
+  if (_scatterAbort) {
+    _scatterAbort.abort();
+    _scatterAbort = null;
+  }
   showError("");
-  const ctl = currentControls();
-  const renderSignature = buildRenderSignature(ctl);
-  const colorColumn = ctl.selectedColorColumn || null;
-  const response = await fetchScatterPoints(
-    xSelect.value,
-    ySelect.value,
-    1e6,
-    colorColumn,
-    buildScatterQueryContext()
-  );
-  const points = Array.isArray(response.points) ? response.points : [];
-  points.sort((a, b) => Number(a[0]) - Number(b[0]));
-  state.totalPoints = Number(response.total_points ?? points.length);
-  state.allPoints = points;
-  state.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
-  state.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
-  state.colorColumn = response.color || "";
-  applyScatterStateFromCache(true);
-  if (state.chart && state.lastRenderSignature !== renderSignature) {
-    disposeScatterChart();
-    container = resetScatterContainer() || getEl("scatter-chart");
+  const scatterLoading = getEl("scatter-chart-loading");
+  if (scatterLoading) scatterLoading.hidden = false;
+  try {
+    const ctl = currentControls();
+    const renderSignature = buildRenderSignature(ctl);
+    const colorColumn = ctl.selectedColorColumn || null;
+    _scatterAbort = new AbortController();
+    const response = await fetchScatterPoints(
+      xSelect.value,
+      ySelect.value,
+      1e6,
+      colorColumn,
+      buildScatterQueryContext(),
+      _scatterAbort.signal
+    );
+    _scatterAbort = null;
+    const points = Array.isArray(response.points) ? response.points : [];
+    state.totalPoints = Number(response.total_points ?? points.length);
+    state.allPoints = points;
+    state.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
+    state.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
+    state.colorColumn = response.color || "";
+    applyScatterStateFromCache(true);
+    if (state.chart && state.lastRenderSignature !== renderSignature) {
+      disposeScatterChart();
+      container = resetScatterContainer() || getEl("scatter-chart");
+    }
+    const nextOption = buildOption(state.points, container);
+    if (!state.chart) {
+      state.chart = await Ad(container, nextOption);
+      state.lastRenderSignature = renderSignature;
+      initSelectionZoom(container);
+      state.chart.onPerformanceUpdate?.(() => {
+        const now = performance.now();
+        if (now - state.lastUpdateMs < 100) return;
+        state.lastUpdateMs = now;
+        updateBinnedReadout();
+      });
+    } else {
+      state.chart.setOption(nextOption);
+      state.lastRenderSignature = renderSignature;
+      requestAnimationFrame(() => state.chart?.resize?.());
+    }
+    updateColorbarUI();
+    updateBinnedReadout();
+    updateCorrelationStats();
+    renderSuggestions(state.lastSuggestions);
+    updateMarginalPlots();
+    await refreshActiveScatterView();
+  } catch (err) {
+    if (err?.name === "AbortError") return;
+    throw err;
+  } finally {
+    if (scatterLoading) scatterLoading.hidden = true;
   }
-  const nextOption = buildOption(state.points, container);
-  if (!state.chart) {
-    state.chart = await Ad(container, nextOption);
-    state.lastRenderSignature = renderSignature;
-    initSelectionZoom(container);
-    state.chart.onPerformanceUpdate?.(() => {
-      const now = performance.now();
-      if (now - state.lastUpdateMs < 100) return;
-      state.lastUpdateMs = now;
-      updateBinnedReadout();
-    });
-  } else {
-    state.chart.setOption(nextOption);
-    state.lastRenderSignature = renderSignature;
-    requestAnimationFrame(() => state.chart?.resize?.());
-  }
-  updateColorbarUI();
-  updateBinnedReadout();
-  updateCorrelationStats();
-  renderSuggestions(state.lastSuggestions);
-  updateMarginalPlots();
-  await refreshActiveScatterView();
 }
 async function rerenderScatterFromCache(resetViewFlag = true) {
   if (Array.isArray(state.allPoints) && state.allPoints.length > 0) {
@@ -1536,11 +1564,14 @@ async function rerenderScatterFromCache(resetViewFlag = true) {
   await refreshActiveScatterView();
 }
 async function onMatrixCellClick(x, y) {
+  const matrixLoading = getEl("scatter-matrix-loading");
+  if (matrixLoading) matrixLoading.hidden = false;
   try {
     await selectMatrixPair(x, y, refreshCorrelationsAndSuggestions, renderScatter, setScatterView);
   } catch (error) {
-    console.error(error);
-    showError(String(error?.message ?? error));
+    handleErr(error);
+  } finally {
+    if (matrixLoading) matrixLoading.hidden = true;
   }
 }
 function bindControls() {
@@ -1592,8 +1623,7 @@ function bindControls() {
     try {
       await renderScatter();
     } catch (err) {
-      console.error(err);
-      showError(String(err?.message ?? err));
+      handleErr(err);
     }
   });
   const matrixModeSelect = getEl("scatter-matrix-mode");
@@ -1615,8 +1645,7 @@ function bindControls() {
     try {
       await exportScatterParquet();
     } catch (error) {
-      console.error("Scatter parquet export failed:", error);
-      showError(String(error?.message ?? error));
+      handleErr(error);
     }
   });
   ySelect.addEventListener("change", async () => {
@@ -1630,39 +1659,19 @@ function bindControls() {
   window.addEventListener("resize", () => {
     state.chart?.resize?.();
   });
-  window.addEventListener("edatime:chart-range-change", async () => {
+  const handleFilterEvent = async (requireLinkedBrush) => {
     const page = getEl("page-scatter");
     if (page?.hidden) return;
     try {
       if (state.activeView === "distributions") await fetchAndRenderDistributions();
-      else if (isLinkedBrushEnabled()) await renderScatter();
+      else if (!requireLinkedBrush || isLinkedBrushEnabled()) renderScatterDebounced();
     } catch (err) {
-      console.error(err);
-      showError(String(err?.message ?? err));
+      handleErr(err);
     }
-  });
-  window.addEventListener("edatime:column-filters-change", async () => {
-    const page = getEl("page-scatter");
-    if (page?.hidden) return;
-    try {
-      if (state.activeView === "distributions") await fetchAndRenderDistributions();
-      else await renderScatter();
-    } catch (err) {
-      console.error(err);
-      showError(String(err?.message ?? err));
-    }
-  });
-  window.addEventListener("edatime:adaptive-filters-change", async () => {
-    const page = getEl("page-scatter");
-    if (page?.hidden) return;
-    try {
-      if (state.activeView === "distributions") await fetchAndRenderDistributions();
-      else await renderScatter();
-    } catch (err) {
-      console.error(err);
-      showError(String(err?.message ?? err));
-    }
-  });
+  };
+  window.addEventListener("edatime:chart-range-change", () => handleFilterEvent(true));
+  window.addEventListener("edatime:column-filters-change", () => handleFilterEvent(false));
+  window.addEventListener("edatime:adaptive-filters-change", () => handleFilterEvent(false));
   window.addEventListener("edatime:page-change", async (ev) => {
     if (ev?.detail?.page !== "scatter") return;
     state.activeView = normalizeAnalyticsView(ev?.detail?.analyticsView);
@@ -1671,8 +1680,7 @@ function bindControls() {
       refreshCorrelationsAndSuggestions().then(() => renderScatter()).then(() => {
         state.pageInitialized = true;
       }).catch((err) => {
-        console.error(err);
-        showError(String(err?.message ?? err));
+        handleErr(err);
       });
     } else {
       try {
@@ -1682,8 +1690,7 @@ function bindControls() {
           await rerenderScatterFromCache(true);
         }
       } catch (err) {
-        console.error(err);
-        showError(String(err?.message ?? err));
+        handleErr(err);
       }
     }
     void refreshActiveScatterView();
@@ -1719,8 +1726,7 @@ async function initScatterPage(metadata) {
     await renderScatter();
     state.pageInitialized = true;
   } catch (err) {
-    console.error(err);
-    showError(String(err?.message ?? err));
+    handleErr(err);
   }
 }
 export {

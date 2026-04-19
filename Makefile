@@ -1,0 +1,44 @@
+.PHONY: build build-release run dev check test clean docker
+
+# Default target
+build:
+	cargo build
+
+build-release:
+	cargo build --release
+
+run:
+	cargo run --release
+
+# Development: build frontend (if Node available) then run in debug mode
+dev:
+	@if command -v node >/dev/null 2>&1; then node scripts/build-frontend.mjs; fi
+	cargo run
+
+# Type-check and lint
+check:
+	cargo check
+	cargo clippy -- -D warnings
+	@if command -v node >/dev/null 2>&1; then npx tsc --noEmit; fi
+
+# Run tests and benchmarks
+test:
+	cargo test
+	@if command -v node >/dev/null 2>&1; then node scripts/check-frontend.mjs; fi
+
+bench:
+	cargo bench
+
+# Build frontend for production (requires Node)
+frontend-prod:
+	node scripts/build-frontend.mjs --prod
+
+# Docker
+docker:
+	docker build -t edatime .
+
+docker-run:
+	docker run --rm -p 3000:3000 edatime
+
+clean:
+	cargo clean
