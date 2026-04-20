@@ -1,0 +1,921 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="./">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Common Workflows" href="user/workflows.html"><link rel="prev" title="User Guide" href="user/index.html">
+
+    <!-- Generated with Sphinx 9.0.4 and Furo 2025.12.19 -->
+        <title>EdaTime User Manual - EdaTime Docs</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="_static/edatime-docs.css?v=89d3db48" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  --color-brand-primary: #0078D4;
+  --color-brand-content: #0078D4;
+  --color-api-name: #0078D4;
+  --color-api-pre-name: #0078D4;
+  --color-background-primary: #F4F5F7;
+  --color-background-secondary: #FFFFFF;
+  --color-background-hover: #E9EEF6;
+  --color-background-border: rgba(0, 0, 0, 0.08);
+  --color-foreground-primary: #1B2638;
+  --color-foreground-secondary: #5E6C84;
+  --color-foreground-muted: #97A0AF;
+  --color-card-background: rgba(255, 255, 255, 0.95);
+  --color-card-border: rgba(0, 0, 0, 0.08);
+  --color-code-background: #EEF2F8;
+  --color-code-foreground: #1B2638;
+  --color-sidebar-background: #FFFFFF;
+  --color-sidebar-link-text--top-level: #1B2638;
+  --color-sidebar-link-text: #5E6C84;
+  --color-sidebar-link-text--current: #0078D4;
+  --color-sidebar-link-text--hover: #1B2638;
+  --color-admonition-background: rgba(0, 120, 212, 0.08);
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #20E2D7;
+  --color-brand-content: #20E2D7;
+  --color-api-name: #20E2D7;
+  --color-api-pre-name: #20E2D7;
+  --color-background-primary: #12161D;
+  --color-background-secondary: rgba(16, 21, 33, 0.92);
+  --color-background-hover: rgba(32, 226, 215, 0.07);
+  --color-background-border: rgba(255, 255, 255, 0.07);
+  --color-foreground-primary: #D2DAF0;
+  --color-foreground-secondary: #788BAE;
+  --color-foreground-muted: #4A566E;
+  --color-card-background: rgba(21, 27, 44, 0.88);
+  --color-card-border: rgba(255, 255, 255, 0.07);
+  --color-code-background: #0E131D;
+  --color-code-foreground: #D2DAF0;
+  --color-sidebar-background: rgba(11, 15, 24, 0.94);
+  --color-sidebar-link-text--top-level: #D2DAF0;
+  --color-sidebar-link-text: #788BAE;
+  --color-sidebar-link-text--current: #20E2D7;
+  --color-sidebar-link-text--hover: #D2DAF0;
+  --color-admonition-background: rgba(0, 168, 255, 0.10);
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #20E2D7;
+  --color-brand-content: #20E2D7;
+  --color-api-name: #20E2D7;
+  --color-api-pre-name: #20E2D7;
+  --color-background-primary: #12161D;
+  --color-background-secondary: rgba(16, 21, 33, 0.92);
+  --color-background-hover: rgba(32, 226, 215, 0.07);
+  --color-background-border: rgba(255, 255, 255, 0.07);
+  --color-foreground-primary: #D2DAF0;
+  --color-foreground-secondary: #788BAE;
+  --color-foreground-muted: #4A566E;
+  --color-card-background: rgba(21, 27, 44, 0.88);
+  --color-card-border: rgba(255, 255, 255, 0.07);
+  --color-code-background: #0E131D;
+  --color-code-foreground: #D2DAF0;
+  --color-sidebar-background: rgba(11, 15, 24, 0.94);
+  --color-sidebar-link-text--top-level: #D2DAF0;
+  --color-sidebar-link-text: #788BAE;
+  --color-sidebar-link-text--current: #20E2D7;
+  --color-sidebar-link-text--hover: #D2DAF0;
+  --color-admonition-background: rgba(0, 168, 255, 0.10);
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">EdaTime Docs</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  <span class="sidebar-brand-text">EdaTime Docs</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="user/index.html">User Guide</a><input aria-label="Toggle navigation of User Guide" checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="current">
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">EdaTime User Manual</a></li>
+<li class="toctree-l2"><a class="reference internal" href="user/workflows.html">Common Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="user/faq.html">FAQ</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="developer/index.html">Developer Guide</a><input aria-label="Toggle navigation of Developer Guide" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="developer-guide.html">EdaTime Developer Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="developer/architecture.html">Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="developer/frontend.html">Frontend Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="developer/backend.html">Backend Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="developer/workflows.html">Developer Workflows</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="reference/index.html">Reference</a><input aria-label="Toggle navigation of Reference" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="reference/api.html">API Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/configuration.html">Configuration Reference</a></li>
+</ul>
+</li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          
+
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="edatime-user-manual">
+<h1>EdaTime User Manual<a class="headerlink" href="#edatime-user-manual" title="Link to this heading">¶</a></h1>
+<p>This manual combines code verification with a live walkthrough of the running app.</p>
+<ul class="simple">
+<li><p>The feature descriptions were cross-checked against the current frontend and backend implementation.</p></li>
+<li><p>The screenshots use a deterministic 720-row fixture with 7 numeric series so the guide remains reproducible.</p></li>
+<li><p>Where behavior matters for debugging or later UI tests, this guide calls it out explicitly instead of smoothing over it.</p></li>
+</ul>
+<section id="what-edatime-is-for">
+<h2>What EdaTime Is For<a class="headerlink" href="#what-edatime-is-for" title="Link to this heading">¶</a></h2>
+<p>EdaTime is an interactive analysis tool for time-indexed datasets. It lets you:</p>
+<ul class="simple">
+<li><p>load CSV or Parquet files, or connect to a database</p></li>
+<li><p>inspect column profiles before loading data</p></li>
+<li><p>explore multiple time series at once</p></li>
+<li><p>drill into scatter, matrix, distribution, frequency, and causal views</p></li>
+<li><p>export filtered results and visual outputs</p></li>
+</ul>
+<p>The app is organized as page-based workflows in the left sidebar.</p>
+</section>
+<section id="navigation">
+<h2>Navigation<a class="headerlink" href="#navigation" title="Link to this heading">¶</a></h2>
+<p>The app opens on the Upload page by default. The main navigation lives in the left sidebar.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Alt+1</span></code>: Upload</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Alt+2</span></code>: Timeseries</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Alt+3</span></code>: Scatter</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Alt+4</span></code>: Matrix</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Alt+5</span></code>: Distributions</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Alt+6</span></code>: FFT</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Alt+7</span></code>: Heatmap</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Alt+8</span></code>: Spectrogram</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Alt+9</span></code>: Causal</p></li>
+</ul>
+<p>The header shows the active dataset summary, including row count, numeric-series count, and the currently plotted primary series.</p>
+<p>The sidebar can be collapsed when you want more chart space.</p>
+</section>
+<section id="recommended-first-workflow">
+<h2>Recommended First Workflow<a class="headerlink" href="#recommended-first-workflow" title="Link to this heading">¶</a></h2>
+<p>If you are new to the app, this is the fastest path to understanding a dataset:</p>
+<ol class="arabic simple">
+<li><p>Go to Upload and confirm the detected schema and time range.</p></li>
+<li><p>Open Timeseries and enable a few important numeric series.</p></li>
+<li><p>Zoom into a time window of interest.</p></li>
+<li><p>Open Scatter to compare two variables inside that same linked time range.</p></li>
+<li><p>Use Matrix to scan pairwise relationships quickly.</p></li>
+<li><p>Use Distributions, FFT, Spectrogram, or Causal when you want deeper analysis.</p></li>
+</ol>
+</section>
+<section id="upload-page">
+<h2>Upload Page<a class="headerlink" href="#upload-page" title="Link to this heading">¶</a></h2>
+<p>The Upload page supports both file-based ingest and database-backed ingest.</p>
+<figure class="align-default" id="id2">
+<a class="reference internal image-reference" href="_images/upload-page.png"><img alt="Upload page showing the current dataset profile and column preview grid." src="_images/upload-page.png" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Upload acts as both the ingest entry point and the current-dataset profile browser.</span><a class="headerlink" href="#id2" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<section id="load-from-file">
+<h3>Load From File<a class="headerlink" href="#load-from-file" title="Link to this heading">¶</a></h3>
+<p>Use the drop zone or the <code class="docutils literal notranslate"><span class="pre">Browse</span> <span class="pre">file</span></code> button to choose a CSV or Parquet file.</p>
+<p>Available load options:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Partial</span> <span class="pre">load</span></code>: limits how many rows are ingested</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Max</span> <span class="pre">rows</span> <span class="pre">to</span> <span class="pre">load</span></code>: upper bound for ingestion size</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Skip</span> <span class="pre">first</span> <span class="pre">N</span> <span class="pre">rows</span></code>: useful for partial sampling or skipping warmup records</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Time</span> <span class="pre">range</span></code>: optional start and end limits for ingest</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Time</span> <span class="pre">column</span></code>: manual override if auto-detection is not enough</p></li>
+</ul>
+<p>Click <code class="docutils literal notranslate"><span class="pre">Upload</span> <span class="pre">&amp;</span> <span class="pre">Ingest</span></code> to replace the active in-memory dataset.</p>
+<p>After ingest, the app reloads and stays on the Upload page instead of switching to another page automatically.</p>
+</section>
+<section id="load-from-database">
+<h3>Load From Database<a class="headerlink" href="#load-from-database" title="Link to this heading">¶</a></h3>
+<p>The same page also offers a database workflow.</p>
+<p>Available controls include:</p>
+<ul class="simple">
+<li><p>backend selection</p></li>
+<li><p>connection string</p></li>
+<li><p>schema</p></li>
+<li><p>table or hypertable selection</p></li>
+<li><p>optional time-column override</p></li>
+</ul>
+<p>The live app exposed <code class="docutils literal notranslate"><span class="pre">TimescaleDB</span></code> and <code class="docutils literal notranslate"><span class="pre">PostgreSQL</span></code> in the backend selector. The database path is intended for pulling data directly into the app without an intermediate export.</p>
+<p>SQLite is not currently implemented in the app’s database ingest path.</p>
+</section>
+<section id="file-preview-profile-grid">
+<h3>File Preview / Profile Grid<a class="headerlink" href="#file-preview-profile-grid" title="Link to this heading">¶</a></h3>
+<p>The lower half of the page shows a column profile table.</p>
+<p>For each column, the app shows:</p>
+<ul class="simple">
+<li><p>name</p></li>
+<li><p>detected type</p></li>
+<li><p>non-null count</p></li>
+<li><p>null count</p></li>
+<li><p>min and max</p></li>
+<li><p>a compact distribution preview</p></li>
+</ul>
+<p>The preview area also has:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">All</span></code> and <code class="docutils literal notranslate"><span class="pre">None</span></code> selection shortcuts</p></li>
+<li><p>a filter box for narrowing the column list</p></li>
+<li><p>sortable columns in the table header</p></li>
+</ul>
+<p>During the live walkthrough, this panel showed the current dataset profile when no new file had been selected yet.</p>
+<p>That distinction matters:</p>
+<ul class="simple">
+<li><p>the table can show the already loaded dataset even when no new file is selected</p></li>
+<li><p>the <code class="docutils literal notranslate"><span class="pre">All</span></code> / <code class="docutils literal notranslate"><span class="pre">None</span></code> selection controls apply to the next upload preview, not to the currently loaded dataset in memory</p></li>
+</ul>
+</section>
+</section>
+<section id="timeseries-page">
+<h2>Timeseries Page<a class="headerlink" href="#timeseries-page" title="Link to this heading">¶</a></h2>
+<p>The Timeseries page is the main exploration surface.</p>
+<figure class="align-default" id="id3">
+<a class="reference internal image-reference" href="_images/timeseries-page.png"><img alt="Timeseries page with three active series and the main chart rendered." src="_images/timeseries-page.png" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Timeseries with several active series, per-series colors, and the full chart toolbar visible.</span><a class="headerlink" href="#id3" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<section id="series-toolbar">
+<h3>Series Toolbar<a class="headerlink" href="#series-toolbar" title="Link to this heading">¶</a></h3>
+<p>At the top of the page, the <code class="docutils literal notranslate"><span class="pre">Series</span></code> area lets you:</p>
+<ul class="simple">
+<li><p>filter the available columns by name</p></li>
+<li><p>enable or disable plotted numeric series</p></li>
+<li><p>change each series color</p></li>
+<li><p>choose an optional <code class="docutils literal notranslate"><span class="pre">Color</span> <span class="pre">by</span></code> column for the time-series plot</p></li>
+</ul>
+<p>Each active series appears as a chip.</p>
+<p>Chip interactions:</p>
+<ul class="simple">
+<li><p>click the chip checkbox area to toggle the series on or off</p></li>
+<li><p>use the color input on the chip to change that series color</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Ctrl+click</span></code> a chip to set it as the adaptive-filter target</p></li>
+<li><p>double right-click a chip to open its numeric filter modal</p></li>
+</ul>
+</section>
+<section id="draw-and-labels">
+<h3>Draw And Labels<a class="headerlink" href="#draw-and-labels" title="Link to this heading">¶</a></h3>
+<p>The main toolbar includes:</p>
+<ul class="simple">
+<li><p>draw mode: <code class="docutils literal notranslate"><span class="pre">None</span></code>, <code class="docutils literal notranslate"><span class="pre">Arrow</span></code>, or <code class="docutils literal notranslate"><span class="pre">Box</span></code></p></li>
+<li><p>draw color and line width</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Clear</span></code> to remove drawings</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Clear</span> <span class="pre">Filter</span></code> to remove adaptive line filters</p></li>
+<li><p>title, X label, and Y label text inputs</p></li>
+</ul>
+<p>These label fields update the chart overlay directly.</p>
+</section>
+<section id="export">
+<h3>Export<a class="headerlink" href="#export" title="Link to this heading">¶</a></h3>
+<p>The Timeseries page exposes these export actions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">PNG</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SVG</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">HTML</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">CSV</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">JSON</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Parquet</span></code></p></li>
+</ul>
+<p>In practice, this gives you both visual exports and filtered-data exports.</p>
+<p>Exports operate on the current visible or active analysis state, not on an untouched copy of the original file.</p>
+</section>
+<section id="analytics-controls">
+<h3>Analytics Controls<a class="headerlink" href="#analytics-controls" title="Link to this heading">¶</a></h3>
+<p>The right side of the toolbar contains page-level analytics controls:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Bands</span></code>: rolling mean plus standard-deviation bands</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Win</span></code>: rolling window size</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Anomalies</span></code>: anomaly overlay toggle</p></li>
+<li><p>anomaly method: <code class="docutils literal notranslate"><span class="pre">Z-score</span></code> or <code class="docutils literal notranslate"><span class="pre">IQR</span></code></p></li>
+<li><p>anomaly threshold</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Transform…</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Outliers…</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Time</span> <span class="pre">Dist…</span></code></p></li>
+</ul>
+<p>Be precise about the difference between visual controls and dataset-changing actions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Bands</span></code>, <code class="docutils literal notranslate"><span class="pre">Anomalies</span></code>, labels, colors, drawings, and zoom are presentation or analysis-state changes</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Transform…</span></code> and <code class="docutils literal notranslate"><span class="pre">Outliers…</span></code> are dataset-oriented operations and should be treated as mutations to the in-memory dataset</p></li>
+</ul>
+</section>
+<section id="transform-modal">
+<h3>Transform Modal<a class="headerlink" href="#transform-modal" title="Link to this heading">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">Transform…</span></code> opens a <code class="docutils literal notranslate"><span class="pre">Column</span> <span class="pre">Transform</span></code> dialog.</p>
+<p>It accepts:</p>
+<ul class="simple">
+<li><p>an expression</p></li>
+<li><p>an output column name</p></li>
+</ul>
+<p>The modal lists supported functions and operators, including arithmetic, logarithms, roots, exponentials, and common trigonometric functions.</p>
+<p>Use this when you want to derive a new analytic column without leaving the app.</p>
+</section>
+<section id="outlier-removal-modal">
+<h3>Outlier Removal Modal<a class="headerlink" href="#outlier-removal-modal" title="Link to this heading">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">Outliers…</span></code> opens a <code class="docutils literal notranslate"><span class="pre">Remove</span> <span class="pre">Outliers</span></code> dialog.</p>
+<p>Available options:</p>
+<ul class="simple">
+<li><p>method: <code class="docutils literal notranslate"><span class="pre">Z-score</span></code> or <code class="docutils literal notranslate"><span class="pre">IQR</span></code></p></li>
+<li><p>threshold</p></li>
+<li><p>window size, where <code class="docutils literal notranslate"><span class="pre">0</span></code> means global detection</p></li>
+</ul>
+<p>This operation is dataset-oriented rather than just visual, so use it carefully.</p>
+</section>
+<section id="distribution-over-time-modal">
+<h3>Distribution Over Time Modal<a class="headerlink" href="#distribution-over-time-modal" title="Link to this heading">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">Time</span> <span class="pre">Dist…</span></code> opens a <code class="docutils literal notranslate"><span class="pre">Distribution</span> <span class="pre">Over</span> <span class="pre">Time</span></code> dialog.</p>
+<p>You can configure:</p>
+<ul class="simple">
+<li><p>number of windows</p></li>
+<li><p>number of bins per window</p></li>
+</ul>
+<p>In the live walkthrough, the modal reported the computed result as <code class="docutils literal notranslate"><span class="pre">HUFL:</span> <span class="pre">20</span> <span class="pre">windows</span> <span class="pre">×</span> <span class="pre">24</span> <span class="pre">bins</span> <span class="pre">(box</span> <span class="pre">plot)</span></code> after running <code class="docutils literal notranslate"><span class="pre">Compute</span></code>.</p>
+</section>
+<section id="zooming-filtering-and-analysis-readout">
+<h3>Zooming, Filtering, And Analysis Readout<a class="headerlink" href="#zooming-filtering-and-analysis-readout" title="Link to this heading">¶</a></h3>
+<p>The chart itself supports pan and zoom interactions. The linked analytics pages can reuse the current time window.</p>
+<p>The app also maintains live readouts for:</p>
+<ul class="simple">
+<li><p>visible time range</p></li>
+<li><p>visible Y range</p></li>
+<li><p>cursor position</p></li>
+<li><p>clicked point</p></li>
+</ul>
+</section>
+</section>
+<section id="scatter-page">
+<h2>Scatter Page<a class="headerlink" href="#scatter-page" title="Link to this heading">¶</a></h2>
+<p>The Scatter page compares two columns directly and is the main place for linked bivariate analysis.</p>
+<figure class="align-default" id="id4">
+<a class="reference internal image-reference" href="_images/scatter-page.png"><img alt="Scatter page showing a color-encoded scatter plot with statistics and export controls." src="_images/scatter-page.png" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Scatter is the detailed bivariate workbench, with linked range, color-by, statistics, and export actions in one place.</span><a class="headerlink" href="#id4" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>Scatter, Matrix, and Distributions are separate sidebar destinations, but they share one analytics context: axis choices, color column, linked time range, and active filters carry across those three views.</p>
+<section id="primary-controls">
+<h3>Primary Controls<a class="headerlink" href="#primary-controls" title="Link to this heading">¶</a></h3>
+<p>The top row lets you choose:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">X</span></code> column</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Y</span></code> column</p></li>
+<li><p>render <code class="docutils literal notranslate"><span class="pre">Mode</span></code>: <code class="docutils literal notranslate"><span class="pre">Density</span></code> or <code class="docutils literal notranslate"><span class="pre">Scatter</span></code></p></li>
+<li><p>distribution mode: <code class="docutils literal notranslate"><span class="pre">Histogram</span></code>, <code class="docutils literal notranslate"><span class="pre">KDE</span></code>, or <code class="docutils literal notranslate"><span class="pre">Box</span> <span class="pre">Plot</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Link</span> <span class="pre">chart</span> <span class="pre">range</span></code></p></li>
+</ul>
+<p>When <code class="docutils literal notranslate"><span class="pre">Link</span> <span class="pre">chart</span> <span class="pre">range</span></code> is enabled, the current time window from the Timeseries page is used in the scatter query.</p>
+<p>If Scatter returns no points, first check the linked time range, numeric filters, and adaptive filters before assuming the X/Y pair itself is wrong.</p>
+</section>
+<section id="color-and-density-controls">
+<h3>Color And Density Controls<a class="headerlink" href="#color-and-density-controls" title="Link to this heading">¶</a></h3>
+<p>The second row adds:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Color</span> <span class="pre">By</span></code> column</p></li>
+<li><p>scatter color scale when a color column is active</p></li>
+<li><p>density bin size</p></li>
+<li><p>density colormap</p></li>
+<li><p>density normalization: <code class="docutils literal notranslate"><span class="pre">Linear</span></code> or <code class="docutils literal notranslate"><span class="pre">Log</span></code></p></li>
+<li><p>export buttons</p></li>
+</ul>
+<p>During the walkthrough, switching to <code class="docutils literal notranslate"><span class="pre">Scatter</span></code> mode and selecting <code class="docutils literal notranslate"><span class="pre">OT</span></code> as the color column immediately enabled a color scale selector and rendered a numeric colorbar.</p>
+</section>
+<section id="suggestions-and-stats">
+<h3>Suggestions And Stats<a class="headerlink" href="#suggestions-and-stats" title="Link to this heading">¶</a></h3>
+<p>The page reports:</p>
+<ul class="simple">
+<li><p>total points</p></li>
+<li><p>visible points</p></li>
+<li><p>Pearson correlation</p></li>
+<li><p>Spearman correlation</p></li>
+<li><p>suggested related columns above the configured correlation threshold</p></li>
+</ul>
+<p>Suggestion buttons can be clicked to swap the Y-axis column quickly.</p>
+</section>
+<section id="id1">
+<h3>Export<a class="headerlink" href="#id1" title="Link to this heading">¶</a></h3>
+<p>The scatter view exposes:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">PNG</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SVG</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">HTML</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">CSV</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">JSON</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Parquet</span></code></p></li>
+</ul>
+</section>
+</section>
+<section id="matrix-page">
+<h2>Matrix Page<a class="headerlink" href="#matrix-page" title="Link to this heading">¶</a></h2>
+<p>The Matrix page is a linked extension of the scatter workflow.</p>
+<figure class="align-default" id="id5">
+<a class="reference internal image-reference" href="_images/matrix-page.png"><img alt="Matrix page showing pairwise scatter cells and the linked FFT side panel." src="_images/matrix-page.png" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Matrix gives a fast pairwise scan and keeps a linked FFT panel available for the same subset of columns.</span><a class="headerlink" href="#id5" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>It renders a scatter matrix for a subset of columns and includes:</p>
+<ul class="simple">
+<li><p>cell render mode: <code class="docutils literal notranslate"><span class="pre">Scatter</span></code> or <code class="docutils literal notranslate"><span class="pre">Density</span></code></p></li>
+<li><p>matrix cell size slider</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Link</span> <span class="pre">range</span></code> toggle</p></li>
+</ul>
+<p>Important behavior confirmed during the walkthrough:</p>
+<ul class="simple">
+<li><p>clicking any matrix cell drills back into the full Scatter page with that X/Y pair selected</p></li>
+<li><p>the matrix also shows mini FFT launch links for the current matrix columns</p></li>
+</ul>
+<p>This page is best used as a pairwise screening surface before detailed drill-down.</p>
+</section>
+<section id="distributions-page">
+<h2>Distributions Page<a class="headerlink" href="#distributions-page" title="Link to this heading">¶</a></h2>
+<p>The Distributions page reuses the active Scatter context and shows univariate summaries.</p>
+<figure class="align-default" id="id6">
+<a class="reference internal image-reference" href="_images/distributions-page.png"><img alt="Distributions page showing multiple distribution cards and the statistics panel." src="_images/distributions-page.png" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Distributions keeps the active scatter context but pivots to marginal shape, spread, and summary statistics.</span><a class="headerlink" href="#id6" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>It displays distribution cards for:</p>
+<ul class="simple">
+<li><p>current X-axis column</p></li>
+<li><p>current Y-axis column</p></li>
+<li><p>active color column, if present</p></li>
+<li><p>other dataset columns included in the current view</p></li>
+</ul>
+<p>Each card shows:</p>
+<ul class="simple">
+<li><p>role label such as <code class="docutils literal notranslate"><span class="pre">x-axis</span></code>, <code class="docutils literal notranslate"><span class="pre">y-axis</span></code>, <code class="docutils literal notranslate"><span class="pre">color</span></code>, or <code class="docutils literal notranslate"><span class="pre">dataset</span></code></p></li>
+<li><p>min and max</p></li>
+<li><p>sample count</p></li>
+</ul>
+<p>The statistics panel shows:</p>
+<ul class="simple">
+<li><p>mean</p></li>
+<li><p>standard deviation</p></li>
+<li><p>min and max</p></li>
+<li><p>median</p></li>
+<li><p>Q1 and Q3</p></li>
+<li><p>IQR</p></li>
+<li><p>skewness</p></li>
+<li><p>kurtosis</p></li>
+</ul>
+<p>This page is useful for quickly validating whether a relationship seen in scatter is driven by skew, clipping, or unusual marginal distributions.</p>
+</section>
+<section id="fft-page">
+<h2>FFT Page<a class="headerlink" href="#fft-page" title="Link to this heading">¶</a></h2>
+<p>The FFT page computes a frequency-domain view for selected series.</p>
+<figure class="align-default" id="id7">
+<a class="reference internal image-reference" href="_images/fft-page.jpg"><img alt="FFT page showing multiple selected traces and the frequency-domain chart." src="_images/fft-page.jpg" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">FFT compares dominant frequency content across multiple selected series in the current dataset.</span><a class="headerlink" href="#id7" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>Controls available:</p>
+<ul class="simple">
+<li><p>display mode: <code class="docutils literal notranslate"><span class="pre">Magnitude</span></code> or <code class="docutils literal notranslate"><span class="pre">PSD</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Log</span> <span class="pre">scale</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Zoom</span> <span class="pre">out</span></code></p></li>
+<li><p>one chip per numeric column</p></li>
+</ul>
+<p>Workflow:</p>
+<ol class="arabic simple">
+<li><p>Open FFT.</p></li>
+<li><p>Click a column chip.</p></li>
+<li><p>The app computes and renders frequency bins for that series.</p></li>
+<li><p>Repeat for other series to compare them.</p></li>
+</ol>
+<p>In the live walkthrough, selecting <code class="docutils literal notranslate"><span class="pre">HUFL</span></code> produced <code class="docutils literal notranslate"><span class="pre">4097</span> <span class="pre">bins</span></code> and displayed the series in the plot area.</p>
+<p>Each selected series chip also exposes a color input and an <code class="docutils literal notranslate"><span class="pre">×</span></code> remove action.</p>
+</section>
+<section id="heatmap-page">
+<h2>Heatmap Page<a class="headerlink" href="#heatmap-page" title="Link to this heading">¶</a></h2>
+<p>The Heatmap page renders a correlation matrix across the available numeric and temporal columns.</p>
+<figure class="align-default" id="id8">
+<a class="reference internal image-reference" href="_images/heatmap-page.png"><img alt="Heatmap page showing the full correlation matrix and color scale." src="_images/heatmap-page.png" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Heatmap gives a fast global view of which variables are worth drilling into next.</span><a class="headerlink" href="#id8" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>Controls:</p>
+<ul class="simple">
+<li><p>correlation metric: <code class="docutils literal notranslate"><span class="pre">Pearson</span></code> or <code class="docutils literal notranslate"><span class="pre">Spearman</span></code></p></li>
+<li><p>heatmap cell-size slider</p></li>
+</ul>
+<p>The grid shows the correlation value for every pair and a color scale from <code class="docutils literal notranslate"><span class="pre">-1.0</span></code> to <code class="docutils literal notranslate"><span class="pre">+1.0</span></code>.</p>
+<p>During the walkthrough, switching from Pearson to Spearman updated the full matrix immediately.</p>
+<p>Use this page for a fast global view of which columns are worth comparing in Scatter or testing in Causal.</p>
+</section>
+<section id="spectrogram-page">
+<h2>Spectrogram Page<a class="headerlink" href="#spectrogram-page" title="Link to this heading">¶</a></h2>
+<p>The Spectrogram page adds time-localized frequency analysis.</p>
+<figure class="align-default" id="id9">
+<a class="reference internal image-reference" href="_images/spectrogram-page.jpg"><img alt="Spectrogram page showing the computed time-frequency heatmap for a selected column." src="_images/spectrogram-page.jpg" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Spectrogram reveals how frequency content changes over time instead of collapsing it into one global FFT.</span><a class="headerlink" href="#id9" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>Controls:</p>
+<ul class="simple">
+<li><p>column selector</p></li>
+<li><p>FFT window size selector</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Log</span> <span class="pre">scale</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Reset</span> <span class="pre">zoom</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Compute</span></code></p></li>
+</ul>
+<p>Workflow:</p>
+<ol class="arabic simple">
+<li><p>Select a column.</p></li>
+<li><p>Choose a window size.</p></li>
+<li><p>Click <code class="docutils literal notranslate"><span class="pre">Compute</span></code>.</p></li>
+</ol>
+<p>In the live walkthrough, computing the default <code class="docutils literal notranslate"><span class="pre">HUFL</span></code> spectrogram with a <code class="docutils literal notranslate"><span class="pre">256</span></code> window produced <code class="docutils literal notranslate"><span class="pre">255</span> <span class="pre">windows</span> <span class="pre">×</span> <span class="pre">129</span> <span class="pre">bins</span> <span class="pre">·</span> <span class="pre">32768</span> <span class="pre">samples</span></code> and rendered a time-frequency heatmap with a log-scaled color legend.</p>
+<p>Use the spectrogram when a single FFT is too coarse and you need to see how frequency content changes over time.</p>
+</section>
+<section id="causal-page">
+<h2>Causal Page<a class="headerlink" href="#causal-page" title="Link to this heading">¶</a></h2>
+<p>The Causal page wraps Tigramite-based causal discovery and manual graph editing.</p>
+<figure class="align-default" id="id10">
+<a class="reference internal image-reference" href="_images/causal-page.jpg"><img alt="Causal page showing a computed Tigramite graph and the causal configuration controls." src="_images/causal-page.jpg" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Causal combines Tigramite configuration, node selection, graph editing, and export from one page.</span><a class="headerlink" href="#id10" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<section id="algorithm-controls">
+<h3>Algorithm Controls<a class="headerlink" href="#algorithm-controls" title="Link to this heading">¶</a></h3>
+<p>The top control strip includes:</p>
+<ul class="simple">
+<li><p>method: <code class="docutils literal notranslate"><span class="pre">PCMCI</span></code>, <code class="docutils literal notranslate"><span class="pre">PCMCI+</span></code>, <code class="docutils literal notranslate"><span class="pre">FullCI</span></code>, <code class="docutils literal notranslate"><span class="pre">BivCI</span></code>, <code class="docutils literal notranslate"><span class="pre">LPCMCI</span></code></p></li>
+<li><p>independence test: <code class="docutils literal notranslate"><span class="pre">ParCorr</span></code>, <code class="docutils literal notranslate"><span class="pre">RobustParCorr</span></code>, <code class="docutils literal notranslate"><span class="pre">CMI-KNN</span></code>, <code class="docutils literal notranslate"><span class="pre">G-squared</span></code>, <code class="docutils literal notranslate"><span class="pre">CMI-Symb</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">τ</span> <span class="pre">max</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">α</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PC</span> <span class="pre">α</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Max</span> <span class="pre">conds</span></code></p></li>
+<li><p>FDR correction</p></li>
+</ul>
+<p>Use <code class="docutils literal notranslate"><span class="pre">Compute</span></code> to run the selected configuration.</p>
+</section>
+<section id="graph-management">
+<h3>Graph Management<a class="headerlink" href="#graph-management" title="Link to this heading">¶</a></h3>
+<p>The page also includes:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">+</span> <span class="pre">Edge</span></code> to enter manual edge-add mode</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Export</span> <span class="pre">▾</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Clear</span> <span class="pre">all</span></code></p></li>
+<li><p>one chip per node with color editing</p></li>
+</ul>
+<p>Confirmed export options:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">JSON</span> <span class="pre">(full</span> <span class="pre">graph)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">GLM</span> <span class="pre">formula</span> <span class="pre">(.txt)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">torch_geometric</span> <span class="pre">(.json)</span></code></p></li>
+</ul>
+<p>Confirmed manual-edit behavior:</p>
+<ul class="simple">
+<li><p>clicking <code class="docutils literal notranslate"><span class="pre">+</span> <span class="pre">Edge</span></code> enables add-edge mode and prompts you to click two nodes to create a pair edge</p></li>
+</ul>
+<p>The summary line reports the current graph size, including node count, pair-edge count, raw connection count, and manual/meta nodes.</p>
+</section>
+</section>
+<section id="practical-tips">
+<h2>Practical Tips<a class="headerlink" href="#practical-tips" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Start in Timeseries, not Scatter. The best scatter results usually come after narrowing the time window first.</p></li>
+<li><p>Use Heatmap before Causal. It is a fast way to find candidate relationships worth testing more carefully.</p></li>
+<li><p>Use Matrix for breadth and Scatter for depth.</p></li>
+<li><p>Use Distributions to validate whether strong-looking plots are actually driven by outliers or skew.</p></li>
+<li><p>Use Spectrogram when periodic behavior is not stable across the full time span.</p></li>
+<li><p>Treat dataset-changing actions such as transforms and outlier removal as analysis steps, not just chart styling.</p></li>
+<li><p>If the header reports <code class="docutils literal notranslate"><span class="pre">Fallback</span> <span class="pre">renderer</span> <span class="pre">active</span></code>, Upload, profiling, Timeseries, and Heatmap can still be useful, but GPU-oriented pages should be rechecked in a WebGPU-capable Chrome or Edge session.</p></li>
+</ul>
+</section>
+<section id="notes-from-the-live-walkthrough">
+<h2>Notes From The Live Walkthrough<a class="headerlink" href="#notes-from-the-live-walkthrough" title="Link to this heading">¶</a></h2>
+<p>These behaviors were confirmed directly in the running app:</p>
+<ul class="simple">
+<li><p>matrix-cell clicks drill into Scatter with the selected pair</p></li>
+<li><p>Scatter, Matrix, and Distributions share context</p></li>
+<li><p>Spectrogram requires an explicit compute step</p></li>
+<li><p>FFT requires selecting one or more chips before a plot appears</p></li>
+<li><p>the Upload page can act as both an ingest page and a profile browser for the current dataset</p></li>
+<li><p>the sidebar collapse button works and is useful on dense pages</p></li>
+</ul>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="user/workflows.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Common Workflows</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="user/index.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">User Guide</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2026, EdaTime contributors
+            </div>
+            Made with 
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">EdaTime User Manual</a><ul>
+<li><a class="reference internal" href="#what-edatime-is-for">What EdaTime Is For</a></li>
+<li><a class="reference internal" href="#navigation">Navigation</a></li>
+<li><a class="reference internal" href="#recommended-first-workflow">Recommended First Workflow</a></li>
+<li><a class="reference internal" href="#upload-page">Upload Page</a><ul>
+<li><a class="reference internal" href="#load-from-file">Load From File</a></li>
+<li><a class="reference internal" href="#load-from-database">Load From Database</a></li>
+<li><a class="reference internal" href="#file-preview-profile-grid">File Preview / Profile Grid</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#timeseries-page">Timeseries Page</a><ul>
+<li><a class="reference internal" href="#series-toolbar">Series Toolbar</a></li>
+<li><a class="reference internal" href="#draw-and-labels">Draw And Labels</a></li>
+<li><a class="reference internal" href="#export">Export</a></li>
+<li><a class="reference internal" href="#analytics-controls">Analytics Controls</a></li>
+<li><a class="reference internal" href="#transform-modal">Transform Modal</a></li>
+<li><a class="reference internal" href="#outlier-removal-modal">Outlier Removal Modal</a></li>
+<li><a class="reference internal" href="#distribution-over-time-modal">Distribution Over Time Modal</a></li>
+<li><a class="reference internal" href="#zooming-filtering-and-analysis-readout">Zooming, Filtering, And Analysis Readout</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#scatter-page">Scatter Page</a><ul>
+<li><a class="reference internal" href="#primary-controls">Primary Controls</a></li>
+<li><a class="reference internal" href="#color-and-density-controls">Color And Density Controls</a></li>
+<li><a class="reference internal" href="#suggestions-and-stats">Suggestions And Stats</a></li>
+<li><a class="reference internal" href="#id1">Export</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#matrix-page">Matrix Page</a></li>
+<li><a class="reference internal" href="#distributions-page">Distributions Page</a></li>
+<li><a class="reference internal" href="#fft-page">FFT Page</a></li>
+<li><a class="reference internal" href="#heatmap-page">Heatmap Page</a></li>
+<li><a class="reference internal" href="#spectrogram-page">Spectrogram Page</a></li>
+<li><a class="reference internal" href="#causal-page">Causal Page</a><ul>
+<li><a class="reference internal" href="#algorithm-controls">Algorithm Controls</a></li>
+<li><a class="reference internal" href="#graph-management">Graph Management</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#practical-tips">Practical Tips</a></li>
+<li><a class="reference internal" href="#notes-from-the-live-walkthrough">Notes From The Live Walkthrough</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="_static/documentation_options.js?v=7f41d439"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/scripts/furo.js?v=46bd48cc"></script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script src="_static/edatime-docs.js?v=13cc67cb"></script>
+    </body>
+</html>

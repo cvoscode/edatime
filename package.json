@@ -7,15 +7,21 @@
     "build:frontend": "node scripts/build-frontend.mjs",
     "build:frontend:prod": "node scripts/build-frontend.mjs --prod",
     "watch:frontend": "node scripts/build-frontend.mjs --watch",
-    "dev": "npm run build:frontend"
+    "dev": "npm run build:frontend",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "chartgpu": "^0.3.2"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.4",
     "apache-arrow": "^16.1.0",
     "echarts": "^5.6.0",
     "esbuild": "^0.25.0",
-    "typescript": "^5.8.0"
+    "happy-dom": "^20.9.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.4"
   }
 }

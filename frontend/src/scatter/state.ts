@@ -93,6 +93,7 @@ interface ScatterState {
     lastSuggestions: Array<{ column: string; pearson?: number | null; spearman?: number | null }>;
     lastRenderSignature: string;
     matrixCache: Map<string, Promise<MatrixCellData>>;
+    matrixColumnOrder: string[];
     overviewRequestId: number;
     distributionData: DistributionData | null;
     distributionsFetchId: number;
@@ -136,6 +137,7 @@ export const state: ScatterState = {
     lastSuggestions: [],
     lastRenderSignature: '',
     matrixCache: new Map(),
+    matrixColumnOrder: [],
     overviewRequestId: 0,
     distributionData: null,
     distributionsFetchId: 0,

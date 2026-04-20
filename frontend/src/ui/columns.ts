@@ -151,11 +151,6 @@ export function buildColumnToggles(
                 appState.selectedCols = appState.selectedCols.filter((c) => c !== col);
                 chip.classList.remove('active');
             }
-            if (appState.selectedCols.length === 0) {
-                checkbox.checked = true;
-                appState.selectedCols.push(col);
-                chip.classList.add('active');
-            }
             if (!appState.selectedCols.includes(appState.adaptiveFilterColumn!)) {
                 appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
             }

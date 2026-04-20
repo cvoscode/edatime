@@ -147,6 +147,12 @@ function setStatus(text: string): void {
     if (statusEl) statusEl.textContent = text;
 }
 
+function syncCausalEmptyState(): void {
+    const empty = document.getElementById('causal-empty-state') as HTMLElement | null;
+    if (!empty) return;
+    empty.hidden = _currentColumns.length > 0;
+}
+
 function nextDraftId(prefix: string): string {
     _draftSeq += 1;
     return `${prefix}-${_draftSeq}`;
@@ -495,6 +501,7 @@ function renderColumnChips(deps: CausalDeps, columnsBar: HTMLElement): void {
             cols.forEach((item) => _selectedColumns.add(item.name));
         }
         renderColumnChips(deps, columnsBar);
+        syncCausalEmptyState();
     });
     columnsBar.appendChild(selectAllBtn);
 
@@ -523,6 +530,7 @@ function renderColumnChips(deps: CausalDeps, columnsBar: HTMLElement): void {
             if (_selectedColumns.has(col)) _selectedColumns.delete(col);
             else _selectedColumns.add(col);
             renderColumnChips(deps, columnsBar);
+            syncCausalEmptyState();
         });
 
         const colorInput = chip.querySelector('.chip-color-picker') as HTMLInputElement | null;
@@ -1466,6 +1474,7 @@ export function initCausalPage(deps: CausalDeps): void {
     if (!_chartEl || !columnsBar) return;
 
     renderColumnChips(deps, columnsBar);
+    syncCausalEmptyState();
     initInfoIcons();
     applyMethodControlState(methodSelect?.value || 'pcmci');
     void initChart();
@@ -1588,9 +1597,11 @@ export function initCausalPage(deps: CausalDeps): void {
             const groups = listPairGroups();
             const manualText = manualOnly.length > 0 ? ` · ${manualOnly.length} manual/meta nodes` : '';
             setStatus(`${cols.length} nodes · ${groups.length} pair edges · ${resp.links.length} raw connections${manualText}`);
+            syncCausalEmptyState();
         } catch (error) {
             hideProgress();
             setStatus(`Error: ${(error as Error).message || 'failed'}`);
+            syncCausalEmptyState();
         } finally {
             deps.setLoading('causal-compute-btn', 'causal-loading', false, 'Compute');
         }
@@ -1601,6 +1612,7 @@ export function initCausalPage(deps: CausalDeps): void {
             renderColumnChips(deps, columnsBar);
             _eChart?.resize();
             if (_currentColumns.length > 0) renderEChartsGraph();
+            syncCausalEmptyState();
         }
     });
 }

@@ -218,7 +218,7 @@ export function renderDistributionCards(): void {
     container.innerHTML = '';
 
     if (entries.length === 0) {
-        container.innerHTML = '<div class="scatter-placeholder">No numeric or temporal columns are available for distributions.</div>';
+        container.innerHTML = '<div class="scatter-placeholder">Pick scatter axes or a color column to populate distribution cards for this view.</div>';
         setDistributionStats(null, '');
         return;
     }

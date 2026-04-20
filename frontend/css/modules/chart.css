@@ -6,17 +6,76 @@
   color: var(--text);
   font-size: 0.8125rem;
   line-height: 1.2;
-  text-shadow: 0 1px 0 rgba(0,0,0,.35);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .35);
 }
-.chart-title-overlay  { top: 6px; left: 50%; transform: translateX(-50%); font-weight: 600; }
-.chart-xlabel-overlay { bottom: 6px; left: 50%; transform: translateX(-50%); color: var(--text-dim); }
+
+.chart-title-overlay {
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-weight: 600;
+}
+
+.chart-xlabel-overlay {
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--text-dim);
+}
+
 .chart-ylabel-overlay {
-  top: 50%; left: 10px;
+  top: 50%;
+  left: 10px;
   transform: translateY(-50%) rotate(-90deg);
   transform-origin: left top;
   color: var(--text-dim);
 }
 
 /* ─── Chart container ─────────────────────────────────────────── */
-.main { flex: 1; min-height: 0; position: relative; background: var(--bg); }
-#main-chart { width: 100%; height: 100%; position: absolute; inset: 0; }
+.main {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: var(--bg);
+}
+
+#main-chart {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+}
+
+.plot-empty-state {
+  position: absolute;
+  inset: 16px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(11, 15, 24, 0.72);
+  color: var(--text-dim);
+  text-align: center;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+.plot-empty-state strong {
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.plot-empty-state span {
+  max-width: 38rem;
+  line-height: 1.5;
+}
+
+.plot-empty-state[hidden] {
+  display: none;
+}

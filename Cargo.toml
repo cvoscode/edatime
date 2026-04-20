@@ -28,6 +28,9 @@ toml = "0.8.23"
 
 [dev-dependencies]
 criterion = "0.5.1"
+axum-test = "17"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
 
 [[bench]]
 name = "pipeline_bench"

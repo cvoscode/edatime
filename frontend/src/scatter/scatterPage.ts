@@ -58,6 +58,20 @@ import {
 
 import type { DatasetMetadata } from '../types.js';
 
+function syncScatterEmptyState(message?: string): void {
+    const empty = getEl('scatter-empty-state');
+    if (!empty) return;
+    const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
+    const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
+    const hasAxes = !!xSelect?.value && !!ySelect?.value;
+    const text = message
+        || (!hasAxes
+            ? 'Choose X and Y numeric columns to render the scatter plot.'
+            : 'No points match the current filters or linked time range.');
+    empty.textContent = text;
+    empty.hidden = hasAxes && state.totalPoints > 0;
+}
+
 /* ── Sidebar / view management ────────────────────────── */
 
 function setSidebarAnalyticsSelection(viewName: string): void {
@@ -190,7 +204,11 @@ async function renderScatter(): Promise<void> {
     const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
     let container = getEl('scatter-chart');
 
-    if (!container || !xSelect || !ySelect || !xSelect.value || !ySelect.value) return;
+    if (!container || !xSelect || !ySelect || !xSelect.value || !ySelect.value) {
+        state.totalPoints = 0;
+        syncScatterEmptyState();
+        return;
+    }
 
     // Cancel any in-flight request
     if (_scatterAbort) { _scatterAbort.abort(); _scatterAbort = null; }
@@ -218,6 +236,7 @@ async function renderScatter(): Promise<void> {
         state.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
         state.colorColumn = response.color || '';
         applyScatterStateFromCache(true);
+        syncScatterEmptyState();
 
         if (state.chart && state.lastRenderSignature !== renderSignature) {
             disposeScatterChart();
@@ -250,6 +269,8 @@ async function renderScatter(): Promise<void> {
         await refreshActiveScatterView();
     } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        state.totalPoints = 0;
+        syncScatterEmptyState('Scatter rendering is unavailable for the current query.');
         throw err;
     } finally {
         if (scatterLoading) scatterLoading.hidden = true;
@@ -263,6 +284,7 @@ async function rerenderScatterFromCache(resetViewFlag = true): Promise<void> {
         updateCorrelationStats();
         renderSuggestions(state.lastSuggestions);
     }
+    syncScatterEmptyState();
     await refreshActiveScatterView();
 }
 
@@ -405,6 +427,8 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
         ensureOptions(xSelect, numeric, xSelect.value || numeric[0]);
         ensureOptions(ySelect, numeric.filter((c) => c !== xSelect.value), ySelect.value || numeric[1] || numeric[0]);
     }
+
+    syncScatterEmptyState();
 
     if (!state.initialized) { bindControls(); state.initialized = true; }
     if (state.pageInitialized) return;

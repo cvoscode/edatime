@@ -1,4 +1,4 @@
-# edatime Developer Guide
+# EdaTime Developer Guide
 
 ## Local development
 
@@ -49,6 +49,26 @@ cargo check --all-targets
 cargo test
 cargo run --bin validate_frontend
 ```
+
+## Documentation
+
+The repository includes a Sphinx + Read the Docs documentation site under `docs/`.
+
+Local docs build:
+
+```bash
+python -m pip install -r docs/requirements.txt
+python -m sphinx -b html docs docs/_build/html
+```
+
+Convenience Make targets:
+
+```bash
+make docs
+make docs-clean
+```
+
+Start at `docs/index.md` for the structured documentation entry point.
 
 ## Benchmarks
 
@@ -134,9 +154,12 @@ Current chart and navigation shortcuts:
 - `Alt+1` opens the upload page
 - `Alt+2` opens the main chart page
 - `Alt+3` opens the scatter page
+- `Alt+4` opens the scatter matrix page
 - `Alt+5` opens the distributions page
 - `Alt+6` opens the FFT page
 - `Alt+7` opens the correlation heatmap page
+- `Alt+8` opens the spectrogram page
+- `Alt+9` opens the causal page
 - `Shift+R` resets the main chart zoom
 - `Shift+Z` zooms out one step on the main chart
 - `Shift+C` clears adaptive line filters on the main chart

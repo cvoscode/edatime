@@ -52,7 +52,7 @@ import {
   showError,
   state,
   upperBoundByX
-} from "../chunk-VKP6Y3YA.js";
+} from "../chunk-B5EQ6MMR.js";
 import {
   appState,
   downloadBlob,
@@ -61,7 +61,7 @@ import {
   formatTimestamp,
   formatTwoDecimals,
   getEl
-} from "../chunk-BMP4455Z.js";
+} from "../chunk-5HSDX23N.js";
 import "../chunk-PZ5AY32C.js";
 
 // frontend/src/scatter/export.ts
@@ -1021,7 +1021,7 @@ function renderDistributionCards() {
   const entries = getDistributionColumns(controls);
   container.innerHTML = "";
   if (entries.length === 0) {
-    container.innerHTML = '<div class="scatter-placeholder">No numeric or temporal columns are available for distributions.</div>';
+    container.innerHTML = '<div class="scatter-placeholder">Pick scatter axes or a color column to populate distribution cards for this view.</div>';
     setDistributionStats(null, "");
     return;
   }
@@ -1080,7 +1080,8 @@ function renderDistributionCards() {
 }
 
 // frontend/src/scatter/matrix.ts
-function buildOverviewColumns() {
+var draggingMatrixColumn = null;
+function collectOverviewColumns() {
   const controls = currentControls();
   const columns = [];
   const push = (c) => {
@@ -1098,6 +1099,61 @@ function buildOverviewColumns() {
     if (columns.length >= MATRIX_MAX_COLUMNS) break;
   }
   return columns.slice(0, MATRIX_MAX_COLUMNS);
+}
+function buildOverviewColumns() {
+  const derived = collectOverviewColumns();
+  const next = state.matrixColumnOrder.filter((column) => derived.includes(column));
+  for (const column of derived) {
+    if (!next.includes(column)) next.push(column);
+  }
+  state.matrixColumnOrder = next.slice(0, MATRIX_MAX_COLUMNS);
+  return state.matrixColumnOrder;
+}
+function moveColumn(columns, source, target) {
+  if (!source || !target || source === target) return columns.slice();
+  const sourceIndex = columns.indexOf(source);
+  const targetIndex = columns.indexOf(target);
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return columns.slice();
+  const next = columns.slice();
+  const [item] = next.splice(sourceIndex, 1);
+  next.splice(targetIndex, 0, item);
+  return next;
+}
+function bindReorderHandle(handle, column, columns, onColumnReorder) {
+  if (!onColumnReorder) return;
+  handle.draggable = true;
+  handle.dataset.column = column;
+  handle.addEventListener("dragstart", (event) => {
+    draggingMatrixColumn = column;
+    handle.classList.add("dragging");
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", column);
+    }
+  });
+  handle.addEventListener("dragend", () => {
+    draggingMatrixColumn = null;
+    handle.classList.remove("dragging");
+    document.querySelectorAll(".scatter-matrix-drop-target").forEach((element) => {
+      element.classList.remove("scatter-matrix-drop-target");
+    });
+  });
+  handle.addEventListener("dragover", (event) => {
+    const source = draggingMatrixColumn || event.dataTransfer?.getData("text/plain") || "";
+    if (!source || source === column) return;
+    event.preventDefault();
+    handle.classList.add("scatter-matrix-drop-target");
+  });
+  handle.addEventListener("dragleave", () => {
+    handle.classList.remove("scatter-matrix-drop-target");
+  });
+  handle.addEventListener("drop", (event) => {
+    const source = draggingMatrixColumn || event.dataTransfer?.getData("text/plain") || "";
+    handle.classList.remove("scatter-matrix-drop-target");
+    if (!source || source === column) return;
+    event.preventDefault();
+    onColumnReorder(moveColumn(columns, source, column));
+  });
 }
 async function fetchMatrixCellData(x, y, context, colorColumn) {
   const cacheKey = `${x}|${y}|${colorColumn || ""}|${buildOverviewContextKey(context)}`;
@@ -1139,12 +1195,12 @@ function describeDistributionMode2(mode) {
   if (mode === "boxplot") return "Box Plot";
   return "Histogram";
 }
-function renderMatrixGrid(columns, datasets, onCellClick) {
+function renderMatrixGrid(columns, datasets, onCellClick, onColumnReorder = null) {
   const container = getEl("scatter-matrix");
   if (!container) return;
   container.innerHTML = "";
   if (!Array.isArray(columns) || columns.length < 2) {
-    container.innerHTML = '<div class="scatter-placeholder">At least two numeric columns are required for the scatter matrix.</div>';
+    container.innerHTML = '<div class="scatter-placeholder">Choose scatter axes first. The matrix will then add related numeric columns, and you can drag the row or column headers to reorder the grid.</div>';
     return;
   }
   const controls = currentControls();
@@ -1162,6 +1218,7 @@ function renderMatrixGrid(columns, datasets, onCellClick) {
     const header = document.createElement("div");
     header.className = "scatter-matrix-header";
     header.textContent = column;
+    bindReorderHandle(header, column, columns, onColumnReorder);
     grid.appendChild(header);
   }
   const drawJobs = [];
@@ -1169,6 +1226,7 @@ function renderMatrixGrid(columns, datasets, onCellClick) {
     const rowHeader = document.createElement("div");
     rowHeader.className = "scatter-matrix-row-header";
     rowHeader.textContent = rowColumn;
+    bindReorderHandle(rowHeader, rowColumn, columns, onColumnReorder);
     grid.appendChild(rowHeader);
     for (const column of columns) {
       const data = datasets.get(`${column}|${rowColumn}`) || { totalPoints: 0, points: [], colorValues: null, colorLabels: null };
@@ -1231,7 +1289,7 @@ function renderMatrixGrid(columns, datasets, onCellClick) {
 async function renderScatterOverview(onCellClick) {
   const columns = buildOverviewColumns();
   if (columns.length < 2) {
-    renderMatrixGrid(columns, /* @__PURE__ */ new Map(), onCellClick);
+    renderMatrixGrid(columns, /* @__PURE__ */ new Map(), onCellClick, null);
     return;
   }
   const controls = currentControls();
@@ -1247,14 +1305,19 @@ async function renderScatterOverview(onCellClick) {
     }));
     if (requestId !== state.overviewRequestId) return;
     const datasets = new Map(resolved.map((e) => [e.key, e.data]));
-    renderMatrixGrid(columns, datasets, onCellClick);
+    const rerenderOrderedGrid = (nextColumns) => {
+      state.matrixColumnOrder = nextColumns.slice(0, MATRIX_MAX_COLUMNS);
+      renderMatrixGrid(state.matrixColumnOrder, datasets, onCellClick, rerenderOrderedGrid);
+      void renderMatrixFftPanel();
+    };
+    renderMatrixGrid(columns, datasets, onCellClick, rerenderOrderedGrid);
     const groups = buildCategoricalColorGroups(state.colorLabels);
     const groupText = groups && controls.selectedColorColumn ? ` Grouped distributions use ${controls.selectedColorColumn}.` : "";
-    setPanelStatus("scatter-matrix-status", `Matrix shows ${columns.length} linked columns with ${describeDistributionMode2(controls.diagonalMode)} diagonals.${groupText}`);
+    setPanelStatus("scatter-matrix-status", `Matrix shows ${columns.length} linked columns with ${describeDistributionMode2(controls.diagonalMode)} diagonals. Drag headers to reorder.${groupText}`);
   } catch (error) {
     if (requestId !== state.overviewRequestId) return;
     console.error(error);
-    renderMatrixGrid(columns, /* @__PURE__ */ new Map(), onCellClick);
+    renderMatrixGrid(columns, /* @__PURE__ */ new Map(), onCellClick, null);
     setPanelStatus("scatter-matrix-status", "Matrix preview is temporarily unavailable for this query.");
   }
 }
@@ -1376,6 +1439,16 @@ function handleErr(err) {
   console.error(err);
   showError(String(err?.message ?? err));
 }
+function syncScatterEmptyState(message) {
+  const empty = getEl("scatter-empty-state");
+  if (!empty) return;
+  const xSelect = getEl("scatter-x-col");
+  const ySelect = getEl("scatter-y-col");
+  const hasAxes = !!xSelect?.value && !!ySelect?.value;
+  const text = message || (!hasAxes ? "Choose X and Y numeric columns to render the scatter plot." : "No points match the current filters or linked time range.");
+  empty.textContent = text;
+  empty.hidden = hasAxes && state.totalPoints > 0;
+}
 function setSidebarAnalyticsSelection(viewName) {
   const navPage = viewName === "matrix" ? "scattermatrix" : viewName === "distributions" ? "distributions" : "scatter";
   for (const button of document.querySelectorAll(".sidebar .nav-item[data-page]")) {
@@ -1492,7 +1565,11 @@ async function renderScatter() {
   const xSelect = getEl("scatter-x-col");
   const ySelect = getEl("scatter-y-col");
   let container = getEl("scatter-chart");
-  if (!container || !xSelect || !ySelect || !xSelect.value || !ySelect.value) return;
+  if (!container || !xSelect || !ySelect || !xSelect.value || !ySelect.value) {
+    state.totalPoints = 0;
+    syncScatterEmptyState();
+    return;
+  }
   if (_scatterAbort) {
     _scatterAbort.abort();
     _scatterAbort = null;
@@ -1521,6 +1598,7 @@ async function renderScatter() {
     state.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
     state.colorColumn = response.color || "";
     applyScatterStateFromCache(true);
+    syncScatterEmptyState();
     if (state.chart && state.lastRenderSignature !== renderSignature) {
       disposeScatterChart();
       container = resetScatterContainer() || getEl("scatter-chart");
@@ -1549,6 +1627,8 @@ async function renderScatter() {
     await refreshActiveScatterView();
   } catch (err) {
     if (err?.name === "AbortError") return;
+    state.totalPoints = 0;
+    syncScatterEmptyState("Scatter rendering is unavailable for the current query.");
     throw err;
   } finally {
     if (scatterLoading) scatterLoading.hidden = true;
@@ -1561,6 +1641,7 @@ async function rerenderScatterFromCache(resetViewFlag = true) {
     updateCorrelationStats();
     renderSuggestions(state.lastSuggestions);
   }
+  syncScatterEmptyState();
   await refreshActiveScatterView();
 }
 async function onMatrixCellClick(x, y) {
@@ -1714,6 +1795,7 @@ async function initScatterPage(metadata) {
     ensureOptions(xSelect, numeric, xSelect.value || numeric[0]);
     ensureOptions(ySelect, numeric.filter((c) => c !== xSelect.value), ySelect.value || numeric[1] || numeric[0]);
   }
+  syncScatterEmptyState();
   if (!state.initialized) {
     bindControls();
     state.initialized = true;

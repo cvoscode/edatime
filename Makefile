@@ -1,4 +1,4 @@
-.PHONY: build build-release run dev check test clean docker
+.PHONY: build build-release run dev check test docs docs-clean clean docker
 
 # Default target
 build:
@@ -25,6 +25,12 @@ check:
 test:
 	cargo test
 	@if command -v node >/dev/null 2>&1; then node scripts/check-frontend.mjs; fi
+
+docs:
+	python -m sphinx -b html docs docs/_build/html
+
+docs-clean:
+	rm -rf docs/_build
 
 bench:
 	cargo bench

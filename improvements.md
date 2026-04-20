@@ -1,0 +1,5 @@
+Scatter and other GPU-heavy views still need a clearer degraded-mode path in no-WebGPU environments. They are the weakest point for reliable automation.
+The UI distinction between current dataset profile and pending upload-preview selection is still subtle. It is now documented precisely, but the product could make that state separation more obvious.
+The docs build path should be normalized in the repo tooling. make docs still depends on python being on PATH instead of using the project venv explicitly.
+Empty-state handling on analytics pages, especially Scatter, should be more explicit so users and future tests can distinguish “no data after filters” from “render/init failure.”
+If you want test coverage from the docs next, the best candidates are upload/profile hydration, fallback bootstrap behavior, timeseries chip selection/export, and heatmap rendering from a known fixture.

@@ -406,6 +406,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  cursor: grab;
 }
 
 .scatter-matrix-row-header {
@@ -417,6 +418,18 @@
   writing-mode: vertical-lr;
   transform: rotate(180deg);
   padding: 6px 4px;
+  cursor: grab;
+}
+
+.scatter-matrix-header.dragging,
+.scatter-matrix-row-header.dragging {
+  opacity: 0.45;
+  cursor: grabbing;
+}
+
+.scatter-matrix-drop-target {
+  border-color: rgba(32, 226, 215, 0.5);
+  box-shadow: 0 0 0 1px rgba(32, 226, 215, 0.18), 0 0 18px rgba(32, 226, 215, 0.12);
 }
 
 .scatter-matrix-corner {

@@ -20,7 +20,7 @@ import {
   formatTimestamp,
   formatTwoDecimals,
   getSeriesColor
-} from "../chunk-BMP4455Z.js";
+} from "../chunk-5HSDX23N.js";
 import "../chunk-PZ5AY32C.js";
 
 // frontend/src/chart/colorScale.ts

@@ -30,7 +30,7 @@ import {
   setMetaText,
   setSeriesColor,
   toFiniteNumberOrNull
-} from "./chunk-BMP4455Z.js";
+} from "./chunk-5HSDX23N.js";
 import "./chunk-PZ5AY32C.js";
 
 // frontend/src/ui/columns.ts
@@ -147,11 +147,6 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
       } else {
         appState.selectedCols = appState.selectedCols.filter((c) => c !== col);
         chip.classList.remove("active");
-      }
-      if (appState.selectedCols.length === 0) {
-        checkbox.checked = true;
-        appState.selectedCols.push(col);
-        chip.classList.add("active");
       }
       if (!appState.selectedCols.includes(appState.adaptiveFilterColumn)) {
         appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
@@ -1712,7 +1707,7 @@ function initPages() {
   for (const btn of navButtons) {
     btn.addEventListener("click", () => showPage2(btn.dataset.page));
   }
-  showPage2("timeseries");
+  showPage2("upload");
 }
 
 // frontend/src/charts/registry.ts
@@ -1864,6 +1859,7 @@ var FallbackChart = class {
 
 // frontend/src/app.ts
 var _appCleanups = [];
+var EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} };
 function initModalClose(modalId, closeBtnId, cancelBtnId, onClose) {
   const modal = document.getElementById(modalId);
   if (!modal) return null;
@@ -2011,7 +2007,16 @@ function computeFrontendRollingBands(data, cols, windowSize) {
   return bands;
 }
 function renderCurrentData() {
-  if (!appState.chart || !appState.lastFetchedData) return;
+  const emptyState = document.getElementById("timeseries-empty-state");
+  const hasSelection = Array.isArray(appState.selectedCols) && appState.selectedCols.length > 0;
+  if (emptyState) emptyState.hidden = hasSelection;
+  if (!appState.chart) return;
+  if (!hasSelection) {
+    appState.rollingBands = null;
+    appState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
+    return;
+  }
+  if (!appState.lastFetchedData) return;
   const filtered = applyColumnRanges(appState.lastFetchedData);
   appState.chart.updateDataMulti(filtered, appState.selectedCols);
   if (appState.rollingEnabled) {
@@ -2218,15 +2223,20 @@ function emitChartRangeChange(sourceKind = "data") {
 }
 var dataFetchController = null;
 async function fetchAndRender() {
+  sanitizeSelectedColumns();
   if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
   if (appState.currentStart >= appState.currentEnd) return;
+  if (!Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
+    buildRangeControls();
+    renderCurrentData();
+    return;
+  }
   if (dataFetchController) dataFetchController.abort();
   dataFetchController = new AbortController();
   const signal = dataFetchController.signal;
   const loadingEl = document.getElementById("main-chart-loading");
   if (loadingEl) loadingEl.hidden = false;
   try {
-    sanitizeSelectedColumns();
     const startIso = new Date(appState.currentStart).toISOString();
     const endIso = new Date(appState.currentEnd).toISOString();
     const width = document.getElementById("main-chart")?.clientWidth || 1200;
@@ -2308,7 +2318,7 @@ function isTypingTarget(target) {
   return tag === "input" || tag === "textarea" || tag === "select";
 }
 function currentPageName() {
-  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "timeseries";
+  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
 }
 function showPage(pageName) {
   document.querySelector(`.sidebar .nav-item[data-page="${pageName}"]`)?.click?.();
@@ -2505,6 +2515,8 @@ function _fftUpdateZoomBtn(isZoomed) {
   if (btn) btn.hidden = !(isZoomed ?? _fftChart?.getIsZoomed() ?? false);
 }
 function _fftRerenderOrClear() {
+  const emptyState = document.getElementById("fft-empty-state");
+  if (emptyState) emptyState.hidden = _fftTraces.length > 0;
   if (!_fftChart) return;
   if (_fftTraces.length === 0) {
     _fftChart.clear();
@@ -2635,11 +2647,26 @@ async function initHeatmapPage() {
   if (!container) return;
   let matrixData = null;
   let metric = "pearson";
+  function syncHeatmapEmptyState(message, visible) {
+    const empty = document.getElementById("heatmap-empty-state");
+    if (!empty) return;
+    empty.textContent = message;
+    empty.hidden = !visible;
+  }
   function renderHeatmap() {
-    if (!matrixData || !container) return;
+    if (!matrixData || !container) {
+      syncHeatmapEmptyState("Correlation heatmap will appear here once the dataset is available.", true);
+      return;
+    }
     const cols = matrixData.columns;
     const data = metric === "spearman" ? matrixData.spearman : matrixData.pearson;
     const n = cols.length;
+    if (n === 0) {
+      container.innerHTML = "";
+      syncHeatmapEmptyState("No numeric columns are available for the correlation heatmap.", true);
+      return;
+    }
+    syncHeatmapEmptyState("", false);
     const cellSize = _heatmapCellSize;
     const labelWidth = Math.max(84, Math.min(180, Math.round(cellSize * 2.5)));
     let html = `<div class="heatmap-grid" style="display:inline-grid;grid-template-columns:${labelWidth}px repeat(${n},${cellSize}px);grid-template-rows:${labelWidth}px repeat(${n},${cellSize}px);gap:1px;font-size:0.65rem;">`;
@@ -2689,6 +2716,7 @@ async function initHeatmapPage() {
       if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns \xB7 ${_heatmapCellSize}px cells`;
       renderHeatmap();
     } catch (e) {
+      syncHeatmapEmptyState("Correlation heatmap is unavailable for the current dataset.", true);
       if (statusEl) statusEl.textContent = `Error: ${e?.message || "failed"}`;
     }
   }
@@ -2723,6 +2751,12 @@ async function initSpectrogramPage() {
   const statusEl = document.getElementById("spectrogram-status");
   const chartEl = document.getElementById("spectrogram-chart");
   if (!chartEl || !colSelect) return;
+  const syncSpectrogramEmptyState = (message) => {
+    const empty = document.getElementById("spectrogram-empty-state");
+    if (!empty) return;
+    empty.textContent = message || "Pick a numeric column and click Compute to generate the spectrogram.";
+    empty.hidden = !!_spectrogramResult;
+  };
   const ensureSpectrogramChart = async () => {
     if (_spectrogramChart) return _spectrogramChart;
     const echarts = await import("./echarts-SD7KWPBA.js");
@@ -2954,6 +2988,7 @@ ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart
       }]
     });
     statusEl.textContent = `${_spectrogramResult.column} \xB7 ${_spectrogramResult.times_ms.length} windows \xD7 ${_spectrogramResult.frequencies.length} bins \xB7 ${_spectrogramSampleCount} samples`;
+    syncSpectrogramEmptyState();
   };
   if (appState.metadata) {
     for (const col of appState.metadata.numeric_columns) {
@@ -2963,10 +2998,12 @@ ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart
       colSelect.appendChild(opt);
     }
   }
+  syncSpectrogramEmptyState();
   computeBtn?.addEventListener("click", async () => {
     const column = colSelect.value;
     if (!column) {
       if (statusEl) statusEl.textContent = "Select a column.";
+      syncSpectrogramEmptyState("Pick a numeric column and click Compute to generate the spectrogram.");
       return;
     }
     if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) {
@@ -2985,6 +3022,8 @@ ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart
       _spectrogramSampleCount = resp.sample_count;
       await renderSpectrogramChart();
     } catch (e) {
+      _spectrogramResult = null;
+      syncSpectrogramEmptyState("Spectrogram generation failed. Choose a column and try again.");
       if (statusEl) statusEl.textContent = `Error: ${e?.message || "failed"}`;
     } finally {
       setComputeLoading("spectrogram-compute-btn", "spectrogram-loading", false);
@@ -3014,7 +3053,7 @@ ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart
   });
 }
 async function initCausalPage() {
-  const { initCausalPage: init2 } = await import("./causalPage-YXZLMPHG.js");
+  const { initCausalPage: init2 } = await import("./causalPage-ZFIKPRRA.js");
   init2({
     getMetadata: () => appState.metadata,
     chipColor: _fftColorFor,
@@ -3306,22 +3345,31 @@ async function init() {
     return;
   }
   const gpuError = await checkWebGPU();
+  const initOptionalPage = async (label, initializer) => {
+    try {
+      await initializer();
+    } catch (error) {
+      console.error(`${label} failed to initialize:`, error);
+    }
+  };
   try {
     appState.metadata = await fetchMetadata();
     dbgGroup("metadata", () => dbg(appState.metadata));
     setMetaText("Loading chart\u2026");
     await initScatterPageModule();
-    await initFftPage();
-    await initHeatmapPage();
-    await initSpectrogramPage();
-    initCausalPage();
+    await initOptionalPage("FFT page", initFftPage);
+    await initOptionalPage("Heatmap page", initHeatmapPage);
+    await initOptionalPage("Spectrogram page", initSpectrogramPage);
+    await initOptionalPage("Causal page", async () => {
+      initCausalPage();
+    });
     if (!appState.metadata.time_range) {
       setMetaText("No valid time range found.");
       return;
     }
     appState.numericCols = (appState.metadata.numeric_columns || []).filter((col) => col && col.toLowerCase() !== "ts");
-    appState.selectedCols = appState.numericCols.length > 0 ? [appState.numericCols[0]] : ["value"];
-    appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
+    appState.selectedCols = [];
+    appState.adaptiveFilterColumn = null;
     sanitizeSelectedColumns();
     const columnFilterInput = document.getElementById("column-filter-input");
     if (columnFilterInput) {
@@ -3376,6 +3424,7 @@ async function init() {
       appState.chartText?.xLabel || "",
       appState.chartText?.yLabel || ""
     );
+    renderCurrentData();
     await fetchAndRender();
     appState.initialView = getCurrentView();
     dbgGroup("initialView snapshot", () => dbg(appState.initialView));

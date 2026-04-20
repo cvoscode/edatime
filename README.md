@@ -116,6 +116,10 @@ sample_data_path = "./my_data.csv"
 
 ## Usage
 
+For the full Sphinx/Read the Docs content, start at `docs/index.md` or build the docs locally with `make docs`.
+
+For a page-by-page walkthrough of the current UI, see `docs/user-manual.md`.
+
 ### Getting data in — the Upload page
 
 Start on the **Upload** page (sidebar: **U**) or press `Alt+1`.
@@ -126,7 +130,7 @@ Start on the **Upload** page (sidebar: **U**) or press `Alt+1`.
    - **Column subset** — deselect columns you don't need to reduce memory use.
    - **Row limit / skip** — load only the first N rows, or skip the first N.
    - **Time slice** — restrict ingest to a specific date/time window.
-4. Click **Ingest** to load the data. The app reloads automatically and switches to the Timeseries page.
+4. Click **Ingest** to load the data. The app reloads automatically and reopens on the Upload page so you can confirm the new dataset before navigating elsewhere.
 
 Your dataset stays in memory for the lifetime of the server process. Uploading a new file replaces the current dataset.
 

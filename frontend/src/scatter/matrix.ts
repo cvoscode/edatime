@@ -27,9 +27,11 @@ import {
 } from './state.js';
 import { buildGroupedDistributionSeries } from './distributions.js';
 
+let draggingMatrixColumn: string | null = null;
+
 /* ── Column selection ─────────────────────────────────── */
 
-function buildOverviewColumns(): string[] {
+function collectOverviewColumns(): string[] {
     const controls = currentControls();
     const columns: string[] = [];
     const push = (c: string) => { if (!c || columns.includes(c)) return; columns.push(c); };
@@ -44,6 +46,74 @@ function buildOverviewColumns(): string[] {
         if (columns.length >= MATRIX_MAX_COLUMNS) break;
     }
     return columns.slice(0, MATRIX_MAX_COLUMNS);
+}
+
+function buildOverviewColumns(): string[] {
+    const derived = collectOverviewColumns();
+    const next = state.matrixColumnOrder.filter((column) => derived.includes(column));
+    for (const column of derived) {
+        if (!next.includes(column)) next.push(column);
+    }
+    state.matrixColumnOrder = next.slice(0, MATRIX_MAX_COLUMNS);
+    return state.matrixColumnOrder;
+}
+
+function moveColumn(columns: string[], source: string, target: string): string[] {
+    if (!source || !target || source === target) return columns.slice();
+    const sourceIndex = columns.indexOf(source);
+    const targetIndex = columns.indexOf(target);
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return columns.slice();
+    const next = columns.slice();
+    const [item] = next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, item);
+    return next;
+}
+
+function bindReorderHandle(
+    handle: HTMLElement,
+    column: string,
+    columns: string[],
+    onColumnReorder: ((nextColumns: string[]) => void) | null,
+): void {
+    if (!onColumnReorder) return;
+    handle.draggable = true;
+    handle.dataset.column = column;
+
+    handle.addEventListener('dragstart', (event: DragEvent) => {
+        draggingMatrixColumn = column;
+        handle.classList.add('dragging');
+        if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', column);
+        }
+    });
+
+    handle.addEventListener('dragend', () => {
+        draggingMatrixColumn = null;
+        handle.classList.remove('dragging');
+        document.querySelectorAll('.scatter-matrix-drop-target').forEach((element) => {
+            element.classList.remove('scatter-matrix-drop-target');
+        });
+    });
+
+    handle.addEventListener('dragover', (event: DragEvent) => {
+        const source = draggingMatrixColumn || event.dataTransfer?.getData('text/plain') || '';
+        if (!source || source === column) return;
+        event.preventDefault();
+        handle.classList.add('scatter-matrix-drop-target');
+    });
+
+    handle.addEventListener('dragleave', () => {
+        handle.classList.remove('scatter-matrix-drop-target');
+    });
+
+    handle.addEventListener('drop', (event: DragEvent) => {
+        const source = draggingMatrixColumn || event.dataTransfer?.getData('text/plain') || '';
+        handle.classList.remove('scatter-matrix-drop-target');
+        if (!source || source === column) return;
+        event.preventDefault();
+        onColumnReorder(moveColumn(columns, source, column));
+    });
 }
 
 /* ── Data fetch ───────────────────────────────────────── */
@@ -115,13 +185,14 @@ export function renderMatrixGrid(
     columns: string[],
     datasets: Map<string, MatrixCellData>,
     onCellClick: (x: string, y: string) => void,
+    onColumnReorder: ((nextColumns: string[]) => void) | null = null,
 ): void {
     const container = getEl('scatter-matrix');
     if (!container) return;
     container.innerHTML = '';
 
     if (!Array.isArray(columns) || columns.length < 2) {
-        container.innerHTML = '<div class="scatter-placeholder">At least two numeric columns are required for the scatter matrix.</div>';
+        container.innerHTML = '<div class="scatter-placeholder">Choose scatter axes first. The matrix will then add related numeric columns, and you can drag the row or column headers to reorder the grid.</div>';
         return;
     }
 
@@ -142,6 +213,7 @@ export function renderMatrixGrid(
         const header = document.createElement('div');
         header.className = 'scatter-matrix-header';
         header.textContent = column;
+        bindReorderHandle(header, column, columns, onColumnReorder);
         grid.appendChild(header);
     }
 
@@ -150,6 +222,7 @@ export function renderMatrixGrid(
         const rowHeader = document.createElement('div');
         rowHeader.className = 'scatter-matrix-row-header';
         rowHeader.textContent = rowColumn;
+        bindReorderHandle(rowHeader, rowColumn, columns, onColumnReorder);
         grid.appendChild(rowHeader);
 
         for (const column of columns) {
@@ -223,7 +296,7 @@ export async function renderScatterOverview(
     onCellClick: (x: string, y: string) => void,
 ): Promise<void> {
     const columns = buildOverviewColumns();
-    if (columns.length < 2) { renderMatrixGrid(columns, new Map(), onCellClick); return; }
+    if (columns.length < 2) { renderMatrixGrid(columns, new Map(), onCellClick, null); return; }
 
     const controls = currentControls();
     setPanelStatus('scatter-matrix-status', 'Refreshing matrix for the current filters and linked time window...');
@@ -240,16 +313,21 @@ export async function renderScatterOverview(
         }));
         if (requestId !== state.overviewRequestId) return;
         const datasets = new Map(resolved.map((e) => [e.key, e.data]));
-        renderMatrixGrid(columns, datasets, onCellClick);
+        const rerenderOrderedGrid = (nextColumns: string[]) => {
+            state.matrixColumnOrder = nextColumns.slice(0, MATRIX_MAX_COLUMNS);
+            renderMatrixGrid(state.matrixColumnOrder, datasets, onCellClick, rerenderOrderedGrid);
+            void renderMatrixFftPanel();
+        };
+        renderMatrixGrid(columns, datasets, onCellClick, rerenderOrderedGrid);
         const groups = buildCategoricalColorGroups(state.colorLabels);
         const groupText = groups && controls.selectedColorColumn
             ? ` Grouped distributions use ${controls.selectedColorColumn}.`
             : '';
-        setPanelStatus('scatter-matrix-status', `Matrix shows ${columns.length} linked columns with ${describeDistributionMode(controls.diagonalMode)} diagonals.${groupText}`);
+        setPanelStatus('scatter-matrix-status', `Matrix shows ${columns.length} linked columns with ${describeDistributionMode(controls.diagonalMode)} diagonals. Drag headers to reorder.${groupText}`);
     } catch (error) {
         if (requestId !== state.overviewRequestId) return;
         console.error(error);
-        renderMatrixGrid(columns, new Map(), onCellClick);
+        renderMatrixGrid(columns, new Map(), onCellClick, null);
         setPanelStatus('scatter-matrix-status', 'Matrix preview is temporarily unavailable for this query.');
     }
 }

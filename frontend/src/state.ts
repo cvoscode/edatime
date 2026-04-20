@@ -197,7 +197,7 @@ export function setMetaText(text: string): void {
 export function buildMetaBar(metadata: { total_rows?: number } | null): void {
     const rows = metadata?.total_rows?.toLocaleString() ?? '?';
     const cols = appState.numericCols?.length ?? 0;
-    const series = escapeHtml(appState.selectedCols.join(', ') || '—');
+    const series = escapeHtml(appState.selectedCols.join(', ') || 'none selected');
     const el = document.getElementById('header-meta');
     if (el) {
         el.innerHTML = `
@@ -224,14 +224,6 @@ export function sanitizeSelectedColumns(): void {
         if (datetimeCols.has(lower)) return false;
         return true;
     });
-
-    if (appState.selectedCols.length === 0) {
-        const fallback = (appState.numericCols || []).find((col) => {
-            const lower = String(col || '').toLowerCase();
-            return !blockedNames.has(lower) && !datetimeCols.has(lower);
-        });
-        if (fallback) appState.selectedCols = [fallback];
-    }
 }
 
 // ─── Column range filtering ────────────────────────────────────────────────

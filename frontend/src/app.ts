@@ -39,6 +39,7 @@ import type { DatasetMetadata } from './types.js';
 import type { FftTrace } from './chart/FftChart.js';
 
 const _appCleanups: Array<() => void> = [];
+const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
 
 /* ── UI Helpers ───────────────────────────────────────── */
 
@@ -202,7 +203,16 @@ function computeFrontendRollingBands(data: any, cols: string[], windowSize: numb
 }
 
 function renderCurrentData(): void {
-    if (!appState.chart || !appState.lastFetchedData) return;
+    const emptyState = document.getElementById('timeseries-empty-state') as HTMLElement | null;
+    const hasSelection = Array.isArray(appState.selectedCols) && appState.selectedCols.length > 0;
+    if (emptyState) emptyState.hidden = hasSelection;
+    if (!appState.chart) return;
+    if (!hasSelection) {
+        appState.rollingBands = null;
+        appState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
+        return;
+    }
+    if (!appState.lastFetchedData) return;
     const filtered = applyColumnRanges(appState.lastFetchedData);
     appState.chart.updateDataMulti(filtered, appState.selectedCols);
     if (appState.rollingEnabled) {
@@ -420,8 +430,14 @@ function emitChartRangeChange(sourceKind = 'data'): void {
 let dataFetchController: AbortController | null = null;
 
 async function fetchAndRender(): Promise<void> {
+    sanitizeSelectedColumns();
     if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
     if (appState.currentStart! >= appState.currentEnd!) return;
+    if (!Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
+        buildRangeControls();
+        renderCurrentData();
+        return;
+    }
 
     // Cancel any in-flight data fetch
     if (dataFetchController) dataFetchController.abort();
@@ -432,7 +448,6 @@ async function fetchAndRender(): Promise<void> {
     if (loadingEl) loadingEl.hidden = false;
 
     try {
-        sanitizeSelectedColumns();
         const startIso = new Date(appState.currentStart!).toISOString();
         const endIso = new Date(appState.currentEnd!).toISOString();
         const width = document.getElementById('main-chart')?.clientWidth || 1200;
@@ -531,7 +546,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 function currentPageName(): string {
-    return (document.querySelector('.page[data-page-name]:not([hidden])') as HTMLElement)?.dataset?.pageName || 'timeseries';
+    return (document.querySelector('.page[data-page-name]:not([hidden])') as HTMLElement)?.dataset?.pageName || 'upload';
 }
 
 function showPage(pageName: string): void {
@@ -701,6 +716,8 @@ function _fftUpdateZoomBtn(isZoomed?: boolean): void {
 }
 
 function _fftRerenderOrClear(): void {
+    const emptyState = document.getElementById('fft-empty-state') as HTMLElement | null;
+    if (emptyState) emptyState.hidden = _fftTraces.length > 0;
     if (!_fftChart) return;
     if (_fftTraces.length === 0) {
         _fftChart.clear();
@@ -848,11 +865,27 @@ async function initHeatmapPage(): Promise<void> {
     let matrixData: any = null;
     let metric = 'pearson';
 
+    function syncHeatmapEmptyState(message: string, visible: boolean): void {
+        const empty = document.getElementById('heatmap-empty-state') as HTMLElement | null;
+        if (!empty) return;
+        empty.textContent = message;
+        empty.hidden = !visible;
+    }
+
     function renderHeatmap() {
-        if (!matrixData || !container) return;
+        if (!matrixData || !container) {
+            syncHeatmapEmptyState('Correlation heatmap will appear here once the dataset is available.', true);
+            return;
+        }
         const cols: string[] = matrixData.columns;
         const data: (number | null)[][] = metric === 'spearman' ? matrixData.spearman : matrixData.pearson;
         const n = cols.length;
+        if (n === 0) {
+            container.innerHTML = '';
+            syncHeatmapEmptyState('No numeric columns are available for the correlation heatmap.', true);
+            return;
+        }
+        syncHeatmapEmptyState('', false);
 
         const cellSize = _heatmapCellSize;
         const labelWidth = Math.max(84, Math.min(180, Math.round(cellSize * 2.5)));
@@ -914,6 +947,7 @@ async function initHeatmapPage(): Promise<void> {
             if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns · ${_heatmapCellSize}px cells`;
             renderHeatmap();
         } catch (e: any) {
+            syncHeatmapEmptyState('Correlation heatmap is unavailable for the current dataset.', true);
             if (statusEl) statusEl.textContent = `Error: ${e?.message || 'failed'}`;
         }
     }
@@ -958,6 +992,13 @@ async function initSpectrogramPage(): Promise<void> {
     const chartEl = document.getElementById('spectrogram-chart') as HTMLDivElement | null;
 
     if (!chartEl || !colSelect) return;
+
+    const syncSpectrogramEmptyState = (message?: string) => {
+        const empty = document.getElementById('spectrogram-empty-state') as HTMLElement | null;
+        if (!empty) return;
+        empty.textContent = message || 'Pick a numeric column and click Compute to generate the spectrogram.';
+        empty.hidden = !!_spectrogramResult;
+    };
 
     const ensureSpectrogramChart = async () => {
         if (_spectrogramChart) return _spectrogramChart;
@@ -1207,6 +1248,7 @@ async function initSpectrogramPage(): Promise<void> {
         });
 
         statusEl!.textContent = `${_spectrogramResult.column} · ${_spectrogramResult.times_ms.length} windows × ${_spectrogramResult.frequencies.length} bins · ${_spectrogramSampleCount} samples`;
+        syncSpectrogramEmptyState();
     };
 
     // Populate column select from metadata
@@ -1218,10 +1260,11 @@ async function initSpectrogramPage(): Promise<void> {
             colSelect.appendChild(opt);
         }
     }
+    syncSpectrogramEmptyState();
 
     computeBtn?.addEventListener('click', async () => {
         const column = colSelect.value;
-        if (!column) { if (statusEl) statusEl.textContent = 'Select a column.'; return; }
+        if (!column) { if (statusEl) statusEl.textContent = 'Select a column.'; syncSpectrogramEmptyState('Pick a numeric column and click Compute to generate the spectrogram.'); return; }
         if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) {
             if (statusEl) statusEl.textContent = 'No time range available.';
             return;
@@ -1241,6 +1284,8 @@ async function initSpectrogramPage(): Promise<void> {
             _spectrogramSampleCount = resp.sample_count;
             await renderSpectrogramChart();
         } catch (e: any) {
+            _spectrogramResult = null;
+            syncSpectrogramEmptyState('Spectrogram generation failed. Choose a column and try again.');
             if (statusEl) statusEl.textContent = `Error: ${e?.message || 'failed'}`;
         } finally {
             setComputeLoading('spectrogram-compute-btn', 'spectrogram-loading', false);
@@ -1620,22 +1665,30 @@ async function init(): Promise<void> {
 
     const gpuError = await checkWebGPU();
 
+    const initOptionalPage = async (label: string, initializer: () => Promise<void> | void): Promise<void> => {
+        try {
+            await initializer();
+        } catch (error: any) {
+            console.error(`${label} failed to initialize:`, error);
+        }
+    };
+
     try {
         appState.metadata = await fetchMetadata!();
         dbgGroup('metadata', () => dbg(appState.metadata));
         setMetaText('Loading chart…');
         await initScatterPageModule();
-        await initFftPage();
-        await initHeatmapPage();
-        await initSpectrogramPage();
-        initCausalPage();
+        await initOptionalPage('FFT page', initFftPage);
+        await initOptionalPage('Heatmap page', initHeatmapPage);
+        await initOptionalPage('Spectrogram page', initSpectrogramPage);
+        await initOptionalPage('Causal page', async () => { initCausalPage(); });
 
         if (!(appState.metadata as any).time_range) { setMetaText('No valid time range found.'); return; }
 
         appState.numericCols = ((appState.metadata as any).numeric_columns || [])
             .filter((col: string) => col && col.toLowerCase() !== 'ts');
-        appState.selectedCols = appState.numericCols.length > 0 ? [appState.numericCols[0]] : ['value'];
-        appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
+        appState.selectedCols = [];
+        appState.adaptiveFilterColumn = null;
         sanitizeSelectedColumns();
 
         // Column search filter (debounced to avoid thrashing DOM on fast typing)
@@ -1702,6 +1755,8 @@ async function init(): Promise<void> {
             appState.chartText?.xLabel || '',
             appState.chartText?.yLabel || '',
         );
+
+        renderCurrentData();
 
         await fetchAndRender();
         appState.initialView = getCurrentView();
