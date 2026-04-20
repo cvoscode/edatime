@@ -264,7 +264,7 @@
 
         <main class="main">
           <div id="main-chart"></div>
-          <div id="timeseries-empty-state" class="plot-empty-state">
+          <div id="timeseries-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong>Select one or more series</strong>
             <span>Use the chips above to add traces to the timeseries chart. No column is selected by default.</span>
           </div>
@@ -514,7 +514,7 @@
         <div class="fft-traces-bar" id="fft-traces-bar" hidden></div>
         <main class="main">
           <div id="fft-chart" style="width:100%;height:100%;"></div>
-          <div id="fft-empty-state" class="plot-empty-state">
+          <div id="fft-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong>Select one or more traces</strong>
             <span>Choose column chips below to compute FFT or PSD overlays for this range.</span>
           </div>
@@ -545,7 +545,7 @@
         </div>
         <main class="main" style="overflow:auto;padding:12px;">
           <div id="heatmap-container" class="heatmap-container"></div>
-          <div id="heatmap-empty-state" class="plot-empty-state" hidden>
+          <div id="heatmap-empty-state" class="plot-empty-state" data-empty-reason="no-data" hidden>
             Correlation heatmap will appear here once the dataset is available.
           </div>
         </main>
@@ -578,7 +578,7 @@
         </div>
         <main class="main" style="position:relative;">
           <div id="spectrogram-chart" style="width:100%;height:100%;display:block;"></div>
-          <div id="spectrogram-empty-state" class="plot-empty-state">
+          <div id="spectrogram-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong>No spectrogram yet</strong>
             <span>Pick a numeric column, keep the current time range, and click Compute.</span>
           </div>
@@ -672,7 +672,7 @@
         </div>
         <main class="main" style="position:relative;flex:1;min-height:0;overflow:hidden;">
           <div id="causal-chart" style="width:100%;height:100%;"></div>
-          <div id="causal-empty-state" class="plot-empty-state">
+          <div id="causal-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong>No causal graph yet</strong>
             <span>Select at least two numeric columns above, then click Compute to build the graph.</span>
           </div>
@@ -854,6 +854,7 @@
           <div class="upload-preview">
             <div class="upload-preview-head">
               <span class="toolbar-label">File Preview</span>
+              <span class="profile-mode-badge" id="profile-mode-badge" data-mode="dataset">Current dataset</span>
               <div class="upload-preview-selection">
                 <button class="btn btn-ghost" id="profile-select-all-btn" type="button">All</button>
                 <button class="btn btn-ghost" id="profile-select-none-btn" type="button">None</button>

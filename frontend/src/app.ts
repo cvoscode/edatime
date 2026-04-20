@@ -23,7 +23,7 @@ import {
     buildAdaptiveLineY,
 } from './state.js';
 import { buildColumnToggles, buildRangeControls, initColumnFilterModal } from './ui/columns.js';
-import { setUploadPreviewStatus, applyPartialTimeRangeFromMetadata, initUploadPanel } from './ui/upload.js';
+import { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata, initUploadPanel } from './ui/upload.js';
 import { hydrateColumnProfiles, renderColumnProfilesGrid, initColumnProfilesGrid } from './ui/profile.js';
 import { debounce } from './utils/dom.js';
 import {
@@ -205,7 +205,10 @@ function computeFrontendRollingBands(data: any, cols: string[], windowSize: numb
 function renderCurrentData(): void {
     const emptyState = document.getElementById('timeseries-empty-state') as HTMLElement | null;
     const hasSelection = Array.isArray(appState.selectedCols) && appState.selectedCols.length > 0;
-    if (emptyState) emptyState.hidden = hasSelection;
+    if (emptyState) {
+        emptyState.hidden = hasSelection;
+        emptyState.setAttribute('data-empty-reason', hasSelection ? '' : 'no-columns-selected');
+    }
     if (!appState.chart) return;
     if (!hasSelection) {
         appState.rollingBands = null;
@@ -717,7 +720,10 @@ function _fftUpdateZoomBtn(isZoomed?: boolean): void {
 
 function _fftRerenderOrClear(): void {
     const emptyState = document.getElementById('fft-empty-state') as HTMLElement | null;
-    if (emptyState) emptyState.hidden = _fftTraces.length > 0;
+    if (emptyState) {
+        emptyState.hidden = _fftTraces.length > 0;
+        emptyState.setAttribute('data-empty-reason', _fftTraces.length > 0 ? '' : 'no-columns-selected');
+    }
     if (!_fftChart) return;
     if (_fftTraces.length === 0) {
         _fftChart.clear();
@@ -865,11 +871,12 @@ async function initHeatmapPage(): Promise<void> {
     let matrixData: any = null;
     let metric = 'pearson';
 
-    function syncHeatmapEmptyState(message: string, visible: boolean): void {
+    function syncHeatmapEmptyState(message: string, visible: boolean, reason = ''): void {
         const empty = document.getElementById('heatmap-empty-state') as HTMLElement | null;
         if (!empty) return;
         empty.textContent = message;
         empty.hidden = !visible;
+        empty.setAttribute('data-empty-reason', visible ? (reason || 'no-data') : '');
     }
 
     function renderHeatmap() {
@@ -882,7 +889,7 @@ async function initHeatmapPage(): Promise<void> {
         const n = cols.length;
         if (n === 0) {
             container.innerHTML = '';
-            syncHeatmapEmptyState('No numeric columns are available for the correlation heatmap.', true);
+            syncHeatmapEmptyState('No numeric columns are available for the correlation heatmap.', true, 'no-columns-available');
             return;
         }
         syncHeatmapEmptyState('', false);
@@ -947,7 +954,7 @@ async function initHeatmapPage(): Promise<void> {
             if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns · ${_heatmapCellSize}px cells`;
             renderHeatmap();
         } catch (e: any) {
-            syncHeatmapEmptyState('Correlation heatmap is unavailable for the current dataset.', true);
+            syncHeatmapEmptyState('Correlation heatmap is unavailable for the current dataset.', true, 'render-failure');
             if (statusEl) statusEl.textContent = `Error: ${e?.message || 'failed'}`;
         }
     }
@@ -998,6 +1005,7 @@ async function initSpectrogramPage(): Promise<void> {
         if (!empty) return;
         empty.textContent = message || 'Pick a numeric column and click Compute to generate the spectrogram.';
         empty.hidden = !!_spectrogramResult;
+        empty.setAttribute('data-empty-reason', _spectrogramResult ? '' : 'no-columns-selected');
     };
 
     const ensureSpectrogramChart = async () => {
@@ -1715,6 +1723,7 @@ async function init(): Promise<void> {
         renderColumnProfilesGrid(true);
         applyPartialTimeRangeFromMetadata(appState.metadata, false);
         setUploadPreviewStatus('Showing current dataset profile. Drop/select a file to preview before loading.');
+        setProfileMode('dataset');
 
         buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
         buildMetaBar(appState.metadata);

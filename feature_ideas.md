@@ -34,30 +34,6 @@ Good implementation options:
 
 Why it matters: these actions are analytically powerful but currently feel heavier than simple view changes.
 
-### 3. Selection Table For Scatter And Timeseries
-
-Add a data table panel for the currently selected or brushed subset.
-
-Useful capabilities:
-
-- list selected points or rows
-- sort and filter inside the selection
-- copy selected rows
-- pin the selection as a named subset
-
-Why it matters: charts show patterns well, but users often need the underlying records immediately after seeing something interesting.
-
-### 4. Guided Workflow Mode
-
-Add a lightweight assistant mode inside the app that suggests the next useful page or action.
-
-Examples:
-
-- after Heatmap: suggest strong pairs for Scatter
-- after Scatter: suggest opening Distributions or Causal
-- after Timeseries zoom: suggest linked Scatter refresh
-
-Why it matters: the app now has many powerful pages, but new users can miss how well they chain together.
 
 ## Usability Improvements
 
@@ -150,6 +126,7 @@ Helpful additions:
 - sampling-rate explanation
 - dominant-frequency summaries
 - peak labels and exportable peak tables
+- add the possibility to filter out frequencies in the underlying data
 
 Why it matters: the spectral pages render correctly, but many users will not know how to choose parameters or interpret the result.
 
@@ -164,30 +141,6 @@ Add a handoff from Heatmap or Scatter into Causal that pre-populates:
 Why it matters: the current pages are individually strong, but the transition from descriptive analysis to causal analysis could be much faster.
 
 ## Nice To Have
-
-### 13. Shareable Report Builder
-
-Let users assemble a lightweight report from current views:
-
-- chart snapshots
-- scatter screenshots
-- selected statistics
-- causal graph exports
-- typed notes
-
-Why it matters: many analyses end with a handoff to another person.
-
-### 14. Smarter Suggestions Across Pages
-
-Expand recommendation logic beyond scatter correlations.
-
-Examples:
-
-- suggest columns with strong spectral peaks
-- suggest columns with changing variance over time
-- suggest columns worth causal comparison after a selected time window
-
-Why it matters: the app already has enough analysis surfaces to support intelligent routing, not just static navigation.
 
 ### 15. Appearance And Layout Settings
 

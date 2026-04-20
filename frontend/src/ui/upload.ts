@@ -15,6 +15,15 @@ export function setUploadPreviewStatus(text: string, kind = ''): void {
     el.className = `upload-preview-status ${kind}`.trim();
 }
 
+/** Update the profile-mode badge to reflect whether the grid shows the
+ *  current loaded dataset or a pending upload preview. */
+export function setProfileMode(mode: 'dataset' | 'preview'): void {
+    const badge = document.getElementById('profile-mode-badge');
+    if (!badge) return;
+    badge.setAttribute('data-mode', mode);
+    badge.textContent = mode === 'preview' ? 'Upload preview' : 'Current dataset';
+}
+
 export function applyPartialTimeRangeFromMetadata(
     metadata: DatasetMetadata | null,
     overwriteInputs = true,
@@ -181,6 +190,7 @@ export function initUploadPanel(
             } else {
                 setUploadPreviewStatus(`Preview ready (${formatCount(previewRows)} rows)`, 'success');
             }
+            setProfileMode('preview');
         } catch (e: any) {
             if (e?.name === 'AbortError') return;
             if (String(e?.message || '').includes('Specified time column not found')) {

@@ -11,6 +11,9 @@ import {
     showError,
 } from './helpers.js';
 
+/** Whether we've detected WebGPU is unavailable and should use fallback. */
+let _gpuUnavailable: boolean | null = null;
+
 /** Log + display an error. */
 function handleErr(err: unknown): void {
     console.error(err);
@@ -64,12 +67,45 @@ function syncScatterEmptyState(message?: string): void {
     const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
     const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
     const hasAxes = !!xSelect?.value && !!ySelect?.value;
+
+    // Determine the reason for the empty state so tests / users can distinguish
+    let reason: string;
+    if (_gpuUnavailable && !state.chart) {
+        reason = 'gpu-unavailable';
+    } else if (!hasAxes) {
+        reason = 'no-columns-selected';
+    } else if (state.totalPoints === 0) {
+        reason = 'no-data-after-filters';
+    } else {
+        reason = '';
+    }
+
     const text = message
-        || (!hasAxes
-            ? 'Choose X and Y numeric columns to render the scatter plot.'
-            : 'No points match the current filters or linked time range.');
+        || (_gpuUnavailable && !state.chart
+            ? 'WebGPU is not available. Scatter rendering requires a WebGPU-capable browser (Chrome 113+, Edge 113+, Safari 18+).'
+            : !hasAxes
+                ? 'Choose X and Y numeric columns to render the scatter plot.'
+                : 'No points match the current filters or linked time range.');
+
     empty.textContent = text;
-    empty.hidden = hasAxes && state.totalPoints > 0;
+    empty.setAttribute('data-empty-reason', reason);
+    empty.hidden = hasAxes && state.totalPoints > 0 && !(_gpuUnavailable && !state.chart);
+}
+
+/** Probe WebGPU once; cache result. */
+async function isGPUAvailable(): Promise<boolean> {
+    if (_gpuUnavailable !== null) return !_gpuUnavailable;
+    if (!navigator.gpu) { _gpuUnavailable = true; return false; }
+    try {
+        const adapter = await Promise.race([
+            navigator.gpu.requestAdapter(),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+        ]);
+        _gpuUnavailable = !adapter;
+    } catch {
+        _gpuUnavailable = true;
+    }
+    return !_gpuUnavailable;
 }
 
 /* ── Sidebar / view management ────────────────────────── */
@@ -246,6 +282,11 @@ async function renderScatter(): Promise<void> {
         const nextOption = buildOption(state.points, container);
 
         if (!state.chart) {
+            if (!(await isGPUAvailable())) {
+                state.totalPoints = points.length;
+                syncScatterEmptyState();
+                return;
+            }
             state.chart = await createChart(container!, nextOption);
             state.lastRenderSignature = renderSignature;
             initSelectionZoom(container!);
@@ -270,7 +311,14 @@ async function renderScatter(): Promise<void> {
     } catch (err: any) {
         if (err?.name === 'AbortError') return;
         state.totalPoints = 0;
-        syncScatterEmptyState('Scatter rendering is unavailable for the current query.');
+        // Distinguish GPU init failure from data/filter issues
+        const isGpuErr = /gpu|webgpu|adapter|device/i.test(String(err?.message || ''));
+        if (isGpuErr) _gpuUnavailable = true;
+        syncScatterEmptyState(
+            isGpuErr
+                ? 'WebGPU rendering failed. Scatter requires a GPU-capable browser.'
+                : 'Scatter rendering is unavailable for the current query.',
+        );
         throw err;
     } finally {
         if (scatterLoading) scatterLoading.hidden = true;

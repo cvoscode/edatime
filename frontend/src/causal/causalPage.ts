@@ -151,6 +151,7 @@ function syncCausalEmptyState(): void {
     const empty = document.getElementById('causal-empty-state') as HTMLElement | null;
     if (!empty) return;
     empty.hidden = _currentColumns.length > 0;
+    empty.setAttribute('data-empty-reason', _currentColumns.length > 0 ? '' : 'no-columns-selected');
 }
 
 function nextDraftId(prefix: string): string {
