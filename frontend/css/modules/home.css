@@ -1,0 +1,176 @@
+/* ─── Homepage ────────────────────────────────────────── */
+
+.page-home {
+    overflow-y: auto;
+    padding: 0;
+    flex-direction: column;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 168, 255, 0.28) rgba(255, 255, 255, 0.03);
+}
+
+.home-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 48px 24px 32px;
+    background: linear-gradient(180deg, var(--accent-dim) 0%, transparent 100%);
+    border-bottom: 1px solid var(--border);
+}
+
+.home-hero-icon {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #6c63ff));
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    box-shadow: 0 0 30px rgba(0, 168, 255, 0.25);
+}
+
+.home-hero-icon svg {
+    width: 28px;
+    height: 28px;
+    stroke: #fff;
+}
+
+.home-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 8px;
+    letter-spacing: -0.02em;
+}
+
+.home-tagline {
+    font-size: 0.9375rem;
+    color: var(--text-dim);
+    margin: 0 0 24px;
+    max-width: 520px;
+    line-height: 1.5;
+}
+
+/* Feature grid */
+.home-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    padding: 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.home-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    cursor: pointer;
+    transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+
+.home-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 16px rgba(0, 168, 255, 0.12);
+    transform: translateY(-2px);
+}
+
+.home-card-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--accent-dim);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.home-card-icon svg {
+    width: 16px;
+    height: 16px;
+    stroke: var(--accent);
+}
+
+.home-card-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.home-card-title kbd {
+    font-size: 0.625rem;
+    font-family: monospace;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 4px;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.home-card-desc {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Shortcuts section */
+.home-shortcuts {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px 40px;
+}
+
+.home-section-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    margin: 0 0 14px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.home-shortcuts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px 32px;
+}
+
+.home-shortcut-group-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin: 0 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.home-shortcut-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 3px 0;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+}
+
+.home-shortcut-row kbd {
+    font-family: monospace;
+    font-size: 0.6875rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    white-space: nowrap;
+    color: var(--text);
+}

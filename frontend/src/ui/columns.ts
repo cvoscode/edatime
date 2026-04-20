@@ -99,8 +99,9 @@ export function buildColumnToggles(
         return;
     }
 
-    visibleCols.forEach((col, idx) => {
-        const color = getSeriesColor(col, idx);
+    visibleCols.forEach((col) => {
+        const colIdx = appState.numericCols.indexOf(col);
+        const color = getSeriesColor(col, colIdx >= 0 ? colIdx : 0);
         const isActive = appState.selectedCols.includes(col);
         const isAdaptiveTarget = isActive && appState.adaptiveFilterColumn === col;
 

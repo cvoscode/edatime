@@ -38,6 +38,13 @@ import { FallbackChart } from './charts/fallback.js';
 import type { DatasetMetadata } from './types.js';
 import type { FftTrace } from './chart/FftChart.js';
 
+import { initHashRouting } from './utils/router.js';
+import { initAutoSave, autoRestoreSession, applySession, exportSessionToFile, importSessionFromFile } from './utils/session.js';
+import { initCommandPalette, registerCommands, openPalette } from './utils/palette.js';
+import { initProvenance, toggleProvenance } from './utils/provenance.js';
+import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanvasHTML, exportEChartsPNG, exportEChartsSVG, exportEChartsHTML, exportElementPNG, exportElementSVG, exportElementHTML, exportMatrixCSV, exportTraceCSV } from './utils/chartExport.js';
+import { toast } from './utils/toast.js';
+
 const _appCleanups: Array<() => void> = [];
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
 
@@ -847,6 +854,26 @@ async function initFftPage(): Promise<void> {
     logCheck?.addEventListener('change', () => { _fftLogScale = logCheck.checked; _fftRerenderOrClear(); });
     zoomResetBtn?.addEventListener('click', () => _fftChart?.resetView());
 
+    // Export buttons
+    document.getElementById('fft-export-png-btn')?.addEventListener('click', () => {
+        exportContainerCanvasPNG('fft-chart', 'edatime_fft.png');
+    });
+    document.getElementById('fft-export-svg-btn')?.addEventListener('click', () => {
+        exportContainerCanvasSVG('fft-chart', 'edatime_fft.svg');
+    });
+    document.getElementById('fft-export-html-btn')?.addEventListener('click', () => {
+        exportContainerCanvasHTML('fft-chart', 'edatime_fft.html');
+    });
+    document.getElementById('fft-export-csv-btn')?.addEventListener('click', () => {
+        if (_fftTraces.length === 0) { toast('No FFT data to export.', 'warning'); return; }
+        const csvTraces = _fftTraces.map((t: FftTrace) => ({
+            column: t.column,
+            xs: t.frequencies,
+            ys: _fftMode === 'psd' ? t.psd : t.magnitudes,
+        }));
+        exportTraceCSV(csvTraces, 'frequency_hz', `edatime_fft_${_fftMode}.csv`);
+    });
+
     _fftRerenderOrClear();
 }
 
@@ -913,7 +940,7 @@ async function initHeatmapPage(): Promise<void> {
                 const displayVal = val !== null ? val.toFixed(2) : '—';
                 const bg = val !== null ? correlationColor(val) : 'transparent';
                 const textColor = val !== null && Math.abs(val) > 0.5 ? '#fff' : 'var(--text)';
-                html += `<div class="heatmap-cell" style="display:flex;align-items:center;justify-content:center;background:${bg};color:${textColor};border-radius:2px;cursor:default;font-variant-numeric:tabular-nums;" title="${cols[i]} × ${cols[j]}: ${displayVal}">${displayVal}</div>`;
+                html += `<div class="heatmap-cell" data-row="${i}" data-col="${j}" style="display:flex;align-items:center;justify-content:center;background:${bg};color:${textColor};border-radius:2px;cursor:${i !== j ? 'pointer' : 'default'};font-variant-numeric:tabular-nums;" title="${cols[i]} × ${cols[j]}: ${displayVal}${i !== j ? ' — click to explore in Scatter' : ''}">${displayVal}</div>`;
             }
         }
         html += `</div>`;
@@ -926,6 +953,20 @@ async function initHeatmapPage(): Promise<void> {
         html += `</div>`;
 
         container.innerHTML = html;
+
+        // Click a heatmap cell → navigate to Scatter page with those two columns pre-selected
+        container.addEventListener('click', (e: MouseEvent) => {
+            const cell = (e.target as HTMLElement).closest<HTMLElement>('.heatmap-cell');
+            if (!cell) return;
+            const ri = parseInt(cell.dataset.row || '', 10);
+            const ci = parseInt(cell.dataset.col || '', 10);
+            if (isNaN(ri) || isNaN(ci) || ri === ci) return;
+            const xSelect = document.getElementById('scatter-x-col') as HTMLSelectElement | null;
+            const ySelect = document.getElementById('scatter-y-col') as HTMLSelectElement | null;
+            if (xSelect) xSelect.value = cols[ri];
+            if (ySelect) ySelect.value = cols[ci];
+            showPage('scatter');
+        });
     }
 
     function correlationColor(v: number): string {
@@ -954,8 +995,16 @@ async function initHeatmapPage(): Promise<void> {
             if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns · ${_heatmapCellSize}px cells`;
             renderHeatmap();
         } catch (e: any) {
-            syncHeatmapEmptyState('Correlation heatmap is unavailable for the current dataset.', true, 'render-failure');
-            if (statusEl) statusEl.textContent = `Error: ${e?.message || 'failed'}`;
+            const msg: string = e?.message || '';
+            const isInsufficient = msg.toLowerCase().includes('two') || msg.toLowerCase().includes('numeric') || msg.toLowerCase().includes('column');
+            syncHeatmapEmptyState(
+                isInsufficient
+                    ? 'Need at least two numeric columns to compute correlations. Upload a dataset with multiple numeric columns.'
+                    : 'Correlation heatmap is unavailable for the current dataset.',
+                true,
+                isInsufficient ? 'no-columns-available' : 'render-failure',
+            );
+            if (statusEl) statusEl.textContent = isInsufficient ? 'Not enough numeric columns' : `Error: ${msg || 'failed'}`;
         }
     }
 
@@ -968,6 +1017,22 @@ async function initHeatmapPage(): Promise<void> {
         if (sizeValue) sizeValue.textContent = String(_heatmapCellSize);
         if (statusEl && matrixData) statusEl.textContent = `${matrixData.columns.length} columns · ${_heatmapCellSize}px cells`;
         renderHeatmap();
+    });
+
+    // Heatmap export buttons
+    document.getElementById('heatmap-export-csv-btn')?.addEventListener('click', () => {
+        if (!matrixData) { toast('No heatmap data to export.', 'warning'); return; }
+        const data = metric === 'spearman' ? matrixData.spearman : matrixData.pearson;
+        exportMatrixCSV(matrixData.columns, data, `edatime_correlation_${metric}.csv`);
+    });
+    document.getElementById('heatmap-export-png-btn')?.addEventListener('click', () => {
+        exportElementPNG('heatmap-container', 'edatime_heatmap.png');
+    });
+    document.getElementById('heatmap-export-svg-btn')?.addEventListener('click', () => {
+        exportElementSVG('heatmap-container', 'edatime_heatmap.svg');
+    });
+    document.getElementById('heatmap-export-html-btn')?.addEventListener('click', () => {
+        void exportElementHTML('heatmap-container', 'edatime_heatmap.html');
     });
 
     // Reload when page becomes visible
@@ -1307,6 +1372,17 @@ async function initSpectrogramPage(): Promise<void> {
         if (!_spectrogramChart) return;
         _spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 0, start: 0, end: 100 });
         _spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 1, start: 0, end: 100 });
+    });
+
+    // Export buttons
+    document.getElementById('spectrogram-export-png-btn')?.addEventListener('click', () => {
+        exportEChartsPNG(_spectrogramChart, 'edatime_spectrogram.png');
+    });
+    document.getElementById('spectrogram-export-svg-btn')?.addEventListener('click', () => {
+        exportEChartsSVG(_spectrogramChart, 'edatime_spectrogram.svg');
+    });
+    document.getElementById('spectrogram-export-html-btn')?.addEventListener('click', () => {
+        exportEChartsHTML(_spectrogramChart, 'edatime_spectrogram.html');
     });
 
     window.addEventListener('edatime:page-change', (e: any) => {
@@ -1653,13 +1729,50 @@ function initThemeToggle(): void {
 
 async function init(): Promise<void> {
     initPages();
+    initHashRouting();
     initThemeToggle();
+    // Homepage navigation cards
+    document.querySelectorAll<HTMLElement>('[data-home-nav]').forEach((el) => {
+        el.addEventListener('click', () => {
+            const target = el.dataset.homeNav;
+            if (target) showPage(target);
+        });
+    });
     initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid);
     initColumnProfilesGrid();
     initAnalysisControls(fetchAndRender);
     initColumnFilterModal(renderCurrentData, updateAnalysisYRange);
     initChartPageFilterGesture();
     initKeyboardShortcuts();
+    initCommandPalette();
+    initProvenance();
+    registerCommands([
+        // Navigation
+        { id: 'nav-upload', label: 'Go to Upload', shortcut: 'Alt+1', category: 'Navigation', action: () => showPage('upload') },
+        { id: 'nav-timeseries', label: 'Go to Timeseries', shortcut: 'Alt+2', category: 'Navigation', action: () => showPage('timeseries') },
+        { id: 'nav-scatter', label: 'Go to Scatter', shortcut: 'Alt+3', category: 'Navigation', action: () => showPage('scatter') },
+        { id: 'nav-matrix', label: 'Go to Scatter Matrix', shortcut: 'Alt+4', category: 'Navigation', action: () => showPage('scattermatrix') },
+        { id: 'nav-dist', label: 'Go to Distributions', shortcut: 'Alt+5', category: 'Navigation', action: () => showPage('distributions') },
+        { id: 'nav-fft', label: 'Go to FFT / PSD', shortcut: 'Alt+6', category: 'Navigation', action: () => showPage('fft') },
+        { id: 'nav-heatmap', label: 'Go to Heatmap', shortcut: 'Alt+7', category: 'Navigation', action: () => showPage('heatmap') },
+        { id: 'nav-spectrogram', label: 'Go to Spectrogram', shortcut: 'Alt+8', category: 'Navigation', action: () => showPage('spectrogram') },
+        { id: 'nav-causal', label: 'Go to Causal', shortcut: 'Alt+9', category: 'Navigation', action: () => showPage('causal') },
+        // Chart
+        { id: 'chart-reset', label: 'Reset zoom', shortcut: 'Shift+R', category: 'Chart', action: () => resetZoom(fetchAndRender) },
+        { id: 'chart-zoomout', label: 'Zoom out one level', shortcut: 'Shift+Z', category: 'Chart', action: () => zoomOut(fetchAndRender) },
+        { id: 'chart-clear-af', label: 'Clear adaptive filters', shortcut: 'Shift+C', category: 'Chart', action: () => document.getElementById('adaptive-clear-btn')?.click?.() },
+        // Export
+        { id: 'export-csv', label: 'Export chart data as CSV', shortcut: 'Shift+E', category: 'Export', action: () => (window as any).__edatime?.exportChartFilteredData?.('csv') },
+        { id: 'export-json', label: 'Export chart data as JSON', category: 'Export', action: () => (window as any).__edatime?.exportChartFilteredData?.('json') },
+        { id: 'export-png', label: 'Export chart as PNG', category: 'Export', action: () => appState.chart?.exportPNG?.() },
+        { id: 'export-parquet', label: 'Export filtered data as Parquet', category: 'Export', action: () => document.getElementById('export-parquet-btn')?.click?.() },
+        // Session
+        { id: 'session-save', label: 'Export session to file', category: 'Session', action: exportSessionToFile },
+        { id: 'session-load', label: 'Import session from file', category: 'Session', action: importSessionFromFile },
+        // Analysis
+        { id: 'provenance', label: 'Show analysis context panel', shortcut: 'Ctrl+I', category: 'Analysis', action: toggleProvenance },
+        { id: 'cmd-palette', label: 'Open command palette', shortcut: 'Ctrl+K', category: 'Analysis', action: openPalette },
+    ]);
     initTransformModal();
     initOutlierModal();
     initTimeDistributionModal();
@@ -1770,6 +1883,21 @@ async function init(): Promise<void> {
         await fetchAndRender();
         appState.initialView = getCurrentView();
         dbgGroup('initialView snapshot', () => dbg(appState.initialView));
+
+        // Restore saved session after chart is ready
+        const savedSession = autoRestoreSession();
+        if (savedSession) {
+            applySession(savedSession);
+            buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
+            buildRangeControls();
+            renderCurrentData();
+            await fetchAndRender();
+        }
+        initAutoSave();
+
+        // Expose session helpers for command palette / dev console
+        (window as any).__edatime.exportSession = exportSessionToFile;
+        (window as any).__edatime.importSession = importSessionFromFile;
     } catch (e: any) {
         console.error('Primary chart failed, switching to fallback:', e);
         try {

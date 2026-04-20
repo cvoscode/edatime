@@ -25,16 +25,19 @@
     box-shadow var(--transition),
     transform var(--transition);
 }
-.btn svg { width: 14px; height: 14px; }
+
+.btn svg {
+  width: 14px;
+  height: 14px;
+}
 
 .btn-primary {
-  background: linear-gradient(
-    135deg,
-    var(--accent),
-    color-mix(in srgb, var(--accent) 68%, var(--cyan))
-  );
+  background: linear-gradient(135deg,
+      var(--accent),
+      color-mix(in srgb, var(--accent) 68%, var(--cyan)));
   color: #fff;
 }
+
 .btn-primary:hover {
   box-shadow: 0 0 20px rgba(0, 168, 255, 0.40);
   transform: translateY(-1px);
@@ -45,6 +48,7 @@
   color: var(--text-dim);
   border-color: var(--border);
 }
+
 .btn-ghost:hover {
   background: rgba(255, 255, 255, 0.05);
   border-color: var(--border-hi);
@@ -56,10 +60,62 @@
   color: var(--red);
   border-color: rgba(255, 107, 107, 0.28);
 }
-.btn-danger:hover { background: rgba(255, 107, 107, 0.08); }
+
+.btn-danger:hover {
+  background: rgba(255, 107, 107, 0.08);
+}
 
 /* Compact size for all toolbar buttons */
 .btn-sm {
   padding: 3px 9px;
   font-size: 0.6875rem;
+}
+
+/* Accent — same as primary, alias used throughout causal/spectrogram pages */
+.btn-accent {
+  background: linear-gradient(135deg,
+      var(--accent),
+      color-mix(in srgb, var(--accent) 68%, #6c63ff));
+  color: #fff;
+  border-color: transparent;
+}
+
+.btn-accent:hover {
+  box-shadow: 0 0 18px rgba(0, 168, 255, 0.38);
+  transform: translateY(-1px);
+}
+
+/* Segmented toggle group */
+.btn-toggle-group {
+  display: inline-flex;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  gap: 0;
+}
+
+.btn-toggle-group .btn {
+  border-radius: 0;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  padding: 3px 11px;
+  font-size: 0.6875rem;
+}
+
+.btn-toggle-group .btn:last-child {
+  border-right: none;
+}
+
+.btn-toggle-group .btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.btn-toggle-group .btn.active,
+.btn-toggle-group .btn[aria-pressed="true"] {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 700;
 }

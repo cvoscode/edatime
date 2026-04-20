@@ -3,10 +3,24 @@
    Global default: hidden (0px). Visible scrollbars are opt-in
    only on containers that actually need them.
 */
-::-webkit-scrollbar          { width: 0; height: 0; }
-::-webkit-scrollbar-track    { background: transparent; }
-::-webkit-scrollbar-thumb    { background: rgba(255, 255, 255, 0.10); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.17); }
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
 
 /* Containers that need a visible scrollbar */
 .series-toggles::-webkit-scrollbar,
@@ -15,6 +29,46 @@
 .profile-grid-viewport::-webkit-scrollbar,
 .upload-inner::-webkit-scrollbar,
 .page-upload::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
+}
+
+/* Nicer visible scrollbar track and thumb */
+.series-toggles::-webkit-scrollbar-track,
+.scatter-matrix::-webkit-scrollbar-track,
+.scatter-distributions::-webkit-scrollbar-track,
+.profile-grid-viewport::-webkit-scrollbar-track,
+.upload-inner::-webkit-scrollbar-track,
+.page-upload::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+}
+
+.series-toggles::-webkit-scrollbar-thumb,
+.scatter-matrix::-webkit-scrollbar-thumb,
+.scatter-distributions::-webkit-scrollbar-thumb,
+.profile-grid-viewport::-webkit-scrollbar-thumb,
+.upload-inner::-webkit-scrollbar-thumb,
+.page-upload::-webkit-scrollbar-thumb {
+  background: rgba(0, 168, 255, 0.28);
+  border-radius: 4px;
+}
+
+.series-toggles::-webkit-scrollbar-thumb:hover,
+.scatter-matrix::-webkit-scrollbar-thumb:hover,
+.scatter-distributions::-webkit-scrollbar-thumb:hover,
+.profile-grid-viewport::-webkit-scrollbar-thumb:hover,
+.upload-inner::-webkit-scrollbar-thumb:hover,
+.page-upload::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 168, 255, 0.50);
+}
+
+/* Firefox */
+.series-toggles,
+.scatter-matrix,
+.scatter-distributions,
+.profile-grid-viewport,
+.upload-inner {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 168, 255, 0.28) rgba(255, 255, 255, 0.03);
 }

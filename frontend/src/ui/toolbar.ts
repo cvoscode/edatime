@@ -519,5 +519,5 @@ export function initPages(): void {
         btn.addEventListener('click', () => showPage(btn.dataset.page!));
     }
 
-    showPage('upload');
+    showPage('home');
 }

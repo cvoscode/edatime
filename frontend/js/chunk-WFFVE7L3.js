@@ -620,9 +620,10 @@ function buildScatterQueryContext() {
     if (!column || !Number.isFinite(from) || !Number.isFinite(to)) return null;
     return { column, from, to };
   }).filter((f) => f !== null);
+  const linkedRangeValid = isLinkedBrushEnabled() && Number.isFinite(start) && Number.isFinite(end) && start < end;
   return {
-    start: isLinkedBrushEnabled() && Number.isFinite(start) ? start : void 0,
-    end: isLinkedBrushEnabled() && Number.isFinite(end) ? end : void 0,
+    start: linkedRangeValid ? start : void 0,
+    end: linkedRangeValid ? end : void 0,
     filters,
     lineFilters: buildAdaptiveLineFiltersForQuery()
   };
@@ -864,4 +865,4 @@ export {
   resetScatterContainer,
   ensureOptions
 };
-//# sourceMappingURL=chunk-B5EQ6MMR.js.map
+//# sourceMappingURL=chunk-WFFVE7L3.js.map

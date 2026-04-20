@@ -16,6 +16,7 @@ import {
   computeBounds,
   debounce,
   downloadBlob,
+  downloadUrl,
   ensureRangeStateFromData,
   escapeHtml,
   formatAnalysisNumber,
@@ -60,9 +61,9 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
       if (!isDoubleContext) return;
       lastContextTs = 0;
       lastContextCol = "";
-      const open = window.__edatime?.openFilterForCol;
-      if (typeof open !== "function") return;
-      open(col);
+      const open2 = window.__edatime?.openFilterForCol;
+      if (typeof open2 !== "function") return;
+      open2(col);
     });
     container.dataset.ctxBound = "1";
   }
@@ -107,8 +108,9 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
     container.appendChild(empty);
     return;
   }
-  visibleCols.forEach((col, idx) => {
-    const color = getSeriesColor(col, idx);
+  visibleCols.forEach((col) => {
+    const colIdx = appState.numericCols.indexOf(col);
+    const color = getSeriesColor(col, colIdx >= 0 ? colIdx : 0);
     const isActive = appState.selectedCols.includes(col);
     const isAdaptiveTarget = isActive && appState.adaptiveFilterColumn === col;
     const chip = document.createElement("label");
@@ -194,15 +196,15 @@ function buildRangeControls() {
       <span class="name">${col}</span>
       <span class="range">${formatAnalysisNumber(range.from)} \u2192 ${formatAnalysisNumber(range.to)}</span>
     `;
-    const open = () => {
+    const open2 = () => {
       const fn = window.__edatime?.openFilterForCol;
       if (typeof fn === "function") fn(col);
     };
-    chip.addEventListener("click", open);
+    chip.addEventListener("click", open2);
     chip.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        open();
+        open2();
       }
     });
     container.appendChild(chip);
@@ -529,6 +531,12 @@ function setUploadPreviewStatus(text, kind = "") {
   el.textContent = text;
   el.className = `upload-preview-status ${kind}`.trim();
 }
+function setProfileMode(mode) {
+  const badge = document.getElementById("profile-mode-badge");
+  if (!badge) return;
+  badge.setAttribute("data-mode", mode);
+  badge.textContent = mode === "preview" ? "Upload preview" : "Current dataset";
+}
 function applyPartialTimeRangeFromMetadata(metadata, overwriteInputs = true) {
   const startInput = document.getElementById("time-start-input");
   const endInput = document.getElementById("time-end-input");
@@ -662,6 +670,7 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
       } else {
         setUploadPreviewStatus(`Preview ready (${formatCount(previewRows)} rows)`, "success");
       }
+      setProfileMode("preview");
     } catch (e) {
       if (e?.name === "AbortError") return;
       if (String(e?.message || "").includes("Specified time column not found")) {
@@ -1650,15 +1659,15 @@ function initChartPageFilterGesture() {
   pageChart.addEventListener("contextmenu", (e) => {
     const inPlot = e.target?.closest?.("#main-chart");
     if (inPlot) return;
-    const open = window.__edatime?.openFilterForCol;
-    if (typeof open !== "function") return;
+    const open2 = window.__edatime?.openFilterForCol;
+    if (typeof open2 !== "function") return;
     e.preventDefault();
     const now = performance.now();
     const isDoubleContext = now - lastContextTs <= 450;
     lastContextTs = now;
     if (!isDoubleContext) return;
     lastContextTs = 0;
-    open(null);
+    open2(null);
   });
   pageChart.dataset.filterCtxBound = "1";
 }
@@ -1707,7 +1716,7 @@ function initPages() {
   for (const btn of navButtons) {
     btn.addEventListener("click", () => showPage2(btn.dataset.page));
   }
-  showPage2("upload");
+  showPage2("home");
 }
 
 // frontend/src/charts/registry.ts
@@ -1857,22 +1866,960 @@ var FallbackChart = class {
   }
 };
 
+// frontend/src/utils/router.ts
+var VALID_PAGES = /* @__PURE__ */ new Set([
+  "home",
+  "upload",
+  "timeseries",
+  "scatter",
+  "scattermatrix",
+  "distributions",
+  "fft",
+  "heatmap",
+  "spectrogram",
+  "causal"
+]);
+var _bound = false;
+function getHashPage() {
+  const hash = location.hash.replace(/^#/, "");
+  const params = new URLSearchParams(hash);
+  const page = params.get("page");
+  return page && VALID_PAGES.has(page) ? page : null;
+}
+function setHashPage(page) {
+  const hash = location.hash.replace(/^#/, "");
+  const params = new URLSearchParams(hash);
+  params.set("page", page);
+  const newHash = "#" + params.toString();
+  if (location.hash !== newHash) {
+    history.pushState(null, "", newHash);
+  }
+}
+function replaceHashPage(page) {
+  const hash = location.hash.replace(/^#/, "");
+  const params = new URLSearchParams(hash);
+  params.set("page", page);
+  history.replaceState(null, "", "#" + params.toString());
+}
+function initHashRouting() {
+  if (_bound) return;
+  _bound = true;
+  window.addEventListener("edatime:page-change", ((e) => {
+    const page = e.detail?.navPage || e.detail?.page;
+    if (page && VALID_PAGES.has(page)) {
+      setHashPage(page);
+    }
+  }));
+  window.addEventListener("popstate", () => {
+    const page = getHashPage();
+    if (page) {
+      const btn = document.querySelector(`.sidebar .nav-item[data-page="${page}"]`);
+      btn?.click();
+    }
+  });
+  const initialPage = getHashPage();
+  if (initialPage) {
+    requestAnimationFrame(() => {
+      const btn = document.querySelector(`.sidebar .nav-item[data-page="${initialPage}"]`);
+      btn?.click();
+    });
+  } else {
+    replaceHashPage("home");
+  }
+}
+
+// frontend/src/utils/toast.ts
+var _container = null;
+function ensureContainer() {
+  if (_container && _container.isConnected) return _container;
+  _container = document.createElement("div");
+  _container.className = "toast-container";
+  _container.setAttribute("aria-live", "polite");
+  _container.setAttribute("role", "status");
+  document.body.appendChild(_container);
+  return _container;
+}
+function toast(message, kind = "info", durationOrOpts) {
+  const opts = typeof durationOrOpts === "number" ? { duration: durationOrOpts } : durationOrOpts ?? {};
+  const duration = opts.duration ?? 4e3;
+  const container = ensureContainer();
+  const el = document.createElement("div");
+  el.className = `toast toast--${kind}`;
+  el.setAttribute("role", "alert");
+  const icon = document.createElement("span");
+  icon.className = "toast-icon";
+  icon.textContent = kind === "success" ? "\u2713" : kind === "error" ? "\u2715" : kind === "warning" ? "\u26A0" : "\u2139";
+  el.appendChild(icon);
+  const text = document.createElement("span");
+  text.className = "toast-text";
+  text.textContent = message;
+  el.appendChild(text);
+  if (opts.action) {
+    const btn = document.createElement("button");
+    btn.className = "toast-action";
+    btn.textContent = opts.action.label;
+    btn.addEventListener("click", () => {
+      opts.action.onClick();
+      dismiss();
+    });
+    el.appendChild(btn);
+  }
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "toast-close";
+  closeBtn.textContent = "\xD7";
+  closeBtn.setAttribute("aria-label", "Dismiss");
+  closeBtn.addEventListener("click", dismiss);
+  el.appendChild(closeBtn);
+  container.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("toast--visible"));
+  let timer = null;
+  if (duration > 0) {
+    timer = setTimeout(dismiss, duration);
+    el.addEventListener("mouseenter", () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    });
+    el.addEventListener("mouseleave", () => {
+      timer = setTimeout(dismiss, 2e3);
+    });
+  }
+  function dismiss() {
+    if (timer) clearTimeout(timer);
+    el.classList.remove("toast--visible");
+    el.classList.add("toast--exit");
+    el.addEventListener("transitionend", () => el.remove(), { once: true });
+    setTimeout(() => {
+      if (el.parentNode) el.remove();
+    }, 400);
+  }
+  return dismiss;
+}
+
+// frontend/src/utils/session.ts
+var STORAGE_KEY = "edatime-session";
+function currentPage() {
+  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
+}
+function readSelect(id) {
+  return document.getElementById(id)?.value || "";
+}
+function captureSession() {
+  return {
+    version: 1,
+    timestamp: Date.now(),
+    page: currentPage(),
+    selectedCols: [...appState.selectedCols],
+    seriesColors: { ...appState.seriesColors },
+    columnRanges: { ...appState.columnRanges },
+    adaptiveLineFilters: appState.adaptiveLineFilters.map((f) => ({ ...f })),
+    currentStart: appState.currentStart,
+    currentEnd: appState.currentEnd,
+    selectedColorColumn: appState.selectedColorColumn,
+    chartText: { ...appState.chartText },
+    rollingEnabled: appState.rollingEnabled,
+    rollingWindow: appState.rollingWindow,
+    anomalyEnabled: appState.anomalyEnabled,
+    anomalyMethod: appState.anomalyMethod,
+    anomalyThreshold: appState.anomalyThreshold,
+    scatterX: readSelect("scatter-x-col"),
+    scatterY: readSelect("scatter-y-col"),
+    scatterColorColumn: readSelect("scatter-color-column"),
+    scatterRenderMode: readSelect("scatter-render-mode"),
+    theme: document.documentElement.getAttribute("data-theme") || "dark"
+  };
+}
+function applySession(snap) {
+  if (!snap || snap.version !== 1) return;
+  appState.selectedCols = Array.isArray(snap.selectedCols) ? snap.selectedCols : [];
+  if (snap.seriesColors) appState.seriesColors = { ...snap.seriesColors };
+  if (snap.columnRanges) appState.columnRanges = { ...snap.columnRanges };
+  if (Array.isArray(snap.adaptiveLineFilters)) appState.adaptiveLineFilters = snap.adaptiveLineFilters.map((f) => ({ ...f }));
+  if (Number.isFinite(snap.currentStart)) appState.currentStart = snap.currentStart;
+  if (Number.isFinite(snap.currentEnd)) appState.currentEnd = snap.currentEnd;
+  if (snap.selectedColorColumn !== void 0) appState.selectedColorColumn = snap.selectedColorColumn;
+  if (snap.chartText) appState.chartText = { ...snap.chartText };
+  if (snap.rollingEnabled !== void 0) appState.rollingEnabled = snap.rollingEnabled;
+  if (Number.isFinite(snap.rollingWindow)) appState.rollingWindow = snap.rollingWindow;
+  if (snap.anomalyEnabled !== void 0) appState.anomalyEnabled = snap.anomalyEnabled;
+  if (snap.anomalyMethod) appState.anomalyMethod = snap.anomalyMethod;
+  if (Number.isFinite(snap.anomalyThreshold)) appState.anomalyThreshold = snap.anomalyThreshold;
+  const setSelect = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val) el.value = val;
+  };
+  setSelect("scatter-x-col", snap.scatterX);
+  setSelect("scatter-y-col", snap.scatterY);
+  setSelect("scatter-color-column", snap.scatterColorColumn);
+  setSelect("scatter-render-mode", snap.scatterRenderMode);
+  if (snap.theme === "light" || snap.theme === "dark") {
+    document.documentElement.setAttribute("data-theme", snap.theme);
+    localStorage.setItem("edatime-theme", snap.theme);
+  }
+  if (snap.page) {
+    const btn = document.querySelector(`.sidebar .nav-item[data-page="${snap.page}"]`);
+    btn?.click();
+  }
+}
+function autoSaveSession() {
+  try {
+    const snap = captureSession();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+  } catch {
+  }
+}
+function autoRestoreSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const snap = JSON.parse(raw);
+    if (snap?.version !== 1) return null;
+    return snap;
+  } catch {
+    return null;
+  }
+}
+function exportSessionToFile() {
+  const snap = captureSession();
+  const blob = new Blob([JSON.stringify(snap, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `edatime-session-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace(/:/g, "-")}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast("Session exported", "success");
+}
+function importSessionFromFile() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json,application/json";
+  input.addEventListener("change", () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const snap = JSON.parse(reader.result);
+        if (snap?.version !== 1) throw new Error("Invalid session file");
+        applySession(snap);
+        toast("Session restored from file", "success");
+        window.dispatchEvent(new CustomEvent("edatime:session-restored"));
+      } catch (e) {
+        toast(`Failed to import session: ${e.message}`, "error");
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+var _autoSaveTimer = null;
+function initAutoSave() {
+  const debouncedSave = () => {
+    if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = setTimeout(autoSaveSession, 2e3);
+  };
+  window.addEventListener("edatime:page-change", debouncedSave);
+  window.addEventListener("edatime:column-filters-change", debouncedSave);
+  window.addEventListener("edatime:adaptive-filters-change", debouncedSave);
+  window.addEventListener("beforeunload", autoSaveSession);
+}
+
+// frontend/src/utils/palette.ts
+var _overlay = null;
+var _input = null;
+var _list = null;
+var _commands = [];
+var _filtered = [];
+var _selectedIdx = 0;
+function buildDOM() {
+  if (_overlay) return;
+  _overlay = document.createElement("div");
+  _overlay.className = "palette-overlay";
+  _overlay.hidden = true;
+  const panel = document.createElement("div");
+  panel.className = "palette-panel";
+  _input = document.createElement("input");
+  _input.className = "palette-input";
+  _input.type = "text";
+  _input.placeholder = "Type a command\u2026";
+  _input.setAttribute("aria-label", "Command search");
+  _list = document.createElement("div");
+  _list.className = "palette-list";
+  _list.setAttribute("role", "listbox");
+  panel.appendChild(_input);
+  panel.appendChild(_list);
+  _overlay.appendChild(panel);
+  document.body.appendChild(_overlay);
+  _overlay.addEventListener("click", (e) => {
+    if (e.target === _overlay) close();
+  });
+  _input.addEventListener("input", () => {
+    filterAndRender(_input.value);
+  });
+  _input.addEventListener("keydown", onInputKeydown);
+}
+function onInputKeydown(e) {
+  if (e.key === "Escape") {
+    e.preventDefault();
+    close();
+    return;
+  }
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    moveSelection(1);
+    return;
+  }
+  if (e.key === "ArrowUp") {
+    e.preventDefault();
+    moveSelection(-1);
+    return;
+  }
+  if (e.key === "Enter") {
+    e.preventDefault();
+    const cmd = _filtered[_selectedIdx];
+    if (cmd) {
+      close();
+      cmd.action();
+    }
+  }
+}
+function moveSelection(delta) {
+  _selectedIdx = Math.max(0, Math.min(_filtered.length - 1, _selectedIdx + delta));
+  renderList();
+  const el = _list?.children[_selectedIdx];
+  el?.scrollIntoView({ block: "nearest" });
+}
+function filterAndRender(query) {
+  const q = query.trim().toLowerCase();
+  _filtered = q ? _commands.filter((c) => c.label.toLowerCase().includes(q) || (c.hint || "").toLowerCase().includes(q) || c.category.toLowerCase().includes(q)) : [..._commands];
+  _selectedIdx = 0;
+  renderList();
+}
+function renderList() {
+  if (!_list) return;
+  _list.innerHTML = "";
+  if (_filtered.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "palette-empty";
+    empty.textContent = "No matching commands";
+    _list.appendChild(empty);
+    return;
+  }
+  let lastCategory = "";
+  for (let i = 0; i < _filtered.length; i++) {
+    const cmd = _filtered[i];
+    if (cmd.category !== lastCategory) {
+      lastCategory = cmd.category;
+      const header = document.createElement("div");
+      header.className = "palette-category";
+      header.textContent = cmd.category;
+      _list.appendChild(header);
+    }
+    const row = document.createElement("div");
+    row.className = "palette-item" + (i === _selectedIdx ? " palette-item--selected" : "");
+    row.setAttribute("role", "option");
+    row.setAttribute("aria-selected", String(i === _selectedIdx));
+    const label = document.createElement("span");
+    label.className = "palette-item-label";
+    label.textContent = cmd.label;
+    row.appendChild(label);
+    if (cmd.hint) {
+      const hint = document.createElement("span");
+      hint.className = "palette-item-hint";
+      hint.textContent = cmd.hint;
+      row.appendChild(hint);
+    }
+    if (cmd.shortcut) {
+      const kbd = document.createElement("kbd");
+      kbd.className = "palette-item-kbd";
+      kbd.textContent = cmd.shortcut;
+      row.appendChild(kbd);
+    }
+    row.addEventListener("click", () => {
+      close();
+      cmd.action();
+    });
+    row.addEventListener("mouseenter", () => {
+      _selectedIdx = i;
+      renderList();
+    });
+    _list.appendChild(row);
+  }
+}
+function close() {
+  if (_overlay) _overlay.hidden = true;
+}
+function open() {
+  buildDOM();
+  if (_input) {
+    _input.value = "";
+  }
+  filterAndRender("");
+  if (_overlay) _overlay.hidden = false;
+  requestAnimationFrame(() => _input?.focus());
+}
+function registerCommands(commands) {
+  _commands = commands;
+}
+function openPalette() {
+  open();
+}
+function initCommandPalette() {
+  buildDOM();
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      e.preventDefault();
+      if (_overlay?.hidden === false) close();
+      else open();
+    }
+  });
+}
+
+// frontend/src/utils/provenance.ts
+var _panel = null;
+var _content = null;
+function escapeText(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+function buildPanel() {
+  if (_panel) return;
+  _panel = document.createElement("div");
+  _panel.className = "provenance-panel";
+  _panel.hidden = true;
+  _panel.id = "provenance-panel";
+  const header = document.createElement("div");
+  header.className = "provenance-header";
+  header.innerHTML = '<span class="provenance-title">Analysis Context</span>';
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "provenance-close";
+  closeBtn.textContent = "\xD7";
+  closeBtn.setAttribute("aria-label", "Close provenance panel");
+  closeBtn.addEventListener("click", toggleProvenance);
+  header.appendChild(closeBtn);
+  _content = document.createElement("div");
+  _content.className = "provenance-content";
+  _panel.appendChild(header);
+  _panel.appendChild(_content);
+  const appContent = document.querySelector(".app-content");
+  if (appContent) {
+    appContent.appendChild(_panel);
+  } else {
+    document.body.appendChild(_panel);
+  }
+}
+function renderContent() {
+  if (!_content) return;
+  const sections = [];
+  if (appState.metadata) {
+    const m = appState.metadata;
+    const rows = m.total_rows?.toLocaleString() ?? "\u2014";
+    const cols = m.columns?.length ?? 0;
+    const timeCol = m.time_column ?? "\u2014";
+    sections.push(`
+            <div class="provenance-section">
+                <div class="provenance-section-title">Dataset</div>
+                <div class="provenance-row"><span class="provenance-key">Rows</span><span class="provenance-val">${rows}</span></div>
+                <div class="provenance-row"><span class="provenance-key">Columns</span><span class="provenance-val">${cols}</span></div>
+                <div class="provenance-row"><span class="provenance-key">Time column</span><span class="provenance-val">${escapeText(timeCol)}</span></div>
+            </div>
+        `);
+  }
+  if (Number.isFinite(appState.currentStart) && Number.isFinite(appState.currentEnd)) {
+    sections.push(`
+            <div class="provenance-section">
+                <div class="provenance-section-title">Time Range</div>
+                <div class="provenance-row"><span class="provenance-key">Start</span><span class="provenance-val">${formatAnalysisTime(appState.currentStart)}</span></div>
+                <div class="provenance-row"><span class="provenance-key">End</span><span class="provenance-val">${formatAnalysisTime(appState.currentEnd)}</span></div>
+            </div>
+        `);
+  }
+  if (appState.selectedCols.length > 0) {
+    const chips = appState.selectedCols.map((c) => `<span class="provenance-chip">${escapeText(c)}</span>`).join("");
+    sections.push(`
+            <div class="provenance-section">
+                <div class="provenance-section-title">Selected Series (${appState.selectedCols.length})</div>
+                <div class="provenance-chips">${chips}</div>
+            </div>
+        `);
+  }
+  if (appState.selectedColorColumn) {
+    sections.push(`
+            <div class="provenance-section">
+                <div class="provenance-section-title">Color Encoding</div>
+                <div class="provenance-row"><span class="provenance-key">Column</span><span class="provenance-val">${escapeText(appState.selectedColorColumn)}</span></div>
+            </div>
+        `);
+  }
+  const rangeEntries = Object.entries(appState.columnRanges || {});
+  if (rangeEntries.length > 0) {
+    const rows = rangeEntries.map(
+      ([col, r]) => `<div class="provenance-row"><span class="provenance-key">${escapeText(col)}</span><span class="provenance-val">${formatAnalysisNumber(r.from)} \u2192 ${formatAnalysisNumber(r.to)}</span></div>`
+    ).join("");
+    sections.push(`
+            <div class="provenance-section">
+                <div class="provenance-section-title">Numeric Filters (${rangeEntries.length})</div>
+                ${rows}
+            </div>
+        `);
+  }
+  if (appState.adaptiveLineFilters.length > 0) {
+    const rows = appState.adaptiveLineFilters.map(
+      (f) => `<div class="provenance-row"><span class="provenance-key">${escapeText(f.column)}</span><span class="provenance-val">${f.keepAbove ? "above" : "below"} line</span></div>`
+    ).join("");
+    sections.push(`
+            <div class="provenance-section">
+                <div class="provenance-section-title">Adaptive Filters (${appState.adaptiveLineFilters.length})</div>
+                ${rows}
+            </div>
+        `);
+  }
+  const overlays = [];
+  if (appState.rollingEnabled) overlays.push(`Rolling mean (window ${appState.rollingWindow})`);
+  if (appState.anomalyEnabled) overlays.push(`Anomaly detection (${appState.anomalyMethod}, \u03C3=${appState.anomalyThreshold})`);
+  if (overlays.length > 0) {
+    sections.push(`
+            <div class="provenance-section">
+                <div class="provenance-section-title">Analytics Overlays</div>
+                ${overlays.map((o) => `<div class="provenance-row"><span class="provenance-val">${escapeText(o)}</span></div>`).join("")}
+            </div>
+        `);
+  }
+  if (sections.length === 0) {
+    _content.innerHTML = '<div class="provenance-empty">No analysis context yet. Load a dataset and start exploring.</div>';
+  } else {
+    _content.innerHTML = sections.join("");
+  }
+}
+function toggleProvenance() {
+  buildPanel();
+  _panel.hidden = !_panel.hidden;
+  if (!_panel.hidden) renderContent();
+}
+function refreshProvenance() {
+  if (_panel && !_panel.hidden) renderContent();
+}
+function initProvenance() {
+  buildPanel();
+  const btn = document.getElementById("provenance-toggle-btn");
+  if (btn) btn.addEventListener("click", toggleProvenance);
+  window.addEventListener("keydown", (e) => {
+    if (e.ctrlKey && e.key === "i") {
+      e.preventDefault();
+      toggleProvenance();
+    }
+  });
+  window.addEventListener("edatime:page-change", () => refreshProvenance());
+  window.addEventListener("edatime:column-filters-change", () => refreshProvenance());
+  window.addEventListener("edatime:adaptive-filters-change", () => refreshProvenance());
+}
+
+// frontend/src/utils/chartExport.ts
+function exportContainerCanvasPNG(containerId, filename) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const canvases = Array.from(container.querySelectorAll("canvas"));
+  if (canvases.length === 0) {
+    toast("No chart canvas found for export.", "warning");
+    return;
+  }
+  const rect = container.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round(rect.width * dpr);
+  const h = Math.round(rect.height * dpr);
+  const out = document.createElement("canvas");
+  out.width = w;
+  out.height = h;
+  const ctx = out.getContext("2d");
+  if (!ctx) return;
+  const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+  for (const c of canvases) {
+    const cr = c.getBoundingClientRect();
+    const dx = (cr.left - rect.left) * dpr;
+    const dy = (cr.top - rect.top) * dpr;
+    try {
+      ctx.drawImage(c, dx, dy, cr.width * dpr, cr.height * dpr);
+    } catch {
+    }
+  }
+  downloadUrl(out.toDataURL("image/png"), filename);
+  toast("PNG exported.", "success");
+}
+async function exportElementPNG(elementId, filename) {
+  const el = document.getElementById(elementId);
+  if (!el) {
+    toast("Element not found for export.", "warning");
+    return;
+  }
+  const rect = el.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round(rect.width);
+  const h = Math.round(rect.height);
+  const clone = el.cloneNode(true);
+  inlineComputedStyles(el, clone);
+  const svgNs = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNs, "svg");
+  svg.setAttribute("width", String(w));
+  svg.setAttribute("height", String(h));
+  svg.setAttribute("xmlns", svgNs);
+  const fo = document.createElementNS(svgNs, "foreignObject");
+  fo.setAttribute("width", "100%");
+  fo.setAttribute("height", "100%");
+  fo.appendChild(clone);
+  svg.appendChild(fo);
+  const svgStr = new XMLSerializer().serializeToString(svg);
+  const svgBlob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+  const svgUrl = URL.createObjectURL(svgBlob);
+  try {
+    const img = new Image();
+    img.width = w;
+    img.height = h;
+    await new Promise((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("Failed to load SVG image"));
+      img.src = svgUrl;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      toast("Canvas not available.", "error");
+      return;
+    }
+    const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(dpr, dpr);
+    ctx.drawImage(img, 0, 0, w, h);
+    downloadUrl(canvas.toDataURL("image/png"), filename);
+    toast("PNG exported.", "success");
+  } catch {
+    toast("PNG export failed. Try CSV export instead.", "error");
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+}
+function inlineComputedStyles(original, clone) {
+  if (original instanceof HTMLElement && clone instanceof HTMLElement) {
+    const computed = getComputedStyle(original);
+    for (const prop of [
+      "color",
+      "background",
+      "background-color",
+      "font-size",
+      "font-family",
+      "font-weight",
+      "display",
+      "grid-template-columns",
+      "grid-template-rows",
+      "gap",
+      "padding",
+      "margin",
+      "border",
+      "border-radius",
+      "text-align",
+      "white-space",
+      "overflow",
+      "text-overflow",
+      "writing-mode",
+      "text-orientation",
+      "align-items",
+      "justify-content",
+      "flex-direction",
+      "font-variant-numeric",
+      "letter-spacing"
+    ]) {
+      clone.style.setProperty(prop, computed.getPropertyValue(prop));
+    }
+  }
+  const origChildren = original.children;
+  const cloneChildren = clone.children;
+  for (let i = 0; i < origChildren.length && i < cloneChildren.length; i++) {
+    inlineComputedStyles(origChildren[i], cloneChildren[i]);
+  }
+}
+function exportElementSVG(elementId, filename) {
+  const el = document.getElementById(elementId);
+  if (!el) {
+    toast("Element not found for export.", "warning");
+    return;
+  }
+  const rect = el.getBoundingClientRect();
+  const w = Math.round(rect.width);
+  const h = Math.round(rect.height);
+  const clone = el.cloneNode(true);
+  inlineComputedStyles(el, clone);
+  const svgNs = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNs, "svg");
+  svg.setAttribute("width", String(w));
+  svg.setAttribute("height", String(h));
+  svg.setAttribute("xmlns", svgNs);
+  svg.setAttribute("xmlns:xhtml", "http://www.w3.org/1999/xhtml");
+  const fo = document.createElementNS(svgNs, "foreignObject");
+  fo.setAttribute("width", "100%");
+  fo.setAttribute("height", "100%");
+  fo.appendChild(clone);
+  svg.appendChild(fo);
+  const svgStr = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+  downloadBlob(blob, filename);
+  toast("SVG exported.", "success");
+}
+function exportEChartsPNG(chartInstance, filename) {
+  if (!chartInstance) {
+    toast("Chart not available for export.", "warning");
+    return;
+  }
+  try {
+    const url = chartInstance.getDataURL({
+      type: "png",
+      pixelRatio: 2,
+      backgroundColor: getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10"
+    });
+    downloadUrl(url, filename);
+    toast("PNG exported.", "success");
+  } catch {
+    toast("Failed to export chart.", "error");
+  }
+}
+function exportContainerCanvasSVG(containerId, filename) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const canvases = Array.from(container.querySelectorAll("canvas"));
+  if (canvases.length === 0) {
+    toast("No chart canvas found for export.", "warning");
+    return;
+  }
+  const rect = container.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round(rect.width * dpr);
+  const h = Math.round(rect.height * dpr);
+  const out = document.createElement("canvas");
+  out.width = w;
+  out.height = h;
+  const ctx = out.getContext("2d");
+  if (!ctx) return;
+  const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+  for (const c of canvases) {
+    const cr = c.getBoundingClientRect();
+    const dx = (cr.left - rect.left) * dpr;
+    const dy = (cr.top - rect.top) * dpr;
+    try {
+      ctx.drawImage(c, dx, dy, cr.width * dpr, cr.height * dpr);
+    } catch {
+    }
+  }
+  const pngDataUrl = out.toDataURL("image/png");
+  const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <image href="${pngDataUrl}" width="${w}" height="${h}" />
+</svg>`;
+  const blob = new Blob([svgContent], { type: "image/svg+xml;charset=utf-8" });
+  downloadBlob(blob, filename);
+  toast("SVG exported.", "success");
+}
+function exportContainerCanvasHTML(containerId, filename) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const canvases = Array.from(container.querySelectorAll("canvas"));
+  if (canvases.length === 0) {
+    toast("No chart canvas found for export.", "warning");
+    return;
+  }
+  const rect = container.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round(rect.width * dpr);
+  const h = Math.round(rect.height * dpr);
+  const out = document.createElement("canvas");
+  out.width = w;
+  out.height = h;
+  const ctx = out.getContext("2d");
+  if (!ctx) return;
+  const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+  for (const c of canvases) {
+    const cr = c.getBoundingClientRect();
+    const dx = (cr.left - rect.left) * dpr;
+    const dy = (cr.top - rect.top) * dpr;
+    try {
+      ctx.drawImage(c, dx, dy, cr.width * dpr, cr.height * dpr);
+    } catch {
+    }
+  }
+  const pngDataUrl = out.toDataURL("image/png");
+  const html = buildStandaloneHtml(`<img src="${pngDataUrl}" style="max-width:100%;display:block;">`, filename.replace(".html", ""));
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  downloadBlob(blob, filename);
+  toast("HTML exported.", "success");
+}
+function exportEChartsSVG(chartInstance, filename) {
+  if (!chartInstance) {
+    toast("Chart not available for export.", "warning");
+    return;
+  }
+  try {
+    const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
+    const pngUrl = chartInstance.getDataURL({ type: "png", pixelRatio: 2, backgroundColor: bg });
+    const domEl = chartInstance.getDom?.() ?? null;
+    const w = domEl?.offsetWidth ?? 800;
+    const h = domEl?.offsetHeight ?? 500;
+    const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <image href="${pngUrl}" width="${w}" height="${h}" />
+</svg>`;
+    const blob = new Blob([svgContent], { type: "image/svg+xml;charset=utf-8" });
+    downloadBlob(blob, filename);
+    toast("SVG exported.", "success");
+  } catch {
+    toast("Failed to export SVG.", "error");
+  }
+}
+function exportEChartsHTML(chartInstance, filename) {
+  if (!chartInstance) {
+    toast("Chart not available for export.", "warning");
+    return;
+  }
+  try {
+    const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
+    const pngUrl = chartInstance.getDataURL({ type: "png", pixelRatio: 2, backgroundColor: bg });
+    const html = buildStandaloneHtml(`<img src="${pngUrl}" style="max-width:100%;display:block;">`, filename.replace(".html", ""));
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    downloadBlob(blob, filename);
+    toast("HTML exported.", "success");
+  } catch {
+    toast("Failed to export HTML.", "error");
+  }
+}
+async function exportElementHTML(elementId, filename) {
+  const el = document.getElementById(elementId);
+  if (!el) {
+    toast("Element not found for export.", "warning");
+    return;
+  }
+  const rect = el.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round(rect.width);
+  const h = Math.round(rect.height);
+  const clone = el.cloneNode(true);
+  inlineComputedStyles(el, clone);
+  const svgNs = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNs, "svg");
+  svg.setAttribute("width", String(w));
+  svg.setAttribute("height", String(h));
+  svg.setAttribute("xmlns", svgNs);
+  const fo = document.createElementNS(svgNs, "foreignObject");
+  fo.setAttribute("width", "100%");
+  fo.setAttribute("height", "100%");
+  fo.appendChild(clone);
+  svg.appendChild(fo);
+  const svgStr = new XMLSerializer().serializeToString(svg);
+  const svgBlob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+  const svgUrl = URL.createObjectURL(svgBlob);
+  try {
+    const img = new Image();
+    img.width = w;
+    img.height = h;
+    await new Promise((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("SVG load failed"));
+      img.src = svgUrl;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      toast("Canvas not available.", "error");
+      return;
+    }
+    const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(dpr, dpr);
+    ctx.drawImage(img, 0, 0, w, h);
+    const pngUrl = canvas.toDataURL("image/png");
+    const html = buildStandaloneHtml(`<img src="${pngUrl}" style="max-width:100%;display:block;">`, filename.replace(".html", ""));
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    downloadBlob(blob, filename);
+    toast("HTML exported.", "success");
+  } catch {
+    toast("HTML export failed.", "error");
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+}
+function buildStandaloneHtml(bodyContent, title) {
+  const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml2(title)} \u2014 EdaTime</title>
+  <style>body{margin:0;padding:16px;background:${bg};font-family:sans-serif;}</style>
+</head>
+<body>
+${bodyContent}
+</body>
+</html>`;
+}
+function escapeHtml2(str) {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function exportMatrixCSV(columns, data, filename) {
+  if (!columns.length || !data.length) {
+    toast("No data to export.", "warning");
+    return;
+  }
+  const header = ["", ...columns].join(",");
+  const rows = data.map(
+    (row, i) => [columns[i], ...row.map((v) => v !== null ? v.toFixed(6) : "")].join(",")
+  );
+  const csv = [header, ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  downloadBlob(blob, filename);
+  toast("CSV exported.", "success");
+}
+function exportTraceCSV(traces, xLabel, filename) {
+  if (traces.length === 0) {
+    toast("No data to export.", "warning");
+    return;
+  }
+  const ref = traces[0];
+  const headers = [xLabel, ...traces.map((t) => t.column)];
+  const lines = [headers.join(",")];
+  for (let i = 0; i < ref.xs.length; i++) {
+    const vals = [String(ref.xs[i]), ...traces.map((t) => t.ys[i] != null ? String(t.ys[i]) : "")];
+    lines.push(vals.join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  downloadBlob(blob, filename);
+  toast("CSV exported.", "success");
+}
+
 // frontend/src/app.ts
 var _appCleanups = [];
 var EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} };
 function initModalClose(modalId, closeBtnId, cancelBtnId, onClose) {
   const modal = document.getElementById(modalId);
   if (!modal) return null;
-  const close = () => {
+  const close2 = () => {
     modal.hidden = true;
     onClose?.();
   };
-  document.getElementById(closeBtnId)?.addEventListener("click", close);
-  document.getElementById(cancelBtnId)?.addEventListener("click", close);
+  document.getElementById(closeBtnId)?.addEventListener("click", close2);
+  document.getElementById(cancelBtnId)?.addEventListener("click", close2);
   modal.addEventListener("click", (e) => {
-    if (e.target === modal) close();
+    if (e.target === modal) close2();
   });
-  return close;
+  return close2;
 }
 function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
   const btn = document.getElementById(btnId);
@@ -2009,7 +2956,10 @@ function computeFrontendRollingBands(data, cols, windowSize) {
 function renderCurrentData() {
   const emptyState = document.getElementById("timeseries-empty-state");
   const hasSelection = Array.isArray(appState.selectedCols) && appState.selectedCols.length > 0;
-  if (emptyState) emptyState.hidden = hasSelection;
+  if (emptyState) {
+    emptyState.hidden = hasSelection;
+    emptyState.setAttribute("data-empty-reason", hasSelection ? "" : "no-columns-selected");
+  }
   if (!appState.chart) return;
   if (!hasSelection) {
     appState.rollingBands = null;
@@ -2455,7 +3405,7 @@ function initTransformModal() {
   const exprInput = document.getElementById("transform-expression");
   const nameInput = document.getElementById("transform-output-name");
   const errorEl = document.getElementById("transform-error");
-  const close = initModalClose(
+  const close2 = initModalClose(
     "transform-modal",
     "transform-close-btn",
     "transform-cancel-btn",
@@ -2463,7 +3413,7 @@ function initTransformModal() {
       if (errorEl) errorEl.textContent = "";
     }
   );
-  if (!close) return;
+  if (!close2) return;
   applyBtn?.addEventListener("click", async () => {
     const expr = exprInput?.value?.trim();
     const name = nameInput?.value?.trim();
@@ -2480,7 +3430,7 @@ function initTransformModal() {
       applyBtn.textContent = "Applying\u2026";
       applyBtn.disabled = true;
       await postTransform(expr, name);
-      close();
+      close2();
       if (fetchMetadata) {
         appState.metadata = await fetchMetadata();
         appState.numericCols = (appState.metadata.numeric_columns || []).filter((col) => col && col.toLowerCase() !== "ts");
@@ -2516,7 +3466,10 @@ function _fftUpdateZoomBtn(isZoomed) {
 }
 function _fftRerenderOrClear() {
   const emptyState = document.getElementById("fft-empty-state");
-  if (emptyState) emptyState.hidden = _fftTraces.length > 0;
+  if (emptyState) {
+    emptyState.hidden = _fftTraces.length > 0;
+    emptyState.setAttribute("data-empty-reason", _fftTraces.length > 0 ? "" : "no-columns-selected");
+  }
   if (!_fftChart) return;
   if (_fftTraces.length === 0) {
     _fftChart.clear();
@@ -2632,6 +3585,27 @@ async function initFftPage() {
     _fftRerenderOrClear();
   });
   zoomResetBtn?.addEventListener("click", () => _fftChart?.resetView());
+  document.getElementById("fft-export-png-btn")?.addEventListener("click", () => {
+    exportContainerCanvasPNG("fft-chart", "edatime_fft.png");
+  });
+  document.getElementById("fft-export-svg-btn")?.addEventListener("click", () => {
+    exportContainerCanvasSVG("fft-chart", "edatime_fft.svg");
+  });
+  document.getElementById("fft-export-html-btn")?.addEventListener("click", () => {
+    exportContainerCanvasHTML("fft-chart", "edatime_fft.html");
+  });
+  document.getElementById("fft-export-csv-btn")?.addEventListener("click", () => {
+    if (_fftTraces.length === 0) {
+      toast("No FFT data to export.", "warning");
+      return;
+    }
+    const csvTraces = _fftTraces.map((t) => ({
+      column: t.column,
+      xs: t.frequencies,
+      ys: _fftMode === "psd" ? t.psd : t.magnitudes
+    }));
+    exportTraceCSV(csvTraces, "frequency_hz", `edatime_fft_${_fftMode}.csv`);
+  });
   _fftRerenderOrClear();
 }
 var _heatmapLoaded = false;
@@ -2647,11 +3621,12 @@ async function initHeatmapPage() {
   if (!container) return;
   let matrixData = null;
   let metric = "pearson";
-  function syncHeatmapEmptyState(message, visible) {
+  function syncHeatmapEmptyState(message, visible, reason = "") {
     const empty = document.getElementById("heatmap-empty-state");
     if (!empty) return;
     empty.textContent = message;
     empty.hidden = !visible;
+    empty.setAttribute("data-empty-reason", visible ? reason || "no-data" : "");
   }
   function renderHeatmap() {
     if (!matrixData || !container) {
@@ -2663,7 +3638,7 @@ async function initHeatmapPage() {
     const n = cols.length;
     if (n === 0) {
       container.innerHTML = "";
-      syncHeatmapEmptyState("No numeric columns are available for the correlation heatmap.", true);
+      syncHeatmapEmptyState("No numeric columns are available for the correlation heatmap.", true, "no-columns-available");
       return;
     }
     syncHeatmapEmptyState("", false);
@@ -2681,7 +3656,7 @@ async function initHeatmapPage() {
         const displayVal = val !== null ? val.toFixed(2) : "\u2014";
         const bg = val !== null ? correlationColor(val) : "transparent";
         const textColor = val !== null && Math.abs(val) > 0.5 ? "#fff" : "var(--text)";
-        html += `<div class="heatmap-cell" style="display:flex;align-items:center;justify-content:center;background:${bg};color:${textColor};border-radius:2px;cursor:default;font-variant-numeric:tabular-nums;" title="${cols[i]} \xD7 ${cols[j]}: ${displayVal}">${displayVal}</div>`;
+        html += `<div class="heatmap-cell" data-row="${i}" data-col="${j}" style="display:flex;align-items:center;justify-content:center;background:${bg};color:${textColor};border-radius:2px;cursor:${i !== j ? "pointer" : "default"};font-variant-numeric:tabular-nums;" title="${cols[i]} \xD7 ${cols[j]}: ${displayVal}${i !== j ? " \u2014 click to explore in Scatter" : ""}">${displayVal}</div>`;
       }
     }
     html += `</div>`;
@@ -2691,6 +3666,18 @@ async function initHeatmapPage() {
     html += `<span>+1.0</span>`;
     html += `</div>`;
     container.innerHTML = html;
+    container.addEventListener("click", (e) => {
+      const cell = e.target.closest(".heatmap-cell");
+      if (!cell) return;
+      const ri = parseInt(cell.dataset.row || "", 10);
+      const ci = parseInt(cell.dataset.col || "", 10);
+      if (isNaN(ri) || isNaN(ci) || ri === ci) return;
+      const xSelect = document.getElementById("scatter-x-col");
+      const ySelect = document.getElementById("scatter-y-col");
+      if (xSelect) xSelect.value = cols[ri];
+      if (ySelect) ySelect.value = cols[ci];
+      showPage("scatter");
+    });
   }
   function correlationColor(v) {
     const clamped = Math.max(-1, Math.min(1, v));
@@ -2716,8 +3703,14 @@ async function initHeatmapPage() {
       if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns \xB7 ${_heatmapCellSize}px cells`;
       renderHeatmap();
     } catch (e) {
-      syncHeatmapEmptyState("Correlation heatmap is unavailable for the current dataset.", true);
-      if (statusEl) statusEl.textContent = `Error: ${e?.message || "failed"}`;
+      const msg = e?.message || "";
+      const isInsufficient = msg.toLowerCase().includes("two") || msg.toLowerCase().includes("numeric") || msg.toLowerCase().includes("column");
+      syncHeatmapEmptyState(
+        isInsufficient ? "Need at least two numeric columns to compute correlations. Upload a dataset with multiple numeric columns." : "Correlation heatmap is unavailable for the current dataset.",
+        true,
+        isInsufficient ? "no-columns-available" : "render-failure"
+      );
+      if (statusEl) statusEl.textContent = isInsufficient ? "Not enough numeric columns" : `Error: ${msg || "failed"}`;
     }
   }
   metricSelect?.addEventListener("change", () => {
@@ -2729,6 +3722,23 @@ async function initHeatmapPage() {
     if (sizeValue) sizeValue.textContent = String(_heatmapCellSize);
     if (statusEl && matrixData) statusEl.textContent = `${matrixData.columns.length} columns \xB7 ${_heatmapCellSize}px cells`;
     renderHeatmap();
+  });
+  document.getElementById("heatmap-export-csv-btn")?.addEventListener("click", () => {
+    if (!matrixData) {
+      toast("No heatmap data to export.", "warning");
+      return;
+    }
+    const data = metric === "spearman" ? matrixData.spearman : matrixData.pearson;
+    exportMatrixCSV(matrixData.columns, data, `edatime_correlation_${metric}.csv`);
+  });
+  document.getElementById("heatmap-export-png-btn")?.addEventListener("click", () => {
+    exportElementPNG("heatmap-container", "edatime_heatmap.png");
+  });
+  document.getElementById("heatmap-export-svg-btn")?.addEventListener("click", () => {
+    exportElementSVG("heatmap-container", "edatime_heatmap.svg");
+  });
+  document.getElementById("heatmap-export-html-btn")?.addEventListener("click", () => {
+    void exportElementHTML("heatmap-container", "edatime_heatmap.html");
   });
   window.addEventListener("edatime:page-change", (e) => {
     if (e?.detail?.page === "heatmap") loadMatrix();
@@ -2756,6 +3766,7 @@ async function initSpectrogramPage() {
     if (!empty) return;
     empty.textContent = message || "Pick a numeric column and click Compute to generate the spectrogram.";
     empty.hidden = !!_spectrogramResult;
+    empty.setAttribute("data-empty-reason", _spectrogramResult ? "" : "no-columns-selected");
   };
   const ensureSpectrogramChart = async () => {
     if (_spectrogramChart) return _spectrogramChart;
@@ -3037,6 +4048,15 @@ ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart
     _spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: 0, end: 100 });
     _spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 1, start: 0, end: 100 });
   });
+  document.getElementById("spectrogram-export-png-btn")?.addEventListener("click", () => {
+    exportEChartsPNG(_spectrogramChart, "edatime_spectrogram.png");
+  });
+  document.getElementById("spectrogram-export-svg-btn")?.addEventListener("click", () => {
+    exportEChartsSVG(_spectrogramChart, "edatime_spectrogram.svg");
+  });
+  document.getElementById("spectrogram-export-html-btn")?.addEventListener("click", () => {
+    exportEChartsHTML(_spectrogramChart, "edatime_spectrogram.html");
+  });
   window.addEventListener("edatime:page-change", (e) => {
     if (e?.detail?.page === "spectrogram" && appState.metadata) {
       const currentOpts = new Set(Array.from(colSelect.options).map((o) => o.value));
@@ -3053,7 +4073,7 @@ ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart
   });
 }
 async function initCausalPage() {
-  const { initCausalPage: init2 } = await import("./causalPage-ZFIKPRRA.js");
+  const { initCausalPage: init2 } = await import("./causalPage-Y3QBAXZW.js");
   init2({
     getMetadata: () => appState.metadata,
     chipColor: _fftColorFor,
@@ -3069,7 +4089,7 @@ function initOutlierModal() {
   const windowInput = document.getElementById("outlier-window");
   const errorEl = document.getElementById("outlier-error");
   const resultEl = document.getElementById("outlier-result");
-  const close = initModalClose(
+  const close2 = initModalClose(
     "outlier-modal",
     "outlier-close-btn",
     "outlier-cancel-btn",
@@ -3078,7 +4098,7 @@ function initOutlierModal() {
       if (resultEl) resultEl.textContent = "";
     }
   );
-  if (!close) return;
+  if (!close2) return;
   const modal = document.getElementById("outlier-modal");
   openBtn?.addEventListener("click", () => {
     modal.hidden = false;
@@ -3128,8 +4148,8 @@ function initTimeDistributionModal() {
   const binsInput = document.getElementById("timedist-bins");
   const canvas = document.getElementById("timedist-canvas");
   const statusEl = document.getElementById("timedist-status");
-  const close = initModalClose("timedist-modal", "timedist-close-btn", "timedist-cancel-btn");
-  if (!close || !canvas) return;
+  const close2 = initModalClose("timedist-modal", "timedist-close-btn", "timedist-cancel-btn");
+  if (!close2 || !canvas) return;
   const modal = document.getElementById("timedist-modal");
   const openBtn = document.getElementById("timedist-open-btn");
   openBtn?.addEventListener("click", () => {
@@ -3326,13 +4346,49 @@ function initThemeToggle() {
 }
 async function init() {
   initPages();
+  initHashRouting();
   initThemeToggle();
+  document.querySelectorAll("[data-home-nav]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const target = el.dataset.homeNav;
+      if (target) showPage(target);
+    });
+  });
   initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid);
   initColumnProfilesGrid();
   initAnalysisControls(fetchAndRender);
   initColumnFilterModal(renderCurrentData, updateAnalysisYRange);
   initChartPageFilterGesture();
   initKeyboardShortcuts();
+  initCommandPalette();
+  initProvenance();
+  registerCommands([
+    // Navigation
+    { id: "nav-upload", label: "Go to Upload", shortcut: "Alt+1", category: "Navigation", action: () => showPage("upload") },
+    { id: "nav-timeseries", label: "Go to Timeseries", shortcut: "Alt+2", category: "Navigation", action: () => showPage("timeseries") },
+    { id: "nav-scatter", label: "Go to Scatter", shortcut: "Alt+3", category: "Navigation", action: () => showPage("scatter") },
+    { id: "nav-matrix", label: "Go to Scatter Matrix", shortcut: "Alt+4", category: "Navigation", action: () => showPage("scattermatrix") },
+    { id: "nav-dist", label: "Go to Distributions", shortcut: "Alt+5", category: "Navigation", action: () => showPage("distributions") },
+    { id: "nav-fft", label: "Go to FFT / PSD", shortcut: "Alt+6", category: "Navigation", action: () => showPage("fft") },
+    { id: "nav-heatmap", label: "Go to Heatmap", shortcut: "Alt+7", category: "Navigation", action: () => showPage("heatmap") },
+    { id: "nav-spectrogram", label: "Go to Spectrogram", shortcut: "Alt+8", category: "Navigation", action: () => showPage("spectrogram") },
+    { id: "nav-causal", label: "Go to Causal", shortcut: "Alt+9", category: "Navigation", action: () => showPage("causal") },
+    // Chart
+    { id: "chart-reset", label: "Reset zoom", shortcut: "Shift+R", category: "Chart", action: () => resetZoom(fetchAndRender) },
+    { id: "chart-zoomout", label: "Zoom out one level", shortcut: "Shift+Z", category: "Chart", action: () => zoomOut(fetchAndRender) },
+    { id: "chart-clear-af", label: "Clear adaptive filters", shortcut: "Shift+C", category: "Chart", action: () => document.getElementById("adaptive-clear-btn")?.click?.() },
+    // Export
+    { id: "export-csv", label: "Export chart data as CSV", shortcut: "Shift+E", category: "Export", action: () => window.__edatime?.exportChartFilteredData?.("csv") },
+    { id: "export-json", label: "Export chart data as JSON", category: "Export", action: () => window.__edatime?.exportChartFilteredData?.("json") },
+    { id: "export-png", label: "Export chart as PNG", category: "Export", action: () => appState.chart?.exportPNG?.() },
+    { id: "export-parquet", label: "Export filtered data as Parquet", category: "Export", action: () => document.getElementById("export-parquet-btn")?.click?.() },
+    // Session
+    { id: "session-save", label: "Export session to file", category: "Session", action: exportSessionToFile },
+    { id: "session-load", label: "Import session from file", category: "Session", action: importSessionFromFile },
+    // Analysis
+    { id: "provenance", label: "Show analysis context panel", shortcut: "Ctrl+I", category: "Analysis", action: toggleProvenance },
+    { id: "cmd-palette", label: "Open command palette", shortcut: "Ctrl+K", category: "Analysis", action: openPalette }
+  ]);
   initTransformModal();
   initOutlierModal();
   initTimeDistributionModal();
@@ -3391,6 +4447,7 @@ async function init() {
     renderColumnProfilesGrid(true);
     applyPartialTimeRangeFromMetadata(appState.metadata, false);
     setUploadPreviewStatus("Showing current dataset profile. Drop/select a file to preview before loading.");
+    setProfileMode("dataset");
     buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
     buildMetaBar(appState.metadata);
     buildRangeControls();
@@ -3428,6 +4485,17 @@ async function init() {
     await fetchAndRender();
     appState.initialView = getCurrentView();
     dbgGroup("initialView snapshot", () => dbg(appState.initialView));
+    const savedSession = autoRestoreSession();
+    if (savedSession) {
+      applySession(savedSession);
+      buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
+      buildRangeControls();
+      renderCurrentData();
+      await fetchAndRender();
+    }
+    initAutoSave();
+    window.__edatime.exportSession = exportSessionToFile;
+    window.__edatime.importSession = importSessionFromFile;
   } catch (e) {
     console.error("Primary chart failed, switching to fallback:", e);
     try {

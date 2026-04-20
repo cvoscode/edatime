@@ -20,7 +20,7 @@ The app is organized as page-based workflows in the left sidebar.
 
 ## Navigation
 
-The app opens on the Upload page by default. The main navigation lives in the left sidebar.
+The app opens on the Home page by default. The main navigation lives in the left sidebar.
 
 - `Alt+1`: Upload
 - `Alt+2`: Timeseries

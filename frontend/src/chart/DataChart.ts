@@ -271,7 +271,8 @@ export class DataChart {
                     return [{ __colorCandidate: true, colName, idx, visible, points, colorValues: seriesColors }];
                 }
 
-                const color = getSeriesColor(colName, idx);
+                const numColIdx = appState.numericCols.indexOf(colName);
+                const color = getSeriesColor(colName, numColIdx >= 0 ? numColIdx : idx);
                 const lineSeries = { type: 'line' as const, name: colName, color, visible, data: points };
                 if (showMarkers && visible) {
                     for (const pt of points) {

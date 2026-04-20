@@ -218,9 +218,10 @@ export function buildScatterQueryContext(): ScatterQueryContext {
         })
         .filter((f): f is { column: string; from: number; to: number } => f !== null);
 
+    const linkedRangeValid = isLinkedBrushEnabled() && Number.isFinite(start) && Number.isFinite(end) && start < end;
     return {
-        start: isLinkedBrushEnabled() && Number.isFinite(start) ? start : undefined,
-        end: isLinkedBrushEnabled() && Number.isFinite(end) ? end : undefined,
+        start: linkedRangeValid ? start : undefined,
+        end: linkedRangeValid ? end : undefined,
         filters,
         lineFilters: buildAdaptiveLineFiltersForQuery(),
     };

@@ -1,0 +1,133 @@
+/* ─── Provenance panel ────────────────────────────────── */
+
+.provenance-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 320px;
+    max-width: calc(100vw - 60px);
+    z-index: 8000;
+    background: var(--surface);
+    border-left: 1px solid var(--border-hi);
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: transform 0.22s ease;
+}
+
+.provenance-panel[hidden] {
+    display: none;
+}
+
+.provenance-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.provenance-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.provenance-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 2px 4px;
+    line-height: 1;
+}
+
+.provenance-close:hover {
+    color: var(--text);
+}
+
+.provenance-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+}
+
+.provenance-section {
+    padding: 8px 16px;
+}
+
+.provenance-section+.provenance-section {
+    border-top: 1px solid var(--border);
+}
+
+.provenance-section-title {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.provenance-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: 0.75rem;
+}
+
+.provenance-key {
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 50%;
+}
+
+.provenance-val {
+    color: var(--text);
+    text-align: right;
+    word-break: break-word;
+}
+
+.provenance-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.provenance-chip {
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 0.6875rem;
+    font-weight: 500;
+}
+
+.provenance-empty {
+    padding: 24px 16px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+}
+
+/* Header button label — visible text next to icon */
+.provenance-header-btn {
+    color: var(--accent);
+    border-color: rgba(0, 168, 255, 0.25);
+}
+
+.provenance-header-btn:hover {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+}
+
+.provenance-btn-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+}

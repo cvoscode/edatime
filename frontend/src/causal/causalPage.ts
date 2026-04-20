@@ -1480,6 +1480,16 @@ export function initCausalPage(deps: CausalDeps): void {
     applyMethodControlState(methodSelect?.value || 'pcmci');
     void initChart();
 
+    // Allow other pages to pre-select columns for causal analysis
+    window.addEventListener('edatime:causal-preselect', ((e: CustomEvent) => {
+        const cols: string[] = e.detail?.columns || [];
+        if (cols.length === 0) return;
+        _selectedColumns.clear();
+        for (const c of cols) _selectedColumns.add(c);
+        renderColumnChips(deps, columnsBar);
+        syncCausalEmptyState();
+    }) as EventListener);
+
     methodSelect?.addEventListener('change', () => applyMethodControlState(methodSelect.value));
 
     addEdgeBtn?.addEventListener('click', () => {

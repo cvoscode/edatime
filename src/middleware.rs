@@ -134,6 +134,7 @@ pub fn csp_header_value(extra_origins: &[String]) -> HeaderValue {
         "default-src 'self' unpkg.com esm.sh{extra}; \
          script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh{extra}; \
          style-src 'self' 'unsafe-inline'; \
+         img-src 'self' data:; \
          connect-src 'self' unpkg.com esm.sh{extra} blob:;"
     );
     HeaderValue::from_str(&value).unwrap_or_else(|_| {
@@ -143,6 +144,7 @@ pub fn csp_header_value(extra_origins: &[String]) -> HeaderValue {
             "default-src 'self' unpkg.com esm.sh; \
              script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh; \
              style-src 'self' 'unsafe-inline'; \
+             img-src 'self' data:; \
              connect-src 'self' unpkg.com esm.sh blob:;",
         )
     })

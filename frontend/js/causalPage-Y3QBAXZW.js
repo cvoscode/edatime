@@ -80,6 +80,7 @@ function syncCausalEmptyState() {
   const empty = document.getElementById("causal-empty-state");
   if (!empty) return;
   empty.hidden = _currentColumns.length > 0;
+  empty.setAttribute("data-empty-reason", _currentColumns.length > 0 ? "" : "no-columns-selected");
 }
 function nextDraftId(prefix) {
   _draftSeq += 1;
@@ -1279,6 +1280,14 @@ function initCausalPage(deps) {
   initInfoIcons();
   applyMethodControlState(methodSelect?.value || "pcmci");
   void initChart();
+  window.addEventListener("edatime:causal-preselect", ((e) => {
+    const cols = e.detail?.columns || [];
+    if (cols.length === 0) return;
+    _selectedColumns.clear();
+    for (const c of cols) _selectedColumns.add(c);
+    renderColumnChips(deps, columnsBar);
+    syncCausalEmptyState();
+  }));
   methodSelect?.addEventListener("change", () => applyMethodControlState(methodSelect.value));
   addEdgeBtn?.addEventListener("click", () => {
     _addEdgeMode = !_addEdgeMode;
@@ -1399,4 +1408,4 @@ function initCausalPage(deps) {
 export {
   initCausalPage
 };
-//# sourceMappingURL=causalPage-ZFIKPRRA.js.map
+//# sourceMappingURL=causalPage-Y3QBAXZW.js.map

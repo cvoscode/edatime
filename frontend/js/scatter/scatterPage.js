@@ -52,7 +52,7 @@ import {
   showError,
   state,
   upperBoundByX
-} from "../chunk-B5EQ6MMR.js";
+} from "../chunk-WFFVE7L3.js";
 import {
   appState,
   downloadBlob,
@@ -617,7 +617,18 @@ function setCorrelationOverlayText(pearson, spearman) {
     return;
   }
   el.hidden = false;
-  el.innerHTML = `<div>Pearson: <strong>${escapeHtml(hasP ? pearson.toFixed(3) : "\u2014")}</strong> / Spearman: <strong>${escapeHtml(hasS ? spearman.toFixed(3) : "\u2014")}</strong></div>`;
+  el.innerHTML = `<div>Pearson: <strong>${escapeHtml(hasP ? pearson.toFixed(3) : "\u2014")}</strong> / Spearman: <strong>${escapeHtml(hasS ? spearman.toFixed(3) : "\u2014")}</strong> <button class="scatter-causal-link btn btn-ghost btn-sm" title="Run causal analysis on X/Y columns" style="margin-left:8px;font-size:0.65rem;padding:1px 6px;">\u21D2 Causal</button></div>`;
+  const btn = el.querySelector(".scatter-causal-link");
+  btn?.addEventListener("click", () => {
+    const xCol = document.getElementById("scatter-x-col")?.value;
+    const yCol = document.getElementById("scatter-y-col")?.value;
+    if (xCol && yCol) {
+      window.dispatchEvent(new CustomEvent("edatime:causal-preselect", {
+        detail: { columns: [xCol, yCol] }
+      }));
+      document.querySelector('.sidebar .nav-item[data-page="causal"]')?.click?.();
+    }
+  });
 }
 function drawMarginalX(canvas, values, viewMin, viewMax) {
   const frame = getCanvasFrame(canvas, 600, 64);
@@ -1435,6 +1446,7 @@ async function renderMatrixFftPanel() {
 }
 
 // frontend/src/scatter/scatterPage.ts
+var _gpuUnavailable = null;
 function handleErr(err) {
   console.error(err);
   showError(String(err?.message ?? err));
@@ -1445,9 +1457,37 @@ function syncScatterEmptyState(message) {
   const xSelect = getEl("scatter-x-col");
   const ySelect = getEl("scatter-y-col");
   const hasAxes = !!xSelect?.value && !!ySelect?.value;
-  const text = message || (!hasAxes ? "Choose X and Y numeric columns to render the scatter plot." : "No points match the current filters or linked time range.");
+  let reason;
+  if (_gpuUnavailable && !state.chart) {
+    reason = "gpu-unavailable";
+  } else if (!hasAxes) {
+    reason = "no-columns-selected";
+  } else if (state.totalPoints === 0) {
+    reason = "no-data-after-filters";
+  } else {
+    reason = "";
+  }
+  const text = message || (_gpuUnavailable && !state.chart ? "WebGPU is not available. Scatter rendering requires a WebGPU-capable browser (Chrome 113+, Edge 113+, Safari 18+)." : !hasAxes ? "Choose X and Y numeric columns to render the scatter plot." : "No points match the current filters or linked time range.");
   empty.textContent = text;
-  empty.hidden = hasAxes && state.totalPoints > 0;
+  empty.setAttribute("data-empty-reason", reason);
+  empty.hidden = hasAxes && state.totalPoints > 0 && !(_gpuUnavailable && !state.chart);
+}
+async function isGPUAvailable() {
+  if (_gpuUnavailable !== null) return !_gpuUnavailable;
+  if (!navigator.gpu) {
+    _gpuUnavailable = true;
+    return false;
+  }
+  try {
+    const adapter = await Promise.race([
+      navigator.gpu.requestAdapter(),
+      new Promise((resolve) => setTimeout(() => resolve(null), 3e3))
+    ]);
+    _gpuUnavailable = !adapter;
+  } catch {
+    _gpuUnavailable = true;
+  }
+  return !_gpuUnavailable;
 }
 function setSidebarAnalyticsSelection(viewName) {
   const navPage = viewName === "matrix" ? "scattermatrix" : viewName === "distributions" ? "distributions" : "scatter";
@@ -1605,6 +1645,11 @@ async function renderScatter() {
     }
     const nextOption = buildOption(state.points, container);
     if (!state.chart) {
+      if (!await isGPUAvailable()) {
+        state.totalPoints = points.length;
+        syncScatterEmptyState();
+        return;
+      }
       state.chart = await Ad(container, nextOption);
       state.lastRenderSignature = renderSignature;
       initSelectionZoom(container);
@@ -1628,7 +1673,11 @@ async function renderScatter() {
   } catch (err) {
     if (err?.name === "AbortError") return;
     state.totalPoints = 0;
-    syncScatterEmptyState("Scatter rendering is unavailable for the current query.");
+    const isGpuErr = /gpu|webgpu|adapter|device/i.test(String(err?.message || ""));
+    if (isGpuErr) _gpuUnavailable = true;
+    syncScatterEmptyState(
+      isGpuErr ? "WebGPU rendering failed. Scatter requires a GPU-capable browser." : "Scatter rendering is unavailable for the current query."
+    );
     throw err;
   } finally {
     if (scatterLoading) scatterLoading.hidden = true;
@@ -1707,11 +1756,19 @@ function bindControls() {
       handleErr(err);
     }
   });
-  const matrixModeSelect = getEl("scatter-matrix-mode");
+  const matrixModeHidden = getEl("scatter-matrix-mode");
   const matrixSizeInput = getEl("scatter-matrix-cell-size");
   const matrixSizeValue = getEl("scatter-matrix-cell-size-value");
-  matrixModeSelect?.addEventListener("change", () => {
-    void refreshActiveScatterView();
+  document.querySelectorAll("[data-matrix-mode]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.dataset.matrixMode || "scatter";
+      if (matrixModeHidden) matrixModeHidden.value = mode;
+      document.querySelectorAll("[data-matrix-mode]").forEach((b) => {
+        b.classList.toggle("active", b.dataset.matrixMode === mode);
+        b.setAttribute("aria-pressed", b.dataset.matrixMode === mode ? "true" : "false");
+      });
+      void refreshActiveScatterView();
+    });
   });
   matrixSizeInput?.addEventListener("input", () => {
     if (matrixSizeValue) matrixSizeValue.textContent = matrixSizeInput.value;

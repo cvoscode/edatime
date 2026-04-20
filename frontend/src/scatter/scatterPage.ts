@@ -394,11 +394,21 @@ function bindControls(): void {
         try { await renderScatter(); } catch (err: any) { handleErr(err); }
     });
 
-    // Matrix mode and cell size controls
-    const matrixModeSelect = getEl('scatter-matrix-mode') as HTMLSelectElement | null;
+    // Matrix mode toggle buttons (replaces <select>)
+    const matrixModeHidden = getEl('scatter-matrix-mode') as HTMLInputElement | null;
     const matrixSizeInput = getEl('scatter-matrix-cell-size') as HTMLInputElement | null;
     const matrixSizeValue = getEl('scatter-matrix-cell-size-value');
-    matrixModeSelect?.addEventListener('change', () => { void refreshActiveScatterView(); });
+    document.querySelectorAll<HTMLButtonElement>('[data-matrix-mode]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const mode = btn.dataset.matrixMode || 'scatter';
+            if (matrixModeHidden) matrixModeHidden.value = mode;
+            document.querySelectorAll<HTMLButtonElement>('[data-matrix-mode]').forEach((b) => {
+                b.classList.toggle('active', b.dataset.matrixMode === mode);
+                b.setAttribute('aria-pressed', b.dataset.matrixMode === mode ? 'true' : 'false');
+            });
+            void refreshActiveScatterView();
+        });
+    });
     matrixSizeInput?.addEventListener('input', () => {
         if (matrixSizeValue) matrixSizeValue.textContent = matrixSizeInput.value;
         if (state.activeView === 'matrix') void refreshActiveScatterView();

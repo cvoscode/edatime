@@ -1,155 +1,159 @@
-# Feature Ideas
+# Feature Ideas — Ranked by Impact
 
-These ideas are based on a manual walkthrough of the running app with the built-in dataset. They focus on user value, workflow speed, and reducing ambiguity in advanced analysis flows.
+Ranked from highest user impact to lowest. Features marked ✅ have been implemented.
+Last updated: 2025-07-25
 
-## High Value
+---
+## Tier 2 — High Impact (Next Priorities)
 
-### 1. Saved Analysis Sessions
+### 8. Causal Run Comparison
 
-Allow users to save and restore the full working state:
+Side-by-side comparison of multiple causal runs with different parameters.
 
-- active page
-- selected series
-- zoom window
-- scatter X/Y/color choices
-- matrix settings
-- FFT and spectrogram settings
-- causal settings and graph edits
+Comparison dimensions:
+- method (PC, PCMCI, PCMCI+, LPCMCI)
+- independence test
+- tau max and alpha settings
+- resulting edge set differences (added/removed/changed)
 
-Why it matters: the app already supports deep multi-page workflows, but the state is too rich to recreate manually each time.
+**Why:** Causal discovery is parameter-sensitive. Users need to see which edges are stable across settings.
 
-### 2. Undo / Preview For Dataset-Changing Actions
+### 9. Stronger Spectral Guidance
 
-Add a reversible workflow for:
+Presets and explanations for FFT and spectrogram analysis.
 
-- transforms
-- outlier removal
-- future row/column mutations
+Additions:
+- preset window sizes with plain-language descriptions ("for slow trends", "for fast oscillations")
+- sampling-rate explanation and Nyquist warning
+- dominant-frequency summary table
+- peak labels on FFT chart
+- option to filter out specific frequencies from underlying data
 
-Good implementation options:
+**Why:** Users know how to render the charts but not how to interpret or configure them.
 
-- preview affected row count before apply
-- keep an operation history
-- allow one-click revert to the previous dataset revision
+### 10. Persistent Notes and Annotations
 
-Why it matters: these actions are analytically powerful but currently feel heavier than simple view changes.
+Extend chart drawing tools into a broader annotation system.
 
-
-## Usability Improvements
-
-### 5. Clearer Upload-State Separation
-
-Improve the Upload page so it is always obvious whether the profile grid shows:
-
-- the current in-memory dataset
-- a staged file preview that has not been ingested yet
-
-Possible additions:
-
-- a prominent status badge
-- separate tabs for `Current dataset` and `Staged upload preview`
-- preselect-all behavior when previewing a new file
-
-Why it matters: the current page is capable, but the distinction between current data and staged preview is easy to miss.
-
-### 6. Global Help / Shortcut Palette
-
-Add a built-in help overlay or command palette with:
-
-- keyboard shortcuts
-- page descriptions
-- interaction hints such as `Ctrl+click` and double right-click behavior
-- quick navigation by typing page or column names
-
-Why it matters: several advanced interactions are discoverable only if you already know they exist.
-
-### 7. Export Job Feedback
-
-Add export feedback and a lightweight job history.
-
-Useful details:
-
-- success toast
-- failed export reason
-- last exported filename and format
-- background progress for large Parquet exports
-
-Why it matters: many export buttons exist, but long-running or failed exports need stronger user feedback.
-
-### 8. Persistent Notes And Annotations
-
-Extend the chart drawing tools into a broader annotation system:
-
+Features:
 - named notes tied to time ranges
 - saved callouts on scatter plots
 - analysis bookmarks tied to dataset revisions
+- annotation persistence across sessions (extends saved sessions)
 
-Why it matters: the app is strong for exploration, but collaborative interpretation still depends on outside notes.
+**Why:** Collaborative interpretation still depends on outside tools. Inline annotations close the loop.
 
-## Analytics Depth
+### 11. Guided Workflow Mode
 
-### 9. Cross-Page Provenance Panel
+Structured step-by-step analysis path: Upload → Timeseries → Correlations → Scatter Deep Dive → Causal.
 
-Show the currently active analysis context in one place:
+Features:
+- "Next step" suggestions after each page's analysis
+- Scatter detail view accessible from scatter matrix cells
+- Breadcrumb trail showing analysis progression
+- Optional — can be skipped by experienced users
 
-- dataset revision
-- active time range
-- numeric filters
-- adaptive filters
-- color encodings
-- derived columns
-- outlier rules applied
+**Why:** The nine pages are powerful but lack guided connectivity for users new to time-series analysis.
 
-Why it matters: once users move through Timeseries, Scatter, Matrix, and Causal, it becomes harder to remember exactly what subset is being analyzed.
+### 12. Appearance and Layout Settings
 
-### 10. Causal Run Comparison
+Dedicated settings panel for visual preferences.
 
-Allow side-by-side comparison of multiple causal runs with different parameters.
-
-Comparison dimensions:
-
-- method
-- test
-- tau max
-- alpha settings
-- resulting edge differences
-
-Why it matters: causal discovery is highly parameter-sensitive, and users need a way to see which edges are stable across settings.
-
-### 11. Stronger Spectral Guidance
-
-Add presets and explanations for FFT and spectrogram analysis.
-
-Helpful additions:
-
-- preset window sizes with plain-language descriptions
-- sampling-rate explanation
-- dominant-frequency summaries
-- peak labels and exportable peak tables
-- add the possibility to filter out frequencies in the underlying data
-
-Why it matters: the spectral pages render correctly, but many users will not know how to choose parameters or interpret the result.
-
-### 12. Correlation-To-Causal Bridge
-
-Add a handoff from Heatmap or Scatter into Causal that pre-populates:
-
-- selected variables
-- suggested lag ranges
-- suggested tests based on column types
-
-Why it matters: the current pages are individually strong, but the transition from descriptive analysis to causal analysis could be much faster.
-
-## Nice To Have
-
-### 15. Appearance And Layout Settings
-
-Add a dedicated settings panel for:
-
-- theme
+Options:
+- theme (dark / light / auto)
 - compact vs spacious layout
-- default chart palette
+- default chart color palette
 - default export format
 - preferred correlation metric
+- white-background export mode for presentations
 
-Why it matters: power users will benefit from being able to tune the shell once instead of repeating small UI changes.
+**Why:** Power users benefit from setting preferences once instead of repeating small UI changes.
+
+---
+
+## Tier 3 — Medium Impact
+
+### 13. Spectral Filtering
+
+Apply frequency-domain filters to the time-series data.
+
+Features:
+- low-pass, high-pass, band-pass filter controls on FFT page
+- preview filtered signal on the timeseries chart
+- option to export filtered data
+
+**Why:** Connects the spectral analysis back to the time domain for practical signal processing.
+
+### 14. Distribution Comparison Mode
+
+Compare distributions of the same column across different time ranges or filter conditions.
+
+Features:
+- split-view or overlay histograms
+- KS-test / AD-test statistics
+- before/after filtering comparison
+
+**Why:** Distribution analysis is currently single-snapshot. Comparisons reveal regime changes and filter effects.
+
+### 15. Multi-Dataset Support
+
+Load and compare multiple datasets simultaneously.
+
+Features:
+- dataset selector in sidebar
+- cross-dataset scatter and correlation
+- dataset-scoped sessions
+
+**Why:** Real-world analysis often involves comparing different experimental runs or data sources.
+
+### 16. Derived Columns / Computed Features
+
+Create new columns from expressions on existing ones.
+
+Features:
+- simple expression editor (column math, rolling aggregates, lag/lead)
+- derived columns appear in all analysis pages
+- persist in session state
+
+**Why:** Avoids round-tripping to external tools for simple feature engineering.
+
+### 17. Real-Time / Streaming Mode
+
+Support appending new data to the in-memory dataset.
+
+Features:
+- WebSocket or SSE endpoint for live data
+- auto-scrolling chart with configurable window
+- live statistics updates
+
+**Why:** Opens up monitoring use cases beyond post-hoc analysis.
+
+### 18. Collaborative Annotations via Backend
+
+Store annotations, sessions, and comparison results on the server.
+
+Features:
+- `/api/annotations` CRUD endpoints
+- shared session links
+- annotation sync across clients
+
+**Why:** Moves from single-user to team-oriented analysis workflows.
+
+### 19. Data Quality Dashboard
+
+Dedicated page summarizing data quality metrics.
+
+Features:
+- missing value heatmap by column and time
+- outlier summary per column
+- duplicate row detection
+- data freshness / staleness indicators
+
+**Why:** Data quality is the first thing analysts check but currently requires manual inspection.
+
+
+
+
+### pages that filter are connected so we can aggregate filters and export a polars-python pipeline based on it
+- Keep linkages between all pages that can apply filter explicit through events or shared query builders.
+- add the possibility to export the pipeline to so we can create a polars-python version for later use

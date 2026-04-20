@@ -10,7 +10,7 @@ cargo run --bin edatime
 
 Open <http://127.0.0.1:3000> in your browser.
 
-The app now opens on the Upload page by default.
+The app opens on the Home page by default.
 
 If the header later shows `Fallback renderer active`, the app is running without WebGPU acceleration. Upload and profiling still work, but you should verify GPU-heavy analysis pages again in a WebGPU-capable Chrome or Edge session.
 

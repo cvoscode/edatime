@@ -1,0 +1,126 @@
+/* ─── Toast notifications ─────────────────────────────── */
+
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    pointer-events: none;
+    max-width: 420px;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    border: 1px solid var(--border-hi);
+    color: var(--text);
+    font-size: 0.8125rem;
+    box-shadow: var(--shadow);
+    pointer-events: auto;
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+    transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.toast--visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.toast--exit {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+}
+
+.toast-icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.toast--success .toast-icon {
+    background: rgba(0, 200, 150, 0.18);
+    color: var(--green);
+}
+
+.toast--error .toast-icon {
+    background: rgba(255, 107, 107, 0.18);
+    color: var(--red);
+}
+
+.toast--warning .toast-icon {
+    background: rgba(255, 192, 65, 0.18);
+    color: var(--amber);
+}
+
+.toast--info .toast-icon {
+    background: rgba(0, 168, 255, 0.18);
+    color: var(--accent);
+}
+
+.toast--success {
+    border-color: rgba(0, 200, 150, 0.25);
+}
+
+.toast--error {
+    border-color: rgba(255, 107, 107, 0.25);
+}
+
+.toast--warning {
+    border-color: rgba(255, 192, 65, 0.25);
+}
+
+.toast--info {
+    border-color: rgba(0, 168, 255, 0.25);
+}
+
+.toast-text {
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+}
+
+.toast-action {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.toast-action:hover {
+    background: var(--accent-dim);
+}
+
+.toast-close {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+}
+
+.toast-close:hover {
+    color: var(--text);
+}

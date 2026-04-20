@@ -58,3 +58,15 @@
 
 /* 18. Keyframe animations */
 @import "modules/animations.css";
+
+/* 19. Toast notifications */
+@import "modules/toast.css";
+
+/* 20. Command palette */
+@import "modules/palette.css";
+
+/* 21. Provenance panel */
+@import "modules/provenance.css";
+
+/* 22. Homepage */
+@import "modules/home.css";
