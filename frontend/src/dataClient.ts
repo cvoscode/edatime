@@ -2,8 +2,6 @@ import { DEBUG, dbg } from './debug.js';
 import type {
     DataObject,
     DatasetMetadata,
-    DistributionFetchContext,
-    DistributionsResponse,
     ScatterCorrelationsResponse,
     ScatterFetchOptions,
     ScatterPointsResponse,
@@ -62,16 +60,11 @@ function assertScatterCorrelations(data: unknown): asserts data is ScatterCorrel
     if (!Array.isArray((data as any).correlations)) throw new Error('Correlations response missing correlations array');
 }
 
-function assertDistributions(data: unknown): asserts data is DistributionsResponse {
-    if (!isObject(data)) throw new Error('Distributions response is not an object');
-    if (!Array.isArray((data as any).columns)) throw new Error('Distributions response missing columns array');
-}
-
 // ── Fetch helpers ────────────────────────────────────────────────────────────
 
 async function getJson<T>(url: string, label: string, signal?: AbortSignal): Promise<T> {
     dbg(`GET (${label})`, url);
-    const res = await fetch(url, signal ? { signal } : undefined);
+    const res = await fetch(url, signal ? { signal, cache: 'no-store' } : { cache: 'no-store' });
     if (!res.ok) {
         const text = await res.text().catch(() => '');
         throw new Error(`${label} failed (${res.status}) ${text}`);
@@ -120,7 +113,7 @@ export async function fetchData(
     const url = `/api/data?${params.toString()}`;
 
     dbg('GET', url);
-    const res = await fetch(url, signal ? { signal } : undefined);
+    const res = await fetch(url, signal ? { signal, cache: 'no-store' } : { cache: 'no-store' });
 
     if (DEBUG) {
         dbg('status', res.status, res.statusText);
@@ -289,24 +282,6 @@ export async function fetchScatterCorrelations(
     const url = `/api/scatter/correlations?${params.toString()}`;
     const data = await getJson<unknown>(url, 'Scatter correlations');
     assertScatterCorrelations(data);
-    return data;
-}
-
-export async function fetchDistributions(
-    columns: string[] | string,
-    context: DistributionFetchContext = {},
-): Promise<DistributionsResponse> {
-    const body: Record<string, unknown> = {
-        columns: Array.isArray(columns) ? columns : [columns],
-    };
-    if (Number.isFinite(context?.start)) body.start = context.start;
-    if (Number.isFinite(context?.end)) body.end = context.end;
-    if (Array.isArray(context?.filters) && context.filters!.length > 0) body.filters = context.filters;
-    if (Array.isArray(context?.lineFilters) && context.lineFilters!.length > 0) body.line_filters = context.lineFilters;
-
-    const url = '/api/scatter/distributions';
-    const data = await postJson<unknown>(url, body, 'Distributions');
-    assertDistributions(data);
     return data;
 }
 
@@ -521,35 +496,3 @@ export async function postRemoveOutliers(
     return postJson<OutlierRemovalResult>(url, body, 'Outlier removal');
 }
 
-// ── Time Distributions ─────────────────────────────────────────────────────
-
-export interface TimeDistributionBin {
-    window_start_ms: number;
-    window_end_ms: number;
-    bin_edges: number[];
-    counts: number[];
-}
-
-export interface TimeDistributionColumn {
-    column: string;
-    windows: TimeDistributionBin[];
-    global_min: number;
-    global_max: number;
-}
-
-export interface TimeDistributionsResponse {
-    columns: TimeDistributionColumn[];
-}
-
-export async function fetchTimeDistributions(
-    start: string,
-    end: string,
-    columns: string,
-    windows = 20,
-    bins = 24,
-    signal?: AbortSignal,
-): Promise<TimeDistributionsResponse> {
-    const params = new URLSearchParams({ start, end, columns, windows: String(windows), bins: String(bins) });
-    const url = `/api/analytics/time_distributions?${params.toString()}`;
-    return getJson<TimeDistributionsResponse>(url, 'Time distributions', signal);
-}

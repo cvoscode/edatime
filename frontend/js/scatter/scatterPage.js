@@ -1,43 +1,37 @@
 import {
-  fetchDistributions,
   fetchFft,
   fetchScatterCorrelations,
   fetchScatterPoints
-} from "../chunk-OV247G5O.js";
+} from "../chunk-M7RFYJA6.js";
 import "../chunk-P2MGEQ7G.js";
 import {
   Ad
 } from "../chunk-UUSB2KLH.js";
 import {
+  defaultGpuPowerPreference
+} from "../chunk-PMOHFZ3J.js";
+import {
   MATRIX_MAX_COLUMNS,
   MATRIX_POINT_LIMIT,
   applyScatterStateFromCache,
   buildCategoricalColorGroups,
-  buildDistributionsContext,
+  buildGroupedDistributionSeries,
   buildHistogramForDomain,
-  buildHistogramFromValues,
   buildOverviewContextKey,
   buildRenderSignature,
   buildScatterQueryContext,
   clampView,
-  computeDistributionStats,
   createMiniCanvas,
   currentControls,
-  describeDistributionColumnKind,
   disposeScatterChart,
   drawDistributionCanvas,
   drawMiniDensityCanvas,
   drawMiniScatterCanvas,
   ensureOptions,
-  expandHistogramValues,
   fmt,
   formatValueForColumn,
   getCanvasFrame,
-  getCurrentScatterValues,
-  getDistributionColumns,
   getPlotMetrics,
-  getProfileForColumn,
-  getProfileHistogram,
   isLinkedBrushEnabled,
   isTemporalColumn,
   lowerBoundByX,
@@ -45,14 +39,13 @@ import {
   normalizeCategoryLabel,
   paletteForScale,
   resetScatterContainer,
-  resolveSelectedDistributionColumn,
   sampleGradient,
   setPanelStatus,
   setStats,
   showError,
   state,
   upperBoundByX
-} from "../chunk-WFFVE7L3.js";
+} from "../chunk-EZSXF6U5.js";
 import {
   appState,
   downloadBlob,
@@ -61,7 +54,7 @@ import {
   formatTimestamp,
   formatTwoDecimals,
   getEl
-} from "../chunk-5HSDX23N.js";
+} from "../chunk-SVFUPBER.js";
 import "../chunk-PZ5AY32C.js";
 
 // frontend/src/scatter/export.ts
@@ -862,7 +855,6 @@ function syncModeUI() {
   const ctl = currentControls();
   const view = state.activeView || "plot";
   const isPlot = view === "plot";
-  const isDist = view === "distributions";
   const isMatrix = view === "matrix";
   const isDensity = isPlot && ctl.renderMode === "density";
   const toggle = (el, visible) => {
@@ -872,222 +864,12 @@ function syncModeUI() {
   toggle(getEl("scatter-mode-label"), isPlot);
   toggle(getEl("scatter-render-mode"), isPlot);
   toggle(getEl("scatter-density-controls"), isDensity);
-  toggle(getEl("scatter-color-controls"), !isDist);
+  toggle(getEl("scatter-color-controls"), true);
   toggle(getEl("scatter-color-scale"), isPlot && !isDensity);
   toggle(document.querySelector(".scatter-export-group"), isPlot);
   toggle(document.querySelector(".scatter-stats-bar"), isPlot);
-  toggle(document.querySelector(".scatter-suggestions-bar"), !isDist && !isMatrix);
+  toggle(document.querySelector(".scatter-suggestions-bar"), !isMatrix);
   updateColorbarUI();
-}
-
-// frontend/src/scatter/distributions.ts
-function setDistributionStats(stats, column) {
-  const values = {
-    "stat-mean": stats?.mean,
-    "stat-std": stats?.std,
-    "stat-min": stats?.min,
-    "stat-max": stats?.max,
-    "stat-median": stats?.median,
-    "stat-q1": stats?.q1,
-    "stat-q3": stats?.q3,
-    "stat-iqr": stats?.iqr,
-    "stat-skewness": stats?.skewness,
-    "stat-kurtosis": stats?.kurtosis
-  };
-  for (const [id, value] of Object.entries(values)) {
-    const el = getEl(id);
-    if (el) el.textContent = formatTwoDecimals(value);
-  }
-  const statsPanel = getEl("distributions-stats-panel");
-  if (statsPanel) {
-    statsPanel.dataset.column = column || "";
-    statsPanel.setAttribute("aria-label", column ? `Summary statistics for ${column}` : "Summary statistics");
-  }
-}
-function updateDistributionStats() {
-  const targetColumn = resolveSelectedDistributionColumn();
-  if (state.distributionData?.columns) {
-    const liveEntry = state.distributionData.columns.find((c) => c.name === targetColumn);
-    if (liveEntry) {
-      const toNum = (v) => Number.isFinite(Number(v)) ? Number(v) : null;
-      const q1 = toNum(liveEntry.q1);
-      const q3 = toNum(liveEntry.q3);
-      setDistributionStats({
-        mean: toNum(liveEntry.mean),
-        std: toNum(liveEntry.std_dev),
-        min: toNum(liveEntry.min),
-        max: toNum(liveEntry.max),
-        median: toNum(liveEntry.median),
-        q1,
-        q3,
-        iqr: q1 !== null && q3 !== null ? q3 - q1 : null,
-        skewness: null,
-        kurtosis: null
-      }, targetColumn);
-      return;
-    }
-  }
-  const { values } = getDistributionSeriesData(targetColumn);
-  const stats = computeDistributionStats(values);
-  if (!stats) {
-    setDistributionStats(null, targetColumn);
-    return;
-  }
-  const profile = getProfileForColumn(targetColumn);
-  setDistributionStats({
-    ...stats,
-    min: Number.isFinite(profile?.min) ? Number(profile.min) : stats.min,
-    max: Number.isFinite(profile?.max) ? Number(profile.max) : stats.max
-  }, targetColumn);
-}
-function getDistributionSeriesData(column) {
-  if (state.distributionData?.columns) {
-    const liveEntry = state.distributionData.columns.find((c) => c.name === column);
-    if (liveEntry?.histogram) {
-      const histogram2 = {
-        edges: liveEntry.histogram.bin_edges,
-        counts: liveEntry.histogram.counts,
-        min: liveEntry.min,
-        max: liveEntry.max
-      };
-      const values2 = expandHistogramValues(histogram2);
-      return { profile: getProfileForColumn(column), histogram: histogram2, values: values2, live: true };
-    }
-  }
-  const profile = getProfileForColumn(column);
-  const histogram = getProfileHistogram(column);
-  const values = histogram ? expandHistogramValues(histogram) : getCurrentScatterValues(column);
-  return { profile, histogram, values };
-}
-function buildGroupedDistributionSeries(values, labels) {
-  if (!Array.isArray(labels) || !Array.isArray(values) || values.length !== labels.length) return null;
-  const groups = buildCategoricalColorGroups(labels);
-  if (!groups) return null;
-  const seriesByLabel = new Map(groups.categories.map((l) => [l, []]));
-  for (let i = 0; i < values.length; i++) {
-    const v = Number(values[i]);
-    if (!Number.isFinite(v)) continue;
-    const label = normalizeCategoryLabel(labels[i]);
-    seriesByLabel.get(label)?.push(v);
-  }
-  const series = [];
-  for (const label of groups.categories) {
-    const groupValues = seriesByLabel.get(label) || [];
-    if (groupValues.length === 0) continue;
-    series.push({ label, color: groups.colorByLabel.get(label) || "#4a9eff", values: groupValues });
-  }
-  return series.length > 1 ? series : null;
-}
-async function fetchAndRenderDistributions() {
-  const controls = currentControls();
-  const entries = getDistributionColumns(controls);
-  if (entries.length === 0) {
-    state.distributionData = null;
-    renderDistributionCards();
-    return;
-  }
-  const context = buildDistributionsContext();
-  const fetchId = ++state.distributionsFetchId;
-  const statusEl = getEl("scatter-distribution-status");
-  if (statusEl) statusEl.textContent = "Loading filtered distributions\u2026";
-  try {
-    const data = await fetchDistributions(entries, context);
-    if (fetchId !== state.distributionsFetchId) return;
-    state.distributionData = data;
-  } catch (err) {
-    if (fetchId !== state.distributionsFetchId) return;
-    console.warn("Distribution fetch failed, using profile data:", err);
-    state.distributionData = null;
-  }
-  renderDistributionCards();
-}
-function describeDistributionMode(mode) {
-  if (mode === "kde") return "KDE";
-  if (mode === "boxplot") return "Box Plot";
-  return "Histogram";
-}
-function buildDistributionMeta(column, values) {
-  if (state.distributionData?.columns) {
-    const liveEntry = state.distributionData.columns.find((c) => c.name === column);
-    if (liveEntry) {
-      const span2 = Number.isFinite(Number(liveEntry.min)) && Number.isFinite(Number(liveEntry.max)) ? Math.max(1, Number(liveEntry.max) - Number(liveEntry.min)) : 1;
-      const minText2 = Number.isFinite(Number(liveEntry.min)) ? formatValueForColumn(column, Number(liveEntry.min), span2, state.columnTypes) : "\u2014";
-      const maxText2 = Number.isFinite(Number(liveEntry.max)) ? formatValueForColumn(column, Number(liveEntry.max), span2, state.columnTypes) : "\u2014";
-      return { minText: minText2, maxText: maxText2, count: Math.max(0, liveEntry.count || 0) };
-    }
-  }
-  const profile = getProfileForColumn(column);
-  const histogram = getProfileHistogram(column) || buildHistogramFromValues(values);
-  const minValue = Number.isFinite(profile?.min) ? Number(profile.min) : histogram?.min;
-  const maxValue = Number.isFinite(profile?.max) ? Number(profile.max) : histogram?.max;
-  const span = histogram ? Math.max(1, histogram.max - histogram.min) : Math.max(1, (maxValue ?? 0) - (minValue ?? 0));
-  const minText = Number.isFinite(minValue) ? formatValueForColumn(column, minValue, span, state.columnTypes) : "\u2014";
-  const maxText = Number.isFinite(maxValue) ? formatValueForColumn(column, maxValue, span, state.columnTypes) : "\u2014";
-  return { minText, maxText, count: Math.max(0, Number(profile?.non_null_count) || values.length) };
-}
-function renderDistributionCards() {
-  const container = getEl("scatter-distributions");
-  if (!container) return;
-  const controls = currentControls();
-  const entries = getDistributionColumns(controls);
-  container.innerHTML = "";
-  if (entries.length === 0) {
-    container.innerHTML = '<div class="scatter-placeholder">Pick scatter axes or a color column to populate distribution cards for this view.</div>';
-    setDistributionStats(null, "");
-    return;
-  }
-  const selectedColumn = resolveSelectedDistributionColumn(entries);
-  const dataNote = state.distributionData ? "Showing filtered data." : "Showing full dataset profiles.";
-  setPanelStatus("scatter-distribution-status", `${describeDistributionMode(controls.diagonalMode)} for ${entries.length} numeric or temporal columns. ${dataNote}`);
-  const drawJobs = [];
-  for (const column of entries) {
-    const { values } = getDistributionSeriesData(column);
-    const card = document.createElement("article");
-    card.className = "scatter-distribution-card";
-    card.tabIndex = 0;
-    card.setAttribute("role", "button");
-    card.setAttribute("aria-pressed", column === selectedColumn ? "true" : "false");
-    card.classList.toggle("active", column === selectedColumn);
-    card.addEventListener("click", () => {
-      if (state.selectedDistributionColumn === column) return;
-      state.selectedDistributionColumn = column;
-      renderDistributionCards();
-    });
-    card.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      card.click();
-    });
-    const head = document.createElement("div");
-    head.className = "scatter-distribution-head";
-    const title = document.createElement("div");
-    title.className = "scatter-distribution-title";
-    title.textContent = column;
-    const kind = document.createElement("div");
-    kind.className = "scatter-distribution-kind";
-    kind.textContent = describeDistributionColumnKind(column, controls);
-    head.append(title, kind);
-    const chartWrap = document.createElement("div");
-    chartWrap.className = "scatter-distribution-chart-wrap";
-    const canvas = createMiniCanvas("scatter-distribution-chart", 120);
-    canvas.className = "scatter-distribution-chart";
-    chartWrap.appendChild(canvas);
-    drawJobs.push(() => {
-      drawDistributionCanvas(
-        canvas,
-        controls.diagonalMode,
-        [{ label: column, color: column === selectedColumn ? "#f5a623" : "#00d4ff", values }]
-      );
-    });
-    const metaInfo = buildDistributionMeta(column, values);
-    const meta = document.createElement("div");
-    meta.className = "scatter-distribution-meta";
-    meta.innerHTML = `<span>Min ${escapeHtml(String(metaInfo.minText))}</span><span>${escapeHtml(fmt.format(metaInfo.count))} samples</span><span>Max ${escapeHtml(String(metaInfo.maxText))}</span>`;
-    card.append(head, chartWrap, meta);
-    container.appendChild(card);
-  }
-  for (const draw of drawJobs) draw();
-  updateDistributionStats();
 }
 
 // frontend/src/scatter/matrix.ts
@@ -1201,7 +983,7 @@ async function selectMatrixPair(x, y, refreshCorrelations, renderScatter2, setSc
   await setScatterView2("plot", { render: false });
   await renderScatter2();
 }
-function describeDistributionMode2(mode) {
+function describeDistributionMode(mode) {
   if (mode === "kde") return "KDE";
   if (mode === "boxplot") return "Box Plot";
   return "Histogram";
@@ -1259,7 +1041,7 @@ function renderMatrixGrid(columns, datasets, onCellClick, onColumnReorder = null
         });
         const meta2 = document.createElement("div");
         meta2.className = "scatter-diagonal-meta";
-        meta2.textContent = groupedSeries ? `${describeDistributionMode2(diagonalMode)} grouped by ${controls.selectedColorColumn}` : describeDistributionMode2(diagonalMode);
+        meta2.textContent = groupedSeries ? `${describeDistributionMode(diagonalMode)} grouped by ${controls.selectedColorColumn}` : describeDistributionMode(diagonalMode);
         diagonal.append(canvas2, meta2);
         grid.appendChild(diagonal);
         continue;
@@ -1324,7 +1106,7 @@ async function renderScatterOverview(onCellClick) {
     renderMatrixGrid(columns, datasets, onCellClick, rerenderOrderedGrid);
     const groups = buildCategoricalColorGroups(state.colorLabels);
     const groupText = groups && controls.selectedColorColumn ? ` Grouped distributions use ${controls.selectedColorColumn}.` : "";
-    setPanelStatus("scatter-matrix-status", `Matrix shows ${columns.length} linked columns with ${describeDistributionMode2(controls.diagonalMode)} diagonals. Drag headers to reorder.${groupText}`);
+    setPanelStatus("scatter-matrix-status", `Matrix shows ${columns.length} linked columns with ${describeDistributionMode(controls.diagonalMode)} diagonals. Drag headers to reorder.${groupText}`);
   } catch (error) {
     if (requestId !== state.overviewRequestId) return;
     console.error(error);
@@ -1480,7 +1262,7 @@ async function isGPUAvailable() {
   }
   try {
     const adapter = await Promise.race([
-      navigator.gpu.requestAdapter(),
+      navigator.gpu.requestAdapter({ powerPreference: defaultGpuPowerPreference() }),
       new Promise((resolve) => setTimeout(() => resolve(null), 3e3))
     ]);
     _gpuUnavailable = !adapter;
@@ -1490,11 +1272,11 @@ async function isGPUAvailable() {
   return !_gpuUnavailable;
 }
 function setSidebarAnalyticsSelection(viewName) {
-  const navPage = viewName === "matrix" ? "scattermatrix" : viewName === "distributions" ? "distributions" : "scatter";
+  const navPage = viewName === "matrix" ? "scattermatrix" : "scatter";
   for (const button of document.querySelectorAll(".sidebar .nav-item[data-page]")) {
     const page = button.dataset.page;
     const active = page === navPage;
-    if (page === "scatter" || page === "scattermatrix" || page === "distributions") {
+    if (page === "scatter" || page === "scattermatrix") {
       button.classList.toggle("active", active);
     }
   }
@@ -1511,10 +1293,6 @@ async function setScatterView(viewName, options = {}) {
   if (!shouldRender) return;
   if (nextView === "matrix") {
     await renderScatterMatrixView(onMatrixCellClick);
-    return;
-  }
-  if (nextView === "distributions") {
-    await fetchAndRenderDistributions();
     return;
   }
   requestAnimationFrame(() => state.chart?.resize?.());
@@ -1650,7 +1428,10 @@ async function renderScatter() {
         syncScatterEmptyState();
         return;
       }
-      state.chart = await Ad(container, nextOption);
+      state.chart = await Ad(container, {
+        ...nextOption,
+        powerPreference: defaultGpuPowerPreference()
+      });
       state.lastRenderSignature = renderSignature;
       initSelectionZoom(container);
       state.chart.onPerformanceUpdate?.(() => {
@@ -1801,8 +1582,7 @@ function bindControls() {
     const page = getEl("page-scatter");
     if (page?.hidden) return;
     try {
-      if (state.activeView === "distributions") await fetchAndRenderDistributions();
-      else if (!requireLinkedBrush || isLinkedBrushEnabled()) renderScatterDebounced();
+      if (!requireLinkedBrush || isLinkedBrushEnabled()) renderScatterDebounced();
     } catch (err) {
       handleErr(err);
     }
@@ -1841,7 +1621,6 @@ async function initScatterPage(metadata) {
   if (!page || !xSelect || !ySelect) return;
   const numeric = (metadata?.numeric_columns || []).filter((c) => c);
   state.metadata = metadata;
-  state.selectedDistributionColumn = "";
   state.columnTypes = new Map(
     (metadata?.columns || []).map((col) => [
       String(col?.name || "").toLowerCase(),

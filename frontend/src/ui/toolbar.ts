@@ -475,7 +475,6 @@ export function initPages(): void {
     const analyticsViews: Record<string, string> = {
         scatter: 'plot',
         scattermatrix: 'matrix',
-        distributions: 'distributions',
     };
 
     const layout = document.querySelector('.app-layout') as HTMLElement | null;
@@ -488,7 +487,11 @@ export function initPages(): void {
         collapseBtn.dataset.bound = '1';
     }
 
-    function showPage(pageName: string) {
+    async function showPage(pageName: string) {
+        if ((window as any).__edatime?.ensurePageModuleLoaded) {
+            await (window as any).__edatime.ensurePageModuleLoaded(pageName);
+        }
+
         const analyticsView = analyticsViews[pageName] || null;
         const resolvedPageName = analyticsView ? 'scatter' : pageName;
 
@@ -516,7 +519,7 @@ export function initPages(): void {
     }
 
     for (const btn of navButtons) {
-        btn.addEventListener('click', () => showPage(btn.dataset.page!));
+        btn.addEventListener('click', async () => { await showPage(btn.dataset.page!); });
     }
 
     showPage('home');

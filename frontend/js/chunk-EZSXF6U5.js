@@ -6,7 +6,7 @@ import {
   formatTwoDecimals,
   getEl,
   isTemporalDtype
-} from "./chunk-5HSDX23N.js";
+} from "./chunk-SVFUPBER.js";
 
 // frontend/src/scatter/helpers.ts
 var MATRIX_POINT_LIMIT = 8e3;
@@ -163,34 +163,6 @@ function isTemporalColumn(name, columnTypes) {
 function formatValueForColumn(columnName, value, spanMs, columnTypes) {
   return isTemporalColumn(columnName, columnTypes) ? formatTimestamp(value, spanMs) : formatTwoDecimals(value);
 }
-function isDistributionCompatibleColumn(column, columnTypes) {
-  if (!column) return false;
-  const dtype = columnTypes.get(String(column).toLowerCase()) || "";
-  return /date|time|int|float|decimal|f\d+|u\d+|i\d+/i.test(dtype);
-}
-function buildHistogramFromValues(values, binCount = HISTOGRAM_BINS) {
-  if (!Array.isArray(values) || values.length === 0) return null;
-  const finite = values.map((v) => Number(v)).filter((v) => Number.isFinite(v));
-  if (finite.length === 0) return null;
-  let min = finite[0];
-  let max = finite[0];
-  for (let i = 1; i < finite.length; i++) {
-    if (finite[i] < min) min = finite[i];
-    if (finite[i] > max) max = finite[i];
-  }
-  if (!(max > min)) return { min, max, counts: [finite.length], edges: [min, max] };
-  const counts = Array.from({ length: binCount }, () => 0);
-  const edges = [];
-  const span = max - min;
-  for (let i = 0; i <= binCount; i++) edges.push(min + span * i / binCount);
-  for (const v of finite) {
-    let bucket = Math.floor((v - min) / span * binCount);
-    if (bucket < 0) bucket = 0;
-    if (bucket >= binCount) bucket = binCount - 1;
-    counts[bucket] += 1;
-  }
-  return { min, max, counts, edges };
-}
 function buildHistogramForDomain(values, min, max, binCount = HISTOGRAM_BINS) {
   const finite = values.map((v) => Number(v)).filter((v) => Number.isFinite(v));
   if (finite.length === 0 || !Number.isFinite(min) || !Number.isFinite(max)) return null;
@@ -239,54 +211,6 @@ function computeBoxStats(values) {
   const sorted = values.map((v) => Number(v)).filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
   if (sorted.length === 0) return null;
   return { min: sorted[0], q1: quantileSorted(sorted, 0.25), median: quantileSorted(sorted, 0.5), q3: quantileSorted(sorted, 0.75), max: sorted[sorted.length - 1] };
-}
-function expandHistogramValues(histogram, maxSamples = 320) {
-  const counts = Array.isArray(histogram?.counts) ? histogram.counts : [];
-  const edges = Array.isArray(histogram?.edges) ? histogram.edges : [];
-  if (counts.length === 0 || edges.length !== counts.length + 1) return [];
-  const total = counts.reduce((sum, v) => sum + Math.max(0, Number(v) || 0), 0);
-  if (total <= 0) return [];
-  const targetSamples = Math.max(Math.min(maxSamples, total), Math.min(counts.length * 4, maxSamples));
-  const values = [];
-  for (let i = 0; i < counts.length; i++) {
-    const count = Math.max(0, Number(counts[i]) || 0);
-    if (count <= 0) continue;
-    const left = Number(edges[i]);
-    const right = Number(edges[i + 1]);
-    const midpoint = Number.isFinite(left) && Number.isFinite(right) ? (left + right) / 2 : Number.isFinite(left) ? left : right;
-    if (!Number.isFinite(midpoint)) continue;
-    const bucketSamples = Math.max(1, Math.round(count / total * targetSamples));
-    for (let j = 0; j < bucketSamples; j++) values.push(midpoint);
-  }
-  if (values.length <= maxSamples) return values;
-  const reduced = [];
-  const stride = values.length / maxSamples;
-  for (let i = 0; i < maxSamples; i++) reduced.push(values[Math.min(values.length - 1, Math.floor(i * stride))]);
-  return reduced;
-}
-function computeDistributionStats(values) {
-  if (!Array.isArray(values) || values.length === 0) return null;
-  const sorted = values.map((v) => Number(v)).filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
-  if (sorted.length === 0) return null;
-  const count = sorted.length;
-  const min = sorted[0];
-  const max = sorted[count - 1];
-  const mean = sorted.reduce((s, v) => s + v, 0) / count;
-  const variance = sorted.reduce((s, v) => s + (v - mean) ** 2, 0) / count;
-  const std = Math.sqrt(variance);
-  const median = quantileSorted(sorted, 0.5);
-  const q1 = quantileSorted(sorted, 0.25);
-  const q3 = quantileSorted(sorted, 0.75);
-  const iqr = q1 !== null && q3 !== null ? q3 - q1 : null;
-  let skewness = null;
-  let kurtosis = null;
-  if (std > 0) {
-    const m3 = sorted.reduce((s, v) => s + (v - mean) ** 3, 0) / count;
-    const m4 = sorted.reduce((s, v) => s + (v - mean) ** 4, 0) / count;
-    skewness = m3 / std ** 3;
-    kurtosis = m4 / std ** 4 - 3;
-  }
-  return { mean, std, min, max, median, q1, q3, iqr, skewness, kurtosis };
 }
 function paddedBounds(minV, maxV) {
   if (!Number.isFinite(minV) || !Number.isFinite(maxV)) return { min: 0, max: 1 };
@@ -541,6 +465,25 @@ function drawMiniDensityCanvas(canvas, points, options = {}) {
   ctx.lineWidth = 1;
   ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
 }
+function buildGroupedDistributionSeries(values, labels) {
+  if (!Array.isArray(labels) || !Array.isArray(values) || values.length !== labels.length) return null;
+  const groups = buildCategoricalColorGroups(labels);
+  if (!groups) return null;
+  const seriesByLabel = new Map(groups.categories.map((l) => [l, []]));
+  for (let i = 0; i < values.length; i++) {
+    const v = Number(values[i]);
+    if (!Number.isFinite(v)) continue;
+    const label = normalizeCategoryLabel(labels[i]);
+    seriesByLabel.get(label)?.push(v);
+  }
+  const series = [];
+  for (const label of groups.categories) {
+    const groupValues = seriesByLabel.get(label) || [];
+    if (groupValues.length === 0) continue;
+    series.push({ label, color: groups.colorByLabel.get(label) || "#4a9eff", values: groupValues });
+  }
+  return series.length > 1 ? series : null;
+}
 
 // frontend/src/scatter/state.ts
 var state = {
@@ -548,7 +491,6 @@ var state = {
   initialized: false,
   pageInitialized: false,
   activeView: "plot",
-  selectedDistributionColumn: "",
   metadata: null,
   totalPoints: 0,
   allPoints: [],
@@ -575,9 +517,7 @@ var state = {
   lastRenderSignature: "",
   matrixCache: /* @__PURE__ */ new Map(),
   matrixColumnOrder: [],
-  overviewRequestId: 0,
-  distributionData: null,
-  distributionsFetchId: 0
+  overviewRequestId: 0
 };
 function currentControls() {
   const xSelect = getEl("scatter-x-col");
@@ -624,22 +564,6 @@ function buildScatterQueryContext() {
   return {
     start: linkedRangeValid ? start : void 0,
     end: linkedRangeValid ? end : void 0,
-    filters,
-    lineFilters: buildAdaptiveLineFiltersForQuery()
-  };
-}
-function buildDistributionsContext() {
-  const start = Number(appState.currentStart);
-  const end = Number(appState.currentEnd);
-  const filters = Object.entries(appState.columnRanges || {}).map(([column, range]) => {
-    const from = Number(range?.from);
-    const to = Number(range?.to);
-    if (!column || !Number.isFinite(from) || !Number.isFinite(to)) return null;
-    return { column, from, to };
-  }).filter((f) => f !== null);
-  return {
-    start: Number.isFinite(start) ? start : void 0,
-    end: Number.isFinite(end) ? end : void 0,
     filters,
     lineFilters: buildAdaptiveLineFiltersForQuery()
   };
@@ -762,32 +686,8 @@ function getCurrentScatterValues(column) {
   }
   return [];
 }
-function getDistributionColumns(controls = currentControls()) {
-  const columns = [];
-  const push = (c) => {
-    if (!c || columns.includes(c) || !isDistributionCompatibleColumn(c, state.columnTypes)) return;
-    columns.push(c);
-  };
-  push(controls.x);
-  push(controls.y);
-  push(controls.selectedColorColumn);
-  for (const entry of state.metadata?.columns || []) push(entry?.name);
-  return columns;
-}
-function resolveSelectedDistributionColumn(entries = getDistributionColumns()) {
-  if (entries.includes(state.selectedDistributionColumn)) return state.selectedDistributionColumn;
-  state.selectedDistributionColumn = entries[0] || "";
-  return state.selectedDistributionColumn;
-}
-function describeDistributionColumnKind(column, controls = currentControls()) {
-  const kinds = [];
-  if (column === controls.x) kinds.push("x-axis");
-  if (column === controls.y) kinds.push("y-axis");
-  if (column === controls.selectedColorColumn) kinds.push("color");
-  return kinds.join(" / ") || "dataset";
-}
 function normalizeAnalyticsView(viewName) {
-  if (viewName === "matrix" || viewName === "distributions") return viewName;
+  if (viewName === "matrix") return viewName;
   return "plot";
 }
 function disposeScatterChart(resetSignature = false) {
@@ -836,18 +736,15 @@ export {
   getCanvasFrame,
   isTemporalColumn,
   formatValueForColumn,
-  buildHistogramFromValues,
   buildHistogramForDomain,
-  expandHistogramValues,
-  computeDistributionStats,
   drawDistributionCanvas,
   drawMiniScatterCanvas,
   drawMiniDensityCanvas,
+  buildGroupedDistributionSeries,
   state,
   currentControls,
   isLinkedBrushEnabled,
   buildScatterQueryContext,
-  buildDistributionsContext,
   buildRenderSignature,
   buildOverviewContextKey,
   clampView,
@@ -857,12 +754,9 @@ export {
   getProfileForColumn,
   getProfileHistogram,
   getCurrentScatterValues,
-  getDistributionColumns,
-  resolveSelectedDistributionColumn,
-  describeDistributionColumnKind,
   normalizeAnalyticsView,
   disposeScatterChart,
   resetScatterContainer,
   ensureOptions
 };
-//# sourceMappingURL=chunk-WFFVE7L3.js.map
+//# sourceMappingURL=chunk-EZSXF6U5.js.map

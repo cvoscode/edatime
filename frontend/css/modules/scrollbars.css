@@ -25,7 +25,6 @@
 /* Containers that need a visible scrollbar */
 .series-toggles::-webkit-scrollbar,
 .scatter-matrix::-webkit-scrollbar,
-.scatter-distributions::-webkit-scrollbar,
 .profile-grid-viewport::-webkit-scrollbar,
 .upload-inner::-webkit-scrollbar,
 .page-upload::-webkit-scrollbar {
@@ -36,7 +35,6 @@
 /* Nicer visible scrollbar track and thumb */
 .series-toggles::-webkit-scrollbar-track,
 .scatter-matrix::-webkit-scrollbar-track,
-.scatter-distributions::-webkit-scrollbar-track,
 .profile-grid-viewport::-webkit-scrollbar-track,
 .upload-inner::-webkit-scrollbar-track,
 .page-upload::-webkit-scrollbar-track {
@@ -46,7 +44,6 @@
 
 .series-toggles::-webkit-scrollbar-thumb,
 .scatter-matrix::-webkit-scrollbar-thumb,
-.scatter-distributions::-webkit-scrollbar-thumb,
 .profile-grid-viewport::-webkit-scrollbar-thumb,
 .upload-inner::-webkit-scrollbar-thumb,
 .page-upload::-webkit-scrollbar-thumb {
@@ -56,7 +53,6 @@
 
 .series-toggles::-webkit-scrollbar-thumb:hover,
 .scatter-matrix::-webkit-scrollbar-thumb:hover,
-.scatter-distributions::-webkit-scrollbar-thumb:hover,
 .profile-grid-viewport::-webkit-scrollbar-thumb:hover,
 .upload-inner::-webkit-scrollbar-thumb:hover,
 .page-upload::-webkit-scrollbar-thumb:hover {
@@ -66,7 +62,6 @@
 /* Firefox */
 .series-toggles,
 .scatter-matrix,
-.scatter-distributions,
 .profile-grid-viewport,
 .upload-inner {
   scrollbar-width: thin;

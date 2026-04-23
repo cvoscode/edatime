@@ -17,7 +17,9 @@ const isWatch = process.argv.includes('--watch');
 //
 // Dynamic imports in the source tree (grep `import(` in frontend/src/):
 //   app.ts          → dataClient.ts, chart/DataChart.ts, chart/FftChart.ts,
-//                     scatter/scatterPage.ts
+//                     scatter/scatterPage.ts,
+//                     drift/driftPage.ts,
+//                     causal/causalPage.ts, causal/causalComparison.ts
 //   scatter/export.ts → scatter/state.ts   (lazy self-reference inside subtree)
 const ENTRY_MODULES = [
     'app.ts',

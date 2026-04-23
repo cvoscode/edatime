@@ -197,8 +197,71 @@ pub async fn get_spectrogram(
     })))
 }
 
-// ── Column Transformation ──────────────────────────────────────────────────
+// ── Spectral Filter ────────────────────────────────────────────────────────
 
+/// `GET /api/analytics/spectral-filter` — apply frequency-domain filter, return filtered signal
+#[derive(Debug, Deserialize)]
+pub struct SpectralFilterQuery {
+    pub start: DateTime<Utc>,
+    pub end: DateTime<Utc>,
+    pub column: String,
+    /// Filter type: lowpass | highpass | bandpass | bandstop
+    pub filter_type: String,
+    /// Low cutoff frequency in Hz (required for highpass, bandpass, bandstop)
+    pub low_hz: Option<f64>,
+    /// High cutoff frequency in Hz (required for lowpass, bandpass, bandstop)
+    pub high_hz: Option<f64>,
+    /// Override sample rate (auto-detected from data if not provided)
+    pub sample_rate_hz: Option<f64>,
+    /// Max points (default: 16384)
+    pub max_points: Option<usize>,
+}
+
+#[tracing::instrument(skip(state))]
+pub async fn get_spectral_filter(
+    State(state): State<AppState>,
+    Query(params): Query<SpectralFilterQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let col_opt = Some(params.column.clone());
+    let (value_cols, filtered) =
+        filter_preamble(&state, params.start, params.end, &col_opt).await?;
+    let col = &value_cols[0];
+
+    let max_pts = params.max_points.unwrap_or(16384).clamp(64, 65536);
+    let work_df = downsample_by_stride(filtered, max_pts, "SpectralFilter")?;
+
+    let filter_type: analytics::FilterType = match params.filter_type.as_str() {
+        "lowpass" => analytics::FilterType::Lowpass,
+        "highpass" => analytics::FilterType::Highpass,
+        "bandpass" => analytics::FilterType::Bandpass,
+        "bandstop" => analytics::FilterType::Bandstop,
+        other => {
+            return Err(AppError::bad_request(format!(
+                "Unknown filter_type: {other}"
+            )));
+        }
+    };
+
+    let low_hz = params.low_hz;
+    let high_hz = params.high_hz;
+    let sr = params.sample_rate_hz;
+
+    let (ts_ms, filtered_values) = tokio::task::block_in_place(|| {
+        analytics::apply_spectral_filter(&work_df, col, filter_type, low_hz, high_hz, sr)
+    })?;
+
+    Ok(Json(serde_json::json!({
+        "column": col,
+        "ts": ts_ms,
+        "values": filtered_values,
+        "filter_type": params.filter_type,
+        "low_hz": low_hz,
+        "high_hz": high_hz,
+        "sample_count": ts_ms.len(),
+    })))
+}
+
+// ── Column Transformation ──────────────────────────────────────────────────
 #[derive(Debug, Deserialize)]
 pub struct TransformRequest {
     /// Expression string, e.g. "col_a / col_b" or "log(col_a)"
@@ -285,39 +348,6 @@ pub async fn post_remove_outliers(
     Ok(Json(serde_json::json!(result)))
 }
 
-// ── Time Distributions ─────────────────────────────────────────────────────
-
-#[derive(Debug, Deserialize)]
-pub struct TimeDistributionQuery {
-    pub start: DateTime<Utc>,
-    pub end: DateTime<Utc>,
-    pub columns: Option<String>,
-    /// Number of time windows (default: 20)
-    pub windows: Option<usize>,
-    /// Number of histogram bins per window (default: 24)
-    pub bins: Option<usize>,
-}
-
-#[tracing::instrument(skip(state))]
-pub async fn get_time_distributions(
-    State(state): State<AppState>,
-    Query(params): Query<TimeDistributionQuery>,
-) -> Result<impl IntoResponse, AppError> {
-    let (value_cols, filtered) =
-        filter_preamble(&state, params.start, params.end, &params.columns).await?;
-
-    let n_windows = params.windows.unwrap_or(20);
-    let n_bins = params.bins.unwrap_or(24);
-
-    let results = tokio::task::block_in_place(|| {
-        analytics::compute_time_distributions(&filtered, &value_cols, n_windows, n_bins)
-    })?;
-
-    Ok(Json(serde_json::json!({
-        "columns": results,
-    })))
-}
-
 // ── Causal Graph (Native Rust — PCMCI / PCMCI+) ───────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -367,7 +397,10 @@ pub async fn post_causal_graph(
     let method = params.method.as_deref().unwrap_or("pcmci").to_string();
     let max_pts = params.max_points.unwrap_or(5000).clamp(100, 50_000);
     let max_conds_dim = params.max_conds_dim;
-    let fdr_method = params.fdr_method.clone().unwrap_or_else(|| "none".to_string());
+    let fdr_method = params
+        .fdr_method
+        .clone()
+        .unwrap_or_else(|| "none".to_string());
 
     let test_kind = match params.test.as_deref() {
         Some("cmi_knn") => crate::causal::IndependenceTestKind::CmiKnn,
@@ -386,13 +419,17 @@ pub async fn post_causal_graph(
 
     // Run causal discovery on the blocking thread pool (CPU-intensive)
     let result = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, AppError> {
-        use crate::causal::{CondIndTest, Pcmci, PcmciPlus};
         use crate::causal::pcmci::PcmciConfig;
+        use crate::causal::{CondIndTest, Pcmci, PcmciPlus};
 
         let cond_test = CondIndTest::new(test_kind);
 
         let config = PcmciConfig {
-            tau_min: if method == "pcmciplus" || method == "lpcmci" { 0 } else { 1 },
+            tau_min: if method == "pcmciplus" || method == "lpcmci" {
+                0
+            } else {
+                1
+            },
             tau_max,
             pc_alpha,
             alpha_level: alpha,

@@ -9,7 +9,6 @@ import {
     computeColorExtent,
     computeDomains,
     isTemporalColumn,
-    isDistributionCompatibleColumn,
     formatValueForColumn,
     normalizeCategoryLabel,
     buildCategoricalColorGroups,
@@ -45,29 +44,11 @@ export interface DensityTooltipCache {
     metaBySeriesIndex: Map<number, DensityTooltipMeta>;
 }
 
-export interface DistributionLiveEntry {
-    name: string;
-    histogram?: { bin_edges?: number[]; counts?: number[] };
-    min?: number;
-    max?: number;
-    count?: number;
-    mean?: number;
-    std_dev?: number;
-    median?: number;
-    q1?: number;
-    q3?: number;
-}
-
-export interface DistributionData {
-    columns?: DistributionLiveEntry[];
-}
-
 interface ScatterState {
     chart: ChartGPUInstance | null;
     initialized: boolean;
     pageInitialized: boolean;
     activeView: string;
-    selectedDistributionColumn: string;
     metadata: DatasetMetadata | null;
     totalPoints: number;
     allPoints: [number, number][];
@@ -95,8 +76,6 @@ interface ScatterState {
     matrixCache: Map<string, Promise<MatrixCellData>>;
     matrixColumnOrder: string[];
     overviewRequestId: number;
-    distributionData: DistributionData | null;
-    distributionsFetchId: number;
 }
 
 export interface MatrixCellData {
@@ -111,7 +90,6 @@ export const state: ScatterState = {
     initialized: false,
     pageInitialized: false,
     activeView: 'plot',
-    selectedDistributionColumn: '',
     metadata: null,
     totalPoints: 0,
     allPoints: [],
@@ -139,8 +117,6 @@ export const state: ScatterState = {
     matrixCache: new Map(),
     matrixColumnOrder: [],
     overviewRequestId: 0,
-    distributionData: null,
-    distributionsFetchId: 0,
 };
 
 /* ── Controls read helpers ────────────────────────────── */
@@ -222,26 +198,6 @@ export function buildScatterQueryContext(): ScatterQueryContext {
     return {
         start: linkedRangeValid ? start : undefined,
         end: linkedRangeValid ? end : undefined,
-        filters,
-        lineFilters: buildAdaptiveLineFiltersForQuery(),
-    };
-}
-
-export function buildDistributionsContext(): ScatterQueryContext {
-    const start = Number(appState.currentStart);
-    const end = Number(appState.currentEnd);
-    const filters = Object.entries(appState.columnRanges || {})
-        .map(([column, range]) => {
-            const from = Number(range?.from);
-            const to = Number(range?.to);
-            if (!column || !Number.isFinite(from) || !Number.isFinite(to)) return null;
-            return { column, from, to };
-        })
-        .filter((f): f is { column: string; from: number; to: number } => f !== null);
-
-    return {
-        start: Number.isFinite(start) ? start : undefined,
-        end: Number.isFinite(end) ? end : undefined,
         filters,
         lineFilters: buildAdaptiveLineFiltersForQuery(),
     };
@@ -382,35 +338,8 @@ export function getCurrentScatterValues(column: string): number[] {
     return [];
 }
 
-export function getDistributionColumns(controls = currentControls()): string[] {
-    const columns: string[] = [];
-    const push = (c: string) => {
-        if (!c || columns.includes(c) || !isDistributionCompatibleColumn(c, state.columnTypes)) return;
-        columns.push(c);
-    };
-    push(controls.x);
-    push(controls.y);
-    push(controls.selectedColorColumn);
-    for (const entry of (state.metadata as any)?.columns || []) push(entry?.name);
-    return columns;
-}
-
-export function resolveSelectedDistributionColumn(entries = getDistributionColumns()): string {
-    if (entries.includes(state.selectedDistributionColumn)) return state.selectedDistributionColumn;
-    state.selectedDistributionColumn = entries[0] || '';
-    return state.selectedDistributionColumn;
-}
-
-export function describeDistributionColumnKind(column: string, controls = currentControls()): string {
-    const kinds: string[] = [];
-    if (column === controls.x) kinds.push('x-axis');
-    if (column === controls.y) kinds.push('y-axis');
-    if (column === controls.selectedColorColumn) kinds.push('color');
-    return kinds.join(' / ') || 'dataset';
-}
-
 export function normalizeAnalyticsView(viewName: string): string {
-    if (viewName === 'matrix' || viewName === 'distributions') return viewName;
+    if (viewName === 'matrix') return viewName;
     return 'plot';
 }
 

@@ -3,6 +3,7 @@
  */
 
 import { createChart } from '../../libs/chartgpu/dist/index.js';
+import { defaultGpuPowerPreference } from '../utils/platform.js';
 import { fetchScatterCorrelations, fetchScatterPoints } from '../dataClient.js';
 import { appState } from '../state.js';
 import {
@@ -51,10 +52,6 @@ import {
     setCorrelationOverlayText,
 } from './rendering.js';
 import {
-    fetchAndRenderDistributions,
-    renderDistributionCards,
-} from './distributions.js';
-import {
     renderScatterMatrixView,
     selectMatrixPair,
 } from './matrix.js';
@@ -98,7 +95,7 @@ async function isGPUAvailable(): Promise<boolean> {
     if (!navigator.gpu) { _gpuUnavailable = true; return false; }
     try {
         const adapter = await Promise.race([
-            navigator.gpu.requestAdapter(),
+            navigator.gpu.requestAdapter({ powerPreference: defaultGpuPowerPreference() }),
             new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
         ]);
         _gpuUnavailable = !adapter;
@@ -111,12 +108,11 @@ async function isGPUAvailable(): Promise<boolean> {
 /* ── Sidebar / view management ────────────────────────── */
 
 function setSidebarAnalyticsSelection(viewName: string): void {
-    const navPage = viewName === 'matrix' ? 'scattermatrix'
-        : (viewName === 'distributions' ? 'distributions' : 'scatter');
+    const navPage = viewName === 'matrix' ? 'scattermatrix' : 'scatter';
     for (const button of document.querySelectorAll('.sidebar .nav-item[data-page]')) {
         const page = (button as HTMLElement).dataset.page;
         const active = page === navPage;
-        if (page === 'scatter' || page === 'scattermatrix' || page === 'distributions') {
+        if (page === 'scatter' || page === 'scattermatrix') {
             button.classList.toggle('active', active);
         }
     }
@@ -135,7 +131,6 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
 
     if (!shouldRender) return;
     if (nextView === 'matrix') { await renderScatterMatrixView(onMatrixCellClick); return; }
-    if (nextView === 'distributions') { await fetchAndRenderDistributions(); return; }
     requestAnimationFrame(() => state.chart?.resize?.());
 }
 
@@ -287,7 +282,10 @@ async function renderScatter(): Promise<void> {
                 syncScatterEmptyState();
                 return;
             }
-            state.chart = await createChart(container!, nextOption);
+            state.chart = await createChart(container!, {
+                ...nextOption,
+                powerPreference: defaultGpuPowerPreference(),
+            });
             state.lastRenderSignature = renderSignature;
             initSelectionZoom(container!);
             state.chart.onPerformanceUpdate?.(() => {
@@ -432,8 +430,7 @@ function bindControls(): void {
         const page = getEl('page-scatter');
         if (page?.hidden) return;
         try {
-            if (state.activeView === 'distributions') await fetchAndRenderDistributions();
-            else if (!requireLinkedBrush || isLinkedBrushEnabled()) renderScatterDebounced();
+            if (!requireLinkedBrush || isLinkedBrushEnabled()) renderScatterDebounced();
         } catch (err: any) { handleErr(err); }
     };
 
@@ -473,7 +470,6 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
 
     const numeric: string[] = ((metadata as any)?.numeric_columns || []).filter((c: any) => c);
     state.metadata = metadata;
-    state.selectedDistributionColumn = '';
     state.columnTypes = new Map(
         ((metadata as any)?.columns || []).map((col: any) => [
             String(col?.name || '').toLowerCase(),

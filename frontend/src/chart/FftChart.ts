@@ -7,11 +7,18 @@
  */
 
 import { createChart } from '../../libs/chartgpu/dist/index.js';
+import { defaultGpuPowerPreference } from '../utils/platform.js';
 import {
     type GridLayout,
     createCanvasOverlay, ensureRelativePosition,
     initBoxZoom, initWheelZoom, tooltipRow, tooltipWrap,
 } from './chartInteractions.js';
+import {
+    type FrequencyPeak,
+    formatFrequency,
+    frequencyToPeriod,
+    checkAliasingWarning,
+} from '../utils/spectralPresets.js';
 
 const FFT_GRID: GridLayout = { left: 80, right: 24, top: 20, bottom: 44 };
 
@@ -26,6 +33,10 @@ export interface FftTrace {
     magnitudes: number[];
     psd: number[];
     color?: string;
+    // New spectral info
+    sample_rate_hz?: number;
+    nyquist_hz?: number;
+    dominant_peaks?: FrequencyPeak[];
 }
 
 export class FftChart {
@@ -42,9 +53,16 @@ export class FftChart {
     private _logScale = true;
     private _annotations: number[] = [];  // freqHz values
     private _traces: FftTrace[] = [];
+    private _showPeakLabels = true;
+    private _sampleRateHz = 0;
+    private _nyquistHz = 0;
+    private _dominantPeaks: FrequencyPeak[] = [];
 
     /** Called with true when zoomed, false when view reset to full range. */
     onZoomChange: ((isZoomed: boolean) => void) | null = null;
+
+    /** Called when spectral info is updated (for external UI updates). */
+    onSpectralInfoUpdate: ((info: { sampleRateHz: number; nyquistHz: number; peaks: FrequencyPeak[] }) => void) | null = null;
 
     constructor(containerId: string) {
         this._containerId = containerId;
@@ -62,6 +80,7 @@ export class FftChart {
             yAxis: { type: 'value' },
             legend: { show: true, position: 'right' },
             series: [],
+            powerPreference: defaultGpuPowerPreference(),
         });
 
         this._initOverlay();
@@ -112,8 +131,25 @@ export class FftChart {
             for (const f of t.frequencies) {
                 if (f > this._fullXMax) this._fullXMax = f;
             }
+            // Capture spectral info from first trace
+            if (t.sample_rate_hz && this._sampleRateHz === 0) {
+                this._sampleRateHz = t.sample_rate_hz;
+            }
+            if (t.nyquist_hz && this._nyquistHz === 0) {
+                this._nyquistHz = t.nyquist_hz;
+            }
+            if (t.dominant_peaks && this._dominantPeaks.length === 0) {
+                this._dominantPeaks = t.dominant_peaks;
+            }
         }
         if (this._fullXMax <= 0) this._fullXMax = 1;
+
+        // Notify external listeners about spectral info
+        this.onSpectralInfoUpdate?.({
+            sampleRateHz: this._sampleRateHz,
+            nyquistHz: this._nyquistHz,
+            peaks: this._dominantPeaks,
+        });
 
         const xMin = this._getXMin();
         const xMax = this._getXMax();
@@ -196,8 +232,26 @@ export class FftChart {
         this._xMin = 0;
         this._xMax = 0;
         this._fullXMax = 1;
+        this._sampleRateHz = 0;
+        this._nyquistHz = 0;
+        this._dominantPeaks = [];
         this._chart?.setOption({ series: [] });
         this._renderOverlay();
+    }
+
+    /** Toggle peak label display. */
+    setShowPeakLabels(show: boolean): void {
+        this._showPeakLabels = show;
+        this._renderOverlay();
+    }
+
+    /** Get spectral info for display. */
+    getSpectralInfo(): { sampleRateHz: number; nyquistHz: number; peaks: FrequencyPeak[] } {
+        return {
+            sampleRateHz: this._sampleRateHz,
+            nyquistHz: this._nyquistHz,
+            peaks: this._dominantPeaks,
+        };
     }
 
     destroy(): void {
@@ -245,6 +299,11 @@ export class FftChart {
         ctx.rotate(-Math.PI / 2);
         ctx.fillText(this._yAxisLabel(), 0, 0);
         ctx.restore();
+
+        // Draw peak labels if enabled
+        if (this._showPeakLabels && this._dominantPeaks.length > 0) {
+            this._renderPeakLabels(ctx, xMin, xMax, plotL, plotT, plotW, plotH, sc, unit);
+        }
 
         if (this._annotations.length === 0) return;
 
@@ -313,5 +372,73 @@ export class FftChart {
             onZoom: (min, max) => this.setView(min, max),
             clamp: { min: 0, max: this._fullXMax },
         });
+    }
+
+    /** Render dominant frequency peak labels on the overlay. */
+    private _renderPeakLabels(
+        ctx: CanvasRenderingContext2D,
+        xMin: number,
+        xMax: number,
+        plotL: number,
+        plotT: number,
+        plotW: number,
+        plotH: number,
+        sc: number,
+        unit: string,
+    ): void {
+        ctx.save();
+        ctx.font = '10px Inter, system-ui, sans-serif';
+
+        // Only show top 3 peaks in labels to avoid clutter
+        const peaksToShow = this._dominantPeaks.slice(0, 3);
+
+        for (const peak of peaksToShow) {
+            const freqHz = peak.frequency_hz;
+            if (freqHz < xMin || freqHz > xMax) continue;
+
+            const ax = plotL + ((freqHz - xMin) / (xMax - xMin)) * plotW;
+
+            // Find Y position based on magnitude
+            const traceData = this._traces[0];
+            if (!traceData) continue;
+            const raw = this._mode === 'psd' ? traceData.psd : traceData.magnitudes;
+            const freqIdx = traceData.frequencies.findIndex((f) => Math.abs(f - freqHz) < 1e-10);
+            if (freqIdx < 0) continue;
+
+            const yVal = this._logScale ? (raw[freqIdx] > 0 ? Math.log10(raw[freqIdx]) : -10) : raw[freqIdx];
+
+            // Calculate Y coordinate (need to get Y range from traces)
+            let yMin = Infinity, yMax = -Infinity;
+            for (const t of this._traces) {
+                const vals = this._mode === 'psd' ? t.psd : t.magnitudes;
+                for (const v of vals) {
+                    const y = this._logScale ? (v > 0 ? Math.log10(v) : -10) : v;
+                    if (y < yMin) yMin = y;
+                    if (y > yMax) yMax = y;
+                }
+            }
+            if (!Number.isFinite(yMin) || !Number.isFinite(yMax) || yMax <= yMin) continue;
+
+            const ay = plotT + plotH - ((yVal - yMin) / (yMax - yMin)) * plotH;
+
+            // Draw peak marker
+            ctx.fillStyle = 'rgba(255, 100, 100, 0.9)';
+            ctx.beginPath();
+            ctx.arc(ax, ay, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw label
+            const label = `${(freqHz * sc).toFixed(2)} ${unit}`;
+            const period = frequencyToPeriod(freqHz);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.textAlign = ax > plotL + plotW / 2 ? 'right' : 'left';
+            const xOffset = ax > plotL + plotW / 2 ? -8 : 8;
+            ctx.fillText(label, ax + xOffset, ay - 8);
+            ctx.fillStyle = 'rgba(180, 180, 180, 0.85)';
+            ctx.fillText(`(${period})`, ax + xOffset, ay + 4);
+        }
+
+        ctx.restore();
     }
 }

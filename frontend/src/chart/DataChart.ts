@@ -6,6 +6,7 @@
 import { createChart } from '../../libs/chartgpu/dist/index.js';
 import { DEBUG, dbg } from '../debug.js';
 import { escapeHtml, downloadUrl, downloadBlob } from '../utils/dom.js';
+import { defaultGpuPowerPreference } from '../utils/platform.js';
 import { formatTwoDecimals } from '../formatUtils.js';
 import { appState, getSeriesColor, buildAdaptiveLineY } from '../state.js';
 import type { AdaptiveLineFilter, ChartTextOverlays, DataObject, FilteredDataObject } from '../types.js';
@@ -68,6 +69,7 @@ export class DataChart {
     _overlayCanvas: HTMLCanvasElement | null = null;
     _overlayCtx: CanvasRenderingContext2D | null = null;
     _drawingResizeObserver: ResizeObserver | null = null;
+    _chartResizeObserver: ResizeObserver | null = null;
     _drawings: DrawItem[] = [];
     _currentDraw: DrawItem | null = null;
     _drawMode: string = 'none';
@@ -97,6 +99,8 @@ export class DataChart {
         }
         this._drawingResizeObserver?.disconnect();
         this._drawingResizeObserver = null;
+        this._chartResizeObserver?.disconnect();
+        this._chartResizeObserver = null;
         this.chartInstance = null;
     }
 
@@ -126,6 +130,11 @@ export class DataChart {
         this._renderDrawings();
     }
 
+    resize(): void {
+        this.chartInstance?.resize?.();
+        this._renderDrawings();
+    }
+
     /** Schedule a drawing render on the next animation frame (coalesces rapid calls). */
     private _scheduleDrawingRender(): void {
         if (this._drawingRafId !== null) return;
@@ -151,10 +160,15 @@ export class DataChart {
             yAxis: { type: 'value' },
             legend: { show: true, position: 'right' },
             series: [],
+            powerPreference: defaultGpuPowerPreference(),
         });
+        this._chartResizeObserver?.disconnect();
+        this._chartResizeObserver = new ResizeObserver(() => this.resize());
+        this._chartResizeObserver.observe(container!);
         this._initDrawingOverlay();
         this._initTextOverlays();
         this._initMouseSelectionZoom();
+        requestAnimationFrame(() => this.resize());
     }
 
     supportsZoomControls(): boolean {
@@ -566,6 +580,7 @@ export class DataChart {
         this._renderRollingBandsToCtx(ctx, { x: 1, y: 1 });
         this._renderAnomalyRegionsToCtx(ctx, { x: 1, y: 1 });
         this._renderAdaptiveFilterLinesToCtx(ctx, { x: 1, y: 1 });
+        this._renderAnnotationsToCtx(ctx, { x: 1, y: 1 });
         const allDraws = [...this._drawings];
         if (this._currentDraw) allDraws.push(this._currentDraw);
         for (const item of allDraws) {
@@ -799,6 +814,97 @@ export class DataChart {
                 }
             }
         }
+        ctx.restore();
+    }
+
+    /** Render annotations (notes, bookmarks) on the overlay. */
+    private _renderAnnotationsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
+        // Import annotations module dynamically to avoid circular dependencies
+        const annotations = (window as any).__edatimeAnnotations;
+        if (!annotations || typeof annotations.getAnnotationsForPage !== 'function') return;
+
+        const timeAnnotations = annotations.getAnnotationsForPage('timeseries');
+        if (!timeAnnotations || timeAnnotations.length === 0) return;
+        if (!this._container) return;
+
+        const xMin = Number(this._xMin);
+        const xMax = Number(this._xMax);
+        if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !(xMax > xMin)) return;
+
+        const rect = this._container.getBoundingClientRect();
+        const cssWidth = Math.max(1, rect.width || this._overlayCanvas?.width || 1);
+        const cssHeight = Math.max(1, rect.height || this._overlayCanvas?.height || 1);
+        const plotLeft = CHART_GRID.left * scale.x;
+        const plotTop = CHART_GRID.top * scale.y;
+        const plotRight = Math.max(plotLeft + 1, (cssWidth - CHART_GRID.right) * scale.x);
+        const plotBottom = Math.max(plotTop + 1, (cssHeight - CHART_GRID.bottom) * scale.y);
+        const plotWidth = Math.max(1, plotRight - plotLeft);
+        const plotHeight = Math.max(1, plotBottom - plotTop);
+        const strokeScale = Math.min(scale.x, scale.y);
+
+        ctx.save();
+        ctx.font = `${Math.max(10, 11 * strokeScale)}px Inter, system-ui, sans-serif`;
+
+        for (const ann of timeAnnotations) {
+            if (!ann.timeRange) continue;
+            const start = ann.timeRange.start;
+            const end = ann.timeRange.end;
+
+            // Skip if completely outside view
+            if (end < xMin || start > xMax) continue;
+
+            const visStart = Math.max(xMin, start);
+            const visEnd = Math.min(xMax, end);
+            const sx = plotLeft + ((visStart - xMin) / (xMax - xMin)) * plotWidth;
+            const ex = plotLeft + ((visEnd - xMin) / (xMax - xMin)) * plotWidth;
+
+            const color = ann.color || '#ffc041';
+
+            if (ann.type === 'bookmark' || start === end) {
+                // Bookmark: vertical line
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2 * strokeScale;
+                ctx.setLineDash([]);
+                ctx.beginPath();
+                ctx.moveTo(sx, plotTop);
+                ctx.lineTo(sx, plotBottom);
+                ctx.stroke();
+
+                // Bookmark marker
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(sx, plotTop);
+                ctx.lineTo(sx - 6 * strokeScale, plotTop - 10 * strokeScale);
+                ctx.lineTo(sx + 6 * strokeScale, plotTop - 10 * strokeScale);
+                ctx.closePath();
+                ctx.fill();
+
+                // Title
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                ctx.textAlign = 'left';
+                ctx.fillText(ann.title, sx + 4 * strokeScale, plotTop + 14 * strokeScale);
+            } else if (ann.type === 'note' || ann.type === 'region') {
+                // Note/region: shaded area
+                ctx.fillStyle = color.replace(')', ', 0.15)').replace('rgb', 'rgba').replace('##', '#');
+                if (!ctx.fillStyle.includes('rgba')) {
+                    ctx.fillStyle = `${color}26`; // 15% opacity
+                }
+                ctx.fillRect(sx, plotTop, ex - sx, plotHeight);
+
+                // Border
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1 * strokeScale;
+                ctx.setLineDash([4 * strokeScale, 2 * strokeScale]);
+                ctx.strokeRect(sx, plotTop, ex - sx, plotHeight);
+                ctx.setLineDash([]);
+
+                // Title label
+                ctx.fillStyle = color;
+                ctx.textAlign = 'left';
+                ctx.fillText(ann.title, sx + 4 * strokeScale, plotTop + 14 * strokeScale);
+            }
+        }
+
         ctx.restore();
     }
 

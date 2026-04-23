@@ -13,6 +13,7 @@ import {
     drawMiniDensityCanvas,
     drawDistributionCanvas,
     buildCategoricalColorGroups,
+    buildGroupedDistributionSeries,
     MATRIX_POINT_LIMIT,
     MATRIX_MAX_COLUMNS,
 } from './helpers.js';
@@ -25,7 +26,6 @@ import {
     type MatrixCellData,
     type ScatterControls,
 } from './state.js';
-import { buildGroupedDistributionSeries } from './distributions.js';
 
 let draggingMatrixColumn: string | null = null;
 

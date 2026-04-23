@@ -1,13 +1,6 @@
 import { fetchCausalGraph } from '../dataClient.js';
+import { notifyCausalGraphUpdated, type CausalLink } from './causalComparison.js';
 
-export interface CausalLink {
-    source: string;
-    target: string;
-    lag: number;
-    type: string;
-    value: number;
-    pvalue: number;
-}
 
 interface MetadataColumn {
     name: string;
@@ -1601,6 +1594,9 @@ export function initCausalPage(deps: CausalDeps): void {
             _currentColumns = cols;
             _currentLinks = resp.links;
             _currentTauMax = resp.tau_max;
+
+            notifyCausalGraphUpdated(cols, resp.links);
+            window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
 
             for (const col of cols) ensureNodeMetadata(col, meta, deps);
             renderEChartsGraph();

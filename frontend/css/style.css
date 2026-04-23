@@ -47,10 +47,7 @@
 /* 14. Scatter & density page */
 @import "modules/scatter.css";
 
-/* 15. Distribution cards & stats panel */
-@import "modules/distributions.css";
-
-/* 16. Responsive breakpoints & sidebar-collapsed state */
+/* 15. Responsive breakpoints & sidebar-collapsed state */
 @import "modules/responsive.css";
 
 /* 17. Scrollbars — hidden globally, opt-in per container */
@@ -70,3 +67,25 @@
 
 /* 22. Homepage */
 @import "modules/home.css";
+
+/* 23. Guided workflow */
+@import "modules/workflow.css";
+
+/* 23. Settings panel */
+@import "modules/settings.css";
+
+/* 24. Temporal Drift analysis page */
+@import "modules/drift.css?v=2";
+
+/* Causal run comparison diff table */
+.diff-added td {
+  color: #4c4;
+}
+
+.diff-removed td {
+  color: #f44;
+}
+
+.diff-changed td {
+  color: #ffc041;
+}

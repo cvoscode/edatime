@@ -12,7 +12,7 @@
  *   charts/fallback.ts — Canvas 2D fallback chart
  *   chart/DataChart.ts — DataChart (ChartGPU WebGPU adapter)
  *   dataClient.ts      — Arrow IPC fetch + aggregate fetch
- *   scatter/scatterPage.ts — full scatter page with plot/distributions/matrix views
+ *   scatter/scatterPage.ts — full scatter page with plot/matrix views
  */
 
 import { DEBUG, dbg, dbgGroup } from './debug.js';
@@ -26,6 +26,7 @@ import { buildColumnToggles, buildRangeControls, initColumnFilterModal } from '.
 import { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata, initUploadPanel } from './ui/upload.js';
 import { hydrateColumnProfiles, renderColumnProfilesGrid, initColumnProfilesGrid } from './ui/profile.js';
 import { debounce } from './utils/dom.js';
+import { defaultGpuPowerPreference } from './utils/platform.js';
 import {
     updateAnalysisZoom, updateAnalysisYRange,
     refreshZoomControlsState, getCurrentView,
@@ -42,11 +43,22 @@ import { initHashRouting } from './utils/router.js';
 import { initAutoSave, autoRestoreSession, applySession, exportSessionToFile, importSessionFromFile } from './utils/session.js';
 import { initCommandPalette, registerCommands, openPalette } from './utils/palette.js';
 import { initProvenance, toggleProvenance } from './utils/provenance.js';
+import { initSettings } from './utils/settings.js';
+import { initSettingsPanel, openSettingsModal } from './ui/settingsPanel.js';
+import { initAnnotations } from './chart/annotations.js';
+import { initAnnotationPanel, setAnnotationOverlayCallback } from './ui/annotationPanel.js';
+import { disableGuidedWorkflow, enableGuidedWorkflow, goToNextGuidedStep, initGuidedWorkflow } from './ui/guidedWorkflow.js';
 import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanvasHTML, exportEChartsPNG, exportEChartsSVG, exportEChartsHTML, exportElementPNG, exportElementSVG, exportElementHTML, exportMatrixCSV, exportTraceCSV } from './utils/chartExport.js';
 import { toast } from './utils/toast.js';
 
 const _appCleanups: Array<() => void> = [];
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
+
+function storeFetchedMetadata(metadata: DatasetMetadata): void {
+    appState.metadata = metadata;
+    const revision = Number(metadata?.revision);
+    appState.datasetRevision = Number.isFinite(revision) ? revision : 0;
+}
 
 /* ── UI Helpers ───────────────────────────────────────── */
 
@@ -116,7 +128,10 @@ async function checkWebGPU(): Promise<string | null> {
         return 'WebGPU is not supported in this browser. Use Chrome 113+, Edge 113+, or Safari 18+.';
     try {
         const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('requestAdapter timed out')), 5000));
-        const adapter = await Promise.race([navigator.gpu.requestAdapter(), timeout]);
+        const adapter = await Promise.race([
+            navigator.gpu.requestAdapter({ powerPreference: defaultGpuPowerPreference() }),
+            timeout,
+        ]);
         if (!adapter)
             return 'No WebGPU adapter found. Your GPU may not be supported or hardware acceleration may be disabled.';
     } catch (e: any) {
@@ -224,11 +239,24 @@ function renderCurrentData(): void {
     }
     if (!appState.lastFetchedData) return;
     const filtered = applyColumnRanges(appState.lastFetchedData);
-    appState.chart.updateDataMulti(filtered, appState.selectedCols);
+
+    // Inject spectral filter preview as an extra series
+    const preview = appState.spectralFilterPreview;
+    let displayCols = [...appState.selectedCols];
+    if (preview && preview.ts && preview.values && preview.ts.length > 0) {
+        const previewKey = `${preview.column} [filtered]`;
+        // Inject the preview series into the data object
+        (filtered as any).series = (filtered as any).series || {};
+        (filtered as any).series[previewKey] = { x: preview.ts, y: preview.values };
+        if (!displayCols.includes(previewKey)) displayCols = [...displayCols, previewKey];
+    }
+
+    appState.chart.updateDataMulti(filtered, displayCols);
     if (appState.rollingEnabled) {
         appState.rollingBands = computeFrontendRollingBands(filtered, appState.selectedCols, (appState as any).rollingWindow || 50);
         appState.chart?.requestOverlayRender?.();
     }
+    window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
 }
 
 function emitAdaptiveFiltersChange(): void {
@@ -576,11 +604,11 @@ function initKeyboardShortcuts(): void {
             if (key === '2') { event.preventDefault(); showPage('timeseries'); return; }
             if (key === '3') { event.preventDefault(); showPage('scatter'); return; }
             if (key === '4') { event.preventDefault(); showPage('scattermatrix'); return; }
-            if (key === '5') { event.preventDefault(); showPage('distributions'); return; }
             if (key === '6') { event.preventDefault(); showPage('fft'); return; }
             if (key === '7') { event.preventDefault(); showPage('heatmap'); return; }
             if (key === '8') { event.preventDefault(); showPage('spectrogram'); return; }
             if (key === '9') { event.preventDefault(); showPage('causal'); return; }
+            if (key === '0') { event.preventDefault(); showPage('drift'); return; }
         }
 
         if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -684,7 +712,7 @@ function initTransformModal(): void {
             close();
             // Reload metadata and data after transform
             if (fetchMetadata) {
-                appState.metadata = await fetchMetadata();
+                storeFetchedMetadata(await fetchMetadata());
                 appState.numericCols = ((appState.metadata as any).numeric_columns || [])
                     .filter((col: string) => col && col.toLowerCase() !== 'ts');
                 if (!appState.selectedCols.includes(name)) appState.selectedCols.push(name);
@@ -711,9 +739,21 @@ let _fftChart: any = null;
 const _FFT_CHIP_COLORS = ['#7ad151', '#4ac3e8', '#f97316', '#e879f9', '#facc15', '#60a5fa', '#f43f5e'];
 const _fftTraceColors: Record<string, string> = {};
 
+function getNumericColumns(metadata: DatasetMetadata | null): string[] {
+    const timeCol = String(metadata?.time_column || '').trim().toLowerCase();
+    return ((metadata?.numeric_columns || []) as string[])
+        .filter((c: string) => {
+            const lower = String(c || '').trim().toLowerCase();
+            return lower && lower !== 'ts' && lower !== timeCol;
+        });
+}
+
+function getDefaultTimeseriesColumns(metadata: DatasetMetadata | null): string[] {
+    return getNumericColumns(metadata).slice(0, 3);
+}
+
 function _fftColumns(): string[] {
-    return ((appState.metadata?.numeric_columns || []) as string[])
-        .filter((c: string) => c.toLowerCase() !== 'ts');
+    return getNumericColumns(appState.metadata);
 }
 
 function _fftColorFor(col: string, fallbackIdx: number): string {
@@ -872,6 +912,70 @@ async function initFftPage(): Promise<void> {
             ys: _fftMode === 'psd' ? t.psd : t.magnitudes,
         }));
         exportTraceCSV(csvTraces, 'frequency_hz', `edatime_fft_${_fftMode}.csv`);
+    });
+
+    // Spectral filter controls
+    document.getElementById('fft-filter-apply-btn')?.addEventListener('click', async () => {
+        const filterType = (document.getElementById('fft-filter-type') as HTMLSelectElement)?.value;
+        if (!filterType || filterType === 'none') {
+            // Remove spectral filter preview
+            if (appState.spectralFilterPreview) {
+                appState.spectralFilterPreview = null;
+                appState.chart?.requestOverlayRender?.();
+                renderCurrentData();
+            }
+            return;
+        }
+        // Use first FFT trace column, or fall back to first selected column
+        const column = _fftTraces[0]?.column || appState.selectedCols[0];
+        if (!column) { toast('Select a column chip below first.', 'warning'); return; }
+
+        const statusEl = document.getElementById('fft-filter-status') as HTMLElement | null;
+        const lowHz = parseFloat((document.getElementById('fft-filter-low-hz') as HTMLInputElement)?.value) || undefined;
+        const highHz = parseFloat((document.getElementById('fft-filter-high-hz') as HTMLInputElement)?.value) || undefined;
+
+        if (statusEl) statusEl.textContent = 'Computing…';
+        try {
+            const start = appState.currentStart!;
+            const end = appState.currentEnd!;
+            const params = new URLSearchParams({
+                start: new Date(start).toISOString(),
+                end: new Date(end).toISOString(),
+                column,
+                filter_type: filterType,
+                ...(lowHz !== undefined ? { low_hz: String(lowHz) } : {}),
+                ...(highHz !== undefined ? { high_hz: String(highHz) } : {}),
+            });
+            const resp = await fetch(`/api/analytics/spectral-filter?${params.toString()}`);
+            if (!resp.ok) throw new Error(await resp.text());
+            const data = await resp.json();
+            // Store as preview in appState for overlay rendering
+            appState.spectralFilterPreview = {
+                column: data.column,
+                ts: data.ts as number[],
+                values: data.values as number[],
+                filterType,
+                lowHz: data.low_hz,
+                highHz: data.high_hz,
+            };
+            if (statusEl) statusEl.textContent = `${filterType} preview active`;
+            toast(`Spectral filter preview: ${filterType} applied to "${column}". Switch to Timeseries to view.`, 'success');
+            // Trigger re-render so the filtered overlay shows on the timeseries chart
+            renderCurrentData();
+        } catch (err) {
+            if (statusEl) statusEl.textContent = 'Error';
+            toast(`Spectral filter failed: ${String(err)}`, 'error');
+        }
+    });
+
+    // Update cutoff field visibility based on filter type
+    const filterTypeSelect = document.getElementById('fft-filter-type') as HTMLSelectElement | null;
+    filterTypeSelect?.addEventListener('change', () => {
+        const ft = filterTypeSelect.value;
+        const lowEl = document.getElementById('fft-filter-low-hz') as HTMLInputElement | null;
+        const hiEl = document.getElementById('fft-filter-high-hz') as HTMLInputElement | null;
+        if (lowEl) lowEl.disabled = ft === 'none' || ft === 'lowpass';
+        if (hiEl) hiEl.disabled = ft === 'none' || ft === 'highpass';
     });
 
     _fftRerenderOrClear();
@@ -1050,6 +1154,43 @@ let _spectrogramChart: any = null;
 let _spectrogramResizeObserver: ResizeObserver | null = null;
 let _spectrogramResult: { column: string; times_ms: number[]; frequencies: number[]; magnitudes: number[][] } | null = null;
 let _spectrogramSampleCount = 0;
+
+const _loadedPageModules = new Set<string>();
+let _metadataReady = false;
+
+async function ensurePageModuleLoaded(page: string): Promise<void> {
+    if (_loadedPageModules.has(page)) return;
+
+    const loader = pageModuleLoaders[page];
+    if (!loader) return;
+
+    if (!_metadataReady) {
+        await new Promise<void>((resolve) => {
+            const onReady = () => {
+                window.removeEventListener('edatime:metadata-ready', onReady);
+                resolve();
+            };
+            window.addEventListener('edatime:metadata-ready', onReady);
+        });
+    }
+
+    try {
+        await loader();
+        _loadedPageModules.add(page);
+    } catch (error: any) {
+        console.error(`Failed to load page module for ${page}:`, error);
+    }
+}
+
+const pageModuleLoaders: Record<string, () => Promise<void>> = {
+    scatter: initScatterPageModule,
+    scattermatrix: initScatterPageModule,
+    heatmap: initHeatmapPage,
+    spectrogram: initSpectrogramPage,
+    causal: initCausalPage,
+    fft: initFftPage,
+    drift: initDriftPage,
+};
 
 async function initSpectrogramPage(): Promise<void> {
     if (_spectrogramLoaded) return;
@@ -1402,14 +1543,21 @@ async function initSpectrogramPage(): Promise<void> {
     });
 }
 
+async function initDriftPage(): Promise<void> {
+    const { initDriftPage: init } = await import('./drift/driftPage.js');
+    await init(appState.metadata);
+}
+
 async function initCausalPage(): Promise<void> {
     const { initCausalPage: init } = await import('./causal/causalPage.js');
+    const { initCausalComparison } = await import('./causal/causalComparison.js');
     init({
         getMetadata: () => appState.metadata,
         chipColor: _fftColorFor,
         numericColumns: _fftColumns,
         setLoading: setComputeLoading,
     });
+    initCausalComparison();
 }
 
 /* ── Outlier removal modal ────────────────────────────── */
@@ -1462,7 +1610,7 @@ function initOutlierModal(): void {
 
             // Reload metadata and data
             if (fetchMetadata) {
-                appState.metadata = await fetchMetadata();
+                storeFetchedMetadata(await fetchMetadata());
                 appState.numericCols = ((appState.metadata as any).numeric_columns || [])
                     .filter((col: string) => col && col.toLowerCase() !== 'ts');
                 sanitizeSelectedColumns();
@@ -1477,221 +1625,6 @@ function initOutlierModal(): void {
             applyBtn.textContent = 'Remove Outliers';
         }
     });
-}
-
-/* ── Time distribution modal ──────────────────────────── */
-
-function initTimeDistributionModal(): void {
-    const computeBtn = document.getElementById('timedist-compute-btn');
-    const windowsInput = document.getElementById('timedist-windows') as HTMLInputElement | null;
-    const binsInput = document.getElementById('timedist-bins') as HTMLInputElement | null;
-    const canvas = document.getElementById('timedist-canvas') as HTMLCanvasElement | null;
-    const statusEl = document.getElementById('timedist-status') as HTMLElement | null;
-
-    const close = initModalClose('timedist-modal', 'timedist-close-btn', 'timedist-cancel-btn');
-    if (!close || !canvas) return;
-
-    const modal = document.getElementById('timedist-modal')!;
-    const openBtn = document.getElementById('timedist-open-btn');
-    openBtn?.addEventListener('click', () => { modal.hidden = false; });
-
-    computeBtn?.addEventListener('click', async () => {
-        if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
-        const cols = appState.selectedCols.length > 0 ? appState.selectedCols[0] : null;
-        if (!cols) { if (statusEl) statusEl.textContent = 'Select a column first.'; return; }
-
-        const windows = parseInt(windowsInput?.value || '20', 10);
-        const bins = parseInt(binsInput?.value || '24', 10);
-
-        try {
-            (computeBtn as HTMLButtonElement).disabled = true;
-            computeBtn.textContent = 'Computing…';
-            if (statusEl) statusEl.textContent = 'Fetching data…';
-
-            const { fetchTimeDistributions } = await import('./dataClient.js');
-            const startIso = new Date(appState.currentStart!).toISOString();
-            const endIso = new Date(appState.currentEnd!).toISOString();
-            const result = await fetchTimeDistributions(startIso, endIso, cols, windows, bins);
-
-            if (result.columns.length === 0) {
-                if (statusEl) statusEl.textContent = 'No data returned.';
-                return;
-            }
-
-            renderTimeDistBoxPlots(canvas, result.columns[0], windows, bins);
-            if (statusEl) statusEl.textContent = `${cols}: ${result.columns[0].windows.length} windows × ${bins} bins (box plot)`;
-        } catch (e: any) {
-            if (statusEl) statusEl.textContent = `Error: ${e?.message || 'failed'}`;
-        } finally {
-            (computeBtn as HTMLButtonElement).disabled = false;
-            computeBtn.textContent = 'Compute';
-        }
-    });
-}
-
-function renderTimeDistBoxPlots(
-    canvas: HTMLCanvasElement,
-    data: { windows: Array<{ window_start_ms: number; window_end_ms: number; bin_edges: number[]; counts: number[] }>; global_min: number; global_max: number },
-    _nWindows: number,
-    _nBins: number,
-): void {
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const wins = data.windows;
-    if (wins.length === 0) return;
-
-    const nW = wins.length;
-    const W = canvas.width;
-    const H = canvas.height;
-    const marginL = 60;
-    const marginB = 30;
-    const marginT = 10;
-    const marginR = 16;
-    const plotW = W - marginL - marginR;
-    const plotH = H - marginT - marginB;
-
-    // Compute box plot stats per window from histogram counts
-    const stats: Array<{ q1: number; median: number; q3: number; min: number; max: number; total: number }> = [];
-    for (const w of wins) {
-        const edges = w.bin_edges;
-        const counts = w.counts;
-        let total = 0;
-        for (const c of counts) total += c;
-
-        if (total === 0) {
-            stats.push({ q1: 0, median: 0, q3: 0, min: 0, max: 0, total: 0 });
-            continue;
-        }
-
-        // Build CDF to compute percentiles
-        const percentile = (p: number): number => {
-            const target = p * total;
-            let cumul = 0;
-            for (let i = 0; i < counts.length; i++) {
-                cumul += counts[i];
-                if (cumul >= target) {
-                    const lo = edges[i], hi = edges[i + 1] ?? edges[i];
-                    const frac = counts[i] > 0 ? (target - (cumul - counts[i])) / counts[i] : 0.5;
-                    return lo + frac * (hi - lo);
-                }
-            }
-            return edges[edges.length - 1] ?? 0;
-        };
-
-        // Find actual min/max (first/last non-zero bin)
-        let minVal = edges[0] ?? 0;
-        let maxVal = edges[edges.length - 1] ?? 0;
-        for (let i = 0; i < counts.length; i++) {
-            if (counts[i] > 0) { minVal = edges[i]; break; }
-        }
-        for (let i = counts.length - 1; i >= 0; i--) {
-            if (counts[i] > 0) { maxVal = edges[i + 1] ?? edges[i]; break; }
-        }
-
-        const q1 = percentile(0.25);
-        const median = percentile(0.5);
-        const q3 = percentile(0.75);
-        const iqr = q3 - q1;
-        const whiskerLo = Math.max(minVal, q1 - 1.5 * iqr);
-        const whiskerHi = Math.min(maxVal, q3 + 1.5 * iqr);
-
-        stats.push({ q1, median, q3, min: whiskerLo, max: whiskerHi, total });
-    }
-
-    const gMin = data.global_min;
-    const gMax = data.global_max;
-    const gRange = gMax - gMin || 1;
-    const toY = (v: number) => marginT + plotH - ((v - gMin) / gRange) * plotH;
-
-    ctx.clearRect(0, 0, W, H);
-
-    // Background
-    ctx.fillStyle = getComputedStyle(canvas).getPropertyValue('--bg').trim() || '#0b0f18';
-    ctx.fillRect(0, 0, W, H);
-
-    // Grid lines
-    ctx.strokeStyle = 'rgba(120, 139, 174, 0.12)';
-    ctx.lineWidth = 0.5;
-    const ySteps = 6;
-    for (let i = 0; i <= ySteps; i++) {
-        const y = marginT + (plotH / ySteps) * i;
-        ctx.beginPath();
-        ctx.moveTo(marginL, y);
-        ctx.lineTo(W - marginR, y);
-        ctx.stroke();
-    }
-
-    const boxGap = 2;
-    const slotW = plotW / nW;
-    const boxW = Math.max(4, slotW - boxGap * 2);
-
-    const accent = getComputedStyle(canvas).getPropertyValue('--accent').trim() || '#00a8ff';
-
-    for (let i = 0; i < nW; i++) {
-        const s = stats[i];
-        if (s.total === 0) continue;
-
-        const cx = marginL + slotW * i + slotW / 2;
-        const halfBox = boxW / 2;
-
-        // Whisker line
-        ctx.strokeStyle = 'rgba(120, 139, 174, 0.5)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cx, toY(s.min));
-        ctx.lineTo(cx, toY(s.max));
-        ctx.stroke();
-
-        // Whisker caps
-        const capW = boxW * 0.4;
-        ctx.beginPath();
-        ctx.moveTo(cx - capW, toY(s.min));
-        ctx.lineTo(cx + capW, toY(s.min));
-        ctx.moveTo(cx - capW, toY(s.max));
-        ctx.lineTo(cx + capW, toY(s.max));
-        ctx.stroke();
-
-        // Box (Q1 to Q3)
-        const boxTop = toY(s.q3);
-        const boxBot = toY(s.q1);
-        ctx.fillStyle = accent + '33';
-        ctx.fillRect(cx - halfBox, boxTop, boxW, boxBot - boxTop);
-        ctx.strokeStyle = accent;
-        ctx.lineWidth = 1.2;
-        ctx.strokeRect(cx - halfBox, boxTop, boxW, boxBot - boxTop);
-
-        // Median line
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        const medY = toY(s.median);
-        ctx.moveTo(cx - halfBox, medY);
-        ctx.lineTo(cx + halfBox, medY);
-        ctx.stroke();
-    }
-
-    // Y-axis labels
-    ctx.fillStyle = '#788BAE';
-    ctx.font = '9px sans-serif';
-    ctx.textAlign = 'right';
-    for (let i = 0; i <= ySteps; i++) {
-        const frac = i / ySteps;
-        const val = gMin + frac * gRange;
-        const y = marginT + plotH - frac * plotH;
-        ctx.fillText(val.toFixed(1), marginL - 4, y + 3);
-    }
-
-    // X-axis labels (time)
-    ctx.textAlign = 'center';
-    const xSteps = Math.min(5, nW);
-    for (let i = 0; i <= xSteps; i++) {
-        const idx = Math.round(i / xSteps * (nW - 1));
-        const t = wins[idx].window_start_ms;
-        const date = new Date(t);
-        const label = `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-        ctx.fillText(label, marginL + idx * slotW + slotW / 2, H - 6);
-    }
 }
 
 /* ── Theme toggle ─────────────────────────────────────── */
@@ -1728,9 +1661,16 @@ function initThemeToggle(): void {
 /* ── Main init ────────────────────────────────────────── */
 
 async function init(): Promise<void> {
+    (window as any).__edatime = (window as any).__edatime || {};
+    (window as any).__edatime.ensurePageModuleLoaded = ensurePageModuleLoaded;
     initPages();
     initHashRouting();
+    initSettings();  // Apply saved theme/layout before rendering
+    initAnnotations();  // Load annotation state from localStorage
+    initAnnotationPanel();  // Wire annotation toolbar buttons and modals
+    initGuidedWorkflow();
     initThemeToggle();
+    initSettingsPanel();
     // Homepage navigation cards
     document.querySelectorAll<HTMLElement>('[data-home-nav]').forEach((el) => {
         el.addEventListener('click', () => {
@@ -1752,11 +1692,11 @@ async function init(): Promise<void> {
         { id: 'nav-timeseries', label: 'Go to Timeseries', shortcut: 'Alt+2', category: 'Navigation', action: () => showPage('timeseries') },
         { id: 'nav-scatter', label: 'Go to Scatter', shortcut: 'Alt+3', category: 'Navigation', action: () => showPage('scatter') },
         { id: 'nav-matrix', label: 'Go to Scatter Matrix', shortcut: 'Alt+4', category: 'Navigation', action: () => showPage('scattermatrix') },
-        { id: 'nav-dist', label: 'Go to Distributions', shortcut: 'Alt+5', category: 'Navigation', action: () => showPage('distributions') },
         { id: 'nav-fft', label: 'Go to FFT / PSD', shortcut: 'Alt+6', category: 'Navigation', action: () => showPage('fft') },
         { id: 'nav-heatmap', label: 'Go to Heatmap', shortcut: 'Alt+7', category: 'Navigation', action: () => showPage('heatmap') },
         { id: 'nav-spectrogram', label: 'Go to Spectrogram', shortcut: 'Alt+8', category: 'Navigation', action: () => showPage('spectrogram') },
         { id: 'nav-causal', label: 'Go to Causal', shortcut: 'Alt+9', category: 'Navigation', action: () => showPage('causal') },
+        { id: 'nav-drift', label: 'Go to Drift Analysis', shortcut: 'Alt+0', category: 'Navigation', action: () => showPage('drift') },
         // Chart
         { id: 'chart-reset', label: 'Reset zoom', shortcut: 'Shift+R', category: 'Chart', action: () => resetZoom(fetchAndRender) },
         { id: 'chart-zoomout', label: 'Zoom out one level', shortcut: 'Shift+Z', category: 'Chart', action: () => zoomOut(fetchAndRender) },
@@ -1772,10 +1712,13 @@ async function init(): Promise<void> {
         // Analysis
         { id: 'provenance', label: 'Show analysis context panel', shortcut: 'Ctrl+I', category: 'Analysis', action: toggleProvenance },
         { id: 'cmd-palette', label: 'Open command palette', shortcut: 'Ctrl+K', category: 'Analysis', action: openPalette },
+        { id: 'settings', label: 'Open settings', shortcut: 'Ctrl+,', category: 'Analysis', action: openSettingsModal },
+        { id: 'workflow-enable', label: 'Enable guided workflow', category: 'Analysis', action: enableGuidedWorkflow },
+        { id: 'workflow-disable', label: 'Hide guided workflow', category: 'Analysis', action: disableGuidedWorkflow },
+        { id: 'workflow-next', label: 'Go to next guided step', category: 'Analysis', action: goToNextGuidedStep },
     ]);
     initTransformModal();
     initOutlierModal();
-    initTimeDistributionModal();
     initAnalyticsListeners();
 
     try { await ensureChartModules(); } catch (e: any) {
@@ -1786,30 +1729,18 @@ async function init(): Promise<void> {
 
     const gpuError = await checkWebGPU();
 
-    const initOptionalPage = async (label: string, initializer: () => Promise<void> | void): Promise<void> => {
-        try {
-            await initializer();
-        } catch (error: any) {
-            console.error(`${label} failed to initialize:`, error);
-        }
-    };
-
     try {
-        appState.metadata = await fetchMetadata!();
+        storeFetchedMetadata(await fetchMetadata!());
+        _metadataReady = true;
+        window.dispatchEvent(new Event('edatime:metadata-ready'));
         dbgGroup('metadata', () => dbg(appState.metadata));
         setMetaText('Loading chart…');
-        await initScatterPageModule();
-        await initOptionalPage('FFT page', initFftPage);
-        await initOptionalPage('Heatmap page', initHeatmapPage);
-        await initOptionalPage('Spectrogram page', initSpectrogramPage);
-        await initOptionalPage('Causal page', async () => { initCausalPage(); });
 
         if (!(appState.metadata as any).time_range) { setMetaText('No valid time range found.'); return; }
 
-        appState.numericCols = ((appState.metadata as any).numeric_columns || [])
-            .filter((col: string) => col && col.toLowerCase() !== 'ts');
-        appState.selectedCols = [];
-        appState.adaptiveFilterColumn = null;
+        appState.numericCols = getNumericColumns(appState.metadata);
+        appState.selectedCols = getDefaultTimeseriesColumns(appState.metadata);
+        appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
         sanitizeSelectedColumns();
 
         // Column search filter (debounced to avoid thrashing DOM on fast typing)
@@ -1841,6 +1772,7 @@ async function init(): Promise<void> {
         buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
         buildMetaBar(appState.metadata);
         buildRangeControls();
+        window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
 
         appState.currentStart = Number((appState.metadata as any).time_range.min);
         appState.currentEnd = Number((appState.metadata as any).time_range.max);
@@ -1871,6 +1803,8 @@ async function init(): Promise<void> {
         bindAnalysisChartEvents();
         initAdaptiveFilterGesture();
         refreshZoomControlsState();
+        // Wire annotation overlay callback so annotation changes re-render
+        setAnnotationOverlayCallback(() => appState.chart?.requestOverlayRender?.());
         appState.chart?.setXRange?.(appState.currentStart!, appState.currentEnd!);
         appState.chart?.setChartText?.(
             appState.chartText?.title || '',

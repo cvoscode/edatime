@@ -70,6 +70,7 @@ pub fn build_histogram_with_bins(
 }
 
 /// Summary statistics for a numeric column.
+#[derive(Debug, serde::Serialize)]
 pub struct ColumnStats {
     pub min: Option<f64>,
     pub max: Option<f64>,
@@ -207,4 +208,176 @@ fn rank_with_ties(values: &[f64]) -> Vec<f64> {
     }
 
     ranks
+}
+
+/// Two-sample Kolmogorov-Smirnov test statistic.
+///
+/// Returns `(ks_statistic, p_value_approx)`.
+/// The p-value is an asymptotic approximation via the Kolmogorov distribution.
+pub fn ks_test_2sample(a: &[f64], b: &[f64]) -> (f64, f64) {
+    if a.is_empty() || b.is_empty() {
+        return (f64::NAN, f64::NAN);
+    }
+
+    let mut sa = a.to_vec();
+    let mut sb = b.to_vec();
+    sa.sort_by(|x, y| x.total_cmp(y));
+    sb.sort_by(|x, y| x.total_cmp(y));
+
+    let n1 = sa.len() as f64;
+    let n2 = sb.len() as f64;
+
+    // Merge sorted arrays and compute KS statistic
+    let mut i = 0usize;
+    let mut j = 0usize;
+    let mut max_diff = 0.0f64;
+
+    while i < sa.len() || j < sb.len() {
+        let v = if j >= sb.len() || (i < sa.len() && sa[i] <= sb[j]) {
+            i += 1;
+            sa[i - 1]
+        } else {
+            j += 1;
+            sb[j - 1]
+        };
+        // Advance past duplicates
+        while i < sa.len() && sa[i] == v {
+            i += 1;
+        }
+        while j < sb.len() && sb[j] == v {
+            j += 1;
+        }
+        let cdf1 = i as f64 / n1;
+        let cdf2 = j as f64 / n2;
+        let diff = (cdf1 - cdf2).abs();
+        if diff > max_diff {
+            max_diff = diff;
+        }
+    }
+
+    // Asymptotic p-value: P(D > d) ≈ 2 * exp(-2 * lambda^2)
+    // where lambda = D * sqrt(n1*n2 / (n1+n2))
+    let n_eff = (n1 * n2 / (n1 + n2)).sqrt();
+    let lambda = max_diff * n_eff;
+    let p_value = if lambda <= 0.0 {
+        1.0
+    } else {
+        // Kolmogorov distribution CDF approximation (two-sided)
+        let mut p = 0.0f64;
+        for k in 1..=100i64 {
+            let term = (k as f64).powi(2) * lambda * lambda;
+            let sign = if k % 2 == 0 { 1.0 } else { -1.0 };
+            p += sign * (-2.0 * term).exp();
+        }
+        (2.0 * p.abs()).min(1.0)
+    };
+
+    (max_diff, p_value)
+}
+
+/// Approximate Epps–Singleton two-sample test.
+/// Returns (statistic, p_value_estimate).
+/// P-value is estimated via permutation (up to 200 permutations).
+pub fn epps_singleton_test(a: &[f64], b: &[f64]) -> (f64, f64) {
+    use rand::seq::SliceRandom;
+
+    if a.is_empty() || b.is_empty() {
+        return (f64::NAN, f64::NAN);
+    }
+
+    // Prepare t grid for numeric integration
+    let mut combined: Vec<f64> = Vec::with_capacity(a.len() + b.len());
+    combined.extend_from_slice(a);
+    combined.extend_from_slice(b);
+
+    // scale t range based on pooled std
+    let pooled_std = {
+        let mean = combined.iter().sum::<f64>() / combined.len() as f64;
+        let var = combined.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / combined.len() as f64;
+        var.sqrt().max(1e-6)
+    };
+
+    let t_max = (5.0 / pooled_std).min(50.0);
+    let n_t = 64usize;
+    let dt = t_max / (n_t as f64);
+
+    let compute_stat = |x: &[f64], y: &[f64]| -> f64 {
+        let n = x.len() as f64;
+        let m = y.len() as f64;
+        let mut acc = 0.0f64;
+        for k in 0..n_t {
+            let t = (k as f64 + 0.5) * dt;
+            // weight function
+            let w = (-0.5 * t * t).exp();
+            let (re_x, im_x) = x.iter().fold((0.0f64, 0.0f64), |(re, im), &v| {
+                (re + (t * v).cos(), im + (t * v).sin())
+            });
+            let (re_y, im_y) = y.iter().fold((0.0f64, 0.0f64), |(re, im), &v| {
+                (re + (t * v).cos(), im + (t * v).sin())
+            });
+            let re_x = re_x / n;
+            let im_x = im_x / n;
+            let re_y = re_y / m;
+            let im_y = im_y / m;
+            let diff_sq = (re_x - re_y) * (re_x - re_y) + (im_x - im_y) * (im_x - im_y);
+            acc += w * diff_sq;
+        }
+        // scale by effective sample size
+        let stat = (n * m / (n + m)) * acc * dt;
+        stat
+    };
+
+    let observed = compute_stat(a, b);
+
+    // Permutation test for p-value estimation (bounded permutations)
+    let max_perm = 200usize;
+    let _total = combined.len();
+    let mut rng = rand::thread_rng();
+    let mut pooled = combined.clone();
+    let mut count_ge = 0usize;
+    for _ in 0..max_perm {
+        pooled.shuffle(&mut rng);
+        let x_perm = &pooled[..a.len()];
+        let y_perm = &pooled[a.len()..];
+        let stat = compute_stat(x_perm, y_perm);
+        if stat >= observed {
+            count_ge += 1;
+        }
+    }
+    let p = ((count_ge as f64) + 1.0) / ((max_perm as f64) + 1.0);
+    (observed, p)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ks_identical_and_different() {
+        let a = vec![0.0, 0.1, 0.2, 0.3, 0.4];
+        let b = a.clone();
+        let (stat_same, p_same) = ks_test_2sample(&a, &b);
+        assert!(stat_same >= 0.0 && stat_same < 1.0);
+        assert!(p_same >= 0.0 && p_same <= 1.0);
+
+        let c = vec![10.0, 10.1, 10.2, 10.3, 10.4];
+        let (stat_diff, p_diff) = ks_test_2sample(&a, &c);
+        assert!(stat_diff > 0.0);
+        assert!(p_diff >= 0.0 && p_diff <= 1.0);
+    }
+
+    #[test]
+    fn test_epps_singleton_basic_properties() {
+        let a = vec![0.0f64; 8];
+        let b = vec![1.0f64; 8];
+        let (stat, p) = epps_singleton_test(&a, &b);
+        assert!(stat.is_finite());
+        assert!(p >= 0.0 && p <= 1.0);
+
+        let x = vec![0.0f64, 0.1, 0.2, 0.3, 0.4, 0.5];
+        let y = x.clone();
+        let (stat_same, p_same) = epps_singleton_test(&x, &y);
+        assert!(stat_same >= 0.0);
+        assert!(p_same >= 0.0 && p_same <= 1.0);
+    }
 }

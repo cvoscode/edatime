@@ -560,3 +560,25 @@ export function drawMiniDensityCanvas(
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
 }
+
+export function buildGroupedDistributionSeries(values: number[], labels?: unknown[] | null): DistributionSeries[] | null {
+    if (!Array.isArray(labels) || !Array.isArray(values) || values.length !== labels.length) return null;
+    const groups = buildCategoricalColorGroups(labels);
+    if (!groups) return null;
+
+    const seriesByLabel = new Map<string, number[]>(groups.categories.map((l) => [l, []]));
+    for (let i = 0; i < values.length; i++) {
+        const v = Number(values[i]);
+        if (!Number.isFinite(v)) continue;
+        const label = normalizeCategoryLabel(labels[i]);
+        seriesByLabel.get(label)?.push(v);
+    }
+
+    const series: DistributionSeries[] = [];
+    for (const label of groups.categories) {
+        const groupValues = seriesByLabel.get(label) || [];
+        if (groupValues.length === 0) continue;
+        series.push({ label, color: groups.colorByLabel.get(label) || '#4a9eff', values: groupValues });
+    }
+    return series.length > 1 ? series : null;
+}

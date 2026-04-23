@@ -62,7 +62,7 @@ describe('dataClient fetch helpers', () => {
             expect(metadata.total_rows).toBe(720);
             expect(metadata.columns).toHaveLength(2);
             expect(metadata.numeric_columns).toContain('value');
-            expect(mockFetch).toHaveBeenCalledWith('/api/metadata', undefined);
+            expect(mockFetch).toHaveBeenCalledWith('/api/metadata', { cache: 'no-store' });
         });
 
         it('throws on non-object metadata', async () => {
@@ -191,25 +191,6 @@ describe('dataClient fetch helpers', () => {
                 expect.stringContaining('/api/scatter/points'),
                 expect.objectContaining({ method: 'POST' }),
             );
-        });
-    });
-
-    describe('fetchDistributions', () => {
-        it('validates distribution response', async () => {
-            const { fetchDistributions } = await import('./dataClient');
-
-            mockFetch.mockResolvedValueOnce({
-                ok: true,
-                json: () => Promise.resolve({
-                    columns: [
-                        { name: 'value', histogram: { bins: [1, 2], counts: [10, 20] } },
-                    ],
-                }),
-            });
-
-            const ctx = { columns: ['value'] } as any;
-            const result = await fetchDistributions(ctx);
-            expect(result.columns).toHaveLength(1);
         });
     });
 });

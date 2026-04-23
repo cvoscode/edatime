@@ -1,6 +1,10 @@
 import {
+  notifyCausalGraphUpdated
+} from "./chunk-2PTU6DWS.js";
+import "./chunk-T63Y6LQO.js";
+import {
   fetchCausalGraph
-} from "./chunk-OV247G5O.js";
+} from "./chunk-M7RFYJA6.js";
 import "./chunk-P2MGEQ7G.js";
 import "./chunk-PZ5AY32C.js";
 
@@ -1382,6 +1386,8 @@ function initCausalPage(deps) {
       _currentColumns = cols;
       _currentLinks = resp.links;
       _currentTauMax = resp.tau_max;
+      notifyCausalGraphUpdated(cols, resp.links);
+      window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
       for (const col of cols) ensureNodeMetadata(col, meta, deps);
       renderEChartsGraph();
       const groups = listPairGroups();
@@ -1408,4 +1414,4 @@ function initCausalPage(deps) {
 export {
   initCausalPage
 };
-//# sourceMappingURL=causalPage-Y3QBAXZW.js.map
+//# sourceMappingURL=causalPage-TZS2VRJV.js.map

@@ -9,7 +9,21 @@ import {
 import {
   Ad
 } from "../chunk-UUSB2KLH.js";
+import {
+  defaultGpuPowerPreference
+} from "../chunk-PMOHFZ3J.js";
 import "../chunk-PZ5AY32C.js";
+
+// frontend/src/utils/spectralPresets.ts
+function frequencyToPeriod(hz) {
+  if (!Number.isFinite(hz) || hz <= 0) return "\u2014";
+  const seconds = 1 / hz;
+  if (seconds < 1) return `${(seconds * 1e3).toFixed(1)} ms`;
+  if (seconds < 60) return `${seconds.toFixed(2)} sec`;
+  if (seconds < 3600) return `${(seconds / 60).toFixed(1)} min`;
+  if (seconds < 86400) return `${(seconds / 3600).toFixed(1)} hours`;
+  return `${(seconds / 86400).toFixed(1)} days`;
+}
 
 // frontend/src/chart/FftChart.ts
 var FFT_GRID = { left: 80, right: 24, top: 20, bottom: 44 };
@@ -37,8 +51,14 @@ var FftChart = class {
   _annotations = [];
   // freqHz values
   _traces = [];
+  _showPeakLabels = true;
+  _sampleRateHz = 0;
+  _nyquistHz = 0;
+  _dominantPeaks = [];
   /** Called with true when zoomed, false when view reset to full range. */
   onZoomChange = null;
+  /** Called when spectral info is updated (for external UI updates). */
+  onSpectralInfoUpdate = null;
   constructor(containerId) {
     this._containerId = containerId;
   }
@@ -52,7 +72,8 @@ var FftChart = class {
       xAxis: { type: "value" },
       yAxis: { type: "value" },
       legend: { show: true, position: "right" },
-      series: []
+      series: [],
+      powerPreference: defaultGpuPowerPreference()
     });
     this._initOverlay();
     this._initInteractions();
@@ -97,8 +118,22 @@ var FftChart = class {
       for (const f of t.frequencies) {
         if (f > this._fullXMax) this._fullXMax = f;
       }
+      if (t.sample_rate_hz && this._sampleRateHz === 0) {
+        this._sampleRateHz = t.sample_rate_hz;
+      }
+      if (t.nyquist_hz && this._nyquistHz === 0) {
+        this._nyquistHz = t.nyquist_hz;
+      }
+      if (t.dominant_peaks && this._dominantPeaks.length === 0) {
+        this._dominantPeaks = t.dominant_peaks;
+      }
     }
     if (this._fullXMax <= 0) this._fullXMax = 1;
+    this.onSpectralInfoUpdate?.({
+      sampleRateHz: this._sampleRateHz,
+      nyquistHz: this._nyquistHz,
+      peaks: this._dominantPeaks
+    });
     const xMin = this._getXMin();
     const xMax = this._getXMax();
     const sc = this._xScale();
@@ -173,8 +208,24 @@ var FftChart = class {
     this._xMin = 0;
     this._xMax = 0;
     this._fullXMax = 1;
+    this._sampleRateHz = 0;
+    this._nyquistHz = 0;
+    this._dominantPeaks = [];
     this._chart?.setOption({ series: [] });
     this._renderOverlay();
+  }
+  /** Toggle peak label display. */
+  setShowPeakLabels(show) {
+    this._showPeakLabels = show;
+    this._renderOverlay();
+  }
+  /** Get spectral info for display. */
+  getSpectralInfo() {
+    return {
+      sampleRateHz: this._sampleRateHz,
+      nyquistHz: this._nyquistHz,
+      peaks: this._dominantPeaks
+    };
   }
   destroy() {
     this._overlayObserver?.disconnect();
@@ -216,6 +267,9 @@ var FftChart = class {
     ctx.rotate(-Math.PI / 2);
     ctx.fillText(this._yAxisLabel(), 0, 0);
     ctx.restore();
+    if (this._showPeakLabels && this._dominantPeaks.length > 0) {
+      this._renderPeakLabels(ctx, xMin, xMax, plotL, plotT, plotW, plotH, sc, unit);
+    }
     if (this._annotations.length === 0) return;
     ctx.save();
     ctx.font = "11px Inter, system-ui, sans-serif";
@@ -278,6 +332,47 @@ var FftChart = class {
       onZoom: (min, max) => this.setView(min, max),
       clamp: { min: 0, max: this._fullXMax }
     });
+  }
+  /** Render dominant frequency peak labels on the overlay. */
+  _renderPeakLabels(ctx, xMin, xMax, plotL, plotT, plotW, plotH, sc, unit) {
+    ctx.save();
+    ctx.font = "10px Inter, system-ui, sans-serif";
+    const peaksToShow = this._dominantPeaks.slice(0, 3);
+    for (const peak of peaksToShow) {
+      const freqHz = peak.frequency_hz;
+      if (freqHz < xMin || freqHz > xMax) continue;
+      const ax = plotL + (freqHz - xMin) / (xMax - xMin) * plotW;
+      const traceData = this._traces[0];
+      if (!traceData) continue;
+      const raw = this._mode === "psd" ? traceData.psd : traceData.magnitudes;
+      const freqIdx = traceData.frequencies.findIndex((f) => Math.abs(f - freqHz) < 1e-10);
+      if (freqIdx < 0) continue;
+      const yVal = this._logScale ? raw[freqIdx] > 0 ? Math.log10(raw[freqIdx]) : -10 : raw[freqIdx];
+      let yMin = Infinity, yMax = -Infinity;
+      for (const t of this._traces) {
+        const vals = this._mode === "psd" ? t.psd : t.magnitudes;
+        for (const v of vals) {
+          const y = this._logScale ? v > 0 ? Math.log10(v) : -10 : v;
+          if (y < yMin) yMin = y;
+          if (y > yMax) yMax = y;
+        }
+      }
+      if (!Number.isFinite(yMin) || !Number.isFinite(yMax) || yMax <= yMin) continue;
+      const ay = plotT + plotH - (yVal - yMin) / (yMax - yMin) * plotH;
+      ctx.fillStyle = "rgba(255, 100, 100, 0.9)";
+      ctx.beginPath();
+      ctx.arc(ax, ay, 4, 0, Math.PI * 2);
+      ctx.fill();
+      const label = `${(freqHz * sc).toFixed(2)} ${unit}`;
+      const period = frequencyToPeriod(freqHz);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      ctx.textAlign = ax > plotL + plotW / 2 ? "right" : "left";
+      const xOffset = ax > plotL + plotW / 2 ? -8 : 8;
+      ctx.fillText(label, ax + xOffset, ay - 8);
+      ctx.fillStyle = "rgba(180, 180, 180, 0.85)";
+      ctx.fillText(`(${period})`, ax + xOffset, ay + 4);
+    }
+    ctx.restore();
   }
 };
 export {

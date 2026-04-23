@@ -1,5 +1,20 @@
 # Common Workflows
 
+## Use Guided Workflow Mode
+
+Use the `Guide` button in the header when you want the app to walk you through the recommended analysis order.
+
+1. Start on Upload.
+2. Move to Timeseries with only a few important series selected.
+3. Screen candidates in Heatmap or Scatter Matrix.
+4. Use Scatter for the detailed pair analysis.
+5. Use Causal after narrowing the variable list.
+
+Notes:
+
+1. The guide is optional and can be hidden at any time.
+2. Clicking a Scatter Matrix cell already opens the detailed scatter view for that pair.
+
 ## Validate A Fresh Dataset
 
 Use this when you want to sanity-check a new CSV, Parquet file, or database pull before deep analysis.

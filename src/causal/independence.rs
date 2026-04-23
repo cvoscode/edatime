@@ -997,7 +997,6 @@ fn digamma(x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ndarray::array;
 
     #[test]
     fn test_parcorr_independent() {

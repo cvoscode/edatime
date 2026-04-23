@@ -141,7 +141,9 @@ var appState = {
   anomalyEnabled: false,
   anomalyMethod: "zscore",
   anomalyThreshold: 3,
-  anomalyRegions: null
+  anomalyRegions: null,
+  spectralFilterPreview: null,
+  datasetRevision: 0
 };
 window.__edatime = window.__edatime || {};
 Object.defineProperty(window.__edatime, "state", { get: () => appState });
@@ -385,4 +387,4 @@ export {
   buildAdaptiveLineFiltersForQuery,
   applyColumnRanges
 };
-//# sourceMappingURL=chunk-5HSDX23N.js.map
+//# sourceMappingURL=chunk-SVFUPBER.js.map

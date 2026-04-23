@@ -1,0 +1,248 @@
+/* ─── Temporal Drift Analysis page ───────────────────────────── */
+
+.drift-layout {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.drift-timeline-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+}
+
+.drift-timeline-canvas-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+#drift-timeline-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.drift-detail-panel {
+  flex: 0 1 320px;
+  width: min(320px, 36vw);
+  min-width: 260px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.drift-detail-header {
+  padding: 10px 14px 6px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+#drift-detail-canvas {
+  display: block;
+  width: 100%;
+  height: 220px;
+  min-height: 220px;
+  flex: 0 0 220px;
+}
+
+.drift-detail-stats {
+  padding: 8px 14px;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.drift-detail-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.drift-detail-stat-label {
+  color: var(--text-dim);
+  font-size: 0.69rem;
+}
+
+.drift-detail-stat-value {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+  text-align: right;
+}
+
+.drift-detail-stat-value.drift-green { color: var(--green); }
+.drift-detail-stat-value.drift-yellow { color: var(--amber); }
+.drift-detail-stat-value.drift-red { color: var(--red); }
+
+.drift-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 0.69rem;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.drift-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.drift-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.drift-legend-dot--green { background: var(--green); }
+.drift-legend-dot--yellow { background: var(--amber); }
+.drift-legend-dot--red { background: var(--red); }
+
+.drift-window-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.drift-window-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  transition: background var(--transition);
+}
+
+.drift-window-item:hover {
+  background: var(--surface-2);
+}
+
+.drift-window-item.selected {
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+.drift-window-badge {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.drift-window-badge--green { background: var(--green); }
+.drift-window-badge--yellow { background: var(--amber); }
+.drift-window-badge--red { background: var(--red); }
+.drift-window-badge--empty { background: var(--text-muted); }
+
+.drift-window-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drift-window-psi {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 900px) {
+  .drift-layout {
+    flex-direction: column;
+  }
+
+  .drift-timeline-panel {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .drift-detail-panel {
+    flex: 0 0 340px;
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .drift-detail-panel {
+    flex-basis: 300px;
+  }
+
+  #drift-detail-canvas {
+    height: 180px;
+    min-height: 180px;
+    flex-basis: 180px;
+  }
+
+  .drift-legend {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+/* ── Custom scrollbar for drift window list (L1) ─────────────────────────── */
+.drift-window-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120,139,174,0.3) transparent;
+}
+
+.drift-window-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.drift-window-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.drift-window-list::-webkit-scrollbar-thumb {
+  background: rgba(120,139,174,0.3);
+  border-radius: 3px;
+}
+
+.drift-window-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(120,139,174,0.5);
+}
+
+/* ── Skeleton loading pulse (L2) ─────────────────────────────────────────── */
+@keyframes drift-skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
+.drift-timeline-canvas-wrap canvas.drift-loading,
+#drift-detail-canvas.drift-loading {
+  animation: drift-skeleton-pulse 1.4s ease-in-out infinite;
+}

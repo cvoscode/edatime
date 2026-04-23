@@ -303,22 +303,6 @@ async fn scatter_points_post() {
     assert!(json["points"].as_array().is_some());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn scatter_distributions() {
-    let app = test_app();
-    let req = Request::builder()
-        .uri("/api/scatter/distributions?columns=col_a,col_b")
-        .body(Body::empty())
-        .unwrap();
-
-    let resp = app.oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let body = resp.into_body().collect().await.unwrap().to_bytes();
-    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert!(json["columns"].as_array().is_some());
-}
-
 // ─── Analytics endpoints ──────────────────────────────────────────────────────
 
 #[tokio::test(flavor = "multi_thread")]
@@ -465,4 +449,136 @@ async fn database_status_without_connection() {
     let body = resp.into_body().collect().await.unwrap().to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["connected"], false);
+}
+
+// ─── Drift endpoint ───────────────────────────────────────────────────────────
+
+#[tokio::test(flavor = "multi_thread")]
+async fn drift_stats_valid_request_returns_correct_shape() {
+    let app = test_app();
+
+    let body = serde_json::json!({
+        "column": "col_a",
+        "window": "daily",
+        "reference_start": "2024-01-01T00:00:00Z",
+        "reference_end": "2024-01-15T00:00:00Z",
+        "current_start": "2024-01-15T00:00:00Z",
+        "current_end": "2024-01-31T00:00:00Z",
+        "n_bins": 10
+    });
+
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/api/drift/stats")
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+
+    assert_eq!(json["column"], "col_a");
+    assert!(json["reference"]["count"].as_u64().unwrap_or(0) >= 5);
+    assert!(json["windows"].as_array().unwrap().len() >= 1);
+    assert!(json["thresholds"]["ks_threshold"].is_number());
+    assert!(json["metadata"]["computation_time_ms"].is_number());
+    assert!(json["metadata"]["num_windows"].is_number());
+    assert!(json["metadata"]["reference_samples"].is_number());
+
+    // Verify Epps-Singleton fields are present
+    let first_window = &json["windows"][0];
+    assert!(first_window["es_stat"].is_number(), "es_stat missing from window");
+    assert!(first_window["es_pvalue"].is_number(), "es_pvalue missing from window");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn drift_stats_invalid_column_returns_400() {
+    let app = test_app();
+
+    let body = serde_json::json!({
+        "column": "nonexistent_column",
+        "window": "daily",
+        "reference_start": "2024-01-01T00:00:00Z",
+        "reference_end": "2024-01-15T00:00:00Z"
+    });
+
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/api/drift/stats")
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn drift_stats_reference_start_after_end_returns_400() {
+    let app = test_app();
+
+    let body = serde_json::json!({
+        "column": "col_a",
+        "window": "daily",
+        "reference_start": "2024-01-15T00:00:00Z",
+        "reference_end": "2024-01-01T00:00:00Z"
+    });
+
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/api/drift/stats")
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn drift_stats_reference_window_too_small_returns_400() {
+    let app = test_app();
+
+    // 1ms reference window → < 5 samples
+    let body = serde_json::json!({
+        "column": "col_a",
+        "window": "daily",
+        "reference_start": "2024-01-01T00:00:00Z",
+        "reference_end": "2024-01-01T00:00:00.001Z"
+    });
+
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/api/drift/stats")
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn drift_stats_v1_alias_works() {
+    let app = test_app();
+
+    let body = serde_json::json!({
+        "column": "col_a",
+        "window": "daily",
+        "reference_start": "2024-01-01T00:00:00Z",
+        "reference_end": "2024-01-10T00:00:00Z"
+    });
+
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/drift/stats")
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
 }

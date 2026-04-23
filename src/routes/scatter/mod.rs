@@ -1,7 +1,6 @@
-//! Scatter analytics routes — points, correlations, distributions, and export.
+//! Scatter analytics routes — points, correlations, and export.
 
 mod correlations;
-mod distributions;
 mod points;
 
 use polars::prelude::*;
@@ -19,7 +18,6 @@ pub use crate::filters::{
 
 // Re-export route handlers for the router.
 pub use correlations::{get_correlation_matrix, get_scatter_correlations};
-pub use distributions::{get_distributions, post_distributions};
 pub use points::{get_scatter_points, post_scatter_export_parquet, post_scatter_points};
 
 // ── Shared types ─────────────────────────────────────────────────────────────
@@ -78,12 +76,7 @@ fn numeric_columns(df: &DataFrame) -> Vec<String> {
         .filter_map(|name| {
             let name_str = name.as_str();
             match df.column(name_str) {
-                Ok(col)
-                    if col.dtype().is_numeric()
-                        || matches!(col.dtype(), DataType::Datetime(_, _) | DataType::Date) =>
-                {
-                    Some(name_str.to_string())
-                }
+                Ok(col) if col.dtype().is_numeric() => Some(name_str.to_string()),
                 _ => None,
             }
         })
@@ -152,6 +145,25 @@ fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option<f64
             "Column '{}' is not numeric or temporal",
             name
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use polars::prelude::{DataFrame, DataType, Series, TimeUnit};
+
+    #[test]
+    fn numeric_columns_excludes_temporal_columns() {
+        let ts = Series::new("ts".into(), [1_i64, 2])
+            .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+            .unwrap();
+        let value = Series::new("value".into(), [1.0_f64, 2.0]);
+        let other = Series::new("other".into(), [3.0_f64, 4.0]);
+        let df = DataFrame::new(2, vec![ts.into(), value.into(), other.into()]).unwrap();
+
+        let cols = numeric_columns(&df);
+        assert_eq!(cols, vec!["value".to_string(), "other".to_string()]);
     }
 }
 

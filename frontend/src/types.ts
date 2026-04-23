@@ -35,6 +35,7 @@ export interface ColumnProfile {
 }
 
 export interface DatasetMetadata {
+    revision?: number;
     total_rows: number;
     columns: ColumnMetadata[];
     numeric_columns: string[];
@@ -99,25 +100,6 @@ export interface ScatterCorrelationsResponse {
     numeric_columns: string[];
     correlations: CorrelationItem[];
     suggestions: CorrelationItem[];
-}
-
-export interface ColumnDistributionResult {
-    name: string;
-    dtype: string;
-    count: number;
-    min: number | null;
-    max: number | null;
-    mean: number | null;
-    std_dev: number | null;
-    median: number | null;
-    q1: number | null;
-    q3: number | null;
-    histogram: Histogram | null;
-}
-
-export interface DistributionsResponse {
-    total_rows: number;
-    columns: ColumnDistributionResult[];
 }
 
 // ── State types ────────────────────────────────────────────────────────────
@@ -230,6 +212,10 @@ export interface AppStateType {
     anomalyMethod: string;
     anomalyThreshold: number;
     anomalyRegions: AnomalyRegionData[] | null;
+    /** Preview of a spectral-filtered signal for the timeseries chart overlay */
+    spectralFilterPreview?: SpectralFilterPreview | null;
+    /** Dataset revision counter (incremented on upload) */
+    datasetRevision?: number;
 }
 
 export interface RollingBandData {
@@ -250,7 +236,15 @@ export interface AnomalyRegionData {
     score: number;
 }
 
-// ── Chart adapter interface ────────────────────────────────────────────────
+export interface SpectralFilterPreview {
+    column: string;
+    ts: number[];
+    values: number[];
+    filterType: string;
+    lowHz?: number;
+    highHz?: number;
+}
+
 
 export interface ChartInstance {
     init(): Promise<void>;
@@ -308,13 +302,6 @@ export interface ScatterLineFilterSpec {
 }
 
 export interface ScatterFetchOptions {
-    start?: number;
-    end?: number;
-    filters?: ScatterFilterSpec[];
-    lineFilters?: ScatterLineFilterSpec[];
-}
-
-export interface DistributionFetchContext {
     start?: number;
     end?: number;
     filters?: ScatterFilterSpec[];

@@ -39,7 +39,9 @@ select:focus {
 }
 
 /* Placeholder */
-input::placeholder { color: var(--text-muted); }
+input::placeholder {
+  color: var(--text-muted);
+}
 
 /* Select — custom chevron, no native arrow */
 select {
@@ -47,7 +49,7 @@ select {
   appearance: none;
   -webkit-appearance: none;
   padding-right: 28px;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23788BAE' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("select-arrow.svg");
   background-repeat: no-repeat;
   background-position: right 9px center;
   background-size: 10px 6px;
@@ -62,10 +64,15 @@ select {
 }
 
 /* Number field */
-input[type="number"] { width: 80px; }
+input[type="number"] {
+  width: 80px;
+}
 
 /* Datetime */
-input[type="datetime-local"] { width: 100%; }
+input[type="datetime-local"] {
+  width: 100%;
+}
+
 input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   filter: invert(72%) sepia(8%) saturate(395%) hue-rotate(184deg) brightness(96%) contrast(88%);
 }
@@ -81,6 +88,7 @@ input[type="range"] {
   padding: 0;
   cursor: pointer;
 }
+
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 14px;
@@ -90,9 +98,11 @@ input[type="range"]::-webkit-slider-thumb {
   cursor: pointer;
   transition: box-shadow var(--transition);
 }
+
 input[type="range"]::-webkit-slider-thumb:hover {
   box-shadow: 0 0 0 4px rgba(0, 168, 255, 0.20);
 }
+
 input[type="range"]::-moz-range-thumb {
   width: 14px;
   height: 14px;
@@ -122,4 +132,6 @@ input[type="color"] {
 }
 
 /* Checkbox */
-input[type="checkbox"] { accent-color: var(--accent); }
+input[type="checkbox"] {
+  accent-color: var(--accent);
+}

@@ -86,6 +86,8 @@ export const appState: AppStateType = {
     anomalyMethod: 'zscore',
     anomalyThreshold: 3.0,
     anomalyRegions: null,
+    spectralFilterPreview: null,
+    datasetRevision: 0,
 };
 
 // Interactive debugging from DevTools.

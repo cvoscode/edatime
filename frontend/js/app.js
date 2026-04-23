@@ -1,8 +1,14 @@
 import {
+  toast
+} from "./chunk-T63Y6LQO.js";
+import {
   DEBUG,
   dbg,
   dbgGroup
 } from "./chunk-P2MGEQ7G.js";
+import {
+  defaultGpuPowerPreference
+} from "./chunk-PMOHFZ3J.js";
 import {
   PROFILE_COLUMNS,
   PROFILE_OVERSCAN,
@@ -31,7 +37,7 @@ import {
   setMetaText,
   setSeriesColor,
   toFiniteNumberOrNull
-} from "./chunk-5HSDX23N.js";
+} from "./chunk-SVFUPBER.js";
 import "./chunk-PZ5AY32C.js";
 
 // frontend/src/ui/columns.ts
@@ -1677,8 +1683,7 @@ function initPages() {
   if (navButtons.length === 0 || pages.length === 0) return;
   const analyticsViews = {
     scatter: "plot",
-    scattermatrix: "matrix",
-    distributions: "distributions"
+    scattermatrix: "matrix"
   };
   const layout = document.querySelector(".app-layout");
   const collapseBtn = document.getElementById("sidebar-collapse-btn");
@@ -1689,7 +1694,10 @@ function initPages() {
     });
     collapseBtn.dataset.bound = "1";
   }
-  function showPage2(pageName) {
+  async function showPage2(pageName) {
+    if (window.__edatime?.ensurePageModuleLoaded) {
+      await window.__edatime.ensurePageModuleLoaded(pageName);
+    }
     const analyticsView = analyticsViews[pageName] || null;
     const resolvedPageName = analyticsView ? "scatter" : pageName;
     for (const p of pages) {
@@ -1714,7 +1722,9 @@ function initPages() {
     });
   }
   for (const btn of navButtons) {
-    btn.addEventListener("click", () => showPage2(btn.dataset.page));
+    btn.addEventListener("click", async () => {
+      await showPage2(btn.dataset.page);
+    });
   }
   showPage2("home");
 }
@@ -1873,7 +1883,6 @@ var VALID_PAGES = /* @__PURE__ */ new Set([
   "timeseries",
   "scatter",
   "scattermatrix",
-  "distributions",
   "fft",
   "heatmap",
   "spectrogram",
@@ -1926,75 +1935,6 @@ function initHashRouting() {
   } else {
     replaceHashPage("home");
   }
-}
-
-// frontend/src/utils/toast.ts
-var _container = null;
-function ensureContainer() {
-  if (_container && _container.isConnected) return _container;
-  _container = document.createElement("div");
-  _container.className = "toast-container";
-  _container.setAttribute("aria-live", "polite");
-  _container.setAttribute("role", "status");
-  document.body.appendChild(_container);
-  return _container;
-}
-function toast(message, kind = "info", durationOrOpts) {
-  const opts = typeof durationOrOpts === "number" ? { duration: durationOrOpts } : durationOrOpts ?? {};
-  const duration = opts.duration ?? 4e3;
-  const container = ensureContainer();
-  const el = document.createElement("div");
-  el.className = `toast toast--${kind}`;
-  el.setAttribute("role", "alert");
-  const icon = document.createElement("span");
-  icon.className = "toast-icon";
-  icon.textContent = kind === "success" ? "\u2713" : kind === "error" ? "\u2715" : kind === "warning" ? "\u26A0" : "\u2139";
-  el.appendChild(icon);
-  const text = document.createElement("span");
-  text.className = "toast-text";
-  text.textContent = message;
-  el.appendChild(text);
-  if (opts.action) {
-    const btn = document.createElement("button");
-    btn.className = "toast-action";
-    btn.textContent = opts.action.label;
-    btn.addEventListener("click", () => {
-      opts.action.onClick();
-      dismiss();
-    });
-    el.appendChild(btn);
-  }
-  const closeBtn = document.createElement("button");
-  closeBtn.className = "toast-close";
-  closeBtn.textContent = "\xD7";
-  closeBtn.setAttribute("aria-label", "Dismiss");
-  closeBtn.addEventListener("click", dismiss);
-  el.appendChild(closeBtn);
-  container.appendChild(el);
-  requestAnimationFrame(() => el.classList.add("toast--visible"));
-  let timer = null;
-  if (duration > 0) {
-    timer = setTimeout(dismiss, duration);
-    el.addEventListener("mouseenter", () => {
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-    });
-    el.addEventListener("mouseleave", () => {
-      timer = setTimeout(dismiss, 2e3);
-    });
-  }
-  function dismiss() {
-    if (timer) clearTimeout(timer);
-    el.classList.remove("toast--visible");
-    el.classList.add("toast--exit");
-    el.addEventListener("transitionend", () => el.remove(), { once: true });
-    setTimeout(() => {
-      if (el.parentNode) el.remove();
-    }, 400);
-  }
-  return dismiss;
 }
 
 // frontend/src/utils/session.ts
@@ -2417,6 +2357,858 @@ function initProvenance() {
   window.addEventListener("edatime:adaptive-filters-change", () => refreshProvenance());
 }
 
+// frontend/src/utils/settings.ts
+var DEFAULT_SETTINGS = {
+  theme: "dark",
+  layoutDensity: "spacious",
+  defaultPalette: "default",
+  defaultExportFormat: "png",
+  whiteBackgroundExport: false,
+  defaultCorrelationMetric: "pearson",
+  defaultCausalMethod: "pcmci",
+  defaultTauMax: 5,
+  defaultFftPreset: "auto"
+};
+var CHART_PALETTES = {
+  default: ["#00d4ff", "#6c63ff", "#00c896", "#f5a623", "#ff4a6e", "#c77dff"],
+  ocean: ["#00b4d8", "#0077b6", "#03045e", "#90e0ef", "#48cae4", "#023e8a"],
+  sunset: ["#ff7b00", "#ff8800", "#ff9500", "#ffa200", "#ffaa00", "#ffb700"],
+  forest: ["#2d6a4f", "#40916c", "#52b788", "#74c69d", "#95d5b2", "#b7e4c7"],
+  monochrome: ["#f8f9fa", "#e9ecef", "#dee2e6", "#ced4da", "#adb5bd", "#6c757d"],
+  neon: ["#ff00ff", "#00ffff", "#ff0080", "#80ff00", "#8000ff", "#00ff80"]
+};
+var STORAGE_KEY2 = "edatime-settings";
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY2);
+    if (!raw) return { ...DEFAULT_SETTINGS };
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_SETTINGS, ...parsed };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+function saveSettings(settings) {
+  try {
+    localStorage.setItem(STORAGE_KEY2, JSON.stringify(settings));
+  } catch {
+  }
+}
+function applyTheme(theme) {
+  let effectiveTheme = "dark";
+  if (theme === "auto") {
+    effectiveTheme = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  } else {
+    effectiveTheme = theme;
+  }
+  if (effectiveTheme === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
+  const iconDark = document.getElementById("theme-icon-dark");
+  const iconLight = document.getElementById("theme-icon-light");
+  if (iconDark) iconDark.hidden = effectiveTheme === "light";
+  if (iconLight) iconLight.hidden = effectiveTheme === "dark";
+  localStorage.setItem("edatime-theme", effectiveTheme);
+}
+function applyLayoutDensity(density) {
+  document.documentElement.setAttribute("data-layout", density);
+}
+function applyAllSettings(settings) {
+  applyTheme(settings.theme);
+  applyLayoutDensity(settings.layoutDensity);
+}
+function initSettings() {
+  const settings = loadSettings();
+  applyAllSettings(settings);
+  if (settings.theme === "auto") {
+    window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+      const current = loadSettings();
+      if (current.theme === "auto") {
+        applyTheme("auto");
+      }
+    });
+  }
+  return settings;
+}
+
+// frontend/src/ui/settingsPanel.ts
+var currentSettings = null;
+var activeTab = "appearance";
+function openSettingsModal() {
+  const modal = document.getElementById("settings-modal");
+  if (!modal) return;
+  currentSettings = loadSettings();
+  populateSettingsForm(currentSettings);
+  setActiveTab("appearance");
+  modal.hidden = false;
+}
+function closeSettingsModal() {
+  const modal = document.getElementById("settings-modal");
+  if (modal) modal.hidden = true;
+  currentSettings = null;
+}
+function setActiveTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll(".settings-tab-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tab === tab);
+  });
+  document.querySelectorAll(".settings-tab-panel").forEach((panel) => {
+    panel.hidden = panel.dataset.tab !== tab;
+  });
+}
+function populateSettingsForm(settings) {
+  setSelectValue("settings-theme", settings.theme);
+  setSelectValue("settings-layout", settings.layoutDensity);
+  setSelectValue("settings-palette", settings.defaultPalette);
+  setSelectValue("settings-export-format", settings.defaultExportFormat);
+  setCheckboxValue("settings-white-bg", settings.whiteBackgroundExport);
+  setSelectValue("settings-correlation", settings.defaultCorrelationMetric);
+  setSelectValue("settings-causal-method", settings.defaultCausalMethod);
+  setInputValue("settings-tau-max", settings.defaultTauMax.toString());
+  setSelectValue("settings-fft-preset", settings.defaultFftPreset);
+  renderPalettePreview(settings.defaultPalette);
+}
+function collectSettingsFromForm() {
+  return {
+    theme: getSelectValue("settings-theme") || DEFAULT_SETTINGS.theme,
+    layoutDensity: getSelectValue("settings-layout") || DEFAULT_SETTINGS.layoutDensity,
+    defaultPalette: getSelectValue("settings-palette") || DEFAULT_SETTINGS.defaultPalette,
+    defaultExportFormat: getSelectValue("settings-export-format") || DEFAULT_SETTINGS.defaultExportFormat,
+    whiteBackgroundExport: getCheckboxValue("settings-white-bg"),
+    defaultCorrelationMetric: getSelectValue("settings-correlation") || DEFAULT_SETTINGS.defaultCorrelationMetric,
+    defaultCausalMethod: getSelectValue("settings-causal-method") || DEFAULT_SETTINGS.defaultCausalMethod,
+    defaultTauMax: parseInt(getInputValue("settings-tau-max"), 10) || DEFAULT_SETTINGS.defaultTauMax,
+    defaultFftPreset: getSelectValue("settings-fft-preset") || DEFAULT_SETTINGS.defaultFftPreset
+  };
+}
+function applySettings() {
+  const settings = collectSettingsFromForm();
+  saveSettings(settings);
+  applyTheme(settings.theme);
+  applyLayoutDensity(settings.layoutDensity);
+  if (CHART_PALETTES[settings.defaultPalette]) {
+    const palette = CHART_PALETTES[settings.defaultPalette];
+    SERIES_COLORS.length = 0;
+    SERIES_COLORS.push(...palette);
+  }
+  closeSettingsModal();
+}
+function resetSettings() {
+  currentSettings = { ...DEFAULT_SETTINGS };
+  populateSettingsForm(currentSettings);
+}
+function renderPalettePreview(paletteName) {
+  const container = document.getElementById("settings-palette-preview");
+  if (!container) return;
+  const colors = CHART_PALETTES[paletteName] || CHART_PALETTES.default;
+  container.innerHTML = colors.map((color) => `<span class="palette-swatch" style="background:${color}" title="${color}"></span>`).join("");
+}
+function setSelectValue(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value;
+}
+function getSelectValue(id) {
+  const el = document.getElementById(id);
+  return el?.value || "";
+}
+function setInputValue(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value;
+}
+function getInputValue(id) {
+  const el = document.getElementById(id);
+  return el?.value || "";
+}
+function setCheckboxValue(id, checked) {
+  const el = document.getElementById(id);
+  if (el) el.checked = checked;
+}
+function getCheckboxValue(id) {
+  const el = document.getElementById(id);
+  return el?.checked || false;
+}
+function initSettingsPanel() {
+  const modal = document.getElementById("settings-modal");
+  if (!modal) return;
+  document.getElementById("settings-close-btn")?.addEventListener("click", closeSettingsModal);
+  document.getElementById("settings-cancel-btn")?.addEventListener("click", closeSettingsModal);
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeSettingsModal();
+  });
+  document.getElementById("settings-apply-btn")?.addEventListener("click", applySettings);
+  document.getElementById("settings-reset-btn")?.addEventListener("click", resetSettings);
+  document.querySelectorAll(".settings-tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = btn.dataset.tab;
+      if (tab) setActiveTab(tab);
+    });
+  });
+  document.getElementById("settings-palette")?.addEventListener("change", (e) => {
+    const value = e.target.value;
+    renderPalettePreview(value);
+  });
+  document.getElementById("settings-theme")?.addEventListener("change", (e) => {
+    const value = e.target.value;
+    applyTheme(value);
+  });
+  document.getElementById("settings-layout")?.addEventListener("change", (e) => {
+    const value = e.target.value;
+    applyLayoutDensity(value);
+  });
+  document.getElementById("settings-btn")?.addEventListener("click", openSettingsModal);
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+      e.preventDefault();
+      openSettingsModal();
+    }
+  });
+}
+
+// frontend/src/chart/annotations.ts
+var STORAGE_KEY3 = "edatime-annotations";
+var annotations = [];
+function generateId() {
+  return `ann_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+function loadAnnotations() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY3);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    annotations = parsed.filter((a) => a && typeof a.id === "string");
+    return annotations;
+  } catch {
+    return [];
+  }
+}
+function saveAnnotations() {
+  try {
+    localStorage.setItem(STORAGE_KEY3, JSON.stringify(annotations));
+  } catch {
+  }
+}
+function getAnnotations() {
+  return [...annotations];
+}
+function getAnnotationsForPage(page) {
+  return annotations.filter((a) => a.page === page);
+}
+function getAnnotationsInRange(start, end) {
+  return annotations.filter((a) => {
+    if (!a.timeRange) return false;
+    return a.timeRange.start <= end && a.timeRange.end >= start;
+  });
+}
+function createAnnotation(type, title, options = {}) {
+  const now = Date.now();
+  const annotation = {
+    id: generateId(),
+    type,
+    title,
+    color: options.color || "#ffc041",
+    createdAt: now,
+    updatedAt: now,
+    page: options.page || "timeseries",
+    ...options
+  };
+  annotations.push(annotation);
+  saveAnnotations();
+  return annotation;
+}
+function deleteAnnotation(id) {
+  const idx = annotations.findIndex((a) => a.id === id);
+  if (idx < 0) return false;
+  annotations.splice(idx, 1);
+  saveAnnotations();
+  return true;
+}
+function clearAllAnnotations() {
+  annotations = [];
+  saveAnnotations();
+}
+function exportAnnotations() {
+  return JSON.stringify(annotations, null, 2);
+}
+function createTimeRangeNote(title, start, end, content, columns, color, datasetRevision) {
+  return createAnnotation("note", title, {
+    content,
+    timeRange: { start, end },
+    columns,
+    color,
+    datasetRevision,
+    page: "timeseries"
+  });
+}
+function createBookmark(title, time, datasetRevision) {
+  return createAnnotation("bookmark", title, {
+    timeRange: { start: time, end: time },
+    datasetRevision,
+    page: "timeseries"
+  });
+}
+function initAnnotations() {
+  loadAnnotations();
+  window.__edatimeAnnotations = {
+    getAnnotationsForPage,
+    getAnnotationsInRange,
+    getAnnotations
+  };
+}
+
+// frontend/src/ui/annotationPanel.ts
+var _requestOverlayRender = null;
+function setAnnotationOverlayCallback(cb) {
+  _requestOverlayRender = cb;
+}
+function refreshOverlay() {
+  _requestOverlayRender?.();
+}
+function openAnnotationsModal() {
+  const modal = document.getElementById("annotations-modal");
+  if (!modal) return;
+  renderAnnotationsList();
+  modal.hidden = false;
+}
+function closeAnnotationsModal() {
+  const modal = document.getElementById("annotations-modal");
+  if (modal) modal.hidden = true;
+}
+function renderAnnotationsList() {
+  const container = document.getElementById("annotations-list");
+  if (!container) return;
+  const anns = getAnnotations();
+  if (anns.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-muted, #888);padding:8px 0;">No annotations yet. Use "+ Note" or "+ Bookmark" to add.</p>';
+    return;
+  }
+  container.innerHTML = anns.map((ann) => {
+    const date = new Date(ann.createdAt).toLocaleString();
+    const timeInfo = ann.timeRange ? `<span style="font-size:11px;color:var(--text-muted,#888)">${new Date(ann.timeRange.start).toISOString().slice(0, 16).replace("T", " ")}${ann.timeRange.end !== ann.timeRange.start ? " \u2013 " + new Date(ann.timeRange.end).toISOString().slice(0, 16).replace("T", " ") : ""}</span>` : "";
+    return `
+            <div class="annotation-item" data-ann-id="${escapeAttr(ann.id)}" style="border-left:3px solid ${escapeAttr(ann.color)};padding:8px 12px;margin-bottom:8px;background:var(--surface2,#1e1e2e);border-radius:4px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                    <strong>${escapeHtml2(ann.title)}</strong>
+                    <div style="display:flex;gap:6px;">
+                        <span style="font-size:11px;color:var(--text-muted,#888)">${ann.type} \xB7 ${ann.page}</span>
+                        <button class="btn btn-ghost btn-xs ann-delete-btn" data-ann-id="${escapeAttr(ann.id)}" type="button" title="Delete">\u2715</button>
+                    </div>
+                </div>
+                ${timeInfo}
+                ${ann.content ? `<p style="margin:4px 0 0;font-size:12px;color:var(--text-secondary,#ccc)">${escapeHtml2(ann.content)}</p>` : ""}
+                <div style="font-size:11px;color:var(--text-muted,#888);margin-top:2px">${date}</div>
+            </div>
+        `;
+  }).join("");
+  container.querySelectorAll(".ann-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.annId;
+      if (id && confirm("Delete this annotation?")) {
+        deleteAnnotation(id);
+        renderAnnotationsList();
+        refreshOverlay();
+      }
+    });
+  });
+}
+function openAddNoteModal() {
+  const modal = document.getElementById("add-note-modal");
+  if (!modal) return;
+  document.getElementById("note-title-input").value = "";
+  document.getElementById("note-content-input").value = "";
+  document.getElementById("note-color-input").value = "#ffc041";
+  modal.hidden = false;
+  document.getElementById("note-title-input").focus();
+}
+function closeAddNoteModal() {
+  const modal = document.getElementById("add-note-modal");
+  if (modal) modal.hidden = true;
+}
+function saveNote() {
+  const title = document.getElementById("note-title-input").value.trim();
+  if (!title) {
+    toast("Please enter a title for the note.", "error");
+    return;
+  }
+  const content = document.getElementById("note-content-input").value.trim();
+  const color = document.getElementById("note-color-input").value;
+  const start = appState.currentStart ?? Date.now() - 36e5;
+  const end = appState.currentEnd ?? Date.now();
+  createTimeRangeNote(
+    title,
+    start,
+    end,
+    content || void 0,
+    void 0,
+    color,
+    appState.datasetRevision
+  );
+  toast(`Note "${title}" saved.`, "success");
+  closeAddNoteModal();
+  refreshOverlay();
+}
+function addBookmarkAtCurrentView() {
+  const time = appState.currentStart ?? Date.now();
+  const title = `Bookmark ${new Date(time).toLocaleTimeString()}`;
+  createBookmark(title, time, appState.datasetRevision);
+  toast(`Bookmark added at ${new Date(time).toLocaleString()}`, "success");
+  refreshOverlay();
+}
+function escapeHtml2(str) {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function escapeAttr(str) {
+  return str.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function initAnnotationPanel() {
+  document.getElementById("add-note-btn")?.addEventListener("click", openAddNoteModal);
+  document.getElementById("add-bookmark-btn")?.addEventListener("click", addBookmarkAtCurrentView);
+  document.getElementById("annotations-list-btn")?.addEventListener("click", openAnnotationsModal);
+  document.getElementById("annotations-modal-close")?.addEventListener("click", closeAnnotationsModal);
+  document.getElementById("annotations-modal")?.addEventListener("click", (e) => {
+    if (e.target.id === "annotations-modal") closeAnnotationsModal();
+  });
+  document.getElementById("annotations-export-btn")?.addEventListener("click", () => {
+    const json = exportAnnotations();
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `edatime-annotations-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+  document.getElementById("annotations-clear-btn")?.addEventListener("click", () => {
+    if (confirm("Clear all annotations? This cannot be undone.")) {
+      clearAllAnnotations();
+      renderAnnotationsList();
+      refreshOverlay();
+      toast("All annotations cleared.", "success");
+    }
+  });
+  document.getElementById("add-note-modal-close")?.addEventListener("click", closeAddNoteModal);
+  document.getElementById("add-note-cancel-btn")?.addEventListener("click", closeAddNoteModal);
+  document.getElementById("add-note-save-btn")?.addEventListener("click", saveNote);
+  document.getElementById("add-note-modal")?.addEventListener("click", (e) => {
+    if (e.target.id === "add-note-modal") closeAddNoteModal();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey && e.shiftKey && e.key === "N") {
+      e.preventDefault();
+      openAddNoteModal();
+    }
+  });
+}
+
+// frontend/src/ui/guidedWorkflow.ts
+var STORAGE_KEY4 = "edatime-guided-workflow";
+var WORKFLOW_STEPS = [
+  { id: "upload", label: "Upload", page: "upload" },
+  { id: "timeseries", label: "Timeseries", page: "timeseries" },
+  { id: "correlations", label: "Correlations", page: "heatmap" },
+  { id: "scatter", label: "Scatter", page: "scatter" },
+  { id: "causal", label: "Causal", page: "causal" }
+];
+var _initialized = false;
+var _currentNavPage = "home";
+function sanitizeVisitedPages(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((page) => String(page || "").trim()).filter((page, index, all) => !!page && all.indexOf(page) === index);
+}
+function sanitizeVisitedPagesByDataset(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const entries = Object.entries(value).map(([datasetKey, pages]) => [String(datasetKey || "").trim(), sanitizeVisitedPages(pages)]).filter(([datasetKey, pages]) => !!datasetKey && pages.length > 0);
+  return Object.fromEntries(entries);
+}
+function currentDatasetKey() {
+  const metadata = appState.metadata;
+  const rows = Number(metadata?.total_rows || 0);
+  const rangeStart = Number(metadata?.time_range?.min);
+  const rangeEnd = Number(metadata?.time_range?.max);
+  if (!rows || !Number.isFinite(rangeStart) || !Number.isFinite(rangeEnd)) return "no-dataset";
+  const revision = Number(appState.datasetRevision ?? metadata?.revision ?? 0);
+  const numericColumns = Array.isArray(metadata?.numeric_columns) ? metadata.numeric_columns.join("|") : "";
+  return [
+    Number.isFinite(revision) ? revision : 0,
+    rows,
+    metadata?.time_column || "",
+    rangeStart,
+    rangeEnd,
+    numericColumns
+  ].join(":");
+}
+function getVisitedPagesForCurrentDataset(prefs) {
+  const datasetKey = currentDatasetKey();
+  if (datasetKey === "no-dataset") return sanitizeVisitedPages(prefs.visitedPages);
+  return sanitizeVisitedPages(prefs.visitedPagesByDataset?.[datasetKey]);
+}
+function setVisitedPagesForCurrentDataset(prefs, pages) {
+  const nextPages = sanitizeVisitedPages(pages);
+  prefs.visitedPages = nextPages;
+  const datasetKey = currentDatasetKey();
+  if (datasetKey === "no-dataset") return;
+  prefs.visitedPagesByDataset = {
+    ...prefs.visitedPagesByDataset || {},
+    [datasetKey]: nextPages
+  };
+}
+function readPrefs() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY4);
+    if (!raw) return { enabled: true, visitedPages: [] };
+    const parsed = JSON.parse(raw);
+    const visitedPagesByDataset = sanitizeVisitedPagesByDataset(parsed.visitedPagesByDataset);
+    const legacyVisitedPages = sanitizeVisitedPages(parsed.visitedPages);
+    const datasetKey = currentDatasetKey();
+    if (legacyVisitedPages.length > 0 && datasetKey !== "no-dataset" && !visitedPagesByDataset[datasetKey]?.length) {
+      visitedPagesByDataset[datasetKey] = legacyVisitedPages;
+    }
+    return {
+      enabled: parsed.enabled !== false,
+      visitedPages: datasetKey === "no-dataset" ? legacyVisitedPages : sanitizeVisitedPages(visitedPagesByDataset[datasetKey]),
+      visitedPagesByDataset
+    };
+  } catch {
+    return { enabled: true, visitedPages: [] };
+  }
+}
+function savePrefs(prefs) {
+  try {
+    localStorage.setItem(STORAGE_KEY4, JSON.stringify(prefs));
+  } catch {
+  }
+}
+function currentPage2() {
+  const active = document.querySelector(".sidebar .nav-item.active[data-page]");
+  return active?.dataset.page || _currentNavPage || "home";
+}
+function readSelectValue(id) {
+  return document.getElementById(id)?.value || "";
+}
+function collectSnapshot() {
+  const graph = window.__edatimeCausalGraph;
+  const prefs = readPrefs();
+  return {
+    currentPage: currentPage2(),
+    hasDataset: !!appState.metadata?.time_range && Number(appState.metadata?.total_rows || 0) > 0,
+    selectedSeriesCount: Array.isArray(appState.selectedCols) ? appState.selectedCols.length : 0,
+    visitedPages: getVisitedPagesForCurrentDataset(prefs),
+    scatterX: readSelectValue("scatter-x-col"),
+    scatterY: readSelectValue("scatter-y-col"),
+    causalLinkCount: Array.isArray(graph?.links) ? graph.links.length : 0
+  };
+}
+function mapPageToStep(page, nextStepId) {
+  if (page === "upload") return "upload";
+  if (page === "timeseries") return "timeseries";
+  if (page === "heatmap" || page === "scattermatrix") return "correlations";
+  if (page === "scatter") return "scatter";
+  if (page === "causal") return "causal";
+  if (page === "fft" || page === "spectrogram") return nextStepId;
+  return nextStepId;
+}
+function computeWorkflowProgress(snapshot) {
+  const visited = new Set((snapshot.visitedPages || []).map(String));
+  const completedStepIds = [];
+  if (snapshot.hasDataset) completedStepIds.push("upload");
+  if (snapshot.selectedSeriesCount > 0) completedStepIds.push("timeseries");
+  if (visited.has("heatmap") || visited.has("scattermatrix")) completedStepIds.push("correlations");
+  if (snapshot.scatterX && snapshot.scatterY) completedStepIds.push("scatter");
+  if (snapshot.causalLinkCount > 0) completedStepIds.push("causal");
+  const nextStepId = WORKFLOW_STEPS.find((step) => !completedStepIds.includes(step.id))?.id || null;
+  const activeStepId = mapPageToStep(snapshot.currentPage, nextStepId);
+  const steps = WORKFLOW_STEPS.map((step) => ({
+    id: step.id,
+    label: step.label,
+    page: step.page,
+    status: activeStepId === step.id ? "current" : completedStepIds.includes(step.id) ? "done" : nextStepId === step.id ? "next" : "pending"
+  }));
+  return { steps, completedStepIds, activeStepId, nextStepId };
+}
+function defaultSuggestionForStep(stepId) {
+  if (stepId === "timeseries") {
+    return {
+      title: "Open Timeseries next",
+      body: "Start with 2 to 4 important numeric series so the first chart remains readable.",
+      actionLabel: "Open Timeseries",
+      actionPage: "timeseries"
+    };
+  }
+  if (stepId === "correlations") {
+    return {
+      title: "Screen correlations next",
+      body: "Use Heatmap or Matrix to separate strong candidates from weak relationships before a deeper scatter drill-down.",
+      actionLabel: "Open Heatmap",
+      actionPage: "heatmap",
+      hint: "Scatter Matrix cells already open the detailed scatter view when clicked."
+    };
+  }
+  if (stepId === "scatter") {
+    return {
+      title: "Deep dive in Scatter",
+      body: "Pick a candidate pair and inspect its shape, outliers, and filter sensitivity in the detailed scatter view.",
+      actionLabel: "Open Scatter",
+      actionPage: "scatter"
+    };
+  }
+  if (stepId === "causal") {
+    return {
+      title: "Use Causal as the late-stage check",
+      body: "After narrowing the candidate variables, test a small plausible set with lag-aware causal discovery.",
+      actionLabel: "Open Causal",
+      actionPage: "causal"
+    };
+  }
+  return {
+    title: "Workflow complete",
+    body: "You have touched each guided step. Revisit any page as needed and save or export the context you want to keep.",
+    actionLabel: "Open Timeseries",
+    actionPage: "timeseries"
+  };
+}
+function buildWorkflowSuggestion(snapshot) {
+  const progress = computeWorkflowProgress(snapshot);
+  if (snapshot.currentPage === "home") {
+    if (!snapshot.hasDataset) {
+      return {
+        title: "Start on Upload",
+        body: "Load a CSV or Parquet file, verify the detected time column, and inspect the profile grid before plotting anything.",
+        actionLabel: "Open Upload",
+        actionPage: "upload"
+      };
+    }
+    return defaultSuggestionForStep(progress.nextStepId);
+  }
+  if (snapshot.currentPage === "upload") {
+    if (!snapshot.hasDataset) {
+      return {
+        title: "Validate the dataset first",
+        body: "Use Upload to confirm row count, time range, numeric columns, and any obvious profile issues before moving on.",
+        actionLabel: null,
+        actionPage: null
+      };
+    }
+    return {
+      title: "Move to Timeseries",
+      body: "Choose a small set of important series first so you can establish baseline trend, co-movement, and suspicious windows.",
+      actionLabel: "Open Timeseries",
+      actionPage: "timeseries"
+    };
+  }
+  if (snapshot.currentPage === "timeseries") {
+    if (snapshot.selectedSeriesCount === 0) {
+      return {
+        title: "Pick 2 to 4 key series",
+        body: "The guided path starts by keeping the first chart legible. Select 2 to 4 important series before widening the scope.",
+        actionLabel: null,
+        actionPage: null
+      };
+    }
+    return {
+      title: "Screen relationships next",
+      body: "Use Heatmap or Matrix to quickly identify strong candidate pairs before committing to a detailed scatter inspection.",
+      actionLabel: "Open Heatmap",
+      actionPage: "heatmap",
+      hint: "You can also use Scatter Matrix if you want direct pairwise shape previews."
+    };
+  }
+  if (snapshot.currentPage === "heatmap") {
+    return {
+      title: "Choose the strongest pair",
+      body: "Use the heatmap to pick a promising relationship, then inspect it in Scatter where filter context and color-by are easier to read.",
+      actionLabel: "Open Scatter",
+      actionPage: "scatter"
+    };
+  }
+  if (snapshot.currentPage === "scattermatrix") {
+    return {
+      title: "Use matrix cells as a drill-down",
+      body: "Click any off-diagonal matrix cell to open the full scatter detail view for that exact pair.",
+      actionLabel: "Open Scatter",
+      actionPage: "scatter",
+      hint: "Matrix click-through is already wired into the detailed scatter view."
+    };
+  }
+  if (snapshot.currentPage === "scatter") {
+    if (!snapshot.scatterX || !snapshot.scatterY) {
+      return {
+        title: "Set X and Y for the deep dive",
+        body: "Pick two numeric columns so this step can validate the shape, spread, and filter sensitivity of the relationship.",
+        actionLabel: null,
+        actionPage: null
+      };
+    }
+    return {
+      title: "Use Causal as the final check",
+      body: "After narrowing the variables, move to Causal with a small plausible set instead of starting broad.",
+      actionLabel: "Open Causal",
+      actionPage: "causal"
+    };
+  }
+  if (snapshot.currentPage === "causal") {
+    if (snapshot.causalLinkCount === 0) {
+      return {
+        title: "Run Causal on a focused subset",
+        body: "Keep the variable list tight so the resulting graph stays interpretable and easier to compare across runs.",
+        actionLabel: null,
+        actionPage: null
+      };
+    }
+    return {
+      title: "Compare causal runs for stability",
+      body: "Save multiple runs and compare them so stable edges stand out from parameter-sensitive ones.",
+      actionLabel: null,
+      actionPage: null
+    };
+  }
+  if (snapshot.currentPage === "fft" || snapshot.currentPage === "spectrogram") {
+    const fallback = defaultSuggestionForStep(progress.nextStepId);
+    return {
+      title: "Use spectral pages as side analysis",
+      body: "These pages work best after you already know the interesting column or interval from the main workflow.",
+      actionLabel: fallback.actionLabel,
+      actionPage: fallback.actionPage,
+      hint: fallback.title
+    };
+  }
+  return defaultSuggestionForStep(progress.nextStepId);
+}
+function escapeHtml3(value) {
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+}
+function navigateToPage(page) {
+  if (!page) return;
+  document.querySelector(`.sidebar .nav-item[data-page="${page}"]`)?.click?.();
+}
+function setEnabled(enabled, emitToast = true) {
+  const prefs = readPrefs();
+  prefs.enabled = enabled;
+  savePrefs(prefs);
+  renderGuidedWorkflow();
+  if (emitToast) {
+    toast(enabled ? "Guided workflow enabled." : "Guided workflow hidden.", "info");
+  }
+}
+function markVisited(page) {
+  const prefs = readPrefs();
+  const visitedPages = getVisitedPagesForCurrentDataset(prefs);
+  if (!page || visitedPages.includes(page)) return;
+  setVisitedPagesForCurrentDataset(prefs, [...visitedPages, page]);
+  savePrefs(prefs);
+}
+function bindStaticEvents() {
+  document.getElementById("workflow-toggle-btn")?.addEventListener("click", () => {
+    const prefs = readPrefs();
+    setEnabled(!prefs.enabled);
+  });
+  const panel = document.getElementById("workflow-panel");
+  panel?.addEventListener("click", (event) => {
+    const target = event.target;
+    const action = target?.closest("[data-workflow-action]")?.dataset.workflowAction;
+    const page = target?.closest("[data-workflow-page]")?.dataset.workflowPage || null;
+    if (!action) return;
+    if (action === "goto") {
+      navigateToPage(page);
+      return;
+    }
+    if (action === "skip") {
+      setEnabled(false, false);
+      toast("Guided workflow hidden. Use the Guide button or command palette to restore it.", "info");
+      return;
+    }
+    if (action === "next") {
+      goToNextGuidedStep();
+    }
+  });
+  document.addEventListener("change", (event) => {
+    const target = event.target;
+    const id = target?.id || "";
+    if (id === "scatter-x-col" || id === "scatter-y-col") renderGuidedWorkflow();
+  });
+  window.addEventListener("edatime:page-change", (event) => {
+    const nextPage = event?.detail?.navPage || event?.detail?.page || currentPage2();
+    _currentNavPage = nextPage;
+    markVisited(nextPage);
+    renderGuidedWorkflow();
+  });
+  window.addEventListener("edatime:session-restored", renderGuidedWorkflow);
+  window.addEventListener("edatime:workflow-refresh", renderGuidedWorkflow);
+}
+function renderGuidedWorkflow() {
+  const panel = document.getElementById("workflow-panel");
+  const toggleBtn = document.getElementById("workflow-toggle-btn");
+  if (!panel) return;
+  const prefs = readPrefs();
+  panel.hidden = !prefs.enabled;
+  if (toggleBtn) {
+    toggleBtn.classList.toggle("btn-accent", prefs.enabled);
+    toggleBtn.classList.toggle("btn-ghost", !prefs.enabled);
+    toggleBtn.setAttribute("aria-pressed", prefs.enabled ? "true" : "false");
+  }
+  if (!prefs.enabled) return;
+  const snapshot = collectSnapshot();
+  const progress = computeWorkflowProgress(snapshot);
+  const suggestion = buildWorkflowSuggestion(snapshot);
+  const crumbs = progress.steps.map((step) => `
+        <button
+            class="workflow-step workflow-step--${step.status}"
+            type="button"
+            data-workflow-action="goto"
+            data-workflow-page="${escapeHtml3(step.page)}"
+            title="Open ${escapeHtml3(step.label)}"
+        >
+            <span class="workflow-step__dot"></span>
+            <span class="workflow-step__label">${escapeHtml3(step.label)}</span>
+        </button>
+    `).join("");
+  panel.innerHTML = `
+        <div class="workflow-panel__header">
+            <div>
+                <div class="workflow-panel__eyebrow">Guided Workflow</div>
+                <div class="workflow-panel__title">${escapeHtml3(suggestion.title)}</div>
+            </div>
+            <div class="workflow-panel__actions">
+                ${suggestion.actionLabel && suggestion.actionPage ? `
+                    <button class="btn btn-accent btn-sm" type="button" data-workflow-action="next">${escapeHtml3(suggestion.actionLabel)}</button>
+                ` : ""}
+                <button class="btn btn-ghost btn-sm" type="button" data-workflow-action="skip">Hide Guide</button>
+            </div>
+        </div>
+        <div class="workflow-panel__crumbs">${crumbs}</div>
+        <div class="workflow-panel__body">
+            <p class="workflow-panel__copy">${escapeHtml3(suggestion.body)}</p>
+            ${suggestion.hint ? `<p class="workflow-panel__hint">${escapeHtml3(suggestion.hint)}</p>` : ""}
+        </div>
+    `;
+}
+function enableGuidedWorkflow() {
+  setEnabled(true);
+}
+function disableGuidedWorkflow() {
+  setEnabled(false);
+}
+function goToNextGuidedStep() {
+  const suggestion = buildWorkflowSuggestion(collectSnapshot());
+  navigateToPage(suggestion.actionPage);
+}
+function initGuidedWorkflow() {
+  if (_initialized) return;
+  _initialized = true;
+  _currentNavPage = currentPage2();
+  markVisited(_currentNavPage);
+  bindStaticEvents();
+  renderGuidedWorkflow();
+  window.__edatime = window.__edatime || {};
+  window.__edatime.guidedWorkflow = {
+    enable: enableGuidedWorkflow,
+    disable: disableGuidedWorkflow,
+    next: goToNextGuidedStep,
+    render: renderGuidedWorkflow
+  };
+}
+
 // frontend/src/utils/chartExport.ts
 function exportContainerCanvasPNG(containerId, filename) {
   const container = document.getElementById(containerId);
@@ -2762,7 +3554,7 @@ function buildStandaloneHtml(bodyContent, title) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml2(title)} \u2014 EdaTime</title>
+  <title>${escapeHtml4(title)} \u2014 EdaTime</title>
   <style>body{margin:0;padding:16px;background:${bg};font-family:sans-serif;}</style>
 </head>
 <body>
@@ -2770,7 +3562,7 @@ ${bodyContent}
 </body>
 </html>`;
 }
-function escapeHtml2(str) {
+function escapeHtml4(str) {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 function exportMatrixCSV(columns, data, filename) {
@@ -2807,6 +3599,11 @@ function exportTraceCSV(traces, xLabel, filename) {
 // frontend/src/app.ts
 var _appCleanups = [];
 var EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} };
+function storeFetchedMetadata(metadata) {
+  appState.metadata = metadata;
+  const revision = Number(metadata?.revision);
+  appState.datasetRevision = Number.isFinite(revision) ? revision : 0;
+}
 function initModalClose(modalId, closeBtnId, cancelBtnId, onClose) {
   const modal = document.getElementById(modalId);
   if (!modal) return null;
@@ -2870,7 +3667,10 @@ async function checkWebGPU() {
     return "WebGPU is not supported in this browser. Use Chrome 113+, Edge 113+, or Safari 18+.";
   try {
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("requestAdapter timed out")), 5e3));
-    const adapter = await Promise.race([navigator.gpu.requestAdapter(), timeout]);
+    const adapter = await Promise.race([
+      navigator.gpu.requestAdapter({ powerPreference: defaultGpuPowerPreference() }),
+      timeout
+    ]);
     if (!adapter)
       return "No WebGPU adapter found. Your GPU may not be supported or hardware acceleration may be disabled.";
   } catch (e) {
@@ -2968,11 +3768,20 @@ function renderCurrentData() {
   }
   if (!appState.lastFetchedData) return;
   const filtered = applyColumnRanges(appState.lastFetchedData);
-  appState.chart.updateDataMulti(filtered, appState.selectedCols);
+  const preview = appState.spectralFilterPreview;
+  let displayCols = [...appState.selectedCols];
+  if (preview && preview.ts && preview.values && preview.ts.length > 0) {
+    const previewKey = `${preview.column} [filtered]`;
+    filtered.series = filtered.series || {};
+    filtered.series[previewKey] = { x: preview.ts, y: preview.values };
+    if (!displayCols.includes(previewKey)) displayCols = [...displayCols, previewKey];
+  }
+  appState.chart.updateDataMulti(filtered, displayCols);
   if (appState.rollingEnabled) {
     appState.rollingBands = computeFrontendRollingBands(filtered, appState.selectedCols, appState.rollingWindow || 50);
     appState.chart?.requestOverlayRender?.();
   }
+  window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
 }
 function emitAdaptiveFiltersChange() {
   window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change", {
@@ -3300,11 +4109,6 @@ function initKeyboardShortcuts() {
         showPage("scattermatrix");
         return;
       }
-      if (key === "5") {
-        event.preventDefault();
-        showPage("distributions");
-        return;
-      }
       if (key === "6") {
         event.preventDefault();
         showPage("fft");
@@ -3323,6 +4127,11 @@ function initKeyboardShortcuts() {
       if (key === "9") {
         event.preventDefault();
         showPage("causal");
+        return;
+      }
+      if (key === "0") {
+        event.preventDefault();
+        showPage("drift");
         return;
       }
     }
@@ -3432,7 +4241,7 @@ function initTransformModal() {
       await postTransform(expr, name);
       close2();
       if (fetchMetadata) {
-        appState.metadata = await fetchMetadata();
+        storeFetchedMetadata(await fetchMetadata());
         appState.numericCols = (appState.metadata.numeric_columns || []).filter((col) => col && col.toLowerCase() !== "ts");
         if (!appState.selectedCols.includes(name)) appState.selectedCols.push(name);
         sanitizeSelectedColumns();
@@ -3454,8 +4263,18 @@ var _fftLogScale = true;
 var _fftChart = null;
 var _FFT_CHIP_COLORS = ["#7ad151", "#4ac3e8", "#f97316", "#e879f9", "#facc15", "#60a5fa", "#f43f5e"];
 var _fftTraceColors = {};
+function getNumericColumns(metadata) {
+  const timeCol = String(metadata?.time_column || "").trim().toLowerCase();
+  return (metadata?.numeric_columns || []).filter((c) => {
+    const lower = String(c || "").trim().toLowerCase();
+    return lower && lower !== "ts" && lower !== timeCol;
+  });
+}
+function getDefaultTimeseriesColumns(metadata) {
+  return getNumericColumns(metadata).slice(0, 3);
+}
 function _fftColumns() {
-  return (appState.metadata?.numeric_columns || []).filter((c) => c.toLowerCase() !== "ts");
+  return getNumericColumns(appState.metadata);
 }
 function _fftColorFor(col, fallbackIdx) {
   return _fftTraceColors[col] || _FFT_CHIP_COLORS[Math.max(0, fallbackIdx) % _FFT_CHIP_COLORS.length];
@@ -3606,6 +4425,63 @@ async function initFftPage() {
     }));
     exportTraceCSV(csvTraces, "frequency_hz", `edatime_fft_${_fftMode}.csv`);
   });
+  document.getElementById("fft-filter-apply-btn")?.addEventListener("click", async () => {
+    const filterType = document.getElementById("fft-filter-type")?.value;
+    if (!filterType || filterType === "none") {
+      if (appState.spectralFilterPreview) {
+        appState.spectralFilterPreview = null;
+        appState.chart?.requestOverlayRender?.();
+        renderCurrentData();
+      }
+      return;
+    }
+    const column = _fftTraces[0]?.column || appState.selectedCols[0];
+    if (!column) {
+      toast("Select a column chip below first.", "warning");
+      return;
+    }
+    const statusEl = document.getElementById("fft-filter-status");
+    const lowHz = parseFloat(document.getElementById("fft-filter-low-hz")?.value) || void 0;
+    const highHz = parseFloat(document.getElementById("fft-filter-high-hz")?.value) || void 0;
+    if (statusEl) statusEl.textContent = "Computing\u2026";
+    try {
+      const start = appState.currentStart;
+      const end = appState.currentEnd;
+      const params = new URLSearchParams({
+        start: new Date(start).toISOString(),
+        end: new Date(end).toISOString(),
+        column,
+        filter_type: filterType,
+        ...lowHz !== void 0 ? { low_hz: String(lowHz) } : {},
+        ...highHz !== void 0 ? { high_hz: String(highHz) } : {}
+      });
+      const resp = await fetch(`/api/analytics/spectral-filter?${params.toString()}`);
+      if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      appState.spectralFilterPreview = {
+        column: data.column,
+        ts: data.ts,
+        values: data.values,
+        filterType,
+        lowHz: data.low_hz,
+        highHz: data.high_hz
+      };
+      if (statusEl) statusEl.textContent = `${filterType} preview active`;
+      toast(`Spectral filter preview: ${filterType} applied to "${column}". Switch to Timeseries to view.`, "success");
+      renderCurrentData();
+    } catch (err) {
+      if (statusEl) statusEl.textContent = "Error";
+      toast(`Spectral filter failed: ${String(err)}`, "error");
+    }
+  });
+  const filterTypeSelect = document.getElementById("fft-filter-type");
+  filterTypeSelect?.addEventListener("change", () => {
+    const ft = filterTypeSelect.value;
+    const lowEl = document.getElementById("fft-filter-low-hz");
+    const hiEl = document.getElementById("fft-filter-high-hz");
+    if (lowEl) lowEl.disabled = ft === "none" || ft === "lowpass";
+    if (hiEl) hiEl.disabled = ft === "none" || ft === "highpass";
+  });
   _fftRerenderOrClear();
 }
 var _heatmapLoaded = false;
@@ -3750,6 +4626,37 @@ var _spectrogramChart = null;
 var _spectrogramResizeObserver = null;
 var _spectrogramResult = null;
 var _spectrogramSampleCount = 0;
+var _loadedPageModules = /* @__PURE__ */ new Set();
+var _metadataReady = false;
+async function ensurePageModuleLoaded(page) {
+  if (_loadedPageModules.has(page)) return;
+  const loader = pageModuleLoaders[page];
+  if (!loader) return;
+  if (!_metadataReady) {
+    await new Promise((resolve) => {
+      const onReady = () => {
+        window.removeEventListener("edatime:metadata-ready", onReady);
+        resolve();
+      };
+      window.addEventListener("edatime:metadata-ready", onReady);
+    });
+  }
+  try {
+    await loader();
+    _loadedPageModules.add(page);
+  } catch (error) {
+    console.error(`Failed to load page module for ${page}:`, error);
+  }
+}
+var pageModuleLoaders = {
+  scatter: initScatterPageModule,
+  scattermatrix: initScatterPageModule,
+  heatmap: initHeatmapPage,
+  spectrogram: initSpectrogramPage,
+  causal: initCausalPage,
+  fft: initFftPage,
+  drift: initDriftPage
+};
 async function initSpectrogramPage() {
   if (_spectrogramLoaded) return;
   _spectrogramLoaded = true;
@@ -4072,14 +4979,20 @@ ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart
     }
   });
 }
+async function initDriftPage() {
+  const { initDriftPage: init2 } = await import("./driftPage-I3S3OIXU.js");
+  await init2(appState.metadata);
+}
 async function initCausalPage() {
-  const { initCausalPage: init2 } = await import("./causalPage-Y3QBAXZW.js");
+  const { initCausalPage: init2 } = await import("./causalPage-TZS2VRJV.js");
+  const { initCausalComparison } = await import("./causalComparison-VQVLPMA7.js");
   init2({
     getMetadata: () => appState.metadata,
     chipColor: _fftColorFor,
     numericColumns: _fftColumns,
     setLoading: setComputeLoading
   });
+  initCausalComparison();
 }
 function initOutlierModal() {
   const openBtn = document.getElementById("outlier-open-btn");
@@ -4127,7 +5040,7 @@ function initOutlierModal() {
       );
       if (resultEl) resultEl.textContent = `Removed ${result.rows_removed} rows (${result.rows_before} \u2192 ${result.rows_after})`;
       if (fetchMetadata) {
-        appState.metadata = await fetchMetadata();
+        storeFetchedMetadata(await fetchMetadata());
         appState.numericCols = (appState.metadata.numeric_columns || []).filter((col) => col && col.toLowerCase() !== "ts");
         sanitizeSelectedColumns();
         buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
@@ -4141,182 +5054,6 @@ function initOutlierModal() {
       applyBtn.textContent = "Remove Outliers";
     }
   });
-}
-function initTimeDistributionModal() {
-  const computeBtn = document.getElementById("timedist-compute-btn");
-  const windowsInput = document.getElementById("timedist-windows");
-  const binsInput = document.getElementById("timedist-bins");
-  const canvas = document.getElementById("timedist-canvas");
-  const statusEl = document.getElementById("timedist-status");
-  const close2 = initModalClose("timedist-modal", "timedist-close-btn", "timedist-cancel-btn");
-  if (!close2 || !canvas) return;
-  const modal = document.getElementById("timedist-modal");
-  const openBtn = document.getElementById("timedist-open-btn");
-  openBtn?.addEventListener("click", () => {
-    modal.hidden = false;
-  });
-  computeBtn?.addEventListener("click", async () => {
-    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
-    const cols = appState.selectedCols.length > 0 ? appState.selectedCols[0] : null;
-    if (!cols) {
-      if (statusEl) statusEl.textContent = "Select a column first.";
-      return;
-    }
-    const windows = parseInt(windowsInput?.value || "20", 10);
-    const bins = parseInt(binsInput?.value || "24", 10);
-    try {
-      computeBtn.disabled = true;
-      computeBtn.textContent = "Computing\u2026";
-      if (statusEl) statusEl.textContent = "Fetching data\u2026";
-      const { fetchTimeDistributions } = await import("./dataClient.js");
-      const startIso = new Date(appState.currentStart).toISOString();
-      const endIso = new Date(appState.currentEnd).toISOString();
-      const result = await fetchTimeDistributions(startIso, endIso, cols, windows, bins);
-      if (result.columns.length === 0) {
-        if (statusEl) statusEl.textContent = "No data returned.";
-        return;
-      }
-      renderTimeDistBoxPlots(canvas, result.columns[0], windows, bins);
-      if (statusEl) statusEl.textContent = `${cols}: ${result.columns[0].windows.length} windows \xD7 ${bins} bins (box plot)`;
-    } catch (e) {
-      if (statusEl) statusEl.textContent = `Error: ${e?.message || "failed"}`;
-    } finally {
-      computeBtn.disabled = false;
-      computeBtn.textContent = "Compute";
-    }
-  });
-}
-function renderTimeDistBoxPlots(canvas, data, _nWindows, _nBins) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  const wins = data.windows;
-  if (wins.length === 0) return;
-  const nW = wins.length;
-  const W = canvas.width;
-  const H = canvas.height;
-  const marginL = 60;
-  const marginB = 30;
-  const marginT = 10;
-  const marginR = 16;
-  const plotW = W - marginL - marginR;
-  const plotH = H - marginT - marginB;
-  const stats = [];
-  for (const w of wins) {
-    const edges = w.bin_edges;
-    const counts = w.counts;
-    let total = 0;
-    for (const c of counts) total += c;
-    if (total === 0) {
-      stats.push({ q1: 0, median: 0, q3: 0, min: 0, max: 0, total: 0 });
-      continue;
-    }
-    const percentile = (p) => {
-      const target = p * total;
-      let cumul = 0;
-      for (let i = 0; i < counts.length; i++) {
-        cumul += counts[i];
-        if (cumul >= target) {
-          const lo = edges[i], hi = edges[i + 1] ?? edges[i];
-          const frac = counts[i] > 0 ? (target - (cumul - counts[i])) / counts[i] : 0.5;
-          return lo + frac * (hi - lo);
-        }
-      }
-      return edges[edges.length - 1] ?? 0;
-    };
-    let minVal = edges[0] ?? 0;
-    let maxVal = edges[edges.length - 1] ?? 0;
-    for (let i = 0; i < counts.length; i++) {
-      if (counts[i] > 0) {
-        minVal = edges[i];
-        break;
-      }
-    }
-    for (let i = counts.length - 1; i >= 0; i--) {
-      if (counts[i] > 0) {
-        maxVal = edges[i + 1] ?? edges[i];
-        break;
-      }
-    }
-    const q1 = percentile(0.25);
-    const median = percentile(0.5);
-    const q3 = percentile(0.75);
-    const iqr = q3 - q1;
-    const whiskerLo = Math.max(minVal, q1 - 1.5 * iqr);
-    const whiskerHi = Math.min(maxVal, q3 + 1.5 * iqr);
-    stats.push({ q1, median, q3, min: whiskerLo, max: whiskerHi, total });
-  }
-  const gMin = data.global_min;
-  const gMax = data.global_max;
-  const gRange = gMax - gMin || 1;
-  const toY = (v) => marginT + plotH - (v - gMin) / gRange * plotH;
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = getComputedStyle(canvas).getPropertyValue("--bg").trim() || "#0b0f18";
-  ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = "rgba(120, 139, 174, 0.12)";
-  ctx.lineWidth = 0.5;
-  const ySteps = 6;
-  for (let i = 0; i <= ySteps; i++) {
-    const y = marginT + plotH / ySteps * i;
-    ctx.beginPath();
-    ctx.moveTo(marginL, y);
-    ctx.lineTo(W - marginR, y);
-    ctx.stroke();
-  }
-  const boxGap = 2;
-  const slotW = plotW / nW;
-  const boxW = Math.max(4, slotW - boxGap * 2);
-  const accent = getComputedStyle(canvas).getPropertyValue("--accent").trim() || "#00a8ff";
-  for (let i = 0; i < nW; i++) {
-    const s = stats[i];
-    if (s.total === 0) continue;
-    const cx = marginL + slotW * i + slotW / 2;
-    const halfBox = boxW / 2;
-    ctx.strokeStyle = "rgba(120, 139, 174, 0.5)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cx, toY(s.min));
-    ctx.lineTo(cx, toY(s.max));
-    ctx.stroke();
-    const capW = boxW * 0.4;
-    ctx.beginPath();
-    ctx.moveTo(cx - capW, toY(s.min));
-    ctx.lineTo(cx + capW, toY(s.min));
-    ctx.moveTo(cx - capW, toY(s.max));
-    ctx.lineTo(cx + capW, toY(s.max));
-    ctx.stroke();
-    const boxTop = toY(s.q3);
-    const boxBot = toY(s.q1);
-    ctx.fillStyle = accent + "33";
-    ctx.fillRect(cx - halfBox, boxTop, boxW, boxBot - boxTop);
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 1.2;
-    ctx.strokeRect(cx - halfBox, boxTop, boxW, boxBot - boxTop);
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    const medY = toY(s.median);
-    ctx.moveTo(cx - halfBox, medY);
-    ctx.lineTo(cx + halfBox, medY);
-    ctx.stroke();
-  }
-  ctx.fillStyle = "#788BAE";
-  ctx.font = "9px sans-serif";
-  ctx.textAlign = "right";
-  for (let i = 0; i <= ySteps; i++) {
-    const frac = i / ySteps;
-    const val = gMin + frac * gRange;
-    const y = marginT + plotH - frac * plotH;
-    ctx.fillText(val.toFixed(1), marginL - 4, y + 3);
-  }
-  ctx.textAlign = "center";
-  const xSteps = Math.min(5, nW);
-  for (let i = 0; i <= xSteps; i++) {
-    const idx = Math.round(i / xSteps * (nW - 1));
-    const t = wins[idx].window_start_ms;
-    const date = new Date(t);
-    const label = `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-    ctx.fillText(label, marginL + idx * slotW + slotW / 2, H - 6);
-  }
 }
 function initThemeToggle() {
   const btn = document.getElementById("theme-toggle-btn");
@@ -4345,9 +5082,16 @@ function initThemeToggle() {
   });
 }
 async function init() {
+  window.__edatime = window.__edatime || {};
+  window.__edatime.ensurePageModuleLoaded = ensurePageModuleLoaded;
   initPages();
   initHashRouting();
+  initSettings();
+  initAnnotations();
+  initAnnotationPanel();
+  initGuidedWorkflow();
   initThemeToggle();
+  initSettingsPanel();
   document.querySelectorAll("[data-home-nav]").forEach((el) => {
     el.addEventListener("click", () => {
       const target = el.dataset.homeNav;
@@ -4368,11 +5112,11 @@ async function init() {
     { id: "nav-timeseries", label: "Go to Timeseries", shortcut: "Alt+2", category: "Navigation", action: () => showPage("timeseries") },
     { id: "nav-scatter", label: "Go to Scatter", shortcut: "Alt+3", category: "Navigation", action: () => showPage("scatter") },
     { id: "nav-matrix", label: "Go to Scatter Matrix", shortcut: "Alt+4", category: "Navigation", action: () => showPage("scattermatrix") },
-    { id: "nav-dist", label: "Go to Distributions", shortcut: "Alt+5", category: "Navigation", action: () => showPage("distributions") },
     { id: "nav-fft", label: "Go to FFT / PSD", shortcut: "Alt+6", category: "Navigation", action: () => showPage("fft") },
     { id: "nav-heatmap", label: "Go to Heatmap", shortcut: "Alt+7", category: "Navigation", action: () => showPage("heatmap") },
     { id: "nav-spectrogram", label: "Go to Spectrogram", shortcut: "Alt+8", category: "Navigation", action: () => showPage("spectrogram") },
     { id: "nav-causal", label: "Go to Causal", shortcut: "Alt+9", category: "Navigation", action: () => showPage("causal") },
+    { id: "nav-drift", label: "Go to Drift Analysis", shortcut: "Alt+0", category: "Navigation", action: () => showPage("drift") },
     // Chart
     { id: "chart-reset", label: "Reset zoom", shortcut: "Shift+R", category: "Chart", action: () => resetZoom(fetchAndRender) },
     { id: "chart-zoomout", label: "Zoom out one level", shortcut: "Shift+Z", category: "Chart", action: () => zoomOut(fetchAndRender) },
@@ -4387,11 +5131,14 @@ async function init() {
     { id: "session-load", label: "Import session from file", category: "Session", action: importSessionFromFile },
     // Analysis
     { id: "provenance", label: "Show analysis context panel", shortcut: "Ctrl+I", category: "Analysis", action: toggleProvenance },
-    { id: "cmd-palette", label: "Open command palette", shortcut: "Ctrl+K", category: "Analysis", action: openPalette }
+    { id: "cmd-palette", label: "Open command palette", shortcut: "Ctrl+K", category: "Analysis", action: openPalette },
+    { id: "settings", label: "Open settings", shortcut: "Ctrl+,", category: "Analysis", action: openSettingsModal },
+    { id: "workflow-enable", label: "Enable guided workflow", category: "Analysis", action: enableGuidedWorkflow },
+    { id: "workflow-disable", label: "Hide guided workflow", category: "Analysis", action: disableGuidedWorkflow },
+    { id: "workflow-next", label: "Go to next guided step", category: "Analysis", action: goToNextGuidedStep }
   ]);
   initTransformModal();
   initOutlierModal();
-  initTimeDistributionModal();
   initAnalyticsListeners();
   try {
     await ensureChartModules();
@@ -4401,31 +5148,19 @@ async function init() {
     return;
   }
   const gpuError = await checkWebGPU();
-  const initOptionalPage = async (label, initializer) => {
-    try {
-      await initializer();
-    } catch (error) {
-      console.error(`${label} failed to initialize:`, error);
-    }
-  };
   try {
-    appState.metadata = await fetchMetadata();
+    storeFetchedMetadata(await fetchMetadata());
+    _metadataReady = true;
+    window.dispatchEvent(new Event("edatime:metadata-ready"));
     dbgGroup("metadata", () => dbg(appState.metadata));
     setMetaText("Loading chart\u2026");
-    await initScatterPageModule();
-    await initOptionalPage("FFT page", initFftPage);
-    await initOptionalPage("Heatmap page", initHeatmapPage);
-    await initOptionalPage("Spectrogram page", initSpectrogramPage);
-    await initOptionalPage("Causal page", async () => {
-      initCausalPage();
-    });
     if (!appState.metadata.time_range) {
       setMetaText("No valid time range found.");
       return;
     }
-    appState.numericCols = (appState.metadata.numeric_columns || []).filter((col) => col && col.toLowerCase() !== "ts");
-    appState.selectedCols = [];
-    appState.adaptiveFilterColumn = null;
+    appState.numericCols = getNumericColumns(appState.metadata);
+    appState.selectedCols = getDefaultTimeseriesColumns(appState.metadata);
+    appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
     sanitizeSelectedColumns();
     const columnFilterInput = document.getElementById("column-filter-input");
     if (columnFilterInput) {
@@ -4451,6 +5186,7 @@ async function init() {
     buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
     buildMetaBar(appState.metadata);
     buildRangeControls();
+    window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
     appState.currentStart = Number(appState.metadata.time_range.min);
     appState.currentEnd = Number(appState.metadata.time_range.max);
     updateAnalysisZoom(appState.currentStart, appState.currentEnd, "initial");
@@ -4475,6 +5211,7 @@ async function init() {
     bindAnalysisChartEvents();
     initAdaptiveFilterGesture();
     refreshZoomControlsState();
+    setAnnotationOverlayCallback(() => appState.chart?.requestOverlayRender?.());
     appState.chart?.setXRange?.(appState.currentStart, appState.currentEnd);
     appState.chart?.setChartText?.(
       appState.chartText?.title || "",

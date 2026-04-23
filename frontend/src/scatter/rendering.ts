@@ -542,7 +542,6 @@ export function syncModeUI(): void {
     const ctl = currentControls();
     const view = state.activeView || 'plot';
     const isPlot = view === 'plot';
-    const isDist = view === 'distributions';
     const isMatrix = view === 'matrix';
     const isDensity = isPlot && ctl.renderMode === 'density';
     const toggle = (el: HTMLElement | null, visible: boolean) => { if (el) el.style.display = visible ? '' : 'none'; };
@@ -551,11 +550,11 @@ export function syncModeUI(): void {
     toggle(getEl('scatter-mode-label'), isPlot);
     toggle(getEl('scatter-render-mode'), isPlot);
     toggle(getEl('scatter-density-controls'), isDensity);
-    toggle(getEl('scatter-color-controls'), !isDist);
+    toggle(getEl('scatter-color-controls'), true);
     toggle(getEl('scatter-color-scale'), isPlot && !isDensity);
     toggle(document.querySelector('.scatter-export-group'), isPlot);
     toggle(document.querySelector('.scatter-stats-bar'), isPlot);
-    toggle(document.querySelector('.scatter-suggestions-bar'), !isDist && !isMatrix);
+    toggle(document.querySelector('.scatter-suggestions-bar'), !isMatrix);
     updateColorbarUI();
 }
 

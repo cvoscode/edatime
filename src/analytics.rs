@@ -30,7 +30,10 @@ pub fn extract_ts_epoch_ms(df: &DataFrame) -> Result<Vec<f64>, AppError> {
 }
 
 /// Extract a named column as `Vec<Option<f64>>`, filtering non-finite values to `None`.
-pub fn extract_f64_column_opt(df: &DataFrame, col_name: &str) -> Result<Vec<Option<f64>>, AppError> {
+pub fn extract_f64_column_opt(
+    df: &DataFrame,
+    col_name: &str,
+) -> Result<Vec<Option<f64>>, AppError> {
     let series = df
         .column(col_name)
         .map(|c| c.as_materialized_series())
@@ -71,7 +74,11 @@ pub fn extract_columns_f64_mean(
     max_points: usize,
 ) -> Result<Vec<Vec<f64>>, AppError> {
     let height = df.height().min(max_points);
-    let step = if df.height() > max_points { df.height() / max_points } else { 1 };
+    let step = if df.height() > max_points {
+        df.height() / max_points
+    } else {
+        1
+    };
 
     let mut result: Vec<Vec<f64>> = Vec::with_capacity(col_names.len());
     for col_name in col_names {
@@ -94,8 +101,15 @@ pub fn extract_columns_f64_mean(
         // Replace NaN with column mean
         let finite_sum: f64 = raw.iter().filter(|x| x.is_finite()).sum();
         let finite_count = raw.iter().filter(|x| x.is_finite()).count();
-        let mean = if finite_count > 0 { finite_sum / finite_count as f64 } else { 0.0 };
-        let clean: Vec<f64> = raw.iter().map(|&v| if v.is_finite() { v } else { mean }).collect();
+        let mean = if finite_count > 0 {
+            finite_sum / finite_count as f64
+        } else {
+            0.0
+        };
+        let clean: Vec<f64> = raw
+            .iter()
+            .map(|&v| if v.is_finite() { v } else { mean })
+            .collect();
         result.push(clean);
     }
     Ok(result)
@@ -416,6 +430,19 @@ pub fn detect_anomalies_iqr(
 
 // ── FFT / PSD ──────────────────────────────────────────────────────────────
 
+/// A detected dominant frequency peak.
+#[derive(Debug, Serialize, Clone)]
+pub struct FrequencyPeak {
+    /// Frequency in Hz
+    pub frequency_hz: f64,
+    /// Magnitude at this frequency
+    pub magnitude: f64,
+    /// Power at this frequency
+    pub power: f64,
+    /// Rank (1 = highest magnitude)
+    pub rank: usize,
+}
+
 /// FFT result for a single column.
 #[derive(Debug, Serialize)]
 pub struct FftResult {
@@ -426,6 +453,12 @@ pub struct FftResult {
     pub magnitudes: Vec<f64>,
     /// Power spectral density (magnitude^2 / N)
     pub psd: Vec<f64>,
+    /// Estimated sample rate in Hz
+    pub sample_rate_hz: f64,
+    /// Nyquist frequency (max detectable frequency)
+    pub nyquist_hz: f64,
+    /// Dominant frequency peaks (top N by magnitude)
+    pub dominant_peaks: Vec<FrequencyPeak>,
 }
 
 /// Compute FFT for the given columns.
@@ -437,6 +470,7 @@ pub fn compute_fft(
 ) -> Result<Vec<FftResult>, AppError> {
     let ts_ms = extract_ts_epoch_ms(df)?;
     let fs = sample_rate_hz.unwrap_or_else(|| estimate_sample_rate_hz(&ts_ms));
+    let nyquist = fs / 2.0;
 
     let mut results = Vec::with_capacity(columns.len());
     let mut planner = FftPlanner::<f64>::new();
@@ -480,15 +514,54 @@ pub fn compute_fft(
             psd.push(magnitude * magnitude);
         }
 
+        // Find dominant peaks (skip DC at index 0)
+        let dominant_peaks = find_dominant_peaks(&frequencies, &magnitudes, &psd, 5);
+
         results.push(FftResult {
             column: col_name.clone(),
             frequencies,
             magnitudes,
             psd,
+            sample_rate_hz: fs,
+            nyquist_hz: nyquist,
+            dominant_peaks,
         });
     }
 
     Ok(results)
+}
+
+/// Find top N frequency peaks by magnitude, excluding DC.
+fn find_dominant_peaks(
+    frequencies: &[f64],
+    magnitudes: &[f64],
+    psd: &[f64],
+    top_n: usize,
+) -> Vec<FrequencyPeak> {
+    // Collect (idx, magnitude) pairs, skip DC (idx 0)
+    let mut indexed: Vec<(usize, f64)> = magnitudes
+        .iter()
+        .enumerate()
+        .skip(1) // skip DC
+        .filter(|&(_, m)| m.is_finite() && *m > 0.0)
+        .map(|(i, m)| (i, *m))
+        .collect();
+
+    // Sort by magnitude descending
+    indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    // Take top N and convert to peaks
+    indexed
+        .into_iter()
+        .take(top_n)
+        .enumerate()
+        .map(|(rank, (idx, mag))| FrequencyPeak {
+            frequency_hz: frequencies.get(idx).copied().unwrap_or(0.0),
+            magnitude: mag,
+            power: psd.get(idx).copied().unwrap_or(0.0),
+            rank: rank + 1,
+        })
+        .collect()
 }
 
 // ── Spectrogram (STFT) ────────────────────────────────────────────────────
@@ -583,6 +656,101 @@ pub fn compute_spectrogram(
         frequencies,
         magnitudes,
     })
+}
+
+/// Filter type for spectral filtering.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FilterType {
+    Lowpass,
+    Highpass,
+    Bandpass,
+    Bandstop,
+}
+
+/// Apply a frequency-domain filter to a time-series column.
+///
+/// Returns the filtered signal as a `Vec<f64>` with the same length as the input,
+/// suitable for rendering as a preview series on the frontend.
+pub fn apply_spectral_filter(
+    df: &DataFrame,
+    column: &str,
+    filter_type: FilterType,
+    low_hz: Option<f64>,
+    high_hz: Option<f64>,
+    sample_rate_hz: Option<f64>,
+) -> Result<(Vec<f64>, Vec<f64>), AppError> {
+    let ts_ms = extract_ts_epoch_ms(df)?;
+    let values = extract_f64_column(df, column)?;
+    let n = values.len();
+    if n < 4 {
+        return Err(AppError::bad_request(
+            "Not enough data for filtering".to_string(),
+        ));
+    }
+
+    let fs = sample_rate_hz.unwrap_or_else(|| estimate_sample_rate_hz(&ts_ms));
+    let nyquist = fs / 2.0;
+
+    // Mean (DC offset)
+    let mean = values.iter().sum::<f64>() / n as f64;
+
+    let mut buffer: Vec<Complex<f64>> = values
+        .iter()
+        .map(|&v| Complex::new(v - mean, 0.0))
+        .collect();
+
+    // Forward FFT
+    let mut planner = FftPlanner::<f64>::new();
+    let fft_forward = planner.plan_fft_forward(n);
+    fft_forward.process(&mut buffer);
+
+    // Build frequency array and apply filter mask
+    let df_freq = fs / n as f64;
+    for (i, c) in buffer.iter_mut().enumerate() {
+        // Compute frequency for this bin (handle negative frequencies via symmetry)
+        let freq = if i <= n / 2 {
+            i as f64 * df_freq
+        } else {
+            (n - i) as f64 * df_freq
+        };
+
+        let pass = match filter_type {
+            FilterType::Lowpass => {
+                let cutoff = high_hz.unwrap_or(nyquist);
+                freq <= cutoff
+            }
+            FilterType::Highpass => {
+                let cutoff = low_hz.unwrap_or(0.0);
+                freq >= cutoff
+            }
+            FilterType::Bandpass => {
+                let lo = low_hz.unwrap_or(0.0);
+                let hi = high_hz.unwrap_or(nyquist);
+                freq >= lo && freq <= hi
+            }
+            FilterType::Bandstop => {
+                let lo = low_hz.unwrap_or(0.0);
+                let hi = high_hz.unwrap_or(nyquist);
+                freq < lo || freq > hi
+            }
+        };
+
+        if !pass {
+            c.re = 0.0;
+            c.im = 0.0;
+        }
+    }
+
+    // Inverse FFT
+    let fft_inverse = planner.plan_fft_inverse(n);
+    fft_inverse.process(&mut buffer);
+
+    // Normalise and re-add DC offset
+    let scale = 1.0 / n as f64;
+    let filtered: Vec<f64> = buffer.iter().map(|c| c.re * scale + mean).collect();
+
+    Ok((ts_ms, filtered))
 }
 
 // ── Column Transformations ─────────────────────────────────────────────────
@@ -969,115 +1137,569 @@ pub fn remove_outliers_windowed(
     ))
 }
 
-// ── Distribution Over Time ─────────────────────────────────────────────────
+// ── Temporal Drift Analysis ────────────────────────────────────────────────
 
-/// A single time-window distribution bin.
-#[derive(Debug, Serialize)]
-pub struct TimeDistributionBin {
-    pub window_start_ms: f64,
-    pub window_end_ms: f64,
-    pub bin_edges: Vec<f64>,
-    pub counts: Vec<u64>,
-}
+/// Two-sample Kolmogorov-Smirnov test.
+/// Returns (statistic, p_value). Both slices must be pre-sorted.
+pub fn ks_test_2sample(a: &[f64], b: &[f64]) -> (f64, f64) {
+    if a.is_empty() || b.is_empty() {
+        return (0.0, 1.0);
+    }
+    let n1 = a.len() as f64;
+    let n2 = b.len() as f64;
 
-/// Result of distribution-over-time computation for a column.
-#[derive(Debug, Serialize)]
-pub struct TimeDistributionResult {
-    pub column: String,
-    pub windows: Vec<TimeDistributionBin>,
-    pub global_min: f64,
-    pub global_max: f64,
-}
+    let mut i = 0usize;
+    let mut j = 0usize;
+    let mut max_diff = 0.0_f64;
 
-/// Compute distribution histograms across time windows for the given columns.
-pub fn compute_time_distributions(
-    df: &DataFrame,
-    columns: &[String],
-    n_windows: usize,
-    n_bins: usize,
-) -> Result<Vec<TimeDistributionResult>, AppError> {
-    let ts_values = extract_ts_epoch_ms(df)?;
+    while i < a.len() || j < b.len() {
+        let next_a = a.get(i).copied().unwrap_or(f64::INFINITY);
+        let next_b = b.get(j).copied().unwrap_or(f64::INFINITY);
+        let x = next_a.min(next_b);
 
-    if ts_values.is_empty() {
-        return Ok(Vec::new());
+        while i < a.len() && a[i] <= x {
+            i += 1;
+        }
+        while j < b.len() && b[j] <= x {
+            j += 1;
+        }
+
+        let f1 = i as f64 / n1;
+        let f2 = j as f64 / n2;
+        let diff = (f1 - f2).abs();
+        if diff > max_diff {
+            max_diff = diff;
+        }
     }
 
-    let finite_ts: Vec<f64> = ts_values
-        .iter()
-        .copied()
-        .filter(|t| t.is_finite())
+    // Asymptotic p-value approximation (Hodges 1958)
+    let n_eff = (n1 * n2 / (n1 + n2)).sqrt();
+    let z = (max_diff + 1.0 / (6.0 * n_eff)) * (n_eff + 0.12 + 0.11 / n_eff);
+    let p_value = ks_pvalue_asymptotic(z);
+
+    (max_diff, p_value)
+}
+
+fn ks_pvalue_asymptotic(z: f64) -> f64 {
+    if z < 0.2 {
+        return 1.0;
+    }
+    let mut sum = 0.0_f64;
+    for k in 1_i64..=100 {
+        let term = (-2.0 * (k as f64).powi(2) * z * z).exp();
+        if k % 2 == 1 {
+            sum += term;
+        } else {
+            sum -= term;
+        }
+        if term.abs() < 1e-12 {
+            break;
+        }
+    }
+    (2.0 * sum).clamp(0.0, 1.0)
+}
+
+/// 1D Wasserstein-1 distance (Earth Mover's Distance) between two empirical distributions.
+/// Both slices must be pre-sorted.
+pub fn wasserstein_distance_1d(a: &[f64], b: &[f64]) -> f64 {
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+    let n1 = a.len() as f64;
+    let n2 = b.len() as f64;
+
+    let mut i = 0usize;
+    let mut j = 0usize;
+    let mut dist = 0.0_f64;
+    let mut cdf1 = 0.0_f64;
+    let mut cdf2 = 0.0_f64;
+    let mut prev_x = f64::NEG_INFINITY;
+
+    while i < a.len() || j < b.len() {
+        let next_a = a.get(i).copied().unwrap_or(f64::INFINITY);
+        let next_b = b.get(j).copied().unwrap_or(f64::INFINITY);
+        let x = next_a.min(next_b);
+
+        if prev_x.is_finite() {
+            dist += (cdf1 - cdf2).abs() * (x - prev_x);
+        }
+        prev_x = x;
+
+        while i < a.len() && a[i] <= x {
+            i += 1;
+            cdf1 += 1.0 / n1;
+        }
+        while j < b.len() && b[j] <= x {
+            j += 1;
+            cdf2 += 1.0 / n2;
+        }
+    }
+    dist
+}
+
+/// Population Stability Index (PSI) between a reference and current distribution.
+/// Uses reference-quantile-based binning so buckets have approximately equal expected counts.
+/// Standard thresholds: < 0.1 stable, 0.1–0.2 slight shift, ≥ 0.2 significant shift.
+pub fn compute_psi(reference: &[f64], current: &[f64], n_bins: usize) -> f64 {
+    if reference.is_empty() || current.is_empty() || n_bins < 2 {
+        return 0.0;
+    }
+
+    let mut ref_sorted = reference.to_vec();
+    ref_sorted.sort_by(|a, b| a.total_cmp(b));
+
+    // Build bin edges from reference quantiles
+    let edges: Vec<f64> = (0..=n_bins)
+        .map(|i| {
+            let frac = i as f64 / n_bins as f64;
+            let idx = ((ref_sorted.len() - 1) as f64 * frac) as usize;
+            ref_sorted[idx.min(ref_sorted.len() - 1)]
+        })
         .collect();
-    if finite_ts.is_empty() {
-        return Ok(Vec::new());
+
+    let ref_n = reference.len() as f64;
+    let curr_n = current.len() as f64;
+    let eps = 1e-10_f64;
+    let mut psi = 0.0_f64;
+
+    for b in 0..n_bins {
+        let lo = edges[b];
+        let hi = edges[b + 1];
+        let last_bin = b == n_bins - 1;
+
+        let ref_cnt = reference
+            .iter()
+            .filter(|&&v| {
+                if last_bin {
+                    v >= lo && v <= hi
+                } else {
+                    v >= lo && v < hi
+                }
+            })
+            .count();
+        let curr_cnt = current
+            .iter()
+            .filter(|&&v| {
+                if last_bin {
+                    v >= lo && v <= hi
+                } else {
+                    v >= lo && v < hi
+                }
+            })
+            .count();
+
+        let ref_prop = (ref_cnt as f64 / ref_n).max(eps);
+        let curr_prop = (curr_cnt as f64 / curr_n).max(eps);
+        psi += (curr_prop - ref_prop) * (curr_prop / ref_prop).ln();
     }
-    let ts_min = finite_ts.iter().copied().fold(f64::INFINITY, f64::min);
-    let ts_max = finite_ts.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    let ts_span = ts_max - ts_min;
-    if ts_span <= 0.0 {
-        return Ok(Vec::new());
+    psi.max(0.0)
+}
+
+/// Compute quantiles from a sorted slice at the given fractions (0.0–1.0).
+fn compute_quantiles_sorted(sorted: &[f64], qs: &[f64]) -> Vec<f64> {
+    if sorted.is_empty() {
+        return vec![f64::NAN; qs.len()];
     }
+    let n = sorted.len() - 1;
+    qs.iter()
+        .map(|&q| {
+            let idx = (q.clamp(0.0, 1.0) * n as f64).round() as usize;
+            sorted[idx.min(n)]
+        })
+        .collect()
+}
 
-    let windows = n_windows.clamp(2, 200);
-    let bins = n_bins.clamp(2, 100);
-    let window_size = ts_span / windows as f64;
-
-    let mut results = Vec::with_capacity(columns.len());
-
-    for col_name in columns {
-        let values = extract_f64_column_opt(df, col_name)?;
-
-        // Global min/max for consistent bin edges
-        let finite_vals: Vec<f64> = values.iter().copied().flatten().collect();
-        if finite_vals.is_empty() {
+/// Build histogram counts using the given bin edges.
+fn histogram_from_edges(data: &[f64], edges: &[f64]) -> Vec<u64> {
+    if edges.len() < 2 {
+        return vec![];
+    }
+    let n_bins = edges.len() - 1;
+    let mut counts = vec![0u64; n_bins];
+    for &v in data {
+        if !v.is_finite() {
             continue;
         }
-        let global_min = finite_vals.iter().copied().fold(f64::INFINITY, f64::min);
-        let global_max = finite_vals
-            .iter()
-            .copied()
-            .fold(f64::NEG_INFINITY, f64::max);
-
-        let mut time_bins = Vec::with_capacity(windows);
-
-        for w in 0..windows {
-            let w_start = ts_min + w as f64 * window_size;
-            let w_end = if w == windows - 1 {
-                ts_max + 1.0
-            } else {
-                ts_min + (w + 1) as f64 * window_size
-            };
-
-            let window_vals: Vec<f64> = values
-                .iter()
-                .zip(ts_values.iter())
-                .filter_map(|(v, &t)| {
-                    if t.is_finite() && t >= w_start && t < w_end {
-                        *v
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-
-            if let Some(hist) =
-                crate::stats::build_histogram_with_bins(&window_vals, global_min, global_max, bins)
-            {
-                time_bins.push(TimeDistributionBin {
-                    window_start_ms: w_start,
-                    window_end_ms: w_end,
-                    bin_edges: hist.bin_edges,
-                    counts: hist.counts,
-                });
+        // Binary search for the bin
+        match edges.binary_search_by(|e| e.total_cmp(&v)) {
+            Ok(idx) => {
+                // Value exactly on an edge → put in current or last bin
+                let b = idx.min(n_bins - 1);
+                counts[b] += 1;
+            }
+            Err(idx) => {
+                if idx > 0 && idx <= n_bins {
+                    counts[idx - 1] += 1;
+                }
             }
         }
+    }
+    counts
+}
 
-        results.push(TimeDistributionResult {
-            column: col_name.clone(),
-            windows: time_bins,
-            global_min,
-            global_max,
+/// Build a downsampled ECDF (x, y) from sorted data with at most `max_pts` points.
+fn ecdf_downsampled(sorted: &[f64], max_pts: usize) -> (Vec<f64>, Vec<f64>) {
+    let n = sorted.len();
+    if n == 0 {
+        return (vec![], vec![]);
+    }
+    let step = (n / max_pts.max(1)).max(1);
+    let xs: Vec<f64> = sorted.iter().copied().step_by(step).collect();
+    let ys: Vec<f64> = xs
+        .iter()
+        .enumerate()
+        .map(|(i, _)| {
+            let raw_idx = i * step;
+            (raw_idx + 1) as f64 / n as f64
+        })
+        .collect();
+    (xs, ys)
+}
+
+/// Distribution statistics for a single window (reference or current).
+#[derive(Debug, Serialize)]
+pub struct WindowDistributionStats {
+    pub start_ms: f64,
+    pub end_ms: f64,
+    pub label: String,
+    pub count: usize,
+    pub null_count: usize,
+    pub completeness: f64,
+    pub mean: f64,
+    pub std: f64,
+    pub min: f64,
+    pub max: f64,
+    /// Quantiles at [5, 25, 50, 75, 95] percentiles
+    pub quantiles: Vec<f64>,
+    pub hist_bins: Vec<f64>,
+    pub hist_counts: Vec<u64>,
+    pub ecdf_x: Vec<f64>,
+    pub ecdf_y: Vec<f64>,
+}
+
+/// Drift statistics for a single current window compared to the reference.
+#[derive(Debug, Serialize)]
+pub struct DriftWindowStats {
+    #[serde(flatten)]
+    pub distribution: WindowDistributionStats,
+    pub ks_stat: f64,
+    pub ks_pvalue: f64,
+    pub es_stat: f64,
+    pub es_pvalue: f64,
+    pub wasserstein: f64,
+    pub psi: f64,
+    /// "green" | "yellow" | "red"
+    pub drift_level: String,
+    pub low_sample_warning: bool,
+}
+
+/// Thresholds used for drift alerting.
+#[derive(Debug, Serialize)]
+pub struct DriftThresholds {
+    pub ks_threshold: f64,
+    pub wasserstein_threshold: f64,
+    pub psi_minor_threshold: f64,
+    pub psi_major_threshold: f64,
+}
+
+/// Metadata about the drift computation.
+#[derive(Debug, Serialize)]
+pub struct DriftMetadata {
+    /// Computation time in milliseconds.
+    pub computation_time_ms: u64,
+    /// Number of windows analyzed.
+    pub num_windows: usize,
+    /// Number of samples in reference window.
+    pub reference_samples: usize,
+}
+
+/// Full response for a temporal drift analysis request.
+#[derive(Debug, Serialize)]
+pub struct DriftResponse {
+    pub column: String,
+    pub reference: WindowDistributionStats,
+    pub windows: Vec<DriftWindowStats>,
+    pub thresholds: DriftThresholds,
+    pub metadata: DriftMetadata,
+}
+
+/// Build `WindowDistributionStats` from a raw value array and its time bounds.
+fn build_distribution_stats(
+    values: &[f64],
+    all_values_including_nulls: usize,
+    start_ms: f64,
+    end_ms: f64,
+    label: String,
+    hist_edges: &[f64],
+) -> WindowDistributionStats {
+    let null_count = all_values_including_nulls.saturating_sub(values.len());
+    let completeness = if all_values_including_nulls > 0 {
+        values.len() as f64 / all_values_including_nulls as f64
+    } else {
+        1.0
+    };
+
+    if values.is_empty() {
+        return WindowDistributionStats {
+            start_ms,
+            end_ms,
+            label,
+            count: 0,
+            null_count,
+            completeness,
+            mean: f64::NAN,
+            std: f64::NAN,
+            min: f64::NAN,
+            max: f64::NAN,
+            quantiles: vec![f64::NAN; 5],
+            hist_bins: hist_edges.to_vec(),
+            hist_counts: vec![0; hist_edges.len().saturating_sub(1)],
+            ecdf_x: vec![],
+            ecdf_y: vec![],
+        };
+    }
+
+    let mut sorted = values.to_vec();
+    sorted.sort_by(|a, b| a.total_cmp(b));
+
+    let n = sorted.len() as f64;
+    let mean = sorted.iter().sum::<f64>() / n;
+    let variance = sorted.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n;
+    let std = variance.sqrt();
+    let min = *sorted.first().unwrap();
+    let max = *sorted.last().unwrap();
+
+    let quantiles = compute_quantiles_sorted(&sorted, &[0.05, 0.25, 0.50, 0.75, 0.95]);
+    let hist_counts = histogram_from_edges(&sorted, hist_edges);
+    let (ecdf_x, ecdf_y) = ecdf_downsampled(&sorted, 200);
+
+    WindowDistributionStats {
+        start_ms,
+        end_ms,
+        label,
+        count: sorted.len(),
+        null_count,
+        completeness,
+        mean,
+        std,
+        min,
+        max,
+        quantiles,
+        hist_bins: hist_edges.to_vec(),
+        hist_counts,
+        ecdf_x,
+        ecdf_y,
+    }
+}
+
+/// Compute temporal drift analysis for a given column.
+///
+/// The dataset timestamp column is used to bucket rows into windows.
+/// `ref_start_ms` / `ref_end_ms` define the reference window.
+/// `curr_start_ms` / `curr_end_ms` define the range for current windows.
+/// `window_ms` is the bucket size in milliseconds.
+#[allow(clippy::too_many_arguments)]
+pub fn compute_temporal_drift(
+    df: &DataFrame,
+    column: &str,
+    window_ms: i64,
+    ref_start_ms: f64,
+    ref_end_ms: f64,
+    curr_start_ms: f64,
+    curr_end_ms: f64,
+    n_bins: usize,
+    ks_threshold: f64,
+    wasserstein_threshold: f64,
+    psi_minor: f64,
+    psi_major: f64,
+) -> Result<DriftResponse, AppError> {
+    let start_time = std::time::Instant::now();
+
+    let ts_ms = extract_ts_epoch_ms(df)?;
+    let raw_values = extract_f64_column_opt(df, column)?;
+
+    let n = ts_ms.len().min(raw_values.len());
+
+    // ── Build reference values ──
+    let mut ref_vals: Vec<f64> = Vec::new();
+    let mut ref_total = 0usize;
+    for i in 0..n {
+        let t = ts_ms[i];
+        if t >= ref_start_ms && t <= ref_end_ms {
+            ref_total += 1;
+            if let Some(v) = raw_values[i] {
+                ref_vals.push(v);
+            }
+        }
+    }
+    if ref_vals.len() < 5 {
+        return Err(AppError::bad_request(
+            "Reference window contains fewer than 5 valid samples. Widen the reference range or select a different column.",
+        ));
+    }
+
+    // Sorted reference for KS/Wasserstein
+    let mut ref_sorted = ref_vals.clone();
+    ref_sorted.sort_by(|a, b| a.total_cmp(b));
+
+    // Build histogram bin edges from reference distribution (decile quantiles)
+    let effective_bins = n_bins.clamp(4, 50);
+    let raw_edges: Vec<f64> = (0..=effective_bins)
+        .map(|i| {
+            let frac = i as f64 / effective_bins as f64;
+            let idx = ((ref_sorted.len() - 1) as f64 * frac).round() as usize;
+            ref_sorted[idx.min(ref_sorted.len() - 1)]
+        })
+        .collect();
+
+    // Deduplicate edges while preserving order; ensure first < last
+    let mut hist_edges: Vec<f64> = vec![raw_edges[0]];
+    for &e in &raw_edges[1..] {
+        if e > *hist_edges.last().unwrap() {
+            hist_edges.push(e);
+        }
+    }
+    if hist_edges.len() < 2 {
+        // Constant reference column — use min/max fallback
+        let lo = ref_sorted[0] - 1.0;
+        let hi = ref_sorted[ref_sorted.len() - 1] + 1.0;
+        hist_edges = vec![lo, hi];
+    }
+
+    let ref_label = format!(
+        "Ref ({} – {})",
+        ms_to_date_label(ref_start_ms),
+        ms_to_date_label(ref_end_ms)
+    );
+    let reference = build_distribution_stats(
+        &ref_vals,
+        ref_total,
+        ref_start_ms,
+        ref_end_ms,
+        ref_label,
+        &hist_edges,
+    );
+
+    // ── Build current windows ──
+    let first_curr_bucket = ((curr_start_ms / window_ms as f64).floor() as i64) * window_ms as i64;
+    let last_curr_ms = curr_end_ms;
+
+    // ── Single-pass bucketing: O(n) instead of O(n × windows) ──
+    let n_buckets = ((last_curr_ms - first_curr_bucket as f64) / window_ms as f64).ceil() as usize;
+    let n_buckets = n_buckets.max(1);
+    let mut bucket_vals: Vec<Vec<f64>> = vec![Vec::new(); n_buckets];
+    let mut bucket_totals: Vec<usize> = vec![0; n_buckets];
+    for i in 0..n {
+        let t = ts_ms[i];
+        if t >= curr_start_ms && t < last_curr_ms {
+            let idx = ((t - first_curr_bucket as f64) / window_ms as f64) as usize;
+            if idx < n_buckets {
+                bucket_totals[idx] += 1;
+                if let Some(v) = raw_values[i] {
+                    bucket_vals[idx].push(v);
+                }
+            }
+        }
+    }
+
+    let mut windows: Vec<DriftWindowStats> = Vec::with_capacity(n_buckets);
+    for bi in 0..n_buckets {
+        let bucket_start_ms = first_curr_bucket as f64 + bi as f64 * window_ms as f64;
+        let bucket_end_ms = bucket_start_ms + window_ms as f64;
+        if bucket_start_ms >= last_curr_ms {
+            break;
+        }
+        let vals = &bucket_vals[bi];
+        let low_sample_warning = vals.len() < 5;
+
+        let (ks_stat, ks_pvalue, es_stat, es_pvalue, wasserstein, psi) = if vals.len() >= 5 {
+            let mut bucket_sorted = vals.clone();
+            bucket_sorted.sort_by(|a, b| a.total_cmp(b));
+            let (ks_s, ks_p) = ks_test_2sample(&ref_sorted, &bucket_sorted);
+            let (es_s, es_p) = crate::stats::epps_singleton_test(&ref_sorted, &bucket_sorted);
+            let w = wasserstein_distance_1d(&ref_sorted, &bucket_sorted);
+            let p = compute_psi(&ref_sorted, vals, effective_bins);
+            (ks_s, ks_p, es_s, es_p, w, p)
+        } else {
+            (0.0, 1.0, 0.0, 1.0, 0.0, 0.0)
+        };
+
+        let drift_level = if wasserstein > wasserstein_threshold || psi >= psi_major {
+            "red".to_string()
+        } else if psi >= psi_minor {
+            "yellow".to_string()
+        } else {
+            "green".to_string()
+        };
+
+        let label = ms_to_date_label(bucket_start_ms);
+        let dist = build_distribution_stats(
+            vals,
+            bucket_totals[bi],
+            bucket_start_ms,
+            bucket_end_ms,
+            label,
+            &hist_edges,
+        );
+
+        windows.push(DriftWindowStats {
+            distribution: dist,
+            ks_stat,
+            ks_pvalue,
+            es_stat,
+            es_pvalue,
+            wasserstein,
+            psi,
+            drift_level,
+            low_sample_warning,
         });
     }
 
-    Ok(results)
+    let num_windows = windows.len();
+    let reference_samples = ref_vals.len();
+    Ok(DriftResponse {
+        column: column.to_string(),
+        reference,
+        windows,
+        thresholds: DriftThresholds {
+            ks_threshold,
+            wasserstein_threshold,
+            psi_minor_threshold: psi_minor,
+            psi_major_threshold: psi_major,
+        },
+        metadata: DriftMetadata {
+            computation_time_ms: start_time.elapsed().as_millis() as u64,
+            num_windows,
+            reference_samples,
+        },
+    })
+}
+
+/// Format epoch-ms as a short date label (YYYY-MM-DD).
+fn ms_to_date_label(ms: f64) -> String {
+    if !ms.is_finite() {
+        return "—".to_string();
+    }
+    let secs = (ms / 1000.0) as i64;
+    // Simple date computation without external crates
+    // Days since Unix epoch (1970-01-01)
+    let days = secs / 86400;
+    let (y, m, d) = days_to_ymd(days);
+    format!("{:04}-{:02}-{:02}", y, m, d)
+}
+
+/// Convert days since Unix epoch (1970-01-01) to (year, month, day).
+fn days_to_ymd(mut days: i64) -> (i64, i64, i64) {
+    // Algorithm from https://howardhinnant.github.io/date_algorithms.html
+    days += 719468;
+    let era = if days >= 0 { days } else { days - 146096 } / 146097;
+    let doe = days - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    (y, m, d)
 }

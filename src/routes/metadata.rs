@@ -14,6 +14,7 @@ use crate::temporal;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DatasetMetadata {
+    pub revision: u64,
     pub total_rows: usize,
     pub columns: Vec<ColumnMetadata>,
     pub numeric_columns: Vec<String>,
@@ -312,6 +313,7 @@ fn build_dataset_metadata_from_lazyframe(
         });
 
     Ok(DatasetMetadata {
+        revision: 0,
         total_rows,
         columns,
         numeric_columns,
@@ -436,6 +438,7 @@ pub fn build_dataset_metadata(
     });
 
     Ok(DatasetMetadata {
+        revision: 0,
         total_rows,
         columns,
         numeric_columns,
@@ -480,10 +483,12 @@ pub async fn get_metadata(
     State(state): State<AppState>,
 ) -> Result<Json<DatasetMetadata>, AppError> {
     let df = state.dataset_snapshot().await;
-    let metadata = tokio::task::spawn_blocking(move || build_dataset_metadata(&df, true))
+    let revision = state.dataset_revision();
+    let mut metadata = tokio::task::spawn_blocking(move || build_dataset_metadata(&df, true))
         .await
-        .map_err(|e| AppError::internal(format!("Failed to join metadata task: {e:?}")))?;
-    Ok(Json(metadata?))
+        .map_err(|e| AppError::internal(format!("Failed to join metadata task: {e:?}")))??;
+    metadata.revision = revision;
+    Ok(Json(metadata))
 }
 
 #[cfg(test)]

@@ -2,6 +2,7 @@
 
 declare module '../../libs/chartgpu/dist/index.js' {
     export interface ChartGPUOptions {
+        powerPreference?: 'low-power' | 'high-performance';
         grid?: {
             left?: number;
             right?: number;

@@ -37,13 +37,9 @@ function assertScatterCorrelations(data) {
   if (!isObject(data)) throw new Error("Correlations response is not an object");
   if (!Array.isArray(data.correlations)) throw new Error("Correlations response missing correlations array");
 }
-function assertDistributions(data) {
-  if (!isObject(data)) throw new Error("Distributions response is not an object");
-  if (!Array.isArray(data.columns)) throw new Error("Distributions response missing columns array");
-}
 async function getJson(url, label, signal) {
   dbg(`GET (${label})`, url);
-  const res = await fetch(url, signal ? { signal } : void 0);
+  const res = await fetch(url, signal ? { signal, cache: "no-store" } : { cache: "no-store" });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`${label} failed (${res.status}) ${text}`);
@@ -80,7 +76,7 @@ async function fetchData(start, end, width, columns = "value", colorColumn = nul
   const tableFromIPC = await ensureArrowParser();
   const url = `/api/data?${params.toString()}`;
   dbg("GET", url);
-  const res = await fetch(url, signal ? { signal } : void 0);
+  const res = await fetch(url, signal ? { signal, cache: "no-store" } : { cache: "no-store" });
   if (DEBUG) {
     dbg("status", res.status, res.statusText);
     dbg("content-type", res.headers.get("content-type"));
@@ -212,19 +208,6 @@ async function fetchScatterCorrelations(base, threshold = 0.7) {
   assertScatterCorrelations(data);
   return data;
 }
-async function fetchDistributions(columns, context = {}) {
-  const body = {
-    columns: Array.isArray(columns) ? columns : [columns]
-  };
-  if (Number.isFinite(context?.start)) body.start = context.start;
-  if (Number.isFinite(context?.end)) body.end = context.end;
-  if (Array.isArray(context?.filters) && context.filters.length > 0) body.filters = context.filters;
-  if (Array.isArray(context?.lineFilters) && context.lineFilters.length > 0) body.line_filters = context.lineFilters;
-  const url = "/api/scatter/distributions";
-  const data = await postJson(url, body, "Distributions");
-  assertDistributions(data);
-  return data;
-}
 async function fetchRollingBands(start, end, columns, window = 50, signal) {
   const params = new URLSearchParams({ start, end, columns, window: String(window) });
   const url = `/api/analytics/rolling?${params.toString()}`;
@@ -283,18 +266,12 @@ async function postRemoveOutliers(columns, method = "zscore", threshold, window)
   const url = "/api/analytics/remove_outliers";
   return postJson(url, body, "Outlier removal");
 }
-async function fetchTimeDistributions(start, end, columns, windows = 20, bins = 24, signal) {
-  const params = new URLSearchParams({ start, end, columns, windows: String(windows), bins: String(bins) });
-  const url = `/api/analytics/time_distributions?${params.toString()}`;
-  return getJson(url, "Time distributions", signal);
-}
 
 export {
   fetchMetadata,
   fetchData,
   fetchScatterPoints,
   fetchScatterCorrelations,
-  fetchDistributions,
   fetchRollingBands,
   fetchAnomalies,
   fetchFft,
@@ -302,7 +279,6 @@ export {
   fetchCausalGraph,
   postTransform,
   fetchCorrelationMatrix,
-  postRemoveOutliers,
-  fetchTimeDistributions
+  postRemoveOutliers
 };
-//# sourceMappingURL=chunk-OV247G5O.js.map
+//# sourceMappingURL=chunk-M7RFYJA6.js.map
