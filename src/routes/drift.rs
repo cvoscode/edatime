@@ -6,11 +6,15 @@
 use axum::{Json, extract::State, response::IntoResponse};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
+use std::time::Duration;
 
 use crate::analytics;
 use crate::error::AppError;
 use crate::query;
 use crate::state::AppState;
+
+/// TTL for cached drift responses (60 seconds).
+const DRIFT_CACHE_TTL: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Deserialize)]
 pub struct DriftRequest {
@@ -45,7 +49,10 @@ pub async fn post_drift_stats(
     State(state): State<AppState>,
     Json(payload): Json<DriftRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let df = state.dataset_snapshot().await;
+    // Project to only the two columns needed, avoiding a full DataFrame clone.
+    let df = state
+        .dataset_snapshot_for_columns(&["ts", &payload.column])
+        .await;
     if df.height() == 0 {
         return Err(AppError::bad_request("Dataset is empty. Upload data first."));
     }
@@ -115,6 +122,40 @@ pub async fn post_drift_stats(
     let wasserstein_threshold = payload.wasserstein_threshold.unwrap_or(0.0);
 
     let column = payload.column.clone();
+
+    // Build a deterministic cache key from all computation-affecting parameters.
+    let cache_key = format!(
+        "{}|{}|{:.0}|{:.0}|{:.0}|{:.0}|{}|{:.6}|{:.6}|{:.6}|{:.6}",
+        column,
+        window_str,
+        ref_start_ms,
+        ref_end_ms,
+        curr_start_ms,
+        curr_end_ms,
+        n_bins,
+        ks_threshold,
+        wasserstein_threshold,
+        psi_minor,
+        psi_major
+    );
+    let dataset_revision = state.dataset_revision();
+
+    // Check cache before spawning blocking work.
+    {
+        let guard = state.drift_cache.lock().ok();
+        if let Some(mut g) = guard {
+            if let Some((rev, inserted, bytes)) = g.get(&cache_key) {
+                if *rev == dataset_revision && inserted.elapsed() < DRIFT_CACHE_TTL {
+                    if let Ok(body) = serde_json::from_slice::<serde_json::Value>(bytes) {
+                        return Ok(Json(body));
+                    }
+                }
+                // Stale or corrupt entry — remove it.
+                g.remove(&cache_key);
+            }
+        }
+    }
+
     let response = tokio::task::block_in_place(move || {
         analytics::compute_temporal_drift(
             &df,
@@ -132,5 +173,22 @@ pub async fn post_drift_stats(
         )
     })?;
 
-    Ok(Json(response))
+    // Serialize to JSON value for cache storage and response.
+    let json_value = serde_json::to_value(&response)
+        .map_err(|e| AppError::internal(format!("Drift serialisation failed: {e}")))?;
+
+    // Populate cache.
+    if let Ok(bytes) = serde_json::to_vec(&response) {
+        if let Ok(mut guard) = state.drift_cache.lock() {
+            // Evict expired/stale entries occasionally to bound memory use.
+            if guard.len() >= 64 {
+                guard.retain(|_, (rev, inserted, _)| {
+                    *rev == dataset_revision && inserted.elapsed() < DRIFT_CACHE_TTL
+                });
+            }
+            guard.insert(cache_key, (dataset_revision, std::time::Instant::now(), bytes));
+        }
+    }
+
+    Ok(Json(json_value))
 }

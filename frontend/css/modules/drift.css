@@ -1,5 +1,49 @@
 /* ─── Temporal Drift Analysis page ───────────────────────────── */
 
+.drift-toolbar {
+  height: auto;
+  min-height: 44px;
+  flex-wrap: wrap;
+  row-gap: 6px;
+  overflow: visible;
+  z-index: 10;
+  position: relative;
+}
+
+.drift-toolbar .toolbar-group {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.drift-multi-select {
+  min-width: 210px;
+  width: 210px;
+  height: 66px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.drift-toolbar .toolbar-group--push {
+  min-width: min(100%, 460px);
+}
+
+.drift-toolbar #drift-status {
+  min-width: 0;
+  max-width: 48ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#page-drift .plot-empty-state {
+  z-index: 5;
+  inset: 12px;
+}
+
+.drift-layout.drift-empty-active .drift-detail-panel {
+  visibility: hidden;
+}
+
 .drift-layout {
   position: absolute;
   inset: 0;
@@ -27,7 +71,7 @@
   overflow: hidden;
 }
 
-#drift-timeline-canvas {
+#drift-timeline-chart {
   display: block;
   width: 100%;
   height: 100%;
@@ -44,16 +88,28 @@
   overflow: hidden;
 }
 
-.drift-detail-header {
+.drift-detail-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 10px 14px 6px;
   border-bottom: 1px solid var(--border);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text);
   flex-shrink: 0;
 }
 
-#drift-detail-canvas {
+.drift-detail-header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+
+#drift-detail-col-select {
+  width: 140px;
+  flex: 0 0 140px;
+}
+
+#drift-detail-chart {
   display: block;
   width: 100%;
   height: 220px;
@@ -91,9 +147,17 @@
   text-align: right;
 }
 
-.drift-detail-stat-value.drift-green { color: var(--green); }
-.drift-detail-stat-value.drift-yellow { color: var(--amber); }
-.drift-detail-stat-value.drift-red { color: var(--red); }
+.drift-detail-stat-value.drift-green {
+  color: var(--green);
+}
+
+.drift-detail-stat-value.drift-yellow {
+  color: var(--amber);
+}
+
+.drift-detail-stat-value.drift-red {
+  color: var(--red);
+}
 
 .drift-legend {
   display: flex;
@@ -119,9 +183,17 @@
   flex-shrink: 0;
 }
 
-.drift-legend-dot--green { background: var(--green); }
-.drift-legend-dot--yellow { background: var(--amber); }
-.drift-legend-dot--red { background: var(--red); }
+.drift-legend-dot--green {
+  background: var(--green);
+}
+
+.drift-legend-dot--yellow {
+  background: var(--amber);
+}
+
+.drift-legend-dot--red {
+  background: var(--red);
+}
 
 .drift-window-list {
   flex: 1 1 auto;
@@ -131,6 +203,19 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.drift-list-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+#drift-sort-select {
+  flex: 1;
+  min-width: 0;
 }
 
 .drift-window-item {
@@ -161,10 +246,21 @@
   flex-shrink: 0;
 }
 
-.drift-window-badge--green { background: var(--green); }
-.drift-window-badge--yellow { background: var(--amber); }
-.drift-window-badge--red { background: var(--red); }
-.drift-window-badge--empty { background: var(--text-muted); }
+.drift-window-badge--green {
+  background: var(--green);
+}
+
+.drift-window-badge--yellow {
+  background: var(--amber);
+}
+
+.drift-window-badge--red {
+  background: var(--red);
+}
+
+.drift-window-badge--empty {
+  background: var(--text-muted);
+}
 
 .drift-window-label {
   flex: 1;
@@ -180,6 +276,11 @@
 }
 
 @media (max-width: 900px) {
+  .drift-toolbar .toolbar-group--push {
+    margin-left: 0;
+    width: 100%;
+  }
+
   .drift-layout {
     flex-direction: column;
   }
@@ -197,11 +298,15 @@
 }
 
 @media (max-width: 640px) {
+  .drift-toolbar #drift-status {
+    display: none;
+  }
+
   .drift-detail-panel {
     flex-basis: 300px;
   }
 
-  #drift-detail-canvas {
+  #drift-detail-chart {
     height: 180px;
     min-height: 180px;
     flex-basis: 180px;
@@ -216,7 +321,96 @@
 /* ── Custom scrollbar for drift window list (L1) ─────────────────────────── */
 .drift-window-list {
   scrollbar-width: thin;
-  scrollbar-color: rgba(120,139,174,0.3) transparent;
+  scrollbar-color: rgba(120, 139, 174, 0.3) transparent;
+}
+
+/* ── Column picker dropdown ──────────────────────────────────────────────── */
+.drift-col-picker {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.drift-col-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 110px;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  justify-content: space-between;
+}
+
+.drift-col-picker-trigger svg {
+  flex-shrink: 0;
+  opacity: 0.65;
+  transition: transform 0.15s;
+}
+
+.drift-col-picker-trigger[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.drift-col-picker-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 300;
+  background: var(--surface-2, #141c2e);
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 10px;
+  padding: 8px;
+  min-width: 170px;
+  max-height: 300px;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 139, 174, 0.3) transparent;
+}
+
+.drift-col-picker-actions {
+  display: flex;
+  gap: 5px;
+  padding-bottom: 7px;
+  margin-bottom: 7px;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,0.1));
+}
+
+.drift-col-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.drift-col-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--text-dim, #788bae);
+  user-select: none;
+  transition: background 0.12s;
+}
+
+.drift-col-picker-item:hover {
+  background: rgba(0, 168, 255, 0.10);
+  color: var(--text, #d2daf0);
+}
+
+.drift-col-picker-item input[type="checkbox"] {
+  accent-color: var(--accent, #00a8ff);
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.drift-col-picker-item:has(input:checked) {
+  color: var(--text, #d2daf0);
 }
 
 .drift-window-list::-webkit-scrollbar {
@@ -228,21 +422,26 @@
 }
 
 .drift-window-list::-webkit-scrollbar-thumb {
-  background: rgba(120,139,174,0.3);
+  background: rgba(120, 139, 174, 0.3);
   border-radius: 3px;
 }
 
 .drift-window-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(120,139,174,0.5);
+  background: rgba(120, 139, 174, 0.5);
 }
 
-/* ── Skeleton loading pulse (L2) ─────────────────────────────────────────── */
-@keyframes drift-skeleton-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.45; }
-}
+@media (max-width: 760px) {
+  .drift-multi-select {
+    width: min(100%, 280px);
+  }
 
-.drift-timeline-canvas-wrap canvas.drift-loading,
-#drift-detail-canvas.drift-loading {
-  animation: drift-skeleton-pulse 1.4s ease-in-out infinite;
+  .drift-detail-header-row {
+    flex-wrap: wrap;
+    padding-bottom: 10px;
+  }
+
+  #drift-detail-col-select {
+    width: 100%;
+    flex-basis: 100%;
+  }
 }

@@ -115,6 +115,28 @@ function getSelectablePreviewColumns(profiles: ProfileRow[] = appState.columnPro
         .filter((name) => name && name !== appState.previewTimeColumn);
 }
 
+export function formatUploadSelectionStatus(
+    selectableCount: number,
+    selectedCount: number,
+    timeColumnName: string | null,
+): string {
+    const analysisCount = Math.max(0, Number(selectableCount) || 0);
+    const chosenCount = Math.max(0, Math.min(analysisCount, Number(selectedCount) || 0));
+    if (analysisCount === 0 && !timeColumnName) {
+        return 'Preview columns will appear here after file analysis.';
+    }
+    if (analysisCount === 0) {
+        return `Time column detected: ${timeColumnName}. No additional analysis columns available.`;
+    }
+    if (timeColumnName && chosenCount === analysisCount) {
+        return `Time column ${timeColumnName} plus all ${analysisCount} analysis columns are selected.`;
+    }
+    if (timeColumnName) {
+        return `Time column ${timeColumnName} plus ${chosenCount} of ${analysisCount} analysis columns selected.`;
+    }
+    return `${chosenCount} of ${analysisCount} analysis columns selected.`;
+}
+
 function syncUploadSelectionUI(profiles: ProfileRow[] = appState.columnProfiles || []): void {
     const statusEl = document.getElementById('profile-selection-status');
     const allCheckbox = document.getElementById('profile-select-all-checkbox') as HTMLInputElement | null;
@@ -123,9 +145,11 @@ function syncUploadSelectionUI(profiles: ProfileRow[] = appState.columnProfiles 
     const selectedCount = selectable.filter((name) => selected.has(name)).length;
 
     if (statusEl) {
-        const totalCount = selectable.length + (appState.previewTimeColumn ? 1 : 0);
-        const effectiveSelected = selectedCount + (appState.previewTimeColumn ? 1 : 0);
-        statusEl.textContent = `${effectiveSelected}/${totalCount} columns selected`;
+        statusEl.textContent = formatUploadSelectionStatus(
+            selectable.length,
+            selectedCount,
+            appState.previewTimeColumn,
+        );
     }
 
     if (allCheckbox) {

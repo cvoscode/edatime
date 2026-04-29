@@ -122,7 +122,7 @@ async fn scatter_points_response(
     let end = params.end;
     let filters = parse_scatter_filters(params.filters.as_deref())?;
     let line_filters = parse_scatter_line_filters(params.line_filters.as_deref())?;
-    let limit = clamp_limit(params.limit);
+    let limit = clamp_limit(params.limit, &state.config.validation);
     validate_scatter_limit(limit, &state.config.validation)?;
     if let (Some(start_ms), Some(end_ms)) = (start, end) {
         let start_dt = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(start_ms as i64)

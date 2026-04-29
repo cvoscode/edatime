@@ -76,6 +76,18 @@
   line-height: 1.5;
 }
 
+.plot-empty-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.plot-empty-actions .btn {
+  pointer-events: auto;
+}
+
 .plot-empty-state[hidden] {
   display: none;
 }

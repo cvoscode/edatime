@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
+    DEFAULT_SCATTER_SUGGESTION_THRESHOLD,
     paletteForScale,
     hexToRgb,
     rgbToHex,
@@ -15,6 +16,7 @@ import {
     MATRIX_MAX_COLUMNS,
     HISTOGRAM_BINS,
     LOW_CARDINALITY_LIMIT,
+    normalizeScatterSuggestionThreshold,
 } from './helpers';
 
 describe('scatter constants', () => {
@@ -124,5 +126,20 @@ describe('computeColorExtent', () => {
 
     it('skips NaN values', () => {
         expect(computeColorExtent([NaN, 3, NaN, 7, NaN])).toEqual({ min: 3, max: 7 });
+    });
+});
+
+describe('normalizeScatterSuggestionThreshold', () => {
+    it('falls back to the default threshold for non-finite values', () => {
+        expect(normalizeScatterSuggestionThreshold(undefined)).toBe(DEFAULT_SCATTER_SUGGESTION_THRESHOLD);
+    });
+
+    it('clamps the threshold into the supported range', () => {
+        expect(normalizeScatterSuggestionThreshold(0.1)).toBe(0.3);
+        expect(normalizeScatterSuggestionThreshold(1.2)).toBe(0.95);
+    });
+
+    it('rounds to 0.05 increments for UI consistency', () => {
+        expect(normalizeScatterSuggestionThreshold(0.73)).toBe(0.75);
     });
 });

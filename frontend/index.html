@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EdaTime</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="css/style.css?v=54">
+  <link rel="stylesheet" href="css/style.css?v=57">
 </head>
 
 <body>
@@ -25,6 +25,7 @@
         </span>
         <span class="nav-text">Home</span>
       </button>
+      <div class="sidebar-section-label">Core workflow</div>
       <button class="nav-item" type="button" data-page="upload" title="Upload (Alt+1)">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
@@ -47,44 +48,7 @@
         <span class="nav-text">Timeseries</span>
         <kbd class="nav-shortcut">⌥2</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="scatter" title="Scatter (Alt+3)">
-        <span class="nav-icon">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
-            stroke-linejoin="round">
-            <circle cx="4" cy="11" r="1.2" />
-            <circle cx="8" cy="6" r="1.2" />
-            <circle cx="12" cy="9" r="1.2" />
-            <circle cx="6" cy="13" r="1.2" />
-            <circle cx="11" cy="3" r="1.2" />
-          </svg>
-        </span>
-        <span class="nav-text">Scatter</span>
-        <kbd class="nav-shortcut">⌥3</kbd>
-      </button>
-      <button class="nav-item" type="button" data-page="scattermatrix" title="Scatter Matrix (Alt+4)">
-        <span class="nav-icon">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
-            stroke-linejoin="round">
-            <rect x="2" y="2" width="5" height="5" rx="1" />
-            <rect x="9" y="2" width="5" height="5" rx="1" />
-            <rect x="2" y="9" width="5" height="5" rx="1" />
-            <rect x="9" y="9" width="5" height="5" rx="1" />
-          </svg>
-        </span>
-        <span class="nav-text">Matrix</span>
-        <kbd class="nav-shortcut">⌥4</kbd>
-      </button>
-      <button class="nav-item" type="button" data-page="fft" title="FFT / PSD (Alt+6)">
-        <span class="nav-icon">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
-            stroke-linejoin="round">
-            <polyline points="1,8 3,4 5,10 7,2 9,12 11,6 13,8 15,8" />
-          </svg>
-        </span>
-        <span class="nav-text">FFT</span>
-        <kbd class="nav-shortcut">⌥6</kbd>
-      </button>
-      <button class="nav-item" type="button" data-page="heatmap" title="Correlation Heatmap (Alt+7)">
+      <button class="nav-item" type="button" data-page="heatmap" title="Correlations (Alt+7)">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round">
@@ -99,8 +63,33 @@
             <rect x="11" y="11" width="4" height="4" rx="0.5" />
           </svg>
         </span>
-        <span class="nav-text">Heatmap</span>
+        <span class="nav-text">Correlations</span>
         <kbd class="nav-shortcut">⌥7</kbd>
+      </button>
+      <button class="nav-item" type="button" data-page="scatter" title="Scatter (Alt+3)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+            stroke-linejoin="round">
+            <circle cx="4" cy="11" r="1.2" />
+            <circle cx="8" cy="6" r="1.2" />
+            <circle cx="12" cy="9" r="1.2" />
+            <circle cx="6" cy="13" r="1.2" />
+            <circle cx="11" cy="3" r="1.2" />
+          </svg>
+        </span>
+        <span class="nav-text">Scatter</span>
+        <kbd class="nav-shortcut">⌥3</kbd>
+      </button>
+      <div class="sidebar-section-label sidebar-section-label--spaced">Advanced analysis</div>
+      <button class="nav-item" type="button" data-page="fft" title="FFT / PSD (Alt+6)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+            stroke-linejoin="round">
+            <polyline points="1,8 3,4 5,10 7,2 9,12 11,6 13,8 15,8" />
+          </svg>
+        </span>
+        <span class="nav-text">FFT</span>
+        <kbd class="nav-shortcut">⌥6</kbd>
       </button>
       <button class="nav-item" type="button" data-page="spectrogram" title="Spectrogram (Alt+8)">
         <span class="nav-icon">
@@ -254,63 +243,114 @@
             <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button">Clear Filter</button>
           </div>
           <div class="toolbar-group labels-toolbar toolbar-group--sep">
-            <span class="toolbar-label">Labels</span>
-            <input type="text" id="chart-title-input" placeholder="Title" aria-label="Chart title">
-            <input type="text" id="x-axis-label-input" placeholder="X" aria-label="X axis label">
-            <input type="text" id="y-axis-label-input" placeholder="Y" aria-label="Y axis label">
+            <details class="toolbar-disclosure">
+              <summary class="toolbar-disclosure__summary">
+                <span class="toolbar-label">Labels</span>
+                <span class="toolbar-disclosure__value">Title + axes</span>
+              </summary>
+              <div class="toolbar-disclosure__menu toolbar-disclosure__menu--stacked">
+                <input type="text" id="chart-title-input" placeholder="Title" aria-label="Chart title">
+                <input type="text" id="x-axis-label-input" placeholder="X" aria-label="X axis label">
+                <input type="text" id="y-axis-label-input" placeholder="Y" aria-label="Y axis label">
+              </div>
+            </details>
           </div>
           <div class="toolbar-group export-toolbar toolbar-group--sep">
-            <span class="toolbar-label">Export</span>
-            <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button">PNG</button>
-            <button class="btn btn-ghost btn-sm" id="export-svg-btn" type="button">SVG</button>
-            <button class="btn btn-ghost btn-sm" id="export-html-btn" type="button">HTML</button>
-            <button class="btn btn-ghost btn-sm" id="export-data-csv-btn" type="button">CSV</button>
-            <button class="btn btn-ghost btn-sm" id="export-data-json-btn" type="button">JSON</button>
-            <button class="btn btn-ghost btn-sm" id="export-data-parquet-btn" type="button">Parquet</button>
+            <details class="toolbar-disclosure">
+              <summary class="toolbar-disclosure__summary">
+                <span class="toolbar-label">Export</span>
+                <span class="toolbar-disclosure__value">Chart + data</span>
+              </summary>
+              <div class="toolbar-disclosure__menu">
+                <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button">PNG</button>
+                <button class="btn btn-ghost btn-sm" id="export-svg-btn" type="button">SVG</button>
+                <button class="btn btn-ghost btn-sm" id="export-html-btn" type="button">HTML</button>
+                <button class="btn btn-ghost btn-sm" id="export-data-csv-btn" type="button">CSV</button>
+                <button class="btn btn-ghost btn-sm" id="export-data-json-btn" type="button">JSON</button>
+                <button class="btn btn-ghost btn-sm" id="export-data-parquet-btn" type="button">Parquet</button>
+              </div>
+            </details>
           </div>
           <div class="toolbar-group annotations-toolbar toolbar-group--sep">
-            <span class="toolbar-label">Notes</span>
-            <button class="btn btn-ghost btn-sm" id="add-note-btn" type="button" title="Add note at current view">+
-              Note</button>
-            <button class="btn btn-ghost btn-sm" id="add-bookmark-btn" type="button" title="Bookmark current position">+
-              Bookmark</button>
-            <button class="btn btn-ghost btn-sm" id="annotations-list-btn" type="button"
-              title="View all annotations">List</button>
+            <details class="toolbar-disclosure">
+              <summary class="toolbar-disclosure__summary">
+                <span class="toolbar-label">Notes</span>
+                <span class="toolbar-disclosure__value">Annotations</span>
+              </summary>
+              <div class="toolbar-disclosure__menu">
+                <button class="btn btn-ghost btn-sm" id="add-note-btn" type="button" title="Add note at current view">+
+                  Note</button>
+                <button class="btn btn-ghost btn-sm" id="add-bookmark-btn" type="button"
+                  title="Bookmark current position">+
+                  Bookmark</button>
+                <button class="btn btn-ghost btn-sm" id="annotations-list-btn" type="button"
+                  title="View all annotations">List</button>
+              </div>
+            </details>
           </div>
           <div class="toolbar-group analytics-toolbar toolbar-group--sep toolbar-group--push">
-            <span class="toolbar-label">Analytics</span>
-            <label class="scatter-link-toggle" for="rolling-enabled" title="Show rolling mean ± σ bands">
-              <input id="rolling-enabled" type="checkbox">
-              <span>Bands</span>
-            </label>
-            <label class="scatter-inline-label" for="rolling-window">Win</label>
-            <input id="rolling-window" type="number" class="modal-input" value="50" min="3" max="5000" step="1"
-              style="width:58px;" title="Rolling window size">
-            <span class="toolbar-group-divider"></span>
-            <label class="scatter-link-toggle" for="anomaly-enabled" title="Show anomaly detection regions">
-              <input id="anomaly-enabled" type="checkbox">
-              <span>Anomalies</span>
-            </label>
-            <select id="anomaly-method" class="modal-select" style="width:84px;" title="Anomaly detection method">
-              <option value="zscore">Z-score</option>
-              <option value="iqr">IQR</option>
-            </select>
-            <input id="anomaly-threshold" type="number" class="modal-input" value="3" min="0.5" max="10" step="0.1"
-              style="width:52px;" title="Anomaly threshold">
-            <span class="toolbar-group-divider"></span>
-            <button class="btn btn-ghost btn-sm" id="transform-open-btn" type="button"
-              title="Column transform expression">Transform…</button>
-            <button class="btn btn-ghost btn-sm" id="outlier-open-btn" type="button"
-              title="Remove outliers from dataset">Outliers…</button>
+            <details class="toolbar-disclosure toolbar-disclosure--end">
+              <summary class="toolbar-disclosure__summary">
+                <span class="toolbar-label">Analytics</span>
+                <span class="toolbar-disclosure__value">Bands, anomalies, cleanup</span>
+              </summary>
+              <div class="toolbar-disclosure__menu toolbar-disclosure__menu--analytics">
+                <label class="toolbar-field toolbar-field--toggle" for="rolling-enabled">
+                  <span class="toolbar-field__label">Rolling bands</span>
+                  <span class="toolbar-field__control scatter-link-toggle" title="Show rolling mean ± σ bands">
+                    <input id="rolling-enabled" type="checkbox">
+                    <span>Show mean ± σ bands</span>
+                  </span>
+                </label>
+                <label class="toolbar-field" for="rolling-window">
+                  <span class="toolbar-field__label">Window</span>
+                  <input id="rolling-window" type="number" class="modal-input" value="50" min="3" max="5000" step="1"
+                    title="Rolling window size">
+                </label>
+                <label class="toolbar-field toolbar-field--toggle" for="anomaly-enabled">
+                  <span class="toolbar-field__label">Anomalies</span>
+                  <span class="toolbar-field__control scatter-link-toggle" title="Show anomaly detection regions">
+                    <input id="anomaly-enabled" type="checkbox">
+                    <span>Enable regions</span>
+                  </span>
+                </label>
+                <label class="toolbar-field" for="anomaly-method">
+                  <span class="toolbar-field__label">Method</span>
+                  <select id="anomaly-method" class="modal-select" title="Anomaly detection method">
+                    <option value="zscore">Z-score</option>
+                    <option value="iqr">IQR</option>
+                  </select>
+                </label>
+                <label class="toolbar-field" for="anomaly-threshold">
+                  <span class="toolbar-field__label">Threshold</span>
+                  <input id="anomaly-threshold" type="number" class="modal-input" value="3" min="0.5" max="10"
+                    step="0.1" title="Anomaly threshold">
+                </label>
+                <div class="toolbar-field toolbar-field--actions">
+                  <span class="toolbar-field__label">Dataset tools</span>
+                  <div class="toolbar-field__actions">
+                    <button class="btn btn-ghost btn-sm" id="transform-open-btn" type="button"
+                      title="Column transform expression">Transform…</button>
+                    <button class="btn btn-ghost btn-sm" id="outlier-open-btn" type="button"
+                      title="Remove outliers from dataset">Outliers…</button>
+                  </div>
+                </div>
+              </div>
+            </details>
           </div>
         </div>
 
         <main class="main">
           <div id="main-chart"></div>
           <div id="timeseries-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
-            <strong>Select one or more series</strong>
-            <span>Click a column chip above to add it to the chart. Start with 2–3 related columns (e.g. the main signal
+            <strong id="timeseries-empty-title">Select one or more series</strong>
+            <span id="timeseries-empty-message">Click a column chip above to add it to the chart. Start with 2–3 related
+              columns (e.g. the main signal
               and a reference) for a clearer first view.</span>
+            <div class="plot-empty-actions">
+              <button class="btn btn-sm" id="timeseries-reset-range-btn" type="button" hidden>Reset to dataset
+                range</button>
+            </div>
           </div>
           <div id="main-chart-loading" class="chart-loading-overlay" hidden>
             <div class="chart-loading-spinner"></div>
@@ -336,6 +376,15 @@
 
       <section class="page" id="page-scatter" data-page-name="scatter" hidden>
         <div class="toolbar scatter-toolbar">
+          <div class="toolbar-group">
+            <span class="toolbar-label">View</span>
+            <div class="btn-toggle-group scatter-view-toggle" role="group" aria-label="Scatter page view">
+              <button type="button" class="btn active" id="scatter-view-plot-btn" aria-pressed="true"
+                data-scatter-view="plot">Plot</button>
+              <button type="button" class="btn" id="scatter-view-matrix-btn" aria-pressed="false"
+                data-scatter-view="matrix">Matrix</button>
+            </div>
+          </div>
           <div class="toolbar-group" id="scatter-analytics-group">
             <span class="toolbar-label">Analytics</span>
             <label class="scatter-inline-label" for="scatter-x-col">X</label>
@@ -360,21 +409,26 @@
           </div>
 
           <div class="toolbar-group toolbar-group--push">
-            <div id="scatter-color-controls" class="scatter-toolbar-group-inline">
-              <span class="toolbar-label">Color By</span>
-              <select id="scatter-color-column" class="modal-select" aria-label="Scatter color-by column">
-                <option value="">None</option>
-              </select>
-              <select id="scatter-color-scale" class="modal-select" aria-label="Scatter color scale">
-                <option value="viridis">Viridis</option>
-                <option value="plasma">Plasma</option>
-                <option value="inferno">Inferno</option>
-              </select>
-            </div>
+            <details id="scatter-color-controls" class="toolbar-disclosure toolbar-disclosure--end">
+              <summary class="toolbar-disclosure__summary">
+                <span class="toolbar-label">Color</span>
+                <span class="toolbar-disclosure__value">By column</span>
+              </summary>
+              <div class="toolbar-disclosure__menu">
+                <select id="scatter-color-column" class="modal-select" aria-label="Scatter color-by column">
+                  <option value="">None</option>
+                </select>
+                <select id="scatter-color-scale" class="modal-select" aria-label="Scatter color scale">
+                  <option value="viridis">Viridis</option>
+                  <option value="plasma">Plasma</option>
+                  <option value="inferno">Inferno</option>
+                </select>
+              </div>
+            </details>
 
             <div id="scatter-density-controls" class="scatter-toolbar-group-inline">
               <span class="toolbar-label">Density</span>
-              <label class="scatter-inline-label" for="scatter-bin-size">Bin</label>
+              <label class="scatter-inline-label" for="scatter-bin-size">Bins</label>
               <input id="scatter-bin-size" type="range" min="2" max="64" step="1" value="10" style="width:110px;">
               <span id="scatter-bin-size-value" class="range-value">10</span>
               <select id="scatter-colormap" class="modal-select" aria-label="Density colormap">
@@ -388,27 +442,41 @@
               </select>
             </div>
 
-            <div class="scatter-toolbar-group-inline scatter-export-group">
-              <span class="toolbar-label">Export</span>
-              <button class="btn btn-ghost btn-sm" id="scatter-export-png-btn" type="button">PNG</button>
-              <button class="btn btn-ghost btn-sm" id="scatter-export-svg-btn" type="button">SVG</button>
-              <button class="btn btn-ghost btn-sm" id="scatter-export-html-btn" type="button">HTML</button>
-              <button class="btn btn-ghost btn-sm" id="scatter-export-csv-btn" type="button">CSV</button>
-              <button class="btn btn-ghost btn-sm" id="scatter-export-json-btn" type="button">JSON</button>
-              <button class="btn btn-ghost btn-sm" id="scatter-export-parquet-btn" type="button">Parquet</button>
-            </div>
+            <details class="toolbar-disclosure toolbar-disclosure--end scatter-export-group">
+              <summary class="toolbar-disclosure__summary">
+                <span class="toolbar-label">Export</span>
+                <span class="toolbar-disclosure__value">PNG, CSV, JSON</span>
+              </summary>
+              <div class="toolbar-disclosure__menu">
+                <button class="btn btn-ghost btn-sm" id="scatter-export-png-btn" type="button">PNG</button>
+                <button class="btn btn-ghost btn-sm" id="scatter-export-svg-btn" type="button">SVG</button>
+                <button class="btn btn-ghost btn-sm" id="scatter-export-html-btn" type="button">HTML</button>
+                <button class="btn btn-ghost btn-sm" id="scatter-export-csv-btn" type="button">CSV</button>
+                <button class="btn btn-ghost btn-sm" id="scatter-export-json-btn" type="button">JSON</button>
+                <button class="btn btn-ghost btn-sm" id="scatter-export-parquet-btn" type="button">Parquet</button>
+              </div>
+            </details>
           </div>
         </div>
 
         <div class="analysis-toolbar scatter-stats-bar">
           <span id="scatter-total-points">Total points: —</span>
           <span id="scatter-binned-points">Visible points: —</span>
+          <span id="scatter-active-filter-badge" class="scatter-filter-badge" hidden></span>
+          <span id="scatter-current-pair" class="scatter-filter-badge">Pair: X vs Y</span>
           <span id="scatter-pearson">Pearson: —</span>
           <span id="scatter-spearman">Spearman: —</span>
+          <button class="btn btn-ghost btn-sm" id="scatter-open-causal-btn" type="button">Open in Causal</button>
         </div>
 
         <div class="range-toolbar scatter-suggestions-bar">
-          <span class="toolbar-label">Suggestions (|corr| ≥ 0.7)</span>
+          <span id="scatter-suggestions-label" class="toolbar-label">Suggestions (|corr| ≥ 0.70)</span>
+          <div class="scatter-suggestions-controls">
+            <label class="scatter-inline-label" for="scatter-suggestion-threshold">Threshold</label>
+            <input id="scatter-suggestion-threshold" type="range" min="0.30" max="0.95" step="0.05" value="0.70">
+            <span id="scatter-suggestion-threshold-value" class="range-value">0.70</span>
+            <span id="scatter-active-pair-label" class="scatter-filter-badge">Inspecting X vs Y</span>
+          </div>
           <div id="scatter-suggestions" class="scatter-suggestions"></div>
         </div>
 
@@ -417,7 +485,14 @@
             <canvas id="scatter-marginal-x" class="scatter-marginal-x" aria-hidden="true" hidden></canvas>
             <div id="scatter-chart"></div>
             <div id="scatter-empty-state" class="plot-empty-state" hidden>
-              Choose X and Y numeric columns to render the scatter plot.
+              <strong id="scatter-empty-title">Choose scatter axes</strong>
+              <span id="scatter-empty-message">Choose X and Y numeric columns to render the scatter plot.</span>
+              <div class="plot-empty-actions">
+                <button class="btn btn-sm" id="scatter-reset-range-btn" type="button" hidden>Reset to dataset
+                  range</button>
+                <button class="btn btn-sm" id="scatter-clear-filters-btn" type="button" hidden>Clear active
+                  filters</button>
+              </div>
             </div>
             <div id="scatter-chart-loading" class="chart-loading-overlay" hidden>
               <div class="chart-loading-spinner"></div>
@@ -480,7 +555,7 @@
       </section>
 
       <section class="page" id="page-fft" data-page-name="fft" hidden>
-        <div class="toolbar">
+        <div class="toolbar drift-toolbar">
           <div class="toolbar-group">
             <span class="toolbar-label">FFT / Power Spectral Density</span>
             <label class="scatter-inline-label" for="fft-mode-select">Mode</label>
@@ -503,10 +578,10 @@
               <option value="bandpass">Band-pass</option>
               <option value="bandstop">Band-stop</option>
             </select>
-            <label class="scatter-inline-label" for="fft-filter-low-hz" title="Low cutoff (Hz)">Lo Hz</label>
+            <label class="scatter-inline-label" for="fft-filter-low-hz" title="Low cutoff (Hz)">Low Hz</label>
             <input id="fft-filter-low-hz" type="number" class="modal-input" min="0" step="0.001" placeholder="0"
               style="width:68px;" title="Low frequency cutoff (Hz)">
-            <label class="scatter-inline-label" for="fft-filter-high-hz" title="High cutoff (Hz)">Hi Hz</label>
+            <label class="scatter-inline-label" for="fft-filter-high-hz" title="High cutoff (Hz)">High Hz</label>
             <input id="fft-filter-high-hz" type="number" class="modal-input" min="0" step="0.001" placeholder="auto"
               style="width:68px;" title="High frequency cutoff (Hz)">
             <button id="fft-filter-apply-btn" class="btn btn-ghost btn-sm" type="button"
@@ -514,13 +589,29 @@
             <span id="fft-filter-status" class="scatter-panel-status" style="font-size:11px;"></span>
           </div>
           <div class="toolbar-group toolbar-group--push">
-            <button id="fft-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
-            <button id="fft-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
-            <button id="fft-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
-            <button id="fft-export-csv-btn" class="btn btn-ghost btn-sm" type="button">CSV</button>
+            <details class="toolbar-disclosure toolbar-disclosure--end">
+              <summary class="toolbar-disclosure__summary">
+                <span class="toolbar-label">Export</span>
+                <span class="toolbar-disclosure__value">Image + CSV</span>
+              </summary>
+              <div class="toolbar-disclosure__menu">
+                <button id="fft-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
+                <button id="fft-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
+                <button id="fft-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
+                <button id="fft-export-csv-btn" class="btn btn-ghost btn-sm" type="button">CSV</button>
+              </div>
+            </details>
             <button id="fft-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button" hidden>↩ Zoom out</button>
             <span class="toolbar-label" id="fft-status">Select a column chip below.</span>
           </div>
+        </div>
+        <div class="page-guidance page-guidance--advanced">
+          <span class="page-guidance__item"><strong>Best for</strong> Stable periodic structure, dominant frequencies,
+            and quick filter previews after you narrow the trace list.</span>
+          <span class="page-guidance__item"><strong>Needs</strong> One to three numeric traces and a meaningful time
+            zoom from the Timeseries page.</span>
+          <span class="page-guidance__item"><strong>Cost</strong> Fast enough for iteration. Move to Spectrogram when
+            the frequency content changes over time.</span>
         </div>
         <div class="fft-traces-bar" id="fft-traces-bar" hidden></div>
         <main class="main">
@@ -551,10 +642,18 @@
             <span id="heatmap-cell-size-value" class="range-value">36</span>
           </div>
           <div class="toolbar-group toolbar-group--push">
-            <button id="heatmap-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
-            <button id="heatmap-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
-            <button id="heatmap-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
-            <button id="heatmap-export-csv-btn" class="btn btn-ghost btn-sm" type="button">CSV</button>
+            <details class="toolbar-disclosure toolbar-disclosure--end">
+              <summary class="toolbar-disclosure__summary">
+                <span class="toolbar-label">Export</span>
+                <span class="toolbar-disclosure__value">Image + CSV</span>
+              </summary>
+              <div class="toolbar-disclosure__menu">
+                <button id="heatmap-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
+                <button id="heatmap-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
+                <button id="heatmap-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
+                <button id="heatmap-export-csv-btn" class="btn btn-ghost btn-sm" type="button">CSV</button>
+              </div>
+            </details>
             <span class="toolbar-label" id="heatmap-status">Loading…</span>
           </div>
         </div>
@@ -586,13 +685,29 @@
             </label>
           </div>
           <div class="toolbar-group toolbar-group--push">
-            <button id="spectrogram-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
-            <button id="spectrogram-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
-            <button id="spectrogram-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
+            <details class="toolbar-disclosure toolbar-disclosure--end">
+              <summary class="toolbar-disclosure__summary">
+                <span class="toolbar-label">Export</span>
+                <span class="toolbar-disclosure__value">Image + HTML</span>
+              </summary>
+              <div class="toolbar-disclosure__menu">
+                <button id="spectrogram-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
+                <button id="spectrogram-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
+                <button id="spectrogram-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
+              </div>
+            </details>
             <button id="spectrogram-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button">Reset zoom</button>
             <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">Compute</button>
             <span class="toolbar-label" id="spectrogram-status">Select a column and press Compute.</span>
           </div>
+        </div>
+        <div class="page-guidance page-guidance--advanced">
+          <span class="page-guidance__item"><strong>Best for</strong> Regime changes, non-stationary periodic behavior,
+            and seeing when energy shifts over time.</span>
+          <span class="page-guidance__item"><strong>Needs</strong> One numeric column, a focused time range, and a
+            window size matched to the pattern duration you care about.</span>
+          <span class="page-guidance__item"><strong>Cost</strong> Heavier than FFT because each compute rebuilds a
+            time-frequency grid. Start with a narrower range before scaling up.</span>
         </div>
         <main class="main" style="position:relative;">
           <div id="spectrogram-chart" style="width:100%;height:100%;display:block;"></div>
@@ -680,6 +795,14 @@
             <span class="toolbar-label" id="causal-status">Select columns and press Compute.</span>
           </div>
         </div>
+        <div class="page-guidance page-guidance--advanced">
+          <span class="page-guidance__item"><strong>Best for</strong> A short candidate list after you already screened
+            variables in Timeseries, Scatter, or Heatmap.</span>
+          <span class="page-guidance__item"><strong>Needs</strong> At least two numeric columns, a defensible lag
+            horizon, and a clear hypothesis about which links are worth testing.</span>
+          <span class="page-guidance__item"><strong>Cost</strong> Slowest page in the app. Reduce the column set first,
+            then increase lags or nonlinear tests only when the first pass is interpretable.</span>
+        </div>
         <!-- Progress bar -->
         <div id="causal-progress" class="causal-progress-wrap" hidden>
           <div class="causal-progress-track">
@@ -737,12 +860,37 @@
 
       <!-- ── Drift Analysis page ───────────────────────── -->
       <section class="page" id="page-drift" data-page-name="drift" hidden>
-        <div class="toolbar">
+        <div class="toolbar drift-toolbar">
           <div class="toolbar-group">
             <span class="toolbar-label">Drift Analysis</span>
-            <label class="scatter-inline-label" for="drift-col-select">Column</label>
-            <select id="drift-col-select" class="modal-select" style="width:120px;"
-              aria-label="Numeric column to analyse">
+            <span class="scatter-inline-label">Columns</span>
+            <!-- custom column picker: JS populates checkboxes inside the panel -->
+            <div class="drift-col-picker" id="drift-col-picker-wrap">
+              <button type="button" id="drift-col-picker-btn" class="btn btn-sm drift-col-picker-trigger"
+                aria-haspopup="true" aria-expanded="false" aria-controls="drift-col-picker-panel">
+                <span id="drift-col-picker-label">–</span>
+                <svg viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
+                  stroke-linejoin="round" width="10" height="6" aria-hidden="true">
+                  <polyline points="1 1 5 5 9 1" />
+                </svg>
+              </button>
+              <div id="drift-col-picker-panel" class="drift-col-picker-panel" hidden role="dialog"
+                aria-label="Select columns"
+                style="position:absolute;top:calc(100% + 4px);left:0;z-index:300;background:var(--surface-2,#141c2e);border:1px solid var(--border,rgba(255,255,255,.1));border-radius:10px;padding:8px;min-width:180px;max-height:300px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.55);">
+                <div class="drift-col-picker-actions"
+                  style="display:flex;gap:5px;padding-bottom:7px;margin-bottom:7px;border-bottom:1px solid var(--border,rgba(255,255,255,.1));">
+                  <button id="drift-cols-all" type="button" class="btn btn-xs">All</button>
+                  <button id="drift-cols-single" type="button" class="btn btn-xs">Single</button>
+                  <button id="drift-cols-none" type="button" class="btn btn-xs">None</button>
+                </div>
+                <div id="drift-col-picker-list" class="drift-col-picker-list" role="group" aria-label="Numeric columns"
+                  style="display:flex;flex-direction:column;gap:2px;">
+                  <!-- populated by driftPage.ts -->
+                </div>
+              </div>
+            </div>
+            <!-- hidden select kept for backward-compat JS reads via selectedOptions -->
+            <select id="drift-col-select" style="display:none;" multiple aria-hidden="true" tabindex="-1">
               <!-- populated by driftPage.ts -->
             </select>
             <label class="scatter-inline-label" for="drift-window-select">Window</label>
@@ -751,7 +899,7 @@
               <option value="daily" selected>Daily</option>
               <option value="weekly">Weekly</option>
             </select>
-            <label class="scatter-inline-label" for="drift-plot-type">View</label>
+            <label class="scatter-inline-label" for="drift-plot-type">Detail View</label>
             <select id="drift-plot-type" class="modal-select" style="width:130px;" aria-label="Plot style">
               <option value="box">Box plot</option>
               <option value="violin">Violin</option>
@@ -761,26 +909,70 @@
           </div>
           <div class="toolbar-group toolbar-group--sep">
             <span class="toolbar-label">Reference</span>
+            <label class="scatter-inline-label" for="drift-ref-preset">Preset</label>
+            <select id="drift-ref-preset" class="modal-select" style="width:140px;"
+              aria-label="Reference window preset">
+              <option value="30">First 30%</option>
+              <option value="50" selected>First 50%</option>
+              <option value="70">First 70%</option>
+              <option value="custom">Custom</option>
+            </select>
             <label class="scatter-inline-label" for="drift-ref-start">Start</label>
             <input id="drift-ref-start" type="datetime-local" class="modal-input" style="width:168px;" />
             <label class="scatter-inline-label" for="drift-ref-end">End</label>
             <input id="drift-ref-end" type="datetime-local" class="modal-input" style="width:168px;" />
           </div>
+          <div class="toolbar-group toolbar-group--sep">
+            <span class="toolbar-label">Zoom</span>
+            <span class="toolbar-label">Drag in chart to box-zoom</span>
+            <button id="drift-zoom-reset-btn" class="btn btn-sm" type="button" title="Reset chart zoom">Reset</button>
+          </div>
           <div class="toolbar-group toolbar-group--push">
             <button id="drift-compute-btn" class="btn btn-accent btn-sm" type="button">Compute</button>
-            <button id="drift-export-png" class="btn btn-sm" type="button" title="Export timeline as PNG (P)" disabled>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3"/><polyline points="11 5 8 2 5 5"/><line x1="8" y1="2" x2="8" y2="11"/></svg>
-              PNG
-            </button>
-            <button id="drift-export-detail-png" class="btn btn-sm" type="button" title="Export detail panel as PNG" disabled>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3"/><polyline points="11 5 8 2 5 5"/><line x1="8" y1="2" x2="8" y2="11"/></svg>
-              Detail
-            </button>
-            <button id="drift-export-csv" class="btn btn-sm" type="button" title="Export stats as CSV (E)" disabled>CSV</button>
-            <button id="drift-export-json" class="btn btn-sm" type="button" title="Export full response as JSON (J)" disabled>JSON</button>
-            <span class="toolbar-label" id="drift-status">Select a column and reference window, then press
+            <details class="toolbar-disclosure toolbar-disclosure--end">
+              <summary class="toolbar-disclosure__summary">
+                <span class="toolbar-label">Export</span>
+                <span class="toolbar-disclosure__value">Timeline, detail, stats</span>
+              </summary>
+              <div class="toolbar-disclosure__menu">
+                <button id="drift-export-png" class="btn btn-sm" type="button" title="Export timeline as PNG (P)"
+                  disabled>
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                    stroke-linejoin="round" width="12" height="12">
+                    <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3" />
+                    <polyline points="11 5 8 2 5 5" />
+                    <line x1="8" y1="2" x2="8" y2="11" />
+                  </svg>
+                  PNG
+                </button>
+                <button id="drift-export-detail-png" class="btn btn-sm" type="button" title="Export detail panel as PNG"
+                  disabled>
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                    stroke-linejoin="round" width="12" height="12">
+                    <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3" />
+                    <polyline points="11 5 8 2 5 5" />
+                    <line x1="8" y1="2" x2="8" y2="11" />
+                  </svg>
+                  Detail
+                </button>
+                <button id="drift-export-csv" class="btn btn-sm" type="button" title="Export stats as CSV (E)"
+                  disabled>CSV</button>
+                <button id="drift-export-json" class="btn btn-sm" type="button" title="Export full response as JSON (J)"
+                  disabled>JSON</button>
+              </div>
+            </details>
+            <span class="toolbar-label" id="drift-status" role="status" aria-live="polite">Select one or more columns
+              and reference window, then press
               Compute.</span>
           </div>
+        </div>
+        <div class="page-guidance page-guidance--advanced">
+          <span class="page-guidance__item"><strong>Best for</strong> Comparing a stable reference period against later
+            windows to spot baseline shifts and degraded operating ranges.</span>
+          <span class="page-guidance__item"><strong>Needs</strong> One or more numeric columns plus a trustworthy
+            reference window from the beginning of the dataset or a known baseline interval.</span>
+          <span class="page-guidance__item"><strong>Cost</strong> Moderate. Keep the column list short when iterating,
+            then widen it once the reference setup looks right.</span>
         </div>
 
         <main class="main" style="position:relative;">
@@ -788,7 +980,7 @@
             <!-- Left: macro timeline + legend -->
             <div class="drift-timeline-panel">
               <div class="drift-timeline-canvas-wrap">
-                <canvas id="drift-timeline-canvas"></canvas>
+                <div id="drift-timeline-chart" role="img" aria-label="Drift timeline chart"></div>
               </div>
               <div class="drift-legend">
                 <span class="drift-window-badge drift-window-badge--green"></span><span>No drift</span>
@@ -799,12 +991,26 @@
 
             <!-- Right: detail panel -->
             <div class="drift-detail-panel">
-              <div id="drift-detail-header" class="drift-detail-header">Window Detail</div>
-              <canvas id="drift-detail-canvas"></canvas>
-              <div id="drift-detail-stats" class="drift-detail-stats">
+              <div class="drift-detail-header-row">
+                <div id="drift-detail-header" class="drift-detail-header">Window Detail</div>
+                <select id="drift-detail-col-select" class="modal-select" aria-label="Column for detail panel"></select>
+              </div>
+              <div id="drift-detail-chart" role="img" aria-label="Drift detail chart"></div>
+              <div id="drift-detail-stats" class="drift-detail-stats" role="region" aria-live="polite"
+                aria-label="Drift window details">
                 <span style="color:var(--text-muted);font-size:0.72rem;">Select a window to see stats</span>
               </div>
-              <div id="drift-window-list" class="drift-window-list">
+              <div class="drift-list-controls">
+                <span class="toolbar-label">Sort</span>
+                <select id="drift-sort-select" class="modal-select" aria-label="Sort drift windows">
+                  <option value="time-asc" selected>Time: oldest first</option>
+                  <option value="time-desc">Time: newest first</option>
+                  <option value="psi-desc">PSI: highest first</option>
+                  <option value="wasserstein-desc">Wasserstein: highest first</option>
+                  <option value="severity-desc">Severity: red to green</option>
+                </select>
+              </div>
+              <div id="drift-window-list" class="drift-window-list" role="listbox" aria-label="Drift windows list">
                 <!-- populated by driftPage.ts -->
               </div>
             </div>
@@ -843,7 +1049,13 @@
           </button>
         </div>
 
-        <div class="home-grid">
+        <div class="home-section">
+          <h2 class="home-section-title">Recommended workflow</h2>
+          <p class="home-section-copy">Start with the core path, then branch into advanced analyses only after you know
+            which columns and intervals matter.</p>
+        </div>
+
+        <div class="home-grid home-grid--workflow">
           <div class="home-card" data-home-nav="upload">
             <div class="home-card-icon">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
@@ -868,46 +1080,6 @@
             <p class="home-card-desc">WebGPU-accelerated multi-series chart with zoom, custom colors, rolling bands,
               anomaly detection, and adaptive line filters.</p>
           </div>
-          <div class="home-card" data-home-nav="scatter">
-            <div class="home-card-icon">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
-                stroke-linejoin="round">
-                <circle cx="4" cy="11" r="1.2" />
-                <circle cx="8" cy="6" r="1.2" />
-                <circle cx="12" cy="9" r="1.2" />
-                <circle cx="6" cy="13" r="1.2" />
-                <circle cx="11" cy="3" r="1.2" />
-              </svg>
-            </div>
-            <h3 class="home-card-title">Scatter / Density <kbd>⌥3</kbd></h3>
-            <p class="home-card-desc">2D scatter and density plots with color encoding, marginal distributions,
-              Pearson/Spearman stats, and linked time-range brush.</p>
-          </div>
-          <div class="home-card" data-home-nav="scattermatrix">
-            <div class="home-card-icon">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
-                stroke-linejoin="round">
-                <rect x="2" y="2" width="5" height="5" rx="1" />
-                <rect x="9" y="2" width="5" height="5" rx="1" />
-                <rect x="2" y="9" width="5" height="5" rx="1" />
-                <rect x="9" y="9" width="5" height="5" rx="1" />
-              </svg>
-            </div>
-            <h3 class="home-card-title">Scatter Matrix <kbd>⌥4</kbd></h3>
-            <p class="home-card-desc">Pairwise scatter or density grid for all selected columns. Drag headers to
-              reorder. Click a cell to set X/Y axes in the main scatter view.</p>
-          </div>
-          <div class="home-card" data-home-nav="fft">
-            <div class="home-card-icon">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
-                stroke-linejoin="round">
-                <polyline points="1,8 3,4 5,10 7,2 9,12 11,6 13,8 15,8" />
-              </svg>
-            </div>
-            <h3 class="home-card-title">FFT / PSD <kbd>⌥6</kbd></h3>
-            <p class="home-card-desc">Frequency-domain analysis with magnitude or power spectral density. Log scale,
-              multi-trace overlay, zoom, and PNG/SVG/CSV export.</p>
-          </div>
           <div class="home-card" data-home-nav="heatmap">
             <div class="home-card-icon">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
@@ -923,9 +1095,44 @@
                 <rect x="11" y="11" width="4" height="4" rx="0.5" />
               </svg>
             </div>
-            <h3 class="home-card-title">Heatmap <kbd>⌥7</kbd></h3>
-            <p class="home-card-desc">Pearson and Spearman correlation matrix. Click off-diagonal cells to jump to the
-              scatter view for that column pair.</p>
+            <h3 class="home-card-title">Correlations <kbd>⌥7</kbd></h3>
+            <p class="home-card-desc">Screen pairs in the correlation heatmap, then jump into the detailed scatter view
+              for the promising relationships.</p>
+          </div>
+          <div class="home-card" data-home-nav="scatter">
+            <div class="home-card-icon">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                stroke-linejoin="round">
+                <circle cx="4" cy="11" r="1.2" />
+                <circle cx="8" cy="6" r="1.2" />
+                <circle cx="12" cy="9" r="1.2" />
+                <circle cx="6" cy="13" r="1.2" />
+                <circle cx="11" cy="3" r="1.2" />
+              </svg>
+            </div>
+            <h3 class="home-card-title">Scatter / Density <kbd>⌥3</kbd></h3>
+            <p class="home-card-desc">Inspect the selected pair in detail, color by an extra column, and switch to
+              matrix view with <kbd>⌥4</kbd> for pairwise screening inside the same workspace.</p>
+          </div>
+        </div>
+
+        <div class="home-section">
+          <h2 class="home-section-title">Advanced analyses</h2>
+          <p class="home-section-copy">Use these pages after the workflow above has narrowed the signal, time window, or
+            candidate variables.</p>
+        </div>
+
+        <div class="home-grid">
+          <div class="home-card" data-home-nav="fft">
+            <div class="home-card-icon">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                stroke-linejoin="round">
+                <polyline points="1,8 3,4 5,10 7,2 9,12 11,6 13,8 15,8" />
+              </svg>
+            </div>
+            <h3 class="home-card-title">FFT / PSD <kbd>⌥6</kbd></h3>
+            <p class="home-card-desc">Frequency-domain analysis with magnitude or power spectral density. Log scale,
+              multi-trace overlay, zoom, and PNG/SVG/CSV export.</p>
           </div>
           <div class="home-card" data-home-nav="spectrogram">
             <div class="home-card-icon">
@@ -957,6 +1164,21 @@
             <p class="home-card-desc">PCMCI, PCMCI+, FullCI, BivCI, and LPCMCI via Tigramite. Directed graph with edge
               lag and p-value labels. Export to JSON or torch_geometric.</p>
           </div>
+          <div class="home-card" data-home-nav="drift">
+            <div class="home-card-icon">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                stroke-linejoin="round">
+                <rect x="1" y="7" width="3" height="7" rx="0.5" />
+                <rect x="5" y="4" width="3" height="10" rx="0.5" />
+                <rect x="9" y="6" width="3" height="8" rx="0.5" />
+                <rect x="13" y="2" width="2" height="12" rx="0.5" />
+                <polyline points="1,5 5,2 9,4 13,1" stroke-dasharray="2 1.5" />
+              </svg>
+            </div>
+            <h3 class="home-card-title">Drift Analysis <kbd>⌥0</kbd></h3>
+            <p class="home-card-desc">Compare windows and detect distribution or score shifts once the main workflow has
+              identified the slices worth monitoring.</p>
+          </div>
         </div>
 
         <div class="home-shortcuts">
@@ -964,7 +1186,8 @@
           <div class="home-shortcuts-grid">
             <div class="home-shortcut-group">
               <h4 class="home-shortcut-group-title">Navigation</h4>
-              <div class="home-shortcut-row"><kbd>⌥1–9</kbd><span>Switch page</span></div>
+              <div class="home-shortcut-row"><kbd>⌥1–3, 6–0</kbd><span>Switch major pages</span></div>
+              <div class="home-shortcut-row"><kbd>⌥4</kbd><span>Open scatter matrix view</span></div>
               <div class="home-shortcut-row"><kbd>Ctrl+K</kbd><span>Command palette</span></div>
               <div class="home-shortcut-row"><kbd>Ctrl+I</kbd><span>Analysis context panel</span></div>
             </div>
@@ -980,6 +1203,12 @@
               <div class="home-shortcut-row"><kbd>Ctrl+Shift+S</kbd><span>Export session file</span></div>
               <div class="home-shortcut-row"><kbd>Ctrl+O</kbd><span>Import session file</span></div>
             </div>
+            <div class="home-shortcut-group">
+              <h4 class="home-shortcut-group-title">Drift</h4>
+              <div class="home-shortcut-row"><kbd>Enter / D</kbd><span>Run drift compute</span></div>
+              <div class="home-shortcut-row"><kbd>E</kbd><span>Export drift CSV</span></div>
+              <div class="home-shortcut-row"><kbd>J / P</kbd><span>Export JSON / PNG</span></div>
+            </div>
           </div>
         </div>
       </section>
@@ -987,150 +1216,154 @@
       <section class="page page-upload" id="page-upload" data-page-name="upload">
         <div id="upload-panel" class="open">
           <div class="upload-inner">
-
-            <div class="drop-zone" id="drop-zone">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              <span class="dz-title">Drop CSV or Parquet here</span>
-              <span class="dz-sub">or</span>
-              <button class="btn btn-ghost" id="browse-btn" type="button">Browse file</button>
-              <input type="file" id="file-upload" accept=".csv,.parquet" hidden>
-              <span class="dz-filename" id="file-name-display"></span>
+            <div class="upload-source-tabs" role="tablist" aria-label="Upload source">
+              <button class="btn btn-sm active" id="upload-source-file-btn" type="button" role="tab"
+                aria-selected="true" data-upload-source="file">File</button>
+              <button class="btn btn-sm btn-ghost" id="upload-source-database-btn" type="button" role="tab"
+                aria-selected="false" data-upload-source="database">Database</button>
             </div>
 
-            <div class="partial-section">
-              <div class="partial-section-title">Load options</div>
+            <div class="upload-source-panel upload-source-panel--file" data-upload-source-panel="file">
 
-              <label class="toggle-row" id="partial-toggle-row">
-                <span class="switch">
-                  <input type="checkbox" id="partial-enabled">
-                  <span class="switch-slider"></span>
-                </span>
-                <span>
-                  <div class="toggle-label-text">Partial load</div>
-                  <div class="toggle-sub">Limit the rows ingested from the file</div>
-                </span>
-              </label>
-
-              <div class="partial-fields" id="partial-fields">
-                <div class="field-group">
-                  <label for="n-rows-input">Max rows to load</label>
-                  <div class="row">
-                    <input type="number" id="n-rows-input" placeholder="All rows" min="1" step="1000">
-                    <input type="range" id="n-rows-range" min="1000" max="5000000" step="1000" value="1000000">
-                    <span class="range-value" id="n-rows-display">1 000 000</span>
-                  </div>
-                </div>
-                <div class="field-group">
-                  <label for="skip-rows-input">Skip first N rows</label>
-                  <div class="row">
-                    <input type="number" id="skip-rows-input" placeholder="0" min="0" value="0">
-                  </div>
-                </div>
-                <div class="field-group">
-                  <label>Time range (optional)</label>
-                  <div class="row row-time">
-                    <input type="datetime-local" id="time-start-input" aria-label="Start time">
-                    <input type="datetime-local" id="time-end-input" aria-label="End time">
-                  </div>
-                  <div class="time-range-hint" id="time-range-hint">Detected range will appear after preview.</div>
-                </div>
-                <div class="field-group">
-                  <label for="time-column-select">Time column (optional)</label>
-                  <select id="time-column-select" class="modal-select" aria-label="Time column">
-                    <option value="">Auto-detect</option>
-                  </select>
-                  <div class="time-range-hint">Select if multiple time-like columns exist.</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="upload-actions">
-              <button class="btn btn-primary" id="upload-btn">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-                  stroke-linejoin="round">
-                  <path d="M8 11V3M5 6l3-3 3 3" />
-                  <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" />
+              <div class="drop-zone" id="drop-zone" role="button" tabindex="0"
+                aria-label="Drop CSV or Parquet file here or browse for a file">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
-                Upload & Ingest
-              </button>
-              <div class="progress-bar-wrap" id="progress-wrap" style="display:none">
-                <div class="progress-bar" id="progress-bar"></div>
+                <span class="dz-title">Drop CSV or Parquet here</span>
+                <span class="dz-sub">or</span>
+                <button class="btn btn-ghost" id="browse-btn" type="button">Browse file</button>
+                <input type="file" id="file-upload" accept=".csv,.parquet" hidden>
+                <span class="dz-filename" id="file-name-display" role="status" aria-live="polite"></span>
               </div>
-              <div class="upload-status" id="upload-status"></div>
-            </div>
 
-            <div class="db-section">
-              <div class="partial-section-title">Database Connection</div>
+              <div class="partial-section">
+                <div class="partial-section-title">Load options</div>
 
-              <label class="toggle-row" id="db-toggle-row">
-                <span class="switch">
-                  <input type="checkbox" id="db-enabled">
-                  <span class="switch-slider"></span>
-                </span>
-                <span>
-                  <div class="toggle-label-text">Load from database</div>
-                  <div class="toggle-sub">Connect to PostgreSQL or TimescaleDB</div>
-                </span>
-              </label>
+                <label class="toggle-row" id="partial-toggle-row">
+                  <span class="switch">
+                    <input type="checkbox" id="partial-enabled" aria-label="Enable partial load options">
+                    <span class="switch-slider"></span>
+                  </span>
+                  <span>
+                    <div class="toggle-label-text">Partial load</div>
+                    <div class="toggle-sub">Limit the rows ingested from the file</div>
+                  </span>
+                </label>
 
-              <div class="db-fields" id="db-fields">
-                <div class="field-group">
-                  <label for="db-backend-select">Backend</label>
-                  <select id="db-backend-select" class="modal-select" aria-label="Database backend">
-                    <option value="timescale">TimescaleDB</option>
-                    <option value="postgres">PostgreSQL</option>
-                  </select>
-                </div>
-                <div class="field-group">
-                  <label for="db-connection-input">Connection string</label>
-                  <input type="text" id="db-connection-input" class="modal-input"
-                    placeholder="postgres://user:pass@host/db" aria-label="Connection string">
-                </div>
-                <div class="field-group">
-                  <label for="db-schema-input">Schema</label>
-                  <input type="text" id="db-schema-input" class="modal-input" placeholder="public"
-                    aria-label="Schema name" value="public">
-                </div>
-                <div class="field-group" id="db-table-group">
-                  <label for="db-table-select">Table / Hypertable</label>
-                  <div class="row" style="gap:6px">
-                    <select id="db-table-select" class="modal-select" aria-label="Table">
-                      <option value="">— connect first —</option>
+                <div class="partial-fields" id="partial-fields">
+                  <div class="field-group">
+                    <label for="n-rows-input">Max rows to load</label>
+                    <div class="row">
+                      <input type="number" id="n-rows-input" placeholder="All rows" min="1" step="1000">
+                      <input type="range" id="n-rows-range" min="1000" max="5000000" step="1000" value="1000000">
+                      <span class="range-value" id="n-rows-display">1 000 000</span>
+                    </div>
+                  </div>
+                  <div class="field-group">
+                    <label for="skip-rows-input">Skip first N rows</label>
+                    <div class="row">
+                      <input type="number" id="skip-rows-input" placeholder="0" min="0" value="0">
+                    </div>
+                  </div>
+                  <div class="field-group">
+                    <label>Time range (optional)</label>
+                    <div class="row row-time">
+                      <input type="datetime-local" id="time-start-input" aria-label="Start time">
+                      <input type="datetime-local" id="time-end-input" aria-label="End time">
+                    </div>
+                    <div class="time-range-hint" id="time-range-hint">Detected range will appear after preview.</div>
+                  </div>
+                  <div class="field-group">
+                    <label for="time-column-select">Time column (optional)</label>
+                    <select id="time-column-select" class="modal-select" aria-label="Time column">
+                      <option value="">Auto-detect</option>
                     </select>
-                    <input type="text" id="db-table-input" class="modal-input" placeholder="or type name"
-                      aria-label="Table name" style="flex:0 0 140px">
+                    <div class="time-range-hint">Select if multiple time-like columns exist.</div>
                   </div>
                 </div>
-                <div class="field-group">
-                  <label for="db-time-col-input">Time column (optional)</label>
-                  <input type="text" id="db-time-col-input" class="modal-input" placeholder="Auto-detect"
-                    aria-label="Time column">
+              </div>
+
+              <div class="upload-actions">
+                <button class="btn btn-primary" id="upload-btn" type="button" aria-describedby="upload-status">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M8 11V3M5 6l3-3 3 3" />
+                    <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" />
+                  </svg>
+                  Upload & Ingest
+                </button>
+                <div class="progress-bar-wrap" id="progress-wrap" style="display:none" role="progressbar"
+                  aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Upload progress">
+                  <div class="progress-bar" id="progress-bar"></div>
                 </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap">
-                  <button class="btn btn-primary" id="db-connect-btn" type="button">
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-                      stroke-linejoin="round">
-                      <path d="M14 8a6 6 0 01-6 6 6 6 0 01-6-6 6 6 0 016-6 6 6 0 016 6z" />
-                      <path d="M8 5v3l2 1" />
-                    </svg>
-                    Connect
-                  </button>
-                  <button class="btn btn-primary" id="db-load-btn" type="button" disabled>
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-                      stroke-linejoin="round">
-                      <path d="M8 3v7M5 7l3 3 3-3" />
-                      <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" />
-                    </svg>
-                    Load data
-                  </button>
-                  <button class="btn btn-ghost" id="db-disconnect-btn" type="button" hidden>Disconnect</button>
+                <div class="upload-status" id="upload-status" role="status" aria-live="polite"></div>
+              </div>
+            </div>
+
+            <div class="upload-source-panel" data-upload-source-panel="database" hidden>
+              <div class="db-section">
+                <div class="partial-section-title">Database Connection</div>
+
+                <p class="toggle-sub">Connect to PostgreSQL or TimescaleDB and load a table into the active dataset.</p>
+
+                <div class="db-fields" id="db-fields">
+                  <div class="field-group">
+                    <label for="db-backend-select">Backend</label>
+                    <select id="db-backend-select" class="modal-select" aria-label="Database backend">
+                      <option value="timescale">TimescaleDB</option>
+                      <option value="postgres">PostgreSQL</option>
+                    </select>
+                  </div>
+                  <div class="field-group">
+                    <label for="db-connection-input">Connection string</label>
+                    <input type="text" id="db-connection-input" class="modal-input"
+                      placeholder="postgres://user:pass@host/db" aria-label="Connection string">
+                  </div>
+                  <div class="field-group">
+                    <label for="db-schema-input">Schema</label>
+                    <input type="text" id="db-schema-input" class="modal-input" placeholder="public"
+                      aria-label="Schema name" value="public">
+                  </div>
+                  <div class="field-group" id="db-table-group">
+                    <label for="db-table-select">Table / Hypertable</label>
+                    <div class="row" style="gap:6px">
+                      <select id="db-table-select" class="modal-select" aria-label="Table">
+                        <option value="">— connect first —</option>
+                      </select>
+                      <input type="text" id="db-table-input" class="modal-input" placeholder="or type name"
+                        aria-label="Table name" style="flex:0 0 140px">
+                    </div>
+                  </div>
+                  <div class="field-group">
+                    <label for="db-time-col-input">Time column (optional)</label>
+                    <input type="text" id="db-time-col-input" class="modal-input" placeholder="Auto-detect"
+                      aria-label="Time column">
+                  </div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <button class="btn btn-primary" id="db-connect-btn" type="button">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 8a6 6 0 01-6 6 6 6 0 01-6-6 6 6 0 016-6 6 6 0 016 6z" />
+                        <path d="M8 5v3l2 1" />
+                      </svg>
+                      Connect
+                    </button>
+                    <button class="btn btn-primary" id="db-load-btn" type="button" disabled>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M8 3v7M5 7l3 3 3-3" />
+                        <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" />
+                      </svg>
+                      Load data
+                    </button>
+                    <button class="btn btn-ghost" id="db-disconnect-btn" type="button" hidden>Disconnect</button>
+                  </div>
+                  <div class="upload-status" id="db-status"></div>
                 </div>
-                <div class="upload-status" id="db-status"></div>
               </div>
             </div>
           </div>
@@ -1146,10 +1379,14 @@
               </div>
               <input type="text" id="profile-filter-input" class="column-filter-input" placeholder="Filter columns…"
                 aria-label="Filter profile columns">
-              <span class="upload-preview-status" id="upload-preview-status">Select a file to preview columns</span>
+              <span class="upload-preview-status" id="upload-preview-status" role="status" aria-live="polite">Select a
+                file to preview columns</span>
             </div>
 
-            <div class="profile-grid" id="profile-grid" role="table" aria-label="Column profile table">
+            <span id="profile-grid-caption" class="sr-only">Column profile preview with selectable columns for upload
+              ingestion.</span>
+            <div class="profile-grid" id="profile-grid" role="table" aria-label="Column profile table"
+              aria-describedby="profile-grid-caption">
               <div class="profile-grid-header" role="row">
                 <div class="profile-col profile-col-check" role="columnheader">
                   <input id="profile-select-all-checkbox" type="checkbox" aria-label="Select all upload columns">
@@ -1511,7 +1748,7 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=131"></script>
+  <script type="module" src="js/app.js?v=133"></script>
 </body>
 
 </html>

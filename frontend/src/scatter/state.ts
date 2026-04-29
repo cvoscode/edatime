@@ -66,6 +66,7 @@ interface ScatterState {
     colorMin: number | null;
     colorMax: number | null;
     correlationsByColumn: Map<string, { pearson?: number | null; spearman?: number | null; column?: string }>;
+    suggestionThreshold: number;
     lastBinnedText: string;
     lastUpdateMs: number;
     densityTooltipCache: DensityTooltipCache | null;
@@ -107,6 +108,7 @@ export const state: ScatterState = {
     colorMin: null,
     colorMax: null,
     correlationsByColumn: new Map(),
+    suggestionThreshold: 0.7,
     lastBinnedText: '',
     lastUpdateMs: 0,
     densityTooltipCache: null,
@@ -177,22 +179,38 @@ export interface ScatterQueryContext {
     lineFilters: ReturnType<typeof buildAdaptiveLineFiltersForQuery>;
 }
 
-export function isLinkedBrushEnabled(): boolean {
-    return !!(getEl('scatter-link-brush') as HTMLInputElement | null)?.checked
-        || !!(getEl('scatter-matrix-link-range') as HTMLInputElement | null)?.checked;
-}
-
-export function buildScatterQueryContext(): ScatterQueryContext {
-    const start = Number(appState.currentStart);
-    const end = Number(appState.currentEnd);
-    const filters = Object.entries(appState.columnRanges || {})
+const collectColumnRangeFilters = (): Array<{ column: string; from: number; to: number }> => (
+    Object.entries(appState.columnRanges || {})
         .map(([column, range]) => {
             const from = Number(range?.from);
             const to = Number(range?.to);
             if (!column || !Number.isFinite(from) || !Number.isFinite(to)) return null;
             return { column, from, to };
         })
-        .filter((f): f is { column: string; from: number; to: number } => f !== null);
+        .filter((f): f is { column: string; from: number; to: number } => f !== null)
+);
+
+const scopeFiltersToColumns = (
+    filters: Array<{ column: string; from: number; to: number }>,
+    columns: Array<string>,
+): Array<{ column: string; from: number; to: number }> => {
+    const allowed = new Set(columns.filter(Boolean));
+    if (allowed.size === 0) return [];
+    return filters.filter((f) => allowed.has(f.column));
+};
+
+export function isLinkedBrushEnabled(): boolean {
+    return !!(getEl('scatter-link-brush') as HTMLInputElement | null)?.checked
+        || !!(getEl('scatter-matrix-link-range') as HTMLInputElement | null)?.checked;
+}
+
+export function buildScatterQueryContext(
+    columns: { x?: string; y?: string; colorColumn?: string } = {},
+): ScatterQueryContext {
+    const start = Number(appState.currentStart);
+    const end = Number(appState.currentEnd);
+    const allFilters = collectColumnRangeFilters();
+    const filters = scopeFiltersToColumns(allFilters, [columns.x || '', columns.y || '', columns.colorColumn || '']);
 
     const linkedRangeValid = isLinkedBrushEnabled() && Number.isFinite(start) && Number.isFinite(end) && start < end;
     return {
@@ -201,6 +219,14 @@ export function buildScatterQueryContext(): ScatterQueryContext {
         filters,
         lineFilters: buildAdaptiveLineFiltersForQuery(),
     };
+}
+
+export function getActiveScatterFilterColumns(
+    columns: { x?: string; y?: string; colorColumn?: string } = {},
+): string[] {
+    const allFilters = collectColumnRangeFilters();
+    const scoped = scopeFiltersToColumns(allFilters, [columns.x || '', columns.y || '', columns.colorColumn || '']);
+    return scoped.map((f) => f.column);
 }
 
 /* ── Render-signature helpers ─────────────────────────── */

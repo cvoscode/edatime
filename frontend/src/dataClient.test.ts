@@ -159,6 +159,21 @@ describe('dataClient fetch helpers', () => {
             expect(result.correlations[0].pearson).toBe(0.95);
         });
 
+        it('passes the configured threshold in the query string', async () => {
+            const { fetchScatterCorrelations } = await import('./dataClient');
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({
+                    correlations: [],
+                    columns: ['col_a'],
+                }),
+            });
+
+            await fetchScatterCorrelations('col_a', 0.75);
+            expect(mockFetch).toHaveBeenCalledWith('/api/scatter/correlations?threshold=0.75&base=col_a', { cache: 'no-store' });
+        });
+
         it('throws if correlations array is missing', async () => {
             const { fetchScatterCorrelations } = await import('./dataClient');
 

@@ -10,6 +10,7 @@ import {
     getEl,
     fmt,
     showError,
+    normalizeScatterSuggestionThreshold,
 } from './helpers.js';
 
 /** Whether we've detected WebGPU is unavailable and should use fallback. */
@@ -25,6 +26,7 @@ import {
     currentControls,
     isLinkedBrushEnabled,
     buildScatterQueryContext,
+    getActiveScatterFilterColumns,
     buildRenderSignature,
     applyScatterStateFromCache,
     disposeScatterChart,
@@ -61,9 +63,25 @@ import type { DatasetMetadata } from '../types.js';
 function syncScatterEmptyState(message?: string): void {
     const empty = getEl('scatter-empty-state');
     if (!empty) return;
+    const titleEl = getEl('scatter-empty-title');
+    const messageEl = getEl('scatter-empty-message');
+    const resetBtn = getEl('scatter-reset-range-btn') as HTMLButtonElement | null;
+    const clearBtn = getEl('scatter-clear-filters-btn') as HTMLButtonElement | null;
     const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
     const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
     const hasAxes = !!xSelect?.value && !!ySelect?.value;
+    syncScatterFilterBadge();
+
+    const minMs = Number((appState.metadata as any)?.time_range?.min);
+    const maxMs = Number((appState.metadata as any)?.time_range?.max);
+    const start = Number(appState.currentStart);
+    const end = Number(appState.currentEnd);
+    const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
+    const linkedRangeOutside = hasMetadataBounds
+        && isLinkedBrushEnabled()
+        && Number.isFinite(start)
+        && Number.isFinite(end)
+        && (end <= minMs || start >= maxMs);
 
     // Determine the reason for the empty state so tests / users can distinguish
     let reason: string;
@@ -72,21 +90,70 @@ function syncScatterEmptyState(message?: string): void {
     } else if (!hasAxes) {
         reason = 'no-columns-selected';
     } else if (state.totalPoints === 0) {
-        reason = 'no-data-after-filters';
+        reason = linkedRangeOutside ? 'linked-range-outside-dataset' : 'no-data-after-filters';
     } else {
         reason = '';
     }
+
+    const controls = currentControls();
+    const activeColumns = getActiveScatterFilterColumns({
+        x: controls.x,
+        y: controls.y,
+        colorColumn: controls.selectedColorColumn,
+    });
+    const scopedFilterCount = new Set(activeColumns).size;
+    const adaptiveFilterCount = Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters.length : 0;
 
     const text = message
         || (_gpuUnavailable && !state.chart
             ? 'WebGPU is not available. Scatter rendering requires a WebGPU-capable browser (Chrome 113+, Edge 113+, Safari 18+).'
             : !hasAxes
                 ? 'Choose X and Y numeric columns to render the scatter plot.'
-                : 'No points match the current filters or linked time range.');
+                : linkedRangeOutside
+                    ? 'Linked time range is outside the current dataset. Reset range to recover points.'
+                    : (scopedFilterCount > 0 || adaptiveFilterCount > 0)
+                        ? `No points match active filters (${scopedFilterCount} column, ${adaptiveFilterCount} adaptive).`
+                        : 'No points match the current query.');
 
-    empty.textContent = text;
+    if (titleEl) {
+        titleEl.textContent = _gpuUnavailable && !state.chart
+            ? 'WebGPU unavailable'
+            : !hasAxes
+                ? 'Choose scatter axes'
+                : linkedRangeOutside
+                    ? 'Linked range outside dataset'
+                    : 'No scatter points found';
+    }
+    if (messageEl) messageEl.textContent = text;
+    if (resetBtn) resetBtn.hidden = reason !== 'linked-range-outside-dataset';
+    if (clearBtn) clearBtn.hidden = reason !== 'no-data-after-filters';
+
+    if (!titleEl || !messageEl) {
+        empty.textContent = text;
+    }
     empty.setAttribute('data-empty-reason', reason);
     empty.hidden = hasAxes && state.totalPoints > 0 && !(_gpuUnavailable && !state.chart);
+}
+
+function syncScatterFilterBadge(): void {
+    const badge = getEl('scatter-active-filter-badge');
+    if (!badge) return;
+    const controls = currentControls();
+    const cols = getActiveScatterFilterColumns({
+        x: controls.x,
+        y: controls.y,
+        colorColumn: controls.selectedColorColumn,
+    });
+    const unique = Array.from(new Set(cols));
+    if (unique.length === 0) {
+        badge.hidden = true;
+        badge.textContent = '';
+        badge.removeAttribute('title');
+        return;
+    }
+    badge.hidden = false;
+    badge.textContent = `${unique.length} filter${unique.length === 1 ? '' : 's'} active`;
+    badge.setAttribute('title', `Active scatter filters: ${unique.join(', ')}`);
 }
 
 /** Probe WebGPU once; cache result. */
@@ -142,16 +209,24 @@ function refreshActiveScatterView(): Promise<void> {
 
 function renderSuggestions(suggestions: Array<{ column: string; pearson?: number | null; spearman?: number | null }>): void {
     const box = getEl('scatter-suggestions');
+    const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
     const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
+    const contextEl = getEl('scatter-active-pair-label');
     if (!box) return;
 
     state.lastSuggestions = Array.isArray(suggestions) ? suggestions.slice() : [];
     box.innerHTML = '';
 
+    if (contextEl) {
+        const x = xSelect?.value || 'X';
+        const y = ySelect?.value || 'Y';
+        contextEl.textContent = `Inspecting ${x} vs ${y}`;
+    }
+
     if (!Array.isArray(suggestions) || suggestions.length === 0) {
         const empty = document.createElement('span');
         empty.className = 'scatter-suggestion-empty';
-        empty.textContent = 'No strong correlations above threshold.';
+        empty.textContent = `No suggestions above |corr| ≥ ${state.suggestionThreshold.toFixed(2)}.`;
         box.appendChild(empty);
         return;
     }
@@ -181,7 +256,7 @@ async function refreshCorrelationsAndSuggestions(): Promise<void> {
     const colorSelect = getEl('scatter-color-column') as HTMLSelectElement | null;
     if (!xSelect || !ySelect) return;
 
-    const response = await fetchScatterCorrelations(xSelect.value || null, 0.7);
+    const response = await fetchScatterCorrelations(xSelect.value || null, state.suggestionThreshold);
 
     const numeric = Array.isArray(response.numeric_columns) ? response.numeric_columns : [];
     if (numeric.length < 2) throw new Error('Need at least two numeric columns for scatter plotting.');
@@ -220,6 +295,16 @@ async function refreshCorrelationsAndSuggestions(): Promise<void> {
     updateColorbarUI();
 }
 
+function openScatterPairInCausal(): void {
+    const xCol = (getEl('scatter-x-col') as HTMLSelectElement | null)?.value;
+    const yCol = (getEl('scatter-y-col') as HTMLSelectElement | null)?.value;
+    if (!xCol || !yCol) return;
+    window.dispatchEvent(new CustomEvent('edatime:causal-preselect', {
+        detail: { columns: [xCol, yCol] },
+    }));
+    document.querySelector<HTMLElement>('.sidebar .nav-item[data-page="causal"]')?.click?.();
+}
+
 /* ── Main render pipeline ─────────────────────────────── */
 
 let _scatterAbort: AbortController | null = null;
@@ -255,7 +340,9 @@ async function renderScatter(): Promise<void> {
         _scatterAbort = new AbortController();
         const response = await fetchScatterPoints(
             xSelect.value, ySelect.value, 1_000_000,
-            colorColumn, buildScatterQueryContext(), _scatterAbort.signal,
+            colorColumn,
+            buildScatterQueryContext({ x: xSelect.value, y: ySelect.value, colorColumn: colorColumn || undefined }),
+            _scatterAbort.signal,
         );
         _scatterAbort = null;
 
@@ -363,6 +450,10 @@ function bindControls(): void {
     const colorColumnSelect = getEl('scatter-color-column') as HTMLSelectElement | null;
     const colorScaleSelect = getEl('scatter-color-scale') as HTMLSelectElement | null;
     const linkBrushInput = getEl('scatter-link-brush') as HTMLInputElement | null;
+    const suggestionThresholdInput = getEl('scatter-suggestion-threshold') as HTMLInputElement | null;
+    const suggestionThresholdValue = getEl('scatter-suggestion-threshold-value');
+    const suggestionThresholdLabel = getEl('scatter-suggestions-label');
+    const openCausalBtn = getEl('scatter-open-causal-btn') as HTMLButtonElement | null;
 
     if (!xSelect || !ySelect || !binSizeInput || !binSizeValue || !colormapSelect || !normalizationSelect || !renderModeSelect) return;
 
@@ -370,6 +461,12 @@ function bindControls(): void {
     (window as any).__edatime.exportScatterData = exportScatterData;
 
     binSizeValue.textContent = binSizeInput.value;
+    if (suggestionThresholdInput) {
+        state.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
+        suggestionThresholdInput.value = state.suggestionThreshold.toFixed(2);
+    }
+    if (suggestionThresholdValue) suggestionThresholdValue.textContent = state.suggestionThreshold.toFixed(2);
+    if (suggestionThresholdLabel) suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${state.suggestionThreshold.toFixed(2)})`;
     syncModeUI();
     void setScatterView(state.activeView, { render: false });
 
@@ -388,8 +485,35 @@ function bindControls(): void {
     diagonalModeSelect?.addEventListener('change', () => { void refreshActiveScatterView(); });
     colorColumnSelect?.addEventListener('change', () => { void renderScatter(); });
     colorScaleSelect?.addEventListener('change', () => { rerender(); updateColorbarUI(); });
+    suggestionThresholdInput?.addEventListener('input', () => {
+        state.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
+        suggestionThresholdInput.value = state.suggestionThreshold.toFixed(2);
+        if (suggestionThresholdValue) suggestionThresholdValue.textContent = state.suggestionThreshold.toFixed(2);
+        if (suggestionThresholdLabel) {
+            suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${state.suggestionThreshold.toFixed(2)})`;
+        }
+    });
+    suggestionThresholdInput?.addEventListener('change', async () => {
+        try {
+            await refreshCorrelationsAndSuggestions();
+        } catch (err: any) {
+            handleErr(err);
+        }
+    });
     linkBrushInput?.addEventListener('change', async () => {
         try { await renderScatter(); } catch (err: any) { handleErr(err); }
+    });
+    openCausalBtn?.addEventListener('click', openScatterPairInCausal);
+
+    getEl('scatter-reset-range-btn')?.addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('edatime:request-chart-range-reset', {
+            detail: { source: 'scatter-empty-state' },
+        }));
+    });
+    getEl('scatter-clear-filters-btn')?.addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('edatime:clear-all-filters', {
+            detail: { source: 'scatter-empty-state' },
+        }));
     });
 
     // Matrix mode toggle buttons (replaces <select>)
@@ -430,6 +554,7 @@ function bindControls(): void {
         const page = getEl('page-scatter');
         if (page?.hidden) return;
         try {
+            syncScatterFilterBadge();
             if (!requireLinkedBrush || isLinkedBrushEnabled()) renderScatterDebounced();
         } catch (err: any) { handleErr(err); }
     };
@@ -483,6 +608,7 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
     }
 
     syncScatterEmptyState();
+    syncScatterFilterBadge();
 
     if (!state.initialized) { bindControls(); state.initialized = true; }
     if (state.pageInitialized) return;

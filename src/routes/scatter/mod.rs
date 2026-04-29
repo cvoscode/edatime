@@ -64,10 +64,8 @@ fn default_scatter_limit() -> usize {
     1_000_000
 }
 
-fn clamp_limit(limit: usize) -> usize {
-    use crate::config::ValidationSettings;
-    let max = ValidationSettings::default().max_scatter_limit;
-    limit.clamp(1, max)
+fn clamp_limit(limit: usize, validation: &crate::config::ValidationSettings) -> usize {
+    limit.clamp(1, validation.max_scatter_limit)
 }
 
 fn numeric_columns(df: &DataFrame) -> Vec<String> {
@@ -151,6 +149,7 @@ fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option<f64
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::ValidationSettings;
     use polars::prelude::{DataFrame, DataType, Series, TimeUnit};
 
     #[test]
@@ -164,6 +163,18 @@ mod tests {
 
         let cols = numeric_columns(&df);
         assert_eq!(cols, vec!["value".to_string(), "other".to_string()]);
+    }
+
+    #[test]
+    fn clamp_limit_respects_runtime_validation_setting() {
+        let validation = ValidationSettings {
+            max_scatter_limit: 123,
+            ..ValidationSettings::default()
+        };
+
+        assert_eq!(clamp_limit(0, &validation), 1);
+        assert_eq!(clamp_limit(120, &validation), 120);
+        assert_eq!(clamp_limit(1000, &validation), 123);
     }
 }
 

@@ -348,7 +348,11 @@ export async function exportScatterParquet(): Promise<boolean> {
     const controls = currentControls();
     if (!controls.x || !controls.y) return false;
     const payload: any = { x: String(controls.x), y: String(controls.y), color: controls.selectedColorColumn || undefined, limit: 1_000_000 };
-    const context = (await import('./state.js')).buildScatterQueryContext();
+    const context = (await import('./state.js')).buildScatterQueryContext({
+        x: controls.x,
+        y: controls.y,
+        colorColumn: controls.selectedColorColumn,
+    });
     if (Number.isFinite(context.start) && Number.isFinite(context.end)) { payload.start = context.start; payload.end = context.end; }
     if (Array.isArray(context.filters) && context.filters.length > 0) payload.filters = JSON.stringify(context.filters);
     if (Array.isArray(context.lineFilters) && context.lineFilters.length > 0) payload.line_filters = JSON.stringify(context.lineFilters);

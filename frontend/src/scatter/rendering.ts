@@ -278,26 +278,8 @@ export function updateColorbarUI(): void {
 export function setCorrelationOverlayText(pearson?: number | null, spearman?: number | null): void {
     const el = getEl('scatter-correlation-overlay');
     if (!el) return;
-    const hasP = Number.isFinite(pearson);
-    const hasS = Number.isFinite(spearman);
-    if (!hasP && !hasS) { el.hidden = true; return; }
-    el.hidden = false;
-    el.innerHTML = `<div>Pearson: <strong>${escapeHtml(hasP ? pearson!.toFixed(3) : '—')}</strong> / Spearman: <strong>${escapeHtml(hasS ? spearman!.toFixed(3) : '—')}</strong>`
-        + ` <button class="scatter-causal-link btn btn-ghost btn-sm" title="Run causal analysis on X/Y columns" style="margin-left:8px;font-size:0.65rem;padding:1px 6px;">⇒ Causal</button></div>`;
-
-    // Wire click → navigate to causal with scatter X/Y columns
-    const btn = el.querySelector('.scatter-causal-link');
-    btn?.addEventListener('click', () => {
-        const xCol = (document.getElementById('scatter-x-col') as HTMLSelectElement | null)?.value;
-        const yCol = (document.getElementById('scatter-y-col') as HTMLSelectElement | null)?.value;
-        if (xCol && yCol) {
-            window.dispatchEvent(new CustomEvent('edatime:causal-preselect', {
-                detail: { columns: [xCol, yCol] },
-            }));
-            // Navigate to causal page via sidebar click
-            (document.querySelector('.sidebar .nav-item[data-page="causal"]') as HTMLElement)?.click?.();
-        }
-    });
+    el.hidden = true;
+    el.textContent = '';
 }
 
 /* ── Marginal histograms ──────────────────────────────── */
@@ -449,10 +431,19 @@ export function updateBinnedReadout(): void {
 }
 
 export function updateCorrelationStats(): void {
+    const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
     const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
+    const pairEl = getEl('scatter-current-pair');
+    const openCausalBtn = getEl('scatter-open-causal-btn') as HTMLButtonElement | null;
     const corr = state.correlationsByColumn.get(ySelect?.value || '');
     const pearson = Number.isFinite(corr?.pearson) ? corr!.pearson!.toFixed(3) : '—';
     const spearman = Number.isFinite(corr?.spearman) ? corr!.spearman!.toFixed(3) : '—';
+    if (pairEl) {
+        const x = xSelect?.value || 'X';
+        const y = ySelect?.value || 'Y';
+        pairEl.textContent = `Pair: ${x} vs ${y}`;
+    }
+    if (openCausalBtn) openCausalBtn.disabled = !(xSelect?.value && ySelect?.value);
     setStats({ pearson, spearman });
     setCorrelationOverlayText(corr?.pearson, corr?.spearman);
 }

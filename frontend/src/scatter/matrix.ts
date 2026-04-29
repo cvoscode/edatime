@@ -300,7 +300,11 @@ export async function renderScatterOverview(
 
     const controls = currentControls();
     setPanelStatus('scatter-matrix-status', 'Refreshing matrix for the current filters and linked time window...');
-    const context = buildScatterQueryContext();
+    const context = buildScatterQueryContext({
+        x: controls.x,
+        y: controls.y,
+        colorColumn: controls.selectedColorColumn,
+    });
     const requestId = ++state.overviewRequestId;
 
     const pairs: [string, string][] = [];
@@ -413,7 +417,12 @@ export async function renderMatrixFftPanel(): Promise<void> {
     const chartsContainer = getEl('scatter-matrix-fft-charts');
     if (!panel || !chartsContainer) return;
 
-    const context = buildScatterQueryContext();
+    const controls = currentControls();
+    const context = buildScatterQueryContext({
+        x: controls.x,
+        y: controls.y,
+        colorColumn: controls.selectedColorColumn,
+    });
     if (!context.start || !context.end) {
         (panel as HTMLElement).hidden = true;
         return;

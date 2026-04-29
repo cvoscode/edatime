@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { appState } from '../state.js';
-import { buildScatterQueryContext } from './state.js';
+import { buildScatterQueryContext, getActiveScatterFilterColumns } from './state.js';
 
 describe('scatter query context builders', () => {
     beforeEach(() => {
@@ -28,5 +28,30 @@ describe('scatter query context builders', () => {
         const result = buildScatterQueryContext();
         expect(result.start).toBe(100);
         expect(result.end).toBe(200);
+    });
+
+    it('scopes column-range filters to active scatter columns', () => {
+        appState.columnRanges = {
+            x: { from: 1, to: 9 },
+            y: { from: 2, to: 8 },
+            unrelated: { from: 5, to: 6 },
+        } as any;
+
+        const result = buildScatterQueryContext({ x: 'x', y: 'y', colorColumn: '' });
+        expect(result.filters).toEqual([
+            { column: 'x', from: 1, to: 9 },
+            { column: 'y', from: 2, to: 8 },
+        ]);
+    });
+
+    it('reports only active scoped filter columns for badge summaries', () => {
+        appState.columnRanges = {
+            x: { from: 1, to: 9 },
+            color_bucket: { from: 0, to: 1 },
+            ignored: { from: 5, to: 6 },
+        } as any;
+
+        const cols = getActiveScatterFilterColumns({ x: 'x', y: 'y', colorColumn: 'color_bucket' });
+        expect(cols.sort()).toEqual(['color_bucket', 'x']);
     });
 });

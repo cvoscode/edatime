@@ -298,10 +298,8 @@ pub fn epps_singleton_test(a: &[f64], b: &[f64]) -> (f64, f64) {
     };
 
     let t_max = (5.0 / pooled_std).min(50.0);
-    let n_t = 64usize;
-    let dt = t_max / (n_t as f64);
 
-    let compute_stat = |x: &[f64], y: &[f64]| -> f64 {
+    let compute_stat = |x: &[f64], y: &[f64], n_t: usize, dt: f64| -> f64 {
         let n = x.len() as f64;
         let m = y.len() as f64;
         let mut acc = 0.0f64;
@@ -327,11 +325,19 @@ pub fn epps_singleton_test(a: &[f64], b: &[f64]) -> (f64, f64) {
         stat
     };
 
-    let observed = compute_stat(a, b);
-
-    // Permutation test for p-value estimation (bounded permutations)
-    let max_perm = 200usize;
+    // Permutation test for p-value estimation.
+    // Adaptively reduce permutation count and t-grid size for large arrays so
+    // the test stays fast even when called inside a per-window loop.  For
+    // combined sizes > 50 we use n_t=16 and max_perm=20; the p-value
+    // estimate is still a useful order-of-magnitude signal.
     let _total = combined.len();
+    let (n_t, max_perm) = if _total > 50 {
+        (16usize, 20usize)
+    } else {
+        (64usize, 200usize)
+    };
+    let dt = t_max / (n_t as f64);
+    let observed = compute_stat(a, b, n_t, dt);
     let mut rng = rand::thread_rng();
     let mut pooled = combined.clone();
     let mut count_ge = 0usize;
@@ -339,7 +345,7 @@ pub fn epps_singleton_test(a: &[f64], b: &[f64]) -> (f64, f64) {
         pooled.shuffle(&mut rng);
         let x_perm = &pooled[..a.len()];
         let y_perm = &pooled[a.len()..];
-        let stat = compute_stat(x_perm, y_perm);
+        let stat = compute_stat(x_perm, y_perm, n_t, dt);
         if stat >= observed {
             count_ge += 1;
         }

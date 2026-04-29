@@ -202,8 +202,10 @@ pub async fn get_spectrogram(
 /// `GET /api/analytics/spectral-filter` — apply frequency-domain filter, return filtered signal
 #[derive(Debug, Deserialize)]
 pub struct SpectralFilterQuery {
-    pub start: DateTime<Utc>,
-    pub end: DateTime<Utc>,
+    /// Start of the time range. Defaults to the dataset's earliest timestamp when omitted.
+    pub start: Option<DateTime<Utc>>,
+    /// End of the time range. Defaults to the dataset's latest timestamp when omitted.
+    pub end: Option<DateTime<Utc>>,
     pub column: String,
     /// Filter type: lowpass | highpass | bandpass | bandstop
     pub filter_type: String,
@@ -223,8 +225,37 @@ pub async fn get_spectral_filter(
     Query(params): Query<SpectralFilterQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let col_opt = Some(params.column.clone());
+
+    // Resolve optional start/end from dataset time range when not provided.
+    let (start, end) = match (params.start, params.end) {
+        (Some(s), Some(e)) => (s, e),
+        (opt_s, opt_e) => {
+            let df_snap = state.dataset_snapshot().await;
+            let multiplier = crate::query::unit_multiplier_for_ts(&df_snap)?;
+            let ts_col = df_snap
+                .column("ts")
+                .map_err(|e| AppError::bad_request(format!("Missing ts column: {e}")))?
+                .as_materialized_series();
+            let cast = ts_col
+                .cast(&polars::prelude::DataType::Int64)
+                .map_err(|e| AppError::internal(format!("ts cast failed: {e}")))?;
+            let ca = cast
+                .i64()
+                .map_err(|e| AppError::internal(format!("ts i64 failed: {e}")))?;
+            let min_native = ca.into_iter().flatten().min().unwrap_or(0);
+            let max_native = ca.into_iter().flatten().max().unwrap_or(0);
+            let min_ms = min_native / multiplier;
+            let max_ms = max_native / multiplier;
+            let dataset_start = DateTime::from_timestamp_millis(min_ms)
+                .unwrap_or(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
+            let dataset_end = DateTime::from_timestamp_millis(max_ms)
+                .unwrap_or(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
+            (opt_s.unwrap_or(dataset_start), opt_e.unwrap_or(dataset_end))
+        }
+    };
+
     let (value_cols, filtered) =
-        filter_preamble(&state, params.start, params.end, &col_opt).await?;
+        filter_preamble(&state, start, end, &col_opt).await?;
     let col = &value_cols[0];
 
     let max_pts = params.max_points.unwrap_or(16384).clamp(64, 65536);

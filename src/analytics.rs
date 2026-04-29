@@ -1257,39 +1257,37 @@ pub fn compute_psi(reference: &[f64], current: &[f64], n_bins: usize) -> f64 {
         })
         .collect();
 
-    let ref_n = reference.len() as f64;
+    let ref_props = psi_ref_props_from_sorted(&ref_sorted, &edges);
+    compute_psi_with_ref_props(&ref_props, current, &edges)
+}
+
+/// Pre-compute reference bin proportions (one-time cost) for use in repeated PSI calls.
+/// `ref_sorted` must be sorted. Returns one proportion per bin in `edges`.
+pub fn psi_ref_props_from_sorted(ref_sorted: &[f64], edges: &[f64]) -> Vec<f64> {
+    let n_bins = edges.len().saturating_sub(1);
+    if n_bins == 0 || ref_sorted.is_empty() {
+        return vec![];
+    }
+    let hist = histogram_from_edges(ref_sorted, edges);
+    let ref_n = ref_sorted.len() as f64;
+    let eps = 1e-10_f64;
+    hist.iter().map(|&c| (c as f64 / ref_n).max(eps)).collect()
+}
+
+/// PSI using pre-computed reference proportions — O(M × n_bins) only (M = current size).
+/// Call `psi_ref_props_from_sorted` once per reference, then reuse for every window.
+pub fn compute_psi_with_ref_props(ref_props: &[f64], current: &[f64], edges: &[f64]) -> f64 {
+    let n_bins = ref_props.len();
+    if n_bins == 0 || current.is_empty() || edges.len() < 2 {
+        return 0.0;
+    }
     let curr_n = current.len() as f64;
     let eps = 1e-10_f64;
+    let hist = histogram_from_edges(current, edges);
     let mut psi = 0.0_f64;
-
     for b in 0..n_bins {
-        let lo = edges[b];
-        let hi = edges[b + 1];
-        let last_bin = b == n_bins - 1;
-
-        let ref_cnt = reference
-            .iter()
-            .filter(|&&v| {
-                if last_bin {
-                    v >= lo && v <= hi
-                } else {
-                    v >= lo && v < hi
-                }
-            })
-            .count();
-        let curr_cnt = current
-            .iter()
-            .filter(|&&v| {
-                if last_bin {
-                    v >= lo && v <= hi
-                } else {
-                    v >= lo && v < hi
-                }
-            })
-            .count();
-
-        let ref_prop = (ref_cnt as f64 / ref_n).max(eps);
-        let curr_prop = (curr_cnt as f64 / curr_n).max(eps);
+        let ref_prop = ref_props[b];
+        let curr_prop = (hist[b] as f64 / curr_n).max(eps);
         psi += (curr_prop - ref_prop) * (curr_prop / ref_prop).ln();
     }
     psi.max(0.0)
@@ -1411,6 +1409,15 @@ pub struct DriftMetadata {
     pub num_windows: usize,
     /// Number of samples in reference window.
     pub reference_samples: usize,
+    /// True when quantile-based histogram edges collapsed; equal-width fallback was used.
+    pub bin_count_warning: bool,
+    /// Effective histogram bins used (may be less than requested when data has many duplicates).
+    pub effective_bins: usize,
+    /// True when reference_samples / avg monitoring window samples > 10×.
+    /// PSI values may be inflated due to sample-size mismatch.
+    pub psi_sample_ratio_warning: bool,
+    /// Average sample count across monitoring windows (used with psi_sample_ratio_warning).
+    pub avg_window_samples: f64,
 }
 
 /// Full response for a temporal drift analysis request.
@@ -1538,9 +1545,9 @@ pub fn compute_temporal_drift(
         ));
     }
 
-    // Sorted reference for KS/Wasserstein
-    let mut ref_sorted = ref_vals.clone();
-    ref_sorted.sort_by(|a, b| a.total_cmp(b));
+    // Sort in-place — avoids cloning the reference array into a separate sorted copy (issue #7).
+    ref_vals.sort_by(|a, b| a.total_cmp(b));
+    let ref_sorted = ref_vals; // alias; already sorted
 
     // Build histogram bin edges from reference distribution (decile quantiles)
     let effective_bins = n_bins.clamp(4, 50);
@@ -1559,12 +1566,32 @@ pub fn compute_temporal_drift(
             hist_edges.push(e);
         }
     }
+    // When quantile-based edges collapse (many duplicate values), fall back to equal-width
+    // binning to avoid degenerate 1-bin histograms that make PSI meaningless (issue #5).
+    let bin_count_warning: bool;
     if hist_edges.len() < 2 {
-        // Constant reference column — use min/max fallback
-        let lo = ref_sorted[0] - 1.0;
-        let hi = ref_sorted[ref_sorted.len() - 1] + 1.0;
-        hist_edges = vec![lo, hi];
+        // Constant / near-constant column — spread bins evenly over [min, max].
+        let lo = ref_sorted[0];
+        let hi = *ref_sorted.last().unwrap();
+        let range = (hi - lo).max(f64::EPSILON);
+        let width = range / effective_bins as f64;
+        hist_edges = (0..=effective_bins)
+            .map(|i| lo + width * i as f64)
+            .collect();
+        bin_count_warning = true;
+    } else if hist_edges.len() < effective_bins / 2 + 2 {
+        // Fewer than half the requested bins survived deduplication — equal-width fallback.
+        let lo = *hist_edges.first().unwrap();
+        let hi = *hist_edges.last().unwrap();
+        let width = (hi - lo).max(f64::EPSILON) / effective_bins as f64;
+        hist_edges = (0..=effective_bins)
+            .map(|i| lo + width * i as f64)
+            .collect();
+        bin_count_warning = true;
+    } else {
+        bin_count_warning = false;
     }
+    let effective_bin_count = hist_edges.len().saturating_sub(1);
 
     let ref_label = format!(
         "Ref ({} – {})",
@@ -1572,13 +1599,27 @@ pub fn compute_temporal_drift(
         ms_to_date_label(ref_end_ms)
     );
     let reference = build_distribution_stats(
-        &ref_vals,
+        &ref_sorted,
         ref_total,
         ref_start_ms,
         ref_end_ms,
         ref_label,
         &hist_edges,
     );
+
+    // If the caller passes <= 0.0, derive a practical default based on
+    // the reference spread to avoid classifying any non-zero Wasserstein
+    // distance as critical drift.
+    let effective_wasserstein_threshold = if wasserstein_threshold > 0.0 {
+        wasserstein_threshold
+    } else {
+        let candidate = reference.std * 0.1;
+        if candidate.is_finite() && candidate > 0.0 {
+            candidate
+        } else {
+            1e-9
+        }
+    };
 
     // ── Build current windows ──
     let first_curr_bucket = ((curr_start_ms / window_ms as f64).floor() as i64) * window_ms as i64;
@@ -1602,6 +1643,29 @@ pub fn compute_temporal_drift(
         }
     }
 
+    // Subsample the reference once (outside the window loop) for use in the
+    // Epps-Singleton permutation test.  The ES test only needs an order-of-
+    // magnitude sense of the reference distribution; subsampling to ~400
+    // points keeps the permutation loop fast while preserving distributional
+    // shape.  KS and Wasserstein continue to use the full reference.
+    const ES_REF_CAP: usize = 400;
+    let es_ref_sample: Vec<f64> = if ref_sorted.len() > ES_REF_CAP {
+        let step = (ref_sorted.len() + ES_REF_CAP - 1) / ES_REF_CAP;
+        ref_sorted.iter().step_by(step).copied().collect()
+    } else {
+        ref_sorted.clone()
+    };
+
+    // Pre-compute PSI reference bin proportions once — avoids O(N log N) sort
+    // and O(N × n_bins) scan being repeated for every window.
+    let psi_ref_props = psi_ref_props_from_sorted(&ref_sorted, &hist_edges);
+
+    // Pre-sort each bucket in-place once so the window loop skips the per-window
+    // clone + sort that previously cost O(m log m) per bucket (issue #1).
+    for bv in &mut bucket_vals {
+        bv.sort_by(|a, b| a.total_cmp(b));
+    }
+
     let mut windows: Vec<DriftWindowStats> = Vec::with_capacity(n_buckets);
     for bi in 0..n_buckets {
         let bucket_start_ms = first_curr_bucket as f64 + bi as f64 * window_ms as f64;
@@ -1612,19 +1676,18 @@ pub fn compute_temporal_drift(
         let vals = &bucket_vals[bi];
         let low_sample_warning = vals.len() < 5;
 
+        // vals is already sorted (pre-sorted before the window loop)
         let (ks_stat, ks_pvalue, es_stat, es_pvalue, wasserstein, psi) = if vals.len() >= 5 {
-            let mut bucket_sorted = vals.clone();
-            bucket_sorted.sort_by(|a, b| a.total_cmp(b));
-            let (ks_s, ks_p) = ks_test_2sample(&ref_sorted, &bucket_sorted);
-            let (es_s, es_p) = crate::stats::epps_singleton_test(&ref_sorted, &bucket_sorted);
-            let w = wasserstein_distance_1d(&ref_sorted, &bucket_sorted);
-            let p = compute_psi(&ref_sorted, vals, effective_bins);
+            let (ks_s, ks_p) = ks_test_2sample(&ref_sorted, vals);
+            let (es_s, es_p) = crate::stats::epps_singleton_test(&es_ref_sample, vals);
+            let w = wasserstein_distance_1d(&ref_sorted, vals);
+            let p = compute_psi_with_ref_props(&psi_ref_props, vals, &hist_edges);
             (ks_s, ks_p, es_s, es_p, w, p)
         } else {
             (0.0, 1.0, 0.0, 1.0, 0.0, 0.0)
         };
 
-        let drift_level = if wasserstein > wasserstein_threshold || psi >= psi_major {
+        let drift_level = if wasserstein > effective_wasserstein_threshold || psi >= psi_major {
             "red".to_string()
         } else if psi >= psi_minor {
             "yellow".to_string()
@@ -1656,14 +1719,30 @@ pub fn compute_temporal_drift(
     }
 
     let num_windows = windows.len();
-    let reference_samples = ref_vals.len();
+    let reference_samples = ref_sorted.len();
+
+    // PSI sample-ratio warning: if the reference window has more than 10× the
+    // average monitoring window size, PSI values are likely inflated (issue #15).
+    let nonempty_windows: Vec<usize> = windows
+        .iter()
+        .filter(|w| w.distribution.count >= 5)
+        .map(|w| w.distribution.count)
+        .collect();
+    let avg_window_samples = if nonempty_windows.is_empty() {
+        0.0
+    } else {
+        nonempty_windows.iter().sum::<usize>() as f64 / nonempty_windows.len() as f64
+    };
+    let psi_sample_ratio_warning =
+        avg_window_samples > 0.0 && reference_samples as f64 / avg_window_samples > 10.0;
+
     Ok(DriftResponse {
         column: column.to_string(),
         reference,
         windows,
         thresholds: DriftThresholds {
             ks_threshold,
-            wasserstein_threshold,
+            wasserstein_threshold: effective_wasserstein_threshold,
             psi_minor_threshold: psi_minor,
             psi_major_threshold: psi_major,
         },
@@ -1671,6 +1750,10 @@ pub fn compute_temporal_drift(
             computation_time_ms: start_time.elapsed().as_millis() as u64,
             num_windows,
             reference_samples,
+            bin_count_warning,
+            effective_bins: effective_bin_count,
+            psi_sample_ratio_warning,
+            avg_window_samples,
         },
     })
 }

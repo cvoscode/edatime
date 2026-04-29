@@ -1,4 +1,17 @@
 import {
+  exportContainerCanvasHTML,
+  exportContainerCanvasPNG,
+  exportContainerCanvasSVG,
+  exportEChartsHTML,
+  exportEChartsPNG,
+  exportEChartsSVG,
+  exportElementHTML,
+  exportElementPNG,
+  exportElementSVG,
+  exportMatrixCSV,
+  exportTraceCSV
+} from "./chunk-WJIQG5LM.js";
+import {
   toast
 } from "./chunk-T63Y6LQO.js";
 import {
@@ -20,11 +33,7 @@ import {
   buildAdaptiveLineY,
   buildMetaBar,
   computeBounds,
-  debounce,
-  downloadBlob,
-  downloadUrl,
   ensureRangeStateFromData,
-  escapeHtml,
   formatAnalysisNumber,
   formatAnalysisTime,
   formatCount,
@@ -37,7 +46,12 @@ import {
   setMetaText,
   setSeriesColor,
   toFiniteNumberOrNull
-} from "./chunk-SVFUPBER.js";
+} from "./chunk-CLZT53LK.js";
+import {
+  debounce,
+  downloadBlob,
+  escapeHtml
+} from "./chunk-W3LBOP5Z.js";
 import "./chunk-PZ5AY32C.js";
 
 // frontend/src/ui/columns.ts
@@ -531,6 +545,7 @@ function initColumnFilterModal(renderCurrentData2, updateAnalysisYRange2) {
 }
 
 // frontend/src/ui/upload.ts
+var UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
 function setUploadPreviewStatus(text, kind = "") {
   const el = document.getElementById("upload-preview-status");
   if (!el) return;
@@ -598,6 +613,18 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
   }
   let selectedFile = null;
   let previewController = null;
+  function validateSelectedFile(file) {
+    if (!file) return "Please select a file first.";
+    const name = String(file.name || "").toLowerCase();
+    if (!(name.endsWith(".csv") || name.endsWith(".parquet"))) {
+      return "Only CSV and Parquet files are supported.";
+    }
+    if (Number(file.size) > UI_MAX_UPLOAD_BYTES) {
+      const maxMb = Math.round(UI_MAX_UPLOAD_BYTES / (1024 * 1024));
+      return `File exceeds ${maxMb} MB upload limit.`;
+    }
+    return null;
+  }
   function applyPreviewColumnSelection(metadata) {
     const columns = Array.isArray(metadata?.columns) ? metadata.columns : [];
     const metadataTimeCol = String(metadata?.time_column || "").trim() || null;
@@ -699,9 +726,23 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
     if (e.target.closest("#browse-btn")) return;
     fileInput.click();
   });
+  dropZone.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    fileInput.click();
+  });
   browseBtn.addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", () => {
     selectedFile = fileInput.files?.[0] || null;
+    const invalidFileMsg = validateSelectedFile(selectedFile);
+    if (invalidFileMsg) {
+      selectedFile = null;
+      fileInput.value = "";
+      fileDisplay.textContent = "";
+      setStatus(invalidFileMsg, "error");
+      setUploadPreviewStatus(invalidFileMsg, "error");
+      return;
+    }
     fileDisplay.textContent = selectedFile ? selectedFile.name : "";
     appState.previewTimeColumn = null;
     if (selectedFile) runFilePreview(selectedFile);
@@ -715,6 +756,14 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
     e.preventDefault();
     dropZone.classList.remove("dragover");
     selectedFile = e.dataTransfer?.files[0] || null;
+    const invalidFileMsg = validateSelectedFile(selectedFile);
+    if (invalidFileMsg) {
+      selectedFile = null;
+      fileDisplay.textContent = "";
+      setStatus(invalidFileMsg, "error");
+      setUploadPreviewStatus(invalidFileMsg, "error");
+      return;
+    }
     fileDisplay.textContent = selectedFile ? selectedFile.name : "";
     appState.previewTimeColumn = null;
     if (selectedFile) runFilePreview(selectedFile);
@@ -754,6 +803,11 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
       setStatus("Please select a file first.", "error");
       return;
     }
+    const invalidFileMsg = validateSelectedFile(selectedFile);
+    if (invalidFileMsg) {
+      setStatus(invalidFileMsg, "error");
+      return;
+    }
     if (!appState.previewTimeColumn && !(appState.metadata && appState.metadata.time_range)) {
       setStatus("No time column selected. Please choose a time column in the upload panel before ingest.", "error");
       return;
@@ -782,6 +836,10 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
       };
       const tStartIso = toIsoOrNull(timeStartInput?.value || "");
       const tEndIso = toIsoOrNull(timeEndInput?.value || "");
+      if (tStartIso && tEndIso && Date.parse(tStartIso) > Date.parse(tEndIso)) {
+        setStatus("Start time must be before end time.", "error");
+        return;
+      }
       if (tStartIso) formData.append("time_start", tStartIso);
       if (tEndIso) formData.append("time_end", tEndIso);
     }
@@ -831,12 +889,20 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
   }
   function animateProgress(bar) {
     let w = 0;
+    if (progressWrap) progressWrap.setAttribute("aria-valuenow", "0");
     const t = setInterval(() => {
       w = Math.min(w + Math.random() * 8, 85);
       bar.style.width = w + "%";
+      if (progressWrap) progressWrap.setAttribute("aria-valuenow", String(Math.round(w)));
       if (w >= 85) clearInterval(t);
     }, 120);
-    return () => clearInterval(t);
+    return () => {
+      clearInterval(t);
+      if (progressWrap) {
+        const current = Number(progressWrap.getAttribute("aria-valuenow") || "0");
+        progressWrap.setAttribute("aria-valuenow", String(Math.max(current, 100)));
+      }
+    };
   }
   const dbChk = document.getElementById("db-enabled");
   const dbFlds = document.getElementById("db-fields");
@@ -1081,6 +1147,23 @@ function applyProfileGridColumnsTemplate() {
 function getSelectablePreviewColumns(profiles = appState.columnProfiles || []) {
   return profiles.map((profile) => profile.name).filter((name) => name && name !== appState.previewTimeColumn);
 }
+function formatUploadSelectionStatus(selectableCount, selectedCount, timeColumnName) {
+  const analysisCount = Math.max(0, Number(selectableCount) || 0);
+  const chosenCount = Math.max(0, Math.min(analysisCount, Number(selectedCount) || 0));
+  if (analysisCount === 0 && !timeColumnName) {
+    return "Preview columns will appear here after file analysis.";
+  }
+  if (analysisCount === 0) {
+    return `Time column detected: ${timeColumnName}. No additional analysis columns available.`;
+  }
+  if (timeColumnName && chosenCount === analysisCount) {
+    return `Time column ${timeColumnName} plus all ${analysisCount} analysis columns are selected.`;
+  }
+  if (timeColumnName) {
+    return `Time column ${timeColumnName} plus ${chosenCount} of ${analysisCount} analysis columns selected.`;
+  }
+  return `${chosenCount} of ${analysisCount} analysis columns selected.`;
+}
 function syncUploadSelectionUI(profiles = appState.columnProfiles || []) {
   const statusEl = document.getElementById("profile-selection-status");
   const allCheckbox = document.getElementById("profile-select-all-checkbox");
@@ -1088,9 +1171,11 @@ function syncUploadSelectionUI(profiles = appState.columnProfiles || []) {
   const selected = new Set(appState.previewSelectedColumns || []);
   const selectedCount = selectable.filter((name) => selected.has(name)).length;
   if (statusEl) {
-    const totalCount = selectable.length + (appState.previewTimeColumn ? 1 : 0);
-    const effectiveSelected = selectedCount + (appState.previewTimeColumn ? 1 : 0);
-    statusEl.textContent = `${effectiveSelected}/${totalCount} columns selected`;
+    statusEl.textContent = formatUploadSelectionStatus(
+      selectable.length,
+      selectedCount,
+      appState.previewTimeColumn
+    );
   }
   if (allCheckbox) {
     allCheckbox.checked = selectable.length > 0 && selectedCount === selectable.length;
@@ -1967,17 +2052,77 @@ function captureSession() {
     scatterY: readSelect("scatter-y-col"),
     scatterColorColumn: readSelect("scatter-color-column"),
     scatterRenderMode: readSelect("scatter-render-mode"),
-    theme: document.documentElement.getAttribute("data-theme") || "dark"
+    theme: document.documentElement.getAttribute("data-theme") || "dark",
+    datasetRevision: Number.isFinite(Number(appState.datasetRevision)) ? Number(appState.datasetRevision) : 0
   };
 }
-function applySession(snap) {
-  if (!snap || snap.version !== 1) return;
+function applySession(snap, options = {}) {
+  const result = {
+    revisionMismatch: false,
+    rangeAdjusted: false,
+    usedMetadataRange: false,
+    droppedFilterCount: 0,
+    navigatedToPage: false
+  };
+  if (!snap || snap.version !== 1) return result;
+  const announceAdjustments = options.announceAdjustments !== false;
+  const metadataTimeRange = options.metadataTimeRange || (appState.metadata?.time_range ?? null);
+  const currentRevision = Number(
+    options.currentDatasetRevision ?? appState.datasetRevision ?? appState.metadata?.revision ?? 0
+  );
+  const snapshotRevision = Number(snap.datasetRevision ?? 0);
+  const hasRevisions = Number.isFinite(currentRevision) && currentRevision > 0 && Number.isFinite(snapshotRevision) && snapshotRevision > 0;
+  const revisionMismatch = hasRevisions && currentRevision !== snapshotRevision;
+  result.revisionMismatch = revisionMismatch;
   appState.selectedCols = Array.isArray(snap.selectedCols) ? snap.selectedCols : [];
   if (snap.seriesColors) appState.seriesColors = { ...snap.seriesColors };
-  if (snap.columnRanges) appState.columnRanges = { ...snap.columnRanges };
-  if (Array.isArray(snap.adaptiveLineFilters)) appState.adaptiveLineFilters = snap.adaptiveLineFilters.map((f) => ({ ...f }));
-  if (Number.isFinite(snap.currentStart)) appState.currentStart = snap.currentStart;
-  if (Number.isFinite(snap.currentEnd)) appState.currentEnd = snap.currentEnd;
+  if (revisionMismatch) {
+    const staleRanges = Object.keys(snap.columnRanges || {}).length;
+    const staleLines = Array.isArray(snap.adaptiveLineFilters) ? snap.adaptiveLineFilters.length : 0;
+    result.droppedFilterCount = staleRanges + staleLines;
+    appState.columnRanges = {};
+    appState.adaptiveLineFilters = [];
+  } else {
+    if (snap.columnRanges) appState.columnRanges = { ...snap.columnRanges };
+    if (Array.isArray(snap.adaptiveLineFilters)) {
+      appState.adaptiveLineFilters = snap.adaptiveLineFilters.map((f) => ({ ...f }));
+    }
+  }
+  if (!revisionMismatch) {
+    const hasStart = Number.isFinite(snap.currentStart);
+    const hasEnd = Number.isFinite(snap.currentEnd);
+    if (hasStart && hasEnd) {
+      let nextStart = Number(snap.currentStart);
+      let nextEnd = Number(snap.currentEnd);
+      const minMs = Number(metadataTimeRange?.min);
+      const maxMs = Number(metadataTimeRange?.max);
+      const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
+      if (hasMetadataBounds) {
+        const noOverlap = nextEnd <= minMs || nextStart >= maxMs;
+        if (noOverlap) {
+          nextStart = minMs;
+          nextEnd = maxMs;
+          result.rangeAdjusted = true;
+          result.usedMetadataRange = true;
+        } else {
+          const clampedStart = Math.max(nextStart, minMs);
+          const clampedEnd = Math.min(nextEnd, maxMs);
+          if (clampedStart !== nextStart || clampedEnd !== nextEnd) {
+            result.rangeAdjusted = true;
+          }
+          nextStart = clampedStart;
+          nextEnd = clampedEnd;
+          if (nextStart >= nextEnd) {
+            nextStart = minMs;
+            nextEnd = maxMs;
+            result.usedMetadataRange = true;
+          }
+        }
+      }
+      appState.currentStart = nextStart;
+      appState.currentEnd = nextEnd;
+    }
+  }
   if (snap.selectedColorColumn !== void 0) appState.selectedColorColumn = snap.selectedColorColumn;
   if (snap.chartText) appState.chartText = { ...snap.chartText };
   if (snap.rollingEnabled !== void 0) appState.rollingEnabled = snap.rollingEnabled;
@@ -1997,10 +2142,24 @@ function applySession(snap) {
     document.documentElement.setAttribute("data-theme", snap.theme);
     localStorage.setItem("edatime-theme", snap.theme);
   }
-  if (snap.page) {
-    const btn = document.querySelector(`.sidebar .nav-item[data-page="${snap.page}"]`);
-    btn?.click();
+  if (revisionMismatch && announceAdjustments) {
+    toast("Session belongs to another dataset revision; stale filters were cleared.", "warning");
+  } else if (result.usedMetadataRange && announceAdjustments) {
+    toast("Saved chart range did not match this dataset and was reset to dataset bounds.", "warning");
+  } else if (result.rangeAdjusted && announceAdjustments) {
+    toast("Saved chart range was clamped to the current dataset time range.", "warning");
   }
+  const hashPage = getHashPage();
+  const shouldPreferHash = !!options.preferHashPage && !!hashPage;
+  const shouldNavigate = options.navigate !== false && !shouldPreferHash;
+  if (shouldNavigate && snap.page) {
+    const btn = document.querySelector(`.sidebar .nav-item[data-page="${snap.page}"]`);
+    if (btn) {
+      btn.click();
+      result.navigatedToPage = true;
+    }
+  }
+  return result;
 }
 function autoSaveSession() {
   try {
@@ -3209,393 +3368,6 @@ function initGuidedWorkflow() {
   };
 }
 
-// frontend/src/utils/chartExport.ts
-function exportContainerCanvasPNG(containerId, filename) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  const canvases = Array.from(container.querySelectorAll("canvas"));
-  if (canvases.length === 0) {
-    toast("No chart canvas found for export.", "warning");
-    return;
-  }
-  const rect = container.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  const w = Math.round(rect.width * dpr);
-  const h = Math.round(rect.height * dpr);
-  const out = document.createElement("canvas");
-  out.width = w;
-  out.height = h;
-  const ctx = out.getContext("2d");
-  if (!ctx) return;
-  const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, w, h);
-  for (const c of canvases) {
-    const cr = c.getBoundingClientRect();
-    const dx = (cr.left - rect.left) * dpr;
-    const dy = (cr.top - rect.top) * dpr;
-    try {
-      ctx.drawImage(c, dx, dy, cr.width * dpr, cr.height * dpr);
-    } catch {
-    }
-  }
-  downloadUrl(out.toDataURL("image/png"), filename);
-  toast("PNG exported.", "success");
-}
-async function exportElementPNG(elementId, filename) {
-  const el = document.getElementById(elementId);
-  if (!el) {
-    toast("Element not found for export.", "warning");
-    return;
-  }
-  const rect = el.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  const w = Math.round(rect.width);
-  const h = Math.round(rect.height);
-  const clone = el.cloneNode(true);
-  inlineComputedStyles(el, clone);
-  const svgNs = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(svgNs, "svg");
-  svg.setAttribute("width", String(w));
-  svg.setAttribute("height", String(h));
-  svg.setAttribute("xmlns", svgNs);
-  const fo = document.createElementNS(svgNs, "foreignObject");
-  fo.setAttribute("width", "100%");
-  fo.setAttribute("height", "100%");
-  fo.appendChild(clone);
-  svg.appendChild(fo);
-  const svgStr = new XMLSerializer().serializeToString(svg);
-  const svgBlob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
-  const svgUrl = URL.createObjectURL(svgBlob);
-  try {
-    const img = new Image();
-    img.width = w;
-    img.height = h;
-    await new Promise((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = () => reject(new Error("Failed to load SVG image"));
-      img.src = svgUrl;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      toast("Canvas not available.", "error");
-      return;
-    }
-    const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.scale(dpr, dpr);
-    ctx.drawImage(img, 0, 0, w, h);
-    downloadUrl(canvas.toDataURL("image/png"), filename);
-    toast("PNG exported.", "success");
-  } catch {
-    toast("PNG export failed. Try CSV export instead.", "error");
-  } finally {
-    URL.revokeObjectURL(svgUrl);
-  }
-}
-function inlineComputedStyles(original, clone) {
-  if (original instanceof HTMLElement && clone instanceof HTMLElement) {
-    const computed = getComputedStyle(original);
-    for (const prop of [
-      "color",
-      "background",
-      "background-color",
-      "font-size",
-      "font-family",
-      "font-weight",
-      "display",
-      "grid-template-columns",
-      "grid-template-rows",
-      "gap",
-      "padding",
-      "margin",
-      "border",
-      "border-radius",
-      "text-align",
-      "white-space",
-      "overflow",
-      "text-overflow",
-      "writing-mode",
-      "text-orientation",
-      "align-items",
-      "justify-content",
-      "flex-direction",
-      "font-variant-numeric",
-      "letter-spacing"
-    ]) {
-      clone.style.setProperty(prop, computed.getPropertyValue(prop));
-    }
-  }
-  const origChildren = original.children;
-  const cloneChildren = clone.children;
-  for (let i = 0; i < origChildren.length && i < cloneChildren.length; i++) {
-    inlineComputedStyles(origChildren[i], cloneChildren[i]);
-  }
-}
-function exportElementSVG(elementId, filename) {
-  const el = document.getElementById(elementId);
-  if (!el) {
-    toast("Element not found for export.", "warning");
-    return;
-  }
-  const rect = el.getBoundingClientRect();
-  const w = Math.round(rect.width);
-  const h = Math.round(rect.height);
-  const clone = el.cloneNode(true);
-  inlineComputedStyles(el, clone);
-  const svgNs = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(svgNs, "svg");
-  svg.setAttribute("width", String(w));
-  svg.setAttribute("height", String(h));
-  svg.setAttribute("xmlns", svgNs);
-  svg.setAttribute("xmlns:xhtml", "http://www.w3.org/1999/xhtml");
-  const fo = document.createElementNS(svgNs, "foreignObject");
-  fo.setAttribute("width", "100%");
-  fo.setAttribute("height", "100%");
-  fo.appendChild(clone);
-  svg.appendChild(fo);
-  const svgStr = new XMLSerializer().serializeToString(svg);
-  const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
-  downloadBlob(blob, filename);
-  toast("SVG exported.", "success");
-}
-function exportEChartsPNG(chartInstance, filename) {
-  if (!chartInstance) {
-    toast("Chart not available for export.", "warning");
-    return;
-  }
-  try {
-    const url = chartInstance.getDataURL({
-      type: "png",
-      pixelRatio: 2,
-      backgroundColor: getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10"
-    });
-    downloadUrl(url, filename);
-    toast("PNG exported.", "success");
-  } catch {
-    toast("Failed to export chart.", "error");
-  }
-}
-function exportContainerCanvasSVG(containerId, filename) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  const canvases = Array.from(container.querySelectorAll("canvas"));
-  if (canvases.length === 0) {
-    toast("No chart canvas found for export.", "warning");
-    return;
-  }
-  const rect = container.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  const w = Math.round(rect.width * dpr);
-  const h = Math.round(rect.height * dpr);
-  const out = document.createElement("canvas");
-  out.width = w;
-  out.height = h;
-  const ctx = out.getContext("2d");
-  if (!ctx) return;
-  const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, w, h);
-  for (const c of canvases) {
-    const cr = c.getBoundingClientRect();
-    const dx = (cr.left - rect.left) * dpr;
-    const dy = (cr.top - rect.top) * dpr;
-    try {
-      ctx.drawImage(c, dx, dy, cr.width * dpr, cr.height * dpr);
-    } catch {
-    }
-  }
-  const pngDataUrl = out.toDataURL("image/png");
-  const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-  <image href="${pngDataUrl}" width="${w}" height="${h}" />
-</svg>`;
-  const blob = new Blob([svgContent], { type: "image/svg+xml;charset=utf-8" });
-  downloadBlob(blob, filename);
-  toast("SVG exported.", "success");
-}
-function exportContainerCanvasHTML(containerId, filename) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  const canvases = Array.from(container.querySelectorAll("canvas"));
-  if (canvases.length === 0) {
-    toast("No chart canvas found for export.", "warning");
-    return;
-  }
-  const rect = container.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  const w = Math.round(rect.width * dpr);
-  const h = Math.round(rect.height * dpr);
-  const out = document.createElement("canvas");
-  out.width = w;
-  out.height = h;
-  const ctx = out.getContext("2d");
-  if (!ctx) return;
-  const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, w, h);
-  for (const c of canvases) {
-    const cr = c.getBoundingClientRect();
-    const dx = (cr.left - rect.left) * dpr;
-    const dy = (cr.top - rect.top) * dpr;
-    try {
-      ctx.drawImage(c, dx, dy, cr.width * dpr, cr.height * dpr);
-    } catch {
-    }
-  }
-  const pngDataUrl = out.toDataURL("image/png");
-  const html = buildStandaloneHtml(`<img src="${pngDataUrl}" style="max-width:100%;display:block;">`, filename.replace(".html", ""));
-  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-  downloadBlob(blob, filename);
-  toast("HTML exported.", "success");
-}
-function exportEChartsSVG(chartInstance, filename) {
-  if (!chartInstance) {
-    toast("Chart not available for export.", "warning");
-    return;
-  }
-  try {
-    const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
-    const pngUrl = chartInstance.getDataURL({ type: "png", pixelRatio: 2, backgroundColor: bg });
-    const domEl = chartInstance.getDom?.() ?? null;
-    const w = domEl?.offsetWidth ?? 800;
-    const h = domEl?.offsetHeight ?? 500;
-    const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-  <image href="${pngUrl}" width="${w}" height="${h}" />
-</svg>`;
-    const blob = new Blob([svgContent], { type: "image/svg+xml;charset=utf-8" });
-    downloadBlob(blob, filename);
-    toast("SVG exported.", "success");
-  } catch {
-    toast("Failed to export SVG.", "error");
-  }
-}
-function exportEChartsHTML(chartInstance, filename) {
-  if (!chartInstance) {
-    toast("Chart not available for export.", "warning");
-    return;
-  }
-  try {
-    const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
-    const pngUrl = chartInstance.getDataURL({ type: "png", pixelRatio: 2, backgroundColor: bg });
-    const html = buildStandaloneHtml(`<img src="${pngUrl}" style="max-width:100%;display:block;">`, filename.replace(".html", ""));
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    downloadBlob(blob, filename);
-    toast("HTML exported.", "success");
-  } catch {
-    toast("Failed to export HTML.", "error");
-  }
-}
-async function exportElementHTML(elementId, filename) {
-  const el = document.getElementById(elementId);
-  if (!el) {
-    toast("Element not found for export.", "warning");
-    return;
-  }
-  const rect = el.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  const w = Math.round(rect.width);
-  const h = Math.round(rect.height);
-  const clone = el.cloneNode(true);
-  inlineComputedStyles(el, clone);
-  const svgNs = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(svgNs, "svg");
-  svg.setAttribute("width", String(w));
-  svg.setAttribute("height", String(h));
-  svg.setAttribute("xmlns", svgNs);
-  const fo = document.createElementNS(svgNs, "foreignObject");
-  fo.setAttribute("width", "100%");
-  fo.setAttribute("height", "100%");
-  fo.appendChild(clone);
-  svg.appendChild(fo);
-  const svgStr = new XMLSerializer().serializeToString(svg);
-  const svgBlob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
-  const svgUrl = URL.createObjectURL(svgBlob);
-  try {
-    const img = new Image();
-    img.width = w;
-    img.height = h;
-    await new Promise((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = () => reject(new Error("SVG load failed"));
-      img.src = svgUrl;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      toast("Canvas not available.", "error");
-      return;
-    }
-    const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.scale(dpr, dpr);
-    ctx.drawImage(img, 0, 0, w, h);
-    const pngUrl = canvas.toDataURL("image/png");
-    const html = buildStandaloneHtml(`<img src="${pngUrl}" style="max-width:100%;display:block;">`, filename.replace(".html", ""));
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    downloadBlob(blob, filename);
-    toast("HTML exported.", "success");
-  } catch {
-    toast("HTML export failed.", "error");
-  } finally {
-    URL.revokeObjectURL(svgUrl);
-  }
-}
-function buildStandaloneHtml(bodyContent, title) {
-  const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#080a10";
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml4(title)} \u2014 EdaTime</title>
-  <style>body{margin:0;padding:16px;background:${bg};font-family:sans-serif;}</style>
-</head>
-<body>
-${bodyContent}
-</body>
-</html>`;
-}
-function escapeHtml4(str) {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-function exportMatrixCSV(columns, data, filename) {
-  if (!columns.length || !data.length) {
-    toast("No data to export.", "warning");
-    return;
-  }
-  const header = ["", ...columns].join(",");
-  const rows = data.map(
-    (row, i) => [columns[i], ...row.map((v) => v !== null ? v.toFixed(6) : "")].join(",")
-  );
-  const csv = [header, ...rows].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  downloadBlob(blob, filename);
-  toast("CSV exported.", "success");
-}
-function exportTraceCSV(traces, xLabel, filename) {
-  if (traces.length === 0) {
-    toast("No data to export.", "warning");
-    return;
-  }
-  const ref = traces[0];
-  const headers = [xLabel, ...traces.map((t) => t.column)];
-  const lines = [headers.join(",")];
-  for (let i = 0; i < ref.xs.length; i++) {
-    const vals = [String(ref.xs[i]), ...traces.map((t) => t.ys[i] != null ? String(t.ys[i]) : "")];
-    lines.push(vals.join(","));
-  }
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
-  downloadBlob(blob, filename);
-  toast("CSV exported.", "success");
-}
-
 // frontend/src/app.ts
 var _appCleanups = [];
 var EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} };
@@ -3755,10 +3527,34 @@ function computeFrontendRollingBands(data, cols, windowSize) {
 }
 function renderCurrentData() {
   const emptyState = document.getElementById("timeseries-empty-state");
+  const emptyTitle = document.getElementById("timeseries-empty-title");
+  const emptyMessage = document.getElementById("timeseries-empty-message");
+  const emptyResetBtn = document.getElementById("timeseries-reset-range-btn");
+  const setTimeseriesEmptyState = (visible, reason, title, message, showResetAction = false) => {
+    if (!emptyState) return;
+    emptyState.hidden = !visible;
+    emptyState.setAttribute("data-empty-reason", visible ? reason : "");
+    if (emptyTitle) emptyTitle.textContent = title;
+    if (emptyMessage) emptyMessage.textContent = message;
+    if (emptyResetBtn) emptyResetBtn.hidden = !showResetAction;
+  };
+  if (emptyResetBtn && !emptyResetBtn.dataset.bound) {
+    emptyResetBtn.addEventListener("click", () => {
+      window.dispatchEvent(new CustomEvent("edatime:request-chart-range-reset", {
+        detail: { source: "timeseries-empty-state" }
+      }));
+    });
+    emptyResetBtn.dataset.bound = "1";
+  }
   const hasSelection = Array.isArray(appState.selectedCols) && appState.selectedCols.length > 0;
-  if (emptyState) {
-    emptyState.hidden = hasSelection;
-    emptyState.setAttribute("data-empty-reason", hasSelection ? "" : "no-columns-selected");
+  if (!hasSelection) {
+    setTimeseriesEmptyState(
+      true,
+      "no-columns-selected",
+      "Select one or more series",
+      "Click a column chip above to add it to the chart. Start with 2-3 related columns for a clearer first view.",
+      false
+    );
   }
   if (!appState.chart) return;
   if (!hasSelection) {
@@ -3766,8 +3562,34 @@ function renderCurrentData() {
     appState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
     return;
   }
-  if (!appState.lastFetchedData) return;
+  if (!appState.lastFetchedData) {
+    setTimeseriesEmptyState(false, "", "", "", false);
+    return;
+  }
   const filtered = applyColumnRanges(appState.lastFetchedData);
+  const hasPoints = !!filtered?.ts && filtered.ts.length > 0;
+  if (!hasPoints) {
+    const minMs = Number(appState.metadata?.time_range?.min);
+    const maxMs = Number(appState.metadata?.time_range?.max);
+    const start = Number(appState.currentStart);
+    const end = Number(appState.currentEnd);
+    const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
+    const rangeOutside = hasMetadataBounds && Number.isFinite(start) && Number.isFinite(end) && (end <= minMs || start >= maxMs);
+    setTimeseriesEmptyState(
+      true,
+      rangeOutside ? "linked-range-outside-dataset" : "no-data-after-filters",
+      rangeOutside ? "Current range is outside this dataset" : "No points match current filters",
+      rangeOutside ? "Reset to dataset range to recover visible data." : "Try widening the time range or clearing filters.",
+      true
+    );
+    appState.rollingBands = null;
+    appState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
+    if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+      appState.chart.setXRange(start, end);
+    }
+    return;
+  }
+  setTimeseriesEmptyState(false, "", "", "", false);
   const preview = appState.spectralFilterPreview;
   let displayCols = [...appState.selectedCols];
   if (preview && preview.ts && preview.values && preview.ts.length > 0) {
@@ -4497,6 +4319,7 @@ async function initHeatmapPage() {
   if (!container) return;
   let matrixData = null;
   let metric = "pearson";
+  let matrixLoadInFlight = null;
   function syncHeatmapEmptyState(message, visible, reason = "") {
     const empty = document.getElementById("heatmap-empty-state");
     if (!empty) return;
@@ -4542,7 +4365,7 @@ async function initHeatmapPage() {
     html += `<span>+1.0</span>`;
     html += `</div>`;
     container.innerHTML = html;
-    container.addEventListener("click", (e) => {
+    container.onclick = (e) => {
       const cell = e.target.closest(".heatmap-cell");
       if (!cell) return;
       const ri = parseInt(cell.dataset.row || "", 10);
@@ -4553,7 +4376,7 @@ async function initHeatmapPage() {
       if (xSelect) xSelect.value = cols[ri];
       if (ySelect) ySelect.value = cols[ci];
       showPage("scatter");
-    });
+    };
   }
   function correlationColor(v) {
     const clamped = Math.max(-1, Math.min(1, v));
@@ -4572,22 +4395,28 @@ async function initHeatmapPage() {
     }
   }
   async function loadMatrix() {
-    if (statusEl) statusEl.textContent = "Loading correlation matrix\u2026";
-    try {
-      const { fetchCorrelationMatrix } = await import("./dataClient.js");
-      matrixData = await fetchCorrelationMatrix();
-      if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns \xB7 ${_heatmapCellSize}px cells`;
-      renderHeatmap();
-    } catch (e) {
-      const msg = e?.message || "";
-      const isInsufficient = msg.toLowerCase().includes("two") || msg.toLowerCase().includes("numeric") || msg.toLowerCase().includes("column");
-      syncHeatmapEmptyState(
-        isInsufficient ? "Need at least two numeric columns to compute correlations. Upload a dataset with multiple numeric columns." : "Correlation heatmap is unavailable for the current dataset.",
-        true,
-        isInsufficient ? "no-columns-available" : "render-failure"
-      );
-      if (statusEl) statusEl.textContent = isInsufficient ? "Not enough numeric columns" : `Error: ${msg || "failed"}`;
-    }
+    if (matrixLoadInFlight) return matrixLoadInFlight;
+    matrixLoadInFlight = (async () => {
+      if (statusEl) statusEl.textContent = "Loading correlation matrix\u2026";
+      try {
+        const { fetchCorrelationMatrix } = await import("./dataClient.js");
+        matrixData = await fetchCorrelationMatrix();
+        if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns \xB7 ${_heatmapCellSize}px cells`;
+        renderHeatmap();
+      } catch (e) {
+        const msg = e?.message || "";
+        const isInsufficient = msg.toLowerCase().includes("two") || msg.toLowerCase().includes("numeric") || msg.toLowerCase().includes("column");
+        syncHeatmapEmptyState(
+          isInsufficient ? "Need at least two numeric columns to compute correlations. Upload a dataset with multiple numeric columns." : "Correlation heatmap is unavailable for the current dataset.",
+          true,
+          isInsufficient ? "no-columns-available" : "render-failure"
+        );
+        if (statusEl) statusEl.textContent = isInsufficient ? "Not enough numeric columns" : `Error: ${msg || "failed"}`;
+      }
+    })().finally(() => {
+      matrixLoadInFlight = null;
+    });
+    return matrixLoadInFlight;
   }
   metricSelect?.addEventListener("change", () => {
     metric = metricSelect.value;
@@ -4619,7 +4448,10 @@ async function initHeatmapPage() {
   window.addEventListener("edatime:page-change", (e) => {
     if (e?.detail?.page === "heatmap") loadMatrix();
   });
-  loadMatrix();
+  const heatmapPage = document.getElementById("page-heatmap");
+  if (heatmapPage && !heatmapPage.hidden) {
+    loadMatrix();
+  }
 }
 var _spectrogramLoaded = false;
 var _spectrogramChart = null;
@@ -4980,11 +4812,11 @@ ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart
   });
 }
 async function initDriftPage() {
-  const { initDriftPage: init2 } = await import("./driftPage-I3S3OIXU.js");
+  const { initDriftPage: init2 } = await import("./driftPage-4K52ENFB.js");
   await init2(appState.metadata);
 }
 async function initCausalPage() {
-  const { initCausalPage: init2 } = await import("./causalPage-TZS2VRJV.js");
+  const { initCausalPage: init2 } = await import("./causalPage-3X6LNDBI.js");
   const { initCausalComparison } = await import("./causalComparison-VQVLPMA7.js");
   init2({
     getMetadata: () => appState.metadata,
@@ -5191,6 +5023,38 @@ async function init() {
     appState.currentEnd = Number(appState.metadata.time_range.max);
     updateAnalysisZoom(appState.currentStart, appState.currentEnd, "initial");
     emitChartRangeChange("initial");
+    const resetChartRangeToDataset = async (source = "reset") => {
+      const minMs = Number(appState.metadata?.time_range?.min);
+      const maxMs = Number(appState.metadata?.time_range?.max);
+      if (!Number.isFinite(minMs) || !Number.isFinite(maxMs) || minMs >= maxMs) return;
+      appState.currentStart = minMs;
+      appState.currentEnd = maxMs;
+      appState.chart?.setXRange?.(minMs, maxMs);
+      updateAnalysisZoom(minMs, maxMs, source);
+      emitChartRangeChange(source);
+      await fetchAndRender();
+    };
+    const onRequestResetRange = () => {
+      void resetChartRangeToDataset("reset");
+    };
+    window.addEventListener("edatime:request-chart-range-reset", onRequestResetRange);
+    _appCleanups.push(() => window.removeEventListener("edatime:request-chart-range-reset", onRequestResetRange));
+    window.__edatime.resetChartRangeToDataset = () => void resetChartRangeToDataset("reset");
+    const clearAllFilters = async (source = "clear") => {
+      appState.columnRanges = {};
+      appState.adaptiveLineFilters = [];
+      buildRangeControls();
+      renderCurrentData();
+      window.dispatchEvent(new CustomEvent("edatime:column-filters-change", { detail: { source } }));
+      window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change", { detail: { source } }));
+      await fetchAndRender();
+    };
+    const onClearAllFilters = () => {
+      void clearAllFilters("clear");
+    };
+    window.addEventListener("edatime:clear-all-filters", onClearAllFilters);
+    _appCleanups.push(() => window.removeEventListener("edatime:clear-all-filters", onClearAllFilters));
+    window.__edatime.clearAllFilters = () => void clearAllFilters("clear");
     dbg("initial X range (ms)", { start: appState.currentStart, end: appState.currentEnd });
     const lineType = getChartType("line");
     if (lineType) {
@@ -5224,7 +5088,11 @@ async function init() {
     dbgGroup("initialView snapshot", () => dbg(appState.initialView));
     const savedSession = autoRestoreSession();
     if (savedSession) {
-      applySession(savedSession);
+      applySession(savedSession, {
+        metadataTimeRange: appState.metadata?.time_range ?? null,
+        currentDatasetRevision: Number(appState.datasetRevision ?? 0),
+        preferHashPage: !!getHashPage()
+      });
       buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
       buildRangeControls();
       renderCurrentData();

@@ -39,7 +39,7 @@ import { FallbackChart } from './charts/fallback.js';
 import type { DatasetMetadata } from './types.js';
 import type { FftTrace } from './chart/FftChart.js';
 
-import { initHashRouting } from './utils/router.js';
+import { getHashPage, initHashRouting } from './utils/router.js';
 import { initAutoSave, autoRestoreSession, applySession, exportSessionToFile, importSessionFromFile } from './utils/session.js';
 import { initCommandPalette, registerCommands, openPalette } from './utils/palette.js';
 import { initProvenance, toggleProvenance } from './utils/provenance.js';
@@ -226,19 +226,86 @@ function computeFrontendRollingBands(data: any, cols: string[], windowSize: numb
 
 function renderCurrentData(): void {
     const emptyState = document.getElementById('timeseries-empty-state') as HTMLElement | null;
-    const hasSelection = Array.isArray(appState.selectedCols) && appState.selectedCols.length > 0;
-    if (emptyState) {
-        emptyState.hidden = hasSelection;
-        emptyState.setAttribute('data-empty-reason', hasSelection ? '' : 'no-columns-selected');
+    const emptyTitle = document.getElementById('timeseries-empty-title') as HTMLElement | null;
+    const emptyMessage = document.getElementById('timeseries-empty-message') as HTMLElement | null;
+    const emptyResetBtn = document.getElementById('timeseries-reset-range-btn') as HTMLButtonElement | null;
+
+    const setTimeseriesEmptyState = (
+        visible: boolean,
+        reason: string,
+        title: string,
+        message: string,
+        showResetAction = false,
+    ) => {
+        if (!emptyState) return;
+        emptyState.hidden = !visible;
+        emptyState.setAttribute('data-empty-reason', visible ? reason : '');
+        if (emptyTitle) emptyTitle.textContent = title;
+        if (emptyMessage) emptyMessage.textContent = message;
+        if (emptyResetBtn) emptyResetBtn.hidden = !showResetAction;
+    };
+
+    if (emptyResetBtn && !emptyResetBtn.dataset.bound) {
+        emptyResetBtn.addEventListener('click', () => {
+            window.dispatchEvent(new CustomEvent('edatime:request-chart-range-reset', {
+                detail: { source: 'timeseries-empty-state' },
+            }));
+        });
+        emptyResetBtn.dataset.bound = '1';
     }
+
+    const hasSelection = Array.isArray(appState.selectedCols) && appState.selectedCols.length > 0;
+    if (!hasSelection) {
+        setTimeseriesEmptyState(
+            true,
+            'no-columns-selected',
+            'Select one or more series',
+            'Click a column chip above to add it to the chart. Start with 2-3 related columns for a clearer first view.',
+            false,
+        );
+    }
+
     if (!appState.chart) return;
     if (!hasSelection) {
         appState.rollingBands = null;
         appState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
         return;
     }
-    if (!appState.lastFetchedData) return;
+    if (!appState.lastFetchedData) {
+        setTimeseriesEmptyState(false, '', '', '', false);
+        return;
+    }
     const filtered = applyColumnRanges(appState.lastFetchedData);
+
+    const hasPoints = !!filtered?.ts && filtered.ts.length > 0;
+    if (!hasPoints) {
+        const minMs = Number((appState.metadata as any)?.time_range?.min);
+        const maxMs = Number((appState.metadata as any)?.time_range?.max);
+        const start = Number(appState.currentStart);
+        const end = Number(appState.currentEnd);
+        const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
+        const rangeOutside = hasMetadataBounds && Number.isFinite(start) && Number.isFinite(end)
+            && (end <= minMs || start >= maxMs);
+
+        setTimeseriesEmptyState(
+            true,
+            rangeOutside ? 'linked-range-outside-dataset' : 'no-data-after-filters',
+            rangeOutside ? 'Current range is outside this dataset' : 'No points match current filters',
+            rangeOutside
+                ? 'Reset to dataset range to recover visible data.'
+                : 'Try widening the time range or clearing filters.',
+            true,
+        );
+
+        appState.rollingBands = null;
+        appState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
+        if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+            appState.chart.setXRange(start, end);
+        }
+        return;
+    }
+
+    setTimeseriesEmptyState(false, '', '', '', false);
 
     // Inject spectral filter preview as an extra series
     const preview = appState.spectralFilterPreview;
@@ -1001,6 +1068,7 @@ async function initHeatmapPage(): Promise<void> {
 
     let matrixData: any = null;
     let metric = 'pearson';
+    let matrixLoadInFlight: Promise<void> | null = null;
 
     function syncHeatmapEmptyState(message: string, visible: boolean, reason = ''): void {
         const empty = document.getElementById('heatmap-empty-state') as HTMLElement | null;
@@ -1059,7 +1127,7 @@ async function initHeatmapPage(): Promise<void> {
         container.innerHTML = html;
 
         // Click a heatmap cell → navigate to Scatter page with those two columns pre-selected
-        container.addEventListener('click', (e: MouseEvent) => {
+        container.onclick = (e: MouseEvent) => {
             const cell = (e.target as HTMLElement).closest<HTMLElement>('.heatmap-cell');
             if (!cell) return;
             const ri = parseInt(cell.dataset.row || '', 10);
@@ -1070,7 +1138,7 @@ async function initHeatmapPage(): Promise<void> {
             if (xSelect) xSelect.value = cols[ri];
             if (ySelect) ySelect.value = cols[ci];
             showPage('scatter');
-        });
+        };
     }
 
     function correlationColor(v: number): string {
@@ -1092,24 +1160,32 @@ async function initHeatmapPage(): Promise<void> {
     }
 
     async function loadMatrix() {
-        if (statusEl) statusEl.textContent = 'Loading correlation matrix…';
-        try {
-            const { fetchCorrelationMatrix } = await import('./dataClient.js');
-            matrixData = await fetchCorrelationMatrix();
-            if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns · ${_heatmapCellSize}px cells`;
-            renderHeatmap();
-        } catch (e: any) {
-            const msg: string = e?.message || '';
-            const isInsufficient = msg.toLowerCase().includes('two') || msg.toLowerCase().includes('numeric') || msg.toLowerCase().includes('column');
-            syncHeatmapEmptyState(
-                isInsufficient
-                    ? 'Need at least two numeric columns to compute correlations. Upload a dataset with multiple numeric columns.'
-                    : 'Correlation heatmap is unavailable for the current dataset.',
-                true,
-                isInsufficient ? 'no-columns-available' : 'render-failure',
-            );
-            if (statusEl) statusEl.textContent = isInsufficient ? 'Not enough numeric columns' : `Error: ${msg || 'failed'}`;
-        }
+        if (matrixLoadInFlight) return matrixLoadInFlight;
+
+        matrixLoadInFlight = (async () => {
+            if (statusEl) statusEl.textContent = 'Loading correlation matrix…';
+            try {
+                const { fetchCorrelationMatrix } = await import('./dataClient.js');
+                matrixData = await fetchCorrelationMatrix();
+                if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns · ${_heatmapCellSize}px cells`;
+                renderHeatmap();
+            } catch (e: any) {
+                const msg: string = e?.message || '';
+                const isInsufficient = msg.toLowerCase().includes('two') || msg.toLowerCase().includes('numeric') || msg.toLowerCase().includes('column');
+                syncHeatmapEmptyState(
+                    isInsufficient
+                        ? 'Need at least two numeric columns to compute correlations. Upload a dataset with multiple numeric columns.'
+                        : 'Correlation heatmap is unavailable for the current dataset.',
+                    true,
+                    isInsufficient ? 'no-columns-available' : 'render-failure',
+                );
+                if (statusEl) statusEl.textContent = isInsufficient ? 'Not enough numeric columns' : `Error: ${msg || 'failed'}`;
+            }
+        })().finally(() => {
+            matrixLoadInFlight = null;
+        });
+
+        return matrixLoadInFlight;
     }
 
     metricSelect?.addEventListener('change', () => {
@@ -1144,7 +1220,10 @@ async function initHeatmapPage(): Promise<void> {
         if (e?.detail?.page === 'heatmap') loadMatrix();
     });
 
-    loadMatrix();
+    const heatmapPage = document.getElementById('page-heatmap') as HTMLElement | null;
+    if (heatmapPage && !heatmapPage.hidden) {
+        loadMatrix();
+    }
 }
 
 /* ── Spectrogram page ─────────────────────────────────── */
@@ -1779,6 +1858,42 @@ async function init(): Promise<void> {
         updateAnalysisZoom(appState.currentStart, appState.currentEnd, 'initial');
         emitChartRangeChange('initial');
 
+        const resetChartRangeToDataset = async (source = 'reset') => {
+            const minMs = Number((appState.metadata as any)?.time_range?.min);
+            const maxMs = Number((appState.metadata as any)?.time_range?.max);
+            if (!Number.isFinite(minMs) || !Number.isFinite(maxMs) || minMs >= maxMs) return;
+            appState.currentStart = minMs;
+            appState.currentEnd = maxMs;
+            appState.chart?.setXRange?.(minMs, maxMs);
+            updateAnalysisZoom(minMs, maxMs, source);
+            emitChartRangeChange(source);
+            await fetchAndRender();
+        };
+
+        const onRequestResetRange = () => {
+            void resetChartRangeToDataset('reset');
+        };
+        window.addEventListener('edatime:request-chart-range-reset', onRequestResetRange);
+        _appCleanups.push(() => window.removeEventListener('edatime:request-chart-range-reset', onRequestResetRange));
+        (window as any).__edatime.resetChartRangeToDataset = () => void resetChartRangeToDataset('reset');
+
+        const clearAllFilters = async (source = 'clear') => {
+            appState.columnRanges = {};
+            appState.adaptiveLineFilters = [];
+            buildRangeControls();
+            renderCurrentData();
+            window.dispatchEvent(new CustomEvent('edatime:column-filters-change', { detail: { source } }));
+            window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change', { detail: { source } }));
+            await fetchAndRender();
+        };
+
+        const onClearAllFilters = () => {
+            void clearAllFilters('clear');
+        };
+        window.addEventListener('edatime:clear-all-filters', onClearAllFilters);
+        _appCleanups.push(() => window.removeEventListener('edatime:clear-all-filters', onClearAllFilters));
+        (window as any).__edatime.clearAllFilters = () => void clearAllFilters('clear');
+
         dbg('initial X range (ms)', { start: appState.currentStart, end: appState.currentEnd });
 
         const lineType = getChartType('line');
@@ -1821,7 +1936,11 @@ async function init(): Promise<void> {
         // Restore saved session after chart is ready
         const savedSession = autoRestoreSession();
         if (savedSession) {
-            applySession(savedSession);
+            applySession(savedSession, {
+                metadataTimeRange: (appState.metadata as any)?.time_range ?? null,
+                currentDatasetRevision: Number(appState.datasetRevision ?? 0),
+                preferHashPage: !!getHashPage(),
+            });
             buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
             buildRangeControls();
             renderCurrentData();

@@ -7,6 +7,7 @@ import {
   currentControls,
   disposeScatterChart,
   ensureOptions,
+  getActiveScatterFilterColumns,
   getCurrentScatterValues,
   getPlotMetrics,
   getProfileForColumn,
@@ -16,8 +17,9 @@ import {
   resetScatterContainer,
   setStats,
   state
-} from "../chunk-EZSXF6U5.js";
-import "../chunk-SVFUPBER.js";
+} from "../chunk-3BFTKZYS.js";
+import "../chunk-CLZT53LK.js";
+import "../chunk-W3LBOP5Z.js";
 import "../chunk-PZ5AY32C.js";
 export {
   applyScatterStateFromCache,
@@ -28,6 +30,7 @@ export {
   currentControls,
   disposeScatterChart,
   ensureOptions,
+  getActiveScatterFilterColumns,
   getCurrentScatterValues,
   getPlotMetrics,
   getProfileForColumn,

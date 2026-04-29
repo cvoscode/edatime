@@ -4,7 +4,7 @@
  * Covers: hydrateColumnProfiles — profile hydration from metadata.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { hydrateColumnProfiles } from './profile';
+import { formatUploadSelectionStatus, hydrateColumnProfiles } from './profile';
 import { appState } from '../state';
 import type { DatasetMetadata } from '../types';
 
@@ -220,5 +220,25 @@ describe('hydrateColumnProfiles', () => {
         expect(appState.columnProfiles[0].nonNullCount).toBe(99);
         // 'b' and 'c' should be stubs from columns
         expect(appState.columnProfiles[1].nonNullCount).toBe(0);
+    });
+});
+
+describe('formatUploadSelectionStatus', () => {
+    it('describes selected analysis columns without implying an error state', () => {
+        expect(formatUploadSelectionStatus(7, 2, 'date')).toBe(
+            'Time column date plus 2 of 7 analysis columns selected.',
+        );
+    });
+
+    it('calls out a fully selected preview clearly', () => {
+        expect(formatUploadSelectionStatus(4, 4, 'timestamp')).toBe(
+            'Time column timestamp plus all 4 analysis columns are selected.',
+        );
+    });
+
+    it('handles previews with only a detected time column', () => {
+        expect(formatUploadSelectionStatus(0, 0, 'ts')).toBe(
+            'Time column detected: ts. No additional analysis columns available.',
+        );
     });
 });

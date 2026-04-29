@@ -490,8 +490,14 @@ async fn drift_stats_valid_request_returns_correct_shape() {
 
     // Verify Epps-Singleton fields are present
     let first_window = &json["windows"][0];
-    assert!(first_window["es_stat"].is_number(), "es_stat missing from window");
-    assert!(first_window["es_pvalue"].is_number(), "es_pvalue missing from window");
+    assert!(
+        first_window["es_stat"].is_number(),
+        "es_stat missing from window"
+    );
+    assert!(
+        first_window["es_pvalue"].is_number(),
+        "es_pvalue missing from window"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

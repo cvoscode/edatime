@@ -177,7 +177,7 @@ Exports operate on the current visible or active analysis state, not on an untou
 The right side of the toolbar contains page-level analytics controls:
 
 - `Bands`: rolling mean plus standard-deviation bands
-- `Win`: rolling window size
+- `Window`: rolling window size
 - `Anomalies`: anomaly overlay toggle
 - anomaly method: `Z-score` or `IQR`
 - anomaly threshold
@@ -270,10 +270,10 @@ The second row adds:
 
 - `Color By` column
 - scatter color scale when a color column is active
-- density bin size
+- density `Bins` count
 - density colormap
 - density normalization: `Linear` or `Log`
-- export buttons
+- export menu (PNG/SVG/HTML/CSV/JSON)
 
 During the walkthrough, switching to `Scatter` mode and selecting `OT` as the color column immediately enabled a color scale selector and rendered a numeric colorbar.
 

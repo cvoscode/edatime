@@ -8,6 +8,7 @@
 
 import { appState } from '../state.js';
 import { toast } from './toast.js';
+import { getHashPage } from './router.js';
 
 const STORAGE_KEY = 'edatime-session';
 
@@ -36,6 +37,23 @@ export interface SessionSnapshot {
     scatterColorColumn: string;
     scatterRenderMode: string;
     theme: string;
+    datasetRevision?: number;
+}
+
+export interface ApplySessionOptions {
+    navigate?: boolean;
+    preferHashPage?: boolean;
+    metadataTimeRange?: { min: number; max: number } | null;
+    currentDatasetRevision?: number;
+    announceAdjustments?: boolean;
+}
+
+export interface ApplySessionResult {
+    revisionMismatch: boolean;
+    rangeAdjusted: boolean;
+    usedMetadataRange: boolean;
+    droppedFilterCount: number;
+    navigatedToPage: boolean;
 }
 
 function currentPage(): string {
@@ -70,19 +88,96 @@ export function captureSession(): SessionSnapshot {
         scatterColorColumn: readSelect('scatter-color-column'),
         scatterRenderMode: readSelect('scatter-render-mode'),
         theme: document.documentElement.getAttribute('data-theme') || 'dark',
+        datasetRevision: Number.isFinite(Number(appState.datasetRevision)) ? Number(appState.datasetRevision) : 0,
     };
 }
 
 /** Restore appState from a snapshot. Does NOT trigger re-renders — caller should. */
-export function applySession(snap: SessionSnapshot): void {
-    if (!snap || snap.version !== 1) return;
+export function applySession(
+    snap: SessionSnapshot,
+    options: ApplySessionOptions = {},
+): ApplySessionResult {
+    const result: ApplySessionResult = {
+        revisionMismatch: false,
+        rangeAdjusted: false,
+        usedMetadataRange: false,
+        droppedFilterCount: 0,
+        navigatedToPage: false,
+    };
+
+    if (!snap || snap.version !== 1) return result;
+
+    const announceAdjustments = options.announceAdjustments !== false;
+    const metadataTimeRange = options.metadataTimeRange
+        || ((appState.metadata as any)?.time_range ?? null);
+
+    const currentRevision = Number(
+        options.currentDatasetRevision
+        ?? appState.datasetRevision
+        ?? (appState.metadata as any)?.revision
+        ?? 0,
+    );
+    const snapshotRevision = Number(snap.datasetRevision ?? 0);
+    const hasRevisions = Number.isFinite(currentRevision) && currentRevision > 0
+        && Number.isFinite(snapshotRevision) && snapshotRevision > 0;
+    const revisionMismatch = hasRevisions && currentRevision !== snapshotRevision;
+    result.revisionMismatch = revisionMismatch;
 
     appState.selectedCols = Array.isArray(snap.selectedCols) ? snap.selectedCols : [];
     if (snap.seriesColors) appState.seriesColors = { ...snap.seriesColors };
-    if (snap.columnRanges) appState.columnRanges = { ...snap.columnRanges };
-    if (Array.isArray(snap.adaptiveLineFilters)) appState.adaptiveLineFilters = snap.adaptiveLineFilters.map((f) => ({ ...f }));
-    if (Number.isFinite(snap.currentStart)) appState.currentStart = snap.currentStart;
-    if (Number.isFinite(snap.currentEnd)) appState.currentEnd = snap.currentEnd;
+
+    if (revisionMismatch) {
+        const staleRanges = Object.keys(snap.columnRanges || {}).length;
+        const staleLines = Array.isArray(snap.adaptiveLineFilters) ? snap.adaptiveLineFilters.length : 0;
+        result.droppedFilterCount = staleRanges + staleLines;
+        appState.columnRanges = {};
+        appState.adaptiveLineFilters = [];
+    } else {
+        if (snap.columnRanges) appState.columnRanges = { ...snap.columnRanges };
+        if (Array.isArray(snap.adaptiveLineFilters)) {
+            appState.adaptiveLineFilters = snap.adaptiveLineFilters.map((f) => ({ ...f }));
+        }
+    }
+
+    if (!revisionMismatch) {
+        const hasStart = Number.isFinite(snap.currentStart);
+        const hasEnd = Number.isFinite(snap.currentEnd);
+        if (hasStart && hasEnd) {
+            let nextStart = Number(snap.currentStart);
+            let nextEnd = Number(snap.currentEnd);
+
+            const minMs = Number(metadataTimeRange?.min);
+            const maxMs = Number(metadataTimeRange?.max);
+            const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
+
+            if (hasMetadataBounds) {
+                const noOverlap = nextEnd <= minMs || nextStart >= maxMs;
+                if (noOverlap) {
+                    nextStart = minMs;
+                    nextEnd = maxMs;
+                    result.rangeAdjusted = true;
+                    result.usedMetadataRange = true;
+                } else {
+                    const clampedStart = Math.max(nextStart, minMs);
+                    const clampedEnd = Math.min(nextEnd, maxMs);
+                    if (clampedStart !== nextStart || clampedEnd !== nextEnd) {
+                        result.rangeAdjusted = true;
+                    }
+                    nextStart = clampedStart;
+                    nextEnd = clampedEnd;
+                    if (nextStart >= nextEnd) {
+                        nextStart = minMs;
+                        nextEnd = maxMs;
+                        result.usedMetadataRange = true;
+                    }
+                }
+            }
+
+            appState.currentStart = nextStart;
+            appState.currentEnd = nextEnd;
+        }
+    }
+
     if (snap.selectedColorColumn !== undefined) appState.selectedColorColumn = snap.selectedColorColumn;
     if (snap.chartText) appState.chartText = { ...snap.chartText };
     if (snap.rollingEnabled !== undefined) appState.rollingEnabled = snap.rollingEnabled;
@@ -107,11 +202,27 @@ export function applySession(snap: SessionSnapshot): void {
         localStorage.setItem('edatime-theme', snap.theme);
     }
 
-    // Navigate to the saved page
-    if (snap.page) {
-        const btn = document.querySelector(`.sidebar .nav-item[data-page="${snap.page}"]`) as HTMLElement | null;
-        btn?.click();
+    if (revisionMismatch && announceAdjustments) {
+        toast('Session belongs to another dataset revision; stale filters were cleared.', 'warning');
+    } else if (result.usedMetadataRange && announceAdjustments) {
+        toast('Saved chart range did not match this dataset and was reset to dataset bounds.', 'warning');
+    } else if (result.rangeAdjusted && announceAdjustments) {
+        toast('Saved chart range was clamped to the current dataset time range.', 'warning');
     }
+
+    // Navigate to the saved page unless hash routing should take precedence.
+    const hashPage = getHashPage();
+    const shouldPreferHash = !!options.preferHashPage && !!hashPage;
+    const shouldNavigate = options.navigate !== false && !shouldPreferHash;
+    if (shouldNavigate && snap.page) {
+        const btn = document.querySelector(`.sidebar .nav-item[data-page="${snap.page}"]`) as HTMLElement | null;
+        if (btn) {
+            btn.click();
+            result.navigatedToPage = true;
+        }
+    }
+
+    return result;
 }
 
 // ─── localStorage persistence ───────────────────────────────────────────────

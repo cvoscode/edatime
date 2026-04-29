@@ -417,8 +417,14 @@ fn ks_test_different_distributions() {
     let a: Vec<f64> = (0..50).map(|i| i as f64).collect();
     let b: Vec<f64> = (100..150).map(|i| i as f64).collect();
     let (stat, p) = ks_test_2sample(&a, &b);
-    assert!(stat > 0.5, "KS stat={stat} should be large for disjoint distributions");
-    assert!(p < 0.05, "p={p} should be significant for disjoint distributions");
+    assert!(
+        stat > 0.5,
+        "KS stat={stat} should be large for disjoint distributions"
+    );
+    assert!(
+        p < 0.05,
+        "p={p} should be significant for disjoint distributions"
+    );
 }
 
 #[test]
@@ -436,7 +442,10 @@ fn epps_singleton_basic_properties() {
     let b: Vec<f64> = (0..20).map(|i| i as f64).collect();
     let (stat_same, p_same) = epps_singleton_test(&a, &b);
     assert!(stat_same.is_finite(), "E-S stat should be finite");
-    assert!(p_same >= 0.0 && p_same <= 1.0, "p_same={p_same} must be in [0,1]");
+    assert!(
+        p_same >= 0.0 && p_same <= 1.0,
+        "p_same={p_same} must be in [0,1]"
+    );
 }
 
 #[test]
@@ -455,15 +464,23 @@ fn temporal_drift_reference_too_small_returns_error() {
     let df = small_df();
     // Reference window of just 1ms — should have < 5 samples
     let result = analytics::compute_temporal_drift(
-        &df, "value",
-        86_400_000,           // daily window
-        1_704_067_200_000.0,  // ref start = 2024-01-01
-        1_704_067_200_001.0,  // ref end = 1ms later (empty)
-        1_704_067_200_001.0,  // curr start
-        1_704_153_600_000.0,  // curr end = 2024-01-02
-        10, 0.05, 0.0, 0.1, 0.2,
+        &df,
+        "value",
+        86_400_000,          // daily window
+        1_704_067_200_000.0, // ref start = 2024-01-01
+        1_704_067_200_001.0, // ref end = 1ms later (empty)
+        1_704_067_200_001.0, // curr start
+        1_704_153_600_000.0, // curr end = 2024-01-02
+        10,
+        0.05,
+        0.0,
+        0.1,
+        0.2,
     );
-    assert!(result.is_err(), "Expected error for reference window with < 5 samples");
+    assert!(
+        result.is_err(),
+        "Expected error for reference window with < 5 samples"
+    );
 }
 
 #[test]
@@ -471,17 +488,25 @@ fn temporal_drift_empty_monitoring_range_produces_zero_windows() {
     let df = small_df();
     // Reference = first 50 hours, monitoring range is empty (start == end)
     let result = analytics::compute_temporal_drift(
-        &df, "value",
-        3_600_000,                    // hourly
-        1_704_067_200_000.0,          // ref start
-        1_704_067_200_000.0 + 50.0 * 3_600_000.0,  // ref end (50h)
-        1_704_067_200_000.0 + 51.0 * 3_600_000.0,  // curr start = after ref
-        1_704_067_200_000.0 + 51.0 * 3_600_000.0,  // curr end = same as start (empty)
-        10, 0.05, 0.0, 0.1, 0.2,
+        &df,
+        "value",
+        3_600_000,                                // hourly
+        1_704_067_200_000.0,                      // ref start
+        1_704_067_200_000.0 + 50.0 * 3_600_000.0, // ref end (50h)
+        1_704_067_200_000.0 + 51.0 * 3_600_000.0, // curr start = after ref
+        1_704_067_200_000.0 + 51.0 * 3_600_000.0, // curr end = same as start (empty)
+        10,
+        0.05,
+        0.0,
+        0.1,
+        0.2,
     );
     // Empty monitoring range: either error or zero windows
     match result {
-        Ok(r) => assert!(r.windows.is_empty(), "Expected 0 windows for empty monitoring range"),
+        Ok(r) => assert!(
+            r.windows.is_empty(),
+            "Expected 0 windows for empty monitoring range"
+        ),
         Err(_) => {} // also acceptable
     }
 }
@@ -491,15 +516,11 @@ fn temporal_drift_valid_request_returns_correct_shape() {
     let df = small_df();
     // Reference: first 24 hours, monitoring: next 24 hours (1 daily window)
     let ref_start = 1_704_067_200_000.0;
-    let ref_end   = ref_start + 24.0 * 3_600_000.0;
-    let curr_end  = ref_end   + 24.0 * 3_600_000.0;
+    let ref_end = ref_start + 24.0 * 3_600_000.0;
+    let curr_end = ref_end + 24.0 * 3_600_000.0;
 
     let result = analytics::compute_temporal_drift(
-        &df, "value",
-        86_400_000,
-        ref_start, ref_end,
-        ref_end, curr_end,
-        10, 0.05, 0.0, 0.1, 0.2,
+        &df, "value", 86_400_000, ref_start, ref_end, ref_end, curr_end, 10, 0.05, 0.0, 0.1, 0.2,
     );
     let resp = result.expect("Expected Ok for valid drift request");
     assert_eq!(resp.column, "value");
@@ -514,21 +535,21 @@ fn temporal_drift_low_sample_windows_do_not_crash() {
     let df = small_df();
     // Use a window size larger than the dataset so each window has few/no samples
     let ref_start = 1_704_067_200_000.0;
-    let ref_end   = ref_start + 24.0 * 3_600_000.0;
+    let ref_end = ref_start + 24.0 * 3_600_000.0;
     let curr_start = ref_end;
-    let curr_end  = curr_start + 4.0 * 3_600_000.0; // only 4 hours → 4 samples
+    let curr_end = curr_start + 4.0 * 3_600_000.0; // only 4 hours → 4 samples
 
     let result = analytics::compute_temporal_drift(
-        &df, "value",
-        86_400_000, // daily — 1 window with 4 samples → low_sample_warning
-        ref_start, ref_end,
-        curr_start, curr_end,
-        10, 0.05, 0.0, 0.1, 0.2,
+        &df, "value", 86_400_000, // daily — 1 window with 4 samples → low_sample_warning
+        ref_start, ref_end, curr_start, curr_end, 10, 0.05, 0.0, 0.1, 0.2,
     );
     let resp = result.expect("Should not panic on low-sample windows");
     for w in &resp.windows {
         if w.distribution.count < 5 {
-            assert!(w.low_sample_warning, "low_sample_warning must be true for N<5");
+            assert!(
+                w.low_sample_warning,
+                "low_sample_warning must be true for N<5"
+            );
         }
     }
 }
@@ -537,15 +558,11 @@ fn temporal_drift_low_sample_windows_do_not_crash() {
 fn temporal_drift_metadata_fields_populated() {
     let df = small_df();
     let ref_start = 1_704_067_200_000.0;
-    let ref_end   = ref_start + 24.0 * 3_600_000.0;
-    let curr_end  = ref_end + 48.0 * 3_600_000.0;
+    let ref_end = ref_start + 24.0 * 3_600_000.0;
+    let curr_end = ref_end + 48.0 * 3_600_000.0;
 
     let result = analytics::compute_temporal_drift(
-        &df, "value",
-        86_400_000,
-        ref_start, ref_end,
-        ref_end, curr_end,
-        10, 0.05, 0.0, 0.1, 0.2,
+        &df, "value", 86_400_000, ref_start, ref_end, ref_end, curr_end, 10, 0.05, 0.0, 0.1, 0.2,
     );
     let resp = result.expect("Expected Ok");
     // metadata.computation_time_ms may be 0 on fast machines, but must be present
@@ -557,21 +574,85 @@ fn temporal_drift_metadata_fields_populated() {
 fn temporal_drift_window_stats_include_es_fields() {
     let df = small_df();
     let ref_start = 1_704_067_200_000.0;
-    let ref_end   = ref_start + 24.0 * 3_600_000.0;
-    let curr_end  = ref_end + 24.0 * 3_600_000.0;
+    let ref_end = ref_start + 24.0 * 3_600_000.0;
+    let curr_end = ref_end + 24.0 * 3_600_000.0;
 
     let resp = analytics::compute_temporal_drift(
-        &df, "value",
-        86_400_000,
-        ref_start, ref_end,
-        ref_end, curr_end,
-        10, 0.05, 0.0, 0.1, 0.2,
-    ).expect("Expected Ok");
+        &df, "value", 86_400_000, ref_start, ref_end, ref_end, curr_end, 10, 0.05, 0.0, 0.1, 0.2,
+    )
+    .expect("Expected Ok");
 
     for w in &resp.windows {
         if !w.low_sample_warning {
-            assert!(w.es_stat.is_finite(), "es_stat must be finite for sufficient samples");
-            assert!(w.es_pvalue >= 0.0 && w.es_pvalue <= 1.0, "es_pvalue={}", w.es_pvalue);
+            assert!(
+                w.es_stat.is_finite(),
+                "es_stat must be finite for sufficient samples"
+            );
+            assert!(
+                w.es_pvalue >= 0.0 && w.es_pvalue <= 1.0,
+                "es_pvalue={}",
+                w.es_pvalue
+            );
         }
     }
+}
+
+#[test]
+fn temporal_drift_auto_wasserstein_threshold_is_derived_from_reference_std() {
+    let df = small_df();
+    let ref_start = 1_704_067_200_000.0;
+    let ref_end = ref_start + 24.0 * 3_600_000.0;
+    let curr_end = ref_end + 24.0 * 3_600_000.0;
+
+    let resp = analytics::compute_temporal_drift(
+        &df, "value", 86_400_000, ref_start, ref_end, ref_end, curr_end, 10, 0.05, 0.0, 0.1, 0.2,
+    )
+    .expect("Expected Ok");
+
+    assert!(
+        resp.thresholds.wasserstein_threshold > 0.0,
+        "Expected derived Wasserstein threshold to be positive"
+    );
+
+    let expected = resp.reference.std * 0.1;
+    let diff = (resp.thresholds.wasserstein_threshold - expected).abs();
+    assert!(
+        diff < 1e-9,
+        "Expected derived threshold {}, got {}",
+        expected,
+        resp.thresholds.wasserstein_threshold
+    );
+}
+
+#[test]
+fn temporal_drift_explicit_wasserstein_threshold_is_preserved() {
+    let df = small_df();
+    let ref_start = 1_704_067_200_000.0;
+    let ref_end = ref_start + 24.0 * 3_600_000.0;
+    let curr_end = ref_end + 24.0 * 3_600_000.0;
+
+    let explicit_threshold = 123.456;
+    let resp = analytics::compute_temporal_drift(
+        &df,
+        "value",
+        86_400_000,
+        ref_start,
+        ref_end,
+        ref_end,
+        curr_end,
+        10,
+        0.05,
+        explicit_threshold,
+        0.1,
+        0.2,
+    )
+    .expect("Expected Ok");
+
+    let diff = (resp.thresholds.wasserstein_threshold - explicit_threshold).abs();
+    assert!(
+        diff < 1e-12,
+        "Expected explicit threshold {}, got {}",
+        explicit_threshold,
+        resp.thresholds.wasserstein_threshold
+    );
 }

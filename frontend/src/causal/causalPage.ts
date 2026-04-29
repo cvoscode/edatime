@@ -62,6 +62,8 @@ interface NodePosition {
 let _eChart: any = null;
 let _chartEl: HTMLDivElement | null = null;
 let _chartEventsBound = false;
+let _chartResizeObserver: ResizeObserver | null = null;
+let _chartInitPromise: Promise<void> | null = null;
 let _currentColumns: string[] = [];
 let _currentLinks: CausalLink[] = [];
 let _currentTauMax = 0;
@@ -489,6 +491,9 @@ function renderColumnChips(deps: CausalDeps, columnsBar: HTMLElement): void {
     selectAllBtn.innerHTML = `<span class="chip-label">${allSelected ? 'Clear all' : 'Select all'}</span>`;
     selectAllBtn.title = allSelected ? 'Clear the causal column selection' : 'Select all columns in the pane';
     selectAllBtn.addEventListener('click', () => {
+        // Save τ_max before any DOM changes in case something causes it to reset (issue #11).
+        const tauInputEl = document.getElementById('causal-tau-max') as HTMLInputElement | null;
+        const savedTauMax = tauInputEl?.value;
         if (allSelected) {
             _selectedColumns.clear();
         } else {
@@ -496,6 +501,10 @@ function renderColumnChips(deps: CausalDeps, columnsBar: HTMLElement): void {
         }
         renderColumnChips(deps, columnsBar);
         syncCausalEmptyState();
+        // Restore τ_max if it was inadvertently reset.
+        if (savedTauMax && tauInputEl && tauInputEl.value !== savedTauMax) {
+            tauInputEl.value = savedTauMax;
+        }
     });
     columnsBar.appendChild(selectAllBtn);
 
@@ -544,15 +553,37 @@ function renderColumnChips(deps: CausalDeps, columnsBar: HTMLElement): void {
 }
 
 async function initChart(): Promise<void> {
-    if (!_chartEl) return;
-    const echarts = await import('echarts');
-    if (!_eChart) _eChart = echarts.init(_chartEl, undefined, { renderer: 'canvas' });
-    const ro = new ResizeObserver(() => {
-        _eChart?.resize();
-        if (_currentColumns.length > 0) renderEChartsGraph();
+    if (!_chartEl || !isCausalChartReadyForInit()) return;
+    if (_eChart) {
+        _eChart.resize();
+        return;
+    }
+    if (_chartInitPromise) {
+        await _chartInitPromise;
+        return;
+    }
+
+    _chartInitPromise = (async () => {
+        const echarts = await import('echarts');
+        if (!_chartEl || !isCausalChartReadyForInit()) return;
+        if (!_eChart) _eChart = echarts.init(_chartEl, undefined, { renderer: 'canvas' });
+        _chartResizeObserver?.disconnect();
+        _chartResizeObserver = new ResizeObserver(() => {
+            _eChart?.resize();
+            if (_currentColumns.length > 0) renderEChartsGraph();
+        });
+        _chartResizeObserver.observe(_chartEl);
+        attachChartEvents();
+    })().finally(() => {
+        _chartInitPromise = null;
     });
-    ro.observe(_chartEl);
-    attachChartEvents();
+
+    await _chartInitPromise;
+}
+
+function isCausalChartReadyForInit(): boolean {
+    const page = document.getElementById('page-causal') as HTMLElement | null;
+    return !!(page && !page.hidden && _chartEl);
 }
 
 function attachChartEvents(): void {
@@ -1471,7 +1502,7 @@ export function initCausalPage(deps: CausalDeps): void {
     syncCausalEmptyState();
     initInfoIcons();
     applyMethodControlState(methodSelect?.value || 'pcmci');
-    void initChart();
+    if (isCausalChartReadyForInit()) void initChart();
 
     // Allow other pages to pre-select columns for causal analysis
     window.addEventListener('edatime:causal-preselect', ((e: CustomEvent) => {
@@ -1599,6 +1630,7 @@ export function initCausalPage(deps: CausalDeps): void {
             window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
 
             for (const col of cols) ensureNodeMetadata(col, meta, deps);
+            await initChart();
             renderEChartsGraph();
 
             const groups = listPairGroups();
@@ -1617,8 +1649,10 @@ export function initCausalPage(deps: CausalDeps): void {
     window.addEventListener('edatime:page-change', (event: any) => {
         if (event?.detail?.page === 'causal' && deps.getMetadata()) {
             renderColumnChips(deps, columnsBar);
-            _eChart?.resize();
-            if (_currentColumns.length > 0) renderEChartsGraph();
+            void initChart().then(() => {
+                _eChart?.resize();
+                if (_currentColumns.length > 0) renderEChartsGraph();
+            });
             syncCausalEmptyState();
         }
     });

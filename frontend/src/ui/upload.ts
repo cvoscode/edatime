@@ -8,6 +8,8 @@ import {
 } from '../state.js';
 import type { DatasetMetadata } from '../types.js';
 
+const UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
+
 export function setUploadPreviewStatus(text: string, kind = ''): void {
     const el = document.getElementById('upload-preview-status');
     if (!el) return;
@@ -97,6 +99,19 @@ export function initUploadPanel(
 
     let selectedFile: File | null = null;
     let previewController: AbortController | null = null;
+
+    function validateSelectedFile(file: File | null): string | null {
+        if (!file) return 'Please select a file first.';
+        const name = String(file.name || '').toLowerCase();
+        if (!(name.endsWith('.csv') || name.endsWith('.parquet'))) {
+            return 'Only CSV and Parquet files are supported.';
+        }
+        if (Number(file.size) > UI_MAX_UPLOAD_BYTES) {
+            const maxMb = Math.round(UI_MAX_UPLOAD_BYTES / (1024 * 1024));
+            return `File exceeds ${maxMb} MB upload limit.`;
+        }
+        return null;
+    }
 
     function applyPreviewColumnSelection(metadata: DatasetMetadata) {
         const columns = Array.isArray(metadata?.columns) ? metadata.columns : [];
@@ -217,9 +232,23 @@ export function initUploadPanel(
         if ((e.target as HTMLElement).closest('#browse-btn')) return;
         fileInput!.click();
     });
+    dropZone.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        fileInput!.click();
+    });
     browseBtn.addEventListener('click', () => fileInput!.click());
     fileInput.addEventListener('change', () => {
         selectedFile = fileInput!.files?.[0] || null;
+        const invalidFileMsg = validateSelectedFile(selectedFile);
+        if (invalidFileMsg) {
+            selectedFile = null;
+            fileInput!.value = '';
+            fileDisplay!.textContent = '';
+            setStatus(invalidFileMsg, 'error');
+            setUploadPreviewStatus(invalidFileMsg, 'error');
+            return;
+        }
         fileDisplay!.textContent = selectedFile ? selectedFile.name : '';
         appState.previewTimeColumn = null;
         if (selectedFile) runFilePreview(selectedFile);
@@ -232,6 +261,14 @@ export function initUploadPanel(
         e.preventDefault();
         dropZone!.classList.remove('dragover');
         selectedFile = e.dataTransfer?.files[0] || null;
+        const invalidFileMsg = validateSelectedFile(selectedFile);
+        if (invalidFileMsg) {
+            selectedFile = null;
+            fileDisplay!.textContent = '';
+            setStatus(invalidFileMsg, 'error');
+            setUploadPreviewStatus(invalidFileMsg, 'error');
+            return;
+        }
         fileDisplay!.textContent = selectedFile ? selectedFile.name : '';
         appState.previewTimeColumn = null;
         if (selectedFile) runFilePreview(selectedFile);
@@ -284,6 +321,12 @@ export function initUploadPanel(
             return;
         }
 
+        const invalidFileMsg = validateSelectedFile(selectedFile);
+        if (invalidFileMsg) {
+            setStatus(invalidFileMsg, 'error');
+            return;
+        }
+
         if (!appState.previewTimeColumn && !(appState.metadata && appState.metadata.time_range)) {
             setStatus('No time column selected. Please choose a time column in the upload panel before ingest.', 'error');
             return;
@@ -315,6 +358,10 @@ export function initUploadPanel(
             };
             const tStartIso = toIsoOrNull(timeStartInput?.value || '');
             const tEndIso = toIsoOrNull(timeEndInput?.value || '');
+            if (tStartIso && tEndIso && Date.parse(tStartIso) > Date.parse(tEndIso)) {
+                setStatus('Start time must be before end time.', 'error');
+                return;
+            }
             if (tStartIso) formData.append('time_start', tStartIso);
             if (tEndIso) formData.append('time_end', tEndIso);
         }
@@ -368,12 +415,20 @@ export function initUploadPanel(
 
     function animateProgress(bar: HTMLElement): () => void {
         let w = 0;
+        if (progressWrap) progressWrap.setAttribute('aria-valuenow', '0');
         const t = setInterval(() => {
             w = Math.min(w + Math.random() * 8, 85);
             bar.style.width = w + '%';
+            if (progressWrap) progressWrap.setAttribute('aria-valuenow', String(Math.round(w)));
             if (w >= 85) clearInterval(t);
         }, 120);
-        return () => clearInterval(t);
+        return () => {
+            clearInterval(t);
+            if (progressWrap) {
+                const current = Number(progressWrap.getAttribute('aria-valuenow') || '0');
+                progressWrap.setAttribute('aria-valuenow', String(Math.max(current, 100)));
+            }
+        };
     }
 
     /* ── Database connection ─────────────────────────────── */

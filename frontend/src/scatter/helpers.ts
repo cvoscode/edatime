@@ -9,6 +9,7 @@ import { escapeHtml, downloadUrl, downloadBlob, getEl } from '../utils/dom.js';
 export const MATRIX_POINT_LIMIT = 8_000;
 export const MATRIX_MAX_COLUMNS = 4;
 export const HISTOGRAM_BINS = 24;
+export const DEFAULT_SCATTER_SUGGESTION_THRESHOLD = 0.7;
 const KDE_SAMPLES = 64;
 export const LOW_CARDINALITY_LIMIT = 8;
 export const DISTRIBUTION_GROUP_COLORS = [
@@ -31,6 +32,12 @@ export function showError(message: string | null): void {
 export function setPanelStatus(id: string, message: string): void {
     const el = getEl(id);
     if (el) el.textContent = String(message || '');
+}
+
+export function normalizeScatterSuggestionThreshold(value: unknown): number {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return DEFAULT_SCATTER_SUGGESTION_THRESHOLD;
+    return Math.min(0.95, Math.max(0.3, Math.round(numeric * 20) / 20));
 }
 
 /* ── Color palettes ───────────────────────────────────── */
