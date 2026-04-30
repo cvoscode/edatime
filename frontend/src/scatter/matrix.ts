@@ -28,6 +28,7 @@ import {
 } from './state.js';
 
 let draggingMatrixColumn: string | null = null;
+const MATRIX_FETCH_CONCURRENCY = 4;
 
 /* ── Column selection ─────────────────────────────────── */
 
@@ -181,6 +182,53 @@ function describeDistributionMode(mode: string): string {
     return 'Histogram';
 }
 
+function matrixPairPriority(
+    pair: [string, string],
+    controls: Pick<ScatterControls, 'x' | 'y'>,
+    suggestionRank: Map<string, number>,
+): number {
+    const [column, row] = pair;
+    if (column === controls.x && row === controls.y) return 0;
+    if (column === controls.y && row === controls.x) return 1;
+
+    const isDiagonal = column === row;
+    const currentAxisRank = [column, row].includes(controls.x) || [column, row].includes(controls.y) ? 0 : 1;
+    const suggestionColumnRank = suggestionRank.get(column) ?? Number.POSITIVE_INFINITY;
+    const suggestionRowRank = suggestionRank.get(row) ?? Number.POSITIVE_INFINITY;
+    const bestSuggestionRank = Math.min(suggestionColumnRank, suggestionRowRank);
+
+    if (currentAxisRank === 0 && Number.isFinite(bestSuggestionRank)) return 10 + bestSuggestionRank;
+    if (isDiagonal && currentAxisRank === 0) return 20;
+    if (isDiagonal && Number.isFinite(bestSuggestionRank)) return 30 + bestSuggestionRank;
+    if (Number.isFinite(bestSuggestionRank)) return 40 + bestSuggestionRank;
+    if (isDiagonal) return 60;
+    return 100;
+}
+
+export function buildMatrixFetchPairs(
+    columns: string[],
+    controls: Pick<ScatterControls, 'x' | 'y'>,
+    suggestions: Array<{ column?: string | null }> = [],
+): [string, string][] {
+    const suggestionRank = new Map<string, number>();
+    suggestions.forEach((item, index) => {
+        const column = String(item?.column || '').trim();
+        if (!column || suggestionRank.has(column)) return;
+        suggestionRank.set(column, index);
+    });
+
+    return columns
+        .flatMap((row) => columns.map((column) => [column, row] as [string, string]))
+        .sort((left, right) => {
+            const leftPriority = matrixPairPriority(left, controls, suggestionRank);
+            const rightPriority = matrixPairPriority(right, controls, suggestionRank);
+            if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+
+            if (left[1] !== right[1]) return columns.indexOf(left[1]) - columns.indexOf(right[1]);
+            return columns.indexOf(left[0]) - columns.indexOf(right[0]);
+        });
+}
+
 export function renderMatrixGrid(
     columns: string[],
     datasets: Map<string, MatrixCellData>,
@@ -306,28 +354,73 @@ export async function renderScatterOverview(
         colorColumn: controls.selectedColorColumn,
     });
     const requestId = ++state.overviewRequestId;
+    const pairs = buildMatrixFetchPairs(columns, controls, state.lastSuggestions);
 
-    const pairs: [string, string][] = [];
-    for (const row of columns) for (const col of columns) pairs.push([col, row]);
+    const datasets = new Map<string, MatrixCellData>();
+    const rerenderOrderedGrid = (nextColumns: string[]) => {
+        state.matrixColumnOrder = nextColumns.slice(0, MATRIX_MAX_COLUMNS);
+        renderMatrixGrid(state.matrixColumnOrder, datasets, onCellClick, rerenderOrderedGrid);
+    };
+    renderMatrixGrid(columns, datasets, onCellClick, rerenderOrderedGrid);
 
-    try {
-        const resolved = await Promise.all(pairs.map(async ([col, row]) => {
-            const data = await fetchMatrixCellData(col, row, context, controls.selectedColorColumn);
-            return { key: `${col}|${row}`, data };
-        }));
-        if (requestId !== state.overviewRequestId) return;
-        const datasets = new Map(resolved.map((e) => [e.key, e.data]));
-        const rerenderOrderedGrid = (nextColumns: string[]) => {
-            state.matrixColumnOrder = nextColumns.slice(0, MATRIX_MAX_COLUMNS);
-            renderMatrixGrid(state.matrixColumnOrder, datasets, onCellClick, rerenderOrderedGrid);
-            void renderMatrixFftPanel();
-        };
-        renderMatrixGrid(columns, datasets, onCellClick, rerenderOrderedGrid);
+    let completed = 0;
+    let hadErrors = false;
+
+    const updateStatus = () => {
         const groups = buildCategoricalColorGroups(state.colorLabels);
         const groupText = groups && controls.selectedColorColumn
             ? ` Grouped distributions use ${controls.selectedColorColumn}.`
             : '';
-        setPanelStatus('scatter-matrix-status', `Matrix shows ${columns.length} linked columns with ${describeDistributionMode(controls.diagonalMode)} diagonals. Drag headers to reorder.${groupText}`);
+        const base = `Matrix loaded ${completed}/${pairs.length} cells with ${describeDistributionMode(controls.diagonalMode)} diagonals.`;
+        const hint = completed < pairs.length
+            ? ' Prioritizing the current pair and suggested columns first.'
+            : ' Drag headers to reorder.';
+        const warning = hadErrors ? ' Some cells are temporarily unavailable.' : '';
+        setPanelStatus('scatter-matrix-status', `${base}${hint}${warning}${groupText}`);
+    };
+
+    let renderQueued = false;
+    const scheduleRender = () => {
+        if (renderQueued) return;
+        renderQueued = true;
+        requestAnimationFrame(() => {
+            renderQueued = false;
+            if (requestId !== state.overviewRequestId) return;
+            renderMatrixGrid(state.matrixColumnOrder.length > 0 ? state.matrixColumnOrder : columns, datasets, onCellClick, rerenderOrderedGrid);
+        });
+    };
+
+    try {
+        let nextPairIndex = 0;
+        const runWorker = async () => {
+            while (nextPairIndex < pairs.length) {
+                const pairIndex = nextPairIndex;
+                nextPairIndex += 1;
+                const [col, row] = pairs[pairIndex];
+                try {
+                    const data = await fetchMatrixCellData(col, row, context, controls.selectedColorColumn);
+                    if (requestId !== state.overviewRequestId) return;
+                    datasets.set(`${col}|${row}`, data);
+                } catch (error) {
+                    if (requestId !== state.overviewRequestId) return;
+                    console.error(error);
+                    hadErrors = true;
+                } finally {
+                    if (requestId !== state.overviewRequestId) return;
+                    completed += 1;
+                    updateStatus();
+                    scheduleRender();
+                }
+            }
+        };
+
+        await Promise.all(
+            Array.from({ length: Math.min(MATRIX_FETCH_CONCURRENCY, pairs.length) }, () => runWorker()),
+        );
+
+        if (requestId !== state.overviewRequestId) return;
+        renderMatrixGrid(state.matrixColumnOrder.length > 0 ? state.matrixColumnOrder : columns, datasets, onCellClick, rerenderOrderedGrid);
+        updateStatus();
     } catch (error) {
         if (requestId !== state.overviewRequestId) return;
         console.error(error);
@@ -339,10 +432,10 @@ export async function renderScatterOverview(
 export async function renderScatterMatrixView(
     onCellClick: (x: string, y: string) => void,
 ): Promise<void> {
-    await Promise.all([
-        renderScatterOverview(onCellClick),
-        renderMatrixFftPanel(),
-    ]);
+    await renderScatterOverview(onCellClick);
+    requestAnimationFrame(() => {
+        void renderMatrixFftPanel();
+    });
 }
 
 /* ── Matrix FFT panel ─────────────────────────────────── */

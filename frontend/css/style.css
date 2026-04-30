@@ -65,17 +65,8 @@
 /* 21. Provenance panel */
 @import "modules/provenance.css";
 
-/* 22. Homepage */
-@import "modules/home.css";
-
-/* 23. Guided workflow */
-@import "modules/workflow.css";
-
-/* 23. Settings panel */
+/* 22. Settings panel */
 @import "modules/settings.css";
-
-/* 24. Temporal Drift analysis page */
-@import "modules/drift.css?v=4";
 
 /* Causal run comparison diff table */
 .diff-added td {

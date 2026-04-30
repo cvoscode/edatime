@@ -169,4 +169,43 @@ describe('initScatterPage view toggles', () => {
         expect((document.querySelector('[data-scatter-view-panel="plot"]') as HTMLElement).hidden).toBe(true);
         expect((document.querySelector('[data-scatter-view-panel="matrix"]') as HTMLElement).hidden).toBe(false);
     });
+
+    it('suppresses the empty state while scatter points are still loading', async () => {
+        let resolveScatter: ((value: unknown) => void) | null = null;
+        fetchScatterPointsMock.mockImplementationOnce(() => new Promise((resolve) => {
+            resolveScatter = resolve;
+        }));
+
+        const { initScatterPage } = await import('./scatterPage.js');
+
+        const initPromise = initScatterPage({
+            total_rows: 2,
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+                { name: 'OT', dtype: 'Float64' },
+            ],
+            numeric_columns: ['HUFL', 'HULL', 'OT'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1_000 },
+            column_profiles: [],
+        } as any);
+
+        await vi.waitFor(() => {
+            expect(fetchScatterPointsMock).toHaveBeenCalledTimes(1);
+        });
+
+        expect(emptyStateUpdateMock).toHaveBeenCalledWith(
+            expect.objectContaining({ visible: false, reason: 'loading' }),
+        );
+
+        resolveScatter?.({
+            points: [[1, 2], [2, 3]],
+            total_points: 2,
+            color_values: null,
+            color_labels: null,
+            color: '',
+        });
+        await initPromise;
+    });
 });

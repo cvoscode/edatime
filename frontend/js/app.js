@@ -16,7 +16,7 @@ import {
 } from "./chunk-T63Y6LQO.js";
 import {
   FftChart
-} from "./chunk-CNNSZAFU.js";
+} from "./chunk-6HJ62GPA.js";
 import "./chunk-667JW4DN.js";
 import {
   createEmptyStateController,
@@ -33,8 +33,9 @@ import {
   dbgGroup
 } from "./chunk-P2MGEQ7G.js";
 import {
+  installWindowsWebGpuRequestAdapterWorkaround,
   requestGpuAdapter
-} from "./chunk-HIE322HX.js";
+} from "./chunk-RVK67GPZ.js";
 import {
   PROFILE_COLUMNS,
   PROFILE_OVERSCAN,
@@ -59,7 +60,7 @@ import {
   setMetaText,
   setSeriesColor,
   toFiniteNumberOrNull
-} from "./chunk-CLZT53LK.js";
+} from "./chunk-QM2AJNKI.js";
 import {
   debounce,
   downloadBlob,
@@ -109,7 +110,7 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
   colorControl.innerHTML = `
     <label>
       <span>Color by</span>
-      <select id="color-column-select" aria-label="Color-by column"></select>
+            <select id="color-column-select" name="color-column-select" aria-label="Color-by column"></select>
     </label>
   `;
   container.appendChild(colorControl);
@@ -142,6 +143,7 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
     return;
   }
   visibleCols.forEach((col) => {
+    const safeKey = col.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     const colIdx = appState.numericCols.indexOf(col);
     const color = getSeriesColor(col, colIdx >= 0 ? colIdx : 0);
     const isActive = appState.selectedCols.includes(col);
@@ -151,9 +153,9 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
     chip.style.setProperty("--chip-accent", color);
     chip.title = isAdaptiveTarget ? `Adaptive filter target: ${col}` : `Ctrl+click to target adaptive filters to ${col}`;
     chip.innerHTML = `
-      <input type="checkbox" ${isActive ? "checked" : ""} value="${escapeHtml(col)}">
+            <input type="checkbox" id="series-toggle-${safeKey}" name="series-toggle-${safeKey}" aria-label="Toggle ${escapeHtml(col)} series" ${isActive ? "checked" : ""} value="${escapeHtml(col)}">
       <span class="chip-label">${escapeHtml(col)}</span>
-      <input type="color" class="chip-color-picker" value="${escapeHtml(color)}" aria-label="Set ${escapeHtml(col)} color" title="Set ${escapeHtml(col)} color">
+            <input type="color" class="chip-color-picker" id="series-color-${safeKey}" name="series-color-${safeKey}" value="${escapeHtml(color)}" aria-label="Set ${escapeHtml(col)} color" title="Set ${escapeHtml(col)} color">
     `;
     chip.addEventListener(
       "click",
@@ -626,6 +628,7 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
   }
   let selectedFile = null;
   let previewController = null;
+  let dbStatusLoaded = false;
   function validateSelectedFile(file) {
     if (!file) return "Please select a file first.";
     const name = String(file.name || "").toLowerCase();
@@ -1069,22 +1072,36 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
       }
     });
   }
-  fetch("/api/database/status").then((r) => r.json()).then((s) => {
-    if (s.connected) {
-      if (dbChk) {
-        dbChk.checked = true;
-        dbFlds?.classList.add("visible");
+  async function syncDatabaseStatus() {
+    if (dbStatusLoaded) return;
+    dbStatusLoaded = true;
+    try {
+      const s = await fetch("/api/database/status").then((r) => r.json());
+      if (s.connected) {
+        if (dbChk) {
+          dbChk.checked = true;
+          dbFlds?.classList.add("visible");
+        }
+        if (dbLoadBtn) dbLoadBtn.disabled = false;
+        if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
+        if (dbStatus) {
+          dbStatus.textContent = `Connected to ${s.table || "(no table loaded)"}`;
+          dbStatus.className = "upload-status success";
+        }
+        void refreshDbTables();
       }
-      if (dbLoadBtn) dbLoadBtn.disabled = false;
-      if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
-      if (dbStatus) {
-        dbStatus.textContent = `Connected to ${s.table || "(no table loaded)"}`;
-        dbStatus.className = "upload-status success";
-      }
-      void refreshDbTables();
+    } catch {
+      dbStatusLoaded = false;
     }
-  }).catch(() => {
-  });
+  }
+  const maybeLoadDbStatus = (event) => {
+    const page = event?.detail?.page;
+    const navPage = event?.detail?.navPage;
+    if (page === "upload" || navPage === "upload") {
+      void syncDatabaseStatus();
+    }
+  };
+  window.addEventListener("edatime:page-change", maybeLoadDbStatus);
 }
 
 // frontend/src/ui/profile.ts
@@ -2448,6 +2465,33 @@ ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart
   });
 }
 
+// frontend/src/utils/pageStyles.ts
+var STYLE_MODULES = {
+  drift: "css/modules/drift.css?v=4",
+  home: "css/modules/home.css?v=1"
+};
+function pageStyleModulesFor(pageName) {
+  if (pageName === "drift") return ["drift"];
+  if (pageName === "home") return ["home"];
+  return [];
+}
+function ensureStyleModule(name) {
+  if (typeof document === "undefined") return null;
+  const existing = document.head.querySelector(`link[data-edatime-style="${name}"]`);
+  if (existing) return existing;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = STYLE_MODULES[name];
+  link.dataset.edatimeStyle = name;
+  document.head.appendChild(link);
+  return link;
+}
+function preloadPageStyles(pageName) {
+  for (const moduleName of pageStyleModulesFor(pageName)) {
+    ensureStyleModule(moduleName);
+  }
+}
+
 // frontend/src/ui/toolbar.ts
 function buildFilteredSeriesRows() {
   if (!appState.lastFetchedData || !Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
@@ -2840,6 +2884,10 @@ function initPages() {
     collapseBtn.dataset.bound = "1";
   }
   async function showPage2(pageName) {
+    preloadPageStyles(pageName);
+    if (pageName !== "home") {
+      await window.__edatime?.ensureDatasetReady?.(pageName);
+    }
     if (window.__edatime?.ensurePageModuleLoaded) {
       await window.__edatime.ensurePageModuleLoaded(pageName);
     }
@@ -2951,6 +2999,8 @@ function buildDOM() {
   panel.className = "palette-panel";
   _input = document.createElement("input");
   _input.className = "palette-input";
+  _input.id = "command-palette-input";
+  _input.name = "command-palette-input";
   _input.type = "text";
   _input.placeholder = "Type a command\u2026";
   _input.setAttribute("aria-label", "Command search");
@@ -4036,10 +4086,11 @@ function renderGuidedWorkflow() {
         </button>
     `).join("");
   panel.innerHTML = `
-        <div class="workflow-panel__header">
-            <div>
+        <div class="workflow-panel__header workflow-panel__header--compact">
+            <div class="workflow-panel__summary">
                 <div class="workflow-panel__eyebrow">Guided Workflow</div>
                 <div class="workflow-panel__title">${escapeHtml3(suggestion.title)}</div>
+                <p class="workflow-panel__copy workflow-panel__copy--compact">${escapeHtml3(suggestion.body)}</p>
             </div>
             <div class="workflow-panel__actions">
                 ${suggestion.actionLabel && suggestion.actionPage ? `
@@ -4049,10 +4100,7 @@ function renderGuidedWorkflow() {
             </div>
         </div>
         <div class="workflow-panel__crumbs">${crumbs}</div>
-        <div class="workflow-panel__body">
-            <p class="workflow-panel__copy">${escapeHtml3(suggestion.body)}</p>
-            ${suggestion.hint ? `<p class="workflow-panel__hint">${escapeHtml3(suggestion.hint)}</p>` : ""}
-        </div>
+        ${suggestion.hint ? `<div class="workflow-panel__hint">${escapeHtml3(suggestion.hint)}</div>` : ""}
     `;
 }
 function enableGuidedWorkflow() {
@@ -4433,6 +4481,26 @@ function isTypingTarget(target) {
 function currentPageName() {
   return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
 }
+function humanizeControlId(id) {
+  return String(id || "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().replace(/\b\w/g, (match) => match.toUpperCase());
+}
+function normalizeFormControlAccessibility() {
+  const controls = document.querySelectorAll("input, select, textarea");
+  controls.forEach((control) => {
+    if (!control.name && control.id) {
+      control.name = control.id;
+    }
+    if (control.getAttribute("aria-label")) return;
+    const labelledByText = Array.from(control.labels || []).map((label) => label.textContent?.replace(/\s+/g, " ").trim() || "").filter(Boolean).join(" ");
+    const placeholder = control.getAttribute("placeholder") || "";
+    const title = control.getAttribute("title") || "";
+    const fallback = humanizeControlId(control.id) || (control.type === "file" ? "Upload file" : "Form field");
+    const derived = labelledByText || placeholder || title || fallback;
+    if (derived) {
+      control.setAttribute("aria-label", derived);
+    }
+  });
+}
 function initKeyboardShortcuts(deps) {
   if (window.__edatime?.keyboardShortcutsBound) return;
   window.__edatime = window.__edatime || {};
@@ -4551,6 +4619,7 @@ function registerAppCommands(deps) {
 function initAppShell(deps) {
   window.__edatime = window.__edatime || {};
   window.__edatime.ensurePageModuleLoaded = deps.ensurePageModuleLoaded;
+  normalizeFormControlAccessibility();
   initPages();
   initHashRouting();
   initSettings();
@@ -4868,10 +4937,98 @@ var timeseriesPage = createTimeseriesPageController({
   getCurrentView,
   fetchAndRenderAnalytics: () => fetchAndRenderAnalytics()
 });
+var _timeseriesReady = false;
+var _timeseriesReadyPromise = null;
+var _sessionPersistenceStarted = false;
 var renderCurrentData = () => timeseriesPage.renderCurrentData();
 var emitChartRangeChange = (sourceKind = "data") => timeseriesPage.emitChartRangeChange(sourceKind);
-var fetchAndRender = () => timeseriesPage.fetchAndRender();
+var fetchAndRender = async () => {
+  await ensureTimeseriesReady();
+  return timeseriesPage.fetchAndRender();
+};
 var onZoomRangeChange = (newStart, newEnd, sourceKind = "user") => timeseriesPage.onZoomRangeChange(newStart, newEnd, sourceKind);
+function ensureSessionPersistenceStarted() {
+  if (_sessionPersistenceStarted) return;
+  startSessionPersistence();
+  _sessionPersistenceStarted = true;
+}
+async function ensureTimeseriesReady() {
+  if (_timeseriesReady) return;
+  if (_timeseriesReadyPromise) {
+    await _timeseriesReadyPromise;
+    return;
+  }
+  _timeseriesReadyPromise = (async () => {
+    if (appState.chart) {
+      _timeseriesReady = true;
+      return;
+    }
+    const gpuError = await checkWebGPU();
+    try {
+      dbg("initial X range (ms)", { start: appState.currentStart, end: appState.currentEnd });
+      const lineType = getChartType("line");
+      if (lineType) {
+        appState.chart = lineType.create("main-chart", {
+          onZoom: onZoomRangeChange,
+          onYRange: updateAnalysisYRange,
+          onZoomOut: () => zoomOut(fetchAndRender)
+        });
+      } else {
+        appState.chart = new DataChartCtor("main-chart", onZoomRangeChange, updateAnalysisYRange, () => zoomOut(fetchAndRender));
+      }
+      if (gpuError) throw new Error(gpuError);
+      await Promise.race([
+        appState.chart.init(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("ChartGPU init timed out")), 6e3))
+      ]);
+      appState.analysisBound = false;
+      bindAnalysisChartEvents();
+      initAdaptiveFilterGesture();
+      refreshZoomControlsState();
+      setAnnotationOverlayCallback(() => appState.chart?.requestOverlayRender?.());
+      appState.chart?.setXRange?.(appState.currentStart, appState.currentEnd);
+      appState.chart?.setChartText?.(
+        appState.chartText?.title || "",
+        appState.chartText?.xLabel || "",
+        appState.chartText?.yLabel || ""
+      );
+      renderCurrentData();
+      await timeseriesPage.fetchAndRender();
+      appState.initialView = getCurrentView();
+      dbgGroup("initialView snapshot", () => dbg(appState.initialView));
+      await restoreSessionAfterChartReady({
+        metadataTimeRange: appState.metadata?.time_range ?? null,
+        currentDatasetRevision: Number(appState.datasetRevision ?? 0),
+        buildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
+        buildRangeControls,
+        renderCurrentData,
+        fetchAndRender: () => timeseriesPage.fetchAndRender()
+      });
+      _timeseriesReady = true;
+    } catch (e) {
+      console.error("Primary chart failed, switching to fallback:", e);
+      try {
+        const fallbackType = getChartType("fallback");
+        appState.chart = fallbackType ? fallbackType.create("main-chart", {}) : new FallbackChart("main-chart");
+        await appState.chart.init();
+        appState.analysisBound = false;
+        bindAnalysisChartEvents();
+        refreshZoomControlsState();
+        await timeseriesPage.fetchAndRender();
+        setMetaText("Fallback renderer active");
+        _timeseriesReady = true;
+      } catch (fallbackErr) {
+        console.error("Fallback chart also failed:", fallbackErr);
+        setMetaText("Error: " + fallbackErr.message);
+      }
+    }
+  })();
+  try {
+    await _timeseriesReadyPromise;
+  } finally {
+    _timeseriesReadyPromise = null;
+  }
+}
 function emitAdaptiveFiltersChange() {
   window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change", {
     detail: { count: (appState.adaptiveLineFilters || []).length }
@@ -5153,6 +5310,73 @@ var pageModuleLoaders = {
   fft: initFftPage2,
   drift: initDriftPage
 };
+var _datasetReadyPromise = null;
+var _datasetUiReady = false;
+function initializeDatasetUi(metadata) {
+  if (!_datasetUiReady) {
+    initDatasetSearchInputs({
+      rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
+      renderColumnProfilesGrid
+    });
+    initTimeseriesActions({
+      rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
+      renderColumnProfilesGrid,
+      buildRangeControls,
+      renderCurrentData,
+      fetchAndRender,
+      updateAnalysisZoom,
+      emitChartRangeChange,
+      registerCleanup: (cleanup) => _appCleanups.push(cleanup)
+    });
+    ensureSessionPersistenceStarted();
+    window.addEventListener("edatime:page-change", (event) => {
+      if (event?.detail?.page === "timeseries") {
+        void ensureTimeseriesReady();
+      }
+    });
+    _datasetUiReady = true;
+  }
+  hydrateColumnProfiles(metadata);
+  renderColumnProfilesGrid(true);
+  applyPartialTimeRangeFromMetadata(metadata, false);
+  setUploadPreviewStatus("Showing current dataset profile. Drop/select a file to preview before loading.");
+  setProfileMode("dataset");
+  buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
+  buildMetaBar(metadata);
+  buildRangeControls();
+  window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
+  appState.currentStart = Number(metadata.time_range.min);
+  appState.currentEnd = Number(metadata.time_range.max);
+  updateAnalysisZoom(appState.currentStart, appState.currentEnd, "initial");
+  emitChartRangeChange("initial");
+}
+async function ensureDatasetReady(_pageName = "timeseries") {
+  if (_metadataReady) return;
+  if (_datasetReadyPromise) return _datasetReadyPromise;
+  _datasetReadyPromise = (async () => {
+    await ensureChartModules();
+    const metadata = await fetchMetadata();
+    storeFetchedMetadata(metadata);
+    _metadataReady = true;
+    window.dispatchEvent(new Event("edatime:metadata-ready"));
+    dbgGroup("metadata", () => dbg(appState.metadata));
+    if (!metadata.time_range) {
+      setMetaText("No valid time range found.");
+      return;
+    }
+    appState.numericCols = getNumericColumns(metadata);
+    if (!appState.selectedCols.length) {
+      appState.selectedCols = getDefaultTimeseriesColumns(metadata);
+    }
+    appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
+    sanitizeSelectedColumns();
+    initializeDatasetUi(metadata);
+  })().catch((error) => {
+    _datasetReadyPromise = null;
+    throw error;
+  });
+  return _datasetReadyPromise;
+}
 async function initSpectrogramPage2() {
   await initSpectrogramPage({
     setLoading: setComputeLoading
@@ -5187,6 +5411,8 @@ async function refreshDatasetAfterMutation(options) {
   await fetchAndRender();
 }
 async function init() {
+  installWindowsWebGpuRequestAdapterWorkaround();
+  buildMetaBar(null);
   initAppShell({
     ensurePageModuleLoaded,
     showPage,
@@ -5201,112 +5427,18 @@ async function init() {
     renderColumnProfilesGrid,
     registerCleanup: (cleanup) => _appCleanups.push(cleanup)
   });
+  window.__edatime = window.__edatime || {};
+  window.__edatime.ensureDatasetReady = ensureDatasetReady;
   try {
-    await ensureChartModules();
+    if (getHashPage() && getHashPage() !== "home") {
+      await ensureDatasetReady(getHashPage());
+    }
+    if (getHashPage() === "timeseries" && _metadataReady) {
+      await ensureTimeseriesReady();
+    }
   } catch (e) {
-    console.error("Chart/data modules failed to load:", e);
-    setMetaText("Chart modules failed to load, but upload is available.");
-    return;
-  }
-  const gpuError = await checkWebGPU();
-  try {
-    storeFetchedMetadata(await fetchMetadata());
-    _metadataReady = true;
-    window.dispatchEvent(new Event("edatime:metadata-ready"));
-    dbgGroup("metadata", () => dbg(appState.metadata));
-    setMetaText("Loading chart\u2026");
-    if (!appState.metadata.time_range) {
-      setMetaText("No valid time range found.");
-      return;
-    }
-    appState.numericCols = getNumericColumns(appState.metadata);
-    appState.selectedCols = getDefaultTimeseriesColumns(appState.metadata);
-    appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
-    sanitizeSelectedColumns();
-    initDatasetSearchInputs({
-      rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
-      renderColumnProfilesGrid
-    });
-    const metadata = appState.metadata;
-    if (!metadata) return;
-    hydrateColumnProfiles(metadata);
-    renderColumnProfilesGrid(true);
-    applyPartialTimeRangeFromMetadata(metadata, false);
-    setUploadPreviewStatus("Showing current dataset profile. Drop/select a file to preview before loading.");
-    setProfileMode("dataset");
-    buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
-    buildMetaBar(metadata);
-    buildRangeControls();
-    window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
-    appState.currentStart = Number(appState.metadata.time_range.min);
-    appState.currentEnd = Number(appState.metadata.time_range.max);
-    updateAnalysisZoom(appState.currentStart, appState.currentEnd, "initial");
-    emitChartRangeChange("initial");
-    initTimeseriesActions({
-      rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
-      renderColumnProfilesGrid,
-      buildRangeControls,
-      renderCurrentData,
-      fetchAndRender,
-      updateAnalysisZoom,
-      emitChartRangeChange,
-      registerCleanup: (cleanup) => _appCleanups.push(cleanup)
-    });
-    dbg("initial X range (ms)", { start: appState.currentStart, end: appState.currentEnd });
-    const lineType = getChartType("line");
-    if (lineType) {
-      appState.chart = lineType.create("main-chart", {
-        onZoom: onZoomRangeChange,
-        onYRange: updateAnalysisYRange,
-        onZoomOut: () => zoomOut(fetchAndRender)
-      });
-    } else {
-      appState.chart = new DataChartCtor("main-chart", onZoomRangeChange, updateAnalysisYRange, () => zoomOut(fetchAndRender));
-    }
-    if (gpuError) throw new Error(gpuError);
-    await Promise.race([
-      appState.chart.init(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("ChartGPU init timed out")), 6e3))
-    ]);
-    appState.analysisBound = false;
-    bindAnalysisChartEvents();
-    initAdaptiveFilterGesture();
-    refreshZoomControlsState();
-    setAnnotationOverlayCallback(() => appState.chart?.requestOverlayRender?.());
-    appState.chart?.setXRange?.(appState.currentStart, appState.currentEnd);
-    appState.chart?.setChartText?.(
-      appState.chartText?.title || "",
-      appState.chartText?.xLabel || "",
-      appState.chartText?.yLabel || ""
-    );
-    renderCurrentData();
-    await fetchAndRender();
-    appState.initialView = getCurrentView();
-    dbgGroup("initialView snapshot", () => dbg(appState.initialView));
-    await restoreSessionAfterChartReady({
-      metadataTimeRange: appState.metadata?.time_range ?? null,
-      currentDatasetRevision: Number(appState.datasetRevision ?? 0),
-      buildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
-      buildRangeControls,
-      renderCurrentData,
-      fetchAndRender
-    });
-    startSessionPersistence();
-  } catch (e) {
-    console.error("Primary chart failed, switching to fallback:", e);
-    try {
-      const fallbackType = getChartType("fallback");
-      appState.chart = fallbackType ? fallbackType.create("main-chart", {}) : new FallbackChart("main-chart");
-      await appState.chart.init();
-      appState.analysisBound = false;
-      bindAnalysisChartEvents();
-      refreshZoomControlsState();
-      await fetchAndRender();
-      setMetaText("Fallback renderer active");
-    } catch (fallbackErr) {
-      console.error("Fallback chart also failed:", fallbackErr);
-      setMetaText("Error: " + fallbackErr.message);
-    }
+    console.error("Initial bootstrap failed:", e);
+    setMetaText("Error: " + e.message);
   }
 }
 init();

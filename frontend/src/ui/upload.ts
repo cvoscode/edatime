@@ -99,6 +99,7 @@ export function initUploadPanel(
 
     let selectedFile: File | null = null;
     let previewController: AbortController | null = null;
+    let dbStatusLoaded = false;
 
     function validateSelectedFile(file: File | null): string | null {
         if (!file) return 'Please select a file first.';
@@ -574,14 +575,30 @@ export function initUploadPanel(
         });
     }
 
-    // On init check connection status.
-    fetch('/api/database/status').then(r => r.json()).then((s: any) => {
-        if (s.connected) {
-            if (dbChk) { dbChk.checked = true; dbFlds?.classList.add('visible'); }
-            if (dbLoadBtn) dbLoadBtn.disabled = false;
-            if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
-            if (dbStatus) { dbStatus.textContent = `Connected to ${s.table || '(no table loaded)'}`; dbStatus.className = 'upload-status success'; }
-            void refreshDbTables();
+    async function syncDatabaseStatus(): Promise<void> {
+        if (dbStatusLoaded) return;
+        dbStatusLoaded = true;
+        try {
+            const s = await fetch('/api/database/status').then((r) => r.json());
+            if (s.connected) {
+                if (dbChk) { dbChk.checked = true; dbFlds?.classList.add('visible'); }
+                if (dbLoadBtn) dbLoadBtn.disabled = false;
+                if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
+                if (dbStatus) { dbStatus.textContent = `Connected to ${s.table || '(no table loaded)'}`; dbStatus.className = 'upload-status success'; }
+                void refreshDbTables();
+            }
+        } catch {
+            dbStatusLoaded = false;
         }
-    }).catch(() => { });
+    }
+
+    const maybeLoadDbStatus = (event?: Event | CustomEvent) => {
+        const page = (event as CustomEvent | undefined)?.detail?.page;
+        const navPage = (event as CustomEvent | undefined)?.detail?.navPage;
+        if (page === 'upload' || navPage === 'upload') {
+            void syncDatabaseStatus();
+        }
+    };
+
+    window.addEventListener('edatime:page-change', maybeLoadDbStatus as EventListener);
 }

@@ -24,11 +24,23 @@
 
 @media (max-width: 760px) {
   .toolbar { height: auto; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; }
+  .toolbar-group { min-width: 0; }
   .scatter-overview { padding: 12px; gap: 12px; }
   .scatter-panel-single { margin: 12px; }
   .scatter-panel-head { flex-direction: column; align-items: flex-start; }
   .scatter-panel-status { text-align: left; }
   .scatter-colorbar-wrap-inline { width: 100%; max-width: none; min-width: 0; }
+  .scatter-toolbar #scatter-analytics-group,
+  .scatter-toolbar .toolbar-group--push {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .scatter-toolbar .toolbar-group--push { margin-left: 0; }
+  .scatter-toolbar .scatter-link-toggle { flex: 1 1 100%; }
+  .upload-inner,
+  .upload-source-panel--file { grid-template-columns: 1fr; }
+  .upload-actions { padding-top: 0; }
 }
 
 @media (max-width: 640px) {
@@ -44,9 +56,48 @@
   .series-toggles { max-width: 100%; }
   .scatter-marginal-x { height: 56px; }
   #scatter-chart.with-x-marginal { top: 56px; height: calc(100% - 56px); }
-  .scatter-overlay-stack { width: 220px; }
-  #scatter-chart { right: 220px; width: calc(100% - 220px); }
-  .scatter-marginal-x { right: 220px; }
+  .toolbar--series .toolbar-group { flex: 1 1 100%; min-width: 0; }
+  .toolbar--series .series-toggles {
+    flex: 1 1 100%;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+  .scatter-toolbar .toolbar-disclosure__menu,
+  .scatter-toolbar .toolbar-disclosure--end .toolbar-disclosure__menu {
+    left: 0;
+    right: auto;
+    max-width: calc(100vw - 24px);
+    min-width: 0;
+  }
+  .upload-preview-head {
+    height: auto;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .upload-preview-selection {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .column-filter-input {
+    width: 100%;
+    max-width: 100%;
+  }
+  .upload-preview-status {
+    margin-left: 0;
+    width: 100%;
+    white-space: normal;
+  }
+  .field-group .row,
+  .field-group .row-time,
+  .db-fields {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  #db-connect-btn { justify-self: start; }
 }
 
 @media (max-width: 600px) {
@@ -55,9 +106,6 @@
 }
 
 @media (max-width: 480px) {
-  .scatter-overlay-stack { width: 160px; }
-  #scatter-chart { right: 160px; width: calc(100% - 160px); }
-  .scatter-marginal-x { right: 160px; }
   .scatter-stats-bar { flex-wrap: wrap; height: auto; }
   .scatter-stats-bar span { white-space: normal; }
 }

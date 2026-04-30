@@ -468,10 +468,11 @@ export function renderGuidedWorkflow(): void {
     `).join('');
 
     panel.innerHTML = `
-        <div class="workflow-panel__header">
-            <div>
+        <div class="workflow-panel__header workflow-panel__header--compact">
+            <div class="workflow-panel__summary">
                 <div class="workflow-panel__eyebrow">Guided Workflow</div>
                 <div class="workflow-panel__title">${escapeHtml(suggestion.title)}</div>
+                <p class="workflow-panel__copy workflow-panel__copy--compact">${escapeHtml(suggestion.body)}</p>
             </div>
             <div class="workflow-panel__actions">
                 ${suggestion.actionLabel && suggestion.actionPage ? `
@@ -481,10 +482,7 @@ export function renderGuidedWorkflow(): void {
             </div>
         </div>
         <div class="workflow-panel__crumbs">${crumbs}</div>
-        <div class="workflow-panel__body">
-            <p class="workflow-panel__copy">${escapeHtml(suggestion.body)}</p>
-            ${suggestion.hint ? `<p class="workflow-panel__hint">${escapeHtml(suggestion.hint)}</p>` : ''}
-        </div>
+        ${suggestion.hint ? `<div class="workflow-panel__hint">${escapeHtml(suggestion.hint)}</div>` : ''}
     `;
 }
 

@@ -84,6 +84,7 @@ function syncScatterEmptyState(message?: string): void {
     const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
     const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
     const hasAxes = !!xSelect?.value && !!ySelect?.value;
+    const isLoading = state.loading && hasAxes && !(_gpuUnavailable && !state.chart);
     syncScatterFilterBadge();
 
     const linkedRangeOutside = isLinkedBrushEnabled()
@@ -95,6 +96,8 @@ function syncScatterEmptyState(message?: string): void {
         reason = 'gpu-unavailable';
     } else if (!hasAxes) {
         reason = 'no-columns-selected';
+    } else if (isLoading) {
+        reason = 'loading';
     } else if (state.totalPoints === 0) {
         reason = linkedRangeOutside ? 'linked-range-outside-dataset' : 'no-data-after-filters';
     } else {
@@ -115,6 +118,8 @@ function syncScatterEmptyState(message?: string): void {
             ? 'WebGPU is not available. Scatter rendering requires a WebGPU-capable browser (Chrome 113+, Edge 113+, Safari 18+).'
             : !hasAxes
                 ? 'Choose X and Y numeric columns to render the scatter plot.'
+                : isLoading
+                    ? 'Loading scatter points…'
                 : linkedRangeOutside
                     ? 'Linked time range is outside the current dataset. Reset range to recover points.'
                     : (scopedFilterCount > 0 || adaptiveFilterCount > 0)
@@ -122,12 +127,14 @@ function syncScatterEmptyState(message?: string): void {
                         : 'No points match the current query.');
 
     emptyState.update({
-        visible: !(hasAxes && state.totalPoints > 0 && !(_gpuUnavailable && !state.chart)),
+        visible: !isLoading && !(hasAxes && state.totalPoints > 0 && !(_gpuUnavailable && !state.chart)),
         reason,
         title: _gpuUnavailable && !state.chart
             ? 'WebGPU unavailable'
             : !hasAxes
                 ? 'Choose scatter axes'
+                : isLoading
+                    ? 'Loading scatter plot'
                 : linkedRangeOutside
                     ? 'Linked range outside dataset'
                     : 'No scatter points found',
@@ -333,6 +340,7 @@ async function renderScatter(): Promise<void> {
     let container = getEl('scatter-chart');
 
     if (!container || !xSelect || !ySelect || !xSelect.value || !ySelect.value) {
+        state.loading = false;
         state.totalPoints = 0;
         syncScatterEmptyState();
         return;
@@ -343,6 +351,9 @@ async function renderScatter(): Promise<void> {
 
     showError('');
     const scatterLoading = getEl('scatter-chart-loading');
+    const requestId = ++state.scatterRequestId;
+    state.loading = true;
+    syncScatterEmptyState();
     if (scatterLoading) scatterLoading.hidden = false;
     try {
         const ctl = currentControls();
@@ -356,6 +367,7 @@ async function renderScatter(): Promise<void> {
             buildScatterQueryContext({ x: xSelect.value, y: ySelect.value, colorColumn: colorColumn || undefined }),
             _scatterAbort.signal,
         );
+        if (requestId !== state.scatterRequestId) return;
         _scatterAbort = null;
 
         const points: [number, number][] = Array.isArray(response.points) ? response.points : [];
@@ -366,7 +378,6 @@ async function renderScatter(): Promise<void> {
         state.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
         state.colorColumn = response.color || '';
         applyScatterStateFromCache(true);
-        syncScatterEmptyState();
 
         if (state.chart && state.lastRenderSignature !== renderSignature) {
             disposeScatterChart();
@@ -407,6 +418,7 @@ async function renderScatter(): Promise<void> {
         await refreshActiveScatterView();
     } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        if (requestId !== state.scatterRequestId) return;
         state.totalPoints = 0;
         // Distinguish GPU init failure from data/filter issues
         const isGpuErr = /gpu|webgpu|adapter|device/i.test(String(err?.message || ''));
@@ -418,7 +430,11 @@ async function renderScatter(): Promise<void> {
         );
         throw err;
     } finally {
-        if (scatterLoading) scatterLoading.hidden = true;
+        if (requestId === state.scatterRequestId) {
+            state.loading = false;
+            syncScatterEmptyState();
+            if (scatterLoading) scatterLoading.hidden = true;
+        }
     }
 }
 
@@ -617,6 +633,7 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
         ensureOptions(ySelect, numeric.filter((c) => c !== xSelect.value), ySelect.value || numeric[1] || numeric[0]);
     }
 
+    state.loading = !state.pageInitialized && !page.hidden && !!xSelect.value && !!ySelect.value;
     syncScatterEmptyState();
     syncScatterFilterBadge();
 

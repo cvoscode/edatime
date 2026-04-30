@@ -12,7 +12,7 @@ import {
   Ad,
   defaultGpuPowerPreference,
   requestGpuAdapter
-} from "../chunk-HIE322HX.js";
+} from "../chunk-RVK67GPZ.js";
 import {
   MATRIX_MAX_COLUMNS,
   MATRIX_POINT_LIMIT,
@@ -50,12 +50,12 @@ import {
   showError,
   state,
   upperBoundByX
-} from "../chunk-3BFTKZYS.js";
+} from "../chunk-6OWCZNYV.js";
 import {
   appState,
   formatTimestamp,
   formatTwoDecimals
-} from "../chunk-CLZT53LK.js";
+} from "../chunk-QM2AJNKI.js";
 import {
   downloadBlob,
   downloadUrl,
@@ -877,6 +877,7 @@ function syncModeUI() {
 
 // frontend/src/scatter/matrix.ts
 var draggingMatrixColumn = null;
+var MATRIX_FETCH_CONCURRENCY = 4;
 function collectOverviewColumns() {
   const controls = currentControls();
   const columns = [];
@@ -991,6 +992,37 @@ function describeDistributionMode(mode) {
   if (mode === "boxplot") return "Box Plot";
   return "Histogram";
 }
+function matrixPairPriority(pair, controls, suggestionRank) {
+  const [column, row] = pair;
+  if (column === controls.x && row === controls.y) return 0;
+  if (column === controls.y && row === controls.x) return 1;
+  const isDiagonal = column === row;
+  const currentAxisRank = [column, row].includes(controls.x) || [column, row].includes(controls.y) ? 0 : 1;
+  const suggestionColumnRank = suggestionRank.get(column) ?? Number.POSITIVE_INFINITY;
+  const suggestionRowRank = suggestionRank.get(row) ?? Number.POSITIVE_INFINITY;
+  const bestSuggestionRank = Math.min(suggestionColumnRank, suggestionRowRank);
+  if (currentAxisRank === 0 && Number.isFinite(bestSuggestionRank)) return 10 + bestSuggestionRank;
+  if (isDiagonal && currentAxisRank === 0) return 20;
+  if (isDiagonal && Number.isFinite(bestSuggestionRank)) return 30 + bestSuggestionRank;
+  if (Number.isFinite(bestSuggestionRank)) return 40 + bestSuggestionRank;
+  if (isDiagonal) return 60;
+  return 100;
+}
+function buildMatrixFetchPairs(columns, controls, suggestions = []) {
+  const suggestionRank = /* @__PURE__ */ new Map();
+  suggestions.forEach((item, index) => {
+    const column = String(item?.column || "").trim();
+    if (!column || suggestionRank.has(column)) return;
+    suggestionRank.set(column, index);
+  });
+  return columns.flatMap((row) => columns.map((column) => [column, row])).sort((left, right) => {
+    const leftPriority = matrixPairPriority(left, controls, suggestionRank);
+    const rightPriority = matrixPairPriority(right, controls, suggestionRank);
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+    if (left[1] !== right[1]) return columns.indexOf(left[1]) - columns.indexOf(right[1]);
+    return columns.indexOf(left[0]) - columns.indexOf(right[0]);
+  });
+}
 function renderMatrixGrid(columns, datasets, onCellClick, onColumnReorder = null) {
   const container = getEl("scatter-matrix");
   if (!container) return;
@@ -1096,24 +1128,62 @@ async function renderScatterOverview(onCellClick) {
     colorColumn: controls.selectedColorColumn
   });
   const requestId = ++state.overviewRequestId;
-  const pairs = [];
-  for (const row of columns) for (const col of columns) pairs.push([col, row]);
-  try {
-    const resolved = await Promise.all(pairs.map(async ([col, row]) => {
-      const data = await fetchMatrixCellData(col, row, context, controls.selectedColorColumn);
-      return { key: `${col}|${row}`, data };
-    }));
-    if (requestId !== state.overviewRequestId) return;
-    const datasets = new Map(resolved.map((e) => [e.key, e.data]));
-    const rerenderOrderedGrid = (nextColumns) => {
-      state.matrixColumnOrder = nextColumns.slice(0, MATRIX_MAX_COLUMNS);
-      renderMatrixGrid(state.matrixColumnOrder, datasets, onCellClick, rerenderOrderedGrid);
-      void renderMatrixFftPanel();
-    };
-    renderMatrixGrid(columns, datasets, onCellClick, rerenderOrderedGrid);
+  const pairs = buildMatrixFetchPairs(columns, controls, state.lastSuggestions);
+  const datasets = /* @__PURE__ */ new Map();
+  const rerenderOrderedGrid = (nextColumns) => {
+    state.matrixColumnOrder = nextColumns.slice(0, MATRIX_MAX_COLUMNS);
+    renderMatrixGrid(state.matrixColumnOrder, datasets, onCellClick, rerenderOrderedGrid);
+  };
+  renderMatrixGrid(columns, datasets, onCellClick, rerenderOrderedGrid);
+  let completed = 0;
+  let hadErrors = false;
+  const updateStatus = () => {
     const groups = buildCategoricalColorGroups(state.colorLabels);
     const groupText = groups && controls.selectedColorColumn ? ` Grouped distributions use ${controls.selectedColorColumn}.` : "";
-    setPanelStatus("scatter-matrix-status", `Matrix shows ${columns.length} linked columns with ${describeDistributionMode(controls.diagonalMode)} diagonals. Drag headers to reorder.${groupText}`);
+    const base = `Matrix loaded ${completed}/${pairs.length} cells with ${describeDistributionMode(controls.diagonalMode)} diagonals.`;
+    const hint = completed < pairs.length ? " Prioritizing the current pair and suggested columns first." : " Drag headers to reorder.";
+    const warning = hadErrors ? " Some cells are temporarily unavailable." : "";
+    setPanelStatus("scatter-matrix-status", `${base}${hint}${warning}${groupText}`);
+  };
+  let renderQueued = false;
+  const scheduleRender = () => {
+    if (renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(() => {
+      renderQueued = false;
+      if (requestId !== state.overviewRequestId) return;
+      renderMatrixGrid(state.matrixColumnOrder.length > 0 ? state.matrixColumnOrder : columns, datasets, onCellClick, rerenderOrderedGrid);
+    });
+  };
+  try {
+    let nextPairIndex = 0;
+    const runWorker = async () => {
+      while (nextPairIndex < pairs.length) {
+        const pairIndex = nextPairIndex;
+        nextPairIndex += 1;
+        const [col, row] = pairs[pairIndex];
+        try {
+          const data = await fetchMatrixCellData(col, row, context, controls.selectedColorColumn);
+          if (requestId !== state.overviewRequestId) return;
+          datasets.set(`${col}|${row}`, data);
+        } catch (error) {
+          if (requestId !== state.overviewRequestId) return;
+          console.error(error);
+          hadErrors = true;
+        } finally {
+          if (requestId !== state.overviewRequestId) return;
+          completed += 1;
+          updateStatus();
+          scheduleRender();
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(MATRIX_FETCH_CONCURRENCY, pairs.length) }, () => runWorker())
+    );
+    if (requestId !== state.overviewRequestId) return;
+    renderMatrixGrid(state.matrixColumnOrder.length > 0 ? state.matrixColumnOrder : columns, datasets, onCellClick, rerenderOrderedGrid);
+    updateStatus();
   } catch (error) {
     if (requestId !== state.overviewRequestId) return;
     console.error(error);
@@ -1122,10 +1192,10 @@ async function renderScatterOverview(onCellClick) {
   }
 }
 async function renderScatterMatrixView(onCellClick) {
-  await Promise.all([
-    renderScatterOverview(onCellClick),
-    renderMatrixFftPanel()
-  ]);
+  await renderScatterOverview(onCellClick);
+  requestAnimationFrame(() => {
+    void renderMatrixFftPanel();
+  });
 }
 function drawMiniFftCanvas(canvas, frequencies, values, label) {
   const ctx = canvas.getContext("2d");
@@ -1266,6 +1336,7 @@ function syncScatterEmptyState(message) {
   const xSelect = getEl("scatter-x-col");
   const ySelect = getEl("scatter-y-col");
   const hasAxes = !!xSelect?.value && !!ySelect?.value;
+  const isLoading = state.loading && hasAxes && !(_gpuUnavailable && !state.chart);
   syncScatterFilterBadge();
   const linkedRangeOutside = isLinkedBrushEnabled() && isRangeOutsideDataset(appState.metadata?.time_range, appState.currentStart, appState.currentEnd);
   let reason;
@@ -1273,6 +1344,8 @@ function syncScatterEmptyState(message) {
     reason = "gpu-unavailable";
   } else if (!hasAxes) {
     reason = "no-columns-selected";
+  } else if (isLoading) {
+    reason = "loading";
   } else if (state.totalPoints === 0) {
     reason = linkedRangeOutside ? "linked-range-outside-dataset" : "no-data-after-filters";
   } else {
@@ -1286,11 +1359,11 @@ function syncScatterEmptyState(message) {
   });
   const scopedFilterCount = new Set(activeColumns).size;
   const adaptiveFilterCount = Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters.length : 0;
-  const text = message || (_gpuUnavailable && !state.chart ? "WebGPU is not available. Scatter rendering requires a WebGPU-capable browser (Chrome 113+, Edge 113+, Safari 18+)." : !hasAxes ? "Choose X and Y numeric columns to render the scatter plot." : linkedRangeOutside ? "Linked time range is outside the current dataset. Reset range to recover points." : scopedFilterCount > 0 || adaptiveFilterCount > 0 ? `No points match active filters (${scopedFilterCount} column, ${adaptiveFilterCount} adaptive).` : "No points match the current query.");
+  const text = message || (_gpuUnavailable && !state.chart ? "WebGPU is not available. Scatter rendering requires a WebGPU-capable browser (Chrome 113+, Edge 113+, Safari 18+)." : !hasAxes ? "Choose X and Y numeric columns to render the scatter plot." : isLoading ? "Loading scatter points\u2026" : linkedRangeOutside ? "Linked time range is outside the current dataset. Reset range to recover points." : scopedFilterCount > 0 || adaptiveFilterCount > 0 ? `No points match active filters (${scopedFilterCount} column, ${adaptiveFilterCount} adaptive).` : "No points match the current query.");
   emptyState.update({
-    visible: !(hasAxes && state.totalPoints > 0 && !(_gpuUnavailable && !state.chart)),
+    visible: !isLoading && !(hasAxes && state.totalPoints > 0 && !(_gpuUnavailable && !state.chart)),
     reason,
-    title: _gpuUnavailable && !state.chart ? "WebGPU unavailable" : !hasAxes ? "Choose scatter axes" : linkedRangeOutside ? "Linked range outside dataset" : "No scatter points found",
+    title: _gpuUnavailable && !state.chart ? "WebGPU unavailable" : !hasAxes ? "Choose scatter axes" : isLoading ? "Loading scatter plot" : linkedRangeOutside ? "Linked range outside dataset" : "No scatter points found",
     message: text,
     showResetAction: reason === "linked-range-outside-dataset",
     showClearAction: reason === "no-data-after-filters",
@@ -1471,6 +1544,7 @@ async function renderScatter() {
   const ySelect = getEl("scatter-y-col");
   let container = getEl("scatter-chart");
   if (!container || !xSelect || !ySelect || !xSelect.value || !ySelect.value) {
+    state.loading = false;
     state.totalPoints = 0;
     syncScatterEmptyState();
     return;
@@ -1481,6 +1555,9 @@ async function renderScatter() {
   }
   showError("");
   const scatterLoading = getEl("scatter-chart-loading");
+  const requestId = ++state.scatterRequestId;
+  state.loading = true;
+  syncScatterEmptyState();
   if (scatterLoading) scatterLoading.hidden = false;
   try {
     const ctl = currentControls();
@@ -1495,6 +1572,7 @@ async function renderScatter() {
       buildScatterQueryContext({ x: xSelect.value, y: ySelect.value, colorColumn: colorColumn || void 0 }),
       _scatterAbort.signal
     );
+    if (requestId !== state.scatterRequestId) return;
     _scatterAbort = null;
     const points = Array.isArray(response.points) ? response.points : [];
     state.totalPoints = Number(response.total_points ?? points.length);
@@ -1503,7 +1581,6 @@ async function renderScatter() {
     state.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
     state.colorColumn = response.color || "";
     applyScatterStateFromCache(true);
-    syncScatterEmptyState();
     if (state.chart && state.lastRenderSignature !== renderSignature) {
       disposeScatterChart();
       container = resetScatterContainer() || getEl("scatter-chart");
@@ -1540,6 +1617,7 @@ async function renderScatter() {
     await refreshActiveScatterView();
   } catch (err) {
     if (err?.name === "AbortError") return;
+    if (requestId !== state.scatterRequestId) return;
     state.totalPoints = 0;
     const isGpuErr = /gpu|webgpu|adapter|device/i.test(String(err?.message || ""));
     if (isGpuErr) _gpuUnavailable = true;
@@ -1548,7 +1626,11 @@ async function renderScatter() {
     );
     throw err;
   } finally {
-    if (scatterLoading) scatterLoading.hidden = true;
+    if (requestId === state.scatterRequestId) {
+      state.loading = false;
+      syncScatterEmptyState();
+      if (scatterLoading) scatterLoading.hidden = true;
+    }
   }
 }
 async function rerenderScatterFromCache(resetViewFlag = true) {
@@ -1752,6 +1834,7 @@ async function initScatterPage(metadata) {
     ensureOptions(xSelect, numeric, xSelect.value || numeric[0]);
     ensureOptions(ySelect, numeric.filter((c) => c !== xSelect.value), ySelect.value || numeric[1] || numeric[0]);
   }
+  state.loading = !state.pageInitialized && !page.hidden && !!xSelect.value && !!ySelect.value;
   syncScatterEmptyState();
   syncScatterFilterBadge();
   if (!state.initialized) {

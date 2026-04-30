@@ -5,8 +5,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EdaTime</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f1720'/%3E%3Cpath d='M7 21l5-6 4 4 9-11' fill='none' stroke='%2300d4ff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="css/style.css?v=57">
+  <link rel="stylesheet" href="css/style.css?v=58">
 </head>
 
 <body>
@@ -222,7 +223,7 @@
         <div class="toolbar toolbar--series">
           <div class="toolbar-group">
             <span class="toolbar-label">Series</span>
-            <input type="text" id="column-filter-input" class="column-filter-input" placeholder="Filter columns…"
+            <input type="text" id="column-filter-input" name="column-filter" class="column-filter-input" placeholder="Filter columns…"
               aria-label="Filter columns">
             <div class="series-toggles" id="column-toggles"></div>
           </div>
@@ -232,13 +233,13 @@
         <div class="toolbar toolbar--tools">
           <div class="toolbar-group draw-toolbar">
             <span class="toolbar-label">Draw</span>
-            <select id="draw-tool" class="draw-select" aria-label="Draw tool">
+            <select id="draw-tool" name="draw-tool" class="draw-select" aria-label="Draw tool">
               <option value="none">None (Pan)</option>
               <option value="arrow">Arrow</option>
               <option value="box">Box</option>
             </select>
-            <input type="color" id="draw-color" value="#ff0055" title="Color">
-            <input type="number" id="draw-width" value="2" min="1" max="10" title="Thickness">
+            <input type="color" id="draw-color" name="draw-color" value="#ff0055" title="Color" aria-label="Draw color">
+            <input type="number" id="draw-width" name="draw-width" value="2" min="1" max="10" title="Thickness" aria-label="Draw thickness">
             <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button">Clear</button>
             <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button">Clear Filter</button>
           </div>
@@ -249,9 +250,9 @@
                 <span class="toolbar-disclosure__value">Title + axes</span>
               </summary>
               <div class="toolbar-disclosure__menu toolbar-disclosure__menu--stacked">
-                <input type="text" id="chart-title-input" placeholder="Title" aria-label="Chart title">
-                <input type="text" id="x-axis-label-input" placeholder="X" aria-label="X axis label">
-                <input type="text" id="y-axis-label-input" placeholder="Y" aria-label="Y axis label">
+                <input type="text" id="chart-title-input" name="chart-title" placeholder="Title" aria-label="Chart title">
+                <input type="text" id="x-axis-label-input" name="x-axis-label" placeholder="X" aria-label="X axis label">
+                <input type="text" id="y-axis-label-input" name="y-axis-label" placeholder="Y" aria-label="Y axis label">
               </div>
             </details>
           </div>
@@ -1748,7 +1749,7 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=134"></script>
+  <script type="module" src="js/app.js?v=138"></script>
 </body>
 
 </html>

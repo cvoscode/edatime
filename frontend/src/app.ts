@@ -25,7 +25,7 @@ import {
 import { buildColumnToggles, buildRangeControls, initColumnFilterModal } from './ui/columns.js';
 import { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata, initUploadPanel } from './ui/upload.js';
 import { hydrateColumnProfiles, renderColumnProfilesGrid, initColumnProfilesGrid } from './ui/profile.js';
-import { requestGpuAdapter } from './utils/platform.js';
+import { installWindowsWebGpuRequestAdapterWorkaround, requestGpuAdapter } from './utils/platform.js';
 import { getAnalyticsChipColor, getDefaultTimeseriesColumns, getNumericColumns } from './pages/analyticsPageUtils.js';
 import { createTimeseriesPageController, computeFrontendRollingBands } from './pages/timeseriesPage.js';
 import { initFftPage as initFftPageModule } from './pages/fftPage.js';
@@ -33,6 +33,7 @@ import { initHeatmapPage as initHeatmapPageModule } from './pages/heatmapPage.js
 import { initSpectrogramPage as initSpectrogramPageModule } from './pages/spectrogramPage.js';
 import { initAppShell } from './bootstrap/appShell.js';
 import { restoreSessionAfterChartReady, startSessionPersistence } from './bootstrap/sessionBootstrap.js';
+import { getHashPage } from './utils/router.js';
 import { initDatasetSearchInputs, initTimeseriesActions } from './bootstrap/timeseriesBootstrap.js';
 import {
     updateAnalysisZoom, updateAnalysisYRange,
@@ -143,10 +144,115 @@ const timeseriesPage = createTimeseriesPageController({
     fetchAndRenderAnalytics: () => fetchAndRenderAnalytics(),
 });
 
+let _timeseriesReady = false;
+let _timeseriesReadyPromise: Promise<void> | null = null;
+let _sessionPersistenceStarted = false;
+
 const renderCurrentData = () => timeseriesPage.renderCurrentData();
 const emitChartRangeChange = (sourceKind = 'data') => timeseriesPage.emitChartRangeChange(sourceKind);
-const fetchAndRender = () => timeseriesPage.fetchAndRender();
+const fetchAndRender = async () => {
+    await ensureTimeseriesReady();
+    return timeseriesPage.fetchAndRender();
+};
 const onZoomRangeChange = (newStart: number, newEnd: number, sourceKind = 'user') => timeseriesPage.onZoomRangeChange(newStart, newEnd, sourceKind);
+
+function ensureSessionPersistenceStarted(): void {
+    if (_sessionPersistenceStarted) return;
+    startSessionPersistence();
+    _sessionPersistenceStarted = true;
+}
+
+async function ensureTimeseriesReady(): Promise<void> {
+    if (_timeseriesReady) return;
+    if (_timeseriesReadyPromise) {
+        await _timeseriesReadyPromise;
+        return;
+    }
+
+    _timeseriesReadyPromise = (async () => {
+        if (appState.chart) {
+            _timeseriesReady = true;
+            return;
+        }
+
+        const gpuError = await checkWebGPU();
+
+        try {
+            dbg('initial X range (ms)', { start: appState.currentStart, end: appState.currentEnd });
+
+            const lineType = getChartType('line');
+            if (lineType) {
+                appState.chart = lineType.create('main-chart', {
+                    onZoom: onZoomRangeChange,
+                    onYRange: updateAnalysisYRange,
+                    onZoomOut: () => zoomOut(fetchAndRender),
+                });
+            } else {
+                appState.chart = new DataChartCtor!('main-chart', onZoomRangeChange, updateAnalysisYRange, () => zoomOut(fetchAndRender));
+            }
+
+            if (gpuError) throw new Error(gpuError);
+
+            await Promise.race([
+                appState.chart!.init(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('ChartGPU init timed out')), 6000)),
+            ]);
+
+            appState.analysisBound = false;
+            bindAnalysisChartEvents();
+            initAdaptiveFilterGesture();
+            refreshZoomControlsState();
+            setAnnotationOverlayCallback(() => appState.chart?.requestOverlayRender?.());
+            appState.chart?.setXRange?.(appState.currentStart!, appState.currentEnd!);
+            appState.chart?.setChartText?.(
+                appState.chartText?.title || '',
+                appState.chartText?.xLabel || '',
+                appState.chartText?.yLabel || '',
+            );
+
+            renderCurrentData();
+
+            await timeseriesPage.fetchAndRender();
+            appState.initialView = getCurrentView();
+            dbgGroup('initialView snapshot', () => dbg(appState.initialView));
+
+            await restoreSessionAfterChartReady({
+                metadataTimeRange: (appState.metadata as any)?.time_range ?? null,
+                currentDatasetRevision: Number(appState.datasetRevision ?? 0),
+                buildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
+                buildRangeControls,
+                renderCurrentData,
+                fetchAndRender: () => timeseriesPage.fetchAndRender(),
+            });
+
+            _timeseriesReady = true;
+        } catch (e: any) {
+            console.error('Primary chart failed, switching to fallback:', e);
+            try {
+                const fallbackType = getChartType('fallback');
+                appState.chart = fallbackType
+                    ? fallbackType.create('main-chart', {})
+                    : new FallbackChart('main-chart');
+                await appState.chart!.init();
+                appState.analysisBound = false;
+                bindAnalysisChartEvents();
+                refreshZoomControlsState();
+                await timeseriesPage.fetchAndRender();
+                setMetaText('Fallback renderer active');
+                _timeseriesReady = true;
+            } catch (fallbackErr: any) {
+                console.error('Fallback chart also failed:', fallbackErr);
+                setMetaText('Error: ' + fallbackErr.message);
+            }
+        }
+    })();
+
+    try {
+        await _timeseriesReadyPromise;
+    } finally {
+        _timeseriesReadyPromise = null;
+    }
+}
 
 function emitAdaptiveFiltersChange(): void {
     window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change', {
@@ -519,6 +625,86 @@ const pageModuleLoaders: Record<string, () => Promise<void>> = {
     drift: initDriftPage,
 };
 
+let _datasetReadyPromise: Promise<void> | null = null;
+let _datasetUiReady = false;
+
+function initializeDatasetUi(metadata: DatasetMetadata): void {
+    if (!_datasetUiReady) {
+        initDatasetSearchInputs({
+            rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
+            renderColumnProfilesGrid,
+        });
+
+        initTimeseriesActions({
+            rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
+            renderColumnProfilesGrid,
+            buildRangeControls,
+            renderCurrentData,
+            fetchAndRender,
+            updateAnalysisZoom,
+            emitChartRangeChange,
+            registerCleanup: (cleanup) => _appCleanups.push(cleanup),
+        });
+        ensureSessionPersistenceStarted();
+        window.addEventListener('edatime:page-change', (event: any) => {
+            if (event?.detail?.page === 'timeseries') {
+                void ensureTimeseriesReady();
+            }
+        });
+        _datasetUiReady = true;
+    }
+
+    hydrateColumnProfiles(metadata);
+    renderColumnProfilesGrid(true);
+    applyPartialTimeRangeFromMetadata(metadata, false);
+    setUploadPreviewStatus('Showing current dataset profile. Drop/select a file to preview before loading.');
+    setProfileMode('dataset');
+
+    buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
+    buildMetaBar(metadata);
+    buildRangeControls();
+    window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
+
+    appState.currentStart = Number((metadata as any).time_range.min);
+    appState.currentEnd = Number((metadata as any).time_range.max);
+    updateAnalysisZoom(appState.currentStart, appState.currentEnd, 'initial');
+    emitChartRangeChange('initial');
+}
+
+async function ensureDatasetReady(_pageName = 'timeseries'): Promise<void> {
+    if (_metadataReady) return;
+    if (_datasetReadyPromise) return _datasetReadyPromise;
+
+    _datasetReadyPromise = (async () => {
+        await ensureChartModules();
+
+        const metadata = await fetchMetadata!();
+        storeFetchedMetadata(metadata);
+        _metadataReady = true;
+        window.dispatchEvent(new Event('edatime:metadata-ready'));
+        dbgGroup('metadata', () => dbg(appState.metadata));
+
+        if (!(metadata as any).time_range) {
+            setMetaText('No valid time range found.');
+            return;
+        }
+
+        appState.numericCols = getNumericColumns(metadata);
+        if (!appState.selectedCols.length) {
+            appState.selectedCols = getDefaultTimeseriesColumns(metadata);
+        }
+        appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
+        sanitizeSelectedColumns();
+
+        initializeDatasetUi(metadata);
+    })().catch((error) => {
+        _datasetReadyPromise = null;
+        throw error;
+    });
+
+    return _datasetReadyPromise;
+}
+
 async function initSpectrogramPage(): Promise<void> {
     await initSpectrogramPageModule({
         setLoading: setComputeLoading,
@@ -557,6 +743,9 @@ async function refreshDatasetAfterMutation(options?: { selectedColumn?: string }
 }
 
 async function init(): Promise<void> {
+    installWindowsWebGpuRequestAdapterWorkaround();
+    buildMetaBar(null);
+
     initAppShell({
         ensurePageModuleLoaded,
         showPage,
@@ -572,128 +761,20 @@ async function init(): Promise<void> {
         registerCleanup: (cleanup) => _appCleanups.push(cleanup),
     });
 
-    try { await ensureChartModules(); } catch (e: any) {
-        console.error('Chart/data modules failed to load:', e);
-        setMetaText('Chart modules failed to load, but upload is available.');
-        return;
-    }
-
-    const gpuError = await checkWebGPU();
+    (window as any).__edatime = (window as any).__edatime || {};
+    (window as any).__edatime.ensureDatasetReady = ensureDatasetReady;
 
     try {
-        storeFetchedMetadata(await fetchMetadata!());
-        _metadataReady = true;
-        window.dispatchEvent(new Event('edatime:metadata-ready'));
-        dbgGroup('metadata', () => dbg(appState.metadata));
-        setMetaText('Loading chart…');
-
-        if (!(appState.metadata as any).time_range) { setMetaText('No valid time range found.'); return; }
-
-        appState.numericCols = getNumericColumns(appState.metadata);
-        appState.selectedCols = getDefaultTimeseriesColumns(appState.metadata);
-        appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
-        sanitizeSelectedColumns();
-
-        initDatasetSearchInputs({
-            rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
-            renderColumnProfilesGrid,
-        });
-
-        const metadata = appState.metadata;
-        if (!metadata) return;
-        hydrateColumnProfiles(metadata);
-        renderColumnProfilesGrid(true);
-        applyPartialTimeRangeFromMetadata(metadata, false);
-        setUploadPreviewStatus('Showing current dataset profile. Drop/select a file to preview before loading.');
-        setProfileMode('dataset');
-
-        buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
-        buildMetaBar(metadata);
-        buildRangeControls();
-        window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
-
-        appState.currentStart = Number((appState.metadata as any).time_range.min);
-        appState.currentEnd = Number((appState.metadata as any).time_range.max);
-        updateAnalysisZoom(appState.currentStart, appState.currentEnd, 'initial');
-        emitChartRangeChange('initial');
-
-        initTimeseriesActions({
-            rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
-            renderColumnProfilesGrid,
-            buildRangeControls,
-            renderCurrentData,
-            fetchAndRender,
-            updateAnalysisZoom,
-            emitChartRangeChange,
-            registerCleanup: (cleanup) => _appCleanups.push(cleanup),
-        });
-
-        dbg('initial X range (ms)', { start: appState.currentStart, end: appState.currentEnd });
-
-        const lineType = getChartType('line');
-        if (lineType) {
-            appState.chart = lineType.create('main-chart', {
-                onZoom: onZoomRangeChange,
-                onYRange: updateAnalysisYRange,
-                onZoomOut: () => zoomOut(fetchAndRender),
-            });
-        } else {
-            appState.chart = new DataChartCtor!('main-chart', onZoomRangeChange, updateAnalysisYRange, () => zoomOut(fetchAndRender));
+        if (getHashPage() && getHashPage() !== 'home') {
+            await ensureDatasetReady(getHashPage()!);
         }
 
-        if (gpuError) throw new Error(gpuError);
-
-        await Promise.race([
-            appState.chart!.init(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('ChartGPU init timed out')), 6000)),
-        ]);
-
-        appState.analysisBound = false;
-        bindAnalysisChartEvents();
-        initAdaptiveFilterGesture();
-        refreshZoomControlsState();
-        // Wire annotation overlay callback so annotation changes re-render
-        setAnnotationOverlayCallback(() => appState.chart?.requestOverlayRender?.());
-        appState.chart?.setXRange?.(appState.currentStart!, appState.currentEnd!);
-        appState.chart?.setChartText?.(
-            appState.chartText?.title || '',
-            appState.chartText?.xLabel || '',
-            appState.chartText?.yLabel || '',
-        );
-
-        renderCurrentData();
-
-        await fetchAndRender();
-        appState.initialView = getCurrentView();
-        dbgGroup('initialView snapshot', () => dbg(appState.initialView));
-
-        // Restore saved session after chart is ready
-        await restoreSessionAfterChartReady({
-            metadataTimeRange: (appState.metadata as any)?.time_range ?? null,
-            currentDatasetRevision: Number(appState.datasetRevision ?? 0),
-            buildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
-            buildRangeControls,
-            renderCurrentData,
-            fetchAndRender,
-        });
-        startSessionPersistence();
+        if (getHashPage() === 'timeseries' && _metadataReady) {
+            await ensureTimeseriesReady();
+        }
     } catch (e: any) {
-        console.error('Primary chart failed, switching to fallback:', e);
-        try {
-            const fallbackType = getChartType('fallback');
-            appState.chart = fallbackType
-                ? fallbackType.create('main-chart', {})
-                : new FallbackChart('main-chart');
-            await appState.chart!.init();
-            appState.analysisBound = false;
-            bindAnalysisChartEvents();
-            refreshZoomControlsState();
-            await fetchAndRender();
-            setMetaText('Fallback renderer active');
-        } catch (fallbackErr: any) {
-            console.error('Fallback chart also failed:', fallbackErr);
-            setMetaText('Error: ' + fallbackErr.message);
-        }
+        console.error('Initial bootstrap failed:', e);
+        setMetaText('Error: ' + e.message);
     }
 }
 

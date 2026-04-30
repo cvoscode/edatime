@@ -35,6 +35,8 @@ function buildDOM(): void {
 
     _input = document.createElement('input');
     _input.className = 'palette-input';
+    _input.id = 'command-palette-input';
+    _input.name = 'command-palette-input';
     _input.type = 'text';
     _input.placeholder = 'Type a command…';
     _input.setAttribute('aria-label', 'Command search');

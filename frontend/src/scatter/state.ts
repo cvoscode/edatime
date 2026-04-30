@@ -49,6 +49,7 @@ interface ScatterState {
     initialized: boolean;
     pageInitialized: boolean;
     activeView: string;
+    loading: boolean;
     metadata: DatasetMetadata | null;
     totalPoints: number;
     allPoints: [number, number][];
@@ -77,6 +78,7 @@ interface ScatterState {
     matrixCache: Map<string, Promise<MatrixCellData>>;
     matrixColumnOrder: string[];
     overviewRequestId: number;
+    scatterRequestId: number;
 }
 
 export interface MatrixCellData {
@@ -91,6 +93,7 @@ export const state: ScatterState = {
     initialized: false,
     pageInitialized: false,
     activeView: 'plot',
+    loading: false,
     metadata: null,
     totalPoints: 0,
     allPoints: [],
@@ -119,6 +122,7 @@ export const state: ScatterState = {
     matrixCache: new Map(),
     matrixColumnOrder: [],
     overviewRequestId: 0,
+    scatterRequestId: 0,
 };
 
 /* ── Controls read helpers ────────────────────────────── */

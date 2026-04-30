@@ -63,7 +63,7 @@ export function buildColumnToggles(
     colorControl.innerHTML = `
     <label>
       <span>Color by</span>
-      <select id="color-column-select" aria-label="Color-by column"></select>
+            <select id="color-column-select" name="color-column-select" aria-label="Color-by column"></select>
     </label>
   `;
     container.appendChild(colorControl);
@@ -100,6 +100,7 @@ export function buildColumnToggles(
     }
 
     visibleCols.forEach((col) => {
+        const safeKey = col.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         const colIdx = appState.numericCols.indexOf(col);
         const color = getSeriesColor(col, colIdx >= 0 ? colIdx : 0);
         const isActive = appState.selectedCols.includes(col);
@@ -115,9 +116,9 @@ export function buildColumnToggles(
             ? `Adaptive filter target: ${col}`
             : `Ctrl+click to target adaptive filters to ${col}`;
         chip.innerHTML = `
-      <input type="checkbox" ${isActive ? 'checked' : ''} value="${escapeHtml(col)}">
+            <input type="checkbox" id="series-toggle-${safeKey}" name="series-toggle-${safeKey}" aria-label="Toggle ${escapeHtml(col)} series" ${isActive ? 'checked' : ''} value="${escapeHtml(col)}">
       <span class="chip-label">${escapeHtml(col)}</span>
-      <input type="color" class="chip-color-picker" value="${escapeHtml(color)}" aria-label="Set ${escapeHtml(col)} color" title="Set ${escapeHtml(col)} color">
+            <input type="color" class="chip-color-picker" id="series-color-${safeKey}" name="series-color-${safeKey}" value="${escapeHtml(color)}" aria-label="Set ${escapeHtml(col)} color" title="Set ${escapeHtml(col)} color">
     `;
 
         chip.addEventListener(

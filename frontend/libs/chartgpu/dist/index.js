@@ -10,8 +10,11 @@ function Ma(e) {
     );
   return { width: t, height: n };
 }
+function windowUserAgentIsWindows() {
+  return typeof navigator < "u" && /Windows/i.test(navigator.userAgent);
+}
 function Zs(e, t) {
-  const n = (t == null ? void 0 : t.devicePixelRatio) ?? (typeof window < "u" ? window.devicePixelRatio : 1), i = Number.isFinite(n) && n > 0 ? n : 1, r = (t == null ? void 0 : t.alphaMode) ?? "opaque", o = (t == null ? void 0 : t.powerPreference) ?? "high-performance", s = !!(t != null && t.device && (t != null && t.adapter)), a = s ? t.adapter : null, c = s ? t.device : null, f = !s;
+  const n = (t == null ? void 0 : t.devicePixelRatio) ?? (typeof window < "u" ? window.devicePixelRatio : 1), i = Number.isFinite(n) && n > 0 ? n : 1, r = (t == null ? void 0 : t.alphaMode) ?? "opaque", o = (t == null ? void 0 : t.powerPreference) ?? (windowUserAgentIsWindows() ? void 0 : "high-performance"), s = !!(t != null && t.device && (t != null && t.adapter)), a = s ? t.adapter : null, c = s ? t.device : null, f = !s;
   return {
     adapter: a,
     device: c,
@@ -57,9 +60,9 @@ async function js(e) {
           `GPUContext: Injected device.limits.maxStorageBufferBindingSize is insufficient. Required >= 33554432 bytes, actual=${y} bytes.`
         );
     } else {
-      const g = await navigator.gpu.requestAdapter({
+      const g = e.powerPreference ? await navigator.gpu.requestAdapter({
         powerPreference: e.powerPreference
-      });
+      }) : await navigator.gpu.requestAdapter();
       if (!g)
         throw new Error(
           "GPUContext: Failed to request WebGPU adapter. No compatible adapter found. This may occur if no GPU is available or WebGPU is disabled."
@@ -8992,10 +8995,14 @@ async function yd() {
         reason: "WebGPU API (navigator.gpu) is not available. Your browser does not support WebGPU."
       };
     try {
-      let e = await navigator.gpu.requestAdapter({
-        powerPreference: "high-performance"
-      });
-      return e || (e = await navigator.gpu.requestAdapter()), e ? { supported: !0 } : {
+      let e = null;
+      if (windowUserAgentIsWindows())
+        e = await navigator.gpu.requestAdapter();
+      else
+        e = await navigator.gpu.requestAdapter({
+          powerPreference: "high-performance"
+        }), e || (e = await navigator.gpu.requestAdapter());
+      return e ? { supported: !0 } : {
         supported: !1,
         reason: "No compatible WebGPU adapter found. This may occur if: (1) no GPU is available, (2) GPU drivers are outdated or incompatible, (3) running in a VM or headless environment, or (4) WebGPU is disabled in browser settings."
       };

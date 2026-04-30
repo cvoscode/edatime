@@ -197,9 +197,9 @@ export function setMetaText(text: string): void {
 }
 
 export function buildMetaBar(metadata: { total_rows?: number } | null): void {
-    const rows = metadata?.total_rows?.toLocaleString() ?? '?';
-    const cols = appState.numericCols?.length ?? 0;
-    const series = escapeHtml(appState.selectedCols.join(', ') || 'none selected');
+    const rows = metadata?.total_rows?.toLocaleString() ?? '—';
+    const cols = metadata ? String(appState.numericCols?.length ?? 0) : '—';
+    const series = escapeHtml(metadata ? (appState.selectedCols.join(', ') || 'none selected') : 'Choose a workflow');
     const el = document.getElementById('header-meta');
     if (el) {
         el.innerHTML = `

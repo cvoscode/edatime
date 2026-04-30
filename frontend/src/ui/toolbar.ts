@@ -11,6 +11,7 @@ import {
 } from '../state.js';
 import { DEBUG, dbg, dbgGroup } from '../debug.js';
 import { downloadBlob } from '../utils/dom.js';
+import { preloadPageStyles } from '../utils/pageStyles.js';
 import type { ViewSnapshot } from '../types.js';
 
 interface FilteredRow {
@@ -488,6 +489,12 @@ export function initPages(): void {
     }
 
     async function showPage(pageName: string) {
+        preloadPageStyles(pageName);
+
+        if (pageName !== 'home') {
+            await (window as any).__edatime?.ensureDatasetReady?.(pageName);
+        }
+
         if ((window as any).__edatime?.ensurePageModuleLoaded) {
             await (window as any).__edatime.ensurePageModuleLoaded(pageName);
         }
