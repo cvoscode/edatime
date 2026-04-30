@@ -3,9 +3,10 @@
  */
 
 import { createChart } from '../../libs/chartgpu/dist/index.js';
-import { defaultGpuPowerPreference } from '../utils/platform.js';
+import { defaultGpuPowerPreference, requestGpuAdapter } from '../utils/platform.js';
 import { fetchScatterCorrelations, fetchScatterPoints } from '../dataClient.js';
 import { appState } from '../state.js';
+import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
 import {
     getEl,
     fmt,
@@ -60,28 +61,33 @@ import {
 
 import type { DatasetMetadata } from '../types.js';
 
+let scatterEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
+
+function getScatterEmptyStateController() {
+    if (!scatterEmptyStateController) {
+        scatterEmptyStateController = createEmptyStateController({
+            rootId: 'scatter-empty-state',
+            titleId: 'scatter-empty-title',
+            messageId: 'scatter-empty-message',
+            resetButtonId: 'scatter-reset-range-btn',
+            clearButtonId: 'scatter-clear-filters-btn',
+            resetEventName: 'edatime:request-chart-range-reset',
+            clearEventName: 'edatime:clear-all-filters',
+            eventSource: 'scatter-empty-state',
+        });
+    }
+    return scatterEmptyStateController;
+}
+
 function syncScatterEmptyState(message?: string): void {
-    const empty = getEl('scatter-empty-state');
-    if (!empty) return;
-    const titleEl = getEl('scatter-empty-title');
-    const messageEl = getEl('scatter-empty-message');
-    const resetBtn = getEl('scatter-reset-range-btn') as HTMLButtonElement | null;
-    const clearBtn = getEl('scatter-clear-filters-btn') as HTMLButtonElement | null;
+    const emptyState = getScatterEmptyStateController();
     const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
     const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
     const hasAxes = !!xSelect?.value && !!ySelect?.value;
     syncScatterFilterBadge();
 
-    const minMs = Number((appState.metadata as any)?.time_range?.min);
-    const maxMs = Number((appState.metadata as any)?.time_range?.max);
-    const start = Number(appState.currentStart);
-    const end = Number(appState.currentEnd);
-    const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
-    const linkedRangeOutside = hasMetadataBounds
-        && isLinkedBrushEnabled()
-        && Number.isFinite(start)
-        && Number.isFinite(end)
-        && (end <= minMs || start >= maxMs);
+    const linkedRangeOutside = isLinkedBrushEnabled()
+        && isRangeOutsideDataset(appState.metadata?.time_range, appState.currentStart, appState.currentEnd);
 
     // Determine the reason for the empty state so tests / users can distinguish
     let reason: string;
@@ -115,24 +121,21 @@ function syncScatterEmptyState(message?: string): void {
                         ? `No points match active filters (${scopedFilterCount} column, ${adaptiveFilterCount} adaptive).`
                         : 'No points match the current query.');
 
-    if (titleEl) {
-        titleEl.textContent = _gpuUnavailable && !state.chart
+    emptyState.update({
+        visible: !(hasAxes && state.totalPoints > 0 && !(_gpuUnavailable && !state.chart)),
+        reason,
+        title: _gpuUnavailable && !state.chart
             ? 'WebGPU unavailable'
             : !hasAxes
                 ? 'Choose scatter axes'
                 : linkedRangeOutside
                     ? 'Linked range outside dataset'
-                    : 'No scatter points found';
-    }
-    if (messageEl) messageEl.textContent = text;
-    if (resetBtn) resetBtn.hidden = reason !== 'linked-range-outside-dataset';
-    if (clearBtn) clearBtn.hidden = reason !== 'no-data-after-filters';
-
-    if (!titleEl || !messageEl) {
-        empty.textContent = text;
-    }
-    empty.setAttribute('data-empty-reason', reason);
-    empty.hidden = hasAxes && state.totalPoints > 0 && !(_gpuUnavailable && !state.chart);
+                    : 'No scatter points found',
+        message: text,
+        showResetAction: reason === 'linked-range-outside-dataset',
+        showClearAction: reason === 'no-data-after-filters',
+        fallbackText: text,
+    });
 }
 
 function syncScatterFilterBadge(): void {
@@ -162,7 +165,7 @@ async function isGPUAvailable(): Promise<boolean> {
     if (!navigator.gpu) { _gpuUnavailable = true; return false; }
     try {
         const adapter = await Promise.race([
-            navigator.gpu.requestAdapter({ powerPreference: defaultGpuPowerPreference() }),
+            requestGpuAdapter(),
             new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
         ]);
         _gpuUnavailable = !adapter;
@@ -185,11 +188,20 @@ function setSidebarAnalyticsSelection(viewName: string): void {
     }
 }
 
+function syncScatterViewButtons(viewName: string): void {
+    for (const button of document.querySelectorAll<HTMLButtonElement>('[data-scatter-view]')) {
+        const active = button.dataset.scatterView === viewName;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    }
+}
+
 async function setScatterView(viewName: string, options: { render?: boolean } = {}): Promise<void> {
     const nextView = viewName || 'plot';
     const shouldRender = options.render !== false;
     state.activeView = nextView;
     setSidebarAnalyticsSelection(nextView);
+    syncScatterViewButtons(nextView);
     syncModeUI();
 
     for (const panel of document.querySelectorAll<HTMLElement>('[data-scatter-view-panel]')) {
@@ -369,10 +381,10 @@ async function renderScatter(): Promise<void> {
                 syncScatterEmptyState();
                 return;
             }
-            state.chart = await createChart(container!, {
-                ...nextOption,
-                powerPreference: defaultGpuPowerPreference(),
-            });
+            const chartOptions: Record<string, unknown> = { ...nextOption };
+            const powerPreference = defaultGpuPowerPreference();
+            if (powerPreference) chartOptions.powerPreference = powerPreference;
+            state.chart = await createChart(container!, chartOptions as any);
             state.lastRenderSignature = renderSignature;
             initSelectionZoom(container!);
             state.chart.onPerformanceUpdate?.(() => {
@@ -470,6 +482,13 @@ function bindControls(): void {
     syncModeUI();
     void setScatterView(state.activeView, { render: false });
 
+    document.querySelectorAll<HTMLButtonElement>('[data-scatter-view]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const nextView = normalizeAnalyticsView(btn.dataset.scatterView || 'plot');
+            void setScatterView(nextView);
+        });
+    });
+
     const rerender = () => {
         const container = getEl('scatter-chart');
         if (!state.chart) return;
@@ -505,16 +524,7 @@ function bindControls(): void {
     });
     openCausalBtn?.addEventListener('click', openScatterPairInCausal);
 
-    getEl('scatter-reset-range-btn')?.addEventListener('click', () => {
-        window.dispatchEvent(new CustomEvent('edatime:request-chart-range-reset', {
-            detail: { source: 'scatter-empty-state' },
-        }));
-    });
-    getEl('scatter-clear-filters-btn')?.addEventListener('click', () => {
-        window.dispatchEvent(new CustomEvent('edatime:clear-all-filters', {
-            detail: { source: 'scatter-empty-state' },
-        }));
-    });
+    getScatterEmptyStateController();
 
     // Matrix mode toggle buttons (replaces <select>)
     const matrixModeHidden = getEl('scatter-matrix-mode') as HTMLInputElement | null;

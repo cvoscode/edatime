@@ -581,9 +581,22 @@ async function initChart(): Promise<void> {
     await _chartInitPromise;
 }
 
+function scheduleCausalChartRefresh(attempts = 6): void {
+    if (!isCausalChartReadyForInit()) {
+        if (attempts <= 0) return;
+        window.setTimeout(() => scheduleCausalChartRefresh(attempts - 1), 0);
+        return;
+    }
+    void initChart().then(() => {
+        if (!isCausalChartReadyForInit()) return;
+        _eChart?.resize();
+        if (_currentColumns.length > 0) renderEChartsGraph();
+    });
+}
+
 function isCausalChartReadyForInit(): boolean {
     const page = document.getElementById('page-causal') as HTMLElement | null;
-    return !!(page && !page.hidden && _chartEl);
+    return !!(page && !page.hidden && _chartEl && _chartEl.clientWidth > 0 && _chartEl.clientHeight > 0);
 }
 
 function attachChartEvents(): void {
@@ -1502,7 +1515,7 @@ export function initCausalPage(deps: CausalDeps): void {
     syncCausalEmptyState();
     initInfoIcons();
     applyMethodControlState(methodSelect?.value || 'pcmci');
-    if (isCausalChartReadyForInit()) void initChart();
+    scheduleCausalChartRefresh();
 
     // Allow other pages to pre-select columns for causal analysis
     window.addEventListener('edatime:causal-preselect', ((e: CustomEvent) => {
@@ -1649,10 +1662,7 @@ export function initCausalPage(deps: CausalDeps): void {
     window.addEventListener('edatime:page-change', (event: any) => {
         if (event?.detail?.page === 'causal' && deps.getMetadata()) {
             renderColumnChips(deps, columnsBar);
-            void initChart().then(() => {
-                _eChart?.resize();
-                if (_currentColumns.length > 0) renderEChartsGraph();
-            });
+            scheduleCausalChartRefresh();
             syncCausalEmptyState();
         }
     });

@@ -461,9 +461,21 @@ async function initChart() {
   });
   await _chartInitPromise;
 }
+function scheduleCausalChartRefresh(attempts = 6) {
+  if (!isCausalChartReadyForInit()) {
+    if (attempts <= 0) return;
+    window.setTimeout(() => scheduleCausalChartRefresh(attempts - 1), 0);
+    return;
+  }
+  void initChart().then(() => {
+    if (!isCausalChartReadyForInit()) return;
+    _eChart?.resize();
+    if (_currentColumns.length > 0) renderEChartsGraph();
+  });
+}
 function isCausalChartReadyForInit() {
   const page = document.getElementById("page-causal");
-  return !!(page && !page.hidden && _chartEl);
+  return !!(page && !page.hidden && _chartEl && _chartEl.clientWidth > 0 && _chartEl.clientHeight > 0);
 }
 function attachChartEvents() {
   if (!_eChart || _chartEventsBound) return;
@@ -1309,7 +1321,7 @@ function initCausalPage(deps) {
   syncCausalEmptyState();
   initInfoIcons();
   applyMethodControlState(methodSelect?.value || "pcmci");
-  if (isCausalChartReadyForInit()) void initChart();
+  scheduleCausalChartRefresh();
   window.addEventListener("edatime:causal-preselect", ((e) => {
     const cols = e.detail?.columns || [];
     if (cols.length === 0) return;
@@ -1432,10 +1444,7 @@ function initCausalPage(deps) {
   window.addEventListener("edatime:page-change", (event) => {
     if (event?.detail?.page === "causal" && deps.getMetadata()) {
       renderColumnChips(deps, columnsBar);
-      void initChart().then(() => {
-        _eChart?.resize();
-        if (_currentColumns.length > 0) renderEChartsGraph();
-      });
+      scheduleCausalChartRefresh();
       syncCausalEmptyState();
     }
   });
@@ -1443,4 +1452,4 @@ function initCausalPage(deps) {
 export {
   initCausalPage
 };
-//# sourceMappingURL=causalPage-3X6LNDBI.js.map
+//# sourceMappingURL=causalPage-JCU33NU7.js.map

@@ -154,14 +154,16 @@ export class DataChart {
     async init(): Promise<void> {
         const container = document.getElementById(this.containerId);
         this._container = container;
-        this.chartInstance = await createChart(container!, {
+        const chartOptions: Record<string, unknown> = {
             grid: CHART_GRID,
             xAxis: { type: 'time' },
             yAxis: { type: 'value' },
             legend: { show: true, position: 'right' },
             series: [],
-            powerPreference: defaultGpuPowerPreference(),
-        });
+        };
+        const powerPreference = defaultGpuPowerPreference();
+        if (powerPreference) chartOptions.powerPreference = powerPreference;
+        this.chartInstance = await createChart(container!, chartOptions as any);
         this._chartResizeObserver?.disconnect();
         this._chartResizeObserver = new ResizeObserver(() => this.resize());
         this._chartResizeObserver.observe(container!);
@@ -886,7 +888,7 @@ export class DataChart {
             } else if (ann.type === 'note' || ann.type === 'region') {
                 // Note/region: shaded area
                 ctx.fillStyle = color.replace(')', ', 0.15)').replace('rgb', 'rgba').replace('##', '#');
-                if (!ctx.fillStyle.includes('rgba')) {
+                if (typeof ctx.fillStyle !== 'string' || !ctx.fillStyle.includes('rgba')) {
                     ctx.fillStyle = `${color}26`; // 15% opacity
                 }
                 ctx.fillRect(sx, plotTop, ex - sx, plotHeight);

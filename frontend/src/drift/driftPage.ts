@@ -354,9 +354,13 @@ export async function initDriftPage(metadata: any): Promise<void> {
     /** When true, the next renderTimeline/renderDetail call uses notMerge:true (full reset). */
     let _pendingFullReset = false;
 
+    const isRenderable = (element: HTMLElement | null): boolean => (
+        !!element && element.clientWidth > 0 && element.clientHeight > 0
+    );
+
     function isDriftChartReadyForInit(): boolean {
         const page = document.getElementById('page-drift') as HTMLElement | null;
-        return !!(page && !page.hidden);
+        return !!(page && !page.hidden && isRenderable(timelineElNN) && isRenderable(detailElNN));
     }
 
     // Pre-load ECharts so it is available immediately on first compute (issue #3).
@@ -410,6 +414,21 @@ export async function initDriftPage(metadata: any): Promise<void> {
     async function ensureChartsAsync(): Promise<void> {
         await getECharts();
         ensureCharts();
+    }
+
+    function scheduleDriftChartRefresh(attempts = 6): void {
+        if (!isDriftChartReadyForInit()) {
+            if (attempts <= 0) return;
+            window.setTimeout(() => scheduleDriftChartRefresh(attempts - 1), 0);
+            return;
+        }
+        void ensureChartsAsync().then(() => {
+            if (!isDriftChartReadyForInit()) return;
+            if (responsesByColumn.size > 0) {
+                renderTimeline();
+                renderDetail();
+            }
+        });
     }
 
     function getActiveResponse(): DriftResponse | null {
@@ -1222,18 +1241,8 @@ export async function initDriftPage(metadata: any): Promise<void> {
             ? metadata.numeric_columns.filter((c: string) => c && c.toLowerCase() !== 'ts')
             : [];
         repopulateColumnSelect(cols);
-        void ensureChartsAsync().then(() => {
-            if (responsesByColumn.size > 0) {
-                renderTimeline();
-                renderDetail();
-            }
-        });
+        scheduleDriftChartRefresh();
     });
 
-    if (isDriftChartReadyForInit()) {
-        void ensureChartsAsync().then(() => {
-            renderTimeline();
-            renderDetail();
-        });
-    }
+    scheduleDriftChartRefresh();
 }

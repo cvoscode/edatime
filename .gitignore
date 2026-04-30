@@ -14,3 +14,4 @@ poetry.lock
 uv.lock
 *.py
 tigramite/
+*chunk*

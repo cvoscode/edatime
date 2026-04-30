@@ -15,13 +15,26 @@ import {
   toast
 } from "./chunk-T63Y6LQO.js";
 import {
+  FftChart
+} from "./chunk-CNNSZAFU.js";
+import "./chunk-667JW4DN.js";
+import {
+  createEmptyStateController,
+  isRangeOutsideDataset
+} from "./chunk-EB7OGCRI.js";
+import {
+  fetchCorrelationMatrix,
+  fetchFft,
+  fetchSpectrogram
+} from "./chunk-M7RFYJA6.js";
+import {
   DEBUG,
   dbg,
   dbgGroup
 } from "./chunk-P2MGEQ7G.js";
 import {
-  defaultGpuPowerPreference
-} from "./chunk-PMOHFZ3J.js";
+  requestGpuAdapter
+} from "./chunk-HIE322HX.js";
 import {
   PROFILE_COLUMNS,
   PROFILE_OVERSCAN,
@@ -1388,6 +1401,1053 @@ function initColumnProfilesGrid() {
   appState.profileGridBound = true;
 }
 
+// frontend/src/pages/analyticsPageUtils.ts
+var ANALYTICS_CHIP_COLORS = ["#7ad151", "#4ac3e8", "#f97316", "#e879f9", "#facc15", "#60a5fa", "#f43f5e"];
+function getNumericColumns(metadata) {
+  const timeCol = String(metadata?.time_column || "").trim().toLowerCase();
+  return (metadata?.numeric_columns || []).filter((column) => {
+    const lower = String(column || "").trim().toLowerCase();
+    return lower && lower !== "ts" && lower !== timeCol;
+  });
+}
+function getDefaultTimeseriesColumns(metadata) {
+  return getNumericColumns(metadata).slice(0, 3);
+}
+function getAnalyticsChipColor(column, fallbackIndex, overrides) {
+  return overrides?.[column] || ANALYTICS_CHIP_COLORS[Math.max(0, fallbackIndex) % ANALYTICS_CHIP_COLORS.length];
+}
+
+// frontend/src/pages/timeseriesPage.ts
+var EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} };
+var timeseriesEmptyStateController = null;
+function getTimeseriesEmptyStateController() {
+  if (!timeseriesEmptyStateController) {
+    timeseriesEmptyStateController = createEmptyStateController({
+      rootId: "timeseries-empty-state",
+      titleId: "timeseries-empty-title",
+      messageId: "timeseries-empty-message",
+      resetButtonId: "timeseries-reset-range-btn",
+      resetEventName: "edatime:request-chart-range-reset",
+      eventSource: "timeseries-empty-state"
+    });
+  }
+  return timeseriesEmptyStateController;
+}
+function computeFrontendRollingBands(data, cols, windowSize) {
+  const ts = data?.ts;
+  if (!ts || ts.length < 2) return [];
+  const n = ts.length;
+  const half = Math.floor((windowSize - 1) / 2);
+  const bands = [];
+  for (const col of cols) {
+    const ys = data?.series?.[col]?.y;
+    if (!ys || ys.length !== n) continue;
+    const tsOut = new Array(n);
+    const mean = new Array(n).fill(null);
+    const upper1 = new Array(n).fill(null);
+    const lower1 = new Array(n).fill(null);
+    const upper2 = new Array(n).fill(null);
+    const lower2 = new Array(n).fill(null);
+    for (let i = 0; i < n; i++) {
+      tsOut[i] = Number(ts[i]);
+      const start = Math.max(0, i - half);
+      const end = Math.min(n, i + half + 1);
+      let sum = 0;
+      let sumSq = 0;
+      let cnt = 0;
+      for (let j = start; j < end; j++) {
+        const v = Number(ys[j]);
+        if (Number.isFinite(v)) {
+          sum += v;
+          sumSq += v * v;
+          cnt += 1;
+        }
+      }
+      if (cnt >= 2) {
+        const m = sum / cnt;
+        const std = Math.sqrt(Math.max(0, sumSq / cnt - m * m));
+        mean[i] = m;
+        upper1[i] = m + std;
+        lower1[i] = m - std;
+        upper2[i] = m + 2 * std;
+        lower2[i] = m - 2 * std;
+      }
+    }
+    bands.push({ column: col, ts: tsOut, mean, upper1, lower1, upper2, lower2 });
+  }
+  return bands;
+}
+function computeRenderedYDebugSnapshot() {
+  if (!appState.lastFetchedData) return null;
+  const filtered = applyColumnRanges(appState.lastFetchedData);
+  let globalMin = Number.POSITIVE_INFINITY;
+  let globalMax = Number.NEGATIVE_INFINITY;
+  const perSeries = [];
+  for (const col of appState.selectedCols || []) {
+    const seriesData = filtered.series?.[col];
+    const yValues = seriesData ? seriesData.y : filtered.values?.[col];
+    if (!yValues) continue;
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    let count = 0;
+    for (let i = 0; i < yValues.length; i++) {
+      const y = Number(yValues[i]);
+      if (!Number.isFinite(y)) continue;
+      count += 1;
+      if (y < min) min = y;
+      if (y > max) max = y;
+    }
+    if (count > 0) {
+      if (min < globalMin) globalMin = min;
+      if (max > globalMax) globalMax = max;
+    }
+    perSeries.push({ name: col, points: count, yMin: count > 0 ? min : null, yMax: count > 0 ? max : null });
+  }
+  return {
+    selectedCols: [...appState.selectedCols || []],
+    globalYMin: Number.isFinite(globalMin) ? globalMin : null,
+    globalYMax: Number.isFinite(globalMax) ? globalMax : null,
+    perSeries
+  };
+}
+function createTimeseriesPageController(deps) {
+  let dataFetchController = null;
+  function emitChartRangeChange2(sourceKind = "data") {
+    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
+    window.dispatchEvent(new CustomEvent("edatime:chart-range-change", {
+      detail: { start: appState.currentStart, end: appState.currentEnd, source: sourceKind }
+    }));
+  }
+  function renderCurrentData2() {
+    const emptyState = getTimeseriesEmptyStateController();
+    const hasSelection = Array.isArray(appState.selectedCols) && appState.selectedCols.length > 0;
+    if (!hasSelection) {
+      emptyState.update({
+        visible: true,
+        reason: "no-columns-selected",
+        title: "Select one or more series",
+        message: "Click a column chip above to add it to the chart. Start with 2-3 related columns for a clearer first view.",
+        showResetAction: false
+      });
+    }
+    if (!appState.chart) return;
+    if (!hasSelection) {
+      appState.rollingBands = null;
+      appState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
+      return;
+    }
+    if (!appState.lastFetchedData) {
+      emptyState.update({ visible: false, reason: "", title: "", message: "", showResetAction: false });
+      return;
+    }
+    const filtered = applyColumnRanges(appState.lastFetchedData);
+    const hasPoints = !!filtered?.ts && filtered.ts.length > 0;
+    if (!hasPoints) {
+      const start = Number(appState.currentStart);
+      const end = Number(appState.currentEnd);
+      const rangeOutside = isRangeOutsideDataset(appState.metadata?.time_range, start, end);
+      emptyState.update({
+        visible: true,
+        reason: rangeOutside ? "linked-range-outside-dataset" : "no-data-after-filters",
+        title: rangeOutside ? "Current range is outside this dataset" : "No points match current filters",
+        message: rangeOutside ? "Reset to dataset range to recover visible data." : "Try widening the time range or clearing filters.",
+        showResetAction: true
+      });
+      appState.rollingBands = null;
+      appState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
+      if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+        appState.chart.setXRange(start, end);
+      }
+      return;
+    }
+    emptyState.update({ visible: false, reason: "", title: "", message: "", showResetAction: false });
+    const preview = appState.spectralFilterPreview;
+    let displayCols = [...appState.selectedCols];
+    if (preview && preview.ts && preview.values && preview.ts.length > 0) {
+      const previewKey = `${preview.column} [filtered]`;
+      filtered.series = filtered.series || {};
+      filtered.series[previewKey] = { x: preview.ts, y: preview.values };
+      if (!displayCols.includes(previewKey)) displayCols = [...displayCols, previewKey];
+    }
+    appState.chart.updateDataMulti(filtered, displayCols);
+    if (appState.rollingEnabled) {
+      appState.rollingBands = computeFrontendRollingBands(filtered, appState.selectedCols, appState.rollingWindow || 50);
+      appState.chart?.requestOverlayRender?.();
+    }
+    window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
+  }
+  async function fetchAndRender2() {
+    sanitizeSelectedColumns();
+    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
+    const currentStart = Number(appState.currentStart);
+    const currentEnd = Number(appState.currentEnd);
+    if (currentStart >= currentEnd) return;
+    if (!Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
+      deps.buildRangeControls();
+      renderCurrentData2();
+      return;
+    }
+    if (dataFetchController) dataFetchController.abort();
+    dataFetchController = new AbortController();
+    const signal = dataFetchController.signal;
+    const loadingEl = document.getElementById("main-chart-loading");
+    if (loadingEl) loadingEl.hidden = false;
+    try {
+      const startIso = new Date(currentStart).toISOString();
+      const endIso = new Date(currentEnd).toISOString();
+      const width = document.getElementById("main-chart")?.clientWidth || 1200;
+      const cols = appState.selectedCols.join(",");
+      const colorCol = appState.selectedColorColumn || null;
+      dbgGroup("fetchAndRender", () => {
+        dbg("request", { startIso, endIso, width, cols, colorCol });
+        dbg("selectedCols", appState.selectedCols);
+        dbg("selectedColorColumn", appState.selectedColorColumn);
+      });
+      const data = await deps.fetchData(startIso, endIso, width, cols, colorCol, signal);
+      appState.lastFetchedData = data;
+      if (DEBUG) {
+        const n = data?.ts?.length ?? 0;
+        let tsMin = null;
+        let tsMax = null;
+        if (n > 0) {
+          tsMin = data.ts[0];
+          tsMax = data.ts[n - 1];
+        }
+        dbg("response points", n, "tsMin/tsMax", tsMin, tsMax);
+        if (!data?.ts || data.ts.length === 0) {
+          console.warn("[edatime] fetchAndRender: empty result for range", { startIso, endIso, width, cols });
+        }
+      }
+      ensureRangeStateFromData(data);
+      deps.buildRangeControls();
+      appState.chart?.setXRange?.(currentStart, currentEnd);
+      renderCurrentData2();
+      emitChartRangeChange2("data");
+      if (appState.anomalyEnabled) {
+        deps.fetchAndRenderAnalytics().catch(() => {
+        });
+      }
+      if (DEBUG) {
+        const snapshot = computeRenderedYDebugSnapshot();
+        window.__edatime.debugYSnapshot = snapshot;
+        dbg("post-render renderedSnapshot", snapshot);
+      }
+      const yr = appState.chart?.getYRange?.();
+      if (yr) deps.updateAnalysisYRange(yr.min, yr.max, "data");
+      if (DEBUG) dbg("post-render yRange", yr);
+      appState.pendingYMode = null;
+      appState.pendingRestoreY = null;
+    } catch (err) {
+      if (err?.name === "AbortError") return;
+      console.error("Failed to fetch data:", err);
+      setMetaText("Error: " + err.message);
+    } finally {
+      const loadingEl2 = document.getElementById("main-chart-loading");
+      if (loadingEl2) loadingEl2.hidden = true;
+    }
+  }
+  function onZoomRangeChange2(newStart, newEnd, sourceKind = "user") {
+    if (appState.fetchDebounceId) clearTimeout(appState.fetchDebounceId);
+    dbgGroup(`onZoomRangeChange (${sourceKind})`, () => {
+      dbg("prev", { start: appState.currentStart, end: appState.currentEnd });
+      dbg("next", { start: newStart, end: newEnd });
+    });
+    if (!Number.isFinite(newStart) || !Number.isFinite(newEnd) || newStart >= newEnd) return;
+    if (Number.isFinite(appState.currentStart) && Number.isFinite(appState.currentEnd)) {
+      const snap = deps.getCurrentView();
+      appState.zoomHistory = [...appState.zoomHistory, snap].slice(-5);
+      dbg("pushed history snapshot", snap);
+      dbg("history depth (after push)", appState.zoomHistory.length);
+    }
+    appState.currentStart = newStart;
+    appState.currentEnd = newEnd;
+    appState.chart?.setXRange?.(appState.currentStart, appState.currentEnd);
+    appState.pendingYMode = "fit";
+    appState.pendingRestoreY = null;
+    deps.updateAnalysisZoom(newStart, newEnd, sourceKind);
+    emitChartRangeChange2(sourceKind);
+    if (!appState.refetchOnZoom) return;
+    appState.fetchDebounceId = setTimeout(fetchAndRender2, 150);
+  }
+  return {
+    emitChartRangeChange: emitChartRangeChange2,
+    fetchAndRender: fetchAndRender2,
+    onZoomRangeChange: onZoomRangeChange2,
+    renderCurrentData: renderCurrentData2
+  };
+}
+
+// frontend/src/pages/fftPage.ts
+var initialized = false;
+var fftTraces = [];
+var fftMode = "magnitude";
+var fftLogScale = true;
+var fftChart = null;
+var fftTraceColors = {};
+var fftEmptyStateController = null;
+function getFftEmptyStateController() {
+  if (!fftEmptyStateController) {
+    fftEmptyStateController = createEmptyStateController({ rootId: "fft-empty-state" });
+  }
+  return fftEmptyStateController;
+}
+function fftColumns() {
+  return getNumericColumns(appState.metadata);
+}
+function fftColorFor(column, fallbackIndex) {
+  return getAnalyticsChipColor(column, fallbackIndex, fftTraceColors);
+}
+function updateZoomButton(isZoomed) {
+  const button = document.getElementById("fft-zoom-reset-btn");
+  if (button) button.hidden = !(isZoomed ?? fftChart?.getIsZoomed() ?? false);
+}
+function rerenderOrClear() {
+  getFftEmptyStateController().update({
+    visible: fftTraces.length === 0,
+    reason: fftTraces.length > 0 ? "" : "no-columns-selected",
+    title: "",
+    message: ""
+  });
+  if (!fftChart) return;
+  if (fftTraces.length === 0) {
+    fftChart.clear();
+    return;
+  }
+  fftChart.updateData(fftTraces, fftMode, fftLogScale);
+}
+async function fetchAndAddTrace(column) {
+  if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
+  const startMs = appState.currentStart;
+  const endMs = appState.currentEnd;
+  if (startMs == null || endMs == null || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
+  const startIso = new Date(startMs).toISOString();
+  const endIso = new Date(endMs).toISOString();
+  const response = await fetchFft(startIso, endIso, column);
+  if (!response?.results?.length) throw new Error("No results");
+  const result = response.results[0];
+  fftTraces = fftTraces.filter((trace) => trace.column !== column);
+  fftTraces.push({
+    column: result.column,
+    frequencies: result.frequencies,
+    magnitudes: result.magnitudes,
+    psd: result.psd,
+    color: fftColorFor(column, fftColumns().indexOf(column))
+  });
+}
+function renderChips() {
+  const bar = document.getElementById("fft-traces-bar");
+  const statusEl = document.getElementById("fft-status");
+  if (!bar || !appState.metadata) return;
+  const columns = fftColumns();
+  const existing = /* @__PURE__ */ new Map();
+  for (const element of bar.querySelectorAll(".fft-trace-chip")) {
+    const column = element.dataset.col;
+    if (columns.includes(column)) existing.set(column, element);
+    else element.remove();
+  }
+  const zoomButton = bar.querySelector("#fft-zoom-reset-btn");
+  for (const [index, column] of columns.entries()) {
+    const isActive = fftTraces.some((trace) => trace.column === column);
+    const color = fftColorFor(column, index);
+    let chip = existing.get(column);
+    if (!chip) {
+      chip = document.createElement("button");
+      chip.className = "series-chip fft-trace-chip";
+      chip.type = "button";
+      chip.dataset.col = column;
+      chip.addEventListener("click", async (event) => {
+        const currentColumn = chip?.dataset.col || "";
+        if (event.target?.closest?.(".chip-color-picker")) return;
+        if (event.target.classList.contains("fft-chip-remove")) {
+          fftTraces = fftTraces.filter((trace) => trace.column !== currentColumn);
+          renderChips();
+          rerenderOrClear();
+          if (statusEl) {
+            statusEl.textContent = fftTraces.length ? fftTraces.map((trace) => trace.column).join(", ") : "Select a column chip to compute its FFT.";
+          }
+          return;
+        }
+        if (!currentColumn || fftTraces.some((trace) => trace.column === currentColumn)) return;
+        const activeChip = chip;
+        if (!activeChip) return;
+        activeChip.classList.add("loading");
+        activeChip.disabled = true;
+        const loadingEl = document.getElementById("fft-chart-loading");
+        if (loadingEl) loadingEl.hidden = false;
+        if (statusEl) statusEl.textContent = `Computing FFT for ${currentColumn}\u2026`;
+        try {
+          await fetchAndAddTrace(currentColumn);
+          renderChips();
+          rerenderOrClear();
+          const bins = fftTraces.find((trace) => trace.column === currentColumn)?.frequencies.length ?? 0;
+          if (statusEl) statusEl.textContent = `${fftTraces.map((trace) => trace.column).join(", ")} \xB7 ${bins} bins`;
+        } catch (error) {
+          if (statusEl) statusEl.textContent = `FFT failed for ${currentColumn}: ${error?.message || "error"}`;
+        } finally {
+          activeChip.classList.remove("loading");
+          activeChip.disabled = false;
+          if (loadingEl) loadingEl.hidden = true;
+        }
+      });
+      bar.insertBefore(chip, zoomButton || null);
+    }
+    chip.className = `series-chip fft-trace-chip${isActive ? " active" : ""}`;
+    chip.style.setProperty("--chip-accent", color);
+    chip.innerHTML = `<span class="chip-label">${column}</span><input type="color" class="chip-color-picker fft-chip-color-picker" value="${color}" aria-label="Set ${column} FFT color" title="Set ${column} FFT color">` + (isActive ? '<span class="fft-chip-remove" aria-hidden="true">\xD7</span>' : "");
+    const colorInput = chip.querySelector(".chip-color-picker");
+    if (colorInput) {
+      for (const eventName of ["pointerdown", "mousedown", "click", "dblclick"]) {
+        colorInput.addEventListener(eventName, (event) => event.stopPropagation());
+      }
+      colorInput.addEventListener("input", (event) => {
+        const nextColor = event.target.value;
+        fftTraceColors[column] = nextColor;
+        chip?.style.setProperty("--chip-accent", nextColor);
+        const trace = fftTraces.find((item) => item.column === column);
+        if (trace) {
+          trace.color = nextColor;
+          rerenderOrClear();
+        }
+      });
+    }
+  }
+  bar.hidden = columns.length === 0;
+}
+async function initFftPage(deps) {
+  if (initialized) return;
+  initialized = true;
+  const modeSelect = document.getElementById("fft-mode-select");
+  const logCheck = document.getElementById("fft-log-scale");
+  const zoomResetBtn = document.getElementById("fft-zoom-reset-btn");
+  fftChart = new FftChart("fft-chart");
+  await fftChart.init();
+  fftChart.onZoomChange = (isZoomed) => updateZoomButton(isZoomed);
+  const populateChips = () => {
+    if (appState.metadata) renderChips();
+  };
+  populateChips();
+  window.addEventListener("edatime:page-change", populateChips);
+  modeSelect?.addEventListener("change", () => {
+    fftMode = modeSelect.value;
+    rerenderOrClear();
+  });
+  logCheck?.addEventListener("change", () => {
+    fftLogScale = logCheck.checked;
+    rerenderOrClear();
+  });
+  zoomResetBtn?.addEventListener("click", () => fftChart?.resetView());
+  document.getElementById("fft-export-png-btn")?.addEventListener("click", () => {
+    exportContainerCanvasPNG("fft-chart", "edatime_fft.png");
+  });
+  document.getElementById("fft-export-svg-btn")?.addEventListener("click", () => {
+    exportContainerCanvasSVG("fft-chart", "edatime_fft.svg");
+  });
+  document.getElementById("fft-export-html-btn")?.addEventListener("click", () => {
+    exportContainerCanvasHTML("fft-chart", "edatime_fft.html");
+  });
+  document.getElementById("fft-export-csv-btn")?.addEventListener("click", () => {
+    if (fftTraces.length === 0) {
+      toast("No FFT data to export.", "warning");
+      return;
+    }
+    const csvTraces = fftTraces.map((trace) => ({
+      column: trace.column,
+      xs: trace.frequencies,
+      ys: fftMode === "psd" ? trace.psd : trace.magnitudes
+    }));
+    exportTraceCSV(csvTraces, "frequency_hz", `edatime_fft_${fftMode}.csv`);
+  });
+  document.getElementById("fft-filter-apply-btn")?.addEventListener("click", async () => {
+    const filterType = document.getElementById("fft-filter-type")?.value;
+    if (!filterType || filterType === "none") {
+      if (appState.spectralFilterPreview) {
+        appState.spectralFilterPreview = null;
+        appState.chart?.requestOverlayRender?.();
+        deps.renderTimeseries();
+      }
+      return;
+    }
+    const column = fftTraces[0]?.column || appState.selectedCols[0];
+    if (!column) {
+      toast("Select a column chip below first.", "warning");
+      return;
+    }
+    const statusEl = document.getElementById("fft-filter-status");
+    const lowHz = parseFloat(document.getElementById("fft-filter-low-hz")?.value) || void 0;
+    const highHz = parseFloat(document.getElementById("fft-filter-high-hz")?.value) || void 0;
+    if (statusEl) statusEl.textContent = "Computing\u2026";
+    try {
+      const start = appState.currentStart;
+      const end = appState.currentEnd;
+      if (start == null || end == null || !Number.isFinite(start) || !Number.isFinite(end)) {
+        throw new Error("No range selected");
+      }
+      const params = new URLSearchParams({
+        start: new Date(start).toISOString(),
+        end: new Date(end).toISOString(),
+        column,
+        filter_type: filterType,
+        ...lowHz !== void 0 ? { low_hz: String(lowHz) } : {},
+        ...highHz !== void 0 ? { high_hz: String(highHz) } : {}
+      });
+      const response = await fetch(`/api/analytics/spectral-filter?${params.toString()}`);
+      if (!response.ok) throw new Error(await response.text());
+      const data = await response.json();
+      appState.spectralFilterPreview = {
+        column: data.column,
+        ts: data.ts,
+        values: data.values,
+        filterType,
+        lowHz: data.low_hz,
+        highHz: data.high_hz
+      };
+      if (statusEl) statusEl.textContent = `${filterType} preview active`;
+      toast(`Spectral filter preview: ${filterType} applied to "${column}". Switch to Timeseries to view.`, "success");
+      deps.renderTimeseries();
+    } catch (error) {
+      if (statusEl) statusEl.textContent = "Error";
+      toast(`Spectral filter failed: ${String(error)}`, "error");
+    }
+  });
+  const filterTypeSelect = document.getElementById("fft-filter-type");
+  filterTypeSelect?.addEventListener("change", () => {
+    const filterType = filterTypeSelect.value;
+    const lowEl = document.getElementById("fft-filter-low-hz");
+    const highEl = document.getElementById("fft-filter-high-hz");
+    if (lowEl) lowEl.disabled = filterType === "none" || filterType === "lowpass";
+    if (highEl) highEl.disabled = filterType === "none" || filterType === "highpass";
+  });
+  rerenderOrClear();
+}
+
+// frontend/src/pages/heatmapPage.ts
+var loaded = false;
+var heatmapCellSize = 36;
+var heatmapEmptyStateController = null;
+function getHeatmapEmptyStateController() {
+  if (!heatmapEmptyStateController) {
+    heatmapEmptyStateController = createEmptyStateController({ rootId: "heatmap-empty-state" });
+  }
+  return heatmapEmptyStateController;
+}
+function syncHeatmapEmptyState(message, visible, reason = "") {
+  getHeatmapEmptyStateController().update({
+    visible,
+    reason: visible ? reason || "no-data" : "",
+    title: "",
+    message: "",
+    fallbackText: message
+  });
+}
+function correlationColor(value) {
+  const clamped = Math.max(-1, Math.min(1, value));
+  if (clamped >= 0) {
+    const t2 = clamped;
+    const r2 = Math.round(247 - t2 * (247 - 178));
+    const g2 = Math.round(247 - t2 * (247 - 24));
+    const b2 = Math.round(247 - t2 * (247 - 43));
+    return `rgb(${r2},${g2},${b2})`;
+  }
+  const t = -clamped;
+  const r = Math.round(247 - t * (247 - 33));
+  const g = Math.round(247 - t * (247 - 102));
+  const b = Math.round(247 - t * (247 - 172));
+  return `rgb(${r},${g},${b})`;
+}
+async function initHeatmapPage(deps) {
+  if (loaded) return;
+  loaded = true;
+  const container = document.getElementById("heatmap-container");
+  const statusEl = document.getElementById("heatmap-status");
+  const metricSelect = document.getElementById("heatmap-metric");
+  const sizeInput = document.getElementById("heatmap-cell-size");
+  const sizeValue = document.getElementById("heatmap-cell-size-value");
+  if (!container) return;
+  const containerEl = container;
+  let matrixData = null;
+  let metric = "pearson";
+  let matrixLoadInFlight = null;
+  function renderHeatmap() {
+    if (!matrixData) {
+      syncHeatmapEmptyState("Correlation heatmap will appear here once the dataset is available.", true);
+      return;
+    }
+    const columns = matrixData.columns;
+    const data = metric === "spearman" ? matrixData.spearman : matrixData.pearson;
+    const size = columns.length;
+    if (size === 0) {
+      containerEl.innerHTML = "";
+      syncHeatmapEmptyState("No numeric columns are available for the correlation heatmap.", true, "no-columns-available");
+      return;
+    }
+    syncHeatmapEmptyState("", false);
+    const labelWidth = Math.max(84, Math.min(180, Math.round(heatmapCellSize * 2.5)));
+    let html = `<div class="heatmap-grid" style="display:inline-grid;grid-template-columns:${labelWidth}px repeat(${size},${heatmapCellSize}px);grid-template-rows:${labelWidth}px repeat(${size},${heatmapCellSize}px);gap:1px;font-size:0.65rem;">`;
+    html += "<div></div>";
+    for (const column of columns) {
+      html += `<div class="heatmap-header" style="writing-mode:vertical-rl;text-orientation:mixed;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;color:var(--text-dim);padding:4px 2px;" title="${column}">${column}</div>`;
+    }
+    for (let row = 0; row < size; row++) {
+      html += `<div class="heatmap-row-label" style="display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${columns[row]}">${columns[row]}</div>`;
+      for (let column = 0; column < size; column++) {
+        const value = data[row]?.[column] ?? null;
+        const displayValue = value !== null ? value.toFixed(2) : "\u2014";
+        const background = value !== null ? correlationColor(value) : "transparent";
+        const textColor = value !== null && Math.abs(value) > 0.5 ? "#fff" : "var(--text)";
+        html += `<div class="heatmap-cell" data-row="${row}" data-col="${column}" style="display:flex;align-items:center;justify-content:center;background:${background};color:${textColor};border-radius:2px;cursor:${row !== column ? "pointer" : "default"};font-variant-numeric:tabular-nums;" title="${columns[row]} \xD7 ${columns[column]}: ${displayValue}${row !== column ? " \u2014 click to explore in Scatter" : ""}">${displayValue}</div>`;
+      }
+    }
+    html += "</div>";
+    html += '<div style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:0.7rem;color:var(--text-dim);">';
+    html += "<span>-1.0</span>";
+    html += '<div style="flex:0 0 200px;height:12px;border-radius:4px;background:linear-gradient(90deg,#2166AC,#67A9CF,#F7F7F7,#EF8A62,#B2182B);"></div>';
+    html += "<span>+1.0</span>";
+    html += "</div>";
+    containerEl.innerHTML = html;
+    containerEl.onclick = (event) => {
+      const cell = event.target.closest(".heatmap-cell");
+      if (!cell) return;
+      const rowIndex = Number.parseInt(cell.dataset.row || "", 10);
+      const colIndex = Number.parseInt(cell.dataset.col || "", 10);
+      if (!Number.isFinite(rowIndex) || !Number.isFinite(colIndex) || rowIndex === colIndex) return;
+      const xSelect = document.getElementById("scatter-x-col");
+      const ySelect = document.getElementById("scatter-y-col");
+      if (xSelect) xSelect.value = columns[rowIndex];
+      if (ySelect) ySelect.value = columns[colIndex];
+      deps.showPage("scatter");
+    };
+  }
+  async function loadMatrix() {
+    if (matrixLoadInFlight) return matrixLoadInFlight;
+    matrixLoadInFlight = (async () => {
+      if (statusEl) statusEl.textContent = "Loading correlation matrix\u2026";
+      try {
+        matrixData = await fetchCorrelationMatrix();
+        if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns \xB7 ${heatmapCellSize}px cells`;
+        renderHeatmap();
+      } catch (error) {
+        const message = error?.message || "";
+        const isInsufficient = message.toLowerCase().includes("two") || message.toLowerCase().includes("numeric") || message.toLowerCase().includes("column");
+        syncHeatmapEmptyState(
+          isInsufficient ? "Need at least two numeric columns to compute correlations. Upload a dataset with multiple numeric columns." : "Correlation heatmap is unavailable for the current dataset.",
+          true,
+          isInsufficient ? "no-columns-available" : "render-failure"
+        );
+        if (statusEl) statusEl.textContent = isInsufficient ? "Not enough numeric columns" : `Error: ${message || "failed"}`;
+      }
+    })().finally(() => {
+      matrixLoadInFlight = null;
+    });
+    return matrixLoadInFlight;
+  }
+  metricSelect?.addEventListener("change", () => {
+    metric = metricSelect.value;
+    renderHeatmap();
+  });
+  sizeInput?.addEventListener("input", () => {
+    heatmapCellSize = Math.max(24, Math.min(72, Number(sizeInput.value || 36)));
+    if (sizeValue) sizeValue.textContent = String(heatmapCellSize);
+    if (statusEl && matrixData) statusEl.textContent = `${matrixData.columns.length} columns \xB7 ${heatmapCellSize}px cells`;
+    renderHeatmap();
+  });
+  document.getElementById("heatmap-export-csv-btn")?.addEventListener("click", () => {
+    if (!matrixData) {
+      toast("No heatmap data to export.", "warning");
+      return;
+    }
+    const data = metric === "spearman" ? matrixData.spearman : matrixData.pearson;
+    exportMatrixCSV(matrixData.columns, data, `edatime_correlation_${metric}.csv`);
+  });
+  document.getElementById("heatmap-export-png-btn")?.addEventListener("click", () => {
+    exportElementPNG("heatmap-container", "edatime_heatmap.png");
+  });
+  document.getElementById("heatmap-export-svg-btn")?.addEventListener("click", () => {
+    exportElementSVG("heatmap-container", "edatime_heatmap.svg");
+  });
+  document.getElementById("heatmap-export-html-btn")?.addEventListener("click", () => {
+    void exportElementHTML("heatmap-container", "edatime_heatmap.html");
+  });
+  window.addEventListener("edatime:page-change", (event) => {
+    const detail = event.detail;
+    if (detail?.page === "heatmap") void loadMatrix();
+  });
+  const heatmapPage = document.getElementById("page-heatmap");
+  if (heatmapPage && !heatmapPage.hidden) {
+    await loadMatrix();
+  }
+}
+
+// frontend/src/pages/spectrogramPage.ts
+var loaded2 = false;
+var spectrogramChart = null;
+var spectrogramResizeObserver = null;
+var spectrogramResult = null;
+var spectrogramSampleCount = 0;
+var spectrogramEmptyStateController = null;
+function getSpectrogramEmptyStateController() {
+  if (!spectrogramEmptyStateController) {
+    spectrogramEmptyStateController = createEmptyStateController({ rootId: "spectrogram-empty-state" });
+  }
+  return spectrogramEmptyStateController;
+}
+function syncSpectrogramEmptyState(message) {
+  getSpectrogramEmptyStateController().update({
+    visible: !spectrogramResult,
+    reason: spectrogramResult ? "" : "no-columns-selected",
+    title: "",
+    message: "",
+    fallbackText: message || "Pick a numeric column and click Compute to generate the spectrogram."
+  });
+}
+function formatSpectrogramTime(timestampMs) {
+  return new Date(timestampMs).toLocaleString([], {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+}
+function formatSpectrogramFrequency(frequency) {
+  if (!Number.isFinite(frequency)) return "\u2014";
+  if (frequency >= 1e3) return `${(frequency / 1e3).toFixed(2)} kHz`;
+  if (frequency >= 1) return `${frequency.toFixed(2)} Hz`;
+  return `${(frequency * 1e3).toFixed(2)} mHz`;
+}
+async function initSpectrogramPage(deps) {
+  if (loaded2) return;
+  loaded2 = true;
+  const colSelect = document.getElementById("spectrogram-col-select");
+  const winSelect = document.getElementById("spectrogram-win-size");
+  const logCheck = document.getElementById("spectrogram-log-scale");
+  const resetZoomBtn = document.getElementById("spectrogram-zoom-reset-btn");
+  const statusEl = document.getElementById("spectrogram-status");
+  const chartEl = document.getElementById("spectrogram-chart");
+  if (!chartEl || !colSelect) return;
+  const ensureSpectrogramChartDimensions = () => {
+    if (chartEl.clientHeight > 0) return;
+    chartEl.style.minHeight = chartEl.style.minHeight || "420px";
+    if (!chartEl.style.height || chartEl.style.height === "100%") {
+      chartEl.style.height = "420px";
+    }
+  };
+  const isSpectrogramChartReadyForInit = () => {
+    const page = document.getElementById("page-spectrogram");
+    ensureSpectrogramChartDimensions();
+    return !!chartEl && chartEl.clientWidth > 0 && chartEl.clientHeight > 0 && (!page || !page.hidden);
+  };
+  const waitForSpectrogramChartReady = async (attempts = 6) => {
+    for (let remaining = attempts; remaining >= 0; remaining -= 1) {
+      if (isSpectrogramChartReadyForInit()) return true;
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    }
+    return isSpectrogramChartReadyForInit();
+  };
+  const ensureSpectrogramChart = async () => {
+    if (spectrogramChart) {
+      if (isSpectrogramChartReadyForInit()) spectrogramChart.resize?.();
+      return spectrogramChart;
+    }
+    if (!await waitForSpectrogramChartReady()) {
+      throw new Error("Spectrogram chart container is not ready yet.");
+    }
+    const echarts = await import("./echarts-SD7KWPBA.js");
+    spectrogramChart = echarts.init(chartEl, void 0, { renderer: "canvas" });
+    spectrogramResizeObserver?.disconnect();
+    spectrogramResizeObserver = new ResizeObserver(() => spectrogramChart?.resize());
+    spectrogramResizeObserver.observe(chartEl);
+    if (chartEl.style.position === "" || chartEl.style.position === "static") {
+      chartEl.style.position = "relative";
+    }
+    const selectionBox = document.createElement("div");
+    selectionBox.style.cssText = "position:absolute;top:0;left:0;width:0;height:0;border:1px solid rgba(0,212,255,0.9);background:rgba(0,212,255,0.15);pointer-events:none;display:none;z-index:5";
+    chartEl.appendChild(selectionBox);
+    let dragStart = null;
+    let dragEnd = { x: 0, y: 0 };
+    const grid = { left: 72, right: 110, top: 24, bottom: 80 };
+    chartEl.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      const rect = chartEl.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      if (x > rect.width - grid.right || x < grid.left || y < grid.top || y > rect.height - grid.bottom) return;
+      dragStart = { x, y, pid: event.pointerId };
+      dragEnd = { x, y };
+      try {
+        chartEl.setPointerCapture(event.pointerId);
+      } catch {
+      }
+    });
+    chartEl.addEventListener("pointermove", (event) => {
+      if (!dragStart || event.pointerId !== dragStart.pid) return;
+      const rect = chartEl.getBoundingClientRect();
+      dragEnd = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      const left = Math.min(dragStart.x, dragEnd.x);
+      const top = Math.min(dragStart.y, dragEnd.y);
+      selectionBox.style.left = `${left}px`;
+      selectionBox.style.top = `${top}px`;
+      selectionBox.style.width = `${Math.abs(dragEnd.x - dragStart.x)}px`;
+      selectionBox.style.height = `${Math.abs(dragEnd.y - dragStart.y)}px`;
+      selectionBox.style.display = "block";
+    });
+    const finishDrag = (event) => {
+      if (!dragStart || event.pointerId !== dragStart.pid) return;
+      const start = dragStart;
+      dragStart = null;
+      selectionBox.style.display = "none";
+      try {
+        chartEl.releasePointerCapture(event.pointerId);
+      } catch {
+      }
+      const dx = Math.abs(dragEnd.x - start.x);
+      const dy = Math.abs(dragEnd.y - start.y);
+      if (dx < 8 || dy < 8) return;
+      if (!spectrogramChart || !spectrogramResult) return;
+      const p0 = spectrogramChart.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [start.x, start.y]);
+      const p1 = spectrogramChart.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [dragEnd.x, dragEnd.y]);
+      if (!p0 || !p1) return;
+      const xLen = spectrogramResult.times_ms.length;
+      const yLen = spectrogramResult.frequencies.length;
+      const xStartPct = Math.max(0, Math.min(100, Math.min(p0[0], p1[0]) / (xLen - 1) * 100));
+      const xEndPct = Math.max(0, Math.min(100, Math.max(p0[0], p1[0]) / (xLen - 1) * 100));
+      const yStartPct = Math.max(0, Math.min(100, Math.min(p0[1], p1[1]) / (yLen - 1) * 100));
+      const yEndPct = Math.max(0, Math.min(100, Math.max(p0[1], p1[1]) / (yLen - 1) * 100));
+      if (xEndPct <= xStartPct || yEndPct <= yStartPct) return;
+      spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: xStartPct, end: xEndPct });
+      spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 1, start: yStartPct, end: yEndPct });
+    };
+    chartEl.addEventListener("pointerup", finishDrag);
+    chartEl.addEventListener("pointercancel", (event) => {
+      if (dragStart?.pid === event.pointerId) {
+        dragStart = null;
+        selectionBox.style.display = "none";
+      }
+    });
+    chartEl.addEventListener("dblclick", () => {
+      if (!spectrogramChart) return;
+      spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: 0, end: 100 });
+      spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 1, start: 0, end: 100 });
+    });
+    return spectrogramChart;
+  };
+  const renderSpectrogramChart = async () => {
+    if (!spectrogramResult) return;
+    const chart = await ensureSpectrogramChart();
+    const logScale = logCheck?.checked ?? true;
+    const points = [];
+    const timeAxis = spectrogramResult.times_ms;
+    const freqAxis = spectrogramResult.frequencies;
+    let minValue = Number.POSITIVE_INFINITY;
+    let maxValue = Number.NEGATIVE_INFINITY;
+    for (let timeIndex = 0; timeIndex < timeAxis.length; timeIndex++) {
+      const timeMs = timeAxis[timeIndex];
+      const row = spectrogramResult.magnitudes[timeIndex] || [];
+      for (let freqIndex = 0; freqIndex < freqAxis.length; freqIndex++) {
+        const freq = freqAxis[freqIndex];
+        const rawMagnitude = Number(row[freqIndex] ?? 0);
+        const displayMagnitude = logScale ? Math.log10(Math.max(rawMagnitude, 1e-30)) : rawMagnitude;
+        if (!Number.isFinite(displayMagnitude)) continue;
+        minValue = Math.min(minValue, displayMagnitude);
+        maxValue = Math.max(maxValue, displayMagnitude);
+        points.push([timeIndex, freqIndex, displayMagnitude, timeMs, freq, rawMagnitude]);
+      }
+    }
+    if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
+      minValue = 0;
+      maxValue = 1;
+    }
+    const xTickInterval = Math.max(0, Math.floor(timeAxis.length / 10) - 1);
+    const yTickInterval = Math.max(0, Math.floor(freqAxis.length / 10) - 1);
+    chart.setOption({
+      backgroundColor: "transparent",
+      animation: false,
+      grid: { left: 72, right: 110, top: 24, bottom: 80 },
+      toolbox: {
+        right: 12,
+        feature: {
+          restore: { title: "Reset zoom" },
+          saveAsImage: { title: "Save image" }
+        }
+      },
+      tooltip: {
+        trigger: "item",
+        backgroundColor: "rgba(8, 12, 20, 0.94)",
+        borderColor: "rgba(126, 158, 212, 0.28)",
+        textStyle: { color: "#eef4ff" },
+        formatter: (params) => {
+          const value = params?.value || [];
+          const timeMs = Number(value[3]);
+          const freq = Number(value[4]);
+          const displayMagnitude = Number(value[2]);
+          const rawMagnitude = Number(value[5]);
+          return [
+            `<strong>${spectrogramResult?.column || "Spectrogram"}</strong>`,
+            `Time: ${formatSpectrogramTime(timeMs)}`,
+            `Frequency: ${formatSpectrogramFrequency(freq)}`,
+            `Intensity: ${displayMagnitude.toFixed(4)}${logScale ? " log10" : ""}`,
+            `Raw magnitude: ${rawMagnitude.toExponential(4)}`
+          ].join("<br>");
+        }
+      },
+      xAxis: {
+        type: "category",
+        data: timeAxis,
+        name: "Time",
+        nameLocation: "middle",
+        nameGap: 48,
+        axisLabel: {
+          color: "#9fb1d1",
+          rotate: 30,
+          interval: xTickInterval,
+          formatter: (value) => {
+            const date = new Date(Number(value));
+            return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}
+${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+          }
+        },
+        splitLine: { show: false }
+      },
+      yAxis: {
+        type: "category",
+        data: freqAxis,
+        name: "Frequency (Hz)",
+        nameLocation: "middle",
+        nameGap: 56,
+        axisLabel: {
+          color: "#9fb1d1",
+          interval: yTickInterval,
+          formatter: (value) => formatSpectrogramFrequency(Number(value))
+        },
+        splitLine: { show: false }
+      },
+      visualMap: {
+        min: minValue,
+        max: maxValue,
+        calculable: true,
+        orient: "vertical",
+        right: 18,
+        top: "middle",
+        text: [logScale ? "High log10" : "High", logScale ? "Low log10" : "Low"],
+        textStyle: { color: "#9fb1d1" },
+        inRange: {
+          color: ["#440154", "#414487", "#2a788e", "#22a884", "#7ad151", "#fde725"]
+        }
+      },
+      dataZoom: [
+        {
+          type: "inside",
+          xAxisIndex: 0,
+          filterMode: "none",
+          zoomOnMouseWheel: false,
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false
+        },
+        {
+          type: "inside",
+          yAxisIndex: 0,
+          filterMode: "none",
+          zoomOnMouseWheel: false,
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false
+        }
+      ],
+      series: [{
+        name: spectrogramResult.column,
+        type: "heatmap",
+        progressive: 0,
+        emphasis: { itemStyle: { borderColor: "#ffffff", borderWidth: 1 } },
+        data: points
+      }]
+    });
+    if (statusEl) {
+      statusEl.textContent = `${spectrogramResult.column} \xB7 ${spectrogramResult.times_ms.length} windows \xD7 ${spectrogramResult.frequencies.length} bins \xB7 ${spectrogramSampleCount} samples`;
+    }
+    syncSpectrogramEmptyState();
+  };
+  if (appState.metadata) {
+    for (const column of appState.metadata.numeric_columns) {
+      const option = document.createElement("option");
+      option.value = column;
+      option.textContent = column;
+      colSelect.appendChild(option);
+    }
+  }
+  syncSpectrogramEmptyState();
+  document.getElementById("spectrogram-compute-btn")?.addEventListener("click", async () => {
+    const column = colSelect.value;
+    if (!column) {
+      if (statusEl) statusEl.textContent = "Select a column.";
+      syncSpectrogramEmptyState("Pick a numeric column and click Compute to generate the spectrogram.");
+      return;
+    }
+    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) {
+      if (statusEl) statusEl.textContent = "No time range available.";
+      return;
+    }
+    const winSize = Number.parseInt(winSelect?.value || "256", 10);
+    try {
+      deps.setLoading("spectrogram-compute-btn", "spectrogram-loading", true);
+      if (statusEl) statusEl.textContent = "Fetching spectrogram\u2026";
+      const startMs = appState.currentStart;
+      const endMs = appState.currentEnd;
+      if (startMs == null || endMs == null || !Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+        throw new Error("No time range available.");
+      }
+      const startIso = new Date(startMs).toISOString();
+      const endIso = new Date(endMs).toISOString();
+      const response = await fetchSpectrogram(startIso, endIso, column, winSize);
+      spectrogramResult = response.result;
+      spectrogramSampleCount = response.sample_count;
+      await renderSpectrogramChart();
+    } catch (error) {
+      spectrogramResult = null;
+      syncSpectrogramEmptyState("Spectrogram generation failed. Choose a column and try again.");
+      if (statusEl) statusEl.textContent = `Error: ${error?.message || "failed"}`;
+    } finally {
+      deps.setLoading("spectrogram-compute-btn", "spectrogram-loading", false);
+    }
+  });
+  logCheck?.addEventListener("change", () => {
+    if (spectrogramResult) void renderSpectrogramChart();
+  });
+  resetZoomBtn?.addEventListener("click", () => {
+    if (!spectrogramChart) return;
+    spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: 0, end: 100 });
+    spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 1, start: 0, end: 100 });
+  });
+  document.getElementById("spectrogram-export-png-btn")?.addEventListener("click", () => {
+    exportEChartsPNG(spectrogramChart, "edatime_spectrogram.png");
+  });
+  document.getElementById("spectrogram-export-svg-btn")?.addEventListener("click", () => {
+    exportEChartsSVG(spectrogramChart, "edatime_spectrogram.svg");
+  });
+  document.getElementById("spectrogram-export-html-btn")?.addEventListener("click", () => {
+    exportEChartsHTML(spectrogramChart, "edatime_spectrogram.html");
+  });
+  window.addEventListener("edatime:page-change", (event) => {
+    const detail = event.detail;
+    if (detail?.page === "spectrogram" && appState.metadata) {
+      const currentOptions = new Set(Array.from(colSelect.options).map((option) => option.value));
+      for (const column of appState.metadata.numeric_columns) {
+        if (!currentOptions.has(column)) {
+          const option = document.createElement("option");
+          option.value = column;
+          option.textContent = column;
+          colSelect.appendChild(option);
+        }
+      }
+      if (isSpectrogramChartReadyForInit()) {
+        spectrogramChart?.resize?.();
+      } else {
+        void waitForSpectrogramChartReady().then((ready) => {
+          if (ready) spectrogramChart?.resize?.();
+        });
+      }
+    }
+  });
+}
+
 // frontend/src/ui/toolbar.ts
 function buildFilteredSeriesRows() {
   if (!appState.lastFetchedData || !Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
@@ -1814,153 +2874,6 @@ function initPages() {
   showPage2("home");
 }
 
-// frontend/src/charts/registry.ts
-var _registry = /* @__PURE__ */ new Map();
-function registerChartType(name, adapter) {
-  if (!name || typeof adapter?.create !== "function") {
-    throw new Error(`Invalid chart adapter for "${name}"`);
-  }
-  _registry.set(name, adapter);
-}
-function getChartType(name) {
-  return _registry.get(name);
-}
-
-// frontend/src/charts/fallback.ts
-var FallbackChart = class {
-  containerId;
-  canvas = null;
-  ctx = null;
-  resizeObserver = null;
-  constructor(containerId) {
-    this.containerId = containerId;
-  }
-  async init() {
-    const container = document.getElementById(this.containerId);
-    if (!container) throw new Error("Fallback chart container not found");
-    container.innerHTML = "";
-    const canvas = document.createElement("canvas");
-    canvas.style.width = "100%";
-    canvas.style.height = "100%";
-    canvas.style.display = "block";
-    container.appendChild(canvas);
-    this.canvas = canvas;
-    this.ctx = canvas.getContext("2d");
-    const resize = () => {
-      const w = Math.max(1, container.clientWidth);
-      const h = Math.max(1, container.clientHeight);
-      this.canvas.width = w;
-      this.canvas.height = h;
-    };
-    resize();
-    this.resizeObserver = new ResizeObserver(() => resize());
-    this.resizeObserver.observe(container);
-  }
-  setXRange() {
-  }
-  supportsZoomControls() {
-    return false;
-  }
-  onCrosshairMove() {
-  }
-  onClick() {
-  }
-  setChartText() {
-  }
-  setDrawMode() {
-  }
-  clearDrawings() {
-  }
-  fitYToData() {
-  }
-  getXDomain() {
-    return null;
-  }
-  getYRange() {
-    return null;
-  }
-  exportPNG() {
-  }
-  exportSVG() {
-  }
-  exportHTML() {
-  }
-  updateDataMulti(dataObj, columns) {
-    if (!this.ctx || !this.canvas) return;
-    const ctx = this.ctx;
-    const width = this.canvas.width;
-    const height = this.canvas.height;
-    const pad = 28;
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#080a10";
-    ctx.fillRect(0, 0, width, height);
-    let xMin = Number.POSITIVE_INFINITY;
-    let xMax = Number.NEGATIVE_INFINITY;
-    let yMin = Number.POSITIVE_INFINITY;
-    let yMax = Number.NEGATIVE_INFINITY;
-    const seriesToDraw = [];
-    for (const col of columns) {
-      const seriesData = dataObj.series?.[col];
-      const xs = seriesData?.x || dataObj.ts;
-      const ys = seriesData?.y || dataObj.values?.[col];
-      if (!xs || !ys || ys.length === 0) continue;
-      seriesToDraw.push({ col, xs, ys });
-      for (let i = 0; i < xs.length; i++) {
-        const x = Number(xs[i]);
-        const y = Number(ys[i]);
-        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-        if (x < xMin) xMin = x;
-        if (x > xMax) xMax = x;
-        if (y < yMin) yMin = y;
-        if (y > yMax) yMax = y;
-      }
-    }
-    if (seriesToDraw.length === 0 || !Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
-      ctx.fillStyle = "#7a86a4";
-      ctx.font = "12px sans-serif";
-      ctx.fillText("No data to display", pad, pad + 2);
-      return;
-    }
-    if (xMax === xMin) xMax = xMin + 1;
-    if (yMax === yMin) yMax = yMin + 1;
-    ctx.strokeStyle = "#272d45";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(pad, height - pad);
-    ctx.lineTo(width - pad, height - pad);
-    ctx.moveTo(pad, pad);
-    ctx.lineTo(pad, height - pad);
-    ctx.stroke();
-    for (let s = 0; s < seriesToDraw.length; s++) {
-      const { xs, ys } = seriesToDraw[s];
-      ctx.beginPath();
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = SERIES_COLORS[s % SERIES_COLORS.length];
-      let started = false;
-      for (let i = 0; i < xs.length; i++) {
-        const x = Number(xs[i]);
-        const y = Number(ys[i]);
-        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-        const px = pad + (x - xMin) / (xMax - xMin) * (width - 2 * pad);
-        const py = height - pad - (y - yMin) / (yMax - yMin) * (height - 2 * pad);
-        if (!started) {
-          ctx.moveTo(px, py);
-          started = true;
-        } else {
-          ctx.lineTo(px, py);
-        }
-      }
-      ctx.stroke();
-    }
-  }
-  destroy() {
-    this.resizeObserver?.disconnect();
-    this.resizeObserver = null;
-    this.ctx = null;
-    this.canvas = null;
-  }
-};
-
 // frontend/src/utils/router.ts
 var VALID_PAGES = /* @__PURE__ */ new Set([
   "home",
@@ -2020,209 +2933,6 @@ function initHashRouting() {
   } else {
     replaceHashPage("home");
   }
-}
-
-// frontend/src/utils/session.ts
-var STORAGE_KEY = "edatime-session";
-function currentPage() {
-  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
-}
-function readSelect(id) {
-  return document.getElementById(id)?.value || "";
-}
-function captureSession() {
-  return {
-    version: 1,
-    timestamp: Date.now(),
-    page: currentPage(),
-    selectedCols: [...appState.selectedCols],
-    seriesColors: { ...appState.seriesColors },
-    columnRanges: { ...appState.columnRanges },
-    adaptiveLineFilters: appState.adaptiveLineFilters.map((f) => ({ ...f })),
-    currentStart: appState.currentStart,
-    currentEnd: appState.currentEnd,
-    selectedColorColumn: appState.selectedColorColumn,
-    chartText: { ...appState.chartText },
-    rollingEnabled: appState.rollingEnabled,
-    rollingWindow: appState.rollingWindow,
-    anomalyEnabled: appState.anomalyEnabled,
-    anomalyMethod: appState.anomalyMethod,
-    anomalyThreshold: appState.anomalyThreshold,
-    scatterX: readSelect("scatter-x-col"),
-    scatterY: readSelect("scatter-y-col"),
-    scatterColorColumn: readSelect("scatter-color-column"),
-    scatterRenderMode: readSelect("scatter-render-mode"),
-    theme: document.documentElement.getAttribute("data-theme") || "dark",
-    datasetRevision: Number.isFinite(Number(appState.datasetRevision)) ? Number(appState.datasetRevision) : 0
-  };
-}
-function applySession(snap, options = {}) {
-  const result = {
-    revisionMismatch: false,
-    rangeAdjusted: false,
-    usedMetadataRange: false,
-    droppedFilterCount: 0,
-    navigatedToPage: false
-  };
-  if (!snap || snap.version !== 1) return result;
-  const announceAdjustments = options.announceAdjustments !== false;
-  const metadataTimeRange = options.metadataTimeRange || (appState.metadata?.time_range ?? null);
-  const currentRevision = Number(
-    options.currentDatasetRevision ?? appState.datasetRevision ?? appState.metadata?.revision ?? 0
-  );
-  const snapshotRevision = Number(snap.datasetRevision ?? 0);
-  const hasRevisions = Number.isFinite(currentRevision) && currentRevision > 0 && Number.isFinite(snapshotRevision) && snapshotRevision > 0;
-  const revisionMismatch = hasRevisions && currentRevision !== snapshotRevision;
-  result.revisionMismatch = revisionMismatch;
-  appState.selectedCols = Array.isArray(snap.selectedCols) ? snap.selectedCols : [];
-  if (snap.seriesColors) appState.seriesColors = { ...snap.seriesColors };
-  if (revisionMismatch) {
-    const staleRanges = Object.keys(snap.columnRanges || {}).length;
-    const staleLines = Array.isArray(snap.adaptiveLineFilters) ? snap.adaptiveLineFilters.length : 0;
-    result.droppedFilterCount = staleRanges + staleLines;
-    appState.columnRanges = {};
-    appState.adaptiveLineFilters = [];
-  } else {
-    if (snap.columnRanges) appState.columnRanges = { ...snap.columnRanges };
-    if (Array.isArray(snap.adaptiveLineFilters)) {
-      appState.adaptiveLineFilters = snap.adaptiveLineFilters.map((f) => ({ ...f }));
-    }
-  }
-  if (!revisionMismatch) {
-    const hasStart = Number.isFinite(snap.currentStart);
-    const hasEnd = Number.isFinite(snap.currentEnd);
-    if (hasStart && hasEnd) {
-      let nextStart = Number(snap.currentStart);
-      let nextEnd = Number(snap.currentEnd);
-      const minMs = Number(metadataTimeRange?.min);
-      const maxMs = Number(metadataTimeRange?.max);
-      const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
-      if (hasMetadataBounds) {
-        const noOverlap = nextEnd <= minMs || nextStart >= maxMs;
-        if (noOverlap) {
-          nextStart = minMs;
-          nextEnd = maxMs;
-          result.rangeAdjusted = true;
-          result.usedMetadataRange = true;
-        } else {
-          const clampedStart = Math.max(nextStart, minMs);
-          const clampedEnd = Math.min(nextEnd, maxMs);
-          if (clampedStart !== nextStart || clampedEnd !== nextEnd) {
-            result.rangeAdjusted = true;
-          }
-          nextStart = clampedStart;
-          nextEnd = clampedEnd;
-          if (nextStart >= nextEnd) {
-            nextStart = minMs;
-            nextEnd = maxMs;
-            result.usedMetadataRange = true;
-          }
-        }
-      }
-      appState.currentStart = nextStart;
-      appState.currentEnd = nextEnd;
-    }
-  }
-  if (snap.selectedColorColumn !== void 0) appState.selectedColorColumn = snap.selectedColorColumn;
-  if (snap.chartText) appState.chartText = { ...snap.chartText };
-  if (snap.rollingEnabled !== void 0) appState.rollingEnabled = snap.rollingEnabled;
-  if (Number.isFinite(snap.rollingWindow)) appState.rollingWindow = snap.rollingWindow;
-  if (snap.anomalyEnabled !== void 0) appState.anomalyEnabled = snap.anomalyEnabled;
-  if (snap.anomalyMethod) appState.anomalyMethod = snap.anomalyMethod;
-  if (Number.isFinite(snap.anomalyThreshold)) appState.anomalyThreshold = snap.anomalyThreshold;
-  const setSelect = (id, val) => {
-    const el = document.getElementById(id);
-    if (el && val) el.value = val;
-  };
-  setSelect("scatter-x-col", snap.scatterX);
-  setSelect("scatter-y-col", snap.scatterY);
-  setSelect("scatter-color-column", snap.scatterColorColumn);
-  setSelect("scatter-render-mode", snap.scatterRenderMode);
-  if (snap.theme === "light" || snap.theme === "dark") {
-    document.documentElement.setAttribute("data-theme", snap.theme);
-    localStorage.setItem("edatime-theme", snap.theme);
-  }
-  if (revisionMismatch && announceAdjustments) {
-    toast("Session belongs to another dataset revision; stale filters were cleared.", "warning");
-  } else if (result.usedMetadataRange && announceAdjustments) {
-    toast("Saved chart range did not match this dataset and was reset to dataset bounds.", "warning");
-  } else if (result.rangeAdjusted && announceAdjustments) {
-    toast("Saved chart range was clamped to the current dataset time range.", "warning");
-  }
-  const hashPage = getHashPage();
-  const shouldPreferHash = !!options.preferHashPage && !!hashPage;
-  const shouldNavigate = options.navigate !== false && !shouldPreferHash;
-  if (shouldNavigate && snap.page) {
-    const btn = document.querySelector(`.sidebar .nav-item[data-page="${snap.page}"]`);
-    if (btn) {
-      btn.click();
-      result.navigatedToPage = true;
-    }
-  }
-  return result;
-}
-function autoSaveSession() {
-  try {
-    const snap = captureSession();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
-  } catch {
-  }
-}
-function autoRestoreSession() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const snap = JSON.parse(raw);
-    if (snap?.version !== 1) return null;
-    return snap;
-  } catch {
-    return null;
-  }
-}
-function exportSessionToFile() {
-  const snap = captureSession();
-  const blob = new Blob([JSON.stringify(snap, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `edatime-session-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace(/:/g, "-")}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast("Session exported", "success");
-}
-function importSessionFromFile() {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".json,application/json";
-  input.addEventListener("change", () => {
-    const file = input.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const snap = JSON.parse(reader.result);
-        if (snap?.version !== 1) throw new Error("Invalid session file");
-        applySession(snap);
-        toast("Session restored from file", "success");
-        window.dispatchEvent(new CustomEvent("edatime:session-restored"));
-      } catch (e) {
-        toast(`Failed to import session: ${e.message}`, "error");
-      }
-    };
-    reader.readAsText(file);
-  });
-  input.click();
-}
-var _autoSaveTimer = null;
-function initAutoSave() {
-  const debouncedSave = () => {
-    if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
-    _autoSaveTimer = setTimeout(autoSaveSession, 2e3);
-  };
-  window.addEventListener("edatime:page-change", debouncedSave);
-  window.addEventListener("edatime:column-filters-change", debouncedSave);
-  window.addEventListener("edatime:adaptive-filters-change", debouncedSave);
-  window.addEventListener("beforeunload", autoSaveSession);
 }
 
 // frontend/src/utils/palette.ts
@@ -2536,10 +3246,10 @@ var CHART_PALETTES = {
   monochrome: ["#f8f9fa", "#e9ecef", "#dee2e6", "#ced4da", "#adb5bd", "#6c757d"],
   neon: ["#ff00ff", "#00ffff", "#ff0080", "#80ff00", "#8000ff", "#00ff80"]
 };
-var STORAGE_KEY2 = "edatime-settings";
+var STORAGE_KEY = "edatime-settings";
 function loadSettings() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY2);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_SETTINGS };
     const parsed = JSON.parse(raw);
     return { ...DEFAULT_SETTINGS, ...parsed };
@@ -2549,7 +3259,7 @@ function loadSettings() {
 }
 function saveSettings(settings) {
   try {
-    localStorage.setItem(STORAGE_KEY2, JSON.stringify(settings));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   } catch {
   }
 }
@@ -2726,14 +3436,14 @@ function initSettingsPanel() {
 }
 
 // frontend/src/chart/annotations.ts
-var STORAGE_KEY3 = "edatime-annotations";
+var STORAGE_KEY2 = "edatime-annotations";
 var annotations = [];
 function generateId() {
   return `ann_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 function loadAnnotations() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY3);
+    const raw = localStorage.getItem(STORAGE_KEY2);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -2745,7 +3455,7 @@ function loadAnnotations() {
 }
 function saveAnnotations() {
   try {
-    localStorage.setItem(STORAGE_KEY3, JSON.stringify(annotations));
+    localStorage.setItem(STORAGE_KEY2, JSON.stringify(annotations));
   } catch {
   }
 }
@@ -2962,7 +3672,7 @@ function initAnnotationPanel() {
 }
 
 // frontend/src/ui/guidedWorkflow.ts
-var STORAGE_KEY4 = "edatime-guided-workflow";
+var STORAGE_KEY3 = "edatime-guided-workflow";
 var WORKFLOW_STEPS = [
   { id: "upload", label: "Upload", page: "upload" },
   { id: "timeseries", label: "Timeseries", page: "timeseries" },
@@ -3015,7 +3725,7 @@ function setVisitedPagesForCurrentDataset(prefs, pages) {
 }
 function readPrefs() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY4);
+    const raw = localStorage.getItem(STORAGE_KEY3);
     if (!raw) return { enabled: true, visitedPages: [] };
     const parsed = JSON.parse(raw);
     const visitedPagesByDataset = sanitizeVisitedPagesByDataset(parsed.visitedPagesByDataset);
@@ -3035,11 +3745,11 @@ function readPrefs() {
 }
 function savePrefs(prefs) {
   try {
-    localStorage.setItem(STORAGE_KEY4, JSON.stringify(prefs));
+    localStorage.setItem(STORAGE_KEY3, JSON.stringify(prefs));
   } catch {
   }
 }
-function currentPage2() {
+function currentPage() {
   const active = document.querySelector(".sidebar .nav-item.active[data-page]");
   return active?.dataset.page || _currentNavPage || "home";
 }
@@ -3050,7 +3760,7 @@ function collectSnapshot() {
   const graph = window.__edatimeCausalGraph;
   const prefs = readPrefs();
   return {
-    currentPage: currentPage2(),
+    currentPage: currentPage(),
     hasDataset: !!appState.metadata?.time_range && Number(appState.metadata?.total_rows || 0) > 0,
     selectedSeriesCount: Array.isArray(appState.selectedCols) ? appState.selectedCols.length : 0,
     visitedPages: getVisitedPagesForCurrentDataset(prefs),
@@ -3078,12 +3788,15 @@ function computeWorkflowProgress(snapshot) {
   if (snapshot.causalLinkCount > 0) completedStepIds.push("causal");
   const nextStepId = WORKFLOW_STEPS.find((step) => !completedStepIds.includes(step.id))?.id || null;
   const activeStepId = mapPageToStep(snapshot.currentPage, nextStepId);
-  const steps = WORKFLOW_STEPS.map((step) => ({
-    id: step.id,
-    label: step.label,
-    page: step.page,
-    status: activeStepId === step.id ? "current" : completedStepIds.includes(step.id) ? "done" : nextStepId === step.id ? "next" : "pending"
-  }));
+  const steps = WORKFLOW_STEPS.map((step) => {
+    const status = activeStepId === step.id ? "current" : completedStepIds.includes(step.id) ? "done" : nextStepId === step.id ? "next" : "pending";
+    return {
+      id: step.id,
+      label: step.label,
+      page: step.page,
+      status
+    };
+  });
   return { steps, completedStepIds, activeStepId, nextStepId };
 }
 function defaultSuggestionForStep(stepId) {
@@ -3287,7 +4000,7 @@ function bindStaticEvents() {
     if (id === "scatter-x-col" || id === "scatter-y-col") renderGuidedWorkflow();
   });
   window.addEventListener("edatime:page-change", (event) => {
-    const nextPage = event?.detail?.navPage || event?.detail?.page || currentPage2();
+    const nextPage = event?.detail?.navPage || event?.detail?.page || currentPage();
     _currentNavPage = nextPage;
     markVisited(nextPage);
     renderGuidedWorkflow();
@@ -3355,7 +4068,7 @@ function goToNextGuidedStep() {
 function initGuidedWorkflow() {
   if (_initialized) return;
   _initialized = true;
-  _currentNavPage = currentPage2();
+  _currentNavPage = currentPage();
   markVisited(_currentNavPage);
   bindStaticEvents();
   renderGuidedWorkflow();
@@ -3368,14 +4081,210 @@ function initGuidedWorkflow() {
   };
 }
 
-// frontend/src/app.ts
-var _appCleanups = [];
-var EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} };
-function storeFetchedMetadata(metadata) {
-  appState.metadata = metadata;
-  const revision = Number(metadata?.revision);
-  appState.datasetRevision = Number.isFinite(revision) ? revision : 0;
+// frontend/src/utils/session.ts
+var STORAGE_KEY4 = "edatime-session";
+function currentPage2() {
+  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
 }
+function readSelect(id) {
+  return document.getElementById(id)?.value || "";
+}
+function captureSession() {
+  return {
+    version: 1,
+    timestamp: Date.now(),
+    page: currentPage2(),
+    selectedCols: [...appState.selectedCols],
+    seriesColors: { ...appState.seriesColors },
+    columnRanges: { ...appState.columnRanges },
+    adaptiveLineFilters: appState.adaptiveLineFilters.map((f) => ({ ...f })),
+    currentStart: appState.currentStart,
+    currentEnd: appState.currentEnd,
+    selectedColorColumn: appState.selectedColorColumn,
+    chartText: { ...appState.chartText },
+    rollingEnabled: appState.rollingEnabled,
+    rollingWindow: appState.rollingWindow,
+    anomalyEnabled: appState.anomalyEnabled,
+    anomalyMethod: appState.anomalyMethod,
+    anomalyThreshold: appState.anomalyThreshold,
+    scatterX: readSelect("scatter-x-col"),
+    scatterY: readSelect("scatter-y-col"),
+    scatterColorColumn: readSelect("scatter-color-column"),
+    scatterRenderMode: readSelect("scatter-render-mode"),
+    theme: document.documentElement.getAttribute("data-theme") || "dark",
+    datasetRevision: Number.isFinite(Number(appState.datasetRevision)) ? Number(appState.datasetRevision) : 0
+  };
+}
+function applySession(snap, options = {}) {
+  const result = {
+    revisionMismatch: false,
+    rangeAdjusted: false,
+    usedMetadataRange: false,
+    droppedFilterCount: 0,
+    navigatedToPage: false
+  };
+  if (!snap || snap.version !== 1) return result;
+  const announceAdjustments = options.announceAdjustments !== false;
+  const metadataTimeRange = options.metadataTimeRange || (appState.metadata?.time_range ?? null);
+  const currentRevision = Number(
+    options.currentDatasetRevision ?? appState.datasetRevision ?? appState.metadata?.revision ?? 0
+  );
+  const snapshotRevision = Number(snap.datasetRevision ?? 0);
+  const hasRevisions = Number.isFinite(currentRevision) && currentRevision > 0 && Number.isFinite(snapshotRevision) && snapshotRevision > 0;
+  const revisionMismatch = hasRevisions && currentRevision !== snapshotRevision;
+  result.revisionMismatch = revisionMismatch;
+  appState.selectedCols = Array.isArray(snap.selectedCols) ? snap.selectedCols : [];
+  if (snap.seriesColors) appState.seriesColors = { ...snap.seriesColors };
+  if (revisionMismatch) {
+    const staleRanges = Object.keys(snap.columnRanges || {}).length;
+    const staleLines = Array.isArray(snap.adaptiveLineFilters) ? snap.adaptiveLineFilters.length : 0;
+    result.droppedFilterCount = staleRanges + staleLines;
+    appState.columnRanges = {};
+    appState.adaptiveLineFilters = [];
+  } else {
+    if (snap.columnRanges) appState.columnRanges = { ...snap.columnRanges };
+    if (Array.isArray(snap.adaptiveLineFilters)) {
+      appState.adaptiveLineFilters = snap.adaptiveLineFilters.map((f) => ({ ...f }));
+    }
+  }
+  if (!revisionMismatch) {
+    const hasStart = Number.isFinite(snap.currentStart);
+    const hasEnd = Number.isFinite(snap.currentEnd);
+    if (hasStart && hasEnd) {
+      let nextStart = Number(snap.currentStart);
+      let nextEnd = Number(snap.currentEnd);
+      const minMs = Number(metadataTimeRange?.min);
+      const maxMs = Number(metadataTimeRange?.max);
+      const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
+      if (hasMetadataBounds) {
+        const noOverlap = nextEnd <= minMs || nextStart >= maxMs;
+        if (noOverlap) {
+          nextStart = minMs;
+          nextEnd = maxMs;
+          result.rangeAdjusted = true;
+          result.usedMetadataRange = true;
+        } else {
+          const clampedStart = Math.max(nextStart, minMs);
+          const clampedEnd = Math.min(nextEnd, maxMs);
+          if (clampedStart !== nextStart || clampedEnd !== nextEnd) {
+            result.rangeAdjusted = true;
+          }
+          nextStart = clampedStart;
+          nextEnd = clampedEnd;
+          if (nextStart >= nextEnd) {
+            nextStart = minMs;
+            nextEnd = maxMs;
+            result.usedMetadataRange = true;
+          }
+        }
+      }
+      appState.currentStart = nextStart;
+      appState.currentEnd = nextEnd;
+    }
+  }
+  if (snap.selectedColorColumn !== void 0) appState.selectedColorColumn = snap.selectedColorColumn;
+  if (snap.chartText) appState.chartText = { ...snap.chartText };
+  if (snap.rollingEnabled !== void 0) appState.rollingEnabled = snap.rollingEnabled;
+  if (Number.isFinite(snap.rollingWindow)) appState.rollingWindow = snap.rollingWindow;
+  if (snap.anomalyEnabled !== void 0) appState.anomalyEnabled = snap.anomalyEnabled;
+  if (snap.anomalyMethod) appState.anomalyMethod = snap.anomalyMethod;
+  if (Number.isFinite(snap.anomalyThreshold)) appState.anomalyThreshold = snap.anomalyThreshold;
+  const setSelect = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val) el.value = val;
+  };
+  setSelect("scatter-x-col", snap.scatterX);
+  setSelect("scatter-y-col", snap.scatterY);
+  setSelect("scatter-color-column", snap.scatterColorColumn);
+  setSelect("scatter-render-mode", snap.scatterRenderMode);
+  if (snap.theme === "light" || snap.theme === "dark") {
+    document.documentElement.setAttribute("data-theme", snap.theme);
+    localStorage.setItem("edatime-theme", snap.theme);
+  }
+  if (revisionMismatch && announceAdjustments) {
+    toast("Session belongs to another dataset revision; stale filters were cleared.", "warning");
+  } else if (result.usedMetadataRange && announceAdjustments) {
+    toast("Saved chart range did not match this dataset and was reset to dataset bounds.", "warning");
+  } else if (result.rangeAdjusted && announceAdjustments) {
+    toast("Saved chart range was clamped to the current dataset time range.", "warning");
+  }
+  const hashPage = getHashPage();
+  const shouldPreferHash = !!options.preferHashPage && !!hashPage;
+  const shouldNavigate = options.navigate !== false && !shouldPreferHash;
+  if (shouldNavigate && snap.page) {
+    const btn = document.querySelector(`.sidebar .nav-item[data-page="${snap.page}"]`);
+    if (btn) {
+      btn.click();
+      result.navigatedToPage = true;
+    }
+  }
+  return result;
+}
+function autoSaveSession() {
+  try {
+    const snap = captureSession();
+    localStorage.setItem(STORAGE_KEY4, JSON.stringify(snap));
+  } catch {
+  }
+}
+function autoRestoreSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY4);
+    if (!raw) return null;
+    const snap = JSON.parse(raw);
+    if (snap?.version !== 1) return null;
+    return snap;
+  } catch {
+    return null;
+  }
+}
+function exportSessionToFile() {
+  const snap = captureSession();
+  const blob = new Blob([JSON.stringify(snap, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `edatime-session-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace(/:/g, "-")}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast("Session exported", "success");
+}
+function importSessionFromFile() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json,application/json";
+  input.addEventListener("change", () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const snap = JSON.parse(reader.result);
+        if (snap?.version !== 1) throw new Error("Invalid session file");
+        applySession(snap);
+        toast("Session restored from file", "success");
+        window.dispatchEvent(new CustomEvent("edatime:session-restored"));
+      } catch (e) {
+        toast(`Failed to import session: ${e.message}`, "error");
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+var _autoSaveTimer = null;
+function initAutoSave() {
+  const debouncedSave = () => {
+    if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = setTimeout(autoSaveSession, 2e3);
+  };
+  window.addEventListener("edatime:page-change", debouncedSave);
+  window.addEventListener("edatime:column-filters-change", debouncedSave);
+  window.addEventListener("edatime:adaptive-filters-change", debouncedSave);
+  window.addEventListener("beforeunload", autoSaveSession);
+}
+
+// frontend/src/ui/modalUtils.ts
 function initModalClose(modalId, closeBtnId, cancelBtnId, onClose) {
   const modal = document.getElementById(modalId);
   if (!modal) return null;
@@ -3385,10 +4294,514 @@ function initModalClose(modalId, closeBtnId, cancelBtnId, onClose) {
   };
   document.getElementById(closeBtnId)?.addEventListener("click", close2);
   document.getElementById(cancelBtnId)?.addEventListener("click", close2);
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) close2();
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) close2();
   });
   return close2;
+}
+
+// frontend/src/ui/dataMutationModals.ts
+function initTransformModal(deps) {
+  const applyBtn = document.getElementById("transform-apply-btn");
+  const exprInput = document.getElementById("transform-expression");
+  const nameInput = document.getElementById("transform-output-name");
+  const errorEl = document.getElementById("transform-error");
+  const close2 = initModalClose("transform-modal", "transform-close-btn", "transform-cancel-btn", () => {
+    if (errorEl) errorEl.textContent = "";
+  });
+  if (!close2) return;
+  applyBtn?.addEventListener("click", async () => {
+    const expr = exprInput?.value?.trim();
+    const name = nameInput?.value?.trim();
+    if (!expr) {
+      if (errorEl) errorEl.textContent = "Expression is required.";
+      return;
+    }
+    if (!name) {
+      if (errorEl) errorEl.textContent = "Output column name is required.";
+      return;
+    }
+    if (errorEl) errorEl.textContent = "";
+    try {
+      if (applyBtn) {
+        applyBtn.textContent = "Applying\u2026";
+        applyBtn.disabled = true;
+      }
+      const { postTransform: postTransform2 } = await import("./dataClient.js");
+      await postTransform2(expr, name);
+      close2();
+      await deps.refreshDataset({ selectedColumn: name });
+    } catch (error) {
+      if (errorEl) errorEl.textContent = error?.message || "Transform failed.";
+    } finally {
+      if (applyBtn) {
+        applyBtn.textContent = "Apply";
+        applyBtn.disabled = false;
+      }
+    }
+  });
+}
+function initOutlierModal(deps) {
+  const openBtn = document.getElementById("outlier-open-btn");
+  const applyBtn = document.getElementById("outlier-apply-btn");
+  const methodSelect = document.getElementById("outlier-method");
+  const thresholdInput = document.getElementById("outlier-threshold");
+  const windowInput = document.getElementById("outlier-window");
+  const errorEl = document.getElementById("outlier-error");
+  const resultEl = document.getElementById("outlier-result");
+  const close2 = initModalClose("outlier-modal", "outlier-close-btn", "outlier-cancel-btn", () => {
+    if (errorEl) errorEl.textContent = "";
+    if (resultEl) resultEl.textContent = "";
+  });
+  if (!close2) return;
+  const modal = document.getElementById("outlier-modal");
+  openBtn?.addEventListener("click", () => {
+    if (modal) modal.hidden = false;
+  });
+  methodSelect?.addEventListener("change", () => {
+    if (thresholdInput) {
+      thresholdInput.value = methodSelect.value === "iqr" ? "1.5" : "3";
+    }
+  });
+  applyBtn?.addEventListener("click", async () => {
+    if (errorEl) errorEl.textContent = "";
+    if (resultEl) resultEl.textContent = "";
+    const method = methodSelect?.value || "zscore";
+    const threshold = Number.parseFloat(thresholdInput?.value || "3");
+    const windowSize = Number.parseInt(windowInput?.value || "0", 10);
+    const columns = appState.selectedCols.length > 0 ? appState.selectedCols : null;
+    try {
+      if (applyBtn) {
+        applyBtn.disabled = true;
+        applyBtn.textContent = "Removing\u2026";
+      }
+      const { postRemoveOutliers } = await import("./dataClient.js");
+      const result = await postRemoveOutliers(
+        columns,
+        method,
+        threshold,
+        windowSize > 0 ? windowSize : void 0
+      );
+      if (resultEl) {
+        resultEl.textContent = `Removed ${result.rows_removed} rows (${result.rows_before} \u2192 ${result.rows_after})`;
+      }
+      await deps.refreshDataset();
+    } catch (error) {
+      if (errorEl) errorEl.textContent = error?.message || "Outlier removal failed.";
+    } finally {
+      if (applyBtn) {
+        applyBtn.disabled = false;
+        applyBtn.textContent = "Remove Outliers";
+      }
+    }
+  });
+}
+
+// frontend/src/bootstrap/appShell.ts
+function initThemeToggle() {
+  const btn = document.getElementById("theme-toggle-btn");
+  const iconDark = document.getElementById("theme-icon-dark");
+  const iconLight = document.getElementById("theme-icon-light");
+  if (!btn) return;
+  const saved = localStorage.getItem("edatime-theme");
+  if (saved === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+    if (iconDark) iconDark.hidden = true;
+    if (iconLight) iconLight.hidden = false;
+  }
+  btn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    if (isLight) {
+      document.documentElement.removeAttribute("data-theme");
+      localStorage.setItem("edatime-theme", "dark");
+      if (iconDark) iconDark.hidden = false;
+      if (iconLight) iconLight.hidden = true;
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+      localStorage.setItem("edatime-theme", "light");
+      if (iconDark) iconDark.hidden = true;
+      if (iconLight) iconLight.hidden = false;
+    }
+  });
+}
+function isTypingTarget(target) {
+  if (!target) return false;
+  if (target.isContentEditable) return true;
+  const tag = String(target.tagName || "").toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select";
+}
+function currentPageName() {
+  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
+}
+function initKeyboardShortcuts(deps) {
+  if (window.__edatime?.keyboardShortcutsBound) return;
+  window.__edatime = window.__edatime || {};
+  const onKeydown = (event) => {
+    if (event.defaultPrevented || isTypingTarget(event.target)) return;
+    const key = String(event.key || "").toLowerCase();
+    if (event.altKey && !event.ctrlKey && !event.metaKey) {
+      if (key === "1") {
+        event.preventDefault();
+        deps.showPage("upload");
+        return;
+      }
+      if (key === "2") {
+        event.preventDefault();
+        deps.showPage("timeseries");
+        return;
+      }
+      if (key === "3") {
+        event.preventDefault();
+        deps.showPage("scatter");
+        return;
+      }
+      if (key === "4") {
+        event.preventDefault();
+        deps.showPage("scattermatrix");
+        return;
+      }
+      if (key === "6") {
+        event.preventDefault();
+        deps.showPage("fft");
+        return;
+      }
+      if (key === "7") {
+        event.preventDefault();
+        deps.showPage("heatmap");
+        return;
+      }
+      if (key === "8") {
+        event.preventDefault();
+        deps.showPage("spectrogram");
+        return;
+      }
+      if (key === "9") {
+        event.preventDefault();
+        deps.showPage("causal");
+        return;
+      }
+      if (key === "0") {
+        event.preventDefault();
+        deps.showPage("drift");
+        return;
+      }
+    }
+    if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (key === "r" && currentPageName() === "timeseries") {
+      event.preventDefault();
+      deps.resetZoom();
+      return;
+    }
+    if (key === "z" && currentPageName() === "timeseries") {
+      event.preventDefault();
+      deps.zoomOut();
+      return;
+    }
+    if (key === "c" && currentPageName() === "timeseries") {
+      event.preventDefault();
+      document.getElementById("adaptive-clear-btn")?.click?.();
+      return;
+    }
+    if (key === "e") {
+      event.preventDefault();
+      if (currentPageName() === "scatter") document.getElementById("scatter-export-csv-btn")?.click?.();
+      else window.__edatime?.exportChartFilteredData?.("csv");
+    }
+  };
+  window.addEventListener("keydown", onKeydown);
+  deps.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
+  window.__edatime.keyboardShortcutsBound = true;
+}
+function wireHomeNavigationCards(showPage2) {
+  document.querySelectorAll("[data-home-nav]").forEach((element) => {
+    element.addEventListener("click", () => {
+      const target = element.dataset.homeNav;
+      if (target) showPage2(target);
+    });
+  });
+}
+function registerAppCommands(deps) {
+  registerCommands([
+    { id: "nav-upload", label: "Go to Upload", shortcut: "Alt+1", category: "Navigation", action: () => deps.showPage("upload") },
+    { id: "nav-timeseries", label: "Go to Timeseries", shortcut: "Alt+2", category: "Navigation", action: () => deps.showPage("timeseries") },
+    { id: "nav-scatter", label: "Go to Scatter", shortcut: "Alt+3", category: "Navigation", action: () => deps.showPage("scatter") },
+    { id: "nav-matrix", label: "Go to Scatter Matrix", shortcut: "Alt+4", category: "Navigation", action: () => deps.showPage("scattermatrix") },
+    { id: "nav-fft", label: "Go to FFT / PSD", shortcut: "Alt+6", category: "Navigation", action: () => deps.showPage("fft") },
+    { id: "nav-heatmap", label: "Go to Heatmap", shortcut: "Alt+7", category: "Navigation", action: () => deps.showPage("heatmap") },
+    { id: "nav-spectrogram", label: "Go to Spectrogram", shortcut: "Alt+8", category: "Navigation", action: () => deps.showPage("spectrogram") },
+    { id: "nav-causal", label: "Go to Causal", shortcut: "Alt+9", category: "Navigation", action: () => deps.showPage("causal") },
+    { id: "nav-drift", label: "Go to Drift Analysis", shortcut: "Alt+0", category: "Navigation", action: () => deps.showPage("drift") },
+    { id: "chart-reset", label: "Reset zoom", shortcut: "Shift+R", category: "Chart", action: deps.resetZoom },
+    { id: "chart-zoomout", label: "Zoom out one level", shortcut: "Shift+Z", category: "Chart", action: deps.zoomOut },
+    { id: "chart-clear-af", label: "Clear adaptive filters", shortcut: "Shift+C", category: "Chart", action: () => document.getElementById("adaptive-clear-btn")?.click?.() },
+    { id: "export-csv", label: "Export chart data as CSV", shortcut: "Shift+E", category: "Export", action: () => window.__edatime?.exportChartFilteredData?.("csv") },
+    { id: "export-json", label: "Export chart data as JSON", category: "Export", action: () => window.__edatime?.exportChartFilteredData?.("json") },
+    { id: "export-png", label: "Export chart as PNG", category: "Export", action: () => window.__edatime?.chart?.exportPNG?.() },
+    { id: "export-parquet", label: "Export filtered data as Parquet", category: "Export", action: () => document.getElementById("export-parquet-btn")?.click?.() },
+    { id: "session-save", label: "Export session to file", category: "Session", action: exportSessionToFile },
+    { id: "session-load", label: "Import session from file", category: "Session", action: importSessionFromFile },
+    { id: "provenance", label: "Show analysis context panel", shortcut: "Ctrl+I", category: "Analysis", action: toggleProvenance },
+    { id: "cmd-palette", label: "Open command palette", shortcut: "Ctrl+K", category: "Analysis", action: openPalette },
+    { id: "settings", label: "Open settings", shortcut: "Ctrl+,", category: "Analysis", action: openSettingsModal },
+    { id: "workflow-enable", label: "Enable guided workflow", category: "Analysis", action: enableGuidedWorkflow },
+    { id: "workflow-disable", label: "Hide guided workflow", category: "Analysis", action: disableGuidedWorkflow },
+    { id: "workflow-next", label: "Go to next guided step", category: "Analysis", action: goToNextGuidedStep }
+  ]);
+}
+function initAppShell(deps) {
+  window.__edatime = window.__edatime || {};
+  window.__edatime.ensurePageModuleLoaded = deps.ensurePageModuleLoaded;
+  initPages();
+  initHashRouting();
+  initSettings();
+  initAnnotations();
+  initAnnotationPanel();
+  initGuidedWorkflow();
+  initThemeToggle();
+  initSettingsPanel();
+  wireHomeNavigationCards(deps.showPage);
+  initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid);
+  initColumnProfilesGrid();
+  initAnalysisControls(deps.fetchAndRender);
+  initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange);
+  initChartPageFilterGesture();
+  initKeyboardShortcuts(deps);
+  initCommandPalette();
+  initProvenance();
+  registerAppCommands(deps);
+  initTransformModal({ refreshDataset: deps.refreshDatasetAfterMutation });
+  initOutlierModal({ refreshDataset: deps.refreshDatasetAfterMutation });
+  deps.initAnalyticsListeners();
+}
+
+// frontend/src/bootstrap/sessionBootstrap.ts
+async function restoreSessionAfterChartReady(deps) {
+  const savedSession = autoRestoreSession();
+  if (!savedSession) return;
+  applySession(savedSession, {
+    metadataTimeRange: deps.metadataTimeRange,
+    currentDatasetRevision: deps.currentDatasetRevision,
+    preferHashPage: !!getHashPage()
+  });
+  deps.buildColumnToggles();
+  deps.buildRangeControls();
+  deps.renderCurrentData();
+  await deps.fetchAndRender();
+}
+function startSessionPersistence() {
+  initAutoSave();
+  window.__edatime = window.__edatime || {};
+  window.__edatime.exportSession = exportSessionToFile;
+  window.__edatime.importSession = importSessionFromFile;
+}
+
+// frontend/src/bootstrap/timeseriesBootstrap.ts
+function initDatasetSearchInputs(deps) {
+  const columnFilterInput = document.getElementById("column-filter-input");
+  if (columnFilterInput) {
+    const onFilterInput = debounce(() => {
+      appState.filterText = (columnFilterInput.value || "").trim().toLowerCase();
+      deps.rebuildColumnToggles();
+    }, 120);
+    columnFilterInput.addEventListener("input", onFilterInput);
+  }
+  const profileFilterInput = document.getElementById("profile-filter-input");
+  if (profileFilterInput) {
+    const onProfileFilterInput = debounce(() => {
+      appState.profileFilterText = (profileFilterInput.value || "").trim().toLowerCase();
+      deps.renderColumnProfilesGrid(true);
+    }, 120);
+    profileFilterInput.addEventListener("input", onProfileFilterInput);
+  }
+}
+function initTimeseriesActions(deps) {
+  const resetChartRangeToDataset = async (source = "reset") => {
+    const minMs = Number(appState.metadata?.time_range?.min);
+    const maxMs = Number(appState.metadata?.time_range?.max);
+    if (!Number.isFinite(minMs) || !Number.isFinite(maxMs) || minMs >= maxMs) return;
+    appState.currentStart = minMs;
+    appState.currentEnd = maxMs;
+    appState.chart?.setXRange?.(minMs, maxMs);
+    deps.updateAnalysisZoom(minMs, maxMs, source);
+    deps.emitChartRangeChange(source);
+    await deps.fetchAndRender();
+  };
+  const onRequestResetRange = () => {
+    void resetChartRangeToDataset("reset");
+  };
+  window.addEventListener("edatime:request-chart-range-reset", onRequestResetRange);
+  deps.registerCleanup(() => window.removeEventListener("edatime:request-chart-range-reset", onRequestResetRange));
+  window.__edatime.resetChartRangeToDataset = () => void resetChartRangeToDataset("reset");
+  const clearAllFilters = async (source = "clear") => {
+    appState.columnRanges = {};
+    appState.adaptiveLineFilters = [];
+    deps.buildRangeControls();
+    deps.renderCurrentData();
+    window.dispatchEvent(new CustomEvent("edatime:column-filters-change", { detail: { source } }));
+    window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change", { detail: { source } }));
+    await deps.fetchAndRender();
+  };
+  const onClearAllFilters = () => {
+    void clearAllFilters("clear");
+  };
+  window.addEventListener("edatime:clear-all-filters", onClearAllFilters);
+  deps.registerCleanup(() => window.removeEventListener("edatime:clear-all-filters", onClearAllFilters));
+  window.__edatime.clearAllFilters = () => void clearAllFilters("clear");
+}
+
+// frontend/src/charts/registry.ts
+var _registry = /* @__PURE__ */ new Map();
+function registerChartType(name, adapter) {
+  if (!name || typeof adapter?.create !== "function") {
+    throw new Error(`Invalid chart adapter for "${name}"`);
+  }
+  _registry.set(name, adapter);
+}
+function getChartType(name) {
+  return _registry.get(name);
+}
+
+// frontend/src/charts/fallback.ts
+var FallbackChart = class {
+  containerId;
+  canvas = null;
+  ctx = null;
+  resizeObserver = null;
+  constructor(containerId) {
+    this.containerId = containerId;
+  }
+  async init() {
+    const container = document.getElementById(this.containerId);
+    if (!container) throw new Error("Fallback chart container not found");
+    container.innerHTML = "";
+    const canvas = document.createElement("canvas");
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.display = "block";
+    container.appendChild(canvas);
+    this.canvas = canvas;
+    this.ctx = canvas.getContext("2d");
+    const resize = () => {
+      const w = Math.max(1, container.clientWidth);
+      const h = Math.max(1, container.clientHeight);
+      this.canvas.width = w;
+      this.canvas.height = h;
+    };
+    resize();
+    this.resizeObserver = new ResizeObserver(() => resize());
+    this.resizeObserver.observe(container);
+  }
+  setXRange() {
+  }
+  supportsZoomControls() {
+    return false;
+  }
+  onCrosshairMove() {
+  }
+  onClick() {
+  }
+  setChartText() {
+  }
+  setDrawMode() {
+  }
+  clearDrawings() {
+  }
+  fitYToData() {
+  }
+  getXDomain() {
+    return null;
+  }
+  getYRange() {
+    return null;
+  }
+  exportPNG() {
+  }
+  exportSVG() {
+  }
+  exportHTML() {
+  }
+  updateDataMulti(dataObj, columns) {
+    if (!this.ctx || !this.canvas) return;
+    const ctx = this.ctx;
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    const pad = 28;
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = "#080a10";
+    ctx.fillRect(0, 0, width, height);
+    let xMin = Number.POSITIVE_INFINITY;
+    let xMax = Number.NEGATIVE_INFINITY;
+    let yMin = Number.POSITIVE_INFINITY;
+    let yMax = Number.NEGATIVE_INFINITY;
+    const seriesToDraw = [];
+    for (const col of columns) {
+      const seriesData = dataObj.series?.[col];
+      const xs = seriesData?.x || dataObj.ts;
+      const ys = seriesData?.y || dataObj.values?.[col];
+      if (!xs || !ys || ys.length === 0) continue;
+      seriesToDraw.push({ col, xs, ys });
+      for (let i = 0; i < xs.length; i++) {
+        const x = Number(xs[i]);
+        const y = Number(ys[i]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        if (x < xMin) xMin = x;
+        if (x > xMax) xMax = x;
+        if (y < yMin) yMin = y;
+        if (y > yMax) yMax = y;
+      }
+    }
+    if (seriesToDraw.length === 0 || !Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
+      ctx.fillStyle = "#7a86a4";
+      ctx.font = "12px sans-serif";
+      ctx.fillText("No data to display", pad, pad + 2);
+      return;
+    }
+    if (xMax === xMin) xMax = xMin + 1;
+    if (yMax === yMin) yMax = yMin + 1;
+    ctx.strokeStyle = "#272d45";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad, height - pad);
+    ctx.lineTo(width - pad, height - pad);
+    ctx.moveTo(pad, pad);
+    ctx.lineTo(pad, height - pad);
+    ctx.stroke();
+    for (let s = 0; s < seriesToDraw.length; s++) {
+      const { xs, ys } = seriesToDraw[s];
+      ctx.beginPath();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = SERIES_COLORS[s % SERIES_COLORS.length];
+      let started = false;
+      for (let i = 0; i < xs.length; i++) {
+        const x = Number(xs[i]);
+        const y = Number(ys[i]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        const px = pad + (x - xMin) / (xMax - xMin) * (width - 2 * pad);
+        const py = height - pad - (y - yMin) / (yMax - yMin) * (height - 2 * pad);
+        if (!started) {
+          ctx.moveTo(px, py);
+          started = true;
+        } else {
+          ctx.lineTo(px, py);
+        }
+      }
+      ctx.stroke();
+    }
+  }
+  destroy() {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    this.ctx = null;
+    this.canvas = null;
+  }
+};
+
+// frontend/src/app.ts
+var _appCleanups = [];
+function storeFetchedMetadata(metadata) {
+  appState.metadata = metadata;
+  const revision = Number(metadata?.revision);
+  appState.datasetRevision = Number.isFinite(revision) ? revision : 0;
 }
 function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
   const btn = document.getElementById(btnId);
@@ -3402,24 +4815,19 @@ function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
 var fetchMetadata = null;
 var fetchData = null;
 var fetchAnomalies = null;
-var fetchFft = null;
 var postTransform = null;
 var DataChartCtor = null;
-var FftChartCtor = null;
 async function ensureChartModules() {
   if (fetchMetadata && fetchData && DataChartCtor) return;
-  const [dataClient, chartModule, fftModule] = await Promise.all([
+  const [dataClient, chartModule] = await Promise.all([
     import("./dataClient.js"),
-    import("./chart/DataChart.js"),
-    import("./chart/FftChart.js")
+    import("./chart/DataChart.js")
   ]);
   fetchMetadata = dataClient.fetchMetadata;
   fetchData = dataClient.fetchData;
   fetchAnomalies = dataClient.fetchAnomalies;
-  fetchFft = dataClient.fetchFft;
   postTransform = dataClient.postTransform;
   DataChartCtor = chartModule.DataChart;
-  FftChartCtor = fftModule.FftChart;
   registerChartType("line", {
     label: "Line",
     create: (containerId, callbacks) => new DataChartCtor(
@@ -3435,176 +4843,35 @@ async function ensureChartModules() {
   });
 }
 async function checkWebGPU() {
-  if (!navigator.gpu)
+  if (!navigator.gpu) {
     return "WebGPU is not supported in this browser. Use Chrome 113+, Edge 113+, or Safari 18+.";
+  }
   try {
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("requestAdapter timed out")), 5e3));
     const adapter = await Promise.race([
-      navigator.gpu.requestAdapter({ powerPreference: defaultGpuPowerPreference() }),
+      requestGpuAdapter(),
       timeout
     ]);
-    if (!adapter)
+    if (!adapter) {
       return "No WebGPU adapter found. Your GPU may not be supported or hardware acceleration may be disabled.";
+    }
   } catch (e) {
     return `WebGPU adapter request failed: ${e.message}`;
   }
   return null;
 }
-function computeRenderedYDebugSnapshot() {
-  if (!appState.lastFetchedData) return null;
-  const filtered = applyColumnRanges(appState.lastFetchedData);
-  let globalMin = Number.POSITIVE_INFINITY;
-  let globalMax = Number.NEGATIVE_INFINITY;
-  const perSeries = [];
-  for (const col of appState.selectedCols || []) {
-    const seriesData = filtered.series?.[col];
-    const yValues = seriesData ? seriesData.y : filtered.values?.[col];
-    if (!yValues) continue;
-    let min = Number.POSITIVE_INFINITY;
-    let max = Number.NEGATIVE_INFINITY;
-    let count = 0;
-    for (let i = 0; i < yValues.length; i++) {
-      const y = Number(yValues[i]);
-      if (!Number.isFinite(y)) continue;
-      count += 1;
-      if (y < min) min = y;
-      if (y > max) max = y;
-    }
-    if (count > 0) {
-      if (min < globalMin) globalMin = min;
-      if (max > globalMax) globalMax = max;
-    }
-    perSeries.push({ name: col, points: count, yMin: count > 0 ? min : null, yMax: count > 0 ? max : null });
-  }
-  return {
-    selectedCols: [...appState.selectedCols || []],
-    globalYMin: Number.isFinite(globalMin) ? globalMin : null,
-    globalYMax: Number.isFinite(globalMax) ? globalMax : null,
-    perSeries
-  };
-}
-function computeFrontendRollingBands(data, cols, windowSize) {
-  const ts = data?.ts;
-  if (!ts || ts.length < 2) return [];
-  const n = ts.length;
-  const half = Math.floor((windowSize - 1) / 2);
-  const bands = [];
-  for (const col of cols) {
-    const ys = data?.series?.[col]?.y;
-    if (!ys || ys.length !== n) continue;
-    const tsOut = new Array(n);
-    const mean = new Array(n).fill(null);
-    const upper1 = new Array(n).fill(null);
-    const lower1 = new Array(n).fill(null);
-    const upper2 = new Array(n).fill(null);
-    const lower2 = new Array(n).fill(null);
-    for (let i = 0; i < n; i++) {
-      tsOut[i] = Number(ts[i]);
-      const start = Math.max(0, i - half);
-      const end = Math.min(n, i + half + 1);
-      let sum = 0, sumSq = 0, cnt = 0;
-      for (let j = start; j < end; j++) {
-        const v = Number(ys[j]);
-        if (Number.isFinite(v)) {
-          sum += v;
-          sumSq += v * v;
-          cnt++;
-        }
-      }
-      if (cnt >= 2) {
-        const m = sum / cnt;
-        const std = Math.sqrt(Math.max(0, sumSq / cnt - m * m));
-        mean[i] = m;
-        upper1[i] = m + std;
-        lower1[i] = m - std;
-        upper2[i] = m + 2 * std;
-        lower2[i] = m - 2 * std;
-      }
-    }
-    bands.push({ column: col, ts: tsOut, mean, upper1, lower1, upper2, lower2 });
-  }
-  return bands;
-}
-function renderCurrentData() {
-  const emptyState = document.getElementById("timeseries-empty-state");
-  const emptyTitle = document.getElementById("timeseries-empty-title");
-  const emptyMessage = document.getElementById("timeseries-empty-message");
-  const emptyResetBtn = document.getElementById("timeseries-reset-range-btn");
-  const setTimeseriesEmptyState = (visible, reason, title, message, showResetAction = false) => {
-    if (!emptyState) return;
-    emptyState.hidden = !visible;
-    emptyState.setAttribute("data-empty-reason", visible ? reason : "");
-    if (emptyTitle) emptyTitle.textContent = title;
-    if (emptyMessage) emptyMessage.textContent = message;
-    if (emptyResetBtn) emptyResetBtn.hidden = !showResetAction;
-  };
-  if (emptyResetBtn && !emptyResetBtn.dataset.bound) {
-    emptyResetBtn.addEventListener("click", () => {
-      window.dispatchEvent(new CustomEvent("edatime:request-chart-range-reset", {
-        detail: { source: "timeseries-empty-state" }
-      }));
-    });
-    emptyResetBtn.dataset.bound = "1";
-  }
-  const hasSelection = Array.isArray(appState.selectedCols) && appState.selectedCols.length > 0;
-  if (!hasSelection) {
-    setTimeseriesEmptyState(
-      true,
-      "no-columns-selected",
-      "Select one or more series",
-      "Click a column chip above to add it to the chart. Start with 2-3 related columns for a clearer first view.",
-      false
-    );
-  }
-  if (!appState.chart) return;
-  if (!hasSelection) {
-    appState.rollingBands = null;
-    appState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
-    return;
-  }
-  if (!appState.lastFetchedData) {
-    setTimeseriesEmptyState(false, "", "", "", false);
-    return;
-  }
-  const filtered = applyColumnRanges(appState.lastFetchedData);
-  const hasPoints = !!filtered?.ts && filtered.ts.length > 0;
-  if (!hasPoints) {
-    const minMs = Number(appState.metadata?.time_range?.min);
-    const maxMs = Number(appState.metadata?.time_range?.max);
-    const start = Number(appState.currentStart);
-    const end = Number(appState.currentEnd);
-    const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
-    const rangeOutside = hasMetadataBounds && Number.isFinite(start) && Number.isFinite(end) && (end <= minMs || start >= maxMs);
-    setTimeseriesEmptyState(
-      true,
-      rangeOutside ? "linked-range-outside-dataset" : "no-data-after-filters",
-      rangeOutside ? "Current range is outside this dataset" : "No points match current filters",
-      rangeOutside ? "Reset to dataset range to recover visible data." : "Try widening the time range or clearing filters.",
-      true
-    );
-    appState.rollingBands = null;
-    appState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
-    if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-      appState.chart.setXRange(start, end);
-    }
-    return;
-  }
-  setTimeseriesEmptyState(false, "", "", "", false);
-  const preview = appState.spectralFilterPreview;
-  let displayCols = [...appState.selectedCols];
-  if (preview && preview.ts && preview.values && preview.ts.length > 0) {
-    const previewKey = `${preview.column} [filtered]`;
-    filtered.series = filtered.series || {};
-    filtered.series[previewKey] = { x: preview.ts, y: preview.values };
-    if (!displayCols.includes(previewKey)) displayCols = [...displayCols, previewKey];
-  }
-  appState.chart.updateDataMulti(filtered, displayCols);
-  if (appState.rollingEnabled) {
-    appState.rollingBands = computeFrontendRollingBands(filtered, appState.selectedCols, appState.rollingWindow || 50);
-    appState.chart?.requestOverlayRender?.();
-  }
-  window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
-}
+var timeseriesPage = createTimeseriesPageController({
+  fetchData: (...args) => fetchData(...args),
+  buildRangeControls,
+  updateAnalysisYRange,
+  updateAnalysisZoom,
+  getCurrentView,
+  fetchAndRenderAnalytics: () => fetchAndRenderAnalytics()
+});
+var renderCurrentData = () => timeseriesPage.renderCurrentData();
+var emitChartRangeChange = (sourceKind = "data") => timeseriesPage.emitChartRangeChange(sourceKind);
+var fetchAndRender = () => timeseriesPage.fetchAndRender();
+var onZoomRangeChange = (newStart, newEnd, sourceKind = "user") => timeseriesPage.onZoomRangeChange(newStart, newEnd, sourceKind);
 function emitAdaptiveFiltersChange() {
   window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change", {
     detail: { count: (appState.adaptiveLineFilters || []).length }
@@ -3796,192 +5063,8 @@ function initAdaptiveFilterGesture() {
   );
   container.dataset.adaptiveBound = "1";
 }
-function emitChartRangeChange(sourceKind = "data") {
-  if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
-  window.dispatchEvent(new CustomEvent("edatime:chart-range-change", {
-    detail: { start: appState.currentStart, end: appState.currentEnd, source: sourceKind }
-  }));
-}
-var dataFetchController = null;
-async function fetchAndRender() {
-  sanitizeSelectedColumns();
-  if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
-  if (appState.currentStart >= appState.currentEnd) return;
-  if (!Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
-    buildRangeControls();
-    renderCurrentData();
-    return;
-  }
-  if (dataFetchController) dataFetchController.abort();
-  dataFetchController = new AbortController();
-  const signal = dataFetchController.signal;
-  const loadingEl = document.getElementById("main-chart-loading");
-  if (loadingEl) loadingEl.hidden = false;
-  try {
-    const startIso = new Date(appState.currentStart).toISOString();
-    const endIso = new Date(appState.currentEnd).toISOString();
-    const width = document.getElementById("main-chart")?.clientWidth || 1200;
-    const cols = appState.selectedCols.join(",");
-    const colorCol = appState.selectedColorColumn || null;
-    dbgGroup("fetchAndRender", () => {
-      dbg("request", { startIso, endIso, width, cols, colorCol });
-      dbg("selectedCols", appState.selectedCols);
-      dbg("selectedColorColumn", appState.selectedColorColumn);
-    });
-    const data = await fetchData(startIso, endIso, width, cols, colorCol, signal);
-    appState.lastFetchedData = data;
-    if (DEBUG) {
-      const n = data?.ts?.length ?? 0;
-      let tsMin = null;
-      let tsMax = null;
-      if (n > 0) {
-        tsMin = data.ts[0];
-        tsMax = data.ts[n - 1];
-      }
-      dbg("response points", n, "tsMin/tsMax", tsMin, tsMax);
-      if (!data?.ts || data.ts.length === 0) console.warn("[edatime] fetchAndRender: empty result for range", { startIso, endIso, width, cols });
-    }
-    ensureRangeStateFromData(data);
-    buildRangeControls();
-    appState.chart?.setXRange?.(appState.currentStart, appState.currentEnd);
-    renderCurrentData();
-    emitChartRangeChange("data");
-    if (appState.anomalyEnabled) {
-      fetchAndRenderAnalytics().catch(() => {
-      });
-    }
-    if (DEBUG) {
-      const snapshot = computeRenderedYDebugSnapshot();
-      window.__edatime.debugYSnapshot = snapshot;
-      dbg("post-render renderedSnapshot", snapshot);
-    }
-    const yr = appState.chart?.getYRange?.();
-    if (yr) updateAnalysisYRange(yr.min, yr.max, "data");
-    if (DEBUG) dbg("post-render yRange", yr);
-    appState.pendingYMode = null;
-    appState.pendingRestoreY = null;
-  } catch (err) {
-    if (err?.name === "AbortError") return;
-    console.error("Failed to fetch data:", err);
-    setMetaText("Error: " + err.message);
-  } finally {
-    const loadingEl2 = document.getElementById("main-chart-loading");
-    if (loadingEl2) loadingEl2.hidden = true;
-  }
-}
-function onZoomRangeChange(newStart, newEnd, sourceKind = "user") {
-  if (appState.fetchDebounceId) clearTimeout(appState.fetchDebounceId);
-  dbgGroup(`onZoomRangeChange (${sourceKind})`, () => {
-    dbg("prev", { start: appState.currentStart, end: appState.currentEnd });
-    dbg("next", { start: newStart, end: newEnd });
-  });
-  if (!Number.isFinite(newStart) || !Number.isFinite(newEnd) || newStart >= newEnd) return;
-  if (Number.isFinite(appState.currentStart) && Number.isFinite(appState.currentEnd)) {
-    const snap = getCurrentView();
-    appState.zoomHistory = [...appState.zoomHistory, snap].slice(-5);
-    dbg("pushed history snapshot", snap);
-    dbg("history depth (after push)", appState.zoomHistory.length);
-  }
-  appState.currentStart = newStart;
-  appState.currentEnd = newEnd;
-  appState.chart?.setXRange?.(appState.currentStart, appState.currentEnd);
-  appState.pendingYMode = "fit";
-  appState.pendingRestoreY = null;
-  updateAnalysisZoom(newStart, newEnd, sourceKind);
-  emitChartRangeChange(sourceKind);
-  if (!appState.refetchOnZoom) return;
-  appState.fetchDebounceId = setTimeout(fetchAndRender, 150);
-}
-function isTypingTarget(target) {
-  if (!target) return false;
-  if (target.isContentEditable) return true;
-  const tag = String(target.tagName || "").toLowerCase();
-  return tag === "input" || tag === "textarea" || tag === "select";
-}
-function currentPageName() {
-  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
-}
 function showPage(pageName) {
   document.querySelector(`.sidebar .nav-item[data-page="${pageName}"]`)?.click?.();
-}
-function initKeyboardShortcuts() {
-  if (window.__edatime?.keyboardShortcutsBound) return;
-  window.__edatime = window.__edatime || {};
-  const onKeydown = (event) => {
-    if (event.defaultPrevented || isTypingTarget(event.target)) return;
-    const key = String(event.key || "").toLowerCase();
-    if (event.altKey && !event.ctrlKey && !event.metaKey) {
-      if (key === "1") {
-        event.preventDefault();
-        showPage("upload");
-        return;
-      }
-      if (key === "2") {
-        event.preventDefault();
-        showPage("timeseries");
-        return;
-      }
-      if (key === "3") {
-        event.preventDefault();
-        showPage("scatter");
-        return;
-      }
-      if (key === "4") {
-        event.preventDefault();
-        showPage("scattermatrix");
-        return;
-      }
-      if (key === "6") {
-        event.preventDefault();
-        showPage("fft");
-        return;
-      }
-      if (key === "7") {
-        event.preventDefault();
-        showPage("heatmap");
-        return;
-      }
-      if (key === "8") {
-        event.preventDefault();
-        showPage("spectrogram");
-        return;
-      }
-      if (key === "9") {
-        event.preventDefault();
-        showPage("causal");
-        return;
-      }
-      if (key === "0") {
-        event.preventDefault();
-        showPage("drift");
-        return;
-      }
-    }
-    if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (key === "r" && currentPageName() === "timeseries") {
-      event.preventDefault();
-      resetZoom(fetchAndRender);
-      return;
-    }
-    if (key === "z" && currentPageName() === "timeseries") {
-      event.preventDefault();
-      zoomOut(fetchAndRender);
-      return;
-    }
-    if (key === "c" && currentPageName() === "timeseries") {
-      event.preventDefault();
-      document.getElementById("adaptive-clear-btn")?.click?.();
-      return;
-    }
-    if (key === "e") {
-      event.preventDefault();
-      if (currentPageName() === "scatter") document.getElementById("scatter-export-csv-btn")?.click?.();
-      else window.__edatime?.exportChartFilteredData?.("csv");
-    }
-  };
-  window.addEventListener("keydown", onKeydown);
-  _appCleanups.push(() => window.removeEventListener("keydown", onKeydown));
-  window.__edatime.keyboardShortcutsBound = true;
 }
 async function initScatterPageModule() {
   const scatterPage = document.getElementById("page-scatter");
@@ -4031,433 +5114,14 @@ function initAnalyticsListeners() {
     });
   });
 }
-function initTransformModal() {
-  const applyBtn = document.getElementById("transform-apply-btn");
-  const exprInput = document.getElementById("transform-expression");
-  const nameInput = document.getElementById("transform-output-name");
-  const errorEl = document.getElementById("transform-error");
-  const close2 = initModalClose(
-    "transform-modal",
-    "transform-close-btn",
-    "transform-cancel-btn",
-    () => {
-      if (errorEl) errorEl.textContent = "";
-    }
-  );
-  if (!close2) return;
-  applyBtn?.addEventListener("click", async () => {
-    const expr = exprInput?.value?.trim();
-    const name = nameInput?.value?.trim();
-    if (!expr) {
-      if (errorEl) errorEl.textContent = "Expression is required.";
-      return;
-    }
-    if (!name) {
-      if (errorEl) errorEl.textContent = "Output column name is required.";
-      return;
-    }
-    if (errorEl) errorEl.textContent = "";
-    try {
-      applyBtn.textContent = "Applying\u2026";
-      applyBtn.disabled = true;
-      await postTransform(expr, name);
-      close2();
-      if (fetchMetadata) {
-        storeFetchedMetadata(await fetchMetadata());
-        appState.numericCols = (appState.metadata.numeric_columns || []).filter((col) => col && col.toLowerCase() !== "ts");
-        if (!appState.selectedCols.includes(name)) appState.selectedCols.push(name);
-        sanitizeSelectedColumns();
-        buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
-        buildMetaBar(appState.metadata);
-        await fetchAndRender();
-      }
-    } catch (e) {
-      if (errorEl) errorEl.textContent = e?.message || "Transform failed.";
-    } finally {
-      applyBtn.textContent = "Apply";
-      applyBtn.disabled = false;
-    }
+async function initFftPage2() {
+  await initFftPage({
+    renderTimeseries: renderCurrentData
   });
 }
-var _fftTraces = [];
-var _fftMode = "magnitude";
-var _fftLogScale = true;
-var _fftChart = null;
-var _FFT_CHIP_COLORS = ["#7ad151", "#4ac3e8", "#f97316", "#e879f9", "#facc15", "#60a5fa", "#f43f5e"];
-var _fftTraceColors = {};
-function getNumericColumns(metadata) {
-  const timeCol = String(metadata?.time_column || "").trim().toLowerCase();
-  return (metadata?.numeric_columns || []).filter((c) => {
-    const lower = String(c || "").trim().toLowerCase();
-    return lower && lower !== "ts" && lower !== timeCol;
-  });
+async function initHeatmapPage2() {
+  await initHeatmapPage({ showPage });
 }
-function getDefaultTimeseriesColumns(metadata) {
-  return getNumericColumns(metadata).slice(0, 3);
-}
-function _fftColumns() {
-  return getNumericColumns(appState.metadata);
-}
-function _fftColorFor(col, fallbackIdx) {
-  return _fftTraceColors[col] || _FFT_CHIP_COLORS[Math.max(0, fallbackIdx) % _FFT_CHIP_COLORS.length];
-}
-function _fftUpdateZoomBtn(isZoomed) {
-  const btn = document.getElementById("fft-zoom-reset-btn");
-  if (btn) btn.hidden = !(isZoomed ?? _fftChart?.getIsZoomed() ?? false);
-}
-function _fftRerenderOrClear() {
-  const emptyState = document.getElementById("fft-empty-state");
-  if (emptyState) {
-    emptyState.hidden = _fftTraces.length > 0;
-    emptyState.setAttribute("data-empty-reason", _fftTraces.length > 0 ? "" : "no-columns-selected");
-  }
-  if (!_fftChart) return;
-  if (_fftTraces.length === 0) {
-    _fftChart.clear();
-  } else {
-    _fftChart.updateData(_fftTraces, _fftMode, _fftLogScale);
-  }
-}
-function _fftRenderChips() {
-  const bar = document.getElementById("fft-traces-bar");
-  const statusEl = document.getElementById("fft-status");
-  if (!bar || !appState.metadata) return;
-  const allCols = _fftColumns();
-  const existing = /* @__PURE__ */ new Map();
-  for (const el of bar.querySelectorAll(".fft-trace-chip")) {
-    const col = el.dataset.col;
-    if (allCols.includes(col)) existing.set(col, el);
-    else el.remove();
-  }
-  const zoomBtn = bar.querySelector("#fft-zoom-reset-btn");
-  for (const [idx, col] of allCols.entries()) {
-    const activeIdx = _fftTraces.findIndex((t) => t.column === col);
-    const isActive = activeIdx >= 0;
-    const color = _fftColorFor(col, idx);
-    let chip = existing.get(col);
-    if (!chip) {
-      chip = document.createElement("button");
-      chip.className = "series-chip fft-trace-chip";
-      chip.type = "button";
-      chip.dataset.col = col;
-      chip.addEventListener("click", async (e) => {
-        const c = chip.dataset.col;
-        if (e.target?.closest?.(".chip-color-picker")) return;
-        if (e.target.classList.contains("fft-chip-remove")) {
-          _fftTraces = _fftTraces.filter((t) => t.column !== c);
-          _fftRenderChips();
-          _fftRerenderOrClear();
-          if (statusEl) statusEl.textContent = _fftTraces.length ? _fftTraces.map((t) => t.column).join(", ") : "Select a column chip to compute its FFT.";
-          return;
-        }
-        if (_fftTraces.some((t) => t.column === c)) return;
-        chip.classList.add("loading");
-        chip.disabled = true;
-        const fftLoadingEl = document.getElementById("fft-chart-loading");
-        if (fftLoadingEl) fftLoadingEl.hidden = false;
-        if (statusEl) statusEl.textContent = `Computing FFT for ${c}\u2026`;
-        try {
-          await _fftFetchAndAdd(c);
-          _fftRenderChips();
-          _fftRerenderOrClear();
-          const bins = _fftTraces.find((t) => t.column === c)?.frequencies.length ?? 0;
-          if (statusEl) statusEl.textContent = `${_fftTraces.map((t) => t.column).join(", ")} \xB7 ${bins} bins`;
-        } catch (e2) {
-          if (statusEl) statusEl.textContent = `FFT failed for ${c}: ${e2?.message || "error"}`;
-        } finally {
-          chip.classList.remove("loading");
-          chip.disabled = false;
-          if (fftLoadingEl) fftLoadingEl.hidden = true;
-        }
-      });
-      bar.insertBefore(chip, zoomBtn || null);
-    }
-    chip.className = `series-chip fft-trace-chip${isActive ? " active" : ""}`;
-    chip.style.setProperty("--chip-accent", color);
-    chip.innerHTML = `<span class="chip-label">${col}</span><input type="color" class="chip-color-picker fft-chip-color-picker" value="${color}" aria-label="Set ${col} FFT color" title="Set ${col} FFT color">` + (isActive ? '<span class="fft-chip-remove" aria-hidden="true">\xD7</span>' : "");
-    const colorInput = chip.querySelector(".chip-color-picker");
-    if (colorInput) {
-      for (const eventName of ["pointerdown", "mousedown", "click", "dblclick"]) {
-        colorInput.addEventListener(eventName, (event) => event.stopPropagation());
-      }
-      colorInput.addEventListener("input", (event) => {
-        const nextColor = event.target.value;
-        _fftTraceColors[col] = nextColor;
-        chip.style.setProperty("--chip-accent", nextColor);
-        const trace = _fftTraces.find((item) => item.column === col);
-        if (trace) {
-          trace.color = nextColor;
-          _fftRerenderOrClear();
-        }
-      });
-    }
-  }
-  bar.hidden = allCols.length === 0;
-}
-async function _fftFetchAndAdd(col) {
-  if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
-  const startIso = new Date(appState.currentStart).toISOString();
-  const endIso = new Date(appState.currentEnd).toISOString();
-  const resp = await fetchFft(startIso, endIso, col);
-  if (!resp?.results?.length) throw new Error("No results");
-  const result = resp.results[0];
-  _fftTraces = _fftTraces.filter((t) => t.column !== col);
-  const color = _fftColorFor(col, _fftColumns().indexOf(col));
-  _fftTraces.push({ column: result.column, frequencies: result.frequencies, magnitudes: result.magnitudes, psd: result.psd, color });
-}
-async function initFftPage() {
-  const modeSelect = document.getElementById("fft-mode-select");
-  const logCheck = document.getElementById("fft-log-scale");
-  const zoomResetBtn = document.getElementById("fft-zoom-reset-btn");
-  _fftChart = new FftChartCtor("fft-chart");
-  await _fftChart.init();
-  _fftChart.onZoomChange = (isZoomed) => _fftUpdateZoomBtn(isZoomed);
-  const populateChips = () => {
-    if (appState.metadata) _fftRenderChips();
-  };
-  populateChips();
-  window.addEventListener("edatime:page-change", populateChips);
-  modeSelect?.addEventListener("change", () => {
-    _fftMode = modeSelect.value;
-    _fftRerenderOrClear();
-  });
-  logCheck?.addEventListener("change", () => {
-    _fftLogScale = logCheck.checked;
-    _fftRerenderOrClear();
-  });
-  zoomResetBtn?.addEventListener("click", () => _fftChart?.resetView());
-  document.getElementById("fft-export-png-btn")?.addEventListener("click", () => {
-    exportContainerCanvasPNG("fft-chart", "edatime_fft.png");
-  });
-  document.getElementById("fft-export-svg-btn")?.addEventListener("click", () => {
-    exportContainerCanvasSVG("fft-chart", "edatime_fft.svg");
-  });
-  document.getElementById("fft-export-html-btn")?.addEventListener("click", () => {
-    exportContainerCanvasHTML("fft-chart", "edatime_fft.html");
-  });
-  document.getElementById("fft-export-csv-btn")?.addEventListener("click", () => {
-    if (_fftTraces.length === 0) {
-      toast("No FFT data to export.", "warning");
-      return;
-    }
-    const csvTraces = _fftTraces.map((t) => ({
-      column: t.column,
-      xs: t.frequencies,
-      ys: _fftMode === "psd" ? t.psd : t.magnitudes
-    }));
-    exportTraceCSV(csvTraces, "frequency_hz", `edatime_fft_${_fftMode}.csv`);
-  });
-  document.getElementById("fft-filter-apply-btn")?.addEventListener("click", async () => {
-    const filterType = document.getElementById("fft-filter-type")?.value;
-    if (!filterType || filterType === "none") {
-      if (appState.spectralFilterPreview) {
-        appState.spectralFilterPreview = null;
-        appState.chart?.requestOverlayRender?.();
-        renderCurrentData();
-      }
-      return;
-    }
-    const column = _fftTraces[0]?.column || appState.selectedCols[0];
-    if (!column) {
-      toast("Select a column chip below first.", "warning");
-      return;
-    }
-    const statusEl = document.getElementById("fft-filter-status");
-    const lowHz = parseFloat(document.getElementById("fft-filter-low-hz")?.value) || void 0;
-    const highHz = parseFloat(document.getElementById("fft-filter-high-hz")?.value) || void 0;
-    if (statusEl) statusEl.textContent = "Computing\u2026";
-    try {
-      const start = appState.currentStart;
-      const end = appState.currentEnd;
-      const params = new URLSearchParams({
-        start: new Date(start).toISOString(),
-        end: new Date(end).toISOString(),
-        column,
-        filter_type: filterType,
-        ...lowHz !== void 0 ? { low_hz: String(lowHz) } : {},
-        ...highHz !== void 0 ? { high_hz: String(highHz) } : {}
-      });
-      const resp = await fetch(`/api/analytics/spectral-filter?${params.toString()}`);
-      if (!resp.ok) throw new Error(await resp.text());
-      const data = await resp.json();
-      appState.spectralFilterPreview = {
-        column: data.column,
-        ts: data.ts,
-        values: data.values,
-        filterType,
-        lowHz: data.low_hz,
-        highHz: data.high_hz
-      };
-      if (statusEl) statusEl.textContent = `${filterType} preview active`;
-      toast(`Spectral filter preview: ${filterType} applied to "${column}". Switch to Timeseries to view.`, "success");
-      renderCurrentData();
-    } catch (err) {
-      if (statusEl) statusEl.textContent = "Error";
-      toast(`Spectral filter failed: ${String(err)}`, "error");
-    }
-  });
-  const filterTypeSelect = document.getElementById("fft-filter-type");
-  filterTypeSelect?.addEventListener("change", () => {
-    const ft = filterTypeSelect.value;
-    const lowEl = document.getElementById("fft-filter-low-hz");
-    const hiEl = document.getElementById("fft-filter-high-hz");
-    if (lowEl) lowEl.disabled = ft === "none" || ft === "lowpass";
-    if (hiEl) hiEl.disabled = ft === "none" || ft === "highpass";
-  });
-  _fftRerenderOrClear();
-}
-var _heatmapLoaded = false;
-var _heatmapCellSize = 36;
-async function initHeatmapPage() {
-  if (_heatmapLoaded) return;
-  _heatmapLoaded = true;
-  const container = document.getElementById("heatmap-container");
-  const statusEl = document.getElementById("heatmap-status");
-  const metricSelect = document.getElementById("heatmap-metric");
-  const sizeInput = document.getElementById("heatmap-cell-size");
-  const sizeValue = document.getElementById("heatmap-cell-size-value");
-  if (!container) return;
-  let matrixData = null;
-  let metric = "pearson";
-  let matrixLoadInFlight = null;
-  function syncHeatmapEmptyState(message, visible, reason = "") {
-    const empty = document.getElementById("heatmap-empty-state");
-    if (!empty) return;
-    empty.textContent = message;
-    empty.hidden = !visible;
-    empty.setAttribute("data-empty-reason", visible ? reason || "no-data" : "");
-  }
-  function renderHeatmap() {
-    if (!matrixData || !container) {
-      syncHeatmapEmptyState("Correlation heatmap will appear here once the dataset is available.", true);
-      return;
-    }
-    const cols = matrixData.columns;
-    const data = metric === "spearman" ? matrixData.spearman : matrixData.pearson;
-    const n = cols.length;
-    if (n === 0) {
-      container.innerHTML = "";
-      syncHeatmapEmptyState("No numeric columns are available for the correlation heatmap.", true, "no-columns-available");
-      return;
-    }
-    syncHeatmapEmptyState("", false);
-    const cellSize = _heatmapCellSize;
-    const labelWidth = Math.max(84, Math.min(180, Math.round(cellSize * 2.5)));
-    let html = `<div class="heatmap-grid" style="display:inline-grid;grid-template-columns:${labelWidth}px repeat(${n},${cellSize}px);grid-template-rows:${labelWidth}px repeat(${n},${cellSize}px);gap:1px;font-size:0.65rem;">`;
-    html += `<div></div>`;
-    for (const col of cols) {
-      html += `<div class="heatmap-header" style="writing-mode:vertical-rl;text-orientation:mixed;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;color:var(--text-dim);padding:4px 2px;" title="${col}">${col}</div>`;
-    }
-    for (let i = 0; i < n; i++) {
-      html += `<div class="heatmap-row-label" style="display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${cols[i]}">${cols[i]}</div>`;
-      for (let j = 0; j < n; j++) {
-        const val = data[i][j];
-        const displayVal = val !== null ? val.toFixed(2) : "\u2014";
-        const bg = val !== null ? correlationColor(val) : "transparent";
-        const textColor = val !== null && Math.abs(val) > 0.5 ? "#fff" : "var(--text)";
-        html += `<div class="heatmap-cell" data-row="${i}" data-col="${j}" style="display:flex;align-items:center;justify-content:center;background:${bg};color:${textColor};border-radius:2px;cursor:${i !== j ? "pointer" : "default"};font-variant-numeric:tabular-nums;" title="${cols[i]} \xD7 ${cols[j]}: ${displayVal}${i !== j ? " \u2014 click to explore in Scatter" : ""}">${displayVal}</div>`;
-      }
-    }
-    html += `</div>`;
-    html += `<div style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:0.7rem;color:var(--text-dim);">`;
-    html += `<span>-1.0</span>`;
-    html += `<div style="flex:0 0 200px;height:12px;border-radius:4px;background:linear-gradient(90deg,#2166AC,#67A9CF,#F7F7F7,#EF8A62,#B2182B);"></div>`;
-    html += `<span>+1.0</span>`;
-    html += `</div>`;
-    container.innerHTML = html;
-    container.onclick = (e) => {
-      const cell = e.target.closest(".heatmap-cell");
-      if (!cell) return;
-      const ri = parseInt(cell.dataset.row || "", 10);
-      const ci = parseInt(cell.dataset.col || "", 10);
-      if (isNaN(ri) || isNaN(ci) || ri === ci) return;
-      const xSelect = document.getElementById("scatter-x-col");
-      const ySelect = document.getElementById("scatter-y-col");
-      if (xSelect) xSelect.value = cols[ri];
-      if (ySelect) ySelect.value = cols[ci];
-      showPage("scatter");
-    };
-  }
-  function correlationColor(v) {
-    const clamped = Math.max(-1, Math.min(1, v));
-    if (clamped >= 0) {
-      const t = clamped;
-      const r = Math.round(247 - t * (247 - 178));
-      const g = Math.round(247 - t * (247 - 24));
-      const b = Math.round(247 - t * (247 - 43));
-      return `rgb(${r},${g},${b})`;
-    } else {
-      const t = -clamped;
-      const r = Math.round(247 - t * (247 - 33));
-      const g = Math.round(247 - t * (247 - 102));
-      const b = Math.round(247 - t * (247 - 172));
-      return `rgb(${r},${g},${b})`;
-    }
-  }
-  async function loadMatrix() {
-    if (matrixLoadInFlight) return matrixLoadInFlight;
-    matrixLoadInFlight = (async () => {
-      if (statusEl) statusEl.textContent = "Loading correlation matrix\u2026";
-      try {
-        const { fetchCorrelationMatrix } = await import("./dataClient.js");
-        matrixData = await fetchCorrelationMatrix();
-        if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns \xB7 ${_heatmapCellSize}px cells`;
-        renderHeatmap();
-      } catch (e) {
-        const msg = e?.message || "";
-        const isInsufficient = msg.toLowerCase().includes("two") || msg.toLowerCase().includes("numeric") || msg.toLowerCase().includes("column");
-        syncHeatmapEmptyState(
-          isInsufficient ? "Need at least two numeric columns to compute correlations. Upload a dataset with multiple numeric columns." : "Correlation heatmap is unavailable for the current dataset.",
-          true,
-          isInsufficient ? "no-columns-available" : "render-failure"
-        );
-        if (statusEl) statusEl.textContent = isInsufficient ? "Not enough numeric columns" : `Error: ${msg || "failed"}`;
-      }
-    })().finally(() => {
-      matrixLoadInFlight = null;
-    });
-    return matrixLoadInFlight;
-  }
-  metricSelect?.addEventListener("change", () => {
-    metric = metricSelect.value;
-    renderHeatmap();
-  });
-  sizeInput?.addEventListener("input", () => {
-    _heatmapCellSize = Math.max(24, Math.min(72, Number(sizeInput.value || 36)));
-    if (sizeValue) sizeValue.textContent = String(_heatmapCellSize);
-    if (statusEl && matrixData) statusEl.textContent = `${matrixData.columns.length} columns \xB7 ${_heatmapCellSize}px cells`;
-    renderHeatmap();
-  });
-  document.getElementById("heatmap-export-csv-btn")?.addEventListener("click", () => {
-    if (!matrixData) {
-      toast("No heatmap data to export.", "warning");
-      return;
-    }
-    const data = metric === "spearman" ? matrixData.spearman : matrixData.pearson;
-    exportMatrixCSV(matrixData.columns, data, `edatime_correlation_${metric}.csv`);
-  });
-  document.getElementById("heatmap-export-png-btn")?.addEventListener("click", () => {
-    exportElementPNG("heatmap-container", "edatime_heatmap.png");
-  });
-  document.getElementById("heatmap-export-svg-btn")?.addEventListener("click", () => {
-    exportElementSVG("heatmap-container", "edatime_heatmap.svg");
-  });
-  document.getElementById("heatmap-export-html-btn")?.addEventListener("click", () => {
-    void exportElementHTML("heatmap-container", "edatime_heatmap.html");
-  });
-  window.addEventListener("edatime:page-change", (e) => {
-    if (e?.detail?.page === "heatmap") loadMatrix();
-  });
-  const heatmapPage = document.getElementById("page-heatmap");
-  if (heatmapPage && !heatmapPage.hidden) {
-    loadMatrix();
-  }
-}
-var _spectrogramLoaded = false;
-var _spectrogramChart = null;
-var _spectrogramResizeObserver = null;
-var _spectrogramResult = null;
-var _spectrogramSampleCount = 0;
 var _loadedPageModules = /* @__PURE__ */ new Set();
 var _metadataReady = false;
 async function ensurePageModuleLoaded(page) {
@@ -4483,495 +5147,60 @@ async function ensurePageModuleLoaded(page) {
 var pageModuleLoaders = {
   scatter: initScatterPageModule,
   scattermatrix: initScatterPageModule,
-  heatmap: initHeatmapPage,
-  spectrogram: initSpectrogramPage,
+  heatmap: initHeatmapPage2,
+  spectrogram: initSpectrogramPage2,
   causal: initCausalPage,
-  fft: initFftPage,
+  fft: initFftPage2,
   drift: initDriftPage
 };
-async function initSpectrogramPage() {
-  if (_spectrogramLoaded) return;
-  _spectrogramLoaded = true;
-  const colSelect = document.getElementById("spectrogram-col-select");
-  const winSelect = document.getElementById("spectrogram-win-size");
-  const logCheck = document.getElementById("spectrogram-log-scale");
-  const computeBtn = document.getElementById("spectrogram-compute-btn");
-  const resetZoomBtn = document.getElementById("spectrogram-zoom-reset-btn");
-  const statusEl = document.getElementById("spectrogram-status");
-  const chartEl = document.getElementById("spectrogram-chart");
-  if (!chartEl || !colSelect) return;
-  const syncSpectrogramEmptyState = (message) => {
-    const empty = document.getElementById("spectrogram-empty-state");
-    if (!empty) return;
-    empty.textContent = message || "Pick a numeric column and click Compute to generate the spectrogram.";
-    empty.hidden = !!_spectrogramResult;
-    empty.setAttribute("data-empty-reason", _spectrogramResult ? "" : "no-columns-selected");
-  };
-  const ensureSpectrogramChart = async () => {
-    if (_spectrogramChart) return _spectrogramChart;
-    const echarts = await import("./echarts-SD7KWPBA.js");
-    _spectrogramChart = echarts.init(chartEl, void 0, { renderer: "canvas" });
-    _spectrogramResizeObserver?.disconnect();
-    _spectrogramResizeObserver = new ResizeObserver(() => _spectrogramChart?.resize());
-    _spectrogramResizeObserver.observe(chartEl);
-    if (chartEl.style.position === "" || chartEl.style.position === "static") {
-      chartEl.style.position = "relative";
-    }
-    const selBox = document.createElement("div");
-    selBox.style.cssText = "position:absolute;top:0;left:0;width:0;height:0;border:1px solid rgba(0,212,255,0.9);background:rgba(0,212,255,0.15);pointer-events:none;display:none;z-index:5";
-    chartEl.appendChild(selBox);
-    let _dragStart = null;
-    let _dragEnd = { x: 0, y: 0 };
-    const SPEC_GRID = { left: 72, right: 110, top: 24, bottom: 80 };
-    chartEl.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0) return;
-      const rect = chartEl.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      if (x > rect.width - SPEC_GRID.right || x < SPEC_GRID.left || y < SPEC_GRID.top || y > rect.height - SPEC_GRID.bottom) return;
-      _dragStart = { x, y, pid: e.pointerId };
-      _dragEnd = { x, y };
-      try {
-        chartEl.setPointerCapture(e.pointerId);
-      } catch {
-      }
-    });
-    chartEl.addEventListener("pointermove", (e) => {
-      if (!_dragStart || e.pointerId !== _dragStart.pid) return;
-      const rect = chartEl.getBoundingClientRect();
-      _dragEnd = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-      const left = Math.min(_dragStart.x, _dragEnd.x);
-      const top = Math.min(_dragStart.y, _dragEnd.y);
-      selBox.style.left = `${left}px`;
-      selBox.style.top = `${top}px`;
-      selBox.style.width = `${Math.abs(_dragEnd.x - _dragStart.x)}px`;
-      selBox.style.height = `${Math.abs(_dragEnd.y - _dragStart.y)}px`;
-      selBox.style.display = "block";
-    });
-    const finishDrag = (e) => {
-      if (!_dragStart || e.pointerId !== _dragStart.pid) return;
-      const start = _dragStart;
-      _dragStart = null;
-      selBox.style.display = "none";
-      try {
-        chartEl.releasePointerCapture(e.pointerId);
-      } catch {
-      }
-      const dx = Math.abs(_dragEnd.x - start.x);
-      const dy = Math.abs(_dragEnd.y - start.y);
-      if (dx < 8 || dy < 8) return;
-      const chart = _spectrogramChart;
-      if (!chart || !_spectrogramResult) return;
-      const p0 = chart.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [start.x, start.y]);
-      const p1 = chart.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [_dragEnd.x, _dragEnd.y]);
-      if (!p0 || !p1) return;
-      const xLen = _spectrogramResult.times_ms.length;
-      const yLen = _spectrogramResult.frequencies.length;
-      const xStartPct = Math.max(0, Math.min(100, Math.min(p0[0], p1[0]) / (xLen - 1) * 100));
-      const xEndPct = Math.max(0, Math.min(100, Math.max(p0[0], p1[0]) / (xLen - 1) * 100));
-      const yStartPct = Math.max(0, Math.min(100, Math.min(p0[1], p1[1]) / (yLen - 1) * 100));
-      const yEndPct = Math.max(0, Math.min(100, Math.max(p0[1], p1[1]) / (yLen - 1) * 100));
-      if (xEndPct <= xStartPct || yEndPct <= yStartPct) return;
-      chart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: xStartPct, end: xEndPct });
-      chart.dispatchAction({ type: "dataZoom", dataZoomIndex: 1, start: yStartPct, end: yEndPct });
-    };
-    chartEl.addEventListener("pointerup", finishDrag);
-    chartEl.addEventListener("pointercancel", (e) => {
-      if (_dragStart?.pid === e.pointerId) {
-        _dragStart = null;
-        selBox.style.display = "none";
-      }
-    });
-    chartEl.addEventListener("dblclick", () => {
-      if (!_spectrogramChart) return;
-      _spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: 0, end: 100 });
-      _spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 1, start: 0, end: 100 });
-    });
-    return _spectrogramChart;
-  };
-  const formatSpectrogramTime = (tsMs) => {
-    return new Date(tsMs).toLocaleString([], {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit"
-    });
-  };
-  const formatSpectrogramFrequency = (freq) => {
-    if (!Number.isFinite(freq)) return "\u2014";
-    if (freq >= 1e3) return `${(freq / 1e3).toFixed(2)} kHz`;
-    if (freq >= 1) return `${freq.toFixed(2)} Hz`;
-    return `${(freq * 1e3).toFixed(2)} mHz`;
-  };
-  const renderSpectrogramChart = async () => {
-    if (!_spectrogramResult) return;
-    const chart = await ensureSpectrogramChart();
-    const logScale = logCheck?.checked ?? true;
-    const points = [];
-    const timeAxis = _spectrogramResult.times_ms;
-    const freqAxis = _spectrogramResult.frequencies;
-    let minValue = Number.POSITIVE_INFINITY;
-    let maxValue = Number.NEGATIVE_INFINITY;
-    for (let timeIndex = 0; timeIndex < timeAxis.length; timeIndex++) {
-      const timeMs = timeAxis[timeIndex];
-      const row = _spectrogramResult.magnitudes[timeIndex] || [];
-      for (let freqIndex = 0; freqIndex < freqAxis.length; freqIndex++) {
-        const freq = freqAxis[freqIndex];
-        const rawMagnitude = Number(row[freqIndex] ?? 0);
-        const displayMagnitude = logScale ? Math.log10(Math.max(rawMagnitude, 1e-30)) : rawMagnitude;
-        if (!Number.isFinite(displayMagnitude)) continue;
-        minValue = Math.min(minValue, displayMagnitude);
-        maxValue = Math.max(maxValue, displayMagnitude);
-        points.push([timeIndex, freqIndex, displayMagnitude, timeMs, freq, rawMagnitude]);
-      }
-    }
-    if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
-      minValue = 0;
-      maxValue = 1;
-    }
-    const xTickInterval = Math.max(0, Math.floor(timeAxis.length / 10) - 1);
-    const yTickInterval = Math.max(0, Math.floor(freqAxis.length / 10) - 1);
-    chart.setOption({
-      backgroundColor: "transparent",
-      animation: false,
-      grid: { left: 72, right: 110, top: 24, bottom: 80 },
-      toolbox: {
-        right: 12,
-        feature: {
-          restore: { title: "Reset zoom" },
-          saveAsImage: { title: "Save image" }
-        }
-      },
-      tooltip: {
-        trigger: "item",
-        backgroundColor: "rgba(8, 12, 20, 0.94)",
-        borderColor: "rgba(126, 158, 212, 0.28)",
-        textStyle: { color: "#eef4ff" },
-        formatter: (params) => {
-          const value = params?.value || [];
-          const timeMs = Number(value[3]);
-          const freq = Number(value[4]);
-          const displayMagnitude = Number(value[2]);
-          const rawMagnitude = Number(value[5]);
-          return [
-            `<strong>${_spectrogramResult?.column || "Spectrogram"}</strong>`,
-            `Time: ${formatSpectrogramTime(timeMs)}`,
-            `Frequency: ${formatSpectrogramFrequency(freq)}`,
-            `Intensity: ${displayMagnitude.toFixed(4)}${logScale ? " log10" : ""}`,
-            `Raw magnitude: ${rawMagnitude.toExponential(4)}`
-          ].join("<br>");
-        }
-      },
-      xAxis: {
-        type: "category",
-        data: timeAxis,
-        name: "Time",
-        nameLocation: "middle",
-        nameGap: 48,
-        axisLabel: {
-          color: "#9fb1d1",
-          rotate: 30,
-          interval: xTickInterval,
-          formatter: (value) => {
-            const date = new Date(Number(value));
-            return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}
-${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-          }
-        },
-        splitLine: { show: false }
-      },
-      yAxis: {
-        type: "category",
-        data: freqAxis,
-        name: "Frequency (Hz)",
-        nameLocation: "middle",
-        nameGap: 56,
-        axisLabel: {
-          color: "#9fb1d1",
-          interval: yTickInterval,
-          formatter: (value) => formatSpectrogramFrequency(Number(value))
-        },
-        splitLine: { show: false }
-      },
-      visualMap: {
-        min: minValue,
-        max: maxValue,
-        calculable: true,
-        orient: "vertical",
-        right: 18,
-        top: "middle",
-        text: [logScale ? "High log10" : "High", logScale ? "Low log10" : "Low"],
-        textStyle: { color: "#9fb1d1" },
-        inRange: {
-          color: ["#440154", "#414487", "#2a788e", "#22a884", "#7ad151", "#fde725"]
-        }
-      },
-      // dataZoom components are registered so dispatchAction works,
-      // but all built-in mouse interactions are disabled — the native
-      // pointer-drag overlay above handles zoom, dblclick resets.
-      dataZoom: [
-        {
-          type: "inside",
-          xAxisIndex: 0,
-          filterMode: "none",
-          zoomOnMouseWheel: false,
-          moveOnMouseMove: false,
-          moveOnMouseWheel: false
-        },
-        {
-          type: "inside",
-          yAxisIndex: 0,
-          filterMode: "none",
-          zoomOnMouseWheel: false,
-          moveOnMouseMove: false,
-          moveOnMouseWheel: false
-        }
-      ],
-      series: [{
-        name: _spectrogramResult.column,
-        type: "heatmap",
-        progressive: 0,
-        emphasis: { itemStyle: { borderColor: "#ffffff", borderWidth: 1 } },
-        data: points
-      }]
-    });
-    statusEl.textContent = `${_spectrogramResult.column} \xB7 ${_spectrogramResult.times_ms.length} windows \xD7 ${_spectrogramResult.frequencies.length} bins \xB7 ${_spectrogramSampleCount} samples`;
-    syncSpectrogramEmptyState();
-  };
-  if (appState.metadata) {
-    for (const col of appState.metadata.numeric_columns) {
-      const opt = document.createElement("option");
-      opt.value = col;
-      opt.textContent = col;
-      colSelect.appendChild(opt);
-    }
-  }
-  syncSpectrogramEmptyState();
-  computeBtn?.addEventListener("click", async () => {
-    const column = colSelect.value;
-    if (!column) {
-      if (statusEl) statusEl.textContent = "Select a column.";
-      syncSpectrogramEmptyState("Pick a numeric column and click Compute to generate the spectrogram.");
-      return;
-    }
-    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) {
-      if (statusEl) statusEl.textContent = "No time range available.";
-      return;
-    }
-    const winSize = parseInt(winSelect?.value || "256", 10);
-    try {
-      setComputeLoading("spectrogram-compute-btn", "spectrogram-loading", true);
-      if (statusEl) statusEl.textContent = "Fetching spectrogram\u2026";
-      const { fetchSpectrogram } = await import("./dataClient.js");
-      const startIso = new Date(appState.currentStart).toISOString();
-      const endIso = new Date(appState.currentEnd).toISOString();
-      const resp = await fetchSpectrogram(startIso, endIso, column, winSize);
-      _spectrogramResult = resp.result;
-      _spectrogramSampleCount = resp.sample_count;
-      await renderSpectrogramChart();
-    } catch (e) {
-      _spectrogramResult = null;
-      syncSpectrogramEmptyState("Spectrogram generation failed. Choose a column and try again.");
-      if (statusEl) statusEl.textContent = `Error: ${e?.message || "failed"}`;
-    } finally {
-      setComputeLoading("spectrogram-compute-btn", "spectrogram-loading", false);
-    }
-  });
-  logCheck?.addEventListener("change", () => {
-    if (_spectrogramResult) void renderSpectrogramChart();
-  });
-  resetZoomBtn?.addEventListener("click", () => {
-    if (!_spectrogramChart) return;
-    _spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: 0, end: 100 });
-    _spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 1, start: 0, end: 100 });
-  });
-  document.getElementById("spectrogram-export-png-btn")?.addEventListener("click", () => {
-    exportEChartsPNG(_spectrogramChart, "edatime_spectrogram.png");
-  });
-  document.getElementById("spectrogram-export-svg-btn")?.addEventListener("click", () => {
-    exportEChartsSVG(_spectrogramChart, "edatime_spectrogram.svg");
-  });
-  document.getElementById("spectrogram-export-html-btn")?.addEventListener("click", () => {
-    exportEChartsHTML(_spectrogramChart, "edatime_spectrogram.html");
-  });
-  window.addEventListener("edatime:page-change", (e) => {
-    if (e?.detail?.page === "spectrogram" && appState.metadata) {
-      const currentOpts = new Set(Array.from(colSelect.options).map((o) => o.value));
-      for (const col of appState.metadata.numeric_columns) {
-        if (!currentOpts.has(col)) {
-          const opt = document.createElement("option");
-          opt.value = col;
-          opt.textContent = col;
-          colSelect.appendChild(opt);
-        }
-      }
-      _spectrogramChart?.resize?.();
-    }
+async function initSpectrogramPage2() {
+  await initSpectrogramPage({
+    setLoading: setComputeLoading
   });
 }
 async function initDriftPage() {
-  const { initDriftPage: init2 } = await import("./driftPage-4K52ENFB.js");
+  const { initDriftPage: init2 } = await import("./driftPage-RA33JEMA.js");
   await init2(appState.metadata);
 }
 async function initCausalPage() {
-  const { initCausalPage: init2 } = await import("./causalPage-3X6LNDBI.js");
+  const { initCausalPage: init2 } = await import("./causalPage-JCU33NU7.js");
   const { initCausalComparison } = await import("./causalComparison-VQVLPMA7.js");
   init2({
     getMetadata: () => appState.metadata,
-    chipColor: _fftColorFor,
-    numericColumns: _fftColumns,
+    chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
+    numericColumns: () => getNumericColumns(appState.metadata),
     setLoading: setComputeLoading
   });
   initCausalComparison();
 }
-function initOutlierModal() {
-  const openBtn = document.getElementById("outlier-open-btn");
-  const applyBtn = document.getElementById("outlier-apply-btn");
-  const methodSelect = document.getElementById("outlier-method");
-  const thresholdInput = document.getElementById("outlier-threshold");
-  const windowInput = document.getElementById("outlier-window");
-  const errorEl = document.getElementById("outlier-error");
-  const resultEl = document.getElementById("outlier-result");
-  const close2 = initModalClose(
-    "outlier-modal",
-    "outlier-close-btn",
-    "outlier-cancel-btn",
-    () => {
-      if (errorEl) errorEl.textContent = "";
-      if (resultEl) resultEl.textContent = "";
-    }
-  );
-  if (!close2) return;
-  const modal = document.getElementById("outlier-modal");
-  openBtn?.addEventListener("click", () => {
-    modal.hidden = false;
-  });
-  methodSelect?.addEventListener("change", () => {
-    if (thresholdInput) {
-      thresholdInput.value = methodSelect.value === "iqr" ? "1.5" : "3";
-    }
-  });
-  applyBtn?.addEventListener("click", async () => {
-    if (errorEl) errorEl.textContent = "";
-    if (resultEl) resultEl.textContent = "";
-    const method = methodSelect?.value || "zscore";
-    const threshold = parseFloat(thresholdInput?.value || "3");
-    const windowSize = parseInt(windowInput?.value || "0", 10);
-    const cols = appState.selectedCols.length > 0 ? appState.selectedCols : null;
-    try {
-      applyBtn.disabled = true;
-      applyBtn.textContent = "Removing\u2026";
-      const { postRemoveOutliers } = await import("./dataClient.js");
-      const result = await postRemoveOutliers(
-        cols,
-        method,
-        threshold,
-        windowSize > 0 ? windowSize : void 0
-      );
-      if (resultEl) resultEl.textContent = `Removed ${result.rows_removed} rows (${result.rows_before} \u2192 ${result.rows_after})`;
-      if (fetchMetadata) {
-        storeFetchedMetadata(await fetchMetadata());
-        appState.numericCols = (appState.metadata.numeric_columns || []).filter((col) => col && col.toLowerCase() !== "ts");
-        sanitizeSelectedColumns();
-        buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
-        buildMetaBar(appState.metadata);
-        await fetchAndRender();
-      }
-    } catch (e) {
-      if (errorEl) errorEl.textContent = e?.message || "Outlier removal failed.";
-    } finally {
-      applyBtn.disabled = false;
-      applyBtn.textContent = "Remove Outliers";
-    }
-  });
-}
-function initThemeToggle() {
-  const btn = document.getElementById("theme-toggle-btn");
-  const iconDark = document.getElementById("theme-icon-dark");
-  const iconLight = document.getElementById("theme-icon-light");
-  if (!btn) return;
-  const saved = localStorage.getItem("edatime-theme");
-  if (saved === "light") {
-    document.documentElement.setAttribute("data-theme", "light");
-    if (iconDark) iconDark.hidden = true;
-    if (iconLight) iconLight.hidden = false;
+async function refreshDatasetAfterMutation(options) {
+  if (!fetchMetadata) return;
+  storeFetchedMetadata(await fetchMetadata());
+  appState.numericCols = getNumericColumns(appState.metadata);
+  const selectedColumn = options?.selectedColumn;
+  if (selectedColumn && !appState.selectedCols.includes(selectedColumn)) {
+    appState.selectedCols.push(selectedColumn);
   }
-  btn.addEventListener("click", () => {
-    const isLight = document.documentElement.getAttribute("data-theme") === "light";
-    if (isLight) {
-      document.documentElement.removeAttribute("data-theme");
-      localStorage.setItem("edatime-theme", "dark");
-      if (iconDark) iconDark.hidden = false;
-      if (iconLight) iconLight.hidden = true;
-    } else {
-      document.documentElement.setAttribute("data-theme", "light");
-      localStorage.setItem("edatime-theme", "light");
-      if (iconDark) iconDark.hidden = true;
-      if (iconLight) iconLight.hidden = false;
-    }
-  });
+  sanitizeSelectedColumns();
+  buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
+  buildMetaBar(appState.metadata);
+  await fetchAndRender();
 }
 async function init() {
-  window.__edatime = window.__edatime || {};
-  window.__edatime.ensurePageModuleLoaded = ensurePageModuleLoaded;
-  initPages();
-  initHashRouting();
-  initSettings();
-  initAnnotations();
-  initAnnotationPanel();
-  initGuidedWorkflow();
-  initThemeToggle();
-  initSettingsPanel();
-  document.querySelectorAll("[data-home-nav]").forEach((el) => {
-    el.addEventListener("click", () => {
-      const target = el.dataset.homeNav;
-      if (target) showPage(target);
-    });
+  initAppShell({
+    ensurePageModuleLoaded,
+    showPage,
+    fetchAndRender,
+    renderCurrentData,
+    updateAnalysisYRange,
+    zoomOut: () => zoomOut(fetchAndRender),
+    resetZoom: () => resetZoom(fetchAndRender),
+    initAnalyticsListeners,
+    refreshDatasetAfterMutation,
+    hydrateColumnProfiles,
+    renderColumnProfilesGrid,
+    registerCleanup: (cleanup) => _appCleanups.push(cleanup)
   });
-  initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid);
-  initColumnProfilesGrid();
-  initAnalysisControls(fetchAndRender);
-  initColumnFilterModal(renderCurrentData, updateAnalysisYRange);
-  initChartPageFilterGesture();
-  initKeyboardShortcuts();
-  initCommandPalette();
-  initProvenance();
-  registerCommands([
-    // Navigation
-    { id: "nav-upload", label: "Go to Upload", shortcut: "Alt+1", category: "Navigation", action: () => showPage("upload") },
-    { id: "nav-timeseries", label: "Go to Timeseries", shortcut: "Alt+2", category: "Navigation", action: () => showPage("timeseries") },
-    { id: "nav-scatter", label: "Go to Scatter", shortcut: "Alt+3", category: "Navigation", action: () => showPage("scatter") },
-    { id: "nav-matrix", label: "Go to Scatter Matrix", shortcut: "Alt+4", category: "Navigation", action: () => showPage("scattermatrix") },
-    { id: "nav-fft", label: "Go to FFT / PSD", shortcut: "Alt+6", category: "Navigation", action: () => showPage("fft") },
-    { id: "nav-heatmap", label: "Go to Heatmap", shortcut: "Alt+7", category: "Navigation", action: () => showPage("heatmap") },
-    { id: "nav-spectrogram", label: "Go to Spectrogram", shortcut: "Alt+8", category: "Navigation", action: () => showPage("spectrogram") },
-    { id: "nav-causal", label: "Go to Causal", shortcut: "Alt+9", category: "Navigation", action: () => showPage("causal") },
-    { id: "nav-drift", label: "Go to Drift Analysis", shortcut: "Alt+0", category: "Navigation", action: () => showPage("drift") },
-    // Chart
-    { id: "chart-reset", label: "Reset zoom", shortcut: "Shift+R", category: "Chart", action: () => resetZoom(fetchAndRender) },
-    { id: "chart-zoomout", label: "Zoom out one level", shortcut: "Shift+Z", category: "Chart", action: () => zoomOut(fetchAndRender) },
-    { id: "chart-clear-af", label: "Clear adaptive filters", shortcut: "Shift+C", category: "Chart", action: () => document.getElementById("adaptive-clear-btn")?.click?.() },
-    // Export
-    { id: "export-csv", label: "Export chart data as CSV", shortcut: "Shift+E", category: "Export", action: () => window.__edatime?.exportChartFilteredData?.("csv") },
-    { id: "export-json", label: "Export chart data as JSON", category: "Export", action: () => window.__edatime?.exportChartFilteredData?.("json") },
-    { id: "export-png", label: "Export chart as PNG", category: "Export", action: () => appState.chart?.exportPNG?.() },
-    { id: "export-parquet", label: "Export filtered data as Parquet", category: "Export", action: () => document.getElementById("export-parquet-btn")?.click?.() },
-    // Session
-    { id: "session-save", label: "Export session to file", category: "Session", action: exportSessionToFile },
-    { id: "session-load", label: "Import session from file", category: "Session", action: importSessionFromFile },
-    // Analysis
-    { id: "provenance", label: "Show analysis context panel", shortcut: "Ctrl+I", category: "Analysis", action: toggleProvenance },
-    { id: "cmd-palette", label: "Open command palette", shortcut: "Ctrl+K", category: "Analysis", action: openPalette },
-    { id: "settings", label: "Open settings", shortcut: "Ctrl+,", category: "Analysis", action: openSettingsModal },
-    { id: "workflow-enable", label: "Enable guided workflow", category: "Analysis", action: enableGuidedWorkflow },
-    { id: "workflow-disable", label: "Hide guided workflow", category: "Analysis", action: disableGuidedWorkflow },
-    { id: "workflow-next", label: "Go to next guided step", category: "Analysis", action: goToNextGuidedStep }
-  ]);
-  initTransformModal();
-  initOutlierModal();
-  initAnalyticsListeners();
   try {
     await ensureChartModules();
   } catch (e) {
@@ -4994,67 +5223,35 @@ async function init() {
     appState.selectedCols = getDefaultTimeseriesColumns(appState.metadata);
     appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
     sanitizeSelectedColumns();
-    const columnFilterInput = document.getElementById("column-filter-input");
-    if (columnFilterInput) {
-      const onFilterInput = debounce(() => {
-        appState.filterText = (columnFilterInput.value || "").trim().toLowerCase();
-        buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
-      }, 120);
-      columnFilterInput.addEventListener("input", onFilterInput);
-    }
-    const profileFilterInput = document.getElementById("profile-filter-input");
-    if (profileFilterInput) {
-      const onProfileFilterInput = debounce(() => {
-        appState.profileFilterText = (profileFilterInput.value || "").trim().toLowerCase();
-        renderColumnProfilesGrid(true);
-      }, 120);
-      profileFilterInput.addEventListener("input", onProfileFilterInput);
-    }
-    hydrateColumnProfiles(appState.metadata);
+    initDatasetSearchInputs({
+      rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
+      renderColumnProfilesGrid
+    });
+    const metadata = appState.metadata;
+    if (!metadata) return;
+    hydrateColumnProfiles(metadata);
     renderColumnProfilesGrid(true);
-    applyPartialTimeRangeFromMetadata(appState.metadata, false);
+    applyPartialTimeRangeFromMetadata(metadata, false);
     setUploadPreviewStatus("Showing current dataset profile. Drop/select a file to preview before loading.");
     setProfileMode("dataset");
     buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
-    buildMetaBar(appState.metadata);
+    buildMetaBar(metadata);
     buildRangeControls();
     window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
     appState.currentStart = Number(appState.metadata.time_range.min);
     appState.currentEnd = Number(appState.metadata.time_range.max);
     updateAnalysisZoom(appState.currentStart, appState.currentEnd, "initial");
     emitChartRangeChange("initial");
-    const resetChartRangeToDataset = async (source = "reset") => {
-      const minMs = Number(appState.metadata?.time_range?.min);
-      const maxMs = Number(appState.metadata?.time_range?.max);
-      if (!Number.isFinite(minMs) || !Number.isFinite(maxMs) || minMs >= maxMs) return;
-      appState.currentStart = minMs;
-      appState.currentEnd = maxMs;
-      appState.chart?.setXRange?.(minMs, maxMs);
-      updateAnalysisZoom(minMs, maxMs, source);
-      emitChartRangeChange(source);
-      await fetchAndRender();
-    };
-    const onRequestResetRange = () => {
-      void resetChartRangeToDataset("reset");
-    };
-    window.addEventListener("edatime:request-chart-range-reset", onRequestResetRange);
-    _appCleanups.push(() => window.removeEventListener("edatime:request-chart-range-reset", onRequestResetRange));
-    window.__edatime.resetChartRangeToDataset = () => void resetChartRangeToDataset("reset");
-    const clearAllFilters = async (source = "clear") => {
-      appState.columnRanges = {};
-      appState.adaptiveLineFilters = [];
-      buildRangeControls();
-      renderCurrentData();
-      window.dispatchEvent(new CustomEvent("edatime:column-filters-change", { detail: { source } }));
-      window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change", { detail: { source } }));
-      await fetchAndRender();
-    };
-    const onClearAllFilters = () => {
-      void clearAllFilters("clear");
-    };
-    window.addEventListener("edatime:clear-all-filters", onClearAllFilters);
-    _appCleanups.push(() => window.removeEventListener("edatime:clear-all-filters", onClearAllFilters));
-    window.__edatime.clearAllFilters = () => void clearAllFilters("clear");
+    initTimeseriesActions({
+      rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
+      renderColumnProfilesGrid,
+      buildRangeControls,
+      renderCurrentData,
+      fetchAndRender,
+      updateAnalysisZoom,
+      emitChartRangeChange,
+      registerCleanup: (cleanup) => _appCleanups.push(cleanup)
+    });
     dbg("initial X range (ms)", { start: appState.currentStart, end: appState.currentEnd });
     const lineType = getChartType("line");
     if (lineType) {
@@ -5086,21 +5283,15 @@ async function init() {
     await fetchAndRender();
     appState.initialView = getCurrentView();
     dbgGroup("initialView snapshot", () => dbg(appState.initialView));
-    const savedSession = autoRestoreSession();
-    if (savedSession) {
-      applySession(savedSession, {
-        metadataTimeRange: appState.metadata?.time_range ?? null,
-        currentDatasetRevision: Number(appState.datasetRevision ?? 0),
-        preferHashPage: !!getHashPage()
-      });
-      buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
-      buildRangeControls();
-      renderCurrentData();
-      await fetchAndRender();
-    }
-    initAutoSave();
-    window.__edatime.exportSession = exportSessionToFile;
-    window.__edatime.importSession = importSessionFromFile;
+    await restoreSessionAfterChartReady({
+      metadataTimeRange: appState.metadata?.time_range ?? null,
+      currentDatasetRevision: Number(appState.datasetRevision ?? 0),
+      buildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
+      buildRangeControls,
+      renderCurrentData,
+      fetchAndRender
+    });
+    startSessionPersistence();
   } catch (e) {
     console.error("Primary chart failed, switching to fallback:", e);
     try {

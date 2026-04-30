@@ -243,9 +243,10 @@ async function initDriftPage(metadata) {
   let selectedWindowIdx = null;
   let windowSort = sortSelect?.value || "time-asc";
   let _pendingFullReset = false;
+  const isRenderable = (element) => !!element && element.clientWidth > 0 && element.clientHeight > 0;
   function isDriftChartReadyForInit() {
     const page = document.getElementById("page-drift");
-    return !!(page && !page.hidden);
+    return !!(page && !page.hidden && isRenderable(timelineElNN) && isRenderable(detailElNN));
   }
   getECharts().catch(() => {
   });
@@ -291,6 +292,20 @@ async function initDriftPage(metadata) {
   async function ensureChartsAsync() {
     await getECharts();
     ensureCharts();
+  }
+  function scheduleDriftChartRefresh(attempts = 6) {
+    if (!isDriftChartReadyForInit()) {
+      if (attempts <= 0) return;
+      window.setTimeout(() => scheduleDriftChartRefresh(attempts - 1), 0);
+      return;
+    }
+    void ensureChartsAsync().then(() => {
+      if (!isDriftChartReadyForInit()) return;
+      if (responsesByColumn.size > 0) {
+        renderTimeline();
+        renderDetail();
+      }
+    });
   }
   function getActiveResponse() {
     if (!activeDetailColumn) return null;
@@ -1020,21 +1035,11 @@ async function initDriftPage(metadata) {
     if (e?.detail?.page !== "drift") return;
     const cols = Array.isArray(metadata?.numeric_columns) ? metadata.numeric_columns.filter((c) => c && c.toLowerCase() !== "ts") : [];
     repopulateColumnSelect(cols);
-    void ensureChartsAsync().then(() => {
-      if (responsesByColumn.size > 0) {
-        renderTimeline();
-        renderDetail();
-      }
-    });
+    scheduleDriftChartRefresh();
   });
-  if (isDriftChartReadyForInit()) {
-    void ensureChartsAsync().then(() => {
-      renderTimeline();
-      renderDetail();
-    });
-  }
+  scheduleDriftChartRefresh();
 }
 export {
   initDriftPage
 };
-//# sourceMappingURL=driftPage-4K52ENFB.js.map
+//# sourceMappingURL=driftPage-RA33JEMA.js.map

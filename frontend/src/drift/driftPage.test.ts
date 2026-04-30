@@ -217,9 +217,16 @@ describe('drift page accessibility and debug metadata', () => {
         (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
 
         (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        const waitForWindowItems = async () => {
+            for (let attempt = 0; attempt < 10; attempt += 1) {
+                const items = Array.from(document.querySelectorAll<HTMLElement>('#drift-window-list .drift-window-item'));
+                if (items.length > 0) return items;
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            }
+            return Array.from(document.querySelectorAll<HTMLElement>('#drift-window-list .drift-window-item'));
+        };
 
-        const items = Array.from(document.querySelectorAll<HTMLElement>('#drift-window-list .drift-window-item'));
+        const items = await waitForWindowItems();
         expect(items.length).toBe(2);
         expect(items[0].getAttribute('role')).toBe('option');
         expect(items[0].getAttribute('tabindex')).toBe('0');

@@ -8,11 +8,9 @@ import {
   dbg
 } from "../chunk-P2MGEQ7G.js";
 import {
-  Ad
-} from "../chunk-UUSB2KLH.js";
-import {
+  Ad,
   defaultGpuPowerPreference
-} from "../chunk-PMOHFZ3J.js";
+} from "../chunk-HIE322HX.js";
 import {
   appState,
   buildAdaptiveLineY,
@@ -368,14 +366,16 @@ var DataChart = class {
   async init() {
     const container = document.getElementById(this.containerId);
     this._container = container;
-    this.chartInstance = await Ad(container, {
+    const chartOptions = {
       grid: CHART_GRID,
       xAxis: { type: "time" },
       yAxis: { type: "value" },
       legend: { show: true, position: "right" },
-      series: [],
-      powerPreference: defaultGpuPowerPreference()
-    });
+      series: []
+    };
+    const powerPreference = defaultGpuPowerPreference();
+    if (powerPreference) chartOptions.powerPreference = powerPreference;
+    this.chartInstance = await Ad(container, chartOptions);
     this._chartResizeObserver?.disconnect();
     this._chartResizeObserver = new ResizeObserver(() => this.resize());
     this._chartResizeObserver.observe(container);
@@ -1040,7 +1040,7 @@ var DataChart = class {
         ctx.fillText(ann.title, sx + 4 * strokeScale, plotTop + 14 * strokeScale);
       } else if (ann.type === "note" || ann.type === "region") {
         ctx.fillStyle = color.replace(")", ", 0.15)").replace("rgb", "rgba").replace("##", "#");
-        if (!ctx.fillStyle.includes("rgba")) {
+        if (typeof ctx.fillStyle !== "string" || !ctx.fillStyle.includes("rgba")) {
           ctx.fillStyle = `${color}26`;
         }
         ctx.fillRect(sx, plotTop, ex - sx, plotHeight);

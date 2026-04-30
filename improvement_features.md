@@ -41,6 +41,9 @@ Observed evidence during the walkthrough:
 
 ## Completed
 
+- 2026-04-29. Repaired the Scatter `Plot` / `Matrix` toggle wiring so the matrix button now switches panels, updates pressed state, and renders matrix cells again in the live UI.
+- 2026-04-29. Re-hardened ECharts initialization on `Causal`, `Drift`, and `Spectrogram` by waiting for visible non-zero containers and giving Spectrogram a concrete chart height fallback; the renewed zero-size warnings from the audit are no longer reproduced.
+- 2026-04-29. Updated README and the user manual to match the current information architecture: `Correlations` is the heatmap page, `Scatter` owns the Plot/Matrix workflow and distribution controls, and local startup uses `cargo run --release --bin edatime`.
 - 2026-04-28. Reworked the primary workflow IA in the frontend so `Upload`, `Timeseries`, `Correlations`, and `Scatter` read as the core path, while advanced analyses are visually separated on the Home page and in sidebar grouping.
 - 2026-04-28. Removed the standalone `Scatter Matrix` navigation illusion and exposed matrix exploration as an explicit `Plot` / `Matrix` sub-view inside `Scatter`, matching the actual implementation model.
 - 2026-04-28. Split `Upload` into explicit `File` and `Database` source modes so unused ingest controls stay hidden until the user selects that path.

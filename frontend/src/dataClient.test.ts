@@ -147,14 +147,17 @@ describe('dataClient fetch helpers', () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
                 json: () => Promise.resolve({
+                    base_column: 'col_a',
+                    threshold: 0.7,
+                    numeric_columns: ['col_a', 'col_b'],
                     correlations: [
-                        { x: 'col_a', y: 'col_b', pearson: 0.95, spearman: 0.92 },
+                        { column: 'col_b', count: 12, pearson: 0.95, spearman: 0.92 },
                     ],
-                    columns: ['col_a', 'col_b'],
+                    suggestions: [{ column: 'col_b', count: 12, pearson: 0.95, spearman: 0.92 }],
                 }),
             });
 
-            const result = await fetchScatterCorrelations();
+            const result = await fetchScatterCorrelations(null);
             expect(result.correlations).toHaveLength(1);
             expect(result.correlations[0].pearson).toBe(0.95);
         });
@@ -165,8 +168,11 @@ describe('dataClient fetch helpers', () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
                 json: () => Promise.resolve({
+                    base_column: 'col_a',
+                    threshold: 0.75,
+                    numeric_columns: ['col_a'],
                     correlations: [],
-                    columns: ['col_a'],
+                    suggestions: [],
                 }),
             });
 
@@ -182,7 +188,7 @@ describe('dataClient fetch helpers', () => {
                 json: () => Promise.resolve({ columns: [] }),
             });
 
-            await expect(fetchScatterCorrelations()).rejects.toThrow('correlations');
+            await expect(fetchScatterCorrelations(null)).rejects.toThrow('correlations');
         });
     });
 
@@ -195,12 +201,18 @@ describe('dataClient fetch helpers', () => {
                 json: () => Promise.resolve({
                     x: 'col_a',
                     y: 'col_b',
-                    points: [{ x: 1, y: 2 }],
+                    color: null,
+                    total_points: 1,
+                    returned_points: 1,
+                    points: [[1, 2]],
+                    color_values: null,
+                    color_labels: null,
+                    color_min: null,
+                    color_max: null,
                 }),
             });
 
-            const opts = { x: 'col_a', y: 'col_b', limit: 5000 } as any;
-            await fetchScatterPoints(opts);
+            await fetchScatterPoints('col_a', 'col_b', 5000);
 
             expect(mockFetch).toHaveBeenCalledWith(
                 expect.stringContaining('/api/scatter/points'),

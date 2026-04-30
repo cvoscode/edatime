@@ -183,18 +183,21 @@ export function computeWorkflowProgress(snapshot: WorkflowSnapshot): WorkflowPro
 
     const nextStepId = WORKFLOW_STEPS.find((step) => !completedStepIds.includes(step.id))?.id || null;
     const activeStepId = mapPageToStep(snapshot.currentPage, nextStepId);
-    const steps = WORKFLOW_STEPS.map((step) => ({
-        id: step.id,
-        label: step.label,
-        page: step.page,
-        status: activeStepId === step.id
+    const steps: WorkflowStepState[] = WORKFLOW_STEPS.map((step) => {
+        const status: WorkflowStepState['status'] = activeStepId === step.id
             ? 'current'
             : completedStepIds.includes(step.id)
                 ? 'done'
                 : nextStepId === step.id
                     ? 'next'
-                    : 'pending',
-    }));
+                    : 'pending';
+        return {
+            id: step.id,
+            label: step.label,
+            page: step.page,
+            status,
+        };
+    });
 
     return { steps, completedStepIds, activeStepId, nextStepId };
 }

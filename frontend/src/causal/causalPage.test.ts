@@ -105,6 +105,15 @@ describe('causal page chart bootstrap', () => {
 
         const page = document.getElementById('page-causal') as HTMLElement;
         page.hidden = false;
+        Object.defineProperty(chartEl, 'clientWidth', { configurable: true, value: 0 });
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'causal' } }));
+
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(echarts.getInstanceByDom(chartEl)).toBeUndefined();
+
+        Object.defineProperty(chartEl, 'clientWidth', { configurable: true, value: 640 });
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'causal' } }));
 
         await Promise.resolve();

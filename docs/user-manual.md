@@ -13,7 +13,7 @@ EdaTime is an interactive analysis tool for time-indexed datasets. It lets you:
 - load CSV or Parquet files, or connect to a database
 - inspect column profiles before loading data
 - explore multiple time series at once
-- drill into scatter, matrix, distribution, frequency, and causal views
+- drill into scatter plot, scatter matrix, distribution, frequency, drift, and causal views
 - export filtered results and visual outputs
 
 The app is organized as page-based workflows in the left sidebar.
@@ -25,12 +25,15 @@ The app opens on the Home page by default. The main navigation lives in the left
 - `Alt+1`: Upload
 - `Alt+2`: Timeseries
 - `Alt+3`: Scatter
-- `Alt+4`: Matrix
-- `Alt+5`: Distributions
 - `Alt+6`: FFT
-- `Alt+7`: Heatmap
+- `Alt+7`: Correlations
 - `Alt+8`: Spectrogram
 - `Alt+9`: Causal
+- `Alt+0`: Drift
+
+The main workflow pages are `Upload`, `Timeseries`, `Correlations`, and `Scatter`.
+
+The advanced analysis group contains `FFT / PSD`, `Spectrogram`, `Causal Graph`, and `Drift Analysis`.
 
 The header shows the active dataset summary, including row count, numeric-series count, and the currently plotted primary series.
 
@@ -44,8 +47,8 @@ If you are new to the app, this is the fastest path to understanding a dataset:
 2. Open Timeseries and enable a few important numeric series.
 3. Zoom into a time window of interest.
 4. Open Scatter to compare two variables inside that same linked time range.
-5. Use Matrix to scan pairwise relationships quickly.
-6. Use Distributions, FFT, Spectrogram, or Causal when you want deeper analysis.
+5. Switch Scatter from `Plot` to `Matrix` when you want a fast pairwise scan.
+6. Use Scatter's distribution controls, FFT, Spectrogram, Drift, or Causal when you want deeper analysis.
 
 ## Upload Page
 
@@ -248,7 +251,7 @@ The Scatter page compares two columns directly and is the main place for linked 
 Scatter is the detailed bivariate workbench, with linked range, color-by, statistics, and export actions in one place.
 ```
 
-Scatter, Matrix, and Distributions are separate sidebar destinations, but they share one analytics context: axis choices, color column, linked time range, and active filters carry across those three views.
+Scatter keeps plot, matrix, and distribution analysis inside one shared workflow: axis choices, color column, linked time range, and active filters carry across those sub-views.
 
 ### Primary Controls
 
@@ -300,15 +303,15 @@ The scatter view exposes:
 - `JSON`
 - `Parquet`
 
-## Matrix Page
+## Matrix View Inside Scatter
 
-The Matrix page is a linked extension of the scatter workflow.
+The `Matrix` toggle inside Scatter opens the pairwise matrix view without leaving the scatter workflow.
 
 ```{figure} _static/user-guide/matrix-page.png
 :alt: Matrix page showing pairwise scatter cells and the linked FFT side panel.
 :width: 100%
 
-Matrix gives a fast pairwise scan and keeps a linked FFT panel available for the same subset of columns.
+The matrix view gives a fast pairwise scan and keeps a linked FFT panel available for the same subset of columns.
 ```
 
 It renders a scatter matrix for a subset of columns and includes:
@@ -324,42 +327,23 @@ Important behavior confirmed during the walkthrough:
 
 This page is best used as a pairwise screening surface before detailed drill-down.
 
-## Distributions Page
+## Distribution Controls Inside Scatter
 
-The Distributions page reuses the active Scatter context and shows univariate summaries.
+Scatter also exposes the univariate distribution summary directly in the same workflow.
 
-```{figure} _static/user-guide/distributions-page.png
-:alt: Distributions page showing multiple distribution cards and the statistics panel.
-:width: 100%
+The `Distribution` selector in the top row changes how the marginal summaries and matrix diagonals are rendered:
 
-Distributions keeps the active scatter context but pivots to marginal shape, spread, and summary statistics.
-```
+- `Histogram`
+- `KDE`
+- `Box Plot`
 
-It displays distribution cards for:
+Those summaries reuse the current scatter context, including:
 
 - current X-axis column
 - current Y-axis column
 - active color column, if present
-- other dataset columns included in the current view
 
-Each card shows:
-
-- role label such as `x-axis`, `y-axis`, `color`, or `dataset`
-- min and max
-- sample count
-
-The statistics panel shows:
-
-- mean
-- standard deviation
-- min and max
-- median
-- Q1 and Q3
-- IQR
-- skewness
-- kurtosis
-
-This page is useful for quickly validating whether a relationship seen in scatter is driven by skew, clipping, or unusual marginal distributions.
+Use these controls when you want to validate whether a relationship seen in scatter is driven by skew, clipping, multimodality, or outliers before moving on to FFT, Spectrogram, Drift, or Causal.
 
 ## FFT Page
 
@@ -491,8 +475,8 @@ The summary line reports the current graph size, including node count, pair-edge
 
 - Start in Timeseries, not Scatter. The best scatter results usually come after narrowing the time window first.
 - Use Heatmap before Causal. It is a fast way to find candidate relationships worth testing more carefully.
-- Use Matrix for breadth and Scatter for depth.
-- Use Distributions to validate whether strong-looking plots are actually driven by outliers or skew.
+- Use Scatter `Matrix` for breadth and Scatter `Plot` for depth.
+- Use Scatter's distribution controls to validate whether strong-looking plots are actually driven by outliers or skew.
 - Use Spectrogram when periodic behavior is not stable across the full time span.
 - Treat dataset-changing actions such as transforms and outlier removal as analysis steps, not just chart styling.
 - If the header reports `Fallback renderer active`, Upload, profiling, Timeseries, and Heatmap can still be useful, but GPU-oriented pages should be rechecked in a WebGPU-capable Chrome or Edge session.
@@ -502,7 +486,7 @@ The summary line reports the current graph size, including node count, pair-edge
 These behaviors were confirmed directly in the running app:
 
 - matrix-cell clicks drill into Scatter with the selected pair
-- Scatter, Matrix, and Distributions share context
+- Scatter plot, Scatter matrix, and distribution controls share context
 - Spectrogram requires an explicit compute step
 - FFT requires selecting one or more chips before a plot appears
 - the Upload page can act as both an ingest page and a profile browser for the current dataset

@@ -43,7 +43,7 @@ cargo build
 ### Start the server
 
 ```bash
-cargo run --release
+cargo run --release --bin edatime
 ```
 
 Or run the pre-built binary directly:
@@ -65,7 +65,7 @@ The server binds to `127.0.0.1:3000` by default.
 Set `EDATIME_SAMPLE_DATA` to a CSV or Parquet file path and the dataset will be loaded automatically on startup — no manual upload needed:
 
 ```bash
-EDATIME_SAMPLE_DATA=./my_data.csv cargo run --release
+EDATIME_SAMPLE_DATA=./my_data.csv cargo run --release --bin edatime
 ```
 
 ### Configuration
@@ -75,7 +75,7 @@ You can tune the server via a `config.toml` file or environment variables. All s
 **Using a config file:**
 
 ```bash
-EDATIME_CONFIG=./config.toml cargo run --release
+EDATIME_CONFIG=./config.toml cargo run --release --bin edatime
 ```
 
 **Example `config.toml`:**
@@ -194,33 +194,19 @@ The toolbar export menu supports:
 
 ---
 
-### Scatter and density analysis — the Scatter page
+### Scatter analysis — the Scatter page
 
 Navigate via the sidebar (**S**) or press `Alt+3`.
 
 - The page opens with **correlation suggestions** — pairs of columns ranked by how strongly they correlate, to help you pick a useful X/Y combination.
 - Select an **X column** and **Y column** from the dropdowns (or pick a suggested pair).
-- Switch between **Scatter** mode (individual sampled points) and **Density** mode (hexbin density heatmap).
+- In **Plot** view, switch between **Scatter** mode (individual sampled points) and **Density** mode (hexbin density heatmap).
 - The current **time range and filters** from the Timeseries page are propagated into the scatter query automatically — zoom into a region on the Timeseries page, then check the Scatter page to see only those points.
 - Optionally select a **color column** to encode a third variable as color. Choose a color scale from the dropdown below the chart.
-- The scatter legend and stats panel shows the count of visible points and zoom level.
-
----
-
-### Scatter matrix — the Matrix page
-
-Navigate via the sidebar (**M**).
-
-- Renders a grid of scatter plots for every pair of active numeric columns in one view.
-- Click any cell to open that pair on the full Scatter page for deeper analysis.
-
----
-
-### Distributions page
-
-Navigate via the sidebar (**D**).
-
-- Shows distribution cards (histogram + stats) for the columns currently active on the Scatter page.
+- Use the **Plot / Matrix** toggle at the top of the page to switch into the scatter matrix without leaving the Scatter workflow.
+- The matrix view renders a linked grid of pairwise cells, keeps the same filter context, and lets you click any cell to drill back into the detailed plot view.
+- Distribution controls live in the same Scatter toolbar: choose `Histogram`, `KDE`, or `Box Plot` to change how the marginal views and matrix diagonals summarize the active pair.
+- The scatter stats bar shows total and visible points, the current pair, and Pearson/Spearman values.
 
 ---
 
@@ -231,6 +217,11 @@ Navigate via the sidebar (**D**).
 | `Alt+1` | Go to Upload page |
 | `Alt+2` | Go to Timeseries page |
 | `Alt+3` | Go to Scatter page |
+| `Alt+6` | Go to FFT / PSD page |
+| `Alt+7` | Go to Correlations page |
+| `Alt+8` | Go to Spectrogram page |
+| `Alt+9` | Go to Causal Graph page |
+| `Alt+0` | Go to Drift Analysis page |
 | `Shift+R` | Reset chart zoom to full dataset view |
 | `Ctrl+click` chip | Set series as adaptive filter target |
 | `Ctrl+click` chart ×2 | Draw an adaptive filter segment |
@@ -353,8 +344,8 @@ Common targets are available via the included Makefile:
 ```bash
 make build          # cargo build (debug)
 make build-release  # cargo build --release
-make run            # cargo run --release
-make dev            # build frontend + cargo run (debug)
+make run            # cargo run --release --bin edatime
+make dev            # build frontend + cargo run --bin edatime
 make check          # cargo check + clippy + tsc
 make test           # cargo test + frontend syntax check
 make frontend-prod  # minified frontend build (requires Node)

@@ -111,6 +111,16 @@ describe('drift page chart bootstrap', () => {
 
         const page = document.getElementById('page-drift') as HTMLElement;
         page.hidden = false;
+        Object.defineProperty(timelineEl, 'clientWidth', { configurable: true, value: 0 });
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'drift' } }));
+
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(echarts.getInstanceByDom(timelineEl)).toBeUndefined();
+        expect(echarts.getInstanceByDom(detailEl)).toBeUndefined();
+
+        Object.defineProperty(timelineEl, 'clientWidth', { configurable: true, value: 700 });
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'drift' } }));
 
         await Promise.resolve();

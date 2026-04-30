@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../src/utils/platform.ts"],
-  "sourcesContent": ["export function isWindowsPlatform(): boolean {\n    return typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent);\n}\n\nexport function defaultGpuPowerPreference(): 'low-power' | 'high-performance' | undefined {\n    return isWindowsPlatform() ? 'low-power' : undefined;\n}\n"],
-  "mappings": ";AAAO,SAAS,oBAA6B;AACzC,SAAO,OAAO,cAAc,eAAe,WAAW,KAAK,UAAU,SAAS;AAClF;AAEO,SAAS,4BAA0E;AACtF,SAAO,kBAAkB,IAAI,cAAc;AAC/C;",
-  "names": []
-}

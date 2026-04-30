@@ -74,14 +74,16 @@ export class FftChart {
         this._container = container;
         ensureRelativePosition(container);
 
-        this._chart = await createChart(container, {
+        const chartOptions: Record<string, unknown> = {
             grid: FFT_GRID,
             xAxis: { type: 'value' },
             yAxis: { type: 'value' },
             legend: { show: true, position: 'right' },
             series: [],
-            powerPreference: defaultGpuPowerPreference(),
-        });
+        };
+        const powerPreference = defaultGpuPowerPreference();
+        if (powerPreference) chartOptions.powerPreference = powerPreference;
+        this._chart = await createChart(container, chartOptions as any);
 
         this._initOverlay();
         this._initInteractions();
