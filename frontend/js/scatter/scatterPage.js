@@ -12,7 +12,7 @@ import {
   Ad,
   defaultGpuPowerPreference,
   requestGpuAdapter
-} from "../chunk-RVK67GPZ.js";
+} from "../chunk-LYBNNLKR.js";
 import {
   MATRIX_MAX_COLUMNS,
   MATRIX_POINT_LIMIT,
@@ -50,7 +50,7 @@ import {
   showError,
   state,
   upperBoundByX
-} from "../chunk-6OWCZNYV.js";
+} from "../chunk-DSS2I5H6.js";
 import {
   appState,
   formatTimestamp,

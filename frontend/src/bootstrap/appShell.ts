@@ -7,7 +7,7 @@ import {
 } from '../ui/toolbar.js';
 import { initColumnFilterModal } from '../ui/columns.js';
 import { initHashRouting } from '../utils/router.js';
-import { initCommandPalette, openPalette, registerCommands } from '../utils/palette.js';
+import { initCommandPalette, openPalette, registerCommands, type PaletteCommand } from '../utils/palette.js';
 import { initProvenance, toggleProvenance } from '../utils/provenance.js';
 import { initSettings } from '../utils/settings.js';
 import { initSettingsPanel, openSettingsModal } from '../ui/settingsPanel.js';
@@ -34,6 +34,112 @@ export interface AppShellDeps {
     hydrateColumnProfiles: (...args: any[]) => void;
     renderColumnProfilesGrid: (...args: any[]) => void;
     registerCleanup: (cleanup: () => void) => void;
+}
+
+type AppCommandDeps = Pick<AppShellDeps, 'showPage' | 'zoomOut' | 'resetZoom'>;
+
+interface KeyboardShortcutDefinition {
+    key: string;
+    alt?: boolean;
+    shift?: boolean;
+    page?: string;
+    action: (deps: AppCommandDeps) => void;
+}
+
+interface AppCommandDefinition {
+    id: string;
+    label: string;
+    shortcut?: string;
+    category: PaletteCommand['category'];
+    action: (deps: AppCommandDeps) => void;
+    keyboard?: Omit<KeyboardShortcutDefinition, 'action'>;
+}
+
+function exportChartFilteredData(format: 'csv' | 'json'): void {
+    (window as any).__edatime?.exportChartFilteredData?.(format);
+}
+
+function triggerAdaptiveFilterClear(): void {
+    document.getElementById('adaptive-clear-btn')?.click?.();
+}
+
+function triggerActivePageCsvExport(): void {
+    if (currentPageName() === 'scatter') {
+        document.getElementById('scatter-export-csv-btn')?.click?.();
+        return;
+    }
+    exportChartFilteredData('csv');
+}
+
+const APP_COMMAND_DEFINITIONS: ReadonlyArray<AppCommandDefinition> = [
+    { id: 'nav-upload', label: 'Go to Upload', shortcut: 'Alt+1', category: 'Navigation', action: (deps) => deps.showPage('upload'), keyboard: { key: '1', alt: true } },
+    { id: 'nav-timeseries', label: 'Go to Timeseries', shortcut: 'Alt+2', category: 'Navigation', action: (deps) => deps.showPage('timeseries'), keyboard: { key: '2', alt: true } },
+    { id: 'nav-scatter', label: 'Go to Scatter', shortcut: 'Alt+3', category: 'Navigation', action: (deps) => deps.showPage('scatter'), keyboard: { key: '3', alt: true } },
+    { id: 'nav-matrix', label: 'Go to Scatter Matrix', shortcut: 'Alt+4', category: 'Navigation', action: (deps) => deps.showPage('scattermatrix'), keyboard: { key: '4', alt: true } },
+    { id: 'nav-fft', label: 'Go to FFT / PSD', shortcut: 'Alt+6', category: 'Navigation', action: (deps) => deps.showPage('fft'), keyboard: { key: '6', alt: true } },
+    { id: 'nav-heatmap', label: 'Go to Heatmap', shortcut: 'Alt+7', category: 'Navigation', action: (deps) => deps.showPage('heatmap'), keyboard: { key: '7', alt: true } },
+    { id: 'nav-spectrogram', label: 'Go to Spectrogram', shortcut: 'Alt+8', category: 'Navigation', action: (deps) => deps.showPage('spectrogram'), keyboard: { key: '8', alt: true } },
+    { id: 'nav-causal', label: 'Go to Causal', shortcut: 'Alt+9', category: 'Navigation', action: (deps) => deps.showPage('causal'), keyboard: { key: '9', alt: true } },
+    { id: 'nav-drift', label: 'Go to Drift Analysis', shortcut: 'Alt+0', category: 'Navigation', action: (deps) => deps.showPage('drift'), keyboard: { key: '0', alt: true } },
+    { id: 'chart-reset', label: 'Reset zoom', shortcut: 'Shift+R', category: 'Chart', action: (deps) => deps.resetZoom(), keyboard: { key: 'r', shift: true, page: 'timeseries' } },
+    { id: 'chart-zoomout', label: 'Zoom out one level', shortcut: 'Shift+Z', category: 'Chart', action: (deps) => deps.zoomOut(), keyboard: { key: 'z', shift: true, page: 'timeseries' } },
+    { id: 'chart-clear-af', label: 'Clear adaptive filters', shortcut: 'Shift+C', category: 'Chart', action: () => triggerAdaptiveFilterClear(), keyboard: { key: 'c', shift: true, page: 'timeseries' } },
+    { id: 'export-csv', label: 'Export chart data as CSV', shortcut: 'Shift+E', category: 'Export', action: () => exportChartFilteredData('csv') },
+    { id: 'export-json', label: 'Export chart data as JSON', category: 'Export', action: () => exportChartFilteredData('json') },
+    { id: 'export-png', label: 'Export chart as PNG', category: 'Export', action: () => (window as any).__edatime?.chart?.exportPNG?.() },
+    { id: 'export-parquet', label: 'Export filtered data as Parquet', category: 'Export', action: () => document.getElementById('export-parquet-btn')?.click?.() },
+    { id: 'session-save', label: 'Export session to file', category: 'Session', action: () => exportSessionToFile() },
+    { id: 'session-load', label: 'Import session from file', category: 'Session', action: () => importSessionFromFile() },
+    { id: 'provenance', label: 'Show analysis context panel', shortcut: 'Ctrl+I', category: 'Analysis', action: () => toggleProvenance() },
+    { id: 'cmd-palette', label: 'Open command palette', shortcut: 'Ctrl+K', category: 'Analysis', action: () => openPalette() },
+    { id: 'settings', label: 'Open settings', shortcut: 'Ctrl+,', category: 'Analysis', action: () => openSettingsModal() },
+    { id: 'workflow-enable', label: 'Enable guided workflow', category: 'Analysis', action: () => enableGuidedWorkflow() },
+    { id: 'workflow-disable', label: 'Hide guided workflow', category: 'Analysis', action: () => disableGuidedWorkflow() },
+    { id: 'workflow-next', label: 'Go to next guided step', category: 'Analysis', action: () => goToNextGuidedStep() },
+];
+
+const KEYBOARD_ONLY_SHORTCUTS: ReadonlyArray<KeyboardShortcutDefinition> = [
+    { key: 'e', shift: true, action: () => triggerActivePageCsvExport() },
+];
+
+function buildPaletteCommands(deps: AppCommandDeps): PaletteCommand[] {
+    return APP_COMMAND_DEFINITIONS.map((definition) => ({
+        id: definition.id,
+        label: definition.label,
+        shortcut: definition.shortcut,
+        category: definition.category,
+        action: () => definition.action(deps),
+    }));
+}
+
+function matchesKeyboardShortcut(
+    shortcut: Pick<KeyboardShortcutDefinition, 'key' | 'alt' | 'shift' | 'page'>,
+    key: string,
+    pageName: string,
+    options: Pick<KeyboardShortcutDefinition, 'alt' | 'shift'>,
+): boolean {
+    return shortcut.key === key
+        && Boolean(shortcut.alt) === Boolean(options.alt)
+        && Boolean(shortcut.shift) === Boolean(options.shift)
+        && (!shortcut.page || shortcut.page === pageName);
+}
+
+function findMatchingKeyboardShortcut(
+    key: string,
+    pageName: string,
+    options: Pick<KeyboardShortcutDefinition, 'alt' | 'shift'>,
+): KeyboardShortcutDefinition | undefined {
+    const commandShortcut = APP_COMMAND_DEFINITIONS.find((definition) => {
+        const keyboard = definition.keyboard;
+        return keyboard && matchesKeyboardShortcut(keyboard, key, pageName, options);
+    });
+    if (commandShortcut?.keyboard) {
+        return {
+            ...commandShortcut.keyboard,
+            action: commandShortcut.action,
+        };
+    }
+    return KEYBOARD_ONLY_SHORTCUTS.find((shortcut) => matchesKeyboardShortcut(shortcut, key, pageName, options));
 }
 
 function initThemeToggle(): void {
@@ -114,27 +220,22 @@ export function initKeyboardShortcuts(deps: Pick<AppShellDeps, 'showPage' | 'zoo
     const onKeydown = (event: KeyboardEvent) => {
         if (event.defaultPrevented || isTypingTarget(event.target)) return;
         const key = String(event.key || '').toLowerCase();
+        const pageName = currentPageName();
 
         if (event.altKey && !event.ctrlKey && !event.metaKey) {
-            if (key === '1') { event.preventDefault(); deps.showPage('upload'); return; }
-            if (key === '2') { event.preventDefault(); deps.showPage('timeseries'); return; }
-            if (key === '3') { event.preventDefault(); deps.showPage('scatter'); return; }
-            if (key === '4') { event.preventDefault(); deps.showPage('scattermatrix'); return; }
-            if (key === '6') { event.preventDefault(); deps.showPage('fft'); return; }
-            if (key === '7') { event.preventDefault(); deps.showPage('heatmap'); return; }
-            if (key === '8') { event.preventDefault(); deps.showPage('spectrogram'); return; }
-            if (key === '9') { event.preventDefault(); deps.showPage('causal'); return; }
-            if (key === '0') { event.preventDefault(); deps.showPage('drift'); return; }
+            const shortcut = findMatchingKeyboardShortcut(key, pageName, { alt: true, shift: false });
+            if (shortcut) {
+                event.preventDefault();
+                shortcut.action(deps);
+                return;
+            }
         }
 
         if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
-        if (key === 'r' && currentPageName() === 'timeseries') { event.preventDefault(); deps.resetZoom(); return; }
-        if (key === 'z' && currentPageName() === 'timeseries') { event.preventDefault(); deps.zoomOut(); return; }
-        if (key === 'c' && currentPageName() === 'timeseries') { event.preventDefault(); document.getElementById('adaptive-clear-btn')?.click?.(); return; }
-        if (key === 'e') {
+        const shortcut = findMatchingKeyboardShortcut(key, pageName, { alt: false, shift: true });
+        if (shortcut) {
             event.preventDefault();
-            if (currentPageName() === 'scatter') document.getElementById('scatter-export-csv-btn')?.click?.();
-            else (window as any).__edatime?.exportChartFilteredData?.('csv');
+            shortcut.action(deps);
         }
     };
 
@@ -153,32 +254,7 @@ function wireHomeNavigationCards(showPage: (pageName: string) => void): void {
 }
 
 export function registerAppCommands(deps: Pick<AppShellDeps, 'showPage' | 'zoomOut' | 'resetZoom'>): void {
-    registerCommands([
-        { id: 'nav-upload', label: 'Go to Upload', shortcut: 'Alt+1', category: 'Navigation', action: () => deps.showPage('upload') },
-        { id: 'nav-timeseries', label: 'Go to Timeseries', shortcut: 'Alt+2', category: 'Navigation', action: () => deps.showPage('timeseries') },
-        { id: 'nav-scatter', label: 'Go to Scatter', shortcut: 'Alt+3', category: 'Navigation', action: () => deps.showPage('scatter') },
-        { id: 'nav-matrix', label: 'Go to Scatter Matrix', shortcut: 'Alt+4', category: 'Navigation', action: () => deps.showPage('scattermatrix') },
-        { id: 'nav-fft', label: 'Go to FFT / PSD', shortcut: 'Alt+6', category: 'Navigation', action: () => deps.showPage('fft') },
-        { id: 'nav-heatmap', label: 'Go to Heatmap', shortcut: 'Alt+7', category: 'Navigation', action: () => deps.showPage('heatmap') },
-        { id: 'nav-spectrogram', label: 'Go to Spectrogram', shortcut: 'Alt+8', category: 'Navigation', action: () => deps.showPage('spectrogram') },
-        { id: 'nav-causal', label: 'Go to Causal', shortcut: 'Alt+9', category: 'Navigation', action: () => deps.showPage('causal') },
-        { id: 'nav-drift', label: 'Go to Drift Analysis', shortcut: 'Alt+0', category: 'Navigation', action: () => deps.showPage('drift') },
-        { id: 'chart-reset', label: 'Reset zoom', shortcut: 'Shift+R', category: 'Chart', action: deps.resetZoom },
-        { id: 'chart-zoomout', label: 'Zoom out one level', shortcut: 'Shift+Z', category: 'Chart', action: deps.zoomOut },
-        { id: 'chart-clear-af', label: 'Clear adaptive filters', shortcut: 'Shift+C', category: 'Chart', action: () => document.getElementById('adaptive-clear-btn')?.click?.() },
-        { id: 'export-csv', label: 'Export chart data as CSV', shortcut: 'Shift+E', category: 'Export', action: () => (window as any).__edatime?.exportChartFilteredData?.('csv') },
-        { id: 'export-json', label: 'Export chart data as JSON', category: 'Export', action: () => (window as any).__edatime?.exportChartFilteredData?.('json') },
-        { id: 'export-png', label: 'Export chart as PNG', category: 'Export', action: () => (window as any).__edatime?.chart?.exportPNG?.() },
-        { id: 'export-parquet', label: 'Export filtered data as Parquet', category: 'Export', action: () => document.getElementById('export-parquet-btn')?.click?.() },
-        { id: 'session-save', label: 'Export session to file', category: 'Session', action: exportSessionToFile },
-        { id: 'session-load', label: 'Import session from file', category: 'Session', action: importSessionFromFile },
-        { id: 'provenance', label: 'Show analysis context panel', shortcut: 'Ctrl+I', category: 'Analysis', action: toggleProvenance },
-        { id: 'cmd-palette', label: 'Open command palette', shortcut: 'Ctrl+K', category: 'Analysis', action: openPalette },
-        { id: 'settings', label: 'Open settings', shortcut: 'Ctrl+,', category: 'Analysis', action: openSettingsModal },
-        { id: 'workflow-enable', label: 'Enable guided workflow', category: 'Analysis', action: enableGuidedWorkflow },
-        { id: 'workflow-disable', label: 'Hide guided workflow', category: 'Analysis', action: disableGuidedWorkflow },
-        { id: 'workflow-next', label: 'Go to next guided step', category: 'Analysis', action: goToNextGuidedStep },
-    ]);
+    registerCommands(buildPaletteCommands(deps));
 }
 
 export function initAppShell(deps: AppShellDeps): void {

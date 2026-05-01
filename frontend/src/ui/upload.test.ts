@@ -4,8 +4,22 @@
  * Covers: setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata } from './upload';
+import { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata, formatUploadRowCount } from './upload';
 import type { DatasetMetadata } from '../types';
+
+describe('formatUploadRowCount', () => {
+    it('formats small counts without suffixes', () => {
+        expect(formatUploadRowCount(512)).toBe('512');
+    });
+
+    it('formats thousands with K suffix', () => {
+        expect(formatUploadRowCount(4_500)).toBe('5K');
+    });
+
+    it('formats millions with M suffix', () => {
+        expect(formatUploadRowCount(1_250_000)).toBe('1.3M');
+    });
+});
 
 describe('setUploadPreviewStatus', () => {
     beforeEach(() => {

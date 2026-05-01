@@ -10,11 +10,58 @@ import type { DatasetMetadata } from '../types.js';
 
 const UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
 
+interface PartialTimeRangeInputs {
+    startInput: HTMLInputElement;
+    endInput: HTMLInputElement;
+    hint: HTMLElement | null;
+}
+
+function getPartialTimeRangeInputs(): PartialTimeRangeInputs | null {
+    const startInput = document.getElementById('time-start-input') as HTMLInputElement | null;
+    const endInput = document.getElementById('time-end-input') as HTMLInputElement | null;
+    if (!startInput || !endInput) return null;
+
+    return {
+        startInput,
+        endInput,
+        hint: document.getElementById('time-range-hint'),
+    };
+}
+
+function clearPartialTimeRangeInputs(inputs: PartialTimeRangeInputs): void {
+    if (inputs.hint) inputs.hint.textContent = 'Time range not detected in this file.';
+    inputs.startInput.min = '';
+    inputs.startInput.max = '';
+    inputs.endInput.min = '';
+    inputs.endInput.max = '';
+}
+
+function setPartialTimeRangeInputs(
+    inputs: PartialTimeRangeInputs,
+    minLocal: string,
+    maxLocal: string,
+    overwriteInputs: boolean,
+): void {
+    inputs.startInput.min = minLocal;
+    inputs.startInput.max = maxLocal;
+    inputs.endInput.min = minLocal;
+    inputs.endInput.max = maxLocal;
+
+    if (overwriteInputs || !inputs.startInput.value) inputs.startInput.value = minLocal;
+    if (overwriteInputs || !inputs.endInput.value) inputs.endInput.value = maxLocal;
+}
+
 export function setUploadPreviewStatus(text: string, kind = ''): void {
     const el = document.getElementById('upload-preview-status');
     if (!el) return;
     el.textContent = text;
     el.className = `upload-preview-status ${kind}`.trim();
+}
+
+export function formatUploadRowCount(rowCount: number): string {
+    return rowCount >= 1_000_000
+        ? (rowCount / 1_000_000).toFixed(1) + 'M'
+        : rowCount >= 1_000 ? (rowCount / 1_000).toFixed(0) + 'K' : String(rowCount);
 }
 
 /** Update the profile-mode badge to reflect whether the grid shows the
@@ -30,35 +77,23 @@ export function applyPartialTimeRangeFromMetadata(
     metadata: DatasetMetadata | null,
     overwriteInputs = true,
 ): void {
-    const startInput = document.getElementById('time-start-input') as HTMLInputElement | null;
-    const endInput = document.getElementById('time-end-input') as HTMLInputElement | null;
-    const hint = document.getElementById('time-range-hint');
-    if (!startInput || !endInput) return;
+    const inputs = getPartialTimeRangeInputs();
+    if (!inputs) return;
 
     const minMs = Number(metadata?.time_range?.min);
     const maxMs = Number(metadata?.time_range?.max);
     if (!Number.isFinite(minMs) || !Number.isFinite(maxMs)) {
-        if (hint) hint.textContent = 'Time range not detected in this file.';
-        startInput.min = '';
-        startInput.max = '';
-        endInput.min = '';
-        endInput.max = '';
+        clearPartialTimeRangeInputs(inputs);
         return;
     }
 
     const minLocal = formatToDatetimeLocal(minMs);
     const maxLocal = formatToDatetimeLocal(maxMs);
 
-    startInput.min = minLocal;
-    startInput.max = maxLocal;
-    endInput.min = minLocal;
-    endInput.max = maxLocal;
+    setPartialTimeRangeInputs(inputs, minLocal, maxLocal, overwriteInputs);
 
-    if (overwriteInputs || !startInput.value) startInput.value = minLocal;
-    if (overwriteInputs || !endInput.value) endInput.value = maxLocal;
-
-    if (hint) {
-        hint.textContent = `Detected: ${formatAnalysisTime(minMs)} → ${formatAnalysisTime(maxMs)}`;
+    if (inputs.hint) {
+        inputs.hint.textContent = `Detected: ${formatAnalysisTime(minMs)} → ${formatAnalysisTime(maxMs)}`;
     }
 }
 
@@ -282,29 +317,23 @@ export function initUploadPanel(
     partialFlds.classList.toggle('visible', partialChk.checked);
 
     // Sync range ↔ number input
-    function fmtRows(n: number): string {
-        return n >= 1_000_000
-            ? (n / 1_000_000).toFixed(1) + 'M'
-            : n >= 1_000 ? (n / 1_000).toFixed(0) + 'K' : String(n);
-    }
-
     nRowsRange.addEventListener('input', () => {
         const v = parseInt(nRowsRange!.value, 10);
         nRowsInput!.value = String(v);
-        nRowsDisp!.textContent = fmtRows(v);
+        nRowsDisp!.textContent = formatUploadRowCount(v);
     });
     nRowsInput.addEventListener('input', () => {
         const v = parseInt(nRowsInput!.value, 10);
         if (!isNaN(v)) {
             nRowsRange!.value = String(Math.min(v, parseInt(nRowsRange!.max, 10)));
-            nRowsDisp!.textContent = fmtRows(v);
+            nRowsDisp!.textContent = formatUploadRowCount(v);
         }
     });
 
     const defaultRows = parseInt(nRowsRange.value, 10);
     if (!isNaN(defaultRows) && defaultRows > 0) {
         nRowsInput.value = String(defaultRows);
-        nRowsDisp.textContent = fmtRows(defaultRows);
+        nRowsDisp.textContent = formatUploadRowCount(defaultRows);
     }
 
     applyPartialTimeRangeFromMetadata(appState.metadata, false);
@@ -444,6 +473,9 @@ export function initUploadPanel(
     if (dbChk && dbFlds) {
         dbChk.addEventListener('change', () => {
             dbFlds.classList.toggle('visible', dbChk.checked);
+            if (dbChk.checked) {
+                void syncDatabaseStatus();
+            }
         });
     }
 
@@ -592,13 +624,4 @@ export function initUploadPanel(
         }
     }
 
-    const maybeLoadDbStatus = (event?: Event | CustomEvent) => {
-        const page = (event as CustomEvent | undefined)?.detail?.page;
-        const navPage = (event as CustomEvent | undefined)?.detail?.navPage;
-        if (page === 'upload' || navPage === 'upload') {
-            void syncDatabaseStatus();
-        }
-    };
-
-    window.addEventListener('edatime:page-change', maybeLoadDbStatus as EventListener);
 }

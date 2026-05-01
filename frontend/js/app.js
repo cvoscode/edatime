@@ -16,7 +16,7 @@ import {
 } from "./chunk-T63Y6LQO.js";
 import {
   FftChart
-} from "./chunk-6HJ62GPA.js";
+} from "./chunk-U3STFUGM.js";
 import "./chunk-667JW4DN.js";
 import {
   createEmptyStateController,
@@ -35,7 +35,7 @@ import {
 import {
   installWindowsWebGpuRequestAdapterWorkaround,
   requestGpuAdapter
-} from "./chunk-RVK67GPZ.js";
+} from "./chunk-LYBNNLKR.js";
 import {
   PROFILE_COLUMNS,
   PROFILE_OVERSCAN,
@@ -561,11 +561,39 @@ function initColumnFilterModal(renderCurrentData2, updateAnalysisYRange2) {
 
 // frontend/src/ui/upload.ts
 var UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
+function getPartialTimeRangeInputs() {
+  const startInput = document.getElementById("time-start-input");
+  const endInput = document.getElementById("time-end-input");
+  if (!startInput || !endInput) return null;
+  return {
+    startInput,
+    endInput,
+    hint: document.getElementById("time-range-hint")
+  };
+}
+function clearPartialTimeRangeInputs(inputs) {
+  if (inputs.hint) inputs.hint.textContent = "Time range not detected in this file.";
+  inputs.startInput.min = "";
+  inputs.startInput.max = "";
+  inputs.endInput.min = "";
+  inputs.endInput.max = "";
+}
+function setPartialTimeRangeInputs(inputs, minLocal, maxLocal, overwriteInputs) {
+  inputs.startInput.min = minLocal;
+  inputs.startInput.max = maxLocal;
+  inputs.endInput.min = minLocal;
+  inputs.endInput.max = maxLocal;
+  if (overwriteInputs || !inputs.startInput.value) inputs.startInput.value = minLocal;
+  if (overwriteInputs || !inputs.endInput.value) inputs.endInput.value = maxLocal;
+}
 function setUploadPreviewStatus(text, kind = "") {
   const el = document.getElementById("upload-preview-status");
   if (!el) return;
   el.textContent = text;
   el.className = `upload-preview-status ${kind}`.trim();
+}
+function formatUploadRowCount(rowCount) {
+  return rowCount >= 1e6 ? (rowCount / 1e6).toFixed(1) + "M" : rowCount >= 1e3 ? (rowCount / 1e3).toFixed(0) + "K" : String(rowCount);
 }
 function setProfileMode(mode) {
   const badge = document.getElementById("profile-mode-badge");
@@ -574,30 +602,19 @@ function setProfileMode(mode) {
   badge.textContent = mode === "preview" ? "Upload preview" : "Current dataset";
 }
 function applyPartialTimeRangeFromMetadata(metadata, overwriteInputs = true) {
-  const startInput = document.getElementById("time-start-input");
-  const endInput = document.getElementById("time-end-input");
-  const hint = document.getElementById("time-range-hint");
-  if (!startInput || !endInput) return;
+  const inputs = getPartialTimeRangeInputs();
+  if (!inputs) return;
   const minMs = Number(metadata?.time_range?.min);
   const maxMs = Number(metadata?.time_range?.max);
   if (!Number.isFinite(minMs) || !Number.isFinite(maxMs)) {
-    if (hint) hint.textContent = "Time range not detected in this file.";
-    startInput.min = "";
-    startInput.max = "";
-    endInput.min = "";
-    endInput.max = "";
+    clearPartialTimeRangeInputs(inputs);
     return;
   }
   const minLocal = formatToDatetimeLocal(minMs);
   const maxLocal = formatToDatetimeLocal(maxMs);
-  startInput.min = minLocal;
-  startInput.max = maxLocal;
-  endInput.min = minLocal;
-  endInput.max = maxLocal;
-  if (overwriteInputs || !startInput.value) startInput.value = minLocal;
-  if (overwriteInputs || !endInput.value) endInput.value = maxLocal;
-  if (hint) {
-    hint.textContent = `Detected: ${formatAnalysisTime(minMs)} \u2192 ${formatAnalysisTime(maxMs)}`;
+  setPartialTimeRangeInputs(inputs, minLocal, maxLocal, overwriteInputs);
+  if (inputs.hint) {
+    inputs.hint.textContent = `Detected: ${formatAnalysisTime(minMs)} \u2192 ${formatAnalysisTime(maxMs)}`;
   }
 }
 function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
@@ -788,25 +805,22 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
     partialFlds.classList.toggle("visible", partialChk.checked);
   });
   partialFlds.classList.toggle("visible", partialChk.checked);
-  function fmtRows(n) {
-    return n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(0) + "K" : String(n);
-  }
   nRowsRange.addEventListener("input", () => {
     const v = parseInt(nRowsRange.value, 10);
     nRowsInput.value = String(v);
-    nRowsDisp.textContent = fmtRows(v);
+    nRowsDisp.textContent = formatUploadRowCount(v);
   });
   nRowsInput.addEventListener("input", () => {
     const v = parseInt(nRowsInput.value, 10);
     if (!isNaN(v)) {
       nRowsRange.value = String(Math.min(v, parseInt(nRowsRange.max, 10)));
-      nRowsDisp.textContent = fmtRows(v);
+      nRowsDisp.textContent = formatUploadRowCount(v);
     }
   });
   const defaultRows = parseInt(nRowsRange.value, 10);
   if (!isNaN(defaultRows) && defaultRows > 0) {
     nRowsInput.value = String(defaultRows);
-    nRowsDisp.textContent = fmtRows(defaultRows);
+    nRowsDisp.textContent = formatUploadRowCount(defaultRows);
   }
   applyPartialTimeRangeFromMetadata(appState.metadata, false);
   selectAllBtn?.addEventListener("click", () => setSelectionMode("all"));
@@ -930,6 +944,9 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
   if (dbChk && dbFlds) {
     dbChk.addEventListener("change", () => {
       dbFlds.classList.toggle("visible", dbChk.checked);
+      if (dbChk.checked) {
+        void syncDatabaseStatus();
+      }
     });
   }
   async function refreshDbTables() {
@@ -1094,47 +1111,76 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
       dbStatusLoaded = false;
     }
   }
-  const maybeLoadDbStatus = (event) => {
-    const page = event?.detail?.page;
-    const navPage = event?.detail?.navPage;
-    if (page === "upload" || navPage === "upload") {
-      void syncDatabaseStatus();
-    }
-  };
-  window.addEventListener("edatime:page-change", maybeLoadDbStatus);
 }
 
 // frontend/src/ui/profile.ts
+function createProfileRow(raw) {
+  const name = String(raw?.name || "").trim();
+  if (!name) return null;
+  const counts = Array.isArray(raw?.histogram?.counts) ? raw.histogram.counts.map((count) => Math.max(0, Number(count) || 0)) : [];
+  return {
+    name,
+    dtype: String(raw?.dtype || ""),
+    nonNullCount: Math.max(0, Number(raw?.non_null_count) || 0),
+    nullCount: Math.max(0, Number(raw?.null_count) || 0),
+    min: toFiniteNumberOrNull(raw?.min),
+    max: toFiniteNumberOrNull(raw?.max),
+    histCounts: counts
+  };
+}
+function createProfileStub(column) {
+  const name = String(column?.name || "").trim();
+  if (!name) return null;
+  return {
+    name,
+    dtype: String(column?.dtype || ""),
+    nonNullCount: 0,
+    nullCount: 0,
+    min: null,
+    max: null,
+    histCounts: []
+  };
+}
+function compareProfileValues(left, right, direction) {
+  const leftValue = String(left || "").toLowerCase();
+  const rightValue = String(right || "").toLowerCase();
+  if (leftValue < rightValue) return -1 * direction;
+  if (leftValue > rightValue) return 1 * direction;
+  return 0;
+}
+function sortProfileRows(profiles, sortKey, sortDir) {
+  const sortable = new Set(PROFILE_COLUMNS.filter((column) => column.sortable).map((column) => column.key));
+  if (!sortKey || !sortable.has(sortKey)) return profiles;
+  const direction = sortDir === "desc" ? -1 : 1;
+  return profiles.sort((leftRow, rightRow) => {
+    const leftValue = leftRow[sortKey];
+    const rightValue = rightRow[sortKey];
+    if (sortKey === "name" || sortKey === "dtype") {
+      return compareProfileValues(leftValue, rightValue, direction);
+    }
+    const leftNumber = Number(leftValue);
+    const rightNumber = Number(rightValue);
+    const leftFinite = Number.isFinite(leftNumber);
+    const rightFinite = Number.isFinite(rightNumber);
+    if (!leftFinite && !rightFinite) return 0;
+    if (!leftFinite) return 1;
+    if (!rightFinite) return -1;
+    return (leftNumber - rightNumber) * direction;
+  });
+}
 function hydrateColumnProfiles(metadata) {
   const incoming = Array.isArray(metadata?.column_profiles) ? metadata.column_profiles : [];
   const cols = Array.isArray(metadata?.columns) ? metadata.columns : [];
   const profileByName = /* @__PURE__ */ new Map();
   for (const raw of incoming) {
-    const name = String(raw?.name || "").trim();
-    if (!name) continue;
-    const counts = Array.isArray(raw?.histogram?.counts) ? raw.histogram.counts.map((c) => Math.max(0, Number(c) || 0)) : [];
-    profileByName.set(name, {
-      name,
-      dtype: String(raw?.dtype || ""),
-      nonNullCount: Math.max(0, Number(raw?.non_null_count) || 0),
-      nullCount: Math.max(0, Number(raw?.null_count) || 0),
-      min: toFiniteNumberOrNull(raw?.min),
-      max: toFiniteNumberOrNull(raw?.max),
-      histCounts: counts
-    });
+    const profile = createProfileRow(raw);
+    if (!profile) continue;
+    profileByName.set(profile.name, profile);
   }
   for (const col of cols) {
-    const name = String(col?.name || "").trim();
-    if (!name || profileByName.has(name)) continue;
-    profileByName.set(name, {
-      name,
-      dtype: String(col?.dtype || ""),
-      nonNullCount: 0,
-      nullCount: 0,
-      min: null,
-      max: null,
-      histCounts: []
-    });
+    const profile = createProfileStub(col);
+    if (!profile || profileByName.has(profile.name)) continue;
+    profileByName.set(profile.name, profile);
   }
   appState.columnProfiles = Array.from(profileByName.values());
 }
@@ -1143,29 +1189,7 @@ function getFilteredColumnProfiles() {
   const q = (appState.profileFilterText || "").trim().toLowerCase();
   const filtered = !q ? [...profiles] : profiles.filter((p) => p.name.toLowerCase().includes(q) || p.dtype.toLowerCase().includes(q));
   const { key, dir } = appState.profileGridSort || {};
-  const sortDir = dir === "desc" ? -1 : 1;
-  const sortable = new Set(PROFILE_COLUMNS.filter((c) => c.sortable).map((c) => c.key));
-  if (!key || !sortable.has(key)) return filtered;
-  filtered.sort((a, b) => {
-    let av = a[key];
-    let bv = b[key];
-    if (key === "name" || key === "dtype") {
-      const as = String(av || "").toLowerCase();
-      const bs = String(bv || "").toLowerCase();
-      if (as < bs) return -1 * sortDir;
-      if (as > bs) return 1 * sortDir;
-      return 0;
-    }
-    const an = Number(av);
-    const bn = Number(bv);
-    const aFinite = Number.isFinite(an);
-    const bFinite = Number.isFinite(bn);
-    if (!aFinite && !bFinite) return 0;
-    if (!aFinite) return 1;
-    if (!bFinite) return -1;
-    return (an - bn) * sortDir;
-  });
-  return filtered;
+  return sortProfileRows(filtered, key, dir);
 }
 function applyProfileGridColumnsTemplate() {
   const grid = document.getElementById("profile-grid");
@@ -2492,6 +2516,21 @@ function preloadPageStyles(pageName) {
   }
 }
 
+// frontend/src/utils/pageBootstrap.ts
+var DATASET_BOOTSTRAP_PAGES = /* @__PURE__ */ new Set([
+  "timeseries",
+  "scatter",
+  "scattermatrix",
+  "fft",
+  "heatmap",
+  "spectrogram",
+  "causal",
+  "drift"
+]);
+function pageNeedsDatasetBootstrap(pageName) {
+  return Boolean(pageName && DATASET_BOOTSTRAP_PAGES.has(pageName));
+}
+
 // frontend/src/ui/toolbar.ts
 function buildFilteredSeriesRows() {
   if (!appState.lastFetchedData || !Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
@@ -2885,7 +2924,7 @@ function initPages() {
   }
   async function showPage2(pageName) {
     preloadPageStyles(pageName);
-    if (pageName !== "home") {
+    if (pageNeedsDatasetBootstrap(pageName)) {
       await window.__edatime?.ensureDatasetReady?.(pageName);
     }
     if (window.__edatime?.ensurePageModuleLoaded) {
@@ -2932,7 +2971,8 @@ var VALID_PAGES = /* @__PURE__ */ new Set([
   "fft",
   "heatmap",
   "spectrogram",
-  "causal"
+  "causal",
+  "drift"
 ]);
 var _bound = false;
 function getHashPage() {
@@ -4446,6 +4486,73 @@ function initOutlierModal(deps) {
 }
 
 // frontend/src/bootstrap/appShell.ts
+function exportChartFilteredData2(format) {
+  window.__edatime?.exportChartFilteredData?.(format);
+}
+function triggerAdaptiveFilterClear() {
+  document.getElementById("adaptive-clear-btn")?.click?.();
+}
+function triggerActivePageCsvExport() {
+  if (currentPageName() === "scatter") {
+    document.getElementById("scatter-export-csv-btn")?.click?.();
+    return;
+  }
+  exportChartFilteredData2("csv");
+}
+var APP_COMMAND_DEFINITIONS = [
+  { id: "nav-upload", label: "Go to Upload", shortcut: "Alt+1", category: "Navigation", action: (deps) => deps.showPage("upload"), keyboard: { key: "1", alt: true } },
+  { id: "nav-timeseries", label: "Go to Timeseries", shortcut: "Alt+2", category: "Navigation", action: (deps) => deps.showPage("timeseries"), keyboard: { key: "2", alt: true } },
+  { id: "nav-scatter", label: "Go to Scatter", shortcut: "Alt+3", category: "Navigation", action: (deps) => deps.showPage("scatter"), keyboard: { key: "3", alt: true } },
+  { id: "nav-matrix", label: "Go to Scatter Matrix", shortcut: "Alt+4", category: "Navigation", action: (deps) => deps.showPage("scattermatrix"), keyboard: { key: "4", alt: true } },
+  { id: "nav-fft", label: "Go to FFT / PSD", shortcut: "Alt+6", category: "Navigation", action: (deps) => deps.showPage("fft"), keyboard: { key: "6", alt: true } },
+  { id: "nav-heatmap", label: "Go to Heatmap", shortcut: "Alt+7", category: "Navigation", action: (deps) => deps.showPage("heatmap"), keyboard: { key: "7", alt: true } },
+  { id: "nav-spectrogram", label: "Go to Spectrogram", shortcut: "Alt+8", category: "Navigation", action: (deps) => deps.showPage("spectrogram"), keyboard: { key: "8", alt: true } },
+  { id: "nav-causal", label: "Go to Causal", shortcut: "Alt+9", category: "Navigation", action: (deps) => deps.showPage("causal"), keyboard: { key: "9", alt: true } },
+  { id: "nav-drift", label: "Go to Drift Analysis", shortcut: "Alt+0", category: "Navigation", action: (deps) => deps.showPage("drift"), keyboard: { key: "0", alt: true } },
+  { id: "chart-reset", label: "Reset zoom", shortcut: "Shift+R", category: "Chart", action: (deps) => deps.resetZoom(), keyboard: { key: "r", shift: true, page: "timeseries" } },
+  { id: "chart-zoomout", label: "Zoom out one level", shortcut: "Shift+Z", category: "Chart", action: (deps) => deps.zoomOut(), keyboard: { key: "z", shift: true, page: "timeseries" } },
+  { id: "chart-clear-af", label: "Clear adaptive filters", shortcut: "Shift+C", category: "Chart", action: () => triggerAdaptiveFilterClear(), keyboard: { key: "c", shift: true, page: "timeseries" } },
+  { id: "export-csv", label: "Export chart data as CSV", shortcut: "Shift+E", category: "Export", action: () => exportChartFilteredData2("csv") },
+  { id: "export-json", label: "Export chart data as JSON", category: "Export", action: () => exportChartFilteredData2("json") },
+  { id: "export-png", label: "Export chart as PNG", category: "Export", action: () => window.__edatime?.chart?.exportPNG?.() },
+  { id: "export-parquet", label: "Export filtered data as Parquet", category: "Export", action: () => document.getElementById("export-parquet-btn")?.click?.() },
+  { id: "session-save", label: "Export session to file", category: "Session", action: () => exportSessionToFile() },
+  { id: "session-load", label: "Import session from file", category: "Session", action: () => importSessionFromFile() },
+  { id: "provenance", label: "Show analysis context panel", shortcut: "Ctrl+I", category: "Analysis", action: () => toggleProvenance() },
+  { id: "cmd-palette", label: "Open command palette", shortcut: "Ctrl+K", category: "Analysis", action: () => openPalette() },
+  { id: "settings", label: "Open settings", shortcut: "Ctrl+,", category: "Analysis", action: () => openSettingsModal() },
+  { id: "workflow-enable", label: "Enable guided workflow", category: "Analysis", action: () => enableGuidedWorkflow() },
+  { id: "workflow-disable", label: "Hide guided workflow", category: "Analysis", action: () => disableGuidedWorkflow() },
+  { id: "workflow-next", label: "Go to next guided step", category: "Analysis", action: () => goToNextGuidedStep() }
+];
+var KEYBOARD_ONLY_SHORTCUTS = [
+  { key: "e", shift: true, action: () => triggerActivePageCsvExport() }
+];
+function buildPaletteCommands(deps) {
+  return APP_COMMAND_DEFINITIONS.map((definition) => ({
+    id: definition.id,
+    label: definition.label,
+    shortcut: definition.shortcut,
+    category: definition.category,
+    action: () => definition.action(deps)
+  }));
+}
+function matchesKeyboardShortcut(shortcut, key, pageName, options) {
+  return shortcut.key === key && Boolean(shortcut.alt) === Boolean(options.alt) && Boolean(shortcut.shift) === Boolean(options.shift) && (!shortcut.page || shortcut.page === pageName);
+}
+function findMatchingKeyboardShortcut(key, pageName, options) {
+  const commandShortcut = APP_COMMAND_DEFINITIONS.find((definition) => {
+    const keyboard = definition.keyboard;
+    return keyboard && matchesKeyboardShortcut(keyboard, key, pageName, options);
+  });
+  if (commandShortcut?.keyboard) {
+    return {
+      ...commandShortcut.keyboard,
+      action: commandShortcut.action
+    };
+  }
+  return KEYBOARD_ONLY_SHORTCUTS.find((shortcut) => matchesKeyboardShortcut(shortcut, key, pageName, options));
+}
 function initThemeToggle() {
   const btn = document.getElementById("theme-toggle-btn");
   const iconDark = document.getElementById("theme-icon-dark");
@@ -4507,73 +4614,20 @@ function initKeyboardShortcuts(deps) {
   const onKeydown = (event) => {
     if (event.defaultPrevented || isTypingTarget(event.target)) return;
     const key = String(event.key || "").toLowerCase();
+    const pageName = currentPageName();
     if (event.altKey && !event.ctrlKey && !event.metaKey) {
-      if (key === "1") {
+      const shortcut2 = findMatchingKeyboardShortcut(key, pageName, { alt: true, shift: false });
+      if (shortcut2) {
         event.preventDefault();
-        deps.showPage("upload");
-        return;
-      }
-      if (key === "2") {
-        event.preventDefault();
-        deps.showPage("timeseries");
-        return;
-      }
-      if (key === "3") {
-        event.preventDefault();
-        deps.showPage("scatter");
-        return;
-      }
-      if (key === "4") {
-        event.preventDefault();
-        deps.showPage("scattermatrix");
-        return;
-      }
-      if (key === "6") {
-        event.preventDefault();
-        deps.showPage("fft");
-        return;
-      }
-      if (key === "7") {
-        event.preventDefault();
-        deps.showPage("heatmap");
-        return;
-      }
-      if (key === "8") {
-        event.preventDefault();
-        deps.showPage("spectrogram");
-        return;
-      }
-      if (key === "9") {
-        event.preventDefault();
-        deps.showPage("causal");
-        return;
-      }
-      if (key === "0") {
-        event.preventDefault();
-        deps.showPage("drift");
+        shortcut2.action(deps);
         return;
       }
     }
     if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (key === "r" && currentPageName() === "timeseries") {
+    const shortcut = findMatchingKeyboardShortcut(key, pageName, { alt: false, shift: true });
+    if (shortcut) {
       event.preventDefault();
-      deps.resetZoom();
-      return;
-    }
-    if (key === "z" && currentPageName() === "timeseries") {
-      event.preventDefault();
-      deps.zoomOut();
-      return;
-    }
-    if (key === "c" && currentPageName() === "timeseries") {
-      event.preventDefault();
-      document.getElementById("adaptive-clear-btn")?.click?.();
-      return;
-    }
-    if (key === "e") {
-      event.preventDefault();
-      if (currentPageName() === "scatter") document.getElementById("scatter-export-csv-btn")?.click?.();
-      else window.__edatime?.exportChartFilteredData?.("csv");
+      shortcut.action(deps);
     }
   };
   window.addEventListener("keydown", onKeydown);
@@ -4589,32 +4643,7 @@ function wireHomeNavigationCards(showPage2) {
   });
 }
 function registerAppCommands(deps) {
-  registerCommands([
-    { id: "nav-upload", label: "Go to Upload", shortcut: "Alt+1", category: "Navigation", action: () => deps.showPage("upload") },
-    { id: "nav-timeseries", label: "Go to Timeseries", shortcut: "Alt+2", category: "Navigation", action: () => deps.showPage("timeseries") },
-    { id: "nav-scatter", label: "Go to Scatter", shortcut: "Alt+3", category: "Navigation", action: () => deps.showPage("scatter") },
-    { id: "nav-matrix", label: "Go to Scatter Matrix", shortcut: "Alt+4", category: "Navigation", action: () => deps.showPage("scattermatrix") },
-    { id: "nav-fft", label: "Go to FFT / PSD", shortcut: "Alt+6", category: "Navigation", action: () => deps.showPage("fft") },
-    { id: "nav-heatmap", label: "Go to Heatmap", shortcut: "Alt+7", category: "Navigation", action: () => deps.showPage("heatmap") },
-    { id: "nav-spectrogram", label: "Go to Spectrogram", shortcut: "Alt+8", category: "Navigation", action: () => deps.showPage("spectrogram") },
-    { id: "nav-causal", label: "Go to Causal", shortcut: "Alt+9", category: "Navigation", action: () => deps.showPage("causal") },
-    { id: "nav-drift", label: "Go to Drift Analysis", shortcut: "Alt+0", category: "Navigation", action: () => deps.showPage("drift") },
-    { id: "chart-reset", label: "Reset zoom", shortcut: "Shift+R", category: "Chart", action: deps.resetZoom },
-    { id: "chart-zoomout", label: "Zoom out one level", shortcut: "Shift+Z", category: "Chart", action: deps.zoomOut },
-    { id: "chart-clear-af", label: "Clear adaptive filters", shortcut: "Shift+C", category: "Chart", action: () => document.getElementById("adaptive-clear-btn")?.click?.() },
-    { id: "export-csv", label: "Export chart data as CSV", shortcut: "Shift+E", category: "Export", action: () => window.__edatime?.exportChartFilteredData?.("csv") },
-    { id: "export-json", label: "Export chart data as JSON", category: "Export", action: () => window.__edatime?.exportChartFilteredData?.("json") },
-    { id: "export-png", label: "Export chart as PNG", category: "Export", action: () => window.__edatime?.chart?.exportPNG?.() },
-    { id: "export-parquet", label: "Export filtered data as Parquet", category: "Export", action: () => document.getElementById("export-parquet-btn")?.click?.() },
-    { id: "session-save", label: "Export session to file", category: "Session", action: exportSessionToFile },
-    { id: "session-load", label: "Import session from file", category: "Session", action: importSessionFromFile },
-    { id: "provenance", label: "Show analysis context panel", shortcut: "Ctrl+I", category: "Analysis", action: toggleProvenance },
-    { id: "cmd-palette", label: "Open command palette", shortcut: "Ctrl+K", category: "Analysis", action: openPalette },
-    { id: "settings", label: "Open settings", shortcut: "Ctrl+,", category: "Analysis", action: openSettingsModal },
-    { id: "workflow-enable", label: "Enable guided workflow", category: "Analysis", action: enableGuidedWorkflow },
-    { id: "workflow-disable", label: "Hide guided workflow", category: "Analysis", action: disableGuidedWorkflow },
-    { id: "workflow-next", label: "Go to next guided step", category: "Analysis", action: goToNextGuidedStep }
-  ]);
+  registerCommands(buildPaletteCommands(deps));
 }
 function initAppShell(deps) {
   window.__edatime = window.__edatime || {};
@@ -5430,10 +5459,11 @@ async function init() {
   window.__edatime = window.__edatime || {};
   window.__edatime.ensureDatasetReady = ensureDatasetReady;
   try {
-    if (getHashPage() && getHashPage() !== "home") {
-      await ensureDatasetReady(getHashPage());
+    const initialPage = getHashPage();
+    if (pageNeedsDatasetBootstrap(initialPage)) {
+      await ensureDatasetReady(initialPage);
     }
-    if (getHashPage() === "timeseries" && _metadataReady) {
+    if (initialPage === "timeseries" && _metadataReady) {
       await ensureTimeseriesReady();
     }
   } catch (e) {

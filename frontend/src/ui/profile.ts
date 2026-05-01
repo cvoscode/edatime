@@ -15,6 +15,76 @@ import {
 } from '../state.js';
 import type { DatasetMetadata, ProfileRow } from '../types.js';
 
+function createProfileRow(raw: any): ProfileRow | null {
+    const name = String(raw?.name || '').trim();
+    if (!name) return null;
+
+    const counts: number[] = Array.isArray(raw?.histogram?.counts)
+        ? raw.histogram.counts.map((count: unknown) => Math.max(0, Number(count) || 0))
+        : [];
+
+    return {
+        name,
+        dtype: String(raw?.dtype || ''),
+        nonNullCount: Math.max(0, Number(raw?.non_null_count) || 0),
+        nullCount: Math.max(0, Number(raw?.null_count) || 0),
+        min: toFiniteNumberOrNull(raw?.min),
+        max: toFiniteNumberOrNull(raw?.max),
+        histCounts: counts,
+    };
+}
+
+function createProfileStub(column: { name?: string | null; dtype?: string | null }): ProfileRow | null {
+    const name = String(column?.name || '').trim();
+    if (!name) return null;
+
+    return {
+        name,
+        dtype: String(column?.dtype || ''),
+        nonNullCount: 0,
+        nullCount: 0,
+        min: null,
+        max: null,
+        histCounts: [],
+    };
+}
+
+function compareProfileValues(left: unknown, right: unknown, direction: 1 | -1): number {
+    const leftValue = String(left || '').toLowerCase();
+    const rightValue = String(right || '').toLowerCase();
+    if (leftValue < rightValue) return -1 * direction;
+    if (leftValue > rightValue) return 1 * direction;
+    return 0;
+}
+
+export function sortProfileRows(
+    profiles: ProfileRow[],
+    sortKey: string | null | undefined,
+    sortDir: 'asc' | 'desc' | null | undefined,
+): ProfileRow[] {
+    const sortable = new Set(PROFILE_COLUMNS.filter((column) => column.sortable).map((column) => column.key));
+    if (!sortKey || !sortable.has(sortKey)) return profiles;
+
+    const direction: 1 | -1 = sortDir === 'desc' ? -1 : 1;
+    return profiles.sort((leftRow, rightRow) => {
+        const leftValue: unknown = leftRow[sortKey];
+        const rightValue: unknown = rightRow[sortKey];
+
+        if (sortKey === 'name' || sortKey === 'dtype') {
+            return compareProfileValues(leftValue, rightValue, direction);
+        }
+
+        const leftNumber = Number(leftValue);
+        const rightNumber = Number(rightValue);
+        const leftFinite = Number.isFinite(leftNumber);
+        const rightFinite = Number.isFinite(rightNumber);
+        if (!leftFinite && !rightFinite) return 0;
+        if (!leftFinite) return 1;
+        if (!rightFinite) return -1;
+        return (leftNumber - rightNumber) * direction;
+    });
+}
+
 // ─── Hydrate column profiles from metadata ──────────────────────────────────
 
 export function hydrateColumnProfiles(metadata: DatasetMetadata): void {
@@ -23,36 +93,15 @@ export function hydrateColumnProfiles(metadata: DatasetMetadata): void {
     const profileByName = new Map<string, ProfileRow>();
 
     for (const raw of incoming) {
-        const name = String(raw?.name || '').trim();
-        if (!name) continue;
-
-        const counts: number[] = Array.isArray(raw?.histogram?.counts)
-            ? raw.histogram.counts.map((c: unknown) => Math.max(0, Number(c) || 0))
-            : [];
-
-        profileByName.set(name, {
-            name,
-            dtype: String(raw?.dtype || ''),
-            nonNullCount: Math.max(0, Number(raw?.non_null_count) || 0),
-            nullCount: Math.max(0, Number(raw?.null_count) || 0),
-            min: toFiniteNumberOrNull(raw?.min),
-            max: toFiniteNumberOrNull(raw?.max),
-            histCounts: counts,
-        });
+        const profile = createProfileRow(raw);
+        if (!profile) continue;
+        profileByName.set(profile.name, profile);
     }
 
     for (const col of cols) {
-        const name = String(col?.name || '').trim();
-        if (!name || profileByName.has(name)) continue;
-        profileByName.set(name, {
-            name,
-            dtype: String(col?.dtype || ''),
-            nonNullCount: 0,
-            nullCount: 0,
-            min: null,
-            max: null,
-            histCounts: [],
-        });
+        const profile = createProfileStub(col);
+        if (!profile || profileByName.has(profile.name)) continue;
+        profileByName.set(profile.name, profile);
     }
 
     appState.columnProfiles = Array.from(profileByName.values());
@@ -68,33 +117,7 @@ function getFilteredColumnProfiles(): ProfileRow[] {
         : profiles.filter((p) => p.name.toLowerCase().includes(q) || p.dtype.toLowerCase().includes(q));
 
     const { key, dir } = appState.profileGridSort || {};
-    const sortDir = dir === 'desc' ? -1 : 1;
-    const sortable = new Set(PROFILE_COLUMNS.filter((c) => c.sortable).map((c) => c.key));
-    if (!key || !sortable.has(key)) return filtered;
-
-    filtered.sort((a, b) => {
-        let av: unknown = a[key];
-        let bv: unknown = b[key];
-
-        if (key === 'name' || key === 'dtype') {
-            const as = String(av || '').toLowerCase();
-            const bs = String(bv || '').toLowerCase();
-            if (as < bs) return -1 * sortDir;
-            if (as > bs) return 1 * sortDir;
-            return 0;
-        }
-
-        const an = Number(av);
-        const bn = Number(bv);
-        const aFinite = Number.isFinite(an);
-        const bFinite = Number.isFinite(bn);
-        if (!aFinite && !bFinite) return 0;
-        if (!aFinite) return 1;
-        if (!bFinite) return -1;
-        return (an - bn) * sortDir;
-    });
-
-    return filtered;
+    return sortProfileRows(filtered, key, dir);
 }
 
 // ─── Grid rendering helpers ─────────────────────────────────────────────────

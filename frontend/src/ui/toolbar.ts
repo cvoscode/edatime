@@ -469,6 +469,8 @@ export function initChartPageFilterGesture(): void {
 
 // ─── Sidebar pages ─────────────────────────────────────────────────────────
 
+import { pageNeedsDatasetBootstrap } from '../utils/pageBootstrap.js';
+
 export function initPages(): void {
     const navButtons = Array.from(document.querySelectorAll('.sidebar .nav-item[data-page]')) as HTMLElement[];
     const pages = Array.from(document.querySelectorAll('.page[data-page-name]')) as HTMLElement[];
@@ -491,7 +493,7 @@ export function initPages(): void {
     async function showPage(pageName: string) {
         preloadPageStyles(pageName);
 
-        if (pageName !== 'home') {
+        if (pageNeedsDatasetBootstrap(pageName)) {
             await (window as any).__edatime?.ensureDatasetReady?.(pageName);
         }
 

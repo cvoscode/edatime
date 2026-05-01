@@ -7,7 +7,7 @@
 
 const VALID_PAGES = new Set([
     'home', 'upload', 'timeseries', 'scatter', 'scattermatrix',
-    'fft', 'heatmap', 'spectrogram', 'causal',
+    'fft', 'heatmap', 'spectrogram', 'causal', 'drift',
 ]);
 
 let _bound = false;

@@ -120,11 +120,11 @@ function syncScatterEmptyState(message?: string): void {
                 ? 'Choose X and Y numeric columns to render the scatter plot.'
                 : isLoading
                     ? 'Loading scatter points…'
-                : linkedRangeOutside
-                    ? 'Linked time range is outside the current dataset. Reset range to recover points.'
-                    : (scopedFilterCount > 0 || adaptiveFilterCount > 0)
-                        ? `No points match active filters (${scopedFilterCount} column, ${adaptiveFilterCount} adaptive).`
-                        : 'No points match the current query.');
+                    : linkedRangeOutside
+                        ? 'Linked time range is outside the current dataset. Reset range to recover points.'
+                        : (scopedFilterCount > 0 || adaptiveFilterCount > 0)
+                            ? `No points match active filters (${scopedFilterCount} column, ${adaptiveFilterCount} adaptive).`
+                            : 'No points match the current query.');
 
     emptyState.update({
         visible: !isLoading && !(hasAxes && state.totalPoints > 0 && !(_gpuUnavailable && !state.chart)),
@@ -135,9 +135,9 @@ function syncScatterEmptyState(message?: string): void {
                 ? 'Choose scatter axes'
                 : isLoading
                     ? 'Loading scatter plot'
-                : linkedRangeOutside
-                    ? 'Linked range outside dataset'
-                    : 'No scatter points found',
+                    : linkedRangeOutside
+                        ? 'Linked range outside dataset'
+                        : 'No scatter points found',
         message: text,
         showResetAction: reason === 'linked-range-outside-dataset',
         showClearAction: reason === 'no-data-after-filters',

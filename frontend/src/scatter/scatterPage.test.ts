@@ -171,8 +171,8 @@ describe('initScatterPage view toggles', () => {
     });
 
     it('suppresses the empty state while scatter points are still loading', async () => {
-        let resolveScatter: ((value: unknown) => void) | null = null;
-        fetchScatterPointsMock.mockImplementationOnce(() => new Promise((resolve) => {
+        let resolveScatter!: (value: unknown) => void;
+        fetchScatterPointsMock.mockImplementationOnce(() => new Promise<unknown>((resolve) => {
             resolveScatter = resolve;
         }));
 
@@ -199,7 +199,7 @@ describe('initScatterPage view toggles', () => {
             expect.objectContaining({ visible: false, reason: 'loading' }),
         );
 
-        resolveScatter?.({
+        resolveScatter({
             points: [[1, 2], [2, 3]],
             total_points: 2,
             color_values: null,

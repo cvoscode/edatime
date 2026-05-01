@@ -886,7 +886,7 @@ function La(e) {
 }
 function ea(e, t) {
   let n = 0, i = Ne(e);
-  for (; n < i; ) {
+  for (; n < i;) {
     const r = n + i >>> 1;
     Fe(e, r) < t ? n = r + 1 : i = r;
   }
@@ -894,7 +894,7 @@ function ea(e, t) {
 }
 function ta(e, t) {
   let n = 0, i = Ne(e);
-  for (; n < i; ) {
+  for (; n < i;) {
     const r = n + i >>> 1;
     Fe(e, r) <= t ? n = r + 1 : i = r;
   }
@@ -902,7 +902,7 @@ function ta(e, t) {
 }
 function _a(e, t) {
   let n = 0, i = e.length;
-  for (; n < i; ) {
+  for (; n < i;) {
     const r = n + i >>> 1;
     e[r][0] < t ? n = r + 1 : i = r;
   }
@@ -910,7 +910,7 @@ function _a(e, t) {
 }
 function ka(e, t) {
   let n = 0, i = e.length;
-  for (; n < i; ) {
+  for (; n < i;) {
     const r = n + i >>> 1;
     e[r][0] <= t ? n = r + 1 : i = r;
   }
@@ -918,7 +918,7 @@ function ka(e, t) {
 }
 function Ua(e, t) {
   let n = 0, i = e.length;
-  for (; n < i; ) {
+  for (; n < i;) {
     const r = n + i >>> 1;
     e[r].timestamp < t ? n = r + 1 : i = r;
   }
@@ -926,7 +926,7 @@ function Ua(e, t) {
 }
 function Ga(e, t) {
   let n = 0, i = e.length;
-  for (; n < i; ) {
+  for (; n < i;) {
     const r = n + i >>> 1;
     e[r].timestamp <= t ? n = r + 1 : i = r;
   }
@@ -1352,7 +1352,7 @@ function lc(e, t, n) {
 const ko = 20, uc = 0.01, fc = 0.2, Tr = 4;
 function dc(e, t) {
   let n = 0, i = Ne(e);
-  for (; n < i; ) {
+  for (; n < i;) {
     const r = n + i >>> 1;
     Fe(e, r) < t ? n = r + 1 : i = r;
   }
@@ -2139,24 +2139,24 @@ fn fsMain() -> @location(0) vec4<f32> {
   return fsUniforms.color;
 }
 `, Gc = "vsMain", zc = "fsMain", Vc = (e) => Number.isInteger(e) && e > 0 && (e & e - 1) === 0, Wc = (e, t) => {
-  if (!Number.isFinite(e) || e < 0)
-    throw new Error(`alignTo(value): value must be a finite non-negative number. Received: ${String(e)}`);
-  if (!Vc(t))
-    throw new Error(`alignTo(alignment): alignment must be a positive power of two. Received: ${String(t)}`);
-  return Math.floor(e) + t - 1 & ~(t - 1);
-}, zo = (e, t, n) => {
-  if (n && n.device !== e)
-    throw new Error("getStageModule(pipelineCache): cache.device must match the provided GPUDevice.");
-  return "module" in t ? {
-    module: t.module,
-    entryPoint: t.entryPoint || "",
-    constants: t.constants
-  } : {
-    module: oa(e, t.code, t.label, n),
-    entryPoint: t.entryPoint || "",
-    constants: t.constants
+    if (!Number.isFinite(e) || e < 0)
+      throw new Error(`alignTo(value): value must be a finite non-negative number. Received: ${String(e)}`);
+    if (!Vc(t))
+      throw new Error(`alignTo(alignment): alignment must be a positive power of two. Received: ${String(t)}`);
+    return Math.floor(e) + t - 1 & ~(t - 1);
+  }, zo = (e, t, n) => {
+    if (n && n.device !== e)
+      throw new Error("getStageModule(pipelineCache): cache.device must match the provided GPUDevice.");
+    return "module" in t ? {
+      module: t.module,
+      entryPoint: t.entryPoint || "",
+      constants: t.constants
+    } : {
+      module: oa(e, t.code, t.label, n),
+      entryPoint: t.entryPoint || "",
+      constants: t.constants
+    };
   };
-};
 function oa(e, t, n, i) {
   if (typeof t != "string" || t.length === 0)
     throw new Error("createShaderModule(code): WGSL code must be a non-empty string.");
@@ -2377,62 +2377,64 @@ function Oo(e, t) {
   const R = () => {
     if (n) throw new Error("AxisRenderer is disposed.");
   };
-  return { prepare: (b, m, x, w, v, I, N) => {
-    if (R(), x !== "x" && x !== "y")
-      throw new Error("AxisRenderer.prepare: orientation must be 'x' or 'y'.");
-    const C = jc(b, m, x, w, N), d = C.byteLength, h = Math.max(4, d);
-    if (!p || p.size < h) {
-      if (p)
+  return {
+    prepare: (b, m, x, w, v, I, N) => {
+      if (R(), x !== "x" && x !== "y")
+        throw new Error("AxisRenderer.prepare: orientation must be 'x' or 'y'.");
+      const C = jc(b, m, x, w, N), d = C.byteLength, h = Math.max(4, d);
+      if (!p || p.size < h) {
+        if (p)
+          try {
+            p.destroy();
+          } catch {
+          }
+        p = e.createBuffer({
+          label: "axisRenderer/vertexBuffer",
+          size: h,
+          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+        });
+      }
+      e.queue.writeBuffer(p, 0, C.buffer, 0, C.byteLength), M = C.length / 2, ut(e, c, Hc());
+      const F = v ?? "rgba(255,255,255,0.8)", S = I ?? F, P = yt(F) ?? Yc, B = yt(S) ?? P, E = new ArrayBuffer(4 * 4);
+      new Float32Array(E).set([
+        P[0],
+        P[1],
+        P[2],
+        P[3]
+      ]), ut(e, f, E);
+      const z = new ArrayBuffer(4 * 4);
+      new Float32Array(z).set([
+        B[0],
+        B[1],
+        B[2],
+        B[3]
+      ]), ut(e, l, z);
+    }, render: (b) => {
+      R(), !(M === 0 || !p) && (b.setPipeline(y), b.setVertexBuffer(0, p), b.setBindGroup(0, g), b.draw(Math.min(2, M)), M > 2 && (b.setBindGroup(0, u), b.draw(M - 2, 1, 2, 0)));
+    }, dispose: () => {
+      if (!n) {
+        n = !0;
         try {
-          p.destroy();
+          c.destroy();
         } catch {
         }
-      p = e.createBuffer({
-        label: "axisRenderer/vertexBuffer",
-        size: h,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
-      });
-    }
-    e.queue.writeBuffer(p, 0, C.buffer, 0, C.byteLength), M = C.length / 2, ut(e, c, Hc());
-    const F = v ?? "rgba(255,255,255,0.8)", S = I ?? F, P = yt(F) ?? Yc, B = yt(S) ?? P, E = new ArrayBuffer(4 * 4);
-    new Float32Array(E).set([
-      P[0],
-      P[1],
-      P[2],
-      P[3]
-    ]), ut(e, f, E);
-    const z = new ArrayBuffer(4 * 4);
-    new Float32Array(z).set([
-      B[0],
-      B[1],
-      B[2],
-      B[3]
-    ]), ut(e, l, z);
-  }, render: (b) => {
-    R(), !(M === 0 || !p) && (b.setPipeline(y), b.setVertexBuffer(0, p), b.setBindGroup(0, g), b.draw(Math.min(2, M)), M > 2 && (b.setBindGroup(0, u), b.draw(M - 2, 1, 2, 0)));
-  }, dispose: () => {
-    if (!n) {
-      n = !0;
-      try {
-        c.destroy();
-      } catch {
-      }
-      try {
-        f.destroy();
-      } catch {
-      }
-      try {
-        l.destroy();
-      } catch {
-      }
-      if (p)
         try {
-          p.destroy();
+          f.destroy();
         } catch {
         }
-      p = null, M = 0;
+        try {
+          l.destroy();
+        } catch {
+        }
+        if (p)
+          try {
+            p.destroy();
+          } catch {
+          }
+        p = null, M = 0;
+      }
     }
-  } };
+  };
 }
 const Kc = "bgra8unorm", Jc = 5, Qc = 6, el = "rgba(255,255,255,0.15)", tl = [1, 1, 1, 0.15], nl = () => {
   const e = new ArrayBuffer(64);
@@ -2521,70 +2523,72 @@ function rl(e, t) {
   const M = () => {
     if (n) throw new Error("GridRenderer is disposed.");
   };
-  return { prepare: (A, b) => {
-    M();
-    const m = b != null && typeof b == "object" && ("lineCount" in b || "color" in b || "append" in b), x = m ? b : void 0, w = m ? x == null ? void 0 : x.lineCount : b, v = (w == null ? void 0 : w.horizontal) ?? Jc, I = (w == null ? void 0 : w.vertical) ?? Qc, N = (x == null ? void 0 : x.color) ?? el, C = (x == null ? void 0 : x.append) === !0;
-    if (v < 0 || I < 0)
-      throw new Error("GridRenderer.prepare: line counts must be non-negative.");
-    if (!Number.isFinite(A.left) || !Number.isFinite(A.right) || !Number.isFinite(A.top) || !Number.isFinite(A.bottom) || !Number.isFinite(A.canvasWidth) || !Number.isFinite(A.canvasHeight))
-      throw new Error("GridRenderer.prepare: gridArea dimensions must be finite numbers.");
-    if (A.canvasWidth <= 0 || A.canvasHeight <= 0)
-      throw new Error("GridRenderer.prepare: canvas dimensions must be positive.");
-    if (v === 0 && I === 0) {
-      C || (y = null, p = []);
-      return;
-    }
-    const d = il(A, v, I), h = (v + I) * 2, F = yt(N) ?? tl;
-    let S = 0;
-    if (C && y && y.byteLength > 0 && p.length > 0) {
-      S = y.byteLength;
-      const z = new Float32Array(y.length + d.length);
-      z.set(y, 0), z.set(d, y.length), y = z, p = p.concat([{ vertexOffsetBytes: S, vertexCount: h, rgba: F }]);
-    } else
-      y = d, p = [{ vertexOffsetBytes: 0, vertexCount: h, rgba: F }];
-    const P = y.byteLength, B = Math.max(4, P);
-    if (!u || u.size < B) {
-      if (u)
+  return {
+    prepare: (A, b) => {
+      M();
+      const m = b != null && typeof b == "object" && ("lineCount" in b || "color" in b || "append" in b), x = m ? b : void 0, w = m ? x == null ? void 0 : x.lineCount : b, v = (w == null ? void 0 : w.horizontal) ?? Jc, I = (w == null ? void 0 : w.vertical) ?? Qc, N = (x == null ? void 0 : x.color) ?? el, C = (x == null ? void 0 : x.append) === !0;
+      if (v < 0 || I < 0)
+        throw new Error("GridRenderer.prepare: line counts must be non-negative.");
+      if (!Number.isFinite(A.left) || !Number.isFinite(A.right) || !Number.isFinite(A.top) || !Number.isFinite(A.bottom) || !Number.isFinite(A.canvasWidth) || !Number.isFinite(A.canvasHeight))
+        throw new Error("GridRenderer.prepare: gridArea dimensions must be finite numbers.");
+      if (A.canvasWidth <= 0 || A.canvasHeight <= 0)
+        throw new Error("GridRenderer.prepare: canvas dimensions must be positive.");
+      if (v === 0 && I === 0) {
+        C || (y = null, p = []);
+        return;
+      }
+      const d = il(A, v, I), h = (v + I) * 2, F = yt(N) ?? tl;
+      let S = 0;
+      if (C && y && y.byteLength > 0 && p.length > 0) {
+        S = y.byteLength;
+        const z = new Float32Array(y.length + d.length);
+        z.set(y, 0), z.set(d, y.length), y = z, p = p.concat([{ vertexOffsetBytes: S, vertexCount: h, rgba: F }]);
+      } else
+        y = d, p = [{ vertexOffsetBytes: 0, vertexCount: h, rgba: F }];
+      const P = y.byteLength, B = Math.max(4, P);
+      if (!u || u.size < B) {
+        if (u)
+          try {
+            u.destroy();
+          } catch {
+          }
+        u = e.createBuffer({
+          label: "gridRenderer/vertexBuffer",
+          size: B,
+          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+        });
+      }
+      e.queue.writeBuffer(u, 0, y.buffer, 0, y.byteLength);
+      const E = nl();
+      ut(e, c, E);
+    }, render: (A) => {
+      if (M(), !(p.length === 0 || !u)) {
+        A.setPipeline(g), A.setBindGroup(0, l);
+        for (const b of p) {
+          const m = new ArrayBuffer(16);
+          new Float32Array(m).set([b.rgba[0], b.rgba[1], b.rgba[2], b.rgba[3]]), ut(e, f, m), A.setVertexBuffer(0, u, b.vertexOffsetBytes), A.draw(b.vertexCount);
+        }
+      }
+    }, dispose: () => {
+      if (!n) {
+        n = !0;
         try {
-          u.destroy();
+          c.destroy();
         } catch {
         }
-      u = e.createBuffer({
-        label: "gridRenderer/vertexBuffer",
-        size: B,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
-      });
-    }
-    e.queue.writeBuffer(u, 0, y.buffer, 0, y.byteLength);
-    const E = nl();
-    ut(e, c, E);
-  }, render: (A) => {
-    if (M(), !(p.length === 0 || !u)) {
-      A.setPipeline(g), A.setBindGroup(0, l);
-      for (const b of p) {
-        const m = new ArrayBuffer(16);
-        new Float32Array(m).set([b.rgba[0], b.rgba[1], b.rgba[2], b.rgba[3]]), ut(e, f, m), A.setVertexBuffer(0, u, b.vertexOffsetBytes), A.draw(b.vertexCount);
-      }
-    }
-  }, dispose: () => {
-    if (!n) {
-      n = !0;
-      try {
-        c.destroy();
-      } catch {
-      }
-      try {
-        f.destroy();
-      } catch {
-      }
-      if (u)
         try {
-          u.destroy();
+          f.destroy();
         } catch {
         }
-      u = null, y = null, p = [];
+        if (u)
+          try {
+            u.destroy();
+          } catch {
+          }
+        u = null, y = null, p = [];
+      }
     }
-  } };
+  };
 }
 const Xo = `// area.wgsl
 // Minimal area-fill shader (triangle-strip):
@@ -2634,22 +2638,22 @@ fn fsMain() -> @location(0) vec4<f32> {
 }
 
 `, ol = "bgra8unorm", $o = (e) => Math.min(1, Math.max(0, e)), sl = (e) => yt(e) ?? [0, 0, 0, 1], Yo = (e, t, n) => {
-  const i = e.scale(t), r = e.scale(n);
-  if (!Number.isFinite(t) || !Number.isFinite(n) || t === n || !Number.isFinite(i) || !Number.isFinite(r))
-    return { a: 0, b: Number.isFinite(i) ? i : 0 };
-  const o = (r - i) / (n - t), s = i - o * t;
-  return { a: Number.isFinite(o) ? o : 0, b: Number.isFinite(s) ? s : 0 };
-}, al = (e, t, n, i, r) => {
-  e[0] = t, e[1] = 0, e[2] = 0, e[3] = 0, e[4] = 0, e[5] = i, e[6] = 0, e[7] = 0, e[8] = 0, e[9] = 0, e[10] = 1, e[11] = 0, e[12] = n, e[13] = r, e[14] = 0, e[15] = 1;
-}, cl = (e) => {
-  const t = Ne(e), n = new Float32Array(t * 2 * 2);
-  let i = 0;
-  for (let r = 0; r < t; r++) {
-    const o = Fe(e, r), s = _e(e, r);
-    !Number.isFinite(o) || !Number.isFinite(s) ? (n[i++] = 0, n[i++] = 0, n[i++] = 0, n[i++] = 0) : (n[i++] = o, n[i++] = s, n[i++] = o, n[i++] = s);
-  }
-  return n;
-};
+    const i = e.scale(t), r = e.scale(n);
+    if (!Number.isFinite(t) || !Number.isFinite(n) || t === n || !Number.isFinite(i) || !Number.isFinite(r))
+      return { a: 0, b: Number.isFinite(i) ? i : 0 };
+    const o = (r - i) / (n - t), s = i - o * t;
+    return { a: Number.isFinite(o) ? o : 0, b: Number.isFinite(s) ? s : 0 };
+  }, al = (e, t, n, i, r) => {
+    e[0] = t, e[1] = 0, e[2] = 0, e[3] = 0, e[4] = 0, e[5] = i, e[6] = 0, e[7] = 0, e[8] = 0, e[9] = 0, e[10] = 1, e[11] = 0, e[12] = n, e[13] = r, e[14] = 0, e[15] = 1;
+  }, cl = (e) => {
+    const t = Ne(e), n = new Float32Array(t * 2 * 2);
+    let i = 0;
+    for (let r = 0; r < t; r++) {
+      const o = Fe(e, r), s = _e(e, r);
+      !Number.isFinite(o) || !Number.isFinite(s) ? (n[i++] = 0, n[i++] = 0, n[i++] = 0, n[i++] = 0) : (n[i++] = o, n[i++] = s, n[i++] = o, n[i++] = s);
+    }
+    return n;
+  };
 function ll(e, t) {
   let n = !1;
   const i = (t == null ? void 0 : t.targetFormat) ?? ol, r = t == null ? void 0 : t.sampleCount, o = Number.isFinite(r) ? Math.max(1, Math.floor(r)) : 1, s = t == null ? void 0 : t.pipelineCache, a = e.createBindGroupLayout({
@@ -2700,46 +2704,48 @@ function ll(e, t) {
   }, T = (x, w, v, I, N) => {
     al(g, x, w, v, I), g[16] = N, g[17] = 0, g[18] = 0, g[19] = 0, g[20] = 0, g[21] = 0, g[22] = 0, g[23] = 0, ut(e, c, l);
   };
-  return { prepare: (x, w, v, I, N) => {
-    D();
-    const C = cl(w), d = C.byteLength, h = Math.max(4, d);
-    if (!M || M.size < h) {
-      if (M)
+  return {
+    prepare: (x, w, v, I, N) => {
+      D();
+      const C = cl(w), d = C.byteLength, h = Math.max(4, d);
+      if (!M || M.size < h) {
+        if (M)
+          try {
+            M.destroy();
+          } catch {
+          }
+        M = e.createBuffer({
+          label: "areaRenderer/vertexBuffer",
+          size: h,
+          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+        });
+      }
+      C.byteLength > 0 && e.queue.writeBuffer(M, 0, C.buffer, 0, C.byteLength), R = C.length / 2;
+      const F = zt(w), { xMin: S, xMax: P, yMin: B, yMax: E } = F ?? { xMin: 0, xMax: 1, yMin: 0, yMax: 1 }, { a: z, b: U } = Yo(v, S, P), { a: Y, b: j } = Yo(I, B, E), q = Number.isFinite(N ?? Number.NaN) ? N : Number.isFinite(B) ? B : 0;
+      T(z, U, Y, j, q);
+      const [Z, J, re, W] = sl(x.areaStyle.color), de = $o(x.areaStyle.opacity);
+      u[0] = Z, u[1] = J, u[2] = re, u[3] = $o(W * de), ut(e, f, u);
+    }, render: (x) => {
+      D(), !(!M || R < 4) && (x.setPipeline(p), x.setBindGroup(0, y), x.setVertexBuffer(0, M), x.draw(R));
+    }, dispose: () => {
+      if (!n) {
+        if (n = !0, M)
+          try {
+            M.destroy();
+          } catch {
+          }
+        M = null, R = 0;
         try {
-          M.destroy();
+          c.destroy();
         } catch {
         }
-      M = e.createBuffer({
-        label: "areaRenderer/vertexBuffer",
-        size: h,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
-      });
-    }
-    C.byteLength > 0 && e.queue.writeBuffer(M, 0, C.buffer, 0, C.byteLength), R = C.length / 2;
-    const F = zt(w), { xMin: S, xMax: P, yMin: B, yMax: E } = F ?? { xMin: 0, xMax: 1, yMin: 0, yMax: 1 }, { a: z, b: U } = Yo(v, S, P), { a: Y, b: j } = Yo(I, B, E), q = Number.isFinite(N ?? Number.NaN) ? N : Number.isFinite(B) ? B : 0;
-    T(z, U, Y, j, q);
-    const [Z, J, re, W] = sl(x.areaStyle.color), de = $o(x.areaStyle.opacity);
-    u[0] = Z, u[1] = J, u[2] = re, u[3] = $o(W * de), ut(e, f, u);
-  }, render: (x) => {
-    D(), !(!M || R < 4) && (x.setPipeline(p), x.setBindGroup(0, y), x.setVertexBuffer(0, M), x.draw(R));
-  }, dispose: () => {
-    if (!n) {
-      if (n = !0, M)
         try {
-          M.destroy();
+          f.destroy();
         } catch {
         }
-      M = null, R = 0;
-      try {
-        c.destroy();
-      } catch {
-      }
-      try {
-        f.destroy();
-      } catch {
       }
     }
-  } };
+  };
 }
 const Ho = `// line.wgsl — Screen-space quad expansion with SDF-based anti-aliasing.
 //
@@ -2914,14 +2920,14 @@ fn fsMain(in : VSOut) -> @location(0) vec4<f32> {
   return color;
 }
 `, ul = "bgra8unorm", fl = 2, qo = (e) => Math.min(1, Math.max(0, e)), dl = (e) => yt(e) ?? [0, 0, 0, 1], Zo = (e, t, n) => {
-  const i = e.scale(t), r = e.scale(n);
-  if (!Number.isFinite(t) || !Number.isFinite(n) || t === n || !Number.isFinite(i) || !Number.isFinite(r))
-    return { a: 0, b: Number.isFinite(i) ? i : 0 };
-  const o = (r - i) / (n - t), s = i - o * t;
-  return { a: Number.isFinite(o) ? o : 0, b: Number.isFinite(s) ? s : 0 };
-}, ml = (e, t, n, i, r) => {
-  e[0] = t, e[1] = 0, e[2] = 0, e[3] = 0, e[4] = 0, e[5] = i, e[6] = 0, e[7] = 0, e[8] = 0, e[9] = 0, e[10] = 1, e[11] = 0, e[12] = n, e[13] = r, e[14] = 0, e[15] = 1;
-};
+    const i = e.scale(t), r = e.scale(n);
+    if (!Number.isFinite(t) || !Number.isFinite(n) || t === n || !Number.isFinite(i) || !Number.isFinite(r))
+      return { a: 0, b: Number.isFinite(i) ? i : 0 };
+    const o = (r - i) / (n - t), s = i - o * t;
+    return { a: Number.isFinite(o) ? o : 0, b: Number.isFinite(s) ? s : 0 };
+  }, ml = (e, t, n, i, r) => {
+    e[0] = t, e[1] = 0, e[2] = 0, e[3] = 0, e[4] = 0, e[5] = i, e[6] = 0, e[7] = 0, e[8] = 0, e[9] = 0, e[10] = 1, e[11] = 0, e[12] = n, e[13] = r, e[14] = 0, e[15] = 1;
+  };
 function pl(e, t) {
   let n = !1;
   const i = (t == null ? void 0 : t.targetFormat) ?? ul, r = t == null ? void 0 : t.sampleCount, o = Number.isFinite(r) ? Math.max(1, Math.floor(r)) : 1, s = t == null ? void 0 : t.pipelineCache, a = e.createBindGroupLayout({
@@ -2962,36 +2968,38 @@ function pl(e, t) {
   const R = () => {
     if (n) throw new Error("LineRenderer is disposed.");
   };
-  return { prepare: (b, m, x, w, v = 0, I = 1, N = 1, C = 1) => {
-    R(), M = Ne(b.data);
-    const d = zt(b.data), { xMin: h, xMax: F, yMin: S, yMax: P } = d ?? { xMin: 0, xMax: 1, yMin: 0, yMax: 1 }, { a: B, b: E } = Zo(x, h, F), { a: z, b: U } = Zo(w, S, P), Y = E + B * v;
-    ml(g, B, Y, z, U);
-    const j = Number.isFinite(I) && I > 0 ? I : 1, q = Number.isFinite(N) && N > 0 ? N : 1, Z = Number.isFinite(C) && C > 0 ? C : 1, J = Number.isFinite(b.lineStyle.width) && b.lineStyle.width > 0 ? b.lineStyle.width : fl;
-    g[16] = q, g[17] = Z, g[18] = j, g[19] = J, ut(e, c, l);
-    const [re, W, de, L] = dl(b.color), X = qo(b.lineStyle.opacity);
-    u[0] = re, u[1] = W, u[2] = de, u[3] = qo(L * X), ut(e, f, u), y = e.createBindGroup({
-      layout: a,
-      entries: [
-        { binding: 0, resource: { buffer: c } },
-        { binding: 1, resource: { buffer: f } },
-        { binding: 2, resource: { buffer: m } }
-      ]
-    });
-  }, render: (b) => {
-    R(), !(!y || M < 2) && (b.setPipeline(p), b.setBindGroup(0, y), b.draw(6, M - 1));
-  }, dispose: () => {
-    if (!n) {
-      n = !0, y = null, M = 0;
-      try {
-        c.destroy();
-      } catch {
-      }
-      try {
-        f.destroy();
-      } catch {
+  return {
+    prepare: (b, m, x, w, v = 0, I = 1, N = 1, C = 1) => {
+      R(), M = Ne(b.data);
+      const d = zt(b.data), { xMin: h, xMax: F, yMin: S, yMax: P } = d ?? { xMin: 0, xMax: 1, yMin: 0, yMax: 1 }, { a: B, b: E } = Zo(x, h, F), { a: z, b: U } = Zo(w, S, P), Y = E + B * v;
+      ml(g, B, Y, z, U);
+      const j = Number.isFinite(I) && I > 0 ? I : 1, q = Number.isFinite(N) && N > 0 ? N : 1, Z = Number.isFinite(C) && C > 0 ? C : 1, J = Number.isFinite(b.lineStyle.width) && b.lineStyle.width > 0 ? b.lineStyle.width : fl;
+      g[16] = q, g[17] = Z, g[18] = j, g[19] = J, ut(e, c, l);
+      const [re, W, de, L] = dl(b.color), X = qo(b.lineStyle.opacity);
+      u[0] = re, u[1] = W, u[2] = de, u[3] = qo(L * X), ut(e, f, u), y = e.createBindGroup({
+        layout: a,
+        entries: [
+          { binding: 0, resource: { buffer: c } },
+          { binding: 1, resource: { buffer: f } },
+          { binding: 2, resource: { buffer: m } }
+        ]
+      });
+    }, render: (b) => {
+      R(), !(!y || M < 2) && (b.setPipeline(p), b.setBindGroup(0, y), b.draw(6, M - 1));
+    }, dispose: () => {
+      if (!n) {
+        n = !0, y = null, M = 0;
+        try {
+          c.destroy();
+        } catch {
+        }
+        try {
+          f.destroy();
+        } catch {
+        }
       }
     }
-  } };
+  };
 }
 const jo = `// scatter.wgsl
 // Instanced anti-aliased circle shader (SDF):
@@ -3080,21 +3088,21 @@ fn fsMain(in: VSOut) -> @location(0) vec4<f32> {
 }
 
 `, hl = "bgra8unorm", Rr = 4, Qi = 16, Dr = Qi / 4, yl = (e) => Math.min(1, Math.max(0, e)), ki = (e, t, n) => Math.min(n, Math.max(t, e | 0)), gl = (e) => yt(e) ?? [0, 0, 0, 1], Ko = (e) => {
-  if (!Number.isFinite(e) || e <= 0) return 1;
-  const t = Math.ceil(e);
-  return 2 ** Math.ceil(Math.log2(t));
-}, Jo = (e, t, n) => {
-  const i = e.scale(t), r = e.scale(n);
-  if (!Number.isFinite(t) || !Number.isFinite(n) || t === n || !Number.isFinite(i) || !Number.isFinite(r))
-    return { a: 0, b: Number.isFinite(i) ? i : 0 };
-  const o = (r - i) / (n - t), s = i - o * t;
-  return { a: Number.isFinite(o) ? o : 0, b: Number.isFinite(s) ? s : 0 };
-}, xl = (e, t, n, i, r) => {
-  e[0] = t, e[1] = 0, e[2] = 0, e[3] = 0, e[4] = 0, e[5] = i, e[6] = 0, e[7] = 0, e[8] = 0, e[9] = 0, e[10] = 1, e[11] = 0, e[12] = n, e[13] = r, e[14] = 0, e[15] = 1;
-}, bl = (e) => {
-  const { canvasWidth: t, canvasHeight: n, devicePixelRatio: i } = e, r = e.left * i, o = t - e.right * i, s = e.top * i, a = n - e.bottom * i, c = ki(Math.floor(r), 0, Math.max(0, t)), f = ki(Math.floor(s), 0, Math.max(0, n)), l = ki(Math.ceil(o), 0, Math.max(0, t)), g = ki(Math.ceil(a), 0, Math.max(0, n)), u = Math.max(0, l - c), y = Math.max(0, g - f);
-  return { x: c, y: f, w: u, h: y };
-};
+    if (!Number.isFinite(e) || e <= 0) return 1;
+    const t = Math.ceil(e);
+    return 2 ** Math.ceil(Math.log2(t));
+  }, Jo = (e, t, n) => {
+    const i = e.scale(t), r = e.scale(n);
+    if (!Number.isFinite(t) || !Number.isFinite(n) || t === n || !Number.isFinite(i) || !Number.isFinite(r))
+      return { a: 0, b: Number.isFinite(i) ? i : 0 };
+    const o = (r - i) / (n - t), s = i - o * t;
+    return { a: Number.isFinite(o) ? o : 0, b: Number.isFinite(s) ? s : 0 };
+  }, xl = (e, t, n, i, r) => {
+    e[0] = t, e[1] = 0, e[2] = 0, e[3] = 0, e[4] = 0, e[5] = i, e[6] = 0, e[7] = 0, e[8] = 0, e[9] = 0, e[10] = 1, e[11] = 0, e[12] = n, e[13] = r, e[14] = 0, e[15] = 1;
+  }, bl = (e) => {
+    const { canvasWidth: t, canvasHeight: n, devicePixelRatio: i } = e, r = e.left * i, o = t - e.right * i, s = e.top * i, a = n - e.bottom * i, c = ki(Math.floor(r), 0, Math.max(0, t)), f = ki(Math.floor(s), 0, Math.max(0, n)), l = ki(Math.ceil(o), 0, Math.max(0, t)), g = ki(Math.ceil(a), 0, Math.max(0, n)), u = Math.max(0, l - c), y = Math.max(0, g - f);
+    return { x: c, y: f, w: u, h: y };
+  };
 function vl(e, t) {
   let n = !1;
   const i = (t == null ? void 0 : t.targetFormat) ?? hl, r = t == null ? void 0 : t.sampleCount, o = Number.isFinite(r) ? Math.max(1, Math.floor(r)) : 1, s = t == null ? void 0 : t.pipelineCache, a = e.createBindGroupLayout({
@@ -3153,63 +3161,65 @@ function vl(e, t) {
     const z = Number.isFinite(B) && B > 0 ? B : 1, U = Number.isFinite(E) && E > 0 ? E : 1;
     xl(g, h, F, S, P), g[16] = z, g[17] = U, g[18] = 0, g[19] = 0, ut(e, c, l), m = [z, U];
   };
-  return { prepare: (h, F, S, P, B) => {
-    w();
-    const E = zt(F), { xMin: z, xMax: U, yMin: Y, yMax: j } = E ?? { xMin: 0, xMax: 1, yMin: 0, yMax: 1 }, { a: q, b: Z } = Jo(S, z, U), { a: J, b: re } = Jo(P, Y, j);
-    B ? (A = B.canvasWidth, b = B.canvasHeight, I(q, Z, J, re, B.canvasWidth, B.canvasHeight), x = bl(B)) : (I(q, Z, J, re, m[0], m[1]), x = null);
-    const [W, de, L, X] = gl(h.color);
-    u[0] = W, u[1] = de, u[2] = L, u[3] = yl(X), ut(e, f, u);
-    const $ = (B == null ? void 0 : B.devicePixelRatio) ?? 1, ue = $ > 0 && Number.isFinite($), ce = h.symbolSize, fe = [0, 0, void 0], K = typeof ce == "function" ? (le, ye, pe) => {
-      fe[0] = le, fe[1] = ye, fe[2] = pe;
-      const Be = ce(fe);
-      return typeof Be == "number" && Number.isFinite(Be) ? Be : Rr;
-    } : typeof ce == "number" && Number.isFinite(ce) ? (le, ye, pe) => ce : (le, ye, pe) => Rr, ae = Ne(F);
-    v(ae * Dr);
-    const ee = T;
-    let te = 0;
-    for (let le = 0; le < ae; le++) {
-      const ye = Fe(F, le), pe = _e(F, le);
-      if (!Number.isFinite(ye) || !Number.isFinite(pe)) continue;
-      const Be = at(F, le), Le = Be ?? K(ye, pe, Be), rt = Number.isFinite(Le) ? Math.max(0, Le) : Rr, ot = ue ? rt * $ : rt;
-      ot > 0 && (ee[te + 0] = ye, ee[te + 1] = pe, ee[te + 2] = ot, ee[te + 3] = 0, te += Dr);
-    }
-    R = te / Dr;
-    const be = Math.max(4, R * Qi);
-    if (!M || M.size < be) {
-      const le = Math.max(Math.max(4, Ko(be)), M ? M.size : 0);
-      if (M)
+  return {
+    prepare: (h, F, S, P, B) => {
+      w();
+      const E = zt(F), { xMin: z, xMax: U, yMin: Y, yMax: j } = E ?? { xMin: 0, xMax: 1, yMin: 0, yMax: 1 }, { a: q, b: Z } = Jo(S, z, U), { a: J, b: re } = Jo(P, Y, j);
+      B ? (A = B.canvasWidth, b = B.canvasHeight, I(q, Z, J, re, B.canvasWidth, B.canvasHeight), x = bl(B)) : (I(q, Z, J, re, m[0], m[1]), x = null);
+      const [W, de, L, X] = gl(h.color);
+      u[0] = W, u[1] = de, u[2] = L, u[3] = yl(X), ut(e, f, u);
+      const $ = (B == null ? void 0 : B.devicePixelRatio) ?? 1, ue = $ > 0 && Number.isFinite($), ce = h.symbolSize, fe = [0, 0, void 0], K = typeof ce == "function" ? (le, ye, pe) => {
+        fe[0] = le, fe[1] = ye, fe[2] = pe;
+        const Be = ce(fe);
+        return typeof Be == "number" && Number.isFinite(Be) ? Be : Rr;
+      } : typeof ce == "number" && Number.isFinite(ce) ? (le, ye, pe) => ce : (le, ye, pe) => Rr, ae = Ne(F);
+      v(ae * Dr);
+      const ee = T;
+      let te = 0;
+      for (let le = 0; le < ae; le++) {
+        const ye = Fe(F, le), pe = _e(F, le);
+        if (!Number.isFinite(ye) || !Number.isFinite(pe)) continue;
+        const Be = at(F, le), Le = Be ?? K(ye, pe, Be), rt = Number.isFinite(Le) ? Math.max(0, Le) : Rr, ot = ue ? rt * $ : rt;
+        ot > 0 && (ee[te + 0] = ye, ee[te + 1] = pe, ee[te + 2] = ot, ee[te + 3] = 0, te += Dr);
+      }
+      R = te / Dr;
+      const be = Math.max(4, R * Qi);
+      if (!M || M.size < be) {
+        const le = Math.max(Math.max(4, Ko(be)), M ? M.size : 0);
+        if (M)
+          try {
+            M.destroy();
+          } catch {
+          }
+        M = e.createBuffer({
+          label: "scatterRenderer/instanceBuffer",
+          size: le,
+          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+        });
+      }
+      M && R > 0 && e.queue.writeBuffer(M, 0, D, 0, R * Qi);
+    }, render: (h) => {
+      w(), !(!M || R === 0) && (x && A > 0 && b > 0 && h.setScissorRect(x.x, x.y, x.w, x.h), h.setPipeline(p), h.setBindGroup(0, y), h.setVertexBuffer(0, M), h.draw(6, R), x && A > 0 && b > 0 && h.setScissorRect(0, 0, A, b));
+    }, dispose: () => {
+      if (!n) {
+        if (n = !0, M)
+          try {
+            M.destroy();
+          } catch {
+          }
+        M = null, R = 0;
         try {
-          M.destroy();
+          c.destroy();
         } catch {
         }
-      M = e.createBuffer({
-        label: "scatterRenderer/instanceBuffer",
-        size: le,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
-      });
-    }
-    M && R > 0 && e.queue.writeBuffer(M, 0, D, 0, R * Qi);
-  }, render: (h) => {
-    w(), !(!M || R === 0) && (x && A > 0 && b > 0 && h.setScissorRect(x.x, x.y, x.w, x.h), h.setPipeline(p), h.setBindGroup(0, y), h.setVertexBuffer(0, M), h.draw(6, R), x && A > 0 && b > 0 && h.setScissorRect(0, 0, A, b));
-  }, dispose: () => {
-    if (!n) {
-      if (n = !0, M)
         try {
-          M.destroy();
+          f.destroy();
         } catch {
         }
-      M = null, R = 0;
-      try {
-        c.destroy();
-      } catch {
+        A = 0, b = 0, m = [1, 1], x = null;
       }
-      try {
-        f.destroy();
-      } catch {
-      }
-      A = 0, b = 0, m = [1, 1], x = null;
     }
-  } };
+  };
 }
 const wl = `struct ComputeUniforms {
   transform: mat4x4<f32>,
@@ -3365,35 +3375,35 @@ fn fsMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
 }
 
 `, Cl = "bgra8unorm", Ui = (e) => Math.min(1, Math.max(0, e)), hn = (e, t, n) => Math.min(n, Math.max(t, e | 0)), Ml = (e) => {
-  if (!Number.isFinite(e) || e <= 0) return 1;
-  const t = Math.ceil(e);
-  return 2 ** Math.ceil(Math.log2(t));
-}, es = (e, t, n) => {
-  const i = e.scale(t), r = e.scale(n);
-  if (!Number.isFinite(t) || !Number.isFinite(n) || t === n || !Number.isFinite(i) || !Number.isFinite(r))
-    return { a: 0, b: Number.isFinite(i) ? i : 0 };
-  const o = (r - i) / (n - t), s = i - o * t;
-  return { a: Number.isFinite(o) ? o : 0, b: Number.isFinite(s) ? s : 0 };
-}, Sl = (e, t, n, i, r) => {
-  e[0] = t, e[1] = 0, e[2] = 0, e[3] = 0, e[4] = 0, e[5] = i, e[6] = 0, e[7] = 0, e[8] = 0, e[9] = 0, e[10] = 1, e[11] = 0, e[12] = n, e[13] = r, e[14] = 0, e[15] = 1;
-}, Fl = (e) => {
-  const { canvasWidth: t, canvasHeight: n, devicePixelRatio: i } = e, r = e.left * i, o = t - e.right * i, s = e.top * i, a = n - e.bottom * i, c = hn(Math.floor(r), 0, Math.max(0, t)), f = hn(Math.floor(s), 0, Math.max(0, n)), l = hn(Math.ceil(o), 0, Math.max(0, t)), g = hn(Math.ceil(a), 0, Math.max(0, n)), u = Math.max(0, l - c), y = Math.max(0, g - f);
-  return { x: c, y: f, w: u, h: y };
-}, Gi = (e, t, n) => e + (t - e) * n, Nl = (e, t, n) => [Gi(e[0], t[0], n), Gi(e[1], t[1], n), Gi(e[2], t[2], n), Gi(e[3], t[3], n)], Tl = (e) => yt(e) ?? [0, 0, 0, 1], ts = (e) => e === "plasma" ? ["#0d0887", "#6a00a8", "#b12a90", "#e16462", "#fca636", "#f0f921"] : e === "inferno" ? ["#000004", "#420a68", "#932667", "#dd513a", "#fca50a", "#fcffa4"] : ["#440154", "#3b528b", "#21918c", "#5ec962", "#fde725"], Al = (e) => {
-  const n = (typeof e == "string" ? ts(e) : Array.isArray(e) && e.length > 0 ? e : ts("viridis")).map(Tl), i = Math.max(2, n.length), r = new Uint8Array(new ArrayBuffer(256 * 4));
-  for (let o = 0; o < 256; o++) {
-    const a = o / 255 * (i - 1), c = Math.min(i - 2, Math.max(0, Math.floor(a))), f = a - c, l = Nl(n[c], n[c + 1], f);
-    r[o * 4 + 0] = hn(Math.round(Ui(l[0]) * 255), 0, 255), r[o * 4 + 1] = hn(Math.round(Ui(l[1]) * 255), 0, 255), r[o * 4 + 2] = hn(Math.round(Ui(l[2]) * 255), 0, 255), r[o * 4 + 3] = hn(Math.round(Ui(l[3]) * 255), 0, 255);
-  }
-  return r;
-}, Il = (e) => {
-  if (typeof e == "string") return e;
-  try {
-    return JSON.stringify(e);
-  } catch {
-    return "custom";
-  }
-}, Pl = (e) => e === "sqrt" ? 1 : e === "log" ? 2 : 0, Rl = new Uint32Array([0]).buffer;
+    if (!Number.isFinite(e) || e <= 0) return 1;
+    const t = Math.ceil(e);
+    return 2 ** Math.ceil(Math.log2(t));
+  }, es = (e, t, n) => {
+    const i = e.scale(t), r = e.scale(n);
+    if (!Number.isFinite(t) || !Number.isFinite(n) || t === n || !Number.isFinite(i) || !Number.isFinite(r))
+      return { a: 0, b: Number.isFinite(i) ? i : 0 };
+    const o = (r - i) / (n - t), s = i - o * t;
+    return { a: Number.isFinite(o) ? o : 0, b: Number.isFinite(s) ? s : 0 };
+  }, Sl = (e, t, n, i, r) => {
+    e[0] = t, e[1] = 0, e[2] = 0, e[3] = 0, e[4] = 0, e[5] = i, e[6] = 0, e[7] = 0, e[8] = 0, e[9] = 0, e[10] = 1, e[11] = 0, e[12] = n, e[13] = r, e[14] = 0, e[15] = 1;
+  }, Fl = (e) => {
+    const { canvasWidth: t, canvasHeight: n, devicePixelRatio: i } = e, r = e.left * i, o = t - e.right * i, s = e.top * i, a = n - e.bottom * i, c = hn(Math.floor(r), 0, Math.max(0, t)), f = hn(Math.floor(s), 0, Math.max(0, n)), l = hn(Math.ceil(o), 0, Math.max(0, t)), g = hn(Math.ceil(a), 0, Math.max(0, n)), u = Math.max(0, l - c), y = Math.max(0, g - f);
+    return { x: c, y: f, w: u, h: y };
+  }, Gi = (e, t, n) => e + (t - e) * n, Nl = (e, t, n) => [Gi(e[0], t[0], n), Gi(e[1], t[1], n), Gi(e[2], t[2], n), Gi(e[3], t[3], n)], Tl = (e) => yt(e) ?? [0, 0, 0, 1], ts = (e) => e === "plasma" ? ["#0d0887", "#6a00a8", "#b12a90", "#e16462", "#fca636", "#f0f921"] : e === "inferno" ? ["#000004", "#420a68", "#932667", "#dd513a", "#fca50a", "#fcffa4"] : ["#440154", "#3b528b", "#21918c", "#5ec962", "#fde725"], Al = (e) => {
+    const n = (typeof e == "string" ? ts(e) : Array.isArray(e) && e.length > 0 ? e : ts("viridis")).map(Tl), i = Math.max(2, n.length), r = new Uint8Array(new ArrayBuffer(256 * 4));
+    for (let o = 0; o < 256; o++) {
+      const a = o / 255 * (i - 1), c = Math.min(i - 2, Math.max(0, Math.floor(a))), f = a - c, l = Nl(n[c], n[c + 1], f);
+      r[o * 4 + 0] = hn(Math.round(Ui(l[0]) * 255), 0, 255), r[o * 4 + 1] = hn(Math.round(Ui(l[1]) * 255), 0, 255), r[o * 4 + 2] = hn(Math.round(Ui(l[2]) * 255), 0, 255), r[o * 4 + 3] = hn(Math.round(Ui(l[3]) * 255), 0, 255);
+    }
+    return r;
+  }, Il = (e) => {
+    if (typeof e == "string") return e;
+    try {
+      return JSON.stringify(e);
+    } catch {
+      return "custom";
+    }
+  }, Pl = (e) => e === "sqrt" ? 1 : e === "log" ? 2 : 0, Rl = new Uint32Array([0]).buffer;
 function Dl(e, t) {
   let n = !1;
   const i = (t == null ? void 0 : t.targetFormat) ?? Cl, r = t == null ? void 0 : t.sampleCount, o = Number.isFinite(r) ? Math.max(1, Math.floor(r)) : 1, s = t == null ? void 0 : t.pipelineCache, a = e.createBindGroupLayout({
@@ -3507,62 +3517,64 @@ function Dl(e, t) {
       ]
     })));
   };
-  return { prepare: (K, ae, ee, te, be, le, ye, pe, Be) => {
-    W(), J = !0;
-    const Le = Fl(pe), rt = pe.devicePixelRatio, ot = Number.isFinite(K.binSize) ? Math.max(1e-6, K.binSize) : 2, ve = Math.max(1, Math.round(ot * (Number.isFinite(rt) && rt > 0 ? rt : 1))), Te = Math.max(1, Math.ceil(Le.w / ve)), Xe = Math.max(1, Math.ceil(Le.h / ve));
-    L(Te, Xe), de(K);
-    const Ke = Pl(K.densityNormalization);
-    h !== ae && (h = ae, C = null, d = null, Z = !0), F !== ee && (F = ee, Z = !0), (S !== te || P !== be) && (S = te, P = be, Z = !0), (B !== ve || E !== Te || z !== Xe) && (B = ve, E = Te, z = Xe, Z = !0), (!U || U.x !== Le.x || U.y !== Le.y || U.w !== Le.w || U.h !== Le.h) && (U = Le, Z = !0), (Y !== pe.canvasWidth || j !== pe.canvasHeight) && (Y = pe.canvasWidth, j = pe.canvasHeight, Z = !0), q !== Ke && (q = Ke, Z = !0);
-    const We = Be, mt = (We == null ? void 0 : We.xMin) ?? 0, ft = (We == null ? void 0 : We.xMax) ?? 1, ke = (We == null ? void 0 : We.yMin) ?? 0, ct = (We == null ? void 0 : We.yMax) ?? 1, { a: At, b: Vt } = es(le, mt, ft), { a: gt, b: _t } = es(ye, ke, ct);
-    Sl(g, At, Vt, gt, _t), g[16] = pe.canvasWidth > 0 ? pe.canvasWidth : 1, g[17] = pe.canvasHeight > 0 ? pe.canvasHeight : 1, g[18] = 0, g[19] = 0, u[20] = Le.x >>> 0, u[21] = Le.y >>> 0, u[22] = Le.w >>> 0, u[23] = Le.h >>> 0, u[24] = ve >>> 0, u[25] = Te >>> 0, u[26] = Xe >>> 0, u[27] = (Math.max(0, te) | 0) >>> 0, u[28] = (Math.max(0, be) | 0) >>> 0, u[29] = Ke >>> 0, ut(e, f, l), M[0] = Le.x >>> 0, M[1] = Le.y >>> 0, M[2] = Le.w >>> 0, M[3] = Le.h >>> 0, M[4] = ve >>> 0, M[5] = Te >>> 0, M[6] = Xe >>> 0, M[7] = Ke >>> 0, ut(e, y, p), X();
-  }, encodeCompute: (K) => {
-    if (W(), !J || !Z) return;
-    if (!m || !x || !C || F <= 0) {
-      Z = !1;
-      return;
-    }
-    if (!U || U.w <= 0 || U.h <= 0) {
-      Z = !1;
-      return;
-    }
-    e.queue.writeBuffer(m, 0, re.buffer, 0, w * 4), e.queue.writeBuffer(x, 0, Rl);
-    const ae = E * z | 0, ee = Math.max(0, P - S | 0), te = K.beginComputePass({ label: "scatterDensity/computePass" });
-    te.setBindGroup(0, C), te.setPipeline(T);
-    const be = 256, le = Math.ceil(ee / be);
-    le > 0 && te.dispatchWorkgroups(le), te.setPipeline(A);
-    const ye = Math.ceil(ae / be);
-    ye > 0 && te.dispatchWorkgroups(ye), te.end(), Z = !1;
-  }, render: (K) => {
-    W(), J && (!d || !U || !I || U.w <= 0 || U.h <= 0 || (K.setScissorRect(U.x, U.y, U.w, U.h), K.setPipeline(b), K.setBindGroup(0, d), K.draw(3), Y > 0 && j > 0 && K.setScissorRect(0, 0, Y, j)));
-  }, dispose: () => {
-    if (!n) {
-      n = !0;
-      try {
-        f.destroy();
-      } catch {
+  return {
+    prepare: (K, ae, ee, te, be, le, ye, pe, Be) => {
+      W(), J = !0;
+      const Le = Fl(pe), rt = pe.devicePixelRatio, ot = Number.isFinite(K.binSize) ? Math.max(1e-6, K.binSize) : 2, ve = Math.max(1, Math.round(ot * (Number.isFinite(rt) && rt > 0 ? rt : 1))), Te = Math.max(1, Math.ceil(Le.w / ve)), Xe = Math.max(1, Math.ceil(Le.h / ve));
+      L(Te, Xe), de(K);
+      const Ke = Pl(K.densityNormalization);
+      h !== ae && (h = ae, C = null, d = null, Z = !0), F !== ee && (F = ee, Z = !0), (S !== te || P !== be) && (S = te, P = be, Z = !0), (B !== ve || E !== Te || z !== Xe) && (B = ve, E = Te, z = Xe, Z = !0), (!U || U.x !== Le.x || U.y !== Le.y || U.w !== Le.w || U.h !== Le.h) && (U = Le, Z = !0), (Y !== pe.canvasWidth || j !== pe.canvasHeight) && (Y = pe.canvasWidth, j = pe.canvasHeight, Z = !0), q !== Ke && (q = Ke, Z = !0);
+      const We = Be, mt = (We == null ? void 0 : We.xMin) ?? 0, ft = (We == null ? void 0 : We.xMax) ?? 1, ke = (We == null ? void 0 : We.yMin) ?? 0, ct = (We == null ? void 0 : We.yMax) ?? 1, { a: At, b: Vt } = es(le, mt, ft), { a: gt, b: _t } = es(ye, ke, ct);
+      Sl(g, At, Vt, gt, _t), g[16] = pe.canvasWidth > 0 ? pe.canvasWidth : 1, g[17] = pe.canvasHeight > 0 ? pe.canvasHeight : 1, g[18] = 0, g[19] = 0, u[20] = Le.x >>> 0, u[21] = Le.y >>> 0, u[22] = Le.w >>> 0, u[23] = Le.h >>> 0, u[24] = ve >>> 0, u[25] = Te >>> 0, u[26] = Xe >>> 0, u[27] = (Math.max(0, te) | 0) >>> 0, u[28] = (Math.max(0, be) | 0) >>> 0, u[29] = Ke >>> 0, ut(e, f, l), M[0] = Le.x >>> 0, M[1] = Le.y >>> 0, M[2] = Le.w >>> 0, M[3] = Le.h >>> 0, M[4] = ve >>> 0, M[5] = Te >>> 0, M[6] = Xe >>> 0, M[7] = Ke >>> 0, ut(e, y, p), X();
+    }, encodeCompute: (K) => {
+      if (W(), !J || !Z) return;
+      if (!m || !x || !C || F <= 0) {
+        Z = !1;
+        return;
       }
-      try {
-        y.destroy();
-      } catch {
+      if (!U || U.w <= 0 || U.h <= 0) {
+        Z = !1;
+        return;
       }
-      if (m)
+      e.queue.writeBuffer(m, 0, re.buffer, 0, w * 4), e.queue.writeBuffer(x, 0, Rl);
+      const ae = E * z | 0, ee = Math.max(0, P - S | 0), te = K.beginComputePass({ label: "scatterDensity/computePass" });
+      te.setBindGroup(0, C), te.setPipeline(T);
+      const be = 256, le = Math.ceil(ee / be);
+      le > 0 && te.dispatchWorkgroups(le), te.setPipeline(A);
+      const ye = Math.ceil(ae / be);
+      ye > 0 && te.dispatchWorkgroups(ye), te.end(), Z = !1;
+    }, render: (K) => {
+      W(), J && (!d || !U || !I || U.w <= 0 || U.h <= 0 || (K.setScissorRect(U.x, U.y, U.w, U.h), K.setPipeline(b), K.setBindGroup(0, d), K.draw(3), Y > 0 && j > 0 && K.setScissorRect(0, 0, Y, j)));
+    }, dispose: () => {
+      if (!n) {
+        n = !0;
         try {
-          m.destroy();
+          f.destroy();
         } catch {
         }
-      if (x)
         try {
-          x.destroy();
+          y.destroy();
         } catch {
         }
-      if (m = null, x = null, w = 0, v)
-        try {
-          v.destroy();
-        } catch {
-        }
-      v = null, I = null, C = null, d = null, h = null;
+        if (m)
+          try {
+            m.destroy();
+          } catch {
+          }
+        if (x)
+          try {
+            x.destroy();
+          } catch {
+          }
+        if (m = null, x = null, w = 0, v)
+          try {
+            v.destroy();
+          } catch {
+          }
+        v = null, I = null, C = null, d = null, h = null;
+      }
     }
-  } };
+  };
 }
 const ns = `// pie.wgsl
 // Instanced anti-aliased pie-slice shader (instanced quad + SDF mask).
@@ -3715,68 +3727,68 @@ fn fsMain(in: VSOut) -> @location(0) vec4<f32> {
 }
 
 `, El = "bgra8unorm", er = 40, Er = er / 4, On = Math.PI * 2, is = (e) => Math.min(1, Math.max(0, e)), zi = (e, t, n) => Math.min(n, Math.max(t, e | 0)), rs = (e) => {
-  if (!Number.isFinite(e) || e <= 0) return 1;
-  const t = Math.ceil(e);
-  return 2 ** Math.ceil(Math.log2(t));
-}, Br = (e) => {
-  if (!Number.isFinite(e)) return 0;
-  const t = e % On;
-  return t < 0 ? t + On : t;
-}, Bl = (e, t) => {
-  const n = yt(e);
-  if (n) return [n[0], n[1], n[2], is(n[3])];
-  const i = yt(t);
-  return i ? [i[0], i[1], i[2], is(i[3])] : [0, 0, 0, 1];
-}, pi = (e, t) => {
-  if (typeof e == "number") return Number.isFinite(e) ? e : null;
-  if (typeof e != "string") return null;
-  const n = e.trim();
-  if (n.length === 0) return null;
-  if (n.endsWith("%")) {
-    const r = Number.parseFloat(n.slice(0, -1));
-    return Number.isFinite(r) ? r / 100 * t : null;
-  }
-  const i = Number.parseFloat(n);
-  return Number.isFinite(i) ? i : null;
-}, Ll = (e, t, n) => {
-  const i = (e == null ? void 0 : e[0]) ?? "50%", r = (e == null ? void 0 : e[1]) ?? "50%", o = pi(i, t), s = pi(r, n);
-  return {
-    x: Number.isFinite(o) ? o : t * 0.5,
-    y: Number.isFinite(s) ? s : n * 0.5
-  };
-}, _l = (e) => Array.isArray(e), kl = (e, t) => {
-  if (e == null) return { inner: 0, outer: t * 0.7 };
-  if (_l(e)) {
-    const r = pi(e[0], t), o = pi(e[1], t), s = Math.max(0, Number.isFinite(r) ? r : 0), a = Math.max(s, Number.isFinite(o) ? o : t * 0.7);
-    return { inner: s, outer: Math.min(t, a) };
-  }
-  const n = pi(e, t), i = Math.max(0, Number.isFinite(n) ? n : t * 0.7);
-  return { inner: 0, outer: Math.min(t, i) };
-}, Ul = (e) => {
-  const { canvasWidth: t, canvasHeight: n, devicePixelRatio: i } = e, r = e.left * i, o = t - e.right * i, s = e.top * i, a = n - e.bottom * i, c = zi(Math.floor(r), 0, Math.max(0, t)), f = zi(Math.floor(s), 0, Math.max(0, n)), l = zi(Math.ceil(o), 0, Math.max(0, t)), g = zi(Math.ceil(a), 0, Math.max(0, n)), u = Math.max(0, l - c), y = Math.max(0, g - f);
-  return { x: c, y: f, w: u, h: y };
-}, Gl = new Float32Array([
-  1,
-  0,
-  0,
-  0,
-  // col0
-  0,
-  1,
-  0,
-  0,
-  // col1
-  0,
-  0,
-  1,
-  0,
-  // col2
-  0,
-  0,
-  0,
-  1
-  // col3
-]);
+    if (!Number.isFinite(e) || e <= 0) return 1;
+    const t = Math.ceil(e);
+    return 2 ** Math.ceil(Math.log2(t));
+  }, Br = (e) => {
+    if (!Number.isFinite(e)) return 0;
+    const t = e % On;
+    return t < 0 ? t + On : t;
+  }, Bl = (e, t) => {
+    const n = yt(e);
+    if (n) return [n[0], n[1], n[2], is(n[3])];
+    const i = yt(t);
+    return i ? [i[0], i[1], i[2], is(i[3])] : [0, 0, 0, 1];
+  }, pi = (e, t) => {
+    if (typeof e == "number") return Number.isFinite(e) ? e : null;
+    if (typeof e != "string") return null;
+    const n = e.trim();
+    if (n.length === 0) return null;
+    if (n.endsWith("%")) {
+      const r = Number.parseFloat(n.slice(0, -1));
+      return Number.isFinite(r) ? r / 100 * t : null;
+    }
+    const i = Number.parseFloat(n);
+    return Number.isFinite(i) ? i : null;
+  }, Ll = (e, t, n) => {
+    const i = (e == null ? void 0 : e[0]) ?? "50%", r = (e == null ? void 0 : e[1]) ?? "50%", o = pi(i, t), s = pi(r, n);
+    return {
+      x: Number.isFinite(o) ? o : t * 0.5,
+      y: Number.isFinite(s) ? s : n * 0.5
+    };
+  }, _l = (e) => Array.isArray(e), kl = (e, t) => {
+    if (e == null) return { inner: 0, outer: t * 0.7 };
+    if (_l(e)) {
+      const r = pi(e[0], t), o = pi(e[1], t), s = Math.max(0, Number.isFinite(r) ? r : 0), a = Math.max(s, Number.isFinite(o) ? o : t * 0.7);
+      return { inner: s, outer: Math.min(t, a) };
+    }
+    const n = pi(e, t), i = Math.max(0, Number.isFinite(n) ? n : t * 0.7);
+    return { inner: 0, outer: Math.min(t, i) };
+  }, Ul = (e) => {
+    const { canvasWidth: t, canvasHeight: n, devicePixelRatio: i } = e, r = e.left * i, o = t - e.right * i, s = e.top * i, a = n - e.bottom * i, c = zi(Math.floor(r), 0, Math.max(0, t)), f = zi(Math.floor(s), 0, Math.max(0, n)), l = zi(Math.ceil(o), 0, Math.max(0, t)), g = zi(Math.ceil(a), 0, Math.max(0, n)), u = Math.max(0, l - c), y = Math.max(0, g - f);
+    return { x: c, y: f, w: u, h: y };
+  }, Gl = new Float32Array([
+    1,
+    0,
+    0,
+    0,
+    // col0
+    0,
+    1,
+    0,
+    0,
+    // col1
+    0,
+    0,
+    1,
+    0,
+    // col2
+    0,
+    0,
+    0,
+    1
+    // col3
+  ]);
 function zl(e, t) {
   let n = !1;
   const i = (t == null ? void 0 : t.targetFormat) ?? El, r = t == null ? void 0 : t.sampleCount, o = Number.isFinite(r) ? Math.max(1, Math.floor(r)) : 1, s = t == null ? void 0 : t.pipelineCache, a = e.createBindGroupLayout({
@@ -3837,92 +3849,94 @@ function zl(e, t) {
     const d = Number.isFinite(N) && N > 0 ? N : 1, h = Number.isFinite(C) && C > 0 ? C : 1;
     l.set(Gl, 0), l[16] = d, l[17] = h, l[18] = 0, l[19] = 0, ut(e, c, f);
   };
-  return { prepare: (N, C) => {
-    b();
-    const d = C.devicePixelRatio, h = d > 0 && Number.isFinite(d) ? d : 1;
-    D = C.canvasWidth, T = C.canvasHeight, x(C.canvasWidth, C.canvasHeight), A = Ul(C);
-    const F = C.canvasWidth / h, S = C.canvasHeight / h;
-    if (!(F > 0) || !(S > 0)) {
-      p = 0;
-      return;
-    }
-    const P = F - C.left - C.right, B = S - C.top - C.bottom;
-    if (!(P > 0) || !(B > 0)) {
-      p = 0;
-      return;
-    }
-    const E = 0.5 * Math.min(P, B);
-    if (!(E > 0)) {
-      p = 0;
-      return;
-    }
-    const z = Ll(N.center, P, B), U = C.left + z.x, Y = C.top + z.y, j = U / F * 2 - 1, q = 1 - Y / S * 2;
-    if (!Number.isFinite(j) || !Number.isFinite(q)) {
-      p = 0;
-      return;
-    }
-    const Z = kl(N.radius, E), J = Math.max(0, Math.min(Z.inner, Z.outer)), re = Math.max(J, Z.outer), W = J * h, de = re * h;
-    if (!(de > 0)) {
-      p = 0;
-      return;
-    }
-    let L = 0, X = 0;
-    for (let te = 0; te < N.data.length; te++) {
-      const be = N.data[te], le = be == null ? void 0 : be.value;
-      typeof le == "number" && Number.isFinite(le) && le > 0 && be.visible !== !1 && (L += le, X++);
-    }
-    if (!(L > 0) || X === 0) {
-      p = 0;
-      return;
-    }
-    m(X * Er);
-    const $ = R, ue = typeof N.startAngle == "number" && Number.isFinite(N.startAngle) ? N.startAngle : 90;
-    let ce = Br(ue * Math.PI / 180), fe = 0, K = 0, ae = 0;
-    for (let te = 0; te < N.data.length; te++) {
-      const be = N.data[te], le = be == null ? void 0 : be.value;
-      if (typeof le != "number" || !Number.isFinite(le) || le <= 0 || be.visible === !1) continue;
-      ae++;
-      const ye = ae === X;
-      let Be = le / L * On;
-      if (ye ? Be = Math.max(0, On - fe) : Be = Math.max(0, Math.min(On, Be)), fe += Be, !(Be > 0)) continue;
-      const Le = ce, rt = X === 1 ? ce + On : Br(ce + Be);
-      ce = Br(ce + Be);
-      const [ot, ve, Te, Xe] = Bl(be.color, N.color);
-      $[K + 0] = j, $[K + 1] = q, $[K + 2] = Le, $[K + 3] = rt, $[K + 4] = W, $[K + 5] = de, $[K + 6] = ot, $[K + 7] = ve, $[K + 8] = Te, $[K + 9] = Xe, K += Er;
-    }
-    p = K / Er;
-    const ee = Math.max(4, p * er);
-    if (!y || y.size < ee) {
-      const te = Math.max(Math.max(4, rs(ee)), y ? y.size : 0);
-      if (y)
-        try {
-          y.destroy();
-        } catch {
-        }
-      y = e.createBuffer({
-        label: "pieRenderer/instanceBuffer",
-        size: te,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
-      });
-    }
-    y && p > 0 && e.queue.writeBuffer(y, 0, M, 0, p * er);
-  }, render: (N) => {
-    b(), !(!y || p === 0) && (A && D > 0 && T > 0 && N.setScissorRect(A.x, A.y, A.w, A.h), N.setPipeline(u), N.setBindGroup(0, g), N.setVertexBuffer(0, y), N.draw(6, p), A && D > 0 && T > 0 && N.setScissorRect(0, 0, D, T));
-  }, dispose: () => {
-    if (!n) {
-      if (n = !0, y)
-        try {
-          y.destroy();
-        } catch {
-        }
-      y = null, p = 0;
-      try {
-        c.destroy();
-      } catch {
+  return {
+    prepare: (N, C) => {
+      b();
+      const d = C.devicePixelRatio, h = d > 0 && Number.isFinite(d) ? d : 1;
+      D = C.canvasWidth, T = C.canvasHeight, x(C.canvasWidth, C.canvasHeight), A = Ul(C);
+      const F = C.canvasWidth / h, S = C.canvasHeight / h;
+      if (!(F > 0) || !(S > 0)) {
+        p = 0;
+        return;
       }
-      D = 0, T = 0, A = null;
+      const P = F - C.left - C.right, B = S - C.top - C.bottom;
+      if (!(P > 0) || !(B > 0)) {
+        p = 0;
+        return;
+      }
+      const E = 0.5 * Math.min(P, B);
+      if (!(E > 0)) {
+        p = 0;
+        return;
+      }
+      const z = Ll(N.center, P, B), U = C.left + z.x, Y = C.top + z.y, j = U / F * 2 - 1, q = 1 - Y / S * 2;
+      if (!Number.isFinite(j) || !Number.isFinite(q)) {
+        p = 0;
+        return;
+      }
+      const Z = kl(N.radius, E), J = Math.max(0, Math.min(Z.inner, Z.outer)), re = Math.max(J, Z.outer), W = J * h, de = re * h;
+      if (!(de > 0)) {
+        p = 0;
+        return;
+      }
+      let L = 0, X = 0;
+      for (let te = 0; te < N.data.length; te++) {
+        const be = N.data[te], le = be == null ? void 0 : be.value;
+        typeof le == "number" && Number.isFinite(le) && le > 0 && be.visible !== !1 && (L += le, X++);
+      }
+      if (!(L > 0) || X === 0) {
+        p = 0;
+        return;
+      }
+      m(X * Er);
+      const $ = R, ue = typeof N.startAngle == "number" && Number.isFinite(N.startAngle) ? N.startAngle : 90;
+      let ce = Br(ue * Math.PI / 180), fe = 0, K = 0, ae = 0;
+      for (let te = 0; te < N.data.length; te++) {
+        const be = N.data[te], le = be == null ? void 0 : be.value;
+        if (typeof le != "number" || !Number.isFinite(le) || le <= 0 || be.visible === !1) continue;
+        ae++;
+        const ye = ae === X;
+        let Be = le / L * On;
+        if (ye ? Be = Math.max(0, On - fe) : Be = Math.max(0, Math.min(On, Be)), fe += Be, !(Be > 0)) continue;
+        const Le = ce, rt = X === 1 ? ce + On : Br(ce + Be);
+        ce = Br(ce + Be);
+        const [ot, ve, Te, Xe] = Bl(be.color, N.color);
+        $[K + 0] = j, $[K + 1] = q, $[K + 2] = Le, $[K + 3] = rt, $[K + 4] = W, $[K + 5] = de, $[K + 6] = ot, $[K + 7] = ve, $[K + 8] = Te, $[K + 9] = Xe, K += Er;
+      }
+      p = K / Er;
+      const ee = Math.max(4, p * er);
+      if (!y || y.size < ee) {
+        const te = Math.max(Math.max(4, rs(ee)), y ? y.size : 0);
+        if (y)
+          try {
+            y.destroy();
+          } catch {
+          }
+        y = e.createBuffer({
+          label: "pieRenderer/instanceBuffer",
+          size: te,
+          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+        });
+      }
+      y && p > 0 && e.queue.writeBuffer(y, 0, M, 0, p * er);
+    }, render: (N) => {
+      b(), !(!y || p === 0) && (A && D > 0 && T > 0 && N.setScissorRect(A.x, A.y, A.w, A.h), N.setPipeline(u), N.setBindGroup(0, g), N.setVertexBuffer(0, y), N.draw(6, p), A && D > 0 && T > 0 && N.setScissorRect(0, 0, D, T));
+    }, dispose: () => {
+      if (!n) {
+        if (n = !0, y)
+          try {
+            y.destroy();
+          } catch {
+          }
+        y = null, p = 0;
+        try {
+          c.destroy();
+        } catch {
+        }
+        D = 0, T = 0, A = null;
+      }
     }
-  } };
+  };
 }
 const os = `// candlestick.wgsl
 // Instanced candlestick shader (bodies + wicks):
@@ -4032,80 +4046,80 @@ fn fsMain(in: VSOut) -> @location(0) vec4<f32> {
   return in.color;
 }
 `, Vl = "bgra8unorm", Wl = 1, zn = 40, Nn = zn / 4, Ol = (e) => Math.min(1, Math.max(0, e)), Vi = (e, t, n) => Math.min(n, Math.max(t, e | 0)), fi = (e) => yt(e) ?? [0, 0, 0, 1], Wi = (e) => {
-  if (!Number.isFinite(e) || e <= 0) return 1;
-  const t = Math.ceil(e);
-  return 2 ** Math.ceil(Math.log2(t));
-}, Xl = (e) => {
-  const t = e.trim().match(/^(\d+(?:\.\d+)?)%$/);
-  if (!t) return null;
-  const n = Number(t[1]) / 100;
-  return Number.isFinite(n) ? n : null;
-}, $l = (e) => Array.isArray(e), sa = (e) => $l(e) ? { timestamp: e[0], open: e[1], close: e[2], low: e[3], high: e[4] } : { timestamp: e.timestamp, open: e.open, close: e.close, low: e.low, high: e.high }, Yl = (e) => {
-  const t = e.devicePixelRatio;
-  if (!(t > 0)) return null;
-  const n = e.canvasWidth / t, i = e.canvasHeight / t, r = n - e.left - e.right, o = i - e.top - e.bottom;
-  return !(r > 0) || !(o > 0) ? null : { plotWidthCss: r, plotHeightCss: o };
-}, Hl = (e) => {
-  const { left: t, right: n, top: i, bottom: r, canvasWidth: o, canvasHeight: s, devicePixelRatio: a } = e, c = t * a, f = o - n * a, l = i * a, g = s - r * a, u = c / o * 2 - 1, y = f / o * 2 - 1, p = 1 - l / s * 2, M = 1 - g / s * 2;
-  return {
-    left: u,
-    right: y,
-    top: p,
-    bottom: M,
-    width: y - u,
-    height: p - M
+    if (!Number.isFinite(e) || e <= 0) return 1;
+    const t = Math.ceil(e);
+    return 2 ** Math.ceil(Math.log2(t));
+  }, Xl = (e) => {
+    const t = e.trim().match(/^(\d+(?:\.\d+)?)%$/);
+    if (!t) return null;
+    const n = Number(t[1]) / 100;
+    return Number.isFinite(n) ? n : null;
+  }, $l = (e) => Array.isArray(e), sa = (e) => $l(e) ? { timestamp: e[0], open: e[1], close: e[2], low: e[3], high: e[4] } : { timestamp: e.timestamp, open: e.open, close: e.close, low: e.low, high: e.high }, Yl = (e) => {
+    const t = e.devicePixelRatio;
+    if (!(t > 0)) return null;
+    const n = e.canvasWidth / t, i = e.canvasHeight / t, r = n - e.left - e.right, o = i - e.top - e.bottom;
+    return !(r > 0) || !(o > 0) ? null : { plotWidthCss: r, plotHeightCss: o };
+  }, Hl = (e) => {
+    const { left: t, right: n, top: i, bottom: r, canvasWidth: o, canvasHeight: s, devicePixelRatio: a } = e, c = t * a, f = o - n * a, l = i * a, g = s - r * a, u = c / o * 2 - 1, y = f / o * 2 - 1, p = 1 - l / s * 2, M = 1 - g / s * 2;
+    return {
+      left: u,
+      right: y,
+      top: p,
+      bottom: M,
+      width: y - u,
+      height: p - M
+    };
+  }, ql = (e) => {
+    const { canvasWidth: t, canvasHeight: n, devicePixelRatio: i } = e, r = e.left * i, o = t - e.right * i, s = e.top * i, a = n - e.bottom * i, c = Vi(Math.floor(r), 0, Math.max(0, t)), f = Vi(Math.floor(s), 0, Math.max(0, n)), l = Vi(Math.ceil(o), 0, Math.max(0, t)), g = Vi(Math.ceil(a), 0, Math.max(0, n)), u = Math.max(0, l - c), y = Math.max(0, g - f);
+    return { x: c, y: f, w: u, h: y };
+  }, Zl = (e) => {
+    const t = [];
+    for (let i = 0; i < e.length; i++) {
+      const { timestamp: r } = sa(e[i]);
+      Number.isFinite(r) && t.push(r);
+    }
+    if (t.length < 2) return 1;
+    t.sort((i, r) => i - r);
+    let n = Number.POSITIVE_INFINITY;
+    for (let i = 1; i < t.length; i++) {
+      const r = t[i] - t[i - 1];
+      r > 0 && r < n && (n = r);
+    }
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  }, jl = (e, t, n, i) => {
+    if (Number.isFinite(t) && t > 0) {
+      const a = e.scale(0), c = e.scale(0 + t), f = Math.abs(c - a);
+      if (Number.isFinite(f) && f > 0) return f;
+    }
+    const r = Math.abs(n.width);
+    if (!(r > 0)) return 0;
+    const o = Math.max(1, Math.floor(i));
+    return r / o;
+  }, Kl = () => {
+    const e = new ArrayBuffer(64);
+    return new Float32Array(e).set([
+      1,
+      0,
+      0,
+      0,
+      // col0
+      0,
+      1,
+      0,
+      0,
+      // col1
+      0,
+      0,
+      1,
+      0,
+      // col2
+      0,
+      0,
+      0,
+      1
+      // col3
+    ]), e;
   };
-}, ql = (e) => {
-  const { canvasWidth: t, canvasHeight: n, devicePixelRatio: i } = e, r = e.left * i, o = t - e.right * i, s = e.top * i, a = n - e.bottom * i, c = Vi(Math.floor(r), 0, Math.max(0, t)), f = Vi(Math.floor(s), 0, Math.max(0, n)), l = Vi(Math.ceil(o), 0, Math.max(0, t)), g = Vi(Math.ceil(a), 0, Math.max(0, n)), u = Math.max(0, l - c), y = Math.max(0, g - f);
-  return { x: c, y: f, w: u, h: y };
-}, Zl = (e) => {
-  const t = [];
-  for (let i = 0; i < e.length; i++) {
-    const { timestamp: r } = sa(e[i]);
-    Number.isFinite(r) && t.push(r);
-  }
-  if (t.length < 2) return 1;
-  t.sort((i, r) => i - r);
-  let n = Number.POSITIVE_INFINITY;
-  for (let i = 1; i < t.length; i++) {
-    const r = t[i] - t[i - 1];
-    r > 0 && r < n && (n = r);
-  }
-  return Number.isFinite(n) && n > 0 ? n : 1;
-}, jl = (e, t, n, i) => {
-  if (Number.isFinite(t) && t > 0) {
-    const a = e.scale(0), c = e.scale(0 + t), f = Math.abs(c - a);
-    if (Number.isFinite(f) && f > 0) return f;
-  }
-  const r = Math.abs(n.width);
-  if (!(r > 0)) return 0;
-  const o = Math.max(1, Math.floor(i));
-  return r / o;
-}, Kl = () => {
-  const e = new ArrayBuffer(64);
-  return new Float32Array(e).set([
-    1,
-    0,
-    0,
-    0,
-    // col0
-    0,
-    1,
-    0,
-    0,
-    // col1
-    0,
-    0,
-    1,
-    0,
-    // col2
-    0,
-    0,
-    0,
-    1
-    // col3
-  ]), e;
-};
 function Jl(e, t) {
   let n = !1;
   const i = (t == null ? void 0 : t.targetFormat) ?? Vl, r = t == null ? void 0 : t.sampleCount, o = Number.isFinite(r) ? Math.max(1, Math.floor(r)) : 1, s = t == null ? void 0 : t.pipelineCache, a = e.createBindGroupLayout({
@@ -4165,136 +4179,138 @@ function Jl(e, t) {
     const P = Math.max(8, Wi(S));
     w = new ArrayBuffer(P * 4), v = new Float32Array(w);
   };
-  return { prepare: (S, P, B, E, z, U) => {
-    if (I(), P.length === 0) {
-      p = 0, x = 0;
-      return;
-    }
-    const Y = Yl(z);
-    if (!Y) {
-      p = 0, x = 0;
-      return;
-    }
-    const j = Hl(z), q = Y.plotWidthCss > 0 ? j.width / Y.plotWidthCss : 0;
-    D = z.canvasWidth, T = z.canvasHeight, A = ql(z);
-    const Z = Zl(P), J = jl(B, Z, j, P.length);
-    let re = 0;
-    const W = S.barWidth;
-    if (typeof W == "number")
-      re = Math.max(0, W) * q;
-    else if (typeof W == "string") {
-      const pe = Xl(W);
-      re = pe == null ? 0 : J * Ol(pe);
-    }
-    const de = S.barMinWidth * q, L = S.barMaxWidth * q;
-    re = Math.min(Math.max(re, de), L);
-    const X = S.itemStyle.borderWidth ?? Wl, $ = Math.max(0, X) * q;
-    l.set([
-      1,
-      0,
-      0,
-      0,
-      // col0
-      0,
-      1,
-      0,
-      0,
-      // col1
-      0,
-      0,
-      1,
-      0,
-      // col2
-      0,
-      0,
-      0,
-      1,
-      // col3
-      $,
-      0,
-      0,
-      0
-    ]), ut(e, c, f);
-    const ue = fi(S.itemStyle.upColor), ce = fi(S.itemStyle.downColor), fe = fi(S.itemStyle.upBorderColor), K = fi(S.itemStyle.downBorderColor), ae = U ? fi(U) : [0, 0, 0, 1];
-    b = S.style === "hollow", N(P.length * Nn);
-    const ee = R;
-    let te = 0;
-    b && C(P.length * Nn);
-    const be = v;
-    let le = 0;
-    for (let pe = 0; pe < P.length; pe++) {
-      const { timestamp: Be, open: Le, close: rt, low: ot, high: ve } = sa(P[pe]);
-      if (!Number.isFinite(Be) || !Number.isFinite(Le) || !Number.isFinite(rt) || !Number.isFinite(ot) || !Number.isFinite(ve))
-        continue;
-      const Te = B.scale(Be), Xe = E.scale(Le), Ke = E.scale(rt), We = E.scale(ot), mt = E.scale(ve);
-      if (!Number.isFinite(Te) || !Number.isFinite(Xe) || !Number.isFinite(Ke) || !Number.isFinite(We) || !Number.isFinite(mt))
-        continue;
-      const ft = rt > Le;
-      if (b) {
-        const ke = ft ? fe : K;
-        if (ee[te + 0] = Te, ee[te + 1] = Xe, ee[te + 2] = Ke, ee[te + 3] = We, ee[te + 4] = mt, ee[te + 5] = re, ee[te + 6] = ke[0], ee[te + 7] = ke[1], ee[te + 8] = ke[2], ee[te + 9] = ke[3], te += Nn, ft) {
-          const ct = S.itemStyle.borderWidth * q, At = Math.max(0, re - 2 * ct);
-          be[le + 0] = Te, be[le + 1] = Xe, be[le + 2] = Ke, be[le + 3] = We, be[le + 4] = mt, be[le + 5] = At, be[le + 6] = ae[0], be[le + 7] = ae[1], be[le + 8] = ae[2], be[le + 9] = ae[3], le += Nn;
-        }
-      } else {
-        const ke = ft ? ue : ce;
-        ee[te + 0] = Te, ee[te + 1] = Xe, ee[te + 2] = Ke, ee[te + 3] = We, ee[te + 4] = mt, ee[te + 5] = re, ee[te + 6] = ke[0], ee[te + 7] = ke[1], ee[te + 8] = ke[2], ee[te + 9] = ke[3], te += Nn;
+  return {
+    prepare: (S, P, B, E, z, U) => {
+      if (I(), P.length === 0) {
+        p = 0, x = 0;
+        return;
       }
-    }
-    p = te / Nn, x = le / Nn;
-    const ye = Math.max(4, p * zn);
-    if (!y || y.size < ye) {
-      const pe = Math.max(Math.max(4, Wi(ye)), y ? y.size : 0);
-      if (y)
-        try {
-          y.destroy();
-        } catch {
+      const Y = Yl(z);
+      if (!Y) {
+        p = 0, x = 0;
+        return;
+      }
+      const j = Hl(z), q = Y.plotWidthCss > 0 ? j.width / Y.plotWidthCss : 0;
+      D = z.canvasWidth, T = z.canvasHeight, A = ql(z);
+      const Z = Zl(P), J = jl(B, Z, j, P.length);
+      let re = 0;
+      const W = S.barWidth;
+      if (typeof W == "number")
+        re = Math.max(0, W) * q;
+      else if (typeof W == "string") {
+        const pe = Xl(W);
+        re = pe == null ? 0 : J * Ol(pe);
+      }
+      const de = S.barMinWidth * q, L = S.barMaxWidth * q;
+      re = Math.min(Math.max(re, de), L);
+      const X = S.itemStyle.borderWidth ?? Wl, $ = Math.max(0, X) * q;
+      l.set([
+        1,
+        0,
+        0,
+        0,
+        // col0
+        0,
+        1,
+        0,
+        0,
+        // col1
+        0,
+        0,
+        1,
+        0,
+        // col2
+        0,
+        0,
+        0,
+        1,
+        // col3
+        $,
+        0,
+        0,
+        0
+      ]), ut(e, c, f);
+      const ue = fi(S.itemStyle.upColor), ce = fi(S.itemStyle.downColor), fe = fi(S.itemStyle.upBorderColor), K = fi(S.itemStyle.downBorderColor), ae = U ? fi(U) : [0, 0, 0, 1];
+      b = S.style === "hollow", N(P.length * Nn);
+      const ee = R;
+      let te = 0;
+      b && C(P.length * Nn);
+      const be = v;
+      let le = 0;
+      for (let pe = 0; pe < P.length; pe++) {
+        const { timestamp: Be, open: Le, close: rt, low: ot, high: ve } = sa(P[pe]);
+        if (!Number.isFinite(Be) || !Number.isFinite(Le) || !Number.isFinite(rt) || !Number.isFinite(ot) || !Number.isFinite(ve))
+          continue;
+        const Te = B.scale(Be), Xe = E.scale(Le), Ke = E.scale(rt), We = E.scale(ot), mt = E.scale(ve);
+        if (!Number.isFinite(Te) || !Number.isFinite(Xe) || !Number.isFinite(Ke) || !Number.isFinite(We) || !Number.isFinite(mt))
+          continue;
+        const ft = rt > Le;
+        if (b) {
+          const ke = ft ? fe : K;
+          if (ee[te + 0] = Te, ee[te + 1] = Xe, ee[te + 2] = Ke, ee[te + 3] = We, ee[te + 4] = mt, ee[te + 5] = re, ee[te + 6] = ke[0], ee[te + 7] = ke[1], ee[te + 8] = ke[2], ee[te + 9] = ke[3], te += Nn, ft) {
+            const ct = S.itemStyle.borderWidth * q, At = Math.max(0, re - 2 * ct);
+            be[le + 0] = Te, be[le + 1] = Xe, be[le + 2] = Ke, be[le + 3] = We, be[le + 4] = mt, be[le + 5] = At, be[le + 6] = ae[0], be[le + 7] = ae[1], be[le + 8] = ae[2], be[le + 9] = ae[3], le += Nn;
+          }
+        } else {
+          const ke = ft ? ue : ce;
+          ee[te + 0] = Te, ee[te + 1] = Xe, ee[te + 2] = Ke, ee[te + 3] = We, ee[te + 4] = mt, ee[te + 5] = re, ee[te + 6] = ke[0], ee[te + 7] = ke[1], ee[te + 8] = ke[2], ee[te + 9] = ke[3], te += Nn;
         }
-      y = e.createBuffer({
-        label: "candlestickRenderer/instanceBuffer",
-        size: pe,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
-      });
-    }
-    if (p > 0 && e.queue.writeBuffer(y, 0, M, 0, p * zn), b && x > 0) {
-      const pe = Math.max(4, x * zn);
-      if (!m || m.size < pe) {
-        const Be = Math.max(Math.max(4, Wi(pe)), m ? m.size : 0);
-        if (m)
+      }
+      p = te / Nn, x = le / Nn;
+      const ye = Math.max(4, p * zn);
+      if (!y || y.size < ye) {
+        const pe = Math.max(Math.max(4, Wi(ye)), y ? y.size : 0);
+        if (y)
+          try {
+            y.destroy();
+          } catch {
+          }
+        y = e.createBuffer({
+          label: "candlestickRenderer/instanceBuffer",
+          size: pe,
+          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+        });
+      }
+      if (p > 0 && e.queue.writeBuffer(y, 0, M, 0, p * zn), b && x > 0) {
+        const pe = Math.max(4, x * zn);
+        if (!m || m.size < pe) {
+          const Be = Math.max(Math.max(4, Wi(pe)), m ? m.size : 0);
+          if (m)
+            try {
+              m.destroy();
+            } catch {
+            }
+          m = e.createBuffer({
+            label: "candlestickRenderer/hollowInstanceBuffer",
+            size: Be,
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+          });
+        }
+        e.queue.writeBuffer(m, 0, w, 0, x * zn);
+      }
+    }, render: (S) => {
+      I(), !(!y || p === 0) && (A && D > 0 && T > 0 && S.setScissorRect(A.x, A.y, A.w, A.h), S.setPipeline(u), S.setBindGroup(0, g), S.setVertexBuffer(0, y), S.draw(18, p), b && m && x > 0 && (S.setVertexBuffer(0, m), S.draw(6, x)), A && D > 0 && T > 0 && S.setScissorRect(0, 0, D, T));
+    }, dispose: () => {
+      if (!n) {
+        if (n = !0, y)
+          try {
+            y.destroy();
+          } catch {
+          }
+        if (y = null, p = 0, m)
           try {
             m.destroy();
           } catch {
           }
-        m = e.createBuffer({
-          label: "candlestickRenderer/hollowInstanceBuffer",
-          size: Be,
-          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
-        });
-      }
-      e.queue.writeBuffer(m, 0, w, 0, x * zn);
-    }
-  }, render: (S) => {
-    I(), !(!y || p === 0) && (A && D > 0 && T > 0 && S.setScissorRect(A.x, A.y, A.w, A.h), S.setPipeline(u), S.setBindGroup(0, g), S.setVertexBuffer(0, y), S.draw(18, p), b && m && x > 0 && (S.setVertexBuffer(0, m), S.draw(6, x)), A && D > 0 && T > 0 && S.setScissorRect(0, 0, D, T));
-  }, dispose: () => {
-    if (!n) {
-      if (n = !0, y)
+        m = null, x = 0;
         try {
-          y.destroy();
+          c.destroy();
         } catch {
         }
-      if (y = null, p = 0, m)
-        try {
-          m.destroy();
-        } catch {
-        }
-      m = null, x = 0;
-      try {
-        c.destroy();
-      } catch {
+        D = 0, T = 0, A = null;
       }
-      D = 0, T = 0, A = null;
     }
-  } };
+  };
 }
 const ss = `// bar.wgsl
 // Instanced bar/rect shader:
@@ -4356,60 +4372,60 @@ fn fsMain(in: VSOut) -> @location(0) vec4<f32> {
 }
 
 `, Ql = "bgra8unorm", eu = 0.01, tu = 0.2, tr = 32, Lr = tr / 4, _r = (e) => Math.min(1, Math.max(0, e)), nu = (e) => yt(e) ?? [0, 0, 0, 1], as = (e) => {
-  if (!Number.isFinite(e) || e <= 0) return 1;
-  const t = Math.ceil(e);
-  return 2 ** Math.ceil(Math.log2(t));
-}, iu = () => {
-  const e = new ArrayBuffer(64);
-  return new Float32Array(e).set([
-    1,
-    0,
-    0,
-    0,
-    // col0
-    0,
-    1,
-    0,
-    0,
-    // col1
-    0,
-    0,
-    1,
-    0,
-    // col2
-    0,
-    0,
-    0,
-    1
-    // col3
-  ]), e;
-}, ru = (e) => {
-  const t = e.trim().match(/^(\d+(?:\.\d+)?)%$/);
-  if (!t) return null;
-  const n = Number(t[1]) / 100;
-  return Number.isFinite(n) ? n : null;
-}, cs = (e) => {
-  if (typeof e != "string") return "";
-  const t = e.trim();
-  return t.length > 0 ? t : "";
-}, ou = (e) => {
-  const t = e.devicePixelRatio;
-  if (!(t > 0)) return null;
-  const n = e.canvasWidth / t, i = e.canvasHeight / t, r = n - e.left - e.right, o = i - e.top - e.bottom;
-  return !(r > 0) || !(o > 0) ? null : { plotWidthCss: r, plotHeightCss: o };
-}, su = (e) => {
-  const { left: t, right: n, top: i, bottom: r, canvasWidth: o, canvasHeight: s, devicePixelRatio: a } = e, c = t * a, f = o - n * a, l = i * a, g = s - r * a, u = c / o * 2 - 1, y = f / o * 2 - 1, p = 1 - l / s * 2, M = 1 - g / s * 2;
-  return { left: u, right: y, top: p, bottom: M };
-}, au = (e, t, n, i) => {
-  if (Number.isFinite(t) && t > 0) {
-    const a = e.scale(0), c = e.scale(0 + t), f = Math.abs(c - a);
-    if (Number.isFinite(f) && f > 0) return f;
-  }
-  const r = Math.abs(n.right - n.left);
-  if (!(r > 0)) return 0;
-  const o = Math.max(1, Math.floor(i));
-  return r / o;
-};
+    if (!Number.isFinite(e) || e <= 0) return 1;
+    const t = Math.ceil(e);
+    return 2 ** Math.ceil(Math.log2(t));
+  }, iu = () => {
+    const e = new ArrayBuffer(64);
+    return new Float32Array(e).set([
+      1,
+      0,
+      0,
+      0,
+      // col0
+      0,
+      1,
+      0,
+      0,
+      // col1
+      0,
+      0,
+      1,
+      0,
+      // col2
+      0,
+      0,
+      0,
+      1
+      // col3
+    ]), e;
+  }, ru = (e) => {
+    const t = e.trim().match(/^(\d+(?:\.\d+)?)%$/);
+    if (!t) return null;
+    const n = Number(t[1]) / 100;
+    return Number.isFinite(n) ? n : null;
+  }, cs = (e) => {
+    if (typeof e != "string") return "";
+    const t = e.trim();
+    return t.length > 0 ? t : "";
+  }, ou = (e) => {
+    const t = e.devicePixelRatio;
+    if (!(t > 0)) return null;
+    const n = e.canvasWidth / t, i = e.canvasHeight / t, r = n - e.left - e.right, o = i - e.top - e.bottom;
+    return !(r > 0) || !(o > 0) ? null : { plotWidthCss: r, plotHeightCss: o };
+  }, su = (e) => {
+    const { left: t, right: n, top: i, bottom: r, canvasWidth: o, canvasHeight: s, devicePixelRatio: a } = e, c = t * a, f = o - n * a, l = i * a, g = s - r * a, u = c / o * 2 - 1, y = f / o * 2 - 1, p = 1 - l / s * 2, M = 1 - g / s * 2;
+    return { left: u, right: y, top: p, bottom: M };
+  }, au = (e, t, n, i) => {
+    if (Number.isFinite(t) && t > 0) {
+      const a = e.scale(0), c = e.scale(0 + t), f = Math.abs(c - a);
+      if (Number.isFinite(f) && f > 0) return f;
+    }
+    const r = Math.abs(n.right - n.left);
+    if (!(r > 0)) return 0;
+    const o = Math.max(1, Math.floor(i));
+    return r / o;
+  };
 function cu(e, t) {
   let n = !1;
   const i = (t == null ? void 0 : t.targetFormat) ?? Ql, r = t == null ? void 0 : t.sampleCount, o = Number.isFinite(r) ? Math.max(1, Math.floor(r)) : 1, s = t == null ? void 0 : t.pipelineCache, a = e.createBindGroupLayout({
@@ -4502,172 +4518,174 @@ function cu(e, t) {
     const d = N.invert(C.bottom), h = N.invert(C.top), F = Math.min(d, h), S = Math.max(d, h);
     return !Number.isFinite(F) || !Number.isFinite(S) ? b(I) : F <= 0 && 0 <= S ? 0 : F > 0 ? F : S < 0 ? S : b(I);
   };
-  return { prepare: (I, N, C, d, h) => {
-    if (R(), I.length === 0) {
-      u = 0;
-      return;
-    }
-    const F = ou(h);
-    if (!F) {
-      u = 0;
-      return;
-    }
-    const S = su(h), P = S.right - S.left, B = F.plotWidthCss > 0 ? P / F.plotWidthCss : 0, E = /* @__PURE__ */ new Map(), z = new Array(I.length);
-    let U = 0;
-    for (let ye = 0; ye < I.length; ye++) {
-      const pe = cs(I[ye].stack);
-      if (pe !== "") {
-        const Be = E.get(pe);
-        if (Be !== void 0)
-          z[ye] = Be;
-        else {
-          const Le = U++;
-          E.set(pe, Le), z[ye] = Le;
-        }
-      } else
-        z[ye] = U++;
-    }
-    U = Math.max(1, U);
-    const Y = T(I), j = A(I), q = _r(j.barGap ?? eu), Z = _r(j.barCategoryGap ?? tu);
-    let J = 1;
-    for (let ye = 0; ye < I.length; ye++) {
-      const pe = Ne(I[ye].data);
-      J = Math.max(J, Math.floor(pe));
-    }
-    const re = au(C, Y, S, J), W = Math.max(0, re * (1 - Z)), de = U + Math.max(0, U - 1) * q, L = de > 0 ? W / de : 0;
-    let X = 0;
-    const $ = j.barWidth;
-    if (typeof $ == "number")
-      X = Math.max(0, $) * B, X = Math.min(X, L);
-    else if (typeof $ == "string") {
-      const ye = ru($);
-      X = ye == null ? 0 : L * _r(ye);
-    }
-    X > 0 || (X = L);
-    const ue = X * q, ce = U * X + Math.max(0, U - 1) * ue;
-    let fe = m(I, d, S), K = d.scale(fe);
-    if (!Number.isFinite(K)) {
-      const ye = b(I);
-      if (fe = ye, K = d.scale(ye), Number.isFinite(K) || (fe = 0, K = d.scale(0)), !Number.isFinite(K)) {
+  return {
+    prepare: (I, N, C, d, h) => {
+      if (R(), I.length === 0) {
         u = 0;
         return;
       }
-    }
-    let ae = 0;
-    for (let ye = 0; ye < I.length; ye++)
-      ae += Math.max(0, Ne(I[ye].data));
-    D(ae * Lr);
-    const ee = p;
-    let te = 0;
-    const be = /* @__PURE__ */ new Map();
-    for (let ye = 0; ye < I.length; ye++) {
-      const pe = I[ye], Be = pe.data, [Le, rt, ot, ve] = nu(pe.color), Te = cs(pe.stack), Xe = z[ye] ?? 0, Ke = Ne(Be);
-      for (let We = 0; We < Ke; We++) {
-        const mt = Fe(Be, We), ft = _e(Be, We), ke = C.scale(mt);
-        if (!Number.isFinite(ke) || !Number.isFinite(ft)) continue;
-        const ct = ke - ce / 2 + Xe * (X + ue);
-        let At = K, Vt = 0;
-        if (Te !== "") {
-          let gt = be.get(Te);
-          gt || (gt = /* @__PURE__ */ new Map(), be.set(Te, gt));
-          let _t;
-          Number.isFinite(re) && re > 0 && Number.isFinite(ke) ? _t = Math.round((ke - S.left) / re) : Number.isFinite(Y) && Y > 0 ? _t = Math.round(mt / Y) : _t = Math.round(mt * 1e6);
-          let Wt = gt.get(_t);
-          Wt || (Wt = { posSum: fe, negSum: fe }, gt.set(_t, Wt));
-          let kt, vt;
-          ft >= 0 ? (kt = Wt.posSum, vt = kt + ft, Wt.posSum = vt) : (kt = Wt.negSum, vt = kt + ft, Wt.negSum = vt);
-          const Jt = d.scale(kt), Et = d.scale(vt);
-          if (!Number.isFinite(Jt) || !Number.isFinite(Et)) continue;
-          At = Jt, Vt = Et - Jt;
-        } else {
-          const gt = d.scale(ft);
-          if (!Number.isFinite(gt)) continue;
-          Vt = gt - K;
-        }
-        ee[te + 0] = ct, ee[te + 1] = At, ee[te + 2] = X, ee[te + 3] = Vt, ee[te + 4] = Le, ee[te + 5] = rt, ee[te + 6] = ot, ee[te + 7] = ve, te += Lr;
+      const F = ou(h);
+      if (!F) {
+        u = 0;
+        return;
       }
-    }
-    u = te / Lr;
-    const le = Math.max(4, u * tr);
-    if (!g || g.size < le) {
-      const ye = Math.max(Math.max(4, as(le)), g ? g.size : 0);
-      if (g)
+      const S = su(h), P = S.right - S.left, B = F.plotWidthCss > 0 ? P / F.plotWidthCss : 0, E = /* @__PURE__ */ new Map(), z = new Array(I.length);
+      let U = 0;
+      for (let ye = 0; ye < I.length; ye++) {
+        const pe = cs(I[ye].stack);
+        if (pe !== "") {
+          const Be = E.get(pe);
+          if (Be !== void 0)
+            z[ye] = Be;
+          else {
+            const Le = U++;
+            E.set(pe, Le), z[ye] = Le;
+          }
+        } else
+          z[ye] = U++;
+      }
+      U = Math.max(1, U);
+      const Y = T(I), j = A(I), q = _r(j.barGap ?? eu), Z = _r(j.barCategoryGap ?? tu);
+      let J = 1;
+      for (let ye = 0; ye < I.length; ye++) {
+        const pe = Ne(I[ye].data);
+        J = Math.max(J, Math.floor(pe));
+      }
+      const re = au(C, Y, S, J), W = Math.max(0, re * (1 - Z)), de = U + Math.max(0, U - 1) * q, L = de > 0 ? W / de : 0;
+      let X = 0;
+      const $ = j.barWidth;
+      if (typeof $ == "number")
+        X = Math.max(0, $) * B, X = Math.min(X, L);
+      else if (typeof $ == "string") {
+        const ye = ru($);
+        X = ye == null ? 0 : L * _r(ye);
+      }
+      X > 0 || (X = L);
+      const ue = X * q, ce = U * X + Math.max(0, U - 1) * ue;
+      let fe = m(I, d, S), K = d.scale(fe);
+      if (!Number.isFinite(K)) {
+        const ye = b(I);
+        if (fe = ye, K = d.scale(ye), Number.isFinite(K) || (fe = 0, K = d.scale(0)), !Number.isFinite(K)) {
+          u = 0;
+          return;
+        }
+      }
+      let ae = 0;
+      for (let ye = 0; ye < I.length; ye++)
+        ae += Math.max(0, Ne(I[ye].data));
+      D(ae * Lr);
+      const ee = p;
+      let te = 0;
+      const be = /* @__PURE__ */ new Map();
+      for (let ye = 0; ye < I.length; ye++) {
+        const pe = I[ye], Be = pe.data, [Le, rt, ot, ve] = nu(pe.color), Te = cs(pe.stack), Xe = z[ye] ?? 0, Ke = Ne(Be);
+        for (let We = 0; We < Ke; We++) {
+          const mt = Fe(Be, We), ft = _e(Be, We), ke = C.scale(mt);
+          if (!Number.isFinite(ke) || !Number.isFinite(ft)) continue;
+          const ct = ke - ce / 2 + Xe * (X + ue);
+          let At = K, Vt = 0;
+          if (Te !== "") {
+            let gt = be.get(Te);
+            gt || (gt = /* @__PURE__ */ new Map(), be.set(Te, gt));
+            let _t;
+            Number.isFinite(re) && re > 0 && Number.isFinite(ke) ? _t = Math.round((ke - S.left) / re) : Number.isFinite(Y) && Y > 0 ? _t = Math.round(mt / Y) : _t = Math.round(mt * 1e6);
+            let Wt = gt.get(_t);
+            Wt || (Wt = { posSum: fe, negSum: fe }, gt.set(_t, Wt));
+            let kt, vt;
+            ft >= 0 ? (kt = Wt.posSum, vt = kt + ft, Wt.posSum = vt) : (kt = Wt.negSum, vt = kt + ft, Wt.negSum = vt);
+            const Jt = d.scale(kt), Et = d.scale(vt);
+            if (!Number.isFinite(Jt) || !Number.isFinite(Et)) continue;
+            At = Jt, Vt = Et - Jt;
+          } else {
+            const gt = d.scale(ft);
+            if (!Number.isFinite(gt)) continue;
+            Vt = gt - K;
+          }
+          ee[te + 0] = ct, ee[te + 1] = At, ee[te + 2] = X, ee[te + 3] = Vt, ee[te + 4] = Le, ee[te + 5] = rt, ee[te + 6] = ot, ee[te + 7] = ve, te += Lr;
+        }
+      }
+      u = te / Lr;
+      const le = Math.max(4, u * tr);
+      if (!g || g.size < le) {
+        const ye = Math.max(Math.max(4, as(le)), g ? g.size : 0);
+        if (g)
+          try {
+            g.destroy();
+          } catch {
+          }
+        g = e.createBuffer({
+          label: "barRenderer/instanceBuffer",
+          size: ye,
+          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+        });
+      }
+      u > 0 && e.queue.writeBuffer(g, 0, y, 0, u * tr);
+    }, render: (I) => {
+      R(), !(!g || u === 0) && (I.setPipeline(l), I.setBindGroup(0, f), I.setVertexBuffer(0, g), I.draw(6, u));
+    }, dispose: () => {
+      if (!n) {
+        if (n = !0, g)
+          try {
+            g.destroy();
+          } catch {
+          }
+        g = null, u = 0;
         try {
-          g.destroy();
+          c.destroy();
         } catch {
         }
-      g = e.createBuffer({
-        label: "barRenderer/instanceBuffer",
-        size: ye,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
-      });
-    }
-    u > 0 && e.queue.writeBuffer(g, 0, y, 0, u * tr);
-  }, render: (I) => {
-    R(), !(!g || u === 0) && (I.setPipeline(l), I.setBindGroup(0, f), I.setVertexBuffer(0, g), I.draw(6, u));
-  }, dispose: () => {
-    if (!n) {
-      if (n = !0, g)
-        try {
-          g.destroy();
-        } catch {
-        }
-      g = null, u = 0;
-      try {
-        c.destroy();
-      } catch {
       }
     }
-  } };
+  };
 }
 function lu(e) {
   const { device: t, targetFormat: n, pipelineCache: i, sampleCount: r } = e, o = [], s = [], a = [], c = [], f = [], l = [], g = cu(t, { targetFormat: n, pipelineCache: i, sampleCount: r });
   function u(m) {
-    for (; o.length > m; ) {
+    for (; o.length > m;) {
       const x = o.pop();
       x == null || x.dispose();
     }
-    for (; o.length < m; )
+    for (; o.length < m;)
       o.push(ll(t, { targetFormat: n, pipelineCache: i, sampleCount: r }));
   }
   function y(m) {
-    for (; s.length > m; ) {
+    for (; s.length > m;) {
       const x = s.pop();
       x == null || x.dispose();
     }
-    for (; s.length < m; )
+    for (; s.length < m;)
       s.push(pl(t, { targetFormat: n, pipelineCache: i, sampleCount: r }));
   }
   function p(m) {
-    for (; a.length > m; ) {
+    for (; a.length > m;) {
       const x = a.pop();
       x == null || x.dispose();
     }
-    for (; a.length < m; )
+    for (; a.length < m;)
       a.push(vl(t, { targetFormat: n, pipelineCache: i, sampleCount: r }));
   }
   function M(m) {
-    for (; c.length > m; ) {
+    for (; c.length > m;) {
       const x = c.pop();
       x == null || x.dispose();
     }
-    for (; c.length < m; )
+    for (; c.length < m;)
       c.push(Dl(t, { targetFormat: n, pipelineCache: i, sampleCount: r }));
   }
   function R(m) {
-    for (; f.length > m; ) {
+    for (; f.length > m;) {
       const x = f.pop();
       x == null || x.dispose();
     }
-    for (; f.length < m; )
+    for (; f.length < m;)
       f.push(zl(t, { targetFormat: n, pipelineCache: i, sampleCount: r }));
   }
   function D(m) {
-    for (; l.length > m; ) {
+    for (; l.length > m;) {
       const x = l.pop();
       x == null || x.dispose();
     }
-    for (; l.length < m; )
+    for (; l.length < m;)
       l.push(Jl(t, { targetFormat: n, pipelineCache: i, sampleCount: r }));
   }
   let T = null;
@@ -4855,10 +4873,10 @@ fn fsMain() -> @location(0) vec4<f32> {
 }
 
 `, fu = (e) => e + 3 & -4, du = 1024, mu = 128, pu = 16384, hu = (e) => {
-  if (e.byteOffset & 3)
-    throw new Error("createStreamBuffer.write: data.byteOffset must be 4-byte aligned.");
-  return new Uint32Array(e.buffer, e.byteOffset, e.byteLength >>> 2);
-};
+    if (e.byteOffset & 3)
+      throw new Error("createStreamBuffer.write: data.byteOffset must be 4-byte aligned.");
+    return new Uint32Array(e.buffer, e.byteOffset, e.byteLength >>> 2);
+  };
 function yu(e, t) {
   if (!Number.isFinite(t) || t <= 0)
     throw new Error(`createStreamBuffer(maxSize): maxSize (bytes) must be a positive number. Received: ${String(t)}`);
@@ -4896,11 +4914,11 @@ function yu(e, t) {
     }
     const v = [];
     let I = 0, N = 0, C = 0;
-    for (; C < b; ) {
-      for (; C < b && x[C] === A[C]; ) C++;
+    for (; C < b;) {
+      for (; C < b && x[C] === A[C];) C++;
       if (C >= b) break;
       const d = C;
-      for (C++; C < b && x[C] !== A[C]; ) C++;
+      for (C++; C < b && x[C] !== A[C];) C++;
       const h = C;
       if (v.push([d, h]), I++, N += h - d, I > mu || N > pu) {
         u(T, A, b);
@@ -4912,31 +4930,33 @@ function yu(e, t) {
       e.queue.writeBuffer(m.buffer, S, A.buffer, A.byteOffset + S, P), x.set(A.subarray(h, F), h);
     }
   };
-  return { write: (T) => {
-    if (g(), T.length & 1)
-      throw new Error("createStreamBuffer.write: data length must be even (vec2<f32> vertices).");
-    const A = T.byteLength;
-    if (A > i)
-      throw new Error(
-        `createStreamBuffer.write: data.byteLength (${A}) exceeds capacity (${i}). Increase maxSize.`
-      );
-    const b = T.length >>> 1;
-    if (A === 0) {
-      l = b;
-      return;
+  return {
+    write: (T) => {
+      if (g(), T.length & 1)
+        throw new Error("createStreamBuffer.write: data length must be even (vec2<f32> vertices).");
+      const A = T.byteLength;
+      if (A > i)
+        throw new Error(
+          `createStreamBuffer.write: data.byteLength (${A}) exceeds capacity (${i}). Increase maxSize.`
+        );
+      const b = T.length >>> 1;
+      if (A === 0) {
+        l = b;
+        return;
+      }
+      const m = hu(T), x = 1 - f;
+      y(x, m, m.length), f = x, l = b;
+    }, getBuffer: () => (g(), a[f].buffer), getVertexCount: () => (g(), l), dispose: () => {
+      if (!c) {
+        c = !0, l = 0;
+        for (const T of a)
+          try {
+            T.buffer.destroy();
+          } catch {
+          }
+      }
     }
-    const m = hu(T), x = 1 - f;
-    y(x, m, m.length), f = x, l = b;
-  }, getBuffer: () => (g(), a[f].buffer), getVertexCount: () => (g(), l), dispose: () => {
-    if (!c) {
-      c = !0, l = 0;
-      for (const T of a)
-        try {
-          T.buffer.destroy();
-        } catch {
-        }
-    }
-  } };
+  };
 }
 const gu = "bgra8unorm", xu = [1, 1, 1, 0.8], bu = 8, vu = 6, wu = 4, aa = 8192, Cu = () => {
   const e = new ArrayBuffer(64);
@@ -4981,7 +5001,7 @@ const gu = "bgra8unorm", xu = [1, 1, 1, 0.8], bu = 8, vu = 6, wu = 4, aa = 8192,
   if (!Number.isFinite(a) || a <= 0) return [];
   const c = [];
   let f = n;
-  for (; f < i; ) {
+  for (; f < i;) {
     const l = f, g = Math.min(f + r, i);
     g > l && c.push([l, g]), f += s;
   }
@@ -5083,35 +5103,37 @@ function Nu(e, t) {
   const T = () => {
     if (n) throw new Error("CrosshairRenderer is disposed.");
   };
-  return { prepare: (w, v, I, N) => {
-    if (T(), typeof N.showX != "boolean" || typeof N.showY != "boolean")
-      throw new Error("CrosshairRenderer.prepare: showX/showY must be boolean.");
-    if (typeof N.color != "string")
-      throw new Error("CrosshairRenderer.prepare: color must be a string.");
-    if (!Number.isFinite(N.lineWidth) || N.lineWidth < 0)
-      throw new Error("CrosshairRenderer.prepare: lineWidth must be a finite non-negative number.");
-    const { vertices: C, scissor: d } = Fu(w, v, I, N);
-    C.byteLength === 0 ? p = 0 : (y.write(C), p = y.getVertexCount()), ut(e, f, Cu());
-    const h = yt(N.color) ?? xu, F = new ArrayBuffer(4 * 4);
-    new Float32Array(F).set([h[0], h[1], h[2], h[3]]), ut(e, l, F), M = I.canvasWidth, R = I.canvasHeight, D = d;
-  }, render: (w) => {
-    T(), i && p !== 0 && (M <= 0 || R <= 0 || (w.setScissorRect(D.x, D.y, D.w, D.h), w.setPipeline(u), w.setBindGroup(0, g), w.setVertexBuffer(0, y.getBuffer()), w.draw(p), w.setScissorRect(0, 0, M, R)));
-  }, setVisible: (w) => {
-    T(), i = !!w;
-  }, dispose: () => {
-    if (!n) {
-      n = !0;
-      try {
-        f.destroy();
-      } catch {
+  return {
+    prepare: (w, v, I, N) => {
+      if (T(), typeof N.showX != "boolean" || typeof N.showY != "boolean")
+        throw new Error("CrosshairRenderer.prepare: showX/showY must be boolean.");
+      if (typeof N.color != "string")
+        throw new Error("CrosshairRenderer.prepare: color must be a string.");
+      if (!Number.isFinite(N.lineWidth) || N.lineWidth < 0)
+        throw new Error("CrosshairRenderer.prepare: lineWidth must be a finite non-negative number.");
+      const { vertices: C, scissor: d } = Fu(w, v, I, N);
+      C.byteLength === 0 ? p = 0 : (y.write(C), p = y.getVertexCount()), ut(e, f, Cu());
+      const h = yt(N.color) ?? xu, F = new ArrayBuffer(4 * 4);
+      new Float32Array(F).set([h[0], h[1], h[2], h[3]]), ut(e, l, F), M = I.canvasWidth, R = I.canvasHeight, D = d;
+    }, render: (w) => {
+      T(), i && p !== 0 && (M <= 0 || R <= 0 || (w.setScissorRect(D.x, D.y, D.w, D.h), w.setPipeline(u), w.setBindGroup(0, g), w.setVertexBuffer(0, y.getBuffer()), w.draw(p), w.setScissorRect(0, 0, M, R)));
+    }, setVisible: (w) => {
+      T(), i = !!w;
+    }, dispose: () => {
+      if (!n) {
+        n = !0;
+        try {
+          f.destroy();
+        } catch {
+        }
+        try {
+          l.destroy();
+        } catch {
+        }
+        y.dispose(), p = 0, M = 0, R = 0, D = { x: 0, y: 0, w: 0, h: 0 };
       }
-      try {
-        l.destroy();
-      } catch {
-      }
-      y.dispose(), p = 0, M = 0, R = 0, D = { x: 0, y: 0, w: 0, h: 0 };
     }
-  } };
+  };
 }
 const ds = `// highlight.wgsl
 // Draws an anti-aliased ring highlight around a point.
@@ -5178,9 +5200,9 @@ fn fsMain(@builtin(position) fragPos: vec4<f32>) -> @location(0) vec4<f32> {
 }
 
 `, Tu = "bgra8unorm", Au = [1, 1, 1, 1], $i = (e) => Math.min(1, Math.max(0, e)), Yi = (e, t, n) => Math.min(n, Math.max(t, e | 0)), Iu = (e) => Number.isFinite(e.x) && Number.isFinite(e.y) && Number.isFinite(e.w) && Number.isFinite(e.h), Pu = (e, t) => {
-  const n = Number.isFinite(t) ? t : 1;
-  return [$i(e[0] * n), $i(e[1] * n), $i(e[2] * n), $i(e[3])];
-}, Ru = (e) => 0.2126 * e[0] + 0.7152 * e[1] + 0.0722 * e[2];
+    const n = Number.isFinite(t) ? t : 1;
+    return [$i(e[0] * n), $i(e[1] * n), $i(e[2] * n), $i(e[3])];
+  }, Ru = (e) => 0.2126 * e[0] + 0.7152 * e[1] + 0.0722 * e[2];
 function Du(e, t) {
   let n = !1, i = !0;
   const r = (t == null ? void 0 : t.targetFormat) ?? Tu, o = (t == null ? void 0 : t.sampleCount) ?? 1, s = Number.isFinite(o) ? Math.max(1, Math.floor(o)) : 1, a = t == null ? void 0 : t.pipelineCache, c = e.createBindGroupLayout({
@@ -5212,46 +5234,48 @@ function Du(e, t) {
   const R = () => {
     if (n) throw new Error("HighlightRenderer is disposed.");
   };
-  return { prepare: (m, x, w) => {
-    if (R(), !Number.isFinite(m.centerDeviceX) || !Number.isFinite(m.centerDeviceY))
-      throw new Error("HighlightRenderer.prepare: point center must be finite.");
-    if (!Number.isFinite(m.canvasWidth) || !Number.isFinite(m.canvasHeight) || m.canvasWidth <= 0 || m.canvasHeight <= 0)
-      throw new Error("HighlightRenderer.prepare: canvasWidth/canvasHeight must be positive finite numbers.");
-    if (!Iu(m.scissor))
-      throw new Error("HighlightRenderer.prepare: scissor must be finite.");
-    if (!Number.isFinite(w) || w < 0)
-      throw new Error("HighlightRenderer.prepare: size must be a finite non-negative number.");
-    const v = m.devicePixelRatio, I = Number.isFinite(v) && v > 0 ? v : 1, N = w * I, C = Math.max(1, N * 1.5), d = Math.max(1, Math.round(Math.max(2, C * 0.25))), h = yt(x) ?? Au, F = Pu(h, 1.25), P = Ru(h) > 0.7 ? [0, 0, 0, 0.9] : [1, 1, 1, 0.9], B = new ArrayBuffer(12 * 4);
-    new Float32Array(B).set([
-      m.centerDeviceX,
-      m.centerDeviceY,
-      C,
-      d,
-      F[0],
-      F[1],
-      F[2],
-      1,
-      P[0],
-      P[1],
-      P[2],
-      P[3]
-    ]), ut(e, f, B), u = m.canvasWidth, y = m.canvasHeight;
-    const E = Yi(Math.floor(m.scissor.x), 0, Math.max(0, m.canvasWidth)), z = Yi(Math.floor(m.scissor.y), 0, Math.max(0, m.canvasHeight)), U = Yi(Math.ceil(m.scissor.x + m.scissor.w), 0, Math.max(0, m.canvasWidth)), Y = Yi(Math.ceil(m.scissor.y + m.scissor.h), 0, Math.max(0, m.canvasHeight));
-    p = { x: E, y: z, w: Math.max(0, U - E), h: Math.max(0, Y - z) }, M = !0;
-  }, render: (m) => {
-    R(), i && M && (u <= 0 || y <= 0 || p.w === 0 || p.h === 0 || (m.setScissorRect(p.x, p.y, p.w, p.h), m.setPipeline(g), m.setBindGroup(0, l), m.draw(3), m.setScissorRect(0, 0, u, y)));
-  }, setVisible: (m) => {
-    R(), i = !!m;
-  }, dispose: () => {
-    if (!n) {
-      n = !0;
-      try {
-        f.destroy();
-      } catch {
+  return {
+    prepare: (m, x, w) => {
+      if (R(), !Number.isFinite(m.centerDeviceX) || !Number.isFinite(m.centerDeviceY))
+        throw new Error("HighlightRenderer.prepare: point center must be finite.");
+      if (!Number.isFinite(m.canvasWidth) || !Number.isFinite(m.canvasHeight) || m.canvasWidth <= 0 || m.canvasHeight <= 0)
+        throw new Error("HighlightRenderer.prepare: canvasWidth/canvasHeight must be positive finite numbers.");
+      if (!Iu(m.scissor))
+        throw new Error("HighlightRenderer.prepare: scissor must be finite.");
+      if (!Number.isFinite(w) || w < 0)
+        throw new Error("HighlightRenderer.prepare: size must be a finite non-negative number.");
+      const v = m.devicePixelRatio, I = Number.isFinite(v) && v > 0 ? v : 1, N = w * I, C = Math.max(1, N * 1.5), d = Math.max(1, Math.round(Math.max(2, C * 0.25))), h = yt(x) ?? Au, F = Pu(h, 1.25), P = Ru(h) > 0.7 ? [0, 0, 0, 0.9] : [1, 1, 1, 0.9], B = new ArrayBuffer(12 * 4);
+      new Float32Array(B).set([
+        m.centerDeviceX,
+        m.centerDeviceY,
+        C,
+        d,
+        F[0],
+        F[1],
+        F[2],
+        1,
+        P[0],
+        P[1],
+        P[2],
+        P[3]
+      ]), ut(e, f, B), u = m.canvasWidth, y = m.canvasHeight;
+      const E = Yi(Math.floor(m.scissor.x), 0, Math.max(0, m.canvasWidth)), z = Yi(Math.floor(m.scissor.y), 0, Math.max(0, m.canvasHeight)), U = Yi(Math.ceil(m.scissor.x + m.scissor.w), 0, Math.max(0, m.canvasWidth)), Y = Yi(Math.ceil(m.scissor.y + m.scissor.h), 0, Math.max(0, m.canvasHeight));
+      p = { x: E, y: z, w: Math.max(0, U - E), h: Math.max(0, Y - z) }, M = !0;
+    }, render: (m) => {
+      R(), i && M && (u <= 0 || y <= 0 || p.w === 0 || p.h === 0 || (m.setScissorRect(p.x, p.y, p.w, p.h), m.setPipeline(g), m.setBindGroup(0, l), m.draw(3), m.setScissorRect(0, 0, u, y)));
+    }, setVisible: (m) => {
+      R(), i = !!m;
+    }, dispose: () => {
+      if (!n) {
+        n = !0;
+        try {
+          f.destroy();
+        } catch {
+        }
+        u = 0, y = 0, p = { x: 0, y: 0, w: 0, h: 0 }, M = !1;
       }
-      u = 0, y = 0, p = { x: 0, y: 0, w: 0, h: 0 }, M = !1;
     }
-  } };
+  };
 }
 const ms = `// Reference line renderer (axis-aligned, instanced quads).
 //
@@ -5465,21 +5489,21 @@ fn fsMain(in : VSOut) -> @location(0) vec4<f32> {
   return color;
 }
 `, Vn = 8, Eu = "bgra8unorm", Bu = (e) => Number.isFinite(e.left) && Number.isFinite(e.right) && Number.isFinite(e.top) && Number.isFinite(e.bottom) && Number.isFinite(e.canvasWidth) && Number.isFinite(e.canvasHeight), Lu = (e) => {
-  if (!e || e.length === 0)
-    return { dashCount: 0, dashTotal: 0, values: new Array(Vn).fill(0) };
-  const t = [];
-  for (let s = 0; s < e.length; s++) {
-    const a = e[s];
-    typeof a == "number" && Number.isFinite(a) && a > 0 && t.push(a);
-  }
-  if (t.length === 0)
-    return { dashCount: 0, dashTotal: 0, values: new Array(Vn).fill(0) };
-  const n = t.length % 2 === 1 ? t.concat(t) : t, i = Math.min(Vn, n.length), r = new Array(Vn).fill(0);
-  let o = 0;
-  for (let s = 0; s < i; s++)
-    r[s] = n[s], o += n[s];
-  return !Number.isFinite(o) || o <= 0 ? { dashCount: 0, dashTotal: 0, values: new Array(Vn).fill(0) } : { dashCount: i, dashTotal: o, values: r };
-};
+    if (!e || e.length === 0)
+      return { dashCount: 0, dashTotal: 0, values: new Array(Vn).fill(0) };
+    const t = [];
+    for (let s = 0; s < e.length; s++) {
+      const a = e[s];
+      typeof a == "number" && Number.isFinite(a) && a > 0 && t.push(a);
+    }
+    if (t.length === 0)
+      return { dashCount: 0, dashTotal: 0, values: new Array(Vn).fill(0) };
+    const n = t.length % 2 === 1 ? t.concat(t) : t, i = Math.min(Vn, n.length), r = new Array(Vn).fill(0);
+    let o = 0;
+    for (let s = 0; s < i; s++)
+      r[s] = n[s], o += n[s];
+    return !Number.isFinite(o) || o <= 0 ? { dashCount: 0, dashTotal: 0, values: new Array(Vn).fill(0) } : { dashCount: i, dashTotal: o, values: r };
+  };
 function ps(e, t) {
   let n = !1;
   const i = (t == null ? void 0 : t.targetFormat) ?? Eu, r = (t == null ? void 0 : t.sampleCount) ?? 1, o = Number.isFinite(r) ? Math.max(1, Math.floor(r)) : 1, s = t == null ? void 0 : t.pipelineCache, a = e.createBindGroupLayout({
@@ -5534,76 +5558,78 @@ function ps(e, t) {
   const R = () => {
     if (n) throw new Error("ReferenceLineRenderer is disposed.");
   };
-  return { prepare: (b, m) => {
-    if (R(), !Array.isArray(m))
-      throw new Error("ReferenceLineRenderer.prepare: lines must be an array.");
-    if (!Bu(b))
-      throw new Error("ReferenceLineRenderer.prepare: gridArea dimensions must be finite numbers.");
-    if (b.canvasWidth <= 0 || b.canvasHeight <= 0)
-      throw new Error("ReferenceLineRenderer.prepare: canvas dimensions must be positive.");
-    if (b.left < 0 || b.right < 0 || b.top < 0 || b.bottom < 0)
-      throw new Error("ReferenceLineRenderer.prepare: gridArea margins must be non-negative.");
-    const x = Number.isFinite(b.devicePixelRatio) && b.devicePixelRatio > 0 ? b.devicePixelRatio : 1, w = b.left * x, v = b.top * x, I = b.canvasWidth - b.right * x, N = b.canvasHeight - b.bottom * x, C = I - w, d = N - v;
-    if (!(C > 0) || !(d > 0)) {
-      M = 0;
-      return;
-    }
-    const h = new Float32Array(8);
-    if (h[0] = b.canvasWidth, h[1] = b.canvasHeight, h[2] = w, h[3] = v, h[4] = C, h[5] = d, h[6] = x, h[7] = 0, ut(e, c, h), m.length === 0) {
-      M = 0;
-      return;
-    }
-    if (!y || p < m.length) {
-      const S = Math.max(1, Math.ceil(m.length * 1.5)), P = Math.max(4, S * l);
-      if (y)
-        try {
-          y.destroy();
-        } catch {
-        }
-      y = e.createBuffer({
-        label: "referenceLineRenderer/instanceBuffer",
-        size: P,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
-      }), p = S;
-    }
-    const F = new Float32Array(m.length * g);
-    for (let S = 0; S < m.length; S++) {
-      const P = m[S], B = S * g;
-      if (P.axis !== "vertical" && P.axis !== "horizontal")
-        throw new Error("ReferenceLineRenderer.prepare: line.axis must be 'vertical' or 'horizontal'.");
-      if (!Number.isFinite(P.positionCssPx))
-        throw new Error("ReferenceLineRenderer.prepare: line.positionCssPx must be a finite number.");
-      if (!Number.isFinite(P.lineWidth) || P.lineWidth < 0)
-        throw new Error("ReferenceLineRenderer.prepare: line.lineWidth must be a finite non-negative number.");
-      const E = P.rgba;
-      if (!Array.isArray(E) || E.length !== 4)
-        throw new Error("ReferenceLineRenderer.prepare: line.rgba must be a tuple [r,g,b,a].");
-      const z = Lu(P.lineDash);
-      F[B + 0] = P.axis === "vertical" ? 0 : 1, F[B + 1] = P.positionCssPx, F[B + 2] = P.lineWidth, F[B + 3] = z.dashCount, F[B + 4] = z.dashTotal, F[B + 5] = 0;
-      for (let U = 0; U < Vn; U++)
-        F[B + 6 + U] = z.values[U];
-      F[B + 14] = E[0], F[B + 15] = E[1], F[B + 16] = E[2], F[B + 17] = E[3];
-    }
-    e.queue.writeBuffer(y, 0, F.buffer, F.byteOffset, F.byteLength), M = m.length;
-  }, render: (b, m = 0, x) => {
-    if (R(), M === 0 || !y) return;
-    const w = Number.isFinite(m) ? Math.max(0, Math.floor(m)) : 0, v = Math.max(0, M - w), I = x == null ? v : Number.isFinite(x) ? Math.max(0, Math.min(v, Math.floor(x))) : v;
-    I !== 0 && (b.setPipeline(u), b.setBindGroup(0, f), b.setVertexBuffer(0, y), b.draw(6, I, 0, w));
-  }, dispose: () => {
-    if (!n) {
-      n = !0;
-      try {
-        c.destroy();
-      } catch {
+  return {
+    prepare: (b, m) => {
+      if (R(), !Array.isArray(m))
+        throw new Error("ReferenceLineRenderer.prepare: lines must be an array.");
+      if (!Bu(b))
+        throw new Error("ReferenceLineRenderer.prepare: gridArea dimensions must be finite numbers.");
+      if (b.canvasWidth <= 0 || b.canvasHeight <= 0)
+        throw new Error("ReferenceLineRenderer.prepare: canvas dimensions must be positive.");
+      if (b.left < 0 || b.right < 0 || b.top < 0 || b.bottom < 0)
+        throw new Error("ReferenceLineRenderer.prepare: gridArea margins must be non-negative.");
+      const x = Number.isFinite(b.devicePixelRatio) && b.devicePixelRatio > 0 ? b.devicePixelRatio : 1, w = b.left * x, v = b.top * x, I = b.canvasWidth - b.right * x, N = b.canvasHeight - b.bottom * x, C = I - w, d = N - v;
+      if (!(C > 0) || !(d > 0)) {
+        M = 0;
+        return;
       }
-      if (y)
+      const h = new Float32Array(8);
+      if (h[0] = b.canvasWidth, h[1] = b.canvasHeight, h[2] = w, h[3] = v, h[4] = C, h[5] = d, h[6] = x, h[7] = 0, ut(e, c, h), m.length === 0) {
+        M = 0;
+        return;
+      }
+      if (!y || p < m.length) {
+        const S = Math.max(1, Math.ceil(m.length * 1.5)), P = Math.max(4, S * l);
+        if (y)
+          try {
+            y.destroy();
+          } catch {
+          }
+        y = e.createBuffer({
+          label: "referenceLineRenderer/instanceBuffer",
+          size: P,
+          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+        }), p = S;
+      }
+      const F = new Float32Array(m.length * g);
+      for (let S = 0; S < m.length; S++) {
+        const P = m[S], B = S * g;
+        if (P.axis !== "vertical" && P.axis !== "horizontal")
+          throw new Error("ReferenceLineRenderer.prepare: line.axis must be 'vertical' or 'horizontal'.");
+        if (!Number.isFinite(P.positionCssPx))
+          throw new Error("ReferenceLineRenderer.prepare: line.positionCssPx must be a finite number.");
+        if (!Number.isFinite(P.lineWidth) || P.lineWidth < 0)
+          throw new Error("ReferenceLineRenderer.prepare: line.lineWidth must be a finite non-negative number.");
+        const E = P.rgba;
+        if (!Array.isArray(E) || E.length !== 4)
+          throw new Error("ReferenceLineRenderer.prepare: line.rgba must be a tuple [r,g,b,a].");
+        const z = Lu(P.lineDash);
+        F[B + 0] = P.axis === "vertical" ? 0 : 1, F[B + 1] = P.positionCssPx, F[B + 2] = P.lineWidth, F[B + 3] = z.dashCount, F[B + 4] = z.dashTotal, F[B + 5] = 0;
+        for (let U = 0; U < Vn; U++)
+          F[B + 6 + U] = z.values[U];
+        F[B + 14] = E[0], F[B + 15] = E[1], F[B + 16] = E[2], F[B + 17] = E[3];
+      }
+      e.queue.writeBuffer(y, 0, F.buffer, F.byteOffset, F.byteLength), M = m.length;
+    }, render: (b, m = 0, x) => {
+      if (R(), M === 0 || !y) return;
+      const w = Number.isFinite(m) ? Math.max(0, Math.floor(m)) : 0, v = Math.max(0, M - w), I = x == null ? v : Number.isFinite(x) ? Math.max(0, Math.min(v, Math.floor(x))) : v;
+      I !== 0 && (b.setPipeline(u), b.setBindGroup(0, f), b.setVertexBuffer(0, y), b.draw(6, I, 0, w));
+    }, dispose: () => {
+      if (!n) {
+        n = !0;
         try {
-          y.destroy();
+          c.destroy();
         } catch {
         }
-      y = null, p = 0, M = 0;
+        if (y)
+          try {
+            y.destroy();
+          } catch {
+          }
+        y = null, p = 0, M = 0;
+      }
     }
-  } };
+  };
 }
 const hs = `// annotationMarker.wgsl
 // Instanced annotation marker shader (circle SDF with optional stroke).
@@ -5719,10 +5745,10 @@ fn fsMain(in: VSOut) -> @location(0) vec4<f32> {
 }
 
 `, _u = "bgra8unorm", nr = 12, kr = nr * 4, dn = (e) => Math.min(1, Math.max(0, e)), ys = (e) => {
-  if (!Number.isFinite(e) || e <= 0) return 1;
-  const t = Math.ceil(e);
-  return 2 ** Math.ceil(Math.log2(t));
-};
+    if (!Number.isFinite(e) || e <= 0) return 1;
+    const t = Math.ceil(e);
+    return 2 ** Math.ceil(Math.log2(t));
+  };
 function gs(e, t) {
   let n = !1;
   const i = (t == null ? void 0 : t.targetFormat) ?? _u, r = (t == null ? void 0 : t.sampleCount) ?? 1, o = Number.isFinite(r) ? Math.max(1, Math.floor(r)) : 1, s = t == null ? void 0 : t.pipelineCache, a = e.createBindGroupLayout({
@@ -5782,55 +5808,57 @@ function gs(e, t) {
     const I = Number.isFinite(x) && x > 0 ? x : 1, N = Number.isFinite(w) && w > 0 ? w : 1, C = Number.isFinite(v) && v > 0 ? v : 1;
     f[0] = I, f[1] = N, f[2] = C, f[3] = 0, ut(e, c, f);
   };
-  return { prepare: ({ canvasWidth: x, canvasHeight: w, devicePixelRatio: v, instances: I }) => {
-    if (R(), !Number.isFinite(x) || !Number.isFinite(w) || x <= 0 || w <= 0)
-      throw new Error("AnnotationMarkerRenderer.prepare: canvasWidth/canvasHeight must be positive finite numbers.");
-    if (!Array.isArray(I))
-      throw new Error("AnnotationMarkerRenderer.prepare: instances must be an array.");
-    T(x, w, v), D(I.length * nr);
-    const N = M;
-    let C = 0;
-    for (let h = 0; h < I.length; h++) {
-      const F = I[h];
-      if (!Number.isFinite(F.xCssPx) || !Number.isFinite(F.yCssPx) || !Number.isFinite(F.sizeCssPx) || F.sizeCssPx <= 0) continue;
-      const S = F.strokeWidthCssPx ?? 0, P = F.strokeRgba ?? [0, 0, 0, 0], B = dn(F.fillRgba[0]), E = dn(F.fillRgba[1]), z = dn(F.fillRgba[2]), U = dn(F.fillRgba[3]), Y = dn(P[0]), j = dn(P[1]), q = dn(P[2]), Z = dn(P[3]);
-      N[C + 0] = F.xCssPx, N[C + 1] = F.yCssPx, N[C + 2] = F.sizeCssPx, N[C + 3] = Number.isFinite(S) ? Math.max(0, S) : 0, N[C + 4] = B, N[C + 5] = E, N[C + 6] = z, N[C + 7] = U, N[C + 8] = Y, N[C + 9] = j, N[C + 10] = q, N[C + 11] = Z, C += nr;
-    }
-    if (y = C / nr, y === 0)
-      return;
-    const d = Math.max(4, y * kr);
-    if (!u || u.size < d) {
-      const h = Math.max(Math.max(4, ys(d)), u ? u.size : 0);
-      if (u)
+  return {
+    prepare: ({ canvasWidth: x, canvasHeight: w, devicePixelRatio: v, instances: I }) => {
+      if (R(), !Number.isFinite(x) || !Number.isFinite(w) || x <= 0 || w <= 0)
+        throw new Error("AnnotationMarkerRenderer.prepare: canvasWidth/canvasHeight must be positive finite numbers.");
+      if (!Array.isArray(I))
+        throw new Error("AnnotationMarkerRenderer.prepare: instances must be an array.");
+      T(x, w, v), D(I.length * nr);
+      const N = M;
+      let C = 0;
+      for (let h = 0; h < I.length; h++) {
+        const F = I[h];
+        if (!Number.isFinite(F.xCssPx) || !Number.isFinite(F.yCssPx) || !Number.isFinite(F.sizeCssPx) || F.sizeCssPx <= 0) continue;
+        const S = F.strokeWidthCssPx ?? 0, P = F.strokeRgba ?? [0, 0, 0, 0], B = dn(F.fillRgba[0]), E = dn(F.fillRgba[1]), z = dn(F.fillRgba[2]), U = dn(F.fillRgba[3]), Y = dn(P[0]), j = dn(P[1]), q = dn(P[2]), Z = dn(P[3]);
+        N[C + 0] = F.xCssPx, N[C + 1] = F.yCssPx, N[C + 2] = F.sizeCssPx, N[C + 3] = Number.isFinite(S) ? Math.max(0, S) : 0, N[C + 4] = B, N[C + 5] = E, N[C + 6] = z, N[C + 7] = U, N[C + 8] = Y, N[C + 9] = j, N[C + 10] = q, N[C + 11] = Z, C += nr;
+      }
+      if (y = C / nr, y === 0)
+        return;
+      const d = Math.max(4, y * kr);
+      if (!u || u.size < d) {
+        const h = Math.max(Math.max(4, ys(d)), u ? u.size : 0);
+        if (u)
+          try {
+            u.destroy();
+          } catch {
+          }
+        u = e.createBuffer({
+          label: "annotationMarkerRenderer/instanceBuffer",
+          size: h,
+          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+        });
+      }
+      e.queue.writeBuffer(u, 0, p, 0, y * kr);
+    }, render: (x, w = 0, v) => {
+      if (R(), !u || y === 0) return;
+      const I = Number.isFinite(w) ? Math.max(0, Math.floor(w)) : 0, N = Math.max(0, y - I), C = v == null ? N : Number.isFinite(v) ? Math.max(0, Math.min(N, Math.floor(v))) : N;
+      C !== 0 && (x.setPipeline(g), x.setBindGroup(0, l), x.setVertexBuffer(0, u), x.draw(6, C, 0, I));
+    }, dispose: () => {
+      if (!n) {
+        if (n = !0, u)
+          try {
+            u.destroy();
+          } catch {
+          }
+        u = null, y = 0;
         try {
-          u.destroy();
+          c.destroy();
         } catch {
         }
-      u = e.createBuffer({
-        label: "annotationMarkerRenderer/instanceBuffer",
-        size: h,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
-      });
-    }
-    e.queue.writeBuffer(u, 0, p, 0, y * kr);
-  }, render: (x, w = 0, v) => {
-    if (R(), !u || y === 0) return;
-    const I = Number.isFinite(w) ? Math.max(0, Math.floor(w)) : 0, N = Math.max(0, y - I), C = v == null ? N : Number.isFinite(v) ? Math.max(0, Math.min(N, Math.floor(v))) : N;
-    C !== 0 && (x.setPipeline(g), x.setBindGroup(0, l), x.setVertexBuffer(0, u), x.draw(6, C, 0, I));
-  }, dispose: () => {
-    if (!n) {
-      if (n = !0, u)
-        try {
-          u.destroy();
-        } catch {
-        }
-      u = null, y = 0;
-      try {
-        c.destroy();
-      } catch {
       }
     }
-  } };
+  };
 }
 const ku = 6, Uu = 500;
 function Gu(e, t) {
@@ -5892,15 +5920,17 @@ function Gu(e, t) {
     const I = ku;
     m <= Uu && v <= I * I && c("click", b);
   };
-  return e.addEventListener("pointermove", l, { passive: !0 }), e.addEventListener("pointerleave", g, { passive: !0 }), e.addEventListener("pointercancel", u, { passive: !0 }), e.addEventListener("lostpointercapture", y, { passive: !0 }), e.addEventListener("pointerdown", p, { passive: !0 }), e.addEventListener("pointerup", M, { passive: !0 }), { canvas: e, on: (b, m) => {
-    n || r[b].add(m);
-  }, off: (b, m) => {
-    r[b].delete(m);
-  }, updateGridArea: (b) => {
-    i = b;
-  }, dispose: () => {
-    n || (n = !0, o = null, s = null, e.removeEventListener("pointermove", l), e.removeEventListener("pointerleave", g), e.removeEventListener("pointercancel", u), e.removeEventListener("lostpointercapture", y), e.removeEventListener("pointerdown", p), e.removeEventListener("pointerup", M), r.mousemove.clear(), r.click.clear(), r.mouseleave.clear());
-  } };
+  return e.addEventListener("pointermove", l, { passive: !0 }), e.addEventListener("pointerleave", g, { passive: !0 }), e.addEventListener("pointercancel", u, { passive: !0 }), e.addEventListener("lostpointercapture", y, { passive: !0 }), e.addEventListener("pointerdown", p, { passive: !0 }), e.addEventListener("pointerup", M, { passive: !0 }), {
+    canvas: e, on: (b, m) => {
+      n || r[b].add(m);
+    }, off: (b, m) => {
+      r[b].delete(m);
+    }, updateGridArea: (b) => {
+      i = b;
+    }, dispose: () => {
+      n || (n = !0, o = null, s = null, e.removeEventListener("pointermove", l), e.removeEventListener("pointerleave", g), e.removeEventListener("pointercancel", u), e.removeEventListener("lostpointercapture", y), e.removeEventListener("pointerdown", p), e.removeEventListener("pointerup", M), r.mousemove.clear(), r.click.clear(), r.mouseleave.clear());
+    }
+  };
 }
 const Hi = (e, t, n) => Math.min(n, Math.max(t, e)), zu = (e, t) => {
   const n = e.deltaY;
@@ -6048,9 +6078,11 @@ function $u(e, t) {
       c.clear(), g(), r = null, u();
     }
   };
-  return { enable: m, disable: x, dispose: () => {
-    n || (x(), n = !0);
-  } };
+  return {
+    enable: m, disable: x, dispose: () => {
+      n || (x(), n = !0);
+    }
+  };
 }
 const Yu = 0.5, Hu = 100, Kt = (e, t, n) => Math.min(n, Math.max(t, e)), Ur = (e) => Kt(e, 0, 1), xs = (e) => Object.is(e, -0) ? 0 : e, qu = (e) => ({ start: e.start, end: e.end });
 function Zu(e, t, n) {
@@ -6108,29 +6140,31 @@ function Zu(e, t, n) {
     }
     I = Kt(I, 0, 100), N = Kt(N, 0, 100), I = xs(I), N = xs(N), !(I === i && N === r) && (i = I, r = N, (v == null ? void 0 : v.emit) !== !1 && g());
   };
-  return y(e, t, { emit: !1 }), { getRange: () => ({ start: i, end: r }), setRange: (x, w) => {
-    y(x, w);
-  }, setRangeAnchored: (x, w, v) => {
-    y(x, w, { anchor: u(x, w, v) });
-  }, setSpanConstraints: (x, w) => {
-    const v = typeof x == "number" && Number.isFinite(x) ? Kt(x, 0, 100) : a, I = typeof w == "number" && Number.isFinite(w) ? Kt(w, 0, 100) : c;
-    if (v === a && I === c) return;
-    a = v, c = I, f = Math.min(a, c), l = Math.max(a, c);
-    const N = i, C = r, d = 1e-6, h = C >= 100 - d ? "end" : N <= 0 + d ? "start" : "center";
-    y(N, C, { anchor: u(N, C, h) });
-  }, zoomIn: (x, w) => {
-    if (!Number.isFinite(x) || !Number.isFinite(w) || w <= 1) return;
-    const v = Kt(x, 0, 100), I = r - i, N = I === 0 ? 0.5 : Ur((v - i) / I), C = I / w, d = v - N * C, h = d + C;
-    y(d, h, { anchor: { center: v, ratio: N } });
-  }, zoomOut: (x, w) => {
-    if (!Number.isFinite(x) || !Number.isFinite(w) || w <= 1) return;
-    const v = Kt(x, 0, 100), I = r - i, N = I === 0 ? 0.5 : Ur((v - i) / I), C = I * w, d = v - N * C, h = d + C;
-    y(d, h, { anchor: { center: v, ratio: N } });
-  }, pan: (x) => {
-    Number.isFinite(x) && y(i + x, r + x);
-  }, onChange: (x) => (s.add(x), () => {
-    s.delete(x);
-  }) };
+  return y(e, t, { emit: !1 }), {
+    getRange: () => ({ start: i, end: r }), setRange: (x, w) => {
+      y(x, w);
+    }, setRangeAnchored: (x, w, v) => {
+      y(x, w, { anchor: u(x, w, v) });
+    }, setSpanConstraints: (x, w) => {
+      const v = typeof x == "number" && Number.isFinite(x) ? Kt(x, 0, 100) : a, I = typeof w == "number" && Number.isFinite(w) ? Kt(w, 0, 100) : c;
+      if (v === a && I === c) return;
+      a = v, c = I, f = Math.min(a, c), l = Math.max(a, c);
+      const N = i, C = r, d = 1e-6, h = C >= 100 - d ? "end" : N <= 0 + d ? "start" : "center";
+      y(N, C, { anchor: u(N, C, h) });
+    }, zoomIn: (x, w) => {
+      if (!Number.isFinite(x) || !Number.isFinite(w) || w <= 1) return;
+      const v = Kt(x, 0, 100), I = r - i, N = I === 0 ? 0.5 : Ur((v - i) / I), C = I / w, d = v - N * C, h = d + C;
+      y(d, h, { anchor: { center: v, ratio: N } });
+    }, zoomOut: (x, w) => {
+      if (!Number.isFinite(x) || !Number.isFinite(w) || w <= 1) return;
+      const v = Kt(x, 0, 100), I = r - i, N = I === 0 ? 0.5 : Ur((v - i) / I), C = I * w, d = v - N * C, h = d + C;
+      y(d, h, { anchor: { center: v, ratio: N } });
+    }, pan: (x) => {
+      Number.isFinite(x) && y(i + x, r + x);
+    }, onChange: (x) => (s.add(x), () => {
+      s.delete(x);
+    })
+  };
 }
 const Gr = /* @__PURE__ */ new WeakMap(), bs = (e) => {
   const t = typeof e == "object" && e !== null ? e : null;
@@ -6171,7 +6205,7 @@ const Gr = /* @__PURE__ */ new WeakMap(), bs = (e) => {
   };
 }, vs = (e, t) => {
   let n = 0, i = Ne(e);
-  for (; n < i; ) {
+  for (; n < i;) {
     const r = n + i >>> 1;
     Fe(e, r) < t ? n = r + 1 : i = r;
   }
@@ -6267,9 +6301,9 @@ function ws(e, t, n, i) {
         const v = w - t;
         return v * v;
       };
-      for (; T >= 0 || A < u; ) {
-        for (; T >= 0 && b(T) === null; ) T--;
-        for (; A < u && b(A) === null; ) A++;
+      for (; T >= 0 || A < u;) {
+        for (; T >= 0 && b(T) === null;) T--;
+        for (; A < u && b(A) === null;) A++;
         if (T < 0 && A >= u) break;
         const m = T >= 0 ? b(T) ?? Number.POSITIVE_INFINITY : Number.POSITIVE_INFINITY, x = A < u ? b(A) ?? Number.POSITIVE_INFINITY : Number.POSITIVE_INFINITY;
         if (m > M && x > M) break;
@@ -6346,7 +6380,7 @@ const qi = /* @__PURE__ */ new WeakMap(), nf = (e) => {
   return qi.set(e, !0), !0;
 }, rf = (e, t) => {
   let n = 0, i = e.length;
-  for (; n < i; ) {
+  for (; n < i;) {
     const r = n + i >>> 1;
     Pn(e[r]) < t ? n = r + 1 : i = r;
   }
@@ -6529,25 +6563,27 @@ function Ms(e, t) {
   const l = document.createElement("div");
   l.style.position = "absolute", l.style.inset = "0", l.style.pointerEvents = "none", l.style.overflow = o ? "hidden" : "visible", l.style.zIndex = "10", e.appendChild(l);
   let g = !1;
-  return { clear: () => {
-    g || l.replaceChildren();
-  }, addLabel: (M, R, D, T) => {
-    if (g)
-      return document.createElement("span");
-    const A = document.createElement("span");
-    A.textContent = M, A.style.position = "absolute", A.style.left = `${R}px`, A.style.top = `${D}px`, A.style.pointerEvents = "none", A.style.userSelect = "none", A.style.whiteSpace = "nowrap", A.style.lineHeight = "1", (T == null ? void 0 : T.fontSize) != null && (A.style.fontSize = `${T.fontSize}px`), (T == null ? void 0 : T.color) != null && (A.style.color = T.color);
-    const b = (T == null ? void 0 : T.rotation) ?? 0, m = (T == null ? void 0 : T.anchor) ?? "start", { translateX: x, originX: w } = of(m);
-    return A.style.transformOrigin = `${w} 50%`, A.style.transform = `translateX(${x}) translateY(-50%) rotate(${b}deg)`, l.appendChild(A), A;
-  }, dispose: () => {
-    if (!g) {
-      g = !0;
-      try {
-        l.remove();
-      } finally {
-        c !== null && (e.style.position = c), f !== null && (e.style.overflow = f);
+  return {
+    clear: () => {
+      g || l.replaceChildren();
+    }, addLabel: (M, R, D, T) => {
+      if (g)
+        return document.createElement("span");
+      const A = document.createElement("span");
+      A.textContent = M, A.style.position = "absolute", A.style.left = `${R}px`, A.style.top = `${D}px`, A.style.pointerEvents = "none", A.style.userSelect = "none", A.style.whiteSpace = "nowrap", A.style.lineHeight = "1", (T == null ? void 0 : T.fontSize) != null && (A.style.fontSize = `${T.fontSize}px`), (T == null ? void 0 : T.color) != null && (A.style.color = T.color);
+      const b = (T == null ? void 0 : T.rotation) ?? 0, m = (T == null ? void 0 : T.anchor) ?? "start", { translateX: x, originX: w } = of(m);
+      return A.style.transformOrigin = `${w} 50%`, A.style.transform = `translateX(${x}) translateY(-50%) rotate(${b}deg)`, l.appendChild(A), A;
+    }, dispose: () => {
+      if (!g) {
+        g = !0;
+        try {
+          l.remove();
+        } finally {
+          c !== null && (e.style.position = c), f !== null && (e.style.overflow = f);
+        }
       }
     }
-  } };
+  };
 }
 const Ss = (e, t) => {
   var i;
@@ -6630,43 +6666,45 @@ function cf(e, t = "right", n) {
     }
   })(t), e.appendChild(s);
   let f = !1;
-  return { update: (u, y) => {
-    if (f) return;
-    s.style.color = y.textColor, s.style.background = y.backgroundColor, s.style.borderColor = y.axisLineColor, s.style.fontFamily = y.fontFamily, s.style.fontSize = `${y.fontSize}px`;
-    const p = [];
-    for (let M = 0; M < u.length; M++) {
-      const R = u[M];
-      if (R.type === "pie")
-        for (let D = 0; D < R.data.length; D++) {
-          const T = R.data[D], A = (T == null ? void 0 : T.visible) !== !1, b = document.createElement("div");
-          b.style.display = "flex", b.style.alignItems = "center", b.style.gap = "6px", b.style.lineHeight = "1.1", b.style.whiteSpace = "nowrap", b.style.cursor = n ? "pointer" : "default", b.style.opacity = A ? "1" : "0.5", b.style.transition = "opacity 0.2s", n && (b.setAttribute("role", "button"), b.setAttribute("aria-pressed", String(A)), b.setAttribute("aria-label", `Toggle ${Fs(T == null ? void 0 : T.name, D)} visibility`), b.tabIndex = 0, b.dataset.seriesIndex = String(M), b.dataset.sliceIndex = String(D));
-          const m = document.createElement("div");
-          m.style.width = "10px", m.style.height = "10px", m.style.borderRadius = "2px", m.style.flex = "0 0 auto", m.style.background = af(T == null ? void 0 : T.color, M, D, y), m.style.border = `1px solid ${y.axisLineColor}`;
-          const x = document.createElement("span");
-          x.textContent = Fs(T == null ? void 0 : T.name, D), x.style.textDecoration = A ? "none" : "line-through", b.appendChild(m), b.appendChild(x), p.push(b);
-        }
-      else {
+  return {
+    update: (u, y) => {
+      if (f) return;
+      s.style.color = y.textColor, s.style.background = y.backgroundColor, s.style.borderColor = y.axisLineColor, s.style.fontFamily = y.fontFamily, s.style.fontSize = `${y.fontSize}px`;
+      const p = [];
+      for (let M = 0; M < u.length; M++) {
+        const R = u[M];
+        if (R.type === "pie")
+          for (let D = 0; D < R.data.length; D++) {
+            const T = R.data[D], A = (T == null ? void 0 : T.visible) !== !1, b = document.createElement("div");
+            b.style.display = "flex", b.style.alignItems = "center", b.style.gap = "6px", b.style.lineHeight = "1.1", b.style.whiteSpace = "nowrap", b.style.cursor = n ? "pointer" : "default", b.style.opacity = A ? "1" : "0.5", b.style.transition = "opacity 0.2s", n && (b.setAttribute("role", "button"), b.setAttribute("aria-pressed", String(A)), b.setAttribute("aria-label", `Toggle ${Fs(T == null ? void 0 : T.name, D)} visibility`), b.tabIndex = 0, b.dataset.seriesIndex = String(M), b.dataset.sliceIndex = String(D));
+            const m = document.createElement("div");
+            m.style.width = "10px", m.style.height = "10px", m.style.borderRadius = "2px", m.style.flex = "0 0 auto", m.style.background = af(T == null ? void 0 : T.color, M, D, y), m.style.border = `1px solid ${y.axisLineColor}`;
+            const x = document.createElement("span");
+            x.textContent = Fs(T == null ? void 0 : T.name, D), x.style.textDecoration = A ? "none" : "line-through", b.appendChild(m), b.appendChild(x), p.push(b);
+          }
+        else {
           if (R.showInLegend === !1)
             continue;
-        const D = R.visible !== !1, T = document.createElement("div");
-        T.style.display = "flex", T.style.alignItems = "center", T.style.gap = "6px", T.style.lineHeight = "1.1", T.style.whiteSpace = "nowrap", T.style.cursor = n ? "pointer" : "default", T.style.opacity = D ? "1" : "0.5", T.style.transition = "opacity 0.2s", n && (T.setAttribute("role", "button"), T.setAttribute("aria-pressed", String(D)), T.setAttribute("aria-label", `Toggle ${Ss(R, M)} visibility`), T.tabIndex = 0, T.dataset.seriesIndex = String(M));
-        const A = document.createElement("div");
-        A.style.width = "10px", A.style.height = "10px", A.style.borderRadius = "2px", A.style.flex = "0 0 auto", A.style.background = sf(R, M, y), A.style.border = `1px solid ${y.axisLineColor}`;
-        const b = document.createElement("span");
-        b.textContent = Ss(R, M), b.style.textDecoration = D ? "none" : "line-through", T.appendChild(A), T.appendChild(b), p.push(T);
+          const D = R.visible !== !1, T = document.createElement("div");
+          T.style.display = "flex", T.style.alignItems = "center", T.style.gap = "6px", T.style.lineHeight = "1.1", T.style.whiteSpace = "nowrap", T.style.cursor = n ? "pointer" : "default", T.style.opacity = D ? "1" : "0.5", T.style.transition = "opacity 0.2s", n && (T.setAttribute("role", "button"), T.setAttribute("aria-pressed", String(D)), T.setAttribute("aria-label", `Toggle ${Ss(R, M)} visibility`), T.tabIndex = 0, T.dataset.seriesIndex = String(M));
+          const A = document.createElement("div");
+          A.style.width = "10px", A.style.height = "10px", A.style.borderRadius = "2px", A.style.flex = "0 0 auto", A.style.background = sf(R, M, y), A.style.border = `1px solid ${y.axisLineColor}`;
+          const b = document.createElement("span");
+          b.textContent = Ss(R, M), b.style.textDecoration = D ? "none" : "line-through", T.appendChild(A), T.appendChild(b), p.push(T);
+        }
+      }
+      a.replaceChildren(...p);
+    }, dispose: () => {
+      if (!f) {
+        f = !0;
+        try {
+          s.remove();
+        } finally {
+          o !== null && (e.style.position = o);
+        }
       }
     }
-    a.replaceChildren(...p);
-  }, dispose: () => {
-    if (!f) {
-      f = !0;
-      try {
-        s.remove();
-      } finally {
-        o !== null && (e.style.position = o);
-      }
-    }
-  } };
+  };
 }
 const Ns = (e, t, n) => n < t || e < t ? t : e > n ? n : e;
 function Ts(e) {
@@ -6685,44 +6723,46 @@ function Ts(e) {
     const D = r.offsetWidth, T = r.offsetHeight;
     return r.style.visibility = R, { width: D, height: T };
   };
-  return { show: (R, D, T) => {
-    if (s) return;
-    a += 1, l();
-    const A = g();
-    r.innerHTML = T;
-    const b = 12, m = 12, x = 8;
-    r.style.display = "block", r.style.visibility = "hidden";
-    const { width: w, height: v } = u(), I = e.clientWidth, N = e.clientHeight;
-    let C = R + b, d = D + m;
-    if (C + w > I - x && (C = R - b - w), d + v > N - x && (d = D - m - v), C = Ns(C, x, I - x - w), d = Ns(d, x, N - x - v), r.style.left = `${C}px`, r.style.top = `${d}px`, r.style.visibility = "visible", A) {
+  return {
+    show: (R, D, T) => {
+      if (s) return;
+      a += 1, l();
+      const A = g();
+      r.innerHTML = T;
+      const b = 12, m = 12, x = 8;
+      r.style.display = "block", r.style.visibility = "hidden";
+      const { width: w, height: v } = u(), I = e.clientWidth, N = e.clientHeight;
+      let C = R + b, d = D + m;
+      if (C + w > I - x && (C = R - b - w), d + v > N - x && (d = D - m - v), C = Ns(C, x, I - x - w), d = Ns(d, x, N - x - v), r.style.left = `${C}px`, r.style.top = `${d}px`, r.style.visibility = "visible", A) {
+        r.style.opacity = "0";
+        const h = a;
+        f = window.requestAnimationFrame(() => {
+          f = null, !s && h === a && (r.style.opacity = "1");
+        });
+      } else
+        r.style.opacity = "1";
+    }, hide: () => {
+      if (s) return;
+      if (a += 1, l(), r.style.display === "none" || r.style.visibility === "hidden") {
+        r.style.opacity = "0", r.style.visibility = "hidden", r.style.display = "none";
+        return;
+      }
       r.style.opacity = "0";
-      const h = a;
-      f = window.requestAnimationFrame(() => {
-        f = null, !s && h === a && (r.style.opacity = "1");
-      });
-    } else
-      r.style.opacity = "1";
-  }, hide: () => {
-    if (s) return;
-    if (a += 1, l(), r.style.display === "none" || r.style.visibility === "hidden") {
-      r.style.opacity = "0", r.style.visibility = "hidden", r.style.display = "none";
-      return;
-    }
-    r.style.opacity = "0";
-    const R = a;
-    c = window.setTimeout(() => {
-      c = null, !s && R === a && (r.style.visibility = "hidden", r.style.display = "none");
-    }, o + 50);
-  }, dispose: () => {
-    if (!s) {
-      s = !0;
-      try {
-        l(), r.remove();
-      } finally {
-        i !== null && (e.style.position = i);
+      const R = a;
+      c = window.setTimeout(() => {
+        c = null, !s && R === a && (r.style.visibility = "hidden", r.style.display = "none");
+      }, o + 50);
+    }, dispose: () => {
+      if (!s) {
+        s = !0;
+        try {
+          l(), r.remove();
+        } finally {
+          i !== null && (e.style.position = i);
+        }
       }
     }
-  } };
+  };
 }
 const ir = "—";
 function on(e) {
@@ -8919,21 +8959,23 @@ function dd(e, t, n) {
   const I = t.onChange((d) => {
     p || R(d);
   });
-  return R(t.getRange()), { update: (d) => {
-    if (p) return;
-    c.style.background = d.backgroundColor, c.style.borderColor = d.axisLineColor, f.style.background = d.gridLineColor, l.style.background = d.gridLineColor, l.style.border = `1px solid ${d.axisTickColor}`, l.style.borderRadius = "8px", l.style.boxSizing = "border-box";
-    const h = `1px solid ${d.axisLineColor}`;
-    g.style.background = d.axisTickColor, g.style.borderRight = h, u.style.background = d.axisTickColor, u.style.borderLeft = h, y.style.background = "transparent", y.style.backgroundImage = "linear-gradient(90deg, rgba(255,255,255,0.0) 0, rgba(255,255,255,0.0) 42%, rgba(255,255,255,0.18) 42%, rgba(255,255,255,0.18) 46%, rgba(255,255,255,0.0) 46%, rgba(255,255,255,0.0) 54%, rgba(255,255,255,0.18) 54%, rgba(255,255,255,0.18) 58%, rgba(255,255,255,0.0) 58%, rgba(255,255,255,0.0) 100%)", y.style.mixBlendMode = "normal";
-  }, dispose: () => {
-    if (!p) {
-      p = !0, M == null || M(), M = null;
-      try {
-        I();
-      } catch {
+  return R(t.getRange()), {
+    update: (d) => {
+      if (p) return;
+      c.style.background = d.backgroundColor, c.style.borderColor = d.axisLineColor, f.style.background = d.gridLineColor, l.style.background = d.gridLineColor, l.style.border = `1px solid ${d.axisTickColor}`, l.style.borderRadius = "8px", l.style.boxSizing = "border-box";
+      const h = `1px solid ${d.axisLineColor}`;
+      g.style.background = d.axisTickColor, g.style.borderRight = h, u.style.background = d.axisTickColor, u.style.borderLeft = h, y.style.background = "transparent", y.style.backgroundImage = "linear-gradient(90deg, rgba(255,255,255,0.0) 0, rgba(255,255,255,0.0) 42%, rgba(255,255,255,0.18) 42%, rgba(255,255,255,0.18) 46%, rgba(255,255,255,0.0) 46%, rgba(255,255,255,0.0) 54%, rgba(255,255,255,0.18) 54%, rgba(255,255,255,0.18) 58%, rgba(255,255,255,0.0) 58%, rgba(255,255,255,0.0) 100%)", y.style.mixBlendMode = "normal";
+    }, dispose: () => {
+      if (!p) {
+        p = !0, M == null || M(), M = null;
+        try {
+          I();
+        } catch {
+        }
+        g.removeEventListener("pointerdown", x), u.removeEventListener("pointerdown", w), y.removeEventListener("pointerdown", v), a.remove();
       }
-      g.removeEventListener("pointerdown", x), u.removeEventListener("pointerdown", w), y.removeEventListener("pointerdown", v), a.remove();
     }
-  } };
+  };
 }
 const Ws = 0.01, md = (e, t) => e <= Ws && t >= 100 - Ws, pd = () => typeof navigator < "u" && navigator.maxTouchPoints > 0;
 function hd(e, t, n) {
@@ -9265,26 +9307,28 @@ Resources:
   }, ve = (_, V) => {
     const oe = _.end - _.start;
     return !Number.isFinite(oe) || oe === 0 ? 0.5 : $r((V - _.start) / oe, 0, 1);
-  }, Te = () => ({ getRange: () => (l == null ? void 0 : l.getZoomRange()) ?? { start: 0, end: 100 }, setRange: (me, xe) => {
-    l == null || l.setZoomRange(me, xe);
-  }, zoomIn: (me, xe) => {
-    if (!Number.isFinite(me) || !Number.isFinite(xe) || xe <= 1) return;
-    const Pe = l == null ? void 0 : l.getZoomRange();
-    if (!Pe) return;
-    const Ce = $r(me, 0, 100), et = ve(Pe, Ce), Ue = (Pe.end - Pe.start) / xe, ze = Ce - et * Ue;
-    l == null || l.setZoomRange(ze, ze + Ue);
-  }, zoomOut: (me, xe) => {
-    if (!Number.isFinite(me) || !Number.isFinite(xe) || xe <= 1) return;
-    const Pe = l == null ? void 0 : l.getZoomRange();
-    if (!Pe) return;
-    const Ce = $r(me, 0, 100), et = ve(Pe, Ce), Ue = (Pe.end - Pe.start) * xe, ze = Ce - et * Ue;
-    l == null || l.setZoomRange(ze, ze + Ue);
-  }, pan: (me) => {
-    if (!Number.isFinite(me)) return;
-    const xe = l == null ? void 0 : l.getZoomRange();
-    xe && (l == null || l.setZoomRange(xe.start + me, xe.end + me));
-  }, onChange: (me) => (l == null ? void 0 : l.onZoomRangeChange(me)) ?? (() => {
-  }) }), Xe = () => {
+  }, Te = () => ({
+    getRange: () => (l == null ? void 0 : l.getZoomRange()) ?? { start: 0, end: 100 }, setRange: (me, xe) => {
+      l == null || l.setZoomRange(me, xe);
+    }, zoomIn: (me, xe) => {
+      if (!Number.isFinite(me) || !Number.isFinite(xe) || xe <= 1) return;
+      const Pe = l == null ? void 0 : l.getZoomRange();
+      if (!Pe) return;
+      const Ce = $r(me, 0, 100), et = ve(Pe, Ce), Ue = (Pe.end - Pe.start) / xe, ze = Ce - et * Ue;
+      l == null || l.setZoomRange(ze, ze + Ue);
+    }, zoomOut: (me, xe) => {
+      if (!Number.isFinite(me) || !Number.isFinite(xe) || xe <= 1) return;
+      const Pe = l == null ? void 0 : l.getZoomRange();
+      if (!Pe) return;
+      const Ce = $r(me, 0, 100), et = ve(Pe, Ce), Ue = (Pe.end - Pe.start) * xe, ze = Ce - et * Ue;
+      l == null || l.setZoomRange(ze, ze + Ue);
+    }, pan: (me) => {
+      if (!Number.isFinite(me)) return;
+      const xe = l == null ? void 0 : l.getZoomRange();
+      xe && (l == null || l.setZoomRange(xe.start + me, xe.end + me));
+    }, onChange: (me) => (l == null ? void 0 : l.onZoomRangeChange(me)) ?? (() => {
+    })
+  }), Xe = () => {
     if (!Md(A)) {
       pe();
       return;

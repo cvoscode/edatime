@@ -48,16 +48,28 @@ export function paletteForScale(scale: string): string[] {
     return ['#440154', '#414487', '#2a788e', '#22a884', '#7ad151', '#fde725'];
 }
 
-export function hexToRgb(hex: string): { r: number; g: number; b: number } {
+function normalizeHexColor(hex: string): string {
     const clean = String(hex).replace('#', '');
-    const v = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
-    const num = Number.parseInt(v, 16);
+    return clean.length === 3 ? clean.split('').map((char) => char + char).join('') : clean;
+}
+
+function clampColorChannel(value: number): number {
+    return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function toFiniteNumbers(values: unknown[]): number[] {
+    return values.map((value) => Number(value)).filter((value) => Number.isFinite(value));
+}
+
+export function hexToRgb(hex: string): { r: number; g: number; b: number } {
+    const normalized = normalizeHexColor(hex);
+    const num = Number.parseInt(normalized, 16);
     return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
 }
 
 export function rgbToHex({ r, g, b }: { r: number; g: number; b: number }): string {
-    const toHex = (n: number) => n.toString(16).padStart(2, '0');
-    return `#${toHex(Math.max(0, Math.min(255, Math.round(r))))}${toHex(Math.max(0, Math.min(255, Math.round(g))))}${toHex(Math.max(0, Math.min(255, Math.round(b))))}`;
+    const toHex = (value: number) => clampColorChannel(value).toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
 export function sampleGradient(stops: string[], t: number): string {
@@ -206,7 +218,7 @@ export interface Histogram {
 
 export function buildHistogramFromValues(values: unknown[], binCount = HISTOGRAM_BINS): Histogram | null {
     if (!Array.isArray(values) || values.length === 0) return null;
-    const finite = values.map((v) => Number(v)).filter((v) => Number.isFinite(v));
+    const finite = toFiniteNumbers(values);
     if (finite.length === 0) return null;
     let min = finite[0];
     let max = finite[0];
@@ -229,7 +241,7 @@ export function buildHistogramFromValues(values: unknown[], binCount = HISTOGRAM
 }
 
 export function buildHistogramForDomain(values: number[], min: number, max: number, binCount = HISTOGRAM_BINS): Histogram | null {
-    const finite = values.map((v) => Number(v)).filter((v) => Number.isFinite(v));
+    const finite = toFiniteNumbers(values);
     if (finite.length === 0 || !Number.isFinite(min) || !Number.isFinite(max)) return null;
     if (!(max > min)) return { min, max, counts: [finite.length], edges: [min, max] };
     const counts = Array.from({ length: binCount }, () => 0);
@@ -257,7 +269,7 @@ export function estimateBandwidth(values: number[]): number {
 }
 
 export function buildKdeCurve(values: number[], min: number, max: number, sampleCount = KDE_SAMPLES): { x: number; y: number }[] {
-    const finite = values.map((v) => Number(v)).filter((v) => Number.isFinite(v));
+    const finite = toFiniteNumbers(values);
     if (finite.length === 0) return [];
     if (!(max > min)) return [{ x: min, y: 1 }, { x: max, y: 1 }];
     const bandwidth = estimateBandwidth(finite);
@@ -273,7 +285,7 @@ export function buildKdeCurve(values: number[], min: number, max: number, sample
 }
 
 export function computeBoxStats(values: number[]): { min: number; q1: number | null; median: number | null; q3: number | null; max: number } | null {
-    const sorted = values.map((v) => Number(v)).filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
+    const sorted = toFiniteNumbers(values).sort((a, b) => a - b);
     if (sorted.length === 0) return null;
     return { min: sorted[0], q1: quantileSorted(sorted, 0.25), median: quantileSorted(sorted, 0.5), q3: quantileSorted(sorted, 0.75), max: sorted[sorted.length - 1] };
 }
@@ -305,7 +317,7 @@ export function expandHistogramValues(histogram: { counts?: number[]; edges?: nu
 
 export function computeDistributionStats(values: unknown[]): Record<string, number | null> | null {
     if (!Array.isArray(values) || values.length === 0) return null;
-    const sorted = values.map((v) => Number(v)).filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
+    const sorted = toFiniteNumbers(values).sort((a, b) => a - b);
     if (sorted.length === 0) return null;
     const count = sorted.length;
     const min = sorted[0];

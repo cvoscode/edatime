@@ -4,7 +4,7 @@
  * Covers: hydrateColumnProfiles — profile hydration from metadata.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { formatUploadSelectionStatus, hydrateColumnProfiles } from './profile';
+import { formatUploadSelectionStatus, hydrateColumnProfiles, sortProfileRows } from './profile';
 import { appState } from '../state';
 import type { DatasetMetadata } from '../types';
 
@@ -240,5 +240,34 @@ describe('formatUploadSelectionStatus', () => {
         expect(formatUploadSelectionStatus(0, 0, 'ts')).toBe(
             'Time column detected: ts. No additional analysis columns available.',
         );
+    });
+});
+
+describe('sortProfileRows', () => {
+    it('sorts string keys ascending', () => {
+        const result = sortProfileRows([
+            { name: 'beta', dtype: 'Float64', nonNullCount: 1, nullCount: 0, min: null, max: null, histCounts: [] },
+            { name: 'alpha', dtype: 'Int32', nonNullCount: 1, nullCount: 0, min: null, max: null, histCounts: [] },
+        ], 'name', 'asc');
+
+        expect(result.map((profile) => profile.name)).toEqual(['alpha', 'beta']);
+    });
+
+    it('sorts numeric keys descending', () => {
+        const result = sortProfileRows([
+            { name: 'a', dtype: 'Float64', nonNullCount: 3, nullCount: 0, min: null, max: null, histCounts: [] },
+            { name: 'b', dtype: 'Float64', nonNullCount: 8, nullCount: 0, min: null, max: null, histCounts: [] },
+        ], 'nonNullCount', 'desc');
+
+        expect(result.map((profile) => profile.name)).toEqual(['b', 'a']);
+    });
+
+    it('keeps non-finite numeric values at the end', () => {
+        const result = sortProfileRows([
+            { name: 'a', dtype: 'Float64', nonNullCount: Number.NaN, nullCount: 0, min: null, max: null, histCounts: [] },
+            { name: 'b', dtype: 'Float64', nonNullCount: 8, nullCount: 0, min: null, max: null, histCounts: [] },
+        ], 'nonNullCount', 'asc');
+
+        expect(result.map((profile) => profile.name)).toEqual(['b', 'a']);
     });
 });

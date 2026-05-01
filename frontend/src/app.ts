@@ -34,6 +34,7 @@ import { initSpectrogramPage as initSpectrogramPageModule } from './pages/spectr
 import { initAppShell } from './bootstrap/appShell.js';
 import { restoreSessionAfterChartReady, startSessionPersistence } from './bootstrap/sessionBootstrap.js';
 import { getHashPage } from './utils/router.js';
+import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
 import { initDatasetSearchInputs, initTimeseriesActions } from './bootstrap/timeseriesBootstrap.js';
 import {
     updateAnalysisZoom, updateAnalysisYRange,
@@ -765,11 +766,12 @@ async function init(): Promise<void> {
     (window as any).__edatime.ensureDatasetReady = ensureDatasetReady;
 
     try {
-        if (getHashPage() && getHashPage() !== 'home') {
-            await ensureDatasetReady(getHashPage()!);
+        const initialPage = getHashPage();
+        if (pageNeedsDatasetBootstrap(initialPage)) {
+            await ensureDatasetReady(initialPage!);
         }
 
-        if (getHashPage() === 'timeseries' && _metadataReady) {
+        if (initialPage === 'timeseries' && _metadataReady) {
             await ensureTimeseriesReady();
         }
     } catch (e: any) {

@@ -1,6 +1,23 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { defaultGpuPowerPreference, installWindowsWebGpuRequestAdapterWorkaround } from './platform.js';
+import { defaultGpuPowerPreference, installWindowsWebGpuRequestAdapterWorkaround, stripIgnoredPowerPreference } from './platform.js';
+
+describe('stripIgnoredPowerPreference', () => {
+    it('removes powerPreference while preserving other options', () => {
+        expect(stripIgnoredPowerPreference({ powerPreference: 'high-performance', forceFallbackAdapter: false })).toEqual({
+            forceFallbackAdapter: false,
+        });
+    });
+
+    it('returns undefined when powerPreference was the only option', () => {
+        expect(stripIgnoredPowerPreference({ powerPreference: 'high-performance' })).toBeUndefined();
+    });
+
+    it('passes through options without powerPreference', () => {
+        const options = { forceFallbackAdapter: false };
+        expect(stripIgnoredPowerPreference(options)).toBe(options);
+    });
+});
 
 describe('defaultGpuPowerPreference', () => {
     afterEach(() => {
@@ -21,7 +38,8 @@ describe('defaultGpuPowerPreference', () => {
         });
 
         installWindowsWebGpuRequestAdapterWorkaround();
-        await navigator.gpu.requestAdapter({ powerPreference: 'high-performance', forceFallbackAdapter: false } as any);
+        const gpu = navigator.gpu as { requestAdapter: (options?: Record<string, unknown>) => Promise<unknown | null> };
+        await gpu.requestAdapter({ powerPreference: 'high-performance', forceFallbackAdapter: false });
 
         expect(requestAdapter).toHaveBeenCalledWith({ forceFallbackAdapter: false });
     });
