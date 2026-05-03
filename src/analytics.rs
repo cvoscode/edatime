@@ -1649,11 +1649,11 @@ pub fn compute_temporal_drift(
     // points keeps the permutation loop fast while preserving distributional
     // shape.  KS and Wasserstein continue to use the full reference.
     const ES_REF_CAP: usize = 400;
-    let es_ref_sample: Vec<f64> = if ref_sorted.len() > ES_REF_CAP {
+    let es_ref_sample: std::borrow::Cow<[f64]> = if ref_sorted.len() > ES_REF_CAP {
         let step = (ref_sorted.len() + ES_REF_CAP - 1) / ES_REF_CAP;
-        ref_sorted.iter().step_by(step).copied().collect()
+        std::borrow::Cow::Owned(ref_sorted.iter().step_by(step).copied().collect())
     } else {
-        ref_sorted.clone()
+        std::borrow::Cow::Borrowed(&ref_sorted)
     };
 
     // Pre-compute PSI reference bin proportions once — avoids O(N log N) sort

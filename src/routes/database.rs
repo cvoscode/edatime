@@ -110,10 +110,10 @@ pub async fn post_connect(
         });
     }
 
-    let msg = if rows_loaded.is_some() {
+    let msg = if let Some(n) = rows_loaded {
         format!(
             "Connected and loaded {} rows",
-            rows_loaded.unwrap_or_default()
+            n
         )
     } else {
         "Connected (no snapshot loaded)".to_string()
@@ -273,8 +273,8 @@ pub async fn post_load(
     if let Some(ref mut i) = *info {
         i.table = body.table.clone();
         i.schema = body.schema.clone();
-        if body.time_column.is_some() {
-            i.time_column = body.time_column;
+        if let Some(tc) = body.time_column {
+            i.time_column = Some(tc);
         }
     } else {
         *info = Some(DbConnectionInfo {

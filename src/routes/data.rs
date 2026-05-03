@@ -61,7 +61,7 @@ pub async fn get_data(
         params.end.timestamp_millis(),
         params.width,
         value_cols.join(","),
-        color_column.as_ref().unwrap_or(&String::new()),
+        color_column.as_deref().unwrap_or(""),
         format,
     );
 

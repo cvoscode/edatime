@@ -302,24 +302,23 @@ pub async fn ingest_table(
 
     // Build WHERE clause (time-range filter).
     let mut where_parts: Vec<String> = Vec::new();
-    if opts.start_ms.is_some() {
+    if let Some(start_ms) = opts.start_ms {
         if let Some(tc) = &resolved_time_col {
             let tc = sanitise_ident(tc)?;
             // Embed i64 literal directly — no injection risk with numeric types.
             where_parts.push(format!(
                 "\"{}\" >= to_timestamp({} / 1000.0)",
                 tc,
-                opts.start_ms.unwrap()
+                start_ms
             ));
         }
     }
-    if opts.end_ms.is_some() {
+    if let Some(end_ms) = opts.end_ms {
         if let Some(tc) = &resolved_time_col {
             let tc = sanitise_ident(tc)?;
             where_parts.push(format!(
                 "\"{}\" <= to_timestamp({} / 1000.0)",
-                tc,
-                opts.end_ms.unwrap()
+                tc, end_ms
             ));
         }
     }
@@ -472,7 +471,7 @@ fn rows_to_dataframe(rows: Vec<Row>, cols: &[(String, String)]) -> Result<DataFr
             "date" => {
                 use chrono::NaiveDate;
                 // Days since epoch (Polars Date is i32 days).
-                let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+                let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).ok_or_else(|| AppError::internal("Failed to create epoch date"))?;
                 let vals: Vec<Option<i32>> = rows
                     .iter()
                     .map(|r| {

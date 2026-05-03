@@ -115,11 +115,13 @@ impl<'a> PcmciPlus<'a> {
             // Parents of j
             if let Some(parents_j) = all_parents.get(&j) {
                 let limit = config.max_conds_py.unwrap_or(parents_j.len());
-                for &p in parents_j.iter().take(limit) {
-                    if p != (i, neg_tau) {
-                        z.push(p);
-                    }
-                }
+                z.extend(
+                    parents_j
+                        .iter()
+                        .take(limit)
+                        .filter(|&&p| p != (i, neg_tau))
+                        .copied(),
+                );
             }
 
             // Shifted parents of i

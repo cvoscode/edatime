@@ -35,11 +35,11 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
     // ── 1. Build lazy scan (no data loaded yet) ───────────────────────────
     let mut lf: LazyFrame = if is_parquet {
         LazyFrame::scan_parquet(
-            path_ref.to_str().unwrap().into(),
+            path_ref.to_string_lossy().as_ref().into(),
             ScanArgsParquet::default(),
         )?
     } else {
-        let mut reader = LazyCsvReader::new(path_ref.to_str().unwrap().into())
+        let mut reader = LazyCsvReader::new(path_ref.to_string_lossy().as_ref().into())
             .with_try_parse_dates(true)
             .with_skip_rows(params.skip_rows)
             .with_ignore_errors(true)
