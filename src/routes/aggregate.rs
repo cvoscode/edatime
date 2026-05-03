@@ -28,7 +28,7 @@ pub async fn get_aggregate(
     }
 
     let df = state.dataset_snapshot().await;
-    let value_cols = validate_numeric_columns(&df, &query::parse_columns(&params.columns), limits)?;
+    let value_cols = validate_numeric_columns(&df, &query::parse_columns(params.columns.as_deref()), limits)?;
 
     let multiplier = query::unit_multiplier_for_ts(&df)?;
     let dtype = query::ts_dtype(&df)?;
@@ -73,7 +73,7 @@ pub async fn get_aggregate(
     pipeline::build_response(
         aggregated,
         &value_cols,
-        query::output_format(&params.format),
+        query::output_format(params.format.as_deref()),
         &dtype,
         ResponseMeta {
             is_downsampled: true,

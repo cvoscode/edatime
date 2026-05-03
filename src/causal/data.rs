@@ -95,11 +95,7 @@ impl CausalDataFrame {
         // max_lag = 2*tau_max matches tigramite's default cut_off
         let max_lag = 2 * tau_max;
         let start = max_lag;
-        let n_samples = if self.t_len > start {
-            self.t_len - start
-        } else {
-            0
-        };
+        let n_samples = self.t_len.saturating_sub(start);
 
         let mut array = Array2::<f64>::zeros((dim, n_samples));
         let mut xyz = Vec::with_capacity(dim);

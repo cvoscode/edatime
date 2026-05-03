@@ -80,8 +80,8 @@ pub enum AggregateWindowMode {
 
 /// Parse the `columns` query param into a list of column name strings.
 /// Falls back to `["value"]` when absent or empty.
-pub fn parse_columns(raw: &Option<String>) -> Vec<String> {
-    let trimmed = raw.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
+pub fn parse_columns(raw: Option<&str>) -> Vec<String> {
+    let trimmed = raw.map(|s| s.trim()).filter(|s| !s.is_empty());
     match trimmed {
         Some(s) => s
             .split(',')
@@ -96,8 +96,8 @@ pub fn parse_columns(raw: &Option<String>) -> Vec<String> {
 pub use crate::temporal::{ts_dtype, unit_multiplier_for_ts};
 
 /// Determine the requested output format (defaults to `"arrow"`).
-pub fn output_format(raw: &Option<String>) -> OutputFormat {
-    match raw.as_deref().unwrap_or("arrow") {
+pub fn output_format(raw: Option<&str>) -> OutputFormat {
+    match raw.unwrap_or("arrow") {
         s if s.eq_ignore_ascii_case("json") => OutputFormat::Json,
         _ => OutputFormat::Arrow,
     }

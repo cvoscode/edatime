@@ -25,7 +25,7 @@ pub async fn get_data(
     validate_width(params.width, limits)?;
 
     let df = state.dataset_snapshot().await;
-    let value_cols = validate_numeric_columns(&df, &query::parse_columns(&params.columns), limits)?;
+    let value_cols = validate_numeric_columns(&df, &query::parse_columns(params.columns.as_deref()), limits)?;
 
     let color_column = params
         .color_column
@@ -33,27 +33,25 @@ pub async fn get_data(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
 
-    if let Some(color_col) = color_column.as_ref() {
-        if !df.get_column_names().iter().any(|c| *c == color_col) {
+    if let Some(color_col) = color_column.as_ref()
+        && !df.get_column_names().iter().any(|c| *c == color_col) {
             return Err(AppError::bad_request(format!(
                 "Color column '{}' is not present in dataset",
                 color_col
             )));
         }
-    }
 
     let mut output_cols = value_cols.clone();
-    if let Some(color_col) = color_column.as_ref() {
-        if !output_cols.iter().any(|c| c == color_col) {
+    if let Some(color_col) = color_column.as_ref()
+        && !output_cols.iter().any(|c| c == color_col) {
             output_cols.push(color_col.clone());
         }
-    }
 
     let multiplier = query::unit_multiplier_for_ts(&df)?;
     let dtype = query::ts_dtype(&df)?;
     let start_ts = params.start.timestamp_millis() * multiplier;
     let end_ts = params.end.timestamp_millis() * multiplier;
-    let format = query::output_format(&params.format);
+    let format = query::output_format(params.format.as_deref());
     let cache_key = format!(
         "data:v{}:{}:{}:{}:{}:{}:{:?}",
         state.dataset_revision(),

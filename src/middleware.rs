@@ -86,13 +86,12 @@ pub fn rate_limit_middleware(
                 let mut response =
                     AppError::rate_limit("Rate limit exceeded. Please try again later.")
                         .into_response();
-                if let Some(retry_after) = result.retry_after_seconds {
-                    if let Ok(value) = HeaderValue::from_str(&retry_after.to_string()) {
+                if let Some(retry_after) = result.retry_after_seconds
+                    && let Ok(value) = HeaderValue::from_str(&retry_after.to_string()) {
                         response
                             .headers_mut()
                             .insert(axum::http::header::RETRY_AFTER, value);
                     }
-                }
                 metrics.record_request(
                     &method,
                     &path,

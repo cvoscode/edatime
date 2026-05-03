@@ -321,8 +321,8 @@ pub fn epps_singleton_test(a: &[f64], b: &[f64]) -> (f64, f64) {
             acc += w * diff_sq;
         }
         // scale by effective sample size
-        let stat = (n * m / (n + m)) * acc * dt;
-        stat
+        
+        (n * m / (n + m)) * acc * dt
     };
 
     // Permutation test for p-value estimation.

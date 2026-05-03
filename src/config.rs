@@ -7,6 +7,7 @@ use crate::error::AppError;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct AppConfig {
     pub server: ServerConfig,
     pub cache: CacheSettings,
@@ -81,19 +82,6 @@ pub enum DatabaseBackend {
     Sqlite,
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            cache: CacheSettings::default(),
-            rate_limit: RateLimitSettings::default(),
-            upload: UploadSettings::default(),
-            data: DataSettings::default(),
-            validation: ValidationSettings::default(),
-            database: DatabaseSettings::default(),
-        }
-    }
-}
 
 impl Default for ServerConfig {
     fn default() -> Self {
@@ -182,47 +170,40 @@ impl AppConfig {
                 self.server.host = host;
             }
         }
-        if let Ok(port) = env::var("EDATIME_PORT") {
-            if let Ok(port) = port.parse::<u16>() {
+        if let Ok(port) = env::var("EDATIME_PORT")
+            && let Ok(port) = port.parse::<u16>() {
                 self.server.port = port;
             }
-        }
         if let Ok(sample_data_path) = env::var("EDATIME_SAMPLE_DATA") {
             let sample_data_path = sample_data_path.trim().to_string();
             if !sample_data_path.is_empty() {
                 self.data.sample_data_path = sample_data_path;
             }
         }
-        if let Ok(ttl_seconds) = env::var("EDATIME_CACHE_TTL_SECONDS") {
-            if let Ok(ttl_seconds) = ttl_seconds.parse::<u64>() {
+        if let Ok(ttl_seconds) = env::var("EDATIME_CACHE_TTL_SECONDS")
+            && let Ok(ttl_seconds) = ttl_seconds.parse::<u64>() {
                 self.cache.ttl_seconds = ttl_seconds;
             }
-        }
-        if let Ok(max_entries) = env::var("EDATIME_CACHE_MAX_ENTRIES") {
-            if let Ok(max_entries) = max_entries.parse::<usize>() {
+        if let Ok(max_entries) = env::var("EDATIME_CACHE_MAX_ENTRIES")
+            && let Ok(max_entries) = max_entries.parse::<usize>() {
                 self.cache.max_entries = max_entries;
             }
-        }
-        if let Ok(max_bytes) = env::var("EDATIME_CACHE_MAX_BYTES") {
-            if let Ok(max_bytes) = max_bytes.parse::<usize>() {
+        if let Ok(max_bytes) = env::var("EDATIME_CACHE_MAX_BYTES")
+            && let Ok(max_bytes) = max_bytes.parse::<usize>() {
                 self.cache.max_bytes = max_bytes;
             }
-        }
-        if let Ok(max_requests) = env::var("EDATIME_RATE_LIMIT_MAX_REQUESTS") {
-            if let Ok(max_requests) = max_requests.parse::<usize>() {
+        if let Ok(max_requests) = env::var("EDATIME_RATE_LIMIT_MAX_REQUESTS")
+            && let Ok(max_requests) = max_requests.parse::<usize>() {
                 self.rate_limit.max_requests = max_requests;
             }
-        }
-        if let Ok(window_seconds) = env::var("EDATIME_RATE_LIMIT_WINDOW_SECONDS") {
-            if let Ok(window_seconds) = window_seconds.parse::<u64>() {
+        if let Ok(window_seconds) = env::var("EDATIME_RATE_LIMIT_WINDOW_SECONDS")
+            && let Ok(window_seconds) = window_seconds.parse::<u64>() {
                 self.rate_limit.window_seconds = window_seconds;
             }
-        }
-        if let Ok(max_upload_bytes) = env::var("EDATIME_MAX_UPLOAD_BYTES") {
-            if let Ok(max_upload_bytes) = max_upload_bytes.parse::<usize>() {
+        if let Ok(max_upload_bytes) = env::var("EDATIME_MAX_UPLOAD_BYTES")
+            && let Ok(max_upload_bytes) = max_upload_bytes.parse::<usize>() {
                 self.upload.max_upload_bytes = max_upload_bytes;
             }
-        }
         if let Ok(db_url) = env::var("EDATIME_DATABASE_URL") {
             let db_url = db_url.trim().to_string();
             if !db_url.is_empty() {

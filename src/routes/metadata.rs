@@ -51,20 +51,18 @@ fn detect_time_column(
     override_column: Option<&str>,
 ) -> Option<(String, DataType)> {
     // If user explicitly specified a column, use it regardless of type
-    if let Some(column_name) = override_column {
-        if let Some(dtype) = schema.get(column_name) {
+    if let Some(column_name) = override_column
+        && let Some(dtype) = schema.get(column_name) {
             return Some((column_name.to_string(), dtype.clone()));
         }
-    }
 
-    if let Some(dtype) = schema.get("ts") {
-        if matches!(
+    if let Some(dtype) = schema.get("ts")
+        && matches!(
             dtype,
             DataType::Datetime(_, _) | DataType::Date | DataType::Int64 | DataType::Int32
         ) {
             return Some(("ts".to_string(), dtype.clone()));
         }
-    }
 
     // Prefer explicit temporal columns first.
     if let Some(field) = schema.iter_fields().find(|field| {
@@ -220,7 +218,7 @@ fn build_dataset_metadata_from_lazyframe(
             dtype: dtype.to_string(),
         });
 
-        if dtype.is_numeric() && Some(name.as_str()) != time_col_name.as_ref().map(|s| s.as_str()) {
+        if dtype.is_numeric() && Some(name.as_str()) != time_col_name.as_deref() {
             numeric_columns.push(name.clone());
         }
 
@@ -408,11 +406,10 @@ pub fn build_dataset_metadata(
             if let Some(value) = max_raw {
                 profile.max = Some(temporal::native_to_epoch_ms(value, &dtype));
             }
-            if include_histograms {
-                if let (Some(min), Some(max)) = (profile.min, profile.max) {
+            if include_histograms
+                && let (Some(min), Some(max)) = (profile.min, profile.max) {
                     profile.histogram = stats::build_histogram(&temporal_values, min, max);
                 }
-            }
         }
 
         column_profiles.push(profile);

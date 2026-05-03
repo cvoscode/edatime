@@ -27,7 +27,7 @@ async fn filter_preamble(
     state: &AppState,
     start: DateTime<Utc>,
     end: DateTime<Utc>,
-    columns: &Option<String>,
+    columns: Option<&str>,
 ) -> Result<(Vec<String>, DataFrame), AppError> {
     validate_time_window(start, end)?;
     let df = state.dataset_snapshot().await;
@@ -75,7 +75,7 @@ pub async fn get_rolling(
     Query(params): Query<RollingQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let (value_cols, filtered) =
-        filter_preamble(&state, params.start, params.end, &params.columns).await?;
+        filter_preamble(&state, params.start, params.end, params.columns.as_deref()).await?;
     let window = params.window.unwrap_or(50).clamp(2, 10_000);
 
     let bands = tokio::task::block_in_place(|| {
@@ -104,7 +104,7 @@ pub async fn get_anomalies(
     Query(params): Query<AnomalyQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let (value_cols, filtered) =
-        filter_preamble(&state, params.start, params.end, &params.columns).await?;
+        filter_preamble(&state, params.start, params.end, params.columns.as_deref()).await?;
 
     let method = params.method.as_deref().unwrap_or("zscore");
     let regions = tokio::task::block_in_place(|| match method {
@@ -142,7 +142,7 @@ pub async fn get_fft(
     Query(params): Query<FftQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let (value_cols, filtered) =
-        filter_preamble(&state, params.start, params.end, &params.columns).await?;
+        filter_preamble(&state, params.start, params.end, params.columns.as_deref()).await?;
 
     let max_pts = params.max_points.unwrap_or(8192).clamp(64, 65536);
     let work_df = downsample_by_stride(filtered, max_pts, "FFT")?;
@@ -176,9 +176,8 @@ pub async fn get_spectrogram(
     State(state): State<AppState>,
     Query(params): Query<SpectrogramQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let col_opt = Some(params.column.clone());
     let (value_cols, filtered) =
-        filter_preamble(&state, params.start, params.end, &col_opt).await?;
+        filter_preamble(&state, params.start, params.end, Some(params.column.as_str())).await?;
     let col = &value_cols[0];
 
     let max_pts = params.max_points.unwrap_or(32768).clamp(256, 131072);
@@ -246,16 +245,17 @@ pub async fn get_spectral_filter(
             let max_native = ca.into_iter().flatten().max().unwrap_or(0);
             let min_ms = min_native / multiplier;
             let max_ms = max_native / multiplier;
+            let epoch_zero = || DateTime::from_timestamp(0, 0).expect("Epoch zero is always valid");
             let dataset_start = DateTime::from_timestamp_millis(min_ms)
-                .unwrap_or(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
+                .unwrap_or_else(epoch_zero);
             let dataset_end = DateTime::from_timestamp_millis(max_ms)
-                .unwrap_or(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
+                .unwrap_or_else(epoch_zero);
             (opt_s.unwrap_or(dataset_start), opt_e.unwrap_or(dataset_end))
         }
     };
 
     let (value_cols, filtered) =
-        filter_preamble(&state, start, end, &col_opt).await?;
+        filter_preamble(&state, start, end, col_opt.as_deref()).await?;
     let col = &value_cols[0];
 
     let max_pts = params.max_points.unwrap_or(16384).clamp(64, 65536);
@@ -356,7 +356,7 @@ pub async fn post_remove_outliers(
     Json(params): Json<OutlierRemovalRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let df = state.dataset_snapshot().await;
-    let cols = query::parse_columns(&params.columns);
+    let cols = query::parse_columns(params.columns.as_deref());
     let limits = &state.config.validation;
     let value_cols = validate_numeric_columns(&df, &cols, limits)?;
 
@@ -411,7 +411,7 @@ pub async fn post_causal_graph(
     Json(params): Json<CausalGraphRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let df = state.dataset_snapshot().await;
-    let cols = query::parse_columns(&params.columns);
+    let cols = query::parse_columns(params.columns.as_deref());
     let limits = &state.config.validation;
     let value_cols = validate_numeric_columns(&df, &cols, limits)?;
 

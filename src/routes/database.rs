@@ -75,8 +75,8 @@ pub async fn post_connect(
 
     let mut rows_loaded: Option<usize> = None;
 
-    if body.load_snapshot {
-        if let Some(table) = &body.table {
+    if body.load_snapshot
+        && let Some(table) = &body.table {
             let opts = IngestOptions {
                 limit: Some(body.snapshot_limit.unwrap_or(1_000_000)),
                 ..Default::default()
@@ -94,7 +94,6 @@ pub async fn post_connect(
             rows_loaded = Some(n);
             tracing::info!(rows = n, table = %table, "TimescaleDB snapshot loaded");
         }
-    }
 
     // Store pool + metadata in shared state.
     {

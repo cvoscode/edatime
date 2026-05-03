@@ -232,17 +232,15 @@ impl<'a> PcmciPlus<'a> {
     ) -> bool {
         // Check direct adjacency between a and c at the relative lag
         let rel_tau = tau_c - tau_a;
-        if rel_tau >= 0 && (rel_tau as usize) <= graph.tau_max {
-            if graph.get_link(a, c, rel_tau as usize).is_active() {
+        if rel_tau >= 0 && (rel_tau as usize) <= graph.tau_max
+            && graph.get_link(a, c, rel_tau as usize).is_active() {
                 return true;
             }
-        }
         let rev_tau = tau_a - tau_c;
-        if rev_tau >= 0 && (rev_tau as usize) <= graph.tau_max {
-            if graph.get_link(c, a, rev_tau as usize).is_active() {
+        if rev_tau >= 0 && (rev_tau as usize) <= graph.tau_max
+            && graph.get_link(c, a, rev_tau as usize).is_active() {
                 return true;
             }
-        }
         false
     }
 

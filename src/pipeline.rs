@@ -153,10 +153,7 @@ fn window_aggregate(
         .i64()
         .map_err(|e| AppError::io(format!("ts i64: {}", e)))?;
 
-    let mut ts_vec = Vec::with_capacity(df.height());
-    for value in ts_values.into_iter().flatten() {
-        ts_vec.push(value);
-    }
+    let ts_vec: Vec<i64> = ts_values.into_iter().flatten().collect();
     if ts_vec.is_empty() {
         return Ok((DataFrame::default(), true));
     }
@@ -194,12 +191,11 @@ fn window_aggregate(
         if lo < hi {
             out_ts.push(midpoint);
             for (col_idx, source_values) in per_col_values.iter().enumerate() {
-                let mut window_vals = Vec::new();
-                for idx in lo..hi {
-                    if let Some(value) = source_values.get(idx).copied().flatten() {
-                        window_vals.push(value);
-                    }
-                }
+                let window_vals: Vec<f64> = source_values[lo..hi]
+                    .iter()
+                    .copied()
+                    .flatten()
+                    .collect();
                 out_cols[col_idx].push(reduce_window_values(&window_vals, agg_fn));
             }
         }
@@ -421,11 +417,10 @@ pub fn serialize_json(
     payload.insert("ts".to_string(), serde_json::json!(ts));
     payload.insert("values".to_string(), serde_json::json!(values));
 
-    if let Some(color_column) = color_col {
-        if let Ok(color_series) = df.column(color_column) {
-            let mut color_vals = Vec::with_capacity(df.height());
-            for i in 0..df.height() {
-                let json_val = match color_series.get(i) {
+    if let Some(color_column) = color_col
+        && let Ok(color_series) = df.column(color_column) {
+            let color_vals: Vec<serde_json::Value> = (0..df.height())
+                .map(|i| match color_series.get(i) {
                     Ok(AnyValue::Null) => serde_json::Value::Null,
                     Ok(AnyValue::String(s)) => serde_json::json!(s),
                     Ok(AnyValue::StringOwned(s)) => serde_json::Value::String(s.to_string()),
@@ -441,13 +436,11 @@ pub fn serialize_json(
                             .unwrap_or_else(|| serde_json::Value::String(format!("{av}")))
                     }
                     Err(_) => serde_json::Value::Null,
-                };
-                color_vals.push(json_val);
-            }
+                })
+                .collect();
             payload.insert("color".to_string(), serde_json::json!(color_vals));
             payload.insert("color_column".to_string(), serde_json::json!(color_column));
         }
-    }
 
     Ok(serde_json::Value::Object(payload))
 }

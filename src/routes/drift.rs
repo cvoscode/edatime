@@ -60,7 +60,7 @@ pub async fn post_drift_stats(
     // Validate column exists and is numeric
     let limits = &state.config.validation;
     let cols = Some(payload.column.clone());
-    let parsed = query::parse_columns(&cols);
+    let parsed = query::parse_columns(cols.as_deref());
     let _validated = crate::validation::validate_numeric_columns(&df, &parsed, limits)?;
 
     // Convert reference and current times to dataset-native epoch-ms
@@ -143,17 +143,15 @@ pub async fn post_drift_stats(
     // Check cache before spawning blocking work.
     {
         let guard = state.drift_cache.lock().ok();
-        if let Some(mut g) = guard {
-            if let Some((rev, inserted, bytes)) = g.get(&cache_key) {
-                if *rev == dataset_revision && inserted.elapsed() < DRIFT_CACHE_TTL {
-                    if let Ok(body) = serde_json::from_slice::<serde_json::Value>(bytes) {
+        if let Some(mut g) = guard
+            && let Some((rev, inserted, bytes)) = g.get(&cache_key) {
+                if *rev == dataset_revision && inserted.elapsed() < DRIFT_CACHE_TTL
+                    && let Ok(body) = serde_json::from_slice::<serde_json::Value>(bytes) {
                         return Ok(Json(body));
                     }
-                }
                 // Stale or corrupt entry — remove it.
                 g.remove(&cache_key);
             }
-        }
     }
 
     let response = tokio::task::block_in_place(move || {
@@ -178,8 +176,8 @@ pub async fn post_drift_stats(
         .map_err(|e| AppError::internal(format!("Drift serialisation failed: {e}")))?;
 
     // Populate cache.
-    if let Ok(bytes) = serde_json::to_vec(&response) {
-        if let Ok(mut guard) = state.drift_cache.lock() {
+    if let Ok(bytes) = serde_json::to_vec(&response)
+        && let Ok(mut guard) = state.drift_cache.lock() {
             // Evict expired/stale entries occasionally to bound memory use.
             if guard.len() >= 64 {
                 guard.retain(|_, (rev, inserted, _)| {
@@ -188,7 +186,6 @@ pub async fn post_drift_stats(
             }
             guard.insert(cache_key, (dataset_revision, std::time::Instant::now(), bytes));
         }
-    }
 
     Ok(Json(json_value))
 }

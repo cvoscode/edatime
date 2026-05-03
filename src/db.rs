@@ -302,8 +302,8 @@ pub async fn ingest_table(
 
     // Build WHERE clause (time-range filter).
     let mut where_parts: Vec<String> = Vec::new();
-    if let Some(start_ms) = opts.start_ms {
-        if let Some(tc) = &resolved_time_col {
+    if let Some(start_ms) = opts.start_ms
+        && let Some(tc) = &resolved_time_col {
             let tc = sanitise_ident(tc)?;
             // Embed i64 literal directly — no injection risk with numeric types.
             where_parts.push(format!(
@@ -312,16 +312,14 @@ pub async fn ingest_table(
                 start_ms
             ));
         }
-    }
-    if let Some(end_ms) = opts.end_ms {
-        if let Some(tc) = &resolved_time_col {
+    if let Some(end_ms) = opts.end_ms
+        && let Some(tc) = &resolved_time_col {
             let tc = sanitise_ident(tc)?;
             where_parts.push(format!(
                 "\"{}\" <= to_timestamp({} / 1000.0)",
                 tc, end_ms
             ));
         }
-    }
 
     let where_clause = if where_parts.is_empty() {
         String::new()

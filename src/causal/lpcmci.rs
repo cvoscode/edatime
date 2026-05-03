@@ -176,8 +176,8 @@ impl<'a> Lpcmci<'a> {
                 }
 
                 // Shifted parents of i (unless preliminary)
-                if !preliminary {
-                    if let Some(parents_i) = all_parents.get(&i) {
+                if !preliminary
+                    && let Some(parents_i) = all_parents.get(&i) {
                         let limit = config.max_conds_px.unwrap_or(parents_i.len());
                         for &(k, tau_k) in parents_i.iter().take(limit) {
                             let shifted = (k, tau_k + neg_tau);
@@ -190,7 +190,6 @@ impl<'a> Lpcmci<'a> {
                             }
                         }
                     }
-                }
 
                 let (array, xyz) = self.df.construct_array(&x, &y, &z, config.tau_max);
                 if array.ncols() < 5 {
@@ -374,17 +373,15 @@ impl<'a> Lpcmci<'a> {
         tau_c: i32,
     ) -> bool {
         let rel_tau = tau_c - tau_a;
-        if rel_tau >= 0 && (rel_tau as usize) <= graph.tau_max {
-            if graph.get_link(a, c, rel_tau as usize).is_active() {
+        if rel_tau >= 0 && (rel_tau as usize) <= graph.tau_max
+            && graph.get_link(a, c, rel_tau as usize).is_active() {
                 return true;
             }
-        }
         let rev_tau = tau_a - tau_c;
-        if rev_tau >= 0 && (rev_tau as usize) <= graph.tau_max {
-            if graph.get_link(c, a, rev_tau as usize).is_active() {
+        if rev_tau >= 0 && (rev_tau as usize) <= graph.tau_max
+            && graph.get_link(c, a, rev_tau as usize).is_active() {
                 return true;
             }
-        }
         false
     }
 }

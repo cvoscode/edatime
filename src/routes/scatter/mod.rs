@@ -156,10 +156,11 @@ mod tests {
     fn numeric_columns_excludes_temporal_columns() {
         let ts = Series::new("ts".into(), [1_i64, 2])
             .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
-            .unwrap();
+            .expect("cast ts to datetime should succeed in test");
         let value = Series::new("value".into(), [1.0_f64, 2.0]);
         let other = Series::new("other".into(), [3.0_f64, 4.0]);
-        let df = DataFrame::new(2, vec![ts.into(), value.into(), other.into()]).unwrap();
+        let df = DataFrame::new(2, vec![ts.into(), value.into(), other.into()])
+            .expect("test dataframe creation should succeed");
 
         let cols = numeric_columns(&df);
         assert_eq!(cols, vec!["value".to_string(), "other".to_string()]);
@@ -201,14 +202,20 @@ fn collect_xy_pairs(df: &DataFrame, x: &str, y: &str) -> Result<Vec<[f64; 2]>, A
     let x_vals = series_to_scatter_values(df, x)?;
     let y_vals = series_to_scatter_values(df, y)?;
 
-    let mut out = Vec::with_capacity(df.height());
-    for (ox, oy) in x_vals.iter().zip(y_vals.iter()) {
-        if let (Some(xv), Some(yv)) = (ox, oy) {
-            if xv.is_finite() && yv.is_finite() {
-                out.push([*xv, *yv]);
+    let out: Vec<[f64; 2]> = x_vals
+        .iter()
+        .zip(y_vals.iter())
+        .filter_map(|(ox, oy)| {
+            if let (Some(xv), Some(yv)) = (ox, oy)
+                && xv.is_finite()
+                && yv.is_finite()
+            {
+                Some([*xv, *yv])
+            } else {
+                None
             }
-        }
-    }
+        })
+        .collect();
 
     Ok(out)
 }

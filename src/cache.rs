@@ -196,11 +196,10 @@ impl ResponseCache {
                 .get(key)
                 .map(|entry| now.duration_since(entry.inserted_at) < ttl)
                 .unwrap_or(false);
-            if !keep {
-                if let Some(entry) = state.entries.remove(key) {
+            if !keep
+                && let Some(entry) = state.entries.remove(key) {
                     state.total_bytes = state.total_bytes.saturating_sub(entry.response.body_len());
                 }
-            }
             keep
         });
     }

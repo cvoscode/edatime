@@ -18,7 +18,9 @@ use super::data::XyzGroup;
 /// Which independence test to use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum IndependenceTestKind {
+    #[default]
     ParCorr,
     CmiKnn,
     /// Robust partial correlation — non-paranormal transform to Gaussian
@@ -30,11 +32,6 @@ pub enum IndependenceTestKind {
     CmiSymb,
 }
 
-impl Default for IndependenceTestKind {
-    fn default() -> Self {
-        IndependenceTestKind::ParCorr
-    }
-}
 
 /// Configuration for the conditional independence test.
 #[derive(Debug, Clone)]
@@ -193,12 +190,7 @@ impl CondIndTest {
         rng: &mut StdRng,
     ) -> f64 {
         let n_samples = array.ncols();
-        let y_idx: Vec<usize> = xyz
-            .iter()
-            .enumerate()
-            .filter(|(_, g)| **g == XyzGroup::Y)
-            .map(|(i, _)| i)
-            .collect();
+        let is_y: Vec<bool> = xyz.iter().map(|g| *g == XyzGroup::Y).collect();
 
         // Generate all permutations first (for deterministic seeds)
         let seeds: Vec<u64> = (0..self.sig_samples).map(|_| rng.next_u64()).collect();
@@ -208,21 +200,12 @@ impl CondIndTest {
             .par_iter()
             .map(|&seed| {
                 let mut local_rng = StdRng::seed_from_u64(seed);
-                let mut shuffled = array.clone();
 
                 // Create permutation
                 let mut perm: Vec<usize> = (0..n_samples).collect();
                 perm.shuffle(&mut local_rng);
 
-                // Shuffle Y rows
-                for &yi in &y_idx {
-                    let orig_row = array.row(yi).to_owned();
-                    for s in 0..n_samples {
-                        shuffled[[yi, s]] = orig_row[perm[s]];
-                    }
-                }
-
-                let null_val = cmi_knn_value(&shuffled, xyz, knn);
+                let null_val = cmi_knn_value_permuted(array, xyz, knn, Some(&perm), &is_y);
                 if null_val.abs() >= observed_val.abs() {
                     1
                 } else {
@@ -405,7 +388,7 @@ impl CondIndTest {
 /// inverse normal CDF (the "non-paranormal" or Gaussian copula transform).
 fn trafo2normal(array: &mut Array2<f64>) {
     use statrs::distribution::{ContinuousCDF, Normal};
-    let norm = Normal::new(0.0, 1.0).unwrap();
+    let norm = Normal::new(0.0, 1.0).expect("Standard normal parameters (0,1) are always valid");
     let (dim, n) = (array.nrows(), array.ncols());
     if n < 2 {
         return;
@@ -850,21 +833,32 @@ fn add_noise(array: &mut Array2<f64>, rng: &mut StdRng, scale: f64) {
 /// where ψ is the digamma function, n_S is the number of points within the
 /// k-th neighbor distance in the joint space projected onto subspace S.
 fn cmi_knn_value(array: &Array2<f64>, xyz: &[XyzGroup], knn: usize) -> f64 {
+    let is_y: Vec<bool> = xyz.iter().map(|g| *g == XyzGroup::Y).collect();
+    cmi_knn_value_permuted(array, xyz, knn, None, &is_y)
+}
+
+fn cmi_knn_value_permuted(
+    array: &Array2<f64>,
+    xyz: &[XyzGroup],
+    knn: usize,
+    y_perm: Option<&[usize]>,
+    is_y: &[bool],
+) -> f64 {
     let n_samples = array.ncols();
     if n_samples <= knn {
         return 0.0;
     }
 
-    let x_idx: Vec<usize> = xyz
+    let xz_dims: Vec<usize> = xyz
         .iter()
         .enumerate()
-        .filter(|(_, g)| **g == XyzGroup::X)
+        .filter(|(_, g)| **g == XyzGroup::X || **g == XyzGroup::Z)
         .map(|(i, _)| i)
         .collect();
-    let y_idx: Vec<usize> = xyz
+    let yz_dims: Vec<usize> = xyz
         .iter()
         .enumerate()
-        .filter(|(_, g)| **g == XyzGroup::Y)
+        .filter(|(_, g)| **g == XyzGroup::Y || **g == XyzGroup::Z)
         .map(|(i, _)| i)
         .collect();
     let z_idx: Vec<usize> = xyz
@@ -875,31 +869,21 @@ fn cmi_knn_value(array: &Array2<f64>, xyz: &[XyzGroup], knn: usize) -> f64 {
         .collect();
 
     let has_z = !z_idx.is_empty();
-
-    // Build subspace views as Vec<Vec<f64>> (sample-major) for each subspace
     let all_dims: Vec<usize> = (0..array.nrows()).collect();
-
-    let xz_dims: Vec<usize> = x_idx.iter().chain(z_idx.iter()).copied().collect();
-    let yz_dims: Vec<usize> = y_idx.iter().chain(z_idx.iter()).copied().collect();
-
-    // For each sample, find the k-th nearest neighbor distance in the full space (L∞ norm)
-    // then count neighbors within that distance in each subspace.
-    //
-    // We use parallel iteration over samples for performance.
 
     let eps_array: Vec<f64> = (0..n_samples)
         .into_par_iter()
-        .map(|s| kth_neighbor_distance(array, &all_dims, s, knn, n_samples))
+        .map(|s| kth_neighbor_distance(array, &all_dims, s, knn, n_samples, y_perm, is_y))
         .collect();
 
     let sums: (f64, f64, f64) = (0..n_samples)
         .into_par_iter()
         .map(|s| {
             let eps = eps_array[s];
-            let n_xz = count_neighbors(array, &xz_dims, s, eps, n_samples);
-            let n_yz = count_neighbors(array, &yz_dims, s, eps, n_samples);
+            let n_xz = count_neighbors(array, &xz_dims, s, eps, n_samples, y_perm, is_y);
+            let n_yz = count_neighbors(array, &yz_dims, s, eps, n_samples, y_perm, is_y);
             let n_z = if has_z {
-                count_neighbors(array, &z_idx, s, eps, n_samples)
+                count_neighbors(array, &z_idx, s, eps, n_samples, y_perm, is_y)
             } else {
                 n_samples as f64 // If no Z, all samples are neighbors
             };
@@ -918,6 +902,8 @@ fn kth_neighbor_distance(
     sample: usize,
     knn: usize,
     n_samples: usize,
+    y_perm: Option<&[usize]>,
+    is_y: &[bool],
 ) -> f64 {
     // Compute L∞ distances to all other samples
     let mut dists: Vec<f64> = Vec::with_capacity(n_samples - 1);
@@ -927,7 +913,17 @@ fn kth_neighbor_distance(
         }
         let mut max_d = 0.0f64;
         for &d in dims {
-            let diff = (array[[d, sample]] - array[[d, s]]).abs();
+            let val_sample = if is_y[d] && let Some(p) = y_perm {
+                array[[d, p[sample]]]
+            } else {
+                array[[d, sample]]
+            };
+            let val_s = if is_y[d] && let Some(p) = y_perm {
+                array[[d, p[s]]]
+            } else {
+                array[[d, s]]
+            };
+            let diff = (val_sample - val_s).abs();
             max_d = max_d.max(diff);
         }
         dists.push(max_d);
@@ -938,9 +934,9 @@ fn kth_neighbor_distance(
         return 0.0;
     }
     dists.select_nth_unstable_by(k - 1, |a, b| {
-        a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+        a.partial_cmp(b).expect("Numeric values are comparable")
     });
-    dists[k - 1] * (1.0 - 1e-10) // Slightly reduce to handle ties (tigramite convention)
+    dists[k - 1] * (1.0 - 1e-10) // Slightly reduce to handle ties
 }
 
 /// Count the number of neighbors within L∞ distance ε in the given subspace.
@@ -950,6 +946,8 @@ fn count_neighbors(
     sample: usize,
     eps: f64,
     n_samples: usize,
+    y_perm: Option<&[usize]>,
+    is_y: &[bool],
 ) -> f64 {
     let mut count = 0u64;
     for s in 0..n_samples {
@@ -958,7 +956,17 @@ fn count_neighbors(
         }
         let mut within = true;
         for &d in dims {
-            if (array[[d, sample]] - array[[d, s]]).abs() > eps {
+            let val_sample = if is_y[d] && let Some(p) = y_perm {
+                array[[d, p[sample]]]
+            } else {
+                array[[d, sample]]
+            };
+            let val_s = if is_y[d] && let Some(p) = y_perm {
+                array[[d, p[s]]]
+            } else {
+                array[[d, s]]
+            };
+            if (val_sample - val_s).abs() > eps {
                 within = false;
                 break;
             }

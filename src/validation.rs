@@ -44,14 +44,13 @@ pub fn validate_window_ms(window_ms: i64, step_ms: Option<i64>) -> Result<(), Ap
             "Window size must be greater than 0 ms",
         ));
     }
-    if let Some(step) = step_ms {
-        if step <= 0 {
+    if let Some(step) = step_ms
+        && step <= 0 {
             return Err(AppError::bad_request_code(
                 ErrorCode::InvalidBuckets,
                 "Window step must be greater than 0 ms",
             ));
         }
-    }
     Ok(())
 }
 

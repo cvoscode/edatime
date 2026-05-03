@@ -30,7 +30,7 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
     params: &IngestParams,
 ) -> PolarsResult<DataFrame> {
     let path_ref = path.as_ref();
-    let is_parquet = path_ref.extension().map_or(false, |ext| ext == "parquet");
+    let is_parquet = path_ref.extension().is_some_and(|ext| ext == "parquet");
 
     // ── 1. Build lazy scan (no data loaded yet) ───────────────────────────
     let mut lf: LazyFrame = if is_parquet {
@@ -71,11 +71,10 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
     // ── 3. Detect time column from schema ──────────────────────────────────
     let mut time_col_name: Option<String> = None;
 
-    if let Some(ref explicit_column) = params.time_column {
-        if schema.get(explicit_column.as_str()).is_some() {
+    if let Some(ref explicit_column) = params.time_column
+        && schema.get(explicit_column.as_str()).is_some() {
             time_col_name = Some(explicit_column.clone());
         }
-    }
     if time_col_name.is_none() {
         for field in schema.iter_fields() {
             if matches!(field.dtype(), DataType::Datetime(_, _) | DataType::Date) {
