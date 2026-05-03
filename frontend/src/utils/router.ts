@@ -6,9 +6,14 @@
  */
 
 const VALID_PAGES = new Set([
-    'home', 'upload', 'timeseries', 'scatter', 'scattermatrix',
+    'home', 'upload', 'timeseries', 'correlations', 'scatter',
     'fft', 'heatmap', 'spectrogram', 'causal', 'drift',
 ]);
+
+// Aliases for renamed pages — old URL fragments still navigate correctly
+const PAGE_ALIASES: Record<string, string> = {
+    scattermatrix: 'scatter', // "Scatter Matrix" is now the matrix sub-view
+};
 
 let _bound = false;
 
@@ -17,7 +22,15 @@ export function getHashPage(): string | null {
     const hash = location.hash.replace(/^#/, '');
     const params = new URLSearchParams(hash);
     const page = params.get('page');
-    return page && VALID_PAGES.has(page) ? page : null;
+    if (!page) return null;
+    // Resolve aliases so old deep-links still work
+    const resolved = PAGE_ALIASES[page] ?? page;
+    return VALID_PAGES.has(resolved) ? resolved : null;
+}
+
+/** Resolve a page name, applying any aliases. */
+export function resolvePageAlias(page: string): string {
+    return PAGE_ALIASES[page] ?? page;
 }
 
 /** Write the page to the URL hash without triggering navigation. */

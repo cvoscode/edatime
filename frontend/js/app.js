@@ -2520,7 +2520,6 @@ function preloadPageStyles(pageName) {
 var DATASET_BOOTSTRAP_PAGES = /* @__PURE__ */ new Set([
   "timeseries",
   "scatter",
-  "scattermatrix",
   "fft",
   "heatmap",
   "spectrogram",
@@ -2966,20 +2965,26 @@ var VALID_PAGES = /* @__PURE__ */ new Set([
   "home",
   "upload",
   "timeseries",
+  "correlations",
   "scatter",
-  "scattermatrix",
   "fft",
   "heatmap",
   "spectrogram",
   "causal",
   "drift"
 ]);
+var PAGE_ALIASES = {
+  scattermatrix: "scatter"
+  // "Scatter Matrix" is now the matrix sub-view
+};
 var _bound = false;
 function getHashPage() {
   const hash = location.hash.replace(/^#/, "");
   const params = new URLSearchParams(hash);
   const page = params.get("page");
-  return page && VALID_PAGES.has(page) ? page : null;
+  if (!page) return null;
+  const resolved = PAGE_ALIASES[page] ?? page;
+  return VALID_PAGES.has(resolved) ? resolved : null;
 }
 function setHashPage(page) {
   const hash = location.hash.replace(/^#/, "");
@@ -3849,15 +3854,19 @@ function readSelectValue(id) {
 function collectSnapshot() {
   const graph = window.__edatimeCausalGraph;
   const prefs = readPrefs();
+  const visited = getVisitedPagesForCurrentDataset(prefs);
   return {
     currentPage: currentPage(),
     hasDataset: !!appState.metadata?.time_range && Number(appState.metadata?.total_rows || 0) > 0,
     selectedSeriesCount: Array.isArray(appState.selectedCols) ? appState.selectedCols.length : 0,
-    visitedPages: getVisitedPagesForCurrentDataset(prefs),
+    visitedPages: visited,
     scatterX: readSelectValue("scatter-x-col"),
     scatterY: readSelectValue("scatter-y-col"),
     causalLinkCount: Array.isArray(graph?.links) ? graph.links.length : 0
   };
+}
+function isRepeatVisitor(snapshot) {
+  return snapshot.visitedPages.length >= 3;
 }
 function mapPageToStep(page, nextStepId) {
   if (page === "upload") return "upload";
@@ -4113,9 +4122,35 @@ function renderGuidedWorkflow() {
   const snapshot = collectSnapshot();
   const progress = computeWorkflowProgress(snapshot);
   const suggestion = buildWorkflowSuggestion(snapshot);
+  const isRepeat = isRepeatVisitor(snapshot);
+  if (isRepeat && snapshot.hasDataset) {
+    renderCompactAssistant(panel, suggestion, progress);
+    return;
+  }
+  renderFullWorkflowPanel(panel, progress, suggestion);
+}
+function renderCompactAssistant(panel, suggestion, progress) {
+  const activeStep = progress.steps.find((s) => s.status === "current");
+  const completedCount = progress.completedStepIds.length;
+  panel.innerHTML = `
+        <div class="workflow-panel--compact">
+            <div class="workflow-panel__summary">
+                <span class="workflow-panel__hint-text">${completedCount > 0 ? `\u2713 ${completedCount} completed` : "Start"}</span>
+                ${activeStep ? `<span class="workflow-panel__current-step">\u2192 ${escapeHtml3(activeStep.label)}</span>` : ""}
+            </div>
+            <div class="workflow-panel__actions">
+                ${suggestion.actionLabel && suggestion.actionPage ? `
+                    <button class="btn btn-accent btn-sm" type="button" data-workflow-action="next">${escapeHtml3(suggestion.actionLabel)}</button>
+                ` : ""}
+                <button class="btn btn-ghost btn-sm" type="button" data-workflow-action="skip" title="Hide guide">\u2715</button>
+            </div>
+        </div>
+    `;
+}
+function renderFullWorkflowPanel(panel, progress, suggestion) {
   const crumbs = progress.steps.map((step) => `
         <button
-            class="workflow-step workflow-step--${step.status}"
+            class="workflow_step workflow_step--${step.status}"
             type="button"
             data-workflow-action="goto"
             data-workflow-page="${escapeHtml3(step.page)}"

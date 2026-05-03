@@ -149,15 +149,21 @@ function readSelectValue(id: string): string {
 function collectSnapshot(): WorkflowSnapshot {
     const graph = (window as any).__edatimeCausalGraph;
     const prefs = readPrefs();
+    const visited = getVisitedPagesForCurrentDataset(prefs);
     return {
         currentPage: currentPage(),
         hasDataset: !!appState.metadata?.time_range && Number(appState.metadata?.total_rows || 0) > 0,
         selectedSeriesCount: Array.isArray(appState.selectedCols) ? appState.selectedCols.length : 0,
-        visitedPages: getVisitedPagesForCurrentDataset(prefs),
+        visitedPages: visited,
         scatterX: readSelectValue('scatter-x-col'),
         scatterY: readSelectValue('scatter-y-col'),
         causalLinkCount: Array.isArray(graph?.links) ? graph.links.length : 0,
     };
+}
+
+/** Check if user is a repeat visitor who has completed at least the initial workflow */
+function isRepeatVisitor(snapshot: WorkflowSnapshot): boolean {
+    return snapshot.visitedPages.length >= 3;
 }
 
 function mapPageToStep(page: string, nextStepId: WorkflowStepId | null): WorkflowStepId | null {
@@ -453,10 +459,47 @@ export function renderGuidedWorkflow(): void {
     const snapshot = collectSnapshot();
     const progress = computeWorkflowProgress(snapshot);
     const suggestion = buildWorkflowSuggestion(snapshot);
+    const isRepeat = isRepeatVisitor(snapshot);
 
+    if (isRepeat && snapshot.hasDataset) {
+        renderCompactAssistant(panel, suggestion, progress);
+        return;
+    }
+
+    renderFullWorkflowPanel(panel, progress, suggestion);
+}
+
+function renderCompactAssistant(
+    panel: HTMLElement,
+    suggestion: WorkflowSuggestion,
+    progress: WorkflowProgress,
+): void {
+    const activeStep = progress.steps.find(s => s.status === 'current');
+    const completedCount = progress.completedStepIds.length;
+    panel.innerHTML = `
+        <div class="workflow-panel--compact">
+            <div class="workflow-panel__summary">
+                <span class="workflow-panel__hint-text">${completedCount > 0 ? `✓ ${completedCount} completed` : 'Start'}</span>
+                ${activeStep ? `<span class="workflow-panel__current-step">→ ${escapeHtml(activeStep.label)}</span>` : ''}
+            </div>
+            <div class="workflow-panel__actions">
+                ${suggestion.actionLabel && suggestion.actionPage ? `
+                    <button class="btn btn-accent btn-sm" type="button" data-workflow-action="next">${escapeHtml(suggestion.actionLabel)}</button>
+                ` : ''}
+                <button class="btn btn-ghost btn-sm" type="button" data-workflow-action="skip" title="Hide guide">✕</button>
+            </div>
+        </div>
+    `;
+}
+
+function renderFullWorkflowPanel(
+    panel: HTMLElement,
+    progress: WorkflowProgress,
+    suggestion: WorkflowSuggestion,
+): void {
     const crumbs = progress.steps.map((step) => `
         <button
-            class="workflow-step workflow-step--${step.status}"
+            class="workflow_step workflow_step--${step.status}"
             type="button"
             data-workflow-action="goto"
             data-workflow-page="${escapeHtml(step.page)}"
