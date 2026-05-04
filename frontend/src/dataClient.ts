@@ -43,21 +43,24 @@ function isObject(v: unknown): v is Record<string, unknown> {
 
 function assertDatasetMetadata(data: unknown): asserts data is DatasetMetadata {
     if (!isObject(data)) throw new Error('Metadata response is not an object');
-    if (typeof (data as any).total_rows !== 'number') throw new Error('Metadata missing total_rows');
-    if (!Array.isArray((data as any).columns)) throw new Error('Metadata missing columns array');
-    if (!Array.isArray((data as any).numeric_columns)) throw new Error('Metadata missing numeric_columns');
+    // After isObject check, TypeScript knows data is Record<string, unknown>
+    if (typeof data.total_rows !== 'number') throw new Error('Metadata missing total_rows');
+    if (!Array.isArray(data.columns)) throw new Error('Metadata missing columns array');
+    if (!Array.isArray(data.numeric_columns)) throw new Error('Metadata missing numeric_columns');
 }
 
 function assertScatterPoints(data: unknown): asserts data is ScatterPointsResponse {
     if (!isObject(data)) throw new Error('Scatter points response is not an object');
-    if (typeof (data as any).x !== 'string') throw new Error('Scatter response missing x column name');
-    if (typeof (data as any).y !== 'string') throw new Error('Scatter response missing y column name');
-    if (!Array.isArray((data as any).points)) throw new Error('Scatter response missing points array');
+    // After isObject check, TypeScript knows data is Record<string, unknown>
+    if (typeof data.x !== 'string') throw new Error('Scatter response missing x column name');
+    if (typeof data.y !== 'string') throw new Error('Scatter response missing y column name');
+    if (!Array.isArray(data.points)) throw new Error('Scatter response missing points array');
 }
 
 function assertScatterCorrelations(data: unknown): asserts data is ScatterCorrelationsResponse {
     if (!isObject(data)) throw new Error('Correlations response is not an object');
-    if (!Array.isArray((data as any).correlations)) throw new Error('Correlations response missing correlations array');
+    // After isObject check, TypeScript knows data is Record<string, unknown>
+    if (!Array.isArray(data.correlations)) throw new Error('Correlations response missing correlations array');
 }
 
 // ── Fetch helpers ────────────────────────────────────────────────────────────

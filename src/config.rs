@@ -159,8 +159,10 @@ impl AppConfig {
         Ok(config)
     }
 
-    pub fn bind_address(&self) -> String {
-        format!("{}:{}", self.server.host, self.server.port)
+    pub fn bind_address(&self) -> std::net::SocketAddr {
+        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+        let ip: IpAddr = self.server.host.parse().unwrap_or(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
+        SocketAddr::new(ip, self.server.port)
     }
 
     fn apply_env_overrides(&mut self) {

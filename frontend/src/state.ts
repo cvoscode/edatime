@@ -193,7 +193,7 @@ export function computeBounds(values: ArrayLike<number>): { min: number; max: nu
 
 export function setMetaText(text: string): void {
     const el = document.getElementById('stat-rows');
-    if (el) el.innerHTML = text;
+    if (el) el.textContent = text; // Use textContent to prevent XSS
 }
 
 export function buildMetaBar(metadata: { total_rows?: number } | null): void {

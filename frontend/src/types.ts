@@ -236,6 +236,18 @@ export interface AnomalyRegionData {
     score: number;
 }
 
+export interface AnomalyResponse {
+    method: string;
+    threshold: number;
+    regions: AnomalyRegionData[];
+}
+
+export interface TransformResponse {
+    status: string;
+    column: string;
+    expression: string;
+}
+
 export interface SpectralFilterPreview {
     column: string;
     ts: number[];
@@ -316,6 +328,10 @@ declare global {
             state?: AppStateType;
             DEBUG?: boolean;
             debugYSnapshot?: unknown;
+            keyboardShortcutsBound?: boolean;
+            exportChartFilteredData?: (format?: 'csv' | 'json') => boolean;
+            exportScatterData?: (format: string) => void;
+            ensureDatasetReady?: (page?: string) => Promise<void>;
             [key: string]: unknown;
         };
     }

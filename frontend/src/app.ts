@@ -45,7 +45,7 @@ import {
 } from './ui/toolbar.js';
 import { registerChartType, getChartType } from './charts/registry.js';
 import { FallbackChart } from './charts/fallback.js';
-import type { DatasetMetadata } from './types.js';
+import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, ChartInstance, AdaptiveLineFilter } from './types.js';
 
 import { initAnnotations } from './chart/annotations.js';
 import { setAnnotationOverlayCallback } from './ui/annotationPanel.js';
@@ -55,8 +55,8 @@ const _appCleanups: Array<() => void> = [];
 
 function storeFetchedMetadata(metadata: DatasetMetadata): void {
     appState.metadata = metadata;
-    const revision = Number(metadata?.revision);
-    appState.datasetRevision = Number.isFinite(revision) ? revision : 0;
+    const revision = metadata?.revision;
+    appState.datasetRevision = typeof revision === 'number' ? revision : 0;
 }
 
 /* ── UI Helpers ───────────────────────────────────────── */
@@ -72,10 +72,10 @@ function setComputeLoading(btnId: string, overlayId: string, loading: boolean, l
 /* ── Lazy-loaded modules ──────────────────────────────── */
 
 let fetchMetadata: ((signal?: AbortSignal) => Promise<DatasetMetadata>) | null = null;
-let fetchData: ((...args: any[]) => Promise<any>) | null = null;
-let fetchAnomalies: ((...args: any[]) => Promise<any>) | null = null;
-let postTransform: ((...args: any[]) => Promise<any>) | null = null;
-let DataChartCtor: (new (...args: any[]) => any) | null = null;
+let fetchData: ((start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<DataObject>) | null = null;
+let fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null = null;
+let postTransform: ((expression: string, outputName: string) => Promise<TransformResponse>) | null = null;
+let DataChartCtor: (new (containerId: string, onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null = null;
 
 async function ensureChartModules(): Promise<void> {
     if (fetchMetadata && fetchData && DataChartCtor) return;
@@ -91,12 +91,16 @@ async function ensureChartModules(): Promise<void> {
 
     registerChartType('line', {
         label: 'Line',
-        create: (containerId: string, callbacks: any) => new DataChartCtor!(
-            containerId,
-            callbacks.onZoom,
-            callbacks.onYRange,
-            callbacks.onZoomOut,
-        ),
+        create: (containerId: string, callbacks: Record<string, unknown>) => {
+            const ctor = DataChartCtor;
+            if (!ctor) throw new Error('DataChart module not loaded');
+            return new ctor(
+                containerId,
+                (callbacks.onZoom as ((start: number, end: number, sourceKind: string) => void) | null) ?? null,
+                (callbacks.onYRange as ((min: number, max: number, sourceKind: string) => void) | null) ?? null,
+                (callbacks.onZoomOut as (() => void) | null) ?? null,
+            );
+        },
     });
     registerChartType('fallback', {
         label: 'Fallback (Canvas 2D)',
@@ -119,8 +123,9 @@ async function checkWebGPU(): Promise<string | null> {
         if (!adapter) {
             return 'No WebGPU adapter found. Your GPU may not be supported or hardware acceleration may be disabled.';
         }
-    } catch (e: any) {
-        return `WebGPU adapter request failed: ${e.message}`;
+    } catch (e: unknown) {
+        const message = (e as Error).message ?? 'Unknown error';
+        return `WebGPU adapter request failed: ${message}`;
     }
     return null;
 }
@@ -137,7 +142,7 @@ function showFatalError(message: string): void {
 }
 
 const timeseriesPage = createTimeseriesPageController({
-    fetchData: (...args) => fetchData!(...args),
+    fetchData: (start, end, width, columns, colorColumn, signal) => fetchData!(start, end, width, columns, colorColumn, signal),
     buildRangeControls,
     updateAnalysisYRange,
     updateAnalysisZoom,
@@ -189,7 +194,8 @@ async function ensureTimeseriesReady(): Promise<void> {
                     onZoomOut: () => zoomOut(fetchAndRender),
                 });
             } else {
-                appState.chart = new DataChartCtor!('main-chart', onZoomRangeChange, updateAnalysisYRange, () => zoomOut(fetchAndRender));
+                if (!DataChartCtor) throw new Error('DataChart module not loaded');
+                appState.chart = new DataChartCtor('main-chart', onZoomRangeChange, updateAnalysisYRange, () => zoomOut(fetchAndRender));
             }
 
             if (gpuError) throw new Error(gpuError);
@@ -218,7 +224,7 @@ async function ensureTimeseriesReady(): Promise<void> {
             dbgGroup('initialView snapshot', () => dbg(appState.initialView));
 
             await restoreSessionAfterChartReady({
-                metadataTimeRange: (appState.metadata as any)?.time_range ?? null,
+                metadataTimeRange: appState.metadata?.time_range ?? null,
                 currentDatasetRevision: Number(appState.datasetRevision ?? 0),
                 buildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
                 buildRangeControls,
@@ -227,7 +233,7 @@ async function ensureTimeseriesReady(): Promise<void> {
             });
 
             _timeseriesReady = true;
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error('Primary chart failed, switching to fallback:', e);
             try {
                 const fallbackType = getChartType('fallback');
@@ -241,9 +247,10 @@ async function ensureTimeseriesReady(): Promise<void> {
                 await timeseriesPage.fetchAndRender();
                 setMetaText('Fallback renderer active');
                 _timeseriesReady = true;
-            } catch (fallbackErr: any) {
+            } catch (fallbackErr: unknown) {
+                const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
                 console.error('Fallback chart also failed:', fallbackErr);
-                setMetaText('Error: ' + fallbackErr.message);
+                setMetaText('Error: ' + msg);
             }
         }
     })();
@@ -265,9 +272,9 @@ function buildAdaptiveFilterFromPoints(column: string, firstPoint: { x: number; 
     if (!column || !firstPoint || !secondPoint) return null;
     if (!appState.lastFetchedData) return null;
     const filtered = applyColumnRanges(appState.lastFetchedData);
-    const series = (filtered as any).series?.[column];
-    const xs = series?.x;
-    const ys = series?.y;
+    const columnData = filtered.series?.[column] || filtered.values?.[column];
+    const xs = columnData?.x;
+    const ys = columnData?.y;
     if (!xs || !ys || xs.length === 0 || xs.length !== ys.length) return null;
 
     const x1 = Number(firstPoint.x);
@@ -278,7 +285,7 @@ function buildAdaptiveFilterFromPoints(column: string, firstPoint: { x: number; 
 
     const minX = Math.min(x1, x2);
     const maxX = Math.max(x1, x2);
-    const tempFilter = { column, x1, y1, x2, y2, keepAbove: true } as any;
+    const tempFilter: AdaptiveLineFilter = { column, x1, y1, x2, y2, keepAbove: true };
     let above = 0;
     let below = 0;
     for (let idx = 0; idx < xs.length; idx++) {
@@ -286,8 +293,8 @@ function buildAdaptiveFilterFromPoints(column: string, firstPoint: { x: number; 
         const y = Number(ys[idx]);
         if (!Number.isFinite(x) || !Number.isFinite(y) || x < minX || x > maxX) continue;
         const lineY = buildAdaptiveLineY(tempFilter, x);
-        if (!Number.isFinite(lineY!)) continue;
-        if (y >= lineY!) above += 1; else below += 1;
+        if (lineY == null || !Number.isFinite(lineY)) continue;
+        if (y >= lineY) above += 1; else below += 1;
     }
 
     return {
@@ -312,8 +319,8 @@ function applyAdaptiveFiltersLocally(sourceKind = 'adaptive'): void {
 }
 
 function initAdaptiveFilterGesture(): void {
-    const container = document.getElementById('main-chart');
-    if (!container || (container as any).dataset.adaptiveBound) return;
+    const container: (HTMLElement & { dataset: DOMStringMap }) | null = document.getElementById('main-chart');
+    if (!container || container.dataset.adaptiveBound) return;
 
     let _activePicker: HTMLElement | null = null;
     let _firstPoint: { x: number; y: number } | null = null;
@@ -459,7 +466,7 @@ function initAdaptiveFilterGesture(): void {
         () => window.removeEventListener('edatime:adaptive-filters-change', onAdaptiveChange as EventListener),
     );
 
-    (container as any).dataset.adaptiveBound = '1';
+    (container as HTMLElement & { dataset: DOMStringMap }).dataset.adaptiveBound = '1';
 }
 
 /* ── Keyboard shortcuts ───────────────────────────────── */
@@ -480,8 +487,9 @@ function showPage(pageName: string): void {
 }
 
 function initKeyboardShortcuts(): void {
-    if ((window as any).__edatime?.keyboardShortcutsBound) return;
-    (window as any).__edatime = (window as any).__edatime || {};
+    const win = window as Window & typeof globalThis;
+    if (win.__edatime?.keyboardShortcutsBound) return;
+    if (!win.__edatime) win.__edatime = {};
 
     const onKeydown = (event: KeyboardEvent) => {
         if (event.defaultPrevented || isTypingTarget(event.target)) return;
@@ -506,14 +514,14 @@ function initKeyboardShortcuts(): void {
         if (key === 'e') {
             event.preventDefault();
             if (currentPageName() === 'scatter') document.getElementById('scatter-export-csv-btn')?.click?.();
-            else (window as any).__edatime?.exportChartFilteredData?.('csv');
+            else ((window as Window & typeof globalThis).__edatime?.exportChartFilteredData?.('csv'));
         }
     };
 
     window.addEventListener('keydown', onKeydown);
     _appCleanups.push(() => window.removeEventListener('keydown', onKeydown));
 
-    (window as any).__edatime.keyboardShortcutsBound = true;
+    (window).__edatime.keyboardShortcutsBound = true;
 }
 
 /* ── Scatter page init ────────────────────────────────── */
@@ -549,8 +557,10 @@ async function fetchAndRenderAnalytics(): Promise<void> {
         } else {
             appState.anomalyRegions = null;
         }
-    } catch (e: any) {
-        if (e?.name !== 'AbortError') console.warn('Anomaly fetch failed:', e);
+    } catch (e: unknown) {
+        if (!(e instanceof Error) || e.name !== 'AbortError') {
+            console.warn('Anomaly fetch failed:', e);
+        }
         appState.anomalyRegions = null;
     }
 
@@ -564,13 +574,15 @@ function initAnalyticsListeners(): void {
             if (appState.rollingEnabled) {
                 const filtered = applyColumnRanges(appState.lastFetchedData);
                 appState.rollingBands = computeFrontendRollingBands(
-                    filtered, appState.selectedCols, (appState as any).rollingWindow || 50);
+                    filtered, appState.selectedCols, (appState.rollingWindow as number | undefined) || 50);
             } else {
                 appState.rollingBands = null;
             }
             appState.chart?.requestOverlayRender?.();
         }
-        fetchAndRenderAnalytics().catch(() => { });
+        fetchAndRenderAnalytics().catch((err: unknown) => {
+            console.warn('Analytics fetch failed:', err);
+        });
     });
 }
 
@@ -590,7 +602,7 @@ async function initHeatmapPage(): Promise<void> {
 }
 
 const _loadedPageModules = new Set<string>();
-let _metadataReady = false;
+    let _metadataReady = false;
 
 async function ensurePageModuleLoaded(page: string): Promise<void> {
     if (_loadedPageModules.has(page)) return;
@@ -611,7 +623,7 @@ async function ensurePageModuleLoaded(page: string): Promise<void> {
     try {
         await loader();
         _loadedPageModules.add(page);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error(`Failed to load page module for ${page}:`, error);
     }
 }
@@ -647,8 +659,9 @@ function initializeDatasetUi(metadata: DatasetMetadata): void {
             registerCleanup: (cleanup) => _appCleanups.push(cleanup),
         });
         ensureSessionPersistenceStarted();
-        window.addEventListener('edatime:page-change', (event: any) => {
-            if (event?.detail?.page === 'timeseries') {
+        window.addEventListener('edatime:page-change', (event: Event) => {
+            const ce = event as CustomEvent<{ page?: string }>;
+            if (ce.detail?.page === 'timeseries') {
                 void ensureTimeseriesReady();
             }
         });
@@ -666,8 +679,10 @@ function initializeDatasetUi(metadata: DatasetMetadata): void {
     buildRangeControls();
     window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
 
-    appState.currentStart = Number((metadata as any).time_range.min);
-    appState.currentEnd = Number((metadata as any).time_range.max);
+    const timeRange = metadata.time_range;
+    if (!timeRange) return;
+    appState.currentStart = Number(timeRange.min);
+    appState.currentEnd = Number(timeRange.max);
     updateAnalysisZoom(appState.currentStart, appState.currentEnd, 'initial');
     emitChartRangeChange('initial');
 }
@@ -685,10 +700,11 @@ async function ensureDatasetReady(_pageName = 'timeseries'): Promise<void> {
         window.dispatchEvent(new Event('edatime:metadata-ready'));
         dbgGroup('metadata', () => dbg(appState.metadata));
 
-        if (!(metadata as any).time_range) {
-            setMetaText('No valid time range found.');
-            return;
-        }
+    const metadataTimeRange = appState.metadata?.time_range;
+    if (!metadataTimeRange) {
+        setMetaText('No valid time range found.');
+        return;
+    }
 
         appState.numericCols = getNumericColumns(metadata);
         if (!appState.selectedCols.length) {
@@ -721,7 +737,7 @@ async function initCausalPage(): Promise<void> {
     const { initCausalPage: init } = await import('./causal/causalPage.js');
     const { initCausalComparison } = await import('./causal/causalComparison.js');
     init({
-        getMetadata: () => appState.metadata as any,
+        getMetadata: () => appState.metadata!,
         chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
         numericColumns: () => getNumericColumns(appState.metadata),
         setLoading: setComputeLoading,
@@ -762,8 +778,8 @@ async function init(): Promise<void> {
         registerCleanup: (cleanup) => _appCleanups.push(cleanup),
     });
 
-    (window as any).__edatime = (window as any).__edatime || {};
-    (window as any).__edatime.ensureDatasetReady = ensureDatasetReady;
+    (window).__edatime = (window).__edatime || {};
+    (window).__edatime.ensureDatasetReady = ensureDatasetReady;
 
     try {
         const initialPage = getHashPage();
@@ -774,9 +790,10 @@ async function init(): Promise<void> {
         if (initialPage === 'timeseries' && _metadataReady) {
             await ensureTimeseriesReady();
         }
-    } catch (e: any) {
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
         console.error('Initial bootstrap failed:', e);
-        setMetaText('Error: ' + e.message);
+        setMetaText('Error: ' + message);
     }
 }
 
