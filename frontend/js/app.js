@@ -26,7 +26,7 @@ import {
   fetchCorrelationMatrix,
   fetchFft,
   fetchSpectrogram
-} from "./chunk-M7RFYJA6.js";
+} from "./chunk-ZQDEWDPA.js";
 import {
   DEBUG,
   dbg,
@@ -60,7 +60,7 @@ import {
   setMetaText,
   setSeriesColor,
   toFiniteNumberOrNull
-} from "./chunk-QM2AJNKI.js";
+} from "./chunk-5AB5JUYP.js";
 import {
   debounce,
   downloadBlob,
@@ -4933,8 +4933,8 @@ var FallbackChart = class {
 var _appCleanups = [];
 function storeFetchedMetadata(metadata) {
   appState.metadata = metadata;
-  const revision = Number(metadata?.revision);
-  appState.datasetRevision = Number.isFinite(revision) ? revision : 0;
+  const revision = metadata?.revision;
+  appState.datasetRevision = typeof revision === "number" ? revision : 0;
 }
 function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
   const btn = document.getElementById(btnId);
@@ -4963,12 +4963,16 @@ async function ensureChartModules() {
   DataChartCtor = chartModule.DataChart;
   registerChartType("line", {
     label: "Line",
-    create: (containerId, callbacks) => new DataChartCtor(
-      containerId,
-      callbacks.onZoom,
-      callbacks.onYRange,
-      callbacks.onZoomOut
-    )
+    create: (containerId, callbacks) => {
+      const ctor = DataChartCtor;
+      if (!ctor) throw new Error("DataChart module not loaded");
+      return new ctor(
+        containerId,
+        callbacks.onZoom ?? null,
+        callbacks.onYRange ?? null,
+        callbacks.onZoomOut ?? null
+      );
+    }
   });
   registerChartType("fallback", {
     label: "Fallback (Canvas 2D)",
@@ -4989,12 +4993,13 @@ async function checkWebGPU() {
       return "No WebGPU adapter found. Your GPU may not be supported or hardware acceleration may be disabled.";
     }
   } catch (e) {
-    return `WebGPU adapter request failed: ${e.message}`;
+    const message = e.message ?? "Unknown error";
+    return `WebGPU adapter request failed: ${message}`;
   }
   return null;
 }
 var timeseriesPage = createTimeseriesPageController({
-  fetchData: (...args) => fetchData(...args),
+  fetchData: (start, end, width, columns, colorColumn, signal) => fetchData(start, end, width, columns, colorColumn, signal),
   buildRangeControls,
   updateAnalysisYRange,
   updateAnalysisZoom,
@@ -5038,6 +5043,7 @@ async function ensureTimeseriesReady() {
           onZoomOut: () => zoomOut(fetchAndRender)
         });
       } else {
+        if (!DataChartCtor) throw new Error("DataChart module not loaded");
         appState.chart = new DataChartCtor("main-chart", onZoomRangeChange, updateAnalysisYRange, () => zoomOut(fetchAndRender));
       }
       if (gpuError) throw new Error(gpuError);
@@ -5082,8 +5088,9 @@ async function ensureTimeseriesReady() {
         setMetaText("Fallback renderer active");
         _timeseriesReady = true;
       } catch (fallbackErr) {
+        const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
         console.error("Fallback chart also failed:", fallbackErr);
-        setMetaText("Error: " + fallbackErr.message);
+        setMetaText("Error: " + msg);
       }
     }
   })();
@@ -5102,9 +5109,9 @@ function buildAdaptiveFilterFromPoints(column, firstPoint, secondPoint) {
   if (!column || !firstPoint || !secondPoint) return null;
   if (!appState.lastFetchedData) return null;
   const filtered = applyColumnRanges(appState.lastFetchedData);
-  const series = filtered.series?.[column];
-  const xs = series?.x;
-  const ys = series?.y;
+  const columnData = filtered.series?.[column] || filtered.values?.[column];
+  const xs = columnData?.x;
+  const ys = columnData?.y;
   if (!xs || !ys || xs.length === 0 || xs.length !== ys.length) return null;
   const x1 = Number(firstPoint.x);
   const y1 = Number(firstPoint.y);
@@ -5121,7 +5128,7 @@ function buildAdaptiveFilterFromPoints(column, firstPoint, secondPoint) {
     const y = Number(ys[idx]);
     if (!Number.isFinite(x) || !Number.isFinite(y) || x < minX || x > maxX) continue;
     const lineY = buildAdaptiveLineY(tempFilter, x);
-    if (!Number.isFinite(lineY)) continue;
+    if (lineY == null || !Number.isFinite(lineY)) continue;
     if (y >= lineY) above += 1;
     else below += 1;
   }
@@ -5311,7 +5318,9 @@ async function fetchAndRenderAnalytics() {
       appState.anomalyRegions = null;
     }
   } catch (e) {
-    if (e?.name !== "AbortError") console.warn("Anomaly fetch failed:", e);
+    if (!(e instanceof Error) || e.name !== "AbortError") {
+      console.warn("Anomaly fetch failed:", e);
+    }
     appState.anomalyRegions = null;
   }
   appState.chart?.requestOverlayRender?.();
@@ -5331,7 +5340,8 @@ function initAnalyticsListeners() {
       }
       appState.chart?.requestOverlayRender?.();
     }
-    fetchAndRenderAnalytics().catch(() => {
+    fetchAndRenderAnalytics().catch((err) => {
+      console.warn("Analytics fetch failed:", err);
     });
   });
 }
@@ -5394,7 +5404,8 @@ function initializeDatasetUi(metadata) {
     });
     ensureSessionPersistenceStarted();
     window.addEventListener("edatime:page-change", (event) => {
-      if (event?.detail?.page === "timeseries") {
+      const ce = event;
+      if (ce.detail?.page === "timeseries") {
         void ensureTimeseriesReady();
       }
     });
@@ -5409,8 +5420,10 @@ function initializeDatasetUi(metadata) {
   buildMetaBar(metadata);
   buildRangeControls();
   window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
-  appState.currentStart = Number(metadata.time_range.min);
-  appState.currentEnd = Number(metadata.time_range.max);
+  const timeRange = metadata.time_range;
+  if (!timeRange) return;
+  appState.currentStart = Number(timeRange.min);
+  appState.currentEnd = Number(timeRange.max);
   updateAnalysisZoom(appState.currentStart, appState.currentEnd, "initial");
   emitChartRangeChange("initial");
 }
@@ -5424,7 +5437,8 @@ async function ensureDatasetReady(_pageName = "timeseries") {
     _metadataReady = true;
     window.dispatchEvent(new Event("edatime:metadata-ready"));
     dbgGroup("metadata", () => dbg(appState.metadata));
-    if (!metadata.time_range) {
+    const metadataTimeRange = appState.metadata?.time_range;
+    if (!metadataTimeRange) {
       setMetaText("No valid time range found.");
       return;
     }
@@ -5451,7 +5465,7 @@ async function initDriftPage() {
   await init2(appState.metadata);
 }
 async function initCausalPage() {
-  const { initCausalPage: init2 } = await import("./causalPage-JCU33NU7.js");
+  const { initCausalPage: init2 } = await import("./causalPage-766IQWQ7.js");
   const { initCausalComparison } = await import("./causalComparison-VQVLPMA7.js");
   init2({
     getMetadata: () => appState.metadata,
@@ -5502,8 +5516,9 @@ async function init() {
       await ensureTimeseriesReady();
     }
   } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
     console.error("Initial bootstrap failed:", e);
-    setMetaText("Error: " + e.message);
+    setMetaText("Error: " + message);
   }
 }
 init();

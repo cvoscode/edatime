@@ -242,8 +242,8 @@
             <input type="color" id="draw-color" name="draw-color" value="#ff0055" title="Color" aria-label="Draw color">
             <input type="number" id="draw-width" name="draw-width" value="2" min="1" max="10" title="Thickness"
               aria-label="Draw thickness">
-            <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button">Clear</button>
-            <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button">Clear Filter</button>
+            <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings">Clear</button>
+            <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button" title="Clear adaptive line filters (Shift+C)">Clear Filter</button>
           </div>
           <div class="toolbar-group labels-toolbar toolbar-group--sep">
             <details class="toolbar-disclosure">
@@ -252,28 +252,12 @@
                 <span class="toolbar-disclosure__value">Title + axes</span>
               </summary>
               <div class="toolbar-disclosure__menu toolbar-disclosure__menu--stacked">
-                <input type="text" id="chart-title-input" name="chart-title" placeholder="Title"
+                <input type="text" id="chart-title-input" name="chart-title" placeholder="Chart title"
                   aria-label="Chart title">
-                <input type="text" id="x-axis-label-input" name="x-axis-label" placeholder="X"
+                <input type="text" id="x-axis-label-input" name="x-axis-label" placeholder="X axis label"
                   aria-label="X axis label">
-                <input type="text" id="y-axis-label-input" name="y-axis-label" placeholder="Y"
+                <input type="text" id="y-axis-label-input" name="y-axis-label" placeholder="Y axis label"
                   aria-label="Y axis label">
-              </div>
-            </details>
-          </div>
-          <div class="toolbar-group export-toolbar toolbar-group--sep">
-            <details class="toolbar-disclosure">
-              <summary class="toolbar-disclosure__summary">
-                <span class="toolbar-label">Export</span>
-                <span class="toolbar-disclosure__value">Chart + data</span>
-              </summary>
-              <div class="toolbar-disclosure__menu">
-                <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button">PNG</button>
-                <button class="btn btn-ghost btn-sm" id="export-svg-btn" type="button">SVG</button>
-                <button class="btn btn-ghost btn-sm" id="export-html-btn" type="button">HTML</button>
-                <button class="btn btn-ghost btn-sm" id="export-data-csv-btn" type="button">CSV</button>
-                <button class="btn btn-ghost btn-sm" id="export-data-json-btn" type="button">JSON</button>
-                <button class="btn btn-ghost btn-sm" id="export-data-parquet-btn" type="button">Parquet</button>
               </div>
             </details>
           </div>
@@ -294,6 +278,21 @@
               </div>
             </details>
           </div>
+          <div class="toolbar-group export-toolbar toolbar-group--push">
+            <details class="toolbar-disclosure toolbar-disclosure--end">
+              <summary class="toolbar-disclosure__summary">
+                <span class="toolbar-label">Export</span>
+                <span class="toolbar-disclosure__value">Chart + data</span>
+              </summary>
+              <div class="toolbar-disclosure__menu">
+                <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button" title="Export chart as PNG">PNG</button>
+                <button class="btn btn-ghost btn-sm" id="export-svg-btn" type="button" title="Export chart as SVG">SVG</button>
+                <button class="btn btn-ghost btn-sm" id="export-data-csv-btn" type="button" title="Export filtered data as CSV">CSV</button>
+                <button class="btn btn-ghost btn-sm" id="export-data-json-btn" type="button" title="Export filtered data as JSON">JSON</button>
+                <button class="btn btn-ghost btn-sm" id="export-data-parquet-btn" type="button" title="Export filtered data as Parquet">Parquet</button>
+              </div>
+            </details>
+          </div>
           <div class="toolbar-group analytics-toolbar toolbar-group--sep toolbar-group--push">
             <details class="toolbar-disclosure toolbar-disclosure--end">
               <summary class="toolbar-disclosure__summary">
@@ -304,7 +303,7 @@
                 <label class="toolbar-field toolbar-field--toggle" for="rolling-enabled">
                   <span class="toolbar-field__label">Rolling bands</span>
                   <span class="toolbar-field__control scatter-link-toggle" title="Show rolling mean ± σ bands">
-                    <input id="rolling-enabled" type="checkbox">
+                    <input id="rolling-enabled" type="checkbox" aria-label="Show rolling mean ± σ bands">
                     <span>Show mean ± σ bands</span>
                   </span>
                 </label>
@@ -316,7 +315,7 @@
                 <label class="toolbar-field toolbar-field--toggle" for="anomaly-enabled">
                   <span class="toolbar-field__label">Anomalies</span>
                   <span class="toolbar-field__control scatter-link-toggle" title="Show anomaly detection regions">
-                    <input id="anomaly-enabled" type="checkbox">
+                    <input id="anomaly-enabled" type="checkbox" aria-label="Enable anomaly detection regions">
                     <span>Enable regions</span>
                   </span>
                 </label>
@@ -435,7 +434,7 @@
             <div id="scatter-density-controls" class="scatter-toolbar-group-inline">
               <span class="toolbar-label">Density</span>
               <label class="scatter-inline-label" for="scatter-bin-size">Bins</label>
-              <input id="scatter-bin-size" type="range" min="2" max="64" step="1" value="10" style="width:110px;">
+              <input id="scatter-bin-size" type="range" min="2" max="64" step="1" value="10" style="width:110px;" aria-label="Scatter bin size">
               <span id="scatter-bin-size-value" class="range-value">10</span>
               <select id="scatter-colormap" class="modal-select" aria-label="Density colormap">
                 <option value="viridis">Viridis</option>
@@ -479,7 +478,7 @@
           <span id="scatter-suggestions-label" class="toolbar-label">Suggestions (|corr| ≥ 0.70)</span>
           <div class="scatter-suggestions-controls">
             <label class="scatter-inline-label" for="scatter-suggestion-threshold">Threshold</label>
-            <input id="scatter-suggestion-threshold" type="range" min="0.30" max="0.95" step="0.05" value="0.70">
+            <input id="scatter-suggestion-threshold" type="range" min="0.30" max="0.95" step="0.05" value="0.70" aria-label="Correlation suggestion threshold">
             <span id="scatter-suggestion-threshold-value" class="range-value">0.70</span>
             <span id="scatter-active-pair-label" class="scatter-filter-badge">Inspecting X vs Y</span>
           </div>
@@ -538,7 +537,7 @@
                 <span id="scatter-matrix-cell-size-value" class="range-value">160</span>
                 <label class="scatter-link-toggle" for="scatter-matrix-link-range"
                   title="Link scatter matrix and FFT to the current chart time window">
-                  <input id="scatter-matrix-link-range" type="checkbox">
+                  <input id="scatter-matrix-link-range" type="checkbox" aria-label="Link chart time range to scatter matrix">
                   <span>Link range</span>
                 </label>
               </div>
@@ -757,7 +756,7 @@
             <span class="causal-info-icon" tabindex="0"
               data-causal-tip="Conditional independence test used inside the Tigramite-style causal engine.&#10;• ParCorr: Linear partial correlation; best when relations are near-Gaussian and linear.&#10;• RobustParCorr: Rank/non-paranormal style preprocessing plus ParCorr.&#10;• CMI-KNN: Nonlinear conditional mutual information. Reference: Runge, AISTATS (2018).&#10;• G-squared: Discrete/categorical likelihood-ratio test.&#10;• CMI-Symb: Symbolic/discretized mutual information test.&#10;Backend causal discovery is still numeric-data oriented even if non-numeric columns are shown as manual graph nodes.">ⓘ</span>
             <label class="scatter-inline-label" for="causal-tau-max">τ max</label>
-            <input id="causal-tau-max" type="number" min="1" max="10" value="3" class="modal-input" style="width:50px;">
+            <input id="causal-tau-max" type="number" min="1" max="10" value="3" class="modal-input" style="width:50px;" aria-label="Maximum time lag (tau max)">
             <span class="causal-info-icon" tabindex="0"
               data-causal-tip="Maximum time lag τ to test (1–10). Higher means more lagged relationships are evaluated, but runtime grows quickly.">ⓘ</span>
             <label class="scatter-inline-label" for="causal-alpha">α</label>
@@ -1264,15 +1263,15 @@
                   <div class="field-group">
                     <label for="n-rows-input">Max rows to load</label>
                     <div class="row">
-                      <input type="number" id="n-rows-input" placeholder="All rows" min="1" step="1000">
-                      <input type="range" id="n-rows-range" min="1000" max="5000000" step="1000" value="1000000">
+                      <input type="number" id="n-rows-input" placeholder="All rows" min="1" step="1000" aria-label="Maximum rows to load">
+                      <input type="range" id="n-rows-range" min="1000" max="5000000" step="1000" value="1000000" aria-label="Max rows slider">
                       <span class="range-value" id="n-rows-display">1 000 000</span>
                     </div>
                   </div>
                   <div class="field-group">
                     <label for="skip-rows-input">Skip first N rows</label>
                     <div class="row">
-                      <input type="number" id="skip-rows-input" placeholder="0" min="0" value="0">
+                      <input type="number" id="skip-rows-input" placeholder="0" min="0" value="0" aria-label="Skip first N rows">
                     </div>
                   </div>
                   <div class="field-group">
@@ -1626,9 +1625,9 @@
               </div>
               <div class="settings-row">
                 <label class="settings-label" for="settings-white-bg">Presentation mode</label>
-                <div class="settings-control settings-toggle">
-                  <input id="settings-white-bg" type="checkbox">
-                  <span>White background for exports</span>
+                  <div class="settings-control settings-toggle">
+                    <input id="settings-white-bg" type="checkbox" aria-label="Use white background for exports">
+                    <span>White background for exports</span>
                 </div>
               </div>
             </div>

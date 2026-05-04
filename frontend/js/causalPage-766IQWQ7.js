@@ -4,7 +4,7 @@ import {
 import "./chunk-T63Y6LQO.js";
 import {
   fetchCausalGraph
-} from "./chunk-M7RFYJA6.js";
+} from "./chunk-ZQDEWDPA.js";
 import "./chunk-P2MGEQ7G.js";
 import "./chunk-PZ5AY32C.js";
 
@@ -1452,4 +1452,4 @@ function initCausalPage(deps) {
 export {
   initCausalPage
 };
-//# sourceMappingURL=causalPage-JCU33NU7.js.map
+//# sourceMappingURL=causalPage-766IQWQ7.js.map
