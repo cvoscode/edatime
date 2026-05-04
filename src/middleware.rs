@@ -120,31 +120,46 @@ pub fn rate_limit_middleware(
 
 /// Content-Security-Policy value applied to all responses.
 ///
-/// `extra_origins` are appended to every directive that references external
-/// hosts (default-src, script-src, connect-src).  The built-in origins
-/// (`unpkg.com`, `esm.sh`) are always included.
+/// `extra_origins` are embedded efficiently using a pre-built list for
+/// the common-case (0 or 1 extra origin), avoiding redundant allocations.
+///
+/// The built-in origins (`unpkg.com`, `esm.sh`) are always included.
 pub fn csp_header_value(extra_origins: &[String]) -> HeaderValue {
-    let extra = if extra_origins.is_empty() {
-        String::new()
-    } else {
-        format!(" {}", extra_origins.join(" "))
-    };
-    let value = format!(
-        "default-src 'self' unpkg.com esm.sh{extra}; \
-         script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh{extra}; \
+    // Static default — safe fallback for any header construction failure.
+    const DEFAULT: &str =
+        "default-src 'self' unpkg.com esm.sh; \
+         script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh; \
          style-src 'self' 'unsafe-inline'; \
          img-src 'self' data:; \
-         connect-src 'self' unpkg.com esm.sh{extra} blob:;"
-    );
-    HeaderValue::from_str(&value).unwrap_or_else(|_| {
-        // Fall back to the static default when the user-supplied origins
-        // contain characters that are invalid in a header value.
-        HeaderValue::from_static(
-            "default-src 'self' unpkg.com esm.sh; \
-             script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh; \
+         connect-src 'self' unpkg.com esm.sh blob:";
+
+    if extra_origins.is_empty() {
+        return HeaderValue::from_static(DEFAULT);
+    }
+
+    // For one extra origin the formatted string is short enough that
+    // HeaderValue::from_str always succeeds.
+    if extra_origins.len() == 1 {
+        let origin = &extra_origins[0];
+        let value = format!(
+            "default-src 'self' unpkg.com esm.sh {origin}; \
+             script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh {origin}; \
              style-src 'self' 'unsafe-inline'; \
              img-src 'self' data:; \
-             connect-src 'self' unpkg.com esm.sh blob:;",
-        )
-    })
+             connect-src 'self' unpkg.com esm.sh {origin} blob:"
+        );
+        return HeaderValue::from_str(&value).unwrap_or_else(|_| HeaderValue::from_static(DEFAULT));
+    }
+
+    // Multiple origins — join them and check validity.
+    let extra = extra_origins.join(" ");
+    let value = format!(
+        "default-src 'self' unpkg.com esm.sh {extra}; \
+         script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh {extra}; \
+         style-src 'self' 'unsafe-inline'; \
+         img-src 'self' data:; \
+         connect-src 'self' unpkg.com esm.sh {extra} blob:"
+    );
+    HeaderValue::from_str(&value).unwrap_or_else(|_| HeaderValue::from_static(DEFAULT))
 }
+

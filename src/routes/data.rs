@@ -34,18 +34,19 @@ pub async fn get_data(
         .filter(|s| !s.is_empty());
 
     if let Some(color_col) = color_column.as_ref()
-        && !df.get_column_names().iter().any(|c| *c == color_col) {
-            return Err(AppError::bad_request(format!(
-                "Color column '{}' is not present in dataset",
-                color_col
-            )));
-        }
+        && !df.get_column_names().iter().any(|c| *c == color_col)
+    {
+        return Err(AppError::bad_request(format!(
+            "Color column '{color_col}' is not present in dataset",
+        )));
+    }
 
     let mut output_cols = value_cols.clone();
     if let Some(color_col) = color_column.as_ref()
-        && !output_cols.iter().any(|c| c == color_col) {
-            output_cols.push(color_col.clone());
-        }
+        && !output_cols.iter().any(|c| c == color_col)
+    {
+        output_cols.push(color_col.clone());
+    }
 
     let multiplier = query::unit_multiplier_for_ts(&df)?;
     let dtype = query::ts_dtype(&df)?;
@@ -91,8 +92,8 @@ pub async fn get_data(
             returned_rows,
             target_points,
         ),
-        query::OutputFormat::Json => CachedResponse::json(
-            serde_json::to_vec(&pipeline::serialize_json(
+        query::OutputFormat::Json => {
+            let json_bytes = serde_json::to_vec(&pipeline::serialize_json(
                 &reduced,
                 &value_cols,
                 color_column.as_ref(),
@@ -100,11 +101,14 @@ pub async fn get_data(
             )?)
             .map_err(|error| {
                 AppError::internal(format!("Failed to encode JSON response: {error}"))
-            })?,
-            was_downsampled,
-            returned_rows,
-            target_points,
-        ),
+            })?;
+            CachedResponse::json(
+                json_bytes,
+                was_downsampled,
+                returned_rows,
+                target_points,
+            )
+        },
     };
 
     state.cache.insert(cache_key, cached.clone()).await;

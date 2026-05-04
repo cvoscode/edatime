@@ -32,7 +32,6 @@ pub enum IndependenceTestKind {
     CmiSymb,
 }
 
-
 /// Configuration for the conditional independence test.
 #[derive(Debug, Clone)]
 pub struct CondIndTest {
@@ -764,13 +763,13 @@ fn pearson_1d(x: &Array1<f64>, y: &Array1<f64>) -> f64 {
     }
     let mx = x.sum() / n as f64;
     let my = y.sum() / n as f64;
-    
+
     let (cov, vx, vy) = (0..n).fold((0.0, 0.0, 0.0), |(c, x2, y2), i| {
         let dx = x[i] - mx;
         let dy = y[i] - my;
         (c + dx * dy, x2 + dx * dx, y2 + dy * dy)
     });
-    
+
     let denom = (vx * vy).sqrt();
     if denom < 1e-15 { 0.0 } else { cov / denom }
 }
@@ -901,12 +900,16 @@ fn kth_neighbor_distance(
         }
         let mut max_d = 0.0f64;
         for &d in dims {
-            let val_sample = if is_y[d] && let Some(p) = y_perm {
+            let val_sample = if is_y[d]
+                && let Some(p) = y_perm
+            {
                 array[[d, p[sample]]]
             } else {
                 array[[d, sample]]
             };
-            let val_s = if is_y[d] && let Some(p) = y_perm {
+            let val_s = if is_y[d]
+                && let Some(p) = y_perm
+            {
                 array[[d, p[s]]]
             } else {
                 array[[d, s]]
@@ -944,12 +947,16 @@ fn count_neighbors(
         }
         let mut within = true;
         for &d in dims {
-            let val_sample = if is_y[d] && let Some(p) = y_perm {
+            let val_sample = if is_y[d]
+                && let Some(p) = y_perm
+            {
                 array[[d, p[sample]]]
             } else {
                 array[[d, sample]]
             };
-            let val_s = if is_y[d] && let Some(p) = y_perm {
+            let val_s = if is_y[d]
+                && let Some(p) = y_perm
+            {
                 array[[d, p[s]]]
             } else {
                 array[[d, s]]

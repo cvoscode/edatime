@@ -490,24 +490,33 @@ pub fn build_response(
         }
     };
 
+    let downsampled = meta.is_downsampled;
     response.headers_mut().insert(
         "x-edatime-downsampled",
-        if meta.is_downsampled {
-            HeaderValue::from_static("1")
-        } else {
-            HeaderValue::from_static("0")
-        },
+        HeaderValue::from_static(if downsampled { "1" } else { "0" }),
     );
-    response.headers_mut().insert(
-        "x-edatime-returned-rows",
-        HeaderValue::from_str(&meta.returned_rows.to_string())
-            .unwrap_or(HeaderValue::from_static("0")),
-    );
-    response.headers_mut().insert(
-        "x-edatime-target-points",
-        HeaderValue::from_str(&meta.target_points.to_string())
-            .unwrap_or(HeaderValue::from_static("0")),
-    );
+    match HeaderValue::from_str(&meta.returned_rows.to_string()) {
+        Ok(v) => {
+            response.headers_mut().insert("x-edatime-returned-rows", v);
+        }
+        Err(_) => {
+            tracing::warn!(
+                "Invalid returned_rows value for header: {}",
+                meta.returned_rows
+            );
+        }
+    }
+    match HeaderValue::from_str(&meta.target_points.to_string()) {
+        Ok(v) => {
+            response.headers_mut().insert("x-edatime-target-points", v);
+        }
+        Err(_) => {
+            tracing::warn!(
+                "Invalid target_points value for header: {}",
+                meta.target_points
+            );
+        }
+    }
 
     Ok(response)
 }

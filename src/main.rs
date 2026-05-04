@@ -44,21 +44,22 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let config = AppConfig::load().unwrap_or_else(|error| {
-        tracing::warn!("Could not load config: {}. Using defaults.", error);
-        AppConfig::default()
-    });
+    let config = match AppConfig::load() {
+        Ok(c) => c,
+        Err(error) => {
+            tracing::warn!("Could not load config: {error}. Using defaults.");
+            AppConfig::default()
+        }
+    };
 
-    let sample_path = config.data.sample_data_path.clone();
-    let df =
-        tokio::task::block_in_place(|| ingest::load_dataframe(&sample_path)).unwrap_or_else(|e| {
-            tracing::warn!(
-                "Could not load {}: {}. Starting with empty dataframe.",
-                sample_path,
-                e
-            );
+    let sample_path = &config.data.sample_data_path;
+    let df = match tokio::task::block_in_place(|| ingest::load_dataframe(sample_path)) {
+        Ok(df) => df,
+        Err(e) => {
+            tracing::warn!("Could not load {sample_path}: {e}. Starting with empty dataframe.");
             polars::prelude::DataFrame::default()
-        });
+        }
+    };
 
     let max_upload_bytes = config.upload.max_upload_bytes;
     let bind_address = config.bind_address();
@@ -79,7 +80,8 @@ async fn main() {
         middleware::csp_header_value(&config.server.csp_extra_origins),
     );
 
-    let rate_limit_fn = middleware::rate_limit_middleware(rate_limiter, std::sync::Arc::clone(&state.metrics));
+    let rate_limit_fn =
+        middleware::rate_limit_middleware(rate_limiter, std::sync::Arc::clone(&state.metrics));
 
     let frontend_dir = std::env::var("EDATIME_FRONTEND_DIR")
         .map(std::path::PathBuf::from)
@@ -135,7 +137,9 @@ async fn shutdown_signal() {
     #[cfg(unix)]
     let terminate = async {
         match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
-            Ok(mut sig) => { sig.recv().await; }
+            Ok(mut sig) => {
+                sig.recv().await;
+            }
             Err(e) => tracing::error!("failed to install SIGTERM handler: {}", e),
         }
     };

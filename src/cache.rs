@@ -92,11 +92,27 @@ impl CachedResponse {
                 HeaderValue::from_static("0")
             },
         );
-        if let Ok(value) = HeaderValue::from_str(&self.returned_rows.to_string()) {
-            headers.insert("x-edatime-returned-rows", value);
+        match HeaderValue::from_str(&self.returned_rows.to_string()) {
+            Ok(value) => {
+                headers.insert("x-edatime-returned-rows", value);
+            }
+            Err(_) => {
+                tracing::warn!(
+                    "Invalid returned_rows value for cache header: {}",
+                    self.returned_rows
+                );
+            }
         }
-        if let Ok(value) = HeaderValue::from_str(&self.target_points.to_string()) {
-            headers.insert("x-edatime-target-points", value);
+        match HeaderValue::from_str(&self.target_points.to_string()) {
+            Ok(value) => {
+                headers.insert("x-edatime-target-points", value);
+            }
+            Err(_) => {
+                tracing::warn!(
+                    "Invalid target_points value for cache header: {}",
+                    self.target_points
+                );
+            }
         }
         headers.insert("x-edatime-cache", HeaderValue::from_static(cache_status));
         response

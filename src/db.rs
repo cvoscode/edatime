@@ -16,7 +16,7 @@ use tokio_postgres::{NoTls, Row};
 
 use crate::error::AppError;
 
-// ── Public types ───────────────────────────────────────────────────────────
+// ── Public types ───────────────────────────────
 
 pub struct DbPool(Pool);
 
@@ -51,7 +51,7 @@ pub struct ColumnInfo {
     pub is_nullable: bool,
 }
 
-// ── Connection helpers ─────────────────────────────────────────────────────
+// ── Connection helpers ─────────────────────────
 
 /// Build a connection pool and verify the credentials by running a trivial
 /// query.  Returns an error if the credentials are wrong or the host is
@@ -65,25 +65,34 @@ pub async fn connect(connection_string: &str) -> Result<DbPool, AppError> {
     });
 
     let pool = cfg
-        .create_pool(Some(deadpool_postgres::Runtime::Tokio1), NoTls)
-        .map_err(|e| AppError::internal(format!("Failed to create DB pool: {e}")))?;
+        .create_pool(
+            Some(deadpool_postgres::Runtime::Tokio1),
+            NoTls,
+        )
+        .map_err(|e| {
+            AppError::internal(format!("Failed to create DB pool: {e}"))
+        })?;
 
     // Smoke-test the connection.
     let client = pool
         .get()
         .await
-        .map_err(|e| AppError::internal(format!("DB connection failed: {e}")))?;
+        .map_err(|e| {
+            AppError::internal(format!("DB connection failed: {e}"))
+        })?;
 
     client
         .execute("SELECT 1", &[])
         .await
-        .map_err(|e| AppError::internal(format!("DB ping failed: {e}")))?;
+        .map_err(|e| {
+            AppError::internal(format!("DB ping failed: {e}"))
+        })?;
 
     tracing::info!("TimescaleDB/Postgres connection pool ready");
     Ok(DbPool(pool))
 }
 
-// ── Discovery queries ──────────────────────────────────────────────────────
+// ── Discovery queries ──────────────────────────
 
 /// List user tables and hypertables visible to the connected role.
 pub async fn list_tables(pool: &DbPool) -> Result<Vec<TableInfo>, AppError> {
@@ -91,7 +100,9 @@ pub async fn list_tables(pool: &DbPool) -> Result<Vec<TableInfo>, AppError> {
         .pool()
         .get()
         .await
-        .map_err(|e| AppError::internal(format!("DB pool error: {e}")))?;
+        .map_err(|e| {
+            AppError::internal(format!("DB pool error: {e}"))
+        })?;
 
     // Check if TimescaleDB extension is present.
     let has_timescale: bool = client
@@ -118,19 +129,24 @@ pub async fn list_tables(pool: &DbPool) -> Result<Vec<TableInfo>, AppError> {
                  ORDER  BY h.schema_name, h.table_name",
                 &[],
             )
-            .await
-            .unwrap_or_default();
+            .await;
 
-        for row in ht_rows {
-            let schema: String = row.get(0);
-            let name: String = row.get(1);
-            let row_estimate: i64 = row.get(2);
-            tables.push(TableInfo {
-                schema,
-                name,
-                kind: "hypertable".to_string(),
-                row_estimate: Some(row_estimate),
-            });
+        if let Ok(ht_rows) = ht_rows {
+            for row in ht_rows {
+                let schema: String = row.get(0);
+                let name: String = row.get(1);
+                let row_estimate: i64 = row.get(2);
+                tables.push(TableInfo {
+                    schema,
+                    name,
+                    kind: "hypertable".to_string(),
+                    row_estimate: Some(row_estimate),
+                });
+            }
+        } else {
+            tracing::debug!(
+                "TimescaleDB hypertable query failed (non-fatal — ordinary tables still listed)"
+            );
         }
     }
 
@@ -148,7 +164,9 @@ pub async fn list_tables(pool: &DbPool) -> Result<Vec<TableInfo>, AppError> {
             &[],
         )
         .await
-        .map_err(|e| AppError::internal(format!("list_tables query failed: {e}")))?;
+        .map_err(|e| {
+            AppError::internal(format!("list_tables query failed: {e}"))
+        })?;
 
     let existing: std::collections::HashSet<String> = tables
         .iter()
@@ -181,7 +199,9 @@ pub async fn list_columns(
         .pool()
         .get()
         .await
-        .map_err(|e| AppError::internal(format!("DB pool error: {e}")))?;
+        .map_err(|e| {
+            AppError::internal(format!("DB pool error: {e}"))
+        })?;
 
     let rows = client
         .query(
@@ -193,7 +213,9 @@ pub async fn list_columns(
             &[&schema, &table],
         )
         .await
-        .map_err(|e| AppError::internal(format!("list_columns query failed: {e}")))?;
+        .map_err(|e| {
+            AppError::internal(format!("list_columns query failed: {e}"))
+        })?;
 
     Ok(rows
         .into_iter()
@@ -228,7 +250,7 @@ fn pg_type_to_polars(pg: &str) -> &'static str {
     }
 }
 
-// ── Ingest ─────────────────────────────────────────────────────────────────
+// ── Ingest ─────────────────────────────────────
 
 /// Options for pulling data from a table.
 #[derive(Debug, Default)]
@@ -259,9 +281,11 @@ pub async fn ingest_table(
         .pool()
         .get()
         .await
-        .map_err(|e| AppError::internal(format!("DB pool error: {e}")))?;
+        .map_err(|e| {
+            AppError::internal(format!("DB pool error: {e}"))
+        })?;
 
-    // Validate / sanitise identifiers (only allow safe chars).
+    // Validate and sanitise identifiers upfront (no borrows held).
     let schema = sanitise_ident(schema)?;
     let table = sanitise_ident(table)?;
 
@@ -271,7 +295,11 @@ pub async fn ingest_table(
     let sel_cols: Vec<(String, String)> = if opts.columns.is_empty() {
         all_cols
     } else {
-        let want: std::collections::HashSet<_> = opts.columns.iter().map(|s| s.as_str()).collect();
+        let want: std::collections::HashSet<&str> = opts
+            .columns
+            .iter()
+            .map(|s| s.as_str())
+            .collect();
         all_cols
             .into_iter()
             .filter(|(name, _)| want.contains(name.as_str()))
@@ -283,15 +311,19 @@ pub async fn ingest_table(
     }
 
     // Auto-detect time column if not specified.
-    let resolved_time_col: Option<String> = time_col.map(|c| c.to_string()).or_else(|| {
-        sel_cols.iter().find_map(|(name, pg_type)| {
-            if is_pg_temporal(pg_type) {
-                Some(name.clone())
-            } else {
-                None
-            }
-        })
-    });
+    let resolved_time_col: Option<String> = time_col
+        .map(|c| c.to_string())
+        .or_else(|| {
+            sel_cols
+                .iter()
+                .find_map(|(name, pg_type)| {
+                    if is_pg_temporal(pg_type) {
+                        Some(name.clone())
+                    } else {
+                        None
+                    }
+                })
+        });
 
     // Build SELECT list.
     let col_list: String = sel_cols
@@ -303,23 +335,20 @@ pub async fn ingest_table(
     // Build WHERE clause (time-range filter).
     let mut where_parts: Vec<String> = Vec::new();
     if let Some(start_ms) = opts.start_ms
-        && let Some(tc) = &resolved_time_col {
-            let tc = sanitise_ident(tc)?;
-            // Embed i64 literal directly — no injection risk with numeric types.
-            where_parts.push(format!(
-                "\"{}\" >= to_timestamp({} / 1000.0)",
-                tc,
-                start_ms
-            ));
-        }
+        && let Some(tc) = &resolved_time_col
+    {
+        let tc = sanitise_ident(tc)?;
+        // Embed i64 literal directly — no injection risk with numeric types.
+        where_parts
+            .push(format!("\"{}\" >= to_timestamp({} / 1000.0)", tc, start_ms));
+    }
     if let Some(end_ms) = opts.end_ms
-        && let Some(tc) = &resolved_time_col {
-            let tc = sanitise_ident(tc)?;
-            where_parts.push(format!(
-                "\"{}\" <= to_timestamp({} / 1000.0)",
-                tc, end_ms
-            ));
-        }
+        && let Some(tc) = &resolved_time_col
+    {
+        let tc = sanitise_ident(tc)?;
+        where_parts
+            .push(format!("\"{}\" <= to_timestamp({} / 1000.0)", tc, end_ms));
+    }
 
     let where_clause = if where_parts.is_empty() {
         String::new()
@@ -346,12 +375,14 @@ pub async fn ingest_table(
     let rows = client
         .query(&sql as &str, &[])
         .await
-        .map_err(|e| AppError::internal(format!("TimescaleDB query failed: {e}")))?;
+        .map_err(|e| {
+            AppError::internal(format!("TimescaleDB query failed: {e}"))
+        })?;
 
     rows_to_dataframe(rows, &sel_cols)
 }
 
-// ── Internal helpers ───────────────────────────────────────────────────────
+// ── Internal helpers ───────────────────────────
 
 fn sanitise_ident(name: &str) -> Result<String, AppError> {
     if name
@@ -391,7 +422,9 @@ async fn list_columns_raw(
             &[&schema, &table],
         )
         .await
-        .map_err(|e| AppError::internal(format!("Column list query failed: {e}")))?;
+        .map_err(|e| {
+            AppError::internal(format!("Column list query failed: {e}"))
+        })?;
 
     Ok(rows
         .into_iter()
@@ -411,11 +444,14 @@ fn rows_to_dataframe(rows: Vec<Row>, cols: &[(String, String)]) -> Result<DataFr
         // Return an empty DataFrame with the right schema.
         let columns: Vec<Column> = cols
             .iter()
-            .map(|(name, _)| Series::new(name.as_str().into(), Vec::<f64>::new()).into())
+            .map(|(name, _)| {
+                Series::new(name.as_str().into(), Vec::<f64>::new()).into()
+            })
             .collect();
         let n = columns.len();
-        return DataFrame::new(n, columns)
-            .map_err(|e| AppError::internal(format!("Empty DataFrame build failed: {e}")));
+        return DataFrame::new(n, columns).map_err(|e| {
+            AppError::internal(format!("Empty DataFrame build failed: {e}"))
+        });
     }
 
     // Build one Column per source column.
@@ -424,28 +460,45 @@ fn rows_to_dataframe(rows: Vec<Row>, cols: &[(String, String)]) -> Result<DataFr
     for (col_idx, (col_name, pg_type)) in cols.iter().enumerate() {
         let series: Series = match pg_type.as_str() {
             "smallint" | "smallserial" => {
-                let vals: Vec<Option<i16>> = rows.iter().map(|r| r.try_get(col_idx).ok()).collect();
+                let vals: Vec<Option<i16>> = rows
+                    .iter()
+                    .map(|r| r.try_get(col_idx).ok())
+                    .collect();
                 Series::new(col_name.as_str().into(), vals)
             }
             "integer" | "serial" => {
-                let vals: Vec<Option<i32>> = rows.iter().map(|r| r.try_get(col_idx).ok()).collect();
+                let vals: Vec<Option<i32>> = rows
+                    .iter()
+                    .map(|r| r.try_get(col_idx).ok())
+                    .collect();
                 Series::new(col_name.as_str().into(), vals)
             }
             "bigint" | "bigserial" => {
-                let vals: Vec<Option<i64>> = rows.iter().map(|r| r.try_get(col_idx).ok()).collect();
+                let vals: Vec<Option<i64>> = rows
+                    .iter()
+                    .map(|r| r.try_get(col_idx).ok())
+                    .collect();
                 Series::new(col_name.as_str().into(), vals)
             }
             "real" => {
-                let vals: Vec<Option<f32>> = rows.iter().map(|r| r.try_get(col_idx).ok()).collect();
+                let vals: Vec<Option<f32>> = rows
+                    .iter()
+                    .map(|r| r.try_get(col_idx).ok())
+                    .collect();
                 Series::new(col_name.as_str().into(), vals)
             }
             "double precision" | "numeric" | "decimal" => {
-                let vals: Vec<Option<f64>> = rows.iter().map(|r| r.try_get(col_idx).ok()).collect();
+                let vals: Vec<Option<f64>> = rows
+                    .iter()
+                    .map(|r| r.try_get(col_idx).ok())
+                    .collect();
                 Series::new(col_name.as_str().into(), vals)
             }
             "boolean" => {
-                let vals: Vec<Option<bool>> =
-                    rows.iter().map(|r| r.try_get(col_idx).ok()).collect();
+                let vals: Vec<Option<bool>> = rows
+                    .iter()
+                    .map(|r| r.try_get(col_idx).ok())
+                    .collect();
                 Series::new(col_name.as_str().into(), vals)
             }
             "timestamp without time zone"
@@ -464,12 +517,17 @@ fn rows_to_dataframe(rows: Vec<Row>, cols: &[(String, String)]) -> Result<DataFr
                     .collect();
                 Series::new(col_name.as_str().into(), vals)
                     .cast(&DataType::Datetime(TimeUnit::Microseconds, None))
-                    .map_err(|e| AppError::internal(format!("Datetime cast failed: {e}")))?
+                    .map_err(|e| {
+                        AppError::internal(format!("Datetime cast failed: {e}"))
+                    })?
             }
             "date" => {
                 use chrono::NaiveDate;
                 // Days since epoch (Polars Date is i32 days).
-                let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).ok_or_else(|| AppError::internal("Failed to create epoch date"))?;
+                let epoch = NaiveDate::from_ymd_opt(1970, 1, 1)
+                    .ok_or_else(|| {
+                        AppError::internal("Failed to create epoch date")
+                    })?;
                 let vals: Vec<Option<i32>> = rows
                     .iter()
                     .map(|r| {
@@ -480,7 +538,9 @@ fn rows_to_dataframe(rows: Vec<Row>, cols: &[(String, String)]) -> Result<DataFr
                     .collect();
                 Series::new(col_name.as_str().into(), vals)
                     .cast(&DataType::Date)
-                    .map_err(|e| AppError::internal(format!("Date cast failed: {e}")))?
+                    .map_err(|e| {
+                        AppError::internal(format!("Date cast failed: {e}"))
+                    })?
             }
             _ => {
                 // Everything else as String.
@@ -495,6 +555,7 @@ fn rows_to_dataframe(rows: Vec<Row>, cols: &[(String, String)]) -> Result<DataFr
     }
 
     let n = columns.len();
-    DataFrame::new(n, columns)
-        .map_err(|e| AppError::internal(format!("DataFrame build failed: {e}")))
+    DataFrame::new(n, columns).map_err(|e| {
+        AppError::internal(format!("DataFrame build failed: {e}"))
+    })
 }

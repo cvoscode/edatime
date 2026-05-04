@@ -245,9 +245,11 @@ pub async fn get_spectral_filter(
             let max_native = ca.into_iter().flatten().max().unwrap_or(0);
             let min_ms = min_native / multiplier;
             let max_ms = max_native / multiplier;
-            let epoch_zero = || {
-                // Construct epoch zero deterministically without fallible helpers.
-                Utc.timestamp_millis(0)
+            let epoch_zero = || -> DateTime<Utc> {
+                // Use fixed Unix epoch (Jan 1, 1970 00:00:00 UTC).
+                Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0)
+                    .single()
+                    .unwrap_or(Utc::now())
             };
             let dataset_start = DateTime::from_timestamp_millis(min_ms)
                 .unwrap_or_else(epoch_zero);

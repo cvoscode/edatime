@@ -801,21 +801,22 @@ fn parse_expression(expr: &str, df: &DataFrame) -> Result<Expr, AppError> {
 
     // Check for function call: func(...)
     if let Some(open) = expr.find('(')
-        && expr.ends_with(')') {
-            let func_name = expr[..open].trim().to_lowercase();
-            let inner = expr[open + 1..expr.len() - 1].trim();
+        && expr.ends_with(')')
+    {
+        let func_name = expr[..open].trim().to_lowercase();
+        let inner = expr[open + 1..expr.len() - 1].trim();
 
-            if !ALLOWED_FUNCTIONS.contains(&func_name.as_str()) {
-                return Err(AppError::bad_request(format!(
-                    "Unknown function '{}'. Allowed: {}",
-                    func_name,
-                    ALLOWED_FUNCTIONS.join(", ")
-                )));
-            }
-
-            let inner_expr = parse_expression(inner, df)?;
-            return apply_function(&func_name, inner_expr);
+        if !ALLOWED_FUNCTIONS.contains(&func_name.as_str()) {
+            return Err(AppError::bad_request(format!(
+                "Unknown function '{}'. Allowed: {}",
+                func_name,
+                ALLOWED_FUNCTIONS.join(", ")
+            )));
         }
+
+        let inner_expr = parse_expression(inner, df)?;
+        return apply_function(&func_name, inner_expr);
+    }
 
     // Check for binary operation
     for op in ALLOWED_OPS {
@@ -1082,10 +1083,10 @@ pub fn remove_outliers_windowed(
         for i in 0..n {
             let start = i.saturating_sub(k);
             let end = (i + k + 1).min(n);
-            
+
             window_vals.clear();
             window_vals.extend(values[start..end].iter().flatten().copied());
-            
+
             if window_vals.len() < 4 {
                 continue;
             }

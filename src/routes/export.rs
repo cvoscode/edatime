@@ -33,7 +33,11 @@ pub async fn export_parquet(
 
     let df = state.dataset_snapshot().await.read().await.clone();
     let limits = &state.config.validation;
-    let value_cols = validate_numeric_columns(&df, &query::parse_columns(params.columns.as_deref()), limits)?;
+    let value_cols = validate_numeric_columns(
+        &df,
+        &query::parse_columns(params.columns.as_deref()),
+        limits,
+    )?;
     let filters = parse_range_filters(params.filters.as_deref())?;
     let line_filters = parse_line_filters(params.line_filters.as_deref())?;
 

@@ -1,6 +1,6 @@
 use polars::prelude::DataFrame;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
 
@@ -12,7 +12,7 @@ use crate::repository::InMemoryDataRepository;
 
 /// Short-lived in-memory cache for drift computation results.
 /// Key: request parameter hash string. Value: (dataset_revision, inserted_at, json_bytes).
-pub type DriftCache = Arc<Mutex<HashMap<String, (u64, Instant, Vec<u8>)>>>;
+pub type DriftCache = std::sync::Mutex<HashMap<String, (u64, Instant, Vec<u8>)>>;
 
 /// Live database connection state, set after a successful `/api/database/connect`.
 #[derive(Clone, Debug)]
@@ -25,7 +25,7 @@ pub struct DbConnectionInfo {
     pub time_column: Option<String>,
 }
 
-#[derive(Clone)]
+#[allow(clippy::clone_on_ref_ptr)]
 pub struct AppState {
     pub repository: Arc<InMemoryDataRepository>,
     pub cache: Arc<ResponseCache>,
@@ -39,6 +39,20 @@ pub struct AppState {
     pub drift_cache: DriftCache,
 }
 
+impl Clone for AppState {
+    fn clone(&self) -> Self {
+        Self {
+            repository: Arc::clone(&self.repository),
+            cache: Arc::clone(&self.cache),
+            metrics: Arc::clone(&self.metrics),
+            config: Arc::clone(&self.config),
+            db_pool: Arc::clone(&self.db_pool),
+            db_info: Arc::clone(&self.db_info),
+            drift_cache: std::sync::Mutex::new(HashMap::new()),
+        }
+    }
+}
+
 impl AppState {
     pub fn new(df: DataFrame, config: AppConfig) -> Self {
         Self {
@@ -48,7 +62,7 @@ impl AppState {
             config: Arc::new(config),
             db_pool: Arc::new(RwLock::new(None)),
             db_info: Arc::new(RwLock::new(None)),
-            drift_cache: Arc::new(Mutex::new(HashMap::new())),
+            drift_cache: std::sync::Mutex::new(HashMap::new()),
         }
     }
 
@@ -75,10 +89,20 @@ impl AppState {
             .filter(|&&c| col_names.iter().any(|n| n.as_str() == c))
             .copied()
             .collect();
+        drop(guard); // Release the read lock before clone()
+
         if existing.is_empty() {
-            return guard.clone();
+            let full = lock.read().await;
+            let df = full.clone();
+            drop(full);
+            df
+        } else {
+            let full = lock.read().await;
+            match full.select(existing) {
+                Ok(df) => df,
+                Err(_) => full.clone(),
+            }
         }
-        guard.select(existing).unwrap_or_else(|_| guard.clone())
     }
 
     pub async fn replace_dataset(&self, df: DataFrame) -> u64 {
