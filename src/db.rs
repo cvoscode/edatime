@@ -269,7 +269,7 @@ pub async fn ingest_table(
     let all_cols = list_columns_raw(&client, &schema, &table).await?;
 
     let sel_cols: Vec<(String, String)> = if opts.columns.is_empty() {
-        all_cols.clone()
+        all_cols
     } else {
         let want: std::collections::HashSet<_> = opts.columns.iter().map(|s| s.as_str()).collect();
         all_cols

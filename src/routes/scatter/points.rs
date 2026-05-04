@@ -7,6 +7,7 @@ use axum::{
     response::Response,
 };
 use polars::prelude::*;
+use std::sync::Arc;
 
 use crate::arrow_export::dataframe_to_parquet;
 use crate::error::AppError;
@@ -62,7 +63,7 @@ pub async fn post_scatter_export_parquet(
     State(state): State<AppState>,
     Json(params): Json<ScatterPointsQuery>,
 ) -> Result<Response, AppError> {
-    let df = state.dataset_snapshot().await;
+    let df = state.dataset_snapshot().await.read().await.clone();
 
     let x = params.x.clone();
     let y = params.y.clone();
@@ -113,7 +114,7 @@ async fn scatter_points_response(
         params.limit
     );
 
-    let df = state.dataset_snapshot().await;
+    let df = state.dataset_snapshot().await.read().await.clone();
 
     let x = params.x.clone();
     let y = params.y.clone();
@@ -135,7 +136,7 @@ async fn scatter_points_response(
             })?;
         validate_time_window(start_dt, end_dt)?;
     }
-    let metrics = state.metrics.clone();
+    let metrics = Arc::clone(&state.metrics);
 
     let response = tokio::task::spawn_blocking(move || {
         let filtered_df = collect_filtered_scatter_frame(
@@ -296,6 +297,7 @@ fn collect_sampled_xyc_rows(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use polars::df;

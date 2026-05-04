@@ -1475,8 +1475,8 @@ fn build_distribution_stats(
     let mean = sorted.iter().sum::<f64>() / n;
     let variance = sorted.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n;
     let std = variance.sqrt();
-    let min = *sorted.first().expect("Slice non-empty");
-    let max = *sorted.last().expect("Slice non-empty");
+    let min = sorted[0];
+    let max = sorted[sorted.len() - 1];
 
     let quantiles = compute_quantiles_sorted(&sorted, &[0.05, 0.25, 0.50, 0.75, 0.95]);
     let hist_counts = histogram_from_edges(&sorted, hist_edges);
@@ -1563,7 +1563,7 @@ pub fn compute_temporal_drift(
     // Deduplicate edges while preserving order; ensure first < last
     let mut hist_edges: Vec<f64> = vec![raw_edges[0]];
     for &e in &raw_edges[1..] {
-        if e > *hist_edges.last().expect("hist_edges non-empty") {
+        if e > hist_edges[hist_edges.len() - 1] {
             hist_edges.push(e);
         }
     }
@@ -1573,7 +1573,7 @@ pub fn compute_temporal_drift(
     if hist_edges.len() < 2 {
         // Constant / near-constant column — spread bins evenly over [min, max].
         let lo = ref_sorted[0];
-        let hi = *ref_sorted.last().expect("ref_sorted non-empty");
+        let hi = ref_sorted[ref_sorted.len() - 1];
         let range = (hi - lo).max(f64::EPSILON);
         let width = range / effective_bins as f64;
         hist_edges = (0..=effective_bins)
@@ -1582,8 +1582,8 @@ pub fn compute_temporal_drift(
         bin_count_warning = true;
     } else if hist_edges.len() < effective_bins / 2 + 2 {
         // Fewer than half the requested bins survived deduplication — equal-width fallback.
-        let lo = *hist_edges.first().expect("hist_edges non-empty");
-        let hi = *hist_edges.last().expect("hist_edges non-empty");
+        let lo = hist_edges[0];
+        let hi = hist_edges[hist_edges.len() - 1];
         let width = (hi - lo).max(f64::EPSILON) / effective_bins as f64;
         hist_edges = (0..=effective_bins)
             .map(|i| lo + width * i as f64)

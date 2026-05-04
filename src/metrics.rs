@@ -66,7 +66,13 @@ impl AppMetrics {
         self.total_request_duration_ns
             .fetch_add(duration_ns, Ordering::Relaxed);
         let key = format!("{} {} {}", method, path, status);
-        let mut counts = self.request_counts.lock().expect("metrics mutex poisoned");
+        let mut counts = match self.request_counts.lock() {
+            Ok(g) => g,
+            Err(poisoned) => {
+                tracing::error!("metrics mutex poisoned, recovering");
+                poisoned.into_inner()
+            }
+        };
         *counts.entry(key).or_insert(0) += 1;
     }
 
@@ -110,11 +116,13 @@ impl AppMetrics {
                 total_points_seen: self.scatter_points_seen.load(Ordering::Relaxed),
                 total_points_returned: self.scatter_points_returned.load(Ordering::Relaxed),
             },
-            request_counts: self
-                .request_counts
-                .lock()
-                .expect("metrics mutex poisoned")
-                .clone(),
+            request_counts: match self.request_counts.lock() {
+                Ok(g) => g.clone(),
+                Err(poisoned) => {
+                    tracing::error!("metrics mutex poisoned while taking snapshot, recovering");
+                    poisoned.into_inner().clone()
+                }
+            },
             average_request_ms,
             dataset_rows,
             dataset_revision,

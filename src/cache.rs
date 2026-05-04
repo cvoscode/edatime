@@ -1,8 +1,10 @@
 use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use axum::body::Body;
 use axum::http::{HeaderValue, Response, StatusCode, header};
+use bytes::Bytes;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CacheConfig {
@@ -25,7 +27,7 @@ impl Default for CacheConfig {
 pub struct CachedResponse {
     pub status: StatusCode,
     pub content_type: &'static str,
-    pub body: Vec<u8>,
+    pub body: Arc<Bytes>,
     pub is_downsampled: bool,
     pub returned_rows: usize,
     pub target_points: usize,
@@ -41,7 +43,7 @@ impl CachedResponse {
         Self {
             status: StatusCode::OK,
             content_type: "application/json",
-            body,
+            body: Arc::new(Bytes::from(body)),
             is_downsampled,
             returned_rows,
             target_points,
@@ -57,7 +59,7 @@ impl CachedResponse {
         Self {
             status: StatusCode::OK,
             content_type: "application/vnd.apache.arrow.stream",
-            body,
+            body: Arc::new(Bytes::from(body)),
             is_downsampled,
             returned_rows,
             target_points,
@@ -65,11 +67,13 @@ impl CachedResponse {
     }
 
     pub fn body_len(&self) -> usize {
-        self.body.len()
+        self.body.as_ref().len()
     }
 
     pub fn into_response(self, cache_status: &'static str) -> Response<Body> {
-        let mut response = Response::new(Body::from(self.body));
+        // `Bytes` is cheap to clone (shared refcounted buffer); move a cloned
+        // `Bytes` into the `Body` so we avoid copying the underlying data.
+        let mut response = Response::new(Body::from(self.body.as_ref().clone()));
         *response.status_mut() = self.status;
         let headers = response.headers_mut();
         headers.insert(

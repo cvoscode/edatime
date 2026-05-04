@@ -479,7 +479,7 @@ pub fn build_dataset_metadata_from_path_with_time_column(
 pub async fn get_metadata(
     State(state): State<AppState>,
 ) -> Result<Json<DatasetMetadata>, AppError> {
-    let df = state.dataset_snapshot().await;
+    let df = state.dataset_snapshot().await.read().await.clone();
     let revision = state.dataset_revision();
     let mut metadata = tokio::task::spawn_blocking(move || build_dataset_metadata(&df, true))
         .await
@@ -489,6 +489,7 @@ pub async fn get_metadata(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use polars::prelude::{NamedFrom, TimeUnit};

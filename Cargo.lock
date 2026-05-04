@@ -1215,6 +1215,7 @@ dependencies = [
  "arrow-ipc",
  "axum",
  "axum-test",
+ "bytes",
  "chrono",
  "criterion",
  "deadpool-postgres",

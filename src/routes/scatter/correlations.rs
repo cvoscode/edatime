@@ -56,7 +56,7 @@ pub async fn get_scatter_correlations(
         params.threshold
     );
 
-    let df = state.dataset_snapshot().await;
+    let df = state.dataset_snapshot().await.read().await.clone();
 
     let threshold = params.threshold.unwrap_or(0.7).clamp(0.0, 1.0);
     let requested_base = params.base.clone();
@@ -140,7 +140,7 @@ pub struct CorrelationMatrixResponse {
 pub async fn get_correlation_matrix(
     State(state): State<AppState>,
 ) -> Result<Json<CorrelationMatrixResponse>, AppError> {
-    let df = state.dataset_snapshot().await;
+    let df = state.dataset_snapshot().await.read().await.clone();
 
     tokio::task::spawn_blocking(move || {
         let mut numeric = numeric_columns(&df);

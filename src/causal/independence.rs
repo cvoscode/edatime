@@ -389,7 +389,13 @@ impl CondIndTest {
 /// inverse normal CDF (the "non-paranormal" or Gaussian copula transform).
 fn trafo2normal(array: &mut Array2<f64>) {
     use statrs::distribution::{ContinuousCDF, Normal};
-    let norm = Normal::new(0.0, 1.0).expect("Standard normal parameters (0,1) are always valid");
+    let norm = match Normal::new(0.0, 1.0) {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!("failed to create standard normal distribution: {}", e);
+            return;
+        }
+    };
     let (dim, n) = (array.nrows(), array.ncols());
     if n < 2 {
         return;
@@ -916,7 +922,7 @@ fn kth_neighbor_distance(
         return 0.0;
     }
     dists.select_nth_unstable_by(k - 1, |a, b| {
-        a.partial_cmp(b).expect("Numeric values are comparable")
+        a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Greater)
     });
     dists[k - 1] * (1.0 - 1e-10) // Slightly reduce to handle ties
 }

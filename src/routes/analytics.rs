@@ -8,7 +8,7 @@ use axum::{
     extract::{Query, State},
     response::IntoResponse,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, TimeZone};
 use serde::Deserialize;
 
 use crate::analytics;
@@ -30,7 +30,7 @@ async fn filter_preamble(
     columns: Option<&str>,
 ) -> Result<(Vec<String>, DataFrame), AppError> {
     validate_time_window(start, end)?;
-    let df = state.dataset_snapshot().await;
+    let df = state.dataset_snapshot().await.read().await.clone();
     let cols = query::parse_columns(columns);
     let limits = &state.config.validation;
     let value_cols = validate_numeric_columns(&df, &cols, limits)?;
@@ -229,7 +229,7 @@ pub async fn get_spectral_filter(
     let (start, end) = match (params.start, params.end) {
         (Some(s), Some(e)) => (s, e),
         (opt_s, opt_e) => {
-            let df_snap = state.dataset_snapshot().await;
+            let df_snap = state.dataset_snapshot().await.read().await.clone();
             let multiplier = crate::query::unit_multiplier_for_ts(&df_snap)?;
             let ts_col = df_snap
                 .column("ts")
@@ -245,7 +245,10 @@ pub async fn get_spectral_filter(
             let max_native = ca.into_iter().flatten().max().unwrap_or(0);
             let min_ms = min_native / multiplier;
             let max_ms = max_native / multiplier;
-            let epoch_zero = || DateTime::from_timestamp(0, 0).expect("Epoch zero is always valid");
+            let epoch_zero = || {
+                // Construct epoch zero deterministically without fallible helpers.
+                Utc.timestamp_millis(0)
+            };
             let dataset_start = DateTime::from_timestamp_millis(min_ms)
                 .unwrap_or_else(epoch_zero);
             let dataset_end = DateTime::from_timestamp_millis(max_ms)
@@ -320,7 +323,7 @@ pub async fn post_transform(
         return Err(AppError::bad_request("Expression too long (max 500 chars)"));
     }
 
-    let df = state.dataset_snapshot().await;
+    let df = state.dataset_snapshot().await.read().await.clone();
 
     let new_df = tokio::task::block_in_place(|| {
         analytics::apply_column_transform(&df, &expression, &output_name)
@@ -355,7 +358,7 @@ pub async fn post_remove_outliers(
     State(state): State<AppState>,
     Json(params): Json<OutlierRemovalRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let df = state.dataset_snapshot().await;
+    let df = state.dataset_snapshot().await.read().await.clone();
     let cols = query::parse_columns(params.columns.as_deref());
     let limits = &state.config.validation;
     let value_cols = validate_numeric_columns(&df, &cols, limits)?;
@@ -410,7 +413,7 @@ pub async fn post_causal_graph(
     State(state): State<AppState>,
     Json(params): Json<CausalGraphRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let df = state.dataset_snapshot().await;
+    let df = state.dataset_snapshot().await.read().await.clone();
     let cols = query::parse_columns(params.columns.as_deref());
     let limits = &state.config.validation;
     let value_cols = validate_numeric_columns(&df, &cols, limits)?;

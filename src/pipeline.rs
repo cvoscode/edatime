@@ -64,18 +64,23 @@ pub fn apply_reduction(
 ) -> Result<(DataFrame, bool), AppError> {
     match strategy {
         Reduction::None => {
-            let mut exprs = vec![col("ts")];
+            // For the no-reduction path we can select the requested columns
+            // directly from the in-memory `DataFrame` without cloning the
+            // entire frame into a lazy plan. This avoids an expensive
+            // `df.clone()` in hot paths.
+            let mut select_cols: Vec<&str> = vec!["ts"];
             for c in value_cols {
                 if c != "ts" {
-                    exprs.push(col(c.as_str()));
+                    select_cols.push(c.as_str());
                 }
             }
             for c in extra_cols {
                 if c != "ts" && !value_cols.contains(c) {
-                    exprs.push(col(c.as_str()));
+                    select_cols.push(c.as_str());
                 }
             }
-            let out = tokio::task::block_in_place(|| df.clone().lazy().select(exprs).collect())
+            let out = df
+                .select(select_cols)
                 .map_err(|e| AppError::io(format!("select error: {}", e)))?;
             Ok((out, false))
         }
@@ -243,31 +248,35 @@ fn bucket_aggregate(
         return Ok((DataFrame::default(), true));
     }
 
-    // Compute ts bounds with a single pass over the ts column only.
-    let bounds = tokio::task::block_in_place(|| {
-        df.clone()
-            .lazy()
-            .select([
-                col("ts").cast(DataType::Int64).min().alias("ts_min"),
-                col("ts").cast(DataType::Int64).max().alias("ts_max"),
-            ])
-            .collect()
-    })
-    .map_err(|e| AppError::io(format!("ts bounds: {}", e)))?;
-
-    let get_i64 = |col_name: &str| -> Option<i64> {
-        bounds
-            .column(col_name)
-            .ok()
-            .and_then(|s| s.get(0).ok())
-            .and_then(|v| match v {
-                AnyValue::Int64(n) => Some(n),
-                _ => None,
-            })
-    };
-    let (ts_min, ts_max) = match (get_i64("ts_min"), get_i64("ts_max")) {
-        (Some(lo), Some(hi)) if lo <= hi => (lo, hi),
-        _ => return Ok((DataFrame::default(), true)),
+    // Compute ts bounds by reading the `ts` series directly to avoid
+    // building a lazy plan. This avoids cloning the frame and a blocking
+    // lazy collect for a simple min/max query.
+    let ts_series = df
+        .column("ts")
+        .map(|c| c.as_materialized_series())
+        .map_err(|e| AppError::io(format!("Missing ts column: {}", e)))?
+        .cast(&DataType::Int64)
+        .map_err(|e| AppError::io(format!("ts cast failed: {}", e)))?;
+    let mut iter = ts_series
+        .i64()
+        .map_err(|e| AppError::io(format!("ts i64 failed: {}", e)))?
+        .into_iter()
+        .flatten();
+    let first = iter.next();
+    let (ts_min, ts_max) = if let Some(first_val) = first {
+        let mut min_v = first_val;
+        let mut max_v = first_val;
+        for v in iter {
+            if v < min_v {
+                min_v = v;
+            }
+            if v > max_v {
+                max_v = v;
+            }
+        }
+        (min_v, max_v)
+    } else {
+        return Ok((DataFrame::default(), true));
     };
 
     let span = (ts_max - ts_min).max(1) as f64;

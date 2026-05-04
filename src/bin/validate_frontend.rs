@@ -53,7 +53,10 @@ fn main() {
     }
 
     let mut files = Vec::new();
-    collect_js_files(&root, &mut files).expect("Failed to read frontend directory");
+    if let Err(e) = collect_js_files(&root, &mut files) {
+        eprintln!("Failed to read frontend directory: {}", e);
+        std::process::exit(1);
+    }
     files.sort();
 
     let total = files.len();

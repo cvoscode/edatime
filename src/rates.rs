@@ -32,7 +32,13 @@ impl RateLimiter {
 
     pub fn check(&self, client_ip: &str) -> RateLimitResult {
         let now = Instant::now();
-        let mut clients = self.clients.lock().expect("rate limiter mutex poisoned");
+        let mut clients = match self.clients.lock() {
+            Ok(g) => g,
+            Err(poisoned) => {
+                tracing::error!("rate limiter mutex poisoned, recovering");
+                poisoned.into_inner()
+            }
+        };
         clients.retain(|_, window| now.duration_since(window.started_at) < self.window);
 
         let entry = clients

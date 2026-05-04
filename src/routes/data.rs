@@ -24,7 +24,7 @@ pub async fn get_data(
     let limits = &state.config.validation;
     validate_width(params.width, limits)?;
 
-    let df = state.dataset_snapshot().await;
+    let df = state.dataset_snapshot().await.read().await.clone();
     let value_cols = validate_numeric_columns(&df, &query::parse_columns(params.columns.as_deref()), limits)?;
 
     let color_column = params

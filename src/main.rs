@@ -79,7 +79,7 @@ async fn main() {
         middleware::csp_header_value(&config.server.csp_extra_origins),
     );
 
-    let rate_limit_fn = middleware::rate_limit_middleware(rate_limiter, state.metrics.clone());
+    let rate_limit_fn = middleware::rate_limit_middleware(rate_limiter, std::sync::Arc::clone(&state.metrics));
 
     let frontend_dir = std::env::var("EDATIME_FRONTEND_DIR")
         .map(std::path::PathBuf::from)
@@ -127,17 +127,17 @@ async fn main() {
 
 async fn shutdown_signal() {
     let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
+        if let Err(e) = tokio::signal::ctrl_c().await {
+            tracing::error!("failed to install Ctrl+C handler: {}", e);
+        }
     };
 
     #[cfg(unix)]
     let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install SIGTERM handler")
-            .recv()
-            .await;
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut sig) => { sig.recv().await; }
+            Err(e) => tracing::error!("failed to install SIGTERM handler: {}", e),
+        }
     };
 
     #[cfg(not(unix))]

@@ -57,8 +57,11 @@ impl AppState {
         self.db_pool.read().await.is_some()
     }
 
-    pub async fn dataset_snapshot(&self) -> DataFrame {
-        self.repository.shared_frame().read().await.clone()
+    /// Return a shared handle to the in-memory frame. Callers can `read().await`
+    /// to obtain a snapshot or clone the `DataFrame` when they need an owned
+    /// copy for blocking work.
+    pub async fn dataset_snapshot(&self) -> Arc<RwLock<DataFrame>> {
+        self.repository.shared_frame()
     }
 
     /// Clone only the requested columns from the shared frame.

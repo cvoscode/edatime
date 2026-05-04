@@ -4,6 +4,8 @@
 //! using an in-memory fixture dataset. They validate the documented API
 //! contract: correct status codes, response shapes, and error handling.
 
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use axum::{
     Router,
     body::Body,

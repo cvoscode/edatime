@@ -1,6 +1,7 @@
 //! Unit tests for core backend modules: filters, temporal, pipeline, config, stats.
 //!
 //! These test internal logic without going through the HTTP layer.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use edatime::analytics;
 use edatime::cache::ResponseCache;

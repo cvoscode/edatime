@@ -27,7 +27,7 @@ pub async fn get_aggregate(
         validate_bucket_count(params.buckets, limits)?;
     }
 
-    let df = state.dataset_snapshot().await;
+    let df = state.dataset_snapshot().await.read().await.clone();
     let value_cols = validate_numeric_columns(&df, &query::parse_columns(params.columns.as_deref()), limits)?;
 
     let multiplier = query::unit_multiplier_for_ts(&df)?;
