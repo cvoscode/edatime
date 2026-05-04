@@ -33,7 +33,7 @@ impl LinkType {
     }
 
     /// Parse from tigramite string.
-    pub fn from_str(s: &str) -> Self {
+    pub fn from_symbol(s: &str) -> Self {
         match s.trim() {
             "-->" => LinkType::Directed,
             "<--" => LinkType::ReverseDirected,

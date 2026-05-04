@@ -233,7 +233,7 @@ impl CondIndTest {
     /// variables into `n_bins` equal-frequency bins.
     fn run_gsquared(&self, array: &Array2<f64>, xyz: &[XyzGroup], alpha: f64) -> TestResult {
         let n_samples = array.ncols();
-        let n_bins = (n_samples as f64).sqrt().ceil().max(2.0).min(10.0) as usize;
+        let n_bins = (n_samples as f64).sqrt().ceil().clamp(2.0, 10.0) as usize;
 
         // Discretize each row into bin indices
         let dim = array.nrows();
@@ -287,7 +287,7 @@ impl CondIndTest {
     /// Auto-bins continuous variables.
     fn run_cmi_symb(&self, array: &Array2<f64>, xyz: &[XyzGroup], alpha: f64) -> TestResult {
         let n_samples = array.ncols();
-        let n_bins = (n_samples as f64).sqrt().ceil().max(2.0).min(10.0) as usize;
+        let n_bins = (n_samples as f64).sqrt().ceil().clamp(2.0, 10.0) as usize;
 
         let dim = array.nrows();
         let mut binned = vec![vec![0usize; n_samples]; dim];
@@ -328,6 +328,7 @@ impl CondIndTest {
     }
 
     /// Local shuffle test for CMI-Symb: permute X within Z-strata.
+    #[allow(clippy::too_many_arguments, clippy::needless_range_loop)]
     fn cmi_symb_shuffle(
         &self,
         binned: &[Vec<usize>],
@@ -417,7 +418,7 @@ fn trafo2normal(array: &mut Array2<f64>) {
         // Transform: rank → uniform [0,1] → clamp → inverse normal CDF
         for s in 0..n {
             let u = (ranks[s] + 0.5) / n as f64; // continuity correction
-            let u_clamped = u.max(thres).min(1.0 - thres);
+            let u_clamped = u.clamp(thres, 1.0 - thres);
             array[[d, s]] = norm.inverse_cdf(u_clamped);
         }
     }
@@ -677,10 +678,7 @@ fn ols_residual(z: &Array2<f64>, y: &Array1<f64>) -> Array1<f64> {
     let mut zt_z = Array2::<f64>::zeros((p, p));
     for i in 0..p {
         for j in i..p {
-            let mut sum = 0.0;
-            for s in 0..n {
-                sum += z[[s, i]] * z[[s, j]];
-            }
+            let sum: f64 = (0..n).map(|s| z[[s, i]] * z[[s, j]]).sum();
             zt_z[[i, j]] = sum;
             zt_z[[j, i]] = sum;
         }
@@ -689,11 +687,7 @@ fn ols_residual(z: &Array2<f64>, y: &Array1<f64>) -> Array1<f64> {
     // Z^T y: (p,)
     let mut zt_y = Array1::<f64>::zeros(p);
     for i in 0..p {
-        let mut sum = 0.0;
-        for s in 0..n {
-            sum += z[[s, i]] * y[s];
-        }
-        zt_y[i] = sum;
+        zt_y[i] = (0..n).map(|s| z[[s, i]] * y[s]).sum();
     }
 
     // Solve (Z^T Z) β = Z^T y via Cholesky
@@ -726,10 +720,7 @@ fn cholesky_solve(a: &Array2<f64>, b: &Array1<f64>) -> Option<Array1<f64>> {
 
     for i in 0..n {
         for j in 0..=i {
-            let mut sum = 0.0;
-            for k in 0..j {
-                sum += l[[i, k]] * l[[j, k]];
-            }
+            let sum: f64 = (0..j).map(|k| l[[i, k]] * l[[j, k]]).sum();
             if i == j {
                 let diag = a[[i, i]] - sum;
                 if diag <= 1e-14 {
@@ -745,20 +736,14 @@ fn cholesky_solve(a: &Array2<f64>, b: &Array1<f64>) -> Option<Array1<f64>> {
     // Forward substitution: L y = b
     let mut y = Array1::<f64>::zeros(n);
     for i in 0..n {
-        let mut sum = 0.0;
-        for j in 0..i {
-            sum += l[[i, j]] * y[j];
-        }
+        let sum: f64 = (0..i).map(|j| l[[i, j]] * y[j]).sum();
         y[i] = (b[i] - sum) / l[[i, i]];
     }
 
     // Back substitution: L^T x = y
     let mut x = Array1::<f64>::zeros(n);
     for i in (0..n).rev() {
-        let mut sum = 0.0;
-        for j in (i + 1)..n {
-            sum += l[[j, i]] * x[j];
-        }
+        let sum: f64 = ((i + 1)..n).map(|j| l[[j, i]] * x[j]).sum();
         x[i] = (y[i] - sum) / l[[i, i]];
     }
 
@@ -773,16 +758,13 @@ fn pearson_1d(x: &Array1<f64>, y: &Array1<f64>) -> f64 {
     }
     let mx = x.sum() / n as f64;
     let my = y.sum() / n as f64;
-    let mut cov = 0.0;
-    let mut vx = 0.0;
-    let mut vy = 0.0;
-    for i in 0..n {
+    
+    let (cov, vx, vy) = (0..n).fold((0.0, 0.0, 0.0), |(c, x2, y2), i| {
         let dx = x[i] - mx;
         let dy = y[i] - my;
-        cov += dx * dy;
-        vx += dx * dx;
-        vy += dy * dy;
-    }
+        (c + dx * dy, x2 + dx * dx, y2 + dy * dy)
+    });
+    
     let denom = (vx * vy).sqrt();
     if denom < 1e-15 { 0.0 } else { cov / denom }
 }

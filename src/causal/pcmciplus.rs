@@ -167,7 +167,7 @@ impl<'a> PcmciPlus<'a> {
     /// - a-b and c-b are adjacent
     /// - a-c are NOT adjacent
     /// - The separating set for (a, c) does NOT contain b
-    /// Orient as a → b ← c.
+    /// - Orient as a → b ← c.
     fn orient_colliders(
         &self,
         graph: &mut CausalGraph,

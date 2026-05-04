@@ -191,12 +191,10 @@ pub fn compute_rolling_bands(
             let mut sum_sq = 0.0;
             let mut count = 0usize;
 
-            for j in start..end {
-                if let Some(v) = values[j] {
-                    sum += v;
-                    sum_sq += v * v;
-                    count += 1;
-                }
+            for v in values[start..end].iter().flatten() {
+                sum += v;
+                sum_sq += v * v;
+                count += 1;
             }
 
             if count >= 2 {
@@ -506,9 +504,9 @@ pub fn compute_fft(
         let mut magnitudes = Vec::with_capacity(half);
         let mut psd = Vec::with_capacity(half);
 
-        for i in 0..half {
+        for (i, val) in buffer.iter().enumerate().take(half) {
             frequencies.push(i as f64 * df_freq);
-            let mag = buffer[i].norm() / n as f64;
+            let mag = val.norm() / n as f64;
             let magnitude = if i == 0 || i == n / 2 { mag } else { 2.0 * mag };
             magnitudes.push(magnitude);
             psd.push(magnitude * magnitude);

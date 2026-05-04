@@ -13,6 +13,9 @@ use rayon::prelude::*;
 use super::data::{CausalDataFrame, VarLag};
 use super::independence::CondIndTest;
 
+type PcSingleResult = (usize, Vec<VarLag>, HashMap<VarLag, f64>, HashMap<VarLag, f64>);
+type PcSingleTargetResult = (Vec<VarLag>, HashMap<VarLag, f64>, HashMap<VarLag, f64>);
+
 /// Result of the PC-stable condition selection step for all variables.
 #[derive(Debug, Clone)]
 pub struct PcResult {
@@ -40,7 +43,7 @@ pub fn run_pc_stable(
     let n_vars = df.n_vars;
 
     // Run PC-stable for each variable in parallel
-    let results: Vec<(usize, Vec<VarLag>, HashMap<VarLag, f64>, HashMap<VarLag, f64>)> =
+    let results: Vec<PcSingleResult> =
         (0..n_vars).into_par_iter().map(|j| {
             let (parents, val_min, pval_max) = pc_stable_single(
                 df, test, j, tau_min, tau_max, pc_alpha,
@@ -76,6 +79,7 @@ pub fn run_pc_stable(
 /// Iteratively tests each candidate parent (i, -τ) against subsets of the
 /// other parents. If (i, -τ) is found independent of j conditioned on any
 /// subset, it is removed from the parent set.
+#[allow(clippy::too_many_arguments)]
 fn pc_stable_single(
     df: &CausalDataFrame,
     test: &CondIndTest,
@@ -85,7 +89,7 @@ fn pc_stable_single(
     pc_alpha: f64,
     max_conds_dim: Option<usize>,
     max_combinations: usize,
-) -> (Vec<VarLag>, HashMap<VarLag, f64>, HashMap<VarLag, f64>) {
+) -> PcSingleTargetResult {
     let n_vars = df.n_vars;
 
     // Initialize candidate parents: all (i, -τ) for valid ranges, excluding (j, 0)

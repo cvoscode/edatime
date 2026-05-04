@@ -146,38 +146,6 @@ fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option<f64
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::ValidationSettings;
-    use polars::prelude::{DataFrame, DataType, Series, TimeUnit};
-
-    #[test]
-    fn numeric_columns_excludes_temporal_columns() {
-        let ts = Series::new("ts".into(), [1_i64, 2])
-            .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
-            .expect("cast ts to datetime should succeed in test");
-        let value = Series::new("value".into(), [1.0_f64, 2.0]);
-        let other = Series::new("other".into(), [3.0_f64, 4.0]);
-        let df = DataFrame::new(2, vec![ts.into(), value.into(), other.into()])
-            .expect("test dataframe creation should succeed");
-
-        let cols = numeric_columns(&df);
-        assert_eq!(cols, vec!["value".to_string(), "other".to_string()]);
-    }
-
-    #[test]
-    fn clamp_limit_respects_runtime_validation_setting() {
-        let validation = ValidationSettings {
-            max_scatter_limit: 123,
-            ..ValidationSettings::default()
-        };
-
-        assert_eq!(clamp_limit(0, &validation), 1);
-        assert_eq!(clamp_limit(120, &validation), 120);
-        assert_eq!(clamp_limit(1000, &validation), 123);
-    }
-}
 
 fn series_to_label_values(df: &DataFrame, name: &str) -> Result<Vec<Option<String>>, AppError> {
     let series = df
@@ -220,6 +188,7 @@ fn collect_xy_pairs(df: &DataFrame, x: &str, y: &str) -> Result<Vec<[f64; 2]>, A
     Ok(out)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn collect_filtered_scatter_frame(
     df: &DataFrame,
     x: &str,
@@ -250,4 +219,37 @@ pub(crate) fn collect_filtered_scatter_frame(
     lf.select(select_exprs)
         .collect()
         .map_err(|e| AppError::io(e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ValidationSettings;
+    use polars::prelude::{DataFrame, DataType, Series, TimeUnit};
+
+    #[test]
+    fn numeric_columns_excludes_temporal_columns() {
+        let ts = Series::new("ts".into(), [1_i64, 2])
+            .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+            .expect("cast ts to datetime should succeed in test");
+        let value = Series::new("value".into(), [1.0_f64, 2.0]);
+        let other = Series::new("other".into(), [3.0_f64, 4.0]);
+        let df = DataFrame::new(2, vec![ts.into(), value.into(), other.into()])
+            .expect("test dataframe creation should succeed");
+
+        let cols = numeric_columns(&df);
+        assert_eq!(cols, vec!["value".to_string(), "other".to_string()]);
+    }
+
+    #[test]
+    fn clamp_limit_respects_runtime_validation_setting() {
+        let validation = ValidationSettings {
+            max_scatter_limit: 123,
+            ..ValidationSettings::default()
+        };
+
+        assert_eq!(clamp_limit(0, &validation), 1);
+        assert_eq!(clamp_limit(120, &validation), 120);
+        assert_eq!(clamp_limit(1000, &validation), 123);
+    }
 }

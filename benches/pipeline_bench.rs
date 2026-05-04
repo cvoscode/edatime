@@ -1,7 +1,7 @@
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use edatime::pipeline::{Reduction, apply_reduction, filter_time_range};
 use edatime::routes::metadata::build_dataset_metadata;
-use polars::prelude::{DataFrame, DataType, NamedFrom, Series, TimeUnit};
+use polars::prelude::{DataFrame, DataType, IntoLazy, NamedFrom, Series, TimeUnit};
 
 fn build_frame(rows: usize, series_count: usize) -> DataFrame {
     let timestamps: Vec<i64> = (0..rows)
@@ -45,7 +45,7 @@ fn bench_time_filter_and_downsample(c: &mut Criterion) {
     c.bench_function("time_filter_and_lttb_200k_3_series", |b| {
         b.iter(|| {
             let filtered = filter_time_range(
-                black_box(df.clone()),
+                black_box(df.clone().lazy()),
                 black_box(start),
                 black_box(end),
                 black_box(&columns),

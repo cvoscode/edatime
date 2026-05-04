@@ -482,7 +482,7 @@ async fn drift_stats_valid_request_returns_correct_shape() {
 
     assert_eq!(json["column"], "col_a");
     assert!(json["reference"]["count"].as_u64().unwrap_or(0) >= 5);
-    assert!(json["windows"].as_array().unwrap().len() >= 1);
+    assert!(!json["windows"].as_array().unwrap().is_empty());
     assert!(json["thresholds"]["ks_threshold"].is_number());
     assert!(json["metadata"]["computation_time_ms"].is_number());
     assert!(json["metadata"]["num_windows"].is_number());

@@ -20,7 +20,7 @@ fn collect_js_files(dir: &Path, files: &mut Vec<PathBuf>) -> std::io::Result<()>
 
         if path.is_dir() {
             collect_js_files(&path, files)?;
-        } else if path.extension().map_or(false, |ext| ext == "js") {
+        } else if path.extension().is_some_and(|ext| ext == "js") {
             files.push(path);
         }
     }

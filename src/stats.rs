@@ -363,13 +363,13 @@ mod tests {
         let a = vec![0.0, 0.1, 0.2, 0.3, 0.4];
         let b = a.clone();
         let (stat_same, p_same) = ks_test_2sample(&a, &b);
-        assert!(stat_same >= 0.0 && stat_same < 1.0);
-        assert!(p_same >= 0.0 && p_same <= 1.0);
+        assert!((0.0..1.0).contains(&stat_same));
+        assert!((0.0..=1.0).contains(&p_same));
 
         let c = vec![10.0, 10.1, 10.2, 10.3, 10.4];
         let (stat_diff, p_diff) = ks_test_2sample(&a, &c);
         assert!(stat_diff > 0.0);
-        assert!(p_diff >= 0.0 && p_diff <= 1.0);
+        assert!((0.0..=1.0).contains(&p_diff));
     }
 
     #[test]
@@ -378,12 +378,12 @@ mod tests {
         let b = vec![1.0f64; 8];
         let (stat, p) = epps_singleton_test(&a, &b);
         assert!(stat.is_finite());
-        assert!(p >= 0.0 && p <= 1.0);
+        assert!((0.0..=1.0).contains(&p));
 
         let x = vec![0.0f64, 0.1, 0.2, 0.3, 0.4, 0.5];
         let y = x.clone();
         let (stat_same, p_same) = epps_singleton_test(&x, &y);
         assert!(stat_same >= 0.0);
-        assert!(p_same >= 0.0 && p_same <= 1.0);
+        assert!((0.0..=1.0).contains(&p_same));
     }
 }

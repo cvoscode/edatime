@@ -407,7 +407,7 @@ use edatime::stats::{epps_singleton_test, ks_test_2sample};
 fn ks_test_identical_distributions() {
     let a = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
     let (stat, p) = ks_test_2sample(&a, &a);
-    assert!(stat >= 0.0 && stat <= 1.0);
+    assert!((0.0..=1.0).contains(&stat));
     // Identical distributions: p should be high
     assert!(p >= 0.5, "p={p} for identical distributions");
 }
@@ -443,7 +443,7 @@ fn epps_singleton_basic_properties() {
     let (stat_same, p_same) = epps_singleton_test(&a, &b);
     assert!(stat_same.is_finite(), "E-S stat should be finite");
     assert!(
-        p_same >= 0.0 && p_same <= 1.0,
+        (0.0..=1.0).contains(&p_same),
         "p_same={p_same} must be in [0,1]"
     );
 }
@@ -454,7 +454,7 @@ fn epps_singleton_different_distributions() {
     let b: Vec<f64> = vec![1000.0; 30];
     let (stat, p) = epps_singleton_test(&a, &b);
     assert!(stat.is_finite());
-    assert!(p >= 0.0 && p <= 1.0);
+    assert!((0.0..=1.0).contains(&p));
     // Wildly different distributions should yield a small p-value
     assert!(p < 0.1, "p={p} should indicate significant difference");
 }
@@ -502,12 +502,11 @@ fn temporal_drift_empty_monitoring_range_produces_zero_windows() {
         0.2,
     );
     // Empty monitoring range: either error or zero windows
-    match result {
-        Ok(r) => assert!(
+    if let Ok(r) = result {
+        assert!(
             r.windows.is_empty(),
             "Expected 0 windows for empty monitoring range"
-        ),
-        Err(_) => {} // also acceptable
+        );
     }
 }
 

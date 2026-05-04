@@ -237,7 +237,7 @@ fn bucket_aggregate(
     n_buckets: usize,
     agg_fn: AggFn,
 ) -> Result<(DataFrame, bool), AppError> {
-    let n_buckets = n_buckets.max(1).min(10_000);
+    let n_buckets = n_buckets.clamp(1, 10_000);
 
     if df.height() == 0 {
         return Ok((DataFrame::default(), true));
