@@ -11,7 +11,7 @@
 > (documentation, ownership, history, decisions). **Always verify against
 > actual source files before making changes** — the index may be stale.
 
-Last indexed: 2026-05-06 (commit 01dc616)
+Last indexed: 2026-05-06 (commit 3cd2877)
 ### Entry Points
 - `docs/developer/index.md`
 - `docs/index.md`
@@ -32,7 +32,7 @@ Last indexed: 2026-05-06 (commit 01dc616)
 | `frontend/src/app.ts` | 99.3th %ile | 14 | cvoscode |
 | `frontend/js/scatter/scatterPage.js` | 99.0th %ile | 14 | cvoscode |
 | `src/routes/metadata.rs` | 98.7th %ile | 11 | cvoscode |
-| `src/analytics.rs` | 98.4th %ile | 9 | cvoscode |
+| `src/analytics.rs` | 98.3th %ile | 9 | cvoscode |
 
 ### Repowise MCP Tools
 

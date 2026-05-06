@@ -3,7 +3,6 @@ pub mod analytics;
 pub mod config;
 pub mod data;
 pub mod database;
-pub mod drift;
 pub mod export;
 pub mod metadata;
 pub mod metrics;
@@ -59,8 +58,6 @@ pub fn api_router() -> Router<AppState> {
             "/config/database",
             get(config::get_database_config).post(config::post_database_config),
         )
-        // Drift / temporal distribution endpoints
-        .route("/drift/stats", post(drift::post_drift_stats))
         // Analytics endpoints
         .nest("/analytics", analytics_router())
         .route("/transform", post(analytics::post_transform))
