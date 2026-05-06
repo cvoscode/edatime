@@ -10,10 +10,7 @@ import {
   exportElementSVG,
   exportMatrixCSV,
   exportTraceCSV
-} from "./chunk-WJIQG5LM.js";
-import {
-  toast
-} from "./chunk-T63Y6LQO.js";
+} from "./chunk-DLUWT64L.js";
 import {
   FftChart
 } from "./chunk-U3STFUGM.js";
@@ -25,6 +22,7 @@ import {
 import {
   fetchCorrelationMatrix,
   fetchFft,
+  fetchMetadata,
   fetchSpectrogram
 } from "./chunk-ZQDEWDPA.js";
 import {
@@ -60,12 +58,15 @@ import {
   setMetaText,
   setSeriesColor,
   toFiniteNumberOrNull
-} from "./chunk-5AB5JUYP.js";
+} from "./chunk-2SRVSCO2.js";
 import {
   debounce,
   downloadBlob,
   escapeHtml
 } from "./chunk-W3LBOP5Z.js";
+import {
+  toast
+} from "./chunk-PHSGYAI7.js";
 import "./chunk-PZ5AY32C.js";
 
 // frontend/src/ui/columns.ts
@@ -899,8 +900,23 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
         setStatus("Error: " + message, "error");
       } else {
         const result = await res.json();
-        setStatus(`Loaded ${result.rows.toLocaleString()} rows. Refreshing\u2026`, "success");
-        setTimeout(() => window.location.reload(), 1200);
+        setStatus(`Loaded ${result.rows.toLocaleString()} rows. Refreshing stats\u2026`, "success");
+        try {
+          const freshMetadata = await fetchMetadata();
+          appState.metadata = freshMetadata;
+          const revision = freshMetadata?.revision;
+          appState.datasetRevision = typeof revision === "number" ? revision : 0;
+          selectedFile = null;
+          fileInput.value = "";
+          fileDisplay.textContent = "";
+          setUploadPreviewStatus("Upload complete. Select a file to preview.", "");
+          setProfileMode("dataset");
+          hydrateColumnProfiles2(freshMetadata);
+          applyPartialTimeRangeFromMetadata(freshMetadata, false);
+          renderColumnProfilesGrid2(true);
+        } catch {
+          setTimeout(() => window.location.reload(), 1200);
+        }
       }
     } catch (e) {
       setStatus("Error: " + e.message, "error");
@@ -934,21 +950,39 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
       }
     };
   }
-  const dbChk = document.getElementById("db-enabled");
-  const dbFlds = document.getElementById("db-fields");
+  const fileTabBtn = document.getElementById("upload-source-file-btn");
+  const dbTabBtn = document.getElementById("upload-source-database-btn");
+  const filePanel = document.querySelector('[data-upload-source-panel="file"]');
+  const dbPanel = document.querySelector('[data-upload-source-panel="database"]');
+  function switchUploadSource(source) {
+    if (source === "database") {
+      fileTabBtn?.setAttribute("aria-selected", "false");
+      dbTabBtn?.setAttribute("aria-selected", "true");
+      fileTabBtn?.classList.remove("btn-primary");
+      fileTabBtn?.classList.add("btn-ghost");
+      dbTabBtn?.classList.remove("btn-ghost");
+      dbTabBtn?.classList.add("btn-primary");
+      if (filePanel) filePanel.hidden = true;
+      if (dbPanel) dbPanel.hidden = false;
+      void syncDatabaseStatus();
+    } else {
+      dbTabBtn?.setAttribute("aria-selected", "false");
+      fileTabBtn?.setAttribute("aria-selected", "true");
+      dbTabBtn?.classList.remove("btn-primary");
+      dbTabBtn?.classList.add("btn-ghost");
+      fileTabBtn?.classList.remove("btn-ghost");
+      fileTabBtn?.classList.add("btn-primary");
+      if (dbPanel) dbPanel.hidden = true;
+      if (filePanel) filePanel.hidden = false;
+    }
+  }
+  fileTabBtn?.addEventListener("click", () => switchUploadSource("file"));
+  dbTabBtn?.addEventListener("click", () => switchUploadSource("database"));
   const dbConnectBtn = document.getElementById("db-connect-btn");
   const dbLoadBtn = document.getElementById("db-load-btn");
   const dbDisconnectBtn = document.getElementById("db-disconnect-btn");
   const dbStatus = document.getElementById("db-status");
   const dbTableSelect = document.getElementById("db-table-select");
-  if (dbChk && dbFlds) {
-    dbChk.addEventListener("change", () => {
-      dbFlds.classList.toggle("visible", dbChk.checked);
-      if (dbChk.checked) {
-        void syncDatabaseStatus();
-      }
-    });
-  }
   async function refreshDbTables() {
     if (!dbTableSelect) return;
     try {
@@ -1095,10 +1129,6 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
     try {
       const s = await fetch("/api/database/status").then((r) => r.json());
       if (s.connected) {
-        if (dbChk) {
-          dbChk.checked = true;
-          dbFlds?.classList.add("visible");
-        }
         if (dbLoadBtn) dbLoadBtn.disabled = false;
         if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
         if (dbStatus) {
@@ -1201,36 +1231,11 @@ function applyProfileGridColumnsTemplate() {
 function getSelectablePreviewColumns(profiles = appState.columnProfiles || []) {
   return profiles.map((profile) => profile.name).filter((name) => name && name !== appState.previewTimeColumn);
 }
-function formatUploadSelectionStatus(selectableCount, selectedCount, timeColumnName) {
-  const analysisCount = Math.max(0, Number(selectableCount) || 0);
-  const chosenCount = Math.max(0, Math.min(analysisCount, Number(selectedCount) || 0));
-  if (analysisCount === 0 && !timeColumnName) {
-    return "Preview columns will appear here after file analysis.";
-  }
-  if (analysisCount === 0) {
-    return `Time column detected: ${timeColumnName}. No additional analysis columns available.`;
-  }
-  if (timeColumnName && chosenCount === analysisCount) {
-    return `Time column ${timeColumnName} plus all ${analysisCount} analysis columns are selected.`;
-  }
-  if (timeColumnName) {
-    return `Time column ${timeColumnName} plus ${chosenCount} of ${analysisCount} analysis columns selected.`;
-  }
-  return `${chosenCount} of ${analysisCount} analysis columns selected.`;
-}
 function syncUploadSelectionUI(profiles = appState.columnProfiles || []) {
-  const statusEl = document.getElementById("profile-selection-status");
   const allCheckbox = document.getElementById("profile-select-all-checkbox");
   const selectable = getSelectablePreviewColumns(profiles);
   const selected = new Set(appState.previewSelectedColumns || []);
   const selectedCount = selectable.filter((name) => selected.has(name)).length;
-  if (statusEl) {
-    statusEl.textContent = formatUploadSelectionStatus(
-      selectable.length,
-      selectedCount,
-      appState.previewTimeColumn
-    );
-  }
   if (allCheckbox) {
     allCheckbox.checked = selectable.length > 0 && selectedCount === selectable.length;
     allCheckbox.indeterminate = selectedCount > 0 && selectedCount < selectable.length;
@@ -4135,6 +4140,7 @@ function renderCompactAssistant(panel, suggestion, progress) {
   panel.innerHTML = `
         <div class="workflow-panel--compact">
             <div class="workflow-panel__summary">
+                <div class="workflow-panel__eyebrow">Guided Workflow</div>
                 <span class="workflow-panel__hint-text">${completedCount > 0 ? `\u2713 ${completedCount} completed` : "Start"}</span>
                 ${activeStep ? `<span class="workflow-panel__current-step">\u2192 ${escapeHtml3(activeStep.label)}</span>` : ""}
             </div>
@@ -4593,12 +4599,38 @@ function initThemeToggle() {
   const iconDark = document.getElementById("theme-icon-dark");
   const iconLight = document.getElementById("theme-icon-light");
   if (!btn) return;
-  const saved = localStorage.getItem("edatime-theme");
-  if (saved === "light") {
-    document.documentElement.setAttribute("data-theme", "light");
-    if (iconDark) iconDark.hidden = true;
-    if (iconLight) iconLight.hidden = false;
+  const savedTheme = localStorage.getItem("edatime-theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  if (savedTheme) {
+    if (savedTheme === "light") {
+      document.documentElement.setAttribute("data-theme", "light");
+      if (iconDark) iconDark.hidden = true;
+      if (iconLight) iconLight.hidden = false;
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+      if (iconDark) iconDark.hidden = false;
+      if (iconLight) iconLight.hidden = true;
+    }
+  } else if (prefersDark) {
+    if (iconDark) iconDark.hidden = false;
+    if (iconLight) iconLight.hidden = true;
+  } else {
+    if (iconDark) iconDark.hidden = false;
+    if (iconLight) iconLight.hidden = true;
   }
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+    const manualPreference = localStorage.getItem("edatime-theme");
+    if (manualPreference) return;
+    if (e.matches) {
+      document.documentElement.removeAttribute("data-theme");
+      if (iconDark) iconDark.hidden = false;
+      if (iconLight) iconLight.hidden = true;
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+      if (iconDark) iconDark.hidden = true;
+      if (iconLight) iconLight.hidden = false;
+    }
+  });
   btn.addEventListener("click", () => {
     const isLight = document.documentElement.getAttribute("data-theme") === "light";
     if (isLight) {
@@ -4677,6 +4709,113 @@ function wireHomeNavigationCards(showPage2) {
     });
   });
 }
+function wireSampleDatasetCards(showPage2) {
+  document.querySelectorAll("[data-sample-dataset]").forEach((element) => {
+    element.addEventListener("click", () => {
+      const dataset = element.dataset.sampleDataset;
+      if (dataset) {
+        loadSampleDataset(dataset, showPage2);
+      }
+    });
+  });
+}
+function generateSinusoidalCsv() {
+  const rows = ["timestamp,temperature,humidity,pressure"];
+  const start = (/* @__PURE__ */ new Date("2024-01-01T00:00:00Z")).getTime();
+  const end = (/* @__PURE__ */ new Date("2024-01-08T00:00:00Z")).getTime();
+  const interval = 15 * 60 * 1e3;
+  for (let t = start; t < end; t += interval) {
+    const temp = 20 + 5 * Math.sin((t - start) / (3600 * 1e3)) + (Math.random() - 0.5) * 0.5;
+    const hum = 50 + 20 * Math.sin((t - start) / (7200 * 1e3)) + (Math.random() - 0.5) * 2;
+    const pres = 1013 + 5 * Math.sin((t - start) / (5400 * 1e3)) + (Math.random() - 0.5) * 0.3;
+    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)}`);
+  }
+  return rows.join("\n");
+}
+function generateWeatherCsv() {
+  const rows = ["timestamp,temperature,humidity,pressure,wind_speed"];
+  const start = (/* @__PURE__ */ new Date("2024-03-01T00:00:00Z")).getTime();
+  const end = (/* @__PURE__ */ new Date("2024-03-08T00:00:00Z")).getTime();
+  const interval = 10 * 60 * 1e3;
+  for (let t = start; t < end; t += interval) {
+    const hour = new Date(t).getUTCHours();
+    const dayFactor = Math.sin((t - start) / (86400 * 1e3));
+    const temp = 15 + 8 * dayFactor + 3 * Math.sin(hour * Math.PI / 12) + (Math.random() - 0.5) * 0.5;
+    const hum = 60 + 15 * Math.cos((t - start) / (43200 * 1e3)) + (Math.random() - 0.5) * 3;
+    const pres = 1010 + 8 * dayFactor + (Math.random() - 0.5) * 0.5;
+    const wind = 5 + 3 * Math.abs(Math.sin((t - start) / (21600 * 1e3))) + (Math.random() - 0.5) * 1;
+    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)},${wind.toFixed(3)}`);
+  }
+  return rows.join("\n");
+}
+async function loadSampleDataset(datasetId, showPage2) {
+  const { toast: toast2 } = await import("./toast-RXKXBHCT.js");
+  if (datasetId === "ettm2") {
+    const dismissLoading = toast2("Loading ETTm2 sample dataset\u2026", "info", 0);
+    let file;
+    try {
+      const res = await fetch(`/api/sample/ETTm2.csv`);
+      if (!res.ok) throw new Error(`Failed to fetch ETTm2.csv: ${res.status}`);
+      const blob = await res.blob();
+      file = new File([blob], "ETTm2.csv", { type: "text/csv" });
+    } catch (err) {
+      dismissLoading();
+      toast2(`Could not load ETTm2: ${err}`, "error");
+      return;
+    }
+    const homePage = document.getElementById("page-home");
+    if (homePage) homePage.hidden = true;
+    showPage2("upload");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const fileInput = document.getElementById("file-upload");
+    if (fileInput) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      dismissLoading();
+    } else {
+      dismissLoading();
+      toast2("Upload panel not ready. Please navigate to Upload and drop the file manually.", "error");
+    }
+  } else if (datasetId === "sinusoidal") {
+    const dismissLoading = toast2("Loading Sinusoidal Waves sample dataset\u2026", "info", 0);
+    const file = new File([generateSinusoidalCsv()], "sinusoidal.csv", { type: "text/csv" });
+    const homePage = document.getElementById("page-home");
+    if (homePage) homePage.hidden = true;
+    showPage2("upload");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const fileInput = document.getElementById("file-upload");
+    if (fileInput) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      dismissLoading();
+    } else {
+      dismissLoading();
+      toast2("Upload panel not ready.", "error");
+    }
+  } else if (datasetId === "weather") {
+    const dismissLoading = toast2("Loading Weather Patterns sample dataset\u2026", "info", 0);
+    const file = new File([generateWeatherCsv()], "weather.csv", { type: "text/csv" });
+    const homePage = document.getElementById("page-home");
+    if (homePage) homePage.hidden = true;
+    showPage2("upload");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const fileInput = document.getElementById("file-upload");
+    if (fileInput) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      dismissLoading();
+    } else {
+      dismissLoading();
+      toast2("Upload panel not ready.", "error");
+    }
+  }
+}
 function registerAppCommands(deps) {
   registerCommands(buildPaletteCommands(deps));
 }
@@ -4693,6 +4832,7 @@ function initAppShell(deps) {
   initThemeToggle();
   initSettingsPanel();
   wireHomeNavigationCards(deps.showPage);
+  wireSampleDatasetCards(deps.showPage);
   initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid);
   initColumnProfilesGrid();
   initAnalysisControls(deps.fetchAndRender);
@@ -4945,18 +5085,18 @@ function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
   }
   if (overlay) overlay.hidden = !loading;
 }
-var fetchMetadata = null;
+var fetchMetadata2 = null;
 var fetchData = null;
 var fetchAnomalies = null;
 var postTransform = null;
 var DataChartCtor = null;
 async function ensureChartModules() {
-  if (fetchMetadata && fetchData && DataChartCtor) return;
+  if (fetchMetadata2 && fetchData && DataChartCtor) return;
   const [dataClient, chartModule] = await Promise.all([
     import("./dataClient.js"),
     import("./chart/DataChart.js")
   ]);
-  fetchMetadata = dataClient.fetchMetadata;
+  fetchMetadata2 = dataClient.fetchMetadata;
   fetchData = dataClient.fetchData;
   fetchAnomalies = dataClient.fetchAnomalies;
   postTransform = dataClient.postTransform;
@@ -5432,7 +5572,7 @@ async function ensureDatasetReady(_pageName = "timeseries") {
   if (_datasetReadyPromise) return _datasetReadyPromise;
   _datasetReadyPromise = (async () => {
     await ensureChartModules();
-    const metadata = await fetchMetadata();
+    const metadata = await fetchMetadata2();
     storeFetchedMetadata(metadata);
     _metadataReady = true;
     window.dispatchEvent(new Event("edatime:metadata-ready"));
@@ -5461,12 +5601,12 @@ async function initSpectrogramPage2() {
   });
 }
 async function initDriftPage() {
-  const { initDriftPage: init2 } = await import("./driftPage-RA33JEMA.js");
+  const { initDriftPage: init2 } = await import("./driftPage-DVNQLBQ6.js");
   await init2(appState.metadata);
 }
 async function initCausalPage() {
-  const { initCausalPage: init2 } = await import("./causalPage-766IQWQ7.js");
-  const { initCausalComparison } = await import("./causalComparison-VQVLPMA7.js");
+  const { initCausalPage: init2 } = await import("./causalPage-WC5IUDQ6.js");
+  const { initCausalComparison } = await import("./causalComparison-RWRXQULB.js");
   init2({
     getMetadata: () => appState.metadata,
     chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
@@ -5476,8 +5616,8 @@ async function initCausalPage() {
   initCausalComparison();
 }
 async function refreshDatasetAfterMutation(options) {
-  if (!fetchMetadata) return;
-  storeFetchedMetadata(await fetchMetadata());
+  if (!fetchMetadata2) return;
+  storeFetchedMetadata(await fetchMetadata2());
   appState.numericCols = getNumericColumns(appState.metadata);
   const selectedColumn = options?.selectedColumn;
   if (selectedColumn && !appState.selectedCols.includes(selectedColumn)) {

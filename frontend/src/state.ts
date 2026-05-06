@@ -199,13 +199,12 @@ export function setMetaText(text: string): void {
 export function buildMetaBar(metadata: { total_rows?: number } | null): void {
     const rows = metadata?.total_rows?.toLocaleString() ?? '—';
     const cols = metadata ? String(appState.numericCols?.length ?? 0) : '—';
-    const series = escapeHtml(metadata ? (appState.selectedCols.join(', ') || 'none selected') : 'Choose a workflow');
+
     const el = document.getElementById('header-meta');
     if (el) {
         el.innerHTML = `
       <div class="meta-stat live"><strong>${rows}</strong> rows</div>
       <div class="meta-stat"><strong>${cols}</strong> numeric series</div>
-      <div class="meta-stat">Plotting <strong>${series}</strong></div>
     `;
     }
 }
@@ -218,12 +217,18 @@ export function sanitizeSelectedColumns(): void {
             .map((col) => String(col?.name || '').toLowerCase()),
     );
 
+    const validColNames = new Set(
+        (appState.metadata?.columns || []).map((c) => String(c?.name || '').trim()),
+    );
+
     appState.selectedCols = (appState.selectedCols || []).filter((col) => {
         const name = String(col || '').trim();
         if (!name) return false;
         const lower = name.toLowerCase();
         if (blockedNames.has(lower)) return false;
         if (datetimeCols.has(lower)) return false;
+        // Only keep columns that exist in the current dataset
+        if (!validColNames.has(name)) return false;
         return true;
     });
 }

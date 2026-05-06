@@ -6,6 +6,7 @@ import {
     appState, formatAnalysisTime, formatAnalysisNumber, formatCount,
     formatToDatetimeLocal, toFiniteNumberOrNull,
 } from '../state.js';
+import { fetchMetadata as dataClientFetchMetadata } from '../dataClient.js';
 import type { DatasetMetadata } from '../types.js';
 
 const UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
@@ -426,8 +427,27 @@ export function initUploadPanel(
                 setStatus('Error: ' + message, 'error');
             } else {
                 const result = await res.json();
-                setStatus(`Loaded ${result.rows.toLocaleString()} rows. Refreshing…`, 'success');
-                setTimeout(() => window.location.reload(), 1200);
+                setStatus(`Loaded ${result.rows.toLocaleString()} rows. Refreshing stats…`, 'success');
+                // Fetch fresh metadata and refresh the profile grid without page reload
+                try {
+                    const freshMetadata = await dataClientFetchMetadata();
+                    appState.metadata = freshMetadata;
+                    const revision = freshMetadata?.revision;
+                    appState.datasetRevision = typeof revision === 'number' ? revision : 0;
+                    // Reset upload state
+                    selectedFile = null;
+                    fileInput!.value = '';
+                    fileDisplay!.textContent = '';
+                    setUploadPreviewStatus('Upload complete. Select a file to preview.', '');
+                    setProfileMode('dataset');
+                    // Re-hydrate and render the profile grid with the new dataset metadata
+                    hydrateColumnProfiles(freshMetadata);
+                    applyPartialTimeRangeFromMetadata(freshMetadata, false);
+                    renderColumnProfilesGrid(true);
+                } catch {
+                    // Fall back to reload if metadata refresh fails
+                    setTimeout(() => window.location.reload(), 1200);
+                }
             }
         } catch (e: any) {
             setStatus('Error: ' + e.message, 'error');
@@ -461,23 +481,45 @@ export function initUploadPanel(
         };
     }
 
+    /* ── Upload source tabs (File | Database) ───────────── */
+    const fileTabBtn = document.getElementById('upload-source-file-btn');
+    const dbTabBtn = document.getElementById('upload-source-database-btn');
+    const filePanel = document.querySelector('[data-upload-source-panel="file"]');
+    const dbPanel = document.querySelector('[data-upload-source-panel="database"]');
+
+    function switchUploadSource(source: 'file' | 'database'): void {
+        if (source === 'database') {
+            fileTabBtn?.setAttribute('aria-selected', 'false');
+            dbTabBtn?.setAttribute('aria-selected', 'true');
+            fileTabBtn?.classList.remove('btn-primary');
+            fileTabBtn?.classList.add('btn-ghost');
+            dbTabBtn?.classList.remove('btn-ghost');
+            dbTabBtn?.classList.add('btn-primary');
+            if (filePanel) (filePanel as HTMLElement).hidden = true;
+            if (dbPanel) (dbPanel as HTMLElement).hidden = false;
+            // Sync database status when switching to db tab
+            void syncDatabaseStatus();
+        } else {
+            dbTabBtn?.setAttribute('aria-selected', 'false');
+            fileTabBtn?.setAttribute('aria-selected', 'true');
+            dbTabBtn?.classList.remove('btn-primary');
+            dbTabBtn?.classList.add('btn-ghost');
+            fileTabBtn?.classList.remove('btn-ghost');
+            fileTabBtn?.classList.add('btn-primary');
+            if (dbPanel) (dbPanel as HTMLElement).hidden = true;
+            if (filePanel) (filePanel as HTMLElement).hidden = false;
+        }
+    }
+
+    fileTabBtn?.addEventListener('click', () => switchUploadSource('file'));
+    dbTabBtn?.addEventListener('click', () => switchUploadSource('database'));
+
     /* ── Database connection ─────────────────────────────── */
-    const dbChk = document.getElementById('db-enabled') as HTMLInputElement | null;
-    const dbFlds = document.getElementById('db-fields');
     const dbConnectBtn = document.getElementById('db-connect-btn') as HTMLButtonElement | null;
     const dbLoadBtn = document.getElementById('db-load-btn') as HTMLButtonElement | null;
     const dbDisconnectBtn = document.getElementById('db-disconnect-btn') as HTMLButtonElement | null;
     const dbStatus = document.getElementById('db-status');
     const dbTableSelect = document.getElementById('db-table-select') as HTMLSelectElement | null;
-
-    if (dbChk && dbFlds) {
-        dbChk.addEventListener('change', () => {
-            dbFlds.classList.toggle('visible', dbChk.checked);
-            if (dbChk.checked) {
-                void syncDatabaseStatus();
-            }
-        });
-    }
 
     /** Populate the table <select> from the /api/database/tables endpoint. */
     async function refreshDbTables(): Promise<void> {
@@ -613,7 +655,6 @@ export function initUploadPanel(
         try {
             const s = await fetch('/api/database/status').then((r) => r.json());
             if (s.connected) {
-                if (dbChk) { dbChk.checked = true; dbFlds?.classList.add('visible'); }
                 if (dbLoadBtn) dbLoadBtn.disabled = false;
                 if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
                 if (dbStatus) { dbStatus.textContent = `Connected to ${s.table || '(no table loaded)'}`; dbStatus.className = 'upload-status success'; }

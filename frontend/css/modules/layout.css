@@ -20,3 +20,26 @@
   min-height: 0;
 }
 .page[hidden] { display: none !important; }
+
+/* ─── Main chart areas ─────────────────────────────────────────── */
+/* Standard chart container with position:relative for overlays */
+.main--chart {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Padded chart container for heatmap-style layouts */
+.main--padded {
+  overflow: auto;
+  padding: 12px;
+}
+
+/* Main with flex:1 but no min-height constraint (for flex children) */
+.main--flex {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}

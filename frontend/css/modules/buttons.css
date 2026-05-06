@@ -1,95 +1,186 @@
 /* ─── Buttons ─────────────────────────────────────────────────── */
 /*
-   .btn            base
-   .btn-primary    filled accent gradient
-   .btn-ghost      transparent + border
-   .btn-danger     red tinted
-   .btn-sm         compact size for toolbars (composes with any variant)
+   Clean, modern button system with pill-shaped style:
+   - Subtle shadows and color depth
+   - Ghost/outline buttons for secondary actions
+   - Pill-shaped tags for inline elements
+   - High contrast with vibrant accents
 */
 .btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
-  border-radius: var(--radius);
+  padding: 8px 16px;
+  border-radius: 6px;
   border: 1px solid transparent;
   cursor: pointer;
   font-family: inherit;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   white-space: nowrap;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.12);
   transition:
     background var(--transition),
     border-color var(--transition),
-    box-shadow var(--transition),
-    transform var(--transition);
+    transform 0.15s ease;
 }
 
 .btn svg {
   width: 14px;
   height: 14px;
+  opacity: 0.8;
 }
 
-.btn-primary {
-  background: linear-gradient(135deg,
-      var(--accent),
-      color-mix(in srgb, var(--accent) 68%, var(--cyan)));
-  color: #fff;
-}
-
-.btn-primary:hover {
-  box-shadow: 0 0 20px rgba(0, 168, 255, 0.40);
+.btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.20);
   transform: translateY(-1px);
 }
 
+.btn:active {
+  transform: translateY(0);
+}
+
+/* Primary button - vibrant accent */
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: color-mix(in srgb, var(--accent) 85%, white);
+  box-shadow: 0 4px 12px rgba(0, 168, 255, 0.30);
+}
+
+/* Ghost button - subtle outline */
 .btn-ghost {
   background: transparent;
   color: var(--text-dim);
-  border-color: var(--border);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: var(--border-hi);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.25);
   color: var(--text);
 }
 
-.btn-danger {
+/* Selection buttons — "All / None" — toolbar style, no accent background */
+.btn-select {
+  padding: 5px 12px;
+  border-radius: 5px;
+  font-size: 0.75rem;
+  font-weight: 500;
   background: transparent;
-  color: var(--red);
-  border-color: rgba(255, 107, 107, 0.28);
+  color: var(--text-dim);
+  border-color: var(--border-hi);
 }
 
-.btn-danger:hover {
-  background: rgba(255, 107, 107, 0.08);
+.btn-select:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: var(--text);
 }
 
-/* Compact size for all toolbar buttons */
-.btn-sm {
-  padding: 3px 9px;
-  font-size: 0.6875rem;
+.btn-select:active {
+  background: rgba(255, 255, 255, 0.10);
 }
 
-/* Accent — same as primary, alias used throughout causal/spectrogram pages */
-.btn-accent {
-  background: linear-gradient(135deg,
-      var(--accent),
-      color-mix(in srgb, var(--accent) 68%, #6c63ff));
+.btn-select.active {
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.30);
+}
+
+/* Pill-shaped tag - like "Inspecting X vs Y" */
+.btn-pill {
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: rgba(0, 168, 255, 0.15);
+  color: var(--accent);
+  border-color: rgba(0, 168, 255, 0.30);
+}
+
+.btn-pill:hover {
+  background: rgba(0, 168, 255, 0.25);
+  border-color: rgba(0, 168, 255, 0.50);
+}
+
+.btn-pill.active {
+  background: var(--accent);
   color: #fff;
   border-color: transparent;
 }
 
+/* Ghost pill variant */
+.btn-pill-ghost {
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: transparent;
+  color: var(--text-dim);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.btn-pill-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: var(--text);
+}
+
+/* Danger button */
+.btn-danger {
+  background: transparent;
+  color: var(--red);
+  border-color: rgba(255, 107, 107, 0.30);
+}
+
+.btn-danger:hover {
+  background: rgba(255, 107, 107, 0.12);
+  border-color: rgba(255, 107, 107, 0.50);
+}
+
+/* Compact size for toolbars */
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  border-radius: 5px;
+}
+
+/* Large buttons for hero sections */
+.btn-lg {
+  padding: 12px 24px;
+  font-size: 0.875rem;
+  border-radius: 8px;
+}
+
+/* Accent — electric blue variant */
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
+  font-weight: 600;
+}
+
 .btn-accent:hover {
-  box-shadow: 0 0 18px rgba(0, 168, 255, 0.38);
+  background: color-mix(in srgb, var(--accent) 85%, white);
+  box-shadow: 0 4px 12px rgba(0, 168, 255, 0.30);
   transform: translateY(-1px);
 }
 
 /* Segmented toggle group */
 .btn-toggle-group {
   display: inline-flex;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   overflow: hidden;
   gap: 0;
 }
@@ -97,11 +188,11 @@
 .btn-toggle-group .btn {
   border-radius: 0;
   border: none;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
   background: transparent;
   color: var(--text-dim);
-  padding: 3px 11px;
-  font-size: 0.6875rem;
+  padding: 6px 12px;
+  font-size: 0.75rem;
 }
 
 .btn-toggle-group .btn:last-child {
@@ -115,7 +206,7 @@
 
 .btn-toggle-group .btn.active,
 .btn-toggle-group .btn[aria-pressed="true"] {
-  background: var(--accent-dim);
+  background: rgba(0, 168, 255, 0.20);
   color: var(--accent);
-  font-weight: 700;
+  font-weight: 600;
 }

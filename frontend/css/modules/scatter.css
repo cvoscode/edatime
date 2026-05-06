@@ -158,8 +158,9 @@
   cursor: pointer;
 }
 
-.scatter-link-toggle input {
+.scatter-link-toggle input[type="checkbox"] {
   margin: 0;
+  flex-shrink: 0;
 }
 
 .scatter-export-group {

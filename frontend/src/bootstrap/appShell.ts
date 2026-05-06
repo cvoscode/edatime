@@ -148,12 +148,47 @@ function initThemeToggle(): void {
     const iconLight = document.getElementById('theme-icon-light');
     if (!btn) return;
 
-    const saved = localStorage.getItem('edatime-theme');
-    if (saved === 'light') {
-        document.documentElement.setAttribute('data-theme', 'light');
-        if (iconDark) iconDark.hidden = true;
-        if (iconLight) iconLight.hidden = false;
+    // Check for saved preference, fall back to system preference
+    const savedTheme = localStorage.getItem('edatime-theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    if (savedTheme) {
+        if (savedTheme === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light');
+            if (iconDark) iconDark.hidden = true;
+            if (iconLight) iconLight.hidden = false;
+        } else {
+            // saved as 'dark' or any other value
+            document.documentElement.removeAttribute('data-theme');
+            if (iconDark) iconDark.hidden = false;
+            if (iconLight) iconLight.hidden = true;
+        }
+    } else if (prefersDark) {
+        // No saved preference, use system preference (dark)
+        if (iconDark) iconDark.hidden = false;
+        if (iconLight) iconLight.hidden = true;
+    } else {
+        // System preference is light, keep default (dark theme)
+        if (iconDark) iconDark.hidden = false;
+        if (iconLight) iconLight.hidden = true;
     }
+
+    // Listen for system preference changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        // Only auto-switch if user hasn't set a manual preference
+        const manualPreference = localStorage.getItem('edatime-theme');
+        if (manualPreference) return;
+        
+        if (e.matches) {
+            document.documentElement.removeAttribute('data-theme');
+            if (iconDark) iconDark.hidden = false;
+            if (iconLight) iconLight.hidden = true;
+        } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+            if (iconDark) iconDark.hidden = true;
+            if (iconLight) iconLight.hidden = false;
+        }
+    });
 
     btn.addEventListener('click', () => {
         const isLight = document.documentElement.getAttribute('data-theme') === 'light';
@@ -253,6 +288,125 @@ function wireHomeNavigationCards(showPage: (pageName: string) => void): void {
     });
 }
 
+function wireSampleDatasetCards(showPage: (pageName: string) => void): void {
+    document.querySelectorAll<HTMLElement>('[data-sample-dataset]').forEach((element) => {
+        element.addEventListener('click', () => {
+            const dataset = element.dataset.sampleDataset;
+            if (dataset) {
+                loadSampleDataset(dataset, showPage);
+            }
+        });
+    });
+}
+
+function generateSinusoidalCsv(): string {
+    const rows = ['timestamp,temperature,humidity,pressure'];
+    const start = new Date('2024-01-01T00:00:00Z').getTime();
+    const end = new Date('2024-01-08T00:00:00Z').getTime();
+    const interval = 15 * 60 * 1000; // 15 min
+    for (let t = start; t < end; t += interval) {
+        const temp = 20 + 5 * Math.sin((t - start) / (3600 * 1000)) + (Math.random() - 0.5) * 0.5;
+        const hum = 50 + 20 * Math.sin((t - start) / (7200 * 1000)) + (Math.random() - 0.5) * 2;
+        const pres = 1013 + 5 * Math.sin((t - start) / (5400 * 1000)) + (Math.random() - 0.5) * 0.3;
+        rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)}`);
+    }
+    return rows.join('\n');
+}
+
+function generateWeatherCsv(): string {
+    const rows = ['timestamp,temperature,humidity,pressure,wind_speed'];
+    const start = new Date('2024-03-01T00:00:00Z').getTime();
+    const end = new Date('2024-03-08T00:00:00Z').getTime();
+    const interval = 10 * 60 * 1000; // 10 min
+    for (let t = start; t < end; t += interval) {
+        const hour = new Date(t).getUTCHours();
+        const dayFactor = Math.sin((t - start) / (86400 * 1000));
+        const temp = 15 + 8 * dayFactor + 3 * Math.sin(hour * Math.PI / 12) + (Math.random() - 0.5) * 0.5;
+        const hum = 60 + 15 * Math.cos((t - start) / (43200 * 1000)) + (Math.random() - 0.5) * 3;
+        const pres = 1010 + 8 * dayFactor + (Math.random() - 0.5) * 0.5;
+        const wind = 5 + 3 * Math.abs(Math.sin((t - start) / (21600 * 1000))) + (Math.random() - 0.5) * 1;
+        rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)},${wind.toFixed(3)}`);
+    }
+    return rows.join('\n');
+}
+
+async function loadSampleDataset(datasetId: string, showPage: (pageName: string) => void): Promise<void> {
+    const { toast } = await import('../utils/toast.js');
+
+    if (datasetId === 'ettm2') {
+        const dismissLoading = toast('Loading ETTm2 sample dataset\u2026', 'info', 0);
+
+        // Fetch the static sample file from the backend
+        let file: File;
+        try {
+            const res = await fetch(`/api/sample/ETTm2.csv`);
+            if (!res.ok) throw new Error(`Failed to fetch ETTm2.csv: ${res.status}`);
+            const blob = await res.blob();
+            file = new File([blob], 'ETTm2.csv', { type: 'text/csv' });
+        } catch (err) {
+            dismissLoading();
+            toast(`Could not load ETTm2: ${err}`, 'error');
+            return;
+        }
+
+        // Navigate to upload page (using showPage to properly update CSS display and hash routing)
+        const homePage = document.getElementById('page-home');
+        if (homePage) homePage.hidden = true;
+        // showPage('upload') will handle making the upload page visible
+        showPage('upload');
+
+        // Wait one tick for the upload panel to become visible, then wire the file in
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        const fileInput = document.getElementById('file-upload') as HTMLInputElement | null;
+        if (fileInput) {
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            fileInput.files = dataTransfer.files;
+            fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+            dismissLoading();
+        } else {
+            dismissLoading();
+            toast('Upload panel not ready. Please navigate to Upload and drop the file manually.', 'error');
+        }
+    } else if (datasetId === 'sinusoidal') {
+        const dismissLoading = toast('Loading Sinusoidal Waves sample dataset\u2026', 'info', 0);
+        const file = new File([generateSinusoidalCsv()], 'sinusoidal.csv', { type: 'text/csv' });
+        const homePage = document.getElementById('page-home');
+        if (homePage) homePage.hidden = true;
+        showPage('upload');
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        const fileInput = document.getElementById('file-upload') as HTMLInputElement | null;
+        if (fileInput) {
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            fileInput.files = dataTransfer.files;
+            fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+            dismissLoading();
+        } else {
+            dismissLoading();
+            toast('Upload panel not ready.', 'error');
+        }
+    } else if (datasetId === 'weather') {
+        const dismissLoading = toast('Loading Weather Patterns sample dataset\u2026', 'info', 0);
+        const file = new File([generateWeatherCsv()], 'weather.csv', { type: 'text/csv' });
+        const homePage = document.getElementById('page-home');
+        if (homePage) homePage.hidden = true;
+        showPage('upload');
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        const fileInput = document.getElementById('file-upload') as HTMLInputElement | null;
+        if (fileInput) {
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            fileInput.files = dataTransfer.files;
+            fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+            dismissLoading();
+        } else {
+            dismissLoading();
+            toast('Upload panel not ready.', 'error');
+        }
+    }
+}
+
 export function registerAppCommands(deps: Pick<AppShellDeps, 'showPage' | 'zoomOut' | 'resetZoom'>): void {
     registerCommands(buildPaletteCommands(deps));
 }
@@ -271,6 +425,7 @@ export function initAppShell(deps: AppShellDeps): void {
     initThemeToggle();
     initSettingsPanel();
     wireHomeNavigationCards(deps.showPage);
+    wireSampleDatasetCards(deps.showPage);
     initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid);
     initColumnProfilesGrid();
     initAnalysisControls(deps.fetchAndRender);

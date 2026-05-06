@@ -1,0 +1,65 @@
+/* ─── Global Loading Indicator ──────────────────────────── */
+
+/* Header loading state */
+.header-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: rgba(0, 168, 255, 0.1);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  color: var(--accent);
+  animation: loadingPulse 1.5s ease-in-out infinite;
+}
+
+.header-loading-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(0, 168, 255, 0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes loadingPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Data freshness indicator */
+.data-freshness {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+
+.data-freshness-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.data-freshness-dot.stale {
+  background: var(--yellow);
+}
+
+.data-freshness-dot.outdated {
+  background: var(--red);
+}
+
+.data-freshness-time {
+  font-variant-numeric: tabular-nums;
+}

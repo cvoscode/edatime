@@ -1,16 +1,23 @@
 /* ─── Header ──────────────────────────────────────────────────── */
+/*
+   Clean, modern header with:
+   - Subtle color depth (no heavy shadows)
+   - Clean pill-shaped status indicators
+   - Generous spacing
+   - High contrast brand gradient
+*/
 header {
   flex-shrink: 0;
-  background: rgba(11, 15, 24, 0.94);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--border);
-  padding: 0 20px;
-  height: 52px;
+  background: rgba(15, 20, 30, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0 24px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 20px;
   position: relative;
   z-index: 10;
 }
@@ -18,31 +25,31 @@ header {
 .header-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .brand-icon {
-  width: 30px;
-  height: 30px;
-  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--cyan) 100%);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 0 14px rgba(0, 168, 255, 0.30);
 }
 
 .brand-icon svg {
   width: 16px;
   height: 16px;
+  color: #fff;
 }
 
 .brand-name {
-  font-size: 0.9375rem;
-  font-weight: 800;
-  letter-spacing: -0.4px;
-  background: linear-gradient(90deg, #ffffff 20%, var(--cyan));
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  background: linear-gradient(90deg, #ffffff 30%, var(--cyan) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -53,42 +60,52 @@ header {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 8px;
 }
 
 .theme-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border-radius: var(--radius);
+  border-radius: 8px;
   cursor: pointer;
   flex-shrink: 0;
   color: var(--text-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
 }
 
 .theme-toggle:hover {
   color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.10);
 }
 
 .meta-stat {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border);
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   font-size: 0.75rem;
   color: var(--text-dim);
-  transition: border-color var(--transition);
+  transition: all 0.2s ease;
+}
+
+.meta-stat:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .meta-stat svg {
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
   flex-shrink: 0;
   color: var(--text-muted);
 }

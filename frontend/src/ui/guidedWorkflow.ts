@@ -479,6 +479,7 @@ function renderCompactAssistant(
     panel.innerHTML = `
         <div class="workflow-panel--compact">
             <div class="workflow-panel__summary">
+                <div class="workflow-panel__eyebrow">Guided Workflow</div>
                 <span class="workflow-panel__hint-text">${completedCount > 0 ? `✓ ${completedCount} completed` : 'Start'}</span>
                 ${activeStep ? `<span class="workflow-panel__current-step">→ ${escapeHtml(activeStep.label)}</span>` : ''}
             </div>

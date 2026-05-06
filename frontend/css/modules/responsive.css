@@ -23,6 +23,27 @@
   padding: 0;
 }
 
+.app-layout.sidebar-collapsed .sidebar-section-label {
+  display: none;
+}
+
+/* ─── Upload page specific responsive ───────────────────────── */
+@media (min-width: 1200px) {
+
+  .upload-inner,
+  .upload-source-panel--file {
+    grid-template-columns: 280px 280px 260px;
+  }
+}
+
+@media (min-width: 900px) and (max-width: 1199px) {
+
+  .upload-inner,
+  .upload-source-panel--file {
+    grid-template-columns: 260px 240px 240px;
+  }
+}
+
 @media (max-width: 1100px) {
   .scatter-overview {
     grid-template-columns: 1fr;
@@ -60,6 +81,17 @@
 @media (max-width: 900px) {
   .series-toggles {
     max-width: 62%;
+  }
+
+  .upload-inner,
+  .upload-source-panel--file {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .upload-actions {
+    grid-column: 1 / -1;
+    padding-top: 0;
   }
 }
 
@@ -117,10 +149,32 @@
   .upload-inner,
   .upload-source-panel--file {
     grid-template-columns: 1fr;
+    padding: 12px 16px 16px;
   }
 
   .upload-actions {
     padding-top: 0;
+  }
+
+  .drop-zone {
+    min-height: 120px;
+  }
+
+  .partial-section {
+    gap: 10px;
+  }
+
+  .db-section {
+    padding: 14px;
+  }
+
+  .db-fields {
+    gap: 10px;
+  }
+
+  .db-fields .field-group {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
 }
 
@@ -202,16 +256,23 @@
 
   .upload-preview-head {
     height: auto;
+    min-height: 42px;
     flex-wrap: wrap;
     align-items: flex-start;
     padding-top: 10px;
     padding-bottom: 10px;
+    gap: 8px;
   }
 
   .upload-preview-selection {
     flex: 1 1 100%;
     flex-wrap: wrap;
     min-width: 0;
+    margin-top: 4px;
+  }
+
+  .upload-preview-selection .btn {
+    padding: 6px 12px;
   }
 
   .column-filter-input {
@@ -223,6 +284,7 @@
     margin-left: 0;
     width: 100%;
     white-space: normal;
+    flex-basis: 100%;
   }
 
   .field-group .row,
@@ -230,10 +292,39 @@
   .db-fields {
     display: grid;
     grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .field-group .row>* {
+    width: 100%;
   }
 
   #db-connect-btn {
     justify-self: start;
+    width: 100%;
+  }
+
+  #db-load-btn,
+  #db-disconnect-btn {
+    flex: 1;
+  }
+
+  .upload-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .upload-preview {
+    margin: 0 12px 14px;
+  }
+
+  .drop-zone {
+    min-height: 100px;
+    padding: 16px 12px;
+  }
+
+  .drop-zone .dz-title {
+    font-size: 0.8125rem;
   }
 }
 
@@ -251,6 +342,16 @@
     max-width: 100%;
     order: 10;
   }
+
+  .upload-inner,
+  .upload-source-panel--file {
+    padding: 10px 12px 14px;
+    gap: 12px;
+  }
+
+  .profile-grid {
+    min-height: 200px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -261,5 +362,69 @@
 
   .scatter-stats-bar span {
     white-space: normal;
+  }
+
+  .upload-source-tabs {
+    width: 100%;
+  }
+
+  .upload-source-tabs .btn {
+    flex: 1;
+    text-align: center;
+  }
+
+  .toggle-row {
+    padding: 4px 0;
+  }
+
+  .switch {
+    width: 32px;
+    height: 18px;
+  }
+
+  .switch-slider::before {
+    width: 12px;
+    height: 12px;
+  }
+
+  .switch input:checked+.switch-slider::before {
+    transform: translateX(14px);
+  }
+
+  .profile-mode-badge {
+    font-size: 0.5625rem;
+    padding: 2px 6px;
+  }
+
+  .db-section {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .upload-actions {
+    gap: 8px;
+  }
+
+  .progress-bar-wrap {
+    height: 4px;
+  }
+}
+
+/* ─── Print styles ─────────────────────────────────────────────── */
+@media print {
+
+  .sidebar,
+  .header-meta,
+  .workflow-panel {
+    display: none !important;
+  }
+
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .page {
+    overflow: visible;
+    height: auto;
   }
 }

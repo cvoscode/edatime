@@ -42,7 +42,7 @@ export function toast(message: string, kind: ToastKind = 'info', durationOrOpts?
 
     const icon = document.createElement('span');
     icon.className = 'toast-icon';
-    icon.textContent = kind === 'success' ? '✓' : kind === 'error' ? '✕' : kind === 'warning' ? '⚠' : 'ℹ';
+    icon.textContent = kind === 'success' ? '✔' : kind === 'error' ? '✕' : kind === 'warning' ? '⚠' : 'ℹ';
     el.appendChild(icon);
 
     const text = document.createElement('span');

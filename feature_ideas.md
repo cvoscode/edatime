@@ -5,11 +5,10 @@ Audit basis: page-by-page walkthrough on 2026-04-30 against the local app at `ht
 ## Home
 
 - Add a `Recent datasets and sessions` strip so repeat users can reopen their last working context without stepping through the onboarding copy again.
-- Add first-party `Sample datasets` cards with one-click launch into `Upload`, `Timeseries`, or `Correlations` so new users can benchmark the workflow without preparing a file.
+
 
 ## Upload
 
-- Add background ingest jobs with progress, cancel, and `Open in ...` handoff actions so large imports no longer block the page.
 - Add reusable import presets for time-column choice, selected columns, partial time range, and parsing options so recurring datasets can be loaded consistently.
 - Add a preview diff mode that compares the candidate upload against the currently loaded dataset before the user replaces it.
 
@@ -55,3 +54,10 @@ Audit basis: page-by-page walkthrough on 2026-04-30 against the local app at `ht
 
 - Add a lightweight query inspector that shows the active dataset revision, filters, and recent API timings per page so power users can reason about cost while they work.
 - Add a background jobs panel shared by Upload, Spectrogram, Causal, and Drift so long-running work has one consistent lifecycle across the app.
+
+---
+
+
+
+
+

@@ -3,12 +3,37 @@
 .workflow-panel {
     flex-shrink: 0;
     display: grid;
-    gap: 8px;
-    padding: 10px 20px 12px;
+    gap: 10px;
+    padding: 12px 20px 14px;
     border-bottom: 1px solid var(--border);
     background:
-        linear-gradient(180deg, rgba(0, 168, 255, 0.12), rgba(0, 168, 255, 0.04)),
-        linear-gradient(90deg, rgba(108, 99, 255, 0.07), transparent 40%);
+        linear-gradient(180deg, rgba(0, 168, 255, 0.15) 0%, rgba(0, 168, 255, 0.05) 100%),
+        linear-gradient(135deg, rgba(108, 99, 255, 0.10) 0%, transparent 50%);
+    position: relative;
+    overflow: hidden;
+}
+
+.workflow-panel::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(0, 168, 255, 0.5) 20%,
+        rgba(32, 226, 215, 0.4) 50%,
+        rgba(108, 99, 255, 0.3) 80%,
+        transparent 100%);
+}
+
+.workflow-panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 30% 0%, rgba(0, 168, 255, 0.08) 0%, transparent 60%);
+    pointer-events: none;
 }
 
 .workflow-panel[hidden] {
@@ -19,34 +44,53 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 16px;
+    position: relative;
+    z-index: 1;
 }
 
 .workflow-panel__summary {
     min-width: 0;
     display: grid;
-    gap: 4px;
+    gap: 6px;
 }
 
 .workflow-panel__headline {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     flex-wrap: wrap;
 }
 
 .workflow-panel__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 0.6875rem;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.10em;
     text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 2px;
+    color: var(--accent);
+    font-weight: 700;
+    padding: 3px 8px;
+    background: rgba(0, 168, 255, 0.12);
+    border: 1px solid rgba(0, 168, 255, 0.25);
+    border-radius: 4px;
+}
+
+.workflow-panel__eyebrow::before {
+    content: "";
+    width: 4px;
+    height: 4px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--accent);
 }
 
 .workflow-panel__title {
-    font-size: 0.9375rem;
+    font-size: 1rem;
     font-weight: 700;
     color: var(--text);
+    letter-spacing: -0.01em;
 }
 
 .workflow-panel__status {
@@ -84,50 +128,185 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    min-height: 28px;
-    padding: 0 9px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
+    min-height: 32px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(8px);
     color: var(--text-dim);
     cursor: pointer;
-    transition: border-color var(--transition), color var(--transition), background var(--transition);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.workflow-step::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0, 168, 255, 0.20) 0%, rgba(32, 226, 215, 0.12) 100%);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.workflow-step::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+    transition: left 0.5s ease;
 }
 
 .workflow-step:hover {
-    border-color: var(--accent);
+    border-color: rgba(0, 168, 255, 0.5);
     color: var(--text);
+    transform: translateY(-2px);
+    box-shadow:
+        0 8px 20px rgba(0, 168, 255, 0.20),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.workflow-step:hover::before {
+    opacity: 1;
+}
+
+.workflow-step:hover::after {
+    left: 100%;
+}
+
+.workflow-step:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(0, 168, 255, 0.15);
+}
+
+.workflow-step:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 .workflow-step__dot {
-    width: 7px;
-    height: 7px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: currentColor;
-    opacity: 0.7;
+    opacity: 0.9;
+    flex-shrink: 0;
+    transition: all 0.25s ease;
+    position: relative;
+    z-index: 1;
+}
+
+.workflow-step:hover .workflow-step__dot {
+    transform: scale(1.3);
+    box-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
 }
 
 .workflow-step__label {
     font-size: 0.75rem;
     font-weight: 600;
+    position: relative;
+    z-index: 1;
 }
 
+/* Completed state - green glow */
 .workflow-step--done {
     color: #86efac;
-    border-color: rgba(134, 239, 172, 0.35);
-    background: rgba(34, 197, 94, 0.1);
+    border-color: rgba(134, 239, 172, 0.40);
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.18) 0%, rgba(134, 239, 172, 0.08) 100%);
 }
 
+.workflow-step--done:hover {
+    border-color: rgba(134, 239, 172, 0.70);
+    box-shadow:
+        0 8px 24px rgba(34, 197, 94, 0.30),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.workflow-step--done .workflow-step__dot {
+    box-shadow: 0 0 12px #22c55e, 0 0 20px rgba(34, 197, 94, 0.5);
+}
+
+/* Current/Active state - cyan glow */
 .workflow-step--current {
     color: var(--text);
-    border-color: rgba(0, 168, 255, 0.5);
-    background: rgba(0, 168, 255, 0.14);
+    border-color: rgba(32, 226, 215, 0.60);
+    background: linear-gradient(135deg, rgba(32, 226, 215, 0.22) 0%, rgba(0, 168, 255, 0.15) 100%);
+    box-shadow:
+        0 0 20px rgba(32, 226, 215, 0.20),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
+.workflow-step--current:hover {
+    border-color: rgba(32, 226, 215, 0.85);
+    box-shadow:
+        0 8px 30px rgba(32, 226, 215, 0.35),
+        0 4px 12px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.workflow-step--current .workflow-step__dot {
+    background: var(--cyan, #20E2D7);
+    box-shadow: 0 0 12px var(--cyan, #20E2D7), 0 0 24px rgba(32, 226, 215, 0.4);
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% {
+        box-shadow: 0 0 8px var(--cyan, #20E2D7);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 16px var(--cyan, #20E2D7), 0 0 28px rgba(32, 226, 215, 0.5);
+        transform: scale(1.15);
+    }
+}
+
+/* Next/Pending state - amber glow */
 .workflow-step--next {
     color: #ffd27d;
-    border-color: rgba(255, 192, 65, 0.38);
-    background: rgba(255, 192, 65, 0.12);
+    border-color: rgba(255, 192, 65, 0.45);
+    background: linear-gradient(135deg, rgba(255, 192, 65, 0.18) 0%, rgba(251, 146, 60, 0.10) 100%);
+}
+
+.workflow-step--next:hover {
+    border-color: rgba(255, 192, 65, 0.75);
+    box-shadow:
+        0 8px 24px rgba(255, 192, 65, 0.25),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.workflow-step--next .workflow-step__dot {
+    animation: pulse-amber 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse-amber {
+    0%, 100% {
+        box-shadow: 0 0 8px #fbbf24;
+        opacity: 0.9;
+    }
+    50% {
+        box-shadow: 0 0 16px #fbbf24, 0 0 24px rgba(255, 192, 65, 0.4);
+        opacity: 1;
+    }
+}
+
+/* Pending state */
+.workflow-step--pending {
+    opacity: 0.6;
+}
+
+.workflow-step--pending .workflow-step__dot {
+    opacity: 0.5;
 }
 
 .workflow-panel__copy,

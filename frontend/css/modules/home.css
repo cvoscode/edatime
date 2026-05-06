@@ -83,7 +83,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 16px 18px;
+    padding: 20px 20px 18px;
     cursor: pointer;
     transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
 }
@@ -119,17 +119,20 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    flex-wrap: wrap;
 }
 
 .home-card-title kbd {
-    font-size: 0.625rem;
-    font-family: monospace;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    padding: 1px 4px;
-    color: var(--text-muted);
-    font-weight: 400;
+    font-size: 0.5625rem;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 2px 5px;
+    color: var(--text-dim);
+    font-weight: 600;
+    letter-spacing: 0.02em;
 }
 
 .home-card-desc {
@@ -182,12 +185,139 @@
 }
 
 .home-shortcut-row kbd {
-    font-family: monospace;
-    font-size: 0.6875rem;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--border);
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.625rem;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom-width: 2px;
     border-radius: 4px;
     padding: 2px 6px;
     white-space: nowrap;
+    color: var(--text-dim);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+/* Sample datasets section */
+.home-datasets {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 24px 24px;
+}
+
+.home-datasets .home-section-title {
+    border-top: none;
+    padding-top: 0;
+    margin-bottom: 16px;
+}
+
+.home-datasets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.home-dataset-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.home-dataset-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 16px rgba(0, 168, 255, 0.12);
+    transform: translateY(-1px);
+}
+
+.home-dataset-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.home-dataset-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.home-dataset-icon {
+    width: 28px;
+    height: 28px;
+    background: var(--accent-dim);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.home-dataset-icon svg {
+    width: 14px;
+    height: 14px;
+    stroke: var(--accent);
+}
+
+.home-dataset-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.home-dataset-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
     color: var(--text);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.home-dataset-meta {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    margin: 2px 0 0;
+}
+
+.home-dataset-desc {
+    font-size: 0.6875rem;
+    color: var(--text-dim);
+    line-height: 1.4;
+    margin: 0;
+}
+
+.home-dataset-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.home-dataset-tag {
+    font-size: 0.5625rem;
+    padding: 2px 6px;
+    background: rgba(0, 168, 255, 0.1);
+    border: 1px solid rgba(0, 168, 255, 0.2);
+    border-radius: 4px;
+    color: var(--accent);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.home-dataset-tag--size {
+    background: rgba(100, 255, 150, 0.1);
+    border-color: rgba(100, 255, 150, 0.2);
+    color: var(--green);
+}
+
+.home-dataset-tag--rows {
+    background: rgba(255, 180, 100, 0.1);
+    border-color: rgba(255, 180, 100, 0.2);
+    color: #ffb464;
 }

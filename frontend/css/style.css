@@ -68,6 +68,18 @@
 /* 22. Settings panel */
 @import "modules/settings.css";
 
+/* 23. Accessibility - skip links, focus indicators */
+@import "modules/a11y.css";
+
+/* 24. Loading indicator */
+@import "modules/loading-indicator.css";
+
+/* 25. Keyboard shortcuts help modal */
+@import "modules/keyboard-help.css";
+
+/* 26. What's new modal */
+@import "modules/whats-new.css";
+
 /* Causal run comparison diff table */
 .diff-added td {
   color: #4c4;

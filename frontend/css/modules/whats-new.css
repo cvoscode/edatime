@@ -1,0 +1,149 @@
+/* ─── What's New Modal ──────────────────────────────────── */
+
+.whats-new-modal .modal {
+  max-width: 500px;
+  width: 90vw;
+}
+
+.whats-new-header {
+  text-align: center;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.whats-new-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border-radius: 999px;
+  margin-bottom: 12px;
+}
+
+.whats-new-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.whats-new-version {
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+}
+
+.whats-new-content {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.whats-new-section {
+  margin-bottom: 24px;
+}
+
+.whats-new-section-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.whats-new-section-title svg {
+  width: 16px;
+  height: 16px;
+  stroke: var(--accent);
+}
+
+.whats-new-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.whats-new-item:last-child {
+  border-bottom: none;
+}
+
+.whats-new-item-icon {
+  width: 20px;
+  height: 20px;
+  background: var(--accent-dim);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.whats-new-item-icon svg {
+  width: 10px;
+  height: 10px;
+  stroke: var(--accent);
+}
+
+.whats-new-item-text {
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.whats-new-footer {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: center;
+}
+
+.whats-new-dismiss {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.whats-new-dismiss label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.whats-new-dismiss input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+/* Changelog list styling */
+.whats-new-changelog {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.whats-new-changelog-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.whats-new-date {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.whats-new-desc {
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+}

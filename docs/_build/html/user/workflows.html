@@ -11,7 +11,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=8dab3a3b" />
-    <link rel="stylesheet" type="text/css" href="../_static/edatime-docs.css?v=89d3db48" />
+    <link rel="stylesheet" type="text/css" href="../_static/edatime-docs.css?v=ad7e40d0" />
     
     
 
@@ -312,6 +312,22 @@
         <article role="main" id="furo-main-content">
           <section id="common-workflows">
 <h1>Common Workflows<a class="headerlink" href="#common-workflows" title="Link to this heading">¶</a></h1>
+<section id="use-guided-workflow-mode">
+<h2>Use Guided Workflow Mode<a class="headerlink" href="#use-guided-workflow-mode" title="Link to this heading">¶</a></h2>
+<p>Use the <code class="docutils literal notranslate"><span class="pre">Guide</span></code> button in the header when you want the app to walk you through the recommended analysis order.</p>
+<ol class="arabic simple">
+<li><p>Start on Upload.</p></li>
+<li><p>Move to Timeseries with only a few important series selected.</p></li>
+<li><p>Screen candidates in Heatmap or Scatter Matrix.</p></li>
+<li><p>Use Scatter for the detailed pair analysis.</p></li>
+<li><p>Use Causal after narrowing the variable list.</p></li>
+</ol>
+<p>Notes:</p>
+<ol class="arabic simple">
+<li><p>The guide is optional and can be hidden at any time.</p></li>
+<li><p>Clicking a Scatter Matrix cell already opens the detailed scatter view for that pair.</p></li>
+</ol>
+</section>
 <section id="validate-a-fresh-dataset">
 <h2>Validate A Fresh Dataset<a class="headerlink" href="#validate-a-fresh-dataset" title="Link to this heading">¶</a></h2>
 <p>Use this when you want to sanity-check a new CSV, Parquet file, or database pull before deep analysis.</p>
@@ -422,6 +438,7 @@
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Common Workflows</a><ul>
+<li><a class="reference internal" href="#use-guided-workflow-mode">Use Guided Workflow Mode</a></li>
 <li><a class="reference internal" href="#validate-a-fresh-dataset">Validate A Fresh Dataset</a></li>
 <li><a class="reference internal" href="#investigate-a-relationship-between-two-variables">Investigate A Relationship Between Two Variables</a></li>
 <li><a class="reference internal" href="#screen-a-wide-schema-quickly">Screen A Wide Schema Quickly</a></li>

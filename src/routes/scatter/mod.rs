@@ -75,6 +75,8 @@ fn numeric_columns(df: &DataFrame) -> Vec<String> {
             let name_str = name.as_str();
             match df.column(name_str) {
                 Ok(col) if col.dtype().is_numeric() => Some(name_str.to_string()),
+                // Include timestamp as numeric for correlation purposes
+                Ok(col) if name_str == "ts" && matches!(col.dtype(), DataType::Datetime(_, _) | DataType::Date) => Some(name_str.to_string()),
                 _ => None,
             }
         })
@@ -229,7 +231,7 @@ mod tests {
     use polars::prelude::{DataFrame, DataType, Series, TimeUnit};
 
     #[test]
-    fn numeric_columns_excludes_temporal_columns() {
+    fn numeric_columns_includes_ts_for_correlations() {
         let ts = Series::new("ts".into(), [1_i64, 2])
             .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
             .expect("cast ts to datetime should succeed in test");
@@ -239,7 +241,9 @@ mod tests {
             .expect("test dataframe creation should succeed");
 
         let cols = numeric_columns(&df);
-        assert_eq!(cols, vec!["value".to_string(), "other".to_string()]);
+        // ts is included for correlation purposes (as timestamp), non-timestamp temporal cols are not
+        // Order follows DataFrame column order (ts, value, other)
+        assert_eq!(cols, vec!["ts".to_string(), "value".to_string(), "other".to_string()]);
     }
 
     #[test]

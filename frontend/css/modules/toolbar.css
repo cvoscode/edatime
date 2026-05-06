@@ -1,43 +1,43 @@
 /* ─── Toolbars ────────────────────────────────────────────────── */
 /*
-   .toolbar-group          — flex row of related controls
-   .toolbar-group--sep     — adds a left border separator
-   .toolbar-group--push    — pushes content to the right
-   .toolbar-label          — uppercase micro label inside a toolbar
+   Clean, modern toolbar with:
+   - Generous spacing
+   - Subtle separators
+   - Clean pill-shaped elements
 */
 .toolbar {
   flex-shrink: 0;
-  background: rgba(11, 15, 24, 0.90);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border);
-  padding: 0 20px;
-  height: 44px;
+  background: rgba(15, 20, 30, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0 24px;
+  height: 48px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   overflow-x: auto;
   overflow-y: visible;
 }
 
 .range-toolbar {
   flex-shrink: 0;
-  background: rgba(11, 15, 24, 0.88);
-  border-bottom: 1px solid var(--border);
-  padding: 6px 20px;
+  background: rgba(15, 20, 30, 0.90);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 8px 24px;
   display: flex;
-  gap: 10px;
+  gap: 12px;
   overflow-x: auto;
 }
 
 .analysis-toolbar {
   flex-shrink: 0;
-  background: rgba(11, 15, 24, 0.88);
-  border-bottom: 1px solid var(--border);
-  padding: 6px 20px;
+  background: rgba(15, 20, 30, 0.90);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 8px 24px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
 .analysis-controls {
@@ -47,19 +47,20 @@
 }
 
 .analysis-controls .btn {
-  padding: 4px 10px;
+  padding: 5px 12px;
+  font-size: 0.75rem;
 }
 
 .analysis-stats {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   min-width: 0;
   overflow-x: auto;
 }
 
 .analysis-stats span {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--text-dim);
   white-space: nowrap;
 }
@@ -67,7 +68,7 @@
 .toolbar-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-shrink: 0;
 }
 

@@ -1,17 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EdaTime</title>
-  <link rel="icon"
-    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f1720'/%3E%3Cpath d='M7 21l5-6 4 4 9-11' fill='none' stroke='%2300d4ff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="css/style.css?v=58">
-</head>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EdaTime</title>
+    <link rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f1720'/%3E%3Cpath d='M7 21l5-6 4 4 9-11' fill='none' stroke='%2300d4ff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Preload critical CSS for faster rendering (loaded via main stylesheet) -->
+    <link rel="preload" href="css/style.css" as="style">
+    <link rel="stylesheet" href="css/style.css?v=60">
+    <script>
+      // Register service worker for caching
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').then(function(registration) {
+            console.log('ServiceWorker registration successful');
+          }, function(err) {
+            console.log('ServiceWorker registration failed: ', err);
+          });
+        });
+      }
+    </script>
+  </head>
 
 <body>
+
+  <!-- Skip to main content link for keyboard navigation -->
+  <a href="#main" class="skip-to-content">Skip to main content</a>
+
+  <!-- ARIA live region for dynamic content updates -->
+  <div id="aria-live-region" aria-live="polite" aria-atomic="true" class="sr-only"></div>
 
   <div class="app-layout">
 
@@ -163,6 +184,22 @@
         </div>
 
         <div class="header-meta" id="header-meta">
+          <!-- Data freshness indicator -->
+          <div id="data-freshness-indicator" class="data-freshness" hidden aria-label="Data freshness">
+            <span class="data-freshness-dot" aria-hidden="true"></span>
+            <span class="data-freshness-time">—</span>
+          </div>
+
+          <button class="btn btn-ghost btn-sm" id="keyboard-help-btn" type="button" title="Keyboard shortcuts (?)"
+            aria-label="Show keyboard shortcuts">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="5" width="12" height="8" rx="1"/>
+              <line x1="5" y1="7" x2="5" y2="8"/>
+              <line x1="8" y1="7" x2="8" y2="8"/>
+              <line x1="11" y1="7" x2="11" y2="8"/>
+            </svg>
+          </button>
           <button class="btn btn-ghost btn-sm" id="settings-btn" type="button" title="Settings (Ctrl+,)"
             aria-label="Open settings">
             <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"
@@ -345,7 +382,7 @@
           </div>
         </div>
 
-        <main class="main">
+        <main class="main" id="main">
           <div id="main-chart"></div>
           <div id="timeseries-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong id="timeseries-empty-title">Select one or more series</strong>
@@ -560,7 +597,7 @@
       </section>
 
       <section class="page" id="page-fft" data-page-name="fft" hidden>
-        <div class="toolbar drift-toolbar">
+        <div class="toolbar">
           <div class="toolbar-group">
             <span class="toolbar-label">FFT / Power Spectral Density</span>
             <label class="scatter-inline-label" for="fft-mode-select">Mode</label>
@@ -662,7 +699,7 @@
             <span class="toolbar-label" id="heatmap-status">Loading…</span>
           </div>
         </div>
-        <main class="main" style="overflow:auto;padding:12px;">
+        <main class="main main--padded">
           <div id="heatmap-container" class="heatmap-container"></div>
           <div id="heatmap-empty-state" class="plot-empty-state" data-empty-reason="no-data" hidden>
             Correlation heatmap will appear here once the dataset is available.
@@ -714,7 +751,7 @@
           <span class="page-guidance__item"><strong>Cost</strong> Heavier than FFT because each compute rebuilds a
             time-frequency grid. Start with a narrower range before scaling up.</span>
         </div>
-        <main class="main" style="position:relative;">
+        <main class="main main--chart">
           <div id="spectrogram-chart" style="width:100%;height:100%;display:block;"></div>
           <div id="spectrogram-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong>No spectrogram yet</strong>
@@ -761,17 +798,17 @@
               data-causal-tip="Maximum time lag τ to test (1–10). Higher means more lagged relationships are evaluated, but runtime grows quickly.">ⓘ</span>
             <label class="scatter-inline-label" for="causal-alpha">α</label>
             <input id="causal-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.05" class="modal-input"
-              style="width:60px;">
+              style="width:60px;" aria-label="Significance level (alpha)">
             <span class="causal-info-icon" tabindex="0"
               data-causal-tip="Final significance threshold α. Links with p-values above α are removed from the final result.">ⓘ</span>
             <label class="scatter-inline-label" for="causal-pc-alpha">PC α</label>
             <input id="causal-pc-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.2" class="modal-input"
-              style="width:60px;">
+              style="width:60px;" aria-label="PC stage significance level">
             <span class="causal-info-icon" tabindex="0"
               data-causal-tip="Significance threshold for the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI. Disabled for FullCI and BivCI because those methods do not run the PC step.">ⓘ</span>
             <label class="scatter-inline-label" for="causal-max-conds">Max conds</label>
             <input id="causal-max-conds" type="number" min="1" max="20" value="" placeholder="auto" class="modal-input"
-              style="width:60px;">
+              style="width:60px;" aria-label="Maximum conditioning set size">
             <span class="causal-info-icon" tabindex="0"
               data-causal-tip="Maximum conditioning-set size used in the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI only. &quot;auto&quot; lets the backend decide.">ⓘ</span>
             <label class="scatter-inline-label" for="causal-fdr-select">FDR</label>
@@ -818,7 +855,7 @@
         <div class="fft-traces-bar" id="causal-columns-bar"
           style="flex-wrap:wrap;gap:6px;padding:6px 12px;border-bottom:1px solid var(--border);min-height:34px;">
         </div>
-        <main class="main" style="position:relative;flex:1;min-height:0;overflow:hidden;">
+        <main class="main main--flex">
           <div id="causal-chart" style="width:100%;height:100%;"></div>
           <div id="causal-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong>No causal graph yet</strong>
@@ -847,19 +884,18 @@
           </div>
         </div>
         <!-- Run comparison panel -->
-        <div id="causal-compare-panel"
-          style="border-top:1px solid var(--border);padding:12px 16px;background:var(--surface,#141420);">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-            <span class="toolbar-label" style="font-size:12px;">Run Comparison</span>
-            <select id="causal-compare-run-a" class="modal-select" style="width:220px;" aria-label="Run A"></select>
-            <span style="color:var(--text-dim,#aaa);font-size:12px;">vs</span>
-            <select id="causal-compare-run-b" class="modal-select" style="width:220px;" aria-label="Run B"></select>
+        <div id="causal-compare-panel" class="causal-compare-panel">
+          <div class="causal-compare-panel-header">
+            <span class="toolbar-label">Run Comparison</span>
+            <select id="causal-compare-run-a" class="modal-select" aria-label="Run A"></select>
+            <span class="causal-compare-vs">vs</span>
+            <select id="causal-compare-run-b" class="modal-select" aria-label="Run B"></select>
             <button id="causal-compare-run-btn" class="btn btn-ghost btn-sm" type="button">Compare</button>
-            <button id="causal-compare-clear-btn" class="btn btn-ghost btn-sm" type="button"
-              style="color:var(--danger,#f44)" title="Delete all saved runs">Clear All</button>
+            <button id="causal-compare-clear-btn" class="btn btn-ghost btn-sm causal-compare-clear-btn" type="button"
+              title="Delete all saved runs">Clear All</button>
           </div>
-          <div id="causal-saved-runs-list" style="max-height:120px;overflow-y:auto;margin-bottom:8px;"></div>
-          <div id="causal-compare-results" style="max-height:240px;overflow-y:auto;"></div>
+          <div id="causal-saved-runs-list" class="causal-saved-runs-list"></div>
+          <div id="causal-compare-results" class="causal-compare-results"></div>
         </div>
       </section>
 
@@ -980,7 +1016,7 @@
             then widen it once the reference setup looks right.</span>
         </div>
 
-        <main class="main" style="position:relative;">
+        <main class="main main--chart">
           <div class="drift-layout">
             <!-- Left: macro timeline + legend -->
             <div class="drift-timeline-panel">
@@ -1052,6 +1088,76 @@
             </svg>
             Upload a file to get started
           </button>
+        </div>
+
+        <!-- Sample datasets section -->
+        <div class="home-datasets">
+          <h2 class="home-section-title">Try with sample data</h2>
+          <p class="home-section-copy">Load built-in datasets to explore the workflow without preparing a file.</p>
+          <div class="home-datasets-grid">
+            <button class="home-dataset-card" type="button" data-sample-dataset="ettm2" aria-label="Load ETTm2 sample dataset">
+              <div class="home-dataset-header">
+                <div class="home-dataset-icon">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />
+                  </svg>
+                </div>
+                <div class="home-dataset-info">
+                  <div class="home-dataset-name">ETTm2 Sensor Data</div>
+                  <div class="home-dataset-meta">Electrical transformer monitoring</div>
+                </div>
+              </div>
+              <p class="home-dataset-desc">Time series with multiple sensor readings including temperature, pressure, and power metrics.</p>
+              <div class="home-dataset-tags">
+                <span class="home-dataset-tag">Time-series</span>
+                <span class="home-dataset-tag home-dataset-tag--rows">69K rows</span>
+                <span class="home-dataset-tag home-dataset-tag--size">7 columns</span>
+              </div>
+            </button>
+            <button class="home-dataset-card" type="button" data-sample-dataset="sinusoidal" aria-label="Load Sinusoidal Waves sample dataset">
+              <div class="home-dataset-header">
+                <div class="home-dataset-icon">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="1,8 4,4 7,12 10,2 13,10 15,6" />
+                  </svg>
+                </div>
+                <div class="home-dataset-info">
+                  <div class="home-dataset-name">Sinusoidal Waves</div>
+                  <div class="home-dataset-meta">Generated periodic signals</div>
+                </div>
+              </div>
+              <p class="home-dataset-desc">Multiple sine waves with different frequencies for testing FFT and spectral analysis features.</p>
+              <div class="home-dataset-tags">
+                <span class="home-dataset-tag">FFT</span>
+                <span class="home-dataset-tag home-dataset-tag--rows">10K rows</span>
+                <span class="home-dataset-tag home-dataset-tag--size">4 columns</span>
+              </div>
+            </button>
+            <button class="home-dataset-card" type="button" data-sample-dataset="weather" aria-label="Load Weather Patterns sample dataset">
+              <div class="home-dataset-header">
+                <div class="home-dataset-icon">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="1" y="1" width="4" height="4" rx="0.5" />
+                    <rect x="6" y="1" width="4" height="4" rx="0.5" />
+                    <rect x="11" y="1" width="4" height="4" rx="0.5" />
+                    <rect x="1" y="6" width="4" height="4" rx="0.5" />
+                    <rect x="6" y="6" width="4" height="4" rx="0.5" />
+                    <rect x="11" y="6" width="4" height="4" rx="0.5" />
+                  </svg>
+                </div>
+                <div class="home-dataset-info">
+                  <div class="home-dataset-name">Weather Patterns</div>
+                  <div class="home-dataset-meta">Temperature and humidity readings</div>
+                </div>
+              </div>
+              <p class="home-dataset-desc">Environmental sensor data with correlated temperature, humidity, and pressure readings.</p>
+              <div class="home-dataset-tags">
+                <span class="home-dataset-tag">Correlations</span>
+                <span class="home-dataset-tag home-dataset-tag--rows">50K rows</span>
+                <span class="home-dataset-tag home-dataset-tag--size">6 columns</span>
+              </div>
+            </button>
+          </div>
         </div>
 
         <div class="home-section">
@@ -1273,6 +1379,7 @@
                     <div class="row">
                       <input type="number" id="skip-rows-input" placeholder="0" min="0" value="0" aria-label="Skip first N rows">
                     </div>
+                    <div class="field-hint">Skip rows at the top of the file (e.g., header rows)</div>
                   </div>
                   <div class="field-group">
                     <label>Time range (optional)</label>
@@ -1283,11 +1390,11 @@
                     <div class="time-range-hint" id="time-range-hint">Detected range will appear after preview.</div>
                   </div>
                   <div class="field-group">
-                    <label for="time-column-select">Time column (optional)</label>
+                    <label for="time-column-select">Time column</label>
                     <select id="time-column-select" class="modal-select" aria-label="Time column">
                       <option value="">Auto-detect</option>
                     </select>
-                    <div class="time-range-hint">Select if multiple time-like columns exist.</div>
+                    <div class="field-hint">Required when file has multiple time-like columns</div>
                   </div>
                 </div>
               </div>
@@ -1335,12 +1442,12 @@
                   </div>
                   <div class="field-group" id="db-table-group">
                     <label for="db-table-select">Table / Hypertable</label>
-                    <div class="row" style="gap:6px">
+                    <div class="db-table-row">
                       <select id="db-table-select" class="modal-select" aria-label="Table">
                         <option value="">— connect first —</option>
                       </select>
                       <input type="text" id="db-table-input" class="modal-input" placeholder="or type name"
-                        aria-label="Table name" style="flex:0 0 140px">
+                        aria-label="Table name">
                     </div>
                   </div>
                   <div class="field-group">
@@ -1348,7 +1455,7 @@
                     <input type="text" id="db-time-col-input" class="modal-input" placeholder="Auto-detect"
                       aria-label="Time column">
                   </div>
-                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <div class="db-btn-row">
                     <button class="btn btn-primary" id="db-connect-btn" type="button">
                       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
                         stroke-linecap="round" stroke-linejoin="round">
@@ -1378,9 +1485,8 @@
               <span class="toolbar-label">File Preview</span>
               <span class="profile-mode-badge" id="profile-mode-badge" data-mode="dataset">Current dataset</span>
               <div class="upload-preview-selection">
-                <button class="btn btn-ghost" id="profile-select-all-btn" type="button">All</button>
-                <button class="btn btn-ghost" id="profile-select-none-btn" type="button">None</button>
-                <span class="upload-preview-selection-text" id="profile-selection-status">All columns selected</span>
+                <button class="btn btn-select" id="profile-select-all-btn" type="button">All</button>
+                <button class="btn btn-select" id="profile-select-none-btn" type="button">None</button>
               </div>
               <input type="text" id="profile-filter-input" class="column-filter-input" placeholder="Filter columns…"
                 aria-label="Filter profile columns">

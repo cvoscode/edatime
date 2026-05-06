@@ -11,7 +11,7 @@
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=8dab3a3b" />
-    <link rel="stylesheet" type="text/css" href="_static/edatime-docs.css?v=89d3db48" />
+    <link rel="stylesheet" type="text/css" href="_static/edatime-docs.css?v=ad7e40d0" />
     
     
 
@@ -325,7 +325,7 @@
 <li><p>load CSV or Parquet files, or connect to a database</p></li>
 <li><p>inspect column profiles before loading data</p></li>
 <li><p>explore multiple time series at once</p></li>
-<li><p>drill into scatter, matrix, distribution, frequency, and causal views</p></li>
+<li><p>drill into scatter plot, scatter matrix, distribution, frequency, drift, and causal views</p></li>
 <li><p>export filtered results and visual outputs</p></li>
 </ul>
 <p>The app is organized as page-based workflows in the left sidebar.</p>
@@ -337,13 +337,14 @@
 <li><p><code class="docutils literal notranslate"><span class="pre">Alt+1</span></code>: Upload</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Alt+2</span></code>: Timeseries</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Alt+3</span></code>: Scatter</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Alt+4</span></code>: Matrix</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Alt+5</span></code>: Distributions</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Alt+6</span></code>: FFT</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Alt+7</span></code>: Heatmap</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Alt+7</span></code>: Correlations</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Alt+8</span></code>: Spectrogram</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Alt+9</span></code>: Causal</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Alt+0</span></code>: Drift</p></li>
 </ul>
+<p>The main workflow pages are <code class="docutils literal notranslate"><span class="pre">Upload</span></code>, <code class="docutils literal notranslate"><span class="pre">Timeseries</span></code>, <code class="docutils literal notranslate"><span class="pre">Correlations</span></code>, and <code class="docutils literal notranslate"><span class="pre">Scatter</span></code>.</p>
+<p>The advanced analysis group contains <code class="docutils literal notranslate"><span class="pre">FFT</span> <span class="pre">/</span> <span class="pre">PSD</span></code>, <code class="docutils literal notranslate"><span class="pre">Spectrogram</span></code>, <code class="docutils literal notranslate"><span class="pre">Causal</span> <span class="pre">Graph</span></code>, and <code class="docutils literal notranslate"><span class="pre">Drift</span> <span class="pre">Analysis</span></code>.</p>
 <p>The header shows the active dataset summary, including row count, numeric-series count, and the currently plotted primary series.</p>
 <p>The sidebar can be collapsed when you want more chart space.</p>
 </section>
@@ -355,8 +356,8 @@
 <li><p>Open Timeseries and enable a few important numeric series.</p></li>
 <li><p>Zoom into a time window of interest.</p></li>
 <li><p>Open Scatter to compare two variables inside that same linked time range.</p></li>
-<li><p>Use Matrix to scan pairwise relationships quickly.</p></li>
-<li><p>Use Distributions, FFT, Spectrogram, or Causal when you want deeper analysis.</p></li>
+<li><p>Switch Scatter from <code class="docutils literal notranslate"><span class="pre">Plot</span></code> to <code class="docutils literal notranslate"><span class="pre">Matrix</span></code> when you want a fast pairwise scan.</p></li>
+<li><p>Use Scatter’s distribution controls, FFT, Spectrogram, Drift, or Causal when you want deeper analysis.</p></li>
 </ol>
 </section>
 <section id="upload-page">
@@ -482,7 +483,7 @@
 <p>The right side of the toolbar contains page-level analytics controls:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">Bands</span></code>: rolling mean plus standard-deviation bands</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Win</span></code>: rolling window size</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Window</span></code>: rolling window size</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Anomalies</span></code>: anomaly overlay toggle</p></li>
 <li><p>anomaly method: <code class="docutils literal notranslate"><span class="pre">Z-score</span></code> or <code class="docutils literal notranslate"><span class="pre">IQR</span></code></p></li>
 <li><p>anomaly threshold</p></li>
@@ -550,7 +551,7 @@
 <p><span class="caption-text">Scatter is the detailed bivariate workbench, with linked range, color-by, statistics, and export actions in one place.</span><a class="headerlink" href="#id4" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
-<p>Scatter, Matrix, and Distributions are separate sidebar destinations, but they share one analytics context: axis choices, color column, linked time range, and active filters carry across those three views.</p>
+<p>Scatter keeps plot, matrix, and distribution analysis inside one shared workflow: axis choices, color column, linked time range, and active filters carry across those sub-views.</p>
 <section id="primary-controls">
 <h3>Primary Controls<a class="headerlink" href="#primary-controls" title="Link to this heading">¶</a></h3>
 <p>The top row lets you choose:</p>
@@ -570,10 +571,10 @@
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">Color</span> <span class="pre">By</span></code> column</p></li>
 <li><p>scatter color scale when a color column is active</p></li>
-<li><p>density bin size</p></li>
+<li><p>density <code class="docutils literal notranslate"><span class="pre">Bins</span></code> count</p></li>
 <li><p>density colormap</p></li>
 <li><p>density normalization: <code class="docutils literal notranslate"><span class="pre">Linear</span></code> or <code class="docutils literal notranslate"><span class="pre">Log</span></code></p></li>
-<li><p>export buttons</p></li>
+<li><p>export menu (PNG/SVG/HTML/CSV/JSON)</p></li>
 </ul>
 <p>During the walkthrough, switching to <code class="docutils literal notranslate"><span class="pre">Scatter</span></code> mode and selecting <code class="docutils literal notranslate"><span class="pre">OT</span></code> as the color column immediately enabled a color scale selector and rendered a numeric colorbar.</p>
 </section>
@@ -602,14 +603,14 @@
 </ul>
 </section>
 </section>
-<section id="matrix-page">
-<h2>Matrix Page<a class="headerlink" href="#matrix-page" title="Link to this heading">¶</a></h2>
-<p>The Matrix page is a linked extension of the scatter workflow.</p>
+<section id="matrix-view-inside-scatter">
+<h2>Matrix View Inside Scatter<a class="headerlink" href="#matrix-view-inside-scatter" title="Link to this heading">¶</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">Matrix</span></code> toggle inside Scatter opens the pairwise matrix view without leaving the scatter workflow.</p>
 <figure class="align-default" id="id5">
 <a class="reference internal image-reference" href="_images/matrix-page.png"><img alt="Matrix page showing pairwise scatter cells and the linked FFT side panel." src="_images/matrix-page.png" style="width: 100%;" />
 </a>
 <figcaption>
-<p><span class="caption-text">Matrix gives a fast pairwise scan and keeps a linked FFT panel available for the same subset of columns.</span><a class="headerlink" href="#id5" title="Link to this image">¶</a></p>
+<p><span class="caption-text">The matrix view gives a fast pairwise scan and keeps a linked FFT panel available for the same subset of columns.</span><a class="headerlink" href="#id5" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 <p>It renders a scatter matrix for a subset of columns and includes:</p>
@@ -625,50 +626,31 @@
 </ul>
 <p>This page is best used as a pairwise screening surface before detailed drill-down.</p>
 </section>
-<section id="distributions-page">
-<h2>Distributions Page<a class="headerlink" href="#distributions-page" title="Link to this heading">¶</a></h2>
-<p>The Distributions page reuses the active Scatter context and shows univariate summaries.</p>
-<figure class="align-default" id="id6">
-<a class="reference internal image-reference" href="_images/distributions-page.png"><img alt="Distributions page showing multiple distribution cards and the statistics panel." src="_images/distributions-page.png" style="width: 100%;" />
-</a>
-<figcaption>
-<p><span class="caption-text">Distributions keeps the active scatter context but pivots to marginal shape, spread, and summary statistics.</span><a class="headerlink" href="#id6" title="Link to this image">¶</a></p>
-</figcaption>
-</figure>
-<p>It displays distribution cards for:</p>
+<section id="distribution-controls-inside-scatter">
+<h2>Distribution Controls Inside Scatter<a class="headerlink" href="#distribution-controls-inside-scatter" title="Link to this heading">¶</a></h2>
+<p>Scatter also exposes the univariate distribution summary directly in the same workflow.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">Distribution</span></code> selector in the top row changes how the marginal summaries and matrix diagonals are rendered:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Histogram</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">KDE</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Box</span> <span class="pre">Plot</span></code></p></li>
+</ul>
+<p>Those summaries reuse the current scatter context, including:</p>
 <ul class="simple">
 <li><p>current X-axis column</p></li>
 <li><p>current Y-axis column</p></li>
 <li><p>active color column, if present</p></li>
-<li><p>other dataset columns included in the current view</p></li>
 </ul>
-<p>Each card shows:</p>
-<ul class="simple">
-<li><p>role label such as <code class="docutils literal notranslate"><span class="pre">x-axis</span></code>, <code class="docutils literal notranslate"><span class="pre">y-axis</span></code>, <code class="docutils literal notranslate"><span class="pre">color</span></code>, or <code class="docutils literal notranslate"><span class="pre">dataset</span></code></p></li>
-<li><p>min and max</p></li>
-<li><p>sample count</p></li>
-</ul>
-<p>The statistics panel shows:</p>
-<ul class="simple">
-<li><p>mean</p></li>
-<li><p>standard deviation</p></li>
-<li><p>min and max</p></li>
-<li><p>median</p></li>
-<li><p>Q1 and Q3</p></li>
-<li><p>IQR</p></li>
-<li><p>skewness</p></li>
-<li><p>kurtosis</p></li>
-</ul>
-<p>This page is useful for quickly validating whether a relationship seen in scatter is driven by skew, clipping, or unusual marginal distributions.</p>
+<p>Use these controls when you want to validate whether a relationship seen in scatter is driven by skew, clipping, multimodality, or outliers before moving on to FFT, Spectrogram, Drift, or Causal.</p>
 </section>
 <section id="fft-page">
 <h2>FFT Page<a class="headerlink" href="#fft-page" title="Link to this heading">¶</a></h2>
 <p>The FFT page computes a frequency-domain view for selected series.</p>
-<figure class="align-default" id="id7">
+<figure class="align-default" id="id6">
 <a class="reference internal image-reference" href="_images/fft-page.jpg"><img alt="FFT page showing multiple selected traces and the frequency-domain chart." src="_images/fft-page.jpg" style="width: 100%;" />
 </a>
 <figcaption>
-<p><span class="caption-text">FFT compares dominant frequency content across multiple selected series in the current dataset.</span><a class="headerlink" href="#id7" title="Link to this image">¶</a></p>
+<p><span class="caption-text">FFT compares dominant frequency content across multiple selected series in the current dataset.</span><a class="headerlink" href="#id6" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 <p>Controls available:</p>
@@ -691,11 +673,11 @@
 <section id="heatmap-page">
 <h2>Heatmap Page<a class="headerlink" href="#heatmap-page" title="Link to this heading">¶</a></h2>
 <p>The Heatmap page renders a correlation matrix across the available numeric and temporal columns.</p>
-<figure class="align-default" id="id8">
+<figure class="align-default" id="id7">
 <a class="reference internal image-reference" href="_images/heatmap-page.png"><img alt="Heatmap page showing the full correlation matrix and color scale." src="_images/heatmap-page.png" style="width: 100%;" />
 </a>
 <figcaption>
-<p><span class="caption-text">Heatmap gives a fast global view of which variables are worth drilling into next.</span><a class="headerlink" href="#id8" title="Link to this image">¶</a></p>
+<p><span class="caption-text">Heatmap gives a fast global view of which variables are worth drilling into next.</span><a class="headerlink" href="#id7" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 <p>Controls:</p>
@@ -710,11 +692,11 @@
 <section id="spectrogram-page">
 <h2>Spectrogram Page<a class="headerlink" href="#spectrogram-page" title="Link to this heading">¶</a></h2>
 <p>The Spectrogram page adds time-localized frequency analysis.</p>
-<figure class="align-default" id="id9">
+<figure class="align-default" id="id8">
 <a class="reference internal image-reference" href="_images/spectrogram-page.jpg"><img alt="Spectrogram page showing the computed time-frequency heatmap for a selected column." src="_images/spectrogram-page.jpg" style="width: 100%;" />
 </a>
 <figcaption>
-<p><span class="caption-text">Spectrogram reveals how frequency content changes over time instead of collapsing it into one global FFT.</span><a class="headerlink" href="#id9" title="Link to this image">¶</a></p>
+<p><span class="caption-text">Spectrogram reveals how frequency content changes over time instead of collapsing it into one global FFT.</span><a class="headerlink" href="#id8" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 <p>Controls:</p>
@@ -737,11 +719,11 @@
 <section id="causal-page">
 <h2>Causal Page<a class="headerlink" href="#causal-page" title="Link to this heading">¶</a></h2>
 <p>The Causal page wraps Tigramite-based causal discovery and manual graph editing.</p>
-<figure class="align-default" id="id10">
+<figure class="align-default" id="id9">
 <a class="reference internal image-reference" href="_images/causal-page.jpg"><img alt="Causal page showing a computed Tigramite graph and the causal configuration controls." src="_images/causal-page.jpg" style="width: 100%;" />
 </a>
 <figcaption>
-<p><span class="caption-text">Causal combines Tigramite configuration, node selection, graph editing, and export from one page.</span><a class="headerlink" href="#id10" title="Link to this image">¶</a></p>
+<p><span class="caption-text">Causal combines Tigramite configuration, node selection, graph editing, and export from one page.</span><a class="headerlink" href="#id9" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 <section id="algorithm-controls">
@@ -785,8 +767,8 @@
 <ul class="simple">
 <li><p>Start in Timeseries, not Scatter. The best scatter results usually come after narrowing the time window first.</p></li>
 <li><p>Use Heatmap before Causal. It is a fast way to find candidate relationships worth testing more carefully.</p></li>
-<li><p>Use Matrix for breadth and Scatter for depth.</p></li>
-<li><p>Use Distributions to validate whether strong-looking plots are actually driven by outliers or skew.</p></li>
+<li><p>Use Scatter <code class="docutils literal notranslate"><span class="pre">Matrix</span></code> for breadth and Scatter <code class="docutils literal notranslate"><span class="pre">Plot</span></code> for depth.</p></li>
+<li><p>Use Scatter’s distribution controls to validate whether strong-looking plots are actually driven by outliers or skew.</p></li>
 <li><p>Use Spectrogram when periodic behavior is not stable across the full time span.</p></li>
 <li><p>Treat dataset-changing actions such as transforms and outlier removal as analysis steps, not just chart styling.</p></li>
 <li><p>If the header reports <code class="docutils literal notranslate"><span class="pre">Fallback</span> <span class="pre">renderer</span> <span class="pre">active</span></code>, Upload, profiling, Timeseries, and Heatmap can still be useful, but GPU-oriented pages should be rechecked in a WebGPU-capable Chrome or Edge session.</p></li>
@@ -797,7 +779,7 @@
 <p>These behaviors were confirmed directly in the running app:</p>
 <ul class="simple">
 <li><p>matrix-cell clicks drill into Scatter with the selected pair</p></li>
-<li><p>Scatter, Matrix, and Distributions share context</p></li>
+<li><p>Scatter plot, Scatter matrix, and distribution controls share context</p></li>
 <li><p>Spectrogram requires an explicit compute step</p></li>
 <li><p>FFT requires selecting one or more chips before a plot appears</p></li>
 <li><p>the Upload page can act as both an ingest page and a profile browser for the current dataset</p></li>
@@ -888,8 +870,8 @@
 <li><a class="reference internal" href="#id1">Export</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#matrix-page">Matrix Page</a></li>
-<li><a class="reference internal" href="#distributions-page">Distributions Page</a></li>
+<li><a class="reference internal" href="#matrix-view-inside-scatter">Matrix View Inside Scatter</a></li>
+<li><a class="reference internal" href="#distribution-controls-inside-scatter">Distribution Controls Inside Scatter</a></li>
 <li><a class="reference internal" href="#fft-page">FFT Page</a></li>
 <li><a class="reference internal" href="#heatmap-page">Heatmap Page</a></li>
 <li><a class="reference internal" href="#spectrogram-page">Spectrogram Page</a></li>

@@ -275,6 +275,11 @@ async function refreshCorrelationsAndSuggestions(): Promise<void> {
     const colorSelect = getEl('scatter-color-column') as HTMLSelectElement | null;
     if (!xSelect || !ySelect) return;
 
+    // Guard: only fetch correlations if metadata is loaded with numeric columns
+    const meta = state.metadata as any;
+    const numericCols = Array.isArray(meta?.numeric_columns) ? meta.numeric_columns : [];
+    if (numericCols.length < 2) return;
+
     const response = await fetchScatterCorrelations(xSelect.value || null, state.suggestionThreshold);
 
     const numeric = Array.isArray(response.numeric_columns) ? response.numeric_columns : [];

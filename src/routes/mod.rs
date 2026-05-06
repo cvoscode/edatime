@@ -43,6 +43,8 @@ pub fn api_router() -> Router<AppState> {
         )
         .route("/upload", post(upload::upload_data))
         .route("/upload/preview", post(upload::preview_upload_data))
+        // Static sample data endpoint for demo purposes
+        .route("/sample/{name}", get(upload::serve_sample_file))
         // Database / TimescaleDB endpoints
         .route(
             "/database/connect",

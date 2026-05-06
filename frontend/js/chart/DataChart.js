@@ -18,7 +18,7 @@ import {
   formatTimestamp,
   formatTwoDecimals,
   getSeriesColor
-} from "../chunk-5AB5JUYP.js";
+} from "../chunk-2SRVSCO2.js";
 import {
   downloadBlob,
   downloadUrl,

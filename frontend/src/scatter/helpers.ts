@@ -25,7 +25,34 @@ export function showError(message: string | null): void {
     const el = getEl('scatter-error');
     if (!el) return;
     if (!message) { el.hidden = true; el.textContent = ''; return; }
-    el.textContent = String(message);
+    
+    // Try to parse JSON error messages and extract user-friendly text
+    let displayMessage = String(message);
+    try {
+        // Check if the message looks like JSON (starts with { or [)
+        const trimmed = message.trim();
+        if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && trimmed.includes('"error"')) {
+            const parsed = JSON.parse(trimmed);
+            // Extract user-friendly message from common API error structures
+            if (parsed.message) {
+                displayMessage = parsed.message;
+            } else if (parsed.error) {
+                displayMessage = parsed.error;
+            } else if (parsed.detail) {
+                displayMessage = parsed.detail;
+            }
+        }
+    } catch {
+        // Not JSON or parse failed, use original message
+        // Check for common patterns and make them more user-friendly
+        if (message.includes('Need at least two numeric columns')) {
+            displayMessage = 'Need at least two numeric columns to create a scatter plot.';
+        } else if (message.includes('correlation')) {
+            displayMessage = displayMessage.replace(/^\d+\s*/, '').replace(/\s*\{.*$/, '').trim();
+        }
+    }
+    
+    el.textContent = displayMessage;
     el.hidden = false;
 }
 

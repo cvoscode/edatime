@@ -65,10 +65,15 @@ pub async fn get_scatter_correlations(
         let mut numeric = numeric_columns(&df);
         numeric.sort();
 
+        // If dataset is empty or has fewer than 2 numeric columns, return an empty but valid response
         if numeric.len() < 2 {
-            return Err(AppError::bad_request(
-                "Need at least two numeric columns for scatter correlations",
-            ));
+            return Ok(Json(ScatterCorrelationsResponse {
+                base_column: numeric.first().cloned().unwrap_or_default(),
+                threshold,
+                numeric_columns: numeric,
+                correlations: vec![],
+                suggestions: vec![],
+            }));
         }
 
         let base_column = if let Some(base) = requested_base {

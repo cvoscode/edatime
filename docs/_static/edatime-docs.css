@@ -253,20 +253,89 @@ body[data-theme="light"] .related-pages a {
 .edatime-pill-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
-    margin: 1rem 0 0;
+    gap: 0.6rem;
+    margin: 1.2rem 0 0;
 }
 
 .edatime-pill {
     display: inline-flex;
     align-items: center;
-    padding: 0.35rem 0.7rem;
+    gap: 0.4rem;
+    padding: 0.45rem 0.9rem;
     border-radius: 999px;
-    border: 1px solid var(--edatime-border);
-    background: rgba(32, 226, 215, 0.08);
+    border: 1px solid rgba(32, 226, 215, 0.35);
+    background: linear-gradient(135deg, rgba(32, 226, 215, 0.12) 0%, rgba(0, 168, 255, 0.08) 100%);
     color: var(--edatime-text);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    text-decoration: none;
+}
+
+.edatime-pill::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(32, 226, 215, 0.2) 0%, rgba(0, 168, 255, 0.15) 100%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.edatime-pill:hover {
+    border-color: rgba(32, 226, 215, 0.6);
+    background: linear-gradient(135deg, rgba(32, 226, 215, 0.2) 0%, rgba(0, 168, 255, 0.15) 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(32, 226, 215, 0.2), 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.edatime-pill:hover::before {
+    opacity: 1;
+}
+
+.edatime-pill:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(32, 226, 215, 0.15);
+}
+
+/* Active/current page state */
+.edatime-pill.active,
+.edatime-pill[aria-current="page"] {
+    background: linear-gradient(135deg, var(--edatime-cyan) 0%, var(--edatime-accent) 100%);
+    border-color: transparent;
+    color: #fff;
+    font-weight: 700;
+    box-shadow: 0 4px 16px rgba(32, 226, 215, 0.35), 0 2px 6px rgba(0, 168, 255, 0.25);
+}
+
+.edatime-pill.active:hover,
+.edatime-pill[aria-current="page"]:hover {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--edatime-cyan) 90%, white) 0%, color-mix(in srgb, var(--edatime-accent) 90%, white) 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(32, 226, 215, 0.4), 0 3px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* Focus state for accessibility */
+.edatime-pill:focus-visible {
+    outline: 2px solid var(--edatime-cyan);
+    outline-offset: 2px;
+}
+
+/* Icon support in pills */
+.edatime-pill svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.85;
+    flex-shrink: 0;
+}
+
+/* Compact variant for dense layouts */
+.edatime-pill-compact {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
 }
 
 .toctree-wrapper ul {

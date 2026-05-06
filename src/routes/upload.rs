@@ -241,3 +241,47 @@ fn create_temp_upload_file(
         .tempfile()
         .map_err(|error| AppError::io(error.to_string()))
 }
+
+/// Serve a built-in sample dataset file (e.g. ETTm2.csv).
+/// Used by the "Try with sample data" cards on the home page.
+#[tracing::instrument(skip(_state))]
+pub async fn serve_sample_file(
+    State(_state): State<AppState>,
+    axum::extract::Path(name): axum::extract::Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    // Sandbox: only allow known sample dataset names
+    let allowed = ["ETTm1.csv", "ETTm2.csv", "ETTm1.parquet", "ETTm2.parquet"];
+    if !allowed.contains(&name.as_str()) {
+        return Err(AppError::bad_request("Sample dataset not found"));
+    }
+
+    let base_dir = std::env::var("EDATIME_SAMPLE_DATA_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("."));
+
+    let file_path = base_dir.join(&name);
+    if !file_path.exists() {
+        return Err(AppError::bad_request("Sample dataset file not found"));
+    }
+
+    let body = tokio::task::spawn_blocking(move || {
+        std::fs::read(&file_path)
+    })
+    .await
+    .map_err(|e| AppError::internal(format!("{e:?}")))?;
+
+    match body {
+        Ok(bytes) => {
+            let mime = if name.ends_with(".csv") {
+                "text/csv"
+            } else {
+                "application/octet-stream"
+            };
+            Ok(axum::response::Response::builder()
+                .header(axum::http::header::CONTENT_TYPE, mime)
+                .body(axum::body::Body::from(bytes))
+                .map_err(|e| AppError::internal(e.to_string()))?)
+        }
+        Err(e) => Err(AppError::io(e.to_string())),
+    }
+}

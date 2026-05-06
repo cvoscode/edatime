@@ -50,12 +50,12 @@ import {
   showError,
   state,
   upperBoundByX
-} from "../chunk-S5XLI6OI.js";
+} from "../chunk-NAT62FDO.js";
 import {
   appState,
   formatTimestamp,
   formatTwoDecimals
-} from "../chunk-5AB5JUYP.js";
+} from "../chunk-2SRVSCO2.js";
 import {
   downloadBlob,
   downloadUrl,
@@ -1491,6 +1491,9 @@ async function refreshCorrelationsAndSuggestions() {
   const ySelect = getEl("scatter-y-col");
   const colorSelect = getEl("scatter-color-column");
   if (!xSelect || !ySelect) return;
+  const meta = state.metadata;
+  const numericCols = Array.isArray(meta?.numeric_columns) ? meta.numeric_columns : [];
+  if (numericCols.length < 2) return;
   const response = await fetchScatterCorrelations(xSelect.value || null, state.suggestionThreshold);
   const numeric = Array.isArray(response.numeric_columns) ? response.numeric_columns : [];
   if (numeric.length < 2) throw new Error("Need at least two numeric columns for scatter plotting.");

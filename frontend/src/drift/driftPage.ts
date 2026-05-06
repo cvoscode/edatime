@@ -213,7 +213,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
     function syncPickerLabel(): void {
         if (!colPickerLabel) return;
         const n = selectedCols.size;
-        colPickerLabel.textContent = n === 0 ? 'none' : n === 1 ? `${[...selectedCols][0]}` : `${n} columns`;
+        colPickerLabel.textContent = n === 0 ? 'Select columns' : n === 1 ? `${[...selectedCols][0]}` : `${n} columns`;
     }
 
     function syncHiddenSelect(allCols: string[]): void {

@@ -161,19 +161,10 @@ export function formatUploadSelectionStatus(
 }
 
 function syncUploadSelectionUI(profiles: ProfileRow[] = appState.columnProfiles || []): void {
-    const statusEl = document.getElementById('profile-selection-status');
     const allCheckbox = document.getElementById('profile-select-all-checkbox') as HTMLInputElement | null;
     const selectable = getSelectablePreviewColumns(profiles);
     const selected = new Set(appState.previewSelectedColumns || []);
     const selectedCount = selectable.filter((name) => selected.has(name)).length;
-
-    if (statusEl) {
-        statusEl.textContent = formatUploadSelectionStatus(
-            selectable.length,
-            selectedCount,
-            appState.previewTimeColumn,
-        );
-    }
 
     if (allCheckbox) {
         allCheckbox.checked = selectable.length > 0 && selectedCount === selectable.length;
