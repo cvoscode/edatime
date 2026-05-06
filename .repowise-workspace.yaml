@@ -1,0 +1,8 @@
+version: 1
+default_repo: edatime
+repos:
+- path: .
+  alias: edatime
+  is_primary: true
+  indexed_at: '2026-05-06T20:39:57.338652+00:00'
+  last_commit_at_index: 01dc616b1d75f035003db6c05f00d83c9aabb569

@@ -1,30 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
 
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EdaTime</title>
-    <link rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f1720'/%3E%3Cpath d='M7 21l5-6 4 4 9-11' fill='none' stroke='%2300d4ff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- Preload critical CSS for faster rendering (loaded via main stylesheet) -->
-    <link rel="preload" href="css/style.css" as="style">
-    <link rel="stylesheet" href="css/style.css?v=60">
-    <script>
-      // Register service worker for caching
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js').then(function(registration) {
-            console.log('ServiceWorker registration successful');
-          }, function(err) {
-            console.log('ServiceWorker registration failed: ', err);
-          });
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EdaTime</title>
+  <link rel="icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f1720'/%3E%3Cpath d='M7 21l5-6 4 4 9-11' fill='none' stroke='%2300d4ff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Preload critical CSS for faster rendering (loaded via main stylesheet) -->
+  <link rel="preload" href="css/style.css" as="style">
+  <link rel="stylesheet" href="css/style.css?v=60">
+  <script>
+    // Register service worker for caching
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js').then(function (registration) {
+          console.log('ServiceWorker registration successful');
+        }, function (err) {
+          console.log('ServiceWorker registration failed: ', err);
         });
-      }
-    </script>
-  </head>
+      });
+    }
+  </script>
+</head>
 
 <body>
 
@@ -194,10 +194,10 @@
             aria-label="Show keyboard shortcuts">
             <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"
               stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="5" width="12" height="8" rx="1"/>
-              <line x1="5" y1="7" x2="5" y2="8"/>
-              <line x1="8" y1="7" x2="8" y2="8"/>
-              <line x1="11" y1="7" x2="11" y2="8"/>
+              <rect x="2" y="5" width="12" height="8" rx="1" />
+              <line x1="5" y1="7" x2="5" y2="8" />
+              <line x1="8" y1="7" x2="8" y2="8" />
+              <line x1="11" y1="7" x2="11" y2="8" />
             </svg>
           </button>
           <button class="btn btn-ghost btn-sm" id="settings-btn" type="button" title="Settings (Ctrl+,)"
@@ -280,7 +280,8 @@
             <input type="number" id="draw-width" name="draw-width" value="2" min="1" max="10" title="Thickness"
               aria-label="Draw thickness">
             <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings">Clear</button>
-            <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button" title="Clear adaptive line filters (Shift+C)">Clear Filter</button>
+            <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button"
+              title="Clear adaptive line filters (Shift+C)">Clear Filter</button>
           </div>
           <div class="toolbar-group labels-toolbar toolbar-group--sep">
             <details class="toolbar-disclosure">
@@ -322,11 +323,16 @@
                 <span class="toolbar-disclosure__value">Chart + data</span>
               </summary>
               <div class="toolbar-disclosure__menu">
-                <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button" title="Export chart as PNG">PNG</button>
-                <button class="btn btn-ghost btn-sm" id="export-svg-btn" type="button" title="Export chart as SVG">SVG</button>
-                <button class="btn btn-ghost btn-sm" id="export-data-csv-btn" type="button" title="Export filtered data as CSV">CSV</button>
-                <button class="btn btn-ghost btn-sm" id="export-data-json-btn" type="button" title="Export filtered data as JSON">JSON</button>
-                <button class="btn btn-ghost btn-sm" id="export-data-parquet-btn" type="button" title="Export filtered data as Parquet">Parquet</button>
+                <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button"
+                  title="Export chart as PNG">PNG</button>
+                <button class="btn btn-ghost btn-sm" id="export-svg-btn" type="button"
+                  title="Export chart as SVG">SVG</button>
+                <button class="btn btn-ghost btn-sm" id="export-data-csv-btn" type="button"
+                  title="Export filtered data as CSV">CSV</button>
+                <button class="btn btn-ghost btn-sm" id="export-data-json-btn" type="button"
+                  title="Export filtered data as JSON">JSON</button>
+                <button class="btn btn-ghost btn-sm" id="export-data-parquet-btn" type="button"
+                  title="Export filtered data as Parquet">Parquet</button>
               </div>
             </details>
           </div>
@@ -471,7 +477,8 @@
             <div id="scatter-density-controls" class="scatter-toolbar-group-inline">
               <span class="toolbar-label">Density</span>
               <label class="scatter-inline-label" for="scatter-bin-size">Bins</label>
-              <input id="scatter-bin-size" type="range" min="2" max="64" step="1" value="10" style="width:110px;" aria-label="Scatter bin size">
+              <input id="scatter-bin-size" type="range" min="2" max="64" step="1" value="10" style="width:110px;"
+                aria-label="Scatter bin size">
               <span id="scatter-bin-size-value" class="range-value">10</span>
               <select id="scatter-colormap" class="modal-select" aria-label="Density colormap">
                 <option value="viridis">Viridis</option>
@@ -515,7 +522,8 @@
           <span id="scatter-suggestions-label" class="toolbar-label">Suggestions (|corr| ≥ 0.70)</span>
           <div class="scatter-suggestions-controls">
             <label class="scatter-inline-label" for="scatter-suggestion-threshold">Threshold</label>
-            <input id="scatter-suggestion-threshold" type="range" min="0.30" max="0.95" step="0.05" value="0.70" aria-label="Correlation suggestion threshold">
+            <input id="scatter-suggestion-threshold" type="range" min="0.30" max="0.95" step="0.05" value="0.70"
+              aria-label="Correlation suggestion threshold">
             <span id="scatter-suggestion-threshold-value" class="range-value">0.70</span>
             <span id="scatter-active-pair-label" class="scatter-filter-badge">Inspecting X vs Y</span>
           </div>
@@ -574,7 +582,8 @@
                 <span id="scatter-matrix-cell-size-value" class="range-value">160</span>
                 <label class="scatter-link-toggle" for="scatter-matrix-link-range"
                   title="Link scatter matrix and FFT to the current chart time window">
-                  <input id="scatter-matrix-link-range" type="checkbox" aria-label="Link chart time range to scatter matrix">
+                  <input id="scatter-matrix-link-range" type="checkbox"
+                    aria-label="Link chart time range to scatter matrix">
                   <span>Link range</span>
                 </label>
               </div>
@@ -793,7 +802,8 @@
             <span class="causal-info-icon" tabindex="0"
               data-causal-tip="Conditional independence test used inside the Tigramite-style causal engine.&#10;• ParCorr: Linear partial correlation; best when relations are near-Gaussian and linear.&#10;• RobustParCorr: Rank/non-paranormal style preprocessing plus ParCorr.&#10;• CMI-KNN: Nonlinear conditional mutual information. Reference: Runge, AISTATS (2018).&#10;• G-squared: Discrete/categorical likelihood-ratio test.&#10;• CMI-Symb: Symbolic/discretized mutual information test.&#10;Backend causal discovery is still numeric-data oriented even if non-numeric columns are shown as manual graph nodes.">ⓘ</span>
             <label class="scatter-inline-label" for="causal-tau-max">τ max</label>
-            <input id="causal-tau-max" type="number" min="1" max="10" value="3" class="modal-input" style="width:50px;" aria-label="Maximum time lag (tau max)">
+            <input id="causal-tau-max" type="number" min="1" max="10" value="3" class="modal-input" style="width:50px;"
+              aria-label="Maximum time lag (tau max)">
             <span class="causal-info-icon" tabindex="0"
               data-causal-tip="Maximum time lag τ to test (1–10). Higher means more lagged relationships are evaluated, but runtime grows quickly.">ⓘ</span>
             <label class="scatter-inline-label" for="causal-alpha">α</label>
@@ -1095,10 +1105,12 @@
           <h2 class="home-section-title">Try with sample data</h2>
           <p class="home-section-copy">Load built-in datasets to explore the workflow without preparing a file.</p>
           <div class="home-datasets-grid">
-            <button class="home-dataset-card" type="button" data-sample-dataset="ettm2" aria-label="Load ETTm2 sample dataset">
+            <button class="home-dataset-card" type="button" data-sample-dataset="ettm2"
+              aria-label="Load ETTm2 sample dataset">
               <div class="home-dataset-header">
                 <div class="home-dataset-icon">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                    stroke-linejoin="round">
                     <polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />
                   </svg>
                 </div>
@@ -1107,17 +1119,20 @@
                   <div class="home-dataset-meta">Electrical transformer monitoring</div>
                 </div>
               </div>
-              <p class="home-dataset-desc">Time series with multiple sensor readings including temperature, pressure, and power metrics.</p>
+              <p class="home-dataset-desc">Time series with multiple sensor readings including temperature, pressure,
+                and power metrics.</p>
               <div class="home-dataset-tags">
                 <span class="home-dataset-tag">Time-series</span>
                 <span class="home-dataset-tag home-dataset-tag--rows">69K rows</span>
                 <span class="home-dataset-tag home-dataset-tag--size">7 columns</span>
               </div>
             </button>
-            <button class="home-dataset-card" type="button" data-sample-dataset="sinusoidal" aria-label="Load Sinusoidal Waves sample dataset">
+            <button class="home-dataset-card" type="button" data-sample-dataset="sinusoidal"
+              aria-label="Load Sinusoidal Waves sample dataset">
               <div class="home-dataset-header">
                 <div class="home-dataset-icon">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                    stroke-linejoin="round">
                     <polyline points="1,8 4,4 7,12 10,2 13,10 15,6" />
                   </svg>
                 </div>
@@ -1126,17 +1141,20 @@
                   <div class="home-dataset-meta">Generated periodic signals</div>
                 </div>
               </div>
-              <p class="home-dataset-desc">Multiple sine waves with different frequencies for testing FFT and spectral analysis features.</p>
+              <p class="home-dataset-desc">Multiple sine waves with different frequencies for testing FFT and spectral
+                analysis features.</p>
               <div class="home-dataset-tags">
                 <span class="home-dataset-tag">FFT</span>
                 <span class="home-dataset-tag home-dataset-tag--rows">10K rows</span>
                 <span class="home-dataset-tag home-dataset-tag--size">4 columns</span>
               </div>
             </button>
-            <button class="home-dataset-card" type="button" data-sample-dataset="weather" aria-label="Load Weather Patterns sample dataset">
+            <button class="home-dataset-card" type="button" data-sample-dataset="weather"
+              aria-label="Load Weather Patterns sample dataset">
               <div class="home-dataset-header">
                 <div class="home-dataset-icon">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                    stroke-linejoin="round">
                     <rect x="1" y="1" width="4" height="4" rx="0.5" />
                     <rect x="6" y="1" width="4" height="4" rx="0.5" />
                     <rect x="11" y="1" width="4" height="4" rx="0.5" />
@@ -1150,7 +1168,8 @@
                   <div class="home-dataset-meta">Temperature and humidity readings</div>
                 </div>
               </div>
-              <p class="home-dataset-desc">Environmental sensor data with correlated temperature, humidity, and pressure readings.</p>
+              <p class="home-dataset-desc">Environmental sensor data with correlated temperature, humidity, and pressure
+                readings.</p>
               <div class="home-dataset-tags">
                 <span class="home-dataset-tag">Correlations</span>
                 <span class="home-dataset-tag home-dataset-tag--rows">50K rows</span>
@@ -1369,15 +1388,18 @@
                   <div class="field-group">
                     <label for="n-rows-input">Max rows to load</label>
                     <div class="row">
-                      <input type="number" id="n-rows-input" placeholder="All rows" min="1" step="1000" aria-label="Maximum rows to load">
-                      <input type="range" id="n-rows-range" min="1000" max="5000000" step="1000" value="1000000" aria-label="Max rows slider">
+                      <input type="number" id="n-rows-input" placeholder="All rows" min="1" step="1000"
+                        aria-label="Maximum rows to load">
+                      <input type="range" id="n-rows-range" min="1000" max="5000000" step="1000" value="1000000"
+                        aria-label="Max rows slider">
                       <span class="range-value" id="n-rows-display">1 000 000</span>
                     </div>
                   </div>
                   <div class="field-group">
                     <label for="skip-rows-input">Skip first N rows</label>
                     <div class="row">
-                      <input type="number" id="skip-rows-input" placeholder="0" min="0" value="0" aria-label="Skip first N rows">
+                      <input type="number" id="skip-rows-input" placeholder="0" min="0" value="0"
+                        aria-label="Skip first N rows">
                     </div>
                     <div class="field-hint">Skip rows at the top of the file (e.g., header rows)</div>
                   </div>
@@ -1731,9 +1753,9 @@
               </div>
               <div class="settings-row">
                 <label class="settings-label" for="settings-white-bg">Presentation mode</label>
-                  <div class="settings-control settings-toggle">
-                    <input id="settings-white-bg" type="checkbox" aria-label="Use white background for exports">
-                    <span>White background for exports</span>
+                <div class="settings-control settings-toggle">
+                  <input id="settings-white-bg" type="checkbox" aria-label="Use white background for exports">
+                  <span>White background for exports</span>
                 </div>
               </div>
             </div>

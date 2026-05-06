@@ -17,3 +17,10 @@ tigramite/
 *chunk*
 *.map
 */chunk-*.js
+# Compiled frontend bundles (versioned with hash suffix)
+frontend/js/Arrow.dom-*.js
+frontend/js/causalComparison-*.js
+frontend/js/causalPage-*.js
+frontend/js/driftPage-*.js
+frontend/js/echarts-*.js
+frontend/js/toast-*.js
