@@ -91,3 +91,54 @@
 .plot-empty-state[hidden] {
   display: none;
 }
+
+/* ─── Skeleton loading for chart area ──────────────────────── */
+.chart-skeleton {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 8;
+  background: var(--bg);
+}
+
+.chart-skeleton-wave {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 60px;
+}
+
+.chart-skeleton-wave-bar {
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 168, 255, 0.1) 0%,
+    rgba(0, 168, 255, 0.3) 50%,
+    rgba(0, 168, 255, 0.1) 100%
+  );
+  border-radius: 2px;
+  animation: skeleton-bar-pulse 1.2s ease-in-out infinite;
+}
+
+.chart-skeleton-wave-bar:nth-child(1) { animation-delay: 0s; height: 60%; }
+.chart-skeleton-wave-bar:nth-child(2) { animation-delay: 0.1s; height: 80%; }
+.chart-skeleton-wave-bar:nth-child(3) { animation-delay: 0.2s; height: 50%; }
+.chart-skeleton-wave-bar:nth-child(4) { animation-delay: 0.3s; height: 90%; }
+.chart-skeleton-wave-bar:nth-child(5) { animation-delay: 0.4s; height: 70%; }
+.chart-skeleton-wave-bar:nth-child(6) { animation-delay: 0.5s; height: 40%; }
+.chart-skeleton-wave-bar:nth-child(7) { animation-delay: 0.6s; height: 85%; }
+
+@keyframes skeleton-bar-pulse {
+  0%, 100% { opacity: 0.4; transform: scaleY(0.8); }
+  50% { opacity: 0.8; transform: scaleY(1); }
+}
+
+.chart-skeleton-text {
+  color: var(--text-dim);
+  font-size: 0.8125rem;
+}

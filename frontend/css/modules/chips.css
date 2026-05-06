@@ -83,6 +83,7 @@
   cursor: pointer;
   white-space: nowrap;
   user-select: none;
+  position: relative;
   transition:
     border-color var(--transition),
     background var(--transition),
@@ -91,6 +92,91 @@
 
 .series-chip input[type="checkbox"] {
   display: none;
+}
+
+/* Chip menu (kebab) button */
+.chip-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  margin-left: 2px;
+  transition: background var(--transition), color var(--transition);
+}
+
+.chip-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+
+.chip-menu-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Show chip menu on hover when chip is active */
+.series-chip.active:hover .chip-menu-btn,
+.series-chip.adaptive-target:hover .chip-menu-btn {
+  display: inline-flex;
+}
+
+/* Chip dropdown menu */
+.chip-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 160px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-0, rgba(16, 21, 33, 0.98));
+  box-shadow: var(--shadow);
+  z-index: 100;
+}
+
+.chip-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.chip-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.chip-menu-item--active {
+  color: var(--accent);
+}
+
+.chip-menu-item svg {
+  width: 13px;
+  height: 13px;
+  opacity: 0.8;
+}
+
+.chip-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
 }
 
 

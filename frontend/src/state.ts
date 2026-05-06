@@ -92,7 +92,12 @@ export const appState: AppStateType = {
 
 // Interactive debugging from DevTools.
 window.__edatime = window.__edatime || {};
-Object.defineProperty(window.__edatime, 'state', { get: () => appState });
+// requestAnimationFrame may have already set __edatime.state via another module.
+try {
+    Object.defineProperty(window.__edatime, 'state', { get: () => appState });
+} catch (_) {
+    // Already defined — leave it alone.
+}
 window.__edatime.DEBUG = true;
 
 // ─── Series color helpers ──────────────────────────────────────────────────

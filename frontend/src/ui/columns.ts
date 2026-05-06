@@ -119,6 +119,9 @@ export function buildColumnToggles(
             <input type="checkbox" id="series-toggle-${safeKey}" name="series-toggle-${safeKey}" aria-label="Toggle ${escapeHtml(col)} series" ${isActive ? 'checked' : ''} value="${escapeHtml(col)}">
       <span class="chip-label">${escapeHtml(col)}</span>
             <input type="color" class="chip-color-picker" id="series-color-${safeKey}" name="series-color-${safeKey}" value="${escapeHtml(color)}" aria-label="Set ${escapeHtml(col)} color" title="Set ${escapeHtml(col)} color">
+            <button class="chip-menu-btn" type="button" aria-label="Chip options for ${escapeHtml(col)}" title="More options">
+              <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>
+            </button>
     `;
 
         chip.addEventListener(
@@ -172,6 +175,83 @@ export function buildColumnToggles(
             chip.style.setProperty('--chip-accent', nextColor);
             renderCurrentDataFn?.();
         });
+
+        // Chip menu dropdown
+        const menuBtn = chip.querySelector('.chip-menu-btn') as HTMLButtonElement | null;
+        if (menuBtn) {
+            menuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+
+                // Dismiss any other open menus
+                document.querySelectorAll('.chip-menu').forEach((m) => m.remove());
+
+                const menu = document.createElement('div');
+                menu.className = 'chip-menu';
+                menu.setAttribute('role', 'menu');
+                menu.setAttribute('aria-label', `Options for ${col}`);
+
+                const isTarget = appState.adaptiveFilterColumn === col;
+
+                menu.innerHTML = `
+                  <button class="chip-menu-item ${isTarget ? 'chip-menu-item--active' : ''}" data-action="adaptive-target" role="menuitem">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8h12M8 2v12"/></svg>
+                    Set as adaptive target
+                  </button>
+                  <button class="chip-menu-item" data-action="open-filter" role="menuitem">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="4"/><circle cx="10" cy="10" r="4"/></svg>
+                    Filter range…
+                  </button>
+                  <div class="chip-menu-divider"></div>
+                  <button class="chip-menu-item" data-action="remove" role="menuitem">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>
+                    Remove from chart
+                  </button>
+                `;
+
+                menu.querySelectorAll('.chip-menu-item').forEach((item) => {
+                    item.addEventListener('click', (ev) => {
+                        ev.stopPropagation();
+                        const action = (item as HTMLElement).dataset.action;
+                        if (action === 'adaptive-target') {
+                            if (!appState.selectedCols.includes(col)) appState.selectedCols.push(col);
+                            appState.adaptiveFilterColumn = col;
+                            appState.pendingAdaptivePoint = null;
+                            buildMetaBar(appState.metadata);
+                            buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
+                            buildRangeControlsFn();
+                            (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
+                            if (!appState.selectedCols.includes(col)) fetchAndRender();
+                        } else if (action === 'open-filter') {
+                            const open = window.__edatime?.openFilterForCol;
+                            if (typeof open === 'function') open(col);
+                        } else if (action === 'remove') {
+                            appState.selectedCols = appState.selectedCols.filter((c) => c !== col);
+                            if (appState.adaptiveFilterColumn === col) {
+                                appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
+                            }
+                            buildMetaBar(appState.metadata);
+                            buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
+                            buildRangeControlsFn();
+                            (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
+                            fetchAndRender();
+                        }
+                        menu.remove();
+                    });
+                });
+
+                chip.appendChild(menu);
+
+                // Close on outside click
+                const closeMenu = (e: MouseEvent) => {
+                    if (!chip.contains(e.target as Node)) {
+                        menu.remove();
+                        document.removeEventListener('click', closeMenu);
+                    }
+                };
+                setTimeout(() => document.addEventListener('click', closeMenu), 0);
+            });
+        }
 
         container.appendChild(chip);
     });

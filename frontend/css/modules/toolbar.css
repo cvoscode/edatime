@@ -402,6 +402,29 @@
   width: 220px;
 }
 
+/* Toolbar keyboard shortcut hint */
+.toolbar-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  margin-left: 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.625rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-muted);
+}
+
+.btn:hover .toolbar-kbd {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.20);
+}
+
 /* Draw toolbar — specific overrides */
 #draw-color {
   width: 24px;

@@ -511,6 +511,7 @@ function initKeyboardShortcuts(): void {
         if (key === 'r' && currentPageName() === 'timeseries') { event.preventDefault(); resetZoom(fetchAndRender); return; }
         if (key === 'z' && currentPageName() === 'timeseries') { event.preventDefault(); zoomOut(fetchAndRender); return; }
         if (key === 'c' && currentPageName() === 'timeseries') { event.preventDefault(); document.getElementById('adaptive-clear-btn')?.click?.(); return; }
+        if (key === 'p') { event.preventDefault(); appState.chart?.exportPNG?.(); return; }
         if (key === 'e') {
             event.preventDefault();
             if (currentPageName() === 'scatter') document.getElementById('scatter-export-csv-btn')?.click?.();
