@@ -34,6 +34,10 @@ pub struct ScatterPointsQuery {
     pub line_filters: Option<String>,
     #[serde(default = "default_scatter_limit")]
     pub limit: usize,
+    /// Optional output format.  Clients may also set
+    /// `Accept: application/vnd.apache.arrow.stream` to get Arrow automatically.
+    /// Accepted values: \"arrow\", \"json\" (defaults to \"json\" when omitted).
+    pub format: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -76,7 +80,12 @@ fn numeric_columns(df: &DataFrame) -> Vec<String> {
             match df.column(name_str) {
                 Ok(col) if col.dtype().is_numeric() => Some(name_str.to_string()),
                 // Include timestamp as numeric for correlation purposes
-                Ok(col) if name_str == "ts" && matches!(col.dtype(), DataType::Datetime(_, _) | DataType::Date) => Some(name_str.to_string()),
+                Ok(col)
+                    if name_str == "ts"
+                        && matches!(col.dtype(), DataType::Datetime(_, _) | DataType::Date) =>
+                {
+                    Some(name_str.to_string())
+                }
                 _ => None,
             }
         })
@@ -147,7 +156,6 @@ fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option<f64
         ))),
     }
 }
-
 
 fn series_to_label_values(df: &DataFrame, name: &str) -> Result<Vec<Option<String>>, AppError> {
     let series = df
@@ -243,7 +251,10 @@ mod tests {
         let cols = numeric_columns(&df);
         // ts is included for correlation purposes (as timestamp), non-timestamp temporal cols are not
         // Order follows DataFrame column order (ts, value, other)
-        assert_eq!(cols, vec!["ts".to_string(), "value".to_string(), "other".to_string()]);
+        assert_eq!(
+            cols,
+            vec!["ts".to_string(), "value".to_string(), "other".to_string()]
+        );
     }
 
     #[test]

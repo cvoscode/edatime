@@ -1,129 +1,39 @@
 /**
- * Scatter-page local state and query-context builders.
+ * Scatter-page local query-context builders and DOM helpers.
+ *
+ * The canonical scatter state lives in `store/scatterState.ts` as `scatterState`.
+ * This module re-exports it for backward compatibility so that existing imports
+ * from `./state.js` (e.g. `import { state }`) continue to work.
+ *
+ * Helper functions here (controls readers, query builders, view utilities) are
+ * still owned by this module as they are scatter-page specific.
  */
 
 import { appState, buildAdaptiveLineFiltersForQuery } from '../state.js';
-import {
-    getEl,
-    fmt,
-    computeColorExtent,
-    computeDomains,
-    isTemporalColumn,
-    formatValueForColumn,
-    normalizeCategoryLabel,
-    buildCategoricalColorGroups,
-    type CategoricalColorGroups,
-} from './helpers.js';
+export { appState } from '../state.js';
 
-import type { ChartGPUInstance, SeriesConfig } from '../../libs/chartgpu/dist/index.js';
-import type { DatasetMetadata } from '../types.js';
+// Import scatterState locally as `state` for use in helper functions defined
+// in this module, and re-export it so external callers can also use it as `state`.
+import { scatterState } from '../store/index.js';
+export const state = scatterState;
 
-/* ── State shape ──────────────────────────────────────── */
+// Also export scatterState by its own name for new code
+export { scatterState };
 
-export interface ScatterView {
-    xMin: number; xMax: number; yMin: number; yMax: number;
-}
+// Re-export shared types so external modules can import from './state.js'
+export type {
+    ScatterView,
+    ScatterDrag,
+    DensityTooltipMeta,
+    DensityTooltipCache,
+    MatrixCellData,
+} from '../store/scatterState.js';
+import type { ScatterView } from '../store/scatterState.js';
 
-export interface ScatterDrag {
-    pointerId: number;
-    startX: number; endX: number;
-    startY: number; endY: number;
-}
-
-export interface DensityTooltipMeta {
-    colorCenter: number;
-    colorLo: number;
-    colorHi: number;
-}
-
-export interface DensityTooltipCache {
-    key: string;
-    binSize: number;
-    metrics: ReturnType<typeof getPlotMetrics>;
-    binsBySeriesIndex: Map<number, Map<string, number>>;
-    metaBySeriesIndex: Map<number, DensityTooltipMeta>;
-}
-
-interface ScatterState {
-    chart: ChartGPUInstance | null;
-    initialized: boolean;
-    pageInitialized: boolean;
-    activeView: string;
-    loading: boolean;
-    metadata: DatasetMetadata | null;
-    totalPoints: number;
-    allPoints: [number, number][];
-    points: [number, number][];
-    allColorValues: number[] | null;
-    allColorLabels: unknown[] | null;
-    full: ScatterView;
-    view: ScatterView;
-    zoomHistory: ScatterView[];
-    drag: ScatterDrag | null;
-    selectionBox: HTMLDivElement | null;
-    colorColumn: string;
-    colorValues: number[] | null;
-    colorLabels: unknown[] | null;
-    colorMin: number | null;
-    colorMax: number | null;
-    correlationsByColumn: Map<string, { pearson?: number | null; spearman?: number | null; column?: string }>;
-    suggestionThreshold: number;
-    lastBinnedText: string;
-    lastUpdateMs: number;
-    densityTooltipCache: DensityTooltipCache | null;
-    lastOptionSeries: SeriesConfig[] | null;
-    columnTypes: Map<string, string>;
-    lastSuggestions: Array<{ column: string; pearson?: number | null; spearman?: number | null }>;
-    lastRenderSignature: string;
-    matrixCache: Map<string, Promise<MatrixCellData>>;
-    matrixColumnOrder: string[];
-    overviewRequestId: number;
-    scatterRequestId: number;
-}
-
-export interface MatrixCellData {
-    totalPoints: number;
-    points: [number, number][];
-    colorValues: number[] | null;
-    colorLabels: unknown[] | null;
-}
-
-export const state: ScatterState = {
-    chart: null,
-    initialized: false,
-    pageInitialized: false,
-    activeView: 'plot',
-    loading: false,
-    metadata: null,
-    totalPoints: 0,
-    allPoints: [],
-    points: [],
-    allColorValues: null,
-    allColorLabels: null,
-    full: { xMin: 0, xMax: 1, yMin: 0, yMax: 1 },
-    view: { xMin: 0, xMax: 1, yMin: 0, yMax: 1 },
-    zoomHistory: [],
-    drag: null,
-    selectionBox: null,
-    colorColumn: '',
-    colorValues: null,
-    colorLabels: null,
-    colorMin: null,
-    colorMax: null,
-    correlationsByColumn: new Map(),
-    suggestionThreshold: 0.7,
-    lastBinnedText: '',
-    lastUpdateMs: 0,
-    densityTooltipCache: null,
-    lastOptionSeries: null,
-    columnTypes: new Map(),
-    lastSuggestions: [],
-    lastRenderSignature: '',
-    matrixCache: new Map(),
-    matrixColumnOrder: [],
-    overviewRequestId: 0,
-    scatterRequestId: 0,
-};
+// Re-export helpers that the helpers module provides (used in this file's functions)
+export { getEl, fmt, computeColorExtent, computeDomains } from './helpers.js';
+export { normalizeCategoryLabel, buildCategoricalColorGroups, type CategoricalColorGroups } from './helpers.js';
+import { getEl, fmt, computeColorExtent, computeDomains, normalizeCategoryLabel, buildCategoricalColorGroups, type CategoricalColorGroups } from './helpers.js';
 
 /* ── Controls read helpers ────────────────────────────── */
 
@@ -273,25 +183,25 @@ export function clampView(view: ScatterView): ScatterView {
 }
 
 export function applyScatterStateFromCache(resetView = true): void {
-    state.points = Array.isArray(state.allPoints) ? state.allPoints : [];
-    state.colorValues = Array.isArray(state.allColorValues) ? state.allColorValues : null;
-    state.colorLabels = Array.isArray(state.allColorLabels) ? state.allColorLabels : null;
+    appState.scatter.points = Array.isArray(appState.scatter.allPoints) ? appState.scatter.allPoints : [];
+    appState.scatter.colorValues = Array.isArray(appState.scatter.allColorValues) ? appState.scatter.allColorValues : null;
+    appState.scatter.colorLabels = Array.isArray(appState.scatter.allColorLabels) ? appState.scatter.allColorLabels : null;
 
-    const colorExtent = computeColorExtent(state.colorValues);
-    state.colorMin = colorExtent?.min ?? null;
-    state.colorMax = colorExtent?.max ?? null;
+    const colorExtent = computeColorExtent(appState.scatter.colorValues);
+    appState.scatter.colorMin = colorExtent?.min ?? null;
+    appState.scatter.colorMax = colorExtent?.max ?? null;
 
-    const domains = computeDomains(state.points);
-    state.full = { xMin: domains.xMin, xMax: domains.xMax, yMin: domains.yMin, yMax: domains.yMax };
+    const domains = computeDomains(appState.scatter.points);
+    appState.scatter.full = { xMin: domains.xMin, xMax: domains.xMax, yMin: domains.yMin, yMax: domains.yMax };
 
     if (resetView) {
-        state.view = { ...state.full };
-        state.zoomHistory = [];
+        appState.scatter.view = { ...appState.scatter.full };
+        appState.scatter.zoomHistory = [];
     } else {
-        state.view = clampView(state.view);
+        appState.scatter.view = clampView(appState.scatter.view);
     }
 
-    setStats({ totalPoints: fmt.format(Number(state.totalPoints ?? state.points.length)) });
+    setStats({ totalPoints: fmt.format(Number(appState.scatter.totalPoints ?? appState.scatter.points.length)) });
 }
 
 /* ── Stats display ────────────────────────────────────── */

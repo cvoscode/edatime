@@ -21,6 +21,17 @@ interface ArrowColumn {
 
 let tableFromIPCFn: TableFromIPCFn | null = null;
 
+// Inflight request deduplication: prevents concurrent duplicate requests.
+const inflight = new Map<string, Promise<unknown>>();
+
+function dedupe<T>(key: string, factory: () => Promise<T>): Promise<T> {
+    const existing = inflight.get(key);
+    if (existing !== undefined) return existing as Promise<T>;
+    const promise = factory().finally(() => inflight.delete(key));
+    inflight.set(key, promise);
+    return promise;
+}
+
 async function ensureArrowParser(): Promise<TableFromIPCFn> {
     if (tableFromIPCFn) return tableFromIPCFn;
     try {
@@ -51,9 +62,7 @@ function assertDatasetMetadata(data: unknown): asserts data is DatasetMetadata {
 
 function assertScatterPoints(data: unknown): asserts data is ScatterPointsResponse {
     if (!isObject(data)) throw new Error('Scatter points response is not an object');
-    // After isObject check, TypeScript knows data is Record<string, unknown>
-    if (typeof data.x !== 'string') throw new Error('Scatter response missing x column name');
-    if (typeof data.y !== 'string') throw new Error('Scatter response missing y column name');
+    // x/y may be missing when the response is Arrow (columns in body, metadata in headers)
     if (!Array.isArray(data.points)) throw new Error('Scatter response missing points array');
 }
 
@@ -67,27 +76,32 @@ function assertScatterCorrelations(data: unknown): asserts data is ScatterCorrel
 
 async function getJson<T>(url: string, label: string, signal?: AbortSignal): Promise<T> {
     dbg(`GET (${label})`, url);
-    const res = await fetch(url, signal ? { signal, cache: 'no-store' } : { cache: 'no-store' });
-    if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`${label} failed (${res.status}) ${text}`);
-    }
-    return res.json();
+    return dedupe(`GET:${url}`, async () => {
+        const res = await globalThis.fetch(url, signal ? { signal, cache: 'no-store' } : { cache: 'no-store' });
+        if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            throw new Error(`${label} failed (${res.status}) ${text}`);
+        }
+        return res.json() as T;
+    });
 }
 
 async function postJson<T>(url: string, body: unknown, label: string, signal?: AbortSignal): Promise<T> {
     dbg(`POST (${label})`, { url, body });
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal,
+    const key = `POST:${url}:${JSON.stringify(body)}`;
+    return dedupe(key, async () => {
+        const res = await globalThis.fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal,
+        });
+        if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            throw new Error(`${label} failed (${res.status}) ${text}`);
+        }
+        return res.json() as T;
     });
-    if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`${label} failed (${res.status}) ${text}`);
-    }
-    return res.json();
 }
 
 export async function fetchMetadata(): Promise<DatasetMetadata> {
@@ -116,7 +130,7 @@ export async function fetchData(
     const url = `/api/data?${params.toString()}`;
 
     dbg('GET', url);
-    const res = await fetch(url, signal ? { signal, cache: 'no-store' } : { cache: 'no-store' });
+    const res = await globalThis.fetch(url, signal ? { signal, cache: 'no-store' } : { cache: 'no-store' });
 
     if (DEBUG) {
         dbg('status', res.status, res.statusText);
@@ -269,7 +283,63 @@ export async function fetchScatterPoints(
     }
 
     const url = '/api/scatter/points';
-    const data = await postJson<unknown>(url, payload, 'Scatter points', signal);
+    dbg('POST (Scatter points)', { url, body: payload });
+
+    const res = await globalThis.fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal,
+    });
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Scatter points failed (${res.status}) ${text}`);
+    }
+
+    const ct = res.headers.get('Content-Type') ?? '';
+    if (ct.includes('apache-arrow') || ct.includes('arrow.stream')) {
+        // Arrow IPC response: x, y, color columns → ScatterPointsResponse
+        const buffer = await res.arrayBuffer();
+        const tableFromIPC = await ensureArrowParser();
+        const table = tableFromIPC(buffer);
+
+        const xCol = table.getChild('x');
+        const yCol = table.getChild('y');
+        const colorCol = table.getChild('color_value') ?? table.getChild('color_label');
+
+        const n = table.numRows;
+        const points: [number, number][] = new Array(n);
+        const color_values: number[] | null = colorCol && table.getChild('color_value') ? [] : null;
+        const color_labels: (string | null)[] | null =
+            table.getChild('color_label') ? [] : null;
+
+        for (let i = 0; i < n; i++) {
+            points[i] = [xCol?.get(i) as number, yCol?.get(i) as number];
+            if (color_values) color_values.push((colorCol as ArrowColumn).get(i) as number);
+            if (color_labels) color_labels.push((colorCol as ArrowColumn).get(i) as string | null);
+        }
+
+        const total = Number(res.headers.get('x-edatime-scatter-total') ?? n);
+        const returned = Number(res.headers.get('x-edatime-scatter-returned') ?? n);
+        const color_min = res.headers.get('x-edatime-color-min');
+        const color_max = res.headers.get('x-edatime-color-max');
+
+        return {
+            x,
+            y,
+            color: color ?? null,
+            total_points: total,
+            returned_points: returned,
+            points,
+            color_values,
+            color_labels,
+            color_min: color_min !== null ? Number(color_min) : null,
+            color_max: color_max !== null ? Number(color_max) : null,
+        };
+    }
+
+    // Fallback: JSON
+    const data = await res.json();
     assertScatterPoints(data);
     return data;
 }

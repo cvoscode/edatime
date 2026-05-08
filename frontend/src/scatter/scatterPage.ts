@@ -23,7 +23,6 @@ function handleErr(err: unknown): void {
     showError(String((err as any)?.message ?? err));
 }
 import {
-    state,
     currentControls,
     isLinkedBrushEnabled,
     buildScatterQueryContext,
@@ -84,7 +83,7 @@ function syncScatterEmptyState(message?: string): void {
     const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
     const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
     const hasAxes = !!xSelect?.value && !!ySelect?.value;
-    const isLoading = state.loading && hasAxes && !(_gpuUnavailable && !state.chart);
+    const isLoading = appState.scatter.loading && hasAxes && !(_gpuUnavailable && !appState.scatter.chart);
     syncScatterFilterBadge();
 
     const linkedRangeOutside = isLinkedBrushEnabled()
@@ -92,13 +91,13 @@ function syncScatterEmptyState(message?: string): void {
 
     // Determine the reason for the empty state so tests / users can distinguish
     let reason: string;
-    if (_gpuUnavailable && !state.chart) {
+    if (_gpuUnavailable && !appState.scatter.chart) {
         reason = 'gpu-unavailable';
     } else if (!hasAxes) {
         reason = 'no-columns-selected';
     } else if (isLoading) {
         reason = 'loading';
-    } else if (state.totalPoints === 0) {
+    } else if (appState.scatter.totalPoints === 0) {
         reason = linkedRangeOutside ? 'linked-range-outside-dataset' : 'no-data-after-filters';
     } else {
         reason = '';
@@ -114,7 +113,7 @@ function syncScatterEmptyState(message?: string): void {
     const adaptiveFilterCount = Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters.length : 0;
 
     const text = message
-        || (_gpuUnavailable && !state.chart
+        || (_gpuUnavailable && !appState.scatter.chart
             ? 'WebGPU is not available. Scatter rendering requires a WebGPU-capable browser (Chrome 113+, Edge 113+, Safari 18+).'
             : !hasAxes
                 ? 'Choose X and Y numeric columns to render the scatter plot.'
@@ -127,9 +126,9 @@ function syncScatterEmptyState(message?: string): void {
                             : 'No points match the current query.');
 
     emptyState.update({
-        visible: !isLoading && !(hasAxes && state.totalPoints > 0 && !(_gpuUnavailable && !state.chart)),
+        visible: !isLoading && !(hasAxes && appState.scatter.totalPoints > 0 && !(_gpuUnavailable && !appState.scatter.chart)),
         reason,
-        title: _gpuUnavailable && !state.chart
+        title: _gpuUnavailable && !appState.scatter.chart
             ? 'WebGPU unavailable'
             : !hasAxes
                 ? 'Choose scatter axes'
@@ -206,7 +205,7 @@ function syncScatterViewButtons(viewName: string): void {
 async function setScatterView(viewName: string, options: { render?: boolean } = {}): Promise<void> {
     const nextView = viewName || 'plot';
     const shouldRender = options.render !== false;
-    state.activeView = nextView;
+    appState.scatter.activeView = nextView;
     setSidebarAnalyticsSelection(nextView);
     syncScatterViewButtons(nextView);
     syncModeUI();
@@ -217,11 +216,11 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
 
     if (!shouldRender) return;
     if (nextView === 'matrix') { await renderScatterMatrixView(onMatrixCellClick); return; }
-    requestAnimationFrame(() => state.chart?.resize?.());
+    requestAnimationFrame(() => appState.scatter.chart?.resize?.());
 }
 
 function refreshActiveScatterView(): Promise<void> {
-    return setScatterView(state.activeView, { render: true });
+    return setScatterView(appState.scatter.activeView, { render: true });
 }
 
 /* ── Correlation / suggestion management ──────────────── */
@@ -233,7 +232,7 @@ function renderSuggestions(suggestions: Array<{ column: string; pearson?: number
     const contextEl = getEl('scatter-active-pair-label');
     if (!box) return;
 
-    state.lastSuggestions = Array.isArray(suggestions) ? suggestions.slice() : [];
+    appState.scatter.lastSuggestions = Array.isArray(suggestions) ? suggestions.slice() : [];
     box.innerHTML = '';
 
     if (contextEl) {
@@ -245,7 +244,7 @@ function renderSuggestions(suggestions: Array<{ column: string; pearson?: number
     if (!Array.isArray(suggestions) || suggestions.length === 0) {
         const empty = document.createElement('span');
         empty.className = 'scatter-suggestion-empty';
-        empty.textContent = `No suggestions above |corr| ≥ ${state.suggestionThreshold.toFixed(2)}.`;
+        empty.textContent = `No suggestions above |corr| ≥ ${appState.scatter.suggestionThreshold.toFixed(2)}.`;
         box.appendChild(empty);
         return;
     }
@@ -262,7 +261,7 @@ function renderSuggestions(suggestions: Array<{ column: string; pearson?: number
             if (!ySelect || ySelect.value === item.column) return;
             ySelect.value = item.column;
             updateCorrelationStats();
-            renderSuggestions(state.lastSuggestions);
+            renderSuggestions(appState.scatter.lastSuggestions);
             try { await renderScatter(); } catch (err: any) { handleErr(err); }
         });
         box.appendChild(btn);
@@ -276,11 +275,11 @@ async function refreshCorrelationsAndSuggestions(): Promise<void> {
     if (!xSelect || !ySelect) return;
 
     // Guard: only fetch correlations if metadata is loaded with numeric columns
-    const meta = state.metadata as any;
+    const meta = appState.scatter.metadata as any;
     const numericCols = Array.isArray(meta?.numeric_columns) ? meta.numeric_columns : [];
     if (numericCols.length < 2) return;
 
-    const response = await fetchScatterCorrelations(xSelect.value || null, state.suggestionThreshold);
+    const response = await fetchScatterCorrelations(xSelect.value || null, appState.scatter.suggestionThreshold);
 
     const numeric = Array.isArray(response.numeric_columns) ? response.numeric_columns : [];
     if (numeric.length < 2) throw new Error('Need at least two numeric columns for scatter plotting.');
@@ -291,11 +290,11 @@ async function refreshCorrelationsAndSuggestions(): Promise<void> {
 
     if (colorSelect) {
         const colorOptions = [''].concat(
-            ((state.metadata as any)?.columns || [])
+            ((appState.scatter.metadata as any)?.columns || [])
                 .map((col: any) => String(col?.name || ''))
                 .filter(Boolean),
         );
-        const preferredColor = state.colorColumn || colorSelect.value;
+        const preferredColor = appState.scatter.colorColumn || colorSelect.value;
         colorSelect.innerHTML = '';
         for (const col of colorOptions) {
             const opt = document.createElement('option');
@@ -307,9 +306,9 @@ async function refreshCorrelationsAndSuggestions(): Promise<void> {
         else colorSelect.value = '';
     }
 
-    state.correlationsByColumn = new Map();
+    appState.scatter.correlationsByColumn = new Map();
     for (const row of response.correlations || []) {
-        state.correlationsByColumn.set(row.column, row);
+        appState.scatter.correlationsByColumn.set(row.column, row);
     }
 
     if (!selectedY && yCandidates.length > 0) ySelect.value = yCandidates[0];
@@ -345,8 +344,8 @@ async function renderScatter(): Promise<void> {
     let container = getEl('scatter-chart');
 
     if (!container || !xSelect || !ySelect || !xSelect.value || !ySelect.value) {
-        state.loading = false;
-        state.totalPoints = 0;
+        appState.scatter.loading = false;
+        appState.scatter.totalPoints = 0;
         syncScatterEmptyState();
         return;
     }
@@ -356,8 +355,8 @@ async function renderScatter(): Promise<void> {
 
     showError('');
     const scatterLoading = getEl('scatter-chart-loading');
-    const requestId = ++state.scatterRequestId;
-    state.loading = true;
+    const requestId = ++appState.scatter.scatterRequestId;
+    appState.scatter.loading = true;
     syncScatterEmptyState();
     if (scatterLoading) scatterLoading.hidden = false;
     try {
@@ -372,59 +371,59 @@ async function renderScatter(): Promise<void> {
             buildScatterQueryContext({ x: xSelect.value, y: ySelect.value, colorColumn: colorColumn || undefined }),
             _scatterAbort.signal,
         );
-        if (requestId !== state.scatterRequestId) return;
+        if (requestId !== appState.scatter.scatterRequestId) return;
         _scatterAbort = null;
 
         const points: [number, number][] = Array.isArray(response.points) ? response.points : [];
 
-        state.totalPoints = Number(response.total_points ?? points.length);
-        state.allPoints = points;
-        state.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
-        state.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
-        state.colorColumn = response.color || '';
+        appState.scatter.totalPoints = Number(response.total_points ?? points.length);
+        appState.scatter.allPoints = points;
+        appState.scatter.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
+        appState.scatter.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
+        appState.scatter.colorColumn = response.color || '';
         applyScatterStateFromCache(true);
 
-        if (state.chart && state.lastRenderSignature !== renderSignature) {
+        if (appState.scatter.chart && appState.scatter.lastRenderSignature !== renderSignature) {
             disposeScatterChart();
             container = resetScatterContainer() || getEl('scatter-chart');
         }
 
-        const nextOption = buildOption(state.points, container);
+        const nextOption = buildOption(appState.scatter.points, container);
 
-        if (!state.chart) {
+        if (!appState.scatter.chart) {
             if (!(await isGPUAvailable())) {
-                state.totalPoints = points.length;
+                appState.scatter.totalPoints = points.length;
                 syncScatterEmptyState();
                 return;
             }
             const chartOptions: Record<string, unknown> = { ...nextOption };
             const powerPreference = defaultGpuPowerPreference();
             if (powerPreference) chartOptions.powerPreference = powerPreference;
-            state.chart = await createChart(container!, chartOptions as any);
-            state.lastRenderSignature = renderSignature;
+            appState.scatter.chart = await createChart(container!, chartOptions as any);
+            appState.scatter.lastRenderSignature = renderSignature;
             initSelectionZoom(container!);
-            state.chart.onPerformanceUpdate?.(() => {
+            appState.scatter.chart.onPerformanceUpdate?.(() => {
                 const now = performance.now();
-                if (now - state.lastUpdateMs < 100) return;
-                state.lastUpdateMs = now;
+                if (now - appState.scatter.lastUpdateMs < 100) return;
+                appState.scatter.lastUpdateMs = now;
                 updateBinnedReadout();
             });
         } else {
-            state.chart.setOption(nextOption);
-            state.lastRenderSignature = renderSignature;
-            requestAnimationFrame(() => state.chart?.resize?.());
+            appState.scatter.chart.setOption(nextOption);
+            appState.scatter.lastRenderSignature = renderSignature;
+            requestAnimationFrame(() => appState.scatter.chart?.resize?.());
         }
 
         updateColorbarUI();
         updateBinnedReadout();
         updateCorrelationStats();
-        renderSuggestions(state.lastSuggestions);
+        renderSuggestions(appState.scatter.lastSuggestions);
         updateMarginalPlots();
         await refreshActiveScatterView();
     } catch (err: any) {
         if (err?.name === 'AbortError') return;
-        if (requestId !== state.scatterRequestId) return;
-        state.totalPoints = 0;
+        if (requestId !== appState.scatter.scatterRequestId) return;
+        appState.scatter.totalPoints = 0;
         // Distinguish GPU init failure from data/filter issues
         const isGpuErr = /gpu|webgpu|adapter|device/i.test(String(err?.message || ''));
         if (isGpuErr) _gpuUnavailable = true;
@@ -435,8 +434,8 @@ async function renderScatter(): Promise<void> {
         );
         throw err;
     } finally {
-        if (requestId === state.scatterRequestId) {
-            state.loading = false;
+        if (requestId === appState.scatter.scatterRequestId) {
+            appState.scatter.loading = false;
             syncScatterEmptyState();
             if (scatterLoading) scatterLoading.hidden = true;
         }
@@ -444,11 +443,11 @@ async function renderScatter(): Promise<void> {
 }
 
 async function rerenderScatterFromCache(resetViewFlag = true): Promise<void> {
-    if (Array.isArray(state.allPoints) && state.allPoints.length > 0) {
+    if (Array.isArray(appState.scatter.allPoints) && appState.scatter.allPoints.length > 0) {
         applyScatterStateFromCache(resetViewFlag);
-        if (state.chart) renderCurrentOption();
+        if (appState.scatter.chart) renderCurrentOption();
         updateCorrelationStats();
-        renderSuggestions(state.lastSuggestions);
+        renderSuggestions(appState.scatter.lastSuggestions);
     }
     syncScatterEmptyState();
     await refreshActiveScatterView();
@@ -495,13 +494,13 @@ function bindControls(): void {
 
     binSizeValue.textContent = binSizeInput.value;
     if (suggestionThresholdInput) {
-        state.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
-        suggestionThresholdInput.value = state.suggestionThreshold.toFixed(2);
+appState.scatter.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
+        suggestionThresholdInput.value = appState.scatter.suggestionThreshold.toFixed(2);
     }
-    if (suggestionThresholdValue) suggestionThresholdValue.textContent = state.suggestionThreshold.toFixed(2);
-    if (suggestionThresholdLabel) suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${state.suggestionThreshold.toFixed(2)})`;
+    if (suggestionThresholdValue) suggestionThresholdValue.textContent = appState.scatter.suggestionThreshold.toFixed(2);
+    if (suggestionThresholdLabel) suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${appState.scatter.suggestionThreshold.toFixed(2)})`;
     syncModeUI();
-    void setScatterView(state.activeView, { render: false });
+    void setScatterView(appState.scatter.activeView, { render: false });
 
     document.querySelectorAll<HTMLButtonElement>('[data-scatter-view]').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -512,8 +511,8 @@ function bindControls(): void {
 
     const rerender = () => {
         const container = getEl('scatter-chart');
-        if (!state.chart) return;
-        state.chart.setOption(buildOption(state.points, container));
+        if (!appState.scatter.chart) return;
+        appState.scatter.chart.setOption(buildOption(appState.scatter.points, container));
         updateColorbarUI();
         updateBinnedReadout();
     };
@@ -526,11 +525,11 @@ function bindControls(): void {
     colorColumnSelect?.addEventListener('change', () => { void renderScatter(); });
     colorScaleSelect?.addEventListener('change', () => { rerender(); updateColorbarUI(); });
     suggestionThresholdInput?.addEventListener('input', () => {
-        state.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
-        suggestionThresholdInput.value = state.suggestionThreshold.toFixed(2);
-        if (suggestionThresholdValue) suggestionThresholdValue.textContent = state.suggestionThreshold.toFixed(2);
+        appState.scatter.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
+        suggestionThresholdInput.value = appState.scatter.suggestionThreshold.toFixed(2);
+        if (suggestionThresholdValue) suggestionThresholdValue.textContent = appState.scatter.suggestionThreshold.toFixed(2);
         if (suggestionThresholdLabel) {
-            suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${state.suggestionThreshold.toFixed(2)})`;
+            suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${appState.scatter.suggestionThreshold.toFixed(2)})`;
         }
     });
     suggestionThresholdInput?.addEventListener('change', async () => {
@@ -564,7 +563,7 @@ function bindControls(): void {
     });
     matrixSizeInput?.addEventListener('input', () => {
         if (matrixSizeValue) matrixSizeValue.textContent = matrixSizeInput.value;
-        if (state.activeView === 'matrix') void refreshActiveScatterView();
+        if (appState.scatter.activeView === 'matrix') void refreshActiveScatterView();
     });
 
     // Export buttons
@@ -579,7 +578,7 @@ function bindControls(): void {
 
     ySelect.addEventListener('change', async () => { updateCorrelationStats(); await renderScatter(); });
     xSelect.addEventListener('change', async () => { await refreshCorrelationsAndSuggestions(); await renderScatter(); });
-    window.addEventListener('resize', () => { state.chart?.resize?.(); });
+    window.addEventListener('resize', () => { appState.scatter.chart?.resize?.(); });
 
     const handleFilterEvent = async (requireLinkedBrush: boolean) => {
         const page = getEl('page-scatter');
@@ -596,12 +595,12 @@ function bindControls(): void {
 
     window.addEventListener('edatime:page-change', async (ev: any) => {
         if (ev?.detail?.page !== 'scatter') return;
-        state.activeView = normalizeAnalyticsView(ev?.detail?.analyticsView);
-        await setScatterView(state.activeView, { render: false });
-        if (!state.pageInitialized) {
+        appState.scatter.activeView = normalizeAnalyticsView(ev?.detail?.analyticsView);
+        await setScatterView(appState.scatter.activeView, { render: false });
+        if (!appState.scatter.pageInitialized) {
             refreshCorrelationsAndSuggestions()
                 .then(() => renderScatter())
-                .then(() => { state.pageInitialized = true; })
+                .then(() => { appState.scatter.pageInitialized = true; })
                 .catch((err: any) => { handleErr(err); });
         } else {
             try {
@@ -625,8 +624,8 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
     if (!page || !xSelect || !ySelect) return;
 
     const numeric: string[] = ((metadata as any)?.numeric_columns || []).filter((c: any) => c);
-    state.metadata = metadata;
-    state.columnTypes = new Map(
+    appState.scatter.metadata = metadata;
+    appState.scatter.columnTypes = new Map(
         ((metadata as any)?.columns || []).map((col: any) => [
             String(col?.name || '').toLowerCase(),
             String(col?.dtype || ''),
@@ -638,12 +637,12 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
         ensureOptions(ySelect, numeric.filter((c) => c !== xSelect.value), ySelect.value || numeric[1] || numeric[0]);
     }
 
-    state.loading = !state.pageInitialized && !page.hidden && !!xSelect.value && !!ySelect.value;
+    appState.scatter.loading = !appState.scatter.pageInitialized && !page.hidden && !!xSelect.value && !!ySelect.value;
     syncScatterEmptyState();
     syncScatterFilterBadge();
 
-    if (!state.initialized) { bindControls(); state.initialized = true; }
-    if (state.pageInitialized) return;
+    if (!appState.scatter.initialized) { bindControls(); appState.scatter.initialized = true; }
+    if (appState.scatter.pageInitialized) return;
 
     const isVisible = !page.hidden;
     if (!isVisible) return;
@@ -651,7 +650,7 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
     try {
         await refreshCorrelationsAndSuggestions();
         await renderScatter();
-        state.pageInitialized = true;
+        appState.scatter.pageInitialized = true;
     } catch (err: any) {
         handleErr(err);
     }

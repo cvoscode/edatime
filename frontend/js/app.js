@@ -1,76 +1,8 @@
-import {
-  exportContainerCanvasHTML,
-  exportContainerCanvasPNG,
-  exportContainerCanvasSVG,
-  exportEChartsHTML,
-  exportEChartsPNG,
-  exportEChartsSVG,
-  exportElementHTML,
-  exportElementPNG,
-  exportElementSVG,
-  exportMatrixCSV,
-  exportTraceCSV
-} from "./chunk-DLUWT64L.js";
-import {
-  FftChart
-} from "./chunk-U3STFUGM.js";
-import "./chunk-667JW4DN.js";
-import {
-  createEmptyStateController,
-  isRangeOutsideDataset
-} from "./chunk-EB7OGCRI.js";
-import {
-  fetchCorrelationMatrix,
-  fetchFft,
-  fetchMetadata,
-  fetchSpectrogram
-} from "./chunk-ZQDEWDPA.js";
-import {
-  DEBUG,
-  dbg,
-  dbgGroup
-} from "./chunk-P2MGEQ7G.js";
-import {
-  installWindowsWebGpuRequestAdapterWorkaround,
-  requestGpuAdapter
-} from "./chunk-LYBNNLKR.js";
-import {
-  PROFILE_COLUMNS,
-  PROFILE_OVERSCAN,
-  PROFILE_ROW_HEIGHT,
-  SERIES_COLORS,
-  appState,
-  applyColumnRanges,
-  buildAdaptiveLineFiltersForQuery,
-  buildAdaptiveLineY,
-  buildMetaBar,
-  computeBounds,
-  ensureRangeStateFromData,
-  formatAnalysisNumber,
-  formatAnalysisTime,
-  formatCount,
-  formatProfileValue,
-  formatToDatetimeLocal,
-  getDefaultProfileColumnWidths,
-  getSeriesColor,
-  normalizeDtypeLabel,
-  sanitizeSelectedColumns,
-  setMetaText,
-  setSeriesColor,
-  toFiniteNumberOrNull
-} from "./chunk-LUF74D3T.js";
-import {
-  debounce,
-  downloadBlob,
-  escapeHtml
-} from "./chunk-W3LBOP5Z.js";
-import {
-  toast
-} from "./chunk-PHSGYAI7.js";
-import "./chunk-PZ5AY32C.js";
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/frequency-DsOq7zgH.js","assets/chartgpu-CqrjGxnD.js","assets/DataChart-BlzPYbPm.js","assets/scatter-YST55Tu_.js","assets/drift-CTz8wK_7.js","assets/causal-QCmcQZom.js"])))=>i.map(i=>d[i]);
+import { c as appState, s as formatAnalysisNumber, u as sanitizeSelectedColumns, v as getSeriesColor, h as escapeHtml$2, w as buildMetaBar, x as setSeriesColor, y as computeBounds, z as fetchMetadata$1, A as formatCount, B as formatToDatetimeLocal, C as formatAnalysisTime, P as PROFILE_ROW_HEIGHT, E as PROFILE_COLUMNS, F as normalizeDtypeLabel, G as formatProfileValue, H as getDefaultProfileColumnWidths, I as PROFILE_OVERSCAN, J as toFiniteNumberOrNull, K as dbgGroup, L as dbg, D as DEBUG, M as ensureRangeStateFromData, N as setMetaText, o as createEmptyStateController, O as applyColumnRanges, l as isRangeOutsideDataset, d as downloadBlob, b as buildAdaptiveLineFiltersForQuery, S as SERIES_COLORS, t as toast, _ as __vitePreload, Q as debounce, R as installWindowsWebGpuRequestAdapterWorkaround, T as getNumericColumns, U as getDefaultTimeseriesColumns, r as requestGpuAdapter, V as buildAdaptiveLineY, W as initFftPage$1, X as getAnalyticsChipColor, Y as initSpectrogramPage$1, Z as initHeatmapPage$1 } from './assets/frequency-DsOq7zgH.js';
+import './assets/chartgpu-CqrjGxnD.js';
 
-// frontend/src/ui/columns.ts
-function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrentDataFn = null) {
+function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn = null) {
   sanitizeSelectedColumns();
   if (!appState.selectedCols.includes(appState.adaptiveFilterColumn)) {
     appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
@@ -96,9 +28,9 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
       if (!isDoubleContext) return;
       lastContextTs = 0;
       lastContextCol = "";
-      const open2 = window.__edatime?.openFilterForCol;
-      if (typeof open2 !== "function") return;
-      open2(col);
+      const open = window.__edatime?.openFilterForCol;
+      if (typeof open !== "function") return;
+      open(col);
     });
     container.dataset.ctxBound = "1";
   }
@@ -133,7 +65,7 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
     }
     colorSelect.onchange = () => {
       appState.selectedColorColumn = colorSelect.value || null;
-      if (typeof fetchAndRender2 === "function") fetchAndRender2();
+      if (typeof fetchAndRender === "function") fetchAndRender();
     };
   }
   if (visibleCols.length === 0) {
@@ -154,10 +86,10 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
     chip.style.setProperty("--chip-accent", color);
     chip.title = isAdaptiveTarget ? `Adaptive filter target: ${col}` : `Ctrl+click to target adaptive filters to ${col}`;
     chip.innerHTML = `
-            <input type="checkbox" id="series-toggle-${safeKey}" name="series-toggle-${safeKey}" aria-label="Toggle ${escapeHtml(col)} series" ${isActive ? "checked" : ""} value="${escapeHtml(col)}">
-      <span class="chip-label">${escapeHtml(col)}</span>
-            <input type="color" class="chip-color-picker" id="series-color-${safeKey}" name="series-color-${safeKey}" value="${escapeHtml(color)}" aria-label="Set ${escapeHtml(col)} color" title="Set ${escapeHtml(col)} color">
-            <button class="chip-menu-btn" type="button" aria-label="Chip options for ${escapeHtml(col)}" title="More options">
+            <input type="checkbox" id="series-toggle-${safeKey}" name="series-toggle-${safeKey}" aria-label="Toggle ${escapeHtml$2(col)} series" ${isActive ? "checked" : ""} value="${escapeHtml$2(col)}">
+      <span class="chip-label">${escapeHtml$2(col)}</span>
+            <input type="color" class="chip-color-picker" id="series-color-${safeKey}" name="series-color-${safeKey}" value="${escapeHtml$2(color)}" aria-label="Set ${escapeHtml$2(col)} color" title="Set ${escapeHtml$2(col)} color">
+            <button class="chip-menu-btn" type="button" aria-label="Chip options for ${escapeHtml$2(col)}" title="More options">
               <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>
             </button>
     `;
@@ -173,10 +105,10 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
         appState.adaptiveFilterColumn = col;
         appState.pendingAdaptivePoint = null;
         buildMetaBar(appState.metadata);
-        buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrentDataFn);
+        buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
         buildRangeControlsFn();
         appState.chart?.requestOverlayRender?.();
-        if (!hadColumn) fetchAndRender2();
+        if (!hadColumn) fetchAndRender();
       },
       true
     );
@@ -195,7 +127,7 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
       buildMetaBar(appState.metadata);
       buildRangeControlsFn();
       appState.chart?.requestOverlayRender?.();
-      fetchAndRender2();
+      fetchAndRender();
     });
     const colorInput = chip.querySelector(".chip-color-picker");
     for (const eventName of ["pointerdown", "mousedown", "click", "dblclick"]) {
@@ -225,7 +157,7 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
                   </button>
                   <button class="chip-menu-item" data-action="open-filter" role="menuitem">
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="4"/><circle cx="10" cy="10" r="4"/></svg>
-                    Filter range\u2026
+                    Filter range…
                   </button>
                   <div class="chip-menu-divider"></div>
                   <button class="chip-menu-item" data-action="remove" role="menuitem">
@@ -242,23 +174,23 @@ function buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrent
               appState.adaptiveFilterColumn = col;
               appState.pendingAdaptivePoint = null;
               buildMetaBar(appState.metadata);
-              buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrentDataFn);
+              buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
               buildRangeControlsFn();
               appState.chart?.requestOverlayRender?.();
-              if (!appState.selectedCols.includes(col)) fetchAndRender2();
+              if (!appState.selectedCols.includes(col)) fetchAndRender();
             } else if (action === "open-filter") {
-              const open2 = window.__edatime?.openFilterForCol;
-              if (typeof open2 === "function") open2(col);
+              const open = window.__edatime?.openFilterForCol;
+              if (typeof open === "function") open(col);
             } else if (action === "remove") {
               appState.selectedCols = appState.selectedCols.filter((c) => c !== col);
               if (appState.adaptiveFilterColumn === col) {
                 appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
               }
               buildMetaBar(appState.metadata);
-              buildColumnToggles(fetchAndRender2, buildRangeControlsFn, renderCurrentDataFn);
+              buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
               buildRangeControlsFn();
               appState.chart?.requestOverlayRender?.();
-              fetchAndRender2();
+              fetchAndRender();
             }
             menu.remove();
           });
@@ -299,17 +231,17 @@ function buildRangeControls() {
     chip.setAttribute("aria-label", `Filter ${col}`);
     chip.innerHTML = `
       <span class="name">${col}</span>
-      <span class="range">${formatAnalysisNumber(range.from)} \u2192 ${formatAnalysisNumber(range.to)}</span>
+      <span class="range">${formatAnalysisNumber(range.from)} → ${formatAnalysisNumber(range.to)}</span>
     `;
-    const open2 = () => {
+    const open = () => {
       const fn = window.__edatime?.openFilterForCol;
       if (typeof fn === "function") fn(col);
     };
-    chip.addEventListener("click", open2);
+    chip.addEventListener("click", open);
     chip.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        open2();
+        open();
       }
     });
     container.appendChild(chip);
@@ -368,7 +300,7 @@ function buildRangeControls() {
     container.appendChild(clearChip);
   }
 }
-function initColumnFilterModal(renderCurrentData2, updateAnalysisYRange2) {
+function initColumnFilterModal(renderCurrentData, updateAnalysisYRange) {
   const modal = document.getElementById("column-filter-modal");
   const closeBtn = document.getElementById("column-filter-close-btn");
   const cancelBtn = document.getElementById("column-filter-cancel-btn");
@@ -552,7 +484,7 @@ function initColumnFilterModal(renderCurrentData2, updateAnalysisYRange2) {
     syncInputsFromValues(cur.from, cur.to);
     applyBtn.disabled = false;
     clearBtn.disabled = false;
-    setHint(`Available range: ${formatAnalysisNumber(full.min)} \u2192 ${formatAnalysisNumber(full.max)}`);
+    setHint(`Available range: ${formatAnalysisNumber(full.min)} → ${formatAnalysisNumber(full.max)}`);
   }
   function openModalForCol(col) {
     populateColumns(col || colSelect.value || appState.selectedCols?.[0] || null);
@@ -592,10 +524,10 @@ function initColumnFilterModal(renderCurrentData2, updateAnalysisYRange2) {
     if (!col || !full) return;
     appState.columnRanges[col] = { from: full.min, to: full.max };
     buildRangeControls();
-    renderCurrentData2();
+    renderCurrentData();
     appState.chart?.fitYToData?.();
     const yr = appState.chart?.getYRange?.();
-    if (yr) updateAnalysisYRange2(yr.min, yr.max, "filter");
+    if (yr) updateAnalysisYRange(yr.min, yr.max, "filter");
     emitColumnFiltersChange();
     refreshInputsForCol(col);
   });
@@ -619,18 +551,17 @@ function initColumnFilterModal(renderCurrentData2, updateAnalysisYRange2) {
     }
     appState.columnRanges[col] = { from, to };
     buildRangeControls();
-    renderCurrentData2();
+    renderCurrentData();
     appState.chart?.fitYToData?.();
     const yr = appState.chart?.getYRange?.();
-    if (yr) updateAnalysisYRange2(yr.min, yr.max, "filter");
+    if (yr) updateAnalysisYRange(yr.min, yr.max, "filter");
     emitColumnFiltersChange();
     closeModal();
   });
   modal.dataset.bound = "1";
 }
 
-// frontend/src/ui/upload.ts
-var UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
+const UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
 function getPartialTimeRangeInputs() {
   const startInput = document.getElementById("time-start-input");
   const endInput = document.getElementById("time-end-input");
@@ -684,10 +615,10 @@ function applyPartialTimeRangeFromMetadata(metadata, overwriteInputs = true) {
   const maxLocal = formatToDatetimeLocal(maxMs);
   setPartialTimeRangeInputs(inputs, minLocal, maxLocal, overwriteInputs);
   if (inputs.hint) {
-    inputs.hint.textContent = `Detected: ${formatAnalysisTime(minMs)} \u2192 ${formatAnalysisTime(maxMs)}`;
+    inputs.hint.textContent = `Detected: ${formatAnalysisTime(minMs)} → ${formatAnalysisTime(maxMs)}`;
   }
 }
-function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
+function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid) {
   const toggleBtn = document.getElementById("upload-toggle-btn");
   const panel = document.getElementById("upload-panel");
   const browseBtn = document.getElementById("browse-btn");
@@ -766,7 +697,7 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
       for (const name of columns) next.add(name);
     }
     appState.previewSelectedColumns = Array.from(next);
-    renderColumnProfilesGrid2(false);
+    renderColumnProfilesGrid(false);
   }
   async function runFilePreview(file) {
     if (!file) {
@@ -775,7 +706,7 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
     }
     if (previewController) previewController.abort();
     previewController = new AbortController();
-    setUploadPreviewStatus("Profiling file\u2026", "loading");
+    setUploadPreviewStatus("Profiling file…", "loading");
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -796,9 +727,9 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
         throw new Error("Preview response missing metadata");
       }
       appState.metadata = previewMetadata;
-      hydrateColumnProfiles2(previewMetadata);
+      hydrateColumnProfiles(previewMetadata);
       applyPreviewColumnSelection(previewMetadata);
-      renderColumnProfilesGrid2(true);
+      renderColumnProfilesGrid(true);
       applyPartialTimeRangeFromMetadata(previewMetadata, true);
       const previewRows = Number(previewMetadata.total_rows || result?.preview_rows || 0);
       if (!appState.previewTimeColumn && !previewMetadata.time_range) {
@@ -950,7 +881,7 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
     const timeColumn = String(appState.previewTimeColumn || "").trim();
     if (timeColumn) formData.append("time_column", timeColumn);
     uploadBtn.disabled = true;
-    setStatus("Uploading\u2026", "loading");
+    setStatus("Uploading…", "loading");
     progressWrap.style.display = "block";
     const stopProgress = animateProgress(progressBar);
     try {
@@ -969,9 +900,9 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
         setStatus("Error: " + message, "error");
       } else {
         const result = await res.json();
-        setStatus(`Loaded ${result.rows.toLocaleString()} rows. Refreshing stats\u2026`, "success");
+        setStatus(`Loaded ${result.rows.toLocaleString()} rows. Refreshing stats…`, "success");
         try {
-          const freshMetadata = await fetchMetadata();
+          const freshMetadata = await fetchMetadata$1();
           appState.metadata = freshMetadata;
           const revision = freshMetadata?.revision;
           appState.datasetRevision = typeof revision === "number" ? revision : 0;
@@ -980,9 +911,9 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
           fileDisplay.textContent = "";
           setUploadPreviewStatus("Upload complete. Select a file to preview.", "");
           setProfileMode("dataset");
-          hydrateColumnProfiles2(freshMetadata);
+          hydrateColumnProfiles(freshMetadata);
           applyPartialTimeRangeFromMetadata(freshMetadata, false);
-          renderColumnProfilesGrid2(true);
+          renderColumnProfilesGrid(true);
         } catch {
           setTimeout(() => window.location.reload(), 1200);
         }
@@ -1059,11 +990,11 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
       if (!r.ok) return;
       const data = await r.json();
       const tables = data.tables ?? [];
-      dbTableSelect.innerHTML = '<option value="">\u2014 select table \u2014</option>';
+      dbTableSelect.innerHTML = '<option value="">— select table —</option>';
       for (const t of tables) {
         const opt = document.createElement("option");
         opt.value = t.name;
-        opt.textContent = t.kind === "hypertable" ? `\u23F1 ${t.schema}.${t.name}` : `${t.schema}.${t.name}`;
+        opt.textContent = t.kind === "hypertable" ? `⏱ ${t.schema}.${t.name}` : `${t.schema}.${t.name}`;
         dbTableSelect.appendChild(opt);
       }
     } catch {
@@ -1086,7 +1017,7 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
       }
       dbConnectBtn.disabled = true;
       if (dbStatus) {
-        dbStatus.textContent = "Connecting\u2026";
+        dbStatus.textContent = "Connecting…";
         dbStatus.className = "upload-status loading";
       }
       try {
@@ -1138,7 +1069,7 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
       }
       dbLoadBtn.disabled = true;
       if (dbStatus) {
-        dbStatus.textContent = "Loading data\u2026";
+        dbStatus.textContent = "Loading data…";
         dbStatus.className = "upload-status loading";
       }
       try {
@@ -1188,7 +1119,7 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
       if (dbLoadBtn) dbLoadBtn.disabled = true;
       if (dbDisconnectBtn) dbDisconnectBtn.hidden = true;
       if (dbTableSelect) {
-        dbTableSelect.innerHTML = '<option value="">\u2014 connect first \u2014</option>';
+        dbTableSelect.innerHTML = '<option value="">— connect first —</option>';
       }
     });
   }
@@ -1212,7 +1143,6 @@ function initUploadPanel(hydrateColumnProfiles2, renderColumnProfilesGrid2) {
   }
 }
 
-// frontend/src/ui/profile.ts
 function createProfileRow(raw) {
   const name = String(raw?.name || "").trim();
   if (!name) return null;
@@ -1426,7 +1356,7 @@ function createHistogramCell(profile) {
   if (counts.length === 0) {
     const empty = document.createElement("span");
     empty.className = "profile-hist-empty";
-    empty.textContent = "\u2014";
+    empty.textContent = "—";
     cell.appendChild(empty);
     return cell;
   }
@@ -1434,7 +1364,7 @@ function createHistogramCell(profile) {
   if (!Number.isFinite(maxCount) || maxCount <= 0) {
     const empty = document.createElement("span");
     empty.className = "profile-hist-empty";
-    empty.textContent = "\u2014";
+    empty.textContent = "—";
     cell.appendChild(empty);
     return cell;
   }
@@ -1516,25 +1446,8 @@ function initColumnProfilesGrid() {
   appState.profileGridBound = true;
 }
 
-// frontend/src/pages/analyticsPageUtils.ts
-var ANALYTICS_CHIP_COLORS = ["#7ad151", "#4ac3e8", "#f97316", "#e879f9", "#facc15", "#60a5fa", "#f43f5e"];
-function getNumericColumns(metadata) {
-  const timeCol = String(metadata?.time_column || "").trim().toLowerCase();
-  return (metadata?.numeric_columns || []).filter((column) => {
-    const lower = String(column || "").trim().toLowerCase();
-    return lower && lower !== "ts" && lower !== timeCol;
-  });
-}
-function getDefaultTimeseriesColumns(metadata) {
-  return getNumericColumns(metadata).slice(0, 3);
-}
-function getAnalyticsChipColor(column, fallbackIndex, overrides) {
-  return overrides?.[column] || ANALYTICS_CHIP_COLORS[Math.max(0, fallbackIndex) % ANALYTICS_CHIP_COLORS.length];
-}
-
-// frontend/src/pages/timeseriesPage.ts
-var EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} };
-var timeseriesEmptyStateController = null;
+const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} };
+let timeseriesEmptyStateController = null;
 function getTimeseriesEmptyStateController() {
   if (!timeseriesEmptyStateController) {
     timeseriesEmptyStateController = createEmptyStateController({
@@ -1627,13 +1540,13 @@ function computeRenderedYDebugSnapshot() {
 }
 function createTimeseriesPageController(deps) {
   let dataFetchController = null;
-  function emitChartRangeChange2(sourceKind = "data") {
+  function emitChartRangeChange(sourceKind = "data") {
     if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
     window.dispatchEvent(new CustomEvent("edatime:chart-range-change", {
       detail: { start: appState.currentStart, end: appState.currentEnd, source: sourceKind }
     }));
   }
-  function renderCurrentData2() {
+  function renderCurrentData() {
     const emptyState = getTimeseriesEmptyStateController();
     const hasSelection = Array.isArray(appState.selectedCols) && appState.selectedCols.length > 0;
     if (!hasSelection) {
@@ -1691,7 +1604,7 @@ function createTimeseriesPageController(deps) {
     }
     window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
   }
-  async function fetchAndRender2() {
+  async function fetchAndRender() {
     sanitizeSelectedColumns();
     if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
     const currentStart = Number(appState.currentStart);
@@ -1699,7 +1612,7 @@ function createTimeseriesPageController(deps) {
     if (currentStart >= currentEnd) return;
     if (!Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
       deps.buildRangeControls();
-      renderCurrentData2();
+      renderCurrentData();
       return;
     }
     if (dataFetchController) dataFetchController.abort();
@@ -1736,8 +1649,8 @@ function createTimeseriesPageController(deps) {
       ensureRangeStateFromData(data);
       deps.buildRangeControls();
       appState.chart?.setXRange?.(currentStart, currentEnd);
-      renderCurrentData2();
-      emitChartRangeChange2("data");
+      renderCurrentData();
+      emitChartRangeChange("data");
       if (appState.anomalyEnabled) {
         deps.fetchAndRenderAnalytics().catch(() => {
         });
@@ -1761,7 +1674,7 @@ function createTimeseriesPageController(deps) {
       if (loadingEl2) loadingEl2.hidden = true;
     }
   }
-  function onZoomRangeChange2(newStart, newEnd, sourceKind = "user") {
+  function onZoomRangeChange(newStart, newEnd, sourceKind = "user") {
     if (appState.fetchDebounceId) clearTimeout(appState.fetchDebounceId);
     dbgGroup(`onZoomRangeChange (${sourceKind})`, () => {
       dbg("prev", { start: appState.currentStart, end: appState.currentEnd });
@@ -1780,791 +1693,18 @@ function createTimeseriesPageController(deps) {
     appState.pendingYMode = "fit";
     appState.pendingRestoreY = null;
     deps.updateAnalysisZoom(newStart, newEnd, sourceKind);
-    emitChartRangeChange2(sourceKind);
-    if (!appState.refetchOnZoom) return;
-    appState.fetchDebounceId = setTimeout(fetchAndRender2, 150);
+    emitChartRangeChange(sourceKind);
+    appState.fetchDebounceId = setTimeout(fetchAndRender, 150);
   }
   return {
-    emitChartRangeChange: emitChartRangeChange2,
-    fetchAndRender: fetchAndRender2,
-    onZoomRangeChange: onZoomRangeChange2,
-    renderCurrentData: renderCurrentData2
+    emitChartRangeChange,
+    fetchAndRender,
+    onZoomRangeChange,
+    renderCurrentData
   };
 }
 
-// frontend/src/pages/fftPage.ts
-var initialized = false;
-var fftTraces = [];
-var fftMode = "magnitude";
-var fftLogScale = true;
-var fftChart = null;
-var fftTraceColors = {};
-var fftEmptyStateController = null;
-function getFftEmptyStateController() {
-  if (!fftEmptyStateController) {
-    fftEmptyStateController = createEmptyStateController({ rootId: "fft-empty-state" });
-  }
-  return fftEmptyStateController;
-}
-function fftColumns() {
-  return getNumericColumns(appState.metadata);
-}
-function fftColorFor(column, fallbackIndex) {
-  return getAnalyticsChipColor(column, fallbackIndex, fftTraceColors);
-}
-function updateZoomButton(isZoomed) {
-  const button = document.getElementById("fft-zoom-reset-btn");
-  if (button) button.hidden = !(isZoomed ?? fftChart?.getIsZoomed() ?? false);
-}
-function rerenderOrClear() {
-  getFftEmptyStateController().update({
-    visible: fftTraces.length === 0,
-    reason: fftTraces.length > 0 ? "" : "no-columns-selected",
-    title: "",
-    message: ""
-  });
-  if (!fftChart) return;
-  if (fftTraces.length === 0) {
-    fftChart.clear();
-    return;
-  }
-  fftChart.updateData(fftTraces, fftMode, fftLogScale);
-}
-async function fetchAndAddTrace(column) {
-  if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
-  const startMs = appState.currentStart;
-  const endMs = appState.currentEnd;
-  if (startMs == null || endMs == null || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
-  const startIso = new Date(startMs).toISOString();
-  const endIso = new Date(endMs).toISOString();
-  const response = await fetchFft(startIso, endIso, column);
-  if (!response?.results?.length) throw new Error("No results");
-  const result = response.results[0];
-  fftTraces = fftTraces.filter((trace) => trace.column !== column);
-  fftTraces.push({
-    column: result.column,
-    frequencies: result.frequencies,
-    magnitudes: result.magnitudes,
-    psd: result.psd,
-    color: fftColorFor(column, fftColumns().indexOf(column))
-  });
-}
-function renderChips() {
-  const bar = document.getElementById("fft-traces-bar");
-  const statusEl = document.getElementById("fft-status");
-  if (!bar || !appState.metadata) return;
-  const columns = fftColumns();
-  const existing = /* @__PURE__ */ new Map();
-  for (const element of bar.querySelectorAll(".fft-trace-chip")) {
-    const column = element.dataset.col;
-    if (columns.includes(column)) existing.set(column, element);
-    else element.remove();
-  }
-  const zoomButton = bar.querySelector("#fft-zoom-reset-btn");
-  for (const [index, column] of columns.entries()) {
-    const isActive = fftTraces.some((trace) => trace.column === column);
-    const color = fftColorFor(column, index);
-    let chip = existing.get(column);
-    if (!chip) {
-      chip = document.createElement("button");
-      chip.className = "series-chip fft-trace-chip";
-      chip.type = "button";
-      chip.dataset.col = column;
-      chip.addEventListener("click", async (event) => {
-        const currentColumn = chip?.dataset.col || "";
-        if (event.target?.closest?.(".chip-color-picker")) return;
-        if (event.target.classList.contains("fft-chip-remove")) {
-          fftTraces = fftTraces.filter((trace) => trace.column !== currentColumn);
-          renderChips();
-          rerenderOrClear();
-          if (statusEl) {
-            statusEl.textContent = fftTraces.length ? fftTraces.map((trace) => trace.column).join(", ") : "Select a column chip to compute its FFT.";
-          }
-          return;
-        }
-        if (!currentColumn || fftTraces.some((trace) => trace.column === currentColumn)) return;
-        const activeChip = chip;
-        if (!activeChip) return;
-        activeChip.classList.add("loading");
-        activeChip.disabled = true;
-        const loadingEl = document.getElementById("fft-chart-loading");
-        if (loadingEl) loadingEl.hidden = false;
-        if (statusEl) statusEl.textContent = `Computing FFT for ${currentColumn}\u2026`;
-        try {
-          await fetchAndAddTrace(currentColumn);
-          renderChips();
-          rerenderOrClear();
-          const bins = fftTraces.find((trace) => trace.column === currentColumn)?.frequencies.length ?? 0;
-          if (statusEl) statusEl.textContent = `${fftTraces.map((trace) => trace.column).join(", ")} \xB7 ${bins} bins`;
-        } catch (error) {
-          if (statusEl) statusEl.textContent = `FFT failed for ${currentColumn}: ${error?.message || "error"}`;
-        } finally {
-          activeChip.classList.remove("loading");
-          activeChip.disabled = false;
-          if (loadingEl) loadingEl.hidden = true;
-        }
-      });
-      bar.insertBefore(chip, zoomButton || null);
-    }
-    chip.className = `series-chip fft-trace-chip${isActive ? " active" : ""}`;
-    chip.style.setProperty("--chip-accent", color);
-    chip.innerHTML = `<span class="chip-label">${column}</span><input type="color" class="chip-color-picker fft-chip-color-picker" value="${color}" aria-label="Set ${column} FFT color" title="Set ${column} FFT color">` + (isActive ? '<span class="fft-chip-remove" aria-hidden="true">\xD7</span>' : "");
-    const colorInput = chip.querySelector(".chip-color-picker");
-    if (colorInput) {
-      for (const eventName of ["pointerdown", "mousedown", "click", "dblclick"]) {
-        colorInput.addEventListener(eventName, (event) => event.stopPropagation());
-      }
-      colorInput.addEventListener("input", (event) => {
-        const nextColor = event.target.value;
-        fftTraceColors[column] = nextColor;
-        chip?.style.setProperty("--chip-accent", nextColor);
-        const trace = fftTraces.find((item) => item.column === column);
-        if (trace) {
-          trace.color = nextColor;
-          rerenderOrClear();
-        }
-      });
-    }
-  }
-  bar.hidden = columns.length === 0;
-}
-async function initFftPage(deps) {
-  if (initialized) return;
-  initialized = true;
-  const modeSelect = document.getElementById("fft-mode-select");
-  const logCheck = document.getElementById("fft-log-scale");
-  const zoomResetBtn = document.getElementById("fft-zoom-reset-btn");
-  fftChart = new FftChart("fft-chart");
-  await fftChart.init();
-  fftChart.onZoomChange = (isZoomed) => updateZoomButton(isZoomed);
-  const populateChips = () => {
-    if (appState.metadata) renderChips();
-  };
-  populateChips();
-  window.addEventListener("edatime:page-change", populateChips);
-  modeSelect?.addEventListener("change", () => {
-    fftMode = modeSelect.value;
-    rerenderOrClear();
-  });
-  logCheck?.addEventListener("change", () => {
-    fftLogScale = logCheck.checked;
-    rerenderOrClear();
-  });
-  zoomResetBtn?.addEventListener("click", () => fftChart?.resetView());
-  document.getElementById("fft-export-png-btn")?.addEventListener("click", () => {
-    exportContainerCanvasPNG("fft-chart", "edatime_fft.png");
-  });
-  document.getElementById("fft-export-svg-btn")?.addEventListener("click", () => {
-    exportContainerCanvasSVG("fft-chart", "edatime_fft.svg");
-  });
-  document.getElementById("fft-export-html-btn")?.addEventListener("click", () => {
-    exportContainerCanvasHTML("fft-chart", "edatime_fft.html");
-  });
-  document.getElementById("fft-export-csv-btn")?.addEventListener("click", () => {
-    if (fftTraces.length === 0) {
-      toast("No FFT data to export.", "warning");
-      return;
-    }
-    const csvTraces = fftTraces.map((trace) => ({
-      column: trace.column,
-      xs: trace.frequencies,
-      ys: fftMode === "psd" ? trace.psd : trace.magnitudes
-    }));
-    exportTraceCSV(csvTraces, "frequency_hz", `edatime_fft_${fftMode}.csv`);
-  });
-  document.getElementById("fft-filter-apply-btn")?.addEventListener("click", async () => {
-    const filterType = document.getElementById("fft-filter-type")?.value;
-    if (!filterType || filterType === "none") {
-      if (appState.spectralFilterPreview) {
-        appState.spectralFilterPreview = null;
-        appState.chart?.requestOverlayRender?.();
-        deps.renderTimeseries();
-      }
-      return;
-    }
-    const column = fftTraces[0]?.column || appState.selectedCols[0];
-    if (!column) {
-      toast("Select a column chip below first.", "warning");
-      return;
-    }
-    const statusEl = document.getElementById("fft-filter-status");
-    const lowHz = parseFloat(document.getElementById("fft-filter-low-hz")?.value) || void 0;
-    const highHz = parseFloat(document.getElementById("fft-filter-high-hz")?.value) || void 0;
-    if (statusEl) statusEl.textContent = "Computing\u2026";
-    try {
-      const start = appState.currentStart;
-      const end = appState.currentEnd;
-      if (start == null || end == null || !Number.isFinite(start) || !Number.isFinite(end)) {
-        throw new Error("No range selected");
-      }
-      const params = new URLSearchParams({
-        start: new Date(start).toISOString(),
-        end: new Date(end).toISOString(),
-        column,
-        filter_type: filterType,
-        ...lowHz !== void 0 ? { low_hz: String(lowHz) } : {},
-        ...highHz !== void 0 ? { high_hz: String(highHz) } : {}
-      });
-      const response = await fetch(`/api/analytics/spectral-filter?${params.toString()}`);
-      if (!response.ok) throw new Error(await response.text());
-      const data = await response.json();
-      appState.spectralFilterPreview = {
-        column: data.column,
-        ts: data.ts,
-        values: data.values,
-        filterType,
-        lowHz: data.low_hz,
-        highHz: data.high_hz
-      };
-      if (statusEl) statusEl.textContent = `${filterType} preview active`;
-      toast(`Spectral filter preview: ${filterType} applied to "${column}". Switch to Timeseries to view.`, "success");
-      deps.renderTimeseries();
-    } catch (error) {
-      if (statusEl) statusEl.textContent = "Error";
-      toast(`Spectral filter failed: ${String(error)}`, "error");
-    }
-  });
-  const filterTypeSelect = document.getElementById("fft-filter-type");
-  filterTypeSelect?.addEventListener("change", () => {
-    const filterType = filterTypeSelect.value;
-    const lowEl = document.getElementById("fft-filter-low-hz");
-    const highEl = document.getElementById("fft-filter-high-hz");
-    if (lowEl) lowEl.disabled = filterType === "none" || filterType === "lowpass";
-    if (highEl) highEl.disabled = filterType === "none" || filterType === "highpass";
-  });
-  rerenderOrClear();
-}
-
-// frontend/src/pages/heatmapPage.ts
-var loaded = false;
-var heatmapCellSize = 36;
-var heatmapEmptyStateController = null;
-function getHeatmapEmptyStateController() {
-  if (!heatmapEmptyStateController) {
-    heatmapEmptyStateController = createEmptyStateController({ rootId: "heatmap-empty-state" });
-  }
-  return heatmapEmptyStateController;
-}
-function syncHeatmapEmptyState(message, visible, reason = "") {
-  getHeatmapEmptyStateController().update({
-    visible,
-    reason: visible ? reason || "no-data" : "",
-    title: "",
-    message: "",
-    fallbackText: message
-  });
-}
-function correlationColor(value) {
-  const clamped = Math.max(-1, Math.min(1, value));
-  if (clamped >= 0) {
-    const t2 = clamped;
-    const r2 = Math.round(247 - t2 * (247 - 178));
-    const g2 = Math.round(247 - t2 * (247 - 24));
-    const b2 = Math.round(247 - t2 * (247 - 43));
-    return `rgb(${r2},${g2},${b2})`;
-  }
-  const t = -clamped;
-  const r = Math.round(247 - t * (247 - 33));
-  const g = Math.round(247 - t * (247 - 102));
-  const b = Math.round(247 - t * (247 - 172));
-  return `rgb(${r},${g},${b})`;
-}
-async function initHeatmapPage(deps) {
-  if (loaded) return;
-  loaded = true;
-  const container = document.getElementById("heatmap-container");
-  const statusEl = document.getElementById("heatmap-status");
-  const metricSelect = document.getElementById("heatmap-metric");
-  const sizeInput = document.getElementById("heatmap-cell-size");
-  const sizeValue = document.getElementById("heatmap-cell-size-value");
-  if (!container) return;
-  const containerEl = container;
-  let matrixData = null;
-  let metric = "pearson";
-  let matrixLoadInFlight = null;
-  function renderHeatmap() {
-    if (!matrixData) {
-      syncHeatmapEmptyState("Correlation heatmap will appear here once the dataset is available.", true);
-      return;
-    }
-    const columns = matrixData.columns;
-    const data = metric === "spearman" ? matrixData.spearman : matrixData.pearson;
-    const size = columns.length;
-    if (size === 0) {
-      containerEl.innerHTML = "";
-      syncHeatmapEmptyState("No numeric columns are available for the correlation heatmap.", true, "no-columns-available");
-      return;
-    }
-    syncHeatmapEmptyState("", false);
-    const labelWidth = Math.max(84, Math.min(180, Math.round(heatmapCellSize * 2.5)));
-    let html = `<div class="heatmap-grid" style="display:inline-grid;grid-template-columns:${labelWidth}px repeat(${size},${heatmapCellSize}px);grid-template-rows:${labelWidth}px repeat(${size},${heatmapCellSize}px);gap:1px;font-size:0.65rem;">`;
-    html += "<div></div>";
-    for (const column of columns) {
-      html += `<div class="heatmap-header" style="writing-mode:vertical-rl;text-orientation:mixed;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;color:var(--text-dim);padding:4px 2px;" title="${column}">${column}</div>`;
-    }
-    for (let row = 0; row < size; row++) {
-      html += `<div class="heatmap-row-label" style="display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${columns[row]}">${columns[row]}</div>`;
-      for (let column = 0; column < size; column++) {
-        const value = data[row]?.[column] ?? null;
-        const displayValue = value !== null ? value.toFixed(2) : "\u2014";
-        const background = value !== null ? correlationColor(value) : "transparent";
-        const textColor = value !== null && Math.abs(value) > 0.5 ? "#fff" : "var(--text)";
-        html += `<div class="heatmap-cell" data-row="${row}" data-col="${column}" style="display:flex;align-items:center;justify-content:center;background:${background};color:${textColor};border-radius:2px;cursor:${row !== column ? "pointer" : "default"};font-variant-numeric:tabular-nums;" title="${columns[row]} \xD7 ${columns[column]}: ${displayValue}${row !== column ? " \u2014 click to explore in Scatter" : ""}">${displayValue}</div>`;
-      }
-    }
-    html += "</div>";
-    html += '<div style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:0.7rem;color:var(--text-dim);">';
-    html += "<span>-1.0</span>";
-    html += '<div style="flex:0 0 200px;height:12px;border-radius:4px;background:linear-gradient(90deg,#2166AC,#67A9CF,#F7F7F7,#EF8A62,#B2182B);"></div>';
-    html += "<span>+1.0</span>";
-    html += "</div>";
-    containerEl.innerHTML = html;
-    containerEl.onclick = (event) => {
-      const cell = event.target.closest(".heatmap-cell");
-      if (!cell) return;
-      const rowIndex = Number.parseInt(cell.dataset.row || "", 10);
-      const colIndex = Number.parseInt(cell.dataset.col || "", 10);
-      if (!Number.isFinite(rowIndex) || !Number.isFinite(colIndex) || rowIndex === colIndex) return;
-      const xSelect = document.getElementById("scatter-x-col");
-      const ySelect = document.getElementById("scatter-y-col");
-      if (xSelect) xSelect.value = columns[rowIndex];
-      if (ySelect) ySelect.value = columns[colIndex];
-      deps.showPage("scatter");
-    };
-  }
-  async function loadMatrix() {
-    if (matrixLoadInFlight) return matrixLoadInFlight;
-    matrixLoadInFlight = (async () => {
-      if (statusEl) statusEl.textContent = "Loading correlation matrix\u2026";
-      try {
-        matrixData = await fetchCorrelationMatrix();
-        if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns \xB7 ${heatmapCellSize}px cells`;
-        renderHeatmap();
-      } catch (error) {
-        const message = error?.message || "";
-        const isInsufficient = message.toLowerCase().includes("two") || message.toLowerCase().includes("numeric") || message.toLowerCase().includes("column");
-        syncHeatmapEmptyState(
-          isInsufficient ? "Need at least two numeric columns to compute correlations. Upload a dataset with multiple numeric columns." : "Correlation heatmap is unavailable for the current dataset.",
-          true,
-          isInsufficient ? "no-columns-available" : "render-failure"
-        );
-        if (statusEl) statusEl.textContent = isInsufficient ? "Not enough numeric columns" : `Error: ${message || "failed"}`;
-      }
-    })().finally(() => {
-      matrixLoadInFlight = null;
-    });
-    return matrixLoadInFlight;
-  }
-  metricSelect?.addEventListener("change", () => {
-    metric = metricSelect.value;
-    renderHeatmap();
-  });
-  sizeInput?.addEventListener("input", () => {
-    heatmapCellSize = Math.max(24, Math.min(72, Number(sizeInput.value || 36)));
-    if (sizeValue) sizeValue.textContent = String(heatmapCellSize);
-    if (statusEl && matrixData) statusEl.textContent = `${matrixData.columns.length} columns \xB7 ${heatmapCellSize}px cells`;
-    renderHeatmap();
-  });
-  document.getElementById("heatmap-export-csv-btn")?.addEventListener("click", () => {
-    if (!matrixData) {
-      toast("No heatmap data to export.", "warning");
-      return;
-    }
-    const data = metric === "spearman" ? matrixData.spearman : matrixData.pearson;
-    exportMatrixCSV(matrixData.columns, data, `edatime_correlation_${metric}.csv`);
-  });
-  document.getElementById("heatmap-export-png-btn")?.addEventListener("click", () => {
-    exportElementPNG("heatmap-container", "edatime_heatmap.png");
-  });
-  document.getElementById("heatmap-export-svg-btn")?.addEventListener("click", () => {
-    exportElementSVG("heatmap-container", "edatime_heatmap.svg");
-  });
-  document.getElementById("heatmap-export-html-btn")?.addEventListener("click", () => {
-    void exportElementHTML("heatmap-container", "edatime_heatmap.html");
-  });
-  window.addEventListener("edatime:page-change", (event) => {
-    const detail = event.detail;
-    if (detail?.page === "heatmap") void loadMatrix();
-  });
-  const heatmapPage = document.getElementById("page-heatmap");
-  if (heatmapPage && !heatmapPage.hidden) {
-    await loadMatrix();
-  }
-}
-
-// frontend/src/pages/spectrogramPage.ts
-var loaded2 = false;
-var spectrogramChart = null;
-var spectrogramResizeObserver = null;
-var spectrogramResult = null;
-var spectrogramSampleCount = 0;
-var spectrogramEmptyStateController = null;
-function getSpectrogramEmptyStateController() {
-  if (!spectrogramEmptyStateController) {
-    spectrogramEmptyStateController = createEmptyStateController({ rootId: "spectrogram-empty-state" });
-  }
-  return spectrogramEmptyStateController;
-}
-function syncSpectrogramEmptyState(message) {
-  getSpectrogramEmptyStateController().update({
-    visible: !spectrogramResult,
-    reason: spectrogramResult ? "" : "no-columns-selected",
-    title: "",
-    message: "",
-    fallbackText: message || "Pick a numeric column and click Compute to generate the spectrogram."
-  });
-}
-function formatSpectrogramTime(timestampMs) {
-  return new Date(timestampMs).toLocaleString([], {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  });
-}
-function formatSpectrogramFrequency(frequency) {
-  if (!Number.isFinite(frequency)) return "\u2014";
-  if (frequency >= 1e3) return `${(frequency / 1e3).toFixed(2)} kHz`;
-  if (frequency >= 1) return `${frequency.toFixed(2)} Hz`;
-  return `${(frequency * 1e3).toFixed(2)} mHz`;
-}
-async function initSpectrogramPage(deps) {
-  if (loaded2) return;
-  loaded2 = true;
-  const colSelect = document.getElementById("spectrogram-col-select");
-  const winSelect = document.getElementById("spectrogram-win-size");
-  const logCheck = document.getElementById("spectrogram-log-scale");
-  const resetZoomBtn = document.getElementById("spectrogram-zoom-reset-btn");
-  const statusEl = document.getElementById("spectrogram-status");
-  const chartEl = document.getElementById("spectrogram-chart");
-  if (!chartEl || !colSelect) return;
-  const ensureSpectrogramChartDimensions = () => {
-    if (chartEl.clientHeight > 0) return;
-    chartEl.style.minHeight = chartEl.style.minHeight || "420px";
-    if (!chartEl.style.height || chartEl.style.height === "100%") {
-      chartEl.style.height = "420px";
-    }
-  };
-  const isSpectrogramChartReadyForInit = () => {
-    const page = document.getElementById("page-spectrogram");
-    ensureSpectrogramChartDimensions();
-    return !!chartEl && chartEl.clientWidth > 0 && chartEl.clientHeight > 0 && (!page || !page.hidden);
-  };
-  const waitForSpectrogramChartReady = async (attempts = 6) => {
-    for (let remaining = attempts; remaining >= 0; remaining -= 1) {
-      if (isSpectrogramChartReadyForInit()) return true;
-      await new Promise((resolve) => window.setTimeout(resolve, 0));
-    }
-    return isSpectrogramChartReadyForInit();
-  };
-  const ensureSpectrogramChart = async () => {
-    if (spectrogramChart) {
-      if (isSpectrogramChartReadyForInit()) spectrogramChart.resize?.();
-      return spectrogramChart;
-    }
-    if (!await waitForSpectrogramChartReady()) {
-      throw new Error("Spectrogram chart container is not ready yet.");
-    }
-    const echarts = await import("./echarts-SD7KWPBA.js");
-    spectrogramChart = echarts.init(chartEl, void 0, { renderer: "canvas" });
-    spectrogramResizeObserver?.disconnect();
-    spectrogramResizeObserver = new ResizeObserver(() => spectrogramChart?.resize());
-    spectrogramResizeObserver.observe(chartEl);
-    if (chartEl.style.position === "" || chartEl.style.position === "static") {
-      chartEl.style.position = "relative";
-    }
-    const selectionBox = document.createElement("div");
-    selectionBox.style.cssText = "position:absolute;top:0;left:0;width:0;height:0;border:1px solid rgba(0,212,255,0.9);background:rgba(0,212,255,0.15);pointer-events:none;display:none;z-index:5";
-    chartEl.appendChild(selectionBox);
-    let dragStart = null;
-    let dragEnd = { x: 0, y: 0 };
-    const grid = { left: 72, right: 110, top: 24, bottom: 80 };
-    chartEl.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0) return;
-      const rect = chartEl.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
-      if (x > rect.width - grid.right || x < grid.left || y < grid.top || y > rect.height - grid.bottom) return;
-      dragStart = { x, y, pid: event.pointerId };
-      dragEnd = { x, y };
-      try {
-        chartEl.setPointerCapture(event.pointerId);
-      } catch {
-      }
-    });
-    chartEl.addEventListener("pointermove", (event) => {
-      if (!dragStart || event.pointerId !== dragStart.pid) return;
-      const rect = chartEl.getBoundingClientRect();
-      dragEnd = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      const left = Math.min(dragStart.x, dragEnd.x);
-      const top = Math.min(dragStart.y, dragEnd.y);
-      selectionBox.style.left = `${left}px`;
-      selectionBox.style.top = `${top}px`;
-      selectionBox.style.width = `${Math.abs(dragEnd.x - dragStart.x)}px`;
-      selectionBox.style.height = `${Math.abs(dragEnd.y - dragStart.y)}px`;
-      selectionBox.style.display = "block";
-    });
-    const finishDrag = (event) => {
-      if (!dragStart || event.pointerId !== dragStart.pid) return;
-      const start = dragStart;
-      dragStart = null;
-      selectionBox.style.display = "none";
-      try {
-        chartEl.releasePointerCapture(event.pointerId);
-      } catch {
-      }
-      const dx = Math.abs(dragEnd.x - start.x);
-      const dy = Math.abs(dragEnd.y - start.y);
-      if (dx < 8 || dy < 8) return;
-      if (!spectrogramChart || !spectrogramResult) return;
-      const p0 = spectrogramChart.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [start.x, start.y]);
-      const p1 = spectrogramChart.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [dragEnd.x, dragEnd.y]);
-      if (!p0 || !p1) return;
-      const xLen = spectrogramResult.times_ms.length;
-      const yLen = spectrogramResult.frequencies.length;
-      const xStartPct = Math.max(0, Math.min(100, Math.min(p0[0], p1[0]) / (xLen - 1) * 100));
-      const xEndPct = Math.max(0, Math.min(100, Math.max(p0[0], p1[0]) / (xLen - 1) * 100));
-      const yStartPct = Math.max(0, Math.min(100, Math.min(p0[1], p1[1]) / (yLen - 1) * 100));
-      const yEndPct = Math.max(0, Math.min(100, Math.max(p0[1], p1[1]) / (yLen - 1) * 100));
-      if (xEndPct <= xStartPct || yEndPct <= yStartPct) return;
-      spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: xStartPct, end: xEndPct });
-      spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 1, start: yStartPct, end: yEndPct });
-    };
-    chartEl.addEventListener("pointerup", finishDrag);
-    chartEl.addEventListener("pointercancel", (event) => {
-      if (dragStart?.pid === event.pointerId) {
-        dragStart = null;
-        selectionBox.style.display = "none";
-      }
-    });
-    chartEl.addEventListener("dblclick", () => {
-      if (!spectrogramChart) return;
-      spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: 0, end: 100 });
-      spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 1, start: 0, end: 100 });
-    });
-    return spectrogramChart;
-  };
-  const renderSpectrogramChart = async () => {
-    if (!spectrogramResult) return;
-    const chart = await ensureSpectrogramChart();
-    const logScale = logCheck?.checked ?? true;
-    const points = [];
-    const timeAxis = spectrogramResult.times_ms;
-    const freqAxis = spectrogramResult.frequencies;
-    let minValue = Number.POSITIVE_INFINITY;
-    let maxValue = Number.NEGATIVE_INFINITY;
-    for (let timeIndex = 0; timeIndex < timeAxis.length; timeIndex++) {
-      const timeMs = timeAxis[timeIndex];
-      const row = spectrogramResult.magnitudes[timeIndex] || [];
-      for (let freqIndex = 0; freqIndex < freqAxis.length; freqIndex++) {
-        const freq = freqAxis[freqIndex];
-        const rawMagnitude = Number(row[freqIndex] ?? 0);
-        const displayMagnitude = logScale ? Math.log10(Math.max(rawMagnitude, 1e-30)) : rawMagnitude;
-        if (!Number.isFinite(displayMagnitude)) continue;
-        minValue = Math.min(minValue, displayMagnitude);
-        maxValue = Math.max(maxValue, displayMagnitude);
-        points.push([timeIndex, freqIndex, displayMagnitude, timeMs, freq, rawMagnitude]);
-      }
-    }
-    if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
-      minValue = 0;
-      maxValue = 1;
-    }
-    const xTickInterval = Math.max(0, Math.floor(timeAxis.length / 10) - 1);
-    const yTickInterval = Math.max(0, Math.floor(freqAxis.length / 10) - 1);
-    chart.setOption({
-      backgroundColor: "transparent",
-      animation: false,
-      grid: { left: 72, right: 110, top: 24, bottom: 80 },
-      toolbox: {
-        right: 12,
-        feature: {
-          restore: { title: "Reset zoom" },
-          saveAsImage: { title: "Save image" }
-        }
-      },
-      tooltip: {
-        trigger: "item",
-        backgroundColor: "rgba(8, 12, 20, 0.94)",
-        borderColor: "rgba(126, 158, 212, 0.28)",
-        textStyle: { color: "#eef4ff" },
-        formatter: (params) => {
-          const value = params?.value || [];
-          const timeMs = Number(value[3]);
-          const freq = Number(value[4]);
-          const displayMagnitude = Number(value[2]);
-          const rawMagnitude = Number(value[5]);
-          return [
-            `<strong>${spectrogramResult?.column || "Spectrogram"}</strong>`,
-            `Time: ${formatSpectrogramTime(timeMs)}`,
-            `Frequency: ${formatSpectrogramFrequency(freq)}`,
-            `Intensity: ${displayMagnitude.toFixed(4)}${logScale ? " log10" : ""}`,
-            `Raw magnitude: ${rawMagnitude.toExponential(4)}`
-          ].join("<br>");
-        }
-      },
-      xAxis: {
-        type: "category",
-        data: timeAxis,
-        name: "Time",
-        nameLocation: "middle",
-        nameGap: 48,
-        axisLabel: {
-          color: "#9fb1d1",
-          rotate: 30,
-          interval: xTickInterval,
-          formatter: (value) => {
-            const date = new Date(Number(value));
-            return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}
-${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-          }
-        },
-        splitLine: { show: false }
-      },
-      yAxis: {
-        type: "category",
-        data: freqAxis,
-        name: "Frequency (Hz)",
-        nameLocation: "middle",
-        nameGap: 56,
-        axisLabel: {
-          color: "#9fb1d1",
-          interval: yTickInterval,
-          formatter: (value) => formatSpectrogramFrequency(Number(value))
-        },
-        splitLine: { show: false }
-      },
-      visualMap: {
-        min: minValue,
-        max: maxValue,
-        calculable: true,
-        orient: "vertical",
-        right: 18,
-        top: "middle",
-        text: [logScale ? "High log10" : "High", logScale ? "Low log10" : "Low"],
-        textStyle: { color: "#9fb1d1" },
-        inRange: {
-          color: ["#440154", "#414487", "#2a788e", "#22a884", "#7ad151", "#fde725"]
-        }
-      },
-      dataZoom: [
-        {
-          type: "inside",
-          xAxisIndex: 0,
-          filterMode: "none",
-          zoomOnMouseWheel: false,
-          moveOnMouseMove: false,
-          moveOnMouseWheel: false
-        },
-        {
-          type: "inside",
-          yAxisIndex: 0,
-          filterMode: "none",
-          zoomOnMouseWheel: false,
-          moveOnMouseMove: false,
-          moveOnMouseWheel: false
-        }
-      ],
-      series: [{
-        name: spectrogramResult.column,
-        type: "heatmap",
-        progressive: 0,
-        emphasis: { itemStyle: { borderColor: "#ffffff", borderWidth: 1 } },
-        data: points
-      }]
-    });
-    if (statusEl) {
-      statusEl.textContent = `${spectrogramResult.column} \xB7 ${spectrogramResult.times_ms.length} windows \xD7 ${spectrogramResult.frequencies.length} bins \xB7 ${spectrogramSampleCount} samples`;
-    }
-    syncSpectrogramEmptyState();
-  };
-  if (appState.metadata) {
-    for (const column of appState.metadata.numeric_columns) {
-      const option = document.createElement("option");
-      option.value = column;
-      option.textContent = column;
-      colSelect.appendChild(option);
-    }
-  }
-  syncSpectrogramEmptyState();
-  document.getElementById("spectrogram-compute-btn")?.addEventListener("click", async () => {
-    const column = colSelect.value;
-    if (!column) {
-      if (statusEl) statusEl.textContent = "Select a column.";
-      syncSpectrogramEmptyState("Pick a numeric column and click Compute to generate the spectrogram.");
-      return;
-    }
-    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) {
-      if (statusEl) statusEl.textContent = "No time range available.";
-      return;
-    }
-    const winSize = Number.parseInt(winSelect?.value || "256", 10);
-    try {
-      deps.setLoading("spectrogram-compute-btn", "spectrogram-loading", true);
-      if (statusEl) statusEl.textContent = "Fetching spectrogram\u2026";
-      const startMs = appState.currentStart;
-      const endMs = appState.currentEnd;
-      if (startMs == null || endMs == null || !Number.isFinite(startMs) || !Number.isFinite(endMs)) {
-        throw new Error("No time range available.");
-      }
-      const startIso = new Date(startMs).toISOString();
-      const endIso = new Date(endMs).toISOString();
-      const response = await fetchSpectrogram(startIso, endIso, column, winSize);
-      spectrogramResult = response.result;
-      spectrogramSampleCount = response.sample_count;
-      await renderSpectrogramChart();
-    } catch (error) {
-      spectrogramResult = null;
-      syncSpectrogramEmptyState("Spectrogram generation failed. Choose a column and try again.");
-      if (statusEl) statusEl.textContent = `Error: ${error?.message || "failed"}`;
-    } finally {
-      deps.setLoading("spectrogram-compute-btn", "spectrogram-loading", false);
-    }
-  });
-  logCheck?.addEventListener("change", () => {
-    if (spectrogramResult) void renderSpectrogramChart();
-  });
-  resetZoomBtn?.addEventListener("click", () => {
-    if (!spectrogramChart) return;
-    spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: 0, end: 100 });
-    spectrogramChart.dispatchAction({ type: "dataZoom", dataZoomIndex: 1, start: 0, end: 100 });
-  });
-  document.getElementById("spectrogram-export-png-btn")?.addEventListener("click", () => {
-    exportEChartsPNG(spectrogramChart, "edatime_spectrogram.png");
-  });
-  document.getElementById("spectrogram-export-svg-btn")?.addEventListener("click", () => {
-    exportEChartsSVG(spectrogramChart, "edatime_spectrogram.svg");
-  });
-  document.getElementById("spectrogram-export-html-btn")?.addEventListener("click", () => {
-    exportEChartsHTML(spectrogramChart, "edatime_spectrogram.html");
-  });
-  window.addEventListener("edatime:page-change", (event) => {
-    const detail = event.detail;
-    if (detail?.page === "spectrogram" && appState.metadata) {
-      const currentOptions = new Set(Array.from(colSelect.options).map((option) => option.value));
-      for (const column of appState.metadata.numeric_columns) {
-        if (!currentOptions.has(column)) {
-          const option = document.createElement("option");
-          option.value = column;
-          option.textContent = column;
-          colSelect.appendChild(option);
-        }
-      }
-      if (isSpectrogramChartReadyForInit()) {
-        spectrogramChart?.resize?.();
-      } else {
-        void waitForSpectrogramChartReady().then((ready) => {
-          if (ready) spectrogramChart?.resize?.();
-        });
-      }
-    }
-  });
-}
-
-// frontend/src/utils/pageStyles.ts
-var STYLE_MODULES = {
+const STYLE_MODULES = {
   drift: "css/modules/drift.css?v=4",
   home: "css/modules/home.css?v=1"
 };
@@ -2590,8 +1730,7 @@ function preloadPageStyles(pageName) {
   }
 }
 
-// frontend/src/utils/pageBootstrap.ts
-var DATASET_BOOTSTRAP_PAGES = /* @__PURE__ */ new Set([
+const DATASET_BOOTSTRAP_PAGES = /* @__PURE__ */ new Set([
   "timeseries",
   "scatter",
   "fft",
@@ -2604,7 +1743,6 @@ function pageNeedsDatasetBootstrap(pageName) {
   return Boolean(pageName && DATASET_BOOTSTRAP_PAGES.has(pageName));
 }
 
-// frontend/src/ui/toolbar.ts
 function buildFilteredSeriesRows() {
   if (!appState.lastFetchedData || !Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
     return [];
@@ -2631,7 +1769,7 @@ function buildFilteredSeriesRows() {
   rows.sort((a, b) => a.ts_ms - b.ts_ms || a.series.localeCompare(b.series));
   return rows;
 }
-function exportChartFilteredData(format = "csv") {
+function exportChartFilteredData$1(format = "csv") {
   const rows = buildFilteredSeriesRows();
   if (rows.length === 0) return false;
   if (format === "json") {
@@ -2694,26 +1832,26 @@ function setAnalysisStatus(id, text) {
 function updateAnalysisZoom(startMs, endMs, sourceKind = "user") {
   setAnalysisStatus(
     "analysis-zoom",
-    `Range: ${formatAnalysisTime(startMs)} \u2192 ${formatAnalysisTime(endMs)} (${sourceKind})`
+    `Range: ${formatAnalysisTime(startMs)} → ${formatAnalysisTime(endMs)} (${sourceKind})`
   );
 }
 function updateAnalysisYRange(min, max, sourceKind = "user") {
   if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    setAnalysisStatus("analysis-y", "Y: \u2014");
+    setAnalysisStatus("analysis-y", "Y: —");
     return;
   }
-  setAnalysisStatus("analysis-y", `Y: ${formatAnalysisNumber(min)} \u2192 ${formatAnalysisNumber(max)} (${sourceKind})`);
+  setAnalysisStatus("analysis-y", `Y: ${formatAnalysisNumber(min)} → ${formatAnalysisNumber(max)} (${sourceKind})`);
 }
 function updateAnalysisCursor(tsMs) {
   if (!Number.isFinite(tsMs)) {
-    setAnalysisStatus("analysis-cursor", "Cursor: \u2014");
+    setAnalysisStatus("analysis-cursor", "Cursor: —");
     return;
   }
   setAnalysisStatus("analysis-cursor", `Cursor: ${formatAnalysisTime(tsMs)}`);
 }
 function updateAnalysisClick(payload) {
   if (!payload?.value || payload.value.length < 2) {
-    setAnalysisStatus("analysis-click", "Click: \u2014");
+    setAnalysisStatus("analysis-click", "Click: —");
     return;
   }
   const x = Number(payload.value[0]);
@@ -2735,7 +1873,7 @@ function getCurrentView() {
     yMax: yr?.max ?? null
   };
 }
-function applyViewport(view, fetchAndRender2, sourceKind = "api") {
+function applyViewport(view, fetchAndRender, sourceKind = "api") {
   dbgGroup(`applyViewport (${sourceKind})`, () => {
     dbg("incoming view", view);
   });
@@ -2752,33 +1890,33 @@ function applyViewport(view, fetchAndRender2, sourceKind = "api") {
     appState.pendingRestoreY = null;
   }
   if (appState.fetchDebounceId) clearTimeout(appState.fetchDebounceId);
-  appState.fetchDebounceId = setTimeout(fetchAndRender2, 0);
+  appState.fetchDebounceId = setTimeout(fetchAndRender, 0);
 }
-function zoomOut(fetchAndRender2) {
+function zoomOut(fetchAndRender) {
   dbgGroup("zoomOut (dblclick)", () => {
     dbg("history depth", appState.zoomHistory.length);
     dbg("initialView", appState.initialView);
   });
   if (appState.zoomHistory.length > 0) {
-    applyViewport(appState.zoomHistory.pop(), fetchAndRender2, "zoom-out");
+    applyViewport(appState.zoomHistory.pop(), fetchAndRender, "zoom-out");
   } else if (appState.initialView) {
-    applyViewport(appState.initialView, fetchAndRender2, "zoom-out");
+    applyViewport(appState.initialView, fetchAndRender, "zoom-out");
   }
 }
-function resetZoom(fetchAndRender2) {
+function resetZoom(fetchAndRender) {
   dbgGroup("resetZoom", () => {
     dbg("initialView", appState.initialView);
   });
   if (!appState.initialView) return;
   appState.zoomHistory = [];
-  applyViewport(appState.initialView, fetchAndRender2, "reset");
+  applyViewport(appState.initialView, fetchAndRender, "reset");
 }
-function initAnalysisControls(fetchAndRender2) {
+function initAnalysisControls(fetchAndRender) {
   window.__edatime = window.__edatime || {};
-  window.__edatime.exportChartFilteredData = exportChartFilteredData;
+  window.__edatime.exportChartFilteredData = exportChartFilteredData$1;
   const zoomResetBtn = document.getElementById("zoom-reset-btn");
   if (zoomResetBtn && !zoomResetBtn.dataset.bound) {
-    zoomResetBtn.addEventListener("click", () => resetZoom(fetchAndRender2));
+    zoomResetBtn.addEventListener("click", () => resetZoom(fetchAndRender));
     zoomResetBtn.dataset.bound = "1";
   }
   const drawTool = document.getElementById("draw-tool");
@@ -2818,11 +1956,11 @@ function initAnalysisControls(fetchAndRender2) {
   if (exportSvgBtn) exportSvgBtn.addEventListener("click", () => appState.chart?.exportSVG?.());
   if (exportHtmlBtn) exportHtmlBtn.addEventListener("click", () => appState.chart?.exportHTML?.());
   if (exportDataCsvBtn && !exportDataCsvBtn.dataset.bound) {
-    exportDataCsvBtn.addEventListener("click", () => exportChartFilteredData("csv"));
+    exportDataCsvBtn.addEventListener("click", () => exportChartFilteredData$1("csv"));
     exportDataCsvBtn.dataset.bound = "1";
   }
   if (exportDataJsonBtn && !exportDataJsonBtn.dataset.bound) {
-    exportDataJsonBtn.addEventListener("click", () => exportChartFilteredData("json"));
+    exportDataJsonBtn.addEventListener("click", () => exportChartFilteredData$1("json"));
     exportDataJsonBtn.dataset.bound = "1";
   }
   if (exportDataParquetBtn && !exportDataParquetBtn.dataset.bound) {
@@ -2966,15 +2104,15 @@ function initChartPageFilterGesture() {
   pageChart.addEventListener("contextmenu", (e) => {
     const inPlot = e.target?.closest?.("#main-chart");
     if (inPlot) return;
-    const open2 = window.__edatime?.openFilterForCol;
-    if (typeof open2 !== "function") return;
+    const open = window.__edatime?.openFilterForCol;
+    if (typeof open !== "function") return;
     e.preventDefault();
     const now = performance.now();
     const isDoubleContext = now - lastContextTs <= 450;
     lastContextTs = now;
     if (!isDoubleContext) return;
     lastContextTs = 0;
-    open2(null);
+    open(null);
   });
   pageChart.dataset.filterCtxBound = "1";
 }
@@ -2995,7 +2133,7 @@ function initPages() {
     });
     collapseBtn.dataset.bound = "1";
   }
-  async function showPage2(pageName) {
+  async function showPage(pageName) {
     preloadPageStyles(pageName);
     if (pageNeedsDatasetBootstrap(pageName)) {
       await window.__edatime?.ensureDatasetReady?.(pageName);
@@ -3028,14 +2166,13 @@ function initPages() {
   }
   for (const btn of navButtons) {
     btn.addEventListener("click", async () => {
-      await showPage2(btn.dataset.page);
+      await showPage(btn.dataset.page);
     });
   }
-  showPage2("home");
+  showPage("home");
 }
 
-// frontend/src/utils/router.ts
-var VALID_PAGES = /* @__PURE__ */ new Set([
+const VALID_PAGES = /* @__PURE__ */ new Set([
   "home",
   "upload",
   "timeseries",
@@ -3047,11 +2184,11 @@ var VALID_PAGES = /* @__PURE__ */ new Set([
   "causal",
   "drift"
 ]);
-var PAGE_ALIASES = {
+const PAGE_ALIASES = {
   scattermatrix: "scatter"
   // "Scatter Matrix" is now the matrix sub-view
 };
-var _bound = false;
+let _bound$1 = false;
 function getHashPage() {
   const hash = location.hash.replace(/^#/, "");
   const params = new URLSearchParams(hash);
@@ -3076,8 +2213,8 @@ function replaceHashPage(page) {
   history.replaceState(null, "", "#" + params.toString());
 }
 function initHashRouting() {
-  if (_bound) return;
-  _bound = true;
+  if (_bound$1) return;
+  _bound$1 = true;
   window.addEventListener("edatime:page-change", ((e) => {
     const page = e.detail?.navPage || e.detail?.page;
     if (page && VALID_PAGES.has(page)) {
@@ -3102,13 +2239,12 @@ function initHashRouting() {
   }
 }
 
-// frontend/src/utils/palette.ts
-var _overlay = null;
-var _input = null;
-var _list = null;
-var _commands = [];
-var _filtered = [];
-var _selectedIdx = 0;
+let _overlay = null;
+let _input = null;
+let _list = null;
+let _commands = [];
+let _filtered = [];
+let _selectedIdx = 0;
 function buildDOM() {
   if (_overlay) return;
   _overlay = document.createElement("div");
@@ -3121,7 +2257,7 @@ function buildDOM() {
   _input.id = "command-palette-input";
   _input.name = "command-palette-input";
   _input.type = "text";
-  _input.placeholder = "Type a command\u2026";
+  _input.placeholder = "Type a command…";
   _input.setAttribute("aria-label", "Command search");
   _list = document.createElement("div");
   _list.className = "palette-list";
@@ -3255,9 +2391,15 @@ function initCommandPalette() {
   });
 }
 
-// frontend/src/utils/provenance.ts
-var _panel = null;
-var _content = null;
+const palette = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  initCommandPalette,
+  openPalette,
+  registerCommands
+}, Symbol.toStringTag, { value: 'Module' }));
+
+let _panel = null;
+let _content = null;
 function escapeText(s) {
   const d = document.createElement("div");
   d.textContent = s;
@@ -3274,7 +2416,7 @@ function buildPanel() {
   header.innerHTML = '<span class="provenance-title">Analysis Context</span>';
   const closeBtn = document.createElement("button");
   closeBtn.className = "provenance-close";
-  closeBtn.textContent = "\xD7";
+  closeBtn.textContent = "×";
   closeBtn.setAttribute("aria-label", "Close provenance panel");
   closeBtn.addEventListener("click", toggleProvenance);
   header.appendChild(closeBtn);
@@ -3294,9 +2436,9 @@ function renderContent() {
   const sections = [];
   if (appState.metadata) {
     const m = appState.metadata;
-    const rows = m.total_rows?.toLocaleString() ?? "\u2014";
+    const rows = m.total_rows?.toLocaleString() ?? "—";
     const cols = m.columns?.length ?? 0;
-    const timeCol = m.time_column ?? "\u2014";
+    const timeCol = m.time_column ?? "—";
     sections.push(`
             <div class="provenance-section">
                 <div class="provenance-section-title">Dataset</div>
@@ -3335,7 +2477,7 @@ function renderContent() {
   const rangeEntries = Object.entries(appState.columnRanges || {});
   if (rangeEntries.length > 0) {
     const rows = rangeEntries.map(
-      ([col, r]) => `<div class="provenance-row"><span class="provenance-key">${escapeText(col)}</span><span class="provenance-val">${formatAnalysisNumber(r.from)} \u2192 ${formatAnalysisNumber(r.to)}</span></div>`
+      ([col, r]) => `<div class="provenance-row"><span class="provenance-key">${escapeText(col)}</span><span class="provenance-val">${formatAnalysisNumber(r.from)} → ${formatAnalysisNumber(r.to)}</span></div>`
     ).join("");
     sections.push(`
             <div class="provenance-section">
@@ -3357,7 +2499,7 @@ function renderContent() {
   }
   const overlays = [];
   if (appState.rollingEnabled) overlays.push(`Rolling mean (window ${appState.rollingWindow})`);
-  if (appState.anomalyEnabled) overlays.push(`Anomaly detection (${appState.anomalyMethod}, \u03C3=${appState.anomalyThreshold})`);
+  if (appState.anomalyEnabled) overlays.push(`Anomaly detection (${appState.anomalyMethod}, σ=${appState.anomalyThreshold})`);
   if (overlays.length > 0) {
     sections.push(`
             <div class="provenance-section">
@@ -3395,8 +2537,14 @@ function initProvenance() {
   window.addEventListener("edatime:adaptive-filters-change", () => refreshProvenance());
 }
 
-// frontend/src/utils/settings.ts
-var DEFAULT_SETTINGS = {
+const provenance = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  initProvenance,
+  refreshProvenance,
+  toggleProvenance
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const DEFAULT_SETTINGS = {
   theme: "dark",
   layoutDensity: "spacious",
   defaultPalette: "default",
@@ -3407,7 +2555,7 @@ var DEFAULT_SETTINGS = {
   defaultTauMax: 5,
   defaultFftPreset: "auto"
 };
-var CHART_PALETTES = {
+const CHART_PALETTES = {
   default: ["#00d4ff", "#6c63ff", "#00c896", "#f5a623", "#ff4a6e", "#c77dff"],
   ocean: ["#00b4d8", "#0077b6", "#03045e", "#90e0ef", "#48cae4", "#023e8a"],
   sunset: ["#ff7b00", "#ff8800", "#ff9500", "#ffa200", "#ffaa00", "#ffb700"],
@@ -3415,10 +2563,10 @@ var CHART_PALETTES = {
   monochrome: ["#f8f9fa", "#e9ecef", "#dee2e6", "#ced4da", "#adb5bd", "#6c757d"],
   neon: ["#ff00ff", "#00ffff", "#ff0080", "#80ff00", "#8000ff", "#00ff80"]
 };
-var STORAGE_KEY = "edatime-settings";
+const STORAGE_KEY$3 = "edatime-settings";
 function loadSettings() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY$3);
     if (!raw) return { ...DEFAULT_SETTINGS };
     const parsed = JSON.parse(raw);
     return { ...DEFAULT_SETTINGS, ...parsed };
@@ -3428,7 +2576,7 @@ function loadSettings() {
 }
 function saveSettings(settings) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    localStorage.setItem(STORAGE_KEY$3, JSON.stringify(settings));
   } catch {
   }
 }
@@ -3471,9 +2619,7 @@ function initSettings() {
   return settings;
 }
 
-// frontend/src/ui/settingsPanel.ts
-var currentSettings = null;
-var activeTab = "appearance";
+let currentSettings = null;
 function openSettingsModal() {
   const modal = document.getElementById("settings-modal");
   if (!modal) return;
@@ -3488,7 +2634,6 @@ function closeSettingsModal() {
   currentSettings = null;
 }
 function setActiveTab(tab) {
-  activeTab = tab;
   document.querySelectorAll(".settings-tab-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tab === tab);
   });
@@ -3604,15 +2749,21 @@ function initSettingsPanel() {
   });
 }
 
-// frontend/src/chart/annotations.ts
-var STORAGE_KEY2 = "edatime-annotations";
-var annotations = [];
+const settingsPanel = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  closeSettingsModal,
+  initSettingsPanel,
+  openSettingsModal
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const STORAGE_KEY$2 = "edatime-annotations";
+let annotations = [];
 function generateId() {
   return `ann_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 function loadAnnotations() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY2);
+    const raw = localStorage.getItem(STORAGE_KEY$2);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -3624,7 +2775,7 @@ function loadAnnotations() {
 }
 function saveAnnotations() {
   try {
-    localStorage.setItem(STORAGE_KEY2, JSON.stringify(annotations));
+    localStorage.setItem(STORAGE_KEY$2, JSON.stringify(annotations));
   } catch {
   }
 }
@@ -3696,8 +2847,7 @@ function initAnnotations() {
   };
 }
 
-// frontend/src/ui/annotationPanel.ts
-var _requestOverlayRender = null;
+let _requestOverlayRender = null;
 function setAnnotationOverlayCallback(cb) {
   _requestOverlayRender = cb;
 }
@@ -3724,18 +2874,18 @@ function renderAnnotationsList() {
   }
   container.innerHTML = anns.map((ann) => {
     const date = new Date(ann.createdAt).toLocaleString();
-    const timeInfo = ann.timeRange ? `<span style="font-size:11px;color:var(--text-muted,#888)">${new Date(ann.timeRange.start).toISOString().slice(0, 16).replace("T", " ")}${ann.timeRange.end !== ann.timeRange.start ? " \u2013 " + new Date(ann.timeRange.end).toISOString().slice(0, 16).replace("T", " ") : ""}</span>` : "";
+    const timeInfo = ann.timeRange ? `<span style="font-size:11px;color:var(--text-muted,#888)">${new Date(ann.timeRange.start).toISOString().slice(0, 16).replace("T", " ")}${ann.timeRange.end !== ann.timeRange.start ? " – " + new Date(ann.timeRange.end).toISOString().slice(0, 16).replace("T", " ") : ""}</span>` : "";
     return `
             <div class="annotation-item" data-ann-id="${escapeAttr(ann.id)}" style="border-left:3px solid ${escapeAttr(ann.color)};padding:8px 12px;margin-bottom:8px;background:var(--surface2,#1e1e2e);border-radius:4px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
-                    <strong>${escapeHtml2(ann.title)}</strong>
+                    <strong>${escapeHtml$1(ann.title)}</strong>
                     <div style="display:flex;gap:6px;">
-                        <span style="font-size:11px;color:var(--text-muted,#888)">${ann.type} \xB7 ${ann.page}</span>
-                        <button class="btn btn-ghost btn-xs ann-delete-btn" data-ann-id="${escapeAttr(ann.id)}" type="button" title="Delete">\u2715</button>
+                        <span style="font-size:11px;color:var(--text-muted,#888)">${ann.type} · ${ann.page}</span>
+                        <button class="btn btn-ghost btn-xs ann-delete-btn" data-ann-id="${escapeAttr(ann.id)}" type="button" title="Delete">✕</button>
                     </div>
                 </div>
                 ${timeInfo}
-                ${ann.content ? `<p style="margin:4px 0 0;font-size:12px;color:var(--text-secondary,#ccc)">${escapeHtml2(ann.content)}</p>` : ""}
+                ${ann.content ? `<p style="margin:4px 0 0;font-size:12px;color:var(--text-secondary,#ccc)">${escapeHtml$1(ann.content)}</p>` : ""}
                 <div style="font-size:11px;color:var(--text-muted,#888);margin-top:2px">${date}</div>
             </div>
         `;
@@ -3794,7 +2944,7 @@ function addBookmarkAtCurrentView() {
   toast(`Bookmark added at ${new Date(time).toLocaleString()}`, "success");
   refreshOverlay();
 }
-function escapeHtml2(str) {
+function escapeHtml$1(str) {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 function escapeAttr(str) {
@@ -3840,17 +2990,16 @@ function initAnnotationPanel() {
   });
 }
 
-// frontend/src/ui/guidedWorkflow.ts
-var STORAGE_KEY3 = "edatime-guided-workflow";
-var WORKFLOW_STEPS = [
+const STORAGE_KEY$1 = "edatime-guided-workflow";
+const WORKFLOW_STEPS = [
   { id: "upload", label: "Upload", page: "upload" },
   { id: "timeseries", label: "Timeseries", page: "timeseries" },
   { id: "correlations", label: "Correlations", page: "heatmap" },
   { id: "scatter", label: "Scatter", page: "scatter" },
   { id: "causal", label: "Causal", page: "causal" }
 ];
-var _initialized = false;
-var _currentNavPage = "home";
+let _initialized = false;
+let _currentNavPage = "home";
 function sanitizeVisitedPages(value) {
   if (!Array.isArray(value)) return [];
   return value.map((page) => String(page || "").trim()).filter((page, index, all) => !!page && all.indexOf(page) === index);
@@ -3894,7 +3043,7 @@ function setVisitedPagesForCurrentDataset(prefs, pages) {
 }
 function readPrefs() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY3);
+    const raw = localStorage.getItem(STORAGE_KEY$1);
     if (!raw) return { enabled: true, visitedPages: [] };
     const parsed = JSON.parse(raw);
     const visitedPagesByDataset = sanitizeVisitedPagesByDataset(parsed.visitedPagesByDataset);
@@ -3914,11 +3063,11 @@ function readPrefs() {
 }
 function savePrefs(prefs) {
   try {
-    localStorage.setItem(STORAGE_KEY3, JSON.stringify(prefs));
+    localStorage.setItem(STORAGE_KEY$1, JSON.stringify(prefs));
   } catch {
   }
 }
-function currentPage() {
+function currentPage$1() {
   const active = document.querySelector(".sidebar .nav-item.active[data-page]");
   return active?.dataset.page || _currentNavPage || "home";
 }
@@ -3930,7 +3079,7 @@ function collectSnapshot() {
   const prefs = readPrefs();
   const visited = getVisitedPagesForCurrentDataset(prefs);
   return {
-    currentPage: currentPage(),
+    currentPage: currentPage$1(),
     hasDataset: !!appState.metadata?.time_range && Number(appState.metadata?.total_rows || 0) > 0,
     selectedSeriesCount: Array.isArray(appState.selectedCols) ? appState.selectedCols.length : 0,
     visitedPages: visited,
@@ -4120,7 +3269,7 @@ function buildWorkflowSuggestion(snapshot) {
   }
   return defaultSuggestionForStep(progress.nextStepId);
 }
-function escapeHtml3(value) {
+function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 function navigateToPage(page) {
@@ -4173,7 +3322,7 @@ function bindStaticEvents() {
     if (id === "scatter-x-col" || id === "scatter-y-col") renderGuidedWorkflow();
   });
   window.addEventListener("edatime:page-change", (event) => {
-    const nextPage = event?.detail?.navPage || event?.detail?.page || currentPage();
+    const nextPage = event?.detail?.navPage || event?.detail?.page || currentPage$1();
     _currentNavPage = nextPage;
     markVisited(nextPage);
     renderGuidedWorkflow();
@@ -4210,14 +3359,14 @@ function renderCompactAssistant(panel, suggestion, progress) {
         <div class="workflow-panel--compact">
             <div class="workflow-panel__summary">
                 <div class="workflow-panel__eyebrow">Guided Workflow</div>
-                <span class="workflow-panel__hint-text">${completedCount > 0 ? `\u2713 ${completedCount} completed` : "Start"}</span>
-                ${activeStep ? `<span class="workflow-panel__current-step">\u2192 ${escapeHtml3(activeStep.label)}</span>` : ""}
+                <span class="workflow-panel__hint-text">${completedCount > 0 ? `✓ ${completedCount} completed` : "Start"}</span>
+                ${activeStep ? `<span class="workflow-panel__current-step">→ ${escapeHtml(activeStep.label)}</span>` : ""}
             </div>
             <div class="workflow-panel__actions">
                 ${suggestion.actionLabel && suggestion.actionPage ? `
-                    <button class="btn btn-accent btn-sm" type="button" data-workflow-action="next">${escapeHtml3(suggestion.actionLabel)}</button>
+                    <button class="btn btn-accent btn-sm" type="button" data-workflow-action="next">${escapeHtml(suggestion.actionLabel)}</button>
                 ` : ""}
-                <button class="btn btn-ghost btn-sm" type="button" data-workflow-action="skip" title="Hide guide">\u2715</button>
+                <button class="btn btn-ghost btn-sm" type="button" data-workflow-action="skip" title="Hide guide">✕</button>
             </div>
         </div>
     `;
@@ -4228,29 +3377,29 @@ function renderFullWorkflowPanel(panel, progress, suggestion) {
             class="workflow_step workflow_step--${step.status}"
             type="button"
             data-workflow-action="goto"
-            data-workflow-page="${escapeHtml3(step.page)}"
-            title="Open ${escapeHtml3(step.label)}"
+            data-workflow-page="${escapeHtml(step.page)}"
+            title="Open ${escapeHtml(step.label)}"
         >
             <span class="workflow-step__dot"></span>
-            <span class="workflow-step__label">${escapeHtml3(step.label)}</span>
+            <span class="workflow-step__label">${escapeHtml(step.label)}</span>
         </button>
     `).join("");
   panel.innerHTML = `
         <div class="workflow-panel__header workflow-panel__header--compact">
             <div class="workflow-panel__summary">
                 <div class="workflow-panel__eyebrow">Guided Workflow</div>
-                <div class="workflow-panel__title">${escapeHtml3(suggestion.title)}</div>
-                <p class="workflow-panel__copy workflow-panel__copy--compact">${escapeHtml3(suggestion.body)}</p>
+                <div class="workflow-panel__title">${escapeHtml(suggestion.title)}</div>
+                <p class="workflow-panel__copy workflow-panel__copy--compact">${escapeHtml(suggestion.body)}</p>
             </div>
             <div class="workflow-panel__actions">
                 ${suggestion.actionLabel && suggestion.actionPage ? `
-                    <button class="btn btn-accent btn-sm" type="button" data-workflow-action="next">${escapeHtml3(suggestion.actionLabel)}</button>
+                    <button class="btn btn-accent btn-sm" type="button" data-workflow-action="next">${escapeHtml(suggestion.actionLabel)}</button>
                 ` : ""}
                 <button class="btn btn-ghost btn-sm" type="button" data-workflow-action="skip">Hide Guide</button>
             </div>
         </div>
         <div class="workflow-panel__crumbs">${crumbs}</div>
-        ${suggestion.hint ? `<div class="workflow-panel__hint">${escapeHtml3(suggestion.hint)}</div>` : ""}
+        ${suggestion.hint ? `<div class="workflow-panel__hint">${escapeHtml(suggestion.hint)}</div>` : ""}
     `;
 }
 function enableGuidedWorkflow() {
@@ -4266,7 +3415,7 @@ function goToNextGuidedStep() {
 function initGuidedWorkflow() {
   if (_initialized) return;
   _initialized = true;
-  _currentNavPage = currentPage();
+  _currentNavPage = currentPage$1();
   markVisited(_currentNavPage);
   bindStaticEvents();
   renderGuidedWorkflow();
@@ -4279,9 +3428,457 @@ function initGuidedWorkflow() {
   };
 }
 
-// frontend/src/utils/session.ts
-var STORAGE_KEY4 = "edatime-session";
-function currentPage2() {
+const guidedWorkflow = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  buildWorkflowSuggestion,
+  computeWorkflowProgress,
+  disableGuidedWorkflow,
+  enableGuidedWorkflow,
+  goToNextGuidedStep,
+  initGuidedWorkflow,
+  renderGuidedWorkflow
+}, Symbol.toStringTag, { value: 'Module' }));
+
+function initModalClose(modalId, closeBtnId, cancelBtnId, onClose) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return null;
+  const close = () => {
+    modal.hidden = true;
+    onClose?.();
+  };
+  document.getElementById(closeBtnId)?.addEventListener("click", close);
+  document.getElementById(cancelBtnId)?.addEventListener("click", close);
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) close();
+  });
+  return close;
+}
+
+function initTransformModal(deps) {
+  const applyBtn = document.getElementById("transform-apply-btn");
+  const exprInput = document.getElementById("transform-expression");
+  const nameInput = document.getElementById("transform-output-name");
+  const errorEl = document.getElementById("transform-error");
+  const close = initModalClose("transform-modal", "transform-close-btn", "transform-cancel-btn", () => {
+    if (errorEl) errorEl.textContent = "";
+  });
+  if (!close) return;
+  applyBtn?.addEventListener("click", async () => {
+    const expr = exprInput?.value?.trim();
+    const name = nameInput?.value?.trim();
+    if (!expr) {
+      if (errorEl) errorEl.textContent = "Expression is required.";
+      return;
+    }
+    if (!name) {
+      if (errorEl) errorEl.textContent = "Output column name is required.";
+      return;
+    }
+    if (errorEl) errorEl.textContent = "";
+    try {
+      if (applyBtn) {
+        applyBtn.textContent = "Applying…";
+        applyBtn.disabled = true;
+      }
+      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/frequency-DsOq7zgH.js').then(n => n.a3);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
+      await postTransform(expr, name);
+      close();
+      await deps.refreshDataset({ selectedColumn: name });
+    } catch (error) {
+      if (errorEl) errorEl.textContent = error?.message || "Transform failed.";
+    } finally {
+      if (applyBtn) {
+        applyBtn.textContent = "Apply";
+        applyBtn.disabled = false;
+      }
+    }
+  });
+}
+function initOutlierModal(deps) {
+  const openBtn = document.getElementById("outlier-open-btn");
+  const applyBtn = document.getElementById("outlier-apply-btn");
+  const methodSelect = document.getElementById("outlier-method");
+  const thresholdInput = document.getElementById("outlier-threshold");
+  const windowInput = document.getElementById("outlier-window");
+  const errorEl = document.getElementById("outlier-error");
+  const resultEl = document.getElementById("outlier-result");
+  const close = initModalClose("outlier-modal", "outlier-close-btn", "outlier-cancel-btn", () => {
+    if (errorEl) errorEl.textContent = "";
+    if (resultEl) resultEl.textContent = "";
+  });
+  if (!close) return;
+  const modal = document.getElementById("outlier-modal");
+  openBtn?.addEventListener("click", () => {
+    if (modal) modal.hidden = false;
+  });
+  methodSelect?.addEventListener("change", () => {
+    if (thresholdInput) {
+      thresholdInput.value = methodSelect.value === "iqr" ? "1.5" : "3";
+    }
+  });
+  applyBtn?.addEventListener("click", async () => {
+    if (errorEl) errorEl.textContent = "";
+    if (resultEl) resultEl.textContent = "";
+    const method = methodSelect?.value || "zscore";
+    const threshold = Number.parseFloat(thresholdInput?.value || "3");
+    const windowSize = Number.parseInt(windowInput?.value || "0", 10);
+    const columns = appState.selectedCols.length > 0 ? appState.selectedCols : null;
+    try {
+      if (applyBtn) {
+        applyBtn.disabled = true;
+        applyBtn.textContent = "Removing…";
+      }
+      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/frequency-DsOq7zgH.js').then(n => n.a3);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
+      const result = await postRemoveOutliers(
+        columns,
+        method,
+        threshold,
+        windowSize > 0 ? windowSize : void 0
+      );
+      if (resultEl) {
+        resultEl.textContent = `Removed ${result.rows_removed} rows (${result.rows_before} → ${result.rows_after})`;
+      }
+      await deps.refreshDataset();
+    } catch (error) {
+      if (errorEl) errorEl.textContent = error?.message || "Outlier removal failed.";
+    } finally {
+      if (applyBtn) {
+        applyBtn.disabled = false;
+        applyBtn.textContent = "Remove Outliers";
+      }
+    }
+  });
+}
+
+function exportChartFilteredData(format) {
+  window.__edatime?.exportChartFilteredData?.(format);
+}
+function triggerAdaptiveFilterClear() {
+  document.getElementById("adaptive-clear-btn")?.click?.();
+}
+const APP_COMMAND_DEFINITIONS = [
+  { id: "nav-upload", label: "Go to Upload", shortcut: "Alt+1", category: "Navigation", action: (deps) => deps.showPage("upload"), keyboard: { key: "1", alt: true } },
+  { id: "nav-timeseries", label: "Go to Timeseries", shortcut: "Alt+2", category: "Navigation", action: (deps) => deps.showPage("timeseries"), keyboard: { key: "2", alt: true } },
+  { id: "nav-scatter", label: "Go to Scatter", shortcut: "Alt+3", category: "Navigation", action: (deps) => deps.showPage("scatter"), keyboard: { key: "3", alt: true } },
+  { id: "nav-matrix", label: "Go to Scatter Matrix", shortcut: "Alt+4", category: "Navigation", action: (deps) => deps.showPage("scattermatrix"), keyboard: { key: "4", alt: true } },
+  { id: "nav-fft", label: "Go to FFT / PSD", shortcut: "Alt+6", category: "Navigation", action: (deps) => deps.showPage("fft"), keyboard: { key: "6", alt: true } },
+  { id: "nav-heatmap", label: "Go to Heatmap", shortcut: "Alt+7", category: "Navigation", action: (deps) => deps.showPage("heatmap"), keyboard: { key: "7", alt: true } },
+  { id: "nav-spectrogram", label: "Go to Spectrogram", shortcut: "Alt+8", category: "Navigation", action: (deps) => deps.showPage("spectrogram"), keyboard: { key: "8", alt: true } },
+  { id: "nav-causal", label: "Go to Causal", shortcut: "Alt+9", category: "Navigation", action: (deps) => deps.showPage("causal"), keyboard: { key: "9", alt: true } },
+  { id: "nav-drift", label: "Go to Drift Analysis", shortcut: "Alt+0", category: "Navigation", action: (deps) => deps.showPage("drift"), keyboard: { key: "0", alt: true } },
+  { id: "chart-reset", label: "Reset zoom", shortcut: "Shift+R", category: "Chart", action: (deps) => deps.resetZoom(), keyboard: { key: "r", shift: true, page: "timeseries" } },
+  { id: "chart-zoomout", label: "Zoom out one level", shortcut: "Shift+Z", category: "Chart", action: (deps) => deps.zoomOut(), keyboard: { key: "z", shift: true, page: "timeseries" } },
+  { id: "chart-clear-af", label: "Clear adaptive filters", shortcut: "Shift+C", category: "Chart", action: () => triggerAdaptiveFilterClear(), keyboard: { key: "c", shift: true, page: "timeseries" } },
+  { id: "export-csv", label: "Export chart data as CSV", shortcut: "Shift+E", category: "Export", action: () => exportChartFilteredData("csv") },
+  { id: "export-json", label: "Export chart data as JSON", category: "Export", action: () => exportChartFilteredData("json") },
+  { id: "export-png", label: "Export chart as PNG", category: "Export", action: () => window.__edatime?.chart?.exportPNG?.() },
+  { id: "export-parquet", label: "Export filtered data as Parquet", category: "Export", action: () => document.getElementById("export-parquet-btn")?.click?.() },
+  { id: "session-save", label: "Export session to file", category: "Session", action: () => __vitePreload(async () => { const {exportSessionToFile} = await Promise.resolve().then(() => session);return { exportSessionToFile }},true              ?void 0:void 0).then(({ exportSessionToFile }) => exportSessionToFile()) },
+  { id: "session-load", label: "Import session from file", category: "Session", action: () => __vitePreload(async () => { const {importSessionFromFile} = await Promise.resolve().then(() => session);return { importSessionFromFile }},true              ?void 0:void 0).then(({ importSessionFromFile }) => importSessionFromFile()) },
+  { id: "provenance", label: "Show analysis context panel", shortcut: "Ctrl+I", category: "Analysis", action: () => __vitePreload(async () => { const {toggleProvenance} = await Promise.resolve().then(() => provenance);return { toggleProvenance }},true              ?void 0:void 0).then(({ toggleProvenance }) => toggleProvenance()) },
+  { id: "cmd-palette", label: "Open command palette", shortcut: "Ctrl+K", category: "Analysis", action: () => __vitePreload(async () => { const {openPalette} = await Promise.resolve().then(() => palette);return { openPalette }},true              ?void 0:void 0).then(({ openPalette }) => openPalette()) },
+  { id: "settings", label: "Open settings", shortcut: "Ctrl+,", category: "Analysis", action: () => __vitePreload(async () => { const {openSettingsModal} = await Promise.resolve().then(() => settingsPanel);return { openSettingsModal }},true              ?void 0:void 0).then(({ openSettingsModal }) => openSettingsModal()) },
+  { id: "workflow-enable", label: "Enable guided workflow", category: "Analysis", action: () => __vitePreload(async () => { const {enableGuidedWorkflow} = await Promise.resolve().then(() => guidedWorkflow);return { enableGuidedWorkflow }},true              ?void 0:void 0).then(({ enableGuidedWorkflow }) => enableGuidedWorkflow()) },
+  { id: "workflow-disable", label: "Hide guided workflow", category: "Analysis", action: () => __vitePreload(async () => { const {disableGuidedWorkflow} = await Promise.resolve().then(() => guidedWorkflow);return { disableGuidedWorkflow }},true              ?void 0:void 0).then(({ disableGuidedWorkflow }) => disableGuidedWorkflow()) },
+  { id: "workflow-next", label: "Go to next guided step", category: "Analysis", action: () => __vitePreload(async () => { const {goToNextGuidedStep} = await Promise.resolve().then(() => guidedWorkflow);return { goToNextGuidedStep }},true              ?void 0:void 0).then(({ goToNextGuidedStep }) => goToNextGuidedStep()) }
+];
+function buildPaletteCommands(deps) {
+  return APP_COMMAND_DEFINITIONS.map((definition) => ({
+    id: definition.id,
+    label: definition.label,
+    shortcut: definition.shortcut,
+    category: definition.category,
+    action: () => definition.action(deps)
+  }));
+}
+function registerAppCommands(deps) {
+  registerCommands(buildPaletteCommands(deps));
+}
+
+const KEYBOARD_ONLY_SHORTCUTS = [
+  { key: "e", shift: true, action: () => triggerActivePageCsvExport() }
+];
+function triggerActivePageCsvExport() {
+  if (currentPageName() === "scatter") {
+    document.getElementById("scatter-export-csv-btn")?.click?.();
+    return;
+  }
+  window.__edatime?.exportChartFilteredData?.("csv");
+}
+function isTypingTarget(target) {
+  if (target.isContentEditable) return true;
+  const tag = String(target.tagName || "").toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select";
+}
+function currentPageName() {
+  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
+}
+function matchesKeyboardShortcut(shortcut, key, pageName, options) {
+  return shortcut.key.toLowerCase() === key.toLowerCase() && Boolean(shortcut.alt) === Boolean(options.alt) && Boolean(shortcut.shift) === Boolean(options.shift);
+}
+function findMatchingShortcut(key, pageName, options, commandDefs, deps) {
+  const commandShortcut = commandDefs.find((definition) => {
+    const keyboard = definition.keyboard;
+    return keyboard && matchesKeyboardShortcut(keyboard, key, pageName, options);
+  });
+  if (commandShortcut) {
+    const keyboard = commandShortcut.keyboard;
+    return {
+      key: keyboard.key,
+      alt: keyboard.alt,
+      shift: keyboard.shift,
+      page: keyboard.page,
+      action: () => commandShortcut.action(deps)
+    };
+  }
+  return KEYBOARD_ONLY_SHORTCUTS.find((shortcut) => matchesKeyboardShortcut(shortcut, key, pageName, options));
+}
+let _bound = false;
+function initKeyboardShortcuts(deps, commandDefs) {
+  if (_bound) return;
+  _bound = true;
+  window.__edatime = window.__edatime || {};
+  const onKeydown = (event) => {
+    if (event.defaultPrevented || isTypingTarget(event.target)) return;
+    const key = String(event.key || "").toLowerCase();
+    const pageName = currentPageName();
+    if (event.altKey && !event.ctrlKey && !event.metaKey) {
+      const shortcut2 = findMatchingShortcut(key, pageName, { alt: true, shift: false }, commandDefs, deps);
+      if (shortcut2) {
+        event.preventDefault();
+        shortcut2.action();
+        return;
+      }
+    }
+    if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+    const shortcut = findMatchingShortcut(key, pageName, { alt: false, shift: true }, commandDefs, deps);
+    if (shortcut) {
+      event.preventDefault();
+      shortcut.action();
+    }
+  };
+  window.addEventListener("keydown", onKeydown);
+  deps.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
+  window.__edatime.keyboardShortcutsBound = true;
+}
+
+function initThemeToggle() {
+  const btn = document.getElementById("theme-toggle-btn");
+  const iconDark = document.getElementById("theme-icon-dark");
+  const iconLight = document.getElementById("theme-icon-light");
+  if (!btn) return;
+  const savedTheme = localStorage.getItem("edatime-theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  if (savedTheme) {
+    if (savedTheme === "light") {
+      document.documentElement.setAttribute("data-theme", "light");
+      if (iconDark) iconDark.hidden = true;
+      if (iconLight) iconLight.hidden = false;
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+      if (iconDark) iconDark.hidden = false;
+      if (iconLight) iconLight.hidden = true;
+    }
+  } else if (prefersDark) {
+    if (iconDark) iconDark.hidden = false;
+    if (iconLight) iconLight.hidden = true;
+  } else {
+    if (iconDark) iconDark.hidden = false;
+    if (iconLight) iconLight.hidden = true;
+  }
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+    const manualPreference = localStorage.getItem("edatime-theme");
+    if (manualPreference) return;
+    if (e.matches) {
+      document.documentElement.removeAttribute("data-theme");
+      if (iconDark) iconDark.hidden = false;
+      if (iconLight) iconLight.hidden = true;
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+      if (iconDark) iconDark.hidden = true;
+      if (iconLight) iconLight.hidden = false;
+    }
+  });
+  btn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    if (isLight) {
+      document.documentElement.removeAttribute("data-theme");
+      localStorage.setItem("edatime-theme", "dark");
+      if (iconDark) iconDark.hidden = false;
+      if (iconLight) iconLight.hidden = true;
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+      localStorage.setItem("edatime-theme", "light");
+      if (iconDark) iconDark.hidden = true;
+      if (iconLight) iconLight.hidden = false;
+    }
+  });
+}
+function humanizeControlId(id) {
+  return String(id || "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().replace(/\b\w/g, (match) => match.toUpperCase());
+}
+function normalizeFormControlAccessibility() {
+  const controls = document.querySelectorAll("input, select, textarea");
+  controls.forEach((control) => {
+    if (!control.name && control.id) {
+      control.name = control.id;
+    }
+    if (control.getAttribute("aria-label")) return;
+    const labelledByText = Array.from(control.labels || []).map((label) => label.textContent?.replace(/\s+/g, " ").trim() || "").filter(Boolean).join(" ");
+    const placeholder = control.getAttribute("placeholder") || "";
+    const title = control.getAttribute("title") || "";
+    const fallback = humanizeControlId(control.id) || (control.type === "file" ? "Upload file" : "Form field");
+    const derived = labelledByText || placeholder || title || fallback;
+    {
+      control.setAttribute("aria-label", derived);
+    }
+  });
+}
+function wireHomeNavigationCards(showPage) {
+  document.querySelectorAll("[data-home-nav]").forEach((element) => {
+    element.addEventListener("click", () => {
+      const target = element.dataset.homeNav;
+      if (target) showPage(target);
+    });
+  });
+}
+function wireSampleDatasetCards(showPage) {
+  document.querySelectorAll("[data-sample-dataset]").forEach((element) => {
+    element.addEventListener("click", () => {
+      const dataset = element.dataset.sampleDataset;
+      if (dataset) {
+        loadSampleDataset(dataset, showPage);
+      }
+    });
+  });
+}
+function generateSinusoidalCsv() {
+  const rows = ["timestamp,temperature,humidity,pressure"];
+  const start = (/* @__PURE__ */ new Date("2024-01-01T00:00:00Z")).getTime();
+  const end = (/* @__PURE__ */ new Date("2024-01-08T00:00:00Z")).getTime();
+  const interval = 15 * 60 * 1e3;
+  for (let t = start; t < end; t += interval) {
+    const temp = 20 + 5 * Math.sin((t - start) / (3600 * 1e3)) + (Math.random() - 0.5) * 0.5;
+    const hum = 50 + 20 * Math.sin((t - start) / (7200 * 1e3)) + (Math.random() - 0.5) * 2;
+    const pres = 1013 + 5 * Math.sin((t - start) / (5400 * 1e3)) + (Math.random() - 0.5) * 0.3;
+    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)}`);
+  }
+  return rows.join("\n");
+}
+function generateWeatherCsv() {
+  const rows = ["timestamp,temperature,humidity,pressure,wind_speed"];
+  const start = (/* @__PURE__ */ new Date("2024-03-01T00:00:00Z")).getTime();
+  const end = (/* @__PURE__ */ new Date("2024-03-08T00:00:00Z")).getTime();
+  const interval = 10 * 60 * 1e3;
+  for (let t = start; t < end; t += interval) {
+    const hour = new Date(t).getUTCHours();
+    const dayFactor = Math.sin((t - start) / (86400 * 1e3));
+    const temp = 15 + 8 * dayFactor + 3 * Math.sin(hour * Math.PI / 12) + (Math.random() - 0.5) * 0.5;
+    const hum = 60 + 15 * Math.cos((t - start) / (43200 * 1e3)) + (Math.random() - 0.5) * 3;
+    const pres = 1010 + 8 * dayFactor + (Math.random() - 0.5) * 0.5;
+    const wind = 5 + 3 * Math.abs(Math.sin((t - start) / (21600 * 1e3))) + (Math.random() - 0.5) * 1;
+    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)},${wind.toFixed(3)}`);
+  }
+  return rows.join("\n");
+}
+async function loadSampleDataset(datasetId, showPage) {
+  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/frequency-DsOq7zgH.js').then(n => n.a4);return { toast }},true              ?__vite__mapDeps([0,1]):void 0);
+  if (datasetId === "ettm2") {
+    const dismissLoading = toast("Loading ETTm2 sample dataset…", "info", 0);
+    let file;
+    try {
+      const res = await fetch(`/api/sample/ETTm2.csv`);
+      if (!res.ok) throw new Error(`Failed to fetch ETTm2.csv: ${res.status}`);
+      const blob = await res.blob();
+      file = new File([blob], "ETTm2.csv", { type: "text/csv" });
+    } catch (err) {
+      dismissLoading();
+      toast(`Could not load ETTm2: ${err}`, "error");
+      return;
+    }
+    const homePage = document.getElementById("page-home");
+    if (homePage) homePage.hidden = true;
+    showPage("upload");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const fileInput = document.getElementById("file-upload");
+    if (fileInput) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      dismissLoading();
+    } else {
+      dismissLoading();
+      toast("Upload panel not ready. Please navigate to Upload and drop the file manually.", "error");
+    }
+  } else if (datasetId === "sinusoidal") {
+    const dismissLoading = toast("Loading Sinusoidal Waves sample dataset…", "info", 0);
+    const file = new File([generateSinusoidalCsv()], "sinusoidal.csv", { type: "text/csv" });
+    const homePage = document.getElementById("page-home");
+    if (homePage) homePage.hidden = true;
+    showPage("upload");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const fileInput = document.getElementById("file-upload");
+    if (fileInput) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      dismissLoading();
+    } else {
+      dismissLoading();
+      toast("Upload panel not ready.", "error");
+    }
+  } else if (datasetId === "weather") {
+    const dismissLoading = toast("Loading Weather Patterns sample dataset…", "info", 0);
+    const file = new File([generateWeatherCsv()], "weather.csv", { type: "text/csv" });
+    const homePage = document.getElementById("page-home");
+    if (homePage) homePage.hidden = true;
+    showPage("upload");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const fileInput = document.getElementById("file-upload");
+    if (fileInput) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      dismissLoading();
+    } else {
+      dismissLoading();
+      toast("Upload panel not ready.", "error");
+    }
+  }
+}
+function initAppShell(deps) {
+  window.__edatime = window.__edatime || {};
+  window.__edatime.ensurePageModuleLoaded = deps.ensurePageModuleLoaded;
+  normalizeFormControlAccessibility();
+  initPages();
+  initHashRouting();
+  initSettings();
+  initAnnotations();
+  initAnnotationPanel();
+  initGuidedWorkflow();
+  initThemeToggle();
+  initSettingsPanel();
+  wireHomeNavigationCards(deps.showPage);
+  wireSampleDatasetCards(deps.showPage);
+  initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid);
+  initColumnProfilesGrid();
+  initAnalysisControls(deps.fetchAndRender);
+  initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange);
+  initChartPageFilterGesture();
+  initKeyboardShortcuts(deps, APP_COMMAND_DEFINITIONS);
+  initCommandPalette();
+  initProvenance();
+  registerAppCommands(deps);
+  initTransformModal({ refreshDataset: deps.refreshDatasetAfterMutation });
+  initOutlierModal({ refreshDataset: deps.refreshDatasetAfterMutation });
+  deps.initAnalyticsListeners();
+}
+
+const STORAGE_KEY = "edatime-session";
+function currentPage() {
   return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
 }
 function readSelect(id) {
@@ -4291,7 +3888,7 @@ function captureSession() {
   return {
     version: 1,
     timestamp: Date.now(),
-    page: currentPage2(),
+    page: currentPage(),
     selectedCols: [...appState.selectedCols],
     seriesColors: { ...appState.seriesColors },
     columnRanges: { ...appState.columnRanges },
@@ -4421,13 +4018,13 @@ function applySession(snap, options = {}) {
 function autoSaveSession() {
   try {
     const snap = captureSession();
-    localStorage.setItem(STORAGE_KEY4, JSON.stringify(snap));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
   } catch {
   }
 }
 function autoRestoreSession() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY4);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const snap = JSON.parse(raw);
     if (snap?.version !== 1) return null;
@@ -4470,7 +4067,7 @@ function importSessionFromFile() {
   });
   input.click();
 }
-var _autoSaveTimer = null;
+let _autoSaveTimer = null;
 function initAutoSave() {
   const debouncedSave = () => {
     if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
@@ -4482,441 +4079,17 @@ function initAutoSave() {
   window.addEventListener("beforeunload", autoSaveSession);
 }
 
-// frontend/src/ui/modalUtils.ts
-function initModalClose(modalId, closeBtnId, cancelBtnId, onClose) {
-  const modal = document.getElementById(modalId);
-  if (!modal) return null;
-  const close2 = () => {
-    modal.hidden = true;
-    onClose?.();
-  };
-  document.getElementById(closeBtnId)?.addEventListener("click", close2);
-  document.getElementById(cancelBtnId)?.addEventListener("click", close2);
-  modal.addEventListener("click", (event) => {
-    if (event.target === modal) close2();
-  });
-  return close2;
-}
+const session = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  applySession,
+  autoRestoreSession,
+  autoSaveSession,
+  captureSession,
+  exportSessionToFile,
+  importSessionFromFile,
+  initAutoSave
+}, Symbol.toStringTag, { value: 'Module' }));
 
-// frontend/src/ui/dataMutationModals.ts
-function initTransformModal(deps) {
-  const applyBtn = document.getElementById("transform-apply-btn");
-  const exprInput = document.getElementById("transform-expression");
-  const nameInput = document.getElementById("transform-output-name");
-  const errorEl = document.getElementById("transform-error");
-  const close2 = initModalClose("transform-modal", "transform-close-btn", "transform-cancel-btn", () => {
-    if (errorEl) errorEl.textContent = "";
-  });
-  if (!close2) return;
-  applyBtn?.addEventListener("click", async () => {
-    const expr = exprInput?.value?.trim();
-    const name = nameInput?.value?.trim();
-    if (!expr) {
-      if (errorEl) errorEl.textContent = "Expression is required.";
-      return;
-    }
-    if (!name) {
-      if (errorEl) errorEl.textContent = "Output column name is required.";
-      return;
-    }
-    if (errorEl) errorEl.textContent = "";
-    try {
-      if (applyBtn) {
-        applyBtn.textContent = "Applying\u2026";
-        applyBtn.disabled = true;
-      }
-      const { postTransform: postTransform2 } = await import("./dataClient.js");
-      await postTransform2(expr, name);
-      close2();
-      await deps.refreshDataset({ selectedColumn: name });
-    } catch (error) {
-      if (errorEl) errorEl.textContent = error?.message || "Transform failed.";
-    } finally {
-      if (applyBtn) {
-        applyBtn.textContent = "Apply";
-        applyBtn.disabled = false;
-      }
-    }
-  });
-}
-function initOutlierModal(deps) {
-  const openBtn = document.getElementById("outlier-open-btn");
-  const applyBtn = document.getElementById("outlier-apply-btn");
-  const methodSelect = document.getElementById("outlier-method");
-  const thresholdInput = document.getElementById("outlier-threshold");
-  const windowInput = document.getElementById("outlier-window");
-  const errorEl = document.getElementById("outlier-error");
-  const resultEl = document.getElementById("outlier-result");
-  const close2 = initModalClose("outlier-modal", "outlier-close-btn", "outlier-cancel-btn", () => {
-    if (errorEl) errorEl.textContent = "";
-    if (resultEl) resultEl.textContent = "";
-  });
-  if (!close2) return;
-  const modal = document.getElementById("outlier-modal");
-  openBtn?.addEventListener("click", () => {
-    if (modal) modal.hidden = false;
-  });
-  methodSelect?.addEventListener("change", () => {
-    if (thresholdInput) {
-      thresholdInput.value = methodSelect.value === "iqr" ? "1.5" : "3";
-    }
-  });
-  applyBtn?.addEventListener("click", async () => {
-    if (errorEl) errorEl.textContent = "";
-    if (resultEl) resultEl.textContent = "";
-    const method = methodSelect?.value || "zscore";
-    const threshold = Number.parseFloat(thresholdInput?.value || "3");
-    const windowSize = Number.parseInt(windowInput?.value || "0", 10);
-    const columns = appState.selectedCols.length > 0 ? appState.selectedCols : null;
-    try {
-      if (applyBtn) {
-        applyBtn.disabled = true;
-        applyBtn.textContent = "Removing\u2026";
-      }
-      const { postRemoveOutliers } = await import("./dataClient.js");
-      const result = await postRemoveOutliers(
-        columns,
-        method,
-        threshold,
-        windowSize > 0 ? windowSize : void 0
-      );
-      if (resultEl) {
-        resultEl.textContent = `Removed ${result.rows_removed} rows (${result.rows_before} \u2192 ${result.rows_after})`;
-      }
-      await deps.refreshDataset();
-    } catch (error) {
-      if (errorEl) errorEl.textContent = error?.message || "Outlier removal failed.";
-    } finally {
-      if (applyBtn) {
-        applyBtn.disabled = false;
-        applyBtn.textContent = "Remove Outliers";
-      }
-    }
-  });
-}
-
-// frontend/src/bootstrap/appShell.ts
-function exportChartFilteredData2(format) {
-  window.__edatime?.exportChartFilteredData?.(format);
-}
-function triggerAdaptiveFilterClear() {
-  document.getElementById("adaptive-clear-btn")?.click?.();
-}
-function triggerActivePageCsvExport() {
-  if (currentPageName() === "scatter") {
-    document.getElementById("scatter-export-csv-btn")?.click?.();
-    return;
-  }
-  exportChartFilteredData2("csv");
-}
-var APP_COMMAND_DEFINITIONS = [
-  { id: "nav-upload", label: "Go to Upload", shortcut: "Alt+1", category: "Navigation", action: (deps) => deps.showPage("upload"), keyboard: { key: "1", alt: true } },
-  { id: "nav-timeseries", label: "Go to Timeseries", shortcut: "Alt+2", category: "Navigation", action: (deps) => deps.showPage("timeseries"), keyboard: { key: "2", alt: true } },
-  { id: "nav-scatter", label: "Go to Scatter", shortcut: "Alt+3", category: "Navigation", action: (deps) => deps.showPage("scatter"), keyboard: { key: "3", alt: true } },
-  { id: "nav-matrix", label: "Go to Scatter Matrix", shortcut: "Alt+4", category: "Navigation", action: (deps) => deps.showPage("scattermatrix"), keyboard: { key: "4", alt: true } },
-  { id: "nav-fft", label: "Go to FFT / PSD", shortcut: "Alt+6", category: "Navigation", action: (deps) => deps.showPage("fft"), keyboard: { key: "6", alt: true } },
-  { id: "nav-heatmap", label: "Go to Heatmap", shortcut: "Alt+7", category: "Navigation", action: (deps) => deps.showPage("heatmap"), keyboard: { key: "7", alt: true } },
-  { id: "nav-spectrogram", label: "Go to Spectrogram", shortcut: "Alt+8", category: "Navigation", action: (deps) => deps.showPage("spectrogram"), keyboard: { key: "8", alt: true } },
-  { id: "nav-causal", label: "Go to Causal", shortcut: "Alt+9", category: "Navigation", action: (deps) => deps.showPage("causal"), keyboard: { key: "9", alt: true } },
-  { id: "nav-drift", label: "Go to Drift Analysis", shortcut: "Alt+0", category: "Navigation", action: (deps) => deps.showPage("drift"), keyboard: { key: "0", alt: true } },
-  { id: "chart-reset", label: "Reset zoom", shortcut: "Shift+R", category: "Chart", action: (deps) => deps.resetZoom(), keyboard: { key: "r", shift: true, page: "timeseries" } },
-  { id: "chart-zoomout", label: "Zoom out one level", shortcut: "Shift+Z", category: "Chart", action: (deps) => deps.zoomOut(), keyboard: { key: "z", shift: true, page: "timeseries" } },
-  { id: "chart-clear-af", label: "Clear adaptive filters", shortcut: "Shift+C", category: "Chart", action: () => triggerAdaptiveFilterClear(), keyboard: { key: "c", shift: true, page: "timeseries" } },
-  { id: "export-csv", label: "Export chart data as CSV", shortcut: "Shift+E", category: "Export", action: () => exportChartFilteredData2("csv") },
-  { id: "export-json", label: "Export chart data as JSON", category: "Export", action: () => exportChartFilteredData2("json") },
-  { id: "export-png", label: "Export chart as PNG", category: "Export", action: () => window.__edatime?.chart?.exportPNG?.() },
-  { id: "export-parquet", label: "Export filtered data as Parquet", category: "Export", action: () => document.getElementById("export-parquet-btn")?.click?.() },
-  { id: "session-save", label: "Export session to file", category: "Session", action: () => exportSessionToFile() },
-  { id: "session-load", label: "Import session from file", category: "Session", action: () => importSessionFromFile() },
-  { id: "provenance", label: "Show analysis context panel", shortcut: "Ctrl+I", category: "Analysis", action: () => toggleProvenance() },
-  { id: "cmd-palette", label: "Open command palette", shortcut: "Ctrl+K", category: "Analysis", action: () => openPalette() },
-  { id: "settings", label: "Open settings", shortcut: "Ctrl+,", category: "Analysis", action: () => openSettingsModal() },
-  { id: "workflow-enable", label: "Enable guided workflow", category: "Analysis", action: () => enableGuidedWorkflow() },
-  { id: "workflow-disable", label: "Hide guided workflow", category: "Analysis", action: () => disableGuidedWorkflow() },
-  { id: "workflow-next", label: "Go to next guided step", category: "Analysis", action: () => goToNextGuidedStep() }
-];
-var KEYBOARD_ONLY_SHORTCUTS = [
-  { key: "e", shift: true, action: () => triggerActivePageCsvExport() }
-];
-function buildPaletteCommands(deps) {
-  return APP_COMMAND_DEFINITIONS.map((definition) => ({
-    id: definition.id,
-    label: definition.label,
-    shortcut: definition.shortcut,
-    category: definition.category,
-    action: () => definition.action(deps)
-  }));
-}
-function matchesKeyboardShortcut(shortcut, key, pageName, options) {
-  return shortcut.key === key && Boolean(shortcut.alt) === Boolean(options.alt) && Boolean(shortcut.shift) === Boolean(options.shift) && (!shortcut.page || shortcut.page === pageName);
-}
-function findMatchingKeyboardShortcut(key, pageName, options) {
-  const commandShortcut = APP_COMMAND_DEFINITIONS.find((definition) => {
-    const keyboard = definition.keyboard;
-    return keyboard && matchesKeyboardShortcut(keyboard, key, pageName, options);
-  });
-  if (commandShortcut?.keyboard) {
-    return {
-      ...commandShortcut.keyboard,
-      action: commandShortcut.action
-    };
-  }
-  return KEYBOARD_ONLY_SHORTCUTS.find((shortcut) => matchesKeyboardShortcut(shortcut, key, pageName, options));
-}
-function initThemeToggle() {
-  const btn = document.getElementById("theme-toggle-btn");
-  const iconDark = document.getElementById("theme-icon-dark");
-  const iconLight = document.getElementById("theme-icon-light");
-  if (!btn) return;
-  const savedTheme = localStorage.getItem("edatime-theme");
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  if (savedTheme) {
-    if (savedTheme === "light") {
-      document.documentElement.setAttribute("data-theme", "light");
-      if (iconDark) iconDark.hidden = true;
-      if (iconLight) iconLight.hidden = false;
-    } else {
-      document.documentElement.removeAttribute("data-theme");
-      if (iconDark) iconDark.hidden = false;
-      if (iconLight) iconLight.hidden = true;
-    }
-  } else if (prefersDark) {
-    if (iconDark) iconDark.hidden = false;
-    if (iconLight) iconLight.hidden = true;
-  } else {
-    if (iconDark) iconDark.hidden = false;
-    if (iconLight) iconLight.hidden = true;
-  }
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
-    const manualPreference = localStorage.getItem("edatime-theme");
-    if (manualPreference) return;
-    if (e.matches) {
-      document.documentElement.removeAttribute("data-theme");
-      if (iconDark) iconDark.hidden = false;
-      if (iconLight) iconLight.hidden = true;
-    } else {
-      document.documentElement.setAttribute("data-theme", "light");
-      if (iconDark) iconDark.hidden = true;
-      if (iconLight) iconLight.hidden = false;
-    }
-  });
-  btn.addEventListener("click", () => {
-    const isLight = document.documentElement.getAttribute("data-theme") === "light";
-    if (isLight) {
-      document.documentElement.removeAttribute("data-theme");
-      localStorage.setItem("edatime-theme", "dark");
-      if (iconDark) iconDark.hidden = false;
-      if (iconLight) iconLight.hidden = true;
-    } else {
-      document.documentElement.setAttribute("data-theme", "light");
-      localStorage.setItem("edatime-theme", "light");
-      if (iconDark) iconDark.hidden = true;
-      if (iconLight) iconLight.hidden = false;
-    }
-  });
-}
-function isTypingTarget(target) {
-  if (!target) return false;
-  if (target.isContentEditable) return true;
-  const tag = String(target.tagName || "").toLowerCase();
-  return tag === "input" || tag === "textarea" || tag === "select";
-}
-function currentPageName() {
-  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
-}
-function humanizeControlId(id) {
-  return String(id || "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().replace(/\b\w/g, (match) => match.toUpperCase());
-}
-function normalizeFormControlAccessibility() {
-  const controls = document.querySelectorAll("input, select, textarea");
-  controls.forEach((control) => {
-    if (!control.name && control.id) {
-      control.name = control.id;
-    }
-    if (control.getAttribute("aria-label")) return;
-    const labelledByText = Array.from(control.labels || []).map((label) => label.textContent?.replace(/\s+/g, " ").trim() || "").filter(Boolean).join(" ");
-    const placeholder = control.getAttribute("placeholder") || "";
-    const title = control.getAttribute("title") || "";
-    const fallback = humanizeControlId(control.id) || (control.type === "file" ? "Upload file" : "Form field");
-    const derived = labelledByText || placeholder || title || fallback;
-    if (derived) {
-      control.setAttribute("aria-label", derived);
-    }
-  });
-}
-function initKeyboardShortcuts(deps) {
-  if (window.__edatime?.keyboardShortcutsBound) return;
-  window.__edatime = window.__edatime || {};
-  const onKeydown = (event) => {
-    if (event.defaultPrevented || isTypingTarget(event.target)) return;
-    const key = String(event.key || "").toLowerCase();
-    const pageName = currentPageName();
-    if (event.altKey && !event.ctrlKey && !event.metaKey) {
-      const shortcut2 = findMatchingKeyboardShortcut(key, pageName, { alt: true, shift: false });
-      if (shortcut2) {
-        event.preventDefault();
-        shortcut2.action(deps);
-        return;
-      }
-    }
-    if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
-    const shortcut = findMatchingKeyboardShortcut(key, pageName, { alt: false, shift: true });
-    if (shortcut) {
-      event.preventDefault();
-      shortcut.action(deps);
-    }
-  };
-  window.addEventListener("keydown", onKeydown);
-  deps.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
-  window.__edatime.keyboardShortcutsBound = true;
-}
-function wireHomeNavigationCards(showPage2) {
-  document.querySelectorAll("[data-home-nav]").forEach((element) => {
-    element.addEventListener("click", () => {
-      const target = element.dataset.homeNav;
-      if (target) showPage2(target);
-    });
-  });
-}
-function wireSampleDatasetCards(showPage2) {
-  document.querySelectorAll("[data-sample-dataset]").forEach((element) => {
-    element.addEventListener("click", () => {
-      const dataset = element.dataset.sampleDataset;
-      if (dataset) {
-        loadSampleDataset(dataset, showPage2);
-      }
-    });
-  });
-}
-function generateSinusoidalCsv() {
-  const rows = ["timestamp,temperature,humidity,pressure"];
-  const start = (/* @__PURE__ */ new Date("2024-01-01T00:00:00Z")).getTime();
-  const end = (/* @__PURE__ */ new Date("2024-01-08T00:00:00Z")).getTime();
-  const interval = 15 * 60 * 1e3;
-  for (let t = start; t < end; t += interval) {
-    const temp = 20 + 5 * Math.sin((t - start) / (3600 * 1e3)) + (Math.random() - 0.5) * 0.5;
-    const hum = 50 + 20 * Math.sin((t - start) / (7200 * 1e3)) + (Math.random() - 0.5) * 2;
-    const pres = 1013 + 5 * Math.sin((t - start) / (5400 * 1e3)) + (Math.random() - 0.5) * 0.3;
-    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)}`);
-  }
-  return rows.join("\n");
-}
-function generateWeatherCsv() {
-  const rows = ["timestamp,temperature,humidity,pressure,wind_speed"];
-  const start = (/* @__PURE__ */ new Date("2024-03-01T00:00:00Z")).getTime();
-  const end = (/* @__PURE__ */ new Date("2024-03-08T00:00:00Z")).getTime();
-  const interval = 10 * 60 * 1e3;
-  for (let t = start; t < end; t += interval) {
-    const hour = new Date(t).getUTCHours();
-    const dayFactor = Math.sin((t - start) / (86400 * 1e3));
-    const temp = 15 + 8 * dayFactor + 3 * Math.sin(hour * Math.PI / 12) + (Math.random() - 0.5) * 0.5;
-    const hum = 60 + 15 * Math.cos((t - start) / (43200 * 1e3)) + (Math.random() - 0.5) * 3;
-    const pres = 1010 + 8 * dayFactor + (Math.random() - 0.5) * 0.5;
-    const wind = 5 + 3 * Math.abs(Math.sin((t - start) / (21600 * 1e3))) + (Math.random() - 0.5) * 1;
-    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)},${wind.toFixed(3)}`);
-  }
-  return rows.join("\n");
-}
-async function loadSampleDataset(datasetId, showPage2) {
-  const { toast: toast2 } = await import("./toast-RXKXBHCT.js");
-  if (datasetId === "ettm2") {
-    const dismissLoading = toast2("Loading ETTm2 sample dataset\u2026", "info", 0);
-    let file;
-    try {
-      const res = await fetch(`/api/sample/ETTm2.csv`);
-      if (!res.ok) throw new Error(`Failed to fetch ETTm2.csv: ${res.status}`);
-      const blob = await res.blob();
-      file = new File([blob], "ETTm2.csv", { type: "text/csv" });
-    } catch (err) {
-      dismissLoading();
-      toast2(`Could not load ETTm2: ${err}`, "error");
-      return;
-    }
-    const homePage = document.getElementById("page-home");
-    if (homePage) homePage.hidden = true;
-    showPage2("upload");
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const fileInput = document.getElementById("file-upload");
-    if (fileInput) {
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
-      fileInput.files = dataTransfer.files;
-      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-      dismissLoading();
-    } else {
-      dismissLoading();
-      toast2("Upload panel not ready. Please navigate to Upload and drop the file manually.", "error");
-    }
-  } else if (datasetId === "sinusoidal") {
-    const dismissLoading = toast2("Loading Sinusoidal Waves sample dataset\u2026", "info", 0);
-    const file = new File([generateSinusoidalCsv()], "sinusoidal.csv", { type: "text/csv" });
-    const homePage = document.getElementById("page-home");
-    if (homePage) homePage.hidden = true;
-    showPage2("upload");
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const fileInput = document.getElementById("file-upload");
-    if (fileInput) {
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
-      fileInput.files = dataTransfer.files;
-      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-      dismissLoading();
-    } else {
-      dismissLoading();
-      toast2("Upload panel not ready.", "error");
-    }
-  } else if (datasetId === "weather") {
-    const dismissLoading = toast2("Loading Weather Patterns sample dataset\u2026", "info", 0);
-    const file = new File([generateWeatherCsv()], "weather.csv", { type: "text/csv" });
-    const homePage = document.getElementById("page-home");
-    if (homePage) homePage.hidden = true;
-    showPage2("upload");
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const fileInput = document.getElementById("file-upload");
-    if (fileInput) {
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
-      fileInput.files = dataTransfer.files;
-      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-      dismissLoading();
-    } else {
-      dismissLoading();
-      toast2("Upload panel not ready.", "error");
-    }
-  }
-}
-function registerAppCommands(deps) {
-  registerCommands(buildPaletteCommands(deps));
-}
-function initAppShell(deps) {
-  window.__edatime = window.__edatime || {};
-  window.__edatime.ensurePageModuleLoaded = deps.ensurePageModuleLoaded;
-  normalizeFormControlAccessibility();
-  initPages();
-  initHashRouting();
-  initSettings();
-  initAnnotations();
-  initAnnotationPanel();
-  initGuidedWorkflow();
-  initThemeToggle();
-  initSettingsPanel();
-  wireHomeNavigationCards(deps.showPage);
-  wireSampleDatasetCards(deps.showPage);
-  initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid);
-  initColumnProfilesGrid();
-  initAnalysisControls(deps.fetchAndRender);
-  initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange);
-  initChartPageFilterGesture();
-  initKeyboardShortcuts(deps);
-  initCommandPalette();
-  initProvenance();
-  registerAppCommands(deps);
-  initTransformModal({ refreshDataset: deps.refreshDatasetAfterMutation });
-  initOutlierModal({ refreshDataset: deps.refreshDatasetAfterMutation });
-  deps.initAnalyticsListeners();
-}
-
-// frontend/src/bootstrap/sessionBootstrap.ts
 async function restoreSessionAfterChartReady(deps) {
   const savedSession = autoRestoreSession();
   if (!savedSession) return;
@@ -4937,7 +4110,6 @@ function startSessionPersistence() {
   window.__edatime.importSession = importSessionFromFile;
 }
 
-// frontend/src/bootstrap/timeseriesBootstrap.ts
 function initDatasetSearchInputs(deps) {
   const columnFilterInput = document.getElementById("column-filter-input");
   if (columnFilterInput) {
@@ -4991,8 +4163,7 @@ function initTimeseriesActions(deps) {
   window.__edatime.clearAllFilters = () => void clearAllFilters("clear");
 }
 
-// frontend/src/charts/registry.ts
-var _registry = /* @__PURE__ */ new Map();
+const _registry = /* @__PURE__ */ new Map();
 function registerChartType(name, adapter) {
   if (!name || typeof adapter?.create !== "function") {
     throw new Error(`Invalid chart adapter for "${name}"`);
@@ -5003,8 +4174,7 @@ function getChartType(name) {
   return _registry.get(name);
 }
 
-// frontend/src/charts/fallback.ts
-var FallbackChart = class {
+class FallbackChart {
   containerId;
   canvas = null;
   ctx = null;
@@ -5136,10 +4306,9 @@ var FallbackChart = class {
     this.ctx = null;
     this.canvas = null;
   }
-};
+}
 
-// frontend/src/app.ts
-var _appCleanups = [];
+const _appCleanups = [];
 function storeFetchedMetadata(metadata) {
   appState.metadata = metadata;
   const revision = metadata?.revision;
@@ -5150,25 +4319,24 @@ function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
   const overlay = document.getElementById(overlayId);
   if (btn) {
     btn.disabled = loading;
-    btn.textContent = loading ? "Computing\u2026" : label;
+    btn.textContent = loading ? "Computing…" : label;
   }
   if (overlay) overlay.hidden = !loading;
 }
-var fetchMetadata2 = null;
-var fetchData = null;
-var fetchAnomalies = null;
-var postTransform = null;
-var DataChartCtor = null;
+let fetchMetadata = null;
+let fetchData = null;
+let fetchAnomalies = null;
+let DataChartCtor = null;
 async function ensureChartModules() {
-  if (fetchMetadata2 && fetchData && DataChartCtor) return;
+  if (fetchMetadata && fetchData && DataChartCtor) return;
   const [dataClient, chartModule] = await Promise.all([
-    import("./dataClient.js"),
-    import("./chart/DataChart.js")
+    __vitePreload(() => import('./assets/frequency-DsOq7zgH.js').then(n => n.a3),true              ?__vite__mapDeps([0,1]):void 0),
+    __vitePreload(() => import('./assets/DataChart-BlzPYbPm.js'),true              ?__vite__mapDeps([2,1,0]):void 0)
   ]);
-  fetchMetadata2 = dataClient.fetchMetadata;
+  fetchMetadata = dataClient.fetchMetadata;
   fetchData = dataClient.fetchData;
   fetchAnomalies = dataClient.fetchAnomalies;
-  postTransform = dataClient.postTransform;
+  dataClient.postTransform;
   DataChartCtor = chartModule.DataChart;
   registerChartType("line", {
     label: "Line",
@@ -5207,7 +4375,7 @@ async function checkWebGPU() {
   }
   return null;
 }
-var timeseriesPage = createTimeseriesPageController({
+const timeseriesPage = createTimeseriesPageController({
   fetchData: (start, end, width, columns, colorColumn, signal) => fetchData(start, end, width, columns, colorColumn, signal),
   buildRangeControls,
   updateAnalysisYRange,
@@ -5215,16 +4383,16 @@ var timeseriesPage = createTimeseriesPageController({
   getCurrentView,
   fetchAndRenderAnalytics: () => fetchAndRenderAnalytics()
 });
-var _timeseriesReady = false;
-var _timeseriesReadyPromise = null;
-var _sessionPersistenceStarted = false;
-var renderCurrentData = () => timeseriesPage.renderCurrentData();
-var emitChartRangeChange = (sourceKind = "data") => timeseriesPage.emitChartRangeChange(sourceKind);
-var fetchAndRender = async () => {
+let _timeseriesReady = false;
+let _timeseriesReadyPromise = null;
+let _sessionPersistenceStarted = false;
+const renderCurrentData = () => timeseriesPage.renderCurrentData();
+const emitChartRangeChange = (sourceKind = "data") => timeseriesPage.emitChartRangeChange(sourceKind);
+const fetchAndRender = async () => {
   await ensureTimeseriesReady();
   return timeseriesPage.fetchAndRender();
 };
-var onZoomRangeChange = (newStart, newEnd, sourceKind = "user") => timeseriesPage.onZoomRangeChange(newStart, newEnd, sourceKind);
+const onZoomRangeChange = (newStart, newEnd, sourceKind = "user") => timeseriesPage.onZoomRangeChange(newStart, newEnd, sourceKind);
 function ensureSessionPersistenceStarted() {
   if (_sessionPersistenceStarted) return;
   startSessionPersistence();
@@ -5329,7 +4497,7 @@ function buildAdaptiveFilterFromPoints(column, firstPoint, secondPoint) {
   if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2) || x1 === x2) return null;
   const minX = Math.min(x1, x2);
   const maxX = Math.max(x1, x2);
-  const tempFilter = { column, x1, y1, x2, y2, keepAbove: true };
+  const tempFilter = { x1, y1, x2, y2};
   let above = 0;
   let below = 0;
   for (let idx = 0; idx < xs.length; idx++) {
@@ -5506,10 +4674,10 @@ function showPage(pageName) {
 async function initScatterPageModule() {
   const scatterPage = document.getElementById("page-scatter");
   if (!scatterPage) return;
-  const { initScatterPage } = await import("./scatter/scatterPage.js");
+  const { initScatterPage } = await __vitePreload(async () => { const { initScatterPage } = await import('./assets/scatter-YST55Tu_.js');return { initScatterPage }},true              ?__vite__mapDeps([3,1,0]):void 0);
   await initScatterPage(appState.metadata);
 }
-var analyticsController = null;
+let analyticsController = null;
 async function fetchAndRenderAnalytics() {
   if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
   if (analyticsController) analyticsController.abort();
@@ -5554,16 +4722,16 @@ function initAnalyticsListeners() {
     });
   });
 }
-async function initFftPage2() {
-  await initFftPage({
+async function initFftPage() {
+  await initFftPage$1({
     renderTimeseries: renderCurrentData
   });
 }
-async function initHeatmapPage2() {
-  await initHeatmapPage({ showPage });
+async function initHeatmapPage() {
+  await initHeatmapPage$1({ showPage });
 }
-var _loadedPageModules = /* @__PURE__ */ new Set();
-var _metadataReady = false;
+const _loadedPageModules = /* @__PURE__ */ new Set();
+let _metadataReady = false;
 async function ensurePageModuleLoaded(page) {
   if (_loadedPageModules.has(page)) return;
   const loader = pageModuleLoaders[page];
@@ -5584,17 +4752,17 @@ async function ensurePageModuleLoaded(page) {
     console.error(`Failed to load page module for ${page}:`, error);
   }
 }
-var pageModuleLoaders = {
+const pageModuleLoaders = {
   scatter: initScatterPageModule,
   scattermatrix: initScatterPageModule,
-  heatmap: initHeatmapPage2,
-  spectrogram: initSpectrogramPage2,
+  heatmap: initHeatmapPage,
+  spectrogram: initSpectrogramPage,
   causal: initCausalPage,
-  fft: initFftPage2,
+  fft: initFftPage,
   drift: initDriftPage
 };
-var _datasetReadyPromise = null;
-var _datasetUiReady = false;
+let _datasetReadyPromise = null;
+let _datasetUiReady = false;
 function initializeDatasetUi(metadata) {
   if (!_datasetUiReady) {
     initDatasetSearchInputs({
@@ -5641,7 +4809,7 @@ async function ensureDatasetReady(_pageName = "timeseries") {
   if (_datasetReadyPromise) return _datasetReadyPromise;
   _datasetReadyPromise = (async () => {
     await ensureChartModules();
-    const metadata = await fetchMetadata2();
+    const metadata = await fetchMetadata();
     storeFetchedMetadata(metadata);
     _metadataReady = true;
     window.dispatchEvent(new Event("edatime:metadata-ready"));
@@ -5664,18 +4832,18 @@ async function ensureDatasetReady(_pageName = "timeseries") {
   });
   return _datasetReadyPromise;
 }
-async function initSpectrogramPage2() {
-  await initSpectrogramPage({
+async function initSpectrogramPage() {
+  await initSpectrogramPage$1({
     setLoading: setComputeLoading
   });
 }
 async function initDriftPage() {
-  const { initDriftPage: init2 } = await import("./driftPage-DVNQLBQ6.js");
+  const { initDriftPage: init2 } = await __vitePreload(async () => { const { initDriftPage: init2 } = await import('./assets/drift-CTz8wK_7.js');return { initDriftPage: init2 }},true              ?__vite__mapDeps([4,0,1]):void 0);
   await init2(appState.metadata);
 }
 async function initCausalPage() {
-  const { initCausalPage: init2 } = await import("./causalPage-WC5IUDQ6.js");
-  const { initCausalComparison } = await import("./causalComparison-RWRXQULB.js");
+  const { initCausalPage: init2 } = await __vitePreload(async () => { const { initCausalPage: init2 } = await import('./assets/causal-QCmcQZom.js').then(n => n.a);return { initCausalPage: init2 }},true              ?__vite__mapDeps([5,0,1]):void 0);
+  const { initCausalComparison } = await __vitePreload(async () => { const { initCausalComparison } = await import('./assets/causal-QCmcQZom.js').then(n => n.c);return { initCausalComparison }},true              ?__vite__mapDeps([5,0,1]):void 0);
   init2({
     getMetadata: () => appState.metadata,
     chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
@@ -5685,8 +4853,8 @@ async function initCausalPage() {
   initCausalComparison();
 }
 async function refreshDatasetAfterMutation(options) {
-  if (!fetchMetadata2) return;
-  storeFetchedMetadata(await fetchMetadata2());
+  if (!fetchMetadata) return;
+  storeFetchedMetadata(await fetchMetadata());
   appState.numericCols = getNumericColumns(appState.metadata);
   const selectedColumn = options?.selectedColumn;
   if (selectedColumn && !appState.selectedCols.includes(selectedColumn)) {

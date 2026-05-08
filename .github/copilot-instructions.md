@@ -32,6 +32,8 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
   - returns correlation suggestions and candidate columns for scatter analysis
 - `GET /api/scatter/points`
 - `POST /api/scatter/points`
+  - returns Arrow IPC with `application/vnd.apache.arrow.stream`
+  - metadata (total, returned, color_min/max) in response headers
   - frontend currently uses POST to avoid long query strings when many filters are active
 - `POST /api/upload`
   - supports partial ingestion, column subset selection, and optional time slicing

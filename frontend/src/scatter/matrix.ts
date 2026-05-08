@@ -18,7 +18,7 @@ import {
     MATRIX_MAX_COLUMNS,
 } from './helpers.js';
 import {
-    state,
+    appState,
     currentControls,
     buildScatterQueryContext,
     buildOverviewContextKey,
@@ -38,11 +38,11 @@ function collectOverviewColumns(): string[] {
     const push = (c: string) => { if (!c || columns.includes(c)) return; columns.push(c); };
     push(controls.x);
     push(controls.y);
-    for (const item of state.lastSuggestions || []) {
+    for (const item of appState.scatter.lastSuggestions || []) {
         push(item?.column);
         if (columns.length >= MATRIX_MAX_COLUMNS) break;
     }
-    for (const column of (state.metadata as any)?.numeric_columns || []) {
+    for (const column of (appState.scatter.metadata as any)?.numeric_columns || []) {
         push(column);
         if (columns.length >= MATRIX_MAX_COLUMNS) break;
     }
@@ -51,12 +51,12 @@ function collectOverviewColumns(): string[] {
 
 function buildOverviewColumns(): string[] {
     const derived = collectOverviewColumns();
-    const next = state.matrixColumnOrder.filter((column) => derived.includes(column));
+    const next = appState.scatter.matrixColumnOrder.filter((column) => derived.includes(column));
     for (const column of derived) {
         if (!next.includes(column)) next.push(column);
     }
-    state.matrixColumnOrder = next.slice(0, MATRIX_MAX_COLUMNS);
-    return state.matrixColumnOrder;
+    appState.scatter.matrixColumnOrder = next.slice(0, MATRIX_MAX_COLUMNS);
+    return appState.scatter.matrixColumnOrder;
 }
 
 function moveColumn(columns: string[], source: string, target: string): string[] {
@@ -126,7 +126,7 @@ async function fetchMatrixCellData(
     colorColumn: string,
 ): Promise<MatrixCellData> {
     const cacheKey = `${x}|${y}|${colorColumn || ''}|${buildOverviewContextKey(context)}`;
-    const cached = state.matrixCache.get(cacheKey);
+    const cached = appState.scatter.matrixCache.get(cacheKey);
     if (cached) return cached;
 
     const request = fetchScatterPoints(x, y, MATRIX_POINT_LIMIT, colorColumn || null, context)
@@ -136,19 +136,19 @@ async function fetchMatrixCellData(
             colorValues: Array.isArray(response?.color_values) ? response.color_values : null,
             colorLabels: Array.isArray(response?.color_labels) ? response.color_labels : null,
         }))
-        .catch((error: any) => { state.matrixCache.delete(cacheKey); throw error; });
+        .catch((error: any) => { appState.scatter.matrixCache.delete(cacheKey); throw error; });
 
-    state.matrixCache.set(cacheKey, request);
+    appState.scatter.matrixCache.set(cacheKey, request);
 
     // Evict oldest entries when the cache exceeds a reasonable size to
     // prevent unbounded memory growth on long-lived sessions.
     const MAX_MATRIX_CACHE = 256;
-    if (state.matrixCache.size > MAX_MATRIX_CACHE) {
-        const keys = state.matrixCache.keys();
-        let toRemove = state.matrixCache.size - MAX_MATRIX_CACHE;
+    if (appState.scatter.matrixCache.size > MAX_MATRIX_CACHE) {
+        const keys = appState.scatter.matrixCache.keys();
+        let toRemove = appState.scatter.matrixCache.size - MAX_MATRIX_CACHE;
         for (const k of keys) {
             if (toRemove-- <= 0) break;
-            state.matrixCache.delete(k);
+            appState.scatter.matrixCache.delete(k);
         }
     }
 
@@ -353,13 +353,13 @@ export async function renderScatterOverview(
         y: controls.y,
         colorColumn: controls.selectedColorColumn,
     });
-    const requestId = ++state.overviewRequestId;
-    const pairs = buildMatrixFetchPairs(columns, controls, state.lastSuggestions);
+    const requestId = ++appState.scatter.overviewRequestId;
+    const pairs = buildMatrixFetchPairs(columns, controls, appState.scatter.lastSuggestions);
 
     const datasets = new Map<string, MatrixCellData>();
     const rerenderOrderedGrid = (nextColumns: string[]) => {
-        state.matrixColumnOrder = nextColumns.slice(0, MATRIX_MAX_COLUMNS);
-        renderMatrixGrid(state.matrixColumnOrder, datasets, onCellClick, rerenderOrderedGrid);
+        appState.scatter.matrixColumnOrder = nextColumns.slice(0, MATRIX_MAX_COLUMNS);
+        renderMatrixGrid(appState.scatter.matrixColumnOrder, datasets, onCellClick, rerenderOrderedGrid);
     };
     renderMatrixGrid(columns, datasets, onCellClick, rerenderOrderedGrid);
 
@@ -367,7 +367,7 @@ export async function renderScatterOverview(
     let hadErrors = false;
 
     const updateStatus = () => {
-        const groups = buildCategoricalColorGroups(state.colorLabels);
+        const groups = buildCategoricalColorGroups(appState.scatter.colorLabels);
         const groupText = groups && controls.selectedColorColumn
             ? ` Grouped distributions use ${controls.selectedColorColumn}.`
             : '';
@@ -385,8 +385,8 @@ export async function renderScatterOverview(
         renderQueued = true;
         requestAnimationFrame(() => {
             renderQueued = false;
-            if (requestId !== state.overviewRequestId) return;
-            renderMatrixGrid(state.matrixColumnOrder.length > 0 ? state.matrixColumnOrder : columns, datasets, onCellClick, rerenderOrderedGrid);
+            if (requestId !== appState.scatter.overviewRequestId) return;
+            renderMatrixGrid(appState.scatter.matrixColumnOrder.length > 0 ? appState.scatter.matrixColumnOrder : columns, datasets, onCellClick, rerenderOrderedGrid);
         });
     };
 
@@ -399,14 +399,14 @@ export async function renderScatterOverview(
                 const [col, row] = pairs[pairIndex];
                 try {
                     const data = await fetchMatrixCellData(col, row, context, controls.selectedColorColumn);
-                    if (requestId !== state.overviewRequestId) return;
+                    if (requestId !== appState.scatter.overviewRequestId) return;
                     datasets.set(`${col}|${row}`, data);
                 } catch (error) {
-                    if (requestId !== state.overviewRequestId) return;
+                    if (requestId !== appState.scatter.overviewRequestId) return;
                     console.error(error);
                     hadErrors = true;
                 } finally {
-                    if (requestId !== state.overviewRequestId) return;
+                    if (requestId !== appState.scatter.overviewRequestId) return;
                     completed += 1;
                     updateStatus();
                     scheduleRender();
@@ -418,11 +418,11 @@ export async function renderScatterOverview(
             Array.from({ length: Math.min(MATRIX_FETCH_CONCURRENCY, pairs.length) }, () => runWorker()),
         );
 
-        if (requestId !== state.overviewRequestId) return;
-        renderMatrixGrid(state.matrixColumnOrder.length > 0 ? state.matrixColumnOrder : columns, datasets, onCellClick, rerenderOrderedGrid);
+        if (requestId !== appState.scatter.overviewRequestId) return;
+        renderMatrixGrid(appState.scatter.matrixColumnOrder.length > 0 ? appState.scatter.matrixColumnOrder : columns, datasets, onCellClick, rerenderOrderedGrid);
         updateStatus();
     } catch (error) {
-        if (requestId !== state.overviewRequestId) return;
+        if (requestId !== appState.scatter.overviewRequestId) return;
         console.error(error);
         renderMatrixGrid(columns, new Map(), onCellClick, null);
         setPanelStatus('scatter-matrix-status', 'Matrix preview is temporarily unavailable for this query.');

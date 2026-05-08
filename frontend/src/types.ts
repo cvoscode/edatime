@@ -1,5 +1,7 @@
 /** Shared type definitions for the EdaTime frontend. */
 
+import type { ChartGPUInstance, SeriesConfig } from '../libs/chartgpu/dist/index.js';
+
 // ── API response types ─────────────────────────────────────────────────────
 
 export interface ColumnMetadata {
@@ -216,6 +218,9 @@ export interface AppStateType {
     spectralFilterPreview?: SpectralFilterPreview | null;
     /** Dataset revision counter (incremented on upload) */
     datasetRevision?: number;
+
+    // Scatter slice (merged from scatter/state.ts to fix color-by-column sync)
+    scatter: ScatterState;
 }
 
 export interface RollingBandData {
@@ -263,8 +268,8 @@ export interface ChartInstance {
     updateDataMulti(dataObj: FilteredDataObject, columns: string[]): void;
     setXRange(min: number, max: number): void;
     setChartText(title: string, xLabel: string, yLabel: string): void;
-    onCrosshairMove(callback: (data: CrosshairData | null) => void): void;
-    onClick(callback: (data: ClickData | null) => void): void;
+    onCrosshairMove(callback: (data: CrosshairData) => void): void;
+    onClick(callback: (data: unknown) => void): void;
     supportsZoomControls(): boolean;
     getXDomain(): { min: number; max: number } | null;
     getYRange(): { min: number; max: number } | null;
@@ -285,8 +290,8 @@ export interface ChartAdapter {
 }
 
 export interface CrosshairData {
-    x: number;
-    y: number;
+    x: number | null;
+    y?: number;
     seriesValues?: Record<string, number>;
 }
 
@@ -302,6 +307,78 @@ export interface ScatterFilterSpec {
     column: string;
     from: number;
     to: number;
+}
+
+export interface ScatterView {
+    xMin: number; xMax: number; yMin: number; yMax: number;
+}
+
+export interface ScatterDrag {
+    pointerId: number;
+    startX: number; endX: number;
+    startY: number; endY: number;
+}
+
+export interface DensityTooltipMeta {
+    colorCenter: number;
+    colorLo: number;
+    colorHi: number;
+}
+
+export interface DensityTooltipCache {
+    key: string;
+    binSize: number;
+    metrics: {
+        width: number; height: number; grid: { left: number; right: number; top: number; bottom: number };
+        plotLeft: number; plotRight: number; plotTop: number; plotBottom: number;
+        plotWidth: number; plotHeight: number;
+    };
+    binsBySeriesIndex: Map<number, Map<string, number>>;
+    metaBySeriesIndex: Map<number, DensityTooltipMeta>;
+}
+
+export interface ScatterState {
+    chart: ChartGPUInstance | null;
+    initialized: boolean;
+    pageInitialized: boolean;
+    activeView: string;
+    loading: boolean;
+    metadata: DatasetMetadata | null;
+    totalPoints: number;
+    allPoints: [number, number][];
+    points: [number, number][];
+    allColorValues: number[] | null;
+    allColorLabels: unknown[] | null;
+    full: ScatterView;
+    view: ScatterView;
+    zoomHistory: ScatterView[];
+    drag: ScatterDrag | null;
+    selectionBox: HTMLDivElement | null;
+    colorColumn: string;
+    colorValues: number[] | null;
+    colorLabels: unknown[] | null;
+    colorMin: number | null;
+    colorMax: number | null;
+    correlationsByColumn: Map<string, { pearson?: number | null; spearman?: number | null; column?: string }>;
+    suggestionThreshold: number;
+    lastBinnedText: string;
+    lastUpdateMs: number;
+    densityTooltipCache: DensityTooltipCache | null;
+    lastOptionSeries: SeriesConfig[] | null;
+    columnTypes: Map<string, string>;
+    lastSuggestions: Array<{ column: string; pearson?: number | null; spearman?: number | null }>;
+    lastRenderSignature: string;
+    matrixCache: Map<string, Promise<MatrixCellData>>;
+    matrixColumnOrder: string[];
+    overviewRequestId: number;
+    scatterRequestId: number;
+}
+
+export interface MatrixCellData {
+    totalPoints: number;
+    points: [number, number][];
+    colorValues: number[] | null;
+    colorLabels: unknown[] | null;
 }
 
 export interface ScatterLineFilterSpec {

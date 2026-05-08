@@ -298,11 +298,19 @@ async fn scatter_points_post() {
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
+    let ct = resp.headers().get("content-type").unwrap().to_str().unwrap();
+    assert!(
+        ct.contains("apache-arrow") || ct.contains("arrow"),
+        "Expected Arrow IPC content-type, got {ct}"
+    );
+
     let body = resp.into_body().collect().await.unwrap().to_bytes();
-    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(json["x"], "col_a");
-    assert_eq!(json["y"], "col_b");
-    assert!(json["points"].as_array().is_some());
+    let table = arrow::ipc::reader::StreamReader::try_new(std::io::Cursor::new(&body), None).unwrap();
+    let mut row_count = 0;
+    for batch in table.flatten() {
+        row_count += batch.num_rows();
+    }
+    assert!(row_count > 0, "Expected at least one row in Arrow scatter response");
 }
 
 // ─── Analytics endpoints ──────────────────────────────────────────────────────

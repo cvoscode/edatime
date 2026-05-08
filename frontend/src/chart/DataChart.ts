@@ -11,6 +11,38 @@ import { formatTwoDecimals } from '../formatUtils.js';
 import { appState, getSeriesColor, buildAdaptiveLineY } from '../state.js';
 import type { AdaptiveLineFilter, ChartTextOverlays, DataObject, FilteredDataObject } from '../types.js';
 import {
+    type ChartGPUOptions,
+    type ChartGPUCrosshairMovePayload,
+    type SeriesConfig,
+    type AnnotationConfig,
+} from '../../libs/chartgpu/dist/index.js';
+
+/* ── Typed wrapper for ChartGPUInstance methods we actually use ── */
+interface ChartInstanceAPI {
+    readonly disposed: boolean;
+    readonly options: Readonly<ChartGPUOptions>;
+    setOption(options: ChartGPUOptions): void;
+    getZoomRange(): { start: number; end: number } | null;
+    setZoomRange(start: number, end: number, source?: unknown): void;
+    resize(): void;
+    dispose(): void;
+    on(eventName: 'crosshairMove', callback: (payload: ChartGPUCrosshairMovePayload) => void): void;
+    on(eventName: 'click', callback: (payload: import('../../libs/chartgpu/dist/ChartGPU.js').ChartGPUEventPayload) => void): void;
+    off(eventName: 'crosshairMove', callback: (payload: ChartGPUCrosshairMovePayload) => void): void;
+    off(eventName: 'click', callback: (payload: import('../../libs/chartgpu/dist/ChartGPU.js').ChartGPUEventPayload) => void): void;
+}
+
+interface DrawItem {
+    type: string;
+    color: string;
+    width: number;
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+}
+
+import {
     VIRIDIS, analyzeColorValues, baseSeriesName,
     buildColorizedSeries, categoryColorFor, colorForScaleValue,
 } from './colorScale.js';
@@ -25,18 +57,6 @@ import {
 
 const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
 
-/* ── Drawing item ──────────────────────────────────────── */
-
-interface DrawItem {
-    type: string;
-    color: string;
-    width: number;
-    startX: number;
-    startY: number;
-    endX: number;
-    endY: number;
-}
-
 /* ── DataChart class ──────────────────────────────────── */
 
 export class DataChart {
@@ -44,7 +64,7 @@ export class DataChart {
     onZoomCallback: ((start: number, end: number, sourceKind: string) => void) | null;
     onYRangeCallback: ((min: number, max: number, sourceKind: string) => void) | null;
     onZoomOutCallback: (() => void) | null;
-    chartInstance: any;
+    chartInstance: ChartInstanceAPI | null = null;
 
     _xMin: number | null = null;
     _xMax: number | null = null;
@@ -55,7 +75,7 @@ export class DataChart {
     _yAuto = true;
     _lastDataYMin: number | null = null;
     _lastDataYMax: number | null = null;
-    _lastSeriesList: any[] | null = null;
+    _lastSeriesList: SeriesConfig[] | null = null;
     _lastXDomainMin: number | null = null;
     _lastXDomainMax: number | null = null;
 
@@ -163,7 +183,13 @@ export class DataChart {
         };
         const powerPreference = defaultGpuPowerPreference();
         if (powerPreference) chartOptions.powerPreference = powerPreference;
-        this.chartInstance = await createChart(container!, chartOptions as any);
+        try {
+            this.chartInstance = await createChart(container!, chartOptions as unknown as ChartGPUOptions);
+        } catch (e) {
+            console.error('[edatime:chart] init failed:', e);
+            this.chartInstance = null;
+            return;
+        }
         this._chartResizeObserver?.disconnect();
         this._chartResizeObserver = new ResizeObserver(() => this.resize());
         this._chartResizeObserver.observe(container!);
@@ -230,11 +256,11 @@ export class DataChart {
         if (this.onYRangeCallback) this.onYRangeCallback(this._lastDataYMin!, this._lastDataYMax!, 'data');
     }
 
-    onCrosshairMove(callback: (data: any) => void): void {
+    onCrosshairMove(callback: (data: ChartGPUCrosshairMovePayload) => void): void {
         this.chartInstance?.on('crosshairMove', callback);
     }
 
-    onClick(callback: (data: any) => void): void {
+    onClick(callback: (data: import('../../libs/chartgpu/dist/ChartGPU.js').ChartGPUEventPayload) => void): void {
         this.chartInstance?.on('click', callback);
     }
 
@@ -242,25 +268,35 @@ export class DataChart {
 
     updateDataMulti(dataObj: FilteredDataObject, columns: string[]): void {
         if (!this.chartInstance) return;
-        const showMarkers = (dataObj as any)?._meta?.downsampled === false;
+        const showMarkers = dataObj._meta?.downsampled === false;
         const prevVisibility = this._getVisibilityByBaseNameFromChart();
 
         let dataYMin = Number.POSITIVE_INFINITY;
         let dataYMax = Number.NEGATIVE_INFINITY;
         let xDomainMin = Number.POSITIVE_INFINITY;
         let xDomainMax = Number.NEGATIVE_INFINITY;
-        const seriesAnnotations: any[] = [];
+        /* Internal intermediate types for series building */
+interface ColorCandidateEntry {
+    readonly __colorCandidate: true;
+    readonly colName: string;
+    readonly idx: number;
+    readonly visible: boolean;
+    readonly points: [number, number][];
+    readonly colorValues: unknown[];
+}
+
+const seriesAnnotations: AnnotationConfig[] = [];
 
         const seriesList = columns
             .filter((colName) => {
                 const name = String(colName || '').toLowerCase();
                 if (name === 'ts' || name === 'timestamp' || name === 'time') return false;
-                return (dataObj as any).values?.[colName] || (dataObj as any).series?.[colName];
+                return dataObj.values?.[colName] || dataObj.series?.[colName];
             })
             .map((colName, idx) => {
-                const seriesData = (dataObj as any).series?.[colName];
-                const yValues = seriesData ? seriesData.y : (dataObj as any).values[colName];
-                const xValues = seriesData ? seriesData.x : (dataObj as any).ts;
+                const seriesData = dataObj.series?.[colName];
+                const yValues: Float64Array = seriesData ? seriesData.y : (dataObj.values?.[colName] ?? null as unknown as Float64Array);
+                const xValues: Float64Array = seriesData ? seriesData.x : (dataObj.ts ?? null as unknown as Float64Array);
 
                 const points: [number, number][] = [];
                 const n = Math.min(xValues?.length ?? 0, yValues?.length ?? 0);
@@ -276,9 +312,9 @@ export class DataChart {
                 }
 
                 const visible = prevVisibility.get(colName) !== false;
-                const seriesColors = Array.isArray((dataObj as any).colorByColumn?.[colName])
-                    ? (dataObj as any).colorByColumn[colName]
-                    : (dataObj as any).color;
+                const seriesColors = Array.isArray(dataObj.colorByColumn?.[colName])
+                    ? dataObj.colorByColumn[colName]
+                    : dataObj.color;
                 const wantsColorBy = !!appState.selectedColorColumn
                     && Array.isArray(seriesColors)
                     && seriesColors.length === points.length;
@@ -299,17 +335,17 @@ export class DataChart {
             });
 
         const colorColumn = appState.selectedColorColumn;
-        const colorDecoratedSeries: any[] = [];
+        const colorDecoratedSeries: SeriesConfig[] = [];
         const colorbarWrap = document.getElementById('timeseries-colorbar-wrap');
         const categoricalWrap = document.getElementById('timeseries-categorical-wrap');
         if (colorbarWrap) { colorbarWrap.hidden = true; colorbarWrap.style.display = 'none'; }
         if (categoricalWrap) { categoricalWrap.hidden = true; categoricalWrap.style.display = 'none'; }
 
-        const colorCandidates: any[] = [];
-        const baseSeriesList: any[] = [];
+        const colorCandidates: ColorCandidateEntry[] = [];
+        const baseSeriesList: SeriesConfig[] = [];
         for (const entry of seriesList.flat()) {
-            if ((entry as any)?.__colorCandidate) colorCandidates.push(entry);
-            else baseSeriesList.push(entry);
+            if ((entry as ColorCandidateEntry)?.__colorCandidate) colorCandidates.push(entry as ColorCandidateEntry);
+            else baseSeriesList.push(entry as SeriesConfig);
         }
 
         const displayedColorValues = colorCandidates.flatMap((e) => e.colorValues || []);
@@ -360,23 +396,27 @@ export class DataChart {
         }
 
         if (flattenedSeriesList.length > 0) {
-            const tooltipFormatter = (params: any): string => {
-                const rawList: any[] = Array.isArray(params) ? params : [params];
+            const tooltipFormatter = (params: unknown): string => {
+                type TooltipEntry = { seriesName?: string; value?: [number, number] };
+                const rawList: unknown[] = Array.isArray(params) ? params : [params];
                 const seen = new Set<string>();
-                const list = rawList.filter((p) => {
-                    const base = baseSeriesName(p?.seriesName ?? '');
+                const list = rawList.filter((p): p is TooltipEntry => {
+                    const pp = p as TooltipEntry;
+                    const base = baseSeriesName(pp?.seriesName ?? '');
                     if (!base || seen.has(base)) return false;
                     seen.add(base);
                     return true;
                 });
                 if (list.length === 0) return '';
-                const x = Number(list[0]?.value?.[0]);
+                const first = list[0] as TooltipEntry;
+                const x = Number(first?.value?.[0]);
                 const spanMs = Number.isFinite(xDomainMin) && Number.isFinite(xDomainMax)
                     ? Math.max(1, xDomainMax - xDomainMin) : 86400_000;
                 const header = Number.isFinite(x) ? formatTimeTooltip(x, spanMs) : '';
-                const rows = list.map((p: any) => {
-                    const name = escapeHtml(baseSeriesName(p?.seriesName ?? 'series') || 'series');
-                    const y = formatTwoDecimals(p?.value?.[1]);
+                const rows = list.map((p) => {
+                    const pp = p as TooltipEntry;
+                    const name = escapeHtml(baseSeriesName(pp?.seriesName ?? 'series') || 'series');
+                    const y = formatTwoDecimals(pp?.value?.[1] ?? NaN);
                     return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span><span style="font-variant-numeric:tabular-nums;white-space:nowrap;">${escapeHtml(y)}</span></div>`;
                 }).join('');
                 return header ? `<div style="opacity:0.8;margin-bottom:6px;">${escapeHtml(header)}</div>${rows}` : rows;
@@ -385,7 +425,7 @@ export class DataChart {
             const nextOption = {
                 grid: CHART_GRID,
                 xAxis: {
-                    type: 'time',
+                    type: 'time' as const,
                     min: Number.isFinite(xDomainMin) ? xDomainMin : undefined,
                     max: Number.isFinite(xDomainMax) ? xDomainMax : undefined,
                     tickFormatter: (value: number) => formatTimeTick(
@@ -400,10 +440,8 @@ export class DataChart {
                 annotations: seriesAnnotations,
             };
             try {
-                this.chartInstance.setOption(nextOption);
-                if (this.chartInstance.getZoomRange && this.chartInstance.setZoomRange) {
-                    this.chartInstance.setZoomRange(0, 100, 'api');
-                }
+                this.chartInstance.setOption(nextOption as unknown as ChartGPUOptions);
+                this.chartInstance.setZoomRange(0, 100, 'api');
             } catch (e) {
                 console.error('[edatime:chart] setOption failed', e);
             }
@@ -1084,8 +1122,8 @@ export class DataChart {
 
         // Legend
         const legendEntries = seriesList
-            .filter((s: any) => s && s.type === 'line' && typeof s.name === 'string' && !s.name.endsWith('__markers'))
-            .map((s: any) => ({ name: s.name, color: s.color || '#00E5FF' }));
+            .filter((s) => s && s.type === 'line' && typeof s.name === 'string' && !s.name.endsWith('__markers'))
+            .map((s) => ({ name: s.name as string, color: s.color || '#00E5FF' }));
         if (legendEntries.length > 0) {
             const pad2 = 8 * scale;
             const gap = 6 * scale;

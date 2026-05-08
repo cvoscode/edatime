@@ -26,12 +26,10 @@ import { buildColumnToggles, buildRangeControls, initColumnFilterModal } from '.
 import { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata, initUploadPanel } from './ui/upload.js';
 import { hydrateColumnProfiles, renderColumnProfilesGrid, initColumnProfilesGrid } from './ui/profile.js';
 import { installWindowsWebGpuRequestAdapterWorkaround, requestGpuAdapter } from './utils/platform.js';
-import { getAnalyticsChipColor, getDefaultTimeseriesColumns, getNumericColumns } from './pages/analyticsPageUtils.js';
+import { getDefaultTimeseriesColumns, getNumericColumns } from './pages/analyticsPageUtils.js';
 import { createTimeseriesPageController, computeFrontendRollingBands } from './pages/timeseriesPage.js';
-import { initFftPage as initFftPageModule } from './pages/fftPage.js';
-import { initHeatmapPage as initHeatmapPageModule } from './pages/heatmapPage.js';
-import { initSpectrogramPage as initSpectrogramPageModule } from './pages/spectrogramPage.js';
 import { initAppShell } from './bootstrap/appShell.js';
+import { ensurePageModuleLoaded, isMetadataReady, markMetadataReady } from './bootstrap/pageLoaders.js';
 import { restoreSessionAfterChartReady, startSessionPersistence } from './bootstrap/sessionBootstrap.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
@@ -62,11 +60,45 @@ function storeFetchedMetadata(metadata: DatasetMetadata): void {
 /* ── UI Helpers ───────────────────────────────────────── */
 
 /** Set a compute button + loading overlay into loading or idle state. */
-function setComputeLoading(btnId: string, overlayId: string, loading: boolean, label = 'Compute'): void {
+export function setComputeLoading(btnId: string, overlayId: string, loading: boolean, label = 'Compute'): void {
     const btn = document.getElementById(btnId) as HTMLButtonElement | null;
     const overlay = document.getElementById(overlayId) as HTMLElement | null;
     if (btn) { btn.disabled = loading; btn.textContent = loading ? 'Computing…' : label; }
     if (overlay) overlay.hidden = !loading;
+}
+
+/* ── Analytics overlay fetch ──────────────────────────── */
+
+let analyticsController: AbortController | null = null;
+
+async function fetchAndRenderAnalytics(): Promise<void> {
+    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
+    if (analyticsController) analyticsController.abort();
+    analyticsController = new AbortController();
+    const signal = analyticsController.signal;
+
+    const startIso = new Date(appState.currentStart!).toISOString();
+    const endIso = new Date(appState.currentEnd!).toISOString();
+    const cols = appState.selectedCols.join(',');
+
+    // Rolling bands are now computed client-side in renderCurrentData
+    if (!appState.rollingEnabled) appState.rollingBands = null;
+
+    try {
+        if (appState.anomalyEnabled && fetchAnomalies) {
+            const resp = await fetchAnomalies(startIso, endIso, cols, appState.anomalyMethod, appState.anomalyThreshold, signal);
+            appState.anomalyRegions = resp?.regions || null;
+        } else {
+            appState.anomalyRegions = null;
+        }
+    } catch (e: unknown) {
+        if (!(e instanceof Error) || e.name !== 'AbortError') {
+            console.warn('Anomaly fetch failed:', e);
+        }
+        appState.anomalyRegions = null;
+    }
+
+    appState.chart?.requestOverlayRender?.();
 }
 
 /* ── Lazy-loaded modules ──────────────────────────────── */
@@ -525,120 +557,6 @@ function initKeyboardShortcuts(): void {
     (window).__edatime.keyboardShortcutsBound = true;
 }
 
-/* ── Scatter page init ────────────────────────────────── */
-
-async function initScatterPageModule(): Promise<void> {
-    const scatterPage = document.getElementById('page-scatter');
-    if (!scatterPage) return;
-    const { initScatterPage } = await import('./scatter/scatterPage.js');
-    await initScatterPage(appState.metadata!);
-}
-
-/* ── Analytics overlay fetch ──────────────────────────── */
-
-let analyticsController: AbortController | null = null;
-
-async function fetchAndRenderAnalytics(): Promise<void> {
-    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
-    if (analyticsController) analyticsController.abort();
-    analyticsController = new AbortController();
-    const signal = analyticsController.signal;
-
-    const startIso = new Date(appState.currentStart!).toISOString();
-    const endIso = new Date(appState.currentEnd!).toISOString();
-    const cols = appState.selectedCols.join(',');
-
-    // Rolling bands are now computed client-side in renderCurrentData
-    if (!appState.rollingEnabled) appState.rollingBands = null;
-
-    try {
-        if (appState.anomalyEnabled && fetchAnomalies) {
-            const resp = await fetchAnomalies(startIso, endIso, cols, appState.anomalyMethod, appState.anomalyThreshold, signal);
-            appState.anomalyRegions = resp?.regions || null;
-        } else {
-            appState.anomalyRegions = null;
-        }
-    } catch (e: unknown) {
-        if (!(e instanceof Error) || e.name !== 'AbortError') {
-            console.warn('Anomaly fetch failed:', e);
-        }
-        appState.anomalyRegions = null;
-    }
-
-    appState.chart?.requestOverlayRender?.();
-}
-
-function initAnalyticsListeners(): void {
-    window.addEventListener('edatime:analytics-change', () => {
-        // Recompute client-side rolling bands when settings change
-        if (appState.lastFetchedData) {
-            if (appState.rollingEnabled) {
-                const filtered = applyColumnRanges(appState.lastFetchedData);
-                appState.rollingBands = computeFrontendRollingBands(
-                    filtered, appState.selectedCols, (appState.rollingWindow as number | undefined) || 50);
-            } else {
-                appState.rollingBands = null;
-            }
-            appState.chart?.requestOverlayRender?.();
-        }
-        fetchAndRenderAnalytics().catch((err: unknown) => {
-            console.warn('Analytics fetch failed:', err);
-        });
-    });
-}
-
-/* ── FFT page ─────────────────────────────────────────── */
-
-async function initFftPage(): Promise<void> {
-    await initFftPageModule({
-        renderTimeseries: renderCurrentData,
-    });
-}
-
-
-
-/* ── Correlation Heatmap page ─────────────────────────── */
-async function initHeatmapPage(): Promise<void> {
-    await initHeatmapPageModule({ showPage });
-}
-
-const _loadedPageModules = new Set<string>();
-    let _metadataReady = false;
-
-async function ensurePageModuleLoaded(page: string): Promise<void> {
-    if (_loadedPageModules.has(page)) return;
-
-    const loader = pageModuleLoaders[page];
-    if (!loader) return;
-
-    if (!_metadataReady) {
-        await new Promise<void>((resolve) => {
-            const onReady = () => {
-                window.removeEventListener('edatime:metadata-ready', onReady);
-                resolve();
-            };
-            window.addEventListener('edatime:metadata-ready', onReady);
-        });
-    }
-
-    try {
-        await loader();
-        _loadedPageModules.add(page);
-    } catch (error: unknown) {
-        console.error(`Failed to load page module for ${page}:`, error);
-    }
-}
-
-const pageModuleLoaders: Record<string, () => Promise<void>> = {
-    scatter: initScatterPageModule,
-    scattermatrix: initScatterPageModule,
-    heatmap: initHeatmapPage,
-    spectrogram: initSpectrogramPage,
-    causal: initCausalPage,
-    fft: initFftPage,
-    drift: initDriftPage,
-};
-
 let _datasetReadyPromise: Promise<void> | null = null;
 let _datasetUiReady = false;
 
@@ -689,7 +607,7 @@ function initializeDatasetUi(metadata: DatasetMetadata): void {
 }
 
 async function ensureDatasetReady(_pageName = 'timeseries'): Promise<void> {
-    if (_metadataReady) return;
+    if (isMetadataReady()) return;
     if (_datasetReadyPromise) return _datasetReadyPromise;
 
     _datasetReadyPromise = (async () => {
@@ -697,15 +615,15 @@ async function ensureDatasetReady(_pageName = 'timeseries'): Promise<void> {
 
         const metadata = await fetchMetadata!();
         storeFetchedMetadata(metadata);
-        _metadataReady = true;
+        markMetadataReady();
         window.dispatchEvent(new Event('edatime:metadata-ready'));
         dbgGroup('metadata', () => dbg(appState.metadata));
 
-    const metadataTimeRange = appState.metadata?.time_range;
-    if (!metadataTimeRange) {
-        setMetaText('No valid time range found.');
-        return;
-    }
+        const metadataTimeRange = appState.metadata?.time_range;
+        if (!metadataTimeRange) {
+            setMetaText('No valid time range found.');
+            return;
+        }
 
         appState.numericCols = getNumericColumns(metadata);
         if (!appState.selectedCols.length) {
@@ -723,32 +641,10 @@ async function ensureDatasetReady(_pageName = 'timeseries'): Promise<void> {
     return _datasetReadyPromise;
 }
 
-async function initSpectrogramPage(): Promise<void> {
-    await initSpectrogramPageModule({
-        setLoading: setComputeLoading,
-    });
-}
-
-async function initDriftPage(): Promise<void> {
-    const { initDriftPage: init } = await import('./drift/driftPage.js');
-    await init(appState.metadata);
-}
-
-async function initCausalPage(): Promise<void> {
-    const { initCausalPage: init } = await import('./causal/causalPage.js');
-    const { initCausalComparison } = await import('./causal/causalComparison.js');
-    init({
-        getMetadata: () => appState.metadata!,
-        chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
-        numericColumns: () => getNumericColumns(appState.metadata),
-        setLoading: setComputeLoading,
-    });
-    initCausalComparison();
-}
-
 async function refreshDatasetAfterMutation(options?: { selectedColumn?: string }): Promise<void> {
     if (!fetchMetadata) return;
     storeFetchedMetadata(await fetchMetadata());
+    markMetadataReady();
     appState.numericCols = getNumericColumns(appState.metadata);
     const selectedColumn = options?.selectedColumn;
     if (selectedColumn && !appState.selectedCols.includes(selectedColumn)) {
@@ -772,7 +668,7 @@ async function init(): Promise<void> {
         updateAnalysisYRange,
         zoomOut: () => zoomOut(fetchAndRender),
         resetZoom: () => resetZoom(fetchAndRender),
-        initAnalyticsListeners,
+        initAnalyticsListeners: () => { window.addEventListener('edatime:analytics-change', () => { if (appState.lastFetchedData) { if (appState.rollingEnabled) { const filtered = applyColumnRanges(appState.lastFetchedData); appState.rollingBands = computeFrontendRollingBands(filtered, appState.selectedCols, (appState.rollingWindow as number | undefined) || 50); } else { appState.rollingBands = null; } appState.chart?.requestOverlayRender?.(); } fetchAndRenderAnalytics().catch((err: unknown) => { console.warn('Analytics fetch failed:', err); }); }); },
         refreshDatasetAfterMutation,
         hydrateColumnProfiles,
         renderColumnProfilesGrid,
@@ -788,7 +684,7 @@ async function init(): Promise<void> {
             await ensureDatasetReady(initialPage!);
         }
 
-        if (initialPage === 'timeseries' && _metadataReady) {
+        if (initialPage === 'timeseries' && isMetadataReady()) {
             await ensureTimeseriesReady();
         }
     } catch (e: unknown) {

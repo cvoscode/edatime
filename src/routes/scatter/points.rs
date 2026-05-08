@@ -9,15 +9,14 @@ use axum::{
 use polars::prelude::*;
 use std::sync::Arc;
 
-use crate::arrow_export::dataframe_to_parquet;
+use crate::arrow_export::{dataframe_to_arrow_ipc, dataframe_to_parquet};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::validation::{validate_scatter_limit, validate_time_window};
 
 use super::{
-    ScatterPointsQuery, ScatterPointsResponse, clamp_limit, collect_filtered_scatter_frame,
-    parse_scatter_filters, parse_scatter_line_filters, series_to_label_values,
-    series_to_scatter_values,
+    ScatterPointsQuery, clamp_limit, collect_filtered_scatter_frame, parse_scatter_filters,
+    parse_scatter_line_filters, series_to_label_values, series_to_scatter_values,
 };
 
 // ── Internal types ───────────────────────────────────────────────────────────
@@ -46,7 +45,7 @@ struct SampledScatterRow {
 pub async fn get_scatter_points(
     State(state): State<AppState>,
     Query(params): Query<ScatterPointsQuery>,
-) -> Result<Json<ScatterPointsResponse>, AppError> {
+) -> Result<Response, AppError> {
     scatter_points_response(state, params).await
 }
 
@@ -54,7 +53,7 @@ pub async fn get_scatter_points(
 pub async fn post_scatter_points(
     State(state): State<AppState>,
     Json(params): Json<ScatterPointsQuery>,
-) -> Result<Json<ScatterPointsResponse>, AppError> {
+) -> Result<Response, AppError> {
     scatter_points_response(state, params).await
 }
 
@@ -105,7 +104,7 @@ pub async fn post_scatter_export_parquet(
 async fn scatter_points_response(
     state: AppState,
     params: ScatterPointsQuery,
-) -> Result<Json<ScatterPointsResponse>, AppError> {
+) -> Result<Response, AppError> {
     tracing::info!(
         "get_scatter_points called with x='{}', y='{}', color={:?}, limit={}",
         params.x,
@@ -116,9 +115,13 @@ async fn scatter_points_response(
 
     let df = state.dataset_snapshot().await.read().await.clone();
 
-    let x = params.x.clone();
-    let y = params.y.clone();
-    let color = params.color.clone().filter(|s| !s.trim().is_empty());
+    let x_col = params.x.clone();
+    let y_col = params.y.clone();
+    let color_col = params.color.clone().filter(|s| !s.trim().is_empty());
+
+    let x_col_for_headers = x_col.clone();
+    let y_col_for_headers = y_col.clone();
+    let color_col_for_headers = color_col.clone();
     let start = params.start;
     let end = params.end;
     let filters = parse_scatter_filters(params.filters.as_deref())?;
@@ -138,71 +141,127 @@ async fn scatter_points_response(
     }
     let metrics = Arc::clone(&state.metrics);
 
-    let response = tokio::task::spawn_blocking(move || {
-        let filtered_df = collect_filtered_scatter_frame(
-            &df,
-            &x,
-            &y,
-            color.as_deref(),
-            start,
-            end,
-            &filters,
-            &line_filters,
-        )?;
-        let (total_points, sampled_rows, color_kind) =
-            collect_sampled_xyc_rows(&filtered_df, &x, &y, color.as_deref(), limit)?;
+    let (total_points, returned_points, color_min, color_max, arrow_bytes) =
+        tokio::task::spawn_blocking(move || {
+            let filtered_df = collect_filtered_scatter_frame(
+                &df,
+                &x_col,
+                &y_col,
+                color_col.as_deref(),
+                start,
+                end,
+                &filters,
+                &line_filters,
+            )?;
+            let (total, sampled_rows, color_kind) = collect_sampled_xyc_rows(
+                &filtered_df,
+                &x_col,
+                &y_col,
+                color_col.as_deref(),
+                limit,
+            )?;
 
-        let mut points: Vec<[f64; 2]> = Vec::with_capacity(sampled_rows.len());
-        let mut color_values: Option<Vec<f64>> = match color_kind {
-            Some(ScatterColorKind::Continuous) => Some(Vec::with_capacity(sampled_rows.len())),
-            _ => None,
-        };
+            let n = sampled_rows.len();
+            let mut x_buf = Vec::with_capacity(n);
+            let mut y_buf = Vec::with_capacity(n);
+            let mut cv_buf: Vec<f64> = Vec::with_capacity(n);
+            let mut color_strings: Vec<String> = Vec::with_capacity(n);
 
-        let mut cmin = f64::INFINITY;
-        let mut cmax = f64::NEG_INFINITY;
+            let mut cmin = f64::INFINITY;
+            let mut cmax = f64::NEG_INFINITY;
 
-        let mut color_labels: Option<Vec<Option<String>>> = match color_kind {
-            Some(ScatterColorKind::Categorical) => Some(Vec::with_capacity(sampled_rows.len())),
-            _ => None,
-        };
-
-        for row in sampled_rows {
-            points.push([row.x, row.y]);
-            if let Some(ref mut out_cv) = color_values {
-                let v = row.color_value.unwrap_or(f64::NAN);
-                out_cv.push(v);
-                if v.is_finite() {
-                    if v < cmin {
-                        cmin = v;
+            for row in sampled_rows {
+                x_buf.push(row.x);
+                y_buf.push(row.y);
+                match row.color_value {
+                    Some(v) if v.is_finite() => {
+                        cv_buf.push(v);
+                        color_strings.push(String::new());
+                        if v < cmin {
+                            cmin = v;
+                        }
+                        if v > cmax {
+                            cmax = v;
+                        }
                     }
-                    if v > cmax {
-                        cmax = v;
+                    _ => {
+                        cv_buf.push(0.0);
+                        color_strings.push(row.color_label.unwrap_or_default());
                     }
                 }
             }
-            if let Some(ref mut out_labels) = color_labels {
-                out_labels.push(row.color_label);
-            }
-        }
 
-        Ok::<ScatterPointsResponse, AppError>(ScatterPointsResponse {
-            x,
-            y,
-            color,
-            total_points,
-            returned_points: points.len(),
-            points,
-            color_values,
-            color_labels,
-            color_min: if cmin.is_finite() { Some(cmin) } else { None },
-            color_max: if cmax.is_finite() { Some(cmax) } else { None },
+            let color_min = if cmin.is_finite() { Some(cmin) } else { None };
+            let color_max = if cmax.is_finite() { Some(cmax) } else { None };
+
+            // Build Arrow IPC: put x, y, color into a DataFrame then serialize.
+            // For continuous color the 3rd col is f64; for categorical it's &str.
+            let x_s = Series::new(PlSmallStr::from("x"), x_buf.as_slice());
+            let y_s = Series::new(PlSmallStr::from("y"), y_buf.as_slice());
+
+            let columns: Vec<Series> = if matches!(color_kind, Some(ScatterColorKind::Categorical))
+            {
+                let cs = Series::new(PlSmallStr::from("color_label"), color_strings.as_slice());
+                vec![x_s, y_s, cs]
+            } else {
+                let cv_s = Series::new(PlSmallStr::from("color_value"), cv_buf.as_slice());
+                vec![x_s, y_s, cv_s]
+            };
+
+            let columns: Vec<Column> = columns.into_iter().map(|s| s.into_column()).collect();
+            let scatter_df = DataFrame::new(x_buf.len(), columns)
+                .map_err(|e| AppError::internal(format!("build scatter dataframe: {}", e)))?;
+
+            let arrow_bytes = dataframe_to_arrow_ipc(scatter_df)
+                .map_err(|e| AppError::internal(format!("Arrow serialization: {}", e)))?;
+
+            Ok::<_, AppError>((total, n, color_min, color_max, arrow_bytes))
         })
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("Failed to join scatter points task: {:?}", e)))??;
+        .await
+        .map_err(|e| {
+            AppError::internal(format!("Failed to join scatter points task: {:?}", e))
+        })??;
 
-    metrics.record_scatter_sampling(response.total_points, response.returned_points);
-    Ok(Json(response))
+    metrics.record_scatter_sampling(total_points, returned_points);
+
+    let mut response = Response::new(arrow_bytes.into());
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/vnd.apache.arrow.stream"),
+    );
+    response.headers_mut().insert(
+        "x-edatime-scatter-total",
+        HeaderValue::from_str(&total_points.to_string())
+            .unwrap_or_else(|_| HeaderValue::from_static("0")),
+    );
+    response.headers_mut().insert(
+        "x-edatime-scatter-returned",
+        HeaderValue::from_str(&returned_points.to_string())
+            .unwrap_or_else(|_| HeaderValue::from_static("0")),
+    );
+    if let (Some(cm), Some(cx)) = (color_min, color_max) {
+        if let (Ok(cmv), Ok(cxv)) = (
+            HeaderValue::from_str(&cm.to_string()),
+            HeaderValue::from_str(&cx.to_string()),
+        ) {
+            response.headers_mut().insert("x-edatime-color-min", cmv);
+            response.headers_mut().insert("x-edatime-color-max", cxv);
+        }
+    }
+    response.headers_mut().insert(
+        "x-edatime-scatter-x",
+        HeaderValue::from_str(&x_col_for_headers).unwrap_or_else(|_| HeaderValue::from_static("")),
+    );
+    response.headers_mut().insert(
+        "x-edatime-scatter-y",
+        HeaderValue::from_str(&y_col_for_headers).unwrap_or_else(|_| HeaderValue::from_static("")),
+    );
+    if let Some(ref cc) = color_col_for_headers {
+        if let Ok(cv) = HeaderValue::from_str(cc) {
+            response.headers_mut().insert("x-edatime-scatter-color", cv);
+        }
+    }
+    Ok(response)
 }
 
 fn stable_sample_slot(total_seen: usize) -> usize {

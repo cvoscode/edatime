@@ -4,8 +4,6 @@
 
 import {
     appState,
-    formatAnalysisTime,
-    formatAnalysisNumber,
     applyColumnRanges,
     buildAdaptiveLineFiltersForQuery,
 } from '../state.js';
@@ -13,6 +11,36 @@ import { DEBUG, dbg, dbgGroup } from '../debug.js';
 import { downloadBlob } from '../utils/dom.js';
 import { preloadPageStyles } from '../utils/pageStyles.js';
 import type { ViewSnapshot } from '../types.js';
+import { pageNeedsDatasetBootstrap } from '../utils/pageBootstrap.js';
+import {
+    updateAnalysisZoom,
+    updateAnalysisYRange,
+    updateAnalysisCursor,
+    updateAnalysisClick,
+} from './analysisStatus.js';
+import {
+    refreshZoomControlsState,
+    applyViewport,
+    zoomOut,
+    resetZoom,
+    initChartPageFilterGesture,
+} from './viewport.js';
+
+// Re-export moved functions for backward compatibility
+export {
+    updateAnalysisZoom,
+    updateAnalysisYRange,
+    updateAnalysisCursor,
+    updateAnalysisClick,
+} from './analysisStatus.js';
+export {
+    refreshZoomControlsState,
+    getCurrentView,
+    applyViewport,
+    zoomOut,
+    resetZoom,
+    initChartPageFilterGesture,
+} from './viewport.js';
 
 interface FilteredRow {
     ts_ms: number;
@@ -119,116 +147,7 @@ async function exportChartFilteredParquet(): Promise<boolean> {
 
 // ─── Analysis status ────────────────────────────────────────────────────────
 
-function setAnalysisStatus(id: string, text: string): void {
-    const el = document.getElementById(id);
-    if (el) el.textContent = text;
-}
-
-export function updateAnalysisZoom(startMs: number, endMs: number, sourceKind = 'user'): void {
-    setAnalysisStatus(
-        'analysis-zoom',
-        `Range: ${formatAnalysisTime(startMs)} → ${formatAnalysisTime(endMs)} (${sourceKind})`,
-    );
-}
-
-export function updateAnalysisYRange(min: number, max: number, sourceKind = 'user'): void {
-    if (!Number.isFinite(min) || !Number.isFinite(max)) {
-        setAnalysisStatus('analysis-y', 'Y: —');
-        return;
-    }
-    setAnalysisStatus('analysis-y', `Y: ${formatAnalysisNumber(min)} → ${formatAnalysisNumber(max)} (${sourceKind})`);
-}
-
-export function updateAnalysisCursor(tsMs: number): void {
-    if (!Number.isFinite(tsMs)) {
-        setAnalysisStatus('analysis-cursor', 'Cursor: —');
-        return;
-    }
-    setAnalysisStatus('analysis-cursor', `Cursor: ${formatAnalysisTime(tsMs)}`);
-}
-
-interface ClickPayload {
-    value?: number[];
-    seriesName?: string;
-}
-
-export function updateAnalysisClick(payload: ClickPayload | null): void {
-    if (!payload?.value || payload.value.length < 2) {
-        setAnalysisStatus('analysis-click', 'Click: —');
-        return;
-    }
-    const x = Number(payload.value[0]);
-    const y = Number(payload.value[1]);
-    const seriesName = payload.seriesName || 'series';
-    setAnalysisStatus('analysis-click', `Click: ${seriesName}=${formatAnalysisNumber(y)} @ ${formatAnalysisTime(x)}`);
-}
-
 // ─── Zoom controls ──────────────────────────────────────────────────────────
-
-export function refreshZoomControlsState(): void {
-    const supportsZoom = !!appState.chart?.supportsZoomControls?.();
-    const resetBtn = document.getElementById('zoom-reset-btn') as HTMLButtonElement | null;
-    if (resetBtn) resetBtn.disabled = !supportsZoom;
-}
-
-// ─── View helpers ───────────────────────────────────────────────────────────
-
-export function getCurrentView(): ViewSnapshot {
-    const yr = appState.chart?.getYRange?.();
-    return {
-        xMin: appState.currentStart,
-        xMax: appState.currentEnd,
-        yMin: yr?.min ?? null,
-        yMax: yr?.max ?? null,
-    };
-}
-
-export function applyViewport(
-    view: ViewSnapshot,
-    fetchAndRender: () => void,
-    sourceKind = 'api',
-): void {
-    dbgGroup(`applyViewport (${sourceKind})`, () => {
-        dbg('incoming view', view);
-    });
-    appState.currentStart = view.xMin;
-    appState.currentEnd = view.xMax;
-    appState.chart?.setXRange?.(appState.currentStart as number, appState.currentEnd as number);
-    updateAnalysisZoom(appState.currentStart as number, appState.currentEnd as number, sourceKind);
-
-    if (Number.isFinite(view.yMin) && Number.isFinite(view.yMax) && view.yMax! > view.yMin!) {
-        updateAnalysisYRange(view.yMin!, view.yMax!, sourceKind);
-        appState.pendingYMode = 'restore' as any;
-        appState.pendingRestoreY = { min: view.yMin!, max: view.yMax! };
-    } else {
-        appState.pendingYMode = 'fit';
-        appState.pendingRestoreY = null;
-    }
-
-    if (appState.fetchDebounceId) clearTimeout(appState.fetchDebounceId);
-    appState.fetchDebounceId = setTimeout(fetchAndRender, 0);
-}
-
-export function zoomOut(fetchAndRender: () => void): void {
-    dbgGroup('zoomOut (dblclick)', () => {
-        dbg('history depth', appState.zoomHistory.length);
-        dbg('initialView', appState.initialView);
-    });
-    if (appState.zoomHistory.length > 0) {
-        applyViewport(appState.zoomHistory.pop()! as ViewSnapshot, fetchAndRender, 'zoom-out');
-    } else if (appState.initialView) {
-        applyViewport(appState.initialView as ViewSnapshot, fetchAndRender, 'zoom-out');
-    }
-}
-
-export function resetZoom(fetchAndRender: () => void): void {
-    dbgGroup('resetZoom', () => {
-        dbg('initialView', appState.initialView);
-    });
-    if (!appState.initialView) return;
-    appState.zoomHistory = [];
-    applyViewport(appState.initialView as ViewSnapshot, fetchAndRender, 'reset');
-}
 
 // ─── Init controls (draw, export, labels, zoom) ────────────────────────────
 
@@ -441,35 +360,9 @@ export function bindAnalysisChartEvents(): void {
 
 // ─── Chart page gestures ───────────────────────────────────────────────────
 
-export function initChartPageFilterGesture(): void {
-    const pageChart = document.getElementById('page-timeseries');
-    if (!pageChart) return;
-    if (pageChart.dataset.filterCtxBound) return;
-
-    let lastContextTs = 0;
-
-    pageChart.addEventListener('contextmenu', (e: MouseEvent) => {
-        const inPlot = (e.target as HTMLElement)?.closest?.('#main-chart');
-        if (inPlot) return;
-        const open = window.__edatime?.openFilterForCol;
-        if (typeof open !== 'function') return;
-        e.preventDefault();
-
-        const now = performance.now();
-        const isDoubleContext = (now - lastContextTs) <= 450;
-        lastContextTs = now;
-        if (!isDoubleContext) return;
-
-        lastContextTs = 0;
-        open(null);
-    });
-
-    pageChart.dataset.filterCtxBound = '1';
-}
+// initChartPageFilterGesture is provided by ./viewport.js and re-exported below
 
 // ─── Sidebar pages ─────────────────────────────────────────────────────────
-
-import { pageNeedsDatasetBootstrap } from '../utils/pageBootstrap.js';
 
 export function initPages(): void {
     const navButtons = Array.from(document.querySelectorAll('.sidebar .nav-item[data-page]')) as HTMLElement[];

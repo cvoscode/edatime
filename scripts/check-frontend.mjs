@@ -11,6 +11,8 @@ function collectJavaScriptFiles(dirPath) {
     for (const entry of entries) {
         const fullPath = path.join(dirPath, entry.name);
         if (entry.isDirectory()) {
+            // Skip the assets/ directory — those are hashed Vite chunks
+            if (entry.name === 'assets') continue;
             files.push(...collectJavaScriptFiles(fullPath));
             continue;
         }
@@ -23,7 +25,7 @@ function collectJavaScriptFiles(dirPath) {
 }
 
 if (!statSync(root).isDirectory()) {
-    console.error(`Frontend source directory not found: ${root}`);
+    console.error(`Frontend output directory not found: ${root}`);
     process.exit(1);
 }
 

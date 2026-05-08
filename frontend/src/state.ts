@@ -1,8 +1,15 @@
 /**
  * Centralised application state and helpers.
  *
- * Every UI module imports this single `appState` object so that state
- * mutations are visible across the application without passing references.
+ * State is now split into focused sub-states under src/store/:
+ *   chartState     — viewport, chart instance, zoom history
+ *   analyticsState — rolling bands, anomaly overlays, spectral filter
+ *   uiState        — column selection, ranges, adaptive filters, colors
+ *   datasetState   — metadata, column profiles, numeric cols
+ *   scatterState   — scatter page state
+ *
+ * Legacy `appState` is a backward-compatible composite that delegates to
+ * the sub-states. New code should import from store/ directly.
  */
 
 import type {
@@ -21,6 +28,25 @@ import type {
 } from './types.js';
 import { formatTwoDecimals } from './formatUtils.js';
 import { escapeHtml } from './utils/dom.js';
+import { appStateComposite as appState } from './store/index.js';
+
+// ─── Re-export sub-states for backward compatibility ────────────────────────
+// All modules importing from here get the composite appState + helpers.
+// New modules should import directly from './store/index.js'.
+
+// ─── Re-export sub-states for backward compatibility ────────────────────────
+// All modules importing from here get helpers + the composite appState.
+// New modules should import directly from './store/index.js'.
+
+export {
+    chartState,
+    analyticsState,
+    uiState,
+    datasetState,
+    scatterState,
+    store,
+    appStateComposite as appState, // rename so `import { appState }` still works
+} from './store/index.js';
 
 // ─── Colour palette (matches CSS) ──────────────────────────────────────────
 export const SERIES_COLORS: string[] = [
@@ -45,50 +71,19 @@ export function getDefaultProfileColumnWidths(): number[] {
     return PROFILE_COLUMNS.map((col) => col.defaultWidth);
 }
 
-// ─── App state singleton ───────────────────────────────────────────────────
-export const appState: AppStateType = {
-    metadata: null,
-    numericCols: [],
-    seriesColors: {},
-    columnProfiles: [],
-    previewSelectedColumns: [],
-    previewTimeColumn: null,
-    profileFilterText: '',
-    filterText: '',
-    selectedCols: [],
-    adaptiveFilterColumn: null,
-    columnRanges: {},
-    adaptiveLineFilters: [],
-    pendingAdaptivePoint: null,
-    lastFetchedData: null,
-    currentStart: null,
-    currentEnd: null,
-    chart: null,
-    fetchDebounceId: null,
-    selectedColorColumn: null,
-    analysisBound: false,
-    refetchOnZoom: true,
-    initialView: null,
-    zoomHistory: [],
-    pendingYMode: 'fit',
-    pendingRestoreY: null,
-    profileGridBound: false,
-    profileGridHeaderBound: false,
-    profileGridSort: { key: 'name', dir: 'asc' },
-    profileGridColWidths: [56, 220, 120, 140, 100, 130, 130, 260],
-    chartText: { title: '', xLabel: '', yLabel: '' },
-
-    // Analytics overlays
-    rollingEnabled: false,
-    rollingWindow: 50,
-    rollingBands: null,
-    anomalyEnabled: false,
-    anomalyMethod: 'zscore',
-    anomalyThreshold: 3.0,
-    anomalyRegions: null,
-    spectralFilterPreview: null,
-    datasetRevision: 0,
-};
+// ─── App state singleton (DEPRECATED) ──────────────────────────────────────
+//
+// DEPRECATED: Direct mutation of appState fields is discouraged.
+// Prefer importing and mutating the focused sub-states:
+//   import { chartState }  from './store/chartState.js';  // viewport, chart
+//   import { uiState }      from './store/uiState.js';      // selectedCols, filters
+//   import { datasetState } from './store/datasetState.js'; // metadata, numericCols
+//   import { analyticsState } from './store/analyticsState.js'; // rolling, anomaly
+//   import { scatterState } from './store/scatterState.js'; // scatter page
+//
+// The actual appState object is now the appStateComposite exported from
+// './store/index.js'. The local AppStateType definition below is kept only
+// so TypeScript can verify the shape; the object itself is the composite.
 
 // Interactive debugging from DevTools.
 window.__edatime = window.__edatime || {};

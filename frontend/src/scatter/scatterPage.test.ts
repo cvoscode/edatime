@@ -6,6 +6,43 @@ const fetchScatterPointsMock = vi.fn();
 const renderScatterMatrixViewMock = vi.fn();
 const emptyStateUpdateMock = vi.fn();
 
+const freshScatterState = vi.hoisted(() => ({
+    chart: null,
+    initialized: false,
+    pageInitialized: false,
+    activeView: 'plot' as const,
+    loading: false,
+    metadata: null as any,
+    totalPoints: 0,
+    allPoints: [] as [number, number][],
+    points: [] as [number, number][],
+    allColorValues: null as number[] | null,
+    allColorLabels: null as string[] | null,
+    full: { xMin: 0, xMax: 1, yMin: 0, yMax: 1 },
+    view: { xMin: 0, xMax: 1, yMin: 0, yMax: 1 },
+    zoomHistory: [] as any[],
+    drag: null,
+    selectionBox: null,
+    colorColumn: '',
+    colorValues: null as number[] | null,
+    colorLabels: null as string[] | null,
+    colorMin: null as number | null,
+    colorMax: null as number | null,
+    correlationsByColumn: new Map(),
+    suggestionThreshold: 0.7,
+    lastBinnedText: '',
+    lastUpdateMs: 0,
+    densityTooltipCache: null as any,
+    lastOptionSeries: null as any,
+    columnTypes: new Map<string, string>(),
+    lastSuggestions: [] as any[],
+    lastRenderSignature: '' as any,
+    matrixCache: new Map(),
+    matrixColumnOrder: [] as string[],
+    overviewRequestId: 0,
+    scatterRequestId: 0,
+}));
+
 vi.mock('../../libs/chartgpu/dist/index.js', () => ({
     createChart: (...args: unknown[]) => createChartMock(...args),
 }));
@@ -31,6 +68,7 @@ vi.mock('../state.js', async (importOriginal) => {
             currentEnd: 1_000,
             columnRanges: {},
             adaptiveLineFilters: [],
+            scatter: freshScatterState,
         },
         buildAdaptiveLineFiltersForQuery: () => [],
     };
@@ -120,6 +158,36 @@ describe('initScatterPage view toggles', () => {
         vi.resetModules();
         vi.clearAllMocks();
         buildDom();
+
+        // Reset the fresh state before each test
+        freshScatterState.chart = null;
+        freshScatterState.initialized = false;
+        freshScatterState.pageInitialized = false;
+        freshScatterState.activeView = 'plot';
+        freshScatterState.loading = false;
+        freshScatterState.metadata = null;
+        freshScatterState.totalPoints = 0;
+        freshScatterState.allPoints = [];
+        freshScatterState.points = [];
+        freshScatterState.allColorValues = null;
+        freshScatterState.allColorLabels = null;
+        freshScatterState.colorColumn = '';
+        freshScatterState.colorValues = null;
+        freshScatterState.colorLabels = null;
+        freshScatterState.colorMin = null;
+        freshScatterState.colorMax = null;
+        freshScatterState.correlationsByColumn = new Map();
+        freshScatterState.lastBinnedText = '';
+        freshScatterState.lastUpdateMs = 0;
+        freshScatterState.densityTooltipCache = null;
+        freshScatterState.lastOptionSeries = null;
+        freshScatterState.columnTypes = new Map();
+        freshScatterState.lastSuggestions = [];
+        freshScatterState.lastRenderSignature = '';
+        freshScatterState.matrixCache = new Map();
+        freshScatterState.matrixColumnOrder = [];
+        freshScatterState.overviewRequestId = 0;
+        freshScatterState.scatterRequestId = 0;
 
         createChartMock.mockResolvedValue({
             setOption: vi.fn(),

@@ -198,6 +198,7 @@ describe('dataClient fetch helpers', () => {
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
+                headers: new Map([['Content-Type', 'application/json']]),
                 json: () => Promise.resolve({
                     x: 'col_a',
                     y: 'col_b',
