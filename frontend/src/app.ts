@@ -27,7 +27,8 @@ import { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetada
 import { hydrateColumnProfiles, renderColumnProfilesGrid, initColumnProfilesGrid } from './ui/profile.js';
 import { installWindowsWebGpuRequestAdapterWorkaround, requestGpuAdapter } from './utils/platform.js';
 import { getDefaultTimeseriesColumns, getNumericColumns } from './pages/analyticsPageUtils.js';
-import { createTimeseriesPageController, computeFrontendRollingBands } from './pages/timeseriesPage.js';
+import { createTimeseriesPageController } from './pages/timeseriesPage.js';
+import { fetchAnomalyRegions, computeAndSetRollingBands, cancelAnalyticsFetch } from './bootstrap/analyticsOverlay.js';
 import { initAppShell } from './bootstrap/appShell.js';
 import { ensurePageModuleLoaded, isMetadataReady, markMetadataReady } from './bootstrap/pageLoaders.js';
 import { restoreSessionAfterChartReady, startSessionPersistence } from './bootstrap/sessionBootstrap.js';
@@ -47,6 +48,7 @@ import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, C
 
 import { initAnnotations } from './chart/annotations.js';
 import { setAnnotationOverlayCallback } from './ui/annotationPanel.js';
+import { setAnomalyOverlayCallback } from './bootstrap/analyticsOverlay.js';
 import { toast } from './utils/toast.js';
 
 const _appCleanups: Array<() => void> = [];
@@ -69,36 +71,9 @@ export function setComputeLoading(btnId: string, overlayId: string, loading: boo
 
 /* ── Analytics overlay fetch ──────────────────────────── */
 
-let analyticsController: AbortController | null = null;
-
 async function fetchAndRenderAnalytics(): Promise<void> {
-    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
-    if (analyticsController) analyticsController.abort();
-    analyticsController = new AbortController();
-    const signal = analyticsController.signal;
-
-    const startIso = new Date(appState.currentStart!).toISOString();
-    const endIso = new Date(appState.currentEnd!).toISOString();
-    const cols = appState.selectedCols.join(',');
-
-    // Rolling bands are now computed client-side in renderCurrentData
-    if (!appState.rollingEnabled) appState.rollingBands = null;
-
-    try {
-        if (appState.anomalyEnabled && fetchAnomalies) {
-            const resp = await fetchAnomalies(startIso, endIso, cols, appState.anomalyMethod, appState.anomalyThreshold, signal);
-            appState.anomalyRegions = resp?.regions || null;
-        } else {
-            appState.anomalyRegions = null;
-        }
-    } catch (e: unknown) {
-        if (!(e instanceof Error) || e.name !== 'AbortError') {
-            console.warn('Anomaly fetch failed:', e);
-        }
-        appState.anomalyRegions = null;
-    }
-
-    appState.chart?.requestOverlayRender?.();
+    const { fetchAnomalies } = await import('./dataClient.js');
+    await fetchAnomalyRegions(fetchAnomalies);
 }
 
 /* ── Lazy-loaded modules ──────────────────────────────── */
@@ -242,6 +217,7 @@ async function ensureTimeseriesReady(): Promise<void> {
             initAdaptiveFilterGesture();
             refreshZoomControlsState();
             setAnnotationOverlayCallback(() => appState.chart?.requestOverlayRender?.());
+            setAnomalyOverlayCallback(() => appState.chart?.requestOverlayRender?.());
             appState.chart?.setXRange?.(appState.currentStart!, appState.currentEnd!);
             appState.chart?.setChartText?.(
                 appState.chartText?.title || '',
@@ -668,7 +644,21 @@ async function init(): Promise<void> {
         updateAnalysisYRange,
         zoomOut: () => zoomOut(fetchAndRender),
         resetZoom: () => resetZoom(fetchAndRender),
-        initAnalyticsListeners: () => { window.addEventListener('edatime:analytics-change', () => { if (appState.lastFetchedData) { if (appState.rollingEnabled) { const filtered = applyColumnRanges(appState.lastFetchedData); appState.rollingBands = computeFrontendRollingBands(filtered, appState.selectedCols, (appState.rollingWindow as number | undefined) || 50); } else { appState.rollingBands = null; } appState.chart?.requestOverlayRender?.(); } fetchAndRenderAnalytics().catch((err: unknown) => { console.warn('Analytics fetch failed:', err); }); }); },
+        initAnalyticsListeners: () => {
+            window.addEventListener('edatime:analytics-change', async () => {
+                if (appState.lastFetchedData) {
+                    if (appState.rollingEnabled) {
+                        const filtered = applyColumnRanges(appState.lastFetchedData);
+                        const { computeFrontendRollingBands } = await import('./bootstrap/analyticsOverlay.js');
+                        appState.rollingBands = computeFrontendRollingBands(filtered as any, appState.selectedCols, (appState.rollingWindow as number | undefined) || 50);
+                    } else {
+                        appState.rollingBands = null;
+                    }
+                    appState.chart?.requestOverlayRender?.();
+                }
+                fetchAndRenderAnalytics().catch((err: unknown) => { console.warn('Analytics fetch failed:', err); });
+            });
+        },
         refreshDatasetAfterMutation,
         hydrateColumnProfiles,
         renderColumnProfilesGrid,

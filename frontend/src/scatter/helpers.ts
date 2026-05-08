@@ -158,6 +158,21 @@ export function normalizeCategoryLabel(label: unknown): string {
     return text || 'Missing';
 }
 
+/**
+ * Filter out non-finite (NaN, Infinity, -Infinity) values from a color array,
+ * returning only the valid finite values. This keeps colorValues aligned with
+ * the points array so that colorIndex lookups via dataIndex are safe.
+ */
+export function normalizeColorValues(values: number[] | null): number[] | null {
+    if (!Array.isArray(values)) return null;
+    const finite: number[] = [];
+    for (let i = 0; i < values.length; i++) {
+        const v = Number(values[i]);
+        if (Number.isFinite(v)) finite.push(v);
+    }
+    return finite.length > 0 ? finite : null;
+}
+
 export function getCategoryColor(index: number): string {
     return DISTRIBUTION_GROUP_COLORS[index % DISTRIBUTION_GROUP_COLORS.length];
 }

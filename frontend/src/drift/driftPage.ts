@@ -16,6 +16,11 @@ async function getECharts(): Promise<typeof import('echarts')> {
     }
     return _echartsModule;
 }
+// Exported for test isolation: reset the cache between test runs so the echarts
+// mock is re-established rather than the real module being reused.
+export function _setEchartsModule(m: typeof import('echarts') | null): void {
+    _echartsModule = m;
+}
 
 // ── Module-level tooltip formatter (issue #10: avoid closure creation per render) ──
 const timelineTooltipFormatter = (params: any): string => {

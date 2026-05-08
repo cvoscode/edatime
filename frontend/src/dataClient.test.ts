@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // We need to mock fetch and the arrow import before importing the module
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+vi.stubGlobal('fetch', mockFetch);
 
 // Mock the debug module
 vi.mock('./debug.js', () => ({

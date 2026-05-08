@@ -26,99 +26,38 @@ class ResizeObserverMock {
 }
 
 describe('drift page accessibility and debug metadata', () => {
-    beforeEach(() => {
+    let fetchMock: ReturnType<typeof vi.fn>;
+
+    beforeEach(async () => {
+        // CRITICAL: clear module-level state BEFORE anything else so each test
+        // starts with a pristine mock chart instance. chartHandlers is a Map that
+        // accumulates (event, handler) pairs each time chartMock.on is called.
+        // mockReset() only clears the mock's call log — NOT the Map entries.
         chartHandlers.clear();
-        chartMock.setOption.mockClear();
-        chartMock.clear.mockClear();
-        chartMock.resize.mockClear();
-        chartMock.on.mockClear();
-        chartMock.showLoading.mockClear();
-        chartMock.hideLoading.mockClear();
-        chartMock.dispatchAction.mockClear();
-        chartMock.getDataURL.mockClear();
+        chartMock.on.mockReset();
 
-        (globalThis as any).ResizeObserver = ResizeObserverMock;
-        vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => ({
-            clearRect: vi.fn(),
-            fillRect: vi.fn(),
-            beginPath: vi.fn(),
-            moveTo: vi.fn(),
-            lineTo: vi.fn(),
-            bezierCurveTo: vi.fn(),
-            quadraticCurveTo: vi.fn(),
-            closePath: vi.fn(),
-            rect: vi.fn(),
-            clip: vi.fn(),
-            arc: vi.fn(),
-            stroke: vi.fn(),
-            fill: vi.fn(),
-            save: vi.fn(),
-            restore: vi.fn(),
-            translate: vi.fn(),
-            rotate: vi.fn(),
-            scale: vi.fn(),
-            setTransform: vi.fn(),
-            setLineDash: vi.fn(),
-            fillText: vi.fn(),
-            strokeText: vi.fn(),
-            drawImage: vi.fn(),
-            measureText: vi.fn(() => ({ width: 12 })),
-            createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
-            createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
-            getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4) })),
-            putImageData: vi.fn(),
-        }) as any);
-        document.body.innerHTML = `
-            <section id="page-drift" data-page-name="drift">
-              <div class="drift-layout"></div>
-              <!-- column picker -->
-              <div id="drift-col-picker-wrap" class="drift-col-picker">
-                <button id="drift-col-picker-btn" type="button" aria-haspopup="true" aria-expanded="false"></button>
-                <span id="drift-col-picker-label"></span>
-                <div id="drift-col-picker-panel" hidden>
-                  <button id="drift-cols-all" type="button">All</button>
-                  <button id="drift-cols-single" type="button">Single</button>
-                  <button id="drift-cols-none" type="button">None</button>
-                  <div id="drift-col-picker-list"></div>
-                </div>
-              </div>
-              <select id="drift-col-select" multiple style="display:none;"></select>
-              <select id="drift-window-select"><option value="daily" selected>Daily</option></select>
-              <select id="drift-plot-type"><option value="box" selected>Box</option></select>
-              <select id="drift-ref-preset"><option value="50" selected>50</option></select>
-              <input id="drift-ref-start" type="datetime-local" />
-              <input id="drift-ref-end" type="datetime-local" />
-              <button id="drift-compute-btn" type="button">Compute</button>
-              <button id="drift-zoom-reset-btn" type="button">Reset</button>
-              <span id="drift-status"></span>
-              <div id="drift-timeline-chart"></div>
-              <div id="drift-detail-chart"></div>
-              <select id="drift-detail-col-select"></select>
-              <div id="drift-loading" hidden></div>
-              <div id="drift-empty"></div>
-              <div id="drift-detail-header"></div>
-              <div id="drift-detail-stats"></div>
-              <div id="drift-window-list"></div>
-              <select id="drift-sort-select"><option value="time-asc" selected>time-asc</option></select>
-              <button id="drift-export-png" type="button" disabled></button>
-              <button id="drift-export-detail-png" type="button" disabled></button>
-              <button id="drift-export-csv" type="button" disabled></button>
-              <button id="drift-export-json" type="button" disabled></button>
-            </section>
-        `;
+        // Clean up any leftover global stubs/spies BEFORE resetting modules.
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
 
-        const timelineEl = document.getElementById('drift-timeline-chart') as HTMLDivElement;
-        Object.defineProperty(timelineEl, 'clientWidth', { configurable: true, value: 700 });
-        Object.defineProperty(timelineEl, 'clientHeight', { configurable: true, value: 320 });
-        const detailEl = document.getElementById('drift-detail-chart') as HTMLDivElement;
-        Object.defineProperty(detailEl, 'clientWidth', { configurable: true, value: 320 });
-        Object.defineProperty(detailEl, 'clientHeight', { configurable: true, value: 220 });
-    });
-
-    it('renders keyboard-selectable drift window rows with option semantics', async () => {
+        // Reset all modules AND clear the module-level ECharts cache so that
+        // driftPage.ts always re-imports echarts fresh. Without this, when a
+        // previous test leaves a stale mock in the module cache, getECharts()
+        // returns the stale (unmocked) echarts import and initDriftPage() exits
+        // early at the !timelineEl guard — producing 0 window items.
         vi.resetModules();
-        const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
-        const fetchMock = vi.fn().mockResolvedValue({
+
+        // Clear the module-level _echartsModule cache in driftPage.ts so that
+        // the next import('echarts') goes through Vitest's mock registry instead
+        // of returning the real echarts singleton that vitest doesn't control.
+        const driftPageModule = await import('./driftPage.js');
+        driftPageModule._setEchartsModule(null);
+
+        // Build the fetch mock HERE in beforeEach (not inside it()) so that any
+        // code path during module initialisation that calls fetch() hits the mock.
+        // Use vi.stubGlobal instead of direct assignment so vi.unstubAllGlobals
+        // can properly restore the original value in subsequent tests.
+        fetchMock = vi.fn().mockResolvedValue({
             ok: true,
             json: async () => ({
                 column: 'value',
@@ -206,6 +145,105 @@ describe('drift page accessibility and debug metadata', () => {
         });
         vi.stubGlobal('fetch', fetchMock);
 
+        chartHandlers.clear();
+        chartMock.setOption.mockClear();
+        chartMock.clear.mockClear();
+        chartMock.resize.mockClear();
+        chartMock.on.mockClear();
+        chartMock.showLoading.mockClear();
+        chartMock.hideLoading.mockClear();
+        chartMock.dispatchAction.mockClear();
+        chartMock.getDataURL.mockClear();
+
+        (globalThis as any).ResizeObserver = ResizeObserverMock;
+        vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => ({
+            clearRect: vi.fn(),
+            fillRect: vi.fn(),
+            beginPath: vi.fn(),
+            moveTo: vi.fn(),
+            lineTo: vi.fn(),
+            bezierCurveTo: vi.fn(),
+            quadraticCurveTo: vi.fn(),
+            closePath: vi.fn(),
+            rect: vi.fn(),
+            clip: vi.fn(),
+            arc: vi.fn(),
+            stroke: vi.fn(),
+            fill: vi.fn(),
+            save: vi.fn(),
+            restore: vi.fn(),
+            translate: vi.fn(),
+            rotate: vi.fn(),
+            scale: vi.fn(),
+            setTransform: vi.fn(),
+            setLineDash: vi.fn(),
+            fillText: vi.fn(),
+            strokeText: vi.fn(),
+            drawImage: vi.fn(),
+            measureText: vi.fn(() => ({ width: 12 })),
+            createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
+            createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
+            getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4) })),
+            putImageData: vi.fn(),
+        }) as any);
+        document.body.innerHTML = `
+            <section id="page-drift" data-page-name="drift">
+              <div class="drift-layout"></div>
+              <!-- column picker -->
+              <div id="drift-col-picker-wrap" class="drift-col-picker">
+                <button id="drift-col-picker-btn" type="button" aria-haspopup="true" aria-expanded="false"></button>
+                <span id="drift-col-picker-label"></span>
+                <div id="drift-col-picker-panel" hidden>
+                  <button id="drift-cols-all" type="button">All</button>
+                  <button id="drift-cols-single" type="button">Single</button>
+                  <button id="drift-cols-none" type="button">None</button>
+                  <div id="drift-col-picker-list"></div>
+                </div>
+              </div>
+              <select id="drift-col-select" multiple style="display:none;"></select>
+              <select id="drift-window-select"><option value="daily" selected>Daily</option></select>
+              <select id="drift-plot-type"><option value="box" selected>Box</option></select>
+              <select id="drift-ref-preset"><option value="50" selected>50</option></select>
+              <input id="drift-ref-start" type="datetime-local" />
+              <input id="drift-ref-end" type="datetime-local" />
+              <button id="drift-compute-btn" type="button">Compute</button>
+              <button id="drift-zoom-reset-btn" type="button">Reset</button>
+              <span id="drift-status"></span>
+              <div id="drift-timeline-chart"></div>
+              <div id="drift-detail-chart"></div>
+              <select id="drift-detail-col-select"></select>
+              <div id="drift-loading" hidden></div>
+              <div id="drift-empty"></div>
+              <div id="drift-detail-header"></div>
+              <div id="drift-detail-stats"></div>
+              <div id="drift-window-list"></div>
+              <select id="drift-sort-select"><option value="time-asc" selected>time-asc</option></select>
+              <button id="drift-export-png" type="button" disabled></button>
+              <button id="drift-export-detail-png" type="button" disabled></button>
+              <button id="drift-export-csv" type="button" disabled></button>
+              <button id="drift-export-json" type="button" disabled></button>
+            </section>
+        `;
+
+        const timelineEl = document.getElementById('drift-timeline-chart') as HTMLDivElement;
+        Object.defineProperty(timelineEl, 'clientWidth', { configurable: true, value: 700 });
+        Object.defineProperty(timelineEl, 'clientHeight', { configurable: true, value: 320 });
+        const detailEl = document.getElementById('drift-detail-chart') as HTMLDivElement;
+        Object.defineProperty(detailEl, 'clientWidth', { configurable: true, value: 320 });
+        Object.defineProperty(detailEl, 'clientHeight', { configurable: true, value: 220 });
+
+        // The page element (#page-drift) must also have non-zero dimensions so that
+        // isDriftChartReadyForInit() returns true inside initDriftPage. Without this,
+        // the timeline and detail charts are never created and renderWindowList()
+        // has nothing to render into.
+        const pageEl = document.getElementById('page-drift') as HTMLElement;
+        Object.defineProperty(pageEl, 'clientWidth', { configurable: true, value: 800 });
+        Object.defineProperty(pageEl, 'clientHeight', { configurable: true, value: 600 });
+    });
+
+    it('renders keyboard-selectable drift window rows with option semantics', async () => {
+        const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
+
         const { initDriftPage } = await import('./driftPage.js');
         await initDriftPage({
             numeric_columns: ['value'],
@@ -217,11 +255,13 @@ describe('drift page accessibility and debug metadata', () => {
         (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
 
         (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
+
+        // Poll for window items, adding longer delays to handle CI/system load.
         const waitForWindowItems = async () => {
-            for (let attempt = 0; attempt < 10; attempt += 1) {
+            for (let attempt = 0; attempt < 20; attempt += 1) {
                 const items = Array.from(document.querySelectorAll<HTMLElement>('#drift-window-list .drift-window-item'));
                 if (items.length > 0) return items;
-                await new Promise((resolve) => setTimeout(resolve, 0));
+                await new Promise<void>((resolve) => setTimeout(resolve, 20));
             }
             return Array.from(document.querySelectorAll<HTMLElement>('#drift-window-list .drift-window-item'));
         };

@@ -32,8 +32,8 @@ import type { ScatterView } from '../store/scatterState.js';
 
 // Re-export helpers that the helpers module provides (used in this file's functions)
 export { getEl, fmt, computeColorExtent, computeDomains } from './helpers.js';
-export { normalizeCategoryLabel, buildCategoricalColorGroups, type CategoricalColorGroups } from './helpers.js';
-import { getEl, fmt, computeColorExtent, computeDomains, normalizeCategoryLabel, buildCategoricalColorGroups, type CategoricalColorGroups } from './helpers.js';
+export { normalizeCategoryLabel, normalizeColorValues, buildCategoricalColorGroups, type CategoricalColorGroups } from './helpers.js';
+import { getEl, fmt, computeColorExtent, computeDomains, normalizeCategoryLabel, normalizeColorValues, buildCategoricalColorGroups, type CategoricalColorGroups } from './helpers.js';
 
 /* ── Controls read helpers ────────────────────────────── */
 
@@ -184,6 +184,9 @@ export function clampView(view: ScatterView): ScatterView {
 
 export function applyScatterStateFromCache(resetView = true): void {
     appState.scatter.points = Array.isArray(appState.scatter.allPoints) ? appState.scatter.allPoints : [];
+    // Note: colorValues / colorLabels are kept as-is here (may contain NaN/Infinity).
+    // Filtering of non-finite color values happens in buildNormalScatterSeries so
+    // that array indices stay aligned with the points array.
     appState.scatter.colorValues = Array.isArray(appState.scatter.allColorValues) ? appState.scatter.allColorValues : null;
     appState.scatter.colorLabels = Array.isArray(appState.scatter.allColorLabels) ? appState.scatter.allColorLabels : null;
 

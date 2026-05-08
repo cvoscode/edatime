@@ -31,6 +31,19 @@ export type { ChartState, AnalyticsState, UiState, DatasetState, ScatterState };
 //
 // Modules that import `appState` from '../state.js' get this object.
 // New code should import sub-states directly for all state operations.
+//
+// Standalone properties (lived on this composite only):
+//   currentStart, currentEnd, initialView, zoomHistory, chartText,
+//   analysisBound, lastFetchedData, rollingWindow (number)
+//
+// Delegated properties (forward to sub-states, do NOT mutate directly):
+//   metadata → datasetState
+//   selectedCols → uiState
+//   columnRanges → uiState
+//   adaptiveLineFilters → uiState
+//   rollingEnabled/rollingBands/anomalyEnabled/anomalyRegions → analyticsState
+//   seriesColors, selectedColorColumn → uiState
+//   numericCols, columnProfiles, datasetRevision → datasetState
 
 export const appStateComposite = {
     // ── Delegated properties ─────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import {
     setMetaText,
 } from '../state.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
+import { computeFrontendRollingBands } from '../bootstrap/analyticsOverlay.js';
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
 
@@ -35,50 +36,7 @@ function getTimeseriesEmptyStateController() {
     return timeseriesEmptyStateController;
 }
 
-export function computeFrontendRollingBands(data: any, cols: string[], windowSize: number): any[] {
-    const ts = data?.ts;
-    if (!ts || ts.length < 2) return [];
-    const n = ts.length;
-    const half = Math.floor((windowSize - 1) / 2);
-    const bands: any[] = [];
-    for (const col of cols) {
-        const ys = data?.series?.[col]?.y;
-        if (!ys || ys.length !== n) continue;
-        const tsOut = new Array(n);
-        const mean: (number | null)[] = new Array(n).fill(null);
-        const upper1: (number | null)[] = new Array(n).fill(null);
-        const lower1: (number | null)[] = new Array(n).fill(null);
-        const upper2: (number | null)[] = new Array(n).fill(null);
-        const lower2: (number | null)[] = new Array(n).fill(null);
-        for (let i = 0; i < n; i++) {
-            tsOut[i] = Number(ts[i]);
-            const start = Math.max(0, i - half);
-            const end = Math.min(n, i + half + 1);
-            let sum = 0;
-            let sumSq = 0;
-            let cnt = 0;
-            for (let j = start; j < end; j++) {
-                const v = Number(ys[j]);
-                if (Number.isFinite(v)) {
-                    sum += v;
-                    sumSq += v * v;
-                    cnt += 1;
-                }
-            }
-            if (cnt >= 2) {
-                const m = sum / cnt;
-                const std = Math.sqrt(Math.max(0, (sumSq / cnt) - m * m));
-                mean[i] = m;
-                upper1[i] = m + std;
-                lower1[i] = m - std;
-                upper2[i] = m + 2 * std;
-                lower2[i] = m - 2 * std;
-            }
-        }
-        bands.push({ column: col, ts: tsOut, mean, upper1, lower1, upper2, lower2 });
-    }
-    return bands;
-}
+// computeFrontendRollingBands is now imported from ../bootstrap/analyticsOverlay.ts
 
 function computeRenderedYDebugSnapshot() {
     if (!appState.lastFetchedData) return null;
@@ -188,7 +146,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
         appState.chart.updateDataMulti(filtered, displayCols);
         if (appState.rollingEnabled) {
-            appState.rollingBands = computeFrontendRollingBands(filtered, appState.selectedCols, (appState as any).rollingWindow || 50);
+            appState.rollingBands = computeFrontendRollingBands(filtered as any, appState.selectedCols, (appState as any).rollingWindow || 50);
             appState.chart?.requestOverlayRender?.();
         }
         window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));

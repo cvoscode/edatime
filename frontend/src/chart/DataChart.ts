@@ -124,6 +124,62 @@ export class DataChart {
         this.chartInstance = null;
     }
 
+    /**
+     * Full disposal — tears down the chart instance, canvas overlays, and all
+     * bound elements. Safe to call when the GPU device is lost or the chart
+     * container is being removed from the DOM.
+     */
+    deepDispose(): void {
+        if (this._drawingRafId !== null) {
+            cancelAnimationFrame(this._drawingRafId);
+            this._drawingRafId = null;
+        }
+        this._drawingResizeObserver?.disconnect();
+        this._drawingResizeObserver = null;
+        this._chartResizeObserver?.disconnect();
+        this._chartResizeObserver = null;
+
+        // Remove overlay canvas from DOM and release its context.
+        this._overlayCanvas?.remove();
+        this._overlayCanvas = null;
+        this._overlayCtx = null;
+
+        // Remove selection box from DOM.
+        this._selectionBox?.remove();
+        this._selectionBox = null;
+
+        this._container = null;
+        this._titleEl = null;
+        this._xLabelEl = null;
+        this._yLabelEl = null;
+
+        // Release ChartGPU instance (guards against device-lost scenarios).
+        try {
+            this.chartInstance?.dispose?.();
+        } catch (_) {
+            // dispose() may throw if the GPU device was already lost.
+        }
+        this.chartInstance = null;
+
+        // Clear drawing state.
+        this._drawings = [];
+        this._currentDraw = null;
+        this._drawMode = 'none';
+        this._drawColor = '#ff0055';
+        this._drawWidth = 2;
+
+        // Reset bounds.
+        this._xMin = null;
+        this._xMax = null;
+        this._yMin = null;
+        this._yMax = null;
+        this._lastDataYMin = null;
+        this._lastDataYMax = null;
+        this._lastSeriesList = null;
+        this._lastXDomainMin = null;
+        this._lastXDomainMax = null;
+    }
+
     setChartText(title: string, xLabel: string, yLabel: string): void {
         this._chartTitle = String(title ?? '').trim();
         this._xAxisLabel = String(xLabel ?? '').trim();
@@ -276,16 +332,16 @@ export class DataChart {
         let xDomainMin = Number.POSITIVE_INFINITY;
         let xDomainMax = Number.NEGATIVE_INFINITY;
         /* Internal intermediate types for series building */
-interface ColorCandidateEntry {
-    readonly __colorCandidate: true;
-    readonly colName: string;
-    readonly idx: number;
-    readonly visible: boolean;
-    readonly points: [number, number][];
-    readonly colorValues: unknown[];
-}
+        interface ColorCandidateEntry {
+            readonly __colorCandidate: true;
+            readonly colName: string;
+            readonly idx: number;
+            readonly visible: boolean;
+            readonly points: [number, number][];
+            readonly colorValues: unknown[];
+        }
 
-const seriesAnnotations: AnnotationConfig[] = [];
+        const seriesAnnotations: AnnotationConfig[] = [];
 
         const seriesList = columns
             .filter((colName) => {

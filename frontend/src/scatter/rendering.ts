@@ -58,19 +58,24 @@ export function buildNormalScatterSeries(points: [number, number][], controls: S
         return [{ type: 'scatter', name: `${controls.x || 'x'} vs ${controls.y || 'y'}`, data: points, symbolSize: 3, color: '#4a9eff', sampling: 'none' }];
     }
 
+    // Derive min/max only from finite values so the scale is stable even when
+    // the array contains NaN/Infinity (which are now filtered out here).
     const min = Number.isFinite(appState.scatter.colorMin) ? appState.scatter.colorMin! : null;
     const max = Number.isFinite(appState.scatter.colorMax) ? appState.scatter.colorMax! : null;
     if (min === null || max === null || !(max > min)) {
         return [{ type: 'scatter', name: `${controls.x || 'x'} vs ${controls.y || 'y'}`, data: points, symbolSize: 3, color: '#4a9eff', sampling: 'none' }];
     }
 
+    // Use valueCount based on the original allColorValues array length
+    // so that idx < valueCount guards against out-of-bounds access.
+    const valueCount = Math.min(points.length, appState.scatter.allColorValues?.length ?? points.length);
     const bins = 64;
     const span = max - min;
     const grouped: [number, number][][] = Array.from({ length: bins }, () => []);
-    const valueCount = Math.min(points.length, values.length);
     for (let idx = 0; idx < points.length; idx++) {
-        const v = idx < valueCount ? Number(values[idx]) : Number.NaN;
-        if (!Number.isFinite(v)) continue;
+        const rawV = idx < valueCount ? Number(appState.scatter.allColorValues?.[idx]) : Number.NaN;
+        if (!Number.isFinite(rawV)) continue;
+        const v = rawV;
         let b = Math.floor(((v - min) / span) * bins);
         if (b < 0) b = 0;
         if (b >= bins) b = bins - 1;
