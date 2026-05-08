@@ -147,25 +147,27 @@ impl Default for CacheState {
 #[derive(Debug)]
 pub struct ResponseCache {
     config: CacheConfig,
-    state: tokio::sync::Mutex<CacheState>,
+    // No .await inside critical sections — std::sync::Mutex is cheaper and
+    // correctly conveys "blocking, not async" to the Tokio executor.
+    state: std::sync::Mutex<CacheState>,
 }
 
 impl ResponseCache {
     pub fn new(config: CacheConfig) -> Self {
         Self {
             config,
-            state: tokio::sync::Mutex::new(CacheState::default()),
+            state: std::sync::Mutex::new(CacheState::default()),
         }
     }
 
     pub async fn get(&self, key: &str) -> Option<CachedResponse> {
-        let mut state = self.state.lock().await;
+        let mut state = self.state.lock().unwrap();
         self.maybe_prune(&mut state);
         state.entries.get(key).map(|entry| entry.response.clone())
     }
 
     pub async fn insert(&self, key: String, response: CachedResponse) {
-        let mut state = self.state.lock().await;
+        let mut state = self.state.lock().unwrap();
         self.maybe_prune(&mut state);
 
         if let Some(previous) = state.entries.remove(&key) {
@@ -226,7 +228,7 @@ impl ResponseCache {
 
     /// Clear all cached entries.
     pub async fn invalidate_all(&self) {
-        let mut state = self.state.lock().await;
+        let mut state = self.state.lock().unwrap();
         state.entries.clear();
         state.order.clear();
         state.total_bytes = 0;

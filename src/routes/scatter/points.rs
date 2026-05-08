@@ -239,14 +239,13 @@ async fn scatter_points_response(
         HeaderValue::from_str(&returned_points.to_string())
             .unwrap_or_else(|_| HeaderValue::from_static("0")),
     );
-    if let (Some(cm), Some(cx)) = (color_min, color_max) {
-        if let (Ok(cmv), Ok(cxv)) = (
+    if let (Some(cm), Some(cx)) = (color_min, color_max)
+        && let (Ok(cmv), Ok(cxv)) = (
             HeaderValue::from_str(&cm.to_string()),
             HeaderValue::from_str(&cx.to_string()),
         ) {
-            response.headers_mut().insert("x-edatime-color-min", cmv);
-            response.headers_mut().insert("x-edatime-color-max", cxv);
-        }
+        response.headers_mut().insert("x-edatime-color-min", cmv);
+        response.headers_mut().insert("x-edatime-color-max", cxv);
     }
     response.headers_mut().insert(
         "x-edatime-scatter-x",
@@ -256,10 +255,9 @@ async fn scatter_points_response(
         "x-edatime-scatter-y",
         HeaderValue::from_str(&y_col_for_headers).unwrap_or_else(|_| HeaderValue::from_static("")),
     );
-    if let Some(ref cc) = color_col_for_headers {
-        if let Ok(cv) = HeaderValue::from_str(cc) {
-            response.headers_mut().insert("x-edatime-scatter-color", cv);
-        }
+    if let Some(ref cc) = color_col_for_headers
+        && let Ok(cv) = HeaderValue::from_str(cc) {
+        response.headers_mut().insert("x-edatime-scatter-color", cv);
     }
     Ok(response)
 }

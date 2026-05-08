@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
+use tokio::sync::Mutex;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RateLimitResult {
     pub allowed: bool,
@@ -18,7 +20,8 @@ struct ClientWindow {
 pub struct RateLimiter {
     max_requests: usize,
     window: Duration,
-    clients: std::sync::Mutex<HashMap<String, ClientWindow>>,
+    // Async mutex — no blocking of the Tokio executor thread.
+    clients: Mutex<HashMap<String, ClientWindow>>,
 }
 
 impl RateLimiter {
@@ -26,19 +29,16 @@ impl RateLimiter {
         Self {
             max_requests,
             window: Duration::from_secs(window_seconds.max(1)),
-            clients: std::sync::Mutex::new(HashMap::new()),
+            clients: Mutex::new(HashMap::new()),
         }
     }
 
-    pub fn check(&self, client_ip: &str) -> RateLimitResult {
+    pub async fn check(&self, client_ip: &str) -> RateLimitResult {
         let now = Instant::now();
-        let mut clients = match self.clients.lock() {
-            Ok(g) => g,
-            Err(poisoned) => {
-                tracing::error!("rate limiter mutex poisoned, recovering");
-                poisoned.into_inner()
-            }
-        };
+        let mut clients = self.clients.lock().await;
+        // tokio::sync::Mutex does not expose poisoning — the guard is always
+        // returned even after a panic, providing access to the underlying data.
+        // (The std::sync::Mutex approach of checking Err(poisoned) does not apply here.)
         clients.retain(|_, window| now.duration_since(window.started_at) < self.window);
 
         let entry = clients
@@ -79,12 +79,12 @@ impl RateLimiter {
 mod tests {
     use super::*;
 
-    #[test]
-    fn blocks_after_limit_is_reached() {
+    #[tokio::test]
+    async fn blocks_after_limit_is_reached() {
         let limiter = RateLimiter::new(2, 60);
-        assert!(limiter.check("127.0.0.1").allowed);
-        assert!(limiter.check("127.0.0.1").allowed);
-        let third = limiter.check("127.0.0.1");
+        assert!(limiter.check("127.0.0.1").await.allowed);
+        assert!(limiter.check("127.0.0.1").await.allowed);
+        let third = limiter.check("127.0.0.1").await;
         assert!(!third.allowed);
         assert_eq!(third.remaining_requests, 0);
     }

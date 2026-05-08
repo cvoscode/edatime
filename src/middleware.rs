@@ -79,7 +79,7 @@ pub fn rate_limit_middleware(
             let started_at = Instant::now();
             let client_ip = extract_client_ip(&req);
 
-            let result = rate_limiter.check(&client_ip);
+            let result = rate_limiter.check(&client_ip).await;
 
             if !result.allowed {
                 metrics.record_rate_limited();

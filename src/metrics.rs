@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::Instant;
 
 use serde::Serialize;
@@ -36,7 +37,8 @@ pub struct AppMetrics {
     scatter_requests: AtomicU64,
     scatter_points_seen: AtomicU64,
     scatter_points_returned: AtomicU64,
-    request_counts: std::sync::Mutex<HashMap<String, u64>>,
+    // RwLock: many concurrent writers (every request), rare readers (snapshot).
+    request_counts: Mutex<HashMap<String, u64>>,
 }
 
 impl Default for AppMetrics {
@@ -57,7 +59,7 @@ impl AppMetrics {
             scatter_requests: AtomicU64::new(0),
             scatter_points_seen: AtomicU64::new(0),
             scatter_points_returned: AtomicU64::new(0),
-            request_counts: std::sync::Mutex::new(HashMap::new()),
+            request_counts: Mutex::new(HashMap::new()),
         }
     }
 
@@ -66,10 +68,16 @@ impl AppMetrics {
         self.total_request_duration_ns
             .fetch_add(duration_ns, Ordering::Relaxed);
         let key = format!("{} {} {}", method, path, status);
+        // Use std::sync::Mutex (not tokio) — this is a sync fn, so blocking is
+        // acceptable and avoids tying the async executor to a long-held critical
+        // section (lock held only briefly for a HashMap insert).
         let mut counts = match self.request_counts.lock() {
             Ok(g) => g,
             Err(poisoned) => {
-                tracing::error!("metrics mutex poisoned, recovering");
+                tracing::error!(
+                    "metrics request_counts mutex poisoned — a panic occurred during \
+                     mutation; the recorded counts may be incomplete"
+                );
                 poisoned.into_inner()
             }
         };
@@ -119,7 +127,10 @@ impl AppMetrics {
             request_counts: match self.request_counts.lock() {
                 Ok(g) => g.clone(),
                 Err(poisoned) => {
-                    tracing::error!("metrics mutex poisoned while taking snapshot, recovering");
+                    tracing::error!(
+                        "metrics request_counts mutex poisoned during snapshot — a panic \
+                         occurred during mutation; the recorded counts may be incomplete"
+                    );
                     poisoned.into_inner().clone()
                 }
             },

@@ -25,7 +25,7 @@ export function showError(message: string | null): void {
     const el = getEl('scatter-error');
     if (!el) return;
     if (!message) { el.hidden = true; el.textContent = ''; return; }
-    
+
     // Try to parse JSON error messages and extract user-friendly text
     let displayMessage = String(message);
     try {
@@ -51,7 +51,7 @@ export function showError(message: string | null): void {
             displayMessage = displayMessage.replace(/^\d+\s*/, '').replace(/\s*\{.*$/, '').trim();
         }
     }
-    
+
     el.textContent = displayMessage;
     el.hidden = false;
 }

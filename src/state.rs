@@ -12,7 +12,9 @@ use crate::repository::InMemoryDataRepository;
 
 /// Short-lived in-memory cache for drift computation results.
 /// Key: request parameter hash string. Value: (dataset_revision, inserted_at, json_bytes).
-pub type DriftCache = std::sync::Mutex<HashMap<String, (u64, Instant, Vec<u8>)>>;
+/// Wrapped in Arc so that cloned AppState shares the same cache rather than
+/// each clone getting its own isolated (and thus useless) empty cache.
+pub type DriftCache = Arc<std::sync::Mutex<HashMap<String, (u64, Instant, Vec<u8>)>>>;
 
 /// Live database connection state, set after a successful `/api/database/connect`.
 #[derive(Clone, Debug)]
@@ -48,7 +50,7 @@ impl Clone for AppState {
             config: Arc::clone(&self.config),
             db_pool: Arc::clone(&self.db_pool),
             db_info: Arc::clone(&self.db_info),
-            drift_cache: std::sync::Mutex::new(HashMap::new()),
+            drift_cache: Arc::clone(&self.drift_cache),
         }
     }
 }
@@ -62,7 +64,7 @@ impl AppState {
             config: Arc::new(config),
             db_pool: Arc::new(RwLock::new(None)),
             db_info: Arc::new(RwLock::new(None)),
-            drift_cache: std::sync::Mutex::new(HashMap::new()),
+            drift_cache: Arc::new(std::sync::Mutex::new(HashMap::new())),
         }
     }
 
