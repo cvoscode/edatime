@@ -98,3 +98,9 @@ export function initChartPageFilterGesture(): void {
 
     pageChart.dataset.filterCtxBound = '1';
 }
+
+export function initResetZoomListener(fetchAndRender: () => void): void {
+    window.addEventListener('edatime:reset-zoom', () => {
+        zoomOut(fetchAndRender);
+    });
+}

@@ -7,6 +7,7 @@ import {
     setMetaText,
 } from '../state.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
+import { announceChartLoading, announceDataUpdate } from '../utils/a11y.js';
 import { computeFrontendRollingBands } from '../bootstrap/analyticsOverlay.js';
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
@@ -77,6 +78,13 @@ function computeRenderedYDebugSnapshot() {
 export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     let dataFetchController: AbortController | null = null;
 
+    const uploadButton = document.getElementById('timeseries-empty-upload-btn');
+    if (uploadButton) {
+        uploadButton.addEventListener('click', () => {
+            window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'upload' } }));
+        });
+    }
+
     function emitChartRangeChange(sourceKind = 'data'): void {
         if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
         window.dispatchEvent(new CustomEvent('edatime:chart-range-change', {
@@ -145,11 +153,18 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         }
 
         appState.chart.updateDataMulti(filtered, displayCols);
+
+        if (appState.pendingRestoreY && appState.pendingYMode === 'restore') {
+            const savedY = appState.pendingRestoreY;
+            appState.chart.setYRange(savedY.min, savedY.max);
+        }
+
         if (appState.rollingEnabled) {
             appState.rollingBands = computeFrontendRollingBands(filtered as any, appState.selectedCols, (appState as any).rollingWindow || 50);
             appState.chart?.requestOverlayRender?.();
         }
         window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
+        announceDataUpdate('timeseries');
     }
 
     async function fetchAndRender(): Promise<void> {
@@ -178,6 +193,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             const cols = appState.selectedCols.join(',');
             const colorCol = appState.selectedColorColumn || null;
 
+            announceChartLoading(appState.selectedCols || []);
             dbgGroup('fetchAndRender', () => {
                 dbg('request', { startIso, endIso, width, cols, colorCol });
                 dbg('selectedCols', appState.selectedCols);
@@ -243,12 +259,8 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
         if (!Number.isFinite(newStart) || !Number.isFinite(newEnd) || newStart >= newEnd) return;
 
-        if (Number.isFinite(appState.currentStart) && Number.isFinite(appState.currentEnd)) {
-            const snap = deps.getCurrentView();
-            appState.zoomHistory = [...appState.zoomHistory, snap].slice(-5);
-            dbg('pushed history snapshot', snap);
-            dbg('history depth (after push)', appState.zoomHistory.length);
-        }
+        const snap = deps.getCurrentView();
+        appState.zoomHistory = [...appState.zoomHistory, snap].slice(-5);
 
         appState.currentStart = newStart;
         appState.currentEnd = newEnd;

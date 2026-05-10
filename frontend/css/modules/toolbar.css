@@ -80,7 +80,8 @@
   z-index: 12;
 }
 
-.toolbar-disclosure__summary {
+.toolbar-disclosure__summary,
+.toolbar-panel-open {
   list-style: none;
   display: inline-flex;
   align-items: center;
@@ -92,6 +93,17 @@
   background: rgba(255, 255, 255, 0.03);
   color: var(--text-dim);
   cursor: pointer;
+}
+
+.toolbar-panel-open {
+  appearance: none;
+  border: 1px solid var(--border);
+}
+
+.toolbar-panel-open:hover,
+.toolbar-disclosure__summary:hover {
+  border-color: var(--accent);
+  color: var(--text);
 }
 
 .toolbar-disclosure__summary::-webkit-details-marker {

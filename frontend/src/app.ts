@@ -30,7 +30,7 @@ import { getDefaultTimeseriesColumns, getNumericColumns } from './pages/analytic
 import { createTimeseriesPageController } from './pages/timeseriesPage.js';
 import { fetchAnomalyRegions, computeAndSetRollingBands, cancelAnalyticsFetch } from './bootstrap/analyticsOverlay.js';
 import { initAppShell } from './bootstrap/appShell.js';
-import { ensurePageModuleLoaded, isMetadataReady, markMetadataReady } from './bootstrap/pageLoaders.js';
+import { ensurePageModuleLoaded, isMetadataReady, markMetadataReady, clearLoadedPageModules } from './bootstrap/pageLoaders.js';
 import { restoreSessionAfterChartReady, startSessionPersistence } from './bootstrap/sessionBootstrap.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
@@ -618,6 +618,7 @@ async function ensureDatasetReady(_pageName = 'timeseries'): Promise<void> {
 }
 
 async function refreshDatasetAfterMutation(options?: { selectedColumn?: string }): Promise<void> {
+    clearLoadedPageModules();
     if (!fetchMetadata) return;
     storeFetchedMetadata(await fetchMetadata());
     markMetadataReady();
@@ -681,6 +682,25 @@ async function init(): Promise<void> {
         const message = e instanceof Error ? e.message : String(e);
         console.error('Initial bootstrap failed:', e);
         setMetaText('Error: ' + message);
+
+        const retryBtn = document.getElementById('bootstrap-retry-btn');
+        if (!retryBtn) {
+            const metaEl = document.querySelector('.meta-bar');
+            if (metaEl) {
+                const btn = document.createElement('button');
+                btn.id = 'bootstrap-retry-btn';
+                btn.className = 'btn btn-ghost btn-sm';
+                btn.style.marginLeft = '8px';
+                btn.textContent = 'Retry';
+                btn.addEventListener('click', () => {
+                    btn.disabled = true;
+                    btn.textContent = 'Retrying…';
+                    setMetaText('Reinitializing…');
+                    location.reload();
+                });
+                metaEl.appendChild(btn);
+            }
+        }
     }
 }
 

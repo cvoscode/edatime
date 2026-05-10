@@ -125,3 +125,9 @@ export function markMetadataReady(): void {
 export function isMetadataReady(): boolean {
     return _metadataReady;
 }
+
+/** Clear the loaded page module cache so pages re-initialize on next visit.
+ *  Called by ensureDatasetReady() when a new dataset is loaded. */
+export function clearLoadedPageModules(): void {
+    _loadedPageModules.clear();
+}

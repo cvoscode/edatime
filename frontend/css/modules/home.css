@@ -6,6 +6,8 @@
     flex-direction: column;
     scrollbar-width: thin;
     scrollbar-color: rgba(0, 168, 255, 0.28) rgba(255, 255, 255, 0.03);
+    /* Prevent hover transform clipping - padding allows translateY(-2px) to stay visible */
+    padding-top: 4px;
 }
 
 .home-hero {
@@ -92,6 +94,56 @@
     border-color: var(--accent);
     box-shadow: 0 0 16px rgba(0, 168, 255, 0.12);
     transform: translateY(-2px);
+}
+
+.home-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* Narrow viewport: reduce card sizes */
+@media (max-width: 640px) {
+    .home-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 8px;
+        padding: 12px;
+    }
+
+    .home-card {
+        padding: 12px 12px 10px;
+    }
+
+    .home-card-icon {
+        width: 28px;
+        height: 28px;
+    }
+
+    .home-card-icon svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .home-card-title {
+        font-size: 0.75rem;
+    }
+
+    .home-card-desc {
+        font-size: 0.6875rem;
+        display: none;
+    }
+
+    .home-hero {
+        padding: 24px 16px 20px;
+    }
+
+    .home-hero-icon {
+        width: 40px;
+        height: 40px;
+    }
+
+    .home-title {
+        font-size: 1.375rem;
+    }
 }
 
 .home-card-icon {

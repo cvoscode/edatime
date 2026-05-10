@@ -3,7 +3,7 @@
  * Caches CSS, JS, fonts, and other static assets for faster page loads
  */
 
-const CACHE_NAME = 'edatime-v1';
+const CACHE_NAME = 'edatime-v2';
 const STATIC_ASSETS = [
   '/',
   '/css/style.css',

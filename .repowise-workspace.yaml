@@ -4,5 +4,5 @@ repos:
 - path: .
   alias: edatime
   is_primary: true
-  indexed_at: '2026-05-06T21:44:31.483526+00:00'
-  last_commit_at_index: 3cd2877a899a861dc4f7a28c13363f0d5b78bfc4
+  indexed_at: '2026-05-10T16:09:48.693043+00:00'
+  last_commit_at_index: 24652d828e90bc32e04fde9dbc85326da477e990

@@ -1,17 +1,12 @@
 /**
  * Toolbar controls: zoom, draw, labels, export, analysis status.
+ * Thin orchestrator that delegates to focused sub-modules.
  */
 
 import {
     appState,
-    applyColumnRanges,
-    buildAdaptiveLineFiltersForQuery,
 } from '../state.js';
-import { DEBUG, dbg, dbgGroup } from '../debug.js';
-import { downloadBlob } from '../utils/dom.js';
-import { preloadPageStyles } from '../utils/pageStyles.js';
-import type { ViewSnapshot } from '../types.js';
-import { pageNeedsDatasetBootstrap } from '../utils/pageBootstrap.js';
+import { DEBUG, dbg } from '../debug.js';
 import {
     updateAnalysisZoom,
     updateAnalysisYRange,
@@ -20,13 +15,14 @@ import {
 } from './analysisStatus.js';
 import {
     refreshZoomControlsState,
+    getCurrentView,
     applyViewport,
     zoomOut,
     resetZoom,
     initChartPageFilterGesture,
+    initResetZoomListener,
 } from './viewport.js';
 
-// Re-export moved functions for backward compatibility
 export {
     updateAnalysisZoom,
     updateAnalysisYRange,
@@ -42,282 +38,13 @@ export {
     initChartPageFilterGesture,
 } from './viewport.js';
 
-interface FilteredRow {
-    ts_ms: number;
-    ts_iso: string;
-    series: string;
-    value: number;
-}
+import { initToolbarModals } from './exportControls.js';
+import { initDrawControls } from './drawControls.js';
+import { initChartTextControls } from './chartTextControls.js';
+import { initAnalyticsControls } from './analyticsControls.js';
+import { initPageNavigation } from './pageNavigation.js';
 
-function buildFilteredSeriesRows(): FilteredRow[] {
-    if (!appState.lastFetchedData || !Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
-        return [];
-    }
-
-    const filtered = applyColumnRanges(appState.lastFetchedData);
-    const rows: FilteredRow[] = [];
-    for (const column of appState.selectedCols) {
-        const series = filtered.series?.[column];
-        const xs = series?.x || new Float64Array(0);
-        const ys = series?.y || new Float64Array(0);
-        const len = Math.min(xs.length, ys.length);
-        for (let index = 0; index < len; index++) {
-            const tsMs = Number(xs[index]);
-            const value = Number(ys[index]);
-            if (!Number.isFinite(tsMs) || !Number.isFinite(value)) continue;
-            rows.push({
-                ts_ms: tsMs,
-                ts_iso: new Date(tsMs).toISOString(),
-                series: column,
-                value,
-            });
-        }
-    }
-
-    rows.sort((a, b) => a.ts_ms - b.ts_ms || a.series.localeCompare(b.series));
-    return rows;
-}
-
-export function exportChartFilteredData(format: 'csv' | 'json' = 'csv'): boolean {
-    const rows = buildFilteredSeriesRows();
-    if (rows.length === 0) return false;
-
-    if (format === 'json') {
-        downloadBlob(
-            new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json;charset=utf-8' }),
-            'edatime_filtered_series.json',
-        );
-        return true;
-    }
-
-    const lines = [
-        'ts_ms,ts_iso,series,value',
-        ...rows.map((row) =>
-            `${row.ts_ms},"${row.ts_iso}","${String(row.series).replaceAll('"', '""')}",${row.value}`,
-        ),
-    ];
-    downloadBlob(
-        new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }),
-        'edatime_filtered_series.csv',
-    );
-    return true;
-}
-
-async function exportChartFilteredParquet(): Promise<boolean> {
-    if (!Number.isFinite(appState.currentStart as number) || !Number.isFinite(appState.currentEnd as number)) {
-        return false;
-    }
-    if (!Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
-        return false;
-    }
-
-    const params = new URLSearchParams({
-        start: new Date(appState.currentStart as number).toISOString(),
-        end: new Date(appState.currentEnd as number).toISOString(),
-        columns: appState.selectedCols.join(','),
-    });
-
-    const filters = Object.entries(appState.columnRanges || {})
-        .map(([column, range]) => {
-            const from = Number(range?.from);
-            const to = Number(range?.to);
-            if (!column || !Number.isFinite(from) || !Number.isFinite(to)) return null;
-            return { column, from, to };
-        })
-        .filter(Boolean);
-    if (filters.length > 0) {
-        params.set('filters', JSON.stringify(filters));
-    }
-
-    const lineFilters = buildAdaptiveLineFiltersForQuery();
-    if (lineFilters.length > 0) {
-        params.set('line_filters', JSON.stringify(lineFilters));
-    }
-
-    const res = await fetch(`/api/export/parquet?${params.toString()}`);
-    if (!res.ok) {
-        const text = await res.text().catch(() => 'Parquet export failed');
-        throw new Error(text || 'Parquet export failed');
-    }
-
-    const blob = await res.blob();
-    downloadBlob(blob, 'edatime_filtered_series.parquet');
-    return true;
-}
-
-// ─── Analysis status ────────────────────────────────────────────────────────
-
-// ─── Zoom controls ──────────────────────────────────────────────────────────
-
-// ─── Init controls (draw, export, labels, zoom) ────────────────────────────
-
-export function initAnalysisControls(fetchAndRender: () => void): void {
-    window.__edatime = window.__edatime || {};
-    window.__edatime.exportChartFilteredData = exportChartFilteredData;
-
-    const zoomResetBtn = document.getElementById('zoom-reset-btn') as HTMLElement | null;
-    if (zoomResetBtn && !zoomResetBtn.dataset.bound) {
-        zoomResetBtn.addEventListener('click', () => resetZoom(fetchAndRender));
-        zoomResetBtn.dataset.bound = '1';
-    }
-
-    const drawTool = document.getElementById('draw-tool') as HTMLSelectElement | null;
-    const drawColor = document.getElementById('draw-color') as HTMLInputElement | null;
-    const drawWidth = document.getElementById('draw-width') as HTMLInputElement | null;
-    const drawClearBtn = document.getElementById('draw-clear-btn');
-    const adaptiveClearBtn = document.getElementById('adaptive-clear-btn') as HTMLElement | null;
-
-    const updateDrawMode = () => {
-        if (appState.chart && appState.chart.setDrawMode) {
-            appState.chart.setDrawMode(drawTool!.value, drawColor!.value, parseInt(drawWidth!.value, 10));
-        }
-    };
-
-    if (drawTool) drawTool.addEventListener('change', updateDrawMode);
-    if (drawColor) drawColor.addEventListener('input', updateDrawMode);
-    if (drawWidth) drawWidth.addEventListener('input', updateDrawMode);
-    if (drawClearBtn) {
-        drawClearBtn.addEventListener('click', () => {
-            if (appState.chart && appState.chart.clearDrawings) appState.chart.clearDrawings();
-        });
-    }
-    if (adaptiveClearBtn && !adaptiveClearBtn.dataset.bound) {
-        adaptiveClearBtn.addEventListener('click', () => {
-            appState.adaptiveLineFilters = [];
-            appState.pendingAdaptivePoint = null;
-            (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
-            window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
-        });
-        adaptiveClearBtn.dataset.bound = '1';
-    }
-
-    const exportPngBtn = document.getElementById('export-png-btn');
-    const exportSvgBtn = document.getElementById('export-svg-btn');
-    const exportHtmlBtn = document.getElementById('export-html-btn');
-    const exportDataCsvBtn = document.getElementById('export-data-csv-btn') as HTMLElement | null;
-    const exportDataJsonBtn = document.getElementById('export-data-json-btn') as HTMLElement | null;
-    const exportDataParquetBtn = document.getElementById('export-data-parquet-btn') as HTMLElement | null;
-
-    if (exportPngBtn) exportPngBtn.addEventListener('click', () => appState.chart?.exportPNG?.());
-    if (exportSvgBtn) exportSvgBtn.addEventListener('click', () => appState.chart?.exportSVG?.());
-    if (exportHtmlBtn) exportHtmlBtn.addEventListener('click', () => appState.chart?.exportHTML?.());
-    if (exportDataCsvBtn && !exportDataCsvBtn.dataset.bound) {
-        exportDataCsvBtn.addEventListener('click', () => exportChartFilteredData('csv'));
-        exportDataCsvBtn.dataset.bound = '1';
-    }
-    if (exportDataJsonBtn && !exportDataJsonBtn.dataset.bound) {
-        exportDataJsonBtn.addEventListener('click', () => exportChartFilteredData('json'));
-        exportDataJsonBtn.dataset.bound = '1';
-    }
-    if (exportDataParquetBtn && !exportDataParquetBtn.dataset.bound) {
-        exportDataParquetBtn.addEventListener('click', async () => {
-            try {
-                await exportChartFilteredParquet();
-            } catch (error) {
-                console.error('Parquet export failed:', error);
-            }
-        });
-        exportDataParquetBtn.dataset.bound = '1';
-    }
-
-    const titleInput = document.getElementById('chart-title-input') as HTMLInputElement | null;
-    const xLabelInput = document.getElementById('x-axis-label-input') as HTMLInputElement | null;
-    const yLabelInput = document.getElementById('y-axis-label-input') as HTMLInputElement | null;
-
-    const applyChartText = () => {
-        appState.chartText = {
-            title: titleInput?.value ?? appState.chartText.title,
-            xLabel: xLabelInput?.value ?? appState.chartText.xLabel,
-            yLabel: yLabelInput?.value ?? appState.chartText.yLabel,
-        };
-        appState.chart?.setChartText?.(appState.chartText.title, appState.chartText.xLabel, appState.chartText.yLabel);
-    };
-
-    if (titleInput && !titleInput.dataset.bound) {
-        titleInput.value = appState.chartText.title || '';
-        titleInput.addEventListener('input', applyChartText);
-        titleInput.dataset.bound = '1';
-    }
-    if (xLabelInput && !xLabelInput.dataset.bound) {
-        xLabelInput.value = appState.chartText.xLabel || '';
-        xLabelInput.addEventListener('input', applyChartText);
-        xLabelInput.dataset.bound = '1';
-    }
-    if (yLabelInput && !yLabelInput.dataset.bound) {
-        yLabelInput.value = appState.chartText.yLabel || '';
-        yLabelInput.addEventListener('input', applyChartText);
-        yLabelInput.dataset.bound = '1';
-    }
-
-    applyChartText();
-
-    // ── Analytics overlay controls ──────────────────────────────────────────
-    const rollingCheck = document.getElementById('rolling-enabled') as HTMLInputElement | null;
-    const rollingWindowInput = document.getElementById('rolling-window') as HTMLInputElement | null;
-    const anomalyCheck = document.getElementById('anomaly-enabled') as HTMLInputElement | null;
-    const anomalyMethodSelect = document.getElementById('anomaly-method') as HTMLSelectElement | null;
-    const anomalyThresholdInput = document.getElementById('anomaly-threshold') as HTMLInputElement | null;
-    const transformOpenBtn = document.getElementById('transform-open-btn') as HTMLElement | null;
-
-    if (rollingCheck && !rollingCheck.dataset.bound) {
-        rollingCheck.addEventListener('change', () => {
-            appState.rollingEnabled = rollingCheck.checked;
-            window.dispatchEvent(new CustomEvent('edatime:analytics-change'));
-        });
-        rollingCheck.dataset.bound = '1';
-    }
-    if (rollingWindowInput && !rollingWindowInput.dataset.bound) {
-        let rollingDebounce: any = null;
-        rollingWindowInput.addEventListener('input', () => {
-            const v = parseInt(rollingWindowInput.value, 10);
-            if (Number.isFinite(v) && v >= 3) {
-                appState.rollingWindow = v;
-                if (appState.rollingEnabled) {
-                    clearTimeout(rollingDebounce);
-                    rollingDebounce = setTimeout(() => window.dispatchEvent(new CustomEvent('edatime:analytics-change')), 300);
-                }
-            }
-        });
-        rollingWindowInput.dataset.bound = '1';
-    }
-    if (anomalyCheck && !anomalyCheck.dataset.bound) {
-        anomalyCheck.addEventListener('change', () => {
-            appState.anomalyEnabled = anomalyCheck.checked;
-            window.dispatchEvent(new CustomEvent('edatime:analytics-change'));
-        });
-        anomalyCheck.dataset.bound = '1';
-    }
-    if (anomalyMethodSelect && !anomalyMethodSelect.dataset.bound) {
-        anomalyMethodSelect.addEventListener('change', () => {
-            appState.anomalyMethod = anomalyMethodSelect.value;
-            if (appState.anomalyEnabled) window.dispatchEvent(new CustomEvent('edatime:analytics-change'));
-        });
-        anomalyMethodSelect.dataset.bound = '1';
-    }
-    if (anomalyThresholdInput && !anomalyThresholdInput.dataset.bound) {
-        let threshDebounce: any = null;
-        anomalyThresholdInput.addEventListener('input', () => {
-            const v = parseFloat(anomalyThresholdInput.value);
-            if (Number.isFinite(v) && v > 0) {
-                appState.anomalyThreshold = v;
-                if (appState.anomalyEnabled) {
-                    clearTimeout(threshDebounce);
-                    threshDebounce = setTimeout(() => window.dispatchEvent(new CustomEvent('edatime:analytics-change')), 300);
-                }
-            }
-        });
-        anomalyThresholdInput.dataset.bound = '1';
-    }
-    if (transformOpenBtn && !transformOpenBtn.dataset.bound) {
-        transformOpenBtn.addEventListener('click', () => {
-            const modal = document.getElementById('transform-modal');
-            if (modal) modal.hidden = false;
-        });
-        transformOpenBtn.dataset.bound = '1';
-    }
-
-    refreshZoomControlsState();
-}
+import { exportChartFilteredData } from './exportControls.js';
 
 // ─── Bind chart events to analysis panel ────────────────────────────────────
 
@@ -358,71 +85,21 @@ export function bindAnalysisChartEvents(): void {
     appState.analysisBound = true;
 }
 
-// ─── Chart page gestures ───────────────────────────────────────────────────
+// ─── Main init — wires all sub-controls ─────────────────────────────────────
 
-// initChartPageFilterGesture is provided by ./viewport.js and re-exported below
+export function initAnalysisControls(fetchAndRender: () => void): void {
+    window.__edatime = window.__edatime || {};
+    window.__edatime.exportChartFilteredData = exportChartFilteredData;
 
-// ─── Sidebar pages ─────────────────────────────────────────────────────────
+    initToolbarModals();
+    initDrawControls(fetchAndRender);
+    initChartTextControls();
+    initAnalyticsControls();
+
+    initResetZoomListener(fetchAndRender);
+    refreshZoomControlsState();
+}
 
 export function initPages(): void {
-    const navButtons = Array.from(document.querySelectorAll('.sidebar .nav-item[data-page]')) as HTMLElement[];
-    const pages = Array.from(document.querySelectorAll('.page[data-page-name]')) as HTMLElement[];
-    if (navButtons.length === 0 || pages.length === 0) return;
-    const analyticsViews: Record<string, string> = {
-        scatter: 'plot',
-        scattermatrix: 'matrix',
-    };
-
-    const layout = document.querySelector('.app-layout') as HTMLElement | null;
-    const collapseBtn = document.getElementById('sidebar-collapse-btn') as HTMLElement | null;
-    if (layout && collapseBtn && !collapseBtn.dataset.bound) {
-        collapseBtn.addEventListener('click', () => {
-            layout.classList.toggle('sidebar-collapsed');
-            requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
-        });
-        collapseBtn.dataset.bound = '1';
-    }
-
-    async function showPage(pageName: string) {
-        preloadPageStyles(pageName);
-
-        if (pageNeedsDatasetBootstrap(pageName)) {
-            await (window as any).__edatime?.ensureDatasetReady?.(pageName);
-        }
-
-        if ((window as any).__edatime?.ensurePageModuleLoaded) {
-            await (window as any).__edatime.ensurePageModuleLoaded(pageName);
-        }
-
-        const analyticsView = analyticsViews[pageName] || null;
-        const resolvedPageName = analyticsView ? 'scatter' : pageName;
-
-        for (const p of pages) {
-            const hide = p.dataset.pageName !== resolvedPageName;
-            p.hidden = hide;
-            p.style.display = hide ? 'none' : 'flex';
-        }
-        for (const btn of navButtons) {
-            btn.classList.toggle('active', btn.dataset.page === pageName);
-        }
-
-        requestAnimationFrame(() => {
-            window.dispatchEvent(new Event('resize'));
-            window.dispatchEvent(
-                new CustomEvent('edatime:page-change', {
-                    detail: {
-                        page: resolvedPageName,
-                        navPage: pageName,
-                        analyticsView,
-                    },
-                }),
-            );
-        });
-    }
-
-    for (const btn of navButtons) {
-        btn.addEventListener('click', async () => { await showPage(btn.dataset.page!); });
-    }
-
-    showPage('home');
+    initPageNavigation();
 }

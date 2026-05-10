@@ -20,7 +20,16 @@
  * DataChart.ts to call these helpers and (optionally) export DrawItem.
  */
 
-import type { DrawItem } from '../chart/DataChart.js';
+interface DrawItem {
+    type: string;
+    color: string;
+    width: number;
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    alpha?: number;
+}
 
 // ── Download helpers ─────────────────────────────────────────────────────────
 

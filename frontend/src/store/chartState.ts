@@ -16,7 +16,6 @@ export interface ChartState {
     initialView: ViewSnapshot | null;
     zoomHistory: ViewSnapshot[];
     chartText: { title: string; xLabel: string; yLabel: string };
-    fetchDebounceId: ReturnType<typeof setTimeout> | null;
 }
 
 export const chartState: ChartState = {
@@ -26,7 +25,6 @@ export const chartState: ChartState = {
     initialView: null,
     zoomHistory: [],
     chartText: { title: '', xLabel: '', yLabel: '' },
-    fetchDebounceId: null,
 };
 
 /* ── Mutations ──────────────────────────────────────────── */
@@ -53,12 +51,4 @@ export function clearZoomHistory(): void {
 
 export function setInitialView(view: ViewSnapshot | null): void {
     chartState.initialView = view;
-}
-
-export function setChartText(title: string, xLabel: string, yLabel: string): void {
-    chartState.chartText = { title, xLabel, yLabel };
-}
-
-export function setFetchDebounceId(id: ReturnType<typeof setTimeout> | null): void {
-    chartState.fetchDebounceId = id;
 }

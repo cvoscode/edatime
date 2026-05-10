@@ -54,6 +54,7 @@ import {
     createCanvasOverlay, ensureRelativePosition,
     initBoxZoom,
 } from './chartInteractions.js';
+import { ChartOverlays } from './chartOverlays.js';
 
 const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
 
@@ -96,6 +97,7 @@ export class DataChart {
     _drawColor = '#ff0055';
     _drawWidth = 2;
     _drawingRafId: number | null = null;
+    _overlays: ChartOverlays | null = null;
 
     constructor(
         containerId: string,
@@ -121,6 +123,7 @@ export class DataChart {
         this._drawingResizeObserver = null;
         this._chartResizeObserver?.disconnect();
         this._chartResizeObserver = null;
+        this._overlays = null;
         this.chartInstance = null;
     }
 
@@ -632,6 +635,15 @@ export class DataChart {
         this._overlayCanvas = canvas;
         this._overlayCtx = canvas.getContext('2d');
 
+        this._overlays = new ChartOverlays({
+            getXMin: () => this._xMin,
+            getXMax: () => this._xMax,
+            getContainer: () => this._container,
+            getOverlayCanvas: () => this._overlayCanvas,
+            getYRange: () => this.getYRange(),
+            getPendingAdaptivePoint: () => appState.pendingAdaptivePoint,
+        });
+
         canvas.addEventListener('pointerdown', (e) => {
             if (e.button !== 0 || this._drawMode === 'none') return;
             const rect = canvas.getBoundingClientRect();
@@ -669,14 +681,12 @@ export class DataChart {
         ctx.stroke();
     }
 
-    private _renderDrawings(): void {
+private _renderDrawings(): void {
         if (!this._overlayCtx || !this._overlayCanvas) return;
         const ctx = this._overlayCtx;
         ctx.clearRect(0, 0, this._overlayCanvas.width, this._overlayCanvas.height);
-        this._renderRollingBandsToCtx(ctx, { x: 1, y: 1 });
-        this._renderAnomalyRegionsToCtx(ctx, { x: 1, y: 1 });
-        this._renderAdaptiveFilterLinesToCtx(ctx, { x: 1, y: 1 });
-        this._renderAnnotationsToCtx(ctx, { x: 1, y: 1 });
+        const dpr = window.devicePixelRatio || 1;
+        this._overlays?.renderAll(ctx, { x: dpr, y: dpr });
         const allDraws = [...this._drawings];
         if (this._currentDraw) allDraws.push(this._currentDraw);
         for (const item of allDraws) {

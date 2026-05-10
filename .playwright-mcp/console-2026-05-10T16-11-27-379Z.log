@@ -1,0 +1,7 @@
+[     397ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/assets/frequency-B7AVjQhz.js:0
+[     397ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/assets/chartgpu-CqrjGxnD.js:0
+[     398ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/assets/DataChart-COZcspXO.js:0
+[     500ms] [LOG] ServiceWorker registration successful @ http://localhost:3000/:18
+[     514ms] [WARNING] No available adapters. @ http://localhost:3000/#page=timeseries:0
+[     515ms] [ERROR] Primary chart failed, switching to fallback: Error: No WebGPU adapter found. Your GPU may not be supported or hardware acceleration may be disabled.
+    at http://localhost:3000/js/app.js?v=139:4492:27 @ http://localhost:3000/js/app.js?v=139:4522

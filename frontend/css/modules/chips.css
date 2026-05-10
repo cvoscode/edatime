@@ -96,7 +96,7 @@
 
 /* Chip menu (kebab) button */
 .chip-menu-btn {
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 18px;
@@ -108,7 +108,9 @@
   cursor: pointer;
   padding: 0;
   margin-left: 2px;
-  transition: background var(--transition), color var(--transition);
+  opacity: 0;
+  pointer-events: none;
+  transition: background var(--transition), color var(--transition), opacity var(--transition);
 }
 
 .chip-menu-btn:hover {
@@ -124,7 +126,8 @@
 /* Show chip menu on hover when chip is active */
 .series-chip.active:hover .chip-menu-btn,
 .series-chip.adaptive-target:hover .chip-menu-btn {
-  display: inline-flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Chip dropdown menu */

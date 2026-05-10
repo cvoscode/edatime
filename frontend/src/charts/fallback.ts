@@ -43,6 +43,7 @@ export class FallbackChart implements ChartInstance {
     }
 
     setXRange(): void { }
+    setYRange(): void { }
     supportsZoomControls(): boolean { return false; }
     onCrosshairMove(): void { }
     onClick(): void { }

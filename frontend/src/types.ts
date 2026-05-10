@@ -267,6 +267,7 @@ export interface ChartInstance {
     init(): Promise<void>;
     updateDataMulti(dataObj: FilteredDataObject, columns: string[]): void;
     setXRange(min: number, max: number): void;
+    setYRange(min: number, max: number): void;
     setChartText(title: string, xLabel: string, yLabel: string): void;
     onCrosshairMove(callback: (data: CrosshairData) => void): void;
     onClick(callback: (data: unknown) => void): void;

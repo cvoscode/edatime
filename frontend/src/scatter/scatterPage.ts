@@ -595,6 +595,23 @@ appState.scatter.suggestionThreshold = normalizeScatterSuggestionThreshold(sugge
 
     window.addEventListener('edatime:page-change', async (ev: any) => {
         if (ev?.detail?.page !== 'scatter') return;
+
+        if (!appState.scatter.metadata) {
+            await new Promise<void>((resolve) => {
+                const handler = () => {
+                    if (appState.scatter.metadata) {
+                        window.removeEventListener('edatime:metadata-ready', handler);
+                        resolve();
+                    }
+                };
+                window.addEventListener('edatime:metadata-ready', handler);
+                if (appState.scatter.metadata) {
+                    window.removeEventListener('edatime:metadata-ready', handler);
+                    resolve();
+                }
+            });
+        }
+
         appState.scatter.activeView = normalizeAnalyticsView(ev?.detail?.analyticsView);
         await setScatterView(appState.scatter.activeView, { render: false });
         if (!appState.scatter.pageInitialized) {

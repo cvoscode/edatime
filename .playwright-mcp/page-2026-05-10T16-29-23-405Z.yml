@@ -1,0 +1,170 @@
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]: EdaTime
+      - button "Home" [ref=e7] [cursor=pointer]:
+        - img [ref=e9]
+        - generic [ref=e12]: Home
+      - generic [ref=e13]: Core workflow
+      - button "Upload" [ref=e14] [cursor=pointer]:
+        - img [ref=e16]
+        - generic [ref=e19]: Upload
+        - generic [ref=e20]: ⌥1
+      - button "Timeseries" [ref=e21] [cursor=pointer]:
+        - img [ref=e23]
+        - generic [ref=e25]: Timeseries
+        - generic [ref=e26]: ⌥2
+      - button "Correlations" [ref=e27] [cursor=pointer]:
+        - img [ref=e29]
+        - generic [ref=e39]: Correlations
+        - generic [ref=e40]: ⌥7
+      - button "Scatter" [ref=e41] [cursor=pointer]:
+        - img [ref=e43]
+        - generic [ref=e49]: Scatter
+        - generic [ref=e50]: ⌥3
+      - generic [ref=e51]: Advanced analysis
+      - button "FFT / PSD" [ref=e52] [cursor=pointer]:
+        - img [ref=e54]
+        - generic [ref=e56]: FFT
+        - generic [ref=e57]: ⌥6
+      - button "Spectrogram" [ref=e58] [cursor=pointer]:
+        - img [ref=e60]
+        - generic [ref=e66]: Spectrogram
+        - generic [ref=e67]: ⌥8
+      - button "Causal Graph" [ref=e68] [cursor=pointer]:
+        - img [ref=e70]
+        - generic [ref=e76]: Causal
+        - generic [ref=e77]: ⌥9
+      - button "Drift Analysis" [ref=e78] [cursor=pointer]:
+        - img [ref=e80]
+        - generic [ref=e86]: Drift
+        - generic [ref=e87]: ⌥0
+      - button "Collapse sidebar" [ref=e89] [cursor=pointer]:
+        - img [ref=e91]
+        - generic [ref=e92]: Collapse
+    - generic [ref=e93]:
+      - banner [ref=e94]:
+        - generic [ref=e95]:
+          - img [ref=e97]
+          - generic [ref=e99]: EdaTime
+        - generic [ref=e100]:
+          - generic [ref=e318]:
+            - strong [ref=e319]: 69,680
+            - text: rows
+          - generic [ref=e320]:
+            - strong [ref=e321]: "7"
+            - text: numeric series
+      - generic [ref=e105]:
+        - generic [ref=e322]:
+          - generic [ref=e323]:
+            - generic [ref=e324]: Guided Workflow
+            - generic [ref=e325]: Screen relationships next
+            - paragraph [ref=e326]: Use Heatmap or Matrix to quickly identify strong candidate pairs before committing to a detailed scatter inspection.
+          - generic [ref=e327]:
+            - button "Open Heatmap" [ref=e328] [cursor=pointer]
+            - button "Hide Guide" [ref=e329] [cursor=pointer]
+        - generic [ref=e330]:
+          - button "Upload" [ref=e331]: Upload
+          - button "Timeseries" [ref=e332]: Timeseries
+          - button "Correlations" [ref=e333]: Correlations
+          - button "Scatter" [ref=e334]: Scatter
+          - button "Causal" [ref=e335]: Causal
+        - generic [ref=e336]: You can also use Scatter Matrix if you want direct pairwise shape previews.
+      - generic [ref=e337]:
+        - group "Series selection tools" [ref=e339]:
+          - generic [ref=e340]: Series
+          - textbox "Filter columns" [ref=e341]:
+            - /placeholder: Filter columns…
+          - generic [ref=e342]:
+            - generic [ref=e344]:
+              - generic [ref=e345]: Color by
+              - combobox "Color-by column" [ref=e346] [cursor=pointer]:
+                - option "None" [selected]
+                - option "ts"
+                - option "HUFL"
+                - option "HULL"
+                - option "MUFL"
+                - option "MULL"
+                - option "LUFL"
+                - option "LULL"
+                - option "OT"
+            - 'generic "Adaptive filter target: HUFL" [ref=e347] [cursor=pointer]':
+              - generic [ref=e348]: HUFL
+              - textbox "Set HUFL color" [ref=e349]: "#00d4ff"
+              - button "Filter range for HUFL":
+                - img
+            - generic "Ctrl+click to target adaptive filters to HULL" [ref=e350] [cursor=pointer]:
+              - generic [ref=e351]: HULL
+              - textbox "Set HULL color" [ref=e352]: "#6c63ff"
+              - button "Filter range for HULL":
+                - img
+            - generic "Ctrl+click to target adaptive filters to MUFL" [ref=e353] [cursor=pointer]:
+              - generic [ref=e354]: MUFL
+              - textbox "Set MUFL color" [ref=e355]: "#00c896"
+              - button "Filter range for MUFL":
+                - img
+            - generic "Ctrl+click to target adaptive filters to MULL" [ref=e356] [cursor=pointer]:
+              - generic [ref=e357]: MULL
+              - textbox "Set MULL color" [ref=e358]: "#f5a623"
+              - button "Filter range for MULL":
+                - img
+            - generic "Ctrl+click to target adaptive filters to LUFL" [ref=e359] [cursor=pointer]:
+              - generic [ref=e360]: LUFL
+              - textbox "Set LUFL color" [ref=e361]: "#ff4a6e"
+              - button "Filter range for LUFL":
+                - img
+            - generic "Ctrl+click to target adaptive filters to LULL" [ref=e362] [cursor=pointer]:
+              - generic [ref=e363]: LULL
+              - textbox "Set LULL color" [ref=e364]: "#c77dff"
+              - button "Filter range for LULL":
+                - img
+            - generic "Ctrl+click to target adaptive filters to OT" [ref=e365] [cursor=pointer]:
+              - generic [ref=e366]: OT
+              - textbox "Set OT color" [ref=e367]: "#00d4ff"
+              - button "Filter range for OT":
+                - img
+        - generic [ref=e368]:
+          - group "Drawing tools" [ref=e369]:
+            - generic [ref=e370]: Draw
+            - combobox "Draw tool" [ref=e371] [cursor=pointer]:
+              - option "None (Pan)" [selected]
+              - option "Arrow"
+              - option "Box"
+            - textbox "Draw color" [ref=e372] [cursor=pointer]: "#ff0055"
+            - spinbutton "Draw thickness" [ref=e373]: "2"
+            - button "Clear" [ref=e374] [cursor=pointer]
+            - button "Clear Filter" [ref=e375] [cursor=pointer]
+          - group "Chart label controls" [ref=e376]:
+            - button "Labels Title + axes" [ref=e377] [cursor=pointer]:
+              - generic [ref=e378]: Labels
+              - generic [ref=e379]: Title + axes
+          - group "Note and annotation tools" [ref=e380]:
+            - button "Notes Annotations" [ref=e381] [cursor=pointer]:
+              - generic [ref=e382]: Notes
+              - generic [ref=e383]: Annotations
+          - group "Export chart and data options" [ref=e384]:
+            - button "Export chart as PNG" [ref=e385] [cursor=pointer]:
+              - text: PNG
+              - generic [ref=e386]: P
+            - button "Export filtered data as CSV" [ref=e387] [cursor=pointer]:
+              - text: CSV
+              - generic [ref=e388]: E
+            - button "More SVG, JSON, Parquet" [ref=e389] [cursor=pointer]:
+              - generic [ref=e390]: More
+              - generic [ref=e391]: SVG, JSON, Parquet
+          - group "Analytics controls" [ref=e392]:
+            - button "Analytics Bands, anomalies, cleanup" [ref=e393] [cursor=pointer]:
+              - generic [ref=e394]: Analytics
+              - generic [ref=e395]: Bands, anomalies, cleanup
+        - main [ref=e396]:
+          - generic [ref=e399]:
+            - group "Numeric color column scale" [ref=e400]:
+              - generic [ref=e401]: Color
+              - generic [ref=e402]:
+                - generic [ref=e403]: "0"
+                - generic [ref=e405]: "1"
+            - group "Categorical color legend" [ref=e406]:
+              - generic [ref=e407]: Category
+      - text: ↑

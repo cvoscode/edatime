@@ -12,7 +12,7 @@
  * re-exports these sub-states. New code should prefer importing from here directly.
  */
 
-import type { AppStateType, RollingBandData, AnomalyRegionData, AdaptiveLineFilter, ColumnRange, PendingAdaptivePoint, ProfileRow, DatasetMetadata, SpectralFilterPreview } from '../types.js';
+import type { AppStateType, RollingBandData, AnomalyRegionData, AdaptiveLineFilter, ColumnRange, PendingAdaptivePoint, ProfileRow, DatasetMetadata, SpectralFilterPreview, ViewSnapshot, ChartInstance, YMode, ScatterView } from '../types.js';
 import { datasetState, setMetadata, type DatasetState } from './datasetState.js';
 import { uiState, type UiState } from './uiState.js';
 import { analyticsState, type AnalyticsState } from './analyticsState.js';
@@ -104,15 +104,29 @@ export const appStateComposite = {
     get spectralFilterPreview(): SpectralFilterPreview | null { return analyticsState.spectralFilterPreview; },
     set spectralFilterPreview(v: SpectralFilterPreview | null) { analyticsState.spectralFilterPreview = v; },
 
+    // ── Delegated viewport properties ─────────────────────────────────────────
+    // These delegate to chartState so the store index stays in sync.
+
+    get currentStart(): number | null { return chartState.currentStart; },
+    set currentStart(v: number | null) { chartState.currentStart = v; },
+
+    get currentEnd(): number | null { return chartState.currentEnd; },
+    set currentEnd(v: number | null) { chartState.currentEnd = v; },
+
+    get initialView(): ViewSnapshot | null { return chartState.initialView; },
+    set initialView(v: ViewSnapshot | null) { chartState.initialView = v; },
+
+    get zoomHistory(): ViewSnapshot[] { return chartState.zoomHistory; },
+    set zoomHistory(v: ViewSnapshot[]) { chartState.zoomHistory = v; },
+
+    get chartText(): { title: string; xLabel: string; yLabel: string } { return chartState.chartText; },
+    set chartText(v: { title: string; xLabel: string; yLabel: string }) { chartState.chartText = v; },
+
     // ── Standalone properties ────────────────────────────────────────────────
 
-    currentStart: null as number | null,
-    currentEnd: null as number | null,
-    initialView: null as unknown,
-    zoomHistory: [] as unknown[],
-    chartText: { title: '', xLabel: '', yLabel: '' },
     fetchDebounceId: null as ReturnType<typeof setTimeout> | null,
-    chart: null as unknown,
+    get chart(): ChartInstance | null { return chartState.chart; },
+    set chart(v: ChartInstance | null) { chartState.chart = v; },
 
     filterText: '',
     profileFilterText: '',
@@ -137,7 +151,7 @@ export const appStateComposite = {
         allColorLabels: null,
         full: { xMin: 0, xMax: 1, yMin: 0, yMax: 1 },
         view: { xMin: 0, xMax: 1, yMin: 0, yMax: 1 },
-        zoomHistory: [] as unknown[],
+        zoomHistory: [] as ScatterView[],
         drag: null,
         selectionBox: null,
         colorColumn: '',
@@ -164,30 +178,21 @@ export const appStateComposite = {
     lastFetchedData: null,
     analysisBound: false,
     refetchOnZoom: true,
-    pendingYMode: 'fit' as const,
+    pendingYMode: 'fit' as YMode,
     pendingRestoreY: null,
 } as AppStateType;
 
-/* ── Pub/sub ─────────────────────────────────────────────────────────────── */
-
-type Listener = (state: unknown) => void;
-const _listeners = new Map<string, Set<Listener>>();
+/* ── Store ────────────────────────────────────────────────────────────────── */
 
 export const store = {
-    subscribe(event: string, listener: Listener): () => void {
-        if (!_listeners.has(event)) _listeners.set(event, new Set());
-        _listeners.get(event)!.add(listener);
-        return () => _listeners.get(event)?.delete(listener);
-    },
-
-    notify(event: string, state: unknown): void {
-        _listeners.get(event)?.forEach((l) => l(state));
-    },
-
     get<K extends keyof ChartState>(key: K): ChartState[K] {
         switch (key) {
             case 'chart': return chartState[key];
             default: return chartState[key] as ChartState[K];
         }
+    },
+
+    set<K extends keyof ChartState>(key: K, value: ChartState[K]): void {
+        chartState[key] = value;
     },
 };

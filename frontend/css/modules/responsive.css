@@ -197,6 +197,10 @@
     display: none;
   }
 
+  .sidebar-section-label {
+    display: none;
+  }
+
   .nav-item {
     justify-content: center;
     padding: 0;

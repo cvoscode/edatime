@@ -11,13 +11,13 @@
 > (documentation, ownership, history, decisions). **Always verify against
 > actual source files before making changes** — the index may be stale.
 
-Last indexed: 2026-05-06 (commit 3cd2877)
+Last indexed: 2026-05-10 (commit 24652d8)
 ### Entry Points
+- `frontend/src/store/index.ts`
 - `docs/developer/index.md`
 - `docs/index.md`
 - `docs/reference/index.md`
 - `docs/user/index.md`
-- `frontend/js/app.js`
 - `frontend/src/app.ts`
 - `src/lib.rs`
 - `src/main.rs`
@@ -25,14 +25,14 @@ Last indexed: 2026-05-06 (commit 3cd2877)
 **Languages:** Node.js, Python, Rust, TypeScript
 
 
-**Infra:** Docker### Hotspots (High Churn)
+**Infra:** Docker, Vite### Hotspots (High Churn)
 | File | Churn | 90d Commits | Owner |
 |------|-------|-------------|-------|
-| `frontend/js/app.js` | 99.7th %ile | 22 | cvoscode |
-| `frontend/src/app.ts` | 99.3th %ile | 14 | cvoscode |
-| `frontend/js/scatter/scatterPage.js` | 99.0th %ile | 14 | cvoscode |
-| `src/routes/metadata.rs` | 98.7th %ile | 11 | cvoscode |
-| `src/analytics.rs` | 98.3th %ile | 9 | cvoscode |
+| `frontend/js/app.js` | 99.7th %ile | 24 | cvoscode |
+| `frontend/src/app.ts` | 99.4th %ile | 17 | cvoscode |
+| `src/routes/metadata.rs` | 99.0th %ile | 11 | cvoscode |
+| `src/analytics.rs` | 98.7th %ile | 9 | cvoscode |
+| `frontend/src/scatter/scatterPage.ts` | 98.4th %ile | 13 | cvoscode |
 
 ### Repowise MCP Tools
 
@@ -66,9 +66,9 @@ This project has a Repowise MCP server configured. These tools provide documenta
 
 ### Codebase Conventions
 **Commands:**
+- Build: `npm run build`
 - Test: `npm run test`
 - Dev: `npm run dev`
 - Typecheck: `npm run typecheck`
-- Build: `make build`
 
 <!-- REPOWISE:END -->

@@ -152,15 +152,15 @@ function escapeAttr(str: string): string {
 
 export function initAnnotationPanel(): void {
     // Toolbar buttons
-    document.getElementById('add-note-btn')?.addEventListener('click', openAddNoteModal);
-    document.getElementById('add-bookmark-btn')?.addEventListener('click', addBookmarkAtCurrentView);
-    document.getElementById('annotations-list-btn')?.addEventListener('click', openAnnotationsModal);
+    document.getElementById('open-notes-panel-btn')?.addEventListener('click', openAnnotationsModal);
 
     // Annotations list modal
     document.getElementById('annotations-modal-close')?.addEventListener('click', closeAnnotationsModal);
     document.getElementById('annotations-modal')?.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).id === 'annotations-modal') closeAnnotationsModal();
     });
+    document.getElementById('annotations-modal-add-note-btn')?.addEventListener('click', openAddNoteModal);
+    document.getElementById('annotations-modal-bookmark-btn')?.addEventListener('click', addBookmarkAtCurrentView);
     document.getElementById('annotations-export-btn')?.addEventListener('click', () => {
         const json = exportAnnotations();
         const blob = new Blob([json], { type: 'application/json' });
