@@ -1,47 +1,77 @@
 import { A as Ad } from './chartgpu-CqrjGxnD.js';
 import { w as getSeriesColor, c as appStateComposite, X as buildAdaptiveLineY, D as DEBUG, M as dbg, a as formatTwoDecimals, e as downloadUrl, d as downloadBlob, Y as ensureRelativePosition, Z as createCanvasOverlay, $ as initBoxZoom, f as formatTimestamp, a0 as formatTimeTooltip, h as escapeHtml } from './frequency-BkpduCZb.js';
+import { g as getSetting, C as COLOR_SCALES } from '../app.js';
 
-const VIRIDIS = ["#440154", "#414487", "#2a788e", "#22a884", "#7ad151", "#fde725"];
-const VIRIDIS_RGB = VIRIDIS.map((hex) => [
-  parseInt(hex.slice(1, 3), 16),
-  parseInt(hex.slice(3, 5), 16),
-  parseInt(hex.slice(5, 7), 16)
-]);
-function getInterpolatedColor(t) {
-  if (!Number.isFinite(t)) return VIRIDIS[0];
+const _SCALE_RGB = {
+  viridis: COLOR_SCALES.viridis.map(_hexToRgb),
+  plasma: COLOR_SCALES.plasma.map(_hexToRgb),
+  magma: COLOR_SCALES.magma.map(_hexToRgb),
+  coolwarm: COLOR_SCALES.coolwarm.map(_hexToRgb),
+  inferno: COLOR_SCALES.inferno.map(_hexToRgb)
+};
+function _hexToRgb(hex) {
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16)
+  ];
+}
+const _userScale = () => getSetting("colorScale");
+function getInterpolatedColor(t, scaleName) {
+  const scale = scaleName ?? _userScale();
+  if (!Number.isFinite(t)) return COLOR_SCALES.viridis[0];
   const clamped = Math.max(0, Math.min(1, t));
-  const scaled = clamped * (VIRIDIS_RGB.length - 1);
-  const leftIndex = Math.floor(scaled);
-  const rightIndex = Math.min(VIRIDIS_RGB.length - 1, leftIndex + 1);
-  const weight = scaled - leftIndex;
-  const left = VIRIDIS_RGB[leftIndex];
-  const right = VIRIDIS_RGB[rightIndex];
-  const r = Math.round(left[0] + (right[0] - left[0]) * weight);
-  const g = Math.round(left[1] + (right[1] - left[1]) * weight);
-  const b = Math.round(left[2] + (right[2] - left[2]) * weight);
-  return `rgb(${r}, ${g}, ${b})`;
+  const rgbArr = _SCALE_RGB[scale] ?? _SCALE_RGB.viridis;
+  const scaled = clamped * (rgbArr.length - 1);
+  const lo = Math.floor(scaled);
+  const hi = Math.min(rgbArr.length - 1, lo + 1);
+  const w = scaled - lo;
+  const a = rgbArr[lo];
+  const b = rgbArr[hi];
+  const r = Math.round(a[0] + (b[0] - a[0]) * w);
+  const g = Math.round(a[1] + (b[1] - a[1]) * w);
+  const bv = Math.round(a[2] + (b[2] - a[2]) * w);
+  return `rgb(${r},${g},${bv})`;
 }
 const COLOR_BUCKETS = 64;
-const _bucketPalette = [];
-for (let i = 0; i < COLOR_BUCKETS; i++) {
-  _bucketPalette.push(getInterpolatedColor(i / (COLOR_BUCKETS - 1)));
+const _bucketPalettes = {
+  viridis: [],
+  plasma: [],
+  magma: [],
+  coolwarm: [],
+  inferno: []
+};
+for (const scale of Object.keys(_bucketPalettes)) {
+  const arr = _SCALE_RGB[scale];
+  for (let i = 0; i < COLOR_BUCKETS; i++) {
+    const t = i / (COLOR_BUCKETS - 1);
+    const scaled = t * (arr.length - 1);
+    const lo = Math.floor(scaled);
+    const hi = Math.min(arr.length - 1, lo + 1);
+    const w = scaled - lo;
+    const a = arr[lo];
+    const b = arr[hi];
+    const r = Math.round(a[0] + (b[0] - a[0]) * w);
+    const g = Math.round(a[1] + (b[1] - a[1]) * w);
+    const bv = Math.round(a[2] + (b[2] - a[2]) * w);
+    _bucketPalettes[scale].push(`rgb(${r},${g},${bv})`);
+  }
 }
-function bucketIndexForValue(value, min, span) {
+function _bucketPalette(scale) {
+  return _bucketPalettes[scale] ?? _bucketPalettes.viridis;
+}
+function _bucketIndex(value, min, span) {
   if (span <= 0) return 0;
-  const t = (value - min) / span;
+  const t = Math.max(0, Math.min(1, (value - min) / span));
   return Math.max(0, Math.min(COLOR_BUCKETS - 1, Math.floor(t * (COLOR_BUCKETS - 1) + 0.5)));
-}
-function categoryColorFor(label, categories) {
-  const index = categories.indexOf(label);
-  return getSeriesColor(label, index >= 0 ? index : categories.length);
 }
 function analyzeColorValues(values) {
   if (!Array.isArray(values) || values.length === 0) return null;
-  const uniqueValues = /* @__PURE__ */ new Set();
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
   let numericCount = 0;
   let nonNumericCount = 0;
+  const uniqueValues = /* @__PURE__ */ new Set();
   const sampleSize = Math.min(values.length, 1e3);
   for (let i = 0; i < sampleSize; i++) {
     const raw = values[i];
@@ -53,29 +83,34 @@ function analyzeColorValues(values) {
   }
   const isNumeric = numericCount > 0 && nonNumericCount === 0;
   if (isNumeric) {
-    for (let i = 0; i < values.length; i++) {
-      const value = Number(values[i]);
-      if (!Number.isFinite(value)) continue;
-      if (value < min) min = value;
-      if (value > max) max = value;
+    for (const v of values) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) continue;
+      if (n < min) min = n;
+      if (n > max) max = n;
     }
     if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
     return { isNumeric: true, min, max, categories: [] };
   }
   const categories = [];
-  for (const value of uniqueValues) categories.push(value);
+  for (const v of uniqueValues) categories.push(v);
   return { isNumeric: false, min: null, max: null, categories };
 }
-function colorForScaleValue(rawValue, scaleInfo) {
+function colorForScaleValue(rawValue, scaleInfo, scaleName) {
   if (!scaleInfo) return null;
   if (scaleInfo.isNumeric) {
     const numeric = Number(rawValue);
     if (!Number.isFinite(numeric)) return null;
     const span = scaleInfo.max - scaleInfo.min;
     const t = span > 0 ? (numeric - scaleInfo.min) / span : 0;
-    return getInterpolatedColor(t);
+    return getInterpolatedColor(t, scaleName);
   }
-  return categoryColorFor(String(rawValue), scaleInfo.categories);
+  const index = scaleInfo.categories.indexOf(String(rawValue ?? ""));
+  return getSeriesColor(String(rawValue ?? ""), index >= 0 ? index : scaleInfo.categories.length);
+}
+function categoryColorFor(label, categories) {
+  const index = categories.indexOf(label);
+  return getSeriesColor(label, index >= 0 ? index : categories.length);
 }
 function buildColorizedSeries(colName, points, colorValues, scaleInfo, visible, showMarkers) {
   const series = [];
@@ -91,32 +126,33 @@ function buildColorizedSeries(colName, points, colorValues, scaleInfo, visible, 
     }
     return { series, annotations };
   }
+  const scaleName = _userScale();
   if (scaleInfo.isNumeric) {
     const min = scaleInfo.min;
     const span = scaleInfo.max - min;
     const buckets = new Uint8Array(points.length);
     for (let i = 0; i < points.length; i++) {
       const v = Number(colorValues[i]);
-      buckets[i] = Number.isFinite(v) ? bucketIndexForValue(v, min, span) : 0;
+      buckets[i] = Number.isFinite(v) ? _bucketIndex(v, min, span) : 0;
     }
+    const palette = _bucketPalette(scaleName);
     let segIdx = 0;
     let runStart = 0;
     while (runStart < points.length) {
       const bucket = buckets[runStart];
       let runEnd = runStart + 1;
       while (runEnd < points.length && buckets[runEnd] === bucket) runEnd++;
-      const segStart = runStart;
       const segEnd = Math.min(runEnd, points.length);
       const segData = [];
-      for (let j = segStart; j < segEnd; j++) segData.push(points[j]);
+      for (let j = runStart; j < segEnd; j++) segData.push(points[j]);
       if (segEnd < points.length) segData.push(points[segEnd]);
-      const color = _bucketPalette[bucket];
+      const color = palette[bucket];
       series.push({
         type: "line",
         name: segIdx === 0 ? colName : `__color_segment__${colName}::${segIdx}`,
         color,
         visible,
-        showInLegend: segIdx === 0,
+        showInLegend: false,
         data: segData
       });
       segIdx++;
@@ -130,10 +166,9 @@ function buildColorizedSeries(colName, points, colorValues, scaleInfo, visible, 
       const label = labels[runStart];
       let runEnd = runStart + 1;
       while (runEnd < labels.length && labels[runEnd] === label) runEnd++;
-      const segStart = runStart;
       const segEnd = Math.min(runEnd, points.length);
       const segData = [];
-      for (let j = segStart; j < segEnd; j++) segData.push(points[j]);
+      for (let j = runStart; j < segEnd; j++) segData.push(points[j]);
       if (segEnd < points.length) segData.push(points[segEnd]);
       const color = categoryColorFor(label, scaleInfo.categories);
       series.push({
@@ -141,7 +176,7 @@ function buildColorizedSeries(colName, points, colorValues, scaleInfo, visible, 
         name: segIdx === 0 ? colName : `__color_segment__${colName}::${segIdx}`,
         color,
         visible,
-        showInLegend: segIdx === 0,
+        showInLegend: false,
         data: segData
       });
       segIdx++;
@@ -150,7 +185,7 @@ function buildColorizedSeries(colName, points, colorValues, scaleInfo, visible, 
   }
   if (showMarkers && visible && points.length <= 500) {
     for (let i = 0; i < points.length; i++) {
-      const pointColor = colorForScaleValue(colorValues[i], scaleInfo) || getSeriesColor(colName, 0);
+      const pointColor = colorForScaleValue(colorValues[i], scaleInfo, scaleName) || getSeriesColor(colName, 0);
       annotations.push({ type: "point", x: points[i][0], y: points[i][1], layer: "aboveSeries", marker: { symbol: "circle", size: 5, style: { color: pointColor } } });
     }
   }
@@ -856,7 +891,16 @@ class DataChart {
           document.getElementById("timeseries-colorbar-name").textContent = colorColumn;
           document.getElementById("timeseries-colorbar-min").textContent = formatTwoDecimals(scaleInfo.min);
           document.getElementById("timeseries-colorbar-max").textContent = formatTwoDecimals(scaleInfo.max);
-          document.getElementById("timeseries-colorbar").style.background = `linear-gradient(90deg, ${VIRIDIS.join(",")})`;
+          const scaleName = getSetting("colorScale");
+          const scaleColors = {
+            viridis: ["#440154", "#482878", "#3e4a89", "#31688e", "#26838f", "#1f9d89", "#35b779", "#6ece58", "#b5de2b", "#fde725"],
+            plasma: ["#0d0887", "#5302a3", "#8b0aa5", "#b83289", "#e16462", "#fca636", "#f0f921"],
+            magma: ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#f26b1d", "#fca50a", "#fca636", "#fde725"],
+            coolwarm: ["#3b4cc0", "#6786d1", "#9eb2de", "#c9d3e8", "#f7f7f7", "#f4a582", "#d6605a", "#b2182b"],
+            inferno: ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#fca636", "#fca50a", "#fde725"]
+          };
+          const gradient = scaleColors[scaleName] ?? scaleColors.viridis;
+          document.getElementById("timeseries-colorbar").style.background = `linear-gradient(90deg, ${gradient.join(",")})`;
         }
       } else if (categoricalWrap) {
         categoricalWrap.hidden = false;
@@ -1071,6 +1115,10 @@ class DataChart {
       this._currentDraw = null;
       canvas.releasePointerCapture(e.pointerId);
       this._renderDrawings();
+      if (getSetting("drawAutoReset")) {
+        this._drawings = [];
+        this._renderDrawings();
+      }
     });
     canvas.addEventListener("pointercancel", () => {
       this._currentDraw = null;
@@ -1661,4 +1709,4 @@ class DataChart {
 }
 
 export { DataChart };
-//# sourceMappingURL=DataChart-CbgjsCvv.js.map
+//# sourceMappingURL=DataChart-I3-wfsvf.js.map

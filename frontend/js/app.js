@@ -1,7 +1,54 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/frequency-BkpduCZb.js","assets/chartgpu-CqrjGxnD.js","assets/scatter-Dao--s14.js","assets/drift-CSAT5uxB.js","assets/causal-BEFGWehV.js","assets/DataChart-CbgjsCvv.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/frequency-BkpduCZb.js","assets/chartgpu-CqrjGxnD.js","assets/scatter-Dao--s14.js","assets/drift-CSAT5uxB.js","assets/causal-BEFGWehV.js","assets/DataChart-I3-wfsvf.js"])))=>i.map(i=>d[i]);
 import { c as appStateComposite, u as formatAnalysisNumber, v as sanitizeSelectedColumns, w as getSeriesColor, h as escapeHtml$2, x as buildMetaBar, y as setSeriesColor, z as computeBounds, A as fetchMetadata$1, B as formatCount, C as formatToDatetimeLocal, E as formatAnalysisTime, P as PROFILE_ROW_HEIGHT, F as PROFILE_COLUMNS, G as normalizeDtypeLabel, H as formatProfileValue, I as getDefaultProfileColumnWidths, J as PROFILE_OVERSCAN, K as toFiniteNumberOrNull, L as dbgGroup, M as dbg, D as DEBUG, N as ensureRangeStateFromData, O as setMetaText, o as createEmptyStateController, Q as applyColumnRanges, l as isRangeOutsideDataset, d as downloadBlob, S as SERIES_COLORS, t as toast, _ as __vitePreload, R as getNumericColumns, T as getAnalyticsChipColor, U as debounce, V as installWindowsWebGpuRequestAdapterWorkaround, W as getDefaultTimeseriesColumns, r as requestGpuAdapter, X as buildAdaptiveLineY } from './assets/frequency-BkpduCZb.js';
 import './assets/chartgpu-CqrjGxnD.js';
 
+let _seriesCollapsed = false;
+function initSeriesCollapse() {
+  const btn = document.getElementById("collapse-series-btn");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    _seriesCollapsed = !_seriesCollapsed;
+    updateCollapseButton(btn);
+    applyCollapse();
+  });
+}
+function updateCollapseButton(btn) {
+  btn.title = _seriesCollapsed ? "Expand series list" : "Collapse series list";
+  btn.setAttribute("aria-label", _seriesCollapsed ? "Expand series list" : "Collapse series list");
+  const svg = btn.querySelector("svg");
+  if (svg) {
+    svg.style.transform = _seriesCollapsed ? "rotate(180deg)" : "";
+  }
+}
+function applyCollapse() {
+  const chips = document.querySelectorAll("#column-toggles .series-chip, #column-toggles .series-color-selector");
+  const collapseThreshold = 3;
+  chips.forEach((chip, i) => {
+    if (!_seriesCollapsed || i < collapseThreshold) {
+      chip.style.display = "";
+    } else {
+      chip.style.display = "none";
+    }
+  });
+  const container = document.getElementById("column-toggles");
+  if (_seriesCollapsed && container) {
+    let existingBadge = container.querySelector(".collapse-badge");
+    if (!existingBadge) {
+      const badge2 = document.createElement("span");
+      badge2.className = "collapse-badge";
+      badge2.id = "series-collapse-badge";
+      container.appendChild(badge2);
+    }
+    const badge = container.querySelector("#series-collapse-badge");
+    if (badge) {
+      badge.textContent = `+${chips.length - collapseThreshold} more`;
+      badge.style.display = "";
+    }
+  } else {
+    const badge = document.getElementById("series-collapse-badge");
+    if (badge) badge.style.display = "none";
+  }
+}
 function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn = null) {
   const container = document.getElementById("column-toggles");
   if (!container || container?.dataset?.rebuilding) return;
@@ -157,6 +204,7 @@ function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentD
     container.appendChild(chip);
   });
   finish();
+  applyCollapse();
 }
 function buildRangeControls() {
   const container = document.getElementById("column-range-controls");
@@ -568,7 +616,7 @@ function applyPartialTimeRangeFromMetadata(metadata, overwriteInputs = true) {
     inputs.hint.textContent = `Detected: ${formatAnalysisTime(minMs)} → ${formatAnalysisTime(maxMs)}`;
   }
 }
-function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid) {
+function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) {
   const toggleBtn = document.getElementById("upload-toggle-btn");
   const panel = document.getElementById("upload-panel");
   const browseBtn = document.getElementById("browse-btn");
@@ -864,6 +912,9 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid) {
           hydrateColumnProfiles(freshMetadata);
           applyPartialTimeRangeFromMetadata(freshMetadata, false);
           renderColumnProfilesGrid(true);
+          buildMetaBar(freshMetadata);
+          deps.buildColumnToggles();
+          deps.buildRangeControls();
         } catch {
           setTimeout(() => window.location.reload(), 1200);
         }
@@ -1419,6 +1470,126 @@ function announceChartLoading(columns) {
 function announceDataUpdate(pageName) {
   announce(`Data updated on ${pageName} page.`, "polite");
 }
+const SHORTCUTS = [
+  // Navigation
+  { keys: "Alt+1", description: "Upload page", category: "Navigation" },
+  { keys: "Alt+2", description: "Timeseries page", category: "Navigation" },
+  { keys: "Alt+3", description: "Scatter page", category: "Navigation" },
+  { keys: "Alt+4", description: "Scatter matrix view", category: "Navigation" },
+  { keys: "Alt+6", description: "FFT page", category: "Navigation" },
+  { keys: "Alt+7", description: "Heatmap page", category: "Navigation" },
+  { keys: "Alt+8", description: "Spectrogram page", category: "Navigation" },
+  { keys: "Alt+9", description: "Causal page", category: "Navigation" },
+  { keys: "Alt+0", description: "Drift page", category: "Navigation" },
+  { keys: "Ctrl+K", description: "Command palette", category: "Navigation" },
+  { keys: "Ctrl+I", description: "Analysis context panel", category: "Navigation" },
+  // Chart
+  { keys: "Double-click", description: "Reset zoom", category: "Chart" },
+  { keys: "Ctrl+click", description: "Set adaptive filter", category: "Chart" },
+  { keys: "Drag", description: "Pan / draw", category: "Chart" },
+  { keys: "Shift+C", description: "Clear adaptive filters", category: "Chart" },
+  // Session
+  { keys: "Ctrl+S", description: "Save session", category: "Session" },
+  { keys: "Ctrl+Shift+S", description: "Export session file", category: "Session" },
+  { keys: "Ctrl+O", description: "Import session file", category: "Session" },
+  // Export
+  { keys: "Ctrl+E", description: "Export data", category: "Export" }
+];
+let _shortcutsModal = null;
+function showKeyboardShortcutsHelp() {
+  const existing = document.getElementById("keyboard-help-modal");
+  if (existing) existing.remove();
+  const categories = [...new Set(SHORTCUTS.map((s) => s.category))];
+  const modal = document.createElement("div");
+  modal.id = "keyboard-help-modal";
+  modal.className = "modal-backdrop keyboard-help-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-labelledby", "keyboard-help-title");
+  const content = categories.map((cat) => {
+    const shortcuts = SHORTCUTS.filter((s) => s.category === cat);
+    return `
+            <div class="keyboard-help-section">
+                <h4>${cat}</h4>
+                ${shortcuts.map((s) => `
+                    <div class="keyboard-shortcut-row">
+                        <kbd>${s.keys}</kbd>
+                        <span>${s.description}</span>
+                    </div>
+                `).join("")}
+            </div>
+        `;
+  }).join("");
+  modal.innerHTML = `
+        <div class="modal">
+            <div class="keyboard-help-header">
+                <h3 class="keyboard-help-title" id="keyboard-help-title">Keyboard Shortcuts</h3>
+                <button class="keyboard-help-close" id="keyboard-help-close" aria-label="Close">
+                    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="4" y1="4" x2="12" y2="12"/>
+                        <line x1="12" y1="4" x2="4" y2="12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="keyboard-help-content">
+                ${content}
+            </div>
+            <div class="keyboard-help-hint">
+                Press <kbd>?</kbd> to toggle this help, or <kbd>Esc</kbd> to close.
+            </div>
+        </div>
+    `;
+  document.body.appendChild(modal);
+  const closeBtn = document.getElementById("keyboard-help-close");
+  closeBtn?.addEventListener("click", hideKeyboardShortcutsHelp);
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) hideKeyboardShortcutsHelp();
+  });
+  const escHandler = (e) => {
+    if (e.key === "Escape") {
+      hideKeyboardShortcutsHelp();
+      window.removeEventListener("keydown", escHandler);
+    }
+  };
+  window.addEventListener("keydown", escHandler);
+  const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  if (focusable.length > 0) {
+    focusable[0].focus();
+  }
+  _shortcutsModal = modal;
+}
+function hideKeyboardShortcutsHelp() {
+  const modal = document.getElementById("keyboard-help-modal");
+  if (modal) {
+    modal.remove();
+    _shortcutsModal = null;
+  }
+}
+function initAccessibilityShortcuts() {
+  const handleKey = (e) => {
+    const target = e.target;
+    const isInput = ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable;
+    if (isInput) return;
+    if (e.key === "?" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      if (_shortcutsModal) {
+        hideKeyboardShortcutsHelp();
+      } else {
+        showKeyboardShortcutsHelp();
+      }
+      return;
+    }
+    if ((e.key === "/" || e.key === "?") && e.ctrlKey) {
+      e.preventDefault();
+      if (_shortcutsModal) {
+        hideKeyboardShortcutsHelp();
+      } else {
+        showKeyboardShortcutsHelp();
+      }
+    }
+  };
+  window.addEventListener("keydown", handleKey);
+}
 
 function computeFrontendRollingBands(data, cols, windowSize) {
   const ts = data?.ts;
@@ -1774,6 +1945,25 @@ function refreshZoomControlsState() {
   const supportsZoom = !!appStateComposite.chart?.supportsZoomControls?.();
   const resetBtn = document.getElementById("zoom-reset-btn");
   if (resetBtn) resetBtn.disabled = !supportsZoom;
+  updateZoomRangeBadge();
+}
+function updateZoomRangeBadge() {
+  const badge = document.getElementById("zoom-range-badge");
+  if (!badge) return;
+  const init = appStateComposite.initialView;
+  const curr = appStateComposite.currentStart !== null && appStateComposite.currentEnd !== null ? appStateComposite.currentEnd - appStateComposite.currentStart : null;
+  if (!init || curr === null) {
+    badge.textContent = "—";
+    return;
+  }
+  const initRange = (init.xMax ?? 0) - (init.xMin ?? 0);
+  if (!initRange || initRange <= 0) {
+    badge.textContent = "—";
+    return;
+  }
+  const ratio = curr / initRange;
+  const pct = (ratio * 100).toFixed(0);
+  badge.textContent = `Viewing ${pct}%`;
 }
 function getCurrentView() {
   const yr = appStateComposite.chart?.getYRange?.();
@@ -1802,6 +1992,7 @@ function applyViewport(view, fetchAndRender, sourceKind = "api") {
   }
   if (appStateComposite.fetchDebounceId) clearTimeout(appStateComposite.fetchDebounceId);
   appStateComposite.fetchDebounceId = setTimeout(fetchAndRender, 0);
+  updateZoomRangeBadge();
 }
 function zoomOut(fetchAndRender) {
   dbgGroup("zoomOut (dblclick)", () => {
@@ -1908,23 +2099,29 @@ function initToolbarModals() {
   const panels = [
     { openBtn: "open-labels-panel-btn", modalId: "chart-labels-modal", closeBtn: "chart-labels-close-btn", doneBtn: "chart-labels-done-btn" },
     { openBtn: "open-export-options-btn", modalId: "export-options-modal", closeBtn: "export-options-close-btn", doneBtn: "chart-labels-done-btn" },
-    { openBtn: "open-analytics-panel-btn", modalId: "analytics-modal", closeBtn: "analytics-close-btn", doneBtn: "analytics-done-btn" }
+    { openBtn: "open-analytics-panel-btn", modalId: "analytics-drawer", closeBtn: "analytics-close-btn", doneBtn: null, isDrawer: true }
   ];
   for (const panel of panels) {
     const openButton = document.getElementById(panel.openBtn);
     if (openButton && !openButton.dataset.bound) {
-      openButton.addEventListener("click", () => openToolbarModal(panel.modalId));
+      openButton.addEventListener("click", () => {
+        if (panel.isDrawer) return;
+        openToolbarModal(panel.modalId);
+      });
       openButton.dataset.bound = "1";
     }
+    if (panel.isDrawer) continue;
     const closeButton = document.getElementById(panel.closeBtn);
     if (closeButton && !closeButton.dataset.bound) {
       closeButton.addEventListener("click", () => closeToolbarModal(panel.modalId));
       closeButton.dataset.bound = "1";
     }
-    const doneButton = document.getElementById(panel.doneBtn);
-    if (doneButton && !doneButton.dataset.bound) {
-      doneButton.addEventListener("click", () => closeToolbarModal(panel.modalId));
-      doneButton.dataset.bound = "1";
+    if (panel.doneBtn) {
+      const doneButton = document.getElementById(panel.doneBtn);
+      if (doneButton && !doneButton.dataset.bound) {
+        doneButton.addEventListener("click", () => closeToolbarModal(panel.modalId));
+        doneButton.dataset.bound = "1";
+      }
     }
     const modal = document.getElementById(panel.modalId);
     if (modal && !modal.dataset.bound) {
@@ -1934,6 +2131,10 @@ function initToolbarModals() {
       modal.dataset.bound = "1";
     }
   }
+  document.getElementById("zoom-out-btn")?.addEventListener("click", () => zoomOut(() => {
+  }));
+  document.getElementById("zoom-reset-btn")?.addEventListener("click", () => resetZoom(() => {
+  }));
 }
 
 function initDrawControls(fetchAndRender) {
@@ -2220,7 +2421,8 @@ const VALID_PAGES = /* @__PURE__ */ new Set([
   "heatmap",
   "spectrogram",
   "causal",
-  "drift"
+  "drift",
+  "settings"
 ]);
 const PAGE_ALIASES = {
   scattermatrix: "scatter"
@@ -2582,16 +2784,76 @@ const provenance = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty
   toggleProvenance
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const COLOR_SCALES = {
+  viridis: [
+    "#440154",
+    "#482878",
+    "#3e4a89",
+    "#31688e",
+    "#26838f",
+    "#1f9d89",
+    "#35b779",
+    "#6ece58",
+    "#b5de2b",
+    "#fde725"
+  ],
+  plasma: [
+    "#0d0887",
+    "#5302a3",
+    "#8b0aa5",
+    "#b83289",
+    "#e16462",
+    "#fca636",
+    "#f0f921"
+  ],
+  magma: [
+    "#000004",
+    "#1b0c41",
+    "#4a0c6b",
+    "#781c6d",
+    "#a52c60",
+    "#cf4446",
+    "#f26b1d",
+    "#fca50a",
+    "#fca636",
+    "#fde725"
+  ],
+  coolwarm: [
+    "#3b4cc0",
+    "#6786d1",
+    "#9eb2de",
+    "#c9d3e8",
+    "#f7f7f7",
+    "#f4a582",
+    "#d6605a",
+    "#b2182b"
+  ],
+  inferno: [
+    "#000004",
+    "#1b0c41",
+    "#4a0c6b",
+    "#781c6d",
+    "#a52c60",
+    "#cf4446",
+    "#fca636",
+    "#fca50a",
+    "#fde725"
+  ]
+};
 const DEFAULT_SETTINGS = {
   theme: "dark",
   layoutDensity: "spacious",
   defaultPalette: "default",
-  defaultExportFormat: "png",
+  defaultExportFormat: "csv",
   whiteBackgroundExport: false,
   defaultCorrelationMetric: "pearson",
   defaultCausalMethod: "pcmci",
   defaultTauMax: 5,
-  defaultFftPreset: "auto"
+  defaultFftPreset: "auto",
+  drawAutoReset: false,
+  colorScale: "viridis",
+  sidebarCollapsed: false,
+  analyticsDrawerOpen: false
 };
 const CHART_PALETTES = {
   default: ["#00d4ff", "#6c63ff", "#00c896", "#f5a623", "#ff4a6e", "#c77dff"],
@@ -2617,6 +2879,15 @@ function saveSettings(settings) {
     localStorage.setItem(STORAGE_KEY$3, JSON.stringify(settings));
   } catch {
   }
+}
+function getSetting(key) {
+  const settings = loadSettings();
+  return settings[key];
+}
+function updateSetting(key, value) {
+  const settings = loadSettings();
+  settings[key] = value;
+  saveSettings(settings);
 }
 function applyTheme(theme) {
   let effectiveTheme = "dark";
@@ -2689,6 +2960,9 @@ function populateSettingsForm(settings) {
   setSelectValue("settings-causal-method", settings.defaultCausalMethod);
   setInputValue("settings-tau-max", settings.defaultTauMax.toString());
   setSelectValue("settings-fft-preset", settings.defaultFftPreset);
+  setCheckboxValue("settings-draw-auto-reset", settings.drawAutoReset);
+  setSelectValue("settings-color-scale", settings.colorScale);
+  setCheckboxValue("settings-sidebar-collapsed", settings.sidebarCollapsed);
   renderPalettePreview(settings.defaultPalette);
 }
 function collectSettingsFromForm() {
@@ -2701,7 +2975,11 @@ function collectSettingsFromForm() {
     defaultCorrelationMetric: getSelectValue("settings-correlation") || DEFAULT_SETTINGS.defaultCorrelationMetric,
     defaultCausalMethod: getSelectValue("settings-causal-method") || DEFAULT_SETTINGS.defaultCausalMethod,
     defaultTauMax: parseInt(getInputValue("settings-tau-max"), 10) || DEFAULT_SETTINGS.defaultTauMax,
-    defaultFftPreset: getSelectValue("settings-fft-preset") || DEFAULT_SETTINGS.defaultFftPreset
+    defaultFftPreset: getSelectValue("settings-fft-preset") || DEFAULT_SETTINGS.defaultFftPreset,
+    drawAutoReset: getCheckboxValue("settings-draw-auto-reset"),
+    colorScale: getSelectValue("settings-color-scale") || DEFAULT_SETTINGS.colorScale,
+    sidebarCollapsed: getCheckboxValue("settings-sidebar-collapsed"),
+    analyticsDrawerOpen: false
   };
 }
 function applySettings() {
@@ -2793,6 +3071,45 @@ const settingsPanel = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePrope
   initSettingsPanel,
   openSettingsModal
 }, Symbol.toStringTag, { value: 'Module' }));
+
+let _open = false;
+function isDrawerOpen() {
+  return _open;
+}
+function openDrawer() {
+  const drawer = document.getElementById("analytics-drawer");
+  if (!drawer) return;
+  drawer.hidden = false;
+  document.body.classList.add("drawer-open");
+  _open = true;
+  updateSetting("analyticsDrawerOpen", true);
+}
+function closeDrawer() {
+  const drawer = document.getElementById("analytics-drawer");
+  if (!drawer) return;
+  drawer.hidden = true;
+  document.body.classList.remove("drawer-open");
+  _open = false;
+  updateSetting("analyticsDrawerOpen", false);
+}
+function toggleDrawer() {
+  if (isDrawerOpen()) closeDrawer();
+  else openDrawer();
+}
+function initAnalyticsDrawer() {
+  const drawer = document.getElementById("analytics-drawer");
+  if (!drawer) return;
+  document.getElementById("analytics-close-btn")?.addEventListener("click", closeDrawer);
+  drawer.addEventListener("click", (e) => {
+    if (e.target === drawer) closeDrawer();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && isDrawerOpen()) closeDrawer();
+  });
+  document.getElementById("open-analytics-panel-btn")?.addEventListener("click", toggleDrawer);
+  const saved = getSetting("analyticsDrawerOpen");
+  if (saved) openDrawer();
+}
 
 const STORAGE_KEY$2 = "edatime-annotations";
 let annotations = [];
@@ -3230,21 +3547,7 @@ function buildWorkflowSuggestion(snapshot) {
     };
   }
   if (snapshot.currentPage === "timeseries") {
-    if (snapshot.selectedSeriesCount === 0) {
-      return {
-        title: "Pick 2 to 4 key series",
-        body: "The guided path starts by keeping the first chart legible. Select 2 to 4 important series before widening the scope.",
-        actionLabel: null,
-        actionPage: null
-      };
-    }
-    return {
-      title: "Screen relationships next",
-      body: "Use Heatmap or Matrix to quickly identify strong candidate pairs before committing to a detailed scatter inspection.",
-      actionLabel: "Open Heatmap",
-      actionPage: "heatmap",
-      hint: "You can also use Scatter Matrix if you want direct pairwise shape previews."
-    };
+    return { title: "", body: "", actionLabel: null, actionPage: null };
   }
   if (snapshot.currentPage === "heatmap") {
     return {
@@ -3383,6 +3686,10 @@ function renderGuidedWorkflow() {
   const snapshot = collectSnapshot();
   const progress = computeWorkflowProgress(snapshot);
   const suggestion = buildWorkflowSuggestion(snapshot);
+  if (!suggestion.actionLabel && !suggestion.body) {
+    panel.hidden = true;
+    return;
+  }
   const isRepeat = isRepeatVisitor(snapshot);
   if (isRepeat && snapshot.hasDataset) {
     renderCompactAssistant(panel, suggestion, progress);
@@ -3897,11 +4204,21 @@ function initAppShell(deps) {
   initAnnotations();
   initAnnotationPanel();
   initGuidedWorkflow();
+  initAnalyticsDrawer();
   initThemeToggle();
   initSettingsPanel();
+  initAccessibilityShortcuts();
+  document.getElementById("keyboard-help-btn")?.addEventListener("click", showKeyboardShortcutsHelp);
+  const layout = document.querySelector(".app-layout");
+  if (layout && getSetting("sidebarCollapsed")) {
+    layout.classList.add("sidebar-collapsed");
+  }
   wireHomeNavigationCards(deps.showPage);
   wireSampleDatasetCards(deps.showPage);
-  initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid);
+  initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid, {
+    buildColumnToggles,
+    buildRangeControls
+  });
   initColumnProfilesGrid();
   initAnalysisControls(deps.fetchAndRender);
   initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange);
@@ -4452,7 +4769,7 @@ async function ensureChartModules() {
   if (fetchMetadata && fetchData && DataChartCtor) return;
   const [dataClient, chartModule] = await Promise.all([
     __vitePreload(() => import('./assets/frequency-BkpduCZb.js').then(n => n.a1),true              ?__vite__mapDeps([0,1]):void 0),
-    __vitePreload(() => import('./assets/DataChart-CbgjsCvv.js'),true              ?__vite__mapDeps([5,1,0]):void 0)
+    __vitePreload(() => import('./assets/DataChart-I3-wfsvf.js'),true              ?__vite__mapDeps([5,1,0]):void 0)
   ]);
   fetchMetadata = dataClient.fetchMetadata;
   fetchData = dataClient.fetchData;
@@ -4575,7 +4892,7 @@ async function ensureTimeseriesReady() {
       });
       _timeseriesReady = true;
     } catch (e) {
-      console.error("Primary chart failed, switching to fallback:", e);
+      console.warn("Primary chart failed, switching to fallback:", e);
       try {
         const fallbackType = getChartType("fallback");
         appStateComposite.chart = fallbackType ? fallbackType.create("main-chart", {}) : new FallbackChart("main-chart");
@@ -4801,6 +5118,7 @@ function initializeDatasetUi(metadata) {
       rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
       renderColumnProfilesGrid
     });
+    initSeriesCollapse();
     initTimeseriesActions({
       rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
       renderColumnProfilesGrid,
@@ -4947,4 +5265,6 @@ async function init() {
   }
 }
 init();
+
+export { COLOR_SCALES as C, getSetting as g };
 //# sourceMappingURL=app.js.map

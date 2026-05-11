@@ -13,6 +13,28 @@ export function refreshZoomControlsState(): void {
     const supportsZoom = !!appState.chart?.supportsZoomControls?.();
     const resetBtn = document.getElementById('zoom-reset-btn') as HTMLButtonElement | null;
     if (resetBtn) resetBtn.disabled = !supportsZoom;
+    updateZoomRangeBadge();
+}
+
+export function updateZoomRangeBadge(): void {
+    const badge = document.getElementById('zoom-range-badge');
+    if (!badge) return;
+    const init = appState.initialView;
+    const curr = appState.currentStart !== null && appState.currentEnd !== null
+        ? appState.currentEnd - appState.currentStart
+        : null;
+    if (!init || curr === null) {
+        badge.textContent = '—';
+        return;
+    }
+    const initRange = (init.xMax ?? 0) - (init.xMin ?? 0);
+    if (!initRange || initRange <= 0) {
+        badge.textContent = '—';
+        return;
+    }
+    const ratio = curr / initRange;
+    const pct = (ratio * 100).toFixed(0);
+    badge.textContent = `Viewing ${pct}%`;
 }
 
 export function getCurrentView(): ViewSnapshot {
@@ -50,6 +72,7 @@ export function applyViewport(
 
     if (appState.fetchDebounceId) clearTimeout(appState.fetchDebounceId);
     appState.fetchDebounceId = setTimeout(fetchAndRender, 0);
+    updateZoomRangeBadge();
 }
 
 export function zoomOut(fetchAndRender: () => void): void {

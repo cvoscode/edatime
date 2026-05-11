@@ -50,7 +50,7 @@ self.addEventListener('fetch', (event) => {
   // Skip WebSocket connections
   if (url.protocol === 'ws:' || url.protocol === 'wss:') return;
 
-  // For static assets (CSS, JS, fonts, images), use cache-first strategy
+  // For static assets (CSS, fonts, images), use cache-first strategy
   if (isStaticAsset(url.pathname)) {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {
@@ -116,6 +116,7 @@ function isStaticAsset(pathname) {
   const staticPaths = [
     '/css/',
     '/js/',
+    '/assets/',
     '/fonts/',
     '/libs/',
     '/_static/',

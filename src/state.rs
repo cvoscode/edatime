@@ -112,6 +112,14 @@ impl AppState {
         self.repository.bump_revision()
     }
 
+    pub fn set_time_column_display_name(&self, name: Option<String>) {
+        self.repository.set_time_column_display_name(name);
+    }
+
+    pub fn time_column_display_name_sync(&self) -> Option<String> {
+        self.repository.time_column_display_name_sync()
+    }
+
     pub async fn dataset_rows(&self) -> usize {
         self.repository.shared_frame().read().await.height()
     }

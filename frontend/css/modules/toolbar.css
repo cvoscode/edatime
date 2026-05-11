@@ -179,7 +179,112 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* Thin vertical divider between analytics sub-groups */
+/* Hide toolbar labels in the tools row — icons have title attributes for hover */
+.toolbar--tools .toolbar-label {
+  display: none;
+}
+
+/* Draw tool row: compact inline controls */
+.draw-toolbar {
+  gap: 6px;
+}
+
+.draw-select {
+  height: 28px;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.draw-select:focus {
+  outline: 1px solid var(--accent);
+  border-color: var(--accent);
+}
+
+#draw-color {
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+}
+
+#draw-width {
+  width: 44px;
+  height: 28px;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  text-align: center;
+}
+
+#draw-width:focus {
+  outline: 1px solid var(--accent);
+  border-color: var(--accent);
+}
+
+/* ─── Drawer (analytics, right-side slide-in) ─────────────────── */
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 300px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.2s ease-in-out;
+}
+
+.drawer:not([hidden]) {
+  transform: translateX(0);
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.drawer-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ─── Drawer open state — backdrop behind drawer ────────────── */
+body.drawer-open::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 199;
+}
 .toolbar-group-divider {
   display: inline-block;
   width: 1px;
@@ -456,4 +561,21 @@
 #x-axis-label-input,
 #y-axis-label-input {
   width: 90px;
+}
+
+/* Collapse badge for series list */
+.collapse-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: var(--accent);
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  margin: 2px;
+}
+
+.collapse-badge:hover {
+  background: rgba(0, 212, 255, 0.08);
 }

@@ -7,7 +7,7 @@
 
 const VALID_PAGES = new Set([
     'home', 'upload', 'timeseries', 'correlations', 'scatter',
-    'fft', 'heatmap', 'spectrogram', 'causal', 'drift',
+    'fft', 'heatmap', 'spectrogram', 'causal', 'drift', 'settings',
 ]);
 
 // Aliases for renamed pages — old URL fragments still navigate correctly

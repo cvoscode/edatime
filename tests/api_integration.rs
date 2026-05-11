@@ -372,6 +372,88 @@ async fn upload_requires_multipart() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_parses_csv_file() {
+    use std::io::Write;
+
+    let app = test_app();
+
+    // Create a minimal CSV with datetime column
+    let csv_content = "time,value\n2024-01-01T00:00:00Z,10.5\n2024-01-01T01:00:00Z,20.5\n";
+
+    // Build multipart form data manually
+    let mut form = Vec::new();
+    // Boundary
+    let boundary = "----FormBoundary7MA41YWsqSbuR0OH";
+
+    // File field
+    write!(&mut form, "--{}\r\n", boundary).unwrap();
+    write!(&mut form, "Content-Disposition: form-data; name=\"file\"; filename=\"test.csv\"\r\n").unwrap();
+    write!(&mut form, "Content-Type: text/csv\r\n\r\n").unwrap();
+    form.extend_from_slice(csv_content.as_bytes());
+    write!(&mut form, "\r\n").unwrap();
+
+    // n_rows field
+    write!(&mut form, "--{}\r\n", boundary).unwrap();
+    write!(&mut form, "Content-Disposition: form-data; name=\"n_rows\"\r\n\r\n").unwrap();
+    write!(&mut form, "100\r\n").unwrap();
+
+    // Close boundary
+    write!(&mut form, "--{}--\r\n", boundary).unwrap();
+
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/api/upload")
+        .header("content-type", format!("multipart/form-data; boundary={}", boundary))
+        .body(Body::from(form))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK, "Upload should succeed");
+
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["status"], "success");
+    assert!(json["rows"].as_u64().unwrap_or(0) > 0, "Should return row count");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_preview_returns_metadata() {
+    use std::io::Write;
+
+    let app = test_app();
+
+    // Create a minimal CSV with datetime column
+    let csv_content = "time,value\n2024-01-01T00:00:00Z,10.5\n2024-01-01T01:00:00Z,20.5\n";
+
+    // Build multipart form data
+    let mut form = Vec::new();
+    let boundary = "----FormBoundary7MA41YWsqSbuR0OH";
+
+    write!(&mut form, "--{}\r\n", boundary).unwrap();
+    write!(&mut form, "Content-Disposition: form-data; name=\"file\"; filename=\"test.csv\"\r\n").unwrap();
+    write!(&mut form, "Content-Type: text/csv\r\n\r\n").unwrap();
+    form.extend_from_slice(csv_content.as_bytes());
+    write!(&mut form, "\r\n").unwrap();
+    write!(&mut form, "--{}--\r\n", boundary).unwrap();
+
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/api/upload/preview")
+        .header("content-type", format!("multipart/form-data; boundary={}", boundary))
+        .body(Body::from(form))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK, "Preview should succeed");
+
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["status"], "ok");
+    assert!(json["metadata"].is_object(), "Should return metadata");
+    assert!(json["metadata"]["columns"].is_array(), "Metadata should have columns");
+}
+
 // ─── Aggregate endpoint ───────────────────────────────────────────────────────
 
 #[tokio::test(flavor = "multi_thread")]

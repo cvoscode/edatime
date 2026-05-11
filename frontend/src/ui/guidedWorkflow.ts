@@ -284,21 +284,9 @@ export function buildWorkflowSuggestion(snapshot: WorkflowSnapshot): WorkflowSug
     }
 
     if (snapshot.currentPage === 'timeseries') {
-        if (snapshot.selectedSeriesCount === 0) {
-            return {
-                title: 'Pick 2 to 4 key series',
-                body: 'The guided path starts by keeping the first chart legible. Select 2 to 4 important series before widening the scope.',
-                actionLabel: null,
-                actionPage: null,
-            };
-        }
-        return {
-            title: 'Screen relationships next',
-            body: 'Use Heatmap or Matrix to quickly identify strong candidate pairs before committing to a detailed scatter inspection.',
-            actionLabel: 'Open Heatmap',
-            actionPage: 'heatmap',
-            hint: 'You can also use Scatter Matrix if you want direct pairwise shape previews.',
-        };
+        // Never show the guided banner on the timeseries page itself.
+        // The workflow is complete from the timeseries perspective.
+        return { title: '', body: '', actionLabel: null, actionPage: null };
     }
 
     if (snapshot.currentPage === 'heatmap') {
@@ -459,6 +447,13 @@ export function renderGuidedWorkflow(): void {
     const snapshot = collectSnapshot();
     const progress = computeWorkflowProgress(snapshot);
     const suggestion = buildWorkflowSuggestion(snapshot);
+
+    // If the current page has no suggestion (e.g., timeseries), hide the panel
+    if (!suggestion.actionLabel && !suggestion.body) {
+        panel.hidden = true;
+        return;
+    }
+
     const isRepeat = isRepeatVisitor(snapshot);
 
     if (isRepeat && snapshot.hasDataset) {

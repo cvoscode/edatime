@@ -35,6 +35,7 @@ import { restoreSessionAfterChartReady, startSessionPersistence } from './bootst
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
 import { initDatasetSearchInputs, initTimeseriesActions } from './bootstrap/timeseriesBootstrap.js';
+import { initSeriesCollapse } from './ui/columns.js';
 import {
     updateAnalysisZoom, updateAnalysisYRange,
     refreshZoomControlsState, getCurrentView,
@@ -242,7 +243,7 @@ async function ensureTimeseriesReady(): Promise<void> {
 
             _timeseriesReady = true;
         } catch (e: unknown) {
-            console.error('Primary chart failed, switching to fallback:', e);
+            console.warn('Primary chart failed, switching to fallback:', e);
             try {
                 const fallbackType = getChartType('fallback');
                 appState.chart = fallbackType
@@ -542,6 +543,7 @@ function initializeDatasetUi(metadata: DatasetMetadata): void {
             rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
             renderColumnProfilesGrid,
         });
+        initSeriesCollapse();
 
         initTimeseriesActions({
             rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),

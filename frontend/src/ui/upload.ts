@@ -4,10 +4,15 @@
 
 import {
     appState, formatAnalysisTime, formatAnalysisNumber, formatCount,
-    formatToDatetimeLocal, toFiniteNumberOrNull,
+    formatToDatetimeLocal, toFiniteNumberOrNull, buildMetaBar,
 } from '../state.js';
 import { fetchMetadata as dataClientFetchMetadata } from '../dataClient.js';
 import type { DatasetMetadata } from '../types.js';
+
+interface UploadPanelDeps {
+    buildColumnToggles: () => void;
+    buildRangeControls: () => void;
+}
 
 const UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
 
@@ -101,6 +106,7 @@ export function applyPartialTimeRangeFromMetadata(
 export function initUploadPanel(
     hydrateColumnProfiles: (metadata: DatasetMetadata) => void,
     renderColumnProfilesGrid: (resetScroll: boolean) => void,
+    deps: UploadPanelDeps,
 ): void {
     const toggleBtn = document.getElementById('upload-toggle-btn');
     const panel = document.getElementById('upload-panel');
@@ -428,23 +434,27 @@ export function initUploadPanel(
             } else {
                 const result = await res.json();
                 setStatus(`Loaded ${result.rows.toLocaleString()} rows. Refreshing stats…`, 'success');
-                // Fetch fresh metadata and refresh the profile grid without page reload
-                try {
-                    const freshMetadata = await dataClientFetchMetadata();
-                    appState.metadata = freshMetadata;
-                    const revision = freshMetadata?.revision;
-                    appState.datasetRevision = typeof revision === 'number' ? revision : 0;
-                    // Reset upload state
-                    selectedFile = null;
-                    fileInput!.value = '';
-                    fileDisplay!.textContent = '';
-                    setUploadPreviewStatus('Upload complete. Select a file to preview.', '');
-                    setProfileMode('dataset');
-                    // Re-hydrate and render the profile grid with the new dataset metadata
-                    hydrateColumnProfiles(freshMetadata);
-                    applyPartialTimeRangeFromMetadata(freshMetadata, false);
-                    renderColumnProfilesGrid(true);
-                } catch {
+// Fetch fresh metadata and refresh the profile grid without page reload
+                    try {
+                        const freshMetadata = await dataClientFetchMetadata();
+                        appState.metadata = freshMetadata;
+                        const revision = freshMetadata?.revision;
+                        appState.datasetRevision = typeof revision === 'number' ? revision : 0;
+                        // Reset upload state
+                        selectedFile = null;
+                        fileInput!.value = '';
+                        fileDisplay!.textContent = '';
+                        setUploadPreviewStatus('Upload complete. Select a file to preview.', '');
+                        setProfileMode('dataset');
+                        // Re-hydrate and render the profile grid with the new dataset metadata
+                        hydrateColumnProfiles(freshMetadata);
+                        applyPartialTimeRangeFromMetadata(freshMetadata, false);
+                        renderColumnProfilesGrid(true);
+                        // Update header meta stats and UI controls
+                        buildMetaBar(freshMetadata);
+                        deps.buildColumnToggles();
+                        deps.buildRangeControls();
+                    } catch {
                     // Fall back to reload if metadata refresh fails
                     setTimeout(() => window.location.reload(), 1200);
                 }

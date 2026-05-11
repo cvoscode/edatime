@@ -5,12 +5,14 @@ import {
     initChartPageFilterGesture,
     initPages,
 } from '../ui/toolbar.js';
-import { initColumnFilterModal } from '../ui/columns.js';
+import { initColumnFilterModal, buildColumnToggles, buildRangeControls } from '../ui/columns.js';
 import { initHashRouting } from '../utils/router.js';
 import { initCommandPalette } from '../utils/palette.js';
 import { initProvenance } from '../utils/provenance.js';
-import { initSettings } from '../utils/settings.js';
+import { initSettings, getSetting } from '../utils/settings.js';
+import { initAccessibilityShortcuts, showKeyboardShortcutsHelp } from '../utils/a11y.js';
 import { initSettingsPanel } from '../ui/settingsPanel.js';
+import { initAnalyticsDrawer } from '../ui/analyticsDrawer.js';
 import { initAnnotations } from '../chart/annotations.js';
 import { initAnnotationPanel } from '../ui/annotationPanel.js';
 import { disableGuidedWorkflow, enableGuidedWorkflow, goToNextGuidedStep, initGuidedWorkflow } from '../ui/guidedWorkflow.js';
@@ -277,11 +279,23 @@ export function initAppShell(deps: AppShellDeps): void {
     initAnnotations();
     initAnnotationPanel();
     initGuidedWorkflow();
+    initAnalyticsDrawer();
     initThemeToggle();
     initSettingsPanel();
+    initAccessibilityShortcuts();
+
+    document.getElementById('keyboard-help-btn')?.addEventListener('click', showKeyboardShortcutsHelp);
+
+    const layout = document.querySelector('.app-layout') as HTMLElement | null;
+    if (layout && getSetting('sidebarCollapsed')) {
+        layout.classList.add('sidebar-collapsed');
+    }
     wireHomeNavigationCards(deps.showPage);
     wireSampleDatasetCards(deps.showPage);
-    initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid);
+    initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid, {
+        buildColumnToggles,
+        buildRangeControls,
+    });
     initColumnProfilesGrid();
     initAnalysisControls(deps.fetchAndRender);
     initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange);

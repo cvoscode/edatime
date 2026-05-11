@@ -43,9 +43,11 @@ interface DrawItem {
 }
 
 import {
-    VIRIDIS, analyzeColorValues, baseSeriesName,
+    analyzeColorValues, baseSeriesName,
     buildColorizedSeries, categoryColorFor, colorForScaleValue,
 } from './colorScale.js';
+import { getSetting } from '../utils/settings.js';
+import type { ColorScaleName } from '../utils/settings.js';
 import {
     niceLinearTicks, niceTimeTicks, formatTimeTick, formatTimeTooltip,
 } from './ticks.js';
@@ -426,7 +428,16 @@ export class DataChart {
                     document.getElementById('timeseries-colorbar-name')!.textContent = colorColumn;
                     document.getElementById('timeseries-colorbar-min')!.textContent = formatTwoDecimals(scaleInfo.min);
                     document.getElementById('timeseries-colorbar-max')!.textContent = formatTwoDecimals(scaleInfo.max);
-                    document.getElementById('timeseries-colorbar')!.style.background = `linear-gradient(90deg, ${VIRIDIS.join(',')})`;
+                    const scaleName = getSetting('colorScale') as ColorScaleName;
+                    const scaleColors = {
+                        viridis: ['#440154','#482878','#3e4a89','#31688e','#26838f','#1f9d89','#35b779','#6ece58','#b5de2b','#fde725'],
+                        plasma: ['#0d0887','#5302a3','#8b0aa5','#b83289','#e16462','#fca636','#f0f921'],
+                        magma: ['#000004','#1b0c41','#4a0c6b','#781c6d','#a52c60','#cf4446','#f26b1d','#fca50a','#fca636','#fde725'],
+                        coolwarm: ['#3b4cc0','#6786d1','#9eb2de','#c9d3e8','#f7f7f7','#f4a582','#d6605a','#b2182b'],
+                        inferno: ['#000004','#1b0c41','#4a0c6b','#781c6d','#a52c60','#cf4446','#fca636','#fca50a','#fde725'],
+                    } as const;
+                    const gradient = scaleColors[scaleName] ?? scaleColors.viridis;
+                    document.getElementById('timeseries-colorbar')!.style.background = `linear-gradient(90deg, ${gradient.join(',')})`;
                 }
             } else if (categoricalWrap) {
                 categoricalWrap.hidden = false;
@@ -663,6 +674,10 @@ export class DataChart {
             this._currentDraw = null;
             canvas.releasePointerCapture(e.pointerId);
             this._renderDrawings();
+            if (getSetting('drawAutoReset')) {
+                this._drawings = [];
+                this._renderDrawings();
+            }
         });
         canvas.addEventListener('pointercancel', () => { this._currentDraw = null; this._renderDrawings(); });
     }

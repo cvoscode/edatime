@@ -159,6 +159,16 @@
       </button>
 
       <div class="sidebar-spacer"></div>
+      <button class="nav-item" type="button" data-page="settings" title="Settings" aria-label="Settings">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <circle cx="8" cy="8" r="2.5" />
+            <path d="M13.7 9.3l1.1.6a.5.5 0 01.2.7l-1 1.7a.5.5 0 01-.6.2l-1.1-.4a5.5 5.5 0 01-1.1.6l-.2 1.2a.5.5 0 01-.5.4H9.5a.5.5 0 01-.5-.4l-.2-1.2a5.5 5.5 0 01-1.1-.6l-1.1.4a.5.5 0 01-.6-.2l-1-1.7a.5.5 0 01.2-.7l1.1-.6a5.5 5.5 0 010-1.3l-1.1-.6a.5.5 0 01-.2-.7l1-1.7a.5.5 0 01.6-.2l1.1.4a5.5 5.5 0 011.1-.6l.2-1.2a.5.5 0 01.5-.4h2a.5.5 0 01.5.4l.2 1.2a5.5 5.5 0 011.1.6l1.1-.4a.5.5 0 01.6.2l1 1.7a.5.5 0 01-.2.7l-1.1.6a5.5 5.5 0 010 1.3z" />
+          </svg>
+        </span>
+        <span class="nav-text">Settings</span>
+      </button>
       <button class="nav-item nav-collapse" id="sidebar-collapse-btn" type="button" title="Collapse sidebar"
         aria-label="Collapse sidebar">
         <span class="nav-icon">
@@ -266,6 +276,11 @@
             <span class="toolbar-label">Series</span>
             <input type="text" id="column-filter-input" name="column-filter" class="column-filter-input"
               placeholder="Filter columns…" aria-label="Filter columns">
+            <button class="btn btn-ghost btn-sm" id="collapse-series-btn" type="button" title="Collapse series list">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="4,6 8,10 12,6"/>
+              </svg>
+            </button>
             <div class="series-toggles" id="column-toggles"></div>
           </div>
         </div>
@@ -282,9 +297,9 @@
             <input type="color" id="draw-color" name="draw-color" value="#ff0055" title="Color" aria-label="Draw color">
             <input type="number" id="draw-width" name="draw-width" value="2" min="1" max="10" title="Thickness"
               aria-label="Draw thickness">
-            <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings">Clear</button>
+            <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings">Clear Drawings</button>
             <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button"
-              title="Clear adaptive line filters (Shift+C)">Clear Filter</button>
+              title="Clear adaptive line filters (Shift+C)">Clear Column Filter</button>
           </div>
           <div class="toolbar-group labels-toolbar toolbar-group--sep" role="group" aria-label="Chart label controls">
             <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-labels-panel-btn" type="button"
@@ -321,6 +336,11 @@
               <span class="toolbar-label">Analytics</span>
               <span class="toolbar-disclosure__value">Bands, anomalies, cleanup</span>
             </button>
+          </div>
+          <div class="toolbar-group zoom-toolbar" role="group" aria-label="Zoom controls">
+            <button class="btn btn-ghost btn-sm" id="zoom-out-btn" type="button" title="Zoom out">−</button>
+            <span class="zoom-range-badge" id="zoom-range-badge">—</span>
+            <button class="btn btn-ghost btn-sm" id="zoom-reset-btn" type="button" title="Reset zoom to initial view">↺</button>
           </div>
         </div>
 
@@ -1680,58 +1700,99 @@
         </div>
       </div>
 
-      <!-- Analytics Modal -->
+      <!-- Analytics Drawer -->
+      <div id="analytics-drawer" class="drawer" hidden>
+        <div class="drawer-header">
+          <div class="drawer-title" id="analytics-title">Analytics</div>
+          <button class="modal-close" id="analytics-close-btn" type="button" aria-label="Close">&times;</button>
+        </div>
+        <div class="drawer-body">
+          <label class="toolbar-field toolbar-field--toggle" for="rolling-enabled">
+            <span class="toolbar-field__label">Rolling bands</span>
+            <span class="toolbar-field__control scatter-link-toggle" title="Show rolling mean ± σ bands">
+              <input id="rolling-enabled" type="checkbox" aria-label="Show rolling mean ± σ bands">
+              <span>Show mean ± σ bands</span>
+            </span>
+          </label>
+          <label class="toolbar-field" for="rolling-window">
+            <span class="toolbar-field__label" title="Rolling window size (number of points)">Window size</span>
+            <input id="rolling-window" type="number" class="modal-input" value="50" min="3" max="5000" step="1"
+              aria-label="Rolling window size (number of points)">
+          </label>
+          <label class="toolbar-field toolbar-field--toggle" for="anomaly-enabled">
+            <span class="toolbar-field__label">Anomalies</span>
+            <span class="toolbar-field__control scatter-link-toggle" title="Show anomaly detection regions">
+              <input id="anomaly-enabled" type="checkbox" aria-label="Enable anomaly detection regions">
+              <span>Enable regions</span>
+            </span>
+          </label>
+          <label class="toolbar-field" for="anomaly-method">
+            <span class="toolbar-field__label">Method</span>
+            <select id="anomaly-method" class="modal-select" title="Anomaly detection method">
+              <option value="zscore">Z-score</option>
+              <option value="iqr">IQR</option>
+            </select>
+          </label>
+          <label class="toolbar-field" for="anomaly-threshold">
+            <span class="toolbar-field__label">Threshold</span>
+            <input id="anomaly-threshold" type="number" class="modal-input" value="3" min="0.5" max="10" step="0.1"
+              title="Anomaly threshold">
+          </label>
+          <div class="toolbar-field toolbar-field--actions">
+            <span class="toolbar-field__label">Dataset tools</span>
+            <div class="toolbar-field__actions">
+              <button class="btn btn-ghost btn-sm" id="transform-open-btn" type="button"
+                title="Column transform expression">Transform…</button>
+              <button class="btn btn-ghost btn-sm" id="outlier-open-btn" type="button"
+                title="Remove outliers from dataset">Outliers…</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analytics Modal (for backward compat — scatter page) -->
       <div id="analytics-modal" class="modal-backdrop" hidden>
-        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="analytics-title">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="analytics-title-modal">
           <div class="modal-header">
-            <div class="modal-title" id="analytics-title">Analytics</div>
-            <button class="modal-close" id="analytics-close-btn" type="button" aria-label="Close">&times;</button>
+            <div class="modal-title" id="analytics-title-modal">Analytics</div>
+            <button class="modal-close" id="analytics-close-btn-modal" type="button" aria-label="Close">&times;</button>
           </div>
           <div class="modal-body">
-            <label class="toolbar-field toolbar-field--toggle" for="rolling-enabled">
+            <label class="toolbar-field toolbar-field--toggle" for="rolling-enabled-modal">
               <span class="toolbar-field__label">Rolling bands</span>
               <span class="toolbar-field__control scatter-link-toggle" title="Show rolling mean ± σ bands">
-                <input id="rolling-enabled" type="checkbox" aria-label="Show rolling mean ± σ bands">
+                <input id="rolling-enabled-modal" type="checkbox" aria-label="Show rolling mean ± σ bands">
                 <span>Show mean ± σ bands</span>
               </span>
             </label>
-            <label class="toolbar-field" for="rolling-window">
+            <label class="toolbar-field" for="rolling-window-modal">
               <span class="toolbar-field__label" title="Rolling window size (number of points)">Window size</span>
-              <input id="rolling-window" type="number" class="modal-input" value="50" min="3" max="5000" step="1"
+              <input id="rolling-window-modal" type="number" class="modal-input" value="50" min="3" max="5000" step="1"
                 aria-label="Rolling window size (number of points)">
             </label>
-            <label class="toolbar-field toolbar-field--toggle" for="anomaly-enabled">
+            <label class="toolbar-field toolbar-field--toggle" for="anomaly-enabled-modal">
               <span class="toolbar-field__label">Anomalies</span>
               <span class="toolbar-field__control scatter-link-toggle" title="Show anomaly detection regions">
-                <input id="anomaly-enabled" type="checkbox" aria-label="Enable anomaly detection regions">
+                <input id="anomaly-enabled-modal" type="checkbox" aria-label="Enable anomaly detection regions">
                 <span>Enable regions</span>
               </span>
             </label>
-            <label class="toolbar-field" for="anomaly-method">
+            <label class="toolbar-field" for="anomaly-method-modal">
               <span class="toolbar-field__label">Method</span>
-              <select id="anomaly-method" class="modal-select" title="Anomaly detection method">
+              <select id="anomaly-method-modal" class="modal-select" title="Anomaly detection method">
                 <option value="zscore">Z-score</option>
                 <option value="iqr">IQR</option>
               </select>
             </label>
-            <label class="toolbar-field" for="anomaly-threshold">
+            <label class="toolbar-field" for="anomaly-threshold-modal">
               <span class="toolbar-field__label">Threshold</span>
-              <input id="anomaly-threshold" type="number" class="modal-input" value="3" min="0.5" max="10"
-                step="0.1" title="Anomaly threshold">
+              <input id="anomaly-threshold-modal" type="number" class="modal-input" value="3" min="0.5" max="10" step="0.1"
+                title="Anomaly threshold">
             </label>
-            <div class="toolbar-field toolbar-field--actions">
-              <span class="toolbar-field__label">Dataset tools</span>
-              <div class="toolbar-field__actions">
-                <button class="btn btn-ghost btn-sm" id="transform-open-btn" type="button"
-                  title="Column transform expression">Transform…</button>
-                <button class="btn btn-ghost btn-sm" id="outlier-open-btn" type="button"
-                  title="Remove outliers from dataset">Outliers…</button>
-              </div>
-            </div>
           </div>
           <div class="modal-actions">
             <div></div>
-            <button class="btn btn-primary btn-sm" id="analytics-done-btn" type="button">Done</button>
+            <button class="btn btn-primary btn-sm" id="analytics-done-btn-modal" type="button">Done</button>
           </div>
         </div>
       </div>
@@ -1750,6 +1811,7 @@
             <button class="settings-tab-btn" data-tab="analytics" type="button">Analytics</button>
             <button class="settings-tab-btn" data-tab="causal" type="button">Causal</button>
             <button class="settings-tab-btn" data-tab="spectral" type="button">Spectral</button>
+            <button class="settings-tab-btn" data-tab="timeseries" type="button">Timeseries</button>
           </div>
 
           <!-- Appearance Tab -->
@@ -1884,6 +1946,40 @@
                     <option value="balanced">Balanced</option>
                   </select>
                   <div class="settings-hint">Preset for spectrogram window size</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Timeseries Tab -->
+          <div class="settings-tab-panel" data-tab="timeseries" hidden>
+            <div class="settings-section">
+              <div class="settings-section-title">Chart Behavior</div>
+              <div class="settings-row">
+                <label class="settings-label" for="settings-draw-auto-reset">Draw auto-reset</label>
+                <div class="settings-control settings-toggle">
+                  <input id="settings-draw-auto-reset" type="checkbox" aria-label="Auto-reset draw tool after annotation">
+                  <span>Auto-reset draw tool after placing an annotation</span>
+                </div>
+              </div>
+              <div class="settings-row">
+                <label class="settings-label" for="settings-color-scale">Color scale</label>
+                <div class="settings-control">
+                  <select id="settings-color-scale" class="modal-select">
+                    <option value="viridis">Viridis</option>
+                    <option value="plasma">Plasma</option>
+                    <option value="magma">Magma</option>
+                    <option value="coolwarm">Cool-Warm</option>
+                    <option value="inferno">Inferno</option>
+                  </select>
+                  <div class="settings-hint">Used for gradient color-by on timeseries chart</div>
+                </div>
+              </div>
+              <div class="settings-row">
+                <label class="settings-label" for="settings-sidebar-collapsed">Sidebar default</label>
+                <div class="settings-control settings-toggle">
+                  <input id="settings-sidebar-collapsed" type="checkbox" aria-label="Start with sidebar collapsed">
+                  <span>Start with sidebar collapsed</span>
                 </div>
               </div>
             </div>

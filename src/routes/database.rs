@@ -91,6 +91,9 @@ pub async fn post_connect(
             .await?;
             let n = df.height();
             state.replace_dataset(df).await;
+            if let Some(ref tc) = body.time_column {
+                state.set_time_column_display_name(Some(tc.clone()));
+            }
             rows_loaded = Some(n);
             tracing::info!(rows = n, table = %table, "TimescaleDB snapshot loaded");
         }
@@ -266,6 +269,9 @@ pub async fn post_load(
 
     let n = df.height();
     let rev = state.replace_dataset(df).await;
+    if let Some(ref tc) = body.time_column {
+        state.set_time_column_display_name(Some(tc.clone()));
+    }
 
     // Update connection metadata.
     let mut info = state.db_info.write().await;

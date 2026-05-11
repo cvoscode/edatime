@@ -30,11 +30,14 @@ pub async fn upload_data(
     .map_err(|error| AppError::internal(format!("Failed to join upload task: {error:?}")))?
     .map_err(|error| AppError::bad_request(format!("Failed to parse uploaded file: {error}")))?;
 
-    state.replace_dataset(df.clone()).await;
+    let time_column_name = df.time_column_name.clone();
+    let row_count = df.df.height();
+    state.replace_dataset(df.df.clone()).await;
+    state.set_time_column_display_name(time_column_name);
 
     Ok(Json(serde_json::json!({
         "status": "success",
-        "rows": df.height(),
+        "rows": row_count,
     })))
 }
 

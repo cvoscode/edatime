@@ -29,18 +29,74 @@ export interface AppSettings {
 
     // Spectral (for Feature 9)
     defaultFftPreset: string;
+
+    // Timeseries chart preferences
+    drawAutoReset: boolean;
+    colorScale: ColorScaleName;
+    sidebarCollapsed: boolean;
+    analyticsDrawerOpen: boolean;
+}
+
+export type ColorScaleName = 'viridis' | 'plasma' | 'magma' | 'coolwarm' | 'inferno';
+
+/** Perceptually uniform colormaps for continuous color-by gradients. */
+export const COLOR_SCALES: Record<ColorScaleName, string[]> = {
+    viridis: [
+        '#440154','#482878','#3e4a89','#31688e','#26838f','#1f9d89','#35b779','#6ece58','#b5de2b','#fde725',
+    ],
+    plasma: [
+        '#0d0887','#5302a3','#8b0aa5','#b83289','#e16462','#fca636','#f0f921',
+    ],
+    magma: [
+        '#000004','#1b0c41','#4a0c6b','#781c6d','#a52c60','#cf4446','#f26b1d','#fca50a','#fca636','#fde725',
+    ],
+    coolwarm: [
+        '#3b4cc0','#6786d1','#9eb2de','#c9d3e8','#f7f7f7','#f4a582','#d6605a','#b2182b',
+    ],
+    inferno: [
+        '#000004','#1b0c41','#4a0c6b','#781c6d','#a52c60','#cf4446','#fca636','#fca50a','#fde725',
+    ],
+};
+
+/** Interpolate a COLOR_SCALE array to get a color for a normalized value v ∈ [0, 1]. */
+export function getColorFromScale(v: number, scaleName: ColorScaleName): string {
+    const colors = COLOR_SCALES[scaleName] ?? COLOR_SCALES.viridis;
+    const idx = Math.min(Math.max(v, 0), 1) * (colors.length - 1);
+    const lo = Math.floor(idx);
+    const hi = Math.ceil(idx);
+    const t = idx - lo;
+    return blendHex(colors[lo], colors[hi], t);
+}
+
+function blendHex(a: string, b: string, t: number): string {
+    const ah = a.replace('#', '');
+    const bh = b.replace('#', '');
+    const ar = parseInt(ah.slice(0, 2), 16);
+    const ag = parseInt(ah.slice(2, 4), 16);
+    const ab = parseInt(ah.slice(4, 6), 16);
+    const br = parseInt(bh.slice(0, 2), 16);
+    const bg = parseInt(bh.slice(2, 4), 16);
+    const bb = parseInt(bh.slice(4, 6), 16);
+    const r = Math.round(ar + (br - ar) * t);
+    const g = Math.round(ag + (bg - ag) * t);
+    const bv = Math.round(ab + (bb - ab) * t);
+    return '#' + [r, g, bv].map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
     theme: 'dark',
     layoutDensity: 'spacious',
     defaultPalette: 'default',
-    defaultExportFormat: 'png',
+    defaultExportFormat: 'csv',
     whiteBackgroundExport: false,
     defaultCorrelationMetric: 'pearson',
     defaultCausalMethod: 'pcmci',
     defaultTauMax: 5,
     defaultFftPreset: 'auto',
+    drawAutoReset: false,
+    colorScale: 'viridis',
+    sidebarCollapsed: false,
+    analyticsDrawerOpen: false,
 };
 
 /** Predefined color palettes for charts */

@@ -1,6 +1,16 @@
 use polars::prelude::*;
 use std::path::Path;
 
+/// Result of loading a DataFrame, containing the loaded frame and the
+/// original time column name before it was renamed to "ts".
+#[derive(Debug)]
+pub struct LoadResult {
+    pub df: DataFrame,
+    /// Original time column name (e.g. "timestamp", "time", "datetime").
+    /// This is the user-facing name, not the internal "ts" alias.
+    pub time_column_name: Option<String>,
+}
+
 /// Parameters for partial DataFrame loading.
 #[derive(Debug, Default)]
 pub struct IngestParams {
@@ -21,14 +31,14 @@ pub struct IngestParams {
     pub time_unit: Option<String>,
 }
 
-pub fn load_dataframe<P: AsRef<Path>>(path: P) -> PolarsResult<DataFrame> {
+pub fn load_dataframe<P: AsRef<Path>>(path: P) -> PolarsResult<LoadResult> {
     load_dataframe_partial(path, &IngestParams::default())
 }
 
 pub fn load_dataframe_partial<P: AsRef<Path>>(
     path: P,
     params: &IngestParams,
-) -> PolarsResult<DataFrame> {
+) -> PolarsResult<LoadResult> {
     let path_ref = path.as_ref();
     let is_parquet = path_ref.extension().is_some_and(|ext| ext == "parquet");
 
@@ -223,7 +233,10 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
         ));
     }
 
-    Ok(df)
+    Ok(LoadResult {
+        df,
+        time_column_name: Some(old_name),
+    })
 }
 
 #[cfg(test)]
@@ -244,7 +257,7 @@ mod tests {
             "time,value,other\n2024-01-01T00:00:00Z,1,10\n2024-01-01T00:00:01Z,2,20\n2024-01-01T00:00:02Z,3,30\n",
         );
 
-        let df = load_dataframe_partial(
+        let result = load_dataframe_partial(
             &path,
             &IngestParams {
                 n_rows: Some(2),
@@ -254,8 +267,8 @@ mod tests {
         )
         .expect("partial load");
 
-        assert_eq!(df.height(), 2);
-        let column_names = df
+        assert_eq!(result.df.height(), 2);
+        let column_names = result.df
             .get_column_names()
             .iter()
             .map(|name| name.as_str())
@@ -268,14 +281,14 @@ mod tests {
     #[test]
     fn partial_load_rejects_missing_temporal_column() {
         let path = write_temp_csv("value,other\n1,10\n2,20\n");
-        let err = load_dataframe_partial(&path, &IngestParams::default()).unwrap_err();
+        let err = load_dataframe_partial(&path, &IngestParams::default()).expect_err("should fail");
         assert!(err.to_string().contains("datetime column"));
     }
 
     #[test]
     fn partial_load_accepts_explicit_time_column() {
         let path = write_temp_csv("timekey,value\n1700000000,1\n1700000001,2\n");
-        let df = load_dataframe_partial(
+        let result = load_dataframe_partial(
             &path,
             &IngestParams {
                 time_column: Some("timekey".to_string()),
@@ -283,8 +296,8 @@ mod tests {
             },
         )
         .expect("partial load with explicit time column");
-        assert_eq!(df.height(), 2);
-        assert!(df.column("ts").is_ok());
-        assert!(df.column("value").is_ok());
+        assert_eq!(result.df.height(), 2);
+        assert!(result.df.column("ts").is_ok());
+        assert!(result.df.column("value").is_ok());
     }
 }

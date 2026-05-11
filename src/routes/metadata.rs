@@ -324,6 +324,7 @@ fn build_dataset_metadata_from_lazyframe(
 pub fn build_dataset_metadata(
     df: &DataFrame,
     include_histograms: bool,
+    time_column_display_name: Option<&str>,
 ) -> Result<DatasetMetadata, AppError> {
     let total_rows = df.height();
     let schema = df.schema();
@@ -341,8 +342,14 @@ pub fn build_dataset_metadata(
         let name = series.name().as_str().to_string();
         let dtype = series.dtype().clone();
 
+        let display_name = if name == "ts" && time_column_display_name.is_some() {
+            time_column_display_name.unwrap().to_string()
+        } else {
+            name.clone()
+        };
+
         columns.push(ColumnMetadata {
-            name: name.clone(),
+            name: display_name.clone(),
             dtype: dtype.to_string(),
         });
 
@@ -353,7 +360,7 @@ pub fn build_dataset_metadata(
         let null_count = series.null_count();
         let non_null_count = series.len().saturating_sub(null_count);
         let mut profile = ColumnProfile {
-            name: name.clone(),
+            name: display_name.clone(),
             dtype: dtype.to_string(),
             non_null_count,
             null_count,
@@ -434,12 +441,18 @@ pub fn build_dataset_metadata(
         })
     });
 
+    let time_column_for_response = if time_col_name == "ts" && time_column_display_name.is_some() {
+        Some(time_column_display_name.unwrap().to_string())
+    } else {
+        time_col.as_ref().map(|(name, _)| name.clone())
+    };
+
     Ok(DatasetMetadata {
         revision: 0,
         total_rows,
         columns,
         numeric_columns,
-        time_column: time_col.as_ref().map(|(name, _)| name.clone()),
+        time_column: time_column_for_response,
         time_range,
         column_profiles,
     })
@@ -481,9 +494,13 @@ pub async fn get_metadata(
 ) -> Result<Json<DatasetMetadata>, AppError> {
     let df = state.dataset_snapshot().await.read().await.clone();
     let revision = state.dataset_revision();
-    let mut metadata = tokio::task::spawn_blocking(move || build_dataset_metadata(&df, true))
-        .await
-        .map_err(|e| AppError::internal(format!("Failed to join metadata task: {e:?}")))??;
+    let time_col_display = state.time_column_display_name_sync();
+    let metadata = tokio::task::spawn_blocking(move || {
+        build_dataset_metadata(&df, true, time_col_display.as_deref())
+    })
+    .await
+    .map_err(|e| AppError::internal(format!("Failed to join metadata task: {e:?}")))??;
+    let mut metadata = metadata;
     metadata.revision = revision;
     Ok(Json(metadata))
 }
@@ -512,7 +529,7 @@ mod tests {
         )
         .expect("dataframe");
 
-        let metadata = build_dataset_metadata(&df, true).expect("metadata");
+        let metadata = build_dataset_metadata(&df, true, None).expect("metadata");
         assert_eq!(metadata.numeric_columns, vec!["value".to_string()]);
         assert_eq!(metadata.total_rows, 2);
         assert!(metadata.time_range.is_some());

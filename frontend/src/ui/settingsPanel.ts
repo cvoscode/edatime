@@ -10,6 +10,7 @@ import {
     type LayoutDensity,
     type ExportFormat,
     type CorrelationMetric,
+    type ColorScaleName,
     loadSettings,
     saveSettings,
     applyTheme,
@@ -76,6 +77,11 @@ function populateSettingsForm(settings: AppSettings): void {
     // Spectral tab
     setSelectValue('settings-fft-preset', settings.defaultFftPreset);
 
+    // Timeseries tab
+    setCheckboxValue('settings-draw-auto-reset', settings.drawAutoReset);
+    setSelectValue('settings-color-scale', settings.colorScale);
+    setCheckboxValue('settings-sidebar-collapsed', settings.sidebarCollapsed);
+
     // Render palette preview
     renderPalettePreview(settings.defaultPalette);
 }
@@ -92,6 +98,10 @@ function collectSettingsFromForm(): AppSettings {
         defaultCausalMethod: getSelectValue('settings-causal-method') || DEFAULT_SETTINGS.defaultCausalMethod,
         defaultTauMax: parseInt(getInputValue('settings-tau-max'), 10) || DEFAULT_SETTINGS.defaultTauMax,
         defaultFftPreset: getSelectValue('settings-fft-preset') || DEFAULT_SETTINGS.defaultFftPreset,
+        drawAutoReset: getCheckboxValue('settings-draw-auto-reset'),
+        colorScale: getSelectValue('settings-color-scale') as ColorScaleName || DEFAULT_SETTINGS.colorScale,
+        sidebarCollapsed: getCheckboxValue('settings-sidebar-collapsed'),
+        analyticsDrawerOpen: false,
     };
 }
 
