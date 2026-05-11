@@ -1,0 +1,137 @@
+.shell {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 200px;
+  min-width: 200px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4);
+  transition: width 0.2s ease, min-width 0.2s ease;
+  overflow: hidden;
+}
+
+.sidebar.collapsed {
+  width: 56px;
+  min-width: 56px;
+  padding: var(--space-3);
+}
+
+.toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: var(--space-2);
+  margin-bottom: var(--space-2);
+  color: var(--color-text-muted);
+  align-self: flex-end;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  transition: color 0.15s;
+}
+
+.toggle:hover {
+  color: var(--color-accent);
+}
+
+.logo {
+  font-size: var(--font-xl);
+  font-weight: 700;
+  color: var(--color-accent);
+  padding: var(--space-4) 0;
+  margin-bottom: var(--space-4);
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 0.2s ease, height 0.2s ease;
+  height: 40px;
+}
+
+.sidebar.collapsed .logo {
+  opacity: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: var(--font-md);
+  transition: background 0.15s, color 0.15s;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .navItem {
+  justify-content: center;
+  padding: var(--space-2);
+}
+
+.sidebar.collapsed .label {
+  display: none;
+}
+
+.navItem:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.navItem.active {
+  background: rgba(74, 158, 255, 0.15);
+  color: var(--color-accent);
+}
+
+.symbol {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.footer {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.version {
+  font-size: var(--font-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .version {
+  display: none;
+}
+
+.sidebar.collapsed .footer {
+  border-top: none;
+}
+
+.main {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}

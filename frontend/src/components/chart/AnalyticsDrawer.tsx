@@ -1,0 +1,91 @@
+import { Component, Show, createSignal } from 'solid-js';
+import { SwitchToggle, RangeSlider } from '../ui';
+import styles from './AnalyticsDrawer.module.css';
+
+interface AnalyticsDrawerProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+const AnalyticsDrawer: Component<AnalyticsDrawerProps> = (props) => {
+  const [rollingEnabled, setRollingEnabled] = createSignal(false);
+  const [rollingWindow, setRollingWindow] = createSignal(50);
+  const [anomalyEnabled, setAnomalyEnabled] = createSignal(false);
+  const [anomalyMethod, setAnomalyMethod] = createSignal('zscore');
+  const [anomalyThreshold, setAnomalyThreshold] = createSignal(3);
+
+  return (
+    <Show when={props.open}>
+      <div class={styles.drawer}>
+        <div class={styles.header}>
+          <span class={styles.title}>Analytics</span>
+          <button class={styles.closeBtn} onClick={props.onClose} aria-label="Close">×</button>
+        </div>
+        <div class={styles.body}>
+          <div class={styles.section}>
+            <div class={styles.sectionTitle}>Rolling bands</div>
+            <label class={styles.toggleLabel}>
+              <SwitchToggle
+                checked={rollingEnabled()}
+                onChange={(e) => setRollingEnabled(e.currentTarget.checked)}
+              />
+              <span>Show rolling mean ± σ bands</span>
+            </label>
+            <div class={styles.field}>
+              <label for="rolling-window-input">Window size</label>
+              <input
+                type="number"
+                id="rolling-window-input"
+                value={rollingWindow()}
+                min="2"
+                step="1"
+                onChange={(e) => setRollingWindow(parseInt(e.currentTarget.value) || 50)}
+              />
+            </div>
+          </div>
+
+          <div class={styles.section}>
+            <div class={styles.sectionTitle}>Anomalies</div>
+            <label class={styles.toggleLabel}>
+              <SwitchToggle
+                checked={anomalyEnabled()}
+                onChange={(e) => setAnomalyEnabled(e.currentTarget.checked)}
+              />
+              <span>Enable anomaly detection regions</span>
+            </label>
+            <div class={styles.field}>
+              <label for="anomaly-method-select">Method</label>
+              <select
+                id="anomaly-method-select"
+                value={anomalyMethod()}
+                onChange={(e) => setAnomalyMethod(e.currentTarget.value)}
+              >
+                <option value="zscore">Z-score</option>
+                <option value="iqr">IQR</option>
+              </select>
+            </div>
+            <div class={styles.field}>
+              <label for="anomaly-threshold-input">Threshold</label>
+              <input
+                type="number"
+                id="anomaly-threshold-input"
+                value={anomalyThreshold()}
+                min="0.5"
+                step="0.5"
+                onChange={(e) => setAnomalyThreshold(parseFloat(e.currentTarget.value) || 3)}
+              />
+            </div>
+          </div>
+
+          <div class={styles.section}>
+            <div class={styles.sectionTitle}>Dataset tools</div>
+            <button class={styles.toolBtn} id="transform-btn" type="button">Transform…</button>
+            <button class={styles.toolBtn} id="outliers-btn" type="button">Outliers…</button>
+          </div>
+        </div>
+      </div>
+    </Show>
+  );
+};
+
+export default AnalyticsDrawer;

@@ -1,1 +1,0 @@
-{"version":3,"file":"checkWebGPU.d.ts","sourceRoot":"","sources":["../../../src/utils/checkWebGPU.ts"],"names":[],"mappings":"AAAA;;;;;GAKG;AAEH;;GAEG;AACH,MAAM,WAAW,mBAAmB;IAClC,gDAAgD;IAChD,QAAQ,CAAC,SAAS,EAAE,OAAO,CAAC;IAC5B,6DAA6D;IAC7D,QAAQ,CAAC,MAAM,CAAC,EAAE,MAAM,CAAC;CAC1B;AAKD;;;;;;;;;;;;;;;;;;;;;GAqBG;AACH,wBAAsB,kBAAkB,IAAI,OAAO,CAAC,mBAAmB,CAAC,CA0EvE"}

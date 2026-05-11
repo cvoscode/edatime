@@ -1,0 +1,137 @@
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]: EdaTime
+      - button "Home" [ref=e7] [cursor=pointer]:
+        - img [ref=e9]
+        - generic [ref=e12]: Home
+      - generic [ref=e13]: Core workflow
+      - button "Upload" [ref=e14] [cursor=pointer]:
+        - img [ref=e16]
+        - generic [ref=e19]: Upload
+        - generic [ref=e20]: ⌥1
+      - button "Timeseries" [ref=e21] [cursor=pointer]:
+        - img [ref=e23]
+        - generic [ref=e25]: Timeseries
+        - generic [ref=e26]: ⌥2
+      - button "Correlations" [ref=e27] [cursor=pointer]:
+        - img [ref=e29]
+        - generic [ref=e39]: Correlations
+        - generic [ref=e40]: ⌥7
+      - button "Scatter" [ref=e41] [cursor=pointer]:
+        - img [ref=e43]
+        - generic [ref=e49]: Scatter
+        - generic [ref=e50]: ⌥3
+      - generic [ref=e51]: Advanced analysis
+      - button "FFT / PSD" [ref=e52] [cursor=pointer]:
+        - img [ref=e54]
+        - generic [ref=e56]: FFT
+        - generic [ref=e57]: ⌥6
+      - button "Spectrogram" [ref=e58] [cursor=pointer]:
+        - img [ref=e60]
+        - generic [ref=e66]: Spectrogram
+        - generic [ref=e67]: ⌥8
+      - button "Causal Graph" [ref=e68] [cursor=pointer]:
+        - img [ref=e70]
+        - generic [ref=e76]: Causal
+        - generic [ref=e77]: ⌥9
+      - button "Drift Analysis" [ref=e78] [cursor=pointer]:
+        - img [ref=e80]
+        - generic [ref=e86]: Drift
+        - generic [ref=e87]: ⌥0
+      - button "Collapse sidebar" [ref=e89] [cursor=pointer]:
+        - img [ref=e91]
+        - generic [ref=e92]: Collapse
+    - generic [ref=e93]:
+      - banner [ref=e94]:
+        - generic [ref=e95]:
+          - img [ref=e97]
+          - generic [ref=e99]: EdaTime
+        - generic [ref=e100]:
+          - generic "Data freshness" [ref=e101]:
+            - generic [ref=e103]: —
+          - button "Show keyboard shortcuts" [ref=e104] [cursor=pointer]:
+            - img [ref=e105]
+          - button "Open settings" [active] [ref=e107] [cursor=pointer]:
+            - img [ref=e108]
+          - button "Toggle guided workflow" [pressed] [ref=e111] [cursor=pointer]: Guide
+          - button "Toggle light/dark theme" [ref=e112] [cursor=pointer]:
+            - img [ref=e113]
+            - img [ref=e115]
+          - generic [ref=e121]:
+            - img [ref=e122]
+            - generic [ref=e124]: Loading…
+          - button "Toggle analysis context panel" [ref=e125] [cursor=pointer]:
+            - img [ref=e126]
+            - generic [ref=e129]: Context
+      - generic [ref=e132]:
+        - generic [ref=e133]:
+          - tablist "Upload source" [ref=e134]:
+            - tab "File" [selected] [ref=e135] [cursor=pointer]
+            - tab "Database" [ref=e136] [cursor=pointer]
+          - generic [ref=e137]:
+            - button "Drop CSV or Parquet file here or browse for a file" [ref=e138] [cursor=pointer]:
+              - img [ref=e139]
+              - generic [ref=e142]: Drop CSV or Parquet here
+              - generic [ref=e143]: or
+              - button "Browse file" [ref=e144]
+              - status [ref=e145]
+            - generic [ref=e146]:
+              - generic [ref=e147]: Load options
+              - generic [ref=e148] [cursor=pointer]:
+                - checkbox "Enable partial load options" [ref=e150]
+                - generic [ref=e152]:
+                  - generic [ref=e153]: Partial load
+                  - generic [ref=e154]: Limit the rows ingested from the file
+              - generic:
+                - generic [ref=e155]:
+                  - generic [ref=e156]: Max rows to load
+                  - generic [ref=e157]:
+                    - spinbutton "Maximum rows to load" [ref=e158]
+                    - slider "Max rows slider" [ref=e159] [cursor=pointer]: "1000000"
+                    - generic [ref=e160]: 1 000 000
+                - generic [ref=e161]:
+                  - generic [ref=e162]: Skip first N rows
+                  - spinbutton "Skip first N rows" [ref=e164]: "0"
+                  - generic [ref=e165]: Skip rows at the top of the file (e.g., header rows)
+                - generic [ref=e166]:
+                  - generic [ref=e167]: Time range (optional)
+                  - generic [ref=e168]:
+                    - textbox "Start time" [ref=e169]
+                    - textbox "End time" [ref=e170]
+                  - generic [ref=e171]: Detected range will appear after preview.
+                - generic [ref=e172]:
+                  - generic [ref=e173]: Time column
+                  - combobox "Time column" [ref=e174] [cursor=pointer]:
+                    - option "Auto-detect" [selected]
+                  - generic [ref=e175]: Required when file has multiple time-like columns
+            - generic [ref=e176]:
+              - button "Upload & Ingest" [ref=e177] [cursor=pointer]:
+                - img [ref=e178]
+                - text: Upload & Ingest
+              - status [ref=e181]
+        - generic [ref=e182]:
+          - generic [ref=e183]:
+            - generic [ref=e184]: File Preview
+            - generic [ref=e185]: Current dataset
+            - generic [ref=e186]:
+              - button "All" [ref=e187] [cursor=pointer]
+              - button "None" [ref=e188] [cursor=pointer]
+            - textbox "Filter profile columns" [ref=e189]:
+              - /placeholder: Filter columns…
+            - status [ref=e190]: Select a file to preview columns
+          - generic [ref=e191]: Column profile preview with selectable columns for upload ingestion.
+          - table "Column profile table" [ref=e192]:
+            - row "Select all upload columns Column Type Non-null Nulls Min Max Distribution" [ref=e193]:
+              - columnheader "Select all upload columns" [ref=e194]:
+                - checkbox "Select all upload columns" [ref=e195] [cursor=pointer]
+              - columnheader "Column" [ref=e196]
+              - columnheader "Type" [ref=e197]
+              - columnheader "Non-null" [ref=e198]
+              - columnheader "Nulls" [ref=e199]
+              - columnheader "Min" [ref=e200]
+              - columnheader "Max" [ref=e201]
+              - columnheader "Distribution" [ref=e202]
+            - rowgroup [ref=e203]

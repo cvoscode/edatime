@@ -1,0 +1,246 @@
+[     146ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5174/frontend/libs/chartgpu/index.js?import:0
+[     146ms] [WARNING] ChartGPU not available, chart rendering disabled: TypeError: Failed to fetch dynamically imported module: http://localhost:5174/frontend/libs/chartgpu/index.js?import @ http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535395543:26
+[   21096ms] [WARNING] ChartGPU not available: SyntaxError: Unexpected token 'export'
+    at new Function (<anonymous>)
+    at http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535432271:20:18 @ http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535432271:30
+[   51320ms] [WARNING] ChartGPU not available: Error: DataChart not found on window
+    at http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535462439:28:29 @ http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535462439:32
+[  195931ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5174/@vite/client:963
+[  195932ms] [ERROR] WebSocket connection to 'ws://localhost:5174/' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/@vite/client:1034
+[  197210ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5174/frontend/libs/chartgpu/index.js:0
+[  197210ms] [WARNING] ChartGPU not available: Error: Script failed to load
+    at script.onerror (http://localhost:5174/src/components/chart/ChartView.tsx:23:39) @ http://localhost:5174/src/components/chart/ChartView.tsx:32
+[  220976ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5174/frontend/libs/chartgpu/index.js:0
+[  220976ms] [WARNING] ChartGPU not available: Error: ChartGPU fetch failed: 404
+    at http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535632210:20:27 @ http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535632210:36
+[  263366ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5174/frontend/libs/chartgpu/index.js:0
+[  263366ms] [WARNING] ChartGPU not available: Error: ChartGPU fetch failed: 404
+    at http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535674602:21:27 @ http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535674602:37
+[  293197ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5174/frontend/libs/chartgpu/index.js:0
+[  293197ms] [WARNING] ChartGPU not available: Error: ChartGPU fetch failed: 404
+    at http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535704431:21:27 @ http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535704431:37
+[  326895ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ http://localhost:5174/src/App.tsx?t=1778535738134:0
+[  326895ms] [ERROR] [vite] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326896ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326898ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/index.tsx?t=1778535738135:0
+[  326898ms] [ERROR] [vite] Failed to reload /src/index.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326898ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:216:25
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326900ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/components/chart/AnalyticsDrawer.tsx?t=1778535738135:0
+[  326900ms] [ERROR] [vite] Failed to reload /src/components/chart/AnalyticsDrawer.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326900ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326901ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535738135:0
+[  326902ms] [ERROR] [vite] Failed to reload /src/components/chart/ChartView.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326902ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326903ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/components/chart/ColumnChips.tsx?t=1778535738135:0
+[  326903ms] [ERROR] [vite] Failed to reload /src/components/chart/ColumnChips.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326903ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326905ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/components/layout/AppShell.tsx?t=1778535738135:0
+[  326905ms] [ERROR] [vite] Failed to reload /src/components/layout/AppShell.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326905ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326906ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/components/ui/Button.tsx?t=1778535738135:0
+[  326906ms] [ERROR] [vite] Failed to reload /src/components/ui/Button.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326906ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326907ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/components/ui/Chip.tsx?t=1778535738135:0
+[  326908ms] [ERROR] [vite] Failed to reload /src/components/ui/Chip.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326908ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326909ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/components/ui/Dropdown.tsx?t=1778535738135:0
+[  326909ms] [ERROR] [vite] Failed to reload /src/components/ui/Dropdown.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326909ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326910ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/components/ui/Input.tsx?t=1778535738135:0
+[  326910ms] [ERROR] [vite] Failed to reload /src/components/ui/Input.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326910ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326911ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/components/ui/Modal.tsx?t=1778535738135:0
+[  326911ms] [ERROR] [vite] Failed to reload /src/components/ui/Modal.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326911ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326912ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/components/ui/RangeSlider.tsx?t=1778535738135:0
+[  326912ms] [ERROR] [vite] Failed to reload /src/components/ui/RangeSlider.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326912ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326913ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/components/ui/SwitchToggle.tsx?t=1778535738135:0
+[  326913ms] [ERROR] [vite] Failed to reload /src/components/ui/SwitchToggle.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326913ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326914ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/components/ui/Tabs.tsx?t=1778535738135:0
+[  326914ms] [ERROR] [vite] Failed to reload /src/components/ui/Tabs.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326915ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326915ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/components/ui/Toast.tsx?t=1778535738135:0
+[  326915ms] [ERROR] [vite] Failed to reload /src/components/ui/Toast.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326916ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326916ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/components/ui/Tooltip.tsx?t=1778535738135:0
+[  326916ms] [ERROR] [vite] Failed to reload /src/components/ui/Tooltip.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326916ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326917ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/pages/TimeseriesPage.tsx?t=1778535738135:0
+[  326917ms] [ERROR] [vite] Failed to reload /src/pages/TimeseriesPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326917ms] [ERROR] [vite] Error: send was called before connect
+    at Object.send (http://localhost:5174/@vite/client:414:17)
+    at HMRClient.send (http://localhost:5174/@vite/client:136:20)
+    at HMRContext.send (http://localhost:5174/@vite/client:100:20)
+    at HMRContext.invalidate (http://localhost:5174/@vite/client:65:10)
+    at http://localhost:5174/@solid-refresh:280:21
+    at http://localhost:5174/@vite/client:34:58
+    at http://localhost:5174/@vite/client:213:11
+    at http://localhost:5174/@vite/client:186:58
+    at Array.forEach (<anonymous>)
+    at HMRClient.queueUpdate (http://localhost:5174/@vite/client:186:36) @ http://localhost:5174/@vite/client:881
+[  326918ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/src/styles/global.css?t=1778535738135:0
+[  326918ms] [ERROR] [vite] Failed to reload /src/styles/global.css. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[  326918ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5174/@vite/client:963
+[  326919ms] [ERROR] WebSocket connection to 'ws://localhost:5174/' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/@vite/client:1034

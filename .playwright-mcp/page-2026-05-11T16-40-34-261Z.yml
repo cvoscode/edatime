@@ -1,0 +1,124 @@
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]: EdaTime
+      - button "Home" [ref=e7] [cursor=pointer]:
+        - img [ref=e9]
+        - generic [ref=e12]: Home
+      - generic [ref=e13]: Core workflow
+      - button "Upload" [ref=e14] [cursor=pointer]:
+        - img [ref=e16]
+        - generic [ref=e19]: Upload
+        - generic [ref=e20]: ⌥1
+      - button "Timeseries" [ref=e21] [cursor=pointer]:
+        - img [ref=e23]
+        - generic [ref=e25]: Timeseries
+        - generic [ref=e26]: ⌥2
+      - button "Correlations" [ref=e27] [cursor=pointer]:
+        - img [ref=e29]
+        - generic [ref=e39]: Correlations
+        - generic [ref=e40]: ⌥7
+      - button "Scatter" [ref=e41] [cursor=pointer]:
+        - img [ref=e43]
+        - generic [ref=e49]: Scatter
+        - generic [ref=e50]: ⌥3
+      - generic [ref=e51]: Advanced analysis
+      - button "FFT / PSD" [ref=e52] [cursor=pointer]:
+        - img [ref=e54]
+        - generic [ref=e56]: FFT
+        - generic [ref=e57]: ⌥6
+      - button "Spectrogram" [ref=e58] [cursor=pointer]:
+        - img [ref=e60]
+        - generic [ref=e66]: Spectrogram
+        - generic [ref=e67]: ⌥8
+      - button "Causal Graph" [ref=e68] [cursor=pointer]:
+        - img [ref=e70]
+        - generic [ref=e76]: Causal
+        - generic [ref=e77]: ⌥9
+      - button "Drift Analysis" [ref=e78] [cursor=pointer]:
+        - img [ref=e80]
+        - generic [ref=e86]: Drift
+        - generic [ref=e87]: ⌥0
+      - button "Settings" [ref=e89] [cursor=pointer]:
+        - img [ref=e91]
+        - generic [ref=e94]: Settings
+      - button "Collapse sidebar" [ref=e95] [cursor=pointer]:
+        - img [ref=e97]
+        - generic [ref=e98]: Collapse
+    - generic [ref=e99]:
+      - banner [ref=e100]:
+        - generic [ref=e101]:
+          - img [ref=e103]
+          - generic [ref=e105]: EdaTime
+        - generic [ref=e106]:
+          - generic [ref=e107]:
+            - strong [ref=e108]: —
+            - text: rows
+          - generic [ref=e109]:
+            - strong [ref=e110]: —
+            - text: numeric series
+      - generic [ref=e111]:
+        - generic [ref=e403]:
+          - generic [ref=e404]:
+            - generic [ref=e405]: Guided Workflow
+            - generic [ref=e406]: Set X and Y for the deep dive
+            - paragraph [ref=e407]: Pick two numeric columns so this step can validate the shape, spread, and filter sensitivity of the relationship.
+          - button "Hide Guide" [ref=e409] [cursor=pointer]
+        - generic [ref=e410]:
+          - button "Upload" [ref=e411]: Upload
+          - button "Timeseries" [ref=e412]: Timeseries
+          - button "Correlations" [ref=e413]: Correlations
+          - button "Scatter" [ref=e414]: Scatter
+          - button "Causal" [ref=e415]: Causal
+      - generic [ref=e477]:
+        - generic [ref=e478]:
+          - generic [ref=e479]:
+            - generic [ref=e480]: Correlation Heatmap
+            - generic [ref=e481]: Metric
+            - combobox "Correlation metric" [ref=e482] [cursor=pointer]:
+              - option "Pearson" [selected]
+              - option "Spearman"
+            - generic [ref=e483]: Size
+            - slider "Heatmap cell size" [ref=e484] [cursor=pointer]: "36"
+            - generic [ref=e485]: "36"
+          - generic [ref=e486]:
+            - group [ref=e487]:
+              - generic "Export Image + CSV" [ref=e488] [cursor=pointer]:
+                - generic [ref=e489]: Export
+                - generic [ref=e490]: Image + CSV
+            - generic [ref=e491]: Loading…
+        - main [ref=e492]
+      - text: ↑
+      - generic [ref=e324]:
+        - generic [ref=e325]:
+          - generic [ref=e326]: Analytics
+          - button "Close" [ref=e327]: ×
+        - generic [ref=e328]:
+          - generic [ref=e329]:
+            - generic [ref=e330]: Rolling bands
+            - generic "Show rolling mean ± σ bands" [ref=e331] [cursor=pointer]:
+              - checkbox "Show rolling mean ± σ bands" [ref=e332]
+              - generic [ref=e333]: Show mean ± σ bands
+          - generic [ref=e334]:
+            - generic "Rolling window size (number of points)" [ref=e335]: Window size
+            - spinbutton "Rolling window size (number of points)" [ref=e336]: "50"
+          - generic [ref=e337]:
+            - generic [ref=e338]: Anomalies
+            - generic "Show anomaly detection regions" [ref=e339] [cursor=pointer]:
+              - checkbox "Enable anomaly detection regions" [ref=e340]
+              - generic [ref=e341]: Enable regions
+          - generic [ref=e342]:
+            - generic [ref=e343]: Method
+            - combobox "Method Z-score IQR" [ref=e344] [cursor=pointer]:
+              - option "Z-score" [selected]
+              - option "IQR"
+          - generic [ref=e345]:
+            - generic [ref=e346]: Threshold
+            - spinbutton "Threshold" [ref=e347]: "3"
+          - generic [ref=e348]:
+            - generic [ref=e349]: Dataset tools
+            - generic [ref=e350]:
+              - button "Transform…" [ref=e351] [cursor=pointer]
+              - button "Outliers…" [ref=e352] [cursor=pointer]

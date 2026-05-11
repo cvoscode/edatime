@@ -1,0 +1,221 @@
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]: EdaTime
+      - button "Home" [active] [ref=e7] [cursor=pointer]:
+        - img [ref=e9]
+        - generic [ref=e12]: Home
+      - generic [ref=e13]: Core workflow
+      - button "Upload" [ref=e14] [cursor=pointer]:
+        - img [ref=e16]
+        - generic [ref=e19]: Upload
+        - generic [ref=e20]: ⌥1
+      - button "Timeseries" [ref=e21] [cursor=pointer]:
+        - img [ref=e23]
+        - generic [ref=e25]: Timeseries
+        - generic [ref=e26]: ⌥2
+      - button "Correlations" [ref=e27] [cursor=pointer]:
+        - img [ref=e29]
+        - generic [ref=e39]: Correlations
+        - generic [ref=e40]: ⌥7
+      - button "Scatter" [ref=e41] [cursor=pointer]:
+        - img [ref=e43]
+        - generic [ref=e49]: Scatter
+        - generic [ref=e50]: ⌥3
+      - generic [ref=e51]: Advanced analysis
+      - button "FFT / PSD" [ref=e52] [cursor=pointer]:
+        - img [ref=e54]
+        - generic [ref=e56]: FFT
+        - generic [ref=e57]: ⌥6
+      - button "Spectrogram" [ref=e58] [cursor=pointer]:
+        - img [ref=e60]
+        - generic [ref=e66]: Spectrogram
+        - generic [ref=e67]: ⌥8
+      - button "Causal Graph" [ref=e68] [cursor=pointer]:
+        - img [ref=e70]
+        - generic [ref=e76]: Causal
+        - generic [ref=e77]: ⌥9
+      - button "Drift Analysis" [ref=e78] [cursor=pointer]:
+        - img [ref=e80]
+        - generic [ref=e86]: Drift
+        - generic [ref=e87]: ⌥0
+      - button "Settings" [ref=e89] [cursor=pointer]:
+        - img [ref=e91]
+        - generic [ref=e94]: Settings
+      - button "Collapse sidebar" [ref=e95] [cursor=pointer]:
+        - img [ref=e97]
+        - generic [ref=e98]: Collapse
+    - generic [ref=e99]:
+      - banner [ref=e100]:
+        - generic [ref=e101]:
+          - img [ref=e103]
+          - generic [ref=e105]: EdaTime
+        - generic [ref=e106]:
+          - generic [ref=e324]:
+            - strong [ref=e325]: 69,680
+            - text: rows
+          - generic [ref=e326]:
+            - strong [ref=e327]: "7"
+            - text: numeric series
+      - generic [ref=e414]:
+        - generic [ref=e415]:
+          - generic [ref=e416]: Guided Workflow
+          - generic [ref=e417]: ✓ 2 completed
+          - generic [ref=e418]: → Correlations
+        - generic [ref=e419]:
+          - button "Open Heatmap" [ref=e420] [cursor=pointer]
+          - button "✕" [ref=e421] [cursor=pointer]
+      - generic [ref=e126]:
+        - generic [ref=e127]:
+          - img [ref=e129]
+          - heading "EdaTime" [level=1] [ref=e131]
+          - paragraph [ref=e132]: Interactive time-series analytics — upload a CSV or Parquet, explore, and export.
+          - button "Upload a file to get started" [ref=e133] [cursor=pointer]:
+            - img [ref=e134]
+            - text: Upload a file to get started
+        - generic [ref=e137]:
+          - heading "Try with sample data" [level=2] [ref=e138]
+          - paragraph [ref=e139]: Load built-in datasets to explore the workflow without preparing a file.
+          - generic [ref=e140]:
+            - button "Load ETTm2 sample dataset" [ref=e141] [cursor=pointer]:
+              - generic [ref=e142]:
+                - img [ref=e144]
+                - generic [ref=e146]:
+                  - generic [ref=e147]: ETTm2 Sensor Data
+                  - generic [ref=e148]: Electrical transformer monitoring
+              - paragraph [ref=e149]: Time series with multiple sensor readings including temperature, pressure, and power metrics.
+              - generic [ref=e150]:
+                - generic [ref=e151]: Time-series
+                - generic [ref=e152]: 69K rows
+                - generic [ref=e153]: 7 columns
+            - button "Load Sinusoidal Waves sample dataset" [ref=e154] [cursor=pointer]:
+              - generic [ref=e155]:
+                - img [ref=e157]
+                - generic [ref=e159]:
+                  - generic [ref=e160]: Sinusoidal Waves
+                  - generic [ref=e161]: Generated periodic signals
+              - paragraph [ref=e162]: Multiple sine waves with different frequencies for testing FFT and spectral analysis features.
+              - generic [ref=e163]:
+                - generic [ref=e164]: FFT
+                - generic [ref=e165]: 10K rows
+                - generic [ref=e166]: 4 columns
+            - button "Load Weather Patterns sample dataset" [ref=e167] [cursor=pointer]:
+              - generic [ref=e168]:
+                - img [ref=e170]
+                - generic [ref=e177]:
+                  - generic [ref=e178]: Weather Patterns
+                  - generic [ref=e179]: Temperature and humidity readings
+              - paragraph [ref=e180]: Environmental sensor data with correlated temperature, humidity, and pressure readings.
+              - generic [ref=e181]:
+                - generic [ref=e182]: Correlations
+                - generic [ref=e183]: 50K rows
+                - generic [ref=e184]: 6 columns
+        - generic [ref=e185]:
+          - heading "Recommended workflow" [level=2] [ref=e186]
+          - paragraph [ref=e187]: Start with the core path, then branch into advanced analyses only after you know which columns and intervals matter.
+        - generic [ref=e188]:
+          - button "Upload ⌥1 Drag & drop CSV or Parquet files. Preview column profiles before ingesting. Select a column subset and time slice for partial loads." [ref=e189] [cursor=pointer]:
+            - img [ref=e191]
+            - heading "Upload ⌥1" [level=3] [ref=e194]:
+              - text: Upload
+              - generic [ref=e195]: ⌥1
+            - paragraph [ref=e196]: Drag & drop CSV or Parquet files. Preview column profiles before ingesting. Select a column subset and time slice for partial loads.
+          - button "Timeseries ⌥2 WebGPU-accelerated multi-series chart with zoom, custom colors, rolling bands, anomaly detection, and adaptive line filters." [ref=e197] [cursor=pointer]:
+            - img [ref=e199]
+            - heading "Timeseries ⌥2" [level=3] [ref=e201]:
+              - text: Timeseries
+              - generic [ref=e202]: ⌥2
+            - paragraph [ref=e203]: WebGPU-accelerated multi-series chart with zoom, custom colors, rolling bands, anomaly detection, and adaptive line filters.
+          - button "Correlations ⌥7 Screen pairs in the correlation heatmap, then jump into the detailed scatter view for the promising relationships." [ref=e204] [cursor=pointer]:
+            - img [ref=e206]
+            - heading "Correlations ⌥7" [level=3] [ref=e216]:
+              - text: Correlations
+              - generic [ref=e217]: ⌥7
+            - paragraph [ref=e218]: Screen pairs in the correlation heatmap, then jump into the detailed scatter view for the promising relationships.
+          - button "Scatter / Density ⌥3 Inspect the selected pair in detail, color by an extra column, and switch to matrix view with ⌥4 for pairwise screening inside the same workspace." [ref=e219] [cursor=pointer]:
+            - img [ref=e221]
+            - heading "Scatter / Density ⌥3" [level=3] [ref=e227]:
+              - text: Scatter / Density
+              - generic [ref=e228]: ⌥3
+            - paragraph [ref=e229]: Inspect the selected pair in detail, color by an extra column, and switch to matrix view with ⌥4 for pairwise screening inside the same workspace.
+        - generic [ref=e230]:
+          - heading "Advanced analyses" [level=2] [ref=e231]
+          - paragraph [ref=e232]: Use these pages after the workflow above has narrowed the signal, time window, or candidate variables.
+        - generic [ref=e233]:
+          - button "FFT / PSD ⌥6 Frequency-domain analysis with magnitude or power spectral density. Log scale, multi-trace overlay, zoom, and PNG/SVG/CSV export." [ref=e234] [cursor=pointer]:
+            - img [ref=e236]
+            - heading "FFT / PSD ⌥6" [level=3] [ref=e238]:
+              - text: FFT / PSD
+              - generic [ref=e239]: ⌥6
+            - paragraph [ref=e240]: Frequency-domain analysis with magnitude or power spectral density. Log scale, multi-trace overlay, zoom, and PNG/SVG/CSV export.
+          - button "Spectrogram ⌥8 Time-frequency heatmap using short-time FFT. Adjustable window size, log scale, zoom, and PNG export." [ref=e241] [cursor=pointer]:
+            - img [ref=e243]
+            - heading "Spectrogram ⌥8" [level=3] [ref=e249]:
+              - text: Spectrogram
+              - generic [ref=e250]: ⌥8
+            - paragraph [ref=e251]: Time-frequency heatmap using short-time FFT. Adjustable window size, log scale, zoom, and PNG export.
+          - button "Causal Discovery ⌥9 PCMCI, PCMCI+, FullCI, BivCI, and LPCMCI via Tigramite. Directed graph with edge lag and p-value labels. Export to JSON or torch_geometric." [ref=e252] [cursor=pointer]:
+            - img [ref=e254]
+            - heading "Causal Discovery ⌥9" [level=3] [ref=e260]:
+              - text: Causal Discovery
+              - generic [ref=e261]: ⌥9
+            - paragraph [ref=e262]: PCMCI, PCMCI+, FullCI, BivCI, and LPCMCI via Tigramite. Directed graph with edge lag and p-value labels. Export to JSON or torch_geometric.
+          - button "Drift Analysis ⌥0 Compare windows and detect distribution or score shifts once the main workflow has identified the slices worth monitoring." [ref=e263] [cursor=pointer]:
+            - img [ref=e265]
+            - heading "Drift Analysis ⌥0" [level=3] [ref=e271]:
+              - text: Drift Analysis
+              - generic [ref=e272]: ⌥0
+            - paragraph [ref=e273]: Compare windows and detect distribution or score shifts once the main workflow has identified the slices worth monitoring.
+        - generic [ref=e274]:
+          - heading "Keyboard shortcuts" [level=2] [ref=e275]
+          - generic [ref=e276]:
+            - generic [ref=e277]:
+              - heading "Navigation" [level=4] [ref=e278]
+              - generic [ref=e279]:
+                - generic [ref=e280]: ⌥1–3, 6–0
+                - generic [ref=e281]: Switch major pages
+              - generic [ref=e282]:
+                - generic [ref=e283]: ⌥4
+                - generic [ref=e284]: Open scatter matrix view
+              - generic [ref=e285]:
+                - generic [ref=e286]: Ctrl+K
+                - generic [ref=e287]: Command palette
+              - generic [ref=e288]:
+                - generic [ref=e289]: Ctrl+I
+                - generic [ref=e290]: Analysis context panel
+            - generic [ref=e291]:
+              - heading "Chart" [level=4] [ref=e292]
+              - generic [ref=e293]:
+                - generic [ref=e294]: Double-click
+                - generic [ref=e295]: Reset zoom
+              - generic [ref=e296]:
+                - generic [ref=e297]: Ctrl+click
+                - generic [ref=e298]: Set adaptive filter target
+              - generic [ref=e299]:
+                - generic [ref=e300]: Drag
+                - generic [ref=e301]: Pan / draw
+            - generic [ref=e302]:
+              - heading "Session" [level=4] [ref=e303]
+              - generic [ref=e304]:
+                - generic [ref=e305]: Ctrl+S
+                - generic [ref=e306]: Save session
+              - generic [ref=e307]:
+                - generic [ref=e308]: Ctrl+Shift+S
+                - generic [ref=e309]: Export session file
+              - generic [ref=e310]:
+                - generic [ref=e311]: Ctrl+O
+                - generic [ref=e312]: Import session file
+            - generic [ref=e313]:
+              - heading "Drift" [level=4] [ref=e314]
+              - generic [ref=e315]:
+                - generic [ref=e316]: Enter / D
+                - generic [ref=e317]: Run drift compute
+              - generic [ref=e318]:
+                - generic [ref=e319]: E
+                - generic [ref=e320]: Export drift CSV
+              - generic [ref=e321]:
+                - generic [ref=e322]: J / P
+                - generic [ref=e323]: Export JSON / PNG
+      - text: ↑

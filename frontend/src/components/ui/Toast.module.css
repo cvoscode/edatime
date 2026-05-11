@@ -1,0 +1,69 @@
+.container {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  z-index: 1100;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  pointer-events: auto;
+  min-width: 280px;
+  max-width: 400px;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.icon {
+  font-size: var(--font-lg);
+  width: 20px;
+  text-align: center;
+}
+
+.message {
+  flex: 1;
+  font-size: var(--font-md);
+}
+
+.dismiss {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+}
+
+.dismiss:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+/* Types */
+.info .icon { color: var(--color-accent); }
+.success .icon { color: var(--color-success); }
+.warning .icon { color: #ffaa4a; }
+.error .icon { color: var(--color-danger); }

@@ -1,0 +1,149 @@
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]: EdaTime
+      - button "Home" [ref=e7] [cursor=pointer]:
+        - img [ref=e9]
+        - generic [ref=e12]: Home
+      - generic [ref=e13]: Core workflow
+      - button "Upload" [ref=e14] [cursor=pointer]:
+        - img [ref=e16]
+        - generic [ref=e19]: Upload
+        - generic [ref=e20]: ⌥1
+      - button "Timeseries" [ref=e21] [cursor=pointer]:
+        - img [ref=e23]
+        - generic [ref=e25]: Timeseries
+        - generic [ref=e26]: ⌥2
+      - button "Correlations" [ref=e27] [cursor=pointer]:
+        - img [ref=e29]
+        - generic [ref=e39]: Correlations
+        - generic [ref=e40]: ⌥7
+      - button "Scatter" [ref=e41] [cursor=pointer]:
+        - img [ref=e43]
+        - generic [ref=e49]: Scatter
+        - generic [ref=e50]: ⌥3
+      - generic [ref=e51]: Advanced analysis
+      - button "FFT / PSD" [ref=e52] [cursor=pointer]:
+        - img [ref=e54]
+        - generic [ref=e56]: FFT
+        - generic [ref=e57]: ⌥6
+      - button "Spectrogram" [ref=e58] [cursor=pointer]:
+        - img [ref=e60]
+        - generic [ref=e66]: Spectrogram
+        - generic [ref=e67]: ⌥8
+      - button "Causal Graph" [ref=e68] [cursor=pointer]:
+        - img [ref=e70]
+        - generic [ref=e76]: Causal
+        - generic [ref=e77]: ⌥9
+      - button "Drift Analysis" [active] [ref=e78] [cursor=pointer]:
+        - img [ref=e80]
+        - generic [ref=e86]: Drift
+        - generic [ref=e87]: ⌥0
+      - button "Settings" [ref=e89] [cursor=pointer]:
+        - img [ref=e91]
+        - generic [ref=e94]: Settings
+      - button "Collapse sidebar" [ref=e95] [cursor=pointer]:
+        - img [ref=e97]
+        - generic [ref=e98]: Collapse
+    - generic [ref=e99]:
+      - banner [ref=e100]:
+        - generic [ref=e101]:
+          - img [ref=e103]
+          - generic [ref=e105]: EdaTime
+        - generic [ref=e106]:
+          - generic [ref=e324]:
+            - strong [ref=e325]: 69,680
+            - text: rows
+          - generic [ref=e326]:
+            - strong [ref=e327]: "7"
+            - text: numeric series
+      - generic [ref=e1010]:
+        - generic [ref=e1011]:
+          - generic [ref=e1012]: Guided Workflow
+          - generic [ref=e1013]: ✓ 3 completed
+          - generic [ref=e1014]: → Scatter
+        - generic [ref=e1015]:
+          - button "Open Scatter" [ref=e1016] [cursor=pointer]
+          - button "✕" [ref=e1017] [cursor=pointer]
+      - generic [ref=e1018]:
+        - generic [ref=e1019]:
+          - generic [ref=e1020]:
+            - generic [ref=e1021]: Drift Analysis
+            - generic [ref=e1022]: Columns
+            - button "–" [ref=e1024] [cursor=pointer]:
+              - generic [ref=e1025]: –
+              - img [ref=e1026]
+            - generic [ref=e1028]: Window
+            - combobox "Temporal window size" [ref=e1029] [cursor=pointer]:
+              - option "Hourly"
+              - option "Daily" [selected]
+              - option "Weekly"
+            - generic [ref=e1030]: Detail View
+            - combobox "Plot style" [ref=e1031] [cursor=pointer]:
+              - option "Box plot" [selected]
+              - option "Violin"
+              - option "ECDF overlay"
+              - option "Histogram overlay"
+          - generic [ref=e1032]:
+            - generic [ref=e1033]: Reference
+            - generic [ref=e1034]: Preset
+            - combobox "Reference window preset" [ref=e1035] [cursor=pointer]:
+              - option "First 30%"
+              - option "First 50%" [selected]
+              - option "First 70%"
+              - option "Custom"
+            - generic [ref=e1036]: Start
+            - textbox "Start" [ref=e1037]
+            - generic [ref=e1038]: End
+            - textbox "End" [ref=e1039]
+          - generic [ref=e1040]:
+            - generic [ref=e1041]: Zoom
+            - generic [ref=e1042]: Drag in chart to box-zoom
+            - button "Reset" [ref=e1043] [cursor=pointer]
+          - generic [ref=e1044]:
+            - button "Compute" [ref=e1045] [cursor=pointer]
+            - group [ref=e1046]:
+              - generic "Export Timeline, detail, stats" [ref=e1047] [cursor=pointer]:
+                - generic [ref=e1048]: Export
+                - generic [ref=e1049]: Timeline, detail, stats
+            - status [ref=e1050]: Select one or more columns and reference window, then press Compute.
+        - generic [ref=e1051]:
+          - generic [ref=e1052]:
+            - strong [ref=e1053]: Best for
+            - text: Comparing a stable reference period against later windows to spot baseline shifts and degraded operating ranges.
+          - generic [ref=e1054]:
+            - strong [ref=e1055]: Needs
+            - text: One or more numeric columns plus a trustworthy reference window from the beginning of the dataset or a known baseline interval.
+          - generic [ref=e1056]:
+            - strong [ref=e1057]: Cost
+            - text: Moderate. Keep the column list short when iterating, then widen it once the reference setup looks right.
+        - main [ref=e1058]:
+          - generic [ref=e1059]:
+            - generic [ref=e1060]:
+              - img "Drift timeline chart" [ref=e1062]
+              - generic [ref=e1063]:
+                - generic [ref=e1065]: No drift
+                - generic [ref=e1067]: Minor drift (PSI ≥ 0.1)
+                - generic [ref=e1069]: Major drift
+            - generic [ref=e1070]:
+              - generic [ref=e1071]:
+                - generic [ref=e1072]: Window Detail
+                - combobox "Column for detail panel" [ref=e1073] [cursor=pointer]
+              - img "Drift detail chart" [ref=e1074]
+              - region "Drift window details" [ref=e1075]:
+                - generic [ref=e1076]: Select a window to see stats
+              - generic [ref=e1077]:
+                - generic [ref=e1078]: Sort
+                - combobox "Sort drift windows" [ref=e1079] [cursor=pointer]:
+                  - 'option "Time: oldest first" [selected]'
+                  - 'option "Time: newest first"'
+                  - 'option "PSI: highest first"'
+                  - 'option "Wasserstein: highest first"'
+                  - 'option "Severity: red to green"'
+              - listbox "Drift windows list" [ref=e1080]
+          - generic:
+            - strong: No drift analysis yet
+            - generic: Select a column, adjust the reference window, and press Compute.
+      - text: ↑

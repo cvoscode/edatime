@@ -21,7 +21,7 @@ pub async fn upload_data(
 ) -> Result<impl IntoResponse, AppError> {
     tracing::info!("Received file upload request");
 
-    let (path, ingest_params) = extract_upload_parts(&state, multipart).await?;
+let (path, ingest_params, file_name) = extract_upload_parts(&state, multipart).await?;
 
     let df = tokio::task::spawn_blocking(move || {
         crate::ingest::load_dataframe_partial(&path, &ingest_params)
@@ -30,14 +30,18 @@ pub async fn upload_data(
     .map_err(|error| AppError::internal(format!("Failed to join upload task: {error:?}")))?
     .map_err(|error| AppError::bad_request(format!("Failed to parse uploaded file: {error}")))?;
 
-    let time_column_name = df.time_column_name.clone();
+let time_column_name = df.time_column_name.clone();
     let row_count = df.df.height();
     state.replace_dataset(df.df.clone()).await;
-    state.set_time_column_display_name(time_column_name);
+    state.set_time_column_display_name(time_column_name.clone());
 
     Ok(Json(serde_json::json!({
         "status": "success",
         "rows": row_count,
+        "columns": df.column_names,
+        "numeric_columns": df.numeric_columns,
+        "timestamp_column": time_column_name,
+        "file_name": file_name,
     })))
 }
 
@@ -64,11 +68,12 @@ pub async fn preview_upload_data(
 async fn extract_upload_parts(
     state: &AppState,
     mut multipart: Multipart,
-) -> Result<(TempPath, IngestParams), AppError> {
+) -> Result<(TempPath, IngestParams, String), AppError> {
     let mut temp_file = None;
     let mut has_file = false;
     let mut params = IngestParams::default();
     let mut total_bytes = 0usize;
+    let mut file_name = String::new();
 
     while let Some(field) = multipart
         .next_field()
@@ -113,8 +118,10 @@ async fn extract_upload_parts(
             }
             _ => {
                 if temp_file.is_none() {
+                    let name = field.file_name().unwrap_or("").to_string();
+                    file_name = name.clone();
                     temp_file = Some(create_temp_upload_file(
-                        field.file_name(),
+                        Some(&name),
                         "edatime-upload-",
                     )?);
                 }
@@ -151,7 +158,7 @@ async fn extract_upload_parts(
         .ok_or_else(|| AppError::bad_request("No file part found in multipart upload"))?
         .into_temp_path();
 
-    Ok((temp_path, params))
+    Ok((temp_path, params, file_name))
 }
 
 async fn extract_preview_file(

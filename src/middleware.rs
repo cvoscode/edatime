@@ -128,7 +128,7 @@ pub fn csp_header_value(extra_origins: &[String]) -> HeaderValue {
     // Static default — safe fallback for any header construction failure.
     const DEFAULT: &str =
         "default-src 'self' unpkg.com esm.sh; \
-         script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh; \
+         script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh blob:; \
          style-src 'self' 'unsafe-inline'; \
          img-src 'self' data:; \
          connect-src 'self' unpkg.com esm.sh blob:";
@@ -143,7 +143,7 @@ pub fn csp_header_value(extra_origins: &[String]) -> HeaderValue {
         let origin = &extra_origins[0];
         let value = format!(
             "default-src 'self' unpkg.com esm.sh {origin}; \
-             script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh {origin}; \
+             script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh {origin} blob:; \
              style-src 'self' 'unsafe-inline'; \
              img-src 'self' data:; \
              connect-src 'self' unpkg.com esm.sh {origin} blob:"
@@ -155,7 +155,7 @@ pub fn csp_header_value(extra_origins: &[String]) -> HeaderValue {
     let extra = extra_origins.join(" ");
     let value = format!(
         "default-src 'self' unpkg.com esm.sh {extra}; \
-         script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh {extra}; \
+         script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh {extra} blob:; \
          style-src 'self' 'unsafe-inline'; \
          img-src 'self' data:; \
          connect-src 'self' unpkg.com esm.sh {extra} blob:"

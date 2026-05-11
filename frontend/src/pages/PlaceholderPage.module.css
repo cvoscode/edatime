@@ -1,0 +1,13 @@
+.page {
+  padding: var(--space-6);
+}
+
+.title {
+  font-size: var(--font-xl);
+  font-weight: 600;
+  margin-bottom: var(--space-4);
+}
+
+.placeholder {
+  color: var(--color-text-muted);
+}

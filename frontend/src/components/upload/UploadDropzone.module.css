@@ -1,0 +1,72 @@
+.dropZone {
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 36px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  min-height: 180px;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  gap: var(--space-2);
+}
+
+.dropZone:hover {
+  border-color: var(--color-accent);
+}
+
+.dropZone.dragover {
+  border-color: var(--color-accent);
+  border-style: solid;
+  transform: scale(1.01);
+  box-shadow: 0 0 20px rgba(74, 158, 255, 0.2);
+}
+
+.dropZone svg {
+  width: 32px;
+  height: 32px;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.dropZone.dragover svg {
+  color: var(--color-accent);
+}
+
+.title {
+  font-size: var(--font-md);
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.sub {
+  font-size: var(--font-sm);
+  color: var(--color-text-muted);
+}
+
+.browseBtn {
+  padding: var(--space-2) var(--space-4);
+  background: transparent;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.browseBtn:hover {
+  background: rgba(74, 158, 255, 0.1);
+}
+
+.filename {
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: rgba(74, 158, 255, 0.1);
+  border: 1px solid rgba(74, 158, 255, 0.2);
+  border-radius: 999px;
+  font-size: var(--font-sm);
+  color: var(--color-accent);
+}

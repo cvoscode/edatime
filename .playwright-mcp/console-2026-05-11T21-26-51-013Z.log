@@ -1,0 +1,32 @@
+[   24116ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5174/frontend/libs/chartgpu/chartgpu.mjs:0
+[   24117ms] [WARNING] ChartGPU initialization skipped: TypeError: Failed to fetch dynamically imported module: http://localhost:5174/frontend/libs/chartgpu/chartgpu.mjs @ http://localhost:5174/src/components/chart/ChartView.tsx:26
+[   69265ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5174/src/components/chart/ChartView.tsx?t=1778534880265:0
+[   69265ms] [ERROR] [vite] Failed to reload /src/components/chart/ChartView.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:881
+[   94738ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5174/@vite/client:963
+[   94739ms] [ERROR] WebSocket connection to 'ws://localhost:5174/' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/@vite/client:1034
+[   95893ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5174/src/components/chart/ChartView.tsx:0
+[   95894ms] Failed to fetch dynamically imported module: http://localhost:5174/src/pages/TimeseriesPage.tsx
+[   95894ms] Failed to fetch dynamically imported module: http://localhost:5174/src/pages/TimeseriesPage.tsx
+[  210335ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5174/@vite/client:963
+[  210336ms] [ERROR] WebSocket connection to 'ws://localhost:5174/' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/@vite/client:1034
+[  211346ms] [ERROR] WebSocket connection to 'ws://localhost:5174/' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/@vite/client:1034
+[  212618ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5174/src/components/chart/ChartView.tsx:0
+[  212622ms] Failed to fetch dynamically imported module: http://localhost:5174/src/pages/TimeseriesPage.tsx
+[  212622ms] Failed to fetch dynamically imported module: http://localhost:5174/src/pages/TimeseriesPage.tsx
+[  251012ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5174/frontend/libs/chartgpu/dist/index.js?import:0
+[  251012ms] [WARNING] ChartGPU initialization skipped: TypeError: Failed to fetch dynamically imported module: http://localhost:5174/frontend/libs/chartgpu/dist/index.js?import @ http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535061944:26
+[  268236ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5174/@vite/client:963
+[  268237ms] [ERROR] WebSocket connection to 'ws://localhost:5174/' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/@vite/client:1034
+[  269451ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5174/frontend/libs/chartgpu/dist/index.js?import:0
+[  269452ms] [WARNING] ChartGPU initialization skipped: TypeError: Failed to fetch dynamically imported module: http://localhost:5174/frontend/libs/chartgpu/dist/index.js?import @ http://localhost:5174/src/components/chart/ChartView.tsx:26
+[  304646ms] [WARNING] ChartGPU initialization skipped: TypeError: Failed to fetch dynamically imported module: http://localhost:5174/frontend/libs/chartgpu/dist/index.js?import @ http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535115645:27
+[  344486ms] [ERROR] WebSocket connection to 'ws://localhost:5174/?token=UgF2MLCJm76M' failed:  @ http://localhost:5174/@vite/client:801
+[  344487ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5174/@vite/client:963
+[  344512ms] [ERROR] WebSocket connection to 'ws://localhost:5174/' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/@vite/client:1034
+[  345513ms] [ERROR] WebSocket connection to 'ws://localhost:5174/' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/@vite/client:1034
+[  346851ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5174/frontend/libs/chartgpu/dist/index.js?import:0
+[  346851ms] [WARNING] ChartGPU initialization skipped: TypeError: Failed to fetch dynamically imported module: http://localhost:5174/frontend/libs/chartgpu/dist/index.js?import @ http://localhost:5174/src/components/chart/ChartView.tsx:27
+[  464674ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5174/@vite/client:963
+[  464675ms] [ERROR] WebSocket connection to 'ws://localhost:5174/' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5174/@vite/client:1034
+[  465580ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5174/frontend/libs/chartgpu/dist/index.js?import:0
+[  465580ms] [WARNING] ChartGPU initialization skipped: TypeError: Failed to fetch dynamically imported module: http://localhost:5174/frontend/libs/chartgpu/dist/index.js?import @ http://localhost:5174/src/components/chart/ChartView.tsx:27

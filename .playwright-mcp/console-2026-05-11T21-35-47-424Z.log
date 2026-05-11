@@ -1,0 +1,2 @@
+[     120ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5174/frontend/libs/chartgpu/index.js?import:0
+[     120ms] [WARNING] ChartGPU initialization skipped: TypeError: Failed to fetch dynamically imported module: http://localhost:5174/frontend/libs/chartgpu/index.js?import @ http://localhost:5174/src/components/chart/ChartView.tsx?t=1778535325247:27

@@ -268,6 +268,18 @@ pub async fn post_load(
     .await?;
 
     let n = df.height();
+    let numeric_cols: Vec<String> = df.get_column_names()
+        .iter()
+        .filter_map(|name| {
+            let name_str = name.as_str();
+            match df.column(name_str) {
+                Ok(col) if col.dtype().is_numeric() => Some(name_str.to_string()),
+                Ok(col) if name_str == "ts" && matches!(col.dtype(), polars::prelude::DataType::Datetime(_, _) | polars::prelude::DataType::Date) => Some(name_str.to_string()),
+                _ => None,
+            }
+        })
+        .collect();
+    let time_col_clone = body.time_column.clone();
     let rev = state.replace_dataset(df).await;
     if let Some(ref tc) = body.time_column {
         state.set_time_column_display_name(Some(tc.clone()));
@@ -278,14 +290,14 @@ pub async fn post_load(
     if let Some(ref mut i) = *info {
         i.table = body.table.clone();
         i.schema = body.schema.clone();
-        if let Some(tc) = body.time_column {
+        if let Some(tc) = time_col_clone.clone() {
             i.time_column = Some(tc);
         }
     } else {
         *info = Some(DbConnectionInfo {
             schema: body.schema.clone(),
             table: body.table.clone(),
-            time_column: body.time_column,
+            time_column: time_col_clone.clone(),
         });
     }
 
@@ -293,7 +305,9 @@ pub async fn post_load(
 
     Ok(Json(serde_json::json!({
         "status": "ok",
-        "rows_loaded": n,
+        "rows": n,
+        "numeric_columns": numeric_cols,
+        "timestamp_column": time_col_clone.clone(),
         "revision": rev,
         "table": body.table,
         "schema": body.schema,

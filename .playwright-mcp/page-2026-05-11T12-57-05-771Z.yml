@@ -1,0 +1,133 @@
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]: EdaTime
+      - button "Home" [ref=e7] [cursor=pointer]:
+        - img [ref=e9]
+        - generic [ref=e12]: Home
+      - generic [ref=e13]: Core workflow
+      - button "Upload" [ref=e14] [cursor=pointer]:
+        - img [ref=e16]
+        - generic [ref=e19]: Upload
+        - generic [ref=e20]: ⌥1
+      - button "Timeseries" [ref=e21] [cursor=pointer]:
+        - img [ref=e23]
+        - generic [ref=e25]: Timeseries
+        - generic [ref=e26]: ⌥2
+      - button "Correlations" [ref=e27] [cursor=pointer]:
+        - img [ref=e29]
+        - generic [ref=e39]: Correlations
+        - generic [ref=e40]: ⌥7
+      - button "Scatter" [ref=e41] [cursor=pointer]:
+        - img [ref=e43]
+        - generic [ref=e49]: Scatter
+        - generic [ref=e50]: ⌥3
+      - generic [ref=e51]: Advanced analysis
+      - button "FFT / PSD" [ref=e52] [cursor=pointer]:
+        - img [ref=e54]
+        - generic [ref=e56]: FFT
+        - generic [ref=e57]: ⌥6
+      - button "Spectrogram" [ref=e58] [cursor=pointer]:
+        - img [ref=e60]
+        - generic [ref=e66]: Spectrogram
+        - generic [ref=e67]: ⌥8
+      - button "Causal Graph" [ref=e68] [cursor=pointer]:
+        - img [ref=e70]
+        - generic [ref=e76]: Causal
+        - generic [ref=e77]: ⌥9
+      - button "Drift Analysis" [ref=e78] [cursor=pointer]:
+        - img [ref=e80]
+        - generic [ref=e86]: Drift
+        - generic [ref=e87]: ⌥0
+      - button "Settings" [active] [ref=e89] [cursor=pointer]:
+        - img [ref=e91]
+        - generic [ref=e94]: Settings
+      - button "Collapse sidebar" [ref=e95] [cursor=pointer]:
+        - img [ref=e97]
+        - generic [ref=e98]: Collapse
+    - generic [ref=e99]:
+      - banner [ref=e100]:
+        - generic [ref=e101]:
+          - img [ref=e103]
+          - generic [ref=e105]: EdaTime
+        - generic [ref=e106]:
+          - generic [ref=e324]:
+            - strong [ref=e325]: 69,680
+            - text: rows
+          - generic [ref=e326]:
+            - strong [ref=e327]: "7"
+            - text: numeric series
+      - generic [ref=e1407]:
+        - generic [ref=e1408]:
+          - generic [ref=e1409]: Guided Workflow
+          - generic [ref=e1410]: ✓ 3 completed
+          - generic [ref=e1411]: → Scatter
+        - button "✕" [ref=e1413] [cursor=pointer]
+      - generic [ref=e823]:
+        - generic [ref=e824]:
+          - generic [ref=e825]:
+            - generic [ref=e826]: View
+            - group "Scatter page view" [ref=e827]:
+              - button "Plot" [pressed] [ref=e828] [cursor=pointer]
+              - button "Matrix" [ref=e829] [cursor=pointer]
+          - generic [ref=e830]:
+            - generic [ref=e831]: Analytics
+            - generic [ref=e832]: X
+            - combobox "Scatter X column" [ref=e833] [cursor=pointer]
+            - generic [ref=e834]: "Y"
+            - combobox "Scatter Y column" [ref=e835] [cursor=pointer]
+            - generic [ref=e836]: Mode
+            - combobox "Scatter render mode" [ref=e837] [cursor=pointer]:
+              - option "Density" [selected]
+              - option "Scatter"
+            - generic [ref=e838]: Distribution
+            - combobox "Distribution plot mode" [ref=e839] [cursor=pointer]:
+              - option "Histogram" [selected]
+              - option "KDE"
+              - option "Box Plot"
+            - generic [ref=e840] [cursor=pointer]:
+              - checkbox "Link chart range" [checked] [ref=e841]
+              - generic [ref=e842]: Link chart range
+          - generic [ref=e843]:
+            - group [ref=e844]:
+              - generic "Color By column" [ref=e845] [cursor=pointer]:
+                - generic [ref=e846]: Color
+                - generic [ref=e847]: By column
+              - option "None" [selected]
+              - option "Viridis" [selected]
+              - option "Plasma"
+              - option "Inferno"
+            - generic [ref=e848]:
+              - generic [ref=e849]: Density
+              - generic [ref=e850]: Bins
+              - slider "Scatter bin size" [ref=e851] [cursor=pointer]: "10"
+              - generic [ref=e852]: "10"
+              - combobox "Density colormap" [ref=e853] [cursor=pointer]:
+                - option "Viridis" [selected]
+                - option "Inferno"
+                - option "Plasma"
+              - combobox "Density normalization" [ref=e854] [cursor=pointer]:
+                - option "Linear" [selected]
+                - option "Log"
+            - group [ref=e855]:
+              - generic "Export PNG, CSV, JSON" [ref=e856] [cursor=pointer]:
+                - generic [ref=e857]: Export
+                - generic [ref=e858]: PNG, CSV, JSON
+        - generic [ref=e859]:
+          - generic [ref=e860]: "Total points: —"
+          - generic [ref=e861]: "Visible points: —"
+          - generic [ref=e862]: "Pair: X vs Y"
+          - generic [ref=e863]: "Pearson: —"
+          - generic [ref=e864]: "Spearman: —"
+          - button "Open in Causal" [ref=e865] [cursor=pointer]
+        - generic [ref=e866]:
+          - generic [ref=e867]: Suggestions (|corr| ≥ 0.70)
+          - generic [ref=e868]:
+            - generic [ref=e869]: Threshold
+            - slider "Correlation suggestion threshold" [ref=e870] [cursor=pointer]: "0.7"
+            - generic [ref=e871]: "0.70"
+            - generic [ref=e872]: Inspecting X vs Y
+        - main [ref=e874]
+      - text: ↑

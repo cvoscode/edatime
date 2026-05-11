@@ -1,0 +1,17 @@
+[      31ms] [WARNING] No available adapters. @ http://localhost:3000/#page=fft:0
+[      32ms] [WARNING] No available adapters. @ http://localhost:3000/#page=fft:0
+[      33ms] [ERROR] Failed to load page module for fft: Error: ChartGPU: WebGPU is not available.
+Reason: No compatible WebGPU adapter found. This may occur if: (1) no GPU is available, (2) GPU drivers are outdated or incompatible, (3) running in a VM or headless environment, or (4) WebGPU is disabled in browser settings.
+Browser support: Chrome/Edge 113+, Safari 18+, Firefox not yet supported.
+Resources:
+  - MDN WebGPU API: https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API
+  - Browser compatibility: https://caniuse.com/webgpu
+  - WebGPU specification: https://www.w3.org/TR/webgpu/
+  - Check your system: https://webgpureport.org/
+    at Ad (http://localhost:3000/js/assets/chartgpu-CqrjGxnD.js:9140:13)
+    at async FftChart.init (http://localhost:3000/js/assets/frequency-CHXP7WsY.js:2355:19)
+    at async initFftPage (http://localhost:3000/js/assets/frequency-CHXP7WsY.js:2799:3)
+    at async initFftPage (http://localhost:3000/js/app.js?v=139:4108:3)
+    at async Object.ensurePageModuleLoaded (http://localhost:3000/js/app.js?v=139:4164:5)
+    at async showPage (http://localhost:3000/js/app.js?v=139:2348:7)
+    at async HTMLButtonElement.<anonymous> (http://localhost:3000/js/app.js?v=139:2375:7) @ http://localhost:3000/js/app.js?v=139:4166

@@ -1,0 +1,116 @@
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.chip {
+  --chip-accent: var(--chip-color, var(--color-accent));
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px 3px 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--chip-accent);
+  border-radius: 20px;
+  font-size: var(--font-sm);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  user-select: none;
+}
+
+.chip:hover {
+  background: var(--color-surface-hover);
+}
+
+.chip.selected {
+  border-color: color-mix(in srgb, var(--chip-accent) 72%, var(--color-border));
+  background: color-mix(in srgb, var(--chip-accent) 13%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--chip-accent) 20%, transparent),
+    0 0 16px color-mix(in srgb, var(--chip-accent) 12%, transparent);
+}
+
+.chip.selected .label {
+  color: var(--color-text);
+}
+
+.checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.colorPicker {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  margin-left: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  overflow: hidden;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+}
+
+.colorPicker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.colorPicker::-webkit-color-swatch {
+  border: none;
+  border-radius: 999px;
+}
+
+.colorPicker::-moz-color-swatch {
+  border: none;
+  border-radius: 999px;
+}
+
+.menuBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+  margin-left: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.menuBtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--color-text);
+}
+
+.chip.selected:hover .menuBtn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.menuBtn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.label {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.15s;
+}

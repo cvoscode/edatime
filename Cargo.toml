@@ -33,8 +33,6 @@ axum-test = "17"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 
-[[bench]]
-name = "pipeline_bench"
-harness = false
+
 
 

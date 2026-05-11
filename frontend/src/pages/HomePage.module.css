@@ -1,0 +1,327 @@
+.page {
+  overflow-y: auto;
+  padding: 0;
+  flex-direction: column;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 168, 255, 0.28) rgba(255, 255, 255, 0.03);
+  padding-top: 4px;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 48px 24px 32px;
+  background: linear-gradient(180deg, var(--accent-dim, rgba(0, 168, 255, 0.1)) 0%, transparent 100%);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.heroIcon {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 60%, #6c63ff));
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  box-shadow: 0 0 30px rgba(0, 168, 255, 0.25);
+}
+
+.heroIcon svg {
+  width: 28px;
+  height: 28px;
+  color: white;
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.tagline {
+  font-size: var(--font-md);
+  color: var(--color-text-muted);
+  margin-bottom: 24px;
+  max-width: 480px;
+}
+
+.ctaButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  background: var(--color-accent);
+  color: white;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.ctaButton:hover {
+  background: var(--color-accent-hover);
+  transform: translateY(-1px);
+  text-decoration: none;
+}
+
+.datasets {
+  padding: var(--space-8) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sectionTitle {
+  font-size: var(--font-lg);
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--space-2);
+}
+
+.sectionCopy {
+  font-size: var(--font-md);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-6);
+}
+
+.datasetsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+
+.datasetCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  transition: border-color var(--transition, 0.15s), box-shadow var(--transition, 0.15s), transform var(--transition, 0.15s);
+}
+
+.datasetCard:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 16px rgba(0, 168, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+.datasetHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.datasetIcon {
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 168, 255, 0.1);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.datasetIcon svg {
+  width: 16px;
+  height: 16px;
+  color: var(--color-accent);
+}
+
+.datasetInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.datasetName {
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.datasetMeta {
+  font-size: var(--font-sm);
+  color: var(--color-text-muted);
+}
+
+.datasetDesc {
+  font-size: var(--font-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.datasetTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.datasetTag {
+  font-size: 0.5625rem;
+  padding: 2px 6px;
+  background: rgba(0, 168, 255, 0.1);
+  border: 1px solid rgba(0, 168, 255, 0.2);
+  border-radius: 4px;
+  color: var(--color-accent);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.tagRows {
+  background: rgba(255, 180, 100, 0.1);
+  border-color: rgba(255, 180, 100, 0.2);
+  color: #ffb464;
+}
+
+.tagSize {
+  background: rgba(100, 255, 150, 0.1);
+  border-color: rgba(100, 255, 150, 0.2);
+  color: #64ff96;
+}
+
+.section {
+  padding: var(--space-8) var(--space-6) 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+  padding: 0 var(--space-6) var(--space-8);
+}
+
+.gridWorkflow {
+  padding-top: var(--space-4);
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 20px 20px 18px;
+  cursor: pointer;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: border-color var(--transition, 0.15s), box-shadow var(--transition, 0.15s), transform var(--transition, 0.15s);
+}
+
+.card:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 16px rgba(0, 168, 255, 0.12);
+  transform: translateY(-2px);
+  text-decoration: none;
+}
+
+.cardIcon {
+  width: 36px;
+  height: 36px;
+  background: rgba(0, 168, 255, 0.1);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cardIcon svg {
+  width: 18px;
+  height: 18px;
+  color: var(--color-accent);
+}
+
+.cardTitle {
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cardTitle kbd {
+  font-size: 0.6875rem;
+  padding: 2px 6px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.cardDesc {
+  font-size: var(--font-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.shortcuts {
+  padding: var(--space-8) var(--space-6);
+  border-top: 1px solid var(--color-border);
+}
+
+.shortcutsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-6);
+  margin-top: var(--space-4);
+}
+
+.shortcutGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.shortcutGroupTitle {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--space-1);
+}
+
+.shortcutRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-sm);
+  color: var(--color-text-muted);
+}
+
+.shortcutRow kbd {
+  font-size: 0.6875rem;
+  padding: 3px 8px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--color-text);
+  min-width: 70px;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .title {
+    font-size: 1.375rem;
+  }
+
+  .datasetsGrid {
+    grid-template-columns: 1fr;
+  }
+}

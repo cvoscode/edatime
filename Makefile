@@ -19,7 +19,7 @@ dev:
 check:
 	cargo check
 	cargo clippy -- -D warnings
-	@if command -v node >/dev/null 2>&1; then npx tsc --noEmit; fi
+	@if command -v node >/dev/null 2>&1; then cd frontend && npx tsc --noEmit; fi
 
 # Run tests and benchmarks
 test:

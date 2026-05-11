@@ -9,6 +9,10 @@ pub struct LoadResult {
     /// Original time column name (e.g. "timestamp", "time", "datetime").
     /// This is the user-facing name, not the internal "ts" alias.
     pub time_column_name: Option<String>,
+    /// Names of all columns in the loaded DataFrame.
+    pub column_names: Vec<String>,
+    /// Names of numeric columns in the loaded DataFrame.
+    pub numeric_columns: Vec<String>,
 }
 
 /// Parameters for partial DataFrame loading.
@@ -33,6 +37,25 @@ pub struct IngestParams {
 
 pub fn load_dataframe<P: AsRef<Path>>(path: P) -> PolarsResult<LoadResult> {
     load_dataframe_partial(path, &IngestParams::default())
+}
+
+fn numeric_columns_from_df(df: &DataFrame) -> Vec<String> {
+    df.get_column_names()
+        .iter()
+        .filter_map(|name| {
+            let name_str = name.as_str();
+            match df.column(name_str) {
+                Ok(col) if col.dtype().is_numeric() => Some(name_str.to_string()),
+                Ok(col)
+                    if name_str == "ts"
+                        && matches!(col.dtype(), DataType::Datetime(_, _) | DataType::Date) =>
+                {
+                    Some(name_str.to_string())
+                }
+                _ => None,
+            }
+        })
+        .collect()
 }
 
 pub fn load_dataframe_partial<P: AsRef<Path>>(
@@ -233,9 +256,14 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
         ));
     }
 
+let column_names: Vec<String> = df.get_column_names().iter().map(|s| s.to_string()).collect();
+    let numeric_cols: Vec<String> = numeric_columns_from_df(&df);
+
     Ok(LoadResult {
         df,
         time_column_name: Some(old_name),
+        column_names,
+        numeric_columns: numeric_cols,
     })
 }
 

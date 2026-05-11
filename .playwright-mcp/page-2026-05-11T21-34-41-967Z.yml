@@ -1,0 +1,73 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]: edatime
+    - navigation [ref=e6]:
+      - link "Timeseries" [ref=e7] [cursor=pointer]:
+        - /url: "#/timeseries"
+      - link "FFT" [ref=e8] [cursor=pointer]:
+        - /url: "#/fft"
+      - link "Spectrogram" [ref=e9] [cursor=pointer]:
+        - /url: "#/spectrogram"
+      - link "Heatmap" [ref=e10] [cursor=pointer]:
+        - /url: "#/heatmap"
+      - link "Scatter" [ref=e11] [cursor=pointer]:
+        - /url: "#/scatter"
+      - link "Drift" [ref=e12] [cursor=pointer]:
+        - /url: "#/drift"
+      - link "Causal" [ref=e13] [cursor=pointer]:
+        - /url: "#/causal"
+      - link "Settings" [ref=e14] [cursor=pointer]:
+        - /url: "#/settings"
+    - generic [ref=e15]: v0.1.0
+  - main [ref=e16]:
+    - generic [ref=e17]:
+      - group "Series selection tools" [ref=e19]:
+        - generic [ref=e20]: Series
+        - textbox "Filter columns" [ref=e21]:
+          - /placeholder: Filter columns…
+        - button "Collapse series list" [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+      - generic [ref=e25]:
+        - group "Drawing tools" [ref=e26]:
+          - generic [ref=e27]: Draw
+          - combobox "Draw tool" [ref=e28] [cursor=pointer]:
+            - option "None (Pan)" [selected]
+            - option "Arrow"
+            - option "Box"
+          - textbox "Draw color" [ref=e29] [cursor=pointer]: "#ff0055"
+          - spinbutton "Draw thickness" [ref=e30]: "2"
+          - button "Clear Drawings" [ref=e31] [cursor=pointer]
+        - group "Chart label controls" [ref=e32]:
+          - button "Labels Title + axes" [ref=e33] [cursor=pointer]:
+            - generic [ref=e34]: Labels
+            - generic [ref=e35]: Title + axes
+        - group "Note and annotation tools" [ref=e36]:
+          - button "Notes Annotations" [ref=e37] [cursor=pointer]:
+            - generic [ref=e38]: Notes
+            - generic [ref=e39]: Annotations
+        - group "Export chart and data options" [ref=e40]:
+          - button "PNG P" [ref=e41] [cursor=pointer]:
+            - text: PNG
+            - generic [ref=e42]: P
+          - button "CSV E" [ref=e43] [cursor=pointer]:
+            - text: CSV
+            - generic [ref=e44]: E
+          - button "More SVG, JSON, Parquet" [ref=e45] [cursor=pointer]:
+            - generic [ref=e46]: More
+            - generic [ref=e47]: SVG, JSON, Parquet
+        - group "Analytics controls" [ref=e48]:
+          - button "Analytics Bands, anomalies, cleanup" [ref=e49] [cursor=pointer]:
+            - generic [ref=e50]: Analytics
+            - generic [ref=e51]: Bands, anomalies, cleanup
+        - group "Zoom controls" [ref=e52]:
+          - button "−" [ref=e53] [cursor=pointer]
+          - generic [ref=e54]: —
+          - button "↺" [ref=e55] [cursor=pointer]
+      - main [ref=e56]:
+        - generic [ref=e58]:
+          - img [ref=e60]
+          - strong [ref=e68]: Select one or more series
+          - generic [ref=e69]: Click a column chip above or use Upload to add dataset series to the chart. Start with 2–3 related columns for a clearer first view.
+          - generic [ref=e70]:
+            - button "Open upload page" [ref=e71] [cursor=pointer]: Upload data
+            - button "Reset to dataset range" [ref=e72] [cursor=pointer]

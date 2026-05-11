@@ -1,0 +1,2 @@
+[      63ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/js/assets/frequency-CwOEK7ox.js:0
+[      66ms] [LOG] ServiceWorker registration successful @ http://localhost:3000/:18

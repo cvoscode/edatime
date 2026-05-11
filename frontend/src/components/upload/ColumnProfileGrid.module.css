@@ -1,0 +1,113 @@
+.grid {
+  position: relative;
+  display: grid;
+  grid-template-rows: 34px 1fr;
+  flex: 1;
+  overflow: hidden;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: 56px 220px 120px 140px 100px 130px 130px 640px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  overflow-x: auto;
+}
+
+.header::-webkit-scrollbar {
+  display: none;
+}
+
+.col {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.col:hover {
+  color: var(--color-text);
+}
+
+.colCheck {
+  width: 56px;
+  min-width: 56px;
+  justify-content: center;
+}
+
+.colName {
+  min-width: 160px;
+}
+
+.colType {
+  min-width: 110px;
+}
+
+.colCount {
+  min-width: 90px;
+}
+
+.colNum {
+  min-width: 120px;
+}
+
+.colHist {
+  min-width: 600px;
+}
+
+.viewport {
+  overflow: auto;
+  position: relative;
+}
+
+.spacer {
+  position: relative;
+}
+
+.row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 36px;
+  display: grid;
+  grid-template-columns: 56px 220px 120px 140px 100px 130px 130px 640px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  align-items: center;
+}
+
+.row .col {
+  font-size: var(--font-sm);
+  color: var(--color-text);
+  font-weight: 400;
+}
+
+.colCheck input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.histogram {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 36px;
+}
+
+.histBar {
+  flex: 1;
+  min-width: 2px;
+  background: linear-gradient(180deg, var(--color-accent) 0%, rgba(74, 158, 255, 0.4) 100%);
+  border-radius: 2px;
+  max-width: 14px;
+}

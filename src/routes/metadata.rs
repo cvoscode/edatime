@@ -342,11 +342,10 @@ pub fn build_dataset_metadata(
         let name = series.name().as_str().to_string();
         let dtype = series.dtype().clone();
 
-        let display_name = if name == "ts" && time_column_display_name.is_some() {
-            time_column_display_name.unwrap().to_string()
-        } else {
-            name.clone()
-        };
+        let display_name = time_column_display_name
+            .filter(|_| name == "ts")
+            .map(String::from)
+            .unwrap_or_else(|| name.clone());
 
         columns.push(ColumnMetadata {
             name: display_name.clone(),
@@ -441,11 +440,10 @@ pub fn build_dataset_metadata(
         })
     });
 
-    let time_column_for_response = if time_col_name == "ts" && time_column_display_name.is_some() {
-        Some(time_column_display_name.unwrap().to_string())
-    } else {
-        time_col.as_ref().map(|(name, _)| name.clone())
-    };
+    let time_column_for_response = time_column_display_name
+        .filter(|_| time_col_name == "ts")
+        .map(String::from)
+        .or_else(|| time_col.as_ref().map(|(name, _)| name.clone()));
 
     Ok(DatasetMetadata {
         revision: 0,

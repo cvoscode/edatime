@@ -1,0 +1,3 @@
+[   11540ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:5173/frontend/src/utils/settings.js:0
+[   11541ms] Failed to fetch dynamically imported module: http://localhost:5173/frontend/src/utils/settings.js
+[   31658ms] [LOG] Found toggle button @ :4

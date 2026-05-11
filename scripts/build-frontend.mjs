@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const ROOT = path.resolve('.');
+const FRONTEND_DIR = path.join(ROOT, 'frontend');
 const JS_DIR = path.join(ROOT, 'frontend/js');
 
 // Clean stale esbuild-era output before running Vite.
@@ -60,15 +61,14 @@ for (const rel of pwaArtifacts) {
 
 // Run Vite build.  The config at frontend/vite.config.ts handles:
 // - root: frontend (where tsconfig.json lives)
-// - outDir: js (matches the static path the Rust backend serves)
-// - entryFileNames: [name].js → app.js with no hash
-// - page-level manualChunks: scatter, causal, drift, frequency, arrow, chartgpu, echarts
+// - outDir: dist (frontend/dist — where the Rust backend serves from)
 const isWatch = process.argv.includes('--watch');
 const isProd = process.argv.includes('--prod');
+const VITE_BIN = './frontend/node_modules/vite/bin/vite.js';
 
 if (isWatch) {
   // Start Vite in watch mode (for development)
-  const vite = spawnSync('node', ['./node_modules/vite/bin/vite.js', 'build', '--config', 'frontend/vite.config.ts', '--watch'], {
+  const vite = spawnSync('node', [VITE_BIN, 'build', '--config', 'frontend/vite.config.ts', '--watch'], {
     stdio: 'inherit',
     shell: true,
     cwd: ROOT,
@@ -76,7 +76,7 @@ if (isWatch) {
   process.exit(vite.status ?? 0);
 } else {
   const modeFlag = isProd ? ['--mode', 'production'] : [];
-  const result = spawnSync('node', ['./node_modules/vite/bin/vite.js', 'build', '--config', 'frontend/vite.config.ts', ...modeFlag], {
+  const result = spawnSync('node', [VITE_BIN, 'build', '--config', 'frontend/vite.config.ts', ...modeFlag], {
     stdio: 'inherit',
     shell: true,
     cwd: ROOT,

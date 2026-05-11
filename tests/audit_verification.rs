@@ -1,5 +1,5 @@
 //! Audit verification tests
-//! 
+//!
 //! These tests verify the improvements identified in the 2026-05-05 audit.
 //! Run with: cargo test --test audit_verification
 
@@ -14,14 +14,14 @@ use std::time::Duration;
 async fn drift_page_routing_works() {
     // This test would be run against a live server instance
     // In a real test environment, you would use axum-test or a similar HTTP client
-    
+
     let test_url = "http://127.0.0.1:3000/#page=drift";
-    
+
     // The expected behavior is:
     // 1. Navigation to #page=drift should render the Drift page
     // 2. The sidebar should show "Drift" as the active nav item
     // 3. The page content should be the Drift Analysis page
-    
+
     // This test is marked as an integration test because it requires
     // a running server instance with sample data loaded.
 }
@@ -33,7 +33,7 @@ async fn home_page_cls_is_zero() {
     // The Home page should have CLS = 0.00
     // This can be verified via Chrome DevTools Performance API or
     // by checking that no late-loading content causes layout shifts.
-    // 
+    //
     // Expected CLS: 0.00
     // Previous value: 0.54
 }
@@ -48,7 +48,7 @@ async fn upload_page_no_eager_fetches() {
     // 1. The page should load without immediately fetching /api/metadata
     // 2. The page should load without immediately fetching /api/data
     // 3. The page should load without immediately fetching /api/database/status
-    // 
+    //
     // These fetches should only happen after the user selects a file
     // or explicitly interacts with dataset controls.
 }
@@ -60,7 +60,7 @@ async fn upload_page_no_eager_fetches() {
 async fn no_echarts_zero_size_warnings() {
     // After navigating through multiple pages (home, upload, timeseries, scatter, etc.)
     // the browser console should not contain any messages about:
-    // - "Zero size" 
+    // - "Zero size"
     // - "Cannot read properties of undefined"
     // - Chart initialization failures related to container dimensions
 }
@@ -86,10 +86,10 @@ async fn scatter_matrix_is_sub_tab() {
 #[tokio::test]
 async fn api_response_times_acceptable() {
     let acceptable_duration = Duration::from_millis(200);
-    
+
     // Test the following endpoints with sample dataset:
     // 1. GET /api/scatter/correlations/matrix - should be < 200ms
-    // 2. POST /api/scatter/points - should be < 200ms  
+    // 2. POST /api/scatter/points - should be < 200ms
     // 3. Correlation suggestion endpoint - should be < 200ms
 }
 
@@ -99,7 +99,7 @@ async fn api_response_times_acceptable() {
 async fn accessibility_score_improved() {
     // Target: Accessibility score should be >= 90
     // Previous: 83
-    // 
+    //
     // Required fixes:
     // - 4 unlabeled form fields need labels
     // - 8 form fields need id/name attributes

@@ -1,0 +1,161 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]: edatime
+    - navigation [ref=e6]:
+      - link "Timeseries" [ref=e7] [cursor=pointer]:
+        - /url: "#/timeseries"
+      - link "FFT" [ref=e8] [cursor=pointer]:
+        - /url: "#/fft"
+      - link "Spectrogram" [ref=e9] [cursor=pointer]:
+        - /url: "#/spectrogram"
+      - link "Heatmap" [ref=e10] [cursor=pointer]:
+        - /url: "#/heatmap"
+      - link "Scatter" [ref=e11] [cursor=pointer]:
+        - /url: "#/scatter"
+      - link "Drift" [ref=e12] [cursor=pointer]:
+        - /url: "#/drift"
+      - link "Causal" [ref=e13] [cursor=pointer]:
+        - /url: "#/causal"
+      - link "Settings" [ref=e14] [cursor=pointer]:
+        - /url: "#/settings"
+    - generic [ref=e15]: v0.1.0
+  - main [ref=e16]:
+    - generic [ref=e880]:
+      - generic [ref=e881]:
+        - tablist [ref=e882]:
+          - tab "File" [selected] [ref=e883] [cursor=pointer]
+          - tab "Database" [ref=e884] [cursor=pointer]
+        - generic [ref=e885]:
+          - button "Drop CSV or Parquet file here or browse for a file" [ref=e886] [cursor=pointer]:
+            - img [ref=e887]
+            - generic [ref=e890]: Drop CSV or Parquet here
+            - generic [ref=e891]: or
+            - button "Browse file" [ref=e892]
+            - status [ref=e893]: ETTm2.csv
+          - generic [ref=e894]:
+            - generic [ref=e895]: Load options
+            - generic [ref=e896] [cursor=pointer]:
+              - generic [ref=e897]:
+                - checkbox "Enable partial load options"
+              - generic [ref=e900]:
+                - generic [ref=e901]: Partial load
+                - generic [ref=e902]: Limit the rows ingested from the file
+            - generic:
+              - generic [ref=e903]:
+                - generic [ref=e904]: Max rows to load
+                - generic [ref=e905]:
+                  - spinbutton "Max rows to load" [ref=e906]: "1000000"
+                  - slider [ref=e907]: "1000000"
+                  - generic [ref=e908]: 1,000,000
+              - generic [ref=e909]:
+                - generic [ref=e910]: Skip first N rows
+                - spinbutton "Skip first N rows" [ref=e911]: "0"
+              - generic [ref=e912]:
+                - generic [ref=e913]: Time range (optional)
+                - generic [ref=e914]:
+                  - textbox [ref=e915]
+                  - textbox [ref=e916]
+              - generic [ref=e917]:
+                - generic [ref=e918]: Time column
+                - combobox "Time column" [ref=e919]:
+                  - option "Auto-detect"
+                  - option "date" [selected]
+                  - option "HUFL"
+                  - option "HULL"
+                  - option "MUFL"
+                  - option "MULL"
+                  - option "LUFL"
+                  - option "LULL"
+                  - option "OT"
+          - generic [ref=e920]:
+            - button "Upload & Ingest" [ref=e921] [cursor=pointer]:
+              - img [ref=e922]
+              - text: Upload & Ingest
+            - generic [ref=e925]: "Error: TypeError: Cannot read properties of undefined (reading 'toLocaleString')"
+      - generic [ref=e926]:
+        - generic [ref=e927]:
+          - generic [ref=e928]: File Preview
+          - generic [ref=e929]: Current dataset
+          - generic [ref=e930]:
+            - button "All" [ref=e931] [cursor=pointer]
+            - button "None" [ref=e932] [cursor=pointer]
+          - textbox "Filter columns…" [ref=e933]
+          - generic [ref=e934]: 69,680 rows × 8 columns
+        - generic [ref=e935]:
+          - row "Select all upload columns Column ↑ Type Non-null Nulls Min Max Distribution" [ref=e936]:
+            - columnheader "Select all upload columns" [ref=e937] [cursor=pointer]:
+              - checkbox "Select all upload columns" [ref=e938]
+            - columnheader "Column ↑" [ref=e939] [cursor=pointer]
+            - columnheader "Type" [ref=e940] [cursor=pointer]
+            - columnheader "Non-null" [ref=e941] [cursor=pointer]
+            - columnheader "Nulls" [ref=e942] [cursor=pointer]
+            - columnheader "Min" [ref=e943] [cursor=pointer]
+            - columnheader "Max" [ref=e944] [cursor=pointer]
+            - columnheader "Distribution" [ref=e945] [cursor=pointer]
+          - rowgroup [ref=e946]:
+            - generic [ref=e947]:
+              - generic:
+                - row "Select column date date datetime 69,680 — 1467331200000.00 1530042300000.00" [ref=e948]:
+                  - checkbox "Select column date" [ref=e950] [cursor=pointer]
+                  - generic [ref=e951] [cursor=pointer]: date
+                  - generic [ref=e952] [cursor=pointer]: datetime
+                  - generic [ref=e953] [cursor=pointer]: 69,680
+                  - generic [ref=e954] [cursor=pointer]: —
+                  - generic [ref=e955] [cursor=pointer]: "1467331200000.00"
+                  - generic [ref=e956] [cursor=pointer]: "1530042300000.00"
+                - row "Select column HUFL HUFL categorical 69,680 — 0.00 107.89" [ref=e958]:
+                  - checkbox "Select column HUFL" [checked] [ref=e960] [cursor=pointer]
+                  - generic [ref=e961] [cursor=pointer]: HUFL
+                  - generic [ref=e962] [cursor=pointer]: categorical
+                  - generic [ref=e963] [cursor=pointer]: 69,680
+                  - generic [ref=e964] [cursor=pointer]: —
+                  - generic [ref=e965] [cursor=pointer]: "0.00"
+                  - generic [ref=e966] [cursor=pointer]: "107.89"
+                - row "Select column HULL HULL categorical 69,680 — -29.32 36.44" [ref=e968]:
+                  - checkbox "Select column HULL" [checked] [ref=e970] [cursor=pointer]
+                  - generic [ref=e971] [cursor=pointer]: HULL
+                  - generic [ref=e972] [cursor=pointer]: categorical
+                  - generic [ref=e973] [cursor=pointer]: 69,680
+                  - generic [ref=e974] [cursor=pointer]: —
+                  - generic [ref=e975] [cursor=pointer]: "-29.32"
+                  - generic [ref=e976] [cursor=pointer]: "36.44"
+                - row "Select column LUFL LUFL categorical 69,680 — -14.62 17.22" [ref=e978]:
+                  - checkbox "Select column LUFL" [checked] [ref=e980] [cursor=pointer]
+                  - generic [ref=e981] [cursor=pointer]: LUFL
+                  - generic [ref=e982] [cursor=pointer]: categorical
+                  - generic [ref=e983] [cursor=pointer]: 69,680
+                  - generic [ref=e984] [cursor=pointer]: —
+                  - generic [ref=e985] [cursor=pointer]: "-14.62"
+                  - generic [ref=e986] [cursor=pointer]: "17.22"
+                - row "Select column LULL LULL categorical 69,680 — -31.46 3.73" [ref=e988]:
+                  - checkbox "Select column LULL" [checked] [ref=e990] [cursor=pointer]
+                  - generic [ref=e991] [cursor=pointer]: LULL
+                  - generic [ref=e992] [cursor=pointer]: categorical
+                  - generic [ref=e993] [cursor=pointer]: 69,680
+                  - generic [ref=e994] [cursor=pointer]: —
+                  - generic [ref=e995] [cursor=pointer]: "-31.46"
+                  - generic [ref=e996] [cursor=pointer]: "3.73"
+                - row "Select column MUFL MUFL categorical 69,680 — 10.43 93.23" [ref=e998]:
+                  - checkbox "Select column MUFL" [checked] [ref=e1000] [cursor=pointer]
+                  - generic [ref=e1001] [cursor=pointer]: MUFL
+                  - generic [ref=e1002] [cursor=pointer]: categorical
+                  - generic [ref=e1003] [cursor=pointer]: 69,680
+                  - generic [ref=e1004] [cursor=pointer]: —
+                  - generic [ref=e1005] [cursor=pointer]: "10.43"
+                  - generic [ref=e1006] [cursor=pointer]: "93.23"
+                - row "Select column MULL MULL categorical 69,680 — -6.65 29.81" [ref=e1008]:
+                  - checkbox "Select column MULL" [checked] [ref=e1010] [cursor=pointer]
+                  - generic [ref=e1011] [cursor=pointer]: MULL
+                  - generic [ref=e1012] [cursor=pointer]: categorical
+                  - generic [ref=e1013] [cursor=pointer]: 69,680
+                  - generic [ref=e1014] [cursor=pointer]: —
+                  - generic [ref=e1015] [cursor=pointer]: "-6.65"
+                  - generic [ref=e1016] [cursor=pointer]: "29.81"
+                - row "Select column OT OT categorical 69,680 — -2.65 58.88" [ref=e1018]:
+                  - checkbox "Select column OT" [checked] [ref=e1020] [cursor=pointer]
+                  - generic [ref=e1021] [cursor=pointer]: OT
+                  - generic [ref=e1022] [cursor=pointer]: categorical
+                  - generic [ref=e1023] [cursor=pointer]: 69,680
+                  - generic [ref=e1024] [cursor=pointer]: —
+                  - generic [ref=e1025] [cursor=pointer]: "-2.65"
+                  - generic [ref=e1026] [cursor=pointer]: "58.88"

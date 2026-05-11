@@ -1,0 +1,417 @@
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]: EdaTime
+      - button "Home" [ref=e7] [cursor=pointer]:
+        - img [ref=e9]
+        - generic [ref=e12]: Home
+      - generic [ref=e13]: Core workflow
+      - button "Upload" [active] [ref=e14] [cursor=pointer]:
+        - img [ref=e16]
+        - generic [ref=e19]: Upload
+        - generic [ref=e20]: ⌥1
+      - button "Timeseries" [ref=e21] [cursor=pointer]:
+        - img [ref=e23]
+        - generic [ref=e25]: Timeseries
+        - generic [ref=e26]: ⌥2
+      - button "Correlations" [ref=e27] [cursor=pointer]:
+        - img [ref=e29]
+        - generic [ref=e39]: Correlations
+        - generic [ref=e40]: ⌥7
+      - button "Scatter" [ref=e41] [cursor=pointer]:
+        - img [ref=e43]
+        - generic [ref=e49]: Scatter
+        - generic [ref=e50]: ⌥3
+      - generic [ref=e51]: Advanced analysis
+      - button "FFT / PSD" [ref=e52] [cursor=pointer]:
+        - img [ref=e54]
+        - generic [ref=e56]: FFT
+        - generic [ref=e57]: ⌥6
+      - button "Spectrogram" [ref=e58] [cursor=pointer]:
+        - img [ref=e60]
+        - generic [ref=e66]: Spectrogram
+        - generic [ref=e67]: ⌥8
+      - button "Causal Graph" [ref=e68] [cursor=pointer]:
+        - img [ref=e70]
+        - generic [ref=e76]: Causal
+        - generic [ref=e77]: ⌥9
+      - button "Drift Analysis" [ref=e78] [cursor=pointer]:
+        - img [ref=e80]
+        - generic [ref=e86]: Drift
+        - generic [ref=e87]: ⌥0
+      - button "Settings" [ref=e89] [cursor=pointer]:
+        - img [ref=e91]
+        - generic [ref=e94]: Settings
+      - button "Collapse sidebar" [ref=e95] [cursor=pointer]:
+        - img [ref=e97]
+        - generic [ref=e98]: Collapse
+    - generic [ref=e99]:
+      - banner [ref=e100]:
+        - generic [ref=e101]:
+          - img [ref=e103]
+          - generic [ref=e105]: EdaTime
+        - generic [ref=e106]:
+          - generic [ref=e324]:
+            - strong [ref=e325]: 69,680
+            - text: rows
+          - generic [ref=e326]:
+            - strong [ref=e327]: "7"
+            - text: numeric series
+      - generic [ref=e422]:
+        - generic [ref=e423]:
+          - generic [ref=e424]: Guided Workflow
+          - generic [ref=e425]: ✓ 2 completed
+          - generic [ref=e426]: → Upload
+        - generic [ref=e427]:
+          - button "Open Timeseries" [ref=e428] [cursor=pointer]
+          - button "✕" [ref=e429] [cursor=pointer]
+      - generic [ref=e431]:
+        - generic [ref=e432]:
+          - tablist "Upload source" [ref=e433]:
+            - tab "File" [selected] [ref=e434] [cursor=pointer]
+            - tab "Database" [ref=e435] [cursor=pointer]
+          - generic [ref=e436]:
+            - button "Drop CSV or Parquet file here or browse for a file" [ref=e437] [cursor=pointer]:
+              - img [ref=e438]
+              - generic [ref=e441]: Drop CSV or Parquet here
+              - generic [ref=e442]: or
+              - button "Browse file" [ref=e443]
+              - status [ref=e444]
+            - generic [ref=e445]:
+              - generic [ref=e446]: Load options
+              - generic [ref=e447] [cursor=pointer]:
+                - checkbox "Enable partial load options" [ref=e449]
+                - generic [ref=e451]:
+                  - generic [ref=e452]: Partial load
+                  - generic [ref=e453]: Limit the rows ingested from the file
+              - generic:
+                - generic [ref=e454]:
+                  - generic [ref=e455]: Max rows to load
+                  - generic [ref=e456]:
+                    - spinbutton "Maximum rows to load" [ref=e457]: "1000000"
+                    - slider "Max rows slider" [ref=e458] [cursor=pointer]: "1000000"
+                    - generic [ref=e459]: 1.0M
+                - generic [ref=e460]:
+                  - generic [ref=e461]: Skip first N rows
+                  - spinbutton "Skip first N rows" [ref=e463]: "0"
+                  - generic [ref=e464]: Skip rows at the top of the file (e.g., header rows)
+                - generic [ref=e465]:
+                  - generic [ref=e466]: Time range (optional)
+                  - generic [ref=e467]:
+                    - textbox "Start time" [ref=e468]: 2016-07-01T02:00
+                    - textbox "End time" [ref=e469]: 2018-06-26T21:45
+                  - generic [ref=e470]: "Detected: 7/1/2016, 2:00:00 AM → 6/26/2018, 9:45:00 PM"
+                - generic [ref=e471]:
+                  - generic [ref=e472]: Time column
+                  - combobox "Time column" [ref=e473] [cursor=pointer]:
+                    - option "Auto-detect" [selected]
+                  - generic [ref=e474]: Required when file has multiple time-like columns
+            - generic [ref=e475]:
+              - button "Upload & Ingest" [ref=e476] [cursor=pointer]:
+                - img [ref=e477]
+                - text: Upload & Ingest
+              - status [ref=e480]
+        - generic [ref=e481]:
+          - generic [ref=e482]:
+            - generic [ref=e483]: File Preview
+            - generic [ref=e484]: Current dataset
+            - generic [ref=e485]:
+              - button "All" [ref=e486] [cursor=pointer]
+              - button "None" [ref=e487] [cursor=pointer]
+            - textbox "Filter profile columns" [ref=e488]:
+              - /placeholder: Filter columns…
+            - status [ref=e489]: Showing current dataset profile. Drop/select a file to preview before loading.
+          - generic [ref=e490]: Column profile preview with selectable columns for upload ingestion.
+          - table "Column profile table" [ref=e491]:
+            - row "Select all upload columns Column ↑ Type Non-null Nulls Min Max Distribution" [ref=e492]:
+              - columnheader "Select all upload columns" [ref=e493]:
+                - checkbox "Select all upload columns" [ref=e494] [cursor=pointer]
+                - separator [ref=e495]
+              - columnheader "Column ↑" [ref=e496] [cursor=pointer]:
+                - text: Column
+                - separator [ref=e497]
+                - text: ↑
+              - columnheader "Type" [ref=e498] [cursor=pointer]:
+                - text: Type
+                - separator [ref=e499]
+              - columnheader "Non-null" [ref=e500] [cursor=pointer]:
+                - text: Non-null
+                - separator [ref=e501]
+              - columnheader "Nulls" [ref=e502] [cursor=pointer]:
+                - text: Nulls
+                - separator [ref=e503]
+              - columnheader "Min" [ref=e504] [cursor=pointer]:
+                - text: Min
+                - separator [ref=e505]
+              - columnheader "Max" [ref=e506] [cursor=pointer]:
+                - text: Max
+                - separator [ref=e507]
+              - columnheader "Distribution" [ref=e508]
+            - rowgroup [ref=e509]:
+              - generic [ref=e511]:
+                - row "Select date for upload date datetime[ns] 69,680 (100.0%) 0 7/1/2016, 2:00:00 AM 6/26/2018, 9:45:00 PM 2,904 2,903 2,903 2,904 2,903 2,903 2,904 2,903 2,903 2,903 2,904 2,903 2,903 2,904 2,903 2,903 2,903 2,904 2,903 2,903 2,904 2,903 2,903 2,904" [ref=e512]:
+                  - checkbox "Select date for upload" [ref=e514] [cursor=pointer]
+                  - generic [ref=e515]: date
+                  - generic [ref=e516]: datetime[ns]
+                  - generic [ref=e517]: 69,680 (100.0%)
+                  - generic [ref=e518]: "0"
+                  - generic [ref=e519]: 7/1/2016, 2:00:00 AM
+                  - generic [ref=e520]: 6/26/2018, 9:45:00 PM
+                  - generic [ref=e522]:
+                    - generic "2,904" [ref=e523]
+                    - generic "2,903" [ref=e524]
+                    - generic "2,903" [ref=e525]
+                    - generic "2,904" [ref=e526]
+                    - generic "2,903" [ref=e527]
+                    - generic "2,903" [ref=e528]
+                    - generic "2,904" [ref=e529]
+                    - generic "2,903" [ref=e530]
+                    - generic "2,903" [ref=e531]
+                    - generic "2,903" [ref=e532]
+                    - generic "2,904" [ref=e533]
+                    - generic "2,903" [ref=e534]
+                    - generic "2,903" [ref=e535]
+                    - generic "2,904" [ref=e536]
+                    - generic "2,903" [ref=e537]
+                    - generic "2,903" [ref=e538]
+                    - generic "2,903" [ref=e539]
+                    - generic "2,904" [ref=e540]
+                    - generic "2,903" [ref=e541]
+                    - generic "2,903" [ref=e542]
+                    - generic "2,904" [ref=e543]
+                    - generic "2,903" [ref=e544]
+                    - generic "2,903" [ref=e545]
+                    - generic "2,904" [ref=e546]
+                - row "Select HUFL for upload HUFL f64 69,680 (100.0%) 0 -23.24 24.18 16 27 199 438 696 881 942 1,129 1,199 1,303 1,324 1,760 1,729 2,413 5,749 12,577 11,756 10,742 7,453 4,760 1,660 665 235 27" [ref=e547]:
+                  - checkbox "Select HUFL for upload" [ref=e549] [cursor=pointer]
+                  - generic [ref=e550]: HUFL
+                  - generic [ref=e551]: f64
+                  - generic [ref=e552]: 69,680 (100.0%)
+                  - generic [ref=e553]: "0"
+                  - generic [ref=e554]: "-23.24"
+                  - generic [ref=e555]: "24.18"
+                  - generic [ref=e557]:
+                    - generic "16" [ref=e558]
+                    - generic "27" [ref=e559]
+                    - generic "199" [ref=e560]
+                    - generic "438" [ref=e561]
+                    - generic "696" [ref=e562]
+                    - generic "881" [ref=e563]
+                    - generic "942" [ref=e564]
+                    - generic "1,129" [ref=e565]
+                    - generic "1,199" [ref=e566]
+                    - generic "1,303" [ref=e567]
+                    - generic "1,324" [ref=e568]
+                    - generic "1,760" [ref=e569]
+                    - generic "1,729" [ref=e570]
+                    - generic "2,413" [ref=e571]
+                    - generic "5,749" [ref=e572]
+                    - generic "12,577" [ref=e573]
+                    - generic "11,756" [ref=e574]
+                    - generic "10,742" [ref=e575]
+                    - generic "7,453" [ref=e576]
+                    - generic "4,760" [ref=e577]
+                    - generic "1,660" [ref=e578]
+                    - generic "665" [ref=e579]
+                    - generic "235" [ref=e580]
+                    - generic "27" [ref=e581]
+                - row "Select HULL for upload HULL f64 69,680 (100.0%) 0 -5.69 10.31 1 14 33 50 198 836 2,487 3,595 5,896 6,105 7,767 9,032 8,255 7,432 6,637 4,697 3,071 2,023 958 344 136 68 29 16" [ref=e582]:
+                  - checkbox "Select HULL for upload" [ref=e584] [cursor=pointer]
+                  - generic [ref=e585]: HULL
+                  - generic [ref=e586]: f64
+                  - generic [ref=e587]: 69,680 (100.0%)
+                  - generic [ref=e588]: "0"
+                  - generic [ref=e589]: "-5.69"
+                  - generic [ref=e590]: "10.31"
+                  - generic [ref=e592]:
+                    - generic "1" [ref=e593]
+                    - generic "14" [ref=e594]
+                    - generic "33" [ref=e595]
+                    - generic "50" [ref=e596]
+                    - generic "198" [ref=e597]
+                    - generic "836" [ref=e598]
+                    - generic "2,487" [ref=e599]
+                    - generic "3,595" [ref=e600]
+                    - generic "5,896" [ref=e601]
+                    - generic "6,105" [ref=e602]
+                    - generic "7,767" [ref=e603]
+                    - generic "9,032" [ref=e604]
+                    - generic "8,255" [ref=e605]
+                    - generic "7,432" [ref=e606]
+                    - generic "6,637" [ref=e607]
+                    - generic "4,697" [ref=e608]
+                    - generic "3,071" [ref=e609]
+                    - generic "2,023" [ref=e610]
+                    - generic "958" [ref=e611]
+                    - generic "344" [ref=e612]
+                    - generic "136" [ref=e613]
+                    - generic "68" [ref=e614]
+                    - generic "29" [ref=e615]
+                    - generic "16" [ref=e616]
+                - row "Select LUFL for upload LUFL f64 69,680 (100.0%) 0 -1.19 8.50 1 1 240 2 47 569 2,525 6,326 12,331 13,085 10,567 6,643 4,336 4,123 3,380 2,212 1,475 602 267 160 123 58 29 578" [ref=e617]:
+                  - checkbox "Select LUFL for upload" [ref=e619] [cursor=pointer]
+                  - generic [ref=e620]: LUFL
+                  - generic [ref=e621]: f64
+                  - generic [ref=e622]: 69,680 (100.0%)
+                  - generic [ref=e623]: "0"
+                  - generic [ref=e624]: "-1.19"
+                  - generic [ref=e625]: "8.50"
+                  - generic [ref=e627]:
+                    - generic "1" [ref=e628]
+                    - generic "1" [ref=e629]
+                    - generic "240" [ref=e630]
+                    - generic "2" [ref=e631]
+                    - generic "47" [ref=e632]
+                    - generic "569" [ref=e633]
+                    - generic "2,525" [ref=e634]
+                    - generic "6,326" [ref=e635]
+                    - generic "12,331" [ref=e636]
+                    - generic "13,085" [ref=e637]
+                    - generic "10,567" [ref=e638]
+                    - generic "6,643" [ref=e639]
+                    - generic "4,336" [ref=e640]
+                    - generic "4,123" [ref=e641]
+                    - generic "3,380" [ref=e642]
+                    - generic "2,212" [ref=e643]
+                    - generic "1,475" [ref=e644]
+                    - generic "602" [ref=e645]
+                    - generic "267" [ref=e646]
+                    - generic "160" [ref=e647]
+                    - generic "123" [ref=e648]
+                    - generic "58" [ref=e649]
+                    - generic "29" [ref=e650]
+                    - generic "578" [ref=e651]
+                - row "Select LULL for upload LULL f64 69,680 (100.0%) 0 -1.37 3.05 59 846 1,070 1,196 2,031 1,015 387 914 100 2,224 6,428 9,381 12,830 12,716 9,857 5,110 1,887 990 442 145 40 7 3 2" [ref=e652]:
+                  - checkbox "Select LULL for upload" [ref=e654] [cursor=pointer]
+                  - generic [ref=e655]: LULL
+                  - generic [ref=e656]: f64
+                  - generic [ref=e657]: 69,680 (100.0%)
+                  - generic [ref=e658]: "0"
+                  - generic [ref=e659]: "-1.37"
+                  - generic [ref=e660]: "3.05"
+                  - generic [ref=e662]:
+                    - generic "59" [ref=e663]
+                    - generic "846" [ref=e664]
+                    - generic "1,070" [ref=e665]
+                    - generic "1,196" [ref=e666]
+                    - generic "2,031" [ref=e667]
+                    - generic "1,015" [ref=e668]
+                    - generic "387" [ref=e669]
+                    - generic "914" [ref=e670]
+                    - generic "100" [ref=e671]
+                    - generic "2,224" [ref=e672]
+                    - generic "6,428" [ref=e673]
+                    - generic "9,381" [ref=e674]
+                    - generic "12,830" [ref=e675]
+                    - generic "12,716" [ref=e676]
+                    - generic "9,857" [ref=e677]
+                    - generic "5,110" [ref=e678]
+                    - generic "1,887" [ref=e679]
+                    - generic "990" [ref=e680]
+                    - generic "442" [ref=e681]
+                    - generic "145" [ref=e682]
+                    - generic "40" [ref=e683]
+                    - generic "7" [ref=e684]
+                    - generic "3" [ref=e685]
+                    - generic "2" [ref=e686]
+                - row "Select MUFL for upload MUFL f64 69,680 (100.0%) 0 -26.37 18.09 10 16 80 366 584 806 897 977 1,076 1,132 1,219 1,286 1,310 1,531 2,493 3,481 11,798 12,641 11,833 10,097 4,450 1,209 266 122" [ref=e687]:
+                  - checkbox "Select MUFL for upload" [ref=e689] [cursor=pointer]
+                  - generic [ref=e690]: MUFL
+                  - generic [ref=e691]: f64
+                  - generic [ref=e692]: 69,680 (100.0%)
+                  - generic [ref=e693]: "0"
+                  - generic [ref=e694]: "-26.37"
+                  - generic [ref=e695]: "18.09"
+                  - generic [ref=e697]:
+                    - generic "10" [ref=e698]
+                    - generic "16" [ref=e699]
+                    - generic "80" [ref=e700]
+                    - generic "366" [ref=e701]
+                    - generic "584" [ref=e702]
+                    - generic "806" [ref=e703]
+                    - generic "897" [ref=e704]
+                    - generic "977" [ref=e705]
+                    - generic "1,076" [ref=e706]
+                    - generic "1,132" [ref=e707]
+                    - generic "1,219" [ref=e708]
+                    - generic "1,286" [ref=e709]
+                    - generic "1,310" [ref=e710]
+                    - generic "1,531" [ref=e711]
+                    - generic "2,493" [ref=e712]
+                    - generic "3,481" [ref=e713]
+                    - generic "11,798" [ref=e714]
+                    - generic "12,641" [ref=e715]
+                    - generic "11,833" [ref=e716]
+                    - generic "10,097" [ref=e717]
+                    - generic "4,450" [ref=e718]
+                    - generic "1,209" [ref=e719]
+                    - generic "266" [ref=e720]
+                    - generic "122" [ref=e721]
+                - row "Select MULL for upload MULL f64 69,680 (100.0%) 0 -6.04 7.85 22 20 116 33 214 1,177 3,633 4,005 3,430 4,811 7,617 9,190 7,901 8,225 7,603 5,434 3,205 1,751 761 285 129 58 42 18" [ref=e722]:
+                  - checkbox "Select MULL for upload" [ref=e724] [cursor=pointer]
+                  - generic [ref=e725]: MULL
+                  - generic [ref=e726]: f64
+                  - generic [ref=e727]: 69,680 (100.0%)
+                  - generic [ref=e728]: "0"
+                  - generic [ref=e729]: "-6.04"
+                  - generic [ref=e730]: "7.85"
+                  - generic [ref=e732]:
+                    - generic "22" [ref=e733]
+                    - generic "20" [ref=e734]
+                    - generic "116" [ref=e735]
+                    - generic "33" [ref=e736]
+                    - generic "214" [ref=e737]
+                    - generic "1,177" [ref=e738]
+                    - generic "3,633" [ref=e739]
+                    - generic "4,005" [ref=e740]
+                    - generic "3,430" [ref=e741]
+                    - generic "4,811" [ref=e742]
+                    - generic "7,617" [ref=e743]
+                    - generic "9,190" [ref=e744]
+                    - generic "7,901" [ref=e745]
+                    - generic "8,225" [ref=e746]
+                    - generic "7,603" [ref=e747]
+                    - generic "5,434" [ref=e748]
+                    - generic "3,205" [ref=e749]
+                    - generic "1,751" [ref=e750]
+                    - generic "761" [ref=e751]
+                    - generic "285" [ref=e752]
+                    - generic "129" [ref=e753]
+                    - generic "58" [ref=e754]
+                    - generic "42" [ref=e755]
+                    - generic "18" [ref=e756]
+                - row "Select OT for upload OT f64 69,680 (100.0%) 0 -4.22 46.01 232 391 1,857 5,039 7,018 7,591 8,828 7,232 5,606 5,230 4,724 4,202 3,299 1,840 1,130 927 931 1,092 913 560 563 305 95 75" [ref=e757]:
+                  - checkbox "Select OT for upload" [ref=e759] [cursor=pointer]
+                  - generic [ref=e760]: OT
+                  - generic [ref=e761]: f64
+                  - generic [ref=e762]: 69,680 (100.0%)
+                  - generic [ref=e763]: "0"
+                  - generic [ref=e764]: "-4.22"
+                  - generic [ref=e765]: "46.01"
+                  - generic [ref=e767]:
+                    - generic "232" [ref=e768]
+                    - generic "391" [ref=e769]
+                    - generic "1,857" [ref=e770]
+                    - generic "5,039" [ref=e771]
+                    - generic "7,018" [ref=e772]
+                    - generic "7,591" [ref=e773]
+                    - generic "8,828" [ref=e774]
+                    - generic "7,232" [ref=e775]
+                    - generic "5,606" [ref=e776]
+                    - generic "5,230" [ref=e777]
+                    - generic "4,724" [ref=e778]
+                    - generic "4,202" [ref=e779]
+                    - generic "3,299" [ref=e780]
+                    - generic "1,840" [ref=e781]
+                    - generic "1,130" [ref=e782]
+                    - generic "927" [ref=e783]
+                    - generic "931" [ref=e784]
+                    - generic "1,092" [ref=e785]
+                    - generic "913" [ref=e786]
+                    - generic "560" [ref=e787]
+                    - generic "563" [ref=e788]
+                    - generic "305" [ref=e789]
+                    - generic "95" [ref=e790]
+                    - generic "75" [ref=e791]

@@ -1,0 +1,113 @@
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]: EdaTime
+      - button "Home" [ref=e7] [cursor=pointer]:
+        - img [ref=e9]
+        - generic [ref=e12]: Home
+      - generic [ref=e13]: Core workflow
+      - button "Upload" [ref=e14] [cursor=pointer]:
+        - img [ref=e16]
+        - generic [ref=e19]: Upload
+        - generic [ref=e20]: ⌥1
+      - button "Timeseries" [active] [ref=e21] [cursor=pointer]:
+        - img [ref=e23]
+        - generic [ref=e25]: Timeseries
+        - generic [ref=e26]: ⌥2
+      - button "Correlations" [ref=e27] [cursor=pointer]:
+        - img [ref=e29]
+        - generic [ref=e39]: Correlations
+        - generic [ref=e40]: ⌥7
+      - button "Scatter" [ref=e41] [cursor=pointer]:
+        - img [ref=e43]
+        - generic [ref=e49]: Scatter
+        - generic [ref=e50]: ⌥3
+      - generic [ref=e51]: Advanced analysis
+      - button "FFT / PSD" [ref=e52] [cursor=pointer]:
+        - img [ref=e54]
+        - generic [ref=e56]: FFT
+        - generic [ref=e57]: ⌥6
+      - button "Spectrogram" [ref=e58] [cursor=pointer]:
+        - img [ref=e60]
+        - generic [ref=e66]: Spectrogram
+        - generic [ref=e67]: ⌥8
+      - button "Causal Graph" [ref=e68] [cursor=pointer]:
+        - img [ref=e70]
+        - generic [ref=e76]: Causal
+        - generic [ref=e77]: ⌥9
+      - button "Drift Analysis" [ref=e78] [cursor=pointer]:
+        - img [ref=e80]
+        - generic [ref=e86]: Drift
+        - generic [ref=e87]: ⌥0
+      - button "Settings" [ref=e89] [cursor=pointer]:
+        - img [ref=e91]
+        - generic [ref=e94]: Settings
+      - button "Collapse sidebar" [ref=e95] [cursor=pointer]:
+        - img [ref=e97]
+        - generic [ref=e98]: Collapse
+    - generic [ref=e99]:
+      - banner [ref=e100]:
+        - generic [ref=e101]:
+          - img [ref=e103]
+          - generic [ref=e105]: EdaTime
+        - generic [ref=e106]:
+          - generic [ref=e324]:
+            - strong [ref=e325]: 69,680
+            - text: rows
+          - generic [ref=e326]:
+            - strong [ref=e327]: "7"
+            - text: numeric series
+      - generic [ref=e1452]:
+        - generic [ref=e1453]:
+          - generic [ref=e1454]: Guided Workflow
+          - generic [ref=e1455]: ✓ 3 completed
+          - generic [ref=e1456]: → Scatter
+        - generic [ref=e1457]:
+          - button "Open Scatter" [ref=e1458] [cursor=pointer]
+          - button "✕" [ref=e1459] [cursor=pointer]
+      - generic [ref=e926]:
+        - generic [ref=e927]:
+          - generic [ref=e928]:
+            - generic [ref=e929]: Spectrogram
+            - generic [ref=e930]: Column
+            - combobox "Column" [ref=e931] [cursor=pointer]:
+              - option "HUFL" [selected]
+              - option "HULL"
+              - option "MUFL"
+              - option "MULL"
+              - option "LUFL"
+              - option "LULL"
+              - option "OT"
+            - generic [ref=e932]: Window
+            - combobox "FFT window size" [ref=e933] [cursor=pointer]:
+              - option "64"
+              - option "128"
+              - option "256" [selected]
+              - option "512"
+              - option "1024"
+            - generic [ref=e934] [cursor=pointer]:
+              - checkbox "Log scale" [checked] [ref=e935]
+              - generic [ref=e936]: Log scale
+          - generic [ref=e937]:
+            - group [ref=e938]:
+              - generic "Export Image + HTML" [ref=e939] [cursor=pointer]:
+                - generic [ref=e940]: Export
+                - generic [ref=e941]: Image + HTML
+            - button "Reset zoom" [ref=e942] [cursor=pointer]
+            - button "Compute" [ref=e943] [cursor=pointer]
+            - generic [ref=e944]: Select a column and press Compute.
+        - generic [ref=e945]:
+          - generic [ref=e946]:
+            - strong [ref=e947]: Best for
+            - text: Regime changes, non-stationary periodic behavior, and seeing when energy shifts over time.
+          - generic [ref=e948]:
+            - strong [ref=e949]: Needs
+            - text: One numeric column, a focused time range, and a window size matched to the pattern duration you care about.
+          - generic [ref=e950]:
+            - strong [ref=e951]: Cost
+            - text: Heavier than FFT because each compute rebuilds a time-frequency grid. Start with a narrower range before scaling up.
+        - main [ref=e952]:
+          - generic: Pick a numeric column and click Compute to generate the spectrogram.
+      - text: ↑

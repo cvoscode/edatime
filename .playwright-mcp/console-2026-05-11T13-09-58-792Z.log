@@ -1,0 +1,1 @@
+[   50273ms] [ERROR] Failed to load page module for scatter: TypeError: Failed to fetch dynamically imported module: http://localhost:3000/js/assets/scatter-48PQWqMr.js @ http://localhost:3000/js/app.js?v=139:3977

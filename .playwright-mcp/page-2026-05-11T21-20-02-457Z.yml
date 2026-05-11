@@ -1,0 +1,84 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]: edatime
+    - navigation [ref=e6]:
+      - link "Timeseries" [ref=e7] [cursor=pointer]:
+        - /url: "#/timeseries"
+      - link "FFT" [ref=e8] [cursor=pointer]:
+        - /url: "#/fft"
+      - link "Spectrogram" [ref=e9] [cursor=pointer]:
+        - /url: "#/spectrogram"
+      - link "Heatmap" [ref=e10] [cursor=pointer]:
+        - /url: "#/heatmap"
+      - link "Scatter" [ref=e11] [cursor=pointer]:
+        - /url: "#/scatter"
+      - link "Drift" [ref=e12] [cursor=pointer]:
+        - /url: "#/drift"
+      - link "Causal" [ref=e13] [cursor=pointer]:
+        - /url: "#/causal"
+      - link "Settings" [ref=e14] [cursor=pointer]:
+        - /url: "#/settings"
+    - generic [ref=e15]: v0.1.0
+  - main [ref=e16]:
+    - generic [ref=e472]:
+      - generic [ref=e473]:
+        - tablist [ref=e474]:
+          - tab "File" [selected] [ref=e475] [cursor=pointer]
+          - tab "Database" [ref=e476] [cursor=pointer]
+        - generic [ref=e477]:
+          - button "Drop CSV or Parquet file here or browse for a file" [ref=e478] [cursor=pointer]:
+            - img [ref=e479]
+            - generic [ref=e482]: Drop CSV or Parquet here
+            - generic [ref=e483]: or
+            - button "Browse file" [ref=e484]
+          - generic [ref=e485]:
+            - generic [ref=e486]: Load options
+            - generic [ref=e487] [cursor=pointer]:
+              - generic [ref=e488]:
+                - checkbox "Enable partial load options"
+              - generic [ref=e491]:
+                - generic [ref=e492]: Partial load
+                - generic [ref=e493]: Limit the rows ingested from the file
+            - generic:
+              - generic [ref=e494]:
+                - generic [ref=e495]: Max rows to load
+                - generic [ref=e496]:
+                  - spinbutton "Max rows to load" [ref=e497]: "1000000"
+                  - slider [ref=e498]: "1000000"
+                  - generic [ref=e499]: 1,000,000
+              - generic [ref=e500]:
+                - generic [ref=e501]: Skip first N rows
+                - spinbutton "Skip first N rows" [ref=e502]: "0"
+              - generic [ref=e503]:
+                - generic [ref=e504]: Time range (optional)
+                - generic [ref=e505]:
+                  - textbox [ref=e506]
+                  - textbox [ref=e507]
+              - generic [ref=e508]:
+                - generic [ref=e509]: Time column
+                - combobox "Time column" [ref=e510]:
+                  - option "Auto-detect" [selected]
+          - button "Upload & Ingest" [disabled] [ref=e512]:
+            - img [ref=e513]
+            - text: Upload & Ingest
+      - generic [ref=e516]:
+        - generic [ref=e517]:
+          - generic [ref=e518]: File Preview
+          - generic [ref=e519]: Current dataset
+          - generic [ref=e520]:
+            - button "All" [ref=e521] [cursor=pointer]
+            - button "None" [ref=e522] [cursor=pointer]
+          - textbox "Filter columns…" [ref=e523]
+          - generic [ref=e524]: Select a file to preview columns
+        - generic [ref=e525]:
+          - row "Select all upload columns Column ↑ Type Non-null Nulls Min Max Distribution" [ref=e526]:
+            - columnheader "Select all upload columns" [ref=e527] [cursor=pointer]:
+              - checkbox "Select all upload columns" [ref=e528]
+            - columnheader "Column ↑" [ref=e529] [cursor=pointer]
+            - columnheader "Type" [ref=e530] [cursor=pointer]
+            - columnheader "Non-null" [ref=e531] [cursor=pointer]
+            - columnheader "Nulls" [ref=e532] [cursor=pointer]
+            - columnheader "Min" [ref=e533] [cursor=pointer]
+            - columnheader "Max" [ref=e534] [cursor=pointer]
+            - columnheader "Distribution" [ref=e535] [cursor=pointer]
+          - rowgroup [ref=e536]

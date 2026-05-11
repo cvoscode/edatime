@@ -1,0 +1,5 @@
+[      16ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:5173/@vite/client:0
+[      46ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:5173/js/assets/chartgpu-CqrjGxnD.js:0
+[      49ms] [LOG] ServiceWorker registration successful @ http://localhost:5173/:20
+[   80449ms] [LOG] data-theme: null @ :1
+[   80455ms] [LOG] localStorage theme: dark @ :2

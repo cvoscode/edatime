@@ -1,0 +1,35 @@
+[     219ms] [LOG] ServiceWorker registration successful @ http://localhost:3000/:18
+[    8409ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/assets/frequency-ngm7vJQa.js:0
+[    8409ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/assets/chartgpu-CqrjGxnD.js:0
+[    8409ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/assets/DataChart-BZVqMNIb.js:0
+[    8477ms] [WARNING] No available adapters. @ http://localhost:3000/#page=timeseries:0
+[    8478ms] [ERROR] Primary chart failed, switching to fallback: Error: No WebGPU adapter found. Your GPU may not be supported or hardware acceleration may be disabled.
+    at http://localhost:3000/js/app.js?v=139:4539:27
+    at async ensureTimeseriesReady (http://localhost:3000/js/app.js?v=139:4589:5) @ http://localhost:3000/js/app.js?v=139:4569
+[  480912ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:3000/api/scatter/correlations/matrix:0
+[  487784ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/assets/scatter-48PQWqMr.js:0
+[  487784ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/js/assets/scatter-48PQWqMr.js:0
+[  487785ms] [ERROR] Failed to load page module for scatter: TypeError: Failed to fetch dynamically imported module: http://localhost:3000/js/assets/scatter-48PQWqMr.js @ http://localhost:3000/js/app.js?v=139:3977
+[  502709ms] [WARNING] No available adapters. @ http://localhost:3000/#page=scatter:0
+[  502709ms] [WARNING] No available adapters. @ http://localhost:3000/#page=scatter:0
+[  502710ms] [ERROR] Failed to load page module for fft: Error: ChartGPU: WebGPU is not available.
+Reason: No compatible WebGPU adapter found. This may occur if: (1) no GPU is available, (2) GPU drivers are outdated or incompatible, (3) running in a VM or headless environment, or (4) WebGPU is disabled in browser settings.
+Browser support: Chrome/Edge 113+, Safari 18+, Firefox not yet supported.
+Resources:
+  - MDN WebGPU API: https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API
+  - Browser compatibility: https://caniuse.com/webgpu
+  - WebGPU specification: https://www.w3.org/TR/webgpu/
+  - Check your system: https://webgpureport.org/
+    at Ad (http://localhost:3000/js/assets/chartgpu-CqrjGxnD.js:9140:13)
+    at async FftChart.init (http://localhost:3000/js/assets/frequency-ngm7vJQa.js:2148:19)
+    at async initFftPage (http://localhost:3000/js/assets/frequency-ngm7vJQa.js:2592:3)
+    at async initFftPage (http://localhost:3000/js/app.js?v=139:3919:3)
+    at async Object.ensurePageModuleLoaded (http://localhost:3000/js/app.js?v=139:3975:5)
+    at async showPage (http://localhost:3000/js/app.js?v=139:2129:7)
+    at async HTMLButtonElement.<anonymous> (http://localhost:3000/js/app.js?v=139:2156:7) @ http://localhost:3000/js/app.js?v=139:3977
+[  517175ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/assets/causal-DBlK2LHs.js:0
+[  517176ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/js/assets/causal-DBlK2LHs.js:0
+[  517176ms] [ERROR] Failed to load page module for causal: TypeError: Failed to fetch dynamically imported module: http://localhost:3000/js/assets/causal-DBlK2LHs.js @ http://localhost:3000/js/app.js?v=139:3977
+[  529739ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/assets/drift-CfM-5IZu.js:0
+[  529739ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/js/assets/drift-CfM-5IZu.js:0
+[  529739ms] [ERROR] Failed to load page module for drift: TypeError: Failed to fetch dynamically imported module: http://localhost:3000/js/assets/drift-CfM-5IZu.js @ http://localhost:3000/js/app.js?v=139:3977

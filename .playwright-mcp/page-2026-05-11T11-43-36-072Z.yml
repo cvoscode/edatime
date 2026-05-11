@@ -1,0 +1,133 @@
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]: EdaTime
+      - button "Home" [ref=e7] [cursor=pointer]:
+        - img [ref=e9]
+        - generic [ref=e12]: Home
+      - generic [ref=e13]: Core workflow
+      - button "Upload" [ref=e14] [cursor=pointer]:
+        - img [ref=e16]
+        - generic [ref=e19]: Upload
+        - generic [ref=e20]: ⌥1
+      - button "Timeseries" [ref=e21] [cursor=pointer]:
+        - img [ref=e23]
+        - generic [ref=e25]: Timeseries
+        - generic [ref=e26]: ⌥2
+      - button "Correlations" [ref=e27] [cursor=pointer]:
+        - img [ref=e29]
+        - generic [ref=e39]: Correlations
+        - generic [ref=e40]: ⌥7
+      - button "Scatter" [ref=e41] [cursor=pointer]:
+        - img [ref=e43]
+        - generic [ref=e49]: Scatter
+        - generic [ref=e50]: ⌥3
+      - generic [ref=e51]: Advanced analysis
+      - button "FFT / PSD" [ref=e52] [cursor=pointer]:
+        - img [ref=e54]
+        - generic [ref=e56]: FFT
+        - generic [ref=e57]: ⌥6
+      - button "Spectrogram" [ref=e58] [cursor=pointer]:
+        - img [ref=e60]
+        - generic [ref=e66]: Spectrogram
+        - generic [ref=e67]: ⌥8
+      - button "Causal Graph" [active] [ref=e68] [cursor=pointer]:
+        - img [ref=e70]
+        - generic [ref=e76]: Causal
+        - generic [ref=e77]: ⌥9
+      - button "Drift Analysis" [ref=e78] [cursor=pointer]:
+        - img [ref=e80]
+        - generic [ref=e86]: Drift
+        - generic [ref=e87]: ⌥0
+      - button "Settings" [ref=e89] [cursor=pointer]:
+        - img [ref=e91]
+        - generic [ref=e94]: Settings
+      - button "Collapse sidebar" [ref=e95] [cursor=pointer]:
+        - img [ref=e97]
+        - generic [ref=e98]: Collapse
+    - generic [ref=e99]:
+      - banner [ref=e100]:
+        - generic [ref=e101]:
+          - img [ref=e103]
+          - generic [ref=e105]: EdaTime
+        - generic [ref=e106]:
+          - generic [ref=e324]:
+            - strong [ref=e325]: 69,680
+            - text: rows
+          - generic [ref=e326]:
+            - strong [ref=e327]: "7"
+            - text: numeric series
+      - generic [ref=e954]:
+        - generic [ref=e955]:
+          - generic [ref=e956]: Guided Workflow
+          - generic [ref=e957]: ✓ 3 completed
+          - generic [ref=e958]: → Causal
+        - button "✕" [ref=e960] [cursor=pointer]
+      - generic [ref=e961]:
+        - generic [ref=e962]:
+          - generic [ref=e963]:
+            - generic "Causal discovery using tigramite algorithms. Select columns, configure parameters, and press Compute." [ref=e964]: Causal Discovery (Tigramite)
+            - generic [ref=e965]: ⓘ
+            - generic [ref=e966]: Method
+            - combobox "PCMCI method" [ref=e967] [cursor=pointer]:
+              - option "PCMCI" [selected]
+              - option "PCMCI+"
+              - option "FullCI"
+              - option "BivCI"
+              - option "LPCMCI"
+            - generic [ref=e968]: ⓘ
+            - generic [ref=e969]: Test
+            - combobox "Independence test" [ref=e970] [cursor=pointer]:
+              - option "ParCorr" [selected]
+              - option "RobustParCorr"
+              - option "CMI-KNN"
+              - option "G-squared"
+              - option "CMI-Symb"
+            - generic [ref=e971]: ⓘ
+            - generic [ref=e972]: τ max
+            - spinbutton "Maximum time lag (tau max)" [ref=e973]: "3"
+            - generic [ref=e974]: ⓘ
+            - generic [ref=e975]: α
+            - spinbutton "Significance level (alpha)" [ref=e976]: "0.05"
+            - generic [ref=e977]: ⓘ
+            - generic [ref=e978]: PC α
+            - spinbutton "PC stage significance level" [ref=e979]: "0.2"
+            - generic [ref=e980]: ⓘ
+            - generic [ref=e981]: Max conds
+            - spinbutton "Maximum conditioning set size" [ref=e982]
+            - generic [ref=e983]: ⓘ
+            - generic [ref=e984]: FDR
+            - combobox "FDR correction" [ref=e985] [cursor=pointer]:
+              - option "None" [selected]
+              - option "Benjamini-Hochberg"
+            - generic [ref=e986]: ⓘ
+          - generic [ref=e987]:
+            - button "+ Edge" [ref=e988] [cursor=pointer]
+            - button "Export ▾" [ref=e990] [cursor=pointer]
+            - button "Save Run" [ref=e991] [cursor=pointer]
+            - button "Compute" [ref=e992] [cursor=pointer]
+            - generic [ref=e993]: Select columns and press Compute.
+        - generic [ref=e994]:
+          - generic [ref=e995]:
+            - strong [ref=e996]: Best for
+            - text: A short candidate list after you already screened variables in Timeseries, Scatter, or Heatmap.
+          - generic [ref=e997]:
+            - strong [ref=e998]: Needs
+            - text: At least two numeric columns, a defensible lag horizon, and a clear hypothesis about which links are worth testing.
+          - generic [ref=e999]:
+            - strong [ref=e1000]: Cost
+            - text: Slowest page in the app. Reduce the column set first, then increase lags or nonlinear tests only when the first pass is interpretable.
+        - main [ref=e1002]:
+          - generic:
+            - strong: No causal graph yet
+            - generic: Select at least two numeric columns above, then click Compute to build the graph.
+        - generic [ref=e1005]:
+          - text: Run Comparison
+          - combobox "Run A" [ref=e1006] [cursor=pointer]
+          - text: vs
+          - combobox "Run B" [ref=e1007] [cursor=pointer]
+          - button "Compare" [ref=e1008] [cursor=pointer]
+          - button "Clear All" [ref=e1009] [cursor=pointer]
+      - text: ↑

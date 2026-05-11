@@ -57,7 +57,7 @@ async fn main() {
         Ok(result) => result,
         Err(e) => {
             tracing::warn!("Could not load {sample_path}: {e}. Starting with empty dataframe.");
-            ingest::LoadResult { df: polars::prelude::DataFrame::default(), time_column_name: None }
+            ingest::LoadResult { df: polars::prelude::DataFrame::default(), time_column_name: None, column_names: vec![], numeric_columns: vec![] }
         }
     };
     let df = load_result.df;
@@ -90,7 +90,7 @@ async fn main() {
 
     let frontend_dir = std::env::var("EDATIME_FRONTEND_DIR")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("frontend"));
+        .unwrap_or_else(|_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("frontend").join("dist"));
 
     let app = Router::new()
         .nest("/api", routes::api_router())

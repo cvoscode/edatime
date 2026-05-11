@@ -1,0 +1,113 @@
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]: EdaTime
+      - button "Home" [ref=e7] [cursor=pointer]:
+        - img [ref=e9]
+        - generic [ref=e12]: Home
+      - generic [ref=e13]: Core workflow
+      - button "Upload" [ref=e14] [cursor=pointer]:
+        - img [ref=e16]
+        - generic [ref=e19]: Upload
+        - generic [ref=e20]: ⌥1
+      - button "Timeseries" [ref=e21] [cursor=pointer]:
+        - img [ref=e23]
+        - generic [ref=e25]: Timeseries
+        - generic [ref=e26]: ⌥2
+      - button "Correlations" [ref=e27] [cursor=pointer]:
+        - img [ref=e29]
+        - generic [ref=e39]: Correlations
+        - generic [ref=e40]: ⌥7
+      - button "Scatter" [ref=e41] [cursor=pointer]:
+        - img [ref=e43]
+        - generic [ref=e49]: Scatter
+        - generic [ref=e50]: ⌥3
+      - generic [ref=e51]: Advanced analysis
+      - button "FFT / PSD" [ref=e52] [cursor=pointer]:
+        - img [ref=e54]
+        - generic [ref=e56]: FFT
+        - generic [ref=e57]: ⌥6
+      - button "Spectrogram" [ref=e58] [cursor=pointer]:
+        - img [ref=e60]
+        - generic [ref=e66]: Spectrogram
+        - generic [ref=e67]: ⌥8
+      - button "Causal Graph" [ref=e68] [cursor=pointer]:
+        - img [ref=e70]
+        - generic [ref=e76]: Causal
+        - generic [ref=e77]: ⌥9
+      - button "Drift Analysis" [ref=e78] [cursor=pointer]:
+        - img [ref=e80]
+        - generic [ref=e86]: Drift
+        - generic [ref=e87]: ⌥0
+      - button "Settings" [active] [ref=e89] [cursor=pointer]:
+        - img [ref=e91]
+        - generic [ref=e94]: Settings
+      - button "Collapse sidebar" [ref=e95] [cursor=pointer]:
+        - img [ref=e97]
+        - generic [ref=e98]: Collapse
+    - generic [ref=e99]:
+      - banner [ref=e100]:
+        - generic [ref=e101]:
+          - img [ref=e103]
+          - generic [ref=e105]: EdaTime
+        - generic [ref=e106]:
+          - generic [ref=e324]:
+            - strong [ref=e325]: 69,680
+            - text: rows
+          - generic [ref=e326]:
+            - strong [ref=e327]: "7"
+            - text: numeric series
+      - generic [ref=e1421]:
+        - generic [ref=e1422]:
+          - generic [ref=e1423]: Guided Workflow
+          - generic [ref=e1424]: ✓ 3 completed
+          - generic [ref=e1425]: → Scatter
+        - button "✕" [ref=e1427] [cursor=pointer]
+      - generic [ref=e884]:
+        - generic [ref=e885]:
+          - generic [ref=e886]:
+            - generic [ref=e887]: FFT / Power Spectral Density
+            - generic [ref=e888]: Mode
+            - combobox "FFT display mode" [ref=e889] [cursor=pointer]:
+              - option "Magnitude" [selected]
+              - option "PSD"
+            - generic [ref=e890] [cursor=pointer]:
+              - checkbox "Log scale" [checked] [ref=e891]
+              - generic [ref=e892]: Log scale
+          - generic [ref=e893]:
+            - generic [ref=e894]: Filter
+            - combobox "Spectral filter type" [ref=e895] [cursor=pointer]:
+              - option "Off" [selected]
+              - option "Low-pass"
+              - option "High-pass"
+              - option "Band-pass"
+              - option "Band-stop"
+            - generic "Low cutoff (Hz)" [ref=e896]: Low Hz
+            - spinbutton "Low Hz" [ref=e897]
+            - generic "High cutoff (Hz)" [ref=e898]: High Hz
+            - spinbutton "High Hz" [ref=e899]
+            - button "Preview" [ref=e900] [cursor=pointer]
+          - generic [ref=e901]:
+            - group [ref=e902]:
+              - generic "Export Image + CSV" [ref=e903] [cursor=pointer]:
+                - generic [ref=e904]: Export
+                - generic [ref=e905]: Image + CSV
+            - button "↩ Zoom out" [ref=e906] [cursor=pointer]
+            - generic [ref=e907]: Select a column chip below.
+        - generic [ref=e908]:
+          - generic [ref=e909]:
+            - strong [ref=e910]: Best for
+            - text: Stable periodic structure, dominant frequencies, and quick filter previews after you narrow the trace list.
+          - generic [ref=e911]:
+            - strong [ref=e912]: Needs
+            - text: One to three numeric traces and a meaningful time zoom from the Timeseries page.
+          - generic [ref=e913]:
+            - strong [ref=e914]: Cost
+            - text: Fast enough for iteration. Move to Spectrogram when the frequency content changes over time.
+        - main [ref=e916]:
+          - generic:
+            - strong: Select one or more traces
+            - generic: Choose column chips below to compute FFT or PSD overlays for this range.
+      - text: ↑
