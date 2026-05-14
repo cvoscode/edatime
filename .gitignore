@@ -25,3 +25,4 @@ frontend/js/causalPage-*.js
 frontend/js/driftPage-*.js
 frontend/js/echarts-*.js
 frontend/js/toast-*.js
+frontend/dist/

@@ -10,6 +10,7 @@ interface ColumnChipsProps {
   colorScalePalette?: string[];
   onColorChange?: (column: string, color: string) => void;
   onOpenFilter?: (column: string) => void;
+  onHiddenChange?: (hidden: string[]) => void;
 }
 
 const SERIES_COLORS = [
@@ -26,18 +27,33 @@ const ColumnChips: Component<ColumnChipsProps> = (props) => {
     return props.columns.filter(col => col.toLowerCase().includes(lower));
   });
 
+  const columnIndex = createMemo(() => {
+    const map = new Map<string, number>();
+    props.columns.forEach((col, i) => map.set(col, i));
+    return map;
+  });
+
   const isSelected = (col: string) => props.selected.includes(col);
   const isHidden = (col: string) => hiddenColumns().has(col);
+
+  const chipColor = (col: string) => {
+    const idx = columnIndex().get(col) ?? 0;
+    return props.colors?.[col] ?? props.colorScalePalette?.[idx % (props.colorScalePalette?.length ?? 1)] ?? SERIES_COLORS[idx % SERIES_COLORS.length];
+  };
 
   const toggle = (col: string) => {
     if (isHidden(col)) {
       const next = new Set(hiddenColumns());
       next.delete(col);
       setHiddenColumns(next);
+      props.onChange([...props.selected, col]);
+      props.onHiddenChange?.([...next]);
     } else if (isSelected(col)) {
       const next = new Set(hiddenColumns());
       next.add(col);
       setHiddenColumns(next);
+      props.onChange(props.selected.filter(c => c !== col));
+      props.onHiddenChange?.([...next]);
     } else {
       props.onChange([...props.selected, col]);
     }
@@ -62,10 +78,10 @@ const ColumnChips: Component<ColumnChipsProps> = (props) => {
   return (
     <div class={styles.chips}>
       <For each={filteredColumns()}>
-        {(col, idx) => (
+        {(col) => (
           <div
             class={`${styles.chip} ${isSelected(col) && !isHidden(col) ? styles.selected : ''} ${isHidden(col) ? styles.hidden : ''}`}
-            style={{ '--chip-color': props.colors?.[col] ?? props.colorScalePalette?.[idx() % (props.colorScalePalette?.length ?? 1)] ?? SERIES_COLORS[idx() % SERIES_COLORS.length] }}
+            style={{ '--chip-color': chipColor(col) }}
             onClick={(e) => {
               e.preventDefault();
               toggle(col);
@@ -80,7 +96,7 @@ const ColumnChips: Component<ColumnChipsProps> = (props) => {
             <input
               type="color"
               class={styles.colorPicker}
-              value={props.colors?.[col] ?? props.colorScalePalette?.[idx() % (props.colorScalePalette?.length ?? 1)] ?? SERIES_COLORS[idx() % SERIES_COLORS.length]}
+              value={chipColor(col)}
               title={`Color for ${col}`}
               aria-label={`Color for ${col}`}
               onPointerDown={handleColorPointerDown}

@@ -263,11 +263,48 @@ export async function fetchSpectrogram(
   return getJson<SpectrogramResponse>(`${API_BASE}/analytics/spectrogram?${params.toString()}`);
 }
 
-export async function fetchSampleETTm2(): Promise<File> {
-  const res = await fetch(`${API_BASE}/sample/ETTm2.csv`);
-  if (!res.ok) throw new Error(`Failed to fetch ETTm2.csv: ${res.status}`);
+// In-memory cache for sample datasets to avoid re-fetching
+const _sampleFileCache: Record<string, File> = {};
+
+// Lightweight metadata for cached sample datasets (avoids re-parsing)
+interface CachedSampleMetadata {
+  metadata: PreviewResponse['metadata'];
+  file: File;
+}
+
+const _sampleMetadataCache: Record<string, CachedSampleMetadata | null> = {};
+
+export async function fetchSampleETTm2(useParquet = false): Promise<File> {
+  const cacheKey = useParquet ? 'ettm2-parquet' : 'ettm2-csv';
+
+  // Return cached file if available
+  if (_sampleFileCache[cacheKey]) {
+    return _sampleFileCache[cacheKey];
+  }
+
+  const filename = useParquet ? 'ETTm2.parquet' : 'ETTm2.csv';
+  const res = await fetch(`${API_BASE}/sample/${filename}`);
+  if (!res.ok) {
+    // Fallback to CSV if parquet not available
+    if (res.status === 404 && useParquet) {
+      const fallbackRes = await fetch(`${API_BASE}/sample/ETTm2.csv`);
+      if (!fallbackRes.ok) throw new Error(`Failed to fetch ETTm2 sample: ${fallbackRes.status}`);
+      const blob = await fallbackRes.blob();
+      const file = new File([blob], 'ETTm2.csv', { type: 'text/csv' });
+      _sampleFileCache['ettm2-csv'] = file;
+      _sampleFileCache['ettm2-parquet'] = file; // avoid re-fetch attempt
+      return file;
+    }
+    throw new Error(`Failed to fetch ETTm2 sample: ${res.status}`);
+  }
   const blob = await res.blob();
-  return new File([blob], 'ETTm2.csv', { type: 'text/csv' });
+  const file = new File([blob], filename, { type: useParquet ? 'application/octet-stream' : 'text/csv' });
+  _sampleFileCache[cacheKey] = file;
+  return file;
+}
+
+export function clearSampleCache() {
+  Object.keys(_sampleFileCache).forEach(k => delete _sampleFileCache[k]);
 }
 
 export async function ingestFile(

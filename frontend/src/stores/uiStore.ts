@@ -5,6 +5,7 @@ import type { PlotThemeMode } from '../utils/plotTemplate';
 
 interface UiState {
   selectedColumns: string[];
+  hiddenColumns: string[];
   filters: Record<string, { min: number; max: number }>;
   colors: Record<string, string>;
   theme: 'dark' | 'light' | 'system';
@@ -82,6 +83,7 @@ if (typeof window !== 'undefined') {
 
 const [uiState, setUiState] = createStore<UiState>({
   selectedColumns: [],
+  hiddenColumns: [],
   filters: {},
   colors: { ...defaultColors },
   theme: getSavedTheme(),
@@ -115,6 +117,10 @@ export const uiStore = {
 
   setSelectedColumns(columns: string[]) {
     setUiState('selectedColumns', columns);
+  },
+
+  setHiddenColumns(hidden: string[]) {
+    setUiState('hiddenColumns', hidden);
   },
 
   setFilter(column: string, range: { min: number; max: number }) {

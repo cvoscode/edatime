@@ -34,6 +34,7 @@ const TimeseriesPage: Component = () => {
   let chartReady = false;
   let currentRequestController: AbortController | null = null;
   let colorDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let viewportDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   const numericCols = createMemo(() => datasetStore.state.numericCols);
   const datetimeCols = createMemo(() => datasetStore.state.datetimeCols);
@@ -69,9 +70,11 @@ const TimeseriesPage: Component = () => {
     }
   };
 
+  const allTraceColumns = createMemo(() => numericCols().filter(c => c !== xAxisColumn()));
   const traceColumns = createMemo(() =>
-    selectedColumns().filter(c => c !== xAxisColumn())
+    selectedColumns().filter(c => c !== xAxisColumn() && !uiStore.state.hiddenColumns.includes(c))
   );
+  const colorPalette = createMemo(() => getColorPalette(uiStore.state.colorScale, allTraceColumns().length));
 
   const columnBounds = createMemo(() => {
     const bounds: Record<string, { min: number; max: number }> = {};
@@ -347,12 +350,13 @@ const TimeseriesPage: Component = () => {
           </button>
           <Show when={!collapsed()}>
             <ColumnChips
-              columns={traceColumns()}
+              columns={numericCols().filter(c => c !== xAxisColumn())}
               selected={selectedColumns()}
               filter={seriesFilter()}
               colors={uiStore.state.colors}
-              colorScalePalette={getColorPalette(uiStore.state.colorScale, traceColumns().length)}
+              colorScalePalette={colorPalette()}
               onChange={(cols) => { console.debug('[TimeseriesPage] onChange selected:', JSON.stringify(cols)); uiStore.setSelectedColumns(cols); }}
+              onHiddenChange={(hidden) => { console.debug('[TimeseriesPage] onHiddenChange:', JSON.stringify(hidden)); uiStore.setHiddenColumns(hidden); }}
               onColorChange={(col, color) => { console.debug('[TimeseriesPage] onColorChange:', col, color); uiStore.setColumnColor(col, color); }}
             />
           </Show>
