@@ -221,8 +221,8 @@ fn parse_line_filters_camel_case_alias() {
 #[test]
 fn apply_filters_no_constraints() {
     let df = small_df();
-    let lf = apply_filters(&df, None, None, &[], &[]).unwrap();
-    let result = lf.collect().unwrap();
+    let lf = apply_filters(df.lazy(), None, None, &[], &[]).unwrap();
+    let result = lf.with_new_streaming(true).collect().unwrap();
     assert_eq!(result.height(), 100);
 }
 
@@ -231,8 +231,8 @@ fn apply_filters_with_time_range() {
     let df = small_df();
     let start_ms = 1_704_067_200_000.0; // row 0
     let end_ms = 1_704_067_200_000.0 + 10.0 * 3_600_000.0; // row 10
-    let lf = apply_filters(&df, Some(start_ms), Some(end_ms), &[], &[]).unwrap();
-    let result = lf.collect().unwrap();
+    let lf = apply_filters(df.lazy(), Some(start_ms), Some(end_ms), &[], &[]).unwrap();
+    let result = lf.with_new_streaming(true).collect().unwrap();
     assert!(result.height() <= 11);
     assert!(result.height() > 0);
 }
@@ -245,8 +245,8 @@ fn apply_filters_with_range_filter() {
         from: 50.0,
         to: 100.0,
     }];
-    let lf = apply_filters(&df, None, None, &range_filters, &[]).unwrap();
-    let result = lf.collect().unwrap();
+    let lf = apply_filters(df.lazy(), None, None, &range_filters, &[]).unwrap();
+    let result = lf.with_new_streaming(true).collect().unwrap();
     // Values 50..100 ⇒ indices 25..50 ⇒ 26 rows
     assert!(result.height() > 0);
     assert!(result.height() < 100);
@@ -259,7 +259,7 @@ async fn pipeline_filter_time_range() {
     let df = small_df();
     let start = 1_704_067_200_000_i64; // row 0
     let end = 1_704_067_200_000 + 5 * 3_600_000; // row 5
-    let result = filter_time_range(df.lazy(), start, end, &["value".to_string()]).unwrap();
+    let result = filter_time_range(df.lazy(), start, end, &["value".to_string()], "ts").unwrap();
     assert!(result.height() <= 6);
     assert!(result.height() > 0);
 }
@@ -270,7 +270,7 @@ async fn pipeline_filter_time_range() {
 async fn pipeline_no_reduction_passthrough() {
     let df = small_df();
     let (result, was_reduced) =
-        apply_reduction(&df, &["value".to_string()], &[], &Reduction::None).unwrap();
+        apply_reduction(&df, &["value".to_string()], &[], &Reduction::None, "ts").unwrap();
     assert!(!was_reduced);
     assert_eq!(result.height(), 100);
 }
@@ -283,6 +283,7 @@ async fn pipeline_lttb_downsamples() {
         &["value".to_string()],
         &[],
         &Reduction::Lttb { target_points: 20 },
+        "ts",
     )
     .unwrap();
     assert!(was_reduced);

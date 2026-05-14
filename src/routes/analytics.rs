@@ -16,7 +16,7 @@ use crate::error::AppError;
 use crate::pipeline;
 use crate::query;
 use crate::state::AppState;
-use crate::validation::{validate_numeric_columns, validate_time_window};
+use crate::validation::{validate_numeric_columns_lazy, validate_time_window};
 use polars::prelude::{DataFrame, IntoLazy};
 
 // ── Shared Helpers ─────────────────────────────────────────────────────────
@@ -30,14 +30,17 @@ async fn filter_preamble(
     columns: Option<&str>,
 ) -> Result<(Vec<String>, DataFrame), AppError> {
     validate_time_window(start, end)?;
-    let df = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot().await.read().await.clone();
     let cols = query::parse_columns(columns);
     let limits = &state.config.validation;
-    let value_cols = validate_numeric_columns(&df, &cols, limits)?;
-    let multiplier = query::unit_multiplier_for_ts(&df)?;
+    let value_cols = validate_numeric_columns_lazy(&lf, &cols, limits)?;
+    let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::io(e.to_string()))?;
+    let ts_col = state.time_column_display_name_sync()
+        .unwrap_or_else(|| "ts".to_string());
+    let multiplier = query::unit_multiplier_for_ts(&df, &ts_col)?;
     let start_ts = start.timestamp_millis() * multiplier;
     let end_ts = end.timestamp_millis() * multiplier;
-    let filtered = pipeline::filter_time_range(df.lazy(), start_ts, end_ts, &value_cols)?;
+    let filtered = pipeline::filter_time_range(df.lazy(), start_ts, end_ts, &value_cols, &ts_col)?;
     Ok((value_cols, filtered))
 }
 
@@ -144,7 +147,7 @@ pub async fn get_fft(
     let (value_cols, filtered) =
         filter_preamble(&state, params.start, params.end, params.columns.as_deref()).await?;
 
-    let max_pts = params.max_points.unwrap_or(8192).clamp(64, 65536);
+    let max_pts = params.max_points.unwrap_or(8192).max(64);
     let work_df = downsample_by_stride(filtered, max_pts, "FFT")?;
 
     let results =
@@ -180,7 +183,7 @@ pub async fn get_spectrogram(
         filter_preamble(&state, params.start, params.end, Some(params.column.as_str())).await?;
     let col = &value_cols[0];
 
-    let max_pts = params.max_points.unwrap_or(32768).clamp(256, 131072);
+    let max_pts = params.max_points.unwrap_or(32768).max(256);
     let work_df = downsample_by_stride(filtered, max_pts, "Spectrogram")?;
 
     let win_size = params.window_size.unwrap_or(256).clamp(16, 4096);
@@ -229,13 +232,20 @@ pub async fn get_spectral_filter(
     let (start, end) = match (params.start, params.end) {
         (Some(s), Some(e)) => (s, e),
         (opt_s, opt_e) => {
-            let df_snap = state.dataset_snapshot().await.read().await.clone();
-            let multiplier = crate::query::unit_multiplier_for_ts(&df_snap)?;
-            let ts_col = df_snap
-                .column("ts")
-                .map_err(|e| AppError::bad_request(format!("Missing ts column: {e}")))?
+            let lf_snap = state.dataset_snapshot().await.read().await.clone();
+            let ts_col = state.time_column_display_name_sync()
+                .unwrap_or_else(|| "ts".to_string());
+            let ts_dtype = crate::temporal::ts_dtype_lazy(&lf_snap, &ts_col)?;
+            let multiplier = crate::temporal::unit_multiplier(&ts_dtype);
+            let df_snap = lf_snap
+                .with_new_streaming(true)
+                .collect()
+                .map_err(|e| AppError::io(format!("ts probe failed: {e}")))?;
+            let ts_col_series = df_snap
+                .column(&ts_col)
+                .map_err(|e| AppError::bad_request(format!("Missing ts column '{}': {}", ts_col, e)))?
                 .as_materialized_series();
-            let cast = ts_col
+            let cast = ts_col_series
                 .cast(&polars::prelude::DataType::Int64)
                 .map_err(|e| AppError::internal(format!("ts cast failed: {e}")))?;
             let ca = cast
@@ -246,7 +256,6 @@ pub async fn get_spectral_filter(
             let min_ms = min_native / multiplier;
             let max_ms = max_native / multiplier;
             let epoch_zero = || -> DateTime<Utc> {
-                // Use fixed Unix epoch (Jan 1, 1970 00:00:00 UTC).
                 Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0)
                     .single()
                     .unwrap_or(Utc::now())
@@ -325,10 +334,10 @@ pub async fn post_transform(
         return Err(AppError::bad_request("Expression too long (max 500 chars)"));
     }
 
-    let df = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot().await.read().await.clone();
 
     let new_df = tokio::task::block_in_place(|| {
-        analytics::apply_column_transform(&df, &expression, &output_name)
+        analytics::apply_column_transform_lazy(&lf, &expression, &output_name)
     })?;
 
     let _revision = state.replace_dataset(new_df).await;
@@ -360,10 +369,11 @@ pub async fn post_remove_outliers(
     State(state): State<AppState>,
     Json(params): Json<OutlierRemovalRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let df = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot().await.read().await.clone();
     let cols = query::parse_columns(params.columns.as_deref());
     let limits = &state.config.validation;
-    let value_cols = validate_numeric_columns(&df, &cols, limits)?;
+    let value_cols = validate_numeric_columns_lazy(&lf, &cols, limits)?;
+    let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::io(e.to_string()))?;
 
     let method = params.method.as_deref().unwrap_or("zscore");
     let threshold = params
@@ -415,10 +425,10 @@ pub async fn post_causal_graph(
     State(state): State<AppState>,
     Json(params): Json<CausalGraphRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let df = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot().await.read().await.clone();
     let cols = query::parse_columns(params.columns.as_deref());
     let limits = &state.config.validation;
-    let value_cols = validate_numeric_columns(&df, &cols, limits)?;
+    let value_cols = validate_numeric_columns_lazy(&lf, &cols, limits)?;
 
     if value_cols.len() < 2 {
         return Err(AppError::bad_request("Need at least 2 numeric columns"));
@@ -426,6 +436,7 @@ pub async fn post_causal_graph(
     if value_cols.len() > 20 {
         return Err(AppError::bad_request("Too many columns (max 20)"));
     }
+    let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::io(e.to_string()))?;
 
     let tau_max = params.tau_max.unwrap_or(3).clamp(1, 10);
     let pc_alpha = params.pc_alpha.unwrap_or(0.2).clamp(0.001, 0.5);

@@ -4,7 +4,7 @@
 //! types so that adding new chart-type endpoints doesn't duplicate parsing logic.
 
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 // ── Query parameter structs ────────────────────────────────────────────────
 
@@ -57,7 +57,7 @@ fn default_aggregate_window_mode() -> AggregateWindowMode {
 }
 
 /// Supported aggregation functions.
-#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AggFn {
     Mean,
@@ -93,7 +93,7 @@ pub fn parse_columns(raw: Option<&str>) -> Vec<String> {
 }
 
 // Re-export temporal helpers so existing callers keep compiling.
-pub use crate::temporal::{ts_dtype, unit_multiplier_for_ts};
+pub use crate::temporal::{ts_dtype, ts_dtype_lazy, unit_multiplier_for_ts, unit_multiplier_for_ts_lazy};
 
 /// Determine the requested output format (defaults to `"arrow"`).
 pub fn output_format(raw: Option<&str>) -> OutputFormat {
@@ -107,4 +107,29 @@ pub fn output_format(raw: Option<&str>) -> OutputFormat {
 pub enum OutputFormat {
     Arrow,
     Json,
+}
+
+// ── Query log ────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub enum ReductionSpec {
+    Lttb { target_points: usize },
+    BucketAgg { buckets: usize, agg: String },
+    WindowAgg { window_ms: i64, step_ms: i64, agg: String },
+    None,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct QueryEntry {
+    pub id: u64,
+    pub timestamp: DateTime<Utc>,
+    pub route: String,
+    pub start_ms: Option<i64>,
+    pub end_ms: Option<i64>,
+    pub width: Option<usize>,
+    pub columns: Vec<String>,
+    pub color_column: Option<String>,
+    pub format: String,
+    pub reduction: Option<ReductionSpec>,
+    pub ts_dtype: String,
 }

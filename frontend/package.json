@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "apache-arrow": "^15.0.0",
+    "chroma-js": "^2.6.0",
+    "echarts": "^5.5.0",
     "solid-js": "^1.9.5",
     "@solidjs/router": "^0.15.3"
   },

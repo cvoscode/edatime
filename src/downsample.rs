@@ -1,6 +1,48 @@
 use minmaxlttb::{Point, minmaxlttb};
 use polars::prelude::*;
 
+pub fn downsample_xy_pairs(
+    x_vals: &[f64],
+    y_vals: &[f64],
+    color_vals: Option<&[f64]>,
+    target_points: usize,
+) -> (Vec<f64>, Vec<f64>, Option<Vec<f64>>) {
+    let n = x_vals.len();
+    if n <= target_points || target_points < 3 {
+        let out_x = x_vals.to_vec();
+        let out_y = y_vals.to_vec();
+        let out_color = color_vals.map(|c| c.to_vec());
+        return (out_x, out_y, out_color);
+    }
+
+    let mut points: Vec<Point> = Vec::with_capacity(n);
+    for (i, y) in y_vals.iter().enumerate().take(n) {
+        points.push(Point::new(i as f64, *y));
+    }
+
+    let sampled = match minmaxlttb(&points, target_points, 4) {
+        Ok(s) => s,
+        Err(_) => return (x_vals.to_vec(), y_vals.to_vec(), color_vals.map(|c| c.to_vec())),
+    };
+
+    let mut out_x = Vec::with_capacity(sampled.len());
+    let mut out_y = Vec::with_capacity(sampled.len());
+    let mut out_color: Option<Vec<f64>> = color_vals.map(|_| Vec::with_capacity(sampled.len()));
+
+    for p in sampled {
+        let idx = p.x().round() as usize;
+        if idx < n {
+            out_x.push(x_vals[idx]);
+            out_y.push(y_vals[idx]);
+            if let Some(ref mut c) = out_color {
+                c.push(color_vals.unwrap()[idx]);
+            }
+        }
+    }
+
+    (out_x, out_y, out_color)
+}
+
 pub fn downsample_dataframe_multi(
     df: &DataFrame,
     ts_col: &str,

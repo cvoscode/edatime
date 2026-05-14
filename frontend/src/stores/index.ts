@@ -4,3 +4,4 @@ export { uiStore } from './uiStore';
 export { analyticsStore } from './analyticsStore';
 export { scatterStore } from './scatterStore';
 export { uploadStore } from './uploadStore';
+export { fftStore } from './fftStore';

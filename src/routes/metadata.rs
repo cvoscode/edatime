@@ -490,10 +490,11 @@ pub fn build_dataset_metadata_from_path_with_time_column(
 pub async fn get_metadata(
     State(state): State<AppState>,
 ) -> Result<Json<DatasetMetadata>, AppError> {
-    let df = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot().await.read().await.clone();
     let revision = state.dataset_revision();
     let time_col_display = state.time_column_display_name_sync();
     let metadata = tokio::task::spawn_blocking(move || {
+        let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::internal(format!("collect metadata frame: {}", e)))?;
         build_dataset_metadata(&df, true, time_col_display.as_deref())
     })
     .await

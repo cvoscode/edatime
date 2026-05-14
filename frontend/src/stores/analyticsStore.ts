@@ -1,18 +1,28 @@
 import { createStore } from 'solid-js/store';
-import type { RollingBandConfig, AnomalyConfig, SpectralConfig } from '../types';
+import type { RollingBandData, AnomalyRegionData } from '../types';
 
 interface AnalyticsState {
-  rollingBands: RollingBandConfig[];
-  anomalyOverlay: AnomalyConfig | null;
-  spectralConfig: SpectralConfig | null;
+  rollingEnabled: boolean;
+  rollingWindow: number;
+  rollingBands: RollingBandData[];
+  anomalyEnabled: boolean;
+  anomalyMethod: 'zscore' | 'iqr';
+  anomalyThreshold: number;
+  anomalyRegions: AnomalyRegionData[];
+  spectralConfig: import('../types').SpectralConfig | null;
   fftData: Float64Array | null;
   spectrogramData: Float64Array[] | null;
   correlations: Record<string, number> | null;
 }
 
 const [analyticsState, setAnalyticsState] = createStore<AnalyticsState>({
+  rollingEnabled: false,
+  rollingWindow: 50,
   rollingBands: [],
-  anomalyOverlay: null,
+  anomalyEnabled: false,
+  anomalyMethod: 'zscore',
+  anomalyThreshold: 3.0,
+  anomalyRegions: [],
   spectralConfig: null,
   fftData: null,
   spectrogramData: null,
@@ -22,19 +32,35 @@ const [analyticsState, setAnalyticsState] = createStore<AnalyticsState>({
 export const analyticsStore = {
   get state() { return analyticsState; },
 
-  addRollingBand(config: RollingBandConfig) {
-    setAnalyticsState('rollingBands', [...analyticsState.rollingBands, config]);
+  setRollingEnabled(v: boolean) {
+    setAnalyticsState('rollingEnabled', v);
   },
 
-  removeRollingBand(column: string) {
-    setAnalyticsState('rollingBands', analyticsState.rollingBands.filter(b => b.column !== column));
+  setRollingWindow(n: number) {
+    setAnalyticsState('rollingWindow', n);
   },
 
-  setAnomalyOverlay(config: AnomalyConfig | null) {
-    setAnalyticsState('anomalyOverlay', config);
+  setRollingBands(bands: RollingBandData[]) {
+    setAnalyticsState('rollingBands', bands);
   },
 
-  setSpectralConfig(config: SpectralConfig | null) {
+  setAnomalyEnabled(v: boolean) {
+    setAnalyticsState('anomalyEnabled', v);
+  },
+
+  setAnomalyMethod(m: 'zscore' | 'iqr') {
+    setAnalyticsState('anomalyMethod', m);
+  },
+
+  setAnomalyThreshold(t: number) {
+    setAnalyticsState('anomalyThreshold', t);
+  },
+
+  setAnomalyRegions(regions: AnomalyRegionData[]) {
+    setAnalyticsState('anomalyRegions', regions);
+  },
+
+  setSpectralConfig(config: import('../types').SpectralConfig | null) {
     setAnalyticsState('spectralConfig', config);
   },
 
@@ -52,8 +78,13 @@ export const analyticsStore = {
 
   reset() {
     setAnalyticsState({
+      rollingEnabled: false,
+      rollingWindow: 50,
       rollingBands: [],
-      anomalyOverlay: null,
+      anomalyEnabled: false,
+      anomalyMethod: 'zscore',
+      anomalyThreshold: 3.0,
+      anomalyRegions: [],
       spectralConfig: null,
       fftData: null,
       spectrogramData: null,

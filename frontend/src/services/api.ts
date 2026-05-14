@@ -236,6 +236,33 @@ export async function fetchFft(
   return getJson<FftResponse>(`${API_BASE}/analytics/fft?${params.toString()}`);
 }
 
+export interface SpectrogramResponse {
+  sample_count: number;
+  result: {
+    times_ms: number[];
+    frequencies: number[];
+    magnitudes: number[][];
+  };
+}
+
+export async function fetchSpectrogram(
+  start: string,
+  end: string,
+  column: string,
+  windowSize = 256,
+  hopSize?: number,
+  maxPoints = 32768,
+  signal?: AbortSignal
+): Promise<SpectrogramResponse> {
+  const params = new URLSearchParams({
+    start, end, column,
+    window_size: String(windowSize),
+    max_points: String(maxPoints),
+  });
+  if (hopSize != null) params.set('hop_size', String(hopSize));
+  return getJson<SpectrogramResponse>(`${API_BASE}/analytics/spectrogram?${params.toString()}`);
+}
+
 export async function fetchSampleETTm2(): Promise<File> {
   const res = await fetch(`${API_BASE}/sample/ETTm2.csv`);
   if (!res.ok) throw new Error(`Failed to fetch ETTm2.csv: ${res.status}`);
@@ -255,4 +282,136 @@ export async function ingestFile(
   }
 ): Promise<IngestResponse> {
   return uploadIngest(file, options);
+}
+
+export interface CorrelationMatrixResponse {
+  columns: string[];
+  pearson: (number | null)[][];
+  spearman: (number | null)[][];
+}
+
+export async function fetchCorrelationMatrix(): Promise<CorrelationMatrixResponse> {
+  return getJson<CorrelationMatrixResponse>(`${API_BASE}/scatter/correlations/matrix`);
+}
+
+export interface ScatterCorrelationsResponse {
+  base_column: string;
+  threshold: number;
+  correlations: Array<{
+    column: string;
+    count: number;
+    pearson: number | null;
+    spearman: number | null;
+  }>;
+}
+
+export async function fetchScatterCorrelations(
+  base: string | null,
+  threshold = 0.7
+): Promise<ScatterCorrelationsResponse> {
+  const params = new URLSearchParams({ threshold: String(threshold) });
+  if (base !== null && base !== undefined && String(base).trim() !== '') {
+    params.set('base', String(base));
+  }
+  return getJson<ScatterCorrelationsResponse>(`${API_BASE}/scatter/correlations?${params.toString()}`);
+}
+
+export interface ScatterPointsResponse {
+  x: string;
+  y: string;
+  color: string | null;
+  total_points: number;
+  returned_points: number;
+  points: [number, number][];
+  color_values: number[] | null;
+  color_labels: (string | null)[] | null;
+  color_min: number | null;
+  color_max: number | null;
+}
+
+export async function fetchScatterPoints(
+  x: string,
+  y: string,
+  limit: number,
+  color?: string | null,
+  options?: {
+    start?: number;
+    end?: number;
+    filters?: Array<{ column: string; min: number; max: number }>;
+    line_filters?: Array<{ column: string; op: string; value: number }>;
+  },
+  signal?: AbortSignal
+): Promise<ScatterPointsResponse> {
+  const payload: Record<string, unknown> = {
+    x: String(x),
+    y: String(y),
+    limit: Number(limit),
+  };
+  if (color !== null && color !== undefined && String(color).trim() !== '') {
+    payload.color = String(color);
+  }
+  const start = Number(options?.start);
+  const end = Number(options?.end);
+  if (Number.isFinite(start) && Number.isFinite(end)) {
+    payload.start = start;
+    payload.end = end;
+  }
+  if (Array.isArray(options?.filters) && options.filters.length > 0) {
+    payload.filters = JSON.stringify(options.filters);
+  }
+  if (Array.isArray(options?.line_filters) && options.line_filters.length > 0) {
+    payload.line_filters = JSON.stringify(options.line_filters);
+  }
+
+  const res = await fetch(`${API_BASE}/scatter/points`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal,
+  });
+  if (!res.ok) {
+    throw new Error(`Scatter points failed (${res.status})`);
+  }
+
+  const ct = res.headers.get('Content-Type') ?? '';
+  if (ct.includes('apache-arrow') || ct.includes('arrow.stream')) {
+    const { tableFromIPC } = await import('apache-arrow');
+    const buffer = await res.arrayBuffer();
+    const table = tableFromIPC(buffer);
+
+    const xCol = table.getChild('x');
+    const yCol = table.getChild('y');
+    const colorCol = table.getChild('color_value') ?? table.getChild('color_label');
+
+    const n = table.numRows;
+    const points: [number, number][] = new Array(n);
+    const color_values: number[] | null = colorCol && table.getChild('color_value') ? [] : null;
+    const color_labels: (string | null)[] | null = table.getChild('color_label') ? [] : null;
+
+    for (let i = 0; i < n; i++) {
+      points[i] = [xCol?.get(i) as number, yCol?.get(i) as number];
+      if (color_values) color_values.push((colorCol as unknown as { get(i: number): number }).get(i));
+      if (color_labels) color_labels.push((colorCol as unknown as { get(i: number): string | null }).get(i));
+    }
+
+    const total = Number(res.headers.get('x-edatime-scatter-total') ?? n);
+    const returned = Number(res.headers.get('x-edatime-scatter-returned') ?? n);
+    const color_min = res.headers.get('x-edatime-color-min');
+    const color_max = res.headers.get('x-edatime-color-max');
+
+    return {
+      x,
+      y,
+      color: color ?? null,
+      total_points: total,
+      returned_points: returned,
+      points,
+      color_values,
+      color_labels,
+      color_min: color_min !== null ? Number(color_min) : null,
+      color_max: color_max !== null ? Number(color_max) : null,
+    };
+  }
+
+  return res.json() as Promise<ScatterPointsResponse>;
 }

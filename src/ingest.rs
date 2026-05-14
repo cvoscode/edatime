@@ -2,12 +2,11 @@ use polars::prelude::*;
 use std::path::Path;
 
 /// Result of loading a DataFrame, containing the loaded frame and the
-/// original time column name before it was renamed to "ts".
+/// original time column name.
 #[derive(Debug)]
 pub struct LoadResult {
     pub df: DataFrame,
     /// Original time column name (e.g. "timestamp", "time", "datetime").
-    /// This is the user-facing name, not the internal "ts" alias.
     pub time_column_name: Option<String>,
     /// Names of all columns in the loaded DataFrame.
     pub column_names: Vec<String>,
@@ -153,12 +152,8 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
         }
     }
 
-    // ── 6. Rename time column to "ts" lazily ──────────────────────────────
-    if old_name != "ts" {
-        lf = lf.rename([old_name.as_str()], ["ts"], true);
-    }
-
-    // ── 7. Cast / normalise the ts column lazily ──────────────────────────
+    // ── 6. Cast / normalise the time column to Datetime(Milliseconds) lazily ──
+    // Keep original column name - do NOT rename to "ts"
     let ts_dtype = schema
         .get(old_name.as_str())
         .cloned()
@@ -171,7 +166,7 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
             DataType::Int64 | DataType::Int32 | DataType::UInt64 | DataType::UInt32
         )
     {
-        let mut ts_expr = col("ts").cast(DataType::Int64);
+        let mut ts_expr = col(old_name.as_str()).cast(DataType::Int64);
 
         // If the caller provided an explicit time_unit, use it directly
         // instead of probing the data.
@@ -188,7 +183,7 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
             // single streaming pass over only the ts column.
             let probe = lf
                 .clone()
-                .select([col("ts").cast(DataType::Int64).max().alias("m")])
+                .select([col(old_name.as_str()).cast(DataType::Int64).max().alias("m")])
                 .collect()
                 .map_err(|e| PolarsError::ComputeError(format!("ts probe: {e}").into()))?;
             let max_abs: i64 = probe
@@ -216,38 +211,38 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
         lf = lf.with_column(
             ts_expr
                 .cast(DataType::Datetime(TimeUnit::Milliseconds, None))
-                .alias("ts"),
+                .alias(&old_name),
         );
     } else if needs_cast {
         lf = lf.with_column(
-            col("ts")
+            col(old_name.as_str())
                 .cast(DataType::Int64)
                 .cast(DataType::Datetime(TimeUnit::Milliseconds, None))
-                .alias("ts"),
+                .alias(&old_name),
         );
     } else if !matches!(ts_dtype, DataType::Datetime(TimeUnit::Milliseconds, None)) {
         // Normalise non-ms datetime (ns, μs, Date) to ms for consistency.
         lf = lf.with_column(
-            col("ts")
+            col(old_name.as_str())
                 .cast(DataType::Datetime(TimeUnit::Milliseconds, None))
-                .alias("ts"),
+                .alias(&old_name),
         );
     }
 
-    // ── 8. Apply time range filters lazily ────────────────────────────────
+    // ── 7. Apply time range filters lazily ────────────────────────────────
     if let Some(start_ms) = params.time_start_ms {
         lf = lf.filter(
-            col("ts").gt_eq(lit(start_ms).cast(DataType::Datetime(TimeUnit::Milliseconds, None))),
+            col(&old_name).gt_eq(lit(start_ms).cast(DataType::Datetime(TimeUnit::Milliseconds, None))),
         );
     }
     if let Some(end_ms) = params.time_end_ms {
         lf = lf.filter(
-            col("ts").lt_eq(lit(end_ms).cast(DataType::Datetime(TimeUnit::Milliseconds, None))),
+            col(&old_name).lt_eq(lit(end_ms).cast(DataType::Datetime(TimeUnit::Milliseconds, None))),
         );
     }
 
-    // ── 9. Sort and single collect (streaming for out-of-core support) ────
-    let df = lf.sort(["ts"], SortMultipleOptions::default()).collect()?;
+    // ── 8. Sort and single collect (streaming for out-of-core support) ────
+    let df = lf.sort([old_name.as_str()], SortMultipleOptions::default()).with_new_streaming(true).collect()?;
 
     if df.height() == 0 {
         return Err(PolarsError::ComputeError(
@@ -301,7 +296,7 @@ mod tests {
             .iter()
             .map(|name| name.as_str())
             .collect::<Vec<_>>();
-        assert!(column_names.contains(&"ts"));
+        assert!(column_names.contains(&"time"));
         assert!(column_names.contains(&"value"));
         assert_eq!(column_names.len(), 2);
     }
@@ -325,7 +320,7 @@ mod tests {
         )
         .expect("partial load with explicit time column");
         assert_eq!(result.df.height(), 2);
-        assert!(result.df.column("ts").is_ok());
+        assert!(result.df.column("timekey").is_ok());
         assert!(result.df.column("value").is_ok());
     }
 }

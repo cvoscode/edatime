@@ -72,47 +72,25 @@ fn clamp_limit(limit: usize, validation: &crate::config::ValidationSettings) -> 
     limit.clamp(1, validation.max_scatter_limit)
 }
 
-fn numeric_columns(df: &DataFrame) -> Vec<String> {
-    df.get_column_names()
-        .iter()
-        .filter_map(|name| {
-            let name_str = name.as_str();
-            match df.column(name_str) {
-                Ok(col) if col.dtype().is_numeric() => Some(name_str.to_string()),
-                // Include timestamp as numeric for correlation purposes
-                Ok(col)
-                    if name_str == "ts"
-                        && matches!(col.dtype(), DataType::Datetime(_, _) | DataType::Date) =>
-                {
-                    Some(name_str.to_string())
+fn numeric_columns<I: Into<LazyFrame>>(df: I) -> Vec<String> {
+    let lf: LazyFrame = df.into();
+    let schema = match lf.clone().collect_schema() {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+    schema
+        .iter_fields()
+        .filter_map(|field| {
+            let name = field.name();
+            match field.dtype() {
+                dt if dt.is_numeric() => Some(name.to_string()),
+                DataType::Datetime(_, _) | DataType::Date if name == "ts" => {
+                    Some(name.to_string())
                 }
                 _ => None,
             }
         })
         .collect()
-}
-
-fn validate_scatter_column(df: &DataFrame, name: &str) -> Result<(), AppError> {
-    let col = df
-        .column(name)
-        .map_err(|e| AppError::bad_request(format!("Unknown column '{}': {}", name, e)))?;
-
-    if !(col.dtype().is_numeric()
-        || matches!(col.dtype(), DataType::Datetime(_, _) | DataType::Date))
-    {
-        return Err(AppError::bad_request(format!(
-            "Column '{}' is not numeric or temporal",
-            name
-        )));
-    }
-
-    Ok(())
-}
-
-fn validate_existing_column(df: &DataFrame, name: &str) -> Result<(), AppError> {
-    df.column(name)
-        .map(|_| ())
-        .map_err(|e| AppError::bad_request(format!("Unknown column '{}': {}", name, e)))
 }
 
 fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option<f64>>, AppError> {
@@ -199,8 +177,8 @@ fn collect_xy_pairs(df: &DataFrame, x: &str, y: &str) -> Result<Vec<[f64; 2]>, A
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn collect_filtered_scatter_frame(
-    df: &DataFrame,
+pub(crate) fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
+    df: I,
     x: &str,
     y: &str,
     color: Option<&str>,
@@ -209,13 +187,22 @@ pub(crate) fn collect_filtered_scatter_frame(
     filters: &[ScatterFilterSpec],
     line_filters: &[ScatterLineFilterSpec],
 ) -> Result<DataFrame, AppError> {
-    validate_scatter_column(df, x)?;
-    validate_scatter_column(df, y)?;
-    if let Some(c) = color {
-        validate_existing_column(df, c)?;
-    }
+    let lf: LazyFrame = df.into();
+    let schema = lf.clone().collect_schema().map_err(|e| AppError::bad_request(format!("schema: {}", e)))?;
 
-    let lf = apply_scatter_filters(df, start, end, filters, line_filters)?;
+    let x_dtype = schema.get(x).ok_or_else(|| AppError::bad_request(format!("Unknown column '{}'", x)))?;
+    if !(x_dtype.is_numeric() || matches!(x_dtype, DataType::Datetime(_, _) | DataType::Date)) {
+        return Err(AppError::bad_request(format!("Column '{}' is not numeric or temporal", x)));
+    }
+    let y_dtype = schema.get(y).ok_or_else(|| AppError::bad_request(format!("Unknown column '{}'", y)))?;
+    if !(y_dtype.is_numeric() || matches!(y_dtype, DataType::Datetime(_, _) | DataType::Date)) {
+        return Err(AppError::bad_request(format!("Column '{}' is not numeric or temporal", y)));
+    }
+    if let Some(c) = color && !schema.contains(c) {
+            return Err(AppError::bad_request(format!("Unknown column '{}'", c)));
+        }
+
+    let lf = apply_scatter_filters(lf, start, end, filters, line_filters)?;
 
     let mut selected_columns = Vec::with_capacity(3);
     for name in [Some(x), Some(y), color].into_iter().flatten() {
@@ -227,6 +214,7 @@ pub(crate) fn collect_filtered_scatter_frame(
     let select_exprs = selected_columns.into_iter().map(col).collect::<Vec<_>>();
 
     lf.select(select_exprs)
+        .with_new_streaming(true)
         .collect()
         .map_err(|e| AppError::io(e.to_string()))
 }
@@ -248,7 +236,7 @@ mod tests {
         let df = DataFrame::new(2, vec![ts.into(), value.into(), other.into()])
             .expect("test dataframe creation should succeed");
 
-        let cols = numeric_columns(&df);
+        let cols = numeric_columns(df.lazy());
         // ts is included for correlation purposes (as timestamp), non-timestamp temporal cols are not
         // Order follows DataFrame column order (ts, value, other)
         assert_eq!(

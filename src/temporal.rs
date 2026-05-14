@@ -20,20 +20,37 @@ pub fn unit_multiplier(dtype: &DataType) -> i64 {
     }
 }
 
-/// Convenience: look up the `ts` column dtype and return its multiplier.
-pub fn unit_multiplier_for_ts(df: &DataFrame) -> Result<i64, AppError> {
-    let dtype = ts_dtype(df)?;
+/// Convenience: look up the timestamp column dtype and return its multiplier.
+pub fn unit_multiplier_for_ts(df: &DataFrame, ts_col: &str) -> Result<i64, AppError> {
+    let dtype = ts_dtype(df, ts_col)?;
     Ok(unit_multiplier(&dtype))
 }
 
-/// Return the `DataType` of the `ts` column.
-pub fn ts_dtype(df: &DataFrame) -> Result<DataType, AppError> {
+/// Return the `DataType` of the timestamp column.
+pub fn ts_dtype(df: &DataFrame, ts_col: &str) -> Result<DataType, AppError> {
     Ok(df
-        .column("ts")
-        .map_err(|e| AppError::bad_request(format!("Missing ts column: {}", e)))?
+        .column(ts_col)
+        .map_err(|e| AppError::bad_request(format!("Missing ts column '{}': {}", ts_col, e)))?
         .as_materialized_series()
         .dtype()
         .clone())
+}
+
+/// LazyFrame variant: collect ts dtype cheaply.
+pub fn ts_dtype_lazy(lf: &LazyFrame, ts_col: &str) -> Result<DataType, AppError> {
+    let schema = lf.clone().collect_schema().map_err(|e| {
+        AppError::bad_request(format!("Failed to get schema: {}", e))
+    })?;
+    schema
+        .get(ts_col)
+        .cloned()
+        .ok_or_else(|| AppError::bad_request(format!("Missing ts column '{}'", ts_col)))
+}
+
+/// LazyFrame variant: unit multiplier.
+pub fn unit_multiplier_for_ts_lazy(lf: &LazyFrame, ts_col: &str) -> Result<i64, AppError> {
+    let dtype = ts_dtype_lazy(lf, ts_col)?;
+    Ok(unit_multiplier(&dtype))
 }
 
 /// Convert a native Polars timestamp value to epoch-milliseconds (f64).

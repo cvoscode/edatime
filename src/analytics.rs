@@ -8,25 +8,41 @@ use crate::error::AppError;
 
 // ── Shared helpers ─────────────────────────────────────────────────────────
 
-/// Extract the "ts" column as epoch-millisecond f64 values.
+/// Extract the timestamp column as epoch-millisecond f64 values.
 pub fn extract_ts_epoch_ms(df: &DataFrame) -> Result<Vec<f64>, AppError> {
-    let ts_col = df
-        .column("ts")
+    let ts_col = find_ts_column(df)?;
+    extract_ts_epoch_ms_with_col(df, &ts_col)
+}
+
+/// Extract the timestamp column as epoch-millisecond f64 values, using explicit column name.
+pub fn extract_ts_epoch_ms_with_col(df: &DataFrame, ts_col: &str) -> Result<Vec<f64>, AppError> {
+    let ts_col_series = df
+        .column(ts_col)
         .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::internal(format!("Missing ts column: {e}")))?;
-    let ts_i64 = ts_col
+        .map_err(|e| AppError::internal(format!("Missing ts column '{}': {}", ts_col, e)))?;
+    let ts_i64 = ts_col_series
         .cast(&DataType::Int64)
-        .map_err(|e| AppError::internal(format!("ts cast: {e}")))?;
-    let ts_dtype = crate::temporal::ts_dtype(df)?;
+        .map_err(|e| AppError::internal(format!("ts cast: {}", e)))?;
+    let ts_dtype = crate::temporal::ts_dtype(df, ts_col)?;
     Ok(ts_i64
         .i64()
-        .map_err(|e| AppError::internal(format!("ts i64: {e}")))?
+        .map_err(|e| AppError::internal(format!("ts i64: {}", e)))?
         .into_iter()
         .map(|v| {
             v.map(|t| crate::temporal::native_to_epoch_ms(t, &ts_dtype))
                 .unwrap_or(f64::NAN)
         })
         .collect())
+}
+
+/// Find the timestamp column by looking for a Datetime column.
+fn find_ts_column(df: &DataFrame) -> Result<String, AppError> {
+    for field in df.schema().iter_fields() {
+        if matches!(field.dtype(), DataType::Datetime(_, _)) {
+            return Ok(field.name().to_string());
+        }
+    }
+    Err(AppError::internal("No timestamp column found in DataFrame"))
 }
 
 /// Extract a named column as `Vec<Option<f64>>`, filtering non-finite values to `None`.
@@ -778,11 +794,12 @@ pub fn apply_column_transform(
         return Err(AppError::bad_request("Invalid output column name"));
     }
 
-    let polars_expr = parse_expression(expr, df)?;
+    let polars_expr = parse_expression_lazy(expr)?;
     let result = tokio::task::block_in_place(|| {
         df.clone()
             .lazy()
             .with_column(polars_expr.alias(output_name))
+            .with_new_streaming(true)
             .collect()
     })
     .map_err(|e| AppError::internal(format!("Transform execution failed: {e}")))?;
@@ -790,13 +807,38 @@ pub fn apply_column_transform(
     Ok(result)
 }
 
+/// LazyFrame variant of apply_column_transform.
+pub fn apply_column_transform_lazy(
+    lf: &LazyFrame,
+    expression: &str,
+    output_name: &str,
+) -> Result<DataFrame, AppError> {
+    let expr = expression.trim();
+    if expr.is_empty() {
+        return Err(AppError::bad_request("Expression is empty"));
+    }
+
+    if output_name.trim().is_empty() || output_name == "ts" {
+        return Err(AppError::bad_request("Invalid output column name"));
+    }
+
+    let polars_expr = parse_expression_lazy(expr)?;
+    tokio::task::block_in_place(|| {
+        lf.clone()
+            .with_column(polars_expr.alias(output_name))
+            .with_new_streaming(true)
+            .collect()
+    })
+    .map_err(|e| AppError::internal(format!("Transform execution failed: {e}")))
+}
+
 /// Parse a simple expression string into a Polars Expr.
-/// Supports:
-///   - `col_a + col_b` (binary ops: +, -, *, /, %)
-///   - `func(col_a)` where func ∈ ALLOWED_FUNCTIONS
-///   - `func(col_a op col_b)`
-///   - Numeric literals
-fn parse_expression(expr: &str, df: &DataFrame) -> Result<Expr, AppError> {
+/// LazyFrame-friendly version — df is only needed for column name validation.
+fn parse_expression_lazy(expr: &str) -> Result<Expr, AppError> {
+    parse_expression_impl(expr, None)
+}
+
+fn parse_expression_impl(expr: &str, df: Option<&DataFrame>) -> Result<Expr, AppError> {
     let expr = expr.trim();
 
     // Check for function call: func(...)
@@ -814,7 +856,7 @@ fn parse_expression(expr: &str, df: &DataFrame) -> Result<Expr, AppError> {
             )));
         }
 
-        let inner_expr = parse_expression(inner, df)?;
+        let inner_expr = parse_expression_impl(inner, df)?;
         return apply_function(&func_name, inner_expr);
     }
 
@@ -842,8 +884,8 @@ fn parse_expression(expr: &str, df: &DataFrame) -> Result<Expr, AppError> {
                     let left = expr[..i].trim();
                     let right = expr[i + 1..].trim();
                     if !left.is_empty() && !right.is_empty() {
-                        let left_expr = parse_expression(left, df)?;
-                        let right_expr = parse_expression(right, df)?;
+                        let left_expr = parse_expression_impl(left, df)?;
+                        let right_expr = parse_expression_impl(right, df)?;
                         return apply_binary_op(left_expr, right_expr, op);
                     }
                 }
@@ -859,8 +901,8 @@ fn parse_expression(expr: &str, df: &DataFrame) -> Result<Expr, AppError> {
                     let left = expr[..i].trim();
                     let right = expr[i + 1..].trim();
                     if !left.is_empty() && !right.is_empty() {
-                        let left_expr = parse_expression(left, df)?;
-                        let right_expr = parse_expression(right, df)?;
+                        let left_expr = parse_expression_impl(left, df)?;
+                        let right_expr = parse_expression_impl(right, df)?;
                         return apply_binary_op(left_expr, right_expr, op);
                     }
                 }
@@ -875,12 +917,10 @@ fn parse_expression(expr: &str, df: &DataFrame) -> Result<Expr, AppError> {
 
     // Try as column reference
     let col_names: Vec<String> = df
-        .get_column_names()
-        .iter()
-        .map(|c| c.to_string())
-        .collect();
+        .map(|d| d.get_column_names().iter().map(|c| c.to_string()).collect())
+        .unwrap_or_default();
 
-    if col_names.contains(&expr.to_string()) {
+    if col_names.is_empty() || col_names.contains(&expr.to_string()) {
         return Ok(col(expr));
     }
 

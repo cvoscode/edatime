@@ -1,29 +1,26 @@
-use polars::prelude::DataFrame;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::sync::Mutex;
 use std::sync::Arc;
 use std::time::Instant;
+
+use polars::prelude::{DataFrame, LazyFrame, IntoLazy, SchemaExt};
 use tokio::sync::RwLock;
 
 use crate::cache::ResponseCache;
 use crate::config::AppConfig;
 use crate::db::DbPool;
 use crate::metrics::AppMetrics;
+use crate::query::QueryEntry;
 use crate::repository::InMemoryDataRepository;
 
 /// Short-lived in-memory cache for drift computation results.
-/// Key: request parameter hash string. Value: (dataset_revision, inserted_at, json_bytes).
-/// Wrapped in Arc so that cloned AppState shares the same cache rather than
-/// each clone getting its own isolated (and thus useless) empty cache.
 pub type DriftCache = Arc<std::sync::Mutex<HashMap<String, (u64, Instant, Vec<u8>)>>>;
 
 /// Live database connection state, set after a successful `/api/database/connect`.
 #[derive(Clone, Debug)]
 pub struct DbConnectionInfo {
-    /// Logical schema the selected table lives in.
     pub schema: String,
-    /// Table (or hypertable) being queried.
     pub table: String,
-    /// Time column used for range filtering.
     pub time_column: Option<String>,
 }
 
@@ -33,12 +30,11 @@ pub struct AppState {
     pub cache: Arc<ResponseCache>,
     pub metrics: Arc<AppMetrics>,
     pub config: Arc<AppConfig>,
-    /// Optional live Postgres / TimescaleDB connection pool.
     pub db_pool: Arc<RwLock<Option<Arc<DbPool>>>>,
-    /// Connection metadata set alongside the pool.
     pub db_info: Arc<RwLock<Option<DbConnectionInfo>>>,
-    /// Short-lived cache for drift computation results (TTL ~60s, invalidated on dataset replace).
     pub drift_cache: DriftCache,
+    pub query_log: Arc<Mutex<VecDeque<QueryEntry>>>,
+    pub query_counter: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl Clone for AppState {
@@ -51,64 +47,83 @@ impl Clone for AppState {
             db_pool: Arc::clone(&self.db_pool),
             db_info: Arc::clone(&self.db_info),
             drift_cache: Arc::clone(&self.drift_cache),
+            query_log: Arc::clone(&self.query_log),
+            query_counter: Arc::clone(&self.query_counter),
         }
     }
 }
 
 impl AppState {
     pub fn new(df: DataFrame, config: AppConfig) -> Self {
+        let repository = Arc::new(InMemoryDataRepository::new(df));
+        let cache = Arc::new(ResponseCache::new(config.cache.to_runtime_config()));
+        let metrics = Arc::new(AppMetrics::new());
+        let max_stored = config.query.max_stored.max(1);
         Self {
-            repository: Arc::new(InMemoryDataRepository::new(df)),
-            cache: Arc::new(ResponseCache::new(config.cache.to_runtime_config())),
-            metrics: Arc::new(AppMetrics::new()),
+            repository,
+            cache,
+            metrics,
             config: Arc::new(config),
             db_pool: Arc::new(RwLock::new(None)),
             db_info: Arc::new(RwLock::new(None)),
             drift_cache: Arc::new(std::sync::Mutex::new(HashMap::new())),
+            query_log: Arc::new(Mutex::new(VecDeque::with_capacity(max_stored))),
+            query_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         }
     }
 
-    /// Returns `true` if a live database connection is active.
     pub async fn has_db_connection(&self) -> bool {
         self.db_pool.read().await.is_some()
     }
 
-    /// Return a shared handle to the in-memory frame. Callers can `read().await`
-    /// to obtain a snapshot or clone the `DataFrame` when they need an owned
-    /// copy for blocking work.
-    pub async fn dataset_snapshot(&self) -> Arc<RwLock<DataFrame>> {
+    /// Return a shared handle to the in-memory LazyFrame.
+    pub async fn dataset_snapshot(&self) -> Arc<RwLock<LazyFrame>> {
         self.repository.shared_frame()
     }
 
-    /// Clone only the requested columns from the shared frame.
-    /// Returns the full frame if column selection fails (e.g. missing `ts`).
-    pub async fn dataset_snapshot_for_columns(&self, columns: &[&str]) -> DataFrame {
+/// Clone only the requested columns from the shared frame.
+/// Returns LazyFrame with projection; callers collect if needed.
+    pub async fn dataset_snapshot_for_columns(&self, columns: &[&str]) -> LazyFrame {
         let lock = self.repository.shared_frame();
         let guard = lock.read().await;
-        let col_names = guard.get_column_names();
-        let existing: Vec<&str> = columns
-            .iter()
-            .filter(|&&c| col_names.iter().any(|n| n.as_str() == c))
-            .copied()
+        let schema = guard.clone().collect_schema().expect("LazyFrame schema should be available after successful load");
+        let col_names: Vec<String> = schema
+            .iter_fields()
+            .filter(|f| columns.iter().any(|&col| col == f.name().as_str()))
+            .map(|f| f.name().to_string())
             .collect();
-        drop(guard); // Release the read lock before clone()
 
-        if existing.is_empty() {
-            let full = lock.read().await;
-            let df = full.clone();
-            drop(full);
-            df
+        if col_names.is_empty() {
+            guard.clone()
         } else {
-            let full = lock.read().await;
-            match full.select(existing) {
-                Ok(df) => df,
-                Err(_) => full.clone(),
-            }
+            guard.clone().select(
+                col_names
+                    .iter()
+                    .map(|s| polars::prelude::col(s.as_str()))
+                    .collect::<Vec<_>>(),
+            )
         }
     }
 
     pub async fn replace_dataset(&self, df: DataFrame) -> u64 {
-        *self.repository.shared_frame().write().await = df;
+        let lf = df.clone().lazy();
+        let column_names: Vec<String> = df.get_column_names().iter().map(|s| s.to_string()).collect();
+        let row_count = df.height();
+        let meta = crate::repository::DatasetMeta {
+            row_count,
+            column_names,
+            time_column: None,
+        };
+        let shared_frame = self.repository.shared_frame();
+        let meta_store = self.repository.meta();
+        {
+            let mut guard = shared_frame.write().await;
+            *guard = lf;
+        }
+        {
+            let mut meta_guard = meta_store.write().await;
+            *meta_guard = meta;
+        }
         self.repository.bump_revision()
     }
 
@@ -121,11 +136,40 @@ impl AppState {
     }
 
     pub async fn dataset_rows(&self) -> usize {
-        self.repository.shared_frame().read().await.height()
+        let lock = self.repository.shared_frame();
+        let lf = lock.read().await;
+        lf.clone()
+            .select([polars::prelude::len().cast(polars::prelude::DataType::UInt64)])
+            .with_new_streaming(true)
+            .collect()
+            .map(|df| df.height())
+            .unwrap_or(0)
     }
 
     pub fn dataset_revision(&self) -> u64 {
         self.repository.revision()
+    }
+
+    /// Push a query entry to the ring buffer.
+    pub fn push_query(&self, entry: QueryEntry) {
+        let mut log = self.query_log.lock().unwrap();
+        let max = self.config.query.max_stored.max(1);
+        while log.len() >= max {
+            log.pop_front();
+        }
+        log.push_back(entry);
+    }
+
+    /// Drain all query entries (for export).
+    pub fn drain_queries(&self) -> Vec<QueryEntry> {
+        let mut log = self.query_log.lock().unwrap();
+        log.drain(..).collect()
+    }
+
+    pub fn next_query_id(&self) -> u64 {
+        self.query_counter
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1
     }
 }
 

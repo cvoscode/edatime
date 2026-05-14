@@ -5,7 +5,9 @@ interface DatasetState {
   metadata: DatasetMetadata | null;
   columns: ColumnProfile[];
   numericCols: string[];
+  datetimeCols: string[];
   xAxisColumn: string | null;
+  selectedColorColumn: string | null;
   data: DataObject | null;
   filteredData: FilteredDataObject | null;
   isLoading: boolean;
@@ -16,7 +18,9 @@ const [datasetState, setDatasetState] = createStore<DatasetState>({
   metadata: null,
   columns: [],
   numericCols: [],
+  datetimeCols: [],
   xAxisColumn: null,
+  selectedColorColumn: null,
   data: null,
   filteredData: null,
   isLoading: false,
@@ -36,14 +40,23 @@ export const datasetStore = {
   setColumns(columns: ColumnProfile[]) {
     setDatasetState('columns', columns);
     setDatasetState('numericCols', columns.filter(c => c.type === 'numeric').map(c => c.name));
+    setDatasetState('datetimeCols', columns.filter(c => c.type === 'datetime').map(c => c.name));
   },
 
   setNumericCols(cols: string[]) {
     setDatasetState('numericCols', cols);
   },
 
+  setDatetimeCols(cols: string[]) {
+    setDatasetState('datetimeCols', cols);
+  },
+
   setXAxisColumn(col: string | null) {
     setDatasetState('xAxisColumn', col);
+  },
+
+  setSelectedColorColumn(col: string | null) {
+    setDatasetState('selectedColorColumn', col);
   },
 
   setData(data: DataObject) {
@@ -67,6 +80,7 @@ export const datasetStore = {
       metadata: null,
       columns: [],
       numericCols: [],
+      datetimeCols: [],
       xAxisColumn: null,
       data: null,
       filteredData: null,

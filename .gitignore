@@ -10,6 +10,7 @@ __pycache__/
 *.pyd
 .python-version
 pyproject.toml
+.playwright-mcp/
 poetry.lock
 uv.lock
 *.py
@@ -18,12 +19,9 @@ tigramite/
 *.map
 */chunk-*.js
 # Compiled frontend bundles (versioned with hash suffix)
-frontend/js/app.js
-frontend/js/app.js.map
 frontend/js/Arrow.dom-*.js
 frontend/js/causalComparison-*.js
 frontend/js/causalPage-*.js
 frontend/js/driftPage-*.js
 frontend/js/echarts-*.js
 frontend/js/toast-*.js
-*.png

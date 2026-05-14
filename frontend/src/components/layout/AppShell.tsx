@@ -37,7 +37,7 @@ const AppShell: Component<AppShellProps> = (props) => {
               href={item.path}
               class={styles.navItem}
               activeClass={styles.active}
-              end={item.path !== '/'}
+              end={true}
             >
               <span class={styles.symbol}>{item.symbol}</span>
               <span class={styles.label}>{item.label}</span>

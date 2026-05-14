@@ -16,6 +16,7 @@ pub struct AppConfig {
     pub data: DataSettings,
     pub validation: ValidationSettings,
     pub database: DatabaseSettings,
+    pub query: QuerySettings,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -47,10 +48,9 @@ pub struct UploadSettings {
     pub max_upload_bytes: usize,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default)]
 pub struct DataSettings {
-    pub sample_data_path: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -70,6 +70,20 @@ pub struct DatabaseSettings {
     pub connection_string: Option<String>,
     pub table: Option<String>,
     pub time_column: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct QuerySettings {
+    pub max_stored: usize,
+}
+
+impl Default for QuerySettings {
+    fn default() -> Self {
+        Self {
+            max_stored: 512,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -122,13 +136,7 @@ impl Default for UploadSettings {
     }
 }
 
-impl Default for DataSettings {
-    fn default() -> Self {
-        Self {
-            sample_data_path: "sample.csv".to_string(),
-        }
-    }
-}
+
 
 impl Default for ValidationSettings {
     fn default() -> Self {
@@ -176,12 +184,6 @@ impl AppConfig {
             && let Ok(port) = port.parse::<u16>() {
                 self.server.port = port;
             }
-        if let Ok(sample_data_path) = env::var("EDATIME_SAMPLE_DATA") {
-            let sample_data_path = sample_data_path.trim().to_string();
-            if !sample_data_path.is_empty() {
-                self.data.sample_data_path = sample_data_path;
-            }
-        }
         if let Ok(ttl_seconds) = env::var("EDATIME_CACHE_TTL_SECONDS")
             && let Ok(ttl_seconds) = ttl_seconds.parse::<u64>() {
                 self.cache.ttl_seconds = ttl_seconds;

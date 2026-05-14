@@ -52,23 +52,9 @@ async fn main() {
         }
     };
 
-    let sample_path = &config.data.sample_data_path;
-    let load_result = match tokio::task::block_in_place(|| ingest::load_dataframe(sample_path)) {
-        Ok(result) => result,
-        Err(e) => {
-            tracing::warn!("Could not load {sample_path}: {e}. Starting with empty dataframe.");
-            ingest::LoadResult { df: polars::prelude::DataFrame::default(), time_column_name: None, column_names: vec![], numeric_columns: vec![] }
-        }
-    };
-    let df = load_result.df;
-    let time_col_display = load_result.time_column_name;
-
     let max_upload_bytes = config.upload.max_upload_bytes;
     let bind_address = config.bind_address();
-    let state = AppState::new(df, config.clone());
-    if let Some(tc) = time_col_display {
-        state.set_time_column_display_name(Some(tc));
-    }
+    let state = AppState::new(polars::prelude::DataFrame::default(), config.clone());
 
     let rate_limiter = Arc::new(rates::RateLimiter::new(
         config.rate_limit.max_requests,

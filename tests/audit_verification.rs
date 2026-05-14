@@ -15,7 +15,7 @@ async fn drift_page_routing_works() {
     // This test would be run against a live server instance
     // In a real test environment, you would use axum-test or a similar HTTP client
 
-    let test_url = "http://127.0.0.1:3000/#page=drift";
+    let _test_url = "http://127.0.0.1:3000/#page=drift";
 
     // The expected behavior is:
     // 1. Navigation to #page=drift should render the Drift page
@@ -85,7 +85,7 @@ async fn scatter_matrix_is_sub_tab() {
 /// - Correlation suggestion fetches should be < 200ms
 #[tokio::test]
 async fn api_response_times_acceptable() {
-    let acceptable_duration = Duration::from_millis(200);
+    let _acceptable_duration = Duration::from_millis(200);
 
     // Test the following endpoints with sample dataset:
     // 1. GET /api/scatter/correlations/matrix - should be < 200ms

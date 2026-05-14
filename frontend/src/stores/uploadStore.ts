@@ -69,6 +69,10 @@ export const uploadStore = {
     setUploadState('selectedColumns', metadata.numeric_columns);
     const timeCol = metadata.time_column ?? '';
     setUploadState('timeColumn', timeCol);
+    if (metadata.time_range) {
+      setUploadState('timeStart', new Date(metadata.time_range.min).toISOString().slice(0, 16));
+      setUploadState('timeEnd', new Date(metadata.time_range.max).toISOString().slice(0, 16));
+    }
   },
 
   setPreviewing(isPreviewing: boolean) {

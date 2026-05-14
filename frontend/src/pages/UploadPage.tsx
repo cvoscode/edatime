@@ -70,15 +70,25 @@ const UploadPage: Component = () => {
         type: 'success',
         duration: 5000,
       });
+      datasetStore.setColumns(freshMetadata.column_profiles.map(cp => ({
+        name: cp.name,
+        type: cp.dtype.includes('int') || cp.dtype.includes('float') || cp.dtype.includes('double') ? 'numeric' :
+              cp.dtype.includes('datetime') || cp.dtype.includes('date') ? 'datetime' : 'categorical',
+        min: cp.min ?? undefined,
+        max: cp.max ?? undefined,
+        nullCount: cp.null_count,
+      })));
       datasetStore.setMetadata({
         name: file.name,
         rowCount: rowCount,
-        columns: result.columns,
-        timestampColumn: result.timestamp_column ?? '',
+        columns: freshMetadata.columns.map(c => c.name),
+        numericColumns: freshMetadata.numeric_columns,
+        timestampColumn: result.timestamp_column ?? freshMetadata.time_column ?? '',
         fileSize: file.size,
         uploadedAt: new Date().toISOString(),
+        timeRange: freshMetadata.time_range ? [freshMetadata.time_range.min, freshMetadata.time_range.max] : null,
       });
-      datasetStore.setNumericCols(result.numeric_columns ?? []);
+      datasetStore.setNumericCols(freshMetadata.numeric_columns);
       uploadStore.setUploadStatus(`Loaded ${rowCount.toLocaleString()} rows`);
     } catch (err) {
       uploadStore.setUploadStatus(`Error: ${err}`);

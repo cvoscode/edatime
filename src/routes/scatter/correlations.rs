@@ -9,6 +9,7 @@ use serde::Deserialize;
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::stats;
+use polars::prelude::LazyFrame;
 
 use super::{CorrelationItem, collect_xy_pairs, numeric_columns};
 
@@ -29,11 +30,12 @@ pub struct ScatterCorrelationsResponse {
 }
 
 fn build_correlation_item(
-    df: &polars::prelude::DataFrame,
+    lf: LazyFrame,
     base: &str,
     other: &str,
 ) -> Result<CorrelationItem, AppError> {
-    let pairs = collect_xy_pairs(df, base, other)?;
+    let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::internal(format!("correlation collect: {}", e)))?;
+    let pairs = collect_xy_pairs(&df, base, other)?;
     let pearson = stats::pearson(&pairs);
     let spearman = stats::spearman(&pairs);
 
@@ -56,13 +58,13 @@ pub async fn get_scatter_correlations(
         params.threshold
     );
 
-    let df = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot().await.read().await.clone();
 
     let threshold = params.threshold.unwrap_or(0.7).clamp(0.0, 1.0);
     let requested_base = params.base.clone();
 
     tokio::task::spawn_blocking(move || {
-        let mut numeric = numeric_columns(&df);
+        let mut numeric = numeric_columns(lf.clone());
         numeric.sort();
 
         // If dataset is empty or has fewer than 2 numeric columns, return an empty but valid response
@@ -94,7 +96,7 @@ pub async fn get_scatter_correlations(
 
         let mut correlations = Vec::new();
         for col in numeric.iter().filter(|c| *c != &base_column) {
-            correlations.push(build_correlation_item(&df, &base_column, col)?);
+            correlations.push(build_correlation_item(lf.clone(), &base_column, col)?);
         }
 
         correlations.sort_by(|a, b| {
@@ -145,10 +147,10 @@ pub struct CorrelationMatrixResponse {
 pub async fn get_correlation_matrix(
     State(state): State<AppState>,
 ) -> Result<Json<CorrelationMatrixResponse>, AppError> {
-    let df = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot().await.read().await.clone();
 
     tokio::task::spawn_blocking(move || {
-        let mut numeric = numeric_columns(&df);
+        let mut numeric = numeric_columns(lf.clone());
         numeric.sort();
 
         if numeric.len() < 2 {
@@ -160,6 +162,8 @@ pub async fn get_correlation_matrix(
         let n = numeric.len();
         let mut pearson = vec![vec![None; n]; n];
         let mut spearman = vec![vec![None; n]; n];
+
+        let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::internal(format!("correlation matrix collect: {}", e)))?;
 
         for i in 0..n {
             pearson[i][i] = Some(1.0);

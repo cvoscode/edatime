@@ -1,11 +1,15 @@
 import { createStore } from 'solid-js/store';
 import type { RollingBandConfig, AnomalyConfig, SpectralConfig, ToastMessage } from '../types';
+import type { ColorScaleName } from '../utils/colorScale';
+import type { PlotThemeMode } from '../utils/plotTemplate';
 
 interface UiState {
   selectedColumns: string[];
   filters: Record<string, { min: number; max: number }>;
   colors: Record<string, string>;
   theme: 'dark' | 'light' | 'system';
+  colorScale: ColorScaleName;
+  plotTheme: PlotThemeMode;
   sidebarOpen: boolean;
   toasts: ToastMessage[];
   isUploadPanelOpen: boolean;
@@ -17,6 +21,8 @@ const defaultColors: Record<string, string> = {
 };
 
 const STORAGE_KEY = 'edatime-theme';
+const COLOR_SCALE_KEY = 'edatime-color-scale';
+const PLOT_THEME_KEY = 'edatime-plot-theme';
 
 function getSavedTheme(): 'dark' | 'light' | 'system' {
   try {
@@ -26,6 +32,26 @@ function getSavedTheme(): 'dark' | 'light' | 'system' {
     }
   } catch {}
   return 'dark';
+}
+
+function getSavedColorScale(): ColorScaleName {
+  try {
+    const saved = localStorage.getItem(COLOR_SCALE_KEY);
+    if (saved === 'viridis' || saved === 'plasma' || saved === 'inferno' || saved === 'coolwarm' || saved === 'rdbu') {
+      return saved;
+    }
+  } catch {}
+  return 'rdbu';
+}
+
+function getSavedPlotTheme(): PlotThemeMode {
+  try {
+    const saved = localStorage.getItem(PLOT_THEME_KEY);
+    if (saved === 'auto' || saved === 'light' || saved === 'dark') {
+      return saved;
+    }
+  } catch {}
+  return 'auto';
 }
 
 function resolveTheme(theme: 'dark' | 'light' | 'system'): 'dark' | 'light' {
@@ -59,6 +85,8 @@ const [uiState, setUiState] = createStore<UiState>({
   filters: {},
   colors: { ...defaultColors },
   theme: getSavedTheme(),
+  colorScale: getSavedColorScale(),
+  plotTheme: getSavedPlotTheme(),
   sidebarOpen: true,
   toasts: [],
   isUploadPanelOpen: false
@@ -111,6 +139,20 @@ export const uiStore = {
       localStorage.setItem(STORAGE_KEY, theme);
     } catch {}
     applyTheme(theme);
+  },
+
+  setColorScale(scale: ColorScaleName) {
+    setUiState('colorScale', scale);
+    try {
+      localStorage.setItem(COLOR_SCALE_KEY, scale);
+    } catch {}
+  },
+
+  setPlotTheme(mode: PlotThemeMode) {
+    setUiState('plotTheme', mode);
+    try {
+      localStorage.setItem(PLOT_THEME_KEY, mode);
+    } catch {}
   },
 
   toggleSidebar() {

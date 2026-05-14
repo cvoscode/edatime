@@ -14,6 +14,7 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'robots.txt'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: /\/api\/arrow/,

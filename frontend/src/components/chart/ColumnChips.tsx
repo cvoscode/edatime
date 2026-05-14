@@ -7,6 +7,7 @@ interface ColumnChipsProps {
   filter: string;
   onChange: (selected: string[]) => void;
   colors?: Record<string, string>;
+  colorScalePalette?: string[];
   onColorChange?: (column: string, color: string) => void;
   onOpenFilter?: (column: string) => void;
 }
@@ -22,12 +23,6 @@ const ColumnChips: Component<ColumnChipsProps> = (props) => {
     const lower = props.filter.toLowerCase();
     return props.columns.filter(col => col.toLowerCase().includes(lower));
   });
-
-  const getColor = (col: string, idx: number) => {
-    if (props.colors?.[col]) return props.colors[col];
-    const numericIdx = props.columns.indexOf(col);
-    return SERIES_COLORS[numericIdx >= 0 ? numericIdx : idx % SERIES_COLORS.length];
-  };
 
   const isSelected = (col: string) => props.selected.includes(col);
 
@@ -61,23 +56,25 @@ const ColumnChips: Component<ColumnChipsProps> = (props) => {
         {(col, idx) => (
           <label
             class={`${styles.chip} ${isSelected(col) ? styles.selected : ''}`}
-            style={{ '--chip-color': getColor(col, idx()) }}
+            style={{ '--chip-color': props.colors?.[col] ?? props.colorScalePalette?.[idx() % (props.colorScalePalette?.length ?? 1)] ?? SERIES_COLORS[idx() % SERIES_COLORS.length] }}
+            onClick={() => toggle(col)}
           >
             <input
               type="checkbox"
               class={styles.checkbox}
               checked={isSelected(col)}
               onChange={() => toggle(col)}
+              onClick={(e) => e.stopPropagation()}
             />
             <input
               type="color"
               class={styles.colorPicker}
-              value={getColor(col, idx())}
+              value={props.colors?.[col] ?? props.colorScalePalette?.[idx() % (props.colorScalePalette?.length ?? 1)] ?? SERIES_COLORS[idx() % SERIES_COLORS.length]}
               title={`Color for ${col}`}
               aria-label={`Color for ${col}`}
               onPointerDown={handleColorPointerDown}
               onMouseDown={handleColorPointerDown}
-              onClick={handleColorPointerDown}
+              onClick={(e) => e.stopPropagation()}
               onInput={(e) => handleColorChange(col, e)}
             />
             <span class={styles.label}>{col}</span>

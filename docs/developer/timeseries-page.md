@@ -474,6 +474,243 @@ Response: { "regions": [{ "start": 1538784060000, "end": 1538784120000, "score":
 
 ---
 
+## Feature Implementation Reference
+
+This section documents all features implemented by the reference chart (`old_frontend/src/chart/DataChart.ts`) to guide re-implementation in the new frontend.
+
+### Constants
+
+| Constant | Value | Usage |
+|---|---|---|
+| `CHART_GRID` | `{ left: 120, right: 30, top: 16, bottom: 36 }` | Chart margins |
+| `COLOR_BUCKETS` | `64` | Color batching granularity for color-by-column |
+| `minDragPx` | `8` | Minimum drag for box-select zoom |
+| `clickThresholdPx` | `4` | Maximum drag for click (not zoom) |
+| `DEFAULT_ROLLING_WINDOW` | `50` | Sliding window size for rolling bands |
+| `wheelZoomFactor` | `1.25` (in) / `0.8` (out) | Scroll wheel zoom factors |
+| `zoomHistoryMax` | `5` | Maximum zoom history entries |
+
+### 1. Interaction Features
+
+#### 1.1 Box-Select Zoom
+- **Function:** `initBoxZoom()` in `chartInteractions.ts`
+- **Behavior:** Left-button drag draws selection rectangle; `≥8px` triggers zoom, `<4px` triggers click
+- **CSS:** `border:1px solid rgba(0,212,255,0.9);background:rgba(0,212,255,0.15)`
+- **Flow:** `pointerdown` → `pointermove` (updates box) → `pointerup` (fires `onZoom(min, max, 'user')`)
+- **Data conversion:** `dragToDataRange()` converts CSS pixels to data range via plot area bounds
+
+#### 1.2 Wheel Zoom
+- **Function:** `initWheelZoom()` in `chartInteractions.ts`
+- **Behavior:** Scroll zooms centered on cursor position
+- **Factor:** `1.25` (zoom in, `deltaY > 0`) or `0.8` (zoom out, `deltaY < 0`)
+- **Focal point:** `xNorm = (clientX - rect.left - plotLeft) / plotWidth`
+
+#### 1.3 Double-Click Zoom-Out
+- **Behavior:** Double-click without shift/ctrl fires `onZoomOutCallback`
+- **Use:** Resets zoom to full dataset range
+
+#### 1.4 Zoom History
+- **Storage:** `appState.zoomHistory[]` (max 5 entries)
+- **Entry:** `{ xMin, xMax, yMin, yMax }` snapshot of current view
+- **Update:** On each zoom, `deps.getCurrentView()` pushes to history
+
+#### 1.5 Draw Mode
+- **Modes:** `'none'` (default), `'arrow'`, `'box'`
+- **Activation:** `DataChart.setDrawMode(mode: string, color?: string, width?: number)`
+- **Overlay:** When mode ≠ `'none'`, canvas overlay gets `pointer-events: auto`
+- **Draw item:** `{ type, color, width, startX, startY, endX, endY }`
+
+#### 1.6 Arrow Drawing
+- **Render:** `_drawArrow()` on overlay canvas
+- **Head:** 10px, angle ±30° from endpoint via `atan2`
+
+#### 1.7 Box Drawing
+- **Render:** `ctx.rect()` with clamped coordinates
+
+#### 1.8 Crosshair & Tooltip
+- **Event:** `chartInstance.on('crosshairMove', callback)` (ChartGPU)
+- **Formatter:** `formatTimeTooltip()` for header; `formatTwoDecimals()` for values
+- **Deduplication:** Via `baseSeriesName()` + `seen` Set
+
+---
+
+### 2. Visual Features
+
+#### 2.1 Series Rendering
+- **Entry:** `DataChart.updateDataMulti(dataObj: FilteredDataObject, columns: string[])`
+- **Filtering:** Columns named `ts`, `timestamp`, `time` (case-insensitive) excluded
+- **Downsampling markers:** When `dataObj._meta?.downsampled === false`, adds circle point annotations (≤500 points)
+
+#### 2.2 Color-by-Column
+- **Activation:** `appState.selectedColorColumn` set + `colorByColumn[colName]` array matches points length
+- **Function:** `buildColorizedSeries()` in `colorScale.ts`
+- **Batching:** 64 buckets to avoid creating thousands of ChartGPU series
+- **Palettes:** viridis, plasma, magma, coolwarm, inferno (64 colors each)
+- **Categorical:** `categoryColorFor()` assigns palette colors per category
+
+#### 2.3 Numeric Colorbar
+- **Elements:** `timeseries-colorbar-name`, `timeseries-colorbar-min`, `timeseries-colorbar`, `timeseries-colorbar-max`
+- **Gradient:** `linear-gradient(90deg, viridis_colors)` on background
+- **Trigger:** `scaleInfo.isNumeric === true`
+
+#### 2.4 Categorical Legend
+- **Elements:** `timeseries-categorical-name`, `timeseries-categorical-legend`
+- **Items:** Swatch + label per category, via `categoryColorFor()`
+
+#### 2.5 Rolling Bands
+- **Data:** `RollingBandData[]` — `{ column, ts, mean, upper1, lower1, upper2, lower2 }`
+- **Computation:** `computeFrontendRollingBands()` — sliding window centered, `Math.floor((windowSize-1)/2)` half-width
+- **Formula:** `std = sqrt(max(0, sumSq/cnt - m*m))`; bounds = m ± std (1σ), m ± 2std (2σ)
+- **Render:** `_renderRollingBandsToCtx()`
+  - 2σ band: `rgba(100, 180, 255, 0.22)` filled polygon
+  - 1σ band: `rgba(100, 180, 255, 0.38)` filled polygon
+  - Mean line: `rgba(180, 220, 255, 0.90)`, width `1.5 * min(scale.x, scale.y)`, dashed `[6, 3]`
+
+#### 2.6 Anomaly Regions
+- **Data:** `AnomalyRegionData[]` — `{ column, method, start_ms, end_ms, score }`
+- **Fetch:** `fetchAnomalyRegions()` → `appState.anomalyRegions`
+- **Render:** `_renderAnomalyRegionsToCtx()`
+  - Fill: `rgba(255, 74, 110, 0.15)`
+  - Stroke: `rgba(255, 74, 110, 0.5)`
+  - Clamp to visible range; min width 2px
+
+#### 2.7 Annotations
+- **Types:** `'note'`, `'callout'`, `'region'`, `'line'`, `'bookmark'`
+- **Storage:** localStorage key `'edatime-annotations'` as JSON
+- **Interface:** `id, type, title, content, timeRange {start,end}, position {x,y}, columns, color, page`
+- **Render:** `_renderAnnotationsToCtx()`
+  - Bookmark (`start === end`): vertical line + triangle marker + title
+  - Note/region: shaded rect with dashed border + title
+- **API:** `annotations.ts` — `createAnnotation()`, `updateAnnotation()`, `deleteAnnotation()`, `getAnnotationsForPage()`
+
+#### 2.8 Adaptive Line Filters
+- **Data:** `AdaptiveLineFilter[]` — `{ column, x1, y1, x2, y2, keepAbove }`
+- **Preview:** `pendingAdaptivePoint` — single dot or two-point line
+- **Render:** `_renderAdaptiveFilterLinesToCtx()`
+  - Line: `rgba(0, 200, 150, 0.95)` if `keepAbove`, else `rgba(255, 74, 110, 0.95)`, dashed `[8, 6]`
+  - Label: `"column keep above"` or `"column keep below"`
+  - Pending dot: cyan `rgba(0, 212, 255, 0.95)` with white stroke
+- **Y computation:** `buildAdaptiveLineY(filter, tsMs)` — linear interpolation
+
+#### 2.9 Text Overlays (Chart Labels)
+- **Elements:** `chart-title-overlay`, `chart-xlabel-overlay`, `chart-ylabel-overlay`
+- **Init:** `_initTextOverlays()` creates absolute-positioned divs
+- **Sync:** `_syncTextOverlays()` — sets `textContent`, shows if non-empty
+
+---
+
+### 3. Canvas Overlay System
+
+- **Factory:** `createCanvasOverlay(container, onResize)` → `{ canvas, observer }`
+- **Style:** `position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:6`
+- **DPR:** `window.devicePixelRatio` passed as scale `{x, y}` to all render methods
+- **Render order:** `ChartOverlays.renderAll()` → rolling bands → anomaly regions → adaptive filters → annotations
+
+---
+
+### 4. Export Features
+
+| Format | Function | Details |
+|--------|----------|---------|
+| PNG | `exportPNG()` | DPR-scaled canvas, downloads as `edatime_chart.png` |
+| SVG | `exportSVG()` | PNG embedded + drawings as `<rect>`/`<path>`, includes `_exportSVGDrawings()` |
+| HTML | `exportHTML()` | Single-page with embedded PNG |
+| CSV | (in toolbar) | Exports filtered data via `/api/export` |
+
+---
+
+### 5. State Management
+
+| State | Location | Key Fields |
+|-------|----------|------------|
+| `appState.selectedCols` | `state.ts` | Active time series columns |
+| `appState.selectedColorColumn` | `state.ts` | Column for color-by |
+| `appState.columnRanges` | `state.ts` | Per-column `{ from, to }` y-value ranges |
+| `appState.adaptiveLineFilters` | `state.ts` | Active line filters |
+| `appState.rollingBands` | `analyticsState.ts` | Rolling band data array |
+| `appState.anomalyRegions` | `analyticsState.ts` | Anomaly region data array |
+| `appState.rollingEnabled` | `analyticsState.ts` | Toggle for rolling bands overlay |
+| `appState.anomalyEnabled` | `analyticsState.ts` | Toggle for anomaly regions overlay |
+| `appState.zoomHistory` | `state.ts` | Zoom back-navigation stack |
+
+---
+
+### 6. Backend API Contracts
+
+| Feature | Endpoint | Response |
+|---------|----------|----------|
+| Time series data | `GET /api/data?start=&end=&width=&columns=` | Arrow IPC |
+| Rolling bands | `GET /api/analytics/rolling?start=&end=&columns=&window=` | `{ bands: [{ column, ts, mean, upper1, lower1, upper2, lower2 }] }` |
+| Anomaly regions | `GET /api/analytics/anomalies?start=&end=&columns=&method=&threshold=` | `{ method, threshold, regions: [{ start_ms, end_ms, score }] }` |
+| FFT | `GET /api/analytics/fft?start=&end=&columns=&max_points=` | `{ results: [{ frequencies, magnitudes, psd }] }` |
+| Spectrogram | `GET /api/analytics/spectrogram?...` | Spectral data |
+| Spectral filter | `POST /api/analytics/spectral-filter` | Filtered series preview |
+| Export CSV | `GET /api/export/parquet?...` | Parquet file (also supports CSV format param) |
+
+---
+
+### 7. Missing Features in New Frontend
+
+Features implemented in `old_frontend` but not yet in `frontend/src/`:
+
+| # | Feature | Old Implementation | Gap |
+|---|---------|---------------------|-----|
+| 1 | Drawing (arrow/box) | `setDrawMode()`, `_drawings[]`, canvas overlay | UI exists, no handler |
+| 2 | Annotations | `__edatimeAnnotations`, `_renderAnnotationsToCtx()` | Not implemented |
+| 3 | Color-by-column | `buildColorizedSeries()`, colorbar UI | Per-series colors only |
+| 4 | Rolling band overlay | `computeFrontendRollingBands()` + canvas render | AnalyticsDrawer toggle not wired |
+| 5 | Anomaly region overlay | `fetchAnomalyRegions()` + canvas render | Not wired to chart |
+| 6 | Mouse selection zoom | `initBoxZoom()` | Not implemented |
+| 7 | Wheel zoom | `initWheelZoom()` | Not implemented |
+| 8 | Chart title/axis labels | `_initTextOverlays()`, `setChartText()` | Panel not built |
+| 9 | Export handlers | `exportPNG()`, `exportSVG()`, `exportHTML()` | Buttons exist, no handler |
+| 10 | Zoom badge | `zoom-range-badge` element | Shows "—" |
+| 11 | Adaptive line filters | `adaptiveLineFilters[]`, `buildAdaptiveLineY()` | Not implemented |
+| 12 | Downsampling markers | `AnnotationConfig` point markers | Not implemented |
+| 13 | Spectral filter preview | `spectralFilterPreview` series | Not implemented |
+| 14 | Column range filter modal | `ColumnFilterModal` component | Exists but not wired to data flow |
+| 15 | Zoom history navigation | `zoomHistory[]` | `zoomIn/zoomOut` exist but history not updated |
+
+---
+
+### 8. Key Method Signatures
+
+```typescript
+// Main chart entry
+DataChart.updateDataMulti(dataObj: FilteredDataObject, columns: string[]): void
+
+// Coordinate conversion
+DataChart.cssPointToData(clientX: number, clientY: number): { x: number; y: number } | null
+
+// Zoom callbacks
+DataChart.onZoomCallback(start: number, end: number, sourceKind: string): void
+DataChart.onYRangeCallback(min: number, max: number, sourceKind: string): void
+
+// Chart events
+DataChart.onCrosshairMove(callback: (payload: ChartGPUCrosshairMovePayload) => void): void
+DataChart.onClick(callback: (payload: ChartGPUEventPayload) => void): void
+
+// Draw mode
+DataChart.setDrawMode(mode: 'none' | 'arrow' | 'box', color?: string, width?: number): void
+DataChart.clearDrawings(): void
+
+// Export
+DataChart.exportPNG(): Promise<void>
+DataChart.exportSVG(): Promise<void>
+DataChart.exportHTML(): Promise<void>
+
+// Overlay factories
+createCanvasOverlay(container: HTMLElement, onResize: () => void): { canvas: HTMLCanvasElement, observer: ResizeObserver }
+initBoxZoom(opts: BoxZoomOptions): HTMLElement
+initWheelZoom(opts: WheelZoomOptions): void
+
+// Analytics computation
+computeFrontendRollingBands(data: FilteredDataObject, cols: string[], windowSize: number): RollingBandData[]
+fetchAnomalyRegions(fetchAnomalies: Function, signal?: AbortSignal): Promise<void>
+```
+
+---
+
 ## Screenshots
 
 - `docs/screenshots/timeseries.png` — empty state (no columns selected)

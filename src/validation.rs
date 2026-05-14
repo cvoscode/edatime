@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use polars::prelude::DataFrame;
+use polars::prelude::{DataFrame, LazyFrame};
 
 use crate::config::ValidationSettings;
 use crate::error::{AppError, ErrorCode};
@@ -113,6 +113,59 @@ pub fn validate_numeric_columns(
         })?;
 
         if !series.dtype().is_numeric() {
+            return Err(AppError::bad_request_code(
+                ErrorCode::InvalidColumnSelection,
+                format!("Column '{}' must be numeric for this endpoint", name),
+            ));
+        }
+
+        out.push(name.to_string());
+    }
+
+    if out.is_empty() {
+        return Err(AppError::bad_request_code(
+            ErrorCode::InvalidColumnSelection,
+            "No valid numeric columns were requested",
+        ));
+    }
+
+    Ok(out)
+}
+
+pub fn validate_numeric_columns_lazy(
+    lf: &LazyFrame,
+    columns: &[String],
+    limits: &ValidationSettings,
+) -> Result<Vec<String>, AppError> {
+    if columns.len() > limits.max_selected_columns {
+        return Err(AppError::bad_request_code(
+            ErrorCode::InvalidColumnSelection,
+            format!(
+                "At most {} columns may be requested at once",
+                limits.max_selected_columns
+            ),
+        ));
+    }
+
+    let schema = lf.clone().collect_schema().map_err(|e| {
+        AppError::bad_request(format!("Failed to get schema: {}", e))
+    })?;
+
+    let mut out = Vec::new();
+    for column in columns {
+        let name = column.trim();
+        if name.is_empty() || out.iter().any(|existing: &String| existing == name) {
+            continue;
+        }
+
+        let dtype = schema.get(name).ok_or_else(|| {
+            AppError::bad_request_code(
+                ErrorCode::ColumnNotFound,
+                format!("Unknown column '{}'", name),
+            )
+        })?;
+
+        if !dtype.is_numeric() {
             return Err(AppError::bad_request_code(
                 ErrorCode::InvalidColumnSelection,
                 format!("Column '{}' must be numeric for this endpoint", name),

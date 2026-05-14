@@ -1,10 +1,13 @@
-import { Component, Show, createSignal } from 'solid-js';
+import { Component, Show, createSignal, createEffect } from 'solid-js';
 import { SwitchToggle, RangeSlider } from '../ui';
+import { analyticsStore } from '../../stores';
 import styles from './AnalyticsDrawer.module.css';
 
 interface AnalyticsDrawerProps {
   open: boolean;
   onClose: () => void;
+  onRollingChange: (enabled: boolean, window: number) => void;
+  onAnomalyChange: (enabled: boolean, method: string, threshold: number) => void;
 }
 
 const AnalyticsDrawer: Component<AnalyticsDrawerProps> = (props) => {
@@ -13,6 +16,41 @@ const AnalyticsDrawer: Component<AnalyticsDrawerProps> = (props) => {
   const [anomalyEnabled, setAnomalyEnabled] = createSignal(false);
   const [anomalyMethod, setAnomalyMethod] = createSignal('zscore');
   const [anomalyThreshold, setAnomalyThreshold] = createSignal(3);
+
+  createEffect(() => {
+    if (props.open) {
+      setRollingEnabled(analyticsStore.state.rollingEnabled);
+      setRollingWindow(analyticsStore.state.rollingWindow);
+      setAnomalyEnabled(analyticsStore.state.anomalyEnabled);
+      setAnomalyMethod(analyticsStore.state.anomalyMethod);
+      setAnomalyThreshold(analyticsStore.state.anomalyThreshold);
+    }
+  });
+
+  const handleRollingToggle = (checked: boolean) => {
+    setRollingEnabled(checked);
+    props.onRollingChange(checked, rollingWindow());
+  };
+
+  const handleRollingWindowChange = (value: number) => {
+    setRollingWindow(value);
+    props.onRollingChange(rollingEnabled(), value);
+  };
+
+  const handleAnomalyToggle = (checked: boolean) => {
+    setAnomalyEnabled(checked);
+    props.onAnomalyChange(checked, anomalyMethod(), anomalyThreshold());
+  };
+
+  const handleAnomalyMethodChange = (value: string) => {
+    setAnomalyMethod(value);
+    props.onAnomalyChange(anomalyEnabled(), value, anomalyThreshold());
+  };
+
+  const handleAnomalyThresholdChange = (value: number) => {
+    setAnomalyThreshold(value);
+    props.onAnomalyChange(anomalyEnabled(), anomalyMethod(), value);
+  };
 
   return (
     <Show when={props.open}>
@@ -27,7 +65,7 @@ const AnalyticsDrawer: Component<AnalyticsDrawerProps> = (props) => {
             <label class={styles.toggleLabel}>
               <SwitchToggle
                 checked={rollingEnabled()}
-                onChange={(e) => setRollingEnabled(e.currentTarget.checked)}
+                onChange={(e) => handleRollingToggle(e.currentTarget.checked)}
               />
               <span>Show rolling mean ± σ bands</span>
             </label>
@@ -39,7 +77,7 @@ const AnalyticsDrawer: Component<AnalyticsDrawerProps> = (props) => {
                 value={rollingWindow()}
                 min="2"
                 step="1"
-                onChange={(e) => setRollingWindow(parseInt(e.currentTarget.value) || 50)}
+                onChange={(e) => handleRollingWindowChange(parseInt(e.currentTarget.value) || 50)}
               />
             </div>
           </div>
@@ -49,7 +87,7 @@ const AnalyticsDrawer: Component<AnalyticsDrawerProps> = (props) => {
             <label class={styles.toggleLabel}>
               <SwitchToggle
                 checked={anomalyEnabled()}
-                onChange={(e) => setAnomalyEnabled(e.currentTarget.checked)}
+                onChange={(e) => handleAnomalyToggle(e.currentTarget.checked)}
               />
               <span>Enable anomaly detection regions</span>
             </label>
@@ -58,7 +96,7 @@ const AnalyticsDrawer: Component<AnalyticsDrawerProps> = (props) => {
               <select
                 id="anomaly-method-select"
                 value={anomalyMethod()}
-                onChange={(e) => setAnomalyMethod(e.currentTarget.value)}
+                onChange={(e) => handleAnomalyMethodChange(e.currentTarget.value)}
               >
                 <option value="zscore">Z-score</option>
                 <option value="iqr">IQR</option>
@@ -72,7 +110,7 @@ const AnalyticsDrawer: Component<AnalyticsDrawerProps> = (props) => {
                 value={anomalyThreshold()}
                 min="0.5"
                 step="0.5"
-                onChange={(e) => setAnomalyThreshold(parseFloat(e.currentTarget.value) || 3)}
+                onChange={(e) => handleAnomalyThresholdChange(parseFloat(e.currentTarget.value) || 3)}
               />
             </div>
           </div>

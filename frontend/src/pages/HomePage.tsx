@@ -1,11 +1,40 @@
 import { Component } from 'solid-js';
-import { A } from '@solidjs/router';
+import { A, useNavigate } from '@solidjs/router';
 import styles from './HomePage.module.css';
 
+const SAMPLE_DATASETS = [
+  {
+    id: 'ettm2',
+    name: 'ETTm2',
+    meta: '70,320 rows × 7 columns',
+    desc: 'Industrial fault detection dataset with temperature, pressure, and quality measurements from a power plant.',
+    tags: ['multivariate', 'industrial', '7 cols'],
+    rows: '70K rows',
+  },
+  {
+    id: 'sinusoidal',
+    name: 'Sinusoidal',
+    meta: '5,000 rows × 4 columns',
+    desc: 'Synthetic multi-frequency sine waves with varying amplitudes and noise levels for testing.',
+    tags: ['synthetic', 'periodic', '4 cols'],
+    rows: '5K rows',
+  },
+  {
+    id: 'weather',
+    name: 'Weather',
+    meta: '5,000 rows × 5 columns',
+    desc: 'Daily weather observations with temperature, humidity, and pressure readings across multiple cities.',
+    tags: ['real-world', 'time-series', '5 cols'],
+    rows: '5K rows',
+  },
+];
+
 const HomePage: Component = () => {
-  const handleSampleDataset = (datasetId: string) => {
-    sessionStorage.setItem('sampleDataset', datasetId);
-    window.location.hash = '/upload';
+  const navigate = useNavigate();
+
+  const handleSampleClick = (id: string) => {
+    sessionStorage.setItem('sampleDataset', id);
+    navigate('/upload');
   };
 
   return (
@@ -22,68 +51,33 @@ const HomePage: Component = () => {
       </div>
 
       <div class={styles.datasets}>
-        <h2 class={styles.sectionTitle}>Try with sample data</h2>
-        <p class={styles.sectionCopy}>Load built-in datasets to explore the workflow without preparing a file.</p>
+        <div class={styles.section}>
+          <h2 class={styles.sectionTitle}>Try a sample dataset</h2>
+          <p class={styles.sectionCopy}>No data on hand? Start exploring with one of these ready-to-load datasets.</p>
+        </div>
         <div class={styles.datasetsGrid}>
-          <button class={styles.datasetCard} type="button" onClick={() => handleSampleDataset('ettm2')} aria-label="Load ETTm2 sample dataset">
-            <div class={styles.datasetHeader}>
-              <div class={styles.datasetIcon}>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />
-                </svg>
+          {SAMPLE_DATASETS.map((ds) => (
+            <button class={styles.datasetCard} onClick={() => handleSampleClick(ds.id)} type="button">
+              <div class={styles.datasetHeader}>
+                <div class={styles.datasetIcon}>
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />
+                  </svg>
+                </div>
+                <div class={styles.datasetInfo}>
+                  <div class={styles.datasetName}>{ds.name}</div>
+                  <div class={styles.datasetMeta}>{ds.meta}</div>
+                </div>
               </div>
-              <div class={styles.datasetInfo}>
-                <div class={styles.datasetName}>ETTm2 Sensor Data</div>
-                <div class={styles.datasetMeta}>Electrical transformer monitoring</div>
+              <p class={styles.datasetDesc}>{ds.desc}</p>
+              <div class={styles.datasetTags}>
+                {ds.tags.map((tag) => (
+                  <span class={styles.datasetTag}>{tag}</span>
+                ))}
+                <span class={`${styles.datasetTag} ${styles.tagRows}`}>{ds.rows}</span>
               </div>
-            </div>
-            <p class={styles.datasetDesc}>Time series with multiple sensor readings including temperature, pressure, and power metrics.</p>
-            <div class={styles.datasetTags}>
-              <span class={styles.datasetTag}>Time-series</span>
-              <span class={`${styles.datasetTag} ${styles.tagRows}`}>69K rows</span>
-              <span class={`${styles.datasetTag} ${styles.tagSize}`}>7 columns</span>
-            </div>
-          </button>
-
-          <button class={styles.datasetCard} type="button" onClick={() => handleSampleDataset('sinusoidal')} aria-label="Load Sinusoidal Waves sample dataset">
-            <div class={styles.datasetHeader}>
-              <div class={styles.datasetIcon}>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="1,8 4,4 7,12 10,2 13,10 15,6" />
-                </svg>
-              </div>
-              <div class={styles.datasetInfo}>
-                <div class={styles.datasetName}>Sinusoidal Waves</div>
-                <div class={styles.datasetMeta}>Generated periodic signals</div>
-              </div>
-            </div>
-            <p class={styles.datasetDesc}>Multiple sine waves with different frequencies for testing FFT and spectral analysis features.</p>
-            <div class={styles.datasetTags}>
-              <span class={styles.datasetTag}>FFT</span>
-              <span class={`${styles.datasetTag} ${styles.tagRows}`}>10K rows</span>
-              <span class={`${styles.datasetTag} ${styles.tagSize}`}>4 columns</span>
-            </div>
-          </button>
-
-          <button class={styles.datasetCard} type="button" onClick={() => handleSampleDataset('weather')} aria-label="Load Weather Patterns sample dataset">
-            <div class={styles.datasetHeader}>
-              <div class={styles.datasetIcon}>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="1" y="1" width="4" height="4" rx="0.5" /><rect x="6" y="1" width="4" height="4" rx="0.5" /><rect x="11" y="1" width="4" height="4" rx="0.5" /><rect x="1" y="6" width="4" height="4" rx="0.5" /><rect x="6" y="6" width="4" height="4" rx="0.5" /><rect x="11" y="6" width="4" height="4" rx="0.5" />
-                </svg>
-              </div>
-              <div class={styles.datasetInfo}>
-                <div class={styles.datasetName}>Weather Patterns</div>
-                <div class={styles.datasetMeta}>Temperature and humidity readings</div>
-              </div>
-            </div>
-            <p class={styles.datasetDesc}>Environmental sensor data with correlated temperature, humidity, and pressure readings.</p>
-            <div class={styles.datasetTags}>
-              <span class={styles.datasetTag}>Correlations</span>
-              <span class={`${styles.datasetTag} ${styles.tagRows}`}>50K rows</span>
-              <span class={`${styles.datasetTag} ${styles.tagSize}`}>6 columns</span>
-            </div>
-          </button>
+            </button>
+          ))}
         </div>
       </div>
 

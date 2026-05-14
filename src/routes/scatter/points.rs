@@ -10,6 +10,7 @@ use polars::prelude::*;
 use std::sync::Arc;
 
 use crate::arrow_export::{dataframe_to_arrow_ipc, dataframe_to_parquet};
+use crate::downsample::downsample_xy_pairs;
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::validation::{validate_scatter_limit, validate_time_window};
@@ -62,7 +63,7 @@ pub async fn post_scatter_export_parquet(
     State(state): State<AppState>,
     Json(params): Json<ScatterPointsQuery>,
 ) -> Result<Response, AppError> {
-    let df = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot().await.read().await.clone();
 
     let x = params.x.clone();
     let y = params.y.clone();
@@ -72,7 +73,7 @@ pub async fn post_scatter_export_parquet(
 
     let filtered = tokio::task::spawn_blocking(move || {
         collect_filtered_scatter_frame(
-            &df,
+            lf,
             &x,
             &y,
             color.as_deref(),
@@ -113,7 +114,7 @@ async fn scatter_points_response(
         params.limit
     );
 
-    let df = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot().await.read().await.clone();
 
     let x_col = params.x.clone();
     let y_col = params.y.clone();
@@ -144,7 +145,7 @@ async fn scatter_points_response(
     let (total_points, returned_points, color_min, color_max, arrow_bytes) =
         tokio::task::spawn_blocking(move || {
             let filtered_df = collect_filtered_scatter_frame(
-                &df,
+                lf,
                 &x_col,
                 &y_col,
                 color_col.as_deref(),
@@ -262,15 +263,7 @@ async fn scatter_points_response(
     Ok(response)
 }
 
-fn stable_sample_slot(total_seen: usize) -> usize {
-    let mut x = total_seen as u64;
-    x ^= x >> 30;
-    x = x.wrapping_mul(0xbf58_476d_1ce4_e5b9);
-    x ^= x >> 27;
-    x = x.wrapping_mul(0x94d0_49bb_1331_11eb);
-    x ^= x >> 31;
-    (x % total_seen as u64) as usize
-}
+const MAX_EFFECTIVE_POINTS: usize = 200_000;
 
 fn collect_sampled_xyc_rows(
     df: &DataFrame,
@@ -304,7 +297,10 @@ fn collect_sampled_xyc_rows(
         ScatterColorColumn::Categorical(_) => ScatterColorKind::Categorical,
     });
 
-    let mut sampled = Vec::with_capacity(limit.min(df.height()));
+    let mut all_x: Vec<f64> = Vec::new();
+    let mut all_y: Vec<f64> = Vec::new();
+    let mut all_color_value: Vec<Option<f64>> = Vec::new();
+    let mut all_color_label: Vec<Option<String>> = Vec::new();
     let mut total_points = 0usize;
 
     for idx in 0..df.height() {
@@ -333,23 +329,46 @@ fn collect_sampled_xyc_rows(
         };
 
         total_points += 1;
-        let row = SampledScatterRow {
-            x: xv,
-            y: yv,
-            color_value,
-            color_label,
-        };
-        if sampled.len() < limit {
-            sampled.push(row);
-        } else {
-            let slot = stable_sample_slot(total_points);
-            if slot < limit {
-                sampled[slot] = row;
-            }
+        all_x.push(xv);
+        all_y.push(yv);
+        all_color_value.push(color_value);
+        all_color_label.push(color_label);
+    }
+
+    let effective_limit = if limit > MAX_EFFECTIVE_POINTS { MAX_EFFECTIVE_POINTS } else { limit };
+
+    let (sampled_x, sampled_y, sampled_color) = if matches!(c_vals, Some(ScatterColorColumn::Continuous(_))) {
+        let color_f64: Vec<f64> = all_color_value.iter().filter_map(|v| *v).collect();
+        let (sx, sy, sc) = downsample_xy_pairs(&all_x, &all_y, Some(&color_f64), effective_limit);
+        (sx, sy, sc)
+    } else {
+        let (sx, sy, sc) = downsample_xy_pairs(&all_x, &all_y, None, effective_limit);
+        (sx, sy, sc)
+    };
+
+    let sampled_len = sampled_x.len();
+    let mut sampled = Vec::with_capacity(sampled_len);
+
+    if let Some(cv) = sampled_color {
+        for i in 0..sampled_len {
+            sampled.push(SampledScatterRow {
+                x: sampled_x[i],
+                y: sampled_y[i],
+                color_value: Some(cv[i]),
+                color_label: None,
+            });
+        }
+    } else {
+        for i in 0..sampled_len {
+            sampled.push(SampledScatterRow {
+                x: sampled_x[i],
+                y: sampled_y[i],
+                color_value: None,
+                color_label: all_color_label.get(i).cloned().flatten(),
+            });
         }
     }
 
-    sampled.sort_by(|a, b| a.x.total_cmp(&b.x));
     Ok((total_points, sampled, color_kind))
 }
 

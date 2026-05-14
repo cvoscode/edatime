@@ -11,27 +11,28 @@ use crate::query::{AggFn, OutputFormat};
 
 // ── Stage 1: Filter by time range ──────────────────────────────────────────
 
-/// Filter a `LazyFrame` to only rows whose `ts` column falls within
-/// `[start_ts, end_ts]` (in the native time unit of the column), selecting
-/// only the requested columns. Streaming execution is used to minimise peak
-/// memory when the filtered result is large.
+/// Filter a `LazyFrame` to only rows whose timestamp column falls within
+/// `[start_ts, end_ts]` (in milliseconds), selecting only the requested columns.
+/// Streaming execution is used to minimise peak memory when the filtered result is large.
 pub fn filter_time_range(
     lf: LazyFrame,
     start_ts: i64,
     end_ts: i64,
     select_cols: &[String],
+    ts_col: &str,
 ) -> Result<DataFrame, AppError> {
-    let mut exprs = vec![col("ts")];
+    let mut exprs = vec![col(ts_col)];
     for c in select_cols {
-        if c != "ts" {
+        if c != ts_col {
             exprs.push(col(c.as_str()));
         }
     }
 
     tokio::task::block_in_place(|| {
-        lf.filter(col("ts").cast(DataType::Int64).gt_eq(lit(start_ts)))
-            .filter(col("ts").cast(DataType::Int64).lt_eq(lit(end_ts)))
+        lf.filter(col(ts_col).cast(DataType::Int64).gt_eq(lit(start_ts)))
+            .filter(col(ts_col).cast(DataType::Int64).lt_eq(lit(end_ts)))
             .select(exprs)
+            .with_new_streaming(true)
             .collect()
     })
     .map_err(|e| AppError::io(e.to_string()))
@@ -61,21 +62,18 @@ pub fn apply_reduction(
     value_cols: &[String],
     extra_cols: &[String],
     strategy: &Reduction,
+    ts_col: &str,
 ) -> Result<(DataFrame, bool), AppError> {
     match strategy {
         Reduction::None => {
-            // For the no-reduction path we can select the requested columns
-            // directly from the in-memory `DataFrame` without cloning the
-            // entire frame into a lazy plan. This avoids an expensive
-            // `df.clone()` in hot paths.
-            let mut select_cols: Vec<&str> = vec!["ts"];
+            let mut select_cols: Vec<&str> = vec![ts_col];
             for c in value_cols {
-                if c != "ts" {
+                if c != ts_col {
                     select_cols.push(c.as_str());
                 }
             }
             for c in extra_cols {
-                if c != "ts" && !value_cols.contains(c) {
+                if c != ts_col && !value_cols.contains(c) {
                     select_cols.push(c.as_str());
                 }
             }
@@ -88,7 +86,7 @@ pub fn apply_reduction(
         Reduction::Lttb { target_points } => {
             let target = *target_points;
             if df.height() <= target {
-                let mut select_cols = vec!["ts".to_string()];
+                let mut select_cols = vec![ts_col.to_string()];
                 select_cols.extend_from_slice(value_cols);
                 select_cols.extend_from_slice(extra_cols);
                 let out = df
@@ -100,7 +98,7 @@ pub fn apply_reduction(
             let extra_refs: Vec<&str> = extra_cols.iter().map(|s| s.as_str()).collect();
             let out = crate::downsample::downsample_dataframe_multi(
                 df,
-                "ts",
+                ts_col,
                 &col_refs,
                 &extra_refs,
                 target,
@@ -109,12 +107,12 @@ pub fn apply_reduction(
             Ok((out, true))
         }
 
-        Reduction::BucketAgg { buckets, agg } => bucket_aggregate(df, value_cols, *buckets, *agg),
+        Reduction::BucketAgg { buckets, agg } => bucket_aggregate(df, value_cols, *buckets, *agg, ts_col),
         Reduction::WindowAgg {
             window_size_native,
             step_size_native,
             agg,
-        } => window_aggregate(df, value_cols, *window_size_native, *step_size_native, *agg),
+        } => window_aggregate(df, value_cols, *window_size_native, *step_size_native, *agg, ts_col),
     }
 }
 
@@ -138,6 +136,7 @@ fn window_aggregate(
     window_size_native: i64,
     step_size_native: i64,
     agg_fn: AggFn,
+    ts_col: &str,
 ) -> Result<(DataFrame, bool), AppError> {
     if df.height() == 0 {
         return Ok((DataFrame::default(), true));
@@ -149,9 +148,9 @@ fn window_aggregate(
     }
 
     let ts_i64 = df
-        .column("ts")
+        .column(ts_col)
         .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::bad_request(format!("Missing ts column: {}", e)))?
+        .map_err(|e| AppError::bad_request(format!("Missing ts column '{}': {}", ts_col, e)))?
         .cast(&DataType::Int64)
         .map_err(|e| AppError::io(format!("ts cast: {}", e)))?;
     let ts_values = ts_i64
@@ -175,9 +174,6 @@ fn window_aggregate(
         per_col_values.push(crate::stats::series_to_finite_f64(series, col_name)?);
     }
 
-    // ts_vec is already sorted (DataFrame sorted on ingest).  Use
-    // partition_point (binary search) to find window bounds in O(log n)
-    // instead of O(n) per window.
     let mut out_ts: Vec<i64> = Vec::new();
     let mut out_cols: Vec<Vec<Option<f64>>> = vec![Vec::new(); value_cols.len()];
 
@@ -209,24 +205,12 @@ fn window_aggregate(
     }
 
     let mut columns: Vec<Column> = Vec::with_capacity(1 + value_cols.len());
-    columns.push(Series::new("ts".into(), out_ts).into());
+    columns.push(Series::new(ts_col.into(), out_ts).into());
     for (idx, name) in value_cols.iter().enumerate() {
         columns.push(Series::new(name.as_str().into(), out_cols[idx].clone()).into());
     }
-    let mut result = DataFrame::new(columns.len(), columns)
+    let result = DataFrame::new(columns.len(), columns)
         .map_err(|e| AppError::io(format!("window aggregate frame: {}", e)))?;
-
-    let ts_dtype = df
-        .column("ts")
-        .map(|c| c.as_materialized_series().dtype().clone())
-        .unwrap_or(DataType::Int64);
-    if matches!(ts_dtype, DataType::Datetime(_, _)) {
-        result = result
-            .lazy()
-            .with_column(col("ts").cast(ts_dtype).alias("ts"))
-            .collect()
-            .map_err(|e| AppError::io(format!("ts recast: {}", e)))?;
-    }
 
     Ok((result, true))
 }
@@ -241,6 +225,7 @@ fn bucket_aggregate(
     value_cols: &[String],
     n_buckets: usize,
     agg_fn: AggFn,
+    ts_col: &str,
 ) -> Result<(DataFrame, bool), AppError> {
     let n_buckets = n_buckets.clamp(1, 10_000);
 
@@ -248,13 +233,10 @@ fn bucket_aggregate(
         return Ok((DataFrame::default(), true));
     }
 
-    // Compute ts bounds by reading the `ts` series directly to avoid
-    // building a lazy plan. This avoids cloning the frame and a blocking
-    // lazy collect for a simple min/max query.
     let ts_series = df
-        .column("ts")
+        .column(ts_col)
         .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::io(format!("Missing ts column: {}", e)))?
+        .map_err(|e| AppError::io(format!("Missing ts column '{}': {}", ts_col, e)))?
         .cast(&DataType::Int64)
         .map_err(|e| AppError::io(format!("ts cast failed: {}", e)))?;
     let mut iter = ts_series
@@ -282,12 +264,8 @@ fn bucket_aggregate(
     let span = (ts_max - ts_min).max(1) as f64;
     let bucket_width = span / n_buckets as f64;
 
-    // Bucket assignment as a lazy expression — no manual iteration, no clone.
-    // Cast to Int64 truncates toward zero which equals floor for non-negative
-    // values (ts >= ts_min always after filtering). Use when/then to clamp the
-    // upper edge (ts_max yields exactly n_buckets, not n_buckets-1).
     let n_max = (n_buckets - 1) as i64;
-    let raw_bucket = ((col("ts").cast(DataType::Int64) - lit(ts_min)).cast(DataType::Float64)
+    let raw_bucket = ((col(ts_col).cast(DataType::Int64) - lit(ts_min)).cast(DataType::Float64)
         / lit(bucket_width))
     .cast(DataType::Int64);
     let bucket_expr = when(raw_bucket.clone().gt_eq(lit(n_buckets as i64)))
@@ -319,48 +297,42 @@ fn bucket_aggregate(
             .group_by([col("__bucket")])
             .agg(agg_exprs)
             .sort(["__bucket"], SortMultipleOptions::default())
-            // Compute bucket midpoint ts via with_column (not inside .agg) to
-            // avoid Polars wrapping lit() results as List types.
             .with_column(
                 (lit(ts_min)
                     + (col("__bucket").cast(DataType::Float64) + lit(0.5)) * lit(bucket_width))
                 .cast(DataType::Int64)
-                .alias("ts"),
+                .alias(ts_col),
             )
             .select({
-                let mut sel = vec![col("ts")];
+                let mut sel = vec![col(ts_col)];
                 for c in value_cols {
                     sel.push(col(c.as_str()));
                 }
                 sel
             })
+            .with_new_streaming(true)
             .collect()
     })
     .map_err(|e| AppError::io(e.to_string()))?;
-
-    // Cast ts back to datetime for consistent Arrow IPC serialization.
-    let ts_dtype = df
-        .column("ts")
-        .map(|c| c.as_materialized_series().dtype().clone())
-        .unwrap_or(DataType::Int64);
-
-    let result = if matches!(ts_dtype, DataType::Datetime(_, _)) {
-        result
-            .lazy()
-            .with_column(col("ts").cast(ts_dtype).alias("ts"))
-            .collect()
-            .map_err(|e| AppError::io(format!("ts recast: {}", e)))?
-    } else {
-        result
-    };
 
     Ok((result, true))
 }
 
 // ── Stage 3: Serialize ─────────────────────────────────────────────────────
 
-/// Serialize a DataFrame to Arrow IPC bytes.
-pub fn serialize_arrow(df: DataFrame) -> Result<Vec<u8>, AppError> {
+/// Serialize a DataFrame to Arrow IPC bytes, normalizing the timestamp column
+/// to Datetime(Milliseconds) for consistent frontend parsing.
+pub fn serialize_arrow(df: DataFrame, ts_col: &str) -> Result<Vec<u8>, AppError> {
+    let ts_dtype = df.column(ts_col).map(|c| c.as_materialized_series().dtype().clone());
+    let df = match ts_dtype {
+        Ok(DataType::Datetime(TimeUnit::Milliseconds, _)) => df,
+        Ok(DataType::Datetime(_, _)) => df
+            .lazy()
+            .with_column(col(ts_col).cast(DataType::Datetime(TimeUnit::Milliseconds, None)))
+            .collect()
+            .map_err(|e| AppError::io(format!("ts cast: {}", e)))?,
+        _ => df,
+    };
     dataframe_to_arrow_ipc(df)
         .map_err(|e| AppError::io(format!("Arrow IPC serialization: {:?}", e)))
 }
@@ -371,13 +343,14 @@ pub fn serialize_json(
     value_cols: &[String],
     color_col: Option<&String>,
     ts_dtype: &DataType,
+    ts_col: &str,
 ) -> Result<serde_json::Value, AppError> {
     let multiplier = crate::temporal::unit_multiplier(ts_dtype);
 
     let ts_series = df
-        .column("ts")
+        .column(ts_col)
         .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::io(format!("Missing ts: {}", e)))?
+        .map_err(|e| AppError::io(format!("Missing ts '{}': {}", ts_col, e)))?
         .clone();
 
     let ts_i64 = ts_series
@@ -473,11 +446,12 @@ pub fn build_response(
     value_cols: &[String],
     format: OutputFormat,
     ts_dtype: &DataType,
+    ts_col: &str,
     meta: ResponseMeta,
 ) -> Result<Response, AppError> {
     let mut response = match format {
         OutputFormat::Arrow => {
-            let ipc_bytes = serialize_arrow(df)?;
+            let ipc_bytes = serialize_arrow(df, ts_col)?;
             (
                 [(header::CONTENT_TYPE, "application/vnd.apache.arrow.stream")],
                 ipc_bytes,
@@ -485,7 +459,7 @@ pub fn build_response(
                 .into_response()
         }
         OutputFormat::Json => {
-            let json = serialize_json(&df, value_cols, None, ts_dtype)?;
+            let json = serialize_json(&df, value_cols, None, ts_dtype, ts_col)?;
             Json(json).into_response()
         }
     };

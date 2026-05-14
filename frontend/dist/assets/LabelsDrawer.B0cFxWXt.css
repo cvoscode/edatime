@@ -1,0 +1,108 @@
+._drawer_1oxxv_1 {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
+  transform: translateX(100%);
+  transition: transform 0.2s ease-out;
+}
+
+._drawer_1oxxv_1._open_1oxxv_17 {
+  transform: translateX(0);
+}
+
+._header_1oxxv_21 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+._title_1oxxv_29 {
+  font-size: var(--font-lg);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+._closeBtn_1oxxv_35 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  font-size: 18px;
+  color: var(--color-text-muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+._closeBtn_1oxxv_35:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+._body_1oxxv_52 {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+._section_1oxxv_61 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+._sectionTitle_1oxxv_67 {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--color-text);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+._field_1oxxv_75 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+._field_1oxxv_75 > label {
+  font-size: var(--font-sm);
+  color: var(--color-text-muted);
+}
+
+._field_1oxxv_75 input[type="text"] {
+  padding: var(--space-2);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-sm);
+  color: var(--color-text);
+}
+
+._field_1oxxv_75 input[type="text"]:focus {
+  outline: none;
+  border-color: var(--color-primary, #4a9eff);
+}
+
+._field_1oxxv_75 input[type="text"]::placeholder {
+  color: var(--color-text-muted);
+}
+
+._hint_1oxxv_104 {
+  font-size: var(--font-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+}

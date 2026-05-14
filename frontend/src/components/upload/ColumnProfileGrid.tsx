@@ -96,6 +96,18 @@ const ColumnProfileGrid: Component<ColumnProfileGridProps> = (props) => {
     return n.toFixed(decimals);
   };
 
+  const isDatetimeType = (dtype: string) => {
+    return dtype.includes('datetime') || dtype.includes('date');
+  };
+
+  const formatMinMax = (value: number | null, dtype: string) => {
+    if (value === null || value === undefined) return '—';
+    if (isDatetimeType(dtype)) {
+      return new Date(value).toISOString().replace('T', ' ').slice(0, 19);
+    }
+    return value.toFixed(2);
+  };
+
   const allSelected = () => props.profiles.length > 0 && props.selectedColumns.length === props.profiles.length;
 
   const getTypeLabel = (dtype: string) => {
@@ -194,8 +206,8 @@ const ColumnProfileGrid: Component<ColumnProfileGridProps> = (props) => {
                   <div class={`${styles.col} ${styles.colCount}`}>
                     {profile.null_count > 0 ? profile.null_count.toLocaleString() : '—'}
                   </div>
-                  <div class={`${styles.col} ${styles.colNum}`}>{formatNumber(profile.min)}</div>
-                  <div class={`${styles.col} ${styles.colNum}`}>{formatNumber(profile.max)}</div>
+                  <div class={`${styles.col} ${styles.colNum}`}>{formatMinMax(profile.min, profile.dtype)}</div>
+                  <div class={`${styles.col} ${styles.colNum}`}>{formatMinMax(profile.max, profile.dtype)}</div>
                   <div class={`${styles.col} ${styles.colHist}`}>
                     <div class={styles.histogram}>
                       {profile.histogram && profile.histogram.counts.slice(0, 16).map((count, i) => (

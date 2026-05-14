@@ -7,8 +7,12 @@ interface ChartState {
   chartInstance: ChartInstance | null;
   annotations: Annotation[];
   isDrawing: boolean;
-  drawMode: 'pan' | 'zoom' | 'select';
+  drawMode: 'pan' | 'zoom' | 'select' | 'arrow' | 'box';
   isLoading: boolean;
+  lastDataYMin: number | null;
+  lastDataYMax: number | null;
+  yAuto: boolean;
+  seriesVisibility: Record<string, boolean>;
 }
 
 const defaultViewport: ChartViewport = {
@@ -25,7 +29,11 @@ const [chartState, setChartState] = createStore<ChartState>({
   annotations: [],
   isDrawing: false,
   drawMode: 'pan',
-  isLoading: false
+  isLoading: false,
+  lastDataYMin: null,
+  lastDataYMax: null,
+  yAuto: true,
+  seriesVisibility: {},
 });
 
 export const chartStore = {
@@ -83,11 +91,56 @@ export const chartStore = {
     setChartState('annotations', chartState.annotations.filter(a => a.id !== id));
   },
 
-  setDrawMode(mode: 'pan' | 'zoom' | 'select') {
+  setDrawMode(mode: 'pan' | 'zoom' | 'select' | 'arrow' | 'box') {
     setChartState('drawMode', mode);
   },
 
   setLoading(loading: boolean) {
     setChartState('isLoading', loading);
+  },
+
+  setLastDataYRange(min: number, max: number) {
+    setChartState('lastDataYMin', min);
+    setChartState('lastDataYMax', max);
+  },
+
+  getLastDataYRange(): { min: number; max: number } | null {
+    if (chartState.lastDataYMin !== null && chartState.lastDataYMax !== null && chartState.lastDataYMax > chartState.lastDataYMin) {
+      return { min: chartState.lastDataYMin, max: chartState.lastDataYMax };
+    }
+    return null;
+  },
+
+  setYAuto(auto: boolean) {
+    setChartState('yAuto', auto);
+  },
+
+  fitYToData() {
+    const yRange = this.getLastDataYRange();
+    if (yRange) {
+      const pad = (yRange.max - yRange.min) * 0.04;
+      this.setViewport({
+        xMin: chartState.viewport.xMin,
+        xMax: chartState.viewport.xMax,
+        yMin: yRange.min - pad,
+        yMax: yRange.max + pad,
+      });
+    }
+  },
+
+  setSeriesVisibility(name: string, visible: boolean) {
+    setChartState('seriesVisibility', name, visible);
+  },
+
+  getSeriesVisibility(name: string): boolean {
+    return chartState.seriesVisibility[name] !== false;
+  },
+
+  getAllSeriesVisibility(): Record<string, boolean> {
+    return { ...chartState.seriesVisibility };
+  },
+
+  clearSeriesVisibility() {
+    setChartState('seriesVisibility', {});
   }
 };

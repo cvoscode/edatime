@@ -4,15 +4,15 @@ use axum::{
     extract::{Query, State},
     response::Response,
 };
+use chrono::Utc;
 
 use crate::error::AppError;
 use crate::pipeline::{self, Reduction, ResponseMeta};
-use crate::query::{self, AggregateQuery, AggregateWindowMode};
+use crate::query::{self, AggregateQuery, AggregateWindowMode, QueryEntry, ReductionSpec, AggFn};
 use crate::state::AppState;
 use crate::validation::{
-    validate_bucket_count, validate_numeric_columns, validate_time_window, validate_window_ms,
+    validate_bucket_count, validate_numeric_columns_lazy, validate_time_window, validate_window_ms,
 };
-use polars::prelude::IntoLazy;
 
 #[tracing::instrument(skip(state))]
 pub async fn get_aggregate(
@@ -27,11 +27,14 @@ pub async fn get_aggregate(
         validate_bucket_count(params.buckets, limits)?;
     }
 
-    let df = state.dataset_snapshot().await.read().await.clone();
-    let value_cols = validate_numeric_columns(&df, &query::parse_columns(params.columns.as_deref()), limits)?;
+    let lf = state.dataset_snapshot().await.read().await.clone();
+    let value_cols = query::parse_columns(params.columns.as_deref());
+    let value_cols = validate_numeric_columns_lazy(&lf, &value_cols, limits)?;
 
-    let multiplier = query::unit_multiplier_for_ts(&df)?;
-    let dtype = query::ts_dtype(&df)?;
+    let ts_col = state.time_column_display_name_sync()
+        .unwrap_or_else(|| "ts".to_string());
+    let multiplier = query::unit_multiplier_for_ts_lazy(&lf, &ts_col)?;
+    let dtype = query::ts_dtype_lazy(&lf, &ts_col)?;
     let start_ts = params.start.timestamp_millis() * multiplier;
     let end_ts = params.end.timestamp_millis() * multiplier;
 
@@ -66,15 +69,54 @@ pub async fn get_aggregate(
         }
     };
 
-    let filtered = pipeline::filter_time_range(df.lazy(), start_ts, end_ts, &value_cols)?;
-    let (aggregated, _) = pipeline::apply_reduction(&filtered, &value_cols, &[], &reduction)?;
+    let filtered = pipeline::filter_time_range(lf, start_ts, end_ts, &value_cols, &ts_col)?;
+    let (aggregated, _) = pipeline::apply_reduction(&filtered, &value_cols, &[], &reduction, &ts_col)?;
     let returned_rows = aggregated.height();
+
+    // Log query
+    let qid = state.next_query_id();
+    let agg_str = match params.agg {
+        AggFn::Mean => "mean",
+        AggFn::Sum => "sum",
+        AggFn::Min => "min",
+        AggFn::Max => "max",
+        AggFn::Count => "count",
+    };
+    let reduction_spec = match params.window_mode {
+        AggregateWindowMode::Buckets => ReductionSpec::BucketAgg {
+            buckets: params.buckets,
+            agg: agg_str.to_string(),
+        },
+        AggregateWindowMode::Tumbling | AggregateWindowMode::Sliding => {
+            let window_ms = params.window_ms.unwrap_or(60_000);
+            let step_ms = params.step_ms.unwrap_or(window_ms);
+            ReductionSpec::WindowAgg {
+                window_ms,
+                step_ms,
+                agg: agg_str.to_string(),
+            }
+        }
+    };
+    state.push_query(QueryEntry {
+        id: qid,
+        timestamp: Utc::now(),
+        route: "/api/aggregate".to_string(),
+        start_ms: Some(params.start.timestamp_millis()),
+        end_ms: Some(params.end.timestamp_millis()),
+        width: None,
+        columns: value_cols.clone(),
+        color_column: None,
+        format: format!("{:?}", params.format.as_deref().unwrap_or("arrow")),
+        reduction: Some(reduction_spec),
+        ts_dtype: dtype.to_string(),
+    });
 
     pipeline::build_response(
         aggregated,
         &value_cols,
         query::output_format(params.format.as_deref()),
         &dtype,
+        &ts_col,
         ResponseMeta {
             is_downsampled: true,
             returned_rows,

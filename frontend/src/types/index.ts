@@ -1,10 +1,12 @@
 export interface DatasetMetadata {
   name: string;
   rowCount: number;
-  columns: ColumnProfile[];
+  columns: string[];
+  numericColumns: string[];
   timestampColumn: string;
   fileSize: number;
   uploadedAt: string;
+  timeRange: [number, number] | null;
 }
 
 export interface ColumnProfile {
@@ -50,6 +52,19 @@ export interface ZoomState {
   currentIndex: number;
 }
 
+export interface ChartOverlays {
+  rollingBands: RollingBandData[];
+  anomalyRegions: AnomalyRegionData[];
+}
+
+export interface DragState {
+  pointerId: number;
+  startX: number;
+  endX: number;
+  startY: number;
+  endY: number;
+}
+
 export interface ChartInstance {
   initialize(): void;
   setData(data: FilteredDataObject): void;
@@ -61,10 +76,10 @@ export interface ChartInstance {
 
 export interface Annotation {
   id: string;
-  startX: number;
-  endX: number;
-  label: string;
+  type: 'bookmark' | 'note' | 'region';
+  title: string;
   color: string;
+  timeRange: { start: number; end: number };
 }
 
 export interface RollingBandConfig {
@@ -74,11 +89,29 @@ export interface RollingBandConfig {
   color: string;
 }
 
+export interface RollingBandData {
+  column: string;
+  ts: number[];
+  mean: (number | null)[];
+  upper1: (number | null)[];
+  lower1: (number | null)[];
+  upper2: (number | null)[];
+  lower2: (number | null)[];
+}
+
 export interface AnomalyConfig {
   column: string;
   threshold: number;
   method: 'std' | 'iqr';
   color: string;
+}
+
+export interface AnomalyRegionData {
+  column: string;
+  method: string;
+  start_ms: number;
+  end_ms: number;
+  score: number;
 }
 
 export interface SpectralConfig {
@@ -113,4 +146,95 @@ export interface ToastMessage {
   type: 'info' | 'success' | 'warning' | 'error';
   message: string;
   duration?: number;
+}
+
+export interface CorrelationItem {
+  column: string;
+  count: number;
+  pearson: number | null;
+  spearman: number | null;
+}
+
+export interface CorrelationMatrixResponse {
+  columns: string[];
+  pearson: (number | null)[][];
+  spearman: (number | null)[][];
+}
+
+export interface ScatterCorrelationsResponse {
+  base_column: string;
+  threshold: number;
+  numeric_columns: string[];
+  correlations: CorrelationItem[];
+  suggestions: CorrelationItem[];
+}
+
+export interface ScatterPointsResponse {
+  x: string;
+  y: string;
+  color: string | null;
+  total_points: number;
+  returned_points: number;
+  points: [number, number][];
+  color_values: number[] | null;
+  color_labels: (string | null)[] | null;
+  color_min: number | null;
+  color_max: number | null;
+}
+
+export interface FrequencyPeak {
+  frequency_hz: number;
+  magnitude: number;
+  power: number;
+  rank: number;
+}
+
+export interface FftResult {
+  column: string;
+  frequencies: number[];
+  magnitudes: number[];
+  psd: number[];
+  sample_rate_hz: number;
+  nyquist_hz: number;
+  dominant_peaks: FrequencyPeak[];
+}
+
+export interface FftResponse {
+  sample_count: number;
+  results: FftResult[];
+}
+
+export interface FftTrace {
+  column: string;
+  frequencies: number[];
+  magnitudes: number[];
+  psd: number[];
+  color: string;
+}
+
+export interface SpectrogramResult {
+  time_points: number[];
+  freq_points: number[];
+  power_matrix: number[][];
+}
+
+export interface SpectrogramResponse {
+  sample_count: number;
+  result: SpectrogramResult;
+}
+
+export interface SpectrogramConfig {
+  windowSize: number;
+  hopSize: number;
+  column: string;
+}
+
+export interface FftConfig {
+  mode: 'magnitude' | 'psd';
+  logScale: boolean;
+}
+
+export interface SpectralSettings {
+  spectrogramWindowSize: number;
+  spectrogramHopSize: number;
 }

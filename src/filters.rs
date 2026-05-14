@@ -12,7 +12,6 @@ use crate::temporal;
 
 // ── Filter specification types ─────────────────────────────────────────────
 
-/// A numeric range filter on a single column.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct RangeFilter {
@@ -21,7 +20,6 @@ pub struct RangeFilter {
     pub to: f64,
 }
 
-/// An adaptive line filter (two-point boundary) on a column.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct LineFilter {
@@ -91,46 +89,46 @@ fn temporal_ms_expr(column: &str, dtype: &DataType) -> Expr {
 
 // ── Composite filter application ───────────────────────────────────────────
 
-/// Apply an optional time range, numeric range filters, and adaptive line
-/// filters to a `DataFrame`, returning a `LazyFrame` ready for further
-/// selection / collection.
-pub fn apply_filters(
-    df: &DataFrame,
+pub fn apply_filters<I: Into<LazyFrame>>(
+    df: I,
     start_ms: Option<f64>,
     end_ms: Option<f64>,
     range_filters: &[RangeFilter],
     line_filters: &[LineFilter],
 ) -> Result<LazyFrame, AppError> {
-    let mut lf = df.clone().lazy();
+    let mut lf: LazyFrame = df.into();
 
-    // Time-range filter on the `ts` column.
     if let (Some(start), Some(end)) = (start_ms, end_ms) {
-        let ts_col = df.column("ts").map_err(|e| {
-            AppError::bad_request(format!("Missing ts column for time filter: {}", e))
+        let schema = lf.clone().collect_schema().map_err(|e| {
+            AppError::bad_request(format!("Failed to get schema for time filter: {}", e))
         })?;
-        let ts_dtype = ts_col.dtype().clone();
-        let start_native = temporal::epoch_ms_to_native(start.min(end), &ts_dtype, false)?;
-        let end_native = temporal::epoch_ms_to_native(start.max(end), &ts_dtype, true)?;
+        let ts_dtype = schema.get("ts").ok_or_else(|| {
+            AppError::bad_request("Missing ts column for time filter".to_string())
+        })?;
+        let start_native = temporal::epoch_ms_to_native(start.min(end), ts_dtype, false)?;
+        let end_native = temporal::epoch_ms_to_native(start.max(end), ts_dtype, true)?;
         lf = lf
             .filter(col("ts").cast(DataType::Int64).gt_eq(lit(start_native)))
             .filter(col("ts").cast(DataType::Int64).lt_eq(lit(end_native)));
     }
 
-    // Per-column numeric / temporal range filters.
     for filter in range_filters {
         let column = filter.column.trim();
         if column.is_empty() {
             continue;
         }
-        let series = df.column(column).map_err(|e| {
-            AppError::bad_request(format!("Unknown filter column '{}': {}", column, e))
+        let schema = lf.clone().collect_schema().map_err(|e| {
+            AppError::bad_request(format!("Failed to get schema for filter column '{}': {}", column, e))
+        })?;
+        let dtype = schema.get(column).ok_or_else(|| {
+            AppError::bad_request(format!("Unknown filter column '{}'", column))
         })?;
         let from = filter.from.min(filter.to);
         let to = filter.from.max(filter.to);
-        let expr = match series.dtype() {
+        let expr = match dtype {
             dt if dt.is_numeric() => numeric_range_expr(column, from, to),
             DataType::Datetime(_, _) | DataType::Date => {
-                temporal_range_expr(column, series.dtype(), from, to)?
+                temporal_range_expr(column, dtype, from, to)?
             }
             _ => {
                 return Err(AppError::bad_request(format!(
@@ -142,25 +140,24 @@ pub fn apply_filters(
         lf = lf.filter(expr);
     }
 
-    // Adaptive line filters.
     if !line_filters.is_empty() {
-        let ts_series = df.column("ts").map_err(|e| {
-            AppError::bad_request(format!("Missing ts column for adaptive filter: {}", e))
+        let schema = lf.clone().collect_schema().map_err(|e| {
+            AppError::bad_request(format!("Failed to get schema for line filter: {}", e))
         })?;
-        let ts_expr = temporal_ms_expr("ts", ts_series.dtype());
+        let ts_dtype = schema.get("ts").ok_or_else(|| {
+            AppError::bad_request("Missing ts column for adaptive filter".to_string())
+        })?;
+        let ts_expr = temporal_ms_expr("ts", ts_dtype);
 
         for filter in line_filters {
             let column = filter.column.trim();
             if column.is_empty() || filter.x1 == filter.x2 {
                 continue;
             }
-            let series = df.column(column).map_err(|e| {
-                AppError::bad_request(format!(
-                    "Unknown adaptive filter column '{}': {}",
-                    column, e
-                ))
+            let schema = lf.clone().collect_schema().map_err(|e| {
+                AppError::bad_request(format!("Unknown adaptive filter column '{}': {}", column, e))
             })?;
-            if !series.dtype().is_numeric() {
+            if !schema.get(column).is_some_and(|d| d.is_numeric()) {
                 return Err(AppError::bad_request(format!(
                     "Adaptive filter column '{}' must be numeric",
                     column
