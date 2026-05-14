@@ -1,9 +1,8 @@
 import { Component, createSignal, Show, For, onMount } from 'solid-js';
-import { useNavigate } from '@solidjs/router';
 import { uploadStore } from '../stores/uploadStore';
 import { datasetStore } from '../stores';
 import { uiStore } from '../stores/uiStore';
-import { uploadPreview, uploadIngest, fetchMetadata, fetchSampleETTm2 } from '../services/api';
+import { uploadPreview, uploadIngest, fetchMetadata, fetchSampleETTm2, dbConnect, dbTables, dbLoad, dbDisconnect } from '../services/api';
 import { generateSinusoidalCsv, generateWeatherCsv, createFileFromCsv } from '../utils/csvGenerators';
 import { SwitchToggle } from '../components/ui';
 import UploadDropzone from '../components/upload/UploadDropzone';
@@ -11,7 +10,6 @@ import ColumnProfileGrid from '../components/upload/ColumnProfileGrid';
 import styles from './UploadPage.module.css';
 
 const UploadPage: Component = () => {
-  const navigate = useNavigate();
   const [profileMode, setProfileMode] = createSignal<'dataset' | 'preview'>('dataset');
 
   onMount(() => {
@@ -135,6 +133,82 @@ const UploadPage: Component = () => {
 
   const handleSelectNone = () => {
     uploadStore.setSelectedColumns([]);
+  };
+
+  const [dbStatus, setDbStatus] = createSignal('');
+
+  const handleDbConnect = async () => {
+    const connStr = uploadStore.state.dbConnectionString.trim();
+    const schema = uploadStore.state.dbSchema.trim() || 'public';
+    if (!connStr) {
+      setDbStatus('Connection string is required.');
+      return;
+    }
+    setDbStatus('Connecting…');
+    try {
+      await dbConnect(connStr, schema);
+      uploadStore.setDbConnected(true);
+      setDbStatus('Connected. Choose a table and click Load data.');
+      const tablesResult = await dbTables();
+      uploadStore.setDbTables(tablesResult.tables ?? []);
+    } catch (e: any) {
+      setDbStatus('Error: ' + (e?.message ?? String(e)));
+    }
+  };
+
+  const handleDbLoad = async () => {
+    const schema = uploadStore.state.dbSchema.trim() || 'public';
+    const table = uploadStore.state.dbTable.trim();
+    const timeCol = (document.getElementById('db-time-col-input') as HTMLInputElement | null)?.value.trim();
+    if (!table) {
+      setDbStatus('Select or enter a table name.');
+      return;
+    }
+    setDbStatus('Loading data…');
+    try {
+      const result = await dbLoad(table, { schema, time_column: timeCol || undefined });
+      const rowCount = result.row_count ?? result.rows ?? 0;
+      const freshMetadata = await fetchMetadata();
+      uploadStore.setPreview(freshMetadata, freshMetadata.column_profiles);
+      setProfileMode('dataset');
+      uiStore.addToast({
+        message: `Loaded ${rowCount.toLocaleString()} rows from ${schema}.${table}.`,
+        type: 'success',
+        duration: 5000,
+      });
+      datasetStore.setColumns(freshMetadata.column_profiles.map(cp => ({
+        name: cp.name,
+        type: cp.dtype.includes('int') || cp.dtype.includes('float') || cp.dtype.includes('double') ? 'numeric' :
+              cp.dtype.includes('datetime') || cp.dtype.includes('date') ? 'datetime' : 'categorical',
+        min: cp.min ?? undefined,
+        max: cp.max ?? undefined,
+        nullCount: cp.null_count,
+      })));
+      datasetStore.setMetadata({
+        name: `${schema}.${table}`,
+        rowCount: rowCount,
+        columns: freshMetadata.columns.map(c => c.name),
+        numericColumns: freshMetadata.numeric_columns,
+        timestampColumn: result.timestamp_column ?? freshMetadata.time_column ?? '',
+        fileSize: 0,
+        uploadedAt: new Date().toISOString(),
+        timeRange: freshMetadata.time_range ? [freshMetadata.time_range.min, freshMetadata.time_range.max] : null,
+      });
+      datasetStore.setNumericCols(freshMetadata.numeric_columns);
+      setDbStatus(`Loaded ${rowCount.toLocaleString()} rows.`);
+    } catch (e: any) {
+      setDbStatus('Error: ' + (e?.message ?? String(e)));
+    }
+  };
+
+  const handleDbDisconnect = async () => {
+    try {
+      await dbDisconnect();
+      uploadStore.setDbConnected(false);
+      uploadStore.setDbTables([]);
+      uploadStore.setDbTable('');
+      setDbStatus('');
+    } catch (_) {}
   };
 
   return (
@@ -319,6 +393,12 @@ const UploadPage: Component = () => {
                     id="db-table-select"
                     class={styles.select}
                     disabled={!uploadStore.state.dbConnected}
+                    onChange={(e) => {
+                      const val = e.currentTarget.value;
+                      uploadStore.setDbTable(val);
+                      const tableInput = document.getElementById('db-table-input') as HTMLInputElement | null;
+                      if (tableInput && val) tableInput.value = val;
+                    }}
                   >
                     <option value="">— connect first —</option>
                     <For each={uploadStore.state.dbTables}>
@@ -330,6 +410,7 @@ const UploadPage: Component = () => {
                     id="db-table-input"
                     class={styles.input}
                     placeholder="or type name"
+                    onInput={(e) => uploadStore.setDbTable(e.currentTarget.value)}
                   />
                 </div>
               </div>
@@ -343,17 +424,19 @@ const UploadPage: Component = () => {
                 />
               </div>
               <div class={styles.dbBtnRow}>
-                <button class={styles.primaryBtn} id="db-connect-btn" type="button">
+                <button class={styles.primaryBtn} id="db-connect-btn" type="button" onClick={handleDbConnect}>
                   Connect
                 </button>
-                <button class={styles.primaryBtn} id="db-load-btn" type="button" disabled>
+                <button class={styles.primaryBtn} id="db-load-btn" type="button" disabled={!uploadStore.state.dbConnected} onClick={handleDbLoad}>
                   Load data
                 </button>
-                <button class={styles.ghostBtn} id="db-disconnect-btn" type="button" hidden>
+                <button class={styles.ghostBtn} id="db-disconnect-btn" type="button" hidden={!uploadStore.state.dbConnected} onClick={handleDbDisconnect}>
                   Disconnect
                 </button>
               </div>
-              <div class={styles.status} id="db-status" />
+              <Show when={dbStatus()}>
+                <div class={`${styles.status} ${dbStatus().startsWith('Error') ? styles.error : ''}`}>{dbStatus()}</div>
+              </Show>
             </div>
           </div>
         </Show>

@@ -28,6 +28,7 @@
 
 .toolbarGroupPush {
   margin-left: auto;
+  position: relative;
 }
 
 .toolbarLabel {
@@ -339,4 +340,35 @@ input[type="color"]::-webkit-color-swatch {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+}
+
+.dropdownMenu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--color-surface-2, #1e2330);
+  border: 1px solid var(--color-border, #3a4060);
+  border-radius: 6px;
+  padding: 4px;
+  z-index: 100;
+  min-width: 140px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.dropdownItem {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  text-align: left;
+  font-size: var(--font-sm);
+  color: var(--color-text, #d2daf0);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.dropdownItem:hover {
+  background: var(--color-surface-hover, rgba(255,255,255,0.06));
 }

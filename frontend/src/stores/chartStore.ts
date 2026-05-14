@@ -1,12 +1,21 @@
 import { createStore } from 'solid-js/store';
 import type { ChartViewport, ZoomState, Annotation, ChartInstance } from '../types';
 
+export interface Drawing {
+  id: string;
+  kind: 'arrow' | 'box';
+  color: string;
+  lineWidth: number;
+  points: [number, number][]; // [x,y] in data coordinates
+}
+
 interface ChartState {
   viewport: ChartViewport;
   zoomHistory: ZoomState;
   initialView: ChartViewport | null;
   chartInstance: ChartInstance | null;
   annotations: Annotation[];
+  drawings: Drawing[];
   isDrawing: boolean;
   drawMode: 'pan' | 'zoom' | 'select' | 'arrow' | 'box';
   isLoading: boolean;
@@ -29,6 +38,7 @@ const [chartState, setChartState] = createStore<ChartState>({
   initialView: null,
   chartInstance: null,
   annotations: [],
+  drawings: [],
   isDrawing: false,
   drawMode: 'pan',
   isLoading: false,
@@ -96,6 +106,22 @@ export const chartStore = {
 
   canZoomOut(): boolean {
     return chartState.zoomHistory.currentIndex > 0 || chartState.initialView !== null;
+  },
+
+  zoomForward() {
+    const history = chartState.zoomHistory;
+    if (history.currentIndex < history.zoomStack.length - 1) {
+      const newIndex = history.currentIndex + 1;
+      const nextView = history.zoomStack[newIndex];
+      if (nextView) {
+        setChartState('viewport', { ...nextView });
+        setChartState('zoomHistory', 'currentIndex', newIndex);
+      }
+    }
+  },
+
+  canZoomForward(): boolean {
+    return chartState.zoomHistory.currentIndex < chartState.zoomHistory.zoomStack.length - 1;
   },
 
   resetZoom() {
@@ -172,5 +198,13 @@ export const chartStore = {
 
   clearSeriesVisibility() {
     setChartState('seriesVisibility', {});
+  },
+
+  addDrawing(drawing: Drawing) {
+    setChartState('drawings', [...chartState.drawings, drawing]);
+  },
+
+  clearDrawings() {
+    setChartState('drawings', []);
   }
 };

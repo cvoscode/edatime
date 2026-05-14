@@ -1,4 +1,4 @@
-import { Component, createSignal, Show, For, createMemo, onMount, createEffect } from 'solid-js';
+import { Component, createSignal, Show, For, createMemo, onMount, createEffect, onCleanup } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { chartStore, datasetStore, uiStore, analyticsStore } from '../stores';
 import ChartView from '../components/chart/ChartView';
@@ -6,19 +6,22 @@ import ColumnChips from '../components/chart/ColumnChips';
 import ColumnFilterModal from '../components/chart/ColumnFilterModal';
 import AnalyticsDrawer from '../components/chart/AnalyticsDrawer';
 import LabelsDrawer from '../components/chart/LabelsDrawer';
-import { fetchTimeseriesData, buildSeriesConfig, updateCachedColors } from '../services/dataFetch';
+import { fetchTimeseriesData, buildSeriesConfig, updateCachedColors, getCachedData } from '../services/dataFetch';
 import { fetchMetadata, fetchRollingBands, fetchAnomalies } from '../services/api';
+import { exportChartAsPNG, exportChartAsCSV, exportChartAsSVG, exportChartAsJSON } from '../utils/exportUtils';
 import { debugLog, debugLogOnce } from '../utils/debug';
 import { getColorPalette } from '../utils/colorScale';
 import styles from './TimeseriesPage.module.css';
 
 const TimeseriesPage: Component = () => {
+  let pageRef: HTMLDivElement | undefined;
   const navigate = useNavigate();
   const [drawTool, setDrawTool] = createSignal<'none' | 'zoom' | 'arrow' | 'box'>('none');
   const [drawColor, setDrawColor] = createSignal('#ff0055');
   const [drawWidth, setDrawWidth] = createSignal(2);
   const [showAnalytics, setShowAnalytics] = createSignal(false);
   const [showLabelsDrawer, setShowLabelsDrawer] = createSignal(false);
+  const [showExportMore, setShowExportMore] = createSignal(false);
   const [chartTitle, setChartTitle] = createSignal('');
   const [xAxisLabel, setXAxisLabel] = createSignal('');
   const [yAxisLabel, setYAxisLabel] = createSignal('');
@@ -32,9 +35,11 @@ const TimeseriesPage: Component = () => {
 
   let updateChartFn: ((series: any[], xMin?: number, xMax?: number, yMin?: number, yMax?: number) => void) | null = null;
   let chartReady = false;
+  let chartInstanceRef: any = null;
   let currentRequestController: AbortController | null = null;
   let colorDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   let viewportDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastContextMenuTime = 0;
 
   const numericCols = createMemo(() => datasetStore.state.numericCols);
   const datetimeCols = createMemo(() => datasetStore.state.datetimeCols);
@@ -76,6 +81,16 @@ const TimeseriesPage: Component = () => {
   );
   const colorPalette = createMemo(() => getColorPalette(uiStore.state.colorScale, allTraceColumns().length));
 
+  const mergedColors = createMemo(() => {
+    const result: Record<string, string> = { ...uiStore.state.colors };
+    allTraceColumns().forEach((col, idx) => {
+      if (!result.hasOwnProperty(col)) {
+        result[col] = colorPalette()[idx % colorPalette().length];
+      }
+    });
+    return result;
+  });
+
   const columnBounds = createMemo(() => {
     const bounds: Record<string, { min: number; max: number }> = {};
     for (const col of numericCols()) {
@@ -87,15 +102,20 @@ const TimeseriesPage: Component = () => {
     return bounds;
   });
 
-  const handleChartReady = (updateFn: (series: any[], xMin?: number, xMax?: number, yMin?: number, yMax?: number) => void) => {
+  const handleChartReady = (updateFn: (series: any[], xMin?: number, xMax?: number, yMin?: number, yMax?: number) => void, chartInstance?: any) => {
     updateChartFn = updateFn;
     chartReady = true;
+    if (chartInstance) chartInstanceRef = chartInstance;
     initViewportFromMetadata();
     void fetchAndRender();
   };
 
   const handleEngineReady = (engineName: string) => {
     setChartEngine(engineName);
+  };
+
+  const handleChartInstance = (instance: any) => {
+    chartInstanceRef = instance;
   };
 
   const handleLabelsChange = (title: string, xLabel: string, yLabel: string) => {
@@ -134,13 +154,7 @@ const TimeseriesPage: Component = () => {
       const result = await fetchTimeseriesData(start, end, 1200, xCol, traces, currentRequestController.signal);
       debugLogOnce('fetchAndRender-result', 'fetchAndRender result', { returnedRows: result.returnedRows, downsampled: result.downsampled });
 
-      const colorScale = getColorPalette(uiStore.state.colorScale, 8);
-      const enhancedColors: Record<string, string> = {};
-      traces.forEach((col, idx) => {
-        enhancedColors[col] = uiStore.state.colors[col] ?? colorScale[idx % colorScale.length];
-      });
-
-      const seriesConfig = buildSeriesConfig(result.xValues, result.series, enhancedColors);
+      const seriesConfig = buildSeriesConfig(result.xValues, result.series, mergedColors());
       updateChartFn(seriesConfig, viewport.xMin || timeRange[0], viewport.xMax || timeRange[1]);
 
       if (analyticsStore.state.rollingEnabled) {
@@ -218,7 +232,7 @@ const TimeseriesPage: Component = () => {
     chartStore.resetZoom();
   };
 
-  const openFilterModal = (col: string) => {
+  const openFilterModal = (col: string | null) => {
     setFilterModalColumn(col);
     setFilterModalOpen(true);
   };
@@ -250,27 +264,16 @@ const TimeseriesPage: Component = () => {
   });
 
   createEffect(() => {
-    const _colors = uiStore.state.colors;
-    console.debug('[color-effect] triggered, chartReady:', chartReady, 'colors:', JSON.stringify(_colors));
+    const colors = mergedColors(); // track uiStore.state.colors + allTraceColumns
     if (chartReady) {
       if (colorDebounceTimer) clearTimeout(colorDebounceTimer);
       colorDebounceTimer = setTimeout(() => {
-        console.debug('[color-effect] fired, colors:', JSON.stringify(_colors));
-        const colorScale = getColorPalette(uiStore.state.colorScale, 8);
-        const traces = traceColumns();
-        console.debug('[color-effect] traces:', traces, 'updateChartFn:', !!updateChartFn);
-        const enhancedColors: Record<string, string> = {};
-        traces.forEach((col, idx) => {
-          enhancedColors[col] = _colors[col] ?? colorScale[idx % colorScale.length];
-        });
-        const seriesConfig = updateCachedColors(enhancedColors);
-        console.debug('[color-effect] seriesConfig:', seriesConfig ? `${seriesConfig.length} series` : 'null');
+        const seriesConfig = updateCachedColors(colors);
         if (seriesConfig && updateChartFn) {
           const metadata = datasetStore.state.metadata;
           const timeRange = metadata?.timeRange;
           const viewport = chartStore.state.viewport;
           updateChartFn(seriesConfig, viewport.xMin || timeRange?.[0], viewport.xMax || timeRange?.[1]);
-          console.debug('[color-effect] updateChartFn called');
         }
       }, 50);
     }
@@ -295,16 +298,103 @@ const TimeseriesPage: Component = () => {
   });
 
   onMount(() => {
-    if (numericCols().length > 0 && uiStore.state.selectedColumns.length === 0) {
+    if (numericCols().length > 0) {
       uiStore.setSelectedColumns(numericCols());
+      uiStore.setHiddenColumns([]);
     }
+
+    const handleShortcut = (e: Event) => {
+      const key = (e as CustomEvent).detail.key as string;
+      if (key === 'r') {
+        chartStore.resetZoom();
+        void fetchAndRender();
+      } else if (key === 'z') {
+        chartStore.zoomOut();
+      } else if (key === 'p') {
+        handleExportPNG();
+      } else if (key === 'e') {
+        handleExportCSV();
+      } else if (key === 'c') {
+        const filters = uiStore.state.filters;
+        for (const col of Object.keys(filters)) {
+          uiStore.removeFilter(col);
+        }
+        void fetchAndRender();
+      }
+    };
+    window.addEventListener('edatime:shortcut', handleShortcut);
+
+    // Double-right-click to open filter modal (same as old frontend viewport.ts behavior)
+    pageRef?.addEventListener('contextmenu', (e: MouseEvent) => {
+      const now = performance.now();
+      const isDoubleContext = (now - lastContextMenuTime) <= 450;
+      lastContextMenuTime = now;
+      if (!isDoubleContext) return;
+      lastContextMenuTime = 0;
+      e.preventDefault();
+      // If click is on a series chip, open filter for that column
+      const chip = (e.target as HTMLElement)?.closest?.('.series-chip');
+      if (chip) {
+        const col = chip.getAttribute('data-column');
+        if (col) openFilterModal(col);
+      } else {
+        // Double-right-click outside chart area opens generic filter modal
+        const inChart = (e.target as HTMLElement)?.closest?.('#main-chart');
+        if (!inChart) openFilterModal(null);
+      }
+    });
+    onCleanup(() => window.removeEventListener('edatime:shortcut', handleShortcut));
+  });
+
+  // Reset selection when dataset changes (new columns detected)
+  let lastColCount = 0;
+  createEffect(() => {
+    const cols = numericCols();
+    const metadata = datasetStore.state.metadata;
+    if (cols.length > 0 && cols.length !== lastColCount && lastColCount > 0) {
+      uiStore.setSelectedColumns(cols);
+      uiStore.setHiddenColumns([]);
+    }
+    if (cols.length > 0 && metadata?.timeRange) {
+      // Reset viewport when dataset changes
+      const [t0, t1] = metadata.timeRange;
+      chartStore.setViewport({ xMin: t0, xMax: t1, yMin: 0, yMax: 1 });
+      chartStore.resetZoom();
+    }
+    lastColCount = cols.length;
   });
 
   const hasData = createMemo(() => datasetStore.state.metadata !== null);
   const canShowChart = createMemo(() => hasData() && numericCols().length > 0);
 
+  const handleExportPNG = () => {
+    if (chartInstanceRef) {
+      exportChartAsPNG(chartInstanceRef, 'edatime_chart.png');
+    }
+  };
+
+  const handleExportSVG = () => {
+    if (chartInstanceRef) {
+      exportChartAsSVG(chartInstanceRef, 'edatime_chart.svg');
+    }
+  };
+
+  const handleExportJSON = () => {
+    const cached = getCachedData();
+    if (cached) {
+      exportChartAsJSON(cached.xValues, cached.series, 'edatime_data.json');
+    }
+  };
+
+  const handleExportCSV = () => {
+    const cached = getCachedData();
+    if (cached) {
+      exportChartAsCSV(cached.xValues, cached.series, 'edatime_data.csv');
+    }
+  };
+
   return (
-    <div class={styles.page}>
+    <div ref={pageRef} class={styles.page}>
       <div class={styles.toolbarSeries}>
         <div class={styles.toolbarGroup} role="group" aria-label="Series selection tools">
           <span class={styles.toolbarLabel}>X-axis</span>
@@ -353,11 +443,11 @@ const TimeseriesPage: Component = () => {
               columns={numericCols().filter(c => c !== xAxisColumn())}
               selected={selectedColumns()}
               filter={seriesFilter()}
-              colors={uiStore.state.colors}
-              colorScalePalette={colorPalette()}
+              colors={mergedColors()}
               onChange={(cols) => { console.debug('[TimeseriesPage] onChange selected:', JSON.stringify(cols)); uiStore.setSelectedColumns(cols); }}
               onHiddenChange={(hidden) => { console.debug('[TimeseriesPage] onHiddenChange:', JSON.stringify(hidden)); uiStore.setHiddenColumns(hidden); }}
               onColorChange={(col, color) => { console.debug('[TimeseriesPage] onColorChange:', col, color); uiStore.setColumnColor(col, color); }}
+              onOpenFilter={openFilterModal}
             />
           </Show>
         </div>
@@ -396,7 +486,7 @@ const TimeseriesPage: Component = () => {
             title="Thickness"
             aria-label="Draw thickness"
           />
-          <button class={styles.ghostBtn} id="draw-clear-btn" type="button" title="Clear drawings">Clear Drawings</button>
+          <button class={styles.ghostBtn} id="draw-clear-btn" type="button" title="Clear drawings" onClick={() => { chartInstanceRef?.clearDrawings?.(); chartStore.clearDrawings(); }}>Clear Drawings</button>
         </div>
 
         <div class={`${styles.toolbarGroup} ${styles.toolbarGroupSep}`} role="group" aria-label="Chart label controls">
@@ -412,23 +502,29 @@ const TimeseriesPage: Component = () => {
         </div>
 
         <div class={`${styles.toolbarGroup} ${styles.toolbarGroupSep}`} role="group" aria-label="Note and annotation tools">
-          <button class={styles.panelOpenBtn} type="button" title="Open annotation tools">
+          <button class={styles.panelOpenBtn} type="button" title="Open annotation tools" onClick={() => setShowLabelsDrawer(true)}>
             <span class={styles.toolbarLabel}>Notes</span>
             <span class={styles.disclosureValue}>Annotations</span>
           </button>
         </div>
 
         <div class={`${styles.toolbarGroup} ${styles.toolbarGroupPush}`} role="group" aria-label="Export chart and data options">
-          <button class={styles.ghostBtn} id="export-png-btn" type="button" title="Export chart as PNG (P)" onClick={() => {}}>
+          <button class={styles.ghostBtn} id="export-png-btn" type="button" title="Export chart as PNG (P)" onClick={handleExportPNG}>
             PNG <kbd class={styles.toolbarKbd}>P</kbd>
           </button>
-          <button class={styles.ghostBtn} id="export-csv-btn" type="button" title="Export filtered data as CSV (E)" onClick={() => {}}>
+          <button class={styles.ghostBtn} id="export-csv-btn" type="button" title="Export filtered data as CSV (E)" onClick={handleExportCSV}>
             CSV <kbd class={styles.toolbarKbd}>E</kbd>
           </button>
-          <button class={styles.panelOpenBtn} type="button" title="More export options">
+          <button class={styles.panelOpenBtn} type="button" title="More export options" onClick={() => setShowExportMore(v => !v)}>
             <span class={styles.toolbarLabel}>More</span>
-            <span class={styles.disclosureValue}>SVG, JSON, Parquet</span>
+            <span class={styles.disclosureValue}>SVG, JSON</span>
           </button>
+          <Show when={showExportMore()}>
+            <div class={styles.dropdownMenu} role="menu">
+              <button class={styles.dropdownItem} role="menuitem" onClick={() => { handleExportSVG(); setShowExportMore(false); }}>Export SVG</button>
+              <button class={styles.dropdownItem} role="menuitem" onClick={() => { handleExportJSON(); setShowExportMore(false); }}>Export JSON</button>
+            </div>
+          </Show>
         </div>
 
         <div class={`${styles.toolbarGroup} ${styles.toolbarGroupSep} ${styles.toolbarGroupPush}`} role="group" aria-label="Analytics controls">
@@ -448,7 +544,9 @@ const TimeseriesPage: Component = () => {
           <button class={styles.ghostBtn} id="zoom-out-btn" type="button" title="Zoom out (restore previous)" onClick={() => chartStore.zoomOut()}>−</button>
           <span class={styles.zoomRangeBadge} id="zoom-range-badge" title="Current time range">{zoomBadgeText()}</span>
           <button class={styles.ghostBtn} id="zoom-reset-btn" type="button" title="Reset to initial view" onClick={() => chartStore.resetZoom()}>↺</button>
+          <button class={styles.ghostBtn} id="zoom-redo-btn" type="button" title="Redo (go forward in zoom history)" onClick={() => chartStore.zoomForward()} disabled={!chartStore.canZoomForward()}>→</button>
           <span class={styles.zoomHistoryBadge} title="Zoom history depth">{chartStore.state.zoomHistory.currentIndex + 1}/{chartStore.state.zoomHistory.zoomStack.length}</span>
+          <button class={styles.ghostBtn} id="fit-y-btn" type="button" title="Fit Y-axis to data range" onClick={() => { chartStore.fitYToData(); void fetchAndRender(); }}>Fit Y</button>
         </div>
       </div>
 
@@ -456,12 +554,15 @@ const TimeseriesPage: Component = () => {
         <ChartView
           containerId="main-chart"
           onReady={handleChartReady}
+          onChartReady={handleChartInstance}
           onEngineReady={handleEngineReady}
           onZoom={handleZoom}
           onZoomOut={handleZoomOut}
           rollingBands={analyticsStore.state.rollingBands}
           anomalyRegions={analyticsStore.state.anomalyRegions}
           drawMode={drawTool() === 'zoom' ? 'zoom' : drawTool() === 'none' ? 'pan' : drawTool() as any}
+          drawColor={drawColor()}
+          drawWidth={drawWidth()}
           chartTitle={chartTitle()}
           xAxisLabel={xAxisLabel()}
           yAxisLabel={yAxisLabel()}

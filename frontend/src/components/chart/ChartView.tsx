@@ -10,13 +10,17 @@ import { createChart } from '../../../libs/chartgpu/dist/index';
 interface ChartViewProps {
   containerId?: string;
   onReady?: (updateChart: (series: any[], xAxisMin?: number, xAxisMax?: number, yAxisMin?: number, yAxisMax?: number) => void) => void;
+  onChartReady?: (chartInstance: any) => void;
   onEngineReady?: (engineName: string) => void;
   onEngineChanged?: (engineName: string) => void;
   onZoom?: (start: number, end: number) => void;
   onZoomOut?: () => void;
+  onChartClick?: (x: number, y: number) => void;
   rollingBands?: RollingBandData[];
   anomalyRegions?: AnomalyRegionData[];
   drawMode?: 'pan' | 'zoom' | 'arrow' | 'box';
+  drawColor?: string;
+  drawWidth?: number;
   chartTitle?: string;
   xAxisLabel?: string;
   yAxisLabel?: string;
@@ -112,8 +116,17 @@ const ChartView: Component<ChartViewProps> = (props) => {
         }
       });
 
+      chartInstance.on('click', (payload: any) => {
+        const x = Number(payload?.x);
+        const y = Number(payload?.y);
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          props.onChartClick?.(x, y);
+        }
+      });
+
       setEngineName('ChartGPU');
       props.onEngineReady?.('ChartGPU');
+      props.onChartReady?.(chartInstance);
       setChartStatus('ready');
     } catch (e) {
       console.warn('ChartGPU not available, falling back to ECharts:', e);
@@ -141,6 +154,7 @@ const ChartView: Component<ChartViewProps> = (props) => {
 
         const echartsInstance = echarts.init(containerRef, echartsThemeName(), { renderer: 'canvas' });
         chartInstance = echartsInstance;
+        props.onChartReady?.(echartsInstance);
 
         echartsInstance.setOption({
           grid: { left: 120, right: 30, top: 16, bottom: 36 },
@@ -161,6 +175,14 @@ const ChartView: Component<ChartViewProps> = (props) => {
             if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
               props.onZoom?.(start, end);
             }
+          }
+        });
+
+        echartsInstance.on('click', (params: any) => {
+          const x = Number(params?.value?.[0]);
+          const y = Number(params?.value?.[1]);
+          if (Number.isFinite(x) && Number.isFinite(y)) {
+            props.onChartClick?.(x, y);
           }
         });
 
@@ -275,9 +297,13 @@ const ChartView: Component<ChartViewProps> = (props) => {
     setThemeVersion(v => v + 1);
   });
 
+  // Guard against concurrent initChart calls during theme change
+  let isReinitializing = false;
+
   createEffect(() => {
     void themeVersion();
     if (!chartInstance) return;
+    if (isReinitializing) return;
 
     const currentEngine = engineName();
     console.debug('[ChartView] themeVersion effect: engine =', currentEngine, 'plotTheme =', uiStore.state.plotTheme, 'uiTheme =', uiStore.state.theme);
@@ -290,14 +316,17 @@ const ChartView: Component<ChartViewProps> = (props) => {
       });
     } else if (currentEngine === 'ChartGPU') {
       console.debug('[ChartView] recreating ChartGPU for theme change');
+      isReinitializing = true;
       const oldInstance = chartInstance;
       chartInstance = null;
       oldInstance?.dispose?.();
 
       initChart().then(() => {
+        isReinitializing = false;
         console.debug('[ChartView] ChartGPU recreated, chartStatus =', chartStatus());
         if (chartStatus() === 'ready') {
           props.onReady?.(handleUpdateChart);
+          props.onChartReady?.(chartInstance);
           props.onEngineChanged?.(engineName());
         }
       });
@@ -382,6 +411,27 @@ const ChartView: Component<ChartViewProps> = (props) => {
     props.onZoomOut?.();
   };
 
+  const handleWheel = (e: WheelEvent) => {
+    if (e.shiftKey || e.ctrlKey || e.altKey) return; // Only plain wheel; modifiers reserved for browser/shortcuts
+    e.preventDefault();
+    const viewport = viewportBounds();
+    const xRange = viewport.xMax - viewport.xMin;
+    if (xRange <= 0) return;
+    const factor = e.deltaY > 0 ? 1.15 : 0.87;
+    const rect = containerRef?.getBoundingClientRect();
+    if (!rect) return;
+    const plotLeft = CHART_GRID.left;
+    const plotRight = rect.width - CHART_GRID.right;
+    const plotWidth = Math.max(1, plotRight - plotLeft);
+    const relX = (e.clientX - rect.left - plotLeft) / plotWidth;
+    const centerDataX = viewport.xMin + relX * xRange;
+    const newXMin = centerDataX - (centerDataX - viewport.xMin) * factor;
+    const newXMax = centerDataX + (viewport.xMax - centerDataX) * factor;
+    if (newXMax > newXMin && Number.isFinite(newXMin) && Number.isFinite(newXMax)) {
+      props.onZoom?.(newXMin, newXMax);
+    }
+  };
+
   onCleanup(() => {
     resizeObserver?.disconnect();
     if (chartInstance) {
@@ -407,6 +457,7 @@ const ChartView: Component<ChartViewProps> = (props) => {
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onDblClick={handleDoubleClick}
+      onWheel={handleWheel}
     >
       {chartStatus() === 'loading' && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', 'align-items': 'center', 'justify-content': 'center', color: 'var(--color-text-muted, #888)' }}>
@@ -439,6 +490,8 @@ const ChartView: Component<ChartViewProps> = (props) => {
           yMin={viewportBounds().yMin}
           yMax={viewportBounds().yMax}
           drawMode={props.drawMode ?? 'pan'}
+          drawColor={props.drawColor}
+          drawWidth={props.drawWidth}
           drag={drag()}
           containerWidth={containerRef?.clientWidth ?? 1200}
           containerHeight={containerRef?.clientHeight ?? 600}

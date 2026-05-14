@@ -1,6 +1,7 @@
 import { Component, createEffect, onMount, onCleanup } from 'solid-js';
 import type { RollingBandData, AnomalyRegionData, DragState, Annotation } from '../../types';
 import { chartStore } from '../../stores';
+import type { Drawing } from '../../stores/chartStore';
 
 interface CanvasOverlayProps {
   rollingBands: RollingBandData[];
@@ -14,6 +15,9 @@ interface CanvasOverlayProps {
   drag: DragState | null;
   containerWidth: number;
   containerHeight: number;
+  drawColor?: string;
+  drawWidth?: number;
+  drawings?: Drawing[];
 }
 
 const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
@@ -21,6 +25,13 @@ const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
 const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
   let canvasRef: HTMLCanvasElement | undefined;
   let resizeObserver: ResizeObserver | null = null;
+  let isPointerDown = false;
+  let drawStartX = 0;
+  let drawStartY = 0;
+  let drawCurrentX = 0;
+  let drawCurrentY = 0;
+
+  const isDrawingMode = () => props.drawMode === 'arrow' || props.drawMode === 'box';
 
   const toDataX = (cssX: number, containerWidth: number): number => {
     const plotLeft = CHART_GRID.left;
@@ -36,20 +47,6 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
     const plotHeight = Math.max(1, plotBottom - plotTop);
     const yNorm = Math.max(0, Math.min(1, (cssY - plotTop) / plotHeight));
     return props.yMax - yNorm * (props.yMax - props.yMin);
-  };
-
-  const toCanvasX = (dataX: number, containerWidth: number): number => {
-    const plotLeft = CHART_GRID.left;
-    const plotRight = containerWidth - CHART_GRID.right;
-    const plotWidth = Math.max(1, plotRight - plotLeft);
-    return plotLeft + ((dataX - props.xMin) / (props.xMax - props.xMin)) * plotWidth;
-  };
-
-  const toCanvasY = (dataY: number, containerHeight: number): number => {
-    const plotTop = CHART_GRID.top;
-    const plotBottom = containerHeight - CHART_GRID.bottom;
-    const plotHeight = Math.max(1, plotBottom - plotTop);
-    return plotBottom - ((dataY - props.yMin) / (props.yMax - props.yMin)) * plotHeight;
   };
 
   const render = () => {
@@ -69,8 +66,159 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
     renderRollingBands(ctx, cssW, cssH);
     renderAnomalyRegions(ctx, cssW, cssH);
     renderAnnotations(ctx, cssW, cssH);
+    renderDrawings(ctx, cssW, cssH);
+    renderLiveDrawing(ctx, cssW, cssH);
 
     ctx.restore();
+  };
+
+  const renderDrawings = (ctx: CanvasRenderingContext2D, cssW: number, cssH: number) => {
+    const drawings = props.drawings ?? chartStore.state.drawings;
+    if (!drawings || drawings.length === 0) return;
+    if (!Number.isFinite(props.xMin) || !Number.isFinite(props.xMax) || props.xMax <= props.xMin) return;
+    if (!Number.isFinite(props.yMin) || !Number.isFinite(props.yMax) || props.yMax <= props.yMin) return;
+
+    const plotLeft = CHART_GRID.left;
+    const plotTop = CHART_GRID.top;
+    const plotRight = Math.max(plotLeft + 1, cssW - CHART_GRID.right);
+    const plotBottom = Math.max(plotTop + 1, cssH - CHART_GRID.bottom);
+    const plotWidth = Math.max(1, plotRight - plotLeft);
+    const plotHeight = Math.max(1, plotBottom - plotTop);
+
+    for (const d of drawings) {
+      if (d.points.length < 2) continue;
+      ctx.strokeStyle = d.color;
+      ctx.lineWidth = d.lineWidth;
+      ctx.setLineDash([]);
+
+      if (d.kind === 'box') {
+        const x1 = plotLeft + ((d.points[0][0] - props.xMin) / (props.xMax - props.xMin)) * plotWidth;
+        const y1 = plotBottom - ((d.points[0][1] - props.yMin) / (props.yMax - props.yMin)) * plotHeight;
+        const x2 = plotLeft + ((d.points[1][0] - props.xMin) / (props.xMax - props.xMin)) * plotWidth;
+        const y2 = plotBottom - ((d.points[1][1] - props.yMin) / (props.yMax - props.yMin)) * plotHeight;
+        const bx = Math.min(x1, x2);
+        const by = Math.min(y1, y2);
+        const bw = Math.abs(x2 - x1);
+        const bh = Math.abs(y2 - y1);
+        ctx.strokeRect(bx, by, bw, bh);
+      } else {
+        // arrow
+        const x1 = plotLeft + ((d.points[0][0] - props.xMin) / (props.xMax - props.xMin)) * plotWidth;
+        const y1 = plotBottom - ((d.points[0][1] - props.yMin) / (props.yMax - props.yMin)) * plotHeight;
+        const x2 = plotLeft + ((d.points[1][0] - props.xMin) / (props.xMax - props.xMin)) * plotWidth;
+        const y2 = plotBottom - ((d.points[1][1] - props.yMin) / (props.yMax - props.yMin)) * plotHeight;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        // arrowhead
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+        const headLen = 14;
+        ctx.beginPath();
+        ctx.moveTo(x2, y2);
+        ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(x2, y2);
+        ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+        ctx.stroke();
+      }
+    }
+  };
+
+  const renderLiveDrawing = (ctx: CanvasRenderingContext2D, cssW: number, cssH: number) => {
+    if (!isPointerDown || !isDrawingMode()) return;
+    if (!Number.isFinite(props.xMin) || !Number.isFinite(props.xMax) || props.xMax <= props.xMin) return;
+    if (!Number.isFinite(props.yMin) || !Number.isFinite(props.yMax) || props.yMax <= props.yMin) return;
+
+    const plotLeft = CHART_GRID.left;
+    const plotTop = CHART_GRID.top;
+    const plotRight = Math.max(plotLeft + 1, cssW - CHART_GRID.right);
+    const plotBottom = Math.max(plotTop + 1, cssH - CHART_GRID.bottom);
+    const plotWidth = Math.max(1, plotRight - plotLeft);
+    const plotHeight = Math.max(1, plotBottom - plotTop);
+
+    const color = props.drawColor ?? '#ff0055';
+    const lineWidth = props.drawWidth ?? 2;
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.setLineDash([6, 3]);
+
+    const startDataX = toDataX(drawStartX, cssW);
+    const startDataY = toDataY(drawStartY, cssH);
+    const endDataX = toDataX(drawCurrentX, cssW);
+    const endDataY = toDataY(drawCurrentY, cssH);
+
+    const x1 = plotLeft + ((startDataX - props.xMin) / (props.xMax - props.xMin)) * plotWidth;
+    const y1 = plotBottom - ((startDataY - props.yMin) / (props.yMax - props.yMin)) * plotHeight;
+    const x2 = plotLeft + ((endDataX - props.xMin) / (props.xMax - props.xMin)) * plotWidth;
+    const y2 = plotBottom - ((endDataY - props.yMin) / (props.yMax - props.yMin)) * plotHeight;
+
+    if (props.drawMode === 'box') {
+      const bx = Math.min(x1, x2);
+      const by = Math.min(y1, y2);
+      const bw = Math.abs(x2 - x1);
+      const bh = Math.abs(y2 - y1);
+      ctx.strokeRect(bx, by, bw, bh);
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      const headLen = 14;
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+      ctx.stroke();
+    }
+
+    ctx.setLineDash([]);
+  };
+
+  const handlePointerDown = (e: PointerEvent) => {
+    if (!isDrawingMode()) return;
+    if (e.button !== 0) return;
+    e.preventDefault();
+    isPointerDown = true;
+    drawStartX = e.offsetX;
+    drawStartY = e.offsetY;
+    drawCurrentX = e.offsetX;
+    drawCurrentY = e.offsetY;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: PointerEvent) => {
+    if (!isPointerDown) return;
+    drawCurrentX = e.offsetX;
+    drawCurrentY = e.offsetY;
+    render();
+  };
+
+  const handlePointerUp = (e: PointerEvent) => {
+    if (!isPointerDown) return;
+    isPointerDown = false;
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+
+    const endDataX = toDataX(drawCurrentX, canvasRef?.clientWidth ?? 1);
+    const endDataY = toDataY(drawCurrentY, canvasRef?.clientHeight ?? 1);
+    const startDataX = toDataX(drawStartX, canvasRef?.clientWidth ?? 1);
+    const startDataY = toDataY(drawStartY, canvasRef?.clientHeight ?? 1);
+
+    // Require minimum drag distance
+    const dx = Math.abs(endDataX - startDataX);
+    const dy = Math.abs(endDataY - startDataY);
+    if (dx < 2 && dy < 2) return;
+
+    chartStore.addDrawing({
+      id: `drawing_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      kind: props.drawMode as 'arrow' | 'box',
+      color: props.drawColor ?? '#ff0055',
+      lineWidth: props.drawWidth ?? 2,
+      points: [[startDataX, startDataY], [endDataX, endDataY]],
+    });
+    render();
   };
 
   const renderRollingBands = (ctx: CanvasRenderingContext2D, cssW: number, cssH: number) => {
@@ -255,6 +403,10 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
     props.yMin;
     props.yMax;
     props.drag;
+    props.drawings;
+    props.drawMode;
+    props.drawColor;
+    props.drawWidth;
     void render();
   });
 
@@ -283,9 +435,12 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
         left: 0,
         width: '100%',
         height: '100%',
-        'pointer-events': props.drawMode === 'zoom' ? 'auto' : 'none',
+        'pointer-events': isDrawingMode() || props.drawMode === 'zoom' ? 'auto' : 'none',
         'z-index': 6,
       }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
     />
   );
 };

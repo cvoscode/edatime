@@ -106,3 +106,131 @@
   color: var(--color-text-muted);
   font-style: italic;
 }
+
+.tabBar {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tabBtn {
+  flex: 1;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tabBtn:hover {
+  color: var(--color-text);
+}
+
+.activeTab {
+  color: var(--color-primary, #4a9eff);
+  border-bottom-color: var(--color-primary, #4a9eff);
+}
+
+.select {
+  padding: var(--space-2);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-sm);
+  color: var(--color-text);
+  width: 100%;
+}
+
+.input {
+  padding: var(--space-2);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-sm);
+  color: var(--color-text);
+  width: 100%;
+}
+
+.addBtn {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-primary, #4a9eff);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.addBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.annList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.annItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.annBadge {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.annLabel {
+  flex: 1;
+  font-size: var(--font-sm);
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.annType {
+  font-size: var(--font-xs);
+  color: var(--color-text-muted);
+  text-transform: capitalize;
+}
+
+.deleteBtn {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.deleteBtn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.emptyHint {
+  font-size: var(--font-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+  text-align: center;
+  padding: var(--space-3);
+}

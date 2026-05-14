@@ -65,7 +65,7 @@ const HomePage: Component = () => {
                   </svg>
                 </div>
                 <div class={styles.datasetInfo}>
-                  <div class={styles.datasetName}>{ds.name}</div>
+                  <div class={styles.datasetName}>Load {ds.name} sample dataset</div>
                   <div class={styles.datasetMeta}>{ds.meta}</div>
                 </div>
               </div>

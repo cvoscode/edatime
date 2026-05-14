@@ -1,12 +1,27 @@
 const API_BASE = '/api';
 
+// Request deduplication for concurrent identical GET requests
+const _inflight = new Map<string, Promise<unknown>>();
+
 async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`${url} failed (${res.status}) ${text}`);
+  const existing = _inflight.get(url);
+  if (existing) {
+    return existing as Promise<T>;
   }
-  return res.json() as T;
+  const promise = (async () => {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`${url} failed (${res.status}) ${text}`);
+    }
+    return res.json() as T;
+  })();
+  _inflight.set(url, promise);
+  try {
+    return await promise;
+  } finally {
+    _inflight.delete(url);
+  }
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -113,8 +128,8 @@ export interface DbTablesResponse {
   tables: string[];
 }
 
-export async function dbConnect(connectionString: string): Promise<{ status: string }> {
-  return postJson(`${API_BASE}/database/connect`, { connection_string: connectionString });
+export async function dbConnect(connectionString: string, schema = 'public'): Promise<{ status: string }> {
+  return postJson(`${API_BASE}/database/connect`, { connection_string: connectionString, schema, load_snapshot: false });
 }
 
 export async function dbTables(): Promise<DbTablesResponse> {
@@ -124,17 +139,22 @@ export async function dbTables(): Promise<DbTablesResponse> {
 export async function dbLoad(
   table: string,
   options?: {
+    schema?: string;
     max_rows?: number;
     time_start?: string;
     time_end?: string;
     time_column?: string;
   }
 ): Promise<IngestResponse> {
-  const body: Record<string, unknown> = { table };
+  const body: Record<string, unknown> = {
+    schema: options?.schema ?? 'public',
+    table,
+    time_column: options?.time_column || null,
+    limit: 1_000_000,
+  };
   if (options?.max_rows != null) body.max_rows = options.max_rows;
   if (options?.time_start) body.time_start = options.time_start;
   if (options?.time_end) body.time_end = options.time_end;
-  if (options?.time_column) body.time_column = options.time_column;
   return postJson(`${API_BASE}/database/load`, body);
 }
 

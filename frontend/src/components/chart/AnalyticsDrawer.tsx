@@ -1,5 +1,5 @@
 import { Component, Show, createSignal, createEffect } from 'solid-js';
-import { SwitchToggle, RangeSlider } from '../ui';
+import { SwitchToggle } from '../ui';
 import { analyticsStore } from '../../stores';
 import styles from './AnalyticsDrawer.module.css';
 
@@ -117,8 +117,8 @@ const AnalyticsDrawer: Component<AnalyticsDrawerProps> = (props) => {
 
           <div class={styles.section}>
             <div class={styles.sectionTitle}>Dataset tools</div>
-            <button class={styles.toolBtn} id="transform-btn" type="button">Transform…</button>
-            <button class={styles.toolBtn} id="outliers-btn" type="button">Outliers…</button>
+            <button class={styles.toolBtn} id="transform-btn" type="button" onClick={() => alert('Transform: not yet implemented')}>Transform…</button>
+            <button class={styles.toolBtn} id="outliers-btn" type="button" onClick={() => alert('Outliers: not yet implemented')}>Outliers…</button>
           </div>
         </div>
       </div>

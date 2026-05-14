@@ -7,16 +7,11 @@ interface ColumnChipsProps {
   filter: string;
   onChange: (selected: string[]) => void;
   colors?: Record<string, string>;
-  colorScalePalette?: string[];
+  
   onColorChange?: (column: string, color: string) => void;
   onOpenFilter?: (column: string) => void;
   onHiddenChange?: (hidden: string[]) => void;
 }
-
-const SERIES_COLORS = [
-  '#00a8ff', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8',
-  '#ff922b', '#22b8cf', '#f06595', '#94d82d', '#748ffc',
-];
 
 const ColumnChips: Component<ColumnChipsProps> = (props) => {
   const [hiddenColumns, setHiddenColumns] = createSignal<Set<string>>(new Set());
@@ -27,18 +22,11 @@ const ColumnChips: Component<ColumnChipsProps> = (props) => {
     return props.columns.filter(col => col.toLowerCase().includes(lower));
   });
 
-  const columnIndex = createMemo(() => {
-    const map = new Map<string, number>();
-    props.columns.forEach((col, i) => map.set(col, i));
-    return map;
-  });
-
   const isSelected = (col: string) => props.selected.includes(col);
   const isHidden = (col: string) => hiddenColumns().has(col);
 
   const chipColor = (col: string) => {
-    const idx = columnIndex().get(col) ?? 0;
-    return props.colors?.[col] ?? props.colorScalePalette?.[idx % (props.colorScalePalette?.length ?? 1)] ?? SERIES_COLORS[idx % SERIES_COLORS.length];
+    return props.colors?.[col] ?? '#888888';
   };
 
   const toggle = (col: string) => {
@@ -65,10 +53,6 @@ const ColumnChips: Component<ColumnChipsProps> = (props) => {
     props.onColorChange?.(col, value);
   };
 
-  const handleColorPointerDown = (e: MouseEvent) => {
-    e.stopPropagation();
-  };
-
   const handleMenuClick = (col: string, e: MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -93,17 +77,21 @@ const ColumnChips: Component<ColumnChipsProps> = (props) => {
               checked={isSelected(col) && !isHidden(col)}
               onClick={(e) => e.stopPropagation()}
             />
-            <input
-              type="color"
-              class={styles.colorPicker}
-              value={chipColor(col)}
+            <span
+              class={styles.colorSwatch}
+              style={{ '--swatch-color': chipColor(col) }}
               title={`Color for ${col}`}
-              aria-label={`Color for ${col}`}
-              onPointerDown={handleColorPointerDown}
-              onMouseDown={handleColorPointerDown}
-              onClick={(e) => e.stopPropagation()}
-              onInput={(e) => handleColorChange(col, e)}
-            />
+            >
+              <span class={styles.colorSwatchDot} />
+              <input
+                type="color"
+                class={styles.colorSwatchInput}
+                value={chipColor(col)}
+                aria-label={`Color for ${col}`}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => handleColorChange(col, e)}
+              />
+            </span>
             <span class={styles.label}>{col}</span>
             <button
               class={styles.menuBtn}
