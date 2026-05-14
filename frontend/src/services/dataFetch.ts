@@ -21,6 +21,11 @@ export interface ColorScaleInfo {
   categories: string[];
 }
 
+// Cached last fetch result for fast color-only updates
+let _cachedXValues: Float64Array | null = null;
+let _cachedSeries: Record<string, Float64Array> | null = null;
+let _cachedMetadata: { timeRange: [number, number] } | null = null;
+
 export function analyzeColorValues(values: unknown[]): ColorScaleInfo | null {
   if (!Array.isArray(values) || values.length === 0) return null;
 
@@ -185,6 +190,9 @@ export async function fetchTimeseriesData(
     }
   }
 
+  _cachedXValues = xValues;
+  _cachedSeries = series;
+
   return {
     xValues,
     series,
@@ -192,6 +200,22 @@ export async function fetchTimeseriesData(
     downsampled: res.headers.get('x-edatime-downsampled') === '1',
     colorByColumn,
   };
+}
+
+export function updateCachedColors(colors: Record<string, string>): any[] | null {
+  console.debug('[updateCachedColors] cache:', { hasX: !!_cachedXValues, hasSeries: !!_cachedSeries });
+  if (!_cachedXValues || !_cachedSeries) {
+    console.debug('[updateCachedColors] cache MISS - returning null');
+    return null;
+  }
+  const seriesConfig = buildSeriesConfig(_cachedXValues, _cachedSeries, colors);
+  console.debug('[updateCachedColors] result:', seriesConfig ? `${seriesConfig.length} series` : 'null');
+  return seriesConfig;
+}
+
+export function getCachedData(): { xValues: Float64Array; series: Record<string, Float64Array> } | null {
+  if (!_cachedXValues || !_cachedSeries) return null;
+  return { xValues: _cachedXValues, series: _cachedSeries };
 }
 
 const COLOR_BUCKETS = 64;

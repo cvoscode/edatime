@@ -5,6 +5,7 @@ import type { RollingBandData, AnomalyRegionData, DragState } from '../../types'
 import { uiStore, chartStore } from '../../stores';
 import { getColorPalette } from '../../utils/colorScale';
 import { getActivePlotTemplate, toEChartsTheme } from '../../utils/plotTemplate';
+import { createChart } from '../../../libs/chartgpu/dist/index';
 
 interface ChartViewProps {
   containerId?: string;
@@ -36,7 +37,6 @@ const ChartView: Component<ChartViewProps> = (props) => {
   let chartInstance: any = null;
   let resizeObserver: ResizeObserver | null = null;
   let chartgpuBlobUrl: string | null = null;
-  let chartModule: any = null;
 
   const activeTemplate = createMemo(() =>
     getActivePlotTemplate(uiStore.state.plotTheme, uiStore.state.theme)
@@ -52,7 +52,9 @@ const ChartView: Component<ChartViewProps> = (props) => {
 
   const initChart = async () => {
     if (!containerRef) return;
+    console.debug('[ChartView] initChart: START, current status:', chartStatus());
     setChartStatus('loading');
+    console.debug('[ChartView] initChart: set loading, containerRef:', !!containerRef);
 
     const template = activeTemplate();
     console.debug('[ChartView] initChart: theme =', template.id, 'colorScale =', uiStore.state.colorScale);
@@ -75,41 +77,40 @@ const ChartView: Component<ChartViewProps> = (props) => {
     registerTheme();
 
     try {
-      const isDev = import.meta.env.DEV;
-      const chartgpuUrl = isDev
-        ? '/frontend/libs/chartgpu/index.js'
-        : '/frontend/libs/chartgpu/index.js';
-
-      if (!chartModule) {
-        const resp = await fetch(chartgpuUrl);
-        if (!resp.ok) throw new Error(`ChartGPU fetch failed: ${resp.status}`);
-        const code = await resp.text();
-        const blob = new Blob([code], { type: 'application/javascript' });
-        chartgpuBlobUrl = URL.createObjectURL(blob);
-        chartModule = await import(/* @vite-ignore */ chartgpuBlobUrl);
-      }
-
-      const { checkWebGPUSupport } = chartModule as any;
-      if (checkWebGPUSupport) {
-        const result = await checkWebGPUSupport();
-        if (!result.supported) {
-          throw new Error(`WebGPU unavailable: ${result.reason ?? 'unknown reason'}`);
+      // ChartGPU is imported statically from frontend/libs/chartgpu
+      // WebGPU support check happens via try/catch around createChart
+      let webgpuSupported = true;
+      try {
+        if (typeof navigator !== 'undefined' && !navigator.gpu) {
+          webgpuSupported = false;
         }
+      } catch (_) {
+        webgpuSupported = false;
       }
 
-      const createChart = (chartModule as any).createChart ?? (chartModule as any).default?.createChart;
-      if (!createChart) throw new Error('createChart not found');
+      if (!webgpuSupported) {
+        throw new Error('WebGPU not available');
+      }
 
       const chartOpts = {
         grid: { left: 120, right: 30, top: 16, bottom: 36 },
-        xAxis: { type: 'time', name: props.xAxisLabel },
-        yAxis: { type: 'value', name: props.yAxisLabel },
-        legend: { show: true, position: 'right' },
+        xAxis: { type: 'time' as const, name: props.xAxisLabel },
+        yAxis: { type: 'value' as const, name: props.yAxisLabel },
+        legend: { show: true, position: 'right' as const },
         series: [],
         theme: activeTemplate().id,
       };
       console.debug('[ChartView] createChart options:', { theme: chartOpts.theme });
       chartInstance = await createChart(containerRef, chartOpts);
+
+      // Wire up ChartGPU events
+      chartInstance.on('zoomRangeChange', (payload: any) => {
+        const start = Number(payload?.start);
+        const end = Number(payload?.end);
+        if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+          props.onZoom?.(start, end);
+        }
+      });
 
       setEngineName('ChartGPU');
       props.onEngineReady?.('ChartGPU');
@@ -118,20 +119,40 @@ const ChartView: Component<ChartViewProps> = (props) => {
       console.warn('ChartGPU not available, falling back to ECharts:', e);
 
       try {
+        // Clean up any orphaned DOM nodes left by ChartGPU attempt
+        const cleanup = () => {
+          if (!containerRef) return;
+          while (containerRef.firstChild) {
+            containerRef.removeChild(containerRef.firstChild);
+          }
+        };
+        cleanup();
+
+        // Defer echarts.init to ensure any async ChartGPU DOM mutations have settled
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+        // Verify container is still owned by us before calling init
+        if (!containerRef || !containerRef.parentNode) {
+          throw new Error('Chart container is no longer in the DOM');
+        }
+
+        // Double-clean after rAF
+        cleanup();
+
         const echartsInstance = echarts.init(containerRef, echartsThemeName(), { renderer: 'canvas' });
         chartInstance = echartsInstance;
 
         echartsInstance.setOption({
           grid: { left: 120, right: 30, top: 16, bottom: 36 },
-          xAxis: { type: 'time', name: props.xAxisLabel },
-          yAxis: { type: 'value', name: props.yAxisLabel },
-          legend: { show: true, position: 'right' },
+          xAxis: { type: 'time' as const, name: props.xAxisLabel },
+          yAxis: { type: 'value' as const, name: props.yAxisLabel },
+          legend: { show: true, position: 'right' as const },
           series: [],
           color: getColorPalette(uiStore.state.colorScale, 8),
-          ...(props.chartTitle ? { title: { text: props.chartTitle, left: 'center' } } : {}),
+          ...(props.chartTitle ? { title: { text: props.chartTitle, left: 'center' as const } } : {}),
         });
 
-        echartsInstance.on('dataZoom', (params: any) => {
+        echartsInstance.on('dataZoom', () => {
           const option = echartsInstance.getOption() as any;
           const xAxis = option?.xAxis as any[];
           if (xAxis?.[0]?.min !== undefined && xAxis?.[0]?.max !== undefined) {
@@ -163,7 +184,6 @@ const ChartView: Component<ChartViewProps> = (props) => {
       return;
     }
     console.debug('[ChartView] handleUpdateChart: engine =', engineName(), 'seriesLen =', series?.length, 'chartInstance id =', chartInstance._chartId ?? 'unknown');
-
     const prevVisibility = chartStore.getAllSeriesVisibility();
 
     const seriesWithVisibility = series.map(s => ({

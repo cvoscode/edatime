@@ -4,6 +4,7 @@ import type { ChartViewport, ZoomState, Annotation, ChartInstance } from '../typ
 interface ChartState {
   viewport: ChartViewport;
   zoomHistory: ZoomState;
+  initialView: ChartViewport | null;
   chartInstance: ChartInstance | null;
   annotations: Annotation[];
   isDrawing: boolean;
@@ -25,6 +26,7 @@ const defaultViewport: ChartViewport = {
 const [chartState, setChartState] = createStore<ChartState>({
   viewport: { ...defaultViewport },
   zoomHistory: { zoomStack: [{ ...defaultViewport }], currentIndex: 0 },
+  initialView: null,
   chartInstance: null,
   annotations: [],
   isDrawing: false,
@@ -39,10 +41,23 @@ const [chartState, setChartState] = createStore<ChartState>({
 export const chartStore = {
   get state() { return chartState; },
 
+  setInitialView(viewport: ChartViewport) {
+    setChartState('initialView', { ...viewport });
+    // Also set as current if viewport not yet set
+    if (!Number.isFinite(chartState.viewport.xMin) || !Number.isFinite(chartState.viewport.xMax)) {
+      this.setViewport(viewport);
+    }
+  },
+
   setViewport(viewport: ChartViewport) {
+    // Save current view to history before changing
+    const currentView = { ...chartState.viewport };
     setChartState('viewport', viewport);
+
+    // Push current view to history stack (limit to 10 entries)
     const newStack = chartState.zoomHistory.zoomStack.slice(0, chartState.zoomHistory.currentIndex + 1);
-    newStack.push(viewport);
+    newStack.push(currentView);
+    if (newStack.length > 10) newStack.shift();
     setChartState('zoomHistory', {
       zoomStack: newStack,
       currentIndex: newStack.length - 1
@@ -67,15 +82,30 @@ export const chartStore = {
     const history = chartState.zoomHistory;
     if (history.currentIndex > 0) {
       const newIndex = history.currentIndex - 1;
-      setChartState('viewport', history.zoomStack[newIndex]);
-      setChartState('zoomHistory', 'currentIndex', newIndex);
+      const prevView = history.zoomStack[newIndex];
+      if (prevView) {
+        // Save current to history's forward side (for potential "redo")
+        setChartState('viewport', { ...prevView });
+        setChartState('zoomHistory', 'currentIndex', newIndex);
+      }
+    } else if (chartState.initialView) {
+      // At bottom of history, go to initial view
+      setChartState('viewport', { ...chartState.initialView });
     }
   },
 
+  canZoomOut(): boolean {
+    return chartState.zoomHistory.currentIndex > 0 || chartState.initialView !== null;
+  },
+
   resetZoom() {
-    const first = chartState.zoomHistory.zoomStack[0];
-    if (first) {
-      this.setViewport({ ...first });
+    if (chartState.initialView) {
+      // Clear history and reset to initial
+      setChartState('zoomHistory', {
+        zoomStack: [{ ...chartState.initialView }],
+        currentIndex: 0
+      });
+      setChartState('viewport', { ...chartState.initialView });
     }
   },
 

@@ -17,23 +17,35 @@
   border-radius: 20px;
   font-size: var(--font-sm);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, opacity 0.15s;
   user-select: none;
+  opacity: 0.55;
 }
 
 .chip:hover {
   background: var(--color-surface-hover);
+  opacity: 0.8;
 }
 
 .chip.selected {
+  opacity: 1;
   border-color: color-mix(in srgb, var(--chip-accent) 72%, var(--color-border));
   background: color-mix(in srgb, var(--chip-accent) 13%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--chip-accent) 20%, transparent),
     0 0 16px color-mix(in srgb, var(--chip-accent) 12%, transparent);
 }
 
+.chip.hidden {
+  opacity: 0.55;
+}
+
 .chip.selected .label {
   color: var(--color-text);
+}
+
+.chip:not(.selected) .label {
+  color: var(--color-text-muted);
+  opacity: 0.7;
 }
 
 .checkbox {

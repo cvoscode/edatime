@@ -6,7 +6,7 @@ import ColumnChips from '../components/chart/ColumnChips';
 import ColumnFilterModal from '../components/chart/ColumnFilterModal';
 import AnalyticsDrawer from '../components/chart/AnalyticsDrawer';
 import LabelsDrawer from '../components/chart/LabelsDrawer';
-import { fetchTimeseriesData, buildSeriesConfig } from '../services/dataFetch';
+import { fetchTimeseriesData, buildSeriesConfig, updateCachedColors } from '../services/dataFetch';
 import { fetchMetadata, fetchRollingBands, fetchAnomalies } from '../services/api';
 import { debugLog, debugLogOnce } from '../utils/debug';
 import { getColorPalette } from '../utils/colorScale';
@@ -33,6 +33,7 @@ const TimeseriesPage: Component = () => {
   let updateChartFn: ((series: any[], xMin?: number, xMax?: number, yMin?: number, yMax?: number) => void) | null = null;
   let chartReady = false;
   let currentRequestController: AbortController | null = null;
+  let colorDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   const numericCols = createMemo(() => datasetStore.state.numericCols);
   const datetimeCols = createMemo(() => datasetStore.state.datetimeCols);
@@ -54,12 +55,17 @@ const TimeseriesPage: Component = () => {
     const metadata = datasetStore.state.metadata;
     const timeRange = metadata?.timeRange;
     if (timeRange && chartStore.state.viewport.xMax < timeRange[1] * 0.01) {
-      chartStore.setViewport({
+      const newViewport = {
         xMin: timeRange[0],
         xMax: timeRange[1],
         yMin: chartStore.state.viewport.yMin,
         yMax: chartStore.state.viewport.yMax,
-      });
+      };
+      // Set initial view once from metadata
+      if (!chartStore.state.initialView) {
+        chartStore.setInitialView(newViewport);
+      }
+      chartStore.setViewport(newViewport);
     }
   };
 
@@ -241,6 +247,33 @@ const TimeseriesPage: Component = () => {
   });
 
   createEffect(() => {
+    const _colors = uiStore.state.colors;
+    console.debug('[color-effect] triggered, chartReady:', chartReady, 'colors:', JSON.stringify(_colors));
+    if (chartReady) {
+      if (colorDebounceTimer) clearTimeout(colorDebounceTimer);
+      colorDebounceTimer = setTimeout(() => {
+        console.debug('[color-effect] fired, colors:', JSON.stringify(_colors));
+        const colorScale = getColorPalette(uiStore.state.colorScale, 8);
+        const traces = traceColumns();
+        console.debug('[color-effect] traces:', traces, 'updateChartFn:', !!updateChartFn);
+        const enhancedColors: Record<string, string> = {};
+        traces.forEach((col, idx) => {
+          enhancedColors[col] = _colors[col] ?? colorScale[idx % colorScale.length];
+        });
+        const seriesConfig = updateCachedColors(enhancedColors);
+        console.debug('[color-effect] seriesConfig:', seriesConfig ? `${seriesConfig.length} series` : 'null');
+        if (seriesConfig && updateChartFn) {
+          const metadata = datasetStore.state.metadata;
+          const timeRange = metadata?.timeRange;
+          const viewport = chartStore.state.viewport;
+          updateChartFn(seriesConfig, viewport.xMin || timeRange?.[0], viewport.xMax || timeRange?.[1]);
+          console.debug('[color-effect] updateChartFn called');
+        }
+      }, 50);
+    }
+  });
+
+  createEffect(() => {
     const viewport = chartStore.state.viewport;
     const metadata = datasetStore.state.metadata;
     if (chartReady && metadata && viewport) {
@@ -319,8 +352,8 @@ const TimeseriesPage: Component = () => {
               filter={seriesFilter()}
               colors={uiStore.state.colors}
               colorScalePalette={getColorPalette(uiStore.state.colorScale, traceColumns().length)}
-              onChange={(cols) => uiStore.setSelectedColumns(cols)}
-              onColorChange={(col, color) => uiStore.setColumnColor(col, color)}
+              onChange={(cols) => { console.debug('[TimeseriesPage] onChange selected:', JSON.stringify(cols)); uiStore.setSelectedColumns(cols); }}
+              onColorChange={(col, color) => { console.debug('[TimeseriesPage] onColorChange:', col, color); uiStore.setColumnColor(col, color); }}
             />
           </Show>
         </div>
@@ -407,9 +440,11 @@ const TimeseriesPage: Component = () => {
         </div>
 
         <div class={styles.toolbarGroup} role="group" aria-label="Zoom controls">
-          <button class={styles.ghostBtn} id="zoom-out-btn" type="button" title="Zoom out" onClick={() => chartStore.zoomOut()}>−</button>
-          <span class={styles.zoomRangeBadge} id="zoom-range-badge">{zoomBadgeText()}</span>
-          <button class={styles.ghostBtn} id="zoom-reset-btn" type="button" title="Reset zoom to initial view" onClick={() => chartStore.resetZoom()}>↺</button>
+          <button class={styles.ghostBtn} id="zoom-back-btn" type="button" title="Zoom back" onClick={() => chartStore.zoomOut()} disabled={!chartStore.canZoomOut()}>←</button>
+          <button class={styles.ghostBtn} id="zoom-out-btn" type="button" title="Zoom out (restore previous)" onClick={() => chartStore.zoomOut()}>−</button>
+          <span class={styles.zoomRangeBadge} id="zoom-range-badge" title="Current time range">{zoomBadgeText()}</span>
+          <button class={styles.ghostBtn} id="zoom-reset-btn" type="button" title="Reset to initial view" onClick={() => chartStore.resetZoom()}>↺</button>
+          <span class={styles.zoomHistoryBadge} title="Zoom history depth">{chartStore.state.zoomHistory.currentIndex + 1}/{chartStore.state.zoomHistory.zoomStack.length}</span>
         </div>
       </div>
 

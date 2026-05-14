@@ -44,11 +44,7 @@ export default defineConfig({
   server: {
     port: 5174,
     proxy: {
-      '/api': { target: 'http://localhost:3000' },
-      '/frontend/libs/chartgpu': {
-        target: 'http://localhost:3000',
-        rewrite: (path: string) => path.replace(/^\/frontend\/libs\/chartgpu/, '/old_frontend/libs/chartgpu')
-      }
+      '/api': { target: 'http://localhost:3000' }
     }
   },
   build: {
