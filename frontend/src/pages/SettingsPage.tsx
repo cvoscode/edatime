@@ -1,5 +1,4 @@
 import { Component } from 'solid-js';
-import { A } from '@solidjs/router';
 import { uiStore } from '../stores';
 import { COLORMAPS, getColorScaleGradientCSS, type ColorScaleName } from '../utils/colorScale';
 import { type PlotThemeMode } from '../utils/plotTemplate';
@@ -49,23 +48,6 @@ const SettingsPage: Component = () => {
           <polyline points="6,14 8,16 10,14" />
         </svg>
       ),
-    },
-  ];
-
-  const displayOptions = [
-    {
-      id: 'renderMode',
-      name: 'Render Mode',
-      value: 'auto',
-      desc: 'ChartGPU decides when to show more or fewer points — keeps things snappy.',
-      tag: 'ChartGPU',
-    },
-    {
-      id: 'animations',
-      name: 'Animations',
-      value: 'on',
-      desc: 'Smooth transitions when zooming and switching views. Toggle off if you prefer instant.',
-      tag: 'ChartGPU',
     },
   ];
 
@@ -210,30 +192,6 @@ const SettingsPage: Component = () => {
         </div>
 
         <div class={styles.section}>
-          <h2 class={styles.sectionTitle}>Chart settings</h2>
-          <p class={styles.sectionCopy}>Under the hood stuff. ChartGPU handles the heavy lifting — you just get to tune how it looks.</p>
-          <div class={styles.prefsGrid}>
-            {displayOptions.map((opt) => (
-              <div class={styles.prefCard}>
-                <div class={styles.prefHeader}>
-                  <div class={styles.prefIcon}>
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                      <polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />
-                    </svg>
-                  </div>
-                  <div class={styles.prefInfo}>
-                    <div class={styles.prefName}>{opt.name}</div>
-                    <div class={styles.prefValue}>{opt.value}</div>
-                  </div>
-                  <span class={styles.prefTag}>{opt.tag}</span>
-                </div>
-                <p class={styles.prefDesc}>{opt.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div class={styles.section}>
           <h2 class={styles.sectionTitle}>Keyboard shortcuts</h2>
           <p class={styles.sectionCopy}>Once you memorize these, you'll feel like a pro. No cap.</p>
           <div class={styles.shortcutsGrid}>
@@ -289,9 +247,9 @@ const SettingsPage: Component = () => {
             Upload your data, explore patterns, and export insights. Built for people who actually work with time series.
           </p>
           <div class={styles.links}>
-            <A href="/" class={styles.link}>Documentation</A>
-            <A href="/" class={styles.link}>GitHub</A>
-            <A href="/" class={styles.link}>Report an issue</A>
+            <a href="/" class={styles.link}>Documentation</a>
+            <a href="/" class={styles.link}>GitHub</a>
+            <a href="/" class={styles.link}>Report an issue</a>
           </div>
         </div>
       </div>

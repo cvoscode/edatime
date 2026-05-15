@@ -7,6 +7,7 @@ export interface DatasetMetadata {
   fileSize: number;
   uploadedAt: string;
   timeRange: [number, number] | null;
+  revision?: number; // monotonic counter for cache invalidation
 }
 
 export interface ColumnProfile {
@@ -180,6 +181,9 @@ export interface ScatterPointsResponse {
   color_labels: (string | null)[] | null;
   color_min: number | null;
   color_max: number | null;
+  size_values: number[] | null;
+  size_min: number | null;
+  size_max: number | null;
 }
 
 export interface FrequencyPeak {
@@ -212,29 +216,20 @@ export interface FftTrace {
   color: string;
 }
 
+export interface FftConfig {
+  mode: 'magnitude' | 'psd';
+  logScale: boolean;
+}
+
 export interface SpectrogramResult {
+  column: string;
   time_points: number[];
   freq_points: number[];
   power_matrix: number[][];
-}
-
-export interface SpectrogramResponse {
-  sample_count: number;
-  result: SpectrogramResult;
 }
 
 export interface SpectrogramConfig {
   windowSize: number;
   hopSize: number;
   column: string;
-}
-
-export interface FftConfig {
-  mode: 'magnitude' | 'psd';
-  logScale: boolean;
-}
-
-export interface SpectralSettings {
-  spectrogramWindowSize: number;
-  spectrogramHopSize: number;
 }

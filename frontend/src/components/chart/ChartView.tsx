@@ -39,6 +39,8 @@ const ChartView: Component<ChartViewProps> = (props) => {
   const [viewportBounds, setViewportBounds] = createSignal({ xMin: 0, xMax: 100, yMin: 0, yMax: 1 });
   const [themeVersion, setThemeVersion] = createSignal(0);
   let chartInstance: any = null;
+  let axisLabelX = '';
+  let axisLabelY = '';
   let resizeObserver: ResizeObserver | null = null;
   let chartgpuBlobUrl: string | null = null;
 
@@ -213,6 +215,7 @@ const ChartView: Component<ChartViewProps> = (props) => {
       visible: prevVisibility[s.name] !== false,
     }));
 
+    // Calculate y-range for series visibility and store it
     let dataYMin = Number.POSITIVE_INFINITY;
     let dataYMax = Number.NEGATIVE_INFINITY;
     for (const s of series) {
@@ -226,23 +229,23 @@ const ChartView: Component<ChartViewProps> = (props) => {
         }
       }
     }
-    if (Number.isFinite(dataYMin) && Number.isFinite(dataYMax)) {
-      chartStore.setLastDataYRange(dataYMin, dataYMax);
-    }
 
     const opts: any = {
       grid: { left: 120, right: 30, top: 16, bottom: 36 },
-      xAxis: { type: 'time' as const },
-      yAxis: { type: 'value' as const },
+      xAxis: { type: 'time' as const, name: axisLabelX },
+      yAxis: { type: 'value' as const, name: axisLabelY },
       legend: { show: true, position: 'right' },
       series: seriesWithVisibility,
     };
     if (xMin !== undefined && xMax !== undefined) {
-      opts.xAxis = { type: 'time' as const, min: xMin, max: xMax };
-      setViewportBounds({ xMin, xMax, yMin: yMin ?? 0, yMax: yMax ?? 1 });
+      opts.xAxis = { type: 'time' as const, min: xMin, max: xMax, name: axisLabelX };
+      const yRange = chartStore.getLastDataYRange();
+      const yMinVal = yMin ?? (yRange?.min ?? 0);
+      const yMaxVal = yMax ?? (yRange?.max ?? 1);
+      setViewportBounds({ xMin, xMax, yMin: yMinVal, yMax: yMaxVal });
     }
     if (yMin !== undefined && yMax !== undefined && !chartStore.state.yAuto) {
-      opts.yAxis = { type: 'value' as const, min: yMin, max: yMax };
+      opts.yAxis = { type: 'value' as const, min: yMin, max: yMax, name: axisLabelY };
     }
 
     const tooltipFormatter = (params: unknown): string => {
@@ -274,13 +277,22 @@ const ChartView: Component<ChartViewProps> = (props) => {
     chartInstance.setOption(opts);
     chartInstance.resize();
 
+    // Defer chartStore writes to break reactive cycles - these writes can trigger
+    // downstream effects that would otherwise cause recursion in the theme effect
+    const finalDataYMin = dataYMin;
+    const finalDataYMax = dataYMax;
     const newVisibility: Record<string, boolean> = {};
     for (const s of series) {
       newVisibility[s.name] = s.visible !== false;
     }
-    for (const [name, visible] of Object.entries(newVisibility)) {
-      chartStore.setSeriesVisibility(name, visible);
-    }
+    setTimeout(() => {
+      if (Number.isFinite(finalDataYMin) && Number.isFinite(finalDataYMax)) {
+        chartStore.setLastDataYRange(finalDataYMin, finalDataYMax);
+      }
+      for (const [name, visible] of Object.entries(newVisibility)) {
+        chartStore.setSeriesVisibility(name, visible);
+      }
+    }, 0);
   };
 
   onMount(async () => {
@@ -322,6 +334,9 @@ const ChartView: Component<ChartViewProps> = (props) => {
       oldInstance?.dispose?.();
 
       initChart().then(() => {
+        // Guard against re-entry: if isReinitializing was set again while we were
+        // async initializing, abort this callback and let the newer run handle it
+        if (isReinitializing) return;
         isReinitializing = false;
         console.debug('[ChartView] ChartGPU recreated, chartStatus =', chartStatus());
         if (chartStatus() === 'ready') {
@@ -335,14 +350,18 @@ const ChartView: Component<ChartViewProps> = (props) => {
 
   createEffect(() => {
     if (!chartInstance) return;
+    axisLabelX = props.xAxisLabel ?? '';
+    axisLabelY = props.yAxisLabel ?? '';
     const labelOpts: any = {
       xAxis: { type: 'time' as const, name: props.xAxisLabel },
       yAxis: { type: 'value' as const, name: props.yAxisLabel },
     };
-    if (engineName() === 'ECharts' && props.chartTitle) {
-      labelOpts.title = { text: props.chartTitle, left: 'center' };
+    if (engineName() === 'ECharts') {
+      if (props.chartTitle) {
+        labelOpts.title = { text: props.chartTitle, left: 'center' };
+      }
+      chartInstance.setOption(labelOpts, false);
     }
-    chartInstance.setOption(labelOpts, false);
   });
 
   const handlePointerDown = (e: PointerEvent) => {
@@ -495,6 +514,9 @@ const ChartView: Component<ChartViewProps> = (props) => {
           drag={drag()}
           containerWidth={containerRef?.clientWidth ?? 1200}
           containerHeight={containerRef?.clientHeight ?? 600}
+          chartTitle={props.chartTitle}
+          xAxisLabel={axisLabelX}
+          yAxisLabel={axisLabelY}
         />
       )}
     </div>

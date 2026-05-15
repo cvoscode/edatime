@@ -15,6 +15,9 @@ interface ScatterState {
   colorLabels: (string | null)[] | null;
   colorMin: number | null;
   colorMax: number | null;
+  sizeValues: number[] | null;
+  sizeMin: number | null;
+  sizeMax: number | null;
   totalPoints: number;
   renderMode: 'scatter' | 'density';
 }
@@ -40,6 +43,9 @@ const [scatterState, setScatterState] = createStore<ScatterState>({
   colorLabels: null,
   colorMin: null,
   colorMax: null,
+  sizeValues: null,
+  sizeMin: null,
+  sizeMax: null,
   totalPoints: 0,
   renderMode: 'scatter',
 });
@@ -94,6 +100,12 @@ export const scatterStore = {
     setScatterState('colorLabels', labels);
   },
 
+  setSizeValues(values: number[] | null, sizeMin: number | null, sizeMax: number | null) {
+    setScatterState('sizeValues', values);
+    setScatterState('sizeMin', sizeMin);
+    setScatterState('sizeMax', sizeMax);
+  },
+
   setRenderMode(mode: 'scatter' | 'density') {
     setScatterState('renderMode', mode);
   },
@@ -113,6 +125,9 @@ export const scatterStore = {
       colorLabels: null,
       colorMin: null,
       colorMax: null,
+      sizeValues: null,
+      sizeMin: null,
+      sizeMax: null,
       totalPoints: 0,
       renderMode: 'scatter',
     });

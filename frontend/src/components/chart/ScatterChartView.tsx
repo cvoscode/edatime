@@ -31,7 +31,7 @@ interface ChartSeries {
   binSize?: number;
   densityColormap?: string;
   densityNormalization?: 'linear' | 'sqrt' | 'log';
-  symbolSize?: number;
+  symbolSize?: number | ((value: any[]) => number);
   color?: string;
   sampling?: 'none' | 'lttb';
   visualMap?: any;

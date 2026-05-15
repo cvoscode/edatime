@@ -18,6 +18,9 @@ interface CanvasOverlayProps {
   drawColor?: string;
   drawWidth?: number;
   drawings?: Drawing[];
+  chartTitle?: string;
+  xAxisLabel?: string;
+  yAxisLabel?: string;
 }
 
 const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
@@ -68,6 +71,7 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
     renderAnnotations(ctx, cssW, cssH);
     renderDrawings(ctx, cssW, cssH);
     renderLiveDrawing(ctx, cssW, cssH);
+    renderLabels(ctx, cssW, cssH);
 
     ctx.restore();
   };
@@ -175,6 +179,33 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
     }
 
     ctx.setLineDash([]);
+  };
+
+  const renderLabels = (ctx: CanvasRenderingContext2D, cssW: number, cssH: number) => {
+    const title = props.chartTitle;
+    const xLabel = props.xAxisLabel;
+    const yLabel = props.yAxisLabel;
+    if (!title && !xLabel && !yLabel) return;
+
+    ctx.save();
+    ctx.font = '13px Inter, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.textAlign = 'center';
+
+    if (title) {
+      ctx.fillText(title, cssW / 2, 20);
+    }
+    if (xLabel) {
+      ctx.fillText(xLabel, cssW / 2, cssH - 8);
+    }
+    if (yLabel) {
+      ctx.save();
+      ctx.translate(14, cssH / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(yLabel, 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
   };
 
   const handlePointerDown = (e: PointerEvent) => {
@@ -407,6 +438,9 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
     props.drawMode;
     props.drawColor;
     props.drawWidth;
+    props.chartTitle;
+    props.xAxisLabel;
+    props.yAxisLabel;
     void render();
   });
 

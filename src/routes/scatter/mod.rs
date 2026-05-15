@@ -28,6 +28,7 @@ pub struct ScatterPointsQuery {
     pub x: String,
     pub y: String,
     pub color: Option<String>,
+    pub size: Option<String>,
     pub start: Option<f64>,
     pub end: Option<f64>,
     pub filters: Option<String>,
@@ -52,6 +53,9 @@ pub struct ScatterPointsResponse {
     pub color_labels: Option<Vec<Option<String>>>,
     pub color_min: Option<f64>,
     pub color_max: Option<f64>,
+    pub size_values: Option<Vec<f64>>,
+    pub size_min: Option<f64>,
+    pub size_max: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -182,6 +186,7 @@ pub(crate) fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
     x: &str,
     y: &str,
     color: Option<&str>,
+    size: Option<&str>,
     start: Option<f64>,
     end: Option<f64>,
     filters: &[ScatterFilterSpec],
@@ -201,11 +206,14 @@ pub(crate) fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
     if let Some(c) = color && !schema.contains(c) {
             return Err(AppError::bad_request(format!("Unknown column '{}'", c)));
         }
+    if let Some(s) = size && !schema.contains(s) {
+            return Err(AppError::bad_request(format!("Unknown column '{}'", s)));
+        }
 
     let lf = apply_scatter_filters(lf, start, end, filters, line_filters)?;
 
-    let mut selected_columns = Vec::with_capacity(3);
-    for name in [Some(x), Some(y), color].into_iter().flatten() {
+    let mut selected_columns = Vec::with_capacity(4);
+    for name in [Some(x), Some(y), color, size].into_iter().flatten() {
         if !selected_columns.contains(&name) {
             selected_columns.push(name);
         }

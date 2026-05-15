@@ -13,7 +13,6 @@ const navItems = [
   { path: '/upload', label: 'Upload', symbol: '↑' },
   { path: '/timeseries', label: 'Timeseries', symbol: '〰' },
   { path: '/fft', label: 'FFT', symbol: '∿' },
-  { path: '/spectrogram', label: 'Spectrogram', symbol: '▦' },
   { path: '/heatmap', label: 'Heatmap', symbol: '▩' },
   { path: '/scatter', label: 'Scatter', symbol: '◌' },
   { path: '/drift', label: 'Drift', symbol: '↗' },

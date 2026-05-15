@@ -26,6 +26,12 @@ let _cachedXValues: Float64Array | null = null;
 let _cachedSeries: Record<string, Float64Array> | null = null;
 let _cachedMetadata: { timeRange: [number, number] } | null = null;
 
+export function clearCache(): void {
+  _cachedXValues = null;
+  _cachedSeries = null;
+  _cachedMetadata = null;
+}
+
 export function analyzeColorValues(values: unknown[]): ColorScaleInfo | null {
   if (!Array.isArray(values) || values.length === 0) return null;
 

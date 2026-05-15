@@ -23,7 +23,6 @@ const PAGE_KEYS: Record<string, string> = {
   '4': '/scatter',
   '6': '/fft',
   '7': '/heatmap',
-  '8': '/spectrogram',
   '9': '/causal',
   '0': '/drift',
 };
@@ -70,7 +69,6 @@ const App: Component = () => {
       <Route path="/upload" component={UploadPage} />
       <Route path="/timeseries" component={TimeseriesPage} />
       <Route path="/fft" component={() => <Suspense fallback={<Loading />}><FftPage /></Suspense>} />
-      <Route path="/spectrogram" component={() => <Suspense fallback={<Loading />}><PlaceholderPage title="Spectrogram" /></Suspense>} />
       <Route path="/heatmap" component={() => <Suspense fallback={<Loading />}><HeatmapPage /></Suspense>} />
       <Route path="/scatter" component={() => <Suspense fallback={<Loading />}><ScatterPage /></Suspense>} />
       <Route path="/drift" component={() => <Suspense fallback={<Loading />}><DriftPage /></Suspense>} />

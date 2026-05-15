@@ -384,6 +384,9 @@ export interface ScatterPointsResponse {
   color_labels: (string | null)[] | null;
   color_min: number | null;
   color_max: number | null;
+  size_values: number[] | null;
+  size_min: number | null;
+  size_max: number | null;
 }
 
 export async function fetchScatterPoints(
@@ -391,6 +394,7 @@ export async function fetchScatterPoints(
   y: string,
   limit: number,
   color?: string | null,
+  size?: string | null,
   options?: {
     start?: number;
     end?: number;
@@ -406,6 +410,9 @@ export async function fetchScatterPoints(
   };
   if (color !== null && color !== undefined && String(color).trim() !== '') {
     payload.color = String(color);
+  }
+  if (size !== null && size !== undefined && String(size).trim() !== '') {
+    payload.size = String(size);
   }
   const start = Number(options?.start);
   const end = Number(options?.end);
@@ -436,25 +443,30 @@ export async function fetchScatterPoints(
     const buffer = await res.arrayBuffer();
     const table = tableFromIPC(buffer);
 
-    const xCol = table.getChild('x');
-    const yCol = table.getChild('y');
-    const colorCol = table.getChild('color_value') ?? table.getChild('color_label');
+    const xCol = table.getChild(x);
+    const yCol = table.getChild(y);
+    const colorCol = color ? (table.getChild(color) ?? (color === 'color_label' ? table.getChild('color_label') : null)) : null;
+    const sizeCol = size ? table.getChild(size) : null;
 
     const n = table.numRows;
     const points: [number, number][] = new Array(n);
-    const color_values: number[] | null = colorCol && table.getChild('color_value') ? [] : null;
-    const color_labels: (string | null)[] | null = table.getChild('color_label') ? [] : null;
+    const color_values: number[] | null = colorCol && color !== 'color_label' ? [] : null;
+    const color_labels: (string | null)[] | null = color === 'color_label' || (colorCol && color === 'color_label') ? [] : null;
+    const size_values: number[] | null = sizeCol ? [] : null;
 
     for (let i = 0; i < n; i++) {
       points[i] = [xCol?.get(i) as number, yCol?.get(i) as number];
       if (color_values) color_values.push((colorCol as unknown as { get(i: number): number }).get(i));
       if (color_labels) color_labels.push((colorCol as unknown as { get(i: number): string | null }).get(i));
+      if (size_values) size_values.push((sizeCol as unknown as { get(i: number): number }).get(i));
     }
 
     const total = Number(res.headers.get('x-edatime-scatter-total') ?? n);
     const returned = Number(res.headers.get('x-edatime-scatter-returned') ?? n);
     const color_min = res.headers.get('x-edatime-color-min');
     const color_max = res.headers.get('x-edatime-color-max');
+    const size_min = res.headers.get('x-edatime-size-min');
+    const size_max = res.headers.get('x-edatime-size-max');
 
     return {
       x,
@@ -467,6 +479,9 @@ export async function fetchScatterPoints(
       color_labels,
       color_min: color_min !== null ? Number(color_min) : null,
       color_max: color_max !== null ? Number(color_max) : null,
+      size_values,
+      size_min: size_min !== null ? Number(size_min) : null,
+      size_max: size_max !== null ? Number(size_max) : null,
     };
   }
 

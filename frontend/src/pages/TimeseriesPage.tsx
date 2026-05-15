@@ -1,4 +1,4 @@
-import { Component, createSignal, Show, For, createMemo, onMount, createEffect, onCleanup } from 'solid-js';
+import { Component, createSignal, Show, For, createMemo, onMount, createEffect, onCleanup, untrack } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { chartStore, datasetStore, uiStore, analyticsStore } from '../stores';
 import ChartView from '../components/chart/ChartView';
@@ -7,8 +7,8 @@ import ColumnFilterModal from '../components/chart/ColumnFilterModal';
 import AnalyticsDrawer from '../components/chart/AnalyticsDrawer';
 import LabelsDrawer from '../components/chart/LabelsDrawer';
 import { fetchTimeseriesData, buildSeriesConfig, updateCachedColors, getCachedData } from '../services/dataFetch';
-import { fetchMetadata, fetchRollingBands, fetchAnomalies } from '../services/api';
-import { exportChartAsPNG, exportChartAsCSV, exportChartAsSVG, exportChartAsJSON } from '../utils/exportUtils';
+import { fetchRollingBands, fetchAnomalies } from '../services/api';
+import { exportChartAsPNG, exportChartAsCSV, exportChartAsSVG, exportChartAsJSON, exportChartAsHTML } from '../utils/exportUtils';
 import { debugLog, debugLogOnce } from '../utils/debug';
 import { getColorPalette } from '../utils/colorScale';
 import styles from './TimeseriesPage.module.css';
@@ -31,7 +31,10 @@ const TimeseriesPage: Component = () => {
   const [filterModalOpen, setFilterModalOpen] = createSignal(false);
   const [filterModalColumn, setFilterModalColumn] = createSignal<string | null>(null);
   const [isLoading, setIsLoading] = createSignal(false);
+  const [isDownsampled, setIsDownsampled] = createSignal(false);
+  const [showSkeleton, setShowSkeleton] = createSignal(false);
   const [colorColumn, setColorColumn] = createSignal<string | null>(null);
+  const [error, setError] = createSignal<string | null>(null);
 
   let updateChartFn: ((series: any[], xMin?: number, xMax?: number, yMin?: number, yMax?: number) => void) | null = null;
   let chartReady = false;
@@ -40,6 +43,7 @@ const TimeseriesPage: Component = () => {
   let colorDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   let viewportDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   let lastContextMenuTime = 0;
+  let fetchInProgress = false;
 
   const numericCols = createMemo(() => datasetStore.state.numericCols);
   const datetimeCols = createMemo(() => datasetStore.state.datetimeCols);
@@ -146,15 +150,18 @@ const TimeseriesPage: Component = () => {
     debugLog('fetchAndRender start', { xCol, traces, start, end, viewport });
 
     setIsLoading(true);
+    setShowSkeleton(true);
     if (currentRequestController) {
       currentRequestController.abort();
     }
     currentRequestController = new AbortController();
     try {
-      const result = await fetchTimeseriesData(start, end, 1200, xCol, traces, currentRequestController.signal);
+      const result = await fetchTimeseriesData(start, end, 1200, xCol, traces, currentRequestController.signal, colorColumn());
       debugLogOnce('fetchAndRender-result', 'fetchAndRender result', { returnedRows: result.returnedRows, downsampled: result.downsampled });
+      setIsDownsampled(result.downsampled);
+      setError(null);
 
-      const seriesConfig = buildSeriesConfig(result.xValues, result.series, mergedColors());
+      const seriesConfig = buildSeriesConfig(result.xValues, result.series, mergedColors(), uiStore.state.filters, result.colorByColumn, colorColumn(), !result.downsampled, uiStore.state.colorScale);
       updateChartFn(seriesConfig, viewport.xMin || timeRange[0], viewport.xMax || timeRange[1]);
 
       if (analyticsStore.state.rollingEnabled) {
@@ -168,9 +175,12 @@ const TimeseriesPage: Component = () => {
         debugLog('fetchAndRender aborted (stale request)');
         return;
       }
-      console.error('Failed to fetch/render timeseries:', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('Failed to fetch/render timeseries:', msg);
+      setError(msg);
     } finally {
       setIsLoading(false);
+      setShowSkeleton(false);
       currentRequestController = null;
     }
   };
@@ -282,10 +292,11 @@ const TimeseriesPage: Component = () => {
   createEffect(() => {
     const viewport = chartStore.state.viewport;
     const metadata = datasetStore.state.metadata;
-    if (chartReady && metadata && viewport) {
+    if (chartReady && metadata && viewport && !fetchInProgress) {
       if (viewportDebounceTimer) clearTimeout(viewportDebounceTimer);
       viewportDebounceTimer = setTimeout(() => {
-        void fetchAndRender();
+        fetchInProgress = true;
+        fetchAndRender().finally(() => { fetchInProgress = false; });
       }, 150);
     }
   });
@@ -351,21 +362,52 @@ const TimeseriesPage: Component = () => {
   createEffect(() => {
     const cols = numericCols();
     const metadata = datasetStore.state.metadata;
-    if (cols.length > 0 && cols.length !== lastColCount && lastColCount > 0) {
+    // Use untrack to avoid reactive tracking of lastColCount
+    const prevColCount = untrack(() => lastColCount);
+    if (cols.length > 0 && cols.length !== prevColCount && prevColCount > 0) {
       uiStore.setSelectedColumns(cols);
       uiStore.setHiddenColumns([]);
     }
     if (cols.length > 0 && metadata?.timeRange) {
-      // Reset viewport when dataset changes
       const [t0, t1] = metadata.timeRange;
-      chartStore.setViewport({ xMin: t0, xMax: t1, yMin: 0, yMax: 1 });
-      chartStore.resetZoom();
+      const vp = chartStore.state.viewport;
+      // Only reset if not already at initial range
+      if (vp.xMin !== t0 || vp.xMax !== t1) {
+        chartStore.setViewport({ xMin: t0, xMax: t1, yMin: 0, yMax: 1 });
+        chartStore.resetZoom();
+      }
     }
     lastColCount = cols.length;
   });
 
   const hasData = createMemo(() => datasetStore.state.metadata !== null);
   const canShowChart = createMemo(() => hasData() && numericCols().length > 0);
+
+  // Compute the reason for empty state display
+  const emptyStateInfo = createMemo(() => {
+    const metadata = datasetStore.state.metadata;
+    const timeRange = metadata?.timeRange;
+    const vp = chartStore.state.viewport;
+    const selected = selectedColumns();
+
+    // Check various conditions to determine empty state reason
+    if (!metadata || numericCols().length === 0) {
+      return { reason: 'no-data' as const, title: 'No data loaded', message: 'Upload a dataset to visualize timeseries data.' };
+    }
+    if (selected.length === 0) {
+      return { reason: 'no-columns-selected' as const, title: 'Select one or more series', message: 'Click a column chip above to add it to the chart.' };
+    }
+    if (timeRange && (vp.xMin < timeRange[0] || vp.xMax > timeRange[1])) {
+      return { reason: 'range-outside-dataset' as const, title: 'Current range is outside this dataset', message: 'Reset to dataset range to recover visible data.' };
+    }
+    // Check if any filters would exclude all data
+    const filters = uiStore.state.filters;
+    const hasActiveFilters = Object.keys(filters).length > 0;
+    if (hasActiveFilters && !canShowChart()) {
+      return { reason: 'data-filtered-out' as const, title: 'No points match current filters', message: 'Try widening the time range or clearing filters.' };
+    }
+    return null;
+  });
 
   const handleExportPNG = () => {
     if (chartInstanceRef) {
@@ -393,8 +435,20 @@ const TimeseriesPage: Component = () => {
     }
   };
 
+  const handleExportHTML = () => {
+    if (chartInstanceRef) {
+      exportChartAsHTML(chartInstanceRef, 'edatime_chart.html');
+    }
+  };
+
   return (
     <div ref={pageRef} class={styles.page}>
+      <Show when={error()}>
+        <div class={styles.errorBanner} role="alert">
+          <span>{error()}</span>
+          <button onClick={() => setError(null)} aria-label="Dismiss error">×</button>
+        </div>
+      </Show>
       <div class={styles.toolbarSeries}>
         <div class={styles.toolbarGroup} role="group" aria-label="Series selection tools">
           <span class={styles.toolbarLabel}>X-axis</span>
@@ -412,6 +466,20 @@ const TimeseriesPage: Component = () => {
               </For>
               <option value="" disabled>Numeric columns</option>
             </Show>
+            <For each={numericCols()}>
+              {(col) => <option value={col}>{col}</option>}
+            </For>
+          </select>
+
+          <span class={styles.toolbarLabel}>Color by</span>
+          <select
+            id="color-by-select"
+            class={styles.xAxisSelect}
+            value={colorColumn() ?? ''}
+            onChange={(e) => setColorColumn(e.currentTarget.value || null)}
+            aria-label="Color by column"
+          >
+            <option value="">None</option>
             <For each={numericCols()}>
               {(col) => <option value={col}>{col}</option>}
             </For>
@@ -523,6 +591,7 @@ const TimeseriesPage: Component = () => {
             <div class={styles.dropdownMenu} role="menu">
               <button class={styles.dropdownItem} role="menuitem" onClick={() => { handleExportSVG(); setShowExportMore(false); }}>Export SVG</button>
               <button class={styles.dropdownItem} role="menuitem" onClick={() => { handleExportJSON(); setShowExportMore(false); }}>Export JSON</button>
+              <button class={styles.dropdownItem} role="menuitem" onClick={() => { handleExportHTML(); setShowExportMore(false); }}>Export HTML</button>
             </div>
           </Show>
         </div>
@@ -568,33 +637,67 @@ const TimeseriesPage: Component = () => {
           yAxisLabel={yAxisLabel()}
         />
 
-        <Show when={!canShowChart()}>
-          <div class={styles.emptyState} data-empty-reason="no-data">
-            <div class={styles.emptyIllustration} aria-hidden="true">
-              <svg viewBox="0 0 80 48" width="120" height="72" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="1" y="1" width="78" height="46" rx="8" opacity="0.12" />
-                <path d="M12 34 L26 22 L36 28 L50 16 L68 32" />
-                <circle cx="12" cy="34" r="2" fill="currentColor" />
-                <circle cx="26" cy="22" r="2" fill="currentColor" />
-                <circle cx="36" cy="28" r="2" fill="currentColor" />
-                <circle cx="50" cy="16" r="2" fill="currentColor" />
-                <circle cx="68" cy="32" r="2" fill="currentColor" />
-              </svg>
+        <Show when={emptyStateInfo()}>
+          {(info) => (
+            <div class={styles.emptyState} data-empty-reason={info().reason}>
+              <div class={styles.emptyIllustration} aria-hidden="true">
+                <svg viewBox="0 0 80 48" width="120" height="72" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="1" y="1" width="78" height="46" rx="8" opacity="0.12" />
+                  <path d="M12 34 L26 22 L36 28 L50 16 L68 32" />
+                  <circle cx="12" cy="34" r="2" fill="currentColor" />
+                  <circle cx="26" cy="22" r="2" fill="currentColor" />
+                  <circle cx="36" cy="28" r="2" fill="currentColor" />
+                  <circle cx="50" cy="16" r="2" fill="currentColor" />
+                  <circle cx="68" cy="32" r="2" fill="currentColor" />
+                </svg>
+              </div>
+              <strong class={styles.emptyTitle}>{info().title}</strong>
+              <span class={styles.emptyMessage}>{info().message}</span>
+              <div class={styles.emptyActions}>
+                <Show when={info().reason === 'no-data'}>
+                  <button class={styles.primaryBtn} id="timeseries-empty-upload-btn" type="button" aria-label="Open upload page" onClick={() => navigate('/upload')}>
+                    Upload data
+                  </button>
+                </Show>
+                <Show when={info().reason === 'range-outside-dataset'}>
+                  <button class={styles.primaryBtn} id="timeseries-empty-reset-btn" type="button" aria-label="Reset to dataset range" onClick={() => { chartStore.resetZoom(); void fetchAndRender(); }}>
+                    Reset to dataset range
+                  </button>
+                </Show>
+                <Show when={info().reason === 'no-columns-selected'}>
+                  <button class={styles.primaryBtn} id="timeseries-empty-select-btn" type="button" aria-label="Select all columns" onClick={() => { uiStore.setSelectedColumns(numericCols()); }}>
+                    Select all columns
+                  </button>
+                </Show>
+                <Show when={info().reason === 'data-filtered-out'}>
+                  <button class={styles.primaryBtn} id="timeseries-empty-clear-filters-btn" type="button" aria-label="Clear all filters" onClick={() => { for (const col of Object.keys(uiStore.state.filters)) { uiStore.removeFilter(col); } void fetchAndRender(); }}>
+                    Clear filters
+                  </button>
+                </Show>
+              </div>
             </div>
-            <strong class={styles.emptyTitle}>No data loaded</strong>
-            <span class={styles.emptyMessage}>Upload a dataset to visualize timeseries data.</span>
-            <div class={styles.emptyActions}>
-              <button class={styles.primaryBtn} id="timeseries-empty-upload-btn" type="button" aria-label="Open upload page" onClick={() => navigate('/upload')}>
-                Upload data
-              </button>
-            </div>
-          </div>
+          )}
         </Show>
 
         <Show when={isLoading()}>
           <div class={styles.loadingOverlay} role="status" aria-live="polite" aria-label="Chart loading indicator">
             <div class={styles.loadingSpinner} />
             <span class={styles.loadingLabel}>Loading data…</span>
+          </div>
+        </Show>
+
+        <Show when={showSkeleton() && !isLoading()}>
+          <div class={styles.skeletonOverlay} aria-hidden="true">
+            <div class={styles.skeletonChartArea}></div>
+            <div class={styles.skeletonAxisLine} style="top: 50%; width: 80%;"></div>
+            <div class={styles.skeletonAxisLine} style="top: 30%; width: 60%;"></div>
+            <div class={styles.skeletonAxisLine} style="top: 70%; width: 70%;"></div>
+          </div>
+        </Show>
+
+        <Show when={isDownsampled()}>
+          <div class={styles.downsampledBadge} title="Data was downsampled for faster rendering">
+            Downsampled
           </div>
         </Show>
 

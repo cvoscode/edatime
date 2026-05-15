@@ -1,5 +1,9 @@
 import { createStore } from 'solid-js/store';
 import type { DatasetMetadata, ColumnProfile, DataObject, FilteredDataObject } from '../types';
+import { clearCache as clearDataFetchCache } from '../services/dataFetch';
+
+// Module-level revision tracker
+let _currentRevision: number | null = null;
 
 interface DatasetState {
   metadata: DatasetMetadata | null;
@@ -12,6 +16,7 @@ interface DatasetState {
   filteredData: FilteredDataObject | null;
   isLoading: boolean;
   error: string | null;
+  revision: number | null;
 }
 
 const [datasetState, setDatasetState] = createStore<DatasetState>({
@@ -24,14 +29,22 @@ const [datasetState, setDatasetState] = createStore<DatasetState>({
   data: null,
   filteredData: null,
   isLoading: false,
-  error: null
+  error: null,
+  revision: null
 });
 
 export const datasetStore = {
   get state() { return datasetState; },
 
   setMetadata(metadata: DatasetMetadata) {
+    // Check if revision changed - invalidate cache if so
+    const newRevision = metadata.revision ?? null;
+    if (_currentRevision !== null && newRevision !== null && newRevision !== _currentRevision) {
+      clearDataFetchCache();
+    }
+    _currentRevision = newRevision;
     setDatasetState('metadata', metadata);
+    setDatasetState('revision', newRevision);
     if (metadata.timestampColumn && !datasetState.xAxisColumn) {
       setDatasetState('xAxisColumn', metadata.timestampColumn);
     }
@@ -85,7 +98,9 @@ export const datasetStore = {
       data: null,
       filteredData: null,
       isLoading: false,
-      error: null
+      error: null,
+      revision: null
     });
+    _currentRevision = null;
   }
 };

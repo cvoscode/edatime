@@ -142,16 +142,6 @@ const HomePage: Component = () => {
           <p class={styles.cardDesc}>Frequency-domain analysis with magnitude or power spectral density. Log scale, multi-trace overlay, zoom, and PNG/SVG/CSV export.</p>
         </A>
 
-        <A href="/spectrogram" class={styles.card} data-home-nav="spectrogram">
-          <div class={styles.cardIcon}>
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="1" y="2" width="2" height="12" rx="0.3" /><rect x="4" y="4" width="2" height="8" rx="0.3" /><rect x="7" y="1" width="2" height="14" rx="0.3" /><rect x="10" y="5" width="2" height="6" rx="0.3" /><rect x="13" y="3" width="2" height="10" rx="0.3" />
-            </svg>
-          </div>
-          <h3 class={styles.cardTitle}>Spectrogram <kbd>⌥8</kbd></h3>
-          <p class={styles.cardDesc}>Time-frequency heatmap using short-time FFT. Adjustable window size, log scale, zoom, and PNG export.</p>
-        </A>
-
         <A href="/causal" class={styles.card} data-home-nav="causal">
           <div class={styles.cardIcon}>
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">

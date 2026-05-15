@@ -46,6 +46,7 @@ const ScatterPage: Component = () => {
   });
 
   const colorCol = createMemo(() => scatterStore.state.config.colorCol || '');
+  const sizeCol = createMemo(() => scatterStore.state.config.sizeCol || '');
 
   const correlationForY = createMemo(() => {
     const y = yCol();
@@ -70,6 +71,11 @@ const ScatterPage: Component = () => {
 
   const handleColorChange = async (val: string) => {
     scatterStore.setConfig({ colorCol: val });
+    await fetchPoints();
+  };
+
+  const handleSizeChange = async (val: string) => {
+    scatterStore.setConfig({ sizeCol: val });
     await fetchPoints();
   };
 
@@ -108,10 +114,12 @@ const ScatterPage: Component = () => {
     setIsLoading(true);
     try {
       const color = colorCol() || null;
-      const resp = await fetchScatterPoints(x, y, 500000, color);
+      const size = sizeCol() || null;
+      const resp = await fetchScatterPoints(x, y, 500000, color, size);
       scatterStore.setScatterPoints(resp.points, resp.total_points);
       scatterStore.setColorValues(resp.color_values, resp.color_min, resp.color_max);
       scatterStore.setColorLabels(resp.color_labels);
+      scatterStore.setSizeValues(resp.size_values, resp.size_min, resp.size_max);
       updateChart();
     } catch (e) {
       console.error('Failed to fetch scatter points:', e);
@@ -136,17 +144,32 @@ const ScatterPage: Component = () => {
     const colorVals = scatterStore.state.colorValues;
     const colorLabels = scatterStore.state.colorLabels;
     const colorColName = colorCol();
+    const sizeColName = sizeCol();
+    const sizeVals = scatterStore.state.sizeValues;
+    const sizeMin = scatterStore.state.sizeMin;
+    const sizeMax = scatterStore.state.sizeMax;
     const mode = renderMode();
     const isDensity = mode === 'density';
     const n = points.length;
 
-    if (isDensity || !colorColName || (!colorVals && !colorLabels)) {
+    const symbolSize = sizeColName && sizeVals && sizeMin !== null && sizeMax !== null
+      ? (pt: number[]) => {
+          const sizeIdx = colorVals && colorVals.length > 0 ? 3 : 2;
+          const sv = pt[sizeIdx];
+          if (typeof sv !== 'number' || !Number.isFinite(sv)) return 4;
+          const span = (sizeMax - sizeMin) || 1;
+          const t = Math.max(0, Math.min(1, (sv - sizeMin) / span));
+          return 2 + t * 18; // scale 2–20px
+        }
+      : 4;
+
+    if (isDensity || (!colorColName && !sizeColName) || (!colorVals && !colorLabels && !sizeVals)) {
       const series: any[] = [
         {
           type: 'scatter',
           name: `${xCol()} vs ${yCol()}`,
           data: points,
-          symbolSize: 4,
+          symbolSize,
         }
       ];
       updateChartFn({ series });
@@ -162,13 +185,13 @@ const ScatterPage: Component = () => {
             const lbl = colorLabels[i];
             const normalized = lbl == null ? 'Missing' : String(lbl).trim() || 'Missing';
             if (normalized !== label) continue;
-            data.push([points[i][0], points[i][1]]);
+            data.push(sizeVals ? [points[i][0], points[i][1], sizeVals[i]] : [points[i][0], points[i][1]]);
           }
           return {
             type: 'scatter',
             name: label,
             data,
-            symbolSize: 4,
+            symbolSize,
             color: catGroups.colorByLabel.get(label) || '#4a9eff',
           };
         }).filter((s: any) => s.data.length > 0);
@@ -178,17 +201,21 @@ const ScatterPage: Component = () => {
       }
     }
 
-    if (colorVals) {
+    if (colorVals && colorVals.length > 0) {
       const seriesData: any[] = [];
       for (let i = 0; i < n; i++) {
-        seriesData.push([points[i][0], points[i][1], colorVals[i]]);
+        if (sizeVals) {
+          seriesData.push([points[i][0], points[i][1], colorVals[i], sizeVals[i]]);
+        } else {
+          seriesData.push([points[i][0], points[i][1], colorVals[i]]);
+        }
       }
       const series: any[] = [
         {
           type: 'scatter',
           name: `${xCol()} vs ${yCol()}`,
           data: seriesData,
-          symbolSize: 4,
+          symbolSize,
           visualMap: {
             show: true,
             min: scatterStore.state.colorMin ?? 0,
@@ -214,6 +241,7 @@ const ScatterPage: Component = () => {
     void xCol();
     void yCol();
     void colorCol();
+    void sizeCol();
     void renderMode();
     if (updateChartFn) {
       void fetchPoints();
@@ -257,6 +285,19 @@ const ScatterPage: Component = () => {
               class={styles.select}
               value={colorCol()}
               onChange={(e) => handleColorChange(e.currentTarget.value)}
+            >
+              <option value="">None</option>
+              <For each={numericCols()}>
+                {(col) => <option value={col}>{col}</option>}
+              </For>
+            </select>
+          </div>
+          <div class={styles.controlGroup}>
+            <label class={styles.label}>Size</label>
+            <select
+              class={styles.select}
+              value={sizeCol()}
+              onChange={(e) => handleSizeChange(e.currentTarget.value)}
             >
               <option value="">None</option>
               <For each={numericCols()}>

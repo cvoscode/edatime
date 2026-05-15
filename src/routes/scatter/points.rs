@@ -38,6 +38,7 @@ struct SampledScatterRow {
     y: f64,
     color_value: Option<f64>,
     color_label: Option<String>,
+    size_value: Option<f64>,
 }
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -68,6 +69,7 @@ pub async fn post_scatter_export_parquet(
     let x = params.x.clone();
     let y = params.y.clone();
     let color = params.color.clone().filter(|s| !s.trim().is_empty());
+    let size = params.size.clone().filter(|s| !s.trim().is_empty());
     let filters = parse_scatter_filters(params.filters.as_deref())?;
     let line_filters = parse_scatter_line_filters(params.line_filters.as_deref())?;
 
@@ -77,6 +79,7 @@ pub async fn post_scatter_export_parquet(
             &x,
             &y,
             color.as_deref(),
+            size.as_deref(),
             params.start,
             params.end,
             &filters,
@@ -119,10 +122,12 @@ async fn scatter_points_response(
     let x_col = params.x.clone();
     let y_col = params.y.clone();
     let color_col = params.color.clone().filter(|s| !s.trim().is_empty());
+    let size_col = params.size.clone().filter(|s| !s.trim().is_empty());
 
     let x_col_for_headers = x_col.clone();
     let y_col_for_headers = y_col.clone();
     let color_col_for_headers = color_col.clone();
+    let size_col_for_headers = size_col.clone();
     let start = params.start;
     let end = params.end;
     let filters = parse_scatter_filters(params.filters.as_deref())?;
@@ -142,13 +147,20 @@ async fn scatter_points_response(
     }
     let metrics = Arc::clone(&state.metrics);
 
-    let (total_points, returned_points, color_min, color_max, arrow_bytes) =
+    let color_col_name = color_col_for_headers.clone().unwrap_or_else(|| "color_value".to_string());
+    let x_col_name = x_col_for_headers.clone();
+    let y_col_name = y_col_for_headers.clone();
+
+    let (total_points, returned_points, color_min, color_max, size_min, size_max, arrow_bytes) =
         tokio::task::spawn_blocking(move || {
+            let x_col_str: &str = &x_col_name;
+            let y_col_str: &str = &y_col_name;
             let filtered_df = collect_filtered_scatter_frame(
                 lf,
                 &x_col,
                 &y_col,
                 color_col.as_deref(),
+                size_col.as_deref(),
                 start,
                 end,
                 &filters,
@@ -159,6 +171,7 @@ async fn scatter_points_response(
                 &x_col,
                 &y_col,
                 color_col.as_deref(),
+                size_col.as_deref(),
                 limit,
             )?;
 
@@ -167,9 +180,12 @@ async fn scatter_points_response(
             let mut y_buf = Vec::with_capacity(n);
             let mut cv_buf: Vec<f64> = Vec::with_capacity(n);
             let mut color_strings: Vec<String> = Vec::with_capacity(n);
+            let mut sv_buf: Vec<f64> = Vec::with_capacity(n);
 
             let mut cmin = f64::INFINITY;
             let mut cmax = f64::NEG_INFINITY;
+            let mut smin = f64::INFINITY;
+            let mut smax = f64::NEG_INFINITY;
 
             for row in sampled_rows {
                 x_buf.push(row.x);
@@ -178,34 +194,35 @@ async fn scatter_points_response(
                     Some(v) if v.is_finite() => {
                         cv_buf.push(v);
                         color_strings.push(String::new());
-                        if v < cmin {
-                            cmin = v;
-                        }
-                        if v > cmax {
-                            cmax = v;
-                        }
+                        if v < cmin { cmin = v; }
+                        if v > cmax { cmax = v; }
                     }
                     _ => {
                         cv_buf.push(0.0);
                         color_strings.push(row.color_label.unwrap_or_default());
                     }
                 }
+                if let Some(sv) = row.size_value {
+                    sv_buf.push(sv);
+                    if sv < smin { smin = sv; }
+                    if sv > smax { smax = sv; }
+                }
             }
 
             let color_min = if cmin.is_finite() { Some(cmin) } else { None };
             let color_max = if cmax.is_finite() { Some(cmax) } else { None };
+            let size_min = if smin.is_finite() { Some(smin) } else { None };
+            let size_max = if smax.is_finite() { Some(smax) } else { None };
 
-            // Build Arrow IPC: put x, y, color into a DataFrame then serialize.
-            // For continuous color the 3rd col is f64; for categorical it's &str.
-            let x_s = Series::new(PlSmallStr::from("x"), x_buf.as_slice());
-            let y_s = Series::new(PlSmallStr::from("y"), y_buf.as_slice());
+            let x_s = Series::new(PlSmallStr::from(x_col_str), x_buf.as_slice());
+            let y_s = Series::new(PlSmallStr::from(y_col_str), y_buf.as_slice());
 
             let columns: Vec<Series> = if matches!(color_kind, Some(ScatterColorKind::Categorical))
             {
                 let cs = Series::new(PlSmallStr::from("color_label"), color_strings.as_slice());
                 vec![x_s, y_s, cs]
             } else {
-                let cv_s = Series::new(PlSmallStr::from("color_value"), cv_buf.as_slice());
+                let cv_s = Series::new(PlSmallStr::from(&color_col_name), cv_buf.as_slice());
                 vec![x_s, y_s, cv_s]
             };
 
@@ -216,7 +233,7 @@ async fn scatter_points_response(
             let arrow_bytes = dataframe_to_arrow_ipc(scatter_df)
                 .map_err(|e| AppError::internal(format!("Arrow serialization: {}", e)))?;
 
-            Ok::<_, AppError>((total, n, color_min, color_max, arrow_bytes))
+            Ok::<_, AppError>((total, n, color_min, color_max, size_min, size_max, arrow_bytes))
         })
         .await
         .map_err(|e| {
@@ -248,6 +265,14 @@ async fn scatter_points_response(
         response.headers_mut().insert("x-edatime-color-min", cmv);
         response.headers_mut().insert("x-edatime-color-max", cxv);
     }
+    if let (Some(sm), Some(sx)) = (size_min, size_max)
+        && let (Ok(smv), Ok(sxv)) = (
+            HeaderValue::from_str(&sm.to_string()),
+            HeaderValue::from_str(&sx.to_string()),
+        ) {
+        response.headers_mut().insert("x-edatime-size-min", smv);
+        response.headers_mut().insert("x-edatime-size-max", sxv);
+    }
     response.headers_mut().insert(
         "x-edatime-scatter-x",
         HeaderValue::from_str(&x_col_for_headers).unwrap_or_else(|_| HeaderValue::from_static("")),
@@ -260,6 +285,10 @@ async fn scatter_points_response(
         && let Ok(cv) = HeaderValue::from_str(cc) {
         response.headers_mut().insert("x-edatime-scatter-color", cv);
     }
+    if let Some(ref sc) = size_col_for_headers
+        && let Ok(sv) = HeaderValue::from_str(sc) {
+        response.headers_mut().insert("x-edatime-scatter-size", sv);
+    }
     Ok(response)
 }
 
@@ -270,6 +299,7 @@ fn collect_sampled_xyc_rows(
     x: &str,
     y: &str,
     color: Option<&str>,
+    size: Option<&str>,
     limit: usize,
 ) -> Result<(usize, Vec<SampledScatterRow>, Option<ScatterColorKind>), AppError> {
     let x_vals = series_to_scatter_values(df, x)?;
@@ -297,10 +327,20 @@ fn collect_sampled_xyc_rows(
         ScatterColorColumn::Categorical(_) => ScatterColorKind::Categorical,
     });
 
+    let s_vals = if let Some(s) = size {
+        let _ = df
+            .column(s)
+            .map_err(|e| AppError::bad_request(format!("Missing column '{}': {}", s, e)))?;
+        Some(series_to_scatter_values(df, s)?)
+    } else {
+        None
+    };
+
     let mut all_x: Vec<f64> = Vec::new();
     let mut all_y: Vec<f64> = Vec::new();
     let mut all_color_value: Vec<Option<f64>> = Vec::new();
     let mut all_color_label: Vec<Option<String>> = Vec::new();
+    let mut all_size_value: Vec<Option<f64>> = Vec::new();
     let mut total_points = 0usize;
 
     for idx in 0..df.height() {
@@ -328,11 +368,16 @@ fn collect_sampled_xyc_rows(
             None => (None, None),
         };
 
+        let size_value = s_vals.as_ref().and_then(|vals| {
+            vals.get(idx).copied().flatten().filter(|v| v.is_finite())
+        });
+
         total_points += 1;
         all_x.push(xv);
         all_y.push(yv);
         all_color_value.push(color_value);
         all_color_label.push(color_label);
+        all_size_value.push(size_value);
     }
 
     let effective_limit = if limit > MAX_EFFECTIVE_POINTS { MAX_EFFECTIVE_POINTS } else { limit };
@@ -346,7 +391,13 @@ fn collect_sampled_xyc_rows(
         (sx, sy, sc)
     };
 
+    // Downsample size values in sync with xy pairs
     let sampled_len = sampled_x.len();
+    let mut sampled_size_value: Vec<Option<f64>> = Vec::with_capacity(sampled_len);
+    for i in 0..sampled_len {
+        sampled_size_value.push(all_size_value.get(i).copied().flatten());
+    }
+
     let mut sampled = Vec::with_capacity(sampled_len);
 
     if let Some(cv) = sampled_color {
@@ -356,6 +407,7 @@ fn collect_sampled_xyc_rows(
                 y: sampled_y[i],
                 color_value: Some(cv[i]),
                 color_label: None,
+                size_value: sampled_size_value[i],
             });
         }
     } else {
@@ -365,6 +417,7 @@ fn collect_sampled_xyc_rows(
                 y: sampled_y[i],
                 color_value: None,
                 color_label: all_color_label.get(i).cloned().flatten(),
+                size_value: sampled_size_value[i],
             });
         }
     }
