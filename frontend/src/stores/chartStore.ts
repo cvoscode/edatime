@@ -67,7 +67,7 @@ export const chartStore = {
     // Push current view to history stack (limit to 10 entries)
     const newStack = chartState.zoomHistory.zoomStack.slice(0, chartState.zoomHistory.currentIndex + 1);
     newStack.push(currentView);
-    if (newStack.length > 10) newStack.shift();
+    if (newStack.length > 5) newStack.shift();
     setChartState('zoomHistory', {
       zoomStack: newStack,
       currentIndex: newStack.length - 1
@@ -126,7 +126,24 @@ export const chartStore = {
 
   resetZoom() {
     if (chartState.initialView) {
-      // Clear history and reset to initial
+      setChartState('viewport', { ...chartState.initialView });
+    }
+  },
+
+  stepBackZoom() {
+    const history = chartState.zoomHistory;
+    if (history.currentIndex > 0) {
+      const newIndex = history.currentIndex - 1;
+      const prevView = history.zoomStack[newIndex];
+      setChartState('viewport', { ...prevView });
+      setChartState('zoomHistory', 'currentIndex', newIndex);
+    } else if (chartState.initialView) {
+      setChartState('viewport', { ...chartState.initialView });
+    }
+  },
+
+  forceResetZoom() {
+    if (chartState.initialView) {
       setChartState('zoomHistory', {
         zoomStack: [{ ...chartState.initialView }],
         currentIndex: 0

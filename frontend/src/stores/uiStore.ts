@@ -1,5 +1,5 @@
 import { createStore } from 'solid-js/store';
-import type { RollingBandConfig, AnomalyConfig, SpectralConfig, ToastMessage } from '../types';
+import type { ToastMessage, AdaptiveLineFilter, PendingAdaptivePoint } from '../types';
 import type { ColorScaleName } from '../utils/colorScale';
 import type { PlotThemeMode } from '../utils/plotTemplate';
 
@@ -14,6 +14,8 @@ interface UiState {
   sidebarOpen: boolean;
   toasts: ToastMessage[];
   isUploadPanelOpen: boolean;
+  adaptiveLineFilters: AdaptiveLineFilter[];
+  pendingAdaptivePoint: PendingAdaptivePoint | null;
 }
 
 const defaultColors: Record<string, string> = {
@@ -91,7 +93,9 @@ const [uiState, setUiState] = createStore<UiState>({
   plotTheme: getSavedPlotTheme(),
   sidebarOpen: true,
   toasts: [],
-  isUploadPanelOpen: false
+  isUploadPanelOpen: false,
+  adaptiveLineFilters: [],
+  pendingAdaptivePoint: null
 });
 
 export const uiStore = {
@@ -180,5 +184,21 @@ export const uiStore = {
 
   setUploadPanelOpen(open: boolean) {
     setUiState('isUploadPanelOpen', open);
+  },
+
+  appendAdaptiveLineFilter(filter: AdaptiveLineFilter) {
+    setUiState('adaptiveLineFilters', [...uiState.adaptiveLineFilters, filter]);
+  },
+
+  removeAdaptiveLineFilter(id: string) {
+    setUiState('adaptiveLineFilters', uiState.adaptiveLineFilters.filter(f => f.id !== id));
+  },
+
+  clearAdaptiveLineFilters() {
+    setUiState('adaptiveLineFilters', []);
+  },
+
+  setPendingAdaptivePoint(p: PendingAdaptivePoint | null) {
+    setUiState('pendingAdaptivePoint', p);
   }
 };

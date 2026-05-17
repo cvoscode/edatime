@@ -6,6 +6,7 @@ import ColumnChips from '../components/chart/ColumnChips';
 import ColumnFilterModal from '../components/chart/ColumnFilterModal';
 import AnalyticsDrawer from '../components/chart/AnalyticsDrawer';
 import LabelsDrawer from '../components/chart/LabelsDrawer';
+import AdaptiveFilterPopup from '../components/chart/AdaptiveFilterPopup';
 import { fetchTimeseriesData, buildSeriesConfig, updateCachedColors, getCachedData } from '../services/dataFetch';
 import { fetchRollingBands, fetchAnomalies } from '../services/api';
 import { exportChartAsPNG, exportChartAsCSV, exportChartAsSVG, exportChartAsJSON, exportChartAsHTML } from '../utils/exportUtils';
@@ -35,6 +36,10 @@ const TimeseriesPage: Component = () => {
   const [showSkeleton, setShowSkeleton] = createSignal(false);
   const [colorColumn, setColorColumn] = createSignal<string | null>(null);
   const [error, setError] = createSignal<string | null>(null);
+  const [showAdaptivePopup, setShowAdaptivePopup] = createSignal(false);
+  const [adaptiveFilterPoints, setAdaptiveFilterPoints] = createSignal<{
+    x1: number; y1: number; x2: number; y2: number;
+  } | null>(null);
 
   let updateChartFn: ((series: any[], xMin?: number, xMax?: number, yMin?: number, yMax?: number) => void) | null = null;
   let chartReady = false;
@@ -161,8 +166,8 @@ const TimeseriesPage: Component = () => {
       setIsDownsampled(result.downsampled);
       setError(null);
 
-      const seriesConfig = buildSeriesConfig(result.xValues, result.series, mergedColors(), uiStore.state.filters, result.colorByColumn, colorColumn(), !result.downsampled, uiStore.state.colorScale);
-      updateChartFn(seriesConfig, viewport.xMin || timeRange[0], viewport.xMax || timeRange[1]);
+      const seriesConfig = buildSeriesConfig(result.xValues, result.series, mergedColors(), uiStore.state.filters, result.colorByColumn, colorColumn(), !result.downsampled, uiStore.state.colorScale, uiStore.state.adaptiveLineFilters);
+      updateChartFn(seriesConfig, viewport.xMin || timeRange[0], viewport.xMax || timeRange[1], viewport.yMin, viewport.yMax);
 
       if (analyticsStore.state.rollingEnabled) {
         void fetchAndCacheRollingBands(start, end, traces.join(','));
@@ -186,11 +191,14 @@ const TimeseriesPage: Component = () => {
   };
 
   const fetchAndCacheRollingBands = async (start: string, end: string, columns: string) => {
+    analyticsStore.setRollingLoading(true);
     try {
       const response = await fetchRollingBands(start, end, columns, analyticsStore.state.rollingWindow);
       analyticsStore.setRollingBands(response.bands);
     } catch (e) {
       console.warn('Failed to fetch rolling bands:', e);
+    } finally {
+      analyticsStore.setRollingLoading(false);
     }
   };
 
@@ -215,6 +223,8 @@ const TimeseriesPage: Component = () => {
         const end = new Date(vp.xMax || timeRange[1]).toISOString();
         void fetchAndCacheRollingBands(start, end, traceColumns().join(','));
       }
+    } else {
+      analyticsStore.setRollingBands([]);
     }
   };
 
@@ -234,12 +244,18 @@ const TimeseriesPage: Component = () => {
     }
   };
 
-  const handleZoom = (start: number, end: number) => {
-    chartStore.setViewport({ xMin: start, xMax: end, yMin: chartStore.state.viewport.yMin, yMax: chartStore.state.viewport.yMax });
+  const handleZoom = (start: number, end: number, yMin?: number, yMax?: number) => {
+    console.debug('[TimeseriesPage] handleZoom', { start, end, yMin, yMax });
+    chartStore.setYAuto(false);
+    chartStore.setViewport({
+      xMin: start, xMax: end,
+      yMin: yMin ?? chartStore.state.viewport.yMin,
+      yMax: yMax ?? chartStore.state.viewport.yMax
+    });
   };
 
   const handleZoomOut = () => {
-    chartStore.resetZoom();
+    chartStore.stepBackZoom();
   };
 
   const openFilterModal = (col: string | null) => {
@@ -283,7 +299,7 @@ const TimeseriesPage: Component = () => {
           const metadata = datasetStore.state.metadata;
           const timeRange = metadata?.timeRange;
           const viewport = chartStore.state.viewport;
-          updateChartFn(seriesConfig, viewport.xMin || timeRange?.[0], viewport.xMax || timeRange?.[1]);
+          updateChartFn(seriesConfig, viewport.xMin || timeRange?.[0], viewport.xMax || timeRange?.[1], viewport.yMin, viewport.yMax);
         }
       }, 50);
     }
@@ -317,7 +333,7 @@ const TimeseriesPage: Component = () => {
     const handleShortcut = (e: Event) => {
       const key = (e as CustomEvent).detail.key as string;
       if (key === 'r') {
-        chartStore.resetZoom();
+        chartStore.forceResetZoom();
         void fetchAndRender();
       } else if (key === 'z') {
         chartStore.zoomOut();
@@ -355,7 +371,66 @@ const TimeseriesPage: Component = () => {
       }
     });
     onCleanup(() => window.removeEventListener('edatime:shortcut', handleShortcut));
+
+    // Ctrl+Click key tracking for adaptive line filters
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Control') {
+        uiStore.setPendingAdaptivePoint(null); // clear on new Ctrl press
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Control') {
+        const pending = uiStore.state.pendingAdaptivePoint;
+        if (pending?.x2 !== null && pending?.x2 !== undefined) {
+          setAdaptiveFilterPoints({
+            x1: pending.x1, y1: pending.y1,
+            x2: pending.x2!, y2: pending.y2!
+          });
+          setShowAdaptivePopup(true);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    onCleanup(() => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    });
   });
+
+  // handleCtrlClick - called by ChartView when Ctrl+Click on chart
+  const handleCtrlClick = (dataX: number, dataY: number, _clientX: number, _clientY: number) => {
+    const pending = uiStore.state.pendingAdaptivePoint;
+    if (!pending) {
+      uiStore.setPendingAdaptivePoint({ x1: dataX, y1: dataY, x2: null, y2: null });
+    } else if (pending.x2 === null) {
+      uiStore.setPendingAdaptivePoint({ ...pending, x2: dataX, y2: dataY });
+    }
+  };
+
+  // handleAdaptiveSelect - called when user selects a column in the popup
+  const handleAdaptiveSelect = (column: string, keepAbove: boolean) => {
+    const pts = adaptiveFilterPoints();
+    if (!pts) return;
+
+    uiStore.appendAdaptiveLineFilter({
+      id: `f_${Date.now()}`,
+      column,
+      x1: pts.x1,
+      y1: pts.y1,
+      x2: pts.x2,
+      y2: pts.y2,
+      keepAbove
+    });
+
+    uiStore.setPendingAdaptivePoint(null);
+    setShowAdaptivePopup(false);
+    setAdaptiveFilterPoints(null);
+    void fetchAndRender();
+  };
 
   // Reset selection when dataset changes (new columns detected)
   let lastColCount = 0;
@@ -374,7 +449,7 @@ const TimeseriesPage: Component = () => {
       // Only reset if not already at initial range
       if (vp.xMin !== t0 || vp.xMax !== t1) {
         chartStore.setViewport({ xMin: t0, xMax: t1, yMin: 0, yMax: 1 });
-        chartStore.resetZoom();
+        chartStore.forceResetZoom();
       }
     }
     lastColCount = cols.length;
@@ -612,10 +687,9 @@ const TimeseriesPage: Component = () => {
           <button class={styles.ghostBtn} id="zoom-back-btn" type="button" title="Zoom back" onClick={() => chartStore.zoomOut()} disabled={!chartStore.canZoomOut()}>←</button>
           <button class={styles.ghostBtn} id="zoom-out-btn" type="button" title="Zoom out (restore previous)" onClick={() => chartStore.zoomOut()}>−</button>
           <span class={styles.zoomRangeBadge} id="zoom-range-badge" title="Current time range">{zoomBadgeText()}</span>
-          <button class={styles.ghostBtn} id="zoom-reset-btn" type="button" title="Reset to initial view" onClick={() => chartStore.resetZoom()}>↺</button>
+          <button class={styles.ghostBtn} id="zoom-reset-btn" type="button" title="Reset to initial view" onClick={() => chartStore.forceResetZoom()}>↺</button>
           <button class={styles.ghostBtn} id="zoom-redo-btn" type="button" title="Redo (go forward in zoom history)" onClick={() => chartStore.zoomForward()} disabled={!chartStore.canZoomForward()}>→</button>
           <span class={styles.zoomHistoryBadge} title="Zoom history depth">{chartStore.state.zoomHistory.currentIndex + 1}/{chartStore.state.zoomHistory.zoomStack.length}</span>
-          <button class={styles.ghostBtn} id="fit-y-btn" type="button" title="Fit Y-axis to data range" onClick={() => { chartStore.fitYToData(); void fetchAndRender(); }}>Fit Y</button>
         </div>
       </div>
 
@@ -627,6 +701,7 @@ const TimeseriesPage: Component = () => {
           onEngineReady={handleEngineReady}
           onZoom={handleZoom}
           onZoomOut={handleZoomOut}
+          onCtrlClick={handleCtrlClick}
           rollingBands={analyticsStore.state.rollingBands}
           anomalyRegions={analyticsStore.state.anomalyRegions}
           drawMode={drawTool() === 'zoom' ? 'zoom' : drawTool() === 'none' ? 'pan' : drawTool() as any}
@@ -635,6 +710,8 @@ const TimeseriesPage: Component = () => {
           chartTitle={chartTitle()}
           xAxisLabel={xAxisLabel()}
           yAxisLabel={yAxisLabel()}
+          pendingAdaptivePoint={uiStore.state.pendingAdaptivePoint}
+          adaptiveLineFilters={uiStore.state.adaptiveLineFilters}
         />
 
         <Show when={emptyStateInfo()}>
@@ -660,7 +737,7 @@ const TimeseriesPage: Component = () => {
                   </button>
                 </Show>
                 <Show when={info().reason === 'range-outside-dataset'}>
-                  <button class={styles.primaryBtn} id="timeseries-empty-reset-btn" type="button" aria-label="Reset to dataset range" onClick={() => { chartStore.resetZoom(); void fetchAndRender(); }}>
+                  <button class={styles.primaryBtn} id="timeseries-empty-reset-btn" type="button" aria-label="Reset to dataset range" onClick={() => { chartStore.forceResetZoom(); void fetchAndRender(); }}>
                     Reset to dataset range
                   </button>
                 </Show>
@@ -699,6 +776,25 @@ const TimeseriesPage: Component = () => {
           <div class={styles.downsampledBadge} title="Data was downsampled for faster rendering">
             Downsampled
           </div>
+        </Show>
+
+        <Show when={showAdaptivePopup() && adaptiveFilterPoints()}>
+          {(_) => {
+            const pts = adaptiveFilterPoints()!;
+            return (
+              <AdaptiveFilterPopup
+                x1={pts.x1} y1={pts.y1} x2={pts.x2} y2={pts.y2}
+                columns={traceColumns()}
+                seriesData={getCachedData()}
+                onSelect={handleAdaptiveSelect}
+                onCancel={() => {
+                  uiStore.setPendingAdaptivePoint(null);
+                  setShowAdaptivePopup(false);
+                  setAdaptiveFilterPoints(null);
+                }}
+              />
+            );
+          }}
         </Show>
 
         <div class={styles.overlayStack} id="timeseries-overlays">

@@ -13,9 +13,10 @@ interface ChartViewProps {
   onChartReady?: (chartInstance: any) => void;
   onEngineReady?: (engineName: string) => void;
   onEngineChanged?: (engineName: string) => void;
-  onZoom?: (start: number, end: number) => void;
+  onZoom?: (start: number, end: number, yMin?: number, yMax?: number) => void;
   onZoomOut?: () => void;
   onChartClick?: (x: number, y: number) => void;
+  onCtrlClick?: (dataX: number, dataY: number, clientX: number, clientY: number) => void;
   rollingBands?: RollingBandData[];
   anomalyRegions?: AnomalyRegionData[];
   drawMode?: 'pan' | 'zoom' | 'arrow' | 'box';
@@ -24,6 +25,8 @@ interface ChartViewProps {
   chartTitle?: string;
   xAxisLabel?: string;
   yAxisLabel?: string;
+  pendingAdaptivePoint?: { x1: number; y1: number; x2: number | null; y2: number | null } | null;
+  adaptiveLineFilters?: import('../../types').AdaptiveLineFilter[];
 }
 
 const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
@@ -245,7 +248,10 @@ const ChartView: Component<ChartViewProps> = (props) => {
       setViewportBounds({ xMin, xMax, yMin: yMinVal, yMax: yMaxVal });
     }
     if (yMin !== undefined && yMax !== undefined && !chartStore.state.yAuto) {
+      console.debug('[ChartView] setting yAxis bounds:', { yMin, yMax });
       opts.yAxis = { type: 'value' as const, min: yMin, max: yMax, name: axisLabelY };
+    } else {
+      console.debug('[ChartView] NOT setting yAxis bounds', { yMin, yMax, yAuto: chartStore.state.yAuto });
     }
 
     const tooltipFormatter = (params: unknown): string => {
@@ -273,7 +279,7 @@ const ChartView: Component<ChartViewProps> = (props) => {
     };
     opts.tooltip = { show: true, trigger: 'axis', formatter: tooltipFormatter };
 
-    console.debug('[ChartView] updateChart called', { engine: engineName(), seriesLen: seriesWithVisibility.length, firstSeriesPoints: seriesWithVisibility[0]?.data?.length, yAuto: chartStore.state.yAuto });
+    console.debug('[ChartView] updateChart called', { engine: engineName(), seriesLen: seriesWithVisibility.length, firstSeriesPoints: seriesWithVisibility[0]?.data?.length, yAuto: chartStore.state.yAuto, xMin, xMax, yMin, yMax });
     chartInstance.setOption(opts);
     chartInstance.resize();
 
@@ -301,6 +307,30 @@ const ChartView: Component<ChartViewProps> = (props) => {
     if (chartStatus() === 'ready') {
       props.onReady?.(handleUpdateChart);
     }
+
+    // Ctrl+Click handler for adaptive line filters
+    containerRef?.addEventListener('click', (e: MouseEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      const bounds = containerRef.getBoundingClientRect();
+      const cssX = e.clientX - bounds.left;
+      const cssY = e.clientY - bounds.top;
+      const vp = viewportBounds();
+      const plotLeft = CHART_GRID.left;  // 120
+      const plotRight = bounds.width - CHART_GRID.right;  // bounds.width - 30
+      const plotTop = CHART_GRID.top;  // 16
+      const plotBottom = bounds.height - CHART_GRID.bottom;  // bounds.height - 36
+      const plotWidth = plotRight - plotLeft;
+      const plotHeight = plotBottom - plotTop;
+      // Time is on x-axis
+      const xNorm = Math.max(0, Math.min(1, (cssX - plotLeft) / plotWidth));
+      const dataX = vp.xMin + xNorm * (vp.xMax - vp.xMin);
+      // Value is on y-axis (inverted because canvas y increases downward)
+      const yNorm = Math.max(0, Math.min(1, (cssY - plotTop) / plotHeight));
+      const dataY = vp.yMax - yNorm * (vp.yMax - vp.yMin);
+      if (Number.isFinite(dataX) && Number.isFinite(dataY)) {
+        props.onCtrlClick?.(dataX, dataY, e.clientX, e.clientY);
+      }
+    });
   });
 
   createEffect(() => {
@@ -411,12 +441,20 @@ const ChartView: Component<ChartViewProps> = (props) => {
     if (dx >= MIN_DRAG_PX && props.onZoom) {
       const plotLeft = CHART_GRID.left;
       const plotRight = rect.width - CHART_GRID.right;
+      const plotTop = CHART_GRID.top;
+      const plotBottom = rect.height - CHART_GRID.bottom;
       const plotWidth = Math.max(1, plotRight - plotLeft);
+      const plotHeight = Math.max(1, plotBottom - plotTop);
       const vb = viewportBounds();
       const dataXMin = vb.xMin + ((xMin - plotLeft) / plotWidth) * (vb.xMax - vb.xMin);
       const dataXMax = vb.xMin + ((xMax - plotLeft) / plotWidth) * (vb.xMax - vb.xMin);
-      if (dataXMax > dataXMin) {
-        props.onZoom(dataXMin, dataXMax);
+      const yTop = Math.min(d.startY, d.endY);
+      const yBottom = Math.max(d.startY, d.endY);
+      const dataYMin = vb.yMin + ((yBottom - plotTop) / plotHeight) * (vb.yMax - vb.yMin);
+      const dataYMax = vb.yMin + ((yTop - plotTop) / plotHeight) * (vb.yMax - vb.yMin);
+      console.debug('[ChartView] box zoom', { dataXMin, dataXMax, dataYMin, dataYMax, dx, plotTop, plotBottom, yTop, yBottom });
+      if (dataXMax > dataXMin && dataYMax > dataYMin) {
+        props.onZoom(dataXMin, dataXMax, dataYMin, dataYMax);
       }
     }
 
@@ -517,6 +555,8 @@ const ChartView: Component<ChartViewProps> = (props) => {
           chartTitle={props.chartTitle}
           xAxisLabel={axisLabelX}
           yAxisLabel={axisLabelY}
+          pendingAdaptivePoint={props.pendingAdaptivePoint}
+          adaptiveLineFilters={props.adaptiveLineFilters}
         />
       )}
     </div>

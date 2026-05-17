@@ -13,6 +13,7 @@ interface AnalyticsDrawerProps {
 const AnalyticsDrawer: Component<AnalyticsDrawerProps> = (props) => {
   const [rollingEnabled, setRollingEnabled] = createSignal(false);
   const [rollingWindow, setRollingWindow] = createSignal(50);
+  const [rollingLoading, setRollingLoading] = createSignal(false);
   const [anomalyEnabled, setAnomalyEnabled] = createSignal(false);
   const [anomalyMethod, setAnomalyMethod] = createSignal('zscore');
   const [anomalyThreshold, setAnomalyThreshold] = createSignal(3);
@@ -21,6 +22,7 @@ const AnalyticsDrawer: Component<AnalyticsDrawerProps> = (props) => {
     if (props.open) {
       setRollingEnabled(analyticsStore.state.rollingEnabled);
       setRollingWindow(analyticsStore.state.rollingWindow);
+      setRollingLoading(analyticsStore.state.rollingLoading);
       setAnomalyEnabled(analyticsStore.state.anomalyEnabled);
       setAnomalyMethod(analyticsStore.state.anomalyMethod);
       setAnomalyThreshold(analyticsStore.state.anomalyThreshold);
@@ -68,6 +70,9 @@ const AnalyticsDrawer: Component<AnalyticsDrawerProps> = (props) => {
                 onChange={(e) => handleRollingToggle(e.currentTarget.checked)}
               />
               <span>Show rolling mean ± σ bands</span>
+              <Show when={rollingLoading()}>
+                <span class={styles.spinner}>⟳</span>
+              </Show>
             </label>
             <div class={styles.field}>
               <label for="rolling-window-input">Window size</label>

@@ -233,3 +233,21 @@ export interface SpectrogramConfig {
   hopSize: number;
   column: string;
 }
+
+// Adaptive line filter types
+export interface PendingAdaptivePoint {
+  x1: number;
+  y1: number;
+  x2: number | null;
+  y2: number | null;
+}
+
+export interface AdaptiveLineFilter {
+  id: string;
+  column: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  keepAbove: boolean; // true=keep above line, false=keep below
+}

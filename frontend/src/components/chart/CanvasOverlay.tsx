@@ -1,5 +1,5 @@
 import { Component, createEffect, onMount, onCleanup } from 'solid-js';
-import type { RollingBandData, AnomalyRegionData, DragState, Annotation } from '../../types';
+import type { RollingBandData, AnomalyRegionData, DragState, Annotation, AdaptiveLineFilter, PendingAdaptivePoint } from '../../types';
 import { chartStore } from '../../stores';
 import type { Drawing } from '../../stores/chartStore';
 
@@ -21,6 +21,8 @@ interface CanvasOverlayProps {
   chartTitle?: string;
   xAxisLabel?: string;
   yAxisLabel?: string;
+  pendingAdaptivePoint?: PendingAdaptivePoint | null;
+  adaptiveLineFilters?: AdaptiveLineFilter[];
 }
 
 const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
@@ -52,6 +54,22 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
     return props.yMax - yNorm * (props.yMax - props.yMin);
   };
 
+  const toCssX = (dataX: number, cssW: number): number => {
+    const plotLeft = CHART_GRID.left;
+    const plotRight = cssW - CHART_GRID.right;
+    const plotWidth = Math.max(1, plotRight - plotLeft);
+    const xNorm = Math.max(0, Math.min(1, (dataX - props.xMin) / (props.xMax - props.xMin)));
+    return plotLeft + xNorm * plotWidth;
+  };
+
+  const toCssY = (dataY: number, cssH: number): number => {
+    const plotTop = CHART_GRID.top;
+    const plotBottom = cssH - CHART_GRID.bottom;
+    const plotHeight = Math.max(1, plotBottom - plotTop);
+    const yNorm = Math.max(0, Math.min(1, (props.yMax - dataY) / (props.yMax - props.yMin)));
+    return plotTop + yNorm * plotHeight;
+  };
+
   const render = () => {
     const canvas = canvasRef;
     if (!canvas) return;
@@ -71,6 +89,8 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
     renderAnnotations(ctx, cssW, cssH);
     renderDrawings(ctx, cssW, cssH);
     renderLiveDrawing(ctx, cssW, cssH);
+    renderAdaptiveFilterLines(ctx, cssW, cssH);
+    renderPendingPoint(ctx, cssW, cssH);
     renderLabels(ctx, cssW, cssH);
 
     ctx.restore();
@@ -206,6 +226,72 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
       ctx.restore();
     }
     ctx.restore();
+  };
+
+  const renderAdaptiveFilterLines = (ctx: CanvasRenderingContext2D, cssW: number, cssH: number) => {
+    const filters = props.adaptiveLineFilters ?? [];
+    for (const f of filters) {
+      const x1 = toCssX(f.x1, cssW);
+      const y1 = toCssY(f.y1, cssH);
+      const x2 = toCssX(f.x2, cssW);
+      const y2 = toCssY(f.y2, cssH);
+
+      ctx.strokeStyle = f.keepAbove ? 'rgba(0, 200, 150, 0.95)' : 'rgba(255, 74, 110, 0.95)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 6]);
+
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Label
+      ctx.font = '11px Inter, system-ui, sans-serif';
+      ctx.fillStyle = f.keepAbove ? 'rgba(0, 200, 150, 0.95)' : 'rgba(255, 74, 110, 0.95)';
+      ctx.fillText(`${f.column}: keep ${f.keepAbove ? 'above' : 'below'}`, x2 + 6, y2 - 4);
+    }
+  };
+
+  const renderPendingPoint = (ctx: CanvasRenderingContext2D, cssW: number, cssH: number) => {
+    const p = props.pendingAdaptivePoint;
+    if (!p) return;
+
+    const cx = toCssX(p.x1, cssW);
+    const cy = toCssY(p.y1, cssH);
+
+    if (p.x2 === null) {
+      // Single cyan dot
+      ctx.fillStyle = 'rgba(0, 212, 255, 0.95)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else {
+      // Dashed preview line
+      const cx2 = toCssX(p.x2!, cssW);
+      const cy2 = toCssY(p.y2!, cssH);
+
+      ctx.strokeStyle = 'rgba(0, 212, 255, 0.7)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 3]);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx2, cy2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Endpoint dots
+      ctx.fillStyle = 'rgba(0, 212, 255, 0.95)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx2, cy2, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   };
 
   const handlePointerDown = (e: PointerEvent) => {

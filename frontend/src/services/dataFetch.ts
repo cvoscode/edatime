@@ -1,6 +1,7 @@
 import { tableFromIPC } from 'apache-arrow';
 import { debugLog, debugLogOnce } from '../utils/debug';
 import { getColorPalette, type ColorScaleName } from '../utils/colorScale';
+import type { AdaptiveLineFilter } from '../types';
 
 export interface TimeseriesData {
   xValues: Float64Array;
@@ -71,42 +72,81 @@ export function analyzeColorValues(values: unknown[]): ColorScaleInfo | null {
 export function applyColumnRanges(
   xValues: Float64Array,
   series: Record<string, Float64Array>,
-  filters: ColumnFilters
+  filters: ColumnFilters,
+  adaptiveFilters?: AdaptiveLineFilter[]
 ): { xValues: Float64Array; series: Record<string, Float64Array> } {
-  if (Object.keys(filters).length === 0) {
-    return { xValues, series };
-  }
+  let filteredX = xValues;
+  let filteredSeries = series;
 
-  const filteredX: number[] = [];
-  const filteredSeries: Record<string, number[]> = {};
+  if (Object.keys(filters).length > 0) {
+    const filteredTmpX: number[] = [];
+    const filteredTmpSeries: Record<string, number[]> = {};
 
-  for (const col of Object.keys(series)) {
-    filteredSeries[col] = [];
-  }
+    for (const col of Object.keys(filteredSeries)) {
+      filteredTmpSeries[col] = [];
+    }
 
-  const maxLen = Math.min(xValues.length, ...Object.values(series).map(v => v.length));
-  for (let i = 0; i < maxLen; i++) {
-    let include = true;
-    for (const [col, filter] of Object.entries(filters)) {
-      const y = series[col]?.[i];
-      if (y !== undefined && (y < filter.min || y > filter.max)) {
-        include = false;
-        break;
+    const maxLen = Math.min(filteredX.length, ...Object.values(filteredSeries).map(v => v.length));
+    for (let i = 0; i < maxLen; i++) {
+      let include = true;
+      for (const [col, filter] of Object.entries(filters)) {
+        const y = filteredSeries[col]?.[i];
+        if (y !== undefined && (y < filter.min || y > filter.max)) {
+          include = false;
+          break;
+        }
+      }
+      if (include) {
+        filteredTmpX.push(filteredX[i]);
+        for (const col of Object.keys(filteredSeries)) {
+          filteredTmpSeries[col].push(filteredSeries[col][i]);
+        }
       }
     }
-    if (include) {
-      filteredX.push(xValues[i]);
-      for (const col of Object.keys(series)) {
-        filteredSeries[col].push(series[col][i]);
+    filteredX = Float64Array.from(filteredTmpX);
+    filteredSeries = Object.fromEntries(
+      Object.entries(filteredTmpSeries).map(([k, v]) => [k, Float64Array.from(v)])
+    );
+  }
+
+  // Apply adaptive line filters if present
+  if (adaptiveFilters && adaptiveFilters.length > 0) {
+    const adaptiveFilteredX: number[] = [];
+    const adaptiveFilteredSeries: Record<string, number[]> = {};
+    for (const col of Object.keys(filteredSeries)) {
+      adaptiveFilteredSeries[col] = [];
+    }
+
+    for (let i = 0; i < filteredX.length; i++) {
+      let passAdaptive = true;
+      for (const f of adaptiveFilters) {
+        const colSeries = filteredSeries[f.column];
+        if (!colSeries) continue;
+        const y = colSeries[i];
+        if (y === undefined) continue;
+        // Calculate expected y on the line at this timestamp
+        const dx = f.x2 - f.x1;
+        if (dx === 0) continue;
+        const expectedY = f.y1 + (f.y2 - f.y1) * (filteredX[i] - f.x1) / dx;
+        if (f.keepAbove && y <= expectedY) { passAdaptive = false; break; }
+        if (!f.keepAbove && y >= expectedY) { passAdaptive = false; break; }
+      }
+      if (passAdaptive) {
+        adaptiveFilteredX.push(filteredX[i]);
+        for (const col of Object.keys(filteredSeries)) {
+          adaptiveFilteredSeries[col].push(filteredSeries[col][i]);
+        }
       }
     }
+    filteredX = Float64Array.from(adaptiveFilteredX);
+    filteredSeries = Object.fromEntries(
+      Object.entries(adaptiveFilteredSeries).map(([k, v]) => [k, Float64Array.from(v)])
+    );
   }
 
   return {
-    xValues: Float64Array.from(filteredX),
-    series: Object.fromEntries(
-      Object.entries(filteredSeries).map(([k, v]) => [k, Float64Array.from(v)])
-    ),
+    xValues: filteredX,
+    series: filteredSeries,
   };
 }
 
@@ -384,19 +424,21 @@ export function buildSeriesConfig(
   colorByColumn?: Record<string, Float64Array> | null,
   colorColumn?: string | null,
   showMarkers: boolean = false,
-  scaleName: ColorScaleName = 'viridis'
+  scaleName: ColorScaleName = 'viridis',
+  adaptiveFilters?: AdaptiveLineFilter[]
 ): any[] {
   debugLogOnce('buildSeriesConfig-input', 'buildSeriesConfig called', {
     xValuesLen: xValues.length,
     seriesKeys: Object.keys(series),
     filters: filters ? Object.keys(filters) : 'none',
     colorColumn: colorColumn ?? 'none',
+    adaptiveFilters: adaptiveFilters?.length ?? 0,
   });
 
   let filteredX = xValues;
   let filteredSeries = series;
-  if (filters && Object.keys(filters).length > 0) {
-    const result = applyColumnRanges(xValues, series, filters);
+  if (filters && Object.keys(filters).length > 0 || adaptiveFilters?.length) {
+    const result = applyColumnRanges(xValues, series, filters || {}, adaptiveFilters);
     filteredX = result.xValues;
     filteredSeries = result.series;
   }

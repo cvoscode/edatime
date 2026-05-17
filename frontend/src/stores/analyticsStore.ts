@@ -5,6 +5,7 @@ interface AnalyticsState {
   rollingEnabled: boolean;
   rollingWindow: number;
   rollingBands: RollingBandData[];
+  rollingLoading: boolean;
   anomalyEnabled: boolean;
   anomalyMethod: 'zscore' | 'iqr';
   anomalyThreshold: number;
@@ -19,6 +20,7 @@ const [analyticsState, setAnalyticsState] = createStore<AnalyticsState>({
   rollingEnabled: false,
   rollingWindow: 50,
   rollingBands: [],
+  rollingLoading: false,
   anomalyEnabled: false,
   anomalyMethod: 'zscore',
   anomalyThreshold: 3.0,
@@ -42,6 +44,10 @@ export const analyticsStore = {
 
   setRollingBands(bands: RollingBandData[]) {
     setAnalyticsState('rollingBands', bands);
+  },
+
+  setRollingLoading(v: boolean) {
+    setAnalyticsState('rollingLoading', v);
   },
 
   setAnomalyEnabled(v: boolean) {
@@ -81,6 +87,7 @@ export const analyticsStore = {
       rollingEnabled: false,
       rollingWindow: 50,
       rollingBands: [],
+      rollingLoading: false,
       anomalyEnabled: false,
       anomalyMethod: 'zscore',
       anomalyThreshold: 3.0,
