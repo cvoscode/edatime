@@ -1,4 +1,4 @@
-import { Component, For, createMemo } from 'solid-js';
+import { Component, For, createSignal, createEffect } from 'solid-js';
 import styles from './AdaptiveFilterPopup.module.css';
 
 interface AdaptiveFilterPopupProps {
@@ -6,7 +6,10 @@ interface AdaptiveFilterPopupProps {
   y1: number;
   x2: number;
   y2: number;
+  screenX: number;
+  screenY: number;
   columns: string[];
+  colors?: Record<string, string>;
   seriesData?: { xValues: Float64Array; series: Record<string, Float64Array> } | null;
   onSelect: (column: string, keepAbove: boolean) => void;
   onCancel: () => void;
@@ -43,32 +46,67 @@ const AdaptiveFilterPopup: Component<AdaptiveFilterPopupProps> = (props) => {
     return meanDataY > lineY;
   };
 
+  const [keepAboveMap, setKeepAboveMap] = createSignal<Record<string, boolean>>({});
+
+  createEffect(() => {
+    const map: Record<string, boolean> = {};
+    for (const col of props.columns) {
+      map[col] = keepAboveForColumn(col);
+    }
+    setKeepAboveMap(map);
+  });
+
+  const toggleKeepAbove = (col: string) => {
+    setKeepAboveMap(prev => ({ ...prev, [col]: !prev[col] }));
+  };
+
   return (
-    <div class={styles.overlay} onClick={props.onCancel}>
-      <div class={styles.dialog} onClick={(e) => e.stopPropagation()}>
-        <h3 class={styles.title}>Filter by Line</h3>
-        <p class={styles.subtitle}>
-          Select which column to filter. Points on one side of the line will be kept.
-        </p>
-        <div class={styles.columnList}>
-          <For each={props.columns}>
-            {(col) => {
-              const keepAbove = createMemo(() => keepAboveForColumn(col));
-              return (
-                <button
-                  class={styles.columnBtn}
-                  onClick={() => props.onSelect(col, keepAbove())}
+    <div
+      class={styles.popup}
+      style={{
+        left: `${props.screenX}px`,
+        top: `${props.screenY}px`
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div class={styles.label}>Filter which trace?</div>
+      <div class={styles.content}>
+        <For each={props.columns}>
+          {(col) => {
+            const keepAbove = () => keepAboveMap()[col] ?? true;
+            const accentColor = () => props.colors?.[col] ?? '#9fb1d1';
+            return (
+              <button
+                class={styles.columnBtn}
+                style={{ '--pick-accent': accentColor() }}
+                onClick={() => props.onSelect(col, keepAbove())}
+              >
+                <span class={styles.colName}>{col}</span>
+                <span
+                  class={styles.toggleBtn}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleKeepAbove(col);
+                  }}
+                  title={keepAbove() ? 'Keeping above the line' : 'Keeping below the line'}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleKeepAbove(col);
+                    }
+                  }}
                 >
-                  <span class={styles.colName}>{col}</span>
-                  <span class={`${styles.badge} ${keepAbove() ? styles.badgeAbove : styles.badgeBelow}`}>
-                    {keepAbove() ? 'keep above' : 'keep below'}
-                  </span>
-                </button>
-              );
-            }}
-          </For>
-        </div>
-        <button class={styles.cancelBtn} onClick={props.onCancel}>Cancel</button>
+                  {keepAbove() ? '▲' : '▼'}
+                </span>
+                <span class={`${styles.badge} ${keepAbove() ? styles.badgeAbove : styles.badgeBelow}`}>
+                  {keepAbove() ? 'above' : 'below'}
+                </span>
+              </button>
+            );
+          }}
+        </For>
       </div>
     </div>
   );

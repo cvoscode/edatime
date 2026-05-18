@@ -24,11 +24,16 @@ const AppShell: Component<AppShellProps> = (props) => {
   return (
     <div class={styles.shell}>
       <aside class={`${styles.sidebar} ${!uiStore.state.sidebarOpen ? styles.collapsed : ''}`}>
-        <button class={styles.toggle} onClick={() => uiStore.toggleSidebar()}>
-          {uiStore.state.sidebarOpen ? '◀' : '▶'}
-        </button>
-
-        {!uiStore.state.sidebarOpen && <div class={styles.logo}>edatime</div>}
+        <header class={styles.header}>
+          <div class={styles.headerTop}>
+            <A href="/" class={styles.logoRow}>
+              <img src="/logo.svg" alt="edatime" class={styles.logoImg} />
+            </A>
+            <button class={styles.toggle} onClick={() => uiStore.toggleSidebar()}>
+              {uiStore.state.sidebarOpen ? '◀' : '▶'}
+            </button>
+          </div>
+        </header>
 
         <nav class={styles.nav}>
           {navItems.map((item) => (

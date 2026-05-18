@@ -360,6 +360,7 @@ export interface ScatterCorrelationsResponse {
     pearson: number | null;
     spearman: number | null;
   }>;
+  suggestions?: Array<{ x: string; y: string; correlation: number }>;
 }
 
 export async function fetchScatterCorrelations(
@@ -445,13 +446,18 @@ export async function fetchScatterPoints(
 
     const xCol = table.getChild(x);
     const yCol = table.getChild(y);
-    const colorCol = color ? (table.getChild(color) ?? (color === 'color_label' ? table.getChild('color_label') : null)) : null;
+    const colorCol = color
+      ? table.getChild(color) ?? table.getChild('color_label')
+      : null;
     const sizeCol = size ? table.getChild(size) : null;
 
     const n = table.numRows;
     const points: [number, number][] = new Array(n);
-    const color_values: number[] | null = colorCol && color !== 'color_label' ? [] : null;
-    const color_labels: (string | null)[] | null = color === 'color_label' || (colorCol && color === 'color_label') ? [] : null;
+    // Categorical: backend renames to "color_label" when color kind is Categorical
+    const colorStr = color && String(color).trim();
+    const isCategorical = !colorStr ? false : !table.getChild(colorStr) && colorCol !== null;
+    const color_values: number[] | null = colorCol && !isCategorical ? [] : null;
+    const color_labels: (string | null)[] | null = isCategorical ? [] : null;
     const size_values: number[] | null = sizeCol ? [] : null;
 
     for (let i = 0; i < n; i++) {

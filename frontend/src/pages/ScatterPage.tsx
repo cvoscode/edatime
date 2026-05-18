@@ -1,8 +1,9 @@
 import { Component, createSignal, createEffect, createMemo, Show, For, onMount, onCleanup } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { scatterStore, datasetStore, uiStore } from '../stores';
+import type { CorrelationItem } from '../types';
 import { fetchScatterCorrelations, fetchScatterPoints } from '../services/api';
-import { getColorPalette, buildCategoricalColorGroups, getCategoryColor } from '../utils/colorScale';
+import { getColorPalette, buildCategoricalColorGroups, getCategoryColor, sampleGradient } from '../utils/colorScale';
 import LabelsDrawer from '../components/chart/LabelsDrawer';
 import ScatterChartView from '../components/chart/ScatterChartView';
 import styles from './ScatterPage.module.css';
@@ -20,7 +21,6 @@ const ScatterPage: Component = () => {
   const [xAxisLabel, setXAxisLabel] = createSignal('');
   const [yAxisLabel, setYAxisLabel] = createSignal('');
   const [binSize, setBinSize] = createSignal(2);
-  const [densityColormap, setDensityColormap] = createSignal<'viridis' | 'plasma' | 'inferno'>('plasma');
   const [densityNormalization, setDensityNormalization] = createSignal<'linear' | 'sqrt' | 'log'>('log');
 
   const numericCols = createMemo(() => datasetStore.state.numericCols);
@@ -93,7 +93,13 @@ const ScatterPage: Component = () => {
         corrMap[item.column] = { pearson: item.pearson, spearman: item.spearman };
       }
       scatterStore.setCorrelations(corrMap);
-      scatterStore.setSuggestions(resp.suggestions);
+      const suggestionItems: CorrelationItem[] = (resp.suggestions ?? []).map(s => ({
+        column: `${s.x} × ${s.y}`,
+        count: 0,
+        pearson: s.correlation,
+        spearman: null,
+      }));
+      scatterStore.setSuggestions(suggestionItems);
     } catch (e) {
       console.error('Failed to fetch correlations:', e);
     }
@@ -202,29 +208,33 @@ const ScatterPage: Component = () => {
     }
 
     if (colorVals && colorVals.length > 0) {
-      const seriesData: any[] = [];
+      // Bucketed/binned approach for continuous color (avoids visualMap GPU compatibility issues)
+      const colorMin = scatterStore.state.colorMin ?? 0;
+      const colorMax = scatterStore.state.colorMax ?? 1;
+      const span = colorMax - colorMin || 1;
+      const bins = 64;
+      const palette = getColorPalette(uiStore.state.colorScale, bins);
+      const grouped: any[][] = Array.from({ length: bins }, () => []);
+
       for (let i = 0; i < n; i++) {
-        if (sizeVals) {
-          seriesData.push([points[i][0], points[i][1], colorVals[i], sizeVals[i]]);
-        } else {
-          seriesData.push([points[i][0], points[i][1], colorVals[i]]);
-        }
+        const cv = colorVals[i];
+        if (typeof cv !== 'number' || !Number.isFinite(cv)) continue;
+        let b = Math.floor(((cv - colorMin) / span) * bins);
+        b = Math.max(0, Math.min(bins - 1, b));
+        grouped[b].push(sizeVals ? [points[i][0], points[i][1], sizeVals[i]] : [points[i][0], points[i][1]]);
       }
-      const series: any[] = [
-        {
-          type: 'scatter',
-          name: `${xCol()} vs ${yCol()}`,
-          data: seriesData,
+
+      const series = grouped.map((data, b) => {
+        if (data.length === 0) return null;
+        return {
+          type: 'scatter' as const,
+          name: `bin-${b}`,
+          data,
           symbolSize,
-          visualMap: {
-            show: true,
-            min: scatterStore.state.colorMin ?? 0,
-            max: scatterStore.state.colorMax ?? 1,
-            dimension: 2,
-            inRange: { color: getColorPalette(uiStore.state.colorScale, 6) },
-          },
-        }
-      ];
+          color: sampleGradient(palette, (b + 0.5) / bins),
+        };
+      }).filter((s): s is NonNullable<typeof s> => s !== null);
+
       updateChartFn({ series });
     }
   };
@@ -243,6 +253,7 @@ const ScatterPage: Component = () => {
     void colorCol();
     void sizeCol();
     void renderMode();
+    void uiStore.state.colorScale;
     if (updateChartFn) {
       void fetchPoints();
     }
@@ -319,18 +330,6 @@ const ScatterPage: Component = () => {
                 <option value="4">4px</option>
                 <option value="8">8px</option>
                 <option value="16">16px</option>
-              </select>
-            </div>
-            <div class={styles.controlGroup}>
-              <label class={styles.label}>Colormap</label>
-              <select
-                class={styles.select}
-                value={densityColormap()}
-                onChange={(e) => setDensityColormap(e.currentTarget.value as 'viridis' | 'plasma' | 'inferno')}
-              >
-                <option value="viridis">Viridis</option>
-                <option value="plasma">Plasma</option>
-                <option value="inferno">Inferno</option>
               </select>
             </div>
             <div class={styles.controlGroup}>
@@ -415,7 +414,6 @@ const ScatterPage: Component = () => {
             yAxisLabel={yAxisLabel() || yCol()}
             renderMode={renderMode()}
             binSize={binSize()}
-            densityColormap={densityColormap()}
             densityNormalization={densityNormalization()}
             onReady={handleChartReady}
             onEngineReady={handleEngineReady}

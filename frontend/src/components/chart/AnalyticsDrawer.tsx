@@ -1,6 +1,7 @@
 import { Component, Show, createSignal, createEffect } from 'solid-js';
 import { SwitchToggle } from '../ui';
 import { analyticsStore } from '../../stores';
+import { uiStore } from '../../stores/uiStore';
 import styles from './AnalyticsDrawer.module.css';
 
 interface AnalyticsDrawerProps {
@@ -122,8 +123,8 @@ const AnalyticsDrawer: Component<AnalyticsDrawerProps> = (props) => {
 
           <div class={styles.section}>
             <div class={styles.sectionTitle}>Dataset tools</div>
-            <button class={styles.toolBtn} id="transform-btn" type="button" onClick={() => alert('Transform: not yet implemented')}>Transform…</button>
-            <button class={styles.toolBtn} id="outliers-btn" type="button" onClick={() => alert('Outliers: not yet implemented')}>Outliers…</button>
+            <button class={styles.toolBtn} id="transform-btn" type="button" onClick={() => uiStore.addToast({ message: 'Transform: not yet implemented', type: 'info', duration: 3000 })}>Transform…</button>
+            <button class={styles.toolBtn} id="outliers-btn" type="button" onClick={() => uiStore.addToast({ message: 'Outliers: not yet implemented', type: 'info', duration: 3000 })}>Outliers…</button>
           </div>
         </div>
       </div>

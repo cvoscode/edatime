@@ -35,10 +35,9 @@ const TimeseriesPage: Component = () => {
   const [isDownsampled, setIsDownsampled] = createSignal(false);
   const [showSkeleton, setShowSkeleton] = createSignal(false);
   const [colorColumn, setColorColumn] = createSignal<string | null>(null);
-  const [error, setError] = createSignal<string | null>(null);
-  const [showAdaptivePopup, setShowAdaptivePopup] = createSignal(false);
+    const [showAdaptivePopup, setShowAdaptivePopup] = createSignal(false);
   const [adaptiveFilterPoints, setAdaptiveFilterPoints] = createSignal<{
-    x1: number; y1: number; x2: number; y2: number;
+    x1: number; y1: number; x2: number; y2: number; screenX: number; screenY: number;
   } | null>(null);
 
   let updateChartFn: ((series: any[], xMin?: number, xMax?: number, yMin?: number, yMax?: number) => void) | null = null;
@@ -164,8 +163,7 @@ const TimeseriesPage: Component = () => {
       const result = await fetchTimeseriesData(start, end, 1200, xCol, traces, currentRequestController.signal, colorColumn());
       debugLogOnce('fetchAndRender-result', 'fetchAndRender result', { returnedRows: result.returnedRows, downsampled: result.downsampled });
       setIsDownsampled(result.downsampled);
-      setError(null);
-
+      
       const seriesConfig = buildSeriesConfig(result.xValues, result.series, mergedColors(), uiStore.state.filters, result.colorByColumn, colorColumn(), !result.downsampled, uiStore.state.colorScale, uiStore.state.adaptiveLineFilters);
       updateChartFn(seriesConfig, viewport.xMin || timeRange[0], viewport.xMax || timeRange[1], viewport.yMin, viewport.yMax);
 
@@ -182,7 +180,7 @@ const TimeseriesPage: Component = () => {
       }
       const msg = e instanceof Error ? e.message : String(e);
       console.error('Failed to fetch/render timeseries:', msg);
-      setError(msg);
+      uiStore.addToast({ message: msg, type: 'error', duration: 0 });
     } finally {
       setIsLoading(false);
       setShowSkeleton(false);
@@ -383,9 +381,12 @@ const TimeseriesPage: Component = () => {
       if (e.key === 'Control') {
         const pending = uiStore.state.pendingAdaptivePoint;
         if (pending?.x2 !== null && pending?.x2 !== undefined) {
+          const screenPos = popupScreenPos();
           setAdaptiveFilterPoints({
             x1: pending.x1, y1: pending.y1,
-            x2: pending.x2!, y2: pending.y2!
+            x2: pending.x2!, y2: pending.y2!,
+            screenX: screenPos?.x ?? (pending.x1 + pending.x2!) / 2,
+            screenY: screenPos?.y ?? (pending.y1 + pending.y2!) / 2
           });
           setShowAdaptivePopup(true);
         }
@@ -401,14 +402,23 @@ const TimeseriesPage: Component = () => {
     });
   });
 
+  // Popup screen position for AdaptiveFilterPopup
+  const [popupScreenPos, setPopupScreenPos] = createSignal<{ x: number; y: number } | null>(null);
+
   // handleCtrlClick - called by ChartView when Ctrl+Click on chart
-  const handleCtrlClick = (dataX: number, dataY: number, _clientX: number, _clientY: number) => {
+  const handleCtrlClick = (dataX: number, dataY: number, clientX: number, clientY: number) => {
     const pending = uiStore.state.pendingAdaptivePoint;
     if (!pending) {
+      // First click - start line
       uiStore.setPendingAdaptivePoint({ x1: dataX, y1: dataY, x2: null, y2: null });
+      setPopupScreenPos({ x: clientX, y: clientY });
     } else if (pending.x2 === null) {
-      uiStore.setPendingAdaptivePoint({ ...pending, x2: dataX, y2: dataY });
+      // Second click - complete line (don't overwrite x1/y1)
+      uiStore.setPendingAdaptivePoint({ x1: pending.x1, y1: pending.y1, x2: dataX, y2: dataY });
+      // Use midpoint between first and second click for popup position
+      setPopupScreenPos({ x: clientX, y: clientY });
     }
+    // Third+ clicks while holding Ctrl are ignored - wait for release
   };
 
   // handleAdaptiveSelect - called when user selects a column in the popup
@@ -518,13 +528,7 @@ const TimeseriesPage: Component = () => {
 
   return (
     <div ref={pageRef} class={styles.page}>
-      <Show when={error()}>
-        <div class={styles.errorBanner} role="alert">
-          <span>{error()}</span>
-          <button onClick={() => setError(null)} aria-label="Dismiss error">×</button>
-        </div>
-      </Show>
-      <div class={styles.toolbarSeries}>
+            <div class={styles.toolbarSeries}>
         <div class={styles.toolbarGroup} role="group" aria-label="Series selection tools">
           <span class={styles.toolbarLabel}>X-axis</span>
           <select
@@ -784,13 +788,17 @@ const TimeseriesPage: Component = () => {
             return (
               <AdaptiveFilterPopup
                 x1={pts.x1} y1={pts.y1} x2={pts.x2} y2={pts.y2}
+                screenX={pts.screenX}
+                screenY={pts.screenY}
                 columns={traceColumns()}
+                colors={mergedColors()}
                 seriesData={getCachedData()}
                 onSelect={handleAdaptiveSelect}
                 onCancel={() => {
                   uiStore.setPendingAdaptivePoint(null);
                   setShowAdaptivePopup(false);
                   setAdaptiveFilterPoints(null);
+                  setPopupScreenPos(null);
                 }}
               />
             );

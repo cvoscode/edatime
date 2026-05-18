@@ -159,6 +159,7 @@ const ScatterChartView: Component<ScatterChartViewProps> = (props) => {
         console.error('ECharts fallback also failed:', echartsErr);
         const msg = e instanceof Error ? e.message : String(e);
         setWebgpuReason(msg);
+        uiStore.addToast({ message: `Chart error: ${msg}`, type: 'error', duration: 0 });
         setChartStatus('error');
       }
     }

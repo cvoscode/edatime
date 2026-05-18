@@ -1,4 +1,4 @@
-import chroma from 'chroma-js';
+import chroma, { type Scale } from 'chroma-js';
 
 export type ColorScaleName = 'viridis' | 'plasma' | 'inferno' | 'coolwarm' | 'rdbu';
 
@@ -8,7 +8,7 @@ interface ColormapDef {
   desc: string;
   diverging: boolean;
   domain: [number, number];
-  colors: chroma.Color[];
+  colors: string[];
 }
 
 export const COLORMAPS: Record<ColorScaleName, ColormapDef> = {
@@ -54,7 +54,7 @@ export const COLORMAPS: Record<ColorScaleName, ColormapDef> = {
   },
 };
 
-export function getColorScale(name: ColorScaleName): chroma.Scale {
+export function getColorScale(name: ColorScaleName): Scale {
   const def = COLORMAPS[name];
   return chroma.scale(def.colors).domain(def.domain);
 }

@@ -2,18 +2,22 @@ import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom';
 import { render, screen } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route } from '@solidjs/router';
+import { MemoryRouter, Route, createMemoryHistory } from '@solidjs/router';
 import HomePage from './HomePage';
 
 describe('HomePage', () => {
+  const renderWithRouter = (url = '/') => {
+    const history = createMemoryHistory();
+    history.set({ value: url, replace: false, scroll: true });
+    return render(() => (
+      <MemoryRouter history={history}>
+        <Route path="/" component={() => <HomePage />} />
+      </MemoryRouter>
+    ));
+  };
+
   it('renders hero section with title, tagline, and CTA button', async () => {
-    render(
-      () => (
-        <MemoryRouter url="/">
-          <Route path="/" component={() => <HomePage />} />
-        </MemoryRouter>
-      )
-    );
+    renderWithRouter('/');
 
     await vi.waitFor(() => {
       expect(screen.getByText('EdaTime')).toBeInTheDocument();
@@ -25,13 +29,7 @@ describe('HomePage', () => {
   });
 
   it('renders all three sample dataset cards with correct content', async () => {
-    render(
-      () => (
-        <MemoryRouter url="/">
-          <Route path="/" component={() => <HomePage />} />
-        </MemoryRouter>
-      )
-    );
+    renderWithRouter('/');
 
     await vi.waitFor(() => {
       expect(screen.getByText('Load ETTm2 sample dataset')).toBeInTheDocument();
@@ -44,13 +42,7 @@ describe('HomePage', () => {
   });
 
   it('calls sessionStorage.setItem when a sample dataset is clicked', async () => {
-    render(
-      () => (
-        <MemoryRouter url="/">
-          <Route path="/" component={() => <HomePage />} />
-        </MemoryRouter>
-      )
-    );
+    renderWithRouter('/');
 
     await vi.waitFor(() => {
       screen.getByText('Load ETTm2 sample dataset');
@@ -62,13 +54,7 @@ describe('HomePage', () => {
   });
 
   it('renders all four recommended workflow cards with correct hrefs', async () => {
-    render(
-      () => (
-        <MemoryRouter url="/">
-          <Route path="/" component={() => <HomePage />} />
-        </MemoryRouter>
-      )
-    );
+    renderWithRouter('/');
 
     await vi.waitFor(() => {
       expect(screen.getByRole('link', { name: /Upload .*1/ })).toBeInTheDocument();
@@ -88,13 +74,7 @@ describe('HomePage', () => {
   });
 
   it('renders all three advanced analysis cards with correct hrefs', async () => {
-    render(
-      () => (
-        <MemoryRouter url="/">
-          <Route path="/" component={() => <HomePage />} />
-        </MemoryRouter>
-      )
-    );
+    renderWithRouter('/');
 
     await vi.waitFor(() => {
       expect(screen.getByRole('link', { name: /FFT \/ PSD .*6/ })).toBeInTheDocument();
@@ -111,13 +91,7 @@ describe('HomePage', () => {
   });
 
   it('renders keyboard shortcuts section with all four groups', async () => {
-    render(
-      () => (
-        <MemoryRouter url="/">
-          <Route path="/" component={() => <HomePage />} />
-        </MemoryRouter>
-      )
-    );
+    renderWithRouter('/');
 
     await vi.waitFor(() => {
       expect(screen.getByText('Navigation')).toBeInTheDocument();

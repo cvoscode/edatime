@@ -90,7 +90,7 @@ const ChartView: Component<ChartViewProps> = (props) => {
       // WebGPU support check happens via try/catch around createChart
       let webgpuSupported = true;
       try {
-        if (typeof navigator !== 'undefined' && !navigator.gpu) {
+        if (typeof navigator !== 'undefined' && !(navigator as unknown as { gpu?: unknown }).gpu) {
           webgpuSupported = false;
         }
       } catch (_) {
@@ -200,6 +200,7 @@ const ChartView: Component<ChartViewProps> = (props) => {
         console.error('ECharts fallback also failed:', echartsErr);
         const msg = e instanceof Error ? e.message : String(e);
         setWebgpuReason(msg);
+        uiStore.addToast({ message: `Chart error: ${msg}`, type: 'error', duration: 0 });
         setChartStatus('error');
       }
     }
@@ -380,17 +381,23 @@ const ChartView: Component<ChartViewProps> = (props) => {
 
   createEffect(() => {
     if (!chartInstance) return;
-    axisLabelX = props.xAxisLabel ?? '';
-    axisLabelY = props.yAxisLabel ?? '';
+    const xLabel = props.xAxisLabel ?? '';
+    const yLabel = props.yAxisLabel ?? '';
+    axisLabelX = xLabel;
+    axisLabelY = yLabel;
     const labelOpts: any = {
-      xAxis: { type: 'time' as const, name: props.xAxisLabel },
-      yAxis: { type: 'value' as const, name: props.yAxisLabel },
+      xAxis: { type: 'time' as const, name: xLabel },
+      yAxis: { type: 'value' as const, name: yLabel },
     };
     if (engineName() === 'ECharts') {
-      if (props.chartTitle) {
-        labelOpts.title = { text: props.chartTitle, left: 'center' };
+      const title = props.chartTitle;
+      if (title) {
+        labelOpts.title = { text: title, left: 'center' };
       }
       chartInstance.setOption(labelOpts, false);
+    } else if (engineName() === 'ChartGPU') {
+      // ChartGPU uses setOption to update options including axis names
+      chartInstance.setOption(labelOpts);
     }
   });
 

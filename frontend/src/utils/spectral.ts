@@ -58,22 +58,6 @@ export function formatPeriod(seconds: number): string {
   }
 }
 
-export function detectAliasing(frequency: number, sampleRate: number): boolean {
-  return frequency > sampleRate / 2;
-}
-
-export function suggestPreset(dominantFreqHz: number): number {
-  const minFreqResolution = dominantFreqHz * 0.1;
-  const samplesNeeded = sampleRate / minFreqResolution;
-
-  for (const preset of SPECTRAL_PRESETS) {
-    if (preset.windowSize >= samplesNeeded) {
-      return preset.windowSize;
-    }
-  }
-  return SPECTRAL_PRESETS[SPECTRAL_PRESETS.length - 1].windowSize;
-}
-
 export function frequencyToXLabel(unit: FrequencyUnit): string {
   switch (unit) {
     case 'µHz': return 'Frequency (µHz)';

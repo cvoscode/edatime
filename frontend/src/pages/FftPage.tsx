@@ -93,6 +93,27 @@ const FftPage: Component = () => {
         nameGap: 50,
         scale: true,
       },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(8, 12, 20, 0.94)',
+        borderColor: 'rgba(126, 158, 212, 0.28)',
+        textStyle: { color: '#eef4ff' },
+        formatter: (params: any) => {
+          if (!Array.isArray(params) || params.length === 0) return '';
+          const first = params[0];
+          const data = first?.data || [];
+          const freq = Number(data[0]);
+          const freqStr = freq >= 1000 ? `${(freq / 1000).toFixed(2)} kHz` :
+                           freq >= 1 ? `${freq.toFixed(2)} Hz` :
+                           `${(freq * 1000).toFixed(2)} mHz`;
+          const rows = params.map((p: any) => {
+            const col = p?.seriesName || '';
+            const mag = Number(p?.data?.[1] ?? 0);
+            return `${col}: ${mag.toFixed(4)}`;
+          }).join('<br>');
+          return `<strong>${freqStr}</strong><br>${rows}`;
+        },
+      },
       series,
       color: getColorPalette(uiStore.state.colorScale, series.length),
     });
@@ -291,7 +312,7 @@ const FftPage: Component = () => {
         text: [logScale ? 'High log10' : 'High', logScale ? 'Low log10' : 'Low'],
         textStyle: { color: '#9fb1d1' },
         inRange: {
-          color: ['#440154', '#414487', '#2a788e', '#22a884', '#7ad151', '#fde725'],
+          color: getColorPalette(uiStore.state.colorScale, 64),
         },
       },
       dataZoom: [

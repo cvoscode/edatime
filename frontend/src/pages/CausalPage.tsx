@@ -419,12 +419,13 @@ const CausalPage: Component = () => {
   const handleDeleteNode = (col: string) => {
     // Capture positions before node is removed
     if (chartInstance) {
-      const option = chartInstance.getOption();
+      const option = chartInstance.getOption() as { series?: Array<{ data?: unknown[] }> };
       const data = option?.series?.[0]?.data;
       if (Array.isArray(data)) {
         for (const item of data) {
-          if (item && item.id && Number.isFinite(item.x) && Number.isFinite(item.y)) {
-            setNodePositions(prev => new Map(prev).set(item.id, { x: Number(item.x), y: Number(item.y) }));
+          if (item && typeof item === 'object' && 'id' in item && 'x' in item && 'y' in item) {
+            const record = item as { id: string; x: number; y: number };
+            setNodePositions(prev => new Map(prev).set(record.id, { x: Number(record.x), y: Number(record.y) }));
           }
         }
       }
