@@ -1,5 +1,6 @@
 import { Component, createSignal, createMemo, Show, For, onMount, onCleanup, createEffect } from 'solid-js';
 import { datasetStore } from '../stores';
+import { uiStore } from '../stores/uiStore';
 import { causalStore, type CausalMethod, type CausalTest, type FdrMethod, type CausalLink } from '../stores/causalStore';
 import ColumnChips from '../components/chart/ColumnChips';
 import * as echarts from 'echarts';
@@ -60,7 +61,6 @@ const CausalPage: Component = () => {
   const [chipColors, setChipColors] = createSignal<Map<string, string>>(new Map());
   const [nodePositions, setNodePositions] = createSignal<Map<string, { x: number; y: number }>>(new Map());
   const [exportMenuOpen, setExportMenuOpen] = createSignal(false);
-  const [statusMsg, setStatusMsg] = createSignal('');
   const [compareResult, setCompareResult] = createSignal<{ added: CausalLink[]; removed: CausalLink[] } | null>(null);
 
   const numericCols = createMemo(() => datasetStore.state.numericCols ?? []);
@@ -94,12 +94,12 @@ const CausalPage: Component = () => {
   const fetchCausalGraph = async () => {
     const cols = causalStore.state.selectedColumns;
     if (cols.length < 2) {
-      setStatusMsg('Select at least 2 columns for causal discovery.');
+      uiStore.addToast({ message: 'Select at least 2 columns for causal discovery.', type: 'warning', duration: 4000 });
       return;
     }
     causalStore.setLoading(true);
     causalStore.setError(null);
-    setStatusMsg('Computing causal graph...');
+    uiStore.addToast({ message: 'Computing causal graph...', type: 'info', duration: 2000 });
     try {
       const body: Record<string, unknown> = {
         columns: cols.join(','),
@@ -125,11 +125,11 @@ const CausalPage: Component = () => {
       }
       const data = await res.json();
       causalStore.setGraphResult(data);
-      setStatusMsg(`${cols.length} nodes · ${data.links.length} links`);
+      uiStore.addToast({ message: `${cols.length} nodes · ${data.links.length} links`, type: 'success', duration: 5000 });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       causalStore.setError(msg);
-      setStatusMsg(`Error: ${msg}`);
+      uiStore.addToast({ message: `Error: ${msg}`, type: 'error', duration: 0 });
     } finally {
       causalStore.setLoading(false);
     }
@@ -360,18 +360,18 @@ const CausalPage: Component = () => {
         if (!col) return;
         if (!addEdgeFirst()) {
           setAddEdgeFirst(col);
-          setStatusMsg(`Add-edge: first node = ${col}. Click second node.`);
+          uiStore.addToast({ message: `Add-edge: first node = ${col}. Click second node.`, type: 'info', duration: 4000 });
           return;
         }
         if (addEdgeFirst() === col) {
-          setStatusMsg('Select a different second node.');
+          uiStore.addToast({ message: 'Select a different second node.', type: 'warning', duration: 3000 });
           return;
         }
         const newLink: CausalLink = { source: addEdgeFirst()!, target: col, lag: 1, type: '-->', value: 0, pvalue: 0 };
         causalStore.setLinks([...causalStore.state.links, newLink]);
         setAddEdgeMode(false);
         setAddEdgeFirst(null);
-        setStatusMsg('Edge added. Right-click to edit.');
+        uiStore.addToast({ message: 'Edge added. Right-click to edit.', type: 'success', duration: 3000 });
         renderChart();
       });
       chartInstance.on('mouseup', (params: any) => {
@@ -458,7 +458,7 @@ const CausalPage: Component = () => {
   const handleSaveRun = () => {
     const name = `Run ${new Date().toLocaleTimeString()}`;
     causalStore.saveRun(name);
-    setStatusMsg(`Run saved: ${name}`);
+    uiStore.addToast({ message: `Run saved: ${name}`, type: 'success', duration: 3000 });
   };
 
   const handleExport = (format: 'json' | 'glm' | 'torch') => {
@@ -533,7 +533,7 @@ const CausalPage: Component = () => {
     a.download = `causal_graph.${format}`;
     a.click();
     URL.revokeObjectURL(url);
-    setStatusMsg(`Exported as ${format.toUpperCase()}`);
+    uiStore.addToast({ message: `Exported as ${format.toUpperCase()}`, type: 'success', duration: 3000 });
   };
 
   const handleCompareRuns = () => {
@@ -548,7 +548,7 @@ const CausalPage: Component = () => {
     const added = runB.links.filter(l => !aLinks.has(`${l.source}->${l.target}`));
     const removed = runA.links.filter(l => !bLinks.has(`${l.source}->${l.target}`));
     setCompareResult({ added, removed });
-    setStatusMsg(`Added: ${added.length}, Removed: ${removed.length}`);
+    uiStore.addToast({ message: `Added: ${added.length}, Removed: ${removed.length}`, type: 'info', duration: 4000 });
   };
 
   return (
@@ -829,10 +829,6 @@ const CausalPage: Component = () => {
             </div>
           </Show>
         </div>
-      </Show>
-
-      <Show when={statusMsg()}>
-        <div class={styles.statusBar}>{statusMsg()}</div>
       </Show>
     </div>
   );

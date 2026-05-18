@@ -31,7 +31,7 @@ const UploadPage: Component = () => {
       setProfileMode('preview');
       uploadStore.setUploadStatus('');
     } catch (err) {
-      uploadStore.setUploadStatus(`Error: ${err}`);
+      uiStore.addToast({ message: `Error: ${err}`, type: 'error', duration: 0 });
     } finally {
       uploadStore.setPreviewing(false);
     }
@@ -87,9 +87,8 @@ const UploadPage: Component = () => {
         timeRange: freshMetadata.time_range ? [freshMetadata.time_range.min, freshMetadata.time_range.max] : null,
       });
       datasetStore.setNumericCols(freshMetadata.numeric_columns);
-      uploadStore.setUploadStatus(`Loaded ${rowCount.toLocaleString()} rows`);
     } catch (err) {
-      uploadStore.setUploadStatus(`Error: ${err}`);
+      uiStore.addToast({ message: `Error: ${err}`, type: 'error', duration: 0 });
     } finally {
       uploadStore.setUploading(false);
     }
@@ -119,7 +118,7 @@ const UploadPage: Component = () => {
       setProfileMode('preview');
       uploadStore.setUploadStatus('');
     } catch (err) {
-      uploadStore.setUploadStatus(`Error loading sample: ${err}`);
+      uiStore.addToast({ message: `Error loading sample: ${err}`, type: 'error', duration: 0 });
     } finally {
       uploadStore.setPreviewing(false);
     }
@@ -135,24 +134,21 @@ const UploadPage: Component = () => {
     uploadStore.setSelectedColumns([]);
   };
 
-  const [dbStatus, setDbStatus] = createSignal('');
-
   const handleDbConnect = async () => {
     const connStr = uploadStore.state.dbConnectionString.trim();
     const schema = uploadStore.state.dbSchema.trim() || 'public';
     if (!connStr) {
-      setDbStatus('Connection string is required.');
+      uiStore.addToast({ message: 'Connection string is required.', type: 'warning', duration: 4000 });
       return;
     }
-    setDbStatus('Connecting…');
     try {
       await dbConnect(connStr, schema);
       uploadStore.setDbConnected(true);
-      setDbStatus('Connected. Choose a table and click Load data.');
+      uiStore.addToast({ message: 'Connected. Choose a table and click Load data.', type: 'success', duration: 5000 });
       const tablesResult = await dbTables();
       uploadStore.setDbTables(tablesResult.tables ?? []);
     } catch (e: any) {
-      setDbStatus('Error: ' + (e?.message ?? String(e)));
+      uiStore.addToast({ message: 'Error: ' + (e?.message ?? String(e)), type: 'error', duration: 0 });
     }
   };
 
@@ -161,10 +157,9 @@ const UploadPage: Component = () => {
     const table = uploadStore.state.dbTable.trim();
     const timeCol = (document.getElementById('db-time-col-input') as HTMLInputElement | null)?.value.trim();
     if (!table) {
-      setDbStatus('Select or enter a table name.');
+      uiStore.addToast({ message: 'Select or enter a table name.', type: 'warning', duration: 4000 });
       return;
     }
-    setDbStatus('Loading data…');
     try {
       const result = await dbLoad(table, { schema, time_column: timeCol || undefined });
       const rowCount = result.row_count ?? result.rows ?? 0;
@@ -195,9 +190,8 @@ const UploadPage: Component = () => {
         timeRange: freshMetadata.time_range ? [freshMetadata.time_range.min, freshMetadata.time_range.max] : null,
       });
       datasetStore.setNumericCols(freshMetadata.numeric_columns);
-      setDbStatus(`Loaded ${rowCount.toLocaleString()} rows.`);
     } catch (e: any) {
-      setDbStatus('Error: ' + (e?.message ?? String(e)));
+      uiStore.addToast({ message: 'Error: ' + (e?.message ?? String(e)), type: 'error', duration: 0 });
     }
   };
 
@@ -207,7 +201,7 @@ const UploadPage: Component = () => {
       uploadStore.setDbConnected(false);
       uploadStore.setDbTables([]);
       uploadStore.setDbTable('');
-      setDbStatus('');
+
     } catch (_) {}
   };
 
@@ -343,11 +337,6 @@ const UploadPage: Component = () => {
                   <div class={styles.progressBar} style={{ width: `${uploadStore.state.uploadProgress}%` }} />
                 </div>
               </Show>
-              <Show when={uploadStore.state.uploadStatus}>
-                <div class={`${styles.status} ${uploadStore.state.uploadStatus.includes('Error') ? styles.error : ''}`}>
-                  {uploadStore.state.uploadStatus}
-                </div>
-              </Show>
             </div>
           </div>
         </Show>
@@ -434,9 +423,6 @@ const UploadPage: Component = () => {
                   Disconnect
                 </button>
               </div>
-              <Show when={dbStatus()}>
-                <div class={`${styles.status} ${dbStatus().startsWith('Error') ? styles.error : ''}`}>{dbStatus()}</div>
-              </Show>
             </div>
           </div>
         </Show>

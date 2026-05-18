@@ -236,6 +236,9 @@ export const causalStore = {
       fdrMethod: 'none',
       loading: false,
       error: null,
+      savedRuns: [],
+      compareRunA: null,
+      compareRunB: null,
     });
   },
 };

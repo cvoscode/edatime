@@ -12,6 +12,8 @@ import { fetchRollingBands, fetchAnomalies } from '../services/api';
 import { exportChartAsPNG, exportChartAsCSV, exportChartAsSVG, exportChartAsJSON, exportChartAsHTML } from '../utils/exportUtils';
 import { debugLog, debugLogOnce } from '../utils/debug';
 import { getColorPalette } from '../utils/colorScale';
+import { useDebouncedEffect } from '../hooks/useDebouncedEffect';
+import { useAbortController } from '../hooks/useAbortController';
 import styles from './TimeseriesPage.module.css';
 
 const TimeseriesPage: Component = () => {
@@ -43,11 +45,10 @@ const TimeseriesPage: Component = () => {
   let updateChartFn: ((series: any[], xMin?: number, xMax?: number, yMin?: number, yMax?: number) => void) | null = null;
   let chartReady = false;
   let chartInstanceRef: any = null;
-  let currentRequestController: AbortController | null = null;
-  let colorDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-  let viewportDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  const { signal: abortSignal, abort, restart: restartAbort } = useAbortController();
   let lastContextMenuTime = 0;
   let fetchInProgress = false;
+  let viewportDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   const numericCols = createMemo(() => datasetStore.state.numericCols);
   const datetimeCols = createMemo(() => datasetStore.state.datetimeCols);
@@ -155,12 +156,9 @@ const TimeseriesPage: Component = () => {
 
     setIsLoading(true);
     setShowSkeleton(true);
-    if (currentRequestController) {
-      currentRequestController.abort();
-    }
-    currentRequestController = new AbortController();
+    abort();
     try {
-      const result = await fetchTimeseriesData(start, end, 1200, xCol, traces, currentRequestController.signal, colorColumn());
+      const result = await fetchTimeseriesData(start, end, 1200, xCol, traces, abortSignal, colorColumn());
       debugLogOnce('fetchAndRender-result', 'fetchAndRender result', { returnedRows: result.returnedRows, downsampled: result.downsampled });
       setIsDownsampled(result.downsampled);
       
@@ -184,7 +182,6 @@ const TimeseriesPage: Component = () => {
     } finally {
       setIsLoading(false);
       setShowSkeleton(false);
-      currentRequestController = null;
     }
   };
 
@@ -287,21 +284,16 @@ const TimeseriesPage: Component = () => {
     }
   });
 
-  createEffect(() => {
-    const colors = mergedColors(); // track uiStore.state.colors + allTraceColumns
-    if (chartReady) {
-      if (colorDebounceTimer) clearTimeout(colorDebounceTimer);
-      colorDebounceTimer = setTimeout(() => {
-        const seriesConfig = updateCachedColors(colors);
-        if (seriesConfig && updateChartFn) {
-          const metadata = datasetStore.state.metadata;
-          const timeRange = metadata?.timeRange;
-          const viewport = chartStore.state.viewport;
-          updateChartFn(seriesConfig, viewport.xMin || timeRange?.[0], viewport.xMax || timeRange?.[1], viewport.yMin, viewport.yMax);
-        }
-      }, 50);
+  useDebouncedEffect(mergedColors, (colors) => {
+    if (!chartReady) return;
+    const seriesConfig = updateCachedColors(colors);
+    if (seriesConfig && updateChartFn) {
+      const metadata = datasetStore.state.metadata;
+      const timeRange = metadata?.timeRange;
+      const viewport = chartStore.state.viewport;
+      updateChartFn(seriesConfig, viewport.xMin || timeRange?.[0], viewport.xMax || timeRange?.[1], viewport.yMin, viewport.yMax);
     }
-  });
+  }, 50);
 
   createEffect(() => {
     const viewport = chartStore.state.viewport;

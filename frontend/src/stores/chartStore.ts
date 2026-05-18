@@ -223,5 +223,22 @@ export const chartStore = {
 
   clearDrawings() {
     setChartState('drawings', []);
+  },
+
+  reset() {
+    setChartState({
+      viewport: { ...defaultViewport },
+      zoomHistory: { zoomStack: [{ ...defaultViewport }], currentIndex: 0 },
+      initialView: null,
+      annotations: [],
+      drawings: [],
+      isDrawing: false,
+      drawMode: 'pan',
+      isLoading: false,
+      lastDataYMin: null,
+      lastDataYMax: null,
+      yAuto: true,
+      seriesVisibility: {},
+    });
   }
 };

@@ -141,6 +141,7 @@ export const uploadStore = {
 
   reset() {
     setUploadState({
+      source: 'file',
       selectedFile: null,
       previewMetadata: null,
       previewProfiles: [],
@@ -148,7 +149,18 @@ export const uploadStore = {
       isUploading: false,
       uploadProgress: 0,
       uploadStatus: '',
+      partialEnabled: false,
+      maxRows: 1000000,
+      skipRows: 0,
+      timeStart: '',
+      timeEnd: '',
+      timeColumn: '',
       selectedColumns: [],
+      dbConnected: false,
+      dbTable: '',
+      dbConnectionString: '',
+      dbSchema: 'public',
+      dbTables: [],
     });
   },
 };

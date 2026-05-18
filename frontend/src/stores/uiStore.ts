@@ -132,11 +132,8 @@ export const uiStore = {
   },
 
   removeFilter(column: string) {
-    setUiState('filters', (f) => {
-      const copy = { ...f };
-      delete copy[column];
-      return copy;
-    });
+    const { [column]: _, ...rest } = uiState.filters;
+    setUiState('filters', rest);
   },
 
   setColumnColor(column: string, color: string) {
@@ -200,5 +197,19 @@ export const uiStore = {
 
   setPendingAdaptivePoint(p: PendingAdaptivePoint | null) {
     setUiState('pendingAdaptivePoint', p);
+  },
+
+  reset() {
+    setUiState({
+      selectedColumns: [],
+      hiddenColumns: [],
+      filters: {},
+      sidebarOpen: true,
+      toasts: [],
+      isUploadPanelOpen: false,
+      adaptiveLineFilters: [],
+      pendingAdaptivePoint: null,
+    });
+    // Preserve theme, colorScale, plotTheme — they persist to localStorage
   }
 };

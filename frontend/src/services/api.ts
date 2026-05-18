@@ -1,7 +1,11 @@
 const API_BASE = '/api';
 
+// =============================================================================
+// Request deduplication
+// =============================================================================
+
 // Request deduplication for concurrent identical GET requests
-const _inflight = new Map<string, Promise<unknown>>();
+const _inflight = new Map<string, Promise<unknown>>;
 
 async function getJson<T>(url: string): Promise<T> {
   const existing = _inflight.get(url);
@@ -86,6 +90,10 @@ export interface IngestResponse {
   timestamp_column: string;
 }
 
+// =============================================================================
+// Upload API
+// =============================================================================
+
 export async function uploadPreview(file: File): Promise<PreviewResponse> {
   const formData = new FormData();
   formData.append('file', file);
@@ -123,6 +131,10 @@ export async function uploadIngest(
   }
   return res.json() as Promise<IngestResponse>;
 }
+
+// =============================================================================
+// Database API
+// =============================================================================
 
 export interface DbTablesResponse {
   tables: string[];
@@ -162,6 +174,10 @@ export async function dbDisconnect(): Promise<{ status: string }> {
   return postJson(`${API_BASE}/database/disconnect`, {});
 }
 
+// =============================================================================
+// Metadata API
+// =============================================================================
+
 export interface MetadataResponse {
   revision: number;
   total_rows: number;
@@ -183,6 +199,10 @@ export interface TimeseriesRangeResponse {
 export async function fetchTimeseriesRange(): Promise<TimeseriesRangeResponse> {
   return getJson<TimeseriesRangeResponse>(`${API_BASE}/timeseries/range`);
 }
+
+// =============================================================================
+// Analytics API
+// =============================================================================
 
 export interface RollingBand {
   column: string;
@@ -234,6 +254,10 @@ export async function fetchAnomalies(
   return getJson<AnomalyResponse>(`${API_BASE}/analytics/anomalies?${params.toString()}`);
 }
 
+// =============================================================================
+// FFT API
+// =============================================================================
+
 export interface FftResult {
   column: string;
   frequencies: number[];
@@ -271,8 +295,7 @@ export async function fetchSpectrogram(
   column: string,
   windowSize = 256,
   hopSize?: number,
-  maxPoints = 32768,
-  signal?: AbortSignal
+  maxPoints = 32768
 ): Promise<SpectrogramResponse> {
   const params = new URLSearchParams({
     start, end, column,
@@ -285,14 +308,6 @@ export async function fetchSpectrogram(
 
 // In-memory cache for sample datasets to avoid re-fetching
 const _sampleFileCache: Record<string, File> = {};
-
-// Lightweight metadata for cached sample datasets (avoids re-parsing)
-interface CachedSampleMetadata {
-  metadata: PreviewResponse['metadata'];
-  file: File;
-}
-
-const _sampleMetadataCache: Record<string, CachedSampleMetadata | null> = {};
 
 export async function fetchSampleETTm2(useParquet = false): Promise<File> {
   const cacheKey = useParquet ? 'ettm2-parquet' : 'ettm2-csv';
@@ -327,6 +342,10 @@ export function clearSampleCache() {
   Object.keys(_sampleFileCache).forEach(k => delete _sampleFileCache[k]);
 }
 
+// =============================================================================
+// Scatter API
+// =============================================================================
+
 export async function ingestFile(
   file: File,
   options?: {
@@ -351,6 +370,10 @@ export async function fetchCorrelationMatrix(): Promise<CorrelationMatrixRespons
   return getJson<CorrelationMatrixResponse>(`${API_BASE}/scatter/correlations/matrix`);
 }
 
+// =============================================================================
+// Scatter correlations
+// =============================================================================
+
 export interface ScatterCorrelationsResponse {
   base_column: string;
   threshold: number;
@@ -373,6 +396,10 @@ export async function fetchScatterCorrelations(
   }
   return getJson<ScatterCorrelationsResponse>(`${API_BASE}/scatter/correlations?${params.toString()}`);
 }
+
+// =============================================================================
+// Scatter points
+// =============================================================================
 
 export interface ScatterPointsResponse {
   x: string;

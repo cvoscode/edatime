@@ -70,7 +70,6 @@ const DriftPage: Component = () => {
   const [refStart, setRefStart] = createSignal('');
   const [refEnd, setRefEnd] = createSignal('');
   const [loading, setLoading] = createSignal(false);
-  const [status, setStatus] = createSignal('');
   const [activeColumn, setActiveColumn] = createSignal<string | null>(null);
   const [activeWindowIdx, setActiveWindowIdx] = createSignal<number | null>(null);
   const [driftData, setDriftData] = createSignal<Map<string, DriftResponse>>(new Map());
@@ -201,13 +200,13 @@ const DriftPage: Component = () => {
 
   const handleCompute = async () => {
     const cols = selectedColumns();
-    if (cols.length === 0) { setStatus('Select at least one column'); return; }
-    if (!refStart() || !refEnd()) { setStatus('Set reference start and end dates'); return; }
+    if (cols.length === 0) { uiStore.addToast({ message: 'Select at least one column', type: 'warning', duration: 4000 }); return; }
+    if (!refStart() || !refEnd()) { uiStore.addToast({ message: 'Set reference start and end dates', type: 'warning', duration: 4000 }); return; }
     const metadata = datasetStore.state.metadata;
     if (!metadata) return;
 
     setLoading(true);
-    setStatus('Computing drift...');
+    uiStore.addToast({ message: 'Computing drift...', type: 'info', duration: 2000 });
 
     try {
       initCharts();
@@ -243,10 +242,10 @@ const DriftPage: Component = () => {
 
       const windowsTotal = [...newData.values()].reduce((sum, r) => sum + r.windows.length, 0);
       const flaggedTotal = [...newData.values()].reduce((sum, r) => sum + r.windows.filter(w => w.drift_level !== 'green').length, 0);
-      setStatus(`${newData.size} column(s) | ~${Math.round(windowsTotal / newData.size)} windows/column | ${flaggedTotal} flagged`);
+      uiStore.addToast({ message: `${newData.size} column(s) | ~${Math.round(windowsTotal / newData.size)} windows/column | ${flaggedTotal} flagged`, type: 'info', duration: 5000 });
       renderCharts();
     } catch (e: any) {
-      setStatus(`Error: ${e?.message ?? 'unknown'}`);
+      uiStore.addToast({ message: `Error: ${e?.message ?? 'unknown'}`, type: 'error', duration: 0 });
     } finally {
       setLoading(false);
     }
@@ -366,13 +365,11 @@ const DriftPage: Component = () => {
       <Show when={loading()}>
         <div class={styles.loadingOverlay}>
           <div class={styles.spinner} />
-          <span>{status()}</span>
+          <span>Computing drift...</span>
         </div>
       </Show>
 
-      <div class={styles.footer}>
-        <span class={styles.status}>{status()}</span>
-      </div>
+      <div class={styles.footer} />
     </div>
   );
 };
