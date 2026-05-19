@@ -1,3 +1,7 @@
+/**
+ * UI store — manages theme, colors, column selection, filters, and toast notifications.
+ * Persists user preferences to localStorage.
+ */
 import { createStore } from 'solid-js/store';
 import type { ToastMessage, AdaptiveLineFilter, PendingAdaptivePoint } from '../types';
 import type { ColorScaleName } from '../utils/colorScale';
@@ -132,8 +136,11 @@ export const uiStore = {
   },
 
   removeFilter(column: string) {
-    const { [column]: _, ...rest } = uiState.filters;
-    setUiState('filters', rest);
+    // Access the proxy directly to delete — SolidJS proxy tracks own property
+    // deletion as a reactive mutation.
+    const prev = uiState.filters;
+    delete (prev as any)[column];
+    setUiState('filters', { ...prev });
   },
 
   setColumnColor(column: string, color: string) {
@@ -179,6 +186,10 @@ export const uiStore = {
     setUiState('toasts', uiState.toasts.filter(t => t.id !== id));
   },
 
+  setToasts(toasts: ToastMessage[]) {
+    setUiState('toasts', toasts);
+  },
+
   setUploadPanelOpen(open: boolean) {
     setUiState('isUploadPanelOpen', open);
   },
@@ -211,5 +222,31 @@ export const uiStore = {
       pendingAdaptivePoint: null,
     });
     // Preserve theme, colorScale, plotTheme — they persist to localStorage
+  },
+
+  serialize() {
+    return {
+      selectedColumns: uiState.selectedColumns,
+      hiddenColumns: uiState.hiddenColumns,
+      filters: uiState.filters,
+      colors: uiState.colors,
+      theme: uiState.theme,
+      colorScale: uiState.colorScale,
+      plotTheme: uiState.plotTheme,
+      adaptiveLineFilters: uiState.adaptiveLineFilters,
+    };
+  },
+
+  deserialize(state: ReturnType<typeof this.serialize>) {
+    setUiState({
+      selectedColumns: state.selectedColumns ?? [],
+      hiddenColumns: state.hiddenColumns ?? [],
+      filters: state.filters ?? {},
+      colors: state.colors ?? defaultColors,
+      theme: state.theme ?? 'dark',
+      colorScale: state.colorScale ?? 'rdbu',
+      plotTheme: state.plotTheme ?? 'auto',
+      adaptiveLineFilters: state.adaptiveLineFilters ?? [],
+    });
   }
 };

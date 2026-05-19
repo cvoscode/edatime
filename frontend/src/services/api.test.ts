@@ -138,6 +138,8 @@ describe('api service', () => {
     });
 
     it('clearSampleCache invalidates the cache', async () => {
+      clearSampleCache();
+
       const mockFile = new File(['csv data'], 'ETTm2.csv', { type: 'text/csv' });
       mockFetch.mockResolvedValue(createMockResponse(mockFile, {
         blob: () => Promise.resolve(new Blob(['csv data'])),

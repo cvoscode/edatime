@@ -1,3 +1,6 @@
+/**
+ * Upload store — manages file/database upload state, preview, and ingestion progress.
+ */
 import { createStore } from 'solid-js/store';
 import type { ColumnProfile, DatasetMetadata } from '../services/api';
 

@@ -1,20 +1,17 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 use std::sync::Arc;
-use std::time::Instant;
 
 use polars::prelude::{DataFrame, LazyFrame, IntoLazy, SchemaExt};
 use tokio::sync::RwLock;
 
-use crate::cache::ResponseCache;
+use crate::cache::{DriftCache, ResponseCache};
 use crate::config::AppConfig;
 use crate::db::DbPool;
+use crate::error::AppError;
 use crate::metrics::AppMetrics;
 use crate::query::QueryEntry;
-use crate::repository::InMemoryDataRepository;
-
-/// Short-lived in-memory cache for drift computation results.
-pub type DriftCache = Arc<std::sync::Mutex<HashMap<String, (u64, Instant, Vec<u8>)>>>;
+use crate::repository::{DataRepository, InMemoryDataRepository};
 
 /// Live database connection state, set after a successful `/api/database/connect`.
 #[derive(Clone, Debug)]
@@ -26,7 +23,7 @@ pub struct DbConnectionInfo {
 
 #[allow(clippy::clone_on_ref_ptr)]
 pub struct AppState {
-    pub repository: Arc<InMemoryDataRepository>,
+    pub repository: Arc<dyn DataRepository>,
     pub cache: Arc<ResponseCache>,
     pub metrics: Arc<AppMetrics>,
     pub config: Arc<AppConfig>,
@@ -83,10 +80,13 @@ impl AppState {
 
 /// Clone only the requested columns from the shared frame.
 /// Returns LazyFrame with projection; callers collect if needed.
-    pub async fn dataset_snapshot_for_columns(&self, columns: &[&str]) -> LazyFrame {
+    pub async fn dataset_snapshot_for_columns(&self, columns: &[&str]) -> Result<LazyFrame, AppError> {
         let lock = self.repository.shared_frame();
         let guard = lock.read().await;
-        let schema = guard.clone().collect_schema().expect("LazyFrame schema should be available after successful load");
+        let schema = guard
+            .clone()
+            .collect_schema()
+            .map_err(|e| AppError::internal(format!("LazyFrame schema unavailable: {}", e)))?;
         let col_names: Vec<String> = schema
             .iter_fields()
             .filter(|f| columns.iter().any(|&col| col == f.name().as_str()))
@@ -94,14 +94,14 @@ impl AppState {
             .collect();
 
         if col_names.is_empty() {
-            guard.clone()
+            Ok(guard.clone())
         } else {
-            guard.clone().select(
+            Ok(guard.clone().select(
                 col_names
                     .iter()
                     .map(|s| polars::prelude::col(s.as_str()))
                     .collect::<Vec<_>>(),
-            )
+            ))
         }
     }
 
@@ -135,6 +135,15 @@ impl AppState {
         self.repository.time_column_display_name_sync()
     }
 
+    /// Returns TsContext (ts_col name, multiplier, dtype) for the time column.
+    /// All route handlers that duplicate the 3-line pattern should use this.
+    pub fn ts_context(&self, lf: &LazyFrame) -> Result<crate::temporal::TsContext, AppError> {
+        let ts_col = self
+            .time_column_display_name_sync()
+            .unwrap_or_else(|| "ts".to_string());
+        crate::temporal::ts_context(lf, &ts_col)
+    }
+
     pub async fn dataset_rows(&self) -> usize {
         let lock = self.repository.shared_frame();
         let lf = lock.read().await;
@@ -152,7 +161,10 @@ impl AppState {
 
     /// Push a query entry to the ring buffer.
     pub fn push_query(&self, entry: QueryEntry) {
-        let mut log = self.query_log.lock().unwrap();
+        let Ok(mut log) = self.query_log.lock().map_err(|e| e.into_inner()) else {
+            tracing::warn!("query_log lock failed, dropping entry");
+            return
+        };
         let max = self.config.query.max_stored.max(1);
         while log.len() >= max {
             log.pop_front();
@@ -162,7 +174,10 @@ impl AppState {
 
     /// Drain all query entries (for export).
     pub fn drain_queries(&self) -> Vec<QueryEntry> {
-        let mut log = self.query_log.lock().unwrap();
+        let Ok(mut log) = self.query_log.lock().map_err(|e| e.into_inner()) else {
+            tracing::warn!("query_log drain failed, returning empty");
+            return Vec::new()
+        };
         log.drain(..).collect()
     }
 

@@ -1,5 +1,6 @@
 {
   "private": true,
+  "type": "module",
   "scripts": {
     "check:frontend": "tsc --noEmit -p tsconfig.json",
     "validate": "npm run check:frontend",

@@ -196,15 +196,21 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
                 })
                 .unwrap_or(0);
 
-            if max_abs > 0 {
-                if max_abs < 100_000_000_000 {
-                    ts_expr = ts_expr * lit(1_000_i64); // seconds → ms
-                } else if max_abs >= 100_000_000_000_000_000 {
-                    ts_expr = ts_expr / lit(1_000_000_i64); // ns → ms
-                } else if max_abs >= 100_000_000_000_000 {
-                    ts_expr = ts_expr / lit(1_000_i64); // μs → ms
+            if let Some(unit) = crate::temporal::detect_time_unit(max_abs) {
+                match unit {
+                    crate::temporal::DetectedTimeUnit::Seconds => {
+                        ts_expr = ts_expr * lit(1_000_i64); // s → ms
+                    }
+                    crate::temporal::DetectedTimeUnit::Milliseconds => {
+                        // already ms — no change
+                    }
+                    crate::temporal::DetectedTimeUnit::Microseconds => {
+                        ts_expr = ts_expr / lit(1_000_i64); // μs → ms
+                    }
+                    crate::temporal::DetectedTimeUnit::Nanoseconds => {
+                        ts_expr = ts_expr / lit(1_000_000_i64); // ns → ms
+                    }
                 }
-                // else: already milliseconds
             }
         }
 

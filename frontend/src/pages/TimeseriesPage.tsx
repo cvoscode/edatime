@@ -1,8 +1,9 @@
-import { Component, createSignal, Show, For, createMemo, onMount, createEffect, onCleanup, untrack } from 'solid-js';
+import { Component, createSignal, Show, createMemo, onMount, createEffect, onCleanup, untrack } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { chartStore, datasetStore, uiStore, analyticsStore } from '../stores';
 import ChartView from '../components/chart/ChartView';
-import ColumnChips from '../components/chart/ColumnChips';
+import SeriesToolbar from './SeriesToolbar';
+import ChartToolbar from './ChartToolbar';
 import ColumnFilterModal from '../components/chart/ColumnFilterModal';
 import AnalyticsDrawer from '../components/chart/AnalyticsDrawer';
 import LabelsDrawer from '../components/chart/LabelsDrawer';
@@ -19,6 +20,7 @@ import styles from './TimeseriesPage.module.css';
 const TimeseriesPage: Component = () => {
   let pageRef: HTMLDivElement | undefined;
   const navigate = useNavigate();
+
   const [drawTool, setDrawTool] = createSignal<'none' | 'zoom' | 'arrow' | 'box'>('none');
   const [drawColor, setDrawColor] = createSignal('#ff0055');
   const [drawWidth, setDrawWidth] = createSignal(2);
@@ -29,15 +31,13 @@ const TimeseriesPage: Component = () => {
   const [xAxisLabel, setXAxisLabel] = createSignal('');
   const [yAxisLabel, setYAxisLabel] = createSignal('');
   const [chartEngine, setChartEngine] = createSignal<string>('');
-  const [seriesFilter, setSeriesFilter] = createSignal('');
-  const [collapsed, setCollapsed] = createSignal(false);
   const [filterModalOpen, setFilterModalOpen] = createSignal(false);
   const [filterModalColumn, setFilterModalColumn] = createSignal<string | null>(null);
   const [isLoading, setIsLoading] = createSignal(false);
   const [isDownsampled, setIsDownsampled] = createSignal(false);
   const [showSkeleton, setShowSkeleton] = createSignal(false);
   const [colorColumn, setColorColumn] = createSignal<string | null>(null);
-    const [showAdaptivePopup, setShowAdaptivePopup] = createSignal(false);
+  const [showAdaptivePopup, setShowAdaptivePopup] = createSignal(false);
   const [adaptiveFilterPoints, setAdaptiveFilterPoints] = createSignal<{
     x1: number; y1: number; x2: number; y2: number; screenX: number; screenY: number;
   } | null>(null);
@@ -520,174 +520,50 @@ const TimeseriesPage: Component = () => {
 
   return (
     <div ref={pageRef} class={styles.page}>
-            <div class={styles.toolbarSeries}>
-        <div class={styles.toolbarGroup} role="group" aria-label="Series selection tools">
-          <span class={styles.toolbarLabel}>X-axis</span>
-          <select
-            id="x-axis-select"
-            class={styles.xAxisSelect}
-            value={xAxisColumn() ?? ''}
-            onChange={(e) => handleXAxisChange(e.currentTarget.value)}
-            aria-label="Select x-axis column"
-          >
-            <Show when={datetimeCols().length > 0}>
-              <option value="" disabled>Time columns</option>
-              <For each={datetimeCols()}>
-                {(col) => <option value={col}>{col}</option>}
-              </For>
-              <option value="" disabled>Numeric columns</option>
-            </Show>
-            <For each={numericCols()}>
-              {(col) => <option value={col}>{col}</option>}
-            </For>
-          </select>
+            <SeriesToolbar
+        numericCols={numericCols()}
+        datetimeCols={datetimeCols()}
+        xAxisColumn={xAxisColumn()}
+        selectedColumns={selectedColumns()}
+        hiddenColumns={uiStore.state.hiddenColumns}
+        colors={uiStore.state.colors}
+        mergedColors={mergedColors()}
+        onXAxisChange={handleXAxisChange}
+        onColorByChange={setColorColumn}
+        onColumnChange={(cols) => { console.debug('[TimeseriesPage] onChange selected:', JSON.stringify(cols)); uiStore.setSelectedColumns(cols); }}
+        onHiddenChange={(hidden) => { console.debug('[TimeseriesPage] onHiddenChange:', JSON.stringify(hidden)); uiStore.setHiddenColumns(hidden); }}
+        onColorChange={(col, color) => { console.debug('[TimeseriesPage] onColorChange:', col, color); uiStore.setColumnColor(col, color); }}
+        onOpenFilter={openFilterModal}
+      />
 
-          <span class={styles.toolbarLabel}>Color by</span>
-          <select
-            id="color-by-select"
-            class={styles.xAxisSelect}
-            value={colorColumn() ?? ''}
-            onChange={(e) => setColorColumn(e.currentTarget.value || null)}
-            aria-label="Color by column"
-          >
-            <option value="">None</option>
-            <For each={numericCols()}>
-              {(col) => <option value={col}>{col}</option>}
-            </For>
-          </select>
-
-          <span class={styles.toolbarLabel}>Traces</span>
-          <input
-            type="text"
-            id="column-filter-input"
-            class={styles.columnFilterInput}
-            placeholder="Filter columns…"
-            value={seriesFilter()}
-            onInput={(e) => setSeriesFilter(e.currentTarget.value)}
-            aria-label="Filter columns"
-          />
-          <button
-            class={styles.collapseBtn}
-            id="collapse-series-btn"
-            type="button"
-            title="Collapse series list"
-            onClick={() => setCollapsed(!collapsed())}
-          >
-            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="4,6 8,10 12,6"/>
-            </svg>
-          </button>
-          <Show when={!collapsed()}>
-            <ColumnChips
-              columns={numericCols().filter(c => c !== xAxisColumn())}
-              selected={selectedColumns()}
-              filter={seriesFilter()}
-              colors={mergedColors()}
-              onChange={(cols) => { console.debug('[TimeseriesPage] onChange selected:', JSON.stringify(cols)); uiStore.setSelectedColumns(cols); }}
-              onHiddenChange={(hidden) => { console.debug('[TimeseriesPage] onHiddenChange:', JSON.stringify(hidden)); uiStore.setHiddenColumns(hidden); }}
-              onColorChange={(col, color) => { console.debug('[TimeseriesPage] onColorChange:', col, color); uiStore.setColumnColor(col, color); }}
-              onOpenFilter={openFilterModal}
-            />
-          </Show>
-        </div>
-      </div>
-
-      <div class={styles.toolbarTools}>
-        <div class={styles.toolbarGroup} role="group" aria-label="Drawing tools">
-          <span class={styles.toolbarLabel}>Draw</span>
-          <select
-            id="draw-tool"
-            class={styles.drawSelect}
-            value={drawTool()}
-            onChange={(e) => handleDrawToolChange(e.currentTarget.value as 'none' | 'zoom' | 'arrow' | 'box')}
-            aria-label="Draw tool"
-          >
-            <option value="none">None (Pan)</option>
-            <option value="zoom">Zoom (drag)</option>
-            <option value="arrow">Arrow</option>
-            <option value="box">Box</option>
-          </select>
-          <input
-            type="color"
-            id="draw-color"
-            value={drawColor()}
-            onChange={(e) => setDrawColor(e.currentTarget.value)}
-            title="Color"
-            aria-label="Draw color"
-          />
-          <input
-            type="number"
-            id="draw-width"
-            value={drawWidth()}
-            min="1"
-            max="10"
-            onChange={(e) => setDrawWidth(parseInt(e.currentTarget.value) || 2)}
-            title="Thickness"
-            aria-label="Draw thickness"
-          />
-          <button class={styles.ghostBtn} id="draw-clear-btn" type="button" title="Clear drawings" onClick={() => { chartInstanceRef?.clearDrawings?.(); chartStore.clearDrawings(); }}>Clear Drawings</button>
-        </div>
-
-        <div class={`${styles.toolbarGroup} ${styles.toolbarGroupSep}`} role="group" aria-label="Chart label controls">
-          <button
-            class={styles.panelOpenBtn}
-            type="button"
-            title="Edit chart title and axis labels"
-            onClick={() => setShowLabelsDrawer(true)}
-          >
-            <span class={styles.toolbarLabel}>Labels</span>
-            <span class={styles.disclosureValue}>Title + axes</span>
-          </button>
-        </div>
-
-        <div class={`${styles.toolbarGroup} ${styles.toolbarGroupSep}`} role="group" aria-label="Note and annotation tools">
-          <button class={styles.panelOpenBtn} type="button" title="Open annotation tools" onClick={() => setShowLabelsDrawer(true)}>
-            <span class={styles.toolbarLabel}>Notes</span>
-            <span class={styles.disclosureValue}>Annotations</span>
-          </button>
-        </div>
-
-        <div class={`${styles.toolbarGroup} ${styles.toolbarGroupPush}`} role="group" aria-label="Export chart and data options">
-          <button class={styles.ghostBtn} id="export-png-btn" type="button" title="Export chart as PNG (P)" onClick={handleExportPNG}>
-            PNG <kbd class={styles.toolbarKbd}>P</kbd>
-          </button>
-          <button class={styles.ghostBtn} id="export-csv-btn" type="button" title="Export filtered data as CSV (E)" onClick={handleExportCSV}>
-            CSV <kbd class={styles.toolbarKbd}>E</kbd>
-          </button>
-          <button class={styles.panelOpenBtn} type="button" title="More export options" onClick={() => setShowExportMore(v => !v)}>
-            <span class={styles.toolbarLabel}>More</span>
-            <span class={styles.disclosureValue}>SVG, JSON</span>
-          </button>
-          <Show when={showExportMore()}>
-            <div class={styles.dropdownMenu} role="menu">
-              <button class={styles.dropdownItem} role="menuitem" onClick={() => { handleExportSVG(); setShowExportMore(false); }}>Export SVG</button>
-              <button class={styles.dropdownItem} role="menuitem" onClick={() => { handleExportJSON(); setShowExportMore(false); }}>Export JSON</button>
-              <button class={styles.dropdownItem} role="menuitem" onClick={() => { handleExportHTML(); setShowExportMore(false); }}>Export HTML</button>
-            </div>
-          </Show>
-        </div>
-
-        <div class={`${styles.toolbarGroup} ${styles.toolbarGroupSep} ${styles.toolbarGroupPush}`} role="group" aria-label="Analytics controls">
-          <button
-            class={styles.panelOpenBtn}
-            type="button"
-            title="Open analytics controls"
-            onClick={() => setShowAnalytics(true)}
-          >
-            <span class={styles.toolbarLabel}>Analytics</span>
-            <span class={styles.disclosureValue}>Bands, anomalies, cleanup</span>
-          </button>
-        </div>
-
-        <div class={styles.toolbarGroup} role="group" aria-label="Zoom controls">
-          <button class={styles.ghostBtn} id="zoom-back-btn" type="button" title="Zoom back" onClick={() => chartStore.zoomOut()} disabled={!chartStore.canZoomOut()}>←</button>
-          <button class={styles.ghostBtn} id="zoom-out-btn" type="button" title="Zoom out (restore previous)" onClick={() => chartStore.zoomOut()}>−</button>
-          <span class={styles.zoomRangeBadge} id="zoom-range-badge" title="Current time range">{zoomBadgeText()}</span>
-          <button class={styles.ghostBtn} id="zoom-reset-btn" type="button" title="Reset to initial view" onClick={() => chartStore.forceResetZoom()}>↺</button>
-          <button class={styles.ghostBtn} id="zoom-redo-btn" type="button" title="Redo (go forward in zoom history)" onClick={() => chartStore.zoomForward()} disabled={!chartStore.canZoomForward()}>→</button>
-          <span class={styles.zoomHistoryBadge} title="Zoom history depth">{chartStore.state.zoomHistory.currentIndex + 1}/{chartStore.state.zoomHistory.zoomStack.length}</span>
-        </div>
-      </div>
+      <ChartToolbar
+        drawTool={drawTool()}
+        drawColor={drawColor()}
+        drawWidth={drawWidth()}
+        showExportMore={showExportMore()}
+        showAnalytics={showAnalytics()}
+        showLabelsDrawer={showLabelsDrawer()}
+        zoomBadgeText={zoomBadgeText()}
+        canZoomOut={chartStore.canZoomOut()}
+        canZoomForward={chartStore.canZoomForward()}
+        zoomHistoryIndex={chartStore.state.zoomHistory.currentIndex}
+        zoomHistoryLength={chartStore.state.zoomHistory.zoomStack.length}
+        onDrawToolChange={handleDrawToolChange}
+        onDrawColorChange={setDrawColor}
+        onDrawWidthChange={setDrawWidth}
+        onClearDrawings={() => { chartInstanceRef?.clearDrawings?.(); chartStore.clearDrawings(); }}
+        onOpenLabels={() => setShowLabelsDrawer(true)}
+        onOpenExportMore={() => setShowExportMore(v => !v)}
+        onExportPNG={handleExportPNG}
+        onExportCSV={handleExportCSV}
+        onExportSVG={() => { handleExportSVG(); setShowExportMore(false); }}
+        onExportJSON={() => { handleExportJSON(); setShowExportMore(false); }}
+        onExportHTML={() => { handleExportHTML(); setShowExportMore(false); }}
+        onOpenAnalytics={() => setShowAnalytics(true)}
+        onZoomOut={() => chartStore.zoomOut()}
+        onZoomReset={() => chartStore.forceResetZoom()}
+        onZoomForward={() => chartStore.zoomForward()}
+      />
 
       <main class={styles.main} id="main">
         <ChartView

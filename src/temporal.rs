@@ -8,6 +8,27 @@ use polars::prelude::*;
 
 use crate::error::AppError;
 
+/// Context for working with a timestamp column: the column name, the unit multiplier
+/// to convert to/from epoch-milliseconds, and the native Polars dtype.
+#[derive(Debug, Clone)]
+pub struct TsContext {
+    pub ts_col: String,
+    pub multiplier: i64,
+    pub dtype: DataType,
+}
+
+/// Look up the timestamp column's name, multiplier, and dtype from a LazyFrame.
+/// The column name is taken from `ts_col` if provided, otherwise defaults to "ts".
+pub fn ts_context(lf: &LazyFrame, ts_col: &str) -> Result<TsContext, AppError> {
+    let multiplier = unit_multiplier_for_ts_lazy(lf, ts_col)?;
+    let dtype = ts_dtype_lazy(lf, ts_col)?;
+    Ok(TsContext {
+        ts_col: ts_col.to_string(),
+        multiplier,
+        dtype,
+    })
+}
+
 /// How many native timestamp ticks fit in one millisecond for a given dtype.
 /// E.g. `DateTime(Nanoseconds, _)` → 1 000 000.
 pub fn unit_multiplier(dtype: &DataType) -> i64 {
@@ -99,4 +120,77 @@ pub fn epoch_ms_to_native(value_ms: f64, dtype: &DataType, round_up: bool) -> Re
     }
 
     Ok(rounded as i64)
+}
+
+/// Detected epoch time unit from the max absolute value of a timestamp column.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DetectedTimeUnit {
+    Seconds,
+    Milliseconds,
+    Microseconds,
+    Nanoseconds,
+}
+
+/// Detects the epoch time unit from the max absolute value of a timestamp column.
+/// Returns `None` if the value is zero or negative.
+pub fn detect_time_unit(max_abs: i64) -> Option<DetectedTimeUnit> {
+    if max_abs <= 0 {
+        return None;
+    }
+    if max_abs < 100_000_000_000 {
+        Some(DetectedTimeUnit::Seconds)
+    } else if max_abs >= 100_000_000_000_000_000 {
+        Some(DetectedTimeUnit::Nanoseconds)
+    } else if max_abs >= 100_000_000_000_000 {
+        Some(DetectedTimeUnit::Microseconds)
+    } else {
+        Some(DetectedTimeUnit::Milliseconds)
+    }
+}
+
+/// Returns the factor to multiply the native timestamp by to convert to milliseconds.
+/// E.g. Seconds → 1_000, Milliseconds → 1, Microseconds → 0 (division needed).
+pub fn ts_to_ms_factor(unit: DetectedTimeUnit) -> i64 {
+    match unit {
+        DetectedTimeUnit::Seconds => 1_000,
+        DetectedTimeUnit::Milliseconds => 1,
+        DetectedTimeUnit::Microseconds => 0, // caller should divide
+        DetectedTimeUnit::Nanoseconds => 0,  // caller should divide
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_seconds() {
+        assert_eq!(detect_time_unit(1_700_000_000), Some(DetectedTimeUnit::Seconds));
+        assert_eq!(detect_time_unit(99_999_999_999), Some(DetectedTimeUnit::Seconds));
+    }
+
+    #[test]
+    fn test_detect_milliseconds() {
+        assert_eq!(detect_time_unit(100_000_000_000), Some(DetectedTimeUnit::Milliseconds));
+        assert_eq!(detect_time_unit(99_999_999_999_999), Some(DetectedTimeUnit::Milliseconds));
+    }
+
+    #[test]
+    fn test_detect_microseconds() {
+        assert_eq!(detect_time_unit(100_000_000_000_000), Some(DetectedTimeUnit::Microseconds));
+        assert_eq!(detect_time_unit(99_999_999_999_999_999), Some(DetectedTimeUnit::Microseconds));
+    }
+
+    #[test]
+    fn test_detect_nanoseconds() {
+        assert_eq!(detect_time_unit(100_000_000_000_000_000), Some(DetectedTimeUnit::Nanoseconds));
+        assert_eq!(detect_time_unit(i64::MAX), Some(DetectedTimeUnit::Nanoseconds));
+    }
+
+    #[test]
+    fn test_detect_zero_and_negative() {
+        assert_eq!(detect_time_unit(0), None);
+        assert_eq!(detect_time_unit(-1), None);
+        assert_eq!(detect_time_unit(-100_000_000_000_000_000), None);
+    }
 }

@@ -1,3 +1,6 @@
+/**
+ * Causal store — causal discovery config, links, and results for causal analysis.
+ */
 import { createStore } from 'solid-js/store';
 
 export type CausalMethod = 'pcmci' | 'pcmciplus' | 'fullci' | 'bivci' | 'lpcmci';

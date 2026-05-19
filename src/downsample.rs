@@ -34,8 +34,8 @@ pub fn downsample_xy_pairs(
         if idx < n {
             out_x.push(x_vals[idx]);
             out_y.push(y_vals[idx]);
-            if let Some(ref mut c) = out_color {
-                c.push(color_vals.unwrap()[idx]);
+            if let Some(ref mut c) = out_color && let Some(vals) = color_vals {
+                c.push(vals[idx]);
             }
         }
     }

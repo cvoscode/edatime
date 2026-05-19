@@ -1,3 +1,7 @@
+/**
+ * Dataset store — manages dataset metadata, column profiles, and data objects for the current session.
+ * Handles data loading, filtering, and revision tracking for cache invalidation.
+ */
 import { createStore } from 'solid-js/store';
 import type { DatasetMetadata, ColumnProfile, DataObject, FilteredDataObject } from '../types';
 import { clearCache as clearDataFetchCache } from '../services/dataFetch';
@@ -102,5 +106,17 @@ export const datasetStore = {
       revision: null
     });
     _currentRevision = null;
+  },
+
+  serialize(): { xAxisColumn: string | null; colorColumn: string | null } {
+    return {
+      xAxisColumn: datasetState.xAxisColumn,
+      colorColumn: datasetState.selectedColorColumn,
+    };
+  },
+
+  deserialize(data: { xAxisColumn?: string | null; selectedColorColumn?: string | null }): void {
+    if (data.xAxisColumn !== undefined) setDatasetState('xAxisColumn', data.xAxisColumn);
+    if (data.selectedColorColumn !== undefined) setDatasetState('selectedColorColumn', data.selectedColorColumn);
   }
 };

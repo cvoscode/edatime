@@ -45,6 +45,12 @@ describe('useChartEngine', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Re-setup ResizeObserver mock since vi.clearAllMocks() clears module-level mocks
+    global.ResizeObserver = vi.fn().mockImplementation(() => ({
+      observe: vi.fn(),
+      unobserve: vi.fn(),
+      disconnect: vi.fn(),
+    }));
     container = document.createElement('div');
     containerRef = () => container;
     document.body.appendChild(container);

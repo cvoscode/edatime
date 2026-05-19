@@ -7,8 +7,9 @@ use axum::{
 use chrono::Utc;
 
 use crate::error::AppError;
-use crate::pipeline::{self, Reduction, ResponseMeta};
+use crate::pipeline::{self, Reduction};
 use crate::query::{self, AggregateQuery, AggregateWindowMode, QueryEntry, ReductionSpec, AggFn};
+use crate::routes::shared::ResponseMeta;
 use crate::state::AppState;
 use crate::validation::{
     validate_bucket_count, validate_numeric_columns_lazy, validate_time_window, validate_window_ms,
@@ -31,12 +32,12 @@ pub async fn get_aggregate(
     let value_cols = query::parse_columns(params.columns.as_deref());
     let value_cols = validate_numeric_columns_lazy(&lf, &value_cols, limits)?;
 
-    let ts_col = state.time_column_display_name_sync()
-        .unwrap_or_else(|| "ts".to_string());
-    let multiplier = query::unit_multiplier_for_ts_lazy(&lf, &ts_col)?;
-    let dtype = query::ts_dtype_lazy(&lf, &ts_col)?;
-    let start_ts = params.start.timestamp_millis() * multiplier;
-    let end_ts = params.end.timestamp_millis() * multiplier;
+    let ctx = state.ts_context(&lf)?;
+    let start_ts = params.start.timestamp_millis() * ctx.multiplier;
+    let end_ts = params.end.timestamp_millis() * ctx.multiplier;
+    let ts_col = ctx.ts_col;
+    let multiplier = ctx.multiplier;
+    let dtype = ctx.dtype;
 
     let reduction = match params.window_mode {
         AggregateWindowMode::Buckets => Reduction::BucketAgg {
@@ -120,7 +121,7 @@ pub async fn get_aggregate(
         ResponseMeta {
             is_downsampled: true,
             returned_rows,
-            target_points: params.buckets,
+            target_points: Some(params.buckets),
         },
     )
 }

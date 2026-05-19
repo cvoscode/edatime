@@ -1,7 +1,7 @@
 import { lazy, Suspense, Component, onMount, onCleanup } from 'solid-js';
 import { HashRouter, Route } from '@solidjs/router';
 import AppShell from './components/layout/AppShell';
-import { initSessionPersistence } from './stores/sessionStore';
+import { createSessionPersistence } from './stores/sessionStore';
 
 const TimeseriesPage = lazy(() => import('./pages/TimeseriesPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
@@ -35,8 +35,9 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 const App: Component = () => {
+  const persistence = createSessionPersistence();
   onMount(() => {
-    initSessionPersistence();
+    persistence.start();
 
     const onKeydown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || isTypingTarget(event.target)) return;

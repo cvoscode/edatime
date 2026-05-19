@@ -290,30 +290,29 @@ fn bucket_aggregate(
         agg_exprs.push(e);
     }
 
-    let result = tokio::task::block_in_place(|| {
-        df.clone()
-            .lazy()
-            .with_column(bucket_expr)
-            .group_by([col("__bucket")])
-            .agg(agg_exprs)
-            .sort(["__bucket"], SortMultipleOptions::default())
-            .with_column(
-                (lit(ts_min)
-                    + (col("__bucket").cast(DataType::Float64) + lit(0.5)) * lit(bucket_width))
-                .cast(DataType::Int64)
-                .alias(ts_col),
-            )
-            .select({
-                let mut sel = vec![col(ts_col)];
-                for c in value_cols {
-                    sel.push(col(c.as_str()));
-                }
-                sel
-            })
-            .with_new_streaming(true)
-            .collect()
-    })
-    .map_err(|e| AppError::io(e.to_string()))?;
+    let result = df
+        .clone()
+        .lazy()
+        .with_column(bucket_expr)
+        .group_by([col("__bucket")])
+        .agg(agg_exprs)
+        .sort(["__bucket"], SortMultipleOptions::default())
+        .with_column(
+            (lit(ts_min)
+                + (col("__bucket").cast(DataType::Float64) + lit(0.5)) * lit(bucket_width))
+            .cast(DataType::Int64)
+            .alias(ts_col),
+        )
+        .select({
+            let mut sel = vec![col(ts_col)];
+            for c in value_cols {
+                sel.push(col(c.as_str()));
+            }
+            sel
+        })
+        .with_new_streaming(true)
+        .collect()
+        .map_err(|e| AppError::io(e.to_string()))?;
 
     Ok((result, true))
 }
@@ -430,15 +429,11 @@ pub fn serialize_json(
 // ── Convenience: build a full response ─────────────────────────────────────
 
 use axum::Json;
-use axum::http::{HeaderValue, header};
+use axum::http::header;
 use axum::response::{IntoResponse, Response};
 
-/// Metadata attached to every data response via custom headers.
-pub struct ResponseMeta {
-    pub is_downsampled: bool,
-    pub returned_rows: usize,
-    pub target_points: usize,
-}
+pub use crate::routes::shared::ResponseMeta;
+use crate::routes::shared::add_edatime_headers;
 
 /// Build the final HTTP response from a processed DataFrame.
 pub fn build_response(
@@ -449,7 +444,7 @@ pub fn build_response(
     ts_col: &str,
     meta: ResponseMeta,
 ) -> Result<Response, AppError> {
-    let mut response = match format {
+    let response = match format {
         OutputFormat::Arrow => {
             let ipc_bytes = serialize_arrow(df, ts_col)?;
             (
@@ -464,33 +459,11 @@ pub fn build_response(
         }
     };
 
-    let downsampled = meta.is_downsampled;
-    response.headers_mut().insert(
-        "x-edatime-downsampled",
-        HeaderValue::from_static(if downsampled { "1" } else { "0" }),
-    );
-    match HeaderValue::from_str(&meta.returned_rows.to_string()) {
-        Ok(v) => {
-            response.headers_mut().insert("x-edatime-returned-rows", v);
-        }
-        Err(_) => {
-            tracing::warn!(
-                "Invalid returned_rows value for header: {}",
-                meta.returned_rows
-            );
-        }
-    }
-    match HeaderValue::from_str(&meta.target_points.to_string()) {
-        Ok(v) => {
-            response.headers_mut().insert("x-edatime-target-points", v);
-        }
-        Err(_) => {
-            tracing::warn!(
-                "Invalid target_points value for header: {}",
-                meta.target_points
-            );
-        }
-    }
-
+    let response_meta = ResponseMeta {
+        is_downsampled: meta.is_downsampled,
+        returned_rows: meta.returned_rows,
+        target_points: meta.target_points,
+    };
+    let response = add_edatime_headers(response, &response_meta);
     Ok(response)
 }

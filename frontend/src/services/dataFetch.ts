@@ -1,6 +1,7 @@
 import { tableFromIPC } from 'apache-arrow';
 import { debugLog, debugLogOnce } from '../utils/debug';
 import { getColorPalette, type ColorScaleName } from '../utils/colorScale';
+import { fetchArrow } from './api';
 import type { AdaptiveLineFilter } from '../types';
 
 export interface TimeseriesData {
@@ -22,15 +23,27 @@ export interface ColorScaleInfo {
   categories: string[];
 }
 
-// Cached last fetch result for fast color-only updates
-let _cachedXValues: Float64Array | null = null;
-let _cachedSeries: Record<string, Float64Array> | null = null;
-let _cachedMetadata: { timeRange: [number, number] } | null = null;
+// Cached last fetch result for fast color-only updates.
+// Cache is invalidated when dataset revision changes (see datasetStore.setMetadata).
+class TimeseriesCache {
+  xValues: Float64Array | null = null;
+  series: Record<string, Float64Array> | null = null;
+
+  clear(): void {
+    this.xValues = null;
+    this.series = null;
+  }
+
+  update(xValues: Float64Array, series: Record<string, Float64Array>): void {
+    this.xValues = xValues;
+    this.series = series;
+  }
+}
+
+const _cache = new TimeseriesCache();
 
 export function clearCache(): void {
-  _cachedXValues = null;
-  _cachedSeries = null;
-  _cachedMetadata = null;
+  _cache.clear();
 }
 
 export function analyzeColorValues(values: unknown[]): ColorScaleInfo | null {
@@ -179,7 +192,7 @@ export async function fetchTimeseriesData(
 
   debugLogOnce('fetchTimeseriesData-request', 'fetchTimeseriesData request', { start, end, width, xAxisColumn, traceColumns });
 
-  const res = await fetch(`/api/data?${params.toString()}`, { signal });
+  const res = await fetchArrow(`/api/data?${params.toString()}`, signal);
   if (!res.ok) throw new Error(`fetchTimeseriesData failed: ${res.status}`);
 
   const buffer = await res.arrayBuffer();
@@ -236,8 +249,8 @@ export async function fetchTimeseriesData(
     }
   }
 
-  _cachedXValues = xValues;
-  _cachedSeries = series;
+  _cache.xValues = xValues;
+  _cache.series = series;
 
   return {
     xValues,
@@ -249,19 +262,19 @@ export async function fetchTimeseriesData(
 }
 
 export function updateCachedColors(colors: Record<string, string>): any[] | null {
-  console.debug('[updateCachedColors] cache:', { hasX: !!_cachedXValues, hasSeries: !!_cachedSeries });
-  if (!_cachedXValues || !_cachedSeries) {
+  console.debug('[updateCachedColors] cache:', { hasX: !!_cache.xValues, hasSeries: !!_cache.series });
+  if (!_cache.xValues || !_cache.series) {
     console.debug('[updateCachedColors] cache MISS - returning null');
     return null;
   }
-  const seriesConfig = buildSeriesConfig(_cachedXValues, _cachedSeries, colors);
+  const seriesConfig = buildSeriesConfig(_cache.xValues, _cache.series, colors);
   console.debug('[updateCachedColors] result:', seriesConfig ? `${seriesConfig.length} series` : 'null');
   return seriesConfig;
 }
 
 export function getCachedData(): { xValues: Float64Array; series: Record<string, Float64Array> } | null {
-  if (!_cachedXValues || !_cachedSeries) return null;
-  return { xValues: _cachedXValues, series: _cachedSeries };
+  if (!_cache.xValues || !_cache.series) return null;
+  return { xValues: _cache.xValues, series: _cache.series };
 }
 
 const COLOR_BUCKETS = 64;

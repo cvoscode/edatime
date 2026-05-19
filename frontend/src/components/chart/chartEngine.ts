@@ -32,7 +32,7 @@ export const DEFAULT_GRID: GridConfig = { left: 120, right: 30, top: 16, bottom:
 export const ECHARTS_GRID: GridConfig = { left: 80, right: 40, top: 20, bottom: 50 };
 const CHARTGPU_INIT_TIMEOUT_MS = 5000;
 
-function isWebGPUSupported(): boolean {
+export function isWebGPUSupported(): boolean {
   try {
     return typeof navigator !== 'undefined' && !!(navigator as any).gpu;
   } catch {

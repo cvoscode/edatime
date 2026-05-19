@@ -6,6 +6,14 @@ use axum::body::Body;
 use axum::http::{HeaderValue, Response, StatusCode, header};
 use bytes::Bytes;
 
+/// Revision-based cache for expensive drift computation results.
+/// Unlike `ResponseCache` which is TTL-based, this cache is invalidated
+/// when the dataset revision changes (tracked via the `u64` revision field).
+/// The `Instant` field is used for TTL-based eviction of stale drift results.
+pub type DriftCache = Arc<std::sync::Mutex<HashMap<String, (u64, Instant, Vec<u8>)>>>;
+
+use crate::routes::shared::{add_edatime_headers, ResponseMeta};
+
 #[derive(Debug, Clone, Copy)]
 pub struct CacheConfig {
     pub ttl: Duration,
@@ -84,38 +92,13 @@ impl CachedResponse {
             header::CACHE_CONTROL,
             HeaderValue::from_static("public, max-age=60"),
         );
-        headers.insert(
-            "x-edatime-downsampled",
-            if self.is_downsampled {
-                HeaderValue::from_static("1")
-            } else {
-                HeaderValue::from_static("0")
-            },
-        );
-        match HeaderValue::from_str(&self.returned_rows.to_string()) {
-            Ok(value) => {
-                headers.insert("x-edatime-returned-rows", value);
-            }
-            Err(_) => {
-                tracing::warn!(
-                    "Invalid returned_rows value for cache header: {}",
-                    self.returned_rows
-                );
-            }
-        }
-        match HeaderValue::from_str(&self.target_points.to_string()) {
-            Ok(value) => {
-                headers.insert("x-edatime-target-points", value);
-            }
-            Err(_) => {
-                tracing::warn!(
-                    "Invalid target_points value for cache header: {}",
-                    self.target_points
-                );
-            }
-        }
         headers.insert("x-edatime-cache", HeaderValue::from_static(cache_status));
-        response
+        let meta = ResponseMeta {
+            is_downsampled: self.is_downsampled,
+            returned_rows: self.returned_rows,
+            target_points: Some(self.target_points),
+        };
+        add_edatime_headers(response, &meta)
     }
 }
 
@@ -145,6 +128,11 @@ impl Default for CacheState {
 }
 
 #[derive(Debug)]
+/// TTL-based in-memory response cache for query results.
+/// Stores serialized `CachedResponse` objects (JSON or Arrow) keyed by cache key string.
+/// Uses revision-based invalidation (call `invalidate_all`) when the underlying
+/// dataset changes. Contrast with `DriftCache` which is revision-based with a
+/// shorter TTL for expensive drift computation results.
 pub struct ResponseCache {
     config: CacheConfig,
     // No .await inside critical sections — std::sync::Mutex is cheaper and
@@ -161,13 +149,13 @@ impl ResponseCache {
     }
 
     pub async fn get(&self, key: &str) -> Option<CachedResponse> {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock().map_err(|e| e.into_inner()).ok()?;
         self.maybe_prune(&mut state);
         state.entries.get(key).map(|entry| entry.response.clone())
     }
 
     pub async fn insert(&self, key: String, response: CachedResponse) {
-        let mut state = self.state.lock().unwrap();
+        let Ok(mut state) = self.state.lock().map_err(|e| e.into_inner()) else { return };
         self.maybe_prune(&mut state);
 
         if let Some(previous) = state.entries.remove(&key) {
@@ -228,7 +216,7 @@ impl ResponseCache {
 
     /// Clear all cached entries.
     pub async fn invalidate_all(&self) {
-        let mut state = self.state.lock().unwrap();
+        let Ok(mut state) = self.state.lock().map_err(|e| e.into_inner()) else { return };
         state.entries.clear();
         state.order.clear();
         state.total_bytes = 0;

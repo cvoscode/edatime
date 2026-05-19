@@ -286,6 +286,10 @@ pub async fn ingest_table(
         })?;
 
     // Validate and sanitise identifiers upfront (no borrows held).
+    // Identifiers are double-quoted per SQL standard — this is the only safe
+    // way to embed user-supplied names in SQL. The allowlist (alphanumeric + _ + .)
+    // prevents literal injection, and double-quoting prevents identifier injection
+    // (e.g. a keyword like "update" in a table name stays as a name, not a command).
     let schema = sanitise_ident(schema)?;
     let table = sanitise_ident(table)?;
 

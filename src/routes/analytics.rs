@@ -3,6 +3,8 @@
 //! `GET /api/analytics/fft` — frequency-domain analysis
 //! `POST /api/transform` — column transformation expressions
 
+use std::sync::Arc;
+
 use axum::{
     Json,
     extract::{Query, State},
@@ -13,53 +15,10 @@ use serde::Deserialize;
 
 use crate::analytics;
 use crate::error::AppError;
-use crate::pipeline;
 use crate::query;
+use crate::routes::shared::{downsample_by_stride, filter_preamble};
 use crate::state::AppState;
-use crate::validation::{validate_numeric_columns_lazy, validate_time_window};
-use polars::prelude::{DataFrame, IntoLazy};
-
-// ── Shared Helpers ─────────────────────────────────────────────────────────
-
-/// Common preamble: validate time window, snapshot dataset, parse & validate
-/// columns, compute time-range filter. Returns `(value_cols, filtered_df)`.
-async fn filter_preamble(
-    state: &AppState,
-    start: DateTime<Utc>,
-    end: DateTime<Utc>,
-    columns: Option<&str>,
-) -> Result<(Vec<String>, DataFrame), AppError> {
-    validate_time_window(start, end)?;
-    let lf = state.dataset_snapshot().await.read().await.clone();
-    let cols = query::parse_columns(columns);
-    let limits = &state.config.validation;
-    let value_cols = validate_numeric_columns_lazy(&lf, &cols, limits)?;
-    let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::io(e.to_string()))?;
-    let ts_col = state.time_column_display_name_sync()
-        .unwrap_or_else(|| "ts".to_string());
-    let multiplier = query::unit_multiplier_for_ts(&df, &ts_col)?;
-    let start_ts = start.timestamp_millis() * multiplier;
-    let end_ts = end.timestamp_millis() * multiplier;
-    let filtered = pipeline::filter_time_range(df.lazy(), start_ts, end_ts, &value_cols, &ts_col)?;
-    Ok((value_cols, filtered))
-}
-
-/// Downsample a DataFrame by taking every Nth row when it exceeds `max_pts`.
-fn downsample_by_stride(df: DataFrame, max_pts: usize, label: &str) -> Result<DataFrame, AppError> {
-    if df.height() <= max_pts {
-        return Ok(df);
-    }
-    let step = df.height() / max_pts;
-    let indices: Vec<u32> = (0..df.height())
-        .step_by(step.max(1))
-        .take(max_pts)
-        .map(|i| i as u32)
-        .collect();
-    use polars::prelude::NamedFrom;
-    let idx_ca = polars::prelude::IdxCa::new("idx".into(), &indices);
-    df.take(&idx_ca)
-        .map_err(|e| AppError::internal(format!("{label} downsample: {e}")))
-}
+use crate::validation::validate_numeric_columns_lazy;
 
 // ── Rolling Statistics ─────────────────────────────────────────────────────
 
@@ -79,11 +38,16 @@ pub async fn get_rolling(
 ) -> Result<impl IntoResponse, AppError> {
     let (value_cols, filtered) =
         filter_preamble(&state, params.start, params.end, params.columns.as_deref()).await?;
-    let window = params.window.unwrap_or(50).clamp(2, 10_000);
+    let params = Arc::new(params);
 
-    let bands = tokio::task::block_in_place(|| {
-        analytics::compute_rolling_bands(&filtered, &value_cols, window)
-    })?;
+    let bands = tokio::task::spawn_blocking({
+        let params = params.clone();
+        let filtered = filtered.clone();
+        let value_cols = value_cols.clone();
+        move || analytics::compute_rolling_bands(&filtered, &value_cols, params.window.unwrap_or(50).clamp(2, 10_000))
+    })
+    .await
+    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
 
     Ok(Json(serde_json::json!({ "bands": bands })))
 }
@@ -106,20 +70,29 @@ pub async fn get_anomalies(
     State(state): State<AppState>,
     Query(params): Query<AnomalyQuery>,
 ) -> Result<impl IntoResponse, AppError> {
+    let params = Arc::new(params);
     let (value_cols, filtered) =
         filter_preamble(&state, params.start, params.end, params.columns.as_deref()).await?;
 
     let method = params.method.as_deref().unwrap_or("zscore");
-    let regions = tokio::task::block_in_place(|| match method {
-        "iqr" => {
-            let k = params.threshold.unwrap_or(1.5);
-            analytics::detect_anomalies_iqr(&filtered, &value_cols, k)
+    let regions = tokio::task::spawn_blocking({
+        let params = params.clone();
+        let filtered = filtered.clone();
+        let value_cols = value_cols.clone();
+        let method = method.to_string();
+        move || match method.as_str() {
+            "iqr" => {
+                let k = params.threshold.unwrap_or(1.5);
+                analytics::detect_anomalies_iqr(&filtered, &value_cols, k)
+            }
+            _ => {
+                let threshold = params.threshold.unwrap_or(3.0);
+                analytics::detect_anomalies_zscore(&filtered, &value_cols, threshold)
+            }
         }
-        _ => {
-            let threshold = params.threshold.unwrap_or(3.0);
-            analytics::detect_anomalies_zscore(&filtered, &value_cols, threshold)
-        }
-    })?;
+    })
+    .await
+    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
 
     Ok(Json(serde_json::json!({
         "method": method,
@@ -150,8 +123,13 @@ pub async fn get_fft(
     let max_pts = params.max_points.unwrap_or(8192).max(64);
     let work_df = downsample_by_stride(filtered, max_pts, "FFT")?;
 
-    let results =
-        tokio::task::block_in_place(|| analytics::compute_fft(&work_df, &value_cols, None))?;
+    let results = tokio::task::spawn_blocking({
+        let work_df = work_df.clone();
+        let value_cols = value_cols.clone();
+        move || analytics::compute_fft(&work_df, &value_cols, None)
+    })
+    .await
+    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
 
     Ok(Json(serde_json::json!({
         "sample_count": work_df.height(),
@@ -189,9 +167,13 @@ pub async fn get_spectrogram(
     let win_size = params.window_size.unwrap_or(256).clamp(16, 4096);
     let hop = params.hop_size.unwrap_or(win_size / 2).clamp(1, win_size);
 
-    let result = tokio::task::block_in_place(|| {
-        analytics::compute_spectrogram(&work_df, col, win_size, hop)
-    })?;
+    let result = tokio::task::spawn_blocking({
+        let work_df = work_df.clone();
+        let col = col.to_string();
+        move || analytics::compute_spectrogram(&work_df, &col, win_size, hop)
+    })
+    .await
+    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
 
     Ok(Json(serde_json::json!({
         "sample_count": work_df.height(),
@@ -233,10 +215,9 @@ pub async fn get_spectral_filter(
         (Some(s), Some(e)) => (s, e),
         (opt_s, opt_e) => {
             let lf_snap = state.dataset_snapshot().await.read().await.clone();
-            let ts_col = state.time_column_display_name_sync()
-                .unwrap_or_else(|| "ts".to_string());
-            let ts_dtype = crate::temporal::ts_dtype_lazy(&lf_snap, &ts_col)?;
-            let multiplier = crate::temporal::unit_multiplier(&ts_dtype);
+            let ctx = state.ts_context(&lf_snap)?;
+            let ts_col = ctx.ts_col;
+            let multiplier = ctx.multiplier;
             let df_snap = lf_snap
                 .with_new_streaming(true)
                 .collect()
@@ -291,9 +272,13 @@ pub async fn get_spectral_filter(
     let high_hz = params.high_hz;
     let sr = params.sample_rate_hz;
 
-    let (ts_ms, filtered_values) = tokio::task::block_in_place(|| {
-        analytics::apply_spectral_filter(&work_df, col, filter_type, low_hz, high_hz, sr)
-    })?;
+    let (ts_ms, filtered_values) = tokio::task::spawn_blocking({
+        let work_df = work_df.clone();
+        let col = col.to_string();
+        move || analytics::apply_spectral_filter(&work_df, &col, filter_type, low_hz, high_hz, sr)
+    })
+    .await
+    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
 
     Ok(Json(serde_json::json!({
         "column": col,
@@ -336,9 +321,14 @@ pub async fn post_transform(
 
     let lf = state.dataset_snapshot().await.read().await.clone();
 
-    let new_df = tokio::task::block_in_place(|| {
-        analytics::apply_column_transform_lazy(&lf, &expression, &output_name)
-    })?;
+    let new_df = tokio::task::spawn_blocking({
+        let lf = lf.clone();
+        let expression = expression.clone();
+        let output_name = output_name.clone();
+        move || analytics::apply_column_transform_lazy(&lf, &expression, &output_name)
+    })
+    .await
+    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
 
     let _revision = state.replace_dataset(new_df).await;
     state.cache.invalidate_all().await;
@@ -380,13 +370,20 @@ pub async fn post_remove_outliers(
         .threshold
         .unwrap_or(if method == "iqr" { 1.5 } else { 3.0 });
 
-    let (new_df, result) = tokio::task::block_in_place(|| {
-        if let Some(window) = params.window {
-            analytics::remove_outliers_windowed(&df, &value_cols, method, threshold, window)
-        } else {
-            analytics::remove_outliers_global(&df, &value_cols, method, threshold)
+    let (new_df, result) = tokio::task::spawn_blocking({
+        let df = df.clone();
+        let value_cols = value_cols.clone();
+        let method = method.to_string();
+        move || {
+            if let Some(window) = params.window {
+                analytics::remove_outliers_windowed(&df, &value_cols, &method, threshold, window)
+            } else {
+                analytics::remove_outliers_global(&df, &value_cols, &method, threshold)
+            }
         }
-    })?;
+    })
+    .await
+    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
 
     let _revision = state.replace_dataset(new_df).await;
     state.cache.invalidate_all().await;
@@ -418,6 +415,10 @@ pub struct CausalGraphRequest {
     pub fdr_method: Option<String>,
     /// Number of preliminary iterations for LPCMCI (default: 1)
     pub n_preliminary_iterations: Option<usize>,
+    /// Number of nearest neighbors for CMI-KNN test (default: 10)
+    pub knn: Option<usize>,
+    /// Number of shuffle samples for CMI-KNN significance test (default: 200)
+    pub sig_samples: Option<usize>,
 }
 
 #[tracing::instrument(skip(state))]
@@ -458,18 +459,18 @@ pub async fn post_causal_graph(
     };
 
     let n_preliminary_iterations = params.n_preliminary_iterations.unwrap_or(1).clamp(0, 5);
+    let knn = params.knn.unwrap_or(10).clamp(1, 100);
+    let sig_samples = params.sig_samples.unwrap_or(200).clamp(10, 1000);
 
-    // Build CausalDataFrame directly from Polars DataFrame
-    let causal_df = tokio::task::block_in_place(|| {
-        crate::causal::CausalDataFrame::from_polars(&df, &value_cols, max_pts)
-    })?;
-
-    // Run causal discovery on the blocking thread pool (CPU-intensive)
     let result = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, AppError> {
         use crate::causal::pcmci::PcmciConfig;
         use crate::causal::{CondIndTest, Pcmci, PcmciPlus};
 
-        let cond_test = CondIndTest::new(test_kind);
+        let causal_df = crate::causal::CausalDataFrame::from_polars(&df, &value_cols, max_pts)?;
+
+        let mut cond_test = CondIndTest::new(test_kind);
+        cond_test.knn = knn;
+        cond_test.sig_samples = sig_samples;
 
         let config = PcmciConfig {
             tau_min: if method == "pcmciplus" || method == "lpcmci" {

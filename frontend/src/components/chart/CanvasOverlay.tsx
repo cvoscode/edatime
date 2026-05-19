@@ -1,4 +1,5 @@
 import { Component, createEffect, onMount, onCleanup } from 'solid-js';
+import { DEFAULT_GRID } from './chartEngine';
 import type { RollingBandData, AnomalyRegionData, DragState, Annotation, AdaptiveLineFilter, PendingAdaptivePoint } from '../../types';
 import { chartStore } from '../../stores';
 import type { Drawing } from '../../stores/chartStore';
@@ -25,7 +26,40 @@ interface CanvasOverlayProps {
   adaptiveLineFilters?: AdaptiveLineFilter[];
 }
 
-const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
+const CHART_GRID = DEFAULT_GRID;
+
+// Coordinate conversion utilities — mirrors useChartViewport
+const toDataX = (cssX: number, containerWidth: number, xMin: number, xMax: number): number => {
+  const plotLeft = CHART_GRID.left;
+  const plotRight = containerWidth - CHART_GRID.right;
+  const plotWidth = Math.max(1, plotRight - plotLeft);
+  const xNorm = Math.max(0, Math.min(1, (cssX - plotLeft) / plotWidth));
+  return xMin + xNorm * (xMax - xMin);
+};
+
+const toDataY = (cssY: number, containerHeight: number, yMin: number, yMax: number): number => {
+  const plotTop = CHART_GRID.top;
+  const plotBottom = containerHeight - CHART_GRID.bottom;
+  const plotHeight = Math.max(1, plotBottom - plotTop);
+  const yNorm = Math.max(0, Math.min(1, (cssY - plotTop) / plotHeight));
+  return yMax - yNorm * (yMax - yMin);
+};
+
+const toCssX = (dataX: number, cssW: number, xMin: number, xMax: number): number => {
+  const plotLeft = CHART_GRID.left;
+  const plotRight = cssW - CHART_GRID.right;
+  const plotWidth = Math.max(1, plotRight - plotLeft);
+  const xNorm = Math.max(0, Math.min(1, (dataX - xMin) / (xMax - xMin)));
+  return plotLeft + xNorm * plotWidth;
+};
+
+const toCssY = (dataY: number, cssH: number, yMin: number, yMax: number): number => {
+  const plotTop = CHART_GRID.top;
+  const plotBottom = cssH - CHART_GRID.bottom;
+  const plotHeight = Math.max(1, plotBottom - plotTop);
+  const yNorm = Math.max(0, Math.min(1, (yMax - dataY) / (yMax - yMin)));
+  return plotTop + yNorm * plotHeight;
+};
 
 const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
   let canvasRef: HTMLCanvasElement | undefined;
@@ -37,38 +71,6 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
   let drawCurrentY = 0;
 
   const isDrawingMode = () => props.drawMode === 'arrow' || props.drawMode === 'box';
-
-  const toDataX = (cssX: number, containerWidth: number): number => {
-    const plotLeft = CHART_GRID.left;
-    const plotRight = containerWidth - CHART_GRID.right;
-    const plotWidth = Math.max(1, plotRight - plotLeft);
-    const xNorm = Math.max(0, Math.min(1, (cssX - plotLeft) / plotWidth));
-    return props.xMin + xNorm * (props.xMax - props.xMin);
-  };
-
-  const toDataY = (cssY: number, containerHeight: number): number => {
-    const plotTop = CHART_GRID.top;
-    const plotBottom = containerHeight - CHART_GRID.bottom;
-    const plotHeight = Math.max(1, plotBottom - plotTop);
-    const yNorm = Math.max(0, Math.min(1, (cssY - plotTop) / plotHeight));
-    return props.yMax - yNorm * (props.yMax - props.yMin);
-  };
-
-  const toCssX = (dataX: number, cssW: number): number => {
-    const plotLeft = CHART_GRID.left;
-    const plotRight = cssW - CHART_GRID.right;
-    const plotWidth = Math.max(1, plotRight - plotLeft);
-    const xNorm = Math.max(0, Math.min(1, (dataX - props.xMin) / (props.xMax - props.xMin)));
-    return plotLeft + xNorm * plotWidth;
-  };
-
-  const toCssY = (dataY: number, cssH: number): number => {
-    const plotTop = CHART_GRID.top;
-    const plotBottom = cssH - CHART_GRID.bottom;
-    const plotHeight = Math.max(1, plotBottom - plotTop);
-    const yNorm = Math.max(0, Math.min(1, (props.yMax - dataY) / (props.yMax - props.yMin)));
-    return plotTop + yNorm * plotHeight;
-  };
 
   const render = () => {
     const canvas = canvasRef;
@@ -167,10 +169,10 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
     ctx.lineWidth = lineWidth;
     ctx.setLineDash([6, 3]);
 
-    const startDataX = toDataX(drawStartX, cssW);
-    const startDataY = toDataY(drawStartY, cssH);
-    const endDataX = toDataX(drawCurrentX, cssW);
-    const endDataY = toDataY(drawCurrentY, cssH);
+    const startDataX = toDataX(drawStartX, cssW, props.xMin, props.xMax);
+    const startDataY = toDataY(drawStartY, cssH, props.yMin, props.yMax);
+    const endDataX = toDataX(drawCurrentX, cssW, props.xMin, props.xMax);
+    const endDataY = toDataY(drawCurrentY, cssH, props.yMin, props.yMax);
 
     const x1 = plotLeft + ((startDataX - props.xMin) / (props.xMax - props.xMin)) * plotWidth;
     const y1 = plotBottom - ((startDataY - props.yMin) / (props.yMax - props.yMin)) * plotHeight;
@@ -231,10 +233,10 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
   const renderAdaptiveFilterLines = (ctx: CanvasRenderingContext2D, cssW: number, cssH: number) => {
     const filters = props.adaptiveLineFilters ?? [];
     for (const f of filters) {
-      const x1 = toCssX(f.x1, cssW);
-      const y1 = toCssY(f.y1, cssH);
-      const x2 = toCssX(f.x2, cssW);
-      const y2 = toCssY(f.y2, cssH);
+      const x1 = toCssX(f.x1, cssW, props.xMin, props.xMax);
+      const y1 = toCssY(f.y1, cssH, props.yMin, props.yMax);
+      const x2 = toCssX(f.x2, cssW, props.xMin, props.xMax);
+      const y2 = toCssY(f.y2, cssH, props.yMin, props.yMax);
 
       ctx.strokeStyle = f.keepAbove ? 'rgba(0, 200, 150, 0.95)' : 'rgba(255, 74, 110, 0.95)';
       ctx.lineWidth = 2;
@@ -257,8 +259,8 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
     const p = props.pendingAdaptivePoint;
     if (!p) return;
 
-    const cx = toCssX(p.x1, cssW);
-    const cy = toCssY(p.y1, cssH);
+    const cx = toCssX(p.x1, cssW, props.xMin, props.xMax);
+    const cy = toCssY(p.y1, cssH, props.yMin, props.yMax);
 
     if (p.x2 === null) {
       // Single cyan dot
@@ -271,8 +273,8 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
       ctx.stroke();
     } else {
       // Dashed preview line
-      const cx2 = toCssX(p.x2!, cssW);
-      const cy2 = toCssY(p.y2!, cssH);
+      const cx2 = toCssX(p.x2!, cssW, props.xMin, props.xMax);
+      const cy2 = toCssY(p.y2!, cssH, props.yMin, props.yMax);
 
       ctx.strokeStyle = 'rgba(0, 212, 255, 0.7)';
       ctx.lineWidth = 2;
@@ -318,10 +320,10 @@ const CanvasOverlay: Component<CanvasOverlayProps> = (props) => {
     isPointerDown = false;
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
 
-    const endDataX = toDataX(drawCurrentX, canvasRef?.clientWidth ?? 1);
-    const endDataY = toDataY(drawCurrentY, canvasRef?.clientHeight ?? 1);
-    const startDataX = toDataX(drawStartX, canvasRef?.clientWidth ?? 1);
-    const startDataY = toDataY(drawStartY, canvasRef?.clientHeight ?? 1);
+    const endDataX = toDataX(drawCurrentX, canvasRef?.clientWidth ?? 1, props.xMin, props.xMax);
+    const endDataY = toDataY(drawCurrentY, canvasRef?.clientHeight ?? 1, props.yMin, props.yMax);
+    const startDataX = toDataX(drawStartX, canvasRef?.clientWidth ?? 1, props.xMin, props.xMax);
+    const startDataY = toDataY(drawStartY, canvasRef?.clientHeight ?? 1, props.yMin, props.yMax);
 
     // Require minimum drag distance
     const dx = Math.abs(endDataX - startDataX);

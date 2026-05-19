@@ -12,12 +12,8 @@ const DEFAULT_VIEWPORT = { xMin: 0, xMax: 100, yMin: 0, yMax: 1 };
 // ---------------------------------------------------------------------------
 describe('chartStore', () => {
   beforeEach(() => {
-    // Reset chartStore state fully
-    chartStore.forceResetZoom?.();
-    chartStore.clearSeriesVisibility?.();
-    chartStore.clearDrawings?.();
-    chartStore.setDrawMode('pan');
-    chartStore.setLoading(false);
+    // Fully reset chartStore via reset() which clears all state
+    chartStore.reset();
   });
 
   it('exposes state getter', () => {
@@ -46,6 +42,9 @@ describe('chartStore', () => {
   });
 
   it('clearSeriesVisibility resets all visibility', () => {
+    // Reset and manually set seriesVisibility to empty object to ensure clean state
+    chartStore.reset();
+    (chartStore.state as any).seriesVisibility = {};
     chartStore.setSeriesVisibility('temp1', false);
     chartStore.setSeriesVisibility('temp2', false);
     chartStore.clearSeriesVisibility();
@@ -138,84 +137,8 @@ describe('uiStore', () => {
   it('removeFilter removes filter for a column', () => {
     uiStore.setFilter('temp', { min: 0, max: 100 });
     uiStore.removeFilter('temp');
-    expect(uiStore.state.filters.temp).toBeUndefined();
-  });
-
-  it('setColumnColor updates color for a column', () => {
-    uiStore.setColumnColor('temp', '#ff0000');
-    expect(uiStore.state.colors.temp).toBe('#ff0000');
-  });
-
-  it('addToast appends toast message', () => {
-    const before = uiStore.state.toasts.length;
-    uiStore.addToast({ message: 'test', type: 'info' });
-    expect(uiStore.state.toasts.length).toBe(before + 1);
-  });
-
-  it('removeToast removes toast by id', () => {
-    uiStore.addToast({ message: 'to-remove', type: 'info' });
-    const toast = uiStore.state.toasts[uiStore.state.toasts.length - 1];
-    if (toast) {
-      uiStore.removeToast(toast.id);
-      expect(uiStore.state.toasts.some(t => t.id === toast.id)).toBe(false);
-    }
-  });
-
-  it('toggleSidebar toggles sidebar state', () => {
-    const before = uiStore.state.sidebarOpen;
-    uiStore.toggleSidebar();
-    expect(uiStore.state.sidebarOpen).toBe(!before);
-  });
-
-  it('setUploadPanelOpen updates panel state', () => {
-    uiStore.setUploadPanelOpen(true);
-    expect(uiStore.state.isUploadPanelOpen).toBe(true);
-    uiStore.setUploadPanelOpen(false);
-    expect(uiStore.state.isUploadPanelOpen).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// uiStore tests
-// ---------------------------------------------------------------------------
-describe('uiStore', () => {
-  it('exposes state getter', () => {
-    expect(uiStore.state).toBeDefined();
-    expect(Array.isArray(uiStore.state.selectedColumns)).toBe(true);
-  });
-
-  it('selectColumn adds column to selectedColumns', () => {
-    uiStore.selectColumn('temperature');
-    expect(uiStore.state.selectedColumns).toContain('temperature');
-  });
-
-  it('deselectColumn removes column from selectedColumns', () => {
-    uiStore.selectColumn('temperature');
-    uiStore.deselectColumn('temperature');
-    expect(uiStore.state.selectedColumns).not.toContain('temperature');
-  });
-
-  it('toggleColumn toggles column selection', () => {
-    uiStore.toggleColumn('toggleTest');
-    expect(uiStore.state.selectedColumns).toContain('toggleTest');
-    uiStore.toggleColumn('toggleTest');
-    expect(uiStore.state.selectedColumns).not.toContain('toggleTest');
-  });
-
-  it('setHiddenColumns updates hiddenColumns', () => {
-    uiStore.setHiddenColumns(['hidden1', 'hidden2']);
-    expect(uiStore.state.hiddenColumns).toEqual(['hidden1', 'hidden2']);
-  });
-
-  it('setFilter sets filter for a column', () => {
-    uiStore.setFilter('temp', { min: 0, max: 100 });
-    expect(uiStore.state.filters.temp).toEqual({ min: 0, max: 100 });
-  });
-
-  it('removeFilter removes filter for a column', () => {
-    uiStore.setFilter('temp', { min: 0, max: 100 });
-    uiStore.removeFilter('temp');
-    expect(uiStore.state.filters.temp).toBeUndefined();
+    // After removeFilter, the key is absent from the object (not undefined)
+    expect(uiStore.state.filters).not.toHaveProperty('temp');
   });
 
   it('setColumnColor updates color for a column', () => {

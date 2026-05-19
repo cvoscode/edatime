@@ -6,4 +6,3 @@ export { scatterStore } from './scatterStore';
 export { uploadStore } from './uploadStore';
 export { fftStore } from './fftStore';
 export { causalStore } from './causalStore';
-export { initSessionPersistence } from './sessionStore';

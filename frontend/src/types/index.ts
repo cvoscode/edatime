@@ -1,3 +1,16 @@
+/**
+ * Types index — centralized exports for all domain types.
+ *
+ * PREFERRED IMPORTS (enforced from Phase 8):
+ *   import type { DatasetMetadata } from '../types';      // ✅ from index
+ *   import type { DatasetMetadata } from '../types/index'; // ⚠️ deep import (deprecated)
+ *   import type { ColumnProfile } from '../types';        // ✅ from index
+ *   import type { DataObject } from '../types';           // ✅ from index
+ */
+
+// Re-export domain types
+export * from './domains';
+
 export interface DatasetMetadata {
   name: string;
   rowCount: number;

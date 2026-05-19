@@ -71,18 +71,51 @@ impl InMemoryDataRepository {
     pub fn time_column_display_name(&self) -> Arc<StdRwLock<Option<String>>> {
         Arc::clone(&self.time_column_display_name)
     }
+}
 
-    pub fn set_time_column_display_name(&self, name: Option<String>) {
+pub trait DataRepository: Send + Sync {
+    fn shared_frame(&self) -> Arc<RwLock<LazyFrame>>;
+    fn meta(&self) -> Arc<RwLock<DatasetMeta>>;
+    fn revision(&self) -> u64;
+    fn bump_revision(&self) -> u64;
+    fn time_column_display_name(&self) -> Arc<StdRwLock<Option<String>>>;
+    fn time_column_display_name_sync(&self) -> Option<String>;
+    fn set_time_column_display_name(&self, name: Option<String>);
+    fn replace_from_dataframe(&self, df: DataFrame);
+}
+
+impl DataRepository for InMemoryDataRepository {
+    fn shared_frame(&self) -> Arc<RwLock<LazyFrame>> {
+        Arc::clone(&self.lf)
+    }
+
+    fn meta(&self) -> Arc<RwLock<DatasetMeta>> {
+        Arc::clone(&self.meta)
+    }
+
+    fn revision(&self) -> u64 {
+        self.revision.load(Ordering::Relaxed)
+    }
+
+    fn bump_revision(&self) -> u64 {
+        self.revision.fetch_add(1, Ordering::Relaxed) + 1
+    }
+
+    fn time_column_display_name(&self) -> Arc<StdRwLock<Option<String>>> {
+        Arc::clone(&self.time_column_display_name)
+    }
+
+    fn time_column_display_name_sync(&self) -> Option<String> {
+        self.time_column_display_name.read().ok().and_then(|g| g.as_ref().cloned())
+    }
+
+    fn set_time_column_display_name(&self, name: Option<String>) {
         if let Ok(mut g) = self.time_column_display_name.try_write() {
             *g = name;
         }
     }
 
-    pub fn time_column_display_name_sync(&self) -> Option<String> {
-        self.time_column_display_name.read().unwrap().clone()
-    }
-
-    pub fn replace_from_dataframe(&self, df: DataFrame) {
+    fn replace_from_dataframe(&self, df: DataFrame) {
         let lf = df.clone().lazy();
         let column_names: Vec<String> = df.get_column_names().iter().map(|s| s.to_string()).collect();
         let row_count = df.height();

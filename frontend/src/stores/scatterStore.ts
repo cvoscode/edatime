@@ -1,5 +1,12 @@
+/**
+ * Scatter store — scatter plot config, correlations, points, and rendering state.
+ * Handles both scatter and density rendering modes.
+ */
 import { createStore } from 'solid-js/store';
 import type { ScatterConfig, CorrelationItem } from '../types';
+
+// Module-level revision tracker for cache invalidation
+let _currentRevision: number | null = null;
 
 interface ScatterState {
   config: ScatterConfig;
@@ -110,6 +117,29 @@ export const scatterStore = {
     setScatterState('renderMode', mode);
   },
 
+  setState(patch: Partial<ScatterState>) {
+    if (patch.config !== undefined) {
+      setScatterState('config', { ...scatterState.config, ...patch.config });
+    }
+    if (patch.view !== undefined) setScatterState('view', patch.view);
+    if (patch.zoomLevel !== undefined) setScatterState('zoomLevel', patch.zoomLevel);
+    if (patch.matrixColumns !== undefined) setScatterState('matrixColumns', patch.matrixColumns);
+    if (patch.isLoading !== undefined) setScatterState('isLoading', patch.isLoading);
+    if (patch.correlations !== undefined) setScatterState('correlations', patch.correlations);
+    if (patch.suggestions !== undefined) setScatterState('suggestions', patch.suggestions);
+    if (patch.suggestionThreshold !== undefined) setScatterState('suggestionThreshold', patch.suggestionThreshold);
+    if (patch.scatterPoints !== undefined) setScatterState('scatterPoints', patch.scatterPoints);
+    if (patch.colorValues !== undefined) setScatterState('colorValues', patch.colorValues);
+    if (patch.colorLabels !== undefined) setScatterState('colorLabels', patch.colorLabels);
+    if (patch.colorMin !== undefined) setScatterState('colorMin', patch.colorMin);
+    if (patch.colorMax !== undefined) setScatterState('colorMax', patch.colorMax);
+    if (patch.sizeValues !== undefined) setScatterState('sizeValues', patch.sizeValues);
+    if (patch.sizeMin !== undefined) setScatterState('sizeMin', patch.sizeMin);
+    if (patch.sizeMax !== undefined) setScatterState('sizeMax', patch.sizeMax);
+    if (patch.totalPoints !== undefined) setScatterState('totalPoints', patch.totalPoints);
+    if (patch.renderMode !== undefined) setScatterState('renderMode', patch.renderMode);
+  },
+
   reset() {
     setScatterState({
       config: { ...defaultConfig },
@@ -131,5 +161,29 @@ export const scatterStore = {
       totalPoints: 0,
       renderMode: 'scatter',
     });
+  },
+
+  serialize(): { xColumn: string; yColumn: string; colorColumn: string; renderMode: string } {
+    return {
+      xColumn: scatterState.config.xCol,
+      yColumn: scatterState.config.yCol,
+      colorColumn: scatterState.config.colorCol,
+      renderMode: scatterState.renderMode,
+    };
+  },
+
+  deserialize(data: { xCol?: string; yCol?: string; colorCol?: string; renderMode?: string }): void {
+    if (data.xCol !== undefined) setScatterState('config', 'xCol', data.xCol);
+    if (data.yCol !== undefined) setScatterState('config', 'yCol', data.yCol);
+    if (data.colorCol !== undefined) setScatterState('config', 'colorCol', data.colorCol);
+    if (data.renderMode !== undefined) setScatterState('renderMode', data.renderMode as 'scatter' | 'density');
+  },
+
+  getCurrentRevision(): number | null {
+    return _currentRevision;
+  },
+
+  setRevision(revision: number | null) {
+    _currentRevision = revision;
   }
 };

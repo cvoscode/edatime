@@ -1,3 +1,7 @@
+/**
+ * Analytics store — rolling statistics, anomaly detection, and correlation data for the timeseries page.
+ * Uses solid-js store for reactive state management.
+ */
 import { createStore } from 'solid-js/store';
 import type { RollingBandData, AnomalyRegionData } from '../types';
 
@@ -10,9 +14,6 @@ interface AnalyticsState {
   anomalyMethod: 'zscore' | 'iqr';
   anomalyThreshold: number;
   anomalyRegions: AnomalyRegionData[];
-  spectralConfig: import('../types').SpectralConfig | null;
-  fftData: Float64Array | null;
-  spectrogramData: Float64Array[] | null;
   correlations: Record<string, number> | null;
 }
 
@@ -25,9 +26,6 @@ const [analyticsState, setAnalyticsState] = createStore<AnalyticsState>({
   anomalyMethod: 'zscore',
   anomalyThreshold: 3.0,
   anomalyRegions: [],
-  spectralConfig: null,
-  fftData: null,
-  spectrogramData: null,
   correlations: null
 });
 
@@ -66,18 +64,6 @@ export const analyticsStore = {
     setAnalyticsState('anomalyRegions', regions);
   },
 
-  setSpectralConfig(config: import('../types').SpectralConfig | null) {
-    setAnalyticsState('spectralConfig', config);
-  },
-
-  setFftData(data: Float64Array | null) {
-    setAnalyticsState('fftData', data);
-  },
-
-  setSpectrogramData(data: Float64Array[] | null) {
-    setAnalyticsState('spectrogramData', data);
-  },
-
   setCorrelations(corr: Record<string, number> | null) {
     setAnalyticsState('correlations', corr);
   },
@@ -92,9 +78,6 @@ export const analyticsStore = {
       anomalyMethod: 'zscore',
       anomalyThreshold: 3.0,
       anomalyRegions: [],
-      spectralConfig: null,
-      fftData: null,
-      spectrogramData: null,
       correlations: null
     });
   }

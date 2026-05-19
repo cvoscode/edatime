@@ -378,9 +378,22 @@ fn collect_sampled_xyc_rows(
         all_color_value.push(color_value);
         all_color_label.push(color_label);
         all_size_value.push(size_value);
+
+        let effective_limit = if limit > MAX_EFFECTIVE_POINTS {
+            MAX_EFFECTIVE_POINTS
+        } else {
+            limit
+        };
+        if total_points >= effective_limit {
+            break;
+        }
     }
 
-    let effective_limit = if limit > MAX_EFFECTIVE_POINTS { MAX_EFFECTIVE_POINTS } else { limit };
+    let effective_limit = if limit > MAX_EFFECTIVE_POINTS {
+        MAX_EFFECTIVE_POINTS
+    } else {
+        limit
+    };
 
     let (sampled_x, sampled_y, sampled_color) = if matches!(c_vals, Some(ScatterColorColumn::Continuous(_))) {
         let color_f64: Vec<f64> = all_color_value.iter().filter_map(|v| *v).collect();
@@ -440,7 +453,7 @@ mod tests {
         )
         .expect("test dataframe should be created");
 
-        let (total, rows, color_kind) = collect_sampled_xyc_rows(&df, "x", "y", Some("color"), 16)
+        let (total, rows, color_kind) = collect_sampled_xyc_rows(&df, "x", "y", Some("color"), None, 16)
             .expect("sampling should succeed");
 
         assert_eq!(total, 3);
@@ -460,7 +473,7 @@ mod tests {
         .expect("test dataframe should be created");
 
         let (total, rows, color_kind) =
-            collect_sampled_xyc_rows(&df, "x", "y", Some("category"), 16)
+            collect_sampled_xyc_rows(&df, "x", "y", Some("category"), None, 16)
                 .expect("sampling should succeed");
 
         assert_eq!(total, 3);

@@ -1,10 +1,12 @@
 import { Component, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
+import { DEFAULT_GRID } from './chartEngine';
+import { useChartEngine } from '../../hooks/useChartEngine';
+import { useChartViewport } from './useChartViewport';
 import CanvasOverlay from './CanvasOverlay';
 import type { RollingBandData, AnomalyRegionData, DragState } from '../../types';
 import { uiStore, chartStore } from '../../stores';
 import { getColorPalette } from '../../utils/colorScale';
 import { getActivePlotTemplate } from '../../utils/plotTemplate';
-import { initChartEngine, registerTheme, DEFAULT_GRID } from './chartEngine';
 
 interface ChartViewProps {
   containerId?: string;
@@ -30,17 +32,13 @@ interface ChartViewProps {
 
 const CHART_GRID = DEFAULT_GRID;
 const MIN_DRAG_PX = 8;
+
 const ChartView: Component<ChartViewProps> = (props) => {
   let containerRef: HTMLDivElement | undefined;
   let selectionBoxRef: HTMLDivElement | undefined;
-  const [chartStatus, setChartStatus] = createSignal<'loading' | 'ready' | 'error'>('loading');
-  const [engineName, setEngineName] = createSignal<string>('');
-  const [webgpuReason, setWebgpuReason] = createSignal<string>('');
   const [drag, setDrag] = createSignal<DragState | null>(null);
-  const [viewportBounds, setViewportBounds] = createSignal({ xMin: 0, xMax: 100, yMin: 0, yMax: 1 });
   const [themeVersion, setThemeVersion] = createSignal(0);
-  let chartInstance: any = null;
-  let chartResult: { instance: any; engineName: 'ChartGPU' | 'ECharts'; dispose: () => void; resize: () => void } | null = null;
+  let chartInstanceRef: any = null;
   let axisLabelX = '';
   let axisLabelY = '';
 
@@ -48,48 +46,41 @@ const ChartView: Component<ChartViewProps> = (props) => {
     getActivePlotTemplate(uiStore.state.plotTheme, uiStore.state.theme)
   );
 
-  const initChart = async () => {
-    if (!containerRef) return;
-    setChartStatus('loading');
-
-    if (chartInstance) {
-      try { chartInstance.dispose?.(); } catch (_) {}
-      chartInstance = null;
+  const viewport = useChartViewport(
+    () => containerRef,
+    {
+      grid: CHART_GRID,
+      onZoom: (start, end, yMin, yMax) => props.onZoom?.(start, end, yMin, yMax),
+      onZoomOut: () => props.onZoomOut?.(),
+      onCtrlClick: (dataX, dataY, clientX, clientY) => props.onCtrlClick?.(dataX, dataY, clientX, clientY),
     }
-    if (chartResult) {
-      chartResult.dispose();
-      chartResult = null;
+  );
+
+  const chartEngine = useChartEngine(
+    () => containerRef,
+    {
+      type: 'timeseries',
+      grid: CHART_GRID,
+      xAxisLabel: props.xAxisLabel,
+      yAxisLabel: props.yAxisLabel,
+      chartTitle: props.chartTitle,
+      onZoom: (start, end) => props.onZoom?.(start, end),
+      onClick: (x, y) => props.onChartClick?.(x, y),
+      onEngineReady: (name) => props.onEngineReady?.(name),
+      onChartReady: (instance) => {
+        chartInstanceRef = instance;
+        props.onChartReady?.(instance);
+      },
     }
+  );
 
-    registerTheme();
-
-    try {
-      chartResult = await initChartEngine({
-        container: containerRef,
-        grid: CHART_GRID,
-        xAxisType: 'time',
-        xAxisLabel: props.xAxisLabel,
-        yAxisLabel: props.yAxisLabel,
-        chartTitle: props.chartTitle,
-        onZoom: (start, end, yMin, yMax) => props.onZoom?.(start, end, yMin, yMax),
-        onClick: (x, y) => props.onChartClick?.(x, y),
-      });
-
-      chartInstance = chartResult.instance;
-      setEngineName(chartResult.engineName);
-      props.onEngineReady?.(chartResult.engineName);
-      props.onChartReady?.(chartInstance);
-      setChartStatus('ready');
-    } catch (e) {
-      console.error('[ChartView] initChart error:', e);
-      const msg = e instanceof Error ? e.message : String(e);
-      setWebgpuReason(msg);
-      uiStore.addToast({ message: `Chart error: ${msg}`, type: 'error', duration: 0 });
-      setChartStatus('error');
-    }
-  };
+  // Keep chartInstanceRef in sync with hook's chartInstance signal
+  createEffect(() => {
+    chartInstanceRef = chartEngine.chartInstance();
+  });
 
   const handleUpdateChart = (series: any[], xMin?: number, xMax?: number, yMin?: number, yMax?: number) => {
+    const chartInstance = chartInstanceRef;
     if (!chartInstance) {
       console.debug('[ChartView] handleUpdateChart: no chartInstance');
       return;
@@ -126,7 +117,7 @@ const ChartView: Component<ChartViewProps> = (props) => {
       const yRange = chartStore.getLastDataYRange();
       const yMinVal = yMin ?? (yRange?.min ?? 0);
       const yMaxVal = yMax ?? (yRange?.max ?? 1);
-      setViewportBounds({ xMin, xMax, yMin: yMinVal, yMax: yMaxVal });
+      viewport.setViewportBounds({ xMin, xMax, yMin: yMinVal, yMax: yMaxVal });
     }
     if (yMin !== undefined && yMax !== undefined && !chartStore.state.yAuto) {
       opts.yAxis = { type: 'value' as const, min: yMin, max: yMax, name: axisLabelY };
@@ -176,28 +167,16 @@ const ChartView: Component<ChartViewProps> = (props) => {
     }, 0);
   };
 
-  onMount(async () => {
-    await initChart();
-    if (chartStatus() === 'ready') {
+  onMount(() => {
+    if (chartEngine.chartStatus() === 'ready') {
       props.onReady?.(handleUpdateChart);
     }
 
     containerRef?.addEventListener('click', (e: MouseEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
-      const bounds = containerRef.getBoundingClientRect();
-      const cssX = e.clientX - bounds.left;
-      const cssY = e.clientY - bounds.top;
-      const vp = viewportBounds();
-      const plotLeft = CHART_GRID.left;
-      const plotRight = bounds.width - CHART_GRID.right;
-      const plotTop = CHART_GRID.top;
-      const plotBottom = bounds.height - CHART_GRID.bottom;
-      const plotWidth = plotRight - plotLeft;
-      const plotHeight = plotBottom - plotTop;
-      const xNorm = Math.max(0, Math.min(1, (cssX - plotLeft) / plotWidth));
-      const dataX = vp.xMin + xNorm * (vp.xMax - vp.xMin);
-      const yNorm = Math.max(0, Math.min(1, (cssY - plotTop) / plotHeight));
-      const dataY = vp.yMax - yNorm * (vp.yMax - vp.yMin);
+      const rect = containerRef?.getBoundingClientRect();
+      if (!rect) return;
+      const { dataX, dataY } = viewport.cssToData(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
       if (Number.isFinite(dataX) && Number.isFinite(dataY)) {
         props.onCtrlClick?.(dataX, dataY, e.clientX, e.clientY);
       }
@@ -210,40 +189,22 @@ const ChartView: Component<ChartViewProps> = (props) => {
     setThemeVersion(v => v + 1);
   });
 
-  let isReinitializing = false;
-
   createEffect(() => {
     void themeVersion();
+    const currentEngine = chartEngine.engineName();
+    const chartInstance = chartInstanceRef;
     if (!chartInstance) return;
-    if (isReinitializing) return;
-
-    const currentEngine = engineName();
 
     if (currentEngine === 'ECharts') {
-      registerTheme();
       chartInstance.setOption({
         backgroundColor: activeTemplate().background,
         color: getColorPalette(uiStore.state.colorScale, 8),
-      });
-    } else if (currentEngine === 'ChartGPU') {
-      isReinitializing = true;
-      const oldInstance = chartInstance;
-      chartInstance = null;
-      oldInstance?.dispose?.();
-
-      initChart().then(() => {
-        if (isReinitializing) return;
-        isReinitializing = false;
-        if (chartStatus() === 'ready') {
-          props.onReady?.(handleUpdateChart);
-          props.onChartReady?.(chartInstance);
-          props.onEngineChanged?.(engineName());
-        }
       });
     }
   });
 
   createEffect(() => {
+    const chartInstance = chartInstanceRef;
     if (!chartInstance) return;
     const xLabel = props.xAxisLabel ?? '';
     const yLabel = props.yAxisLabel ?? '';
@@ -253,13 +214,13 @@ const ChartView: Component<ChartViewProps> = (props) => {
       xAxis: { type: 'time' as const, name: xLabel },
       yAxis: { type: 'value' as const, name: yLabel },
     };
-    if (engineName() === 'ECharts') {
+    if (chartEngine.engineName() === 'ECharts') {
       const title = props.chartTitle;
       if (title) {
         labelOpts.title = { text: title, left: 'center' };
       }
       chartInstance.setOption(labelOpts, false);
-    } else if (engineName() === 'ChartGPU') {
+    } else if (chartEngine.engineName() === 'ChartGPU') {
       chartInstance.setOption(labelOpts);
     }
   });
@@ -305,26 +266,9 @@ const ChartView: Component<ChartViewProps> = (props) => {
     containerRef?.releasePointerCapture(e.pointerId);
 
     const dx = Math.abs(d.endX - d.startX);
-    const xMin = Math.min(d.startX, d.endX);
-    const xMax = Math.max(d.startX, d.endX);
 
     if (dx >= MIN_DRAG_PX && props.onZoom) {
-      const plotLeft = CHART_GRID.left;
-      const plotRight = rect.width - CHART_GRID.right;
-      const plotTop = CHART_GRID.top;
-      const plotBottom = rect.height - CHART_GRID.bottom;
-      const plotWidth = Math.max(1, plotRight - plotLeft);
-      const plotHeight = Math.max(1, plotBottom - plotTop);
-      const vb = viewportBounds();
-      const dataXMin = vb.xMin + ((xMin - plotLeft) / plotWidth) * (vb.xMax - vb.xMin);
-      const dataXMax = vb.xMin + ((xMax - plotLeft) / plotWidth) * (vb.xMax - vb.xMin);
-      const yTop = Math.min(d.startY, d.endY);
-      const yBottom = Math.max(d.startY, d.endY);
-      const dataYMin = vb.yMin + ((yBottom - plotTop) / plotHeight) * (vb.yMax - vb.yMin);
-      const dataYMax = vb.yMin + ((yTop - plotTop) / plotHeight) * (vb.yMax - vb.yMin);
-      if (dataXMax > dataXMin && dataYMax > dataYMin) {
-        props.onZoom(dataXMin, dataXMax, dataYMin, dataYMax);
-      }
+      viewport.handleBoxZoom(d.startX, d.endX, d.startY, d.endY, rect.width, rect.height);
     }
 
     setDrag(null);
@@ -338,32 +282,11 @@ const ChartView: Component<ChartViewProps> = (props) => {
   };
 
   const handleWheel = (e: WheelEvent) => {
-    if (e.shiftKey || e.ctrlKey || e.altKey) return;
-    e.preventDefault();
-    const viewport = viewportBounds();
-    const xRange = viewport.xMax - viewport.xMin;
-    if (xRange <= 0) return;
-    const factor = e.deltaY > 0 ? 1.15 : 0.87;
-    const rect = containerRef?.getBoundingClientRect();
-    if (!rect) return;
-    const plotLeft = CHART_GRID.left;
-    const plotRight = rect.width - CHART_GRID.right;
-    const plotWidth = Math.max(1, plotRight - plotLeft);
-    const relX = (e.clientX - rect.left - plotLeft) / plotWidth;
-    const centerDataX = viewport.xMin + relX * xRange;
-    const newXMin = centerDataX - (centerDataX - viewport.xMin) * factor;
-    const newXMax = centerDataX + (viewport.xMax - centerDataX) * factor;
-    if (newXMax > newXMin && Number.isFinite(newXMin) && Number.isFinite(newXMax)) {
-      props.onZoom?.(newXMin, newXMax);
-    }
+    viewport.handleWheelZoom(e);
   };
 
   onCleanup(() => {
-    if (chartResult) {
-      chartResult.dispose();
-      chartResult = null;
-    }
-    chartInstance = null;
+    chartEngine.dispose();
   });
 
   return (
@@ -371,7 +294,7 @@ const ChartView: Component<ChartViewProps> = (props) => {
       ref={containerRef}
       id={props.containerId ?? 'main-chart'}
       class="chart-container"
-      data-status={chartStatus()}
+      data-status={chartEngine.chartStatus()}
       style={{ width: '100%', height: '100%', position: 'relative', 'background-color': activeTemplate().background }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -379,15 +302,15 @@ const ChartView: Component<ChartViewProps> = (props) => {
       onDblClick={handleDoubleClick}
       onWheel={handleWheel}
     >
-      {chartStatus() === 'loading' && (
+      {chartEngine.chartStatus() === 'loading' && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', 'align-items': 'center', 'justify-content': 'center', color: 'var(--color-text-muted, #888)' }}>
           Loading chart engine...
         </div>
       )}
-      {chartStatus() === 'error' && (
+      {chartEngine.chartStatus() === 'error' && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', 'flex-direction': 'column', 'align-items': 'center', 'justify-content': 'center', color: 'var(--color-text-muted, #888)', 'font-size': '14px', gap: '8px' }}>
           <span>Chart engine unavailable</span>
-          <small style={{ 'font-size': '12px', 'max-width': '300px', 'text-align': 'center' }}>{webgpuReason()}</small>
+          <small style={{ 'font-size': '12px', 'max-width': '300px', 'text-align': 'center' }}>{chartEngine.webgpuReason()}</small>
         </div>
       )}
       <div
@@ -401,14 +324,14 @@ const ChartView: Component<ChartViewProps> = (props) => {
           'z-index': 5,
         }}
       />
-      {(chartStatus() === 'ready') && (
+      {(chartEngine.chartStatus() === 'ready') && (
         <CanvasOverlay
           rollingBands={props.rollingBands ?? []}
           anomalyRegions={props.anomalyRegions ?? []}
-          xMin={viewportBounds().xMin}
-          xMax={viewportBounds().xMax}
-          yMin={viewportBounds().yMin}
-          yMax={viewportBounds().yMax}
+          xMin={viewport.viewportBounds().xMin}
+          xMax={viewport.viewportBounds().xMax}
+          yMin={viewport.viewportBounds().yMin}
+          yMax={viewport.viewportBounds().yMax}
           drawMode={props.drawMode ?? 'pan'}
           drawColor={props.drawColor}
           drawWidth={props.drawWidth}

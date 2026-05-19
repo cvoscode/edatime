@@ -3,10 +3,12 @@ pub mod analytics;
 pub mod config;
 pub mod data;
 pub mod database;
+pub mod drift;
 pub mod export;
 pub mod metadata;
 pub mod metrics;
 pub mod scatter;
+pub mod shared;
 pub mod upload;
 
 use axum::Json;
@@ -20,7 +22,6 @@ pub fn api_router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))
         .route("/data", get(data::get_data))
-        .route("/aggregate", get(aggregate::get_aggregate))
         .route("/export/parquet", get(export::export_parquet))
         .route("/metadata", get(metadata::get_metadata))
         .route("/metrics", get(metrics::get_metrics))
@@ -57,9 +58,13 @@ pub fn api_router() -> Router<AppState> {
             "/config/database",
             get(config::get_database_config).post(config::post_database_config),
         )
+        // Aggregate endpoint
+        .route("/aggregate", get(aggregate::get_aggregate))
         // Analytics endpoints
         .nest("/analytics", analytics_router())
         .route("/transform", post(analytics::post_transform))
+        // Drift endpoint
+        .route("/drift/stats", post(drift::post_drift_stats))
 }
 
 fn analytics_router() -> Router<AppState> {

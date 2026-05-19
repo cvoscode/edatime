@@ -1,3 +1,6 @@
+/**
+ * FFT store — FFT traces, spectrogram config and results for frequency analysis.
+ */
 import { createStore } from 'solid-js/store';
 import type { FftTrace, FftConfig, SpectrogramConfig, SpectrogramResult } from '../types';
 

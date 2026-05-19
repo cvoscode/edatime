@@ -1,3 +1,7 @@
+/**
+ * Chart store — manages viewport, zoom history, annotations, and drawing state for timeseries charts.
+ * Coordinates with ChartGPU or fallback chart adapters.
+ */
 import { createStore } from 'solid-js/store';
 import type { ChartViewport, ZoomState, Annotation, ChartInstance } from '../types';
 
@@ -214,7 +218,11 @@ export const chartStore = {
   },
 
   clearSeriesVisibility() {
-    setChartState('seriesVisibility', {});
+    const keys = Object.keys(chartState.seriesVisibility);
+    if (keys.length === 0) return;
+    const patch: Record<string, undefined> = {};
+    for (const k of keys) patch[k] = undefined;
+    setChartState('seriesVisibility', patch);
   },
 
   addDrawing(drawing: Drawing) {
@@ -239,6 +247,22 @@ export const chartStore = {
       lastDataYMax: null,
       yAuto: true,
       seriesVisibility: {},
+    });
+  },
+
+  serialize() {
+    return {
+      viewport: chartState.viewport,
+      initialView: chartState.initialView,
+      seriesVisibility: chartState.seriesVisibility,
+    };
+  },
+
+  deserialize(state: ReturnType<typeof this.serialize>) {
+    setChartState({
+      viewport: state.viewport ?? { ...defaultViewport },
+      initialView: state.initialView ?? null,
+      seriesVisibility: state.seriesVisibility ?? {},
     });
   }
 };

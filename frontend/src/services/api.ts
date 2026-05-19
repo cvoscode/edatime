@@ -5,10 +5,11 @@ const API_BASE = '/api';
 // =============================================================================
 
 // Request deduplication for concurrent identical GET requests
-const _inflight = new Map<string, Promise<unknown>>;
+const _inflightJson = new Map<string, Promise<unknown>>();
+const _inflightArrow = new Map<string, Promise<Response>>();
 
 async function getJson<T>(url: string): Promise<T> {
-  const existing = _inflight.get(url);
+  const existing = _inflightJson.get(url);
   if (existing) {
     return existing as Promise<T>;
   }
@@ -20,11 +21,11 @@ async function getJson<T>(url: string): Promise<T> {
     }
     return res.json() as T;
   })();
-  _inflight.set(url, promise);
+  _inflightJson.set(url, promise);
   try {
     return await promise;
   } finally {
-    _inflight.delete(url);
+    _inflightJson.delete(url);
   }
 }
 
@@ -39,6 +40,28 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     throw new Error(`${url} failed (${res.status}) ${text}`);
   }
   return res.json() as T;
+}
+
+// Request deduplication for Arrow IPC responses
+async function fetchArrow(url: string, signal?: AbortSignal): Promise<Response> {
+  const existing = _inflightArrow.get(url);
+  if (existing) {
+    return existing;
+  }
+  const promise = (async () => {
+    const res = await fetch(url, { cache: 'no-store', signal });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`${url} failed (${res.status}) ${text}`);
+    }
+    return res;
+  })();
+  _inflightArrow.set(url, promise);
+  try {
+    return await promise;
+  } finally {
+    _inflightArrow.delete(url);
+  }
 }
 
 export interface ColumnMetadata {
@@ -137,6 +160,7 @@ export async function uploadIngest(
 // =============================================================================
 
 export interface DbTablesResponse {
+  status: 'ok';
   tables: string[];
 }
 
@@ -179,6 +203,7 @@ export async function dbDisconnect(): Promise<{ status: string }> {
 // =============================================================================
 
 export interface MetadataResponse {
+  status: 'ok';
   revision: number;
   total_rows: number;
   columns: ColumnMetadata[];
@@ -193,6 +218,7 @@ export async function fetchMetadata(): Promise<MetadataResponse> {
 }
 
 export interface TimeseriesRangeResponse {
+  status: 'ok';
   ts_range: [number, number];
 }
 
@@ -215,6 +241,7 @@ export interface RollingBand {
 }
 
 export interface RollingResponse {
+  status: 'ok';
   bands: RollingBand[];
 }
 
@@ -237,6 +264,7 @@ export interface AnomalyRegion {
 }
 
 export interface AnomalyResponse {
+  status: 'ok';
   method: string;
   threshold: number;
   regions: AnomalyRegion[];
@@ -266,6 +294,7 @@ export interface FftResult {
 }
 
 export interface FftResponse {
+  status: 'ok';
   sample_count: number;
   results: FftResult[];
 }
@@ -281,6 +310,7 @@ export async function fetchFft(
 }
 
 export interface SpectrogramResponse {
+  status: 'ok';
   sample_count: number;
   result: {
     times_ms: number[];
@@ -361,6 +391,7 @@ export async function ingestFile(
 }
 
 export interface CorrelationMatrixResponse {
+  status: 'ok';
   columns: string[];
   pearson: (number | null)[][];
   spearman: (number | null)[][];
@@ -375,8 +406,10 @@ export async function fetchCorrelationMatrix(): Promise<CorrelationMatrixRespons
 // =============================================================================
 
 export interface ScatterCorrelationsResponse {
+  status: 'ok';
   base_column: string;
   threshold: number;
+  numeric_columns: string[];
   correlations: Array<{
     column: string;
     count: number;
@@ -401,7 +434,10 @@ export async function fetchScatterCorrelations(
 // Scatter points
 // =============================================================================
 
+export { fetchArrow };
+
 export interface ScatterPointsResponse {
+  status: 'ok';
   x: string;
   y: string;
   color: string | null;
@@ -502,6 +538,7 @@ export async function fetchScatterPoints(
     const size_max = res.headers.get('x-edatime-size-max');
 
     return {
+      status: 'ok' as const,
       x,
       y,
       color: color ?? null,

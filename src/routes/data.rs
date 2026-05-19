@@ -48,12 +48,11 @@ pub async fn get_data(
         output_cols.push(color_col.clone());
     }
 
-    let ts_col = state.time_column_display_name_sync()
-        .unwrap_or_else(|| "ts".to_string());
-    let multiplier = query::unit_multiplier_for_ts_lazy(&lf, &ts_col)?;
-    let dtype = query::ts_dtype_lazy(&lf, &ts_col)?;
-    let start_ts = params.start.timestamp_millis() * multiplier;
-    let end_ts = params.end.timestamp_millis() * multiplier;
+    let ctx = state.ts_context(&lf)?;
+    let start_ts = params.start.timestamp_millis() * ctx.multiplier;
+    let end_ts = params.end.timestamp_millis() * ctx.multiplier;
+    let dtype = ctx.dtype;
+    let ts_col = ctx.ts_col;
     let format = query::output_format(params.format.as_deref());
     let cache_key = format!(
         "data:v{}:{}:{}:{}:{}:{}:{:?}",

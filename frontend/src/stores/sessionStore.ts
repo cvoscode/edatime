@@ -5,18 +5,15 @@
 
 import { captureSession, autoSaveSession, autoRestoreSession, exportSessionToFile, importSessionFromFile } from '../utils/session';
 import type { SessionSnapshot } from '../utils/session';
-import { uiStore, chartStore, datasetStore, analyticsStore, scatterStore } from './index';
-
-let _autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
-let _isRestoring = false;
+import { uiStore, chartStore, analyticsStore, scatterStore, datasetStore } from './index';
 
 export function getCurrentPageFromHash(): string {
   const hash = window.location.hash.replace('#', '').replace(/^\//, '');
   return hash || 'home';
 }
 
-export function applySessionToStores(snap: SessionSnapshot): void {
-  _isRestoring = true;
+export function applySessionToStores(snap: SessionSnapshot, isRestoringRef?: { current: boolean }): void {
+  if (isRestoringRef) isRestoringRef.current = true;
 
   if (snap.selectedCols) uiStore.setSelectedColumns(snap.selectedCols);
   if (snap.hiddenCols) uiStore.setHiddenColumns(snap.hiddenCols);
@@ -60,21 +57,25 @@ export function applySessionToStores(snap: SessionSnapshot): void {
     window.location.hash = `/${snap.page}`;
   }
 
-  _isRestoring = false;
+  if (isRestoringRef) isRestoringRef.current = false;
 }
 
 function getStoresSnap() {
+  const uiSnap = uiStore.serialize();
+  const chartSnap = chartStore.serialize();
+  const datasetSnap = datasetStore.serialize();
+  const scatterSnap = scatterStore.serialize();
   return {
     ui: {
-      selectedColumns: uiStore.state.selectedColumns,
-      hiddenColumns: uiStore.state.hiddenColumns,
-      colors: uiStore.state.colors,
-      filters: uiStore.state.filters,
-      theme: uiStore.state.theme,
-      colorScale: uiStore.state.colorScale,
+      selectedColumns: uiSnap.selectedColumns,
+      hiddenColumns: uiSnap.hiddenColumns,
+      colors: uiSnap.colors,
+      filters: uiSnap.filters,
+      theme: uiSnap.theme,
+      colorScale: uiSnap.colorScale,
     },
-    chart: { viewport: chartStore.state.viewport },
-    dataset: { xAxisColumn: datasetStore.state.xAxisColumn, colorColumn: datasetStore.state.selectedColorColumn },
+    chart: { viewport: chartSnap.viewport },
+    dataset: datasetSnap,
     analytics: {
       rollingEnabled: analyticsStore.state.rollingEnabled,
       rollingWindow: analyticsStore.state.rollingWindow,
@@ -82,56 +83,74 @@ function getStoresSnap() {
       anomalyMethod: analyticsStore.state.anomalyMethod,
       anomalyThreshold: analyticsStore.state.anomalyThreshold,
     },
-    scatter: {
-      xColumn: scatterStore.state.config.xCol,
-      yColumn: scatterStore.state.config.yCol,
-      colorColumn: scatterStore.state.config.colorCol,
-      renderMode: scatterStore.state.renderMode,
-    },
+    scatter: scatterSnap,
+    // chartTitle/xAxisLabel/yAxisLabel are chart engine parameters, not stored in any store
     chartTitle: '',
     xAxisLabel: '',
     yAxisLabel: '',
   };
 }
 
-function triggerAutoSave(): void {
-  if (_isRestoring) return;
-  if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
-  _autoSaveTimer = setTimeout(() => {
+function triggerAutoSave(isRestoring: { current: boolean }): void {
+  if (isRestoring.current) return;
+  setTimeout(() => {
     try {
       autoSaveSession(captureSession(getCurrentPageFromHash(), getStoresSnap()));
     } catch {}
   }, 2000);
 }
 
-export function initSessionPersistence(): void {
-  // Auto-restore on load
-  const saved = autoRestoreSession();
-  if (saved) {
-    applySessionToStores(saved);
+function handleKeyDown(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    exportSessionToFile(captureSession(getCurrentPageFromHash(), getStoresSnap()));
   }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+    e.preventDefault();
+    importSessionFromFile((snap) => applySessionToStores(snap, { current: false }));
+  }
+}
 
-  // Auto-save on navigation and filter changes
-  window.addEventListener('hashchange', triggerAutoSave);
+export interface SessionPersistenceHandle {
+  start: () => void;
+  stop: () => void;
+}
 
-  // Ctrl+S: save to file
-  window.addEventListener('keydown', (e: KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      exportSessionToFile(captureSession(getCurrentPageFromHash(), getStoresSnap()));
-    }
+/**
+ * Creates a session persistence controller.
+ * Call start() to attach event listeners, stop() to detach.
+ * This allows tests to cleanly remove the listeners between runs.
+ */
+export function createSessionPersistence(): SessionPersistenceHandle {
+  let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  const isRestoring = { current: false };
 
-    // Ctrl+O: import from file
-    if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
-      e.preventDefault();
-      importSessionFromFile(applySessionToStores);
-    }
-  });
+  return {
+    start() {
+      // Auto-restore on load
+      const saved = autoRestoreSession();
+      if (saved) {
+        applySessionToStores(saved, isRestoring);
+      }
 
-  // Save before unload
-  window.addEventListener('beforeunload', () => {
-    try {
-      autoSaveSession(captureSession(getCurrentPageFromHash(), getStoresSnap()));
-    } catch {}
-  });
+      // Auto-save on navigation and filter changes
+      window.addEventListener('hashchange', () => triggerAutoSave(isRestoring));
+      window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('beforeunload', () => {
+        try {
+          autoSaveSession(captureSession(getCurrentPageFromHash(), getStoresSnap()));
+        } catch {}
+      });
+    },
+
+    stop() {
+      window.removeEventListener('hashchange', () => triggerAutoSave(isRestoring));
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('beforeunload', () => {});
+      if (autoSaveTimer) {
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = null;
+      }
+    },
+  };
 }
