@@ -5,7 +5,11 @@
 
 import { captureSession, autoSaveSession, autoRestoreSession, exportSessionToFile, importSessionFromFile } from '../utils/session';
 import type { SessionSnapshot } from '../utils/session';
-import { uiStore, chartStore, analyticsStore, scatterStore, datasetStore } from './index';
+import { uiStore, datasetStore } from './index';
+import { chartStore } from './chartStore';
+import { analyticsStore } from './analyticsStore';
+import { scatterStore } from './scatterStore';
+import { timeseriesStore } from '../domain/timeseries/store';
 
 export function getCurrentPageFromHash(): string {
   const hash = window.location.hash.replace('#', '').replace(/^\//, '');
@@ -15,16 +19,16 @@ export function getCurrentPageFromHash(): string {
 export function applySessionToStores(snap: SessionSnapshot, isRestoringRef?: { current: boolean }): void {
   if (isRestoringRef) isRestoringRef.current = true;
 
-  if (snap.selectedCols) uiStore.setSelectedColumns(snap.selectedCols);
-  if (snap.hiddenCols) uiStore.setHiddenColumns(snap.hiddenCols);
+  if (snap.selectedCols) timeseriesStore.setSelectedColumns(snap.selectedCols);
+  if (snap.hiddenCols) timeseriesStore.setHiddenColumns(snap.hiddenCols);
   if (snap.seriesColors) {
     for (const [col, color] of Object.entries(snap.seriesColors)) {
-      uiStore.setColumnColor(col, color);
+      timeseriesStore.setColumnColor(col, color);
     }
   }
   if (snap.columnFilters) {
     for (const [col, range] of Object.entries(snap.columnFilters)) {
-      uiStore.setFilter(col, range);
+      timeseriesStore.setFilter(col, range);
     }
   }
   if (snap.viewport) {
@@ -65,12 +69,13 @@ function getStoresSnap() {
   const chartSnap = chartStore.serialize();
   const datasetSnap = datasetStore.serialize();
   const scatterSnap = scatterStore.serialize();
+  const tsState = timeseriesStore.state;
   return {
     ui: {
-      selectedColumns: uiSnap.selectedColumns,
-      hiddenColumns: uiSnap.hiddenColumns,
-      colors: uiSnap.colors,
-      filters: uiSnap.filters,
+      selectedColumns: tsState.selectedColumns,
+      hiddenColumns: tsState.hiddenColumns ?? [],
+      colors: tsState.colors ?? {},
+      filters: tsState.filters ?? {},
       theme: uiSnap.theme,
       colorScale: uiSnap.colorScale,
     },

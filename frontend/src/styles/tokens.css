@@ -1,0 +1,180 @@
+/**
+ * CSS Design Tokens
+ *
+ * Centralized CSS custom properties for the edatime UI.
+ * Covers dark theme (default) and light theme variants.
+ *
+ * Usage:
+ *   import '../styles/tokens.css';
+ *   element { background: var(--color-surface); }
+ */
+
+/* ===== Color System ===== */
+/* Core brand colors */
+:root {
+  --color-primary: #4a9eff;
+  --color-primary-hover: #3a8eef;
+  --color-secondary: #888888;
+
+  /* Dark theme (default) */
+  --color-bg: #0f0f0f;
+  --color-surface: #1a1a1a;
+  --color-surface-hover: #242424;
+  --color-surface-elevated: #21262d;
+  --color-border: #2a2a2a;
+  --color-text: #e0e0e0;
+  --color-text-muted: #888888;
+  --color-text-subtle: #6e7681;
+
+  /* Chart colors — 8-color palette for multi-series plots */
+  --color-chart-1: #4a9eff;
+  --color-chart-2: #ff6b6b;
+  --color-chart-3: #50fa7b;
+  --color-chart-4: #f1fa8c;
+  --color-chart-5: #bd93f9;
+  --color-chart-6: #ff79c6;
+  --color-chart-7: #8be9fd;
+  --color-chart-8: #ffb86c;
+
+  /* Viridis color scale (for heatmaps/density) */
+  --color-viridis-1: #440154;
+  --color-viridis-2: #482878;
+  --color-viridis-3: #3e4a89;
+  --color-viridis-4: #31688e;
+  --color-viridis-5: #26838f;
+  --color-viridis-6: #1f9d89;
+  --color-viridis-7: #35b779;
+  --color-viridis-8: #6ece58;
+  --color-viridis-9: #b5de2b;
+  --color-viridis-10: #fde725;
+
+  /* Semantic colors */
+  --color-success: #4aff4a;
+  --color-success-text: #a0ffa0;
+  --color-warning: #ffb86c;
+  --color-warning-text: #ffe0b0;
+  --color-error: #ff4a4a;
+  --color-error-text: #ff8888;
+  --color-error-bg: #4a2020;
+  --color-error-border: #ff4444;
+  --color-info: #00c5ff;
+  --color-info-text: #80eeff;
+
+  /* Specialized surfaces (used by DriftPage, TimeseriesPage) */
+  --color-surface-1: #2a3040;
+  --color-surface-2: #1e2330;
+  --color-surface-3: #3a4060;
+
+  /* ===== Typography ===== */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* ===== Spacing ===== */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Legacy spacing (from global.css) */
+  --space-4px: 4px;
+  --space-8px: 8px;
+  --space-12px: 12px;
+  --space-16px: 16px;
+  --space-24px: 24px;
+  --space-32px: 32px;
+
+  /* ===== Layout ===== */
+  --sidebar-width: 240px;
+  --header-height: 48px;
+  --toolbar-height: 40px;
+  --content-max-width: 1600px;
+
+  /* ===== Borders & Shadows ===== */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --border-width: 1px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
+
+  /* ===== Transitions ===== */
+  --duration-fast: 100ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* ===== Z-Index Scale ===== */
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-popover: 500;
+  --z-tooltip: 600;
+  --z-toast: 700;
+
+  /* ===== Font Sizes (legacy from global.css) ===== */
+  --font-sm: 12px;
+  --font-md: 14px;
+  --font-lg: 16px;
+  --font-xl: 20px;
+}
+
+/* Light theme */
+:root[data-theme="light"] {
+  --color-bg: #f4f5f7;
+  --color-surface: #ffffff;
+  --color-surface-hover: #e8e9eb;
+  --color-surface-elevated: #ffffff;
+  --color-border: #d1d5db;
+  --color-text: #1b2638;
+  --color-text-muted: #6b7280;
+  --color-text-subtle: #8c959f;
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-danger: #dc2626;
+  --color-success: #16a34a;
+  --color-success-text: #4aff4a;
+  --color-warning: #d97706;
+  --color-warning-text: #fbbf24;
+  --color-error: #dc2626;
+  --color-error-text: #f87171;
+  --color-error-bg: #fef2f2;
+  --color-error-border: #fca5a5;
+  --color-info: #0284c7;
+  --color-info-text: #7dd3fc;
+
+  /* Light theme specialized surfaces */
+  --color-surface-1: #f3f4f6;
+  --color-surface-2: #e5e7eb;
+  --color-surface-3: #d1d5db;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.2);
+}

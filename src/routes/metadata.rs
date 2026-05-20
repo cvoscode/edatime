@@ -490,15 +490,19 @@ pub fn build_dataset_metadata_from_path_with_time_column(
 pub async fn get_metadata(
     State(state): State<AppState>,
 ) -> Result<Json<DatasetMetadata>, AppError> {
-    let lf = state.dataset_snapshot().await.read().await.clone();
-    let revision = state.dataset_revision();
-    let time_col_display = state.time_column_display_name_sync();
+    // Capture state handles for spawn_blocking — snapshot must run on blocking thread.
+    let repo = state.repository.clone();
+
     let metadata = tokio::task::spawn_blocking(move || {
+        let lf = repo.snapshot();
+        let time_col_display = repo.time_column_display_name_sync();
         let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::internal(format!("collect metadata frame: {}", e)))?;
         build_dataset_metadata(&df, true, time_col_display.as_deref())
     })
     .await
     .map_err(|e| AppError::internal(format!("Failed to join metadata task: {e:?}")))??;
+
+    let revision = state.repository.revision();
     let mut metadata = metadata;
     metadata.revision = revision;
     Ok(Json(metadata))

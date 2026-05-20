@@ -4,6 +4,19 @@ import { getColorPalette, type ColorScaleName } from '../utils/colorScale';
 import { fetchArrow } from './api';
 import type { AdaptiveLineFilter } from '../types';
 
+export interface ScatterDataResult {
+  points: [number, number][];
+  colorValues: number[] | null;
+  colorLabels: (string | null)[] | null;
+  colorMin: number | null;
+  colorMax: number | null;
+  sizeValues: number[] | null;
+  sizeMin: number | null;
+  sizeMax: number | null;
+  totalPoints: number;
+  returnedPoints: number;
+}
+
 export interface TimeseriesData {
   xValues: Float64Array;
   series: Record<string, Float64Array>;
@@ -258,6 +271,138 @@ export async function fetchTimeseriesData(
     returnedRows: table.numRows,
     downsampled: res.headers.get('x-edatime-downsampled') === '1',
     colorByColumn,
+  };
+}
+
+/**
+ * Fetch scatter points data from Arrow IPC endpoint.
+ * 
+ * Backend returns:
+ * - Arrow IPC binary with columns: [x, y, color] (or [x, y, color_label] for categorical)
+ * - Headers: x-edatime-scatter-total, x-edatime-scatter-returned, 
+ *            x-edatime-color-min, x-edatime-color-max, x-edatime-scatter-color (kind)
+ */
+export async function fetchScatterData(
+  xCol: string,
+  yCol: string,
+  limit: number,
+  colorCol?: string | null,
+  sizeCol?: string | null,
+  options?: {
+    start?: number;
+    end?: number;
+    filters?: Array<{ column: string; min: number; max: number }>;
+    line_filters?: Array<{ column: string; op: string; value: number }>;
+  },
+  signal?: AbortSignal
+): Promise<ScatterDataResult> {
+  const payload: Record<string, unknown> = {
+    x: xCol,
+    y: yCol,
+    limit,
+  };
+  if (colorCol) payload.color = colorCol;
+  if (sizeCol) payload.size = sizeCol;
+  if (options?.start != null && options?.end != null) {
+    payload.start = options.start;
+    payload.end = options.end;
+  }
+  if (Array.isArray(options?.filters) && options.filters.length > 0) {
+    payload.filters = JSON.stringify(options.filters);
+  }
+  if (Array.isArray(options?.line_filters) && options.line_filters.length > 0) {
+    payload.line_filters = JSON.stringify(options.line_filters);
+  }
+
+  const url = '/api/scatter/points';
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal,
+  });
+  if (!res.ok) throw new Error(`fetchScatterData failed: ${res.status}`);
+
+  // Extract metadata from headers BEFORE consuming body
+  const scatterTotal = parseInt(res.headers.get('x-edatime-scatter-total') ?? '0', 10);
+  const scatterReturned = parseInt(res.headers.get('x-edatime-scatter-returned') ?? '0', 10);
+  const colorMin = res.headers.get('x-edatime-color-min');
+  const colorMax = res.headers.get('x-edatime-color-max');
+  const colorKind = res.headers.get('x-edatime-scatter-color'); // 'continuous' or 'categorical'
+
+  // Parse Arrow IPC body
+  const buffer = await res.arrayBuffer();
+  const table = tableFromIPC(buffer);
+
+  const numRows = table.numRows;
+  const columns = table.schema.fields.map(f => f.name);
+  
+  // Extract columns from Arrow table
+  // Backend sends: [x, y, color_value_or_label]
+  const xColumn = table.getChild(xCol);
+  const yColumn = table.getChild(yCol);
+  
+  if (!xColumn || !yColumn) {
+    throw new Error(`Missing x/y column in scatter response: ${columns.join(', ')}`);
+  }
+
+  // Extract color column if present
+  let colorValues: number[] | null = null;
+  let colorLabels: (string | null)[] | null = null;
+  
+  if (colorCol) {
+    const colorColumn = table.getChild(colorCol);
+    if (colorColumn) {
+      if (colorKind === 'categorical') {
+        // Categorical: extract as string labels
+        colorLabels = Array.from(colorColumn).map(v => v == null ? null : String(v));
+        colorValues = null;
+      } else {
+        // Continuous: extract as numbers
+        colorValues = Array.from(colorColumn).map(v => {
+          const n = Number(v);
+          return Number.isFinite(n) ? n : NaN;
+        });
+        colorLabels = null;
+      }
+    }
+  }
+
+  // Extract x/y points as [number, number][] tuples
+  const points: [number, number][] = [];
+  const xData = Array.from(xColumn);
+  const yData = Array.from(yColumn);
+  for (let i = 0; i < Math.min(xData.length, yData.length); i++) {
+    const x = Number(xData[i]);
+    const y = Number(yData[i]);
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      points.push([x, y]);
+    }
+  }
+
+  // Extract size column if present
+  let sizeValues: number[] | null = null;
+  if (sizeCol) {
+    const sizeColumn = table.getChild(sizeCol);
+    if (sizeColumn) {
+      sizeValues = Array.from(sizeColumn).map(v => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : NaN;
+      });
+    }
+  }
+
+  return {
+    points,
+    colorValues,
+    colorLabels,
+    colorMin: colorMin != null ? parseFloat(colorMin) : null,
+    colorMax: colorMax != null ? parseFloat(colorMax) : null,
+    sizeValues,
+    sizeMin: sizeValues && sizeValues.length > 0 ? Math.min(...sizeValues.filter(Number.isFinite)) : null,
+    sizeMax: sizeValues && sizeValues.length > 0 ? Math.max(...sizeValues.filter(Number.isFinite)) : null,
+    totalPoints: scatterTotal,
+    returnedPoints: scatterReturned,
   };
 }
 

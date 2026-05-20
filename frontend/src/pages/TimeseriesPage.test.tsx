@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom';
 import { render, screen, cleanup, fireEvent } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
-import ColumnChips from '../components/chart/ColumnChips';
+import ColumnChips from '../domain/timeseries/components/ColumnChips';
 
 // ---------------------------------------------------------------------------
 // Test setup

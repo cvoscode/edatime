@@ -214,7 +214,7 @@ pub async fn get_spectral_filter(
     let (start, end) = match (params.start, params.end) {
         (Some(s), Some(e)) => (s, e),
         (opt_s, opt_e) => {
-            let lf_snap = state.dataset_snapshot().await.read().await.clone();
+            let lf_snap = state.dataset_snapshot();
             let ctx = state.ts_context(&lf_snap)?;
             let ts_col = ctx.ts_col;
             let multiplier = ctx.multiplier;
@@ -319,7 +319,7 @@ pub async fn post_transform(
         return Err(AppError::bad_request("Expression too long (max 500 chars)"));
     }
 
-    let lf = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot();
 
     let new_df = tokio::task::spawn_blocking({
         let lf = lf.clone();
@@ -359,7 +359,7 @@ pub async fn post_remove_outliers(
     State(state): State<AppState>,
     Json(params): Json<OutlierRemovalRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lf = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot();
     let cols = query::parse_columns(params.columns.as_deref());
     let limits = &state.config.validation;
     let value_cols = validate_numeric_columns_lazy(&lf, &cols, limits)?;
@@ -426,7 +426,7 @@ pub async fn post_causal_graph(
     State(state): State<AppState>,
     Json(params): Json<CausalGraphRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lf = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot();
     let cols = query::parse_columns(params.columns.as_deref());
     let limits = &state.config.validation;
     let value_cols = validate_numeric_columns_lazy(&lf, &cols, limits)?;

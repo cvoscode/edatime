@@ -1,31 +1,21 @@
 /**
- * UI store — manages theme, colors, column selection, filters, and toast notifications.
- * Persists user preferences to localStorage.
+ * UI store — manages theme, color scale, plot theme, sidebar, toasts, and upload panel.
+ * Persists theme/colorScale/plotTheme to localStorage.
  */
 import { createStore } from 'solid-js/store';
-import type { ToastMessage, AdaptiveLineFilter, PendingAdaptivePoint } from '../types';
+import type { ToastMessage } from '../types/domains';
 import type { ColorScaleName } from '../utils/colorScale';
 import type { PlotThemeMode } from '../utils/plotTemplate';
 
 interface UiState {
-  selectedColumns: string[];
-  hiddenColumns: string[];
-  filters: Record<string, { min: number; max: number }>;
-  colors: Record<string, string>;
+  // Theme & presentation
   theme: 'dark' | 'light' | 'system';
   colorScale: ColorScaleName;
   plotTheme: PlotThemeMode;
   sidebarOpen: boolean;
   toasts: ToastMessage[];
   isUploadPanelOpen: boolean;
-  adaptiveLineFilters: AdaptiveLineFilter[];
-  pendingAdaptivePoint: PendingAdaptivePoint | null;
 }
-
-const defaultColors: Record<string, string> = {
-  ts: '#4a9eff',
-  default: '#888888'
-};
 
 const STORAGE_KEY = 'edatime-theme';
 const COLOR_SCALE_KEY = 'edatime-color-scale';
@@ -37,7 +27,7 @@ function getSavedTheme(): 'dark' | 'light' | 'system' {
     if (saved === 'dark' || saved === 'light' || saved === 'system') {
       return saved;
     }
-  } catch {}
+  } catch { }
   return 'dark';
 }
 
@@ -47,7 +37,7 @@ function getSavedColorScale(): ColorScaleName {
     if (saved === 'viridis' || saved === 'plasma' || saved === 'inferno' || saved === 'coolwarm' || saved === 'rdbu') {
       return saved;
     }
-  } catch {}
+  } catch { }
   return 'rdbu';
 }
 
@@ -57,7 +47,7 @@ function getSavedPlotTheme(): PlotThemeMode {
     if (saved === 'auto' || saved === 'light' || saved === 'dark') {
       return saved;
     }
-  } catch {}
+  } catch { }
   return 'auto';
 }
 
@@ -88,70 +78,22 @@ if (typeof window !== 'undefined') {
 }
 
 const [uiState, setUiState] = createStore<UiState>({
-  selectedColumns: [],
-  hiddenColumns: [],
-  filters: {},
-  colors: { ...defaultColors },
   theme: getSavedTheme(),
   colorScale: getSavedColorScale(),
   plotTheme: getSavedPlotTheme(),
   sidebarOpen: true,
   toasts: [],
   isUploadPanelOpen: false,
-  adaptiveLineFilters: [],
-  pendingAdaptivePoint: null
 });
 
 export const uiStore = {
   get state() { return uiState; },
 
-  selectColumn(column: string) {
-    if (!uiState.selectedColumns.includes(column)) {
-      setUiState('selectedColumns', [...uiState.selectedColumns, column]);
-    }
-  },
-
-  deselectColumn(column: string) {
-    setUiState('selectedColumns', uiState.selectedColumns.filter(c => c !== column));
-  },
-
-  toggleColumn(column: string) {
-    if (uiState.selectedColumns.includes(column)) {
-      this.deselectColumn(column);
-    } else {
-      this.selectColumn(column);
-    }
-  },
-
-  setSelectedColumns(columns: string[]) {
-    setUiState('selectedColumns', columns);
-  },
-
-  setHiddenColumns(hidden: string[]) {
-    setUiState('hiddenColumns', hidden);
-  },
-
-  setFilter(column: string, range: { min: number; max: number }) {
-    setUiState('filters', column, range);
-  },
-
-  removeFilter(column: string) {
-    // Access the proxy directly to delete — SolidJS proxy tracks own property
-    // deletion as a reactive mutation.
-    const prev = uiState.filters;
-    delete (prev as any)[column];
-    setUiState('filters', { ...prev });
-  },
-
-  setColumnColor(column: string, color: string) {
-    setUiState('colors', column, color);
-  },
-
   setTheme(theme: 'dark' | 'light' | 'system') {
     setUiState('theme', theme);
     try {
       localStorage.setItem(STORAGE_KEY, theme);
-    } catch {}
+    } catch { }
     applyTheme(theme);
   },
 
@@ -159,14 +101,14 @@ export const uiStore = {
     setUiState('colorScale', scale);
     try {
       localStorage.setItem(COLOR_SCALE_KEY, scale);
-    } catch {}
+    } catch { }
   },
 
   setPlotTheme(mode: PlotThemeMode) {
     setUiState('plotTheme', mode);
     try {
       localStorage.setItem(PLOT_THEME_KEY, mode);
-    } catch {}
+    } catch { }
   },
 
   toggleSidebar() {
@@ -194,59 +136,28 @@ export const uiStore = {
     setUiState('isUploadPanelOpen', open);
   },
 
-  appendAdaptiveLineFilter(filter: AdaptiveLineFilter) {
-    setUiState('adaptiveLineFilters', [...uiState.adaptiveLineFilters, filter]);
-  },
-
-  removeAdaptiveLineFilter(id: string) {
-    setUiState('adaptiveLineFilters', uiState.adaptiveLineFilters.filter(f => f.id !== id));
-  },
-
-  clearAdaptiveLineFilters() {
-    setUiState('adaptiveLineFilters', []);
-  },
-
-  setPendingAdaptivePoint(p: PendingAdaptivePoint | null) {
-    setUiState('pendingAdaptivePoint', p);
-  },
-
   reset() {
     setUiState({
-      selectedColumns: [],
-      hiddenColumns: [],
-      filters: {},
       sidebarOpen: true,
       toasts: [],
       isUploadPanelOpen: false,
-      adaptiveLineFilters: [],
-      pendingAdaptivePoint: null,
     });
     // Preserve theme, colorScale, plotTheme — they persist to localStorage
   },
 
   serialize() {
     return {
-      selectedColumns: uiState.selectedColumns,
-      hiddenColumns: uiState.hiddenColumns,
-      filters: uiState.filters,
-      colors: uiState.colors,
       theme: uiState.theme,
       colorScale: uiState.colorScale,
       plotTheme: uiState.plotTheme,
-      adaptiveLineFilters: uiState.adaptiveLineFilters,
     };
   },
 
   deserialize(state: ReturnType<typeof this.serialize>) {
     setUiState({
-      selectedColumns: state.selectedColumns ?? [],
-      hiddenColumns: state.hiddenColumns ?? [],
-      filters: state.filters ?? {},
-      colors: state.colors ?? defaultColors,
       theme: state.theme ?? 'dark',
       colorScale: state.colorScale ?? 'rdbu',
       plotTheme: state.plotTheme ?? 'auto',
-      adaptiveLineFilters: state.adaptiveLineFilters ?? [],
     });
   }
 };

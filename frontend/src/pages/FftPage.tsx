@@ -5,7 +5,7 @@ import { fetchFft, fetchSpectrogram } from '../services/api';
 import { getColorPalette } from '../utils/colorScale';
 import { getActivePlotTemplate, toEChartsTheme } from '../utils/plotTemplate';
 import type { FftTrace } from '../types';
-import ColumnChips from '../components/chart/ColumnChips';
+import ColumnChips from '../domain/timeseries/components/ColumnChips';
 import styles from './FftPage.module.css';
 
 const WINDOW_SIZES = [64, 256, 512, 1024, 2048];
@@ -104,8 +104,8 @@ const FftPage: Component = () => {
           const data = first?.data || [];
           const freq = Number(data[0]);
           const freqStr = freq >= 1000 ? `${(freq / 1000).toFixed(2)} kHz` :
-                           freq >= 1 ? `${freq.toFixed(2)} Hz` :
-                           `${(freq * 1000).toFixed(2)} mHz`;
+            freq >= 1 ? `${freq.toFixed(2)} Hz` :
+              `${(freq * 1000).toFixed(2)} mHz`;
           const rows = params.map((p: any) => {
             const col = p?.seriesName || '';
             const mag = Number(p?.data?.[1] ?? 0);

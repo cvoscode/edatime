@@ -1,7 +1,10 @@
 import { Component, createEffect, onMount, onCleanup } from 'solid-js';
 import { DEFAULT_GRID } from './chartEngine';
-import type { RollingBandData, AnomalyRegionData, DragState, Annotation, AdaptiveLineFilter, PendingAdaptivePoint } from '../../types';
-import { chartStore } from '../../stores';
+import type { RollingBandData, AnomalyRegionData, DragState, Annotation, PendingAdaptivePoint } from '../../types';
+import type { AdaptiveLineFilter } from '../../types/domains';
+// NOTE: CanvasOverlay uses the domains.ts AdaptiveLineFilter (x1/y1/x2/y2)
+// NOT the types/index.ts override (points array)
+import { chartStore } from '../../stores/chartStore';
 import type { Drawing } from '../../stores/chartStore';
 
 interface CanvasOverlayProps {

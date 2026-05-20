@@ -8,7 +8,7 @@ use crate::pipeline;
 use crate::query;
 use crate::state::AppState;
 use crate::validation::{validate_numeric_columns_lazy, validate_time_window};
-use polars::prelude::{DataFrame, IntoLazy};
+use polars::prelude::DataFrame;
 
 /// Metadata for edatime HTTP response headers.
 #[derive(Debug, Clone)]
@@ -45,17 +45,21 @@ pub async fn filter_preamble(
     columns: Option<&str>,
 ) -> Result<(Vec<String>, DataFrame), AppError> {
     validate_time_window(start, end)?;
-    let lf = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot();
     let cols = query::parse_columns(columns);
     let limits = &state.config.validation;
     let value_cols = validate_numeric_columns_lazy(&lf, &cols, limits)?;
-    let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::io(e.to_string()))?;
     let ts_col = state.time_column_display_name_sync()
         .unwrap_or_else(|| "ts".to_string());
-    let multiplier = query::unit_multiplier_for_ts(&df, &ts_col)?;
+    let multiplier = query::unit_multiplier_for_ts_lazy(&lf, &ts_col)?;
     let start_ts = start.timestamp_millis() * multiplier;
     let end_ts = end.timestamp_millis() * multiplier;
-    let filtered = pipeline::filter_time_range(df.lazy(), start_ts, end_ts, &value_cols, &ts_col)?;
+    // filter_time_range now returns LazyFrame; collect once here
+    let filtered_lf = pipeline::filter_time_range(lf, start_ts, end_ts, &value_cols, &ts_col)?;
+    let filtered = tokio::task::block_in_place(|| {
+        filtered_lf.with_new_streaming(true).collect()
+    })
+    .map_err(|e| AppError::io(e.to_string()))?;
     Ok((value_cols, filtered))
 }
 

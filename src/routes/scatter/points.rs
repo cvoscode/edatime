@@ -64,7 +64,7 @@ pub async fn post_scatter_export_parquet(
     State(state): State<AppState>,
     Json(params): Json<ScatterPointsQuery>,
 ) -> Result<Response, AppError> {
-    let lf = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot();
 
     let x = params.x.clone();
     let y = params.y.clone();
@@ -73,21 +73,18 @@ pub async fn post_scatter_export_parquet(
     let filters = parse_scatter_filters(params.filters.as_deref())?;
     let line_filters = parse_scatter_line_filters(params.line_filters.as_deref())?;
 
-    let filtered = tokio::task::spawn_blocking(move || {
-        collect_filtered_scatter_frame(
-            lf,
-            &x,
-            &y,
-            color.as_deref(),
-            size.as_deref(),
-            params.start,
-            params.end,
-            &filters,
-            &line_filters,
-        )
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("Failed to join scatter export task: {:?}", e)))??;
+    let lazy_frame = collect_filtered_scatter_frame(
+        lf,
+        &x,
+        &y,
+        color.as_deref(),
+        size.as_deref(),
+        params.start,
+        params.end,
+        &filters,
+        &line_filters,
+    )?;
+    let filtered = state.query_executor.execute_async(lazy_frame).await?;
 
     let bytes = dataframe_to_parquet(filtered)
         .map_err(|e| AppError::io(format!("Parquet serialization: {}", e)))?;
@@ -117,7 +114,7 @@ async fn scatter_points_response(
         params.limit
     );
 
-    let lf = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot();
 
     let x_col = params.x.clone();
     let y_col = params.y.clone();
@@ -151,28 +148,44 @@ async fn scatter_points_response(
     let x_col_name = x_col_for_headers.clone();
     let y_col_name = y_col_for_headers.clone();
 
+    // collect_filtered_scatter_frame now returns LazyFrame; execute it via QueryExecutor
+    let lazy_frame = collect_filtered_scatter_frame(
+        lf,
+        &x_col,
+        &y_col,
+        color_col.as_deref(),
+        size_col.as_deref(),
+        start,
+        end,
+        &filters,
+        &line_filters,
+    )?;
+
     let (total_points, returned_points, color_min, color_max, size_min, size_max, arrow_bytes) =
         tokio::task::spawn_blocking(move || {
             let x_col_str: &str = &x_col_name;
             let y_col_str: &str = &y_col_name;
-            let filtered_df = collect_filtered_scatter_frame(
-                lf,
-                &x_col,
-                &y_col,
-                color_col.as_deref(),
-                size_col.as_deref(),
-                start,
-                end,
-                &filters,
-                &line_filters,
-            )?;
+            let filtered_df = lazy_frame
+                .clone()
+                .with_new_streaming(true)
+                .collect()
+                .map_err(|e| AppError::io(e.to_string()))?;
+
+            let effective_limit = limit.min(state.config.validation.max_scatter_effective_points);
+            let slice_df = if filtered_df.height() > effective_limit {
+                filtered_df.slice(0, effective_limit)
+            } else {
+                filtered_df
+            };
+
             let (total, sampled_rows, color_kind) = collect_sampled_xyc_rows(
-                &filtered_df,
+                &slice_df,
                 &x_col,
                 &y_col,
                 color_col.as_deref(),
                 size_col.as_deref(),
                 limit,
+                effective_limit,
             )?;
 
             let n = sampled_rows.len();
@@ -198,7 +211,7 @@ async fn scatter_points_response(
                         if v > cmax { cmax = v; }
                     }
                     _ => {
-                        cv_buf.push(0.0);
+                        cv_buf.push(f64::NAN);
                         color_strings.push(row.color_label.unwrap_or_default());
                     }
                 }
@@ -217,12 +230,13 @@ async fn scatter_points_response(
             let x_s = Series::new(PlSmallStr::from(x_col_str), x_buf.as_slice());
             let y_s = Series::new(PlSmallStr::from(y_col_str), y_buf.as_slice());
 
+            let actual_color_col = color_col_name.clone();
             let columns: Vec<Series> = if matches!(color_kind, Some(ScatterColorKind::Categorical))
             {
-                let cs = Series::new(PlSmallStr::from("color_label"), color_strings.as_slice());
+                let cs = Series::new(PlSmallStr::from(&actual_color_col), color_strings.as_slice());
                 vec![x_s, y_s, cs]
             } else {
-                let cv_s = Series::new(PlSmallStr::from(&color_col_name), cv_buf.as_slice());
+                let cv_s = Series::new(PlSmallStr::from(&actual_color_col), cv_buf.as_slice());
                 vec![x_s, y_s, cv_s]
             };
 
@@ -292,7 +306,7 @@ async fn scatter_points_response(
     Ok(response)
 }
 
-const MAX_EFFECTIVE_POINTS: usize = 200_000;
+
 
 fn collect_sampled_xyc_rows(
     df: &DataFrame,
@@ -300,7 +314,8 @@ fn collect_sampled_xyc_rows(
     y: &str,
     color: Option<&str>,
     size: Option<&str>,
-    limit: usize,
+    _limit: usize,
+    effective_limit: usize,
 ) -> Result<(usize, Vec<SampledScatterRow>, Option<ScatterColorKind>), AppError> {
     let x_vals = series_to_scatter_values(df, x)?;
     let y_vals = series_to_scatter_values(df, y)?;
@@ -379,21 +394,10 @@ fn collect_sampled_xyc_rows(
         all_color_label.push(color_label);
         all_size_value.push(size_value);
 
-        let effective_limit = if limit > MAX_EFFECTIVE_POINTS {
-            MAX_EFFECTIVE_POINTS
-        } else {
-            limit
-        };
         if total_points >= effective_limit {
             break;
         }
     }
-
-    let effective_limit = if limit > MAX_EFFECTIVE_POINTS {
-        MAX_EFFECTIVE_POINTS
-    } else {
-        limit
-    };
 
     let (sampled_x, sampled_y, sampled_color) = if matches!(c_vals, Some(ScatterColorColumn::Continuous(_))) {
         let color_f64: Vec<f64> = all_color_value.iter().filter_map(|v| *v).collect();
@@ -453,7 +457,8 @@ mod tests {
         )
         .expect("test dataframe should be created");
 
-        let (total, rows, color_kind) = collect_sampled_xyc_rows(&df, "x", "y", Some("color"), None, 16)
+        let effective = 16;
+        let (total, rows, color_kind) = collect_sampled_xyc_rows(&df, "x", "y", Some("color"), None, 16, effective)
             .expect("sampling should succeed");
 
         assert_eq!(total, 3);
@@ -472,8 +477,9 @@ mod tests {
         )
         .expect("test dataframe should be created");
 
+        let effective = 16;
         let (total, rows, color_kind) =
-            collect_sampled_xyc_rows(&df, "x", "y", Some("category"), None, 16)
+            collect_sampled_xyc_rows(&df, "x", "y", Some("category"), None, 16, effective)
                 .expect("sampling should succeed");
 
         assert_eq!(total, 3);

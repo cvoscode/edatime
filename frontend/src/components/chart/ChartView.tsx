@@ -3,8 +3,10 @@ import { DEFAULT_GRID } from './chartEngine';
 import { useChartEngine } from '../../hooks/useChartEngine';
 import { useChartViewport } from './useChartViewport';
 import CanvasOverlay from './CanvasOverlay';
-import type { RollingBandData, AnomalyRegionData, DragState } from '../../types';
-import { uiStore, chartStore } from '../../stores';
+import type { RollingBandData, AnomalyRegionData } from '../../types';
+import type { DragState } from '../../types/api';
+import { chartStore } from '../../stores/chartStore';
+import { uiStore } from '../../stores/uiStore';
 import { getColorPalette } from '../../utils/colorScale';
 import { getActivePlotTemplate } from '../../utils/plotTemplate';
 

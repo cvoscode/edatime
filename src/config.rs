@@ -60,6 +60,7 @@ pub struct ValidationSettings {
     pub max_viewport_width: usize,
     pub max_buckets: usize,
     pub max_scatter_limit: usize,
+    pub max_scatter_effective_points: usize,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -145,6 +146,7 @@ impl Default for ValidationSettings {
             max_viewport_width: 20_000,
             max_buckets: 10_000,
             max_scatter_limit: 5_000_000,
+            max_scatter_effective_points: 200_000,
         }
     }
 }

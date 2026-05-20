@@ -8,24 +8,18 @@ import type { RollingBandData, AnomalyRegionData } from '../types';
 interface AnalyticsState {
   rollingEnabled: boolean;
   rollingWindow: number;
-  rollingBands: RollingBandData[];
-  rollingLoading: boolean;
   anomalyEnabled: boolean;
   anomalyMethod: 'zscore' | 'iqr';
   anomalyThreshold: number;
-  anomalyRegions: AnomalyRegionData[];
   correlations: Record<string, number> | null;
 }
 
 const [analyticsState, setAnalyticsState] = createStore<AnalyticsState>({
   rollingEnabled: false,
   rollingWindow: 50,
-  rollingBands: [],
-  rollingLoading: false,
   anomalyEnabled: false,
   anomalyMethod: 'zscore',
   anomalyThreshold: 3.0,
-  anomalyRegions: [],
   correlations: null
 });
 
@@ -40,14 +34,6 @@ export const analyticsStore = {
     setAnalyticsState('rollingWindow', n);
   },
 
-  setRollingBands(bands: RollingBandData[]) {
-    setAnalyticsState('rollingBands', bands);
-  },
-
-  setRollingLoading(v: boolean) {
-    setAnalyticsState('rollingLoading', v);
-  },
-
   setAnomalyEnabled(v: boolean) {
     setAnalyticsState('anomalyEnabled', v);
   },
@@ -60,10 +46,6 @@ export const analyticsStore = {
     setAnalyticsState('anomalyThreshold', t);
   },
 
-  setAnomalyRegions(regions: AnomalyRegionData[]) {
-    setAnalyticsState('anomalyRegions', regions);
-  },
-
   setCorrelations(corr: Record<string, number> | null) {
     setAnalyticsState('correlations', corr);
   },
@@ -72,12 +54,9 @@ export const analyticsStore = {
     setAnalyticsState({
       rollingEnabled: false,
       rollingWindow: 50,
-      rollingBands: [],
-      rollingLoading: false,
       anomalyEnabled: false,
       anomalyMethod: 'zscore',
       anomalyThreshold: 3.0,
-      anomalyRegions: [],
       correlations: null
     });
   }

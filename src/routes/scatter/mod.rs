@@ -191,7 +191,7 @@ pub(crate) fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
     end: Option<f64>,
     filters: &[ScatterFilterSpec],
     line_filters: &[ScatterLineFilterSpec],
-) -> Result<DataFrame, AppError> {
+) -> Result<LazyFrame, AppError> {
     let lf: LazyFrame = df.into();
     let schema = lf.clone().collect_schema().map_err(|e| AppError::bad_request(format!("schema: {}", e)))?;
 
@@ -221,10 +221,7 @@ pub(crate) fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
 
     let select_exprs = selected_columns.into_iter().map(col).collect::<Vec<_>>();
 
-    lf.select(select_exprs)
-        .with_new_streaming(true)
-        .collect()
-        .map_err(|e| AppError::io(e.to_string()))
+    Ok(lf.select(select_exprs))
 }
 
 #[cfg(test)]

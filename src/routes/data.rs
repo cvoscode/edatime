@@ -5,6 +5,8 @@ use axum::{
     response::Response,
 };
 
+use edatime_core::pipeline::{Pipeline, ProjectStage, TimeFilterStage};
+
 use crate::cache::CachedResponse;
 use crate::error::AppError;
 use crate::pipeline::{self, Reduction};
@@ -16,15 +18,19 @@ use crate::validation::{validate_numeric_columns_lazy, validate_time_window, val
 pub async fn get_data(
     State(state): State<AppState>,
     Query(params): Query<DataQuery>,
- ) -> Result<Response, AppError> {
+) -> Result<Response, AppError> {
     tracing::info!("get_data called with params: {:?}", params);
 
     validate_time_window(params.start, params.end)?;
     let limits = &state.config.validation;
     validate_width(params.width, limits)?;
 
-    let lf = state.dataset_snapshot().await.read().await.clone();
-    let value_cols = validate_numeric_columns_lazy(&lf, &query::parse_columns(params.columns.as_deref()), limits)?;
+    let lf = state.dataset_snapshot();
+    let value_cols = validate_numeric_columns_lazy(
+        &lf,
+        &query::parse_columns(params.columns.as_deref()),
+        limits,
+    )?;
 
     let color_column = params
         .color_column
@@ -32,7 +38,10 @@ pub async fn get_data(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
 
-    let schema = lf.clone().collect_schema().map_err(|e| AppError::internal(e.to_string()))?;
+    let schema = lf
+        .clone()
+        .collect_schema()
+        .map_err(|e| AppError::internal(e.to_string()))?;
     if let Some(color_col) = color_column.as_ref()
         && !schema.contains(color_col.as_str())
     {
@@ -71,7 +80,22 @@ pub async fn get_data(
     }
     state.metrics.record_cache_miss();
 
-    let filtered = pipeline::filter_time_range(lf.clone(), start_ts, end_ts, &output_cols, &ts_col)?;
+    // ── Lazy pipeline: time filter + column projection ───────────────────────
+    let time_filter = TimeFilterStage::optional(ts_col.clone(), Some(start_ts), Some(end_ts))
+        .expect("both start and end are Some");
+    let project = ProjectStage {
+        columns: output_cols.clone(),
+    };
+
+    let pipeline = Pipeline::new().then(time_filter).then(project);
+
+    // Collect via QueryExecutor — runs on Rayon thread pool via spawn_blocking
+    let filtered: edatime_core::types::DataFrame = state
+        .query_executor
+        .execute_async(pipeline.apply(lf))
+        .await?;
+
+    // ── LTTB reduction on collected DataFrame ─────────────────────────────────
     let target_points = params.width * 2;
     let extra_cols = color_column
         .iter()
@@ -105,13 +129,8 @@ pub async fn get_data(
             .map_err(|error| {
                 AppError::internal(format!("Failed to encode JSON response: {error}"))
             })?;
-            CachedResponse::json(
-                json_bytes,
-                was_downsampled,
-                returned_rows,
-                target_points,
-            )
-        },
+            CachedResponse::json(json_bytes, was_downsampled, returned_rows, target_points)
+        }
     };
 
     state.cache.insert(cache_key, cached.clone()).await;

@@ -1,13 +1,22 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import '@testing-library/jest-dom';
-import { render, screen, cleanup } from '@solidjs/testing-library';
-import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, createMemoryHistory } from '@solidjs/router';
-import { createStore } from 'solid-js/store';
+
+vi.mock('solid-js/web', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('solid-js/web')>();
+  return {
+    ...actual,
+    template: () => ({ outerHTML: '<a></a>', cloneNode: vi.fn() }),
+    delegateEvents: vi.fn(),
+  };
+});
+
+vi.mock('solid-js/store', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('solid-js/store')>();
+  return { ...actual };
+});
 
 vi.mock('../stores/uploadStore', () => {
-  // Use createStore to return a proper reactive store that Solid can track
-  const [mockStore, setMockStore] = createStore({
+  const mockStore = {
     source: 'file' as 'file' | 'database',
     selectedFile: null as File | null,
     previewMetadata: null as unknown,
@@ -28,67 +37,46 @@ vi.mock('../stores/uploadStore', () => {
     dbConnectionString: '',
     dbSchema: 'public',
     dbTables: [] as string[],
-  });
+  };
   return {
     uploadStore: {
       get state() { return mockStore; },
-      setSource: vi.fn((s: 'file' | 'database') => { setMockStore('source', s); }),
-      setSelectedFile: vi.fn((f: File | null) => { setMockStore('selectedFile', f); }),
+      setSource: vi.fn(),
+      setSelectedFile: vi.fn(),
       setPreview: vi.fn(),
-      setPreviewing: vi.fn((v: boolean) => { setMockStore('isPreviewing', v); }),
-      setUploading: vi.fn((v: boolean) => { setMockStore('isUploading', v); }),
-      setUploadProgress: vi.fn((v: number) => { setMockStore('uploadProgress', v); }),
-      setUploadStatus: vi.fn((v: string) => { setMockStore('uploadStatus', v); }),
-      setPartialEnabled: vi.fn((v: boolean) => { setMockStore('partialEnabled', v); }),
-      setMaxRows: vi.fn((v: number) => { setMockStore('maxRows', v); }),
-      setSkipRows: vi.fn((v: number) => { setMockStore('skipRows', v); }),
-      setTimeStart: vi.fn((v: string) => { setMockStore('timeStart', v); }),
-      setTimeEnd: vi.fn((v: string) => { setMockStore('timeEnd', v); }),
-      setTimeColumn: vi.fn((v: string) => { setMockStore('timeColumn', v); }),
-      setSelectedColumns: vi.fn((v: string[]) => { setMockStore('selectedColumns', v); }),
-      setDbConnected: vi.fn((v: boolean) => { setMockStore('dbConnected', v); }),
-      setDbTable: vi.fn((v: string) => { setMockStore('dbTable', v); }),
-      setDbConnectionString: vi.fn((v: string) => { setMockStore('dbConnectionString', v); }),
-      setDbSchema: vi.fn((v: string) => { setMockStore('dbSchema', v); }),
-      setDbTables: vi.fn((v: string[]) => { setMockStore('dbTables', v); }),
+      setPreviewing: vi.fn(),
+      setUploading: vi.fn(),
+      setUploadProgress: vi.fn(),
+      setUploadStatus: vi.fn(),
+      setPartialEnabled: vi.fn(),
+      setMaxRows: vi.fn(),
+      setSkipRows: vi.fn(),
+      setTimeStart: vi.fn(),
+      setTimeEnd: vi.fn(),
+      setTimeColumn: vi.fn(),
+      setSelectedColumns: vi.fn(),
+      setDbConnected: vi.fn(),
+      setDbTable: vi.fn(),
+      setDbConnectionString: vi.fn(),
+      setDbSchema: vi.fn(),
+      setDbTables: vi.fn(),
       reset: vi.fn(),
     },
   };
 });
 
 vi.mock('../stores/datasetStore', () => ({
-  datasetStore: {
-    get state() { return {}; },
-    setColumns: vi.fn(),
-    setMetadata: vi.fn(),
-    setNumericCols: vi.fn(),
-  },
+  datasetStore: { get state() { return {}; }, setColumns: vi.fn(), setMetadata: vi.fn(), setNumericCols: vi.fn() },
 }));
 
 vi.mock('../stores/uiStore', () => ({
-  uiStore: {
-    get state() { return {}; },
-    addToast: vi.fn(),
-  },
+  uiStore: { get state() { return {}; }, addToast: vi.fn(), setToasts: vi.fn() },
 }));
 
 vi.mock('../services/api', () => ({
-  uploadPreview: vi.fn().mockResolvedValue({
-    metadata: {
-      total_rows: 50000,
-      columns: [{ name: 'col1' }, { name: 'col2' }],
-      column_profiles: [],
-      numeric_columns: ['col1', 'col2'],
-      time_column: null,
-    },
-  }),
+  uploadPreview: vi.fn().mockResolvedValue({ metadata: { total_rows: 50000, columns: [{ name: 'col1' }, { name: 'col2' }], column_profiles: [], numeric_columns: ['col1', 'col2'], time_column: null } }),
   uploadIngest: vi.fn().mockResolvedValue({ row_count: 50000, columns: [] }),
-  fetchMetadata: vi.fn().mockResolvedValue({
-    column_profiles: [],
-    columns: [{ name: 'col1' }, { name: 'col2' }],
-    numeric_columns: ['col1', 'col2'],
-    time_column: null,
-  }),
+  fetchMetadata: vi.fn().mockResolvedValue({ column_profiles: [], columns: [{ name: 'col1' }, { name: 'col2' }], numeric_columns: ['col1', 'col2'], time_column: null }),
   fetchSampleETTm2: vi.fn().mockResolvedValue(new File(['test'], 'ettm2.csv', { type: 'text/csv' })),
   dbConnect: vi.fn().mockResolvedValue(undefined),
   dbTables: vi.fn().mockResolvedValue({ tables: ['table1', 'table2'] }),
@@ -121,6 +109,10 @@ vi.mock('../components/upload/ColumnProfileGrid', () => ({
   default: () => <div data-testid="column-profile-grid">Profile grid</div>,
 }));
 
+import { render, screen, cleanup } from '@solidjs/testing-library';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, createMemoryHistory } from '@solidjs/router';
+import { createStore } from 'solid-js/store';
 import UploadPage from './UploadPage';
 
 const createTestRouter = () => {
@@ -139,9 +131,7 @@ const renderUploadPage = () => {
 };
 
 describe('UploadPage', () => {
-  afterEach(() => {
-    cleanup();
-  });
+  afterEach(() => { cleanup(); });
 
   it('renders File and Database source tabs', async () => {
     renderUploadPage();

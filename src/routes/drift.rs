@@ -48,7 +48,7 @@ pub async fn post_drift_stats(
     let ref_end = parse_datetime(&query.reference_end)?;
     validate_time_window(ref_start, ref_end)?;
 
-    let lf = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot();
     let ctx = state.ts_context(&lf)?;
     let ts_col = ctx.ts_col;
     let multiplier = ctx.multiplier;
@@ -82,8 +82,12 @@ pub async fn post_drift_stats(
     let curr_start_ms = ref_end_ms as f64;
     let curr_end_ms = max_ts_i64 as f64;
 
-    // Collect the full filtered DataFrame
-    let df = filter_time_range(lf, ref_start_ms, max_ts_i64, &[], &ts_col)?;
+    // filter_time_range now returns LazyFrame; collect once for compute_temporal_drift
+    let filtered_lf = filter_time_range(lf, ref_start_ms, max_ts_i64, &[], &ts_col)?;
+    let df = tokio::task::block_in_place(|| {
+        filtered_lf.with_new_streaming(true).collect()
+    })
+    .map_err(|e| AppError::io(e.to_string()))?;
 
     // Normalize multiplier:
     // we convert from whatever unit the column uses back to ms

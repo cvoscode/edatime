@@ -1,0 +1,23 @@
+[package]
+name = "edatime-service"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+edatime-core = { path = "../edatime-core" }
+edatime-query = { path = "../edatime-query" }
+edatime-store = { path = "../edatime-store" }
+edatime-ingest = { path = "../edatime-ingest" }
+polars.workspace = true
+arrow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+bytes.workspace = true
+tokio.workspace = true
+chrono.workspace = true
+axum.workspace = true
+tower-http = { version = "0.6.10", features = ["cors", "compression-gzip", "fs", "set-header", "trace"] }
+minmaxlttb = "0.1.4"
+rustfft = "6.2.0"

@@ -6,6 +6,8 @@ use axum::{
 };
 use chrono::Utc;
 
+use edatime_core::pipeline::{Pipeline, ProjectStage, TimeFilterStage};
+
 use crate::error::AppError;
 use crate::pipeline::{self, Reduction};
 use crate::query::{self, AggregateQuery, AggregateWindowMode, QueryEntry, ReductionSpec, AggFn};
@@ -28,7 +30,7 @@ pub async fn get_aggregate(
         validate_bucket_count(params.buckets, limits)?;
     }
 
-    let lf = state.dataset_snapshot().await.read().await.clone();
+    let lf = state.dataset_snapshot();
     let value_cols = query::parse_columns(params.columns.as_deref());
     let value_cols = validate_numeric_columns_lazy(&lf, &value_cols, limits)?;
 
@@ -70,7 +72,20 @@ pub async fn get_aggregate(
         }
     };
 
-    let filtered = pipeline::filter_time_range(lf, start_ts, end_ts, &value_cols, &ts_col)?;
+    // ── Lazy pipeline: time filter + column projection ───────────────────────
+    let time_filter =
+        TimeFilterStage::optional(ts_col.clone(), Some(start_ts), Some(end_ts))
+            .expect("both start and end are Some");
+    let project = ProjectStage { columns: value_cols.clone() };
+
+    let pipeline = Pipeline::new().then(time_filter).then(project);
+
+    // Collect via QueryExecutor — runs on Rayon thread pool via spawn_blocking
+    let filtered: edatime_core::types::DataFrame = state
+        .query_executor
+        .execute_async(pipeline.apply(lf))
+        .await?;
+
     let (aggregated, _) = pipeline::apply_reduction(&filtered, &value_cols, &[], &reduction, &ts_col)?;
     let returned_rows = aggregated.height();
 

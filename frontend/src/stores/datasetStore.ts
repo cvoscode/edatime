@@ -1,23 +1,29 @@
 /**
- * Dataset store — manages dataset metadata, column profiles, and data objects for the current session.
- * Handles data loading, filtering, and revision tracking for cache invalidation.
+ * Dataset store — manages dataset metadata, column profiles, and server-provided
+ * column classifications for the current session. Revision tracking invalidates
+ * the data fetch cache when the dataset changes.
  */
 import { createStore } from 'solid-js/store';
-import type { DatasetMetadata, ColumnProfile, DataObject, FilteredDataObject } from '../types';
+import type { DatasetMetadata, ColumnProfile } from '../types';
+import type { DataObject, FilteredDataObject } from '../types/domains';
 import { clearCache as clearDataFetchCache } from '../services/dataFetch';
 
 // Module-level revision tracker
 let _currentRevision: number | null = null;
 
 interface DatasetState {
+  // Server metadata
   metadata: DatasetMetadata | null;
   columns: ColumnProfile[];
   numericCols: string[];
   datetimeCols: string[];
   xAxisColumn: string | null;
   selectedColorColumn: string | null;
+  // Data objects are managed by timeseriesData hooks, not here.
+  // Retaining types only (for consumers that need the shape):
   data: DataObject | null;
   filteredData: FilteredDataObject | null;
+  // Ephemeral loading/error state lives in local signals, not in stores.
   isLoading: boolean;
   error: string | null;
   revision: number | null;

@@ -1,5 +1,9 @@
 import { createSignal, onCleanup } from 'solid-js';
-import { chartStore, datasetStore, uiStore, analyticsStore } from '../stores';
+import { chartStore } from '../stores/chartStore';
+import { analyticsStore } from '../stores/analyticsStore';
+import { timeseriesStore } from '../domain/timeseries/store';
+import { datasetStore } from '../stores/datasetStore';
+import { uiStore } from '../stores/uiStore';
 import { fetchTimeseriesData, buildSeriesConfig, updateCachedColors, getCachedData } from '../services/dataFetch';
 import { fetchRollingBands, fetchAnomalies } from '../services/api';
 import type { ColorScaleName } from '../utils/colorScale';
@@ -100,21 +104,18 @@ export function useTimeseriesData(options: UseTimeseriesDataOptions): UseTimeser
   };
 
   const fetchAndCacheRollingBands = async (start: string, end: string, columns: string) => {
-    analyticsStore.setRollingLoading(true);
     try {
-      const response = await fetchRollingBands(start, end, columns, analyticsStore.state.rollingWindow);
-      analyticsStore.setRollingBands(response.bands);
+      const response = await fetchRollingBands({ start, end, columns, window: analyticsStore.state.rollingWindow });
+      timeseriesStore.setRollingBands(response.bands);
     } catch (e) {
       console.warn('Failed to fetch rolling bands:', e);
-    } finally {
-      analyticsStore.setRollingLoading(false);
     }
   };
 
   const fetchAndCacheAnomalyRegions = async (start: string, end: string, columns: string) => {
     try {
-      const response = await fetchAnomalies(start, end, columns, analyticsStore.state.anomalyMethod, analyticsStore.state.anomalyThreshold);
-      analyticsStore.setAnomalyRegions(response.regions);
+      const response = await fetchAnomalies({ start, end, columns, method: analyticsStore.state.anomalyMethod, threshold: analyticsStore.state.anomalyThreshold });
+      timeseriesStore.setAnomalyRegions(response.regions);
     } catch (e) {
       console.warn('Failed to fetch anomaly regions:', e);
     }

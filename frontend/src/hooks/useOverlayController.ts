@@ -5,68 +5,62 @@
  */
 import { createSignal } from 'solid-js';
 import type { RollingBandData, AnomalyRegionData } from '../types';
-import type { Drawing } from '../stores/chartStore';
-import { chartStore } from '../stores/chartStore';
+import type { Drawing } from '../types/domains';
+import { timeseriesStore } from '../domain/timeseries/store';
 
 interface OverlayController {
-  setRollingBands: (bands: RollingBandData[]) => void;
-  setAnomalyRegions: (regions: AnomalyRegionData[]) => void;
-  addDrawing: (drawing: Drawing) => void;
-  removeDrawing: (id: string) => void;
-  clearDrawings: () => void;
-  getDrawings: () => Drawing[];
-  invalidate: () => void;
-  dispose: () => void;
+    setRollingBands: (bands: RollingBandData[]) => void;
+    setAnomalyRegions: (regions: AnomalyRegionData[]) => void;
+    addDrawing: (drawing: Drawing) => void;
+    removeDrawing: (id: string) => void;
+    clearDrawings: () => void;
+    getDrawings: () => Drawing[];
+    invalidate: () => void;
+    dispose: () => void;
 }
 
 export function useOverlayController(): OverlayController {
-  const [rollingBands, setRollingBands] = createSignal<RollingBandData[]>([]);
-  const [anomalyRegions, setAnomalyRegions] = createSignal<AnomalyRegionData[]>([]);
-  const [renderVersion, setRenderVersion] = createSignal(0);
+    const [rollingBands, setRollingBands] = createSignal<RollingBandData[]>([]);
+    const [anomalyRegions, setAnomalyRegions] = createSignal<AnomalyRegionData[]>([]);
+    const [renderVersion, setRenderVersion] = createSignal(0);
 
-  const addDrawing = (drawing: Drawing) => {
-    chartStore.addDrawing(drawing);
-    setRenderVersion(v => v + 1);
-  };
+    const addDrawing = (drawing: Drawing) => {
+        timeseriesStore.addDrawing(drawing);
+        setRenderVersion(v => v + 1);
+    };
 
-  const removeDrawing = (id: string) => {
-    // chartStore.removeDrawing is not directly exposed; drawings are managed via addDrawing/clearDrawings
-    // We need to sync with chartStore's drawings array
-    const current = chartStore.state.drawings;
-    const updated = current.filter(d => d.id !== id);
-    // Replace in store by clearing and re-adding remaining
-    chartStore.clearDrawings();
-    updated.forEach(d => chartStore.addDrawing(d));
-    setRenderVersion(v => v + 1);
-  };
+    const removeDrawing = (id: string) => {
+        timeseriesStore.removeDrawing(id);
+        setRenderVersion(v => v + 1);
+    };
 
-  const clearDrawings = () => {
-    chartStore.clearDrawings();
-    setRenderVersion(v => v + 1);
-  };
+    const clearDrawings = () => {
+        timeseriesStore.clearDrawings();
+        setRenderVersion(v => v + 1);
+    };
 
-  const getDrawings = (): Drawing[] => {
-    return chartStore.state.drawings;
-  };
+    const getDrawings = (): Drawing[] => {
+        return timeseriesStore.state.drawings;
+    };
 
-  const invalidate = () => {
-    setRenderVersion(v => v + 1);
-  };
+    const invalidate = () => {
+        setRenderVersion(v => v + 1);
+    };
 
-  const dispose = () => {
-    setRollingBands([]);
-    setAnomalyRegions([]);
-    chartStore.clearDrawings();
-  };
+    const dispose = () => {
+        setRollingBands([]);
+        setAnomalyRegions([]);
+        timeseriesStore.clearDrawings();
+    };
 
-  return {
-    setRollingBands,
-    setAnomalyRegions,
-    addDrawing,
-    removeDrawing,
-    clearDrawings,
-    getDrawings,
-    invalidate,
-    dispose,
-  };
+    return {
+        setRollingBands,
+        setAnomalyRegions,
+        addDrawing,
+        removeDrawing,
+        clearDrawings,
+        getDrawings,
+        invalidate,
+        dispose,
+    };
 }

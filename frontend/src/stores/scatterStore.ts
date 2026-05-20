@@ -33,7 +33,11 @@ const defaultConfig: ScatterConfig = {
   xCol: '',
   yCol: '',
   colorCol: '',
-  sizeCol: ''
+  sizeCol: '',
+  limit: 10000,
+  renderMode: 'scatter',
+  densityNormalization: 'linear',
+  binSize: 20
 };
 
 const [scatterState, setScatterState] = createStore<ScatterState>({

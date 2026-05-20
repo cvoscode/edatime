@@ -8,12 +8,12 @@ build-release:
 	cargo build --release
 
 run:
-	cargo run --release --bin edatime
+	cargo run --release -p edatime-bin
 
 # Development: build frontend (if Node available) then run in debug mode
 dev:
 	@if command -v node >/dev/null 2>&1; then node scripts/build-frontend.mjs; fi
-	cargo run --bin edatime
+	cargo run -p edatime-bin
 
 # Type-check and lint
 check:

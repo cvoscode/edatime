@@ -14,7 +14,7 @@
   cursor: pointer;
   min-width: 120px;
   justify-content: space-between;
-  transition: border-color 0.15s;
+  transition: border-color var(--duration-normal);
 }
 
 .trigger:hover {
@@ -33,13 +33,13 @@
 
 .menu {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--space-1));
   left: 0;
   right: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  z-index: 100;
+  z-index: var(--z-tooltip);
   max-height: 200px;
   overflow-y: auto;
 }
@@ -52,7 +52,7 @@
   font-size: var(--font-sm);
   color: var(--color-text);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--duration-normal);
 }
 
 .option:hover {

@@ -1,8 +1,8 @@
 use std::collections::{HashMap, VecDeque};
-use std::sync::Mutex;
 use std::sync::Arc;
+use std::sync::Mutex;
 
-use polars::prelude::{DataFrame, LazyFrame, IntoLazy, SchemaExt};
+use polars::prelude::{DataFrame, LazyFrame, SchemaExt};
 use tokio::sync::RwLock;
 
 use crate::cache::{DriftCache, ResponseCache};
@@ -12,6 +12,7 @@ use crate::error::AppError;
 use crate::metrics::AppMetrics;
 use crate::query::QueryEntry;
 use crate::repository::{DataRepository, InMemoryDataRepository};
+use edatime_query::executor::{ExecutionContext, QueryExecutor};
 
 /// Live database connection state, set after a successful `/api/database/connect`.
 #[derive(Clone, Debug)]
@@ -24,6 +25,7 @@ pub struct DbConnectionInfo {
 #[allow(clippy::clone_on_ref_ptr)]
 pub struct AppState {
     pub repository: Arc<dyn DataRepository>,
+    pub query_executor: Arc<QueryExecutor>,
     pub cache: Arc<ResponseCache>,
     pub metrics: Arc<AppMetrics>,
     pub config: Arc<AppConfig>,
@@ -38,6 +40,7 @@ impl Clone for AppState {
     fn clone(&self) -> Self {
         Self {
             repository: Arc::clone(&self.repository),
+            query_executor: Arc::clone(&self.query_executor),
             cache: Arc::clone(&self.cache),
             metrics: Arc::clone(&self.metrics),
             config: Arc::clone(&self.config),
@@ -56,8 +59,11 @@ impl AppState {
         let cache = Arc::new(ResponseCache::new(config.cache.to_runtime_config()));
         let metrics = Arc::new(AppMetrics::new());
         let max_stored = config.query.max_stored.max(1);
+        // QueryExecutor uses Streaming mode by default for memory efficiency.
+        let query_executor = Arc::new(QueryExecutor::new(ExecutionContext::Streaming));
         Self {
             repository,
+            query_executor,
             cache,
             metrics,
             config: Arc::new(config),
@@ -73,17 +79,20 @@ impl AppState {
         self.db_pool.read().await.is_some()
     }
 
-    /// Return a shared handle to the in-memory LazyFrame.
-    pub async fn dataset_snapshot(&self) -> Arc<RwLock<LazyFrame>> {
-        self.repository.shared_frame()
+    /// Return a snapshot LazyFrame — no lock involved.
+    /// Cloning LazyFrame is cheap (~microseconds).
+    pub fn dataset_snapshot(&self) -> LazyFrame {
+        self.repository.snapshot()
     }
 
-/// Clone only the requested columns from the shared frame.
-/// Returns LazyFrame with projection; callers collect if needed.
-    pub async fn dataset_snapshot_for_columns(&self, columns: &[&str]) -> Result<LazyFrame, AppError> {
-        let lock = self.repository.shared_frame();
-        let guard = lock.read().await;
-        let schema = guard
+    /// Clone only the requested columns from the shared frame.
+    /// Returns LazyFrame with projection; callers collect if needed.
+    pub async fn dataset_snapshot_for_columns(
+        &self,
+        columns: &[&str],
+    ) -> Result<LazyFrame, AppError> {
+        let lf = self.repository.snapshot();
+        let schema = lf
             .clone()
             .collect_schema()
             .map_err(|e| AppError::internal(format!("LazyFrame schema unavailable: {}", e)))?;
@@ -94,9 +103,9 @@ impl AppState {
             .collect();
 
         if col_names.is_empty() {
-            Ok(guard.clone())
+            Ok(lf.clone())
         } else {
-            Ok(guard.clone().select(
+            Ok(lf.clone().select(
                 col_names
                     .iter()
                     .map(|s| polars::prelude::col(s.as_str()))
@@ -106,25 +115,7 @@ impl AppState {
     }
 
     pub async fn replace_dataset(&self, df: DataFrame) -> u64 {
-        let lf = df.clone().lazy();
-        let column_names: Vec<String> = df.get_column_names().iter().map(|s| s.to_string()).collect();
-        let row_count = df.height();
-        let meta = crate::repository::DatasetMeta {
-            row_count,
-            column_names,
-            time_column: None,
-        };
-        let shared_frame = self.repository.shared_frame();
-        let meta_store = self.repository.meta();
-        {
-            let mut guard = shared_frame.write().await;
-            *guard = lf;
-        }
-        {
-            let mut meta_guard = meta_store.write().await;
-            *meta_guard = meta;
-        }
-        self.repository.bump_revision()
+        self.repository.replace_from_dataframe(df)
     }
 
     pub fn set_time_column_display_name(&self, name: Option<String>) {
@@ -163,7 +154,7 @@ impl AppState {
     pub fn push_query(&self, entry: QueryEntry) {
         let Ok(mut log) = self.query_log.lock().map_err(|e| e.into_inner()) else {
             tracing::warn!("query_log lock failed, dropping entry");
-            return
+            return;
         };
         let max = self.config.query.max_stored.max(1);
         while log.len() >= max {
@@ -176,7 +167,7 @@ impl AppState {
     pub fn drain_queries(&self) -> Vec<QueryEntry> {
         let Ok(mut log) = self.query_log.lock().map_err(|e| e.into_inner()) else {
             tracing::warn!("query_log drain failed, returning empty");
-            return Vec::new()
+            return Vec::new();
         };
         log.drain(..).collect()
     }

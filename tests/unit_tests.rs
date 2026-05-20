@@ -260,8 +260,13 @@ async fn pipeline_filter_time_range() {
     let start = 1_704_067_200_000_i64; // row 0
     let end = 1_704_067_200_000 + 5 * 3_600_000; // row 5
     let result = filter_time_range(df.lazy(), start, end, &["value".to_string()], "ts").unwrap();
-    assert!(result.height() <= 6);
-    assert!(result.height() > 0);
+    // filter_time_range now returns LazyFrame — collect to get the DataFrame
+    let collected = tokio::task::block_in_place(|| {
+        result.with_new_streaming(true).collect()
+    })
+    .unwrap();
+    assert!(collected.height() <= 6);
+    assert!(collected.height() > 0);
 }
 
 // ─── Pipeline: apply_reduction ────────────────────────────────────────────────

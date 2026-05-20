@@ -151,6 +151,12 @@ impl From<serde_json::Error> for AppError {
     }
 }
 
+impl From<edatime_core::error::AppError> for AppError {
+    fn from(value: edatime_core::error::AppError) -> Self {
+        AppError::internal(format!("core error: {value}"))
+    }
+}
+
 fn next_correlation_id() -> String {
     let ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)

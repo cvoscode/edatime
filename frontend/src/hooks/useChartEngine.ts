@@ -1,6 +1,6 @@
 import { createSignal, createEffect, onCleanup } from 'solid-js';
 import { initChartEngine, registerTheme, DEFAULT_GRID, ECHARTS_GRID } from '../components/chart/chartEngine';
-import { uiStore } from '../stores';
+import { uiStore } from '../stores/uiStore';
 
 export type ChartEngineType = 'timeseries' | 'scatter' | 'echarts';
 

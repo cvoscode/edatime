@@ -2,10 +2,11 @@ import { Component, createSignal, createEffect, createMemo, Show, For, onMount, 
 import { useNavigate } from '@solidjs/router';
 import { scatterStore, datasetStore, uiStore } from '../stores';
 import type { CorrelationItem } from '../types';
-import { fetchScatterCorrelations, fetchScatterPoints } from '../services/api';
+import { fetchScatterCorrelations } from '../services/api';
+import { fetchScatterData } from '../services/dataFetch';
 import { getColorPalette, buildCategoricalColorGroups, getCategoryColor, sampleGradient } from '../utils/colorScale';
-import LabelsDrawer from '../components/chart/LabelsDrawer';
-import ScatterChartView from '../components/chart/ScatterChartView';
+import LabelsDrawer from '../domain/timeseries/components/LabelsDrawer';
+import ScatterChartView from '../domain/scatter/components/ScatterChart';
 import styles from './ScatterPage.module.css';
 
 const ScatterPage: Component = () => {
@@ -121,11 +122,11 @@ const ScatterPage: Component = () => {
     try {
       const color = colorCol() || null;
       const size = sizeCol() || null;
-      const resp = await fetchScatterPoints(x, y, 500000, color, size);
-      scatterStore.setScatterPoints(resp.points, resp.total_points);
-      scatterStore.setColorValues(resp.color_values, resp.color_min, resp.color_max);
-      scatterStore.setColorLabels(resp.color_labels);
-      scatterStore.setSizeValues(resp.size_values, resp.size_min, resp.size_max);
+      const resp = await fetchScatterData(x, y, 500000, color, size);
+      scatterStore.setScatterPoints(resp.points, resp.totalPoints);
+      scatterStore.setColorValues(resp.colorValues, resp.colorMin, resp.colorMax);
+      scatterStore.setColorLabels(resp.colorLabels);
+      scatterStore.setSizeValues(resp.sizeValues, resp.sizeMin, resp.sizeMax);
       updateChart();
     } catch (e) {
       console.error('Failed to fetch scatter points:', e);
@@ -160,13 +161,13 @@ const ScatterPage: Component = () => {
 
     const symbolSize = sizeColName && sizeVals && sizeMin !== null && sizeMax !== null
       ? (pt: number[]) => {
-          const sizeIdx = colorVals && colorVals.length > 0 ? 3 : 2;
-          const sv = pt[sizeIdx];
-          if (typeof sv !== 'number' || !Number.isFinite(sv)) return 4;
-          const span = (sizeMax - sizeMin) || 1;
-          const t = Math.max(0, Math.min(1, (sv - sizeMin) / span));
-          return 2 + t * 18; // scale 2–20px
-        }
+        const sizeIdx = colorVals && colorVals.length > 0 ? 3 : 2;
+        const sv = pt[sizeIdx];
+        if (typeof sv !== 'number' || !Number.isFinite(sv)) return 4;
+        const span = (sizeMax - sizeMin) || 1;
+        const t = Math.max(0, Math.min(1, (sv - sizeMin) / span));
+        return 2 + t * 18; // scale 2–20px
+      }
       : 4;
 
     if (isDensity || (!colorColName && !sizeColName) || (!colorVals && !colorLabels && !sizeVals)) {
@@ -407,7 +408,7 @@ const ScatterPage: Component = () => {
         </div>
       </Show>
 
-<main class={styles.main}>
+      <main class={styles.main}>
         <Show when={canShowChart()}>
           <ScatterChartView
             xAxisLabel={xAxisLabel() || xCol()}

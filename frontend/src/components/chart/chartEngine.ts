@@ -1,5 +1,13 @@
+/**
+ * chartEngine.ts — ECharts-specific chart initialization.
+ *
+ * ChartGPU logic has moved to ChartGPUAdapter.ts.
+ * New code should use the ChartAdapter / ChartRegistry pattern instead.
+ *
+ * Kept here for backward compatibility with existing consumers of initChartEngine.
+ */
 import * as echarts from 'echarts';
-import { uiStore } from '../../stores';
+import { uiStore } from '../../stores/uiStore';
 import { getColorPalette } from '../../utils/colorScale';
 import { getActivePlotTemplate, toEChartsTheme } from '../../utils/plotTemplate';
 
@@ -30,9 +38,8 @@ export interface ChartEngineResult {
 
 export const DEFAULT_GRID: GridConfig = { left: 120, right: 30, top: 16, bottom: 36 };
 export const ECHARTS_GRID: GridConfig = { left: 80, right: 40, top: 20, bottom: 50 };
-const CHARTGPU_INIT_TIMEOUT_MS = 5000;
 
-export function isWebGPUSupported(): boolean {
+function isWebGPUSupported(): boolean {
   try {
     return typeof navigator !== 'undefined' && !!(navigator as any).gpu;
   } catch {
@@ -40,36 +47,18 @@ export function isWebGPUSupported(): boolean {
   }
 }
 
-export function registerTheme(): void {
+function registerTheme(): void {
   const tmpl = getActivePlotTemplate(uiStore.state.plotTheme, uiStore.state.theme);
   const name = `edatime-${tmpl.id}`;
-  echarts.registerTheme(name, toEChartsTheme(tmpl));
-}
-
-async function loadChartGPU(container: HTMLElement, grid: GridConfig, xAxisType: 'time' | 'value', xAxisLabel?: string, yAxisLabel?: string): Promise<any> {
-  const chartgpuUrl = `/libs/chartgpu/dist/index.js`;
-  const resp = await fetch(chartgpuUrl);
-  if (!resp.ok) throw new Error(`ChartGPU fetch failed: ${resp.status}`);
-  const code = await resp.text();
-  const blob = new Blob([code], { type: 'application/javascript' });
-  const blobUrl = URL.createObjectURL(blob);
-  try {
-    const chartModule = await import(/* @vite-ignore */ blobUrl);
-    const createChartFn = (chartModule as any).createChart ?? (chartModule as any).default?.createChart;
-    if (!createChartFn) throw new Error('createChart not found');
-    const chartOpts = {
-      grid,
-      xAxis: { type: xAxisType, name: xAxisLabel },
-      yAxis: { type: 'value' as const, name: yAxisLabel },
-      legend: { show: true, position: 'right' as const },
-      series: [],
-      theme: getActivePlotTemplate(uiStore.state.plotTheme, uiStore.state.theme).id,
-    };
-    return await createChartFn(container, chartOpts);
-  } finally {
-    URL.revokeObjectURL(blobUrl);
+  if (!registerTheme._registered.has(name)) {
+    (echarts as any).registerTheme(name, toEChartsTheme(tmpl));
+    registerTheme._registered.add(name);
   }
 }
+registerTheme._registered = new Set<string>();
+
+// Re-export for consumers that import from chartEngine
+export { isWebGPUSupported, registerTheme };
 
 async function initECharts(
   container: HTMLElement,
@@ -123,11 +112,18 @@ async function initECharts(
 
   return {
     instance,
-    dispose: () => { try { instance.dispose(); } catch (_) {} },
+    dispose: () => { try { instance.dispose(); } catch (_) { } },
     resize: () => instance.resize(),
   };
 }
 
+/**
+ * initChartEngine — delegates to ChartAdapter via ChartRegistry.
+ *
+ * Provided for backward compatibility only.
+ * New code should use createChartAdapter / createAndInitChartAdapter
+ * from ChartRegistry.ts.
+ */
 export async function initChartEngine(config: ChartEngineConfig): Promise<ChartEngineResult> {
   const { container, grid = DEFAULT_GRID, xAxisType = 'time', xAxisLabel, yAxisLabel, chartTitle, onZoom, onClick } = config;
 
@@ -138,84 +134,23 @@ export async function initChartEngine(config: ChartEngineConfig): Promise<ChartE
     container.removeChild(container.firstChild);
   }
 
-  let chartgpuBlobUrl: string | null = null;
-  let resizeObserver: ResizeObserver | null = null;
+  const { createAndInitChartAdapter } = await import('./ChartRegistry');
 
-  // Try ChartGPU first
-  if (isWebGPUSupported()) {
-    try {
-      const chartPromise = loadChartGPU(container, grid, xAxisType, xAxisLabel, yAxisLabel);
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('ChartGPU init timeout (5s)')), CHARTGPU_INIT_TIMEOUT_MS)
-      );
+  const adapter = await createAndInitChartAdapter(
+    container,
+    { grid, xAxisType, xAxisLabel, yAxisLabel, chartTitle },
+    { chartType: xAxisType === 'value' ? 'scatter' : 'timeseries' }
+  );
 
-      const instance = await Promise.race([chartPromise, timeoutPromise]);
-
-      if (onZoom) {
-        instance.on('zoomRangeChange', (payload: any) => {
-          const start = Number(payload?.start);
-          const end = Number(payload?.end);
-          if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-            onZoom(start, end);
-          }
-        });
-      }
-
-      if (onClick) {
-        instance.on('click', (payload: any) => {
-          const x = Number(payload?.x);
-          const y = Number(payload?.y);
-          if (Number.isFinite(x) && Number.isFinite(y)) {
-            onClick(x, y);
-          }
-        });
-      }
-
-      resizeObserver = new ResizeObserver(() => instance.resize?.());
-      resizeObserver.observe(container);
-
-      return {
-        instance,
-        engineName: 'ChartGPU',
-        dispose: () => {
-          resizeObserver?.disconnect();
-          try { instance.dispose?.(); } catch (_) {}
-        },
-        resize: () => instance.resize?.(),
-      };
-    } catch (e) {
-      console.warn('[chartEngine] ChartGPU failed or timed out, falling back to ECharts:', e);
-      while (container.firstChild) {
-        container.removeChild(container.firstChild);
-      }
-    }
-  }
-
-  // ECharts fallback
-  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-
-  if (!container.parentNode) {
-    throw new Error('Chart container is no longer in the DOM');
-  }
-
-  // Clean up again after RAF defer
-  while (container.firstChild) {
-    container.removeChild(container.firstChild);
-  }
-
-  const echartsResult = await initECharts(container, grid, xAxisType, xAxisLabel, yAxisLabel, chartTitle, onZoom, onClick);
-
-  resizeObserver = new ResizeObserver(() => echartsResult.instance.resize());
-  resizeObserver.observe(container);
+  // Wire callbacks
+  if (onZoom) adapter.onZoom(onZoom);
+  if (onClick) adapter.onClick(onClick);
 
   return {
-    instance: echartsResult.instance,
-    engineName: 'ECharts',
-    dispose: () => {
-      resizeObserver?.disconnect();
-      echartsResult.dispose();
-    },
-    resize: echartsResult.resize,
+    instance: adapter.instance,
+    engineName: adapter.engineName as 'ChartGPU' | 'ECharts',
+    dispose: () => adapter.dispose(),
+    resize: () => adapter.resize(),
   };
 }
 

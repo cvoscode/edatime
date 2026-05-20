@@ -2,7 +2,7 @@ import { Component, createSignal, createMemo, Show, For, onMount, onCleanup, cre
 import { datasetStore } from '../stores';
 import { uiStore } from '../stores/uiStore';
 import { causalStore, type CausalMethod, type CausalTest, type FdrMethod, type CausalLink } from '../stores/causalStore';
-import ColumnChips from '../components/chart/ColumnChips';
+import ColumnChips from '../domain/timeseries/components/ColumnChips';
 import * as echarts from 'echarts';
 import styles from './CausalPage.module.css';
 

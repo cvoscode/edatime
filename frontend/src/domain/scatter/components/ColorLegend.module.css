@@ -1,0 +1,110 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+}
+
+.horizontal {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.vertical {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.title {
+    font-size: var(--font-xs);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+}
+
+/* Continuous mode */
+.continuousWrap {
+    display: flex;
+    align-items: stretch;
+}
+
+.horizontalBar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.verticalBar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.gradientBar {
+    width: 120px;
+    height: 12px;
+    border-radius: 4px;
+    border: 1px solid var(--color-border);
+}
+
+.gradientBarVertical {
+    width: 12px;
+    min-height: 80px;
+    border-radius: 4px;
+    border: 1px solid var(--color-border);
+}
+
+.tickRow {
+    display: flex;
+    justify-content: space-between;
+    width: 120px;
+}
+
+.tick {
+    font-size: var(--font-xs);
+    color: var(--color-text-dim);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+/* Categorical mode */
+.categoricalLegend {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.vertical .categoricalLegend {
+    flex-direction: column;
+}
+
+.horizontal .categoricalLegend {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.categoricalItem {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    border: 1px solid var(--color-border);
+}
+
+.categoricalLabel {
+    font-size: var(--font-xs);
+    color: var(--color-text);
+    white-space: nowrap;
+}

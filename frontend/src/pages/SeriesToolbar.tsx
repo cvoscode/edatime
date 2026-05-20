@@ -1,5 +1,5 @@
 import { Component, createSignal, Show, For } from 'solid-js';
-import ColumnChips from '../components/chart/ColumnChips';
+import ColumnChips from '../domain/timeseries/components/ColumnChips';
 import styles from './TimeseriesPage.module.css';
 
 interface SeriesToolbarProps {
@@ -77,7 +77,7 @@ const SeriesToolbar: Component<SeriesToolbarProps> = (props) => {
           onClick={() => setCollapsed(!collapsed())}
         >
           <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="4,6 8,10 12,6"/>
+            <polyline points="4,6 8,10 12,6" />
           </svg>
         </button>
         <Show when={!collapsed()}>

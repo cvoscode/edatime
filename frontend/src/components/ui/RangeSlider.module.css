@@ -29,7 +29,7 @@
   background: var(--color-accent);
   border-radius: 50%;
   cursor: pointer;
-  transition: transform 0.15s;
+  transition: transform var(--duration-normal);
 }
 
 .slider::-webkit-slider-thumb:hover {

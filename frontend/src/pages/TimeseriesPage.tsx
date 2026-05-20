@@ -1,13 +1,17 @@
 import { Component, createSignal, Show, createMemo, onMount, createEffect, onCleanup, untrack } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { chartStore, datasetStore, uiStore, analyticsStore } from '../stores';
+import { chartStore } from '../stores/chartStore';
+import { datasetStore } from '../stores/datasetStore';
+import { uiStore } from '../stores/uiStore';
+import { analyticsStore } from '../stores/analyticsStore';
+import { timeseriesStore } from '../domain/timeseries/store';
 import ChartView from '../components/chart/ChartView';
 import SeriesToolbar from './SeriesToolbar';
 import ChartToolbar from './ChartToolbar';
-import ColumnFilterModal from '../components/chart/ColumnFilterModal';
-import AnalyticsDrawer from '../components/chart/AnalyticsDrawer';
-import LabelsDrawer from '../components/chart/LabelsDrawer';
-import AdaptiveFilterPopup from '../components/chart/AdaptiveFilterPopup';
+import ColumnFilterModal from '../domain/timeseries/components/ColumnFilterModal';
+import AnalyticsDrawer from '../domain/timeseries/components/AnalyticsDrawer';
+import LabelsDrawer from '../domain/timeseries/components/LabelsDrawer';
+import AdaptiveFilterPopup from '../domain/timeseries/components/AdaptiveFilterPopup';
 import { fetchTimeseriesData, buildSeriesConfig, updateCachedColors, getCachedData } from '../services/dataFetch';
 import { fetchRollingBands, fetchAnomalies } from '../services/api';
 import { exportChartAsPNG, exportChartAsCSV, exportChartAsSVG, exportChartAsJSON, exportChartAsHTML } from '../utils/exportUtils';
@@ -42,12 +46,15 @@ const TimeseriesPage: Component = () => {
     x1: number; y1: number; x2: number; y2: number; screenX: number; screenY: number;
   } | null>(null);
 
-  let updateChartFn: ((series: any[], xMin?: number, xMax?: number, yMin?: number, yMax?: number) => void) | null = null;
-  let chartReady = false;
-  let chartInstanceRef: any = null;
+  // FIXED: chartUpdateFn, chartReady, chartInstanceRef, lastContextMenuTime, fetchInProgress,
+  // and viewportDebounceTimer were module-level mutable vars that bypassed reactivity.
+  // Now they are proper signals at component level.
+  const [updateChartFn, setUpdateChartFn] = createSignal<((series: any[], xMin?: number, xMax?: number, yMin?: number, yMax?: number) => void) | null>(null);
+  const [chartReady, setChartReady] = createSignal(false);
+  const [chartInstanceRef, setChartInstanceRef] = createSignal<any>(null);
+  const [lastContextMenuTime, setLastContextMenuTime] = createSignal(0);
+  const [fetchInProgress, setFetchInProgress] = createSignal(false);
   const { signal: abortSignal, abort, restart: restartAbort } = useAbortController();
-  let lastContextMenuTime = 0;
-  let fetchInProgress = false;
   let viewportDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   const numericCols = createMemo(() => datasetStore.state.numericCols);
@@ -112,9 +119,9 @@ const TimeseriesPage: Component = () => {
   });
 
   const handleChartReady = (updateFn: (series: any[], xMin?: number, xMax?: number, yMin?: number, yMax?: number) => void, chartInstance?: any) => {
-    updateChartFn = updateFn;
-    chartReady = true;
-    if (chartInstance) chartInstanceRef = chartInstance;
+    setUpdateChartFn(() => updateFn);
+    setChartReady(true);
+    if (chartInstance) setChartInstanceRef(chartInstance);
     initViewportFromMetadata();
     void fetchAndRender();
   };
@@ -124,7 +131,7 @@ const TimeseriesPage: Component = () => {
   };
 
   const handleChartInstance = (instance: any) => {
-    chartInstanceRef = instance;
+    setChartInstanceRef(instance);
   };
 
   const handleLabelsChange = (title: string, xLabel: string, yLabel: string) => {
@@ -136,8 +143,8 @@ const TimeseriesPage: Component = () => {
   const fetchAndRender = async () => {
     const xCol = xAxisColumn();
     const traces = traceColumns();
-    if (!updateChartFn || !xCol || traces.length === 0) {
-      debugLog('fetchAndRender skipped', { hasUpdateFn: !!updateChartFn, xCol, tracesLen: traces.length });
+    if (!updateChartFn() || !xCol || traces.length === 0) {
+      debugLog('fetchAndRender skipped', { hasUpdateFn: !!updateChartFn(), xCol, tracesLen: traces.length });
       return;
     }
 
@@ -161,9 +168,14 @@ const TimeseriesPage: Component = () => {
       const result = await fetchTimeseriesData(start, end, 1200, xCol, traces, abortSignal, colorColumn());
       debugLogOnce('fetchAndRender-result', 'fetchAndRender result', { returnedRows: result.returnedRows, downsampled: result.downsampled });
       setIsDownsampled(result.downsampled);
-      
+
       const seriesConfig = buildSeriesConfig(result.xValues, result.series, mergedColors(), uiStore.state.filters, result.colorByColumn, colorColumn(), !result.downsampled, uiStore.state.colorScale, uiStore.state.adaptiveLineFilters);
-      updateChartFn(seriesConfig, viewport.xMin || timeRange[0], viewport.xMax || timeRange[1], viewport.yMin, viewport.yMax);
+      const doUpdate = updateChartFn();
+      if (!doUpdate) {
+        debugLog('fetchAndRender skipped: no updateChartFn');
+        return;
+      }
+      doUpdate(seriesConfig, viewport.xMin || timeRange[0], viewport.xMax || timeRange[1], viewport.yMin, viewport.yMax);
 
       if (analyticsStore.state.rollingEnabled) {
         void fetchAndCacheRollingBands(start, end, traces.join(','));
@@ -186,21 +198,18 @@ const TimeseriesPage: Component = () => {
   };
 
   const fetchAndCacheRollingBands = async (start: string, end: string, columns: string) => {
-    analyticsStore.setRollingLoading(true);
     try {
-      const response = await fetchRollingBands(start, end, columns, analyticsStore.state.rollingWindow);
-      analyticsStore.setRollingBands(response.bands);
+      const response = await fetchRollingBands({ start, end, columns, window: analyticsStore.state.rollingWindow });
+      timeseriesStore.setRollingBands(response.bands);
     } catch (e) {
       console.warn('Failed to fetch rolling bands:', e);
-    } finally {
-      analyticsStore.setRollingLoading(false);
     }
   };
 
   const fetchAndCacheAnomalyRegions = async (start: string, end: string, columns: string) => {
     try {
-      const response = await fetchAnomalies(start, end, columns, analyticsStore.state.anomalyMethod, analyticsStore.state.anomalyThreshold);
-      analyticsStore.setAnomalyRegions(response.regions);
+      const response = await fetchAnomalies({ start, end, columns, method: analyticsStore.state.anomalyMethod, threshold: analyticsStore.state.anomalyThreshold });
+      timeseriesStore.setAnomalyRegions(response.regions);
     } catch (e) {
       console.warn('Failed to fetch anomaly regions:', e);
     }
@@ -209,7 +218,7 @@ const TimeseriesPage: Component = () => {
   const handleRollingChange = (enabled: boolean, window: number) => {
     analyticsStore.setRollingEnabled(enabled);
     analyticsStore.setRollingWindow(window);
-    if (enabled && chartReady) {
+    if (enabled && chartReady()) {
       const metadata = datasetStore.state.metadata;
       const timeRange = metadata?.timeRange;
       if (timeRange) {
@@ -219,7 +228,7 @@ const TimeseriesPage: Component = () => {
         void fetchAndCacheRollingBands(start, end, traceColumns().join(','));
       }
     } else {
-      analyticsStore.setRollingBands([]);
+      timeseriesStore.setRollingBands([]);
     }
   };
 
@@ -227,7 +236,7 @@ const TimeseriesPage: Component = () => {
     analyticsStore.setAnomalyEnabled(enabled);
     analyticsStore.setAnomalyMethod(method as 'zscore' | 'iqr');
     analyticsStore.setAnomalyThreshold(threshold);
-    if (enabled && chartReady) {
+    if (enabled && chartReady()) {
       const metadata = datasetStore.state.metadata;
       const timeRange = metadata?.timeRange;
       if (timeRange) {
@@ -279,30 +288,31 @@ const TimeseriesPage: Component = () => {
     const xCol = xAxisColumn();
     const traces = traceColumns();
     const metadata = datasetStore.state.metadata;
-    if (chartReady && xCol && traces.length > 0 && metadata) {
+    if (chartReady() && xCol && traces.length > 0 && metadata) {
       void fetchAndRender();
     }
   });
 
   useDebouncedEffect(mergedColors, (colors) => {
-    if (!chartReady) return;
+    if (!chartReady()) return;
     const seriesConfig = updateCachedColors(colors);
-    if (seriesConfig && updateChartFn) {
+    const doUpdate = updateChartFn();
+    if (seriesConfig && doUpdate) {
       const metadata = datasetStore.state.metadata;
       const timeRange = metadata?.timeRange;
       const viewport = chartStore.state.viewport;
-      updateChartFn(seriesConfig, viewport.xMin || timeRange?.[0], viewport.xMax || timeRange?.[1], viewport.yMin, viewport.yMax);
+      doUpdate(seriesConfig, viewport.xMin || timeRange?.[0], viewport.xMax || timeRange?.[1], viewport.yMin, viewport.yMax);
     }
   }, 50);
 
   createEffect(() => {
     const viewport = chartStore.state.viewport;
     const metadata = datasetStore.state.metadata;
-    if (chartReady && metadata && viewport && !fetchInProgress) {
+    if (chartReady() && metadata && viewport && !fetchInProgress()) {
       if (viewportDebounceTimer) clearTimeout(viewportDebounceTimer);
       viewportDebounceTimer = setTimeout(() => {
-        fetchInProgress = true;
-        fetchAndRender().finally(() => { fetchInProgress = false; });
+        setFetchInProgress(true);
+        fetchAndRender().finally(() => { setFetchInProgress(false); });
       }, 150);
     }
   });
@@ -344,10 +354,10 @@ const TimeseriesPage: Component = () => {
     // Double-right-click to open filter modal (same as old frontend viewport.ts behavior)
     pageRef?.addEventListener('contextmenu', (e: MouseEvent) => {
       const now = performance.now();
-      const isDoubleContext = (now - lastContextMenuTime) <= 450;
-      lastContextMenuTime = now;
+      const isDoubleContext = (now - lastContextMenuTime()) <= 450;
+      setLastContextMenuTime(now);
       if (!isDoubleContext) return;
-      lastContextMenuTime = 0;
+      setLastContextMenuTime(0);
       e.preventDefault();
       // If click is on a series chip, open filter for that column
       const chip = (e.target as HTMLElement)?.closest?.('.series-chip');
@@ -421,6 +431,8 @@ const TimeseriesPage: Component = () => {
     uiStore.appendAdaptiveLineFilter({
       id: `f_${Date.now()}`,
       column,
+      op: keepAbove ? 'above' : 'below',
+      value: (pts.y1 + pts.y2) / 2,
       x1: pts.x1,
       y1: pts.y1,
       x2: pts.x2,
@@ -487,14 +499,14 @@ const TimeseriesPage: Component = () => {
   });
 
   const handleExportPNG = () => {
-    if (chartInstanceRef) {
-      exportChartAsPNG(chartInstanceRef, 'edatime_chart.png');
+    if (chartInstanceRef()) {
+      exportChartAsPNG(chartInstanceRef(), 'edatime_chart.png');
     }
   };
 
   const handleExportSVG = () => {
-    if (chartInstanceRef) {
-      exportChartAsSVG(chartInstanceRef, 'edatime_chart.svg');
+    if (chartInstanceRef()) {
+      exportChartAsSVG(chartInstanceRef(), 'edatime_chart.svg');
     }
   };
 
@@ -513,14 +525,14 @@ const TimeseriesPage: Component = () => {
   };
 
   const handleExportHTML = () => {
-    if (chartInstanceRef) {
-      exportChartAsHTML(chartInstanceRef, 'edatime_chart.html');
+    if (chartInstanceRef()) {
+      exportChartAsHTML(chartInstanceRef(), 'edatime_chart.html');
     }
   };
 
   return (
     <div ref={pageRef} class={styles.page}>
-            <SeriesToolbar
+      <SeriesToolbar
         numericCols={numericCols()}
         datetimeCols={datetimeCols()}
         xAxisColumn={xAxisColumn()}
@@ -551,7 +563,7 @@ const TimeseriesPage: Component = () => {
         onDrawToolChange={handleDrawToolChange}
         onDrawColorChange={setDrawColor}
         onDrawWidthChange={setDrawWidth}
-        onClearDrawings={() => { chartInstanceRef?.clearDrawings?.(); chartStore.clearDrawings(); }}
+        onClearDrawings={() => { chartInstanceRef()?.clearDrawings?.(); chartStore.clearDrawings(); }}
         onOpenLabels={() => setShowLabelsDrawer(true)}
         onOpenExportMore={() => setShowExportMore(v => !v)}
         onExportPNG={handleExportPNG}
@@ -574,8 +586,8 @@ const TimeseriesPage: Component = () => {
           onZoom={handleZoom}
           onZoomOut={handleZoomOut}
           onCtrlClick={handleCtrlClick}
-          rollingBands={analyticsStore.state.rollingBands}
-          anomalyRegions={analyticsStore.state.anomalyRegions}
+          rollingBands={timeseriesStore.state.rollingBands}
+          anomalyRegions={timeseriesStore.state.anomalyRegions}
           drawMode={drawTool() === 'zoom' ? 'zoom' : drawTool() === 'none' ? 'pan' : drawTool() as any}
           drawColor={drawColor()}
           drawWidth={drawWidth()}

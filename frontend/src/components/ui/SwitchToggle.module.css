@@ -19,7 +19,7 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 999px;
-  transition: background 0.2s, border-color 0.2s;
+  transition: background var(--duration-normal), border-color var(--duration-normal);
 }
 
 .thumb {
@@ -30,7 +30,7 @@
   height: 14px;
   background: var(--color-text-muted);
   border-radius: 50%;
-  transition: transform 0.2s, background 0.2s;
+  transition: transform var(--duration-normal), background var(--duration-normal);
 }
 
 .input:checked + .track {

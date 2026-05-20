@@ -1,0 +1,81 @@
+.popup {
+  position: fixed;
+  z-index: 1000;
+  background: var(--color-surface-elevated, #1e2433);
+  border: 1px solid var(--color-border, #2e3446);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  padding: 12px 16px;
+  min-width: 180px;
+  max-width: 260px;
+  transform: translate(-50%, -100%);
+  margin-top: -12px;
+}
+
+.label {
+  font-size: 11px;
+  color: var(--color-text-muted, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.columnBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-text, #e0e6f0);
+  transition: background 0.15s;
+  width: 100%;
+  text-align: left;
+}
+
+.columnBtn:hover {
+  background: var(--color-surface-hover, #2a3042);
+}
+
+.colName {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.toggleBtn {
+  font-size: 10px;
+  padding: 2px 4px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.toggleBtn:hover {
+  opacity: 1;
+}
+
+.badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.badgeAbove {
+  background: rgba(96, 189, 255, 0.2);
+  color: #60bdff;
+}
+
+.badgeBelow {
+  background: rgba(255, 107, 107, 0.2);
+  color: #ff6b6b;
+}

@@ -4,97 +4,97 @@
  */
 
 function downloadUrl(url: string, filename: string): void {
-  if (typeof window === 'undefined') return;
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+    if (typeof window === 'undefined') return;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 }
 
 class ExportService {
-  /** Export chart as PNG blob */
-  async exportPNG(chartInstance: any): Promise<Blob> {
-    const canvas =
-      chartInstance?.getCanvas?.() ?? chartInstance?.renderer?.canvas;
-    if (!canvas) throw new Error('No canvas found');
-    return new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((blob: Blob | null) => {
-        if (blob) resolve(blob);
-        else reject(new Error('Failed to export PNG'));
-      }, 'image/png');
-    });
-  }
+    /** Export chart as PNG blob */
+    async exportPNG(chartInstance: any): Promise<Blob> {
+        const canvas =
+            chartInstance?.getCanvas?.() ?? chartInstance?.renderer?.canvas;
+        if (!canvas) throw new Error('No canvas found');
+        return new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob((blob: Blob | null) => {
+                if (blob) resolve(blob);
+                else reject(new Error('Failed to export PNG'));
+            }, 'image/png');
+        });
+    }
 
-  /** Export chart as SVG string */
-  async exportSVG(chartInstance: any): Promise<string> {
-    const svg = chartInstance?.exportSVG?.();
-    if (!svg) throw new Error('SVG export not supported');
-    return svg;
-  }
+    /** Export chart as SVG string */
+    async exportSVG(chartInstance: any): Promise<string> {
+        const svg = chartInstance?.exportSVG?.();
+        if (!svg) throw new Error('SVG export not supported');
+        return svg;
+    }
 
-  /**
-   * Export timeseries data as CSV string.
-   * format 'wide': timestamp,col1,col2,...
-   * format 'long': timestamp,series,value
-   */
-  exportCSV(
-    series: Record<string, Float64Array>,
-    xValues: Float64Array,
-    format: 'wide' | 'long' = 'wide'
-  ): string {
-    const cols = Object.keys(series);
-    if (format === 'long') {
-      const rows: string[] = ['timestamp,series,value'];
-      const len = xValues.length;
-      for (let i = 0; i < len; i++) {
-        const x = new Date(xValues[i]).toISOString();
-        for (const c of cols) {
-          const v = series[c]?.[i];
-          rows.push(`${x},${c},${v !== undefined ? String(v) : ''}`);
+    /**
+     * Export timeseries data as CSV string.
+     * format 'wide': timestamp,col1,col2,...
+     * format 'long': timestamp,series,value
+     */
+    exportCSV(
+        series: Record<string, Float64Array>,
+        xValues: Float64Array,
+        format: 'wide' | 'long' = 'wide'
+    ): string {
+        const cols = Object.keys(series);
+        if (format === 'long') {
+            const rows: string[] = ['timestamp,series,value'];
+            const len = xValues.length;
+            for (let i = 0; i < len; i++) {
+                const x = new Date(xValues[i]).toISOString();
+                for (const c of cols) {
+                    const v = series[c]?.[i];
+                    rows.push(`${x},${c},${v !== undefined ? String(v) : ''}`);
+                }
+            }
+            return rows.join('\n');
         }
-      }
-      return rows.join('\n');
+        // wide format
+        const header = ['timestamp', ...cols].join(',');
+        const rows: string[] = [header];
+        const len = xValues.length;
+        for (let i = 0; i < len; i++) {
+            const x = new Date(xValues[i]).toISOString();
+            const values = cols.map(c => {
+                const v = series[c]?.[i];
+                return v !== undefined ? String(v) : '';
+            });
+            rows.push([x, ...values].join(','));
+        }
+        return rows.join('\n');
     }
-    // wide format
-    const header = ['timestamp', ...cols].join(',');
-    const rows: string[] = [header];
-    const len = xValues.length;
-    for (let i = 0; i < len; i++) {
-      const x = new Date(xValues[i]).toISOString();
-      const values = cols.map(c => {
-        const v = series[c]?.[i];
-        return v !== undefined ? String(v) : '';
-      });
-      rows.push([x, ...values].join(','));
+
+    /** Export timeseries data as JSON string */
+    exportJSON(data: any, pretty = true): string {
+        return pretty ? JSON.stringify(data, null, 2) : JSON.stringify(data);
     }
-    return rows.join('\n');
-  }
 
-  /** Export timeseries data as JSON string */
-  exportJSON(data: any, pretty = true): string {
-    return pretty ? JSON.stringify(data, null, 2) : JSON.stringify(data);
-  }
+    /** Export chart + data as self-contained HTML */
+    exportHTML(
+        chartInstance: any,
+        series: Record<string, Float64Array>,
+        xValues: Float64Array
+    ): string {
+        const canvas =
+            chartInstance?.getCanvas?.() ?? chartInstance?.renderer?.canvas;
+        if (!canvas) throw new Error('No canvas found');
+        const chartDataUrl = canvas.toDataURL('image/png');
 
-  /** Export chart + data as self-contained HTML */
-  exportHTML(
-    chartInstance: any,
-    series: Record<string, Float64Array>,
-    xValues: Float64Array
-  ): string {
-    const canvas =
-      chartInstance?.getCanvas?.() ?? chartInstance?.renderer?.canvas;
-    if (!canvas) throw new Error('No canvas found');
-    const chartDataUrl = canvas.toDataURL('image/png');
+        const overlayCanvas = document.querySelector(
+            '#timeseries-overlays canvas'
+        ) as HTMLCanvasElement | null;
+        const overlayDataUrl = overlayCanvas ? overlayCanvas.toDataURL('image/png') : '';
 
-    const overlayCanvas = document.querySelector(
-      '#timeseries-overlays canvas'
-    ) as HTMLCanvasElement | null;
-    const overlayDataUrl = overlayCanvas ? overlayCanvas.toDataURL('image/png') : '';
-
-    return `<!DOCTYPE html>
+        return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -148,22 +148,22 @@ class ExportService {
   </div>
 </body>
 </html>`;
-  }
+    }
 
-  /** Trigger download of a Blob in browser */
-  downloadBlob(blob: Blob, filename: string): void {
-    if (typeof window === 'undefined') return;
-    const url = URL.createObjectURL(blob);
-    downloadUrl(url, filename);
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-  }
+    /** Trigger download of a Blob in browser */
+    downloadBlob(blob: Blob, filename: string): void {
+        if (typeof window === 'undefined') return;
+        const url = URL.createObjectURL(blob);
+        downloadUrl(url, filename);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
 
-  /** Trigger download of string content in browser */
-  downloadString(content: string, filename: string, mimeType = 'text/csv'): void {
-    if (typeof window === 'undefined') return;
-    const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
-    this.downloadBlob(blob, filename);
-  }
+    /** Trigger download of string content in browser */
+    downloadString(content: string, filename: string, mimeType = 'text/csv'): void {
+        if (typeof window === 'undefined') return;
+        const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
+        this.downloadBlob(blob, filename);
+    }
 }
 
 const exportService = new ExportService();

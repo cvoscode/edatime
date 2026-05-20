@@ -16,7 +16,7 @@
   font-size: var(--font-sm);
   font-weight: 500;
   color: var(--color-text-muted);
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--duration-normal), color var(--duration-normal);
 }
 
 .tab:hover {

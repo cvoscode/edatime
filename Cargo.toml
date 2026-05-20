@@ -3,35 +3,86 @@ name = "edatime"
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
+[workspace]
+members = [
+  "crates/edatime-core",
+  "crates/edatime-store",
+  "crates/edatime-query",
+  "crates/edatime-ingest",
+  "crates/edatime-service",
+  "crates/edatime-bin",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+# Shared across all workspace crates
 arrow = "58.0.0"
 arrow-ipc = "58.0.0"
 axum = { version = "0.8.8", features = ["multipart"] }
+bytes = "1"
 chrono = { version = "0.4.41", features = ["serde"] }
-deadpool-postgres = { version = "0.14", features = ["serde"] }
 minmaxlttb = "0.1.4"
 ndarray = { version = "0.16", features = ["rayon"] }
-polars = { version = "0.53.0", features = ["lazy", "temporal", "parquet", "csv", "dtype-datetime", "ipc", "ipc_streaming"] }
-rand = "0.8"
+polars = { version = "0.53.0", features = ["lazy", "temporal", "parquet", "csv", "dtype-datetime", "ipc", "ipc_streaming", "is_in"] }
 rayon = "1.10"
 rustfft = "6.2.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-statrs = "0.18"
-tempfile = "3.26.0"
+thiserror = "1"
 tokio = { version = "1.49.0", features = ["full"] }
 tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
-tower-http = { version = "0.6.10", features = ["cors", "compression-gzip", "fs", "set-header", "trace"] }
+toml = "0.8.23"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+tower-http = { version = "0.6.10", features = ["cors", "compression-gzip", "fs", "set-header", "trace"] }
+
+[dependencies]
+edatime-core = { path = "crates/edatime-core" }
+edatime-query = { path = "crates/edatime-query" }
+edatime-store = { path = "crates/edatime-store" }
+edatime-ingest = { path = "crates/edatime-ingest" }
+edatime-service = { path = "crates/edatime-service" }
+
+arrow = { workspace = true }
+arrow-ipc = { workspace = true }
+axum = { version = "0.8.8", features = ["multipart"] }
+bytes = { workspace = true }
+chrono = { workspace = true }
+deadpool-postgres = { version = "0.14", features = ["serde"] }
+minmaxlttb = "0.1.4"
+ndarray = { version = "0.16", features = ["rayon"] }
+polars = { workspace = true }
+rand = "0.8"
+rayon = { workspace = true }
+rustfft = "6.2.0"
+serde = { workspace = true }
+serde_json = { workspace = true }
+statrs = "0.18"
+tempfile = "3.26.0"
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
+tower-http = { version = "0.6.10", features = ["cors", "compression-gzip", "fs", "set-header", "trace"] }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 toml = "0.8.23"
-bytes = "1"
 
 [dev-dependencies]
 criterion = "0.5.1"
 axum-test = "17"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.release]
+opt-level = 3
+lto = true
 
 
 

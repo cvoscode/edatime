@@ -9,16 +9,16 @@ import { exportChartAsPNG, exportChartAsCSV, exportChartAsSVG, exportChartAsJSON
  * Results from createExportHandlers()
  */
 export interface ExportHandlers {
-  /** Trigger PNG download */
-  handleExportPNG: () => void;
-  /** Trigger CSV download */
-  handleExportCSV: () => void;
-  /** Trigger SVG download */
-  handleExportSVG: () => void;
-  /** Trigger JSON download */
-  handleExportJSON: () => void;
-  /** Trigger HTML download (includes both chart + overlay canvases) */
-  handleExportHTML: () => void;
+    /** Trigger PNG download */
+    handleExportPNG: () => void;
+    /** Trigger CSV download */
+    handleExportCSV: () => void;
+    /** Trigger SVG download */
+    handleExportSVG: () => void;
+    /** Trigger JSON download */
+    handleExportJSON: () => void;
+    /** Trigger HTML download (includes both chart + overlay canvases) */
+    handleExportHTML: () => void;
 }
 
 /**
@@ -30,70 +30,70 @@ export interface ExportHandlers {
  * @param options - Optional filename overrides
  */
 export function createExportHandlers(
-  chartInstance: Accessor<any>,
-  getSeriesData?: () => { xValues: Float64Array; series: Record<string, Float64Array> } | null,
-  options?: {
-    pngFilename?: string;
-    csvFilename?: string;
-    svgFilename?: string;
-    jsonFilename?: string;
-    htmlFilename?: string;
-  }
+    chartInstance: Accessor<any>,
+    getSeriesData?: () => { xValues: Float64Array; series: Record<string, Float64Array> } | null,
+    options?: {
+        pngFilename?: string;
+        csvFilename?: string;
+        svgFilename?: string;
+        jsonFilename?: string;
+        htmlFilename?: string;
+    }
 ): ExportHandlers {
-  const defaults = {
-    pngFilename: 'edatime_chart.png',
-    csvFilename: 'edatime_data.csv',
-    svgFilename: 'edatime_chart.svg',
-    jsonFilename: 'edatime_data.json',
-    htmlFilename: 'edatime_chart.html',
-  };
+    const defaults = {
+        pngFilename: 'edatime_chart.png',
+        csvFilename: 'edatime_data.csv',
+        svgFilename: 'edatime_chart.svg',
+        jsonFilename: 'edatime_data.json',
+        htmlFilename: 'edatime_chart.html',
+    };
 
-  const getFilename = (name: keyof typeof defaults) => {
-    return options?.[name] ?? defaults[name];
-  };
+    const getFilename = (name: keyof typeof defaults) => {
+        return options?.[name] ?? defaults[name];
+    };
 
-  const handleExportPNG = () => {
-    const instance = chartInstance();
-    if (instance) {
-      exportChartAsPNG(instance, getFilename('pngFilename'));
-    }
-  };
+    const handleExportPNG = () => {
+        const instance = chartInstance();
+        if (instance) {
+            exportChartAsPNG(instance, getFilename('pngFilename'));
+        }
+    };
 
-  const handleExportCSV = () => {
-    const data = getSeriesData?.();
-    if (data) {
-      exportChartAsCSV(data.xValues, data.series, getFilename('csvFilename'));
-    }
-  };
+    const handleExportCSV = () => {
+        const data = getSeriesData?.();
+        if (data) {
+            exportChartAsCSV(data.xValues, data.series, getFilename('csvFilename'));
+        }
+    };
 
-  const handleExportSVG = () => {
-    const instance = chartInstance();
-    if (instance) {
-      exportChartAsSVG(instance, getFilename('svgFilename'));
-    }
-  };
+    const handleExportSVG = () => {
+        const instance = chartInstance();
+        if (instance) {
+            exportChartAsSVG(instance, getFilename('svgFilename'));
+        }
+    };
 
-  const handleExportJSON = () => {
-    const data = getSeriesData?.();
-    if (data) {
-      exportChartAsJSON(data.xValues, data.series, getFilename('jsonFilename'));
-    }
-  };
+    const handleExportJSON = () => {
+        const data = getSeriesData?.();
+        if (data) {
+            exportChartAsJSON(data.xValues, data.series, getFilename('jsonFilename'));
+        }
+    };
 
-  const handleExportHTML = () => {
-    const instance = chartInstance();
-    if (instance) {
-      exportChartAsHTML(instance, getFilename('htmlFilename'));
-    }
-  };
+    const handleExportHTML = () => {
+        const instance = chartInstance();
+        if (instance) {
+            exportChartAsHTML(instance, getFilename('htmlFilename'));
+        }
+    };
 
-  return {
-    handleExportPNG,
-    handleExportCSV,
-    handleExportSVG,
-    handleExportJSON,
-    handleExportHTML,
-  };
+    return {
+        handleExportPNG,
+        handleExportCSV,
+        handleExportSVG,
+        handleExportJSON,
+        handleExportHTML,
+    };
 }
 
 /**
@@ -101,7 +101,7 @@ export function createExportHandlers(
  * Returns: { showMore, setShowMore, toggleMore }
  */
 export function createExportMoreState() {
-  const [showMore, setShowMore] = createSignal(false);
-  const toggleMore = () => setShowMore(prev => !prev);
-  return { showMore, setShowMore, toggleMore };
+    const [showMore, setShowMore] = createSignal(false);
+    const toggleMore = () => setShowMore(prev => !prev);
+    return { showMore, setShowMore, toggleMore };
 }

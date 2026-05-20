@@ -13,14 +13,15 @@ use crate::query::{AggFn, OutputFormat};
 
 /// Filter a `LazyFrame` to only rows whose timestamp column falls within
 /// `[start_ts, end_ts]` (in milliseconds), selecting only the requested columns.
-/// Streaming execution is used to minimise peak memory when the filtered result is large.
+/// Returns a `LazyFrame` so that callers can chain additional lazy stages
+/// before a single collect boundary.
 pub fn filter_time_range(
     lf: LazyFrame,
     start_ts: i64,
     end_ts: i64,
     select_cols: &[String],
     ts_col: &str,
-) -> Result<DataFrame, AppError> {
+) -> Result<LazyFrame, AppError> {
     let mut exprs = vec![col(ts_col)];
     for c in select_cols {
         if c != ts_col {
@@ -28,14 +29,10 @@ pub fn filter_time_range(
         }
     }
 
-    tokio::task::block_in_place(|| {
-        lf.filter(col(ts_col).cast(DataType::Int64).gt_eq(lit(start_ts)))
-            .filter(col(ts_col).cast(DataType::Int64).lt_eq(lit(end_ts)))
-            .select(exprs)
-            .with_new_streaming(true)
-            .collect()
-    })
-    .map_err(|e| AppError::io(e.to_string()))
+    Ok(lf
+        .filter(col(ts_col).cast(DataType::Int64).gt_eq(lit(start_ts)))
+        .filter(col(ts_col).cast(DataType::Int64).lt_eq(lit(end_ts)))
+        .select(exprs))
 }
 
 // ── Stage 2: Reduction strategies ──────────────────────────────────────────

@@ -1,8 +1,12 @@
-export { datasetStore } from './datasetStore';
-export { chartStore } from './chartStore';
+/**
+ * stores/index.ts
+ *
+ * App-level stores only. Domain stores are imported directly from their domain modules.
+ *
+ * App stores (ui/dataset) own app-wide state only; domain state lives in domain stores.
+ *
+ * REMOVED from index: analyticsStore, fftStore, causalStore, chartStore, scatterStore,
+ * uploadStore, sessionStore — consumers should import directly from those modules.
+ */
 export { uiStore } from './uiStore';
-export { analyticsStore } from './analyticsStore';
-export { scatterStore } from './scatterStore';
-export { uploadStore } from './uploadStore';
-export { fftStore } from './fftStore';
-export { causalStore } from './causalStore';
+export { datasetStore } from './datasetStore';
