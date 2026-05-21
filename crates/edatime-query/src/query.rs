@@ -1,73 +1,135 @@
-//! Declarative query builders - immutable, composable.
+//! Shared query parameter types and parsing utilities.
+//!
+//! All route handlers that accept time-range or column queries should use these
+//! types so that adding new chart-type endpoints doesn't duplicate parsing logic.
 
-use edatime_core::types::{LazyFrame, DataType, Expr, col, lit};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone)]
-pub struct TimeSeriesQuery {
-    pub time_column: String,
-    pub start_ts: i64,
-    pub end_ts: i64,
-    pub value_columns: Vec<String>,
+// ── Query parameter structs ────────────────────────────────────────────────
+
+/// Common time-range + viewport query used by the data endpoint.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct DataQuery {
+    pub start: DateTime<Utc>,
+    pub end: DateTime<Utc>,
+    pub width: usize,
+    pub columns: Option<String>,
     pub color_column: Option<String>,
-    pub target_points: Option<usize>,
+    /// `"arrow"` (default) or `"json"`.
+    pub format: Option<String>,
 }
 
-impl TimeSeriesQuery {
-    pub fn new(time_column: String, start_ts: i64, end_ts: i64) -> Self {
-        Self { time_column, start_ts, end_ts, value_columns: Vec::new(), color_column: None, target_points: None }
-    }
-    pub fn with_values(mut self, cols: Vec<String>) -> Self { self.value_columns = cols; self }
-    pub fn with_color(mut self, col: Option<String>) -> Self { self.color_column = col; self }
-    pub fn with_lttb_target(mut self, target: usize) -> Self { self.target_points = Some(target); self }
+/// Query for bucket-aggregation endpoints (bar charts, histograms, etc.).
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct AggregateQuery {
+    pub start: DateTime<Utc>,
+    pub end: DateTime<Utc>,
+    pub columns: Option<String>,
+    /// Number of time buckets to split the range into.
+    #[serde(default = "default_buckets")]
+    pub buckets: usize,
+    /// Windowing mode for aggregation.
+    #[serde(default = "default_aggregate_window_mode")]
+    pub window_mode: AggregateWindowMode,
+    /// Window size in milliseconds for tumbling/sliding windows.
+    pub window_ms: Option<i64>,
+    /// Step size in milliseconds for sliding windows.
+    pub step_ms: Option<i64>,
+    /// Aggregation function: `"mean"`, `"sum"`, `"min"`, `"max"`, `"count"`.
+    #[serde(default = "default_agg_fn")]
+    pub agg: AggFn,
+    pub format: Option<String>,
+}
 
-    pub fn to_lazy_frame(&self, source: LazyFrame) -> LazyFrame {
-        let mut lf = source;
-        lf = lf.filter(
-            col(&self.time_column).cast(DataType::Int64).gt_eq(lit(self.start_ts))
-                .and(col(&self.time_column).cast(DataType::Int64).lt_eq(lit(self.end_ts))),
-        );
-        let mut cols: Vec<Expr> = vec![col(&self.time_column)];
-        for c in &self.value_columns {
-            cols.push(col(c));
-        }
-        if let Some(ref cc) = self.color_column {
-            cols.push(col(cc));
-        }
-        lf.select(cols)
+fn default_buckets() -> usize {
+    50
+}
+
+fn default_agg_fn() -> AggFn {
+    AggFn::Mean
+}
+
+fn default_aggregate_window_mode() -> AggregateWindowMode {
+    AggregateWindowMode::Buckets
+}
+
+/// Supported aggregation functions.
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AggFn {
+    Mean,
+    Sum,
+    Min,
+    Max,
+    Count,
+}
+
+/// Supported aggregate windowing modes.
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AggregateWindowMode {
+    Buckets,
+    Tumbling,
+    Sliding,
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/// Parse the `columns` query param into a list of column name strings.
+/// Falls back to `["value"]` when absent or empty.
+pub fn parse_columns(raw: Option<&str>) -> Vec<String> {
+    let trimmed = raw.map(|s| s.trim()).filter(|s| !s.is_empty());
+    match trimmed {
+        Some(s) => s
+            .split(',')
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty())
+            .collect(),
+        None => vec!["value".to_string()],
     }
 }
 
-#[derive(Clone)]
-pub struct ScatterQuery {
-    pub x_column: String,
-    pub y_column: String,
+// Re-export temporal helpers so existing callers keep compiling.
+pub use crate::temporal::{ts_dtype, ts_dtype_lazy, unit_multiplier_for_ts, unit_multiplier_for_ts_lazy};
+
+/// Determine the requested output format (defaults to `"arrow"`).
+pub fn output_format(raw: Option<&str>) -> OutputFormat {
+    match raw.unwrap_or("arrow") {
+        s if s.eq_ignore_ascii_case("json") => OutputFormat::Json,
+        _ => OutputFormat::Arrow,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputFormat {
+    Arrow,
+    Json,
+}
+
+// ── Query log ────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub enum ReductionSpec {
+    Lttb { target_points: usize },
+    BucketAgg { buckets: usize, agg: String },
+    WindowAgg { window_ms: i64, step_ms: i64, agg: String },
+    None,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct QueryEntry {
+    pub id: u64,
+    pub timestamp: DateTime<Utc>,
+    pub route: String,
+    pub start_ms: Option<i64>,
+    pub end_ms: Option<i64>,
+    pub width: Option<usize>,
+    pub columns: Vec<String>,
     pub color_column: Option<String>,
-    pub size_column: Option<String>,
-    pub time_filter: Option<(i64, i64)>,
-    pub filters: Vec<Expr>,
-    pub limit: usize,
-}
-
-impl ScatterQuery {
-    pub fn new(x: String, y: String) -> Self {
-        Self { x_column: x, y_column: y, color_column: None, size_column: None, time_filter: None, filters: Vec::new(), limit: 10_000 }
-    }
-    pub fn with_color(mut self, col: Option<String>) -> Self { self.color_column = col; self }
-    pub fn with_size(mut self, col: Option<String>) -> Self { self.size_column = col; self }
-    pub fn with_time_filter(mut self, start: i64, end: i64) -> Self { self.time_filter = Some((start, end)); self }
-    pub fn with_limit(mut self, limit: usize) -> Self { self.limit = limit; self }
-
-    pub fn to_lazy_frame(&self, source: LazyFrame) -> LazyFrame {
-        let mut lf = source;
-        if let Some((start, end)) = self.time_filter {
-            lf = lf.filter(
-                col("timestamp").cast(DataType::Int64).gt_eq(lit(start))
-                    .and(col("timestamp").cast(DataType::Int64).lt_eq(lit(end))),
-            );
-        }
-        let mut cols: Vec<Expr> = vec![col(&self.x_column), col(&self.y_column)];
-        if let Some(ref cc) = self.color_column { cols.push(col(cc)); }
-        if let Some(ref sc) = self.size_column { cols.push(col(sc)); }
-        lf.select(cols)
-    }
+    pub format: String,
+    pub reduction: Option<ReductionSpec>,
+    pub ts_dtype: String,
 }
