@@ -126,6 +126,7 @@ const ScatterPage: Component = () => {
       scatterStore.setScatterPoints(resp.points, resp.totalPoints);
       scatterStore.setColorValues(resp.colorValues, resp.colorMin, resp.colorMax);
       scatterStore.setColorLabels(resp.colorLabels);
+      scatterStore.setColorKind(resp.colorKind);
       scatterStore.setSizeValues(resp.sizeValues, resp.sizeMin, resp.sizeMax);
       updateChart();
     } catch (e) {
@@ -183,7 +184,7 @@ const ScatterPage: Component = () => {
       return;
     }
 
-    if (colorLabels) {
+    if (scatterStore.state.colorKind === 'categorical' && colorLabels) {
       const catGroups = buildCategoricalColorGroups(colorLabels);
       if (catGroups) {
         const series = catGroups.categories.map((label) => {
@@ -206,9 +207,12 @@ const ScatterPage: Component = () => {
         updateChartFn({ series });
         return;
       }
+      // High cardinality — show message in legend, skip color rendering
+      updateChartFn({ series: [{ type: 'scatter', name: `${colorCol()} (${new Set(colorLabels).size} categories — too many to display)`, data: points.map(p => sizeVals ? [...p, sizeVals[points.indexOf(p)]] : p), symbolSize }] });
+      return;
     }
 
-    if (colorVals && colorVals.length > 0) {
+    if (scatterStore.state.colorKind === 'continuous' && colorVals && colorVals.length > 0) {
       // Bucketed/binned approach for continuous color (avoids visualMap GPU compatibility issues)
       const colorMin = scatterStore.state.colorMin ?? 0;
       const colorMax = scatterStore.state.colorMax ?? 1;
@@ -439,9 +443,9 @@ const ScatterPage: Component = () => {
         </Show>
 
         <div class={styles.overlayStack} id="scatter-overlays">
-          <Show when={scatterStore.state.colorLabels && colorCol()}>
+          <Show when={scatterStore.state.colorKind === 'categorical' && scatterStore.state.colorLabels && colorCol()}>
             {(() => {
-              const catGroups = buildCategoricalColorGroups(scatterStore.state.colorLabels);
+              const catGroups = buildCategoricalColorGroups(scatterStore.state.colorLabels!);
               return catGroups ? (
                 <div id="scatter-categorical-wrap" class={styles.colorbarWrap}>
                   <span class={styles.colorbarName}>{colorCol()}</span>
@@ -456,10 +460,15 @@ const ScatterPage: Component = () => {
                     </For>
                   </div>
                 </div>
-              ) : null;
+              ) : (
+                <div id="scatter-categorical-wrap" class={styles.colorbarWrap}>
+                  <span class={styles.colorbarName}>{colorCol()}</span>
+                  <span class={styles.colorbarName}>{(new Set(scatterStore.state.colorLabels)).size} categories — too many to display</span>
+                </div>
+              );
             })()}
           </Show>
-          <Show when={colorCol() && scatterStore.state.colorValues && renderMode() === 'scatter'}>
+          <Show when={colorCol() && scatterStore.state.colorKind === 'continuous' && scatterStore.state.colorValues && renderMode() === 'scatter'}>
             <div id="scatter-colorbar-wrap" class={styles.colorbarVertical}>
               <span class={styles.colorbarVTick}>{scatterStore.state.colorMax?.toFixed(2) ?? '1.00'}</span>
               <div id="scatter-colorbar" class={styles.colorbar} style={{ background: `linear-gradient(to top, ${getColorPalette(uiStore.state.colorScale, 6).join(', ')})` }} />

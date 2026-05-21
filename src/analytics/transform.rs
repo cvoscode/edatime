@@ -1,4 +1,8 @@
 //! Column transformations — expression parsing and application.
+//!
+//! These are sync functions intended to be called from blocking threads
+//! (e.g., via `tokio::task::spawn_blocking`). They do NOT use `block_in_place`
+//! internally — callers are responsible for proper async thread dispatch.
 
 use polars::prelude::*;
 use crate::error::AppError;
@@ -19,37 +23,38 @@ fn validate_transform_inputs(expression: &str, output_name: &str) -> Result<Expr
     parse_expression_lazy(expr)
 }
 
+/// Apply a Polars expression transform to a DataFrame.
+/// Caller is responsible for dispatching to a blocking thread if needed.
 pub fn apply_column_transform(
     df: &DataFrame,
     expression: &str,
     output_name: &str,
 ) -> Result<DataFrame, AppError> {
     let polars_expr = validate_transform_inputs(expression, output_name)?;
-    let result = tokio::task::block_in_place(|| {
-        df.clone()
-            .lazy()
-            .with_column(polars_expr.alias(output_name))
-            .with_new_streaming(true)
-            .collect()
-    })
-    .map_err(|e| AppError::internal(format!("Transform execution failed: {e}")))?;
+    let result = df
+        .clone()
+        .lazy()
+        .with_column(polars_expr.alias(output_name))
+        .with_new_streaming(true)
+        .collect()
+        .map_err(|e| AppError::internal(format!("Transform execution failed: {e}")))?;
 
     Ok(result)
 }
 
+/// Apply a Polars expression transform to a LazyFrame.
+/// Caller is responsible for dispatching to a blocking thread if needed.
 pub fn apply_column_transform_lazy(
     lf: &LazyFrame,
     expression: &str,
     output_name: &str,
 ) -> Result<DataFrame, AppError> {
     let polars_expr = validate_transform_inputs(expression, output_name)?;
-    tokio::task::block_in_place(|| {
-        lf.clone()
-            .with_column(polars_expr.alias(output_name))
-            .with_new_streaming(true)
-            .collect()
-    })
-    .map_err(|e| AppError::internal(format!("Transform execution failed: {e}")))
+    lf.clone()
+        .with_column(polars_expr.alias(output_name))
+        .with_new_streaming(true)
+        .collect()
+        .map_err(|e| AppError::internal(format!("Transform execution failed: {e}")))
 }
 
 fn parse_expression_lazy(expr: &str) -> Result<Expr, AppError> {

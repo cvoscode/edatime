@@ -1,4 +1,8 @@
-//! Scatter points handlers — GET/POST /api/scatter/points and export.
+//! Scatter points handlers — GET/POST /api/scatter/points.
+//!
+//! All business logic is delegated to:
+//!   - `collect.rs` — `collect_filtered_scatter_frame`
+//!   - `sample.rs`  — `collect_sampled_xyc_rows`
 
 use axum::{
     Json,
@@ -9,37 +13,17 @@ use axum::{
 use polars::prelude::*;
 use std::sync::Arc;
 
-use crate::arrow_export::{dataframe_to_arrow_ipc, dataframe_to_parquet};
-use crate::downsample::downsample_xy_pairs;
+use crate::arrow_export::dataframe_to_arrow_ipc;
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::validation::{validate_scatter_limit, validate_time_window};
 
 use super::{
-    ScatterPointsQuery, clamp_limit, collect_filtered_scatter_frame, parse_scatter_filters,
-    parse_scatter_line_filters, series_to_label_values, series_to_scatter_values,
+    clamp_limit, parse_scatter_filters, parse_scatter_line_filters,
+    ScatterPointsQuery,
 };
-
-// ── Internal types ───────────────────────────────────────────────────────────
-
-enum ScatterColorColumn {
-    Continuous(Vec<Option<f64>>),
-    Categorical(Vec<Option<String>>),
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum ScatterColorKind {
-    Continuous,
-    Categorical,
-}
-
-struct SampledScatterRow {
-    x: f64,
-    y: f64,
-    color_value: Option<f64>,
-    color_label: Option<String>,
-    size_value: Option<f64>,
-}
+use super::collect::collect_filtered_scatter_frame;
+use super::sample::{collect_sampled_xyc_rows, ScatterColorKind};
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
 
@@ -59,48 +43,7 @@ pub async fn post_scatter_points(
     scatter_points_response(state, params).await
 }
 
-#[tracing::instrument(skip(state))]
-pub async fn post_scatter_export_parquet(
-    State(state): State<AppState>,
-    Json(params): Json<ScatterPointsQuery>,
-) -> Result<Response, AppError> {
-    let lf = state.dataset_snapshot();
-
-    let x = params.x.clone();
-    let y = params.y.clone();
-    let color = params.color.clone().filter(|s| !s.trim().is_empty());
-    let size = params.size.clone().filter(|s| !s.trim().is_empty());
-    let filters = parse_scatter_filters(params.filters.as_deref())?;
-    let line_filters = parse_scatter_line_filters(params.line_filters.as_deref())?;
-
-    let lazy_frame = collect_filtered_scatter_frame(
-        lf,
-        &x,
-        &y,
-        color.as_deref(),
-        size.as_deref(),
-        params.start,
-        params.end,
-        &filters,
-        &line_filters,
-    )?;
-    let filtered = state.query_executor.execute_async(lazy_frame).await?;
-
-    let bytes = dataframe_to_parquet(filtered)
-        .map_err(|e| AppError::io(format!("Parquet serialization: {}", e)))?;
-    let mut response = Response::new(bytes.into());
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/x-parquet"),
-    );
-    response.headers_mut().insert(
-        header::CONTENT_DISPOSITION,
-        HeaderValue::from_static("attachment; filename=edatime_scatter_filtered.parquet"),
-    );
-    Ok(response)
-}
-
-// ── Core logic ───────────────────────────────────────────────────────────────
+// ── Core response builder ────────────────────────────────────────────────────
 
 async fn scatter_points_response(
     state: AppState,
@@ -144,11 +87,12 @@ async fn scatter_points_response(
     }
     let metrics = Arc::clone(&state.metrics);
 
-    let color_col_name = color_col_for_headers.clone().unwrap_or_else(|| "color_value".to_string());
+    let color_col_name = color_col_for_headers
+        .clone()
+        .unwrap_or_else(|| "color_value".to_string());
     let x_col_name = x_col_for_headers.clone();
     let y_col_name = y_col_for_headers.clone();
 
-    // collect_filtered_scatter_frame now returns LazyFrame; execute it via QueryExecutor
     let lazy_frame = collect_filtered_scatter_frame(
         lf,
         &x_col,
@@ -161,7 +105,7 @@ async fn scatter_points_response(
         &line_filters,
     )?;
 
-    let (total_points, returned_points, color_min, color_max, size_min, size_max, arrow_bytes) =
+    let (total_points, returned_points, color_min, color_max, size_min, size_max, color_kind, arrow_bytes) =
         tokio::task::spawn_blocking(move || {
             let x_col_str: &str = &x_col_name;
             let y_col_str: &str = &y_col_name;
@@ -207,8 +151,12 @@ async fn scatter_points_response(
                     Some(v) if v.is_finite() => {
                         cv_buf.push(v);
                         color_strings.push(String::new());
-                        if v < cmin { cmin = v; }
-                        if v > cmax { cmax = v; }
+                        if v < cmin {
+                            cmin = v;
+                        }
+                        if v > cmax {
+                            cmax = v;
+                        }
                     }
                     _ => {
                         cv_buf.push(f64::NAN);
@@ -217,8 +165,12 @@ async fn scatter_points_response(
                 }
                 if let Some(sv) = row.size_value {
                     sv_buf.push(sv);
-                    if sv < smin { smin = sv; }
-                    if sv > smax { smax = sv; }
+                    if sv < smin {
+                        smin = sv;
+                    }
+                    if sv > smax {
+                        smax = sv;
+                    }
                 }
             }
 
@@ -231,9 +183,11 @@ async fn scatter_points_response(
             let y_s = Series::new(PlSmallStr::from(y_col_str), y_buf.as_slice());
 
             let actual_color_col = color_col_name.clone();
-            let columns: Vec<Series> = if matches!(color_kind, Some(ScatterColorKind::Categorical))
-            {
-                let cs = Series::new(PlSmallStr::from(&actual_color_col), color_strings.as_slice());
+            let columns: Vec<Series> = if matches!(color_kind, Some(ScatterColorKind::Categorical)) {
+                let cs = Series::new(
+                    PlSmallStr::from(&actual_color_col),
+                    color_strings.as_slice(),
+                );
                 vec![x_s, y_s, cs]
             } else {
                 let cv_s = Series::new(PlSmallStr::from(&actual_color_col), cv_buf.as_slice());
@@ -247,7 +201,16 @@ async fn scatter_points_response(
             let arrow_bytes = dataframe_to_arrow_ipc(scatter_df)
                 .map_err(|e| AppError::internal(format!("Arrow serialization: {}", e)))?;
 
-            Ok::<_, AppError>((total, n, color_min, color_max, size_min, size_max, arrow_bytes))
+            Ok::<_, AppError>((
+                total,
+                n,
+                color_min,
+                color_max,
+                size_min,
+                size_max,
+                color_kind,
+                arrow_bytes,
+            ))
         })
         .await
         .map_err(|e| {
@@ -275,7 +238,8 @@ async fn scatter_points_response(
         && let (Ok(cmv), Ok(cxv)) = (
             HeaderValue::from_str(&cm.to_string()),
             HeaderValue::from_str(&cx.to_string()),
-        ) {
+        )
+    {
         response.headers_mut().insert("x-edatime-color-min", cmv);
         response.headers_mut().insert("x-edatime-color-max", cxv);
     }
@@ -283,7 +247,8 @@ async fn scatter_points_response(
         && let (Ok(smv), Ok(sxv)) = (
             HeaderValue::from_str(&sm.to_string()),
             HeaderValue::from_str(&sx.to_string()),
-        ) {
+        )
+    {
         response.headers_mut().insert("x-edatime-size-min", smv);
         response.headers_mut().insert("x-edatime-size-max", sxv);
     }
@@ -296,196 +261,25 @@ async fn scatter_points_response(
         HeaderValue::from_str(&y_col_for_headers).unwrap_or_else(|_| HeaderValue::from_static("")),
     );
     if let Some(ref cc) = color_col_for_headers
-        && let Ok(cv) = HeaderValue::from_str(cc) {
+        && let Ok(cv) = HeaderValue::from_str(cc)
+    {
         response.headers_mut().insert("x-edatime-scatter-color", cv);
     }
+    // Send color kind (continuous vs categorical) so frontend can handle both correctly
+    if let Some(kind) = color_kind {
+        let kind_str = match kind {
+            ScatterColorKind::Continuous => "continuous",
+            ScatterColorKind::Categorical => "categorical",
+        };
+        response.headers_mut().insert(
+            "x-edatime-scatter-color-kind",
+            HeaderValue::from_str(kind_str).unwrap_or_else(|_| HeaderValue::from_static("")),
+        );
+    }
     if let Some(ref sc) = size_col_for_headers
-        && let Ok(sv) = HeaderValue::from_str(sc) {
+        && let Ok(sv) = HeaderValue::from_str(sc)
+    {
         response.headers_mut().insert("x-edatime-scatter-size", sv);
     }
     Ok(response)
-}
-
-
-
-fn collect_sampled_xyc_rows(
-    df: &DataFrame,
-    x: &str,
-    y: &str,
-    color: Option<&str>,
-    size: Option<&str>,
-    _limit: usize,
-    effective_limit: usize,
-) -> Result<(usize, Vec<SampledScatterRow>, Option<ScatterColorKind>), AppError> {
-    let x_vals = series_to_scatter_values(df, x)?;
-    let y_vals = series_to_scatter_values(df, y)?;
-    let c_vals = if let Some(c) = color {
-        let series = df
-            .column(c)
-            .map_err(|e| AppError::bad_request(format!("Missing column '{}': {}", c, e)))?;
-        if series.dtype().is_numeric()
-            || matches!(series.dtype(), DataType::Datetime(_, _) | DataType::Date)
-        {
-            Some(ScatterColorColumn::Continuous(series_to_scatter_values(
-                df, c,
-            )?))
-        } else {
-            Some(ScatterColorColumn::Categorical(series_to_label_values(
-                df, c,
-            )?))
-        }
-    } else {
-        None
-    };
-    let color_kind = c_vals.as_ref().map(|column| match column {
-        ScatterColorColumn::Continuous(_) => ScatterColorKind::Continuous,
-        ScatterColorColumn::Categorical(_) => ScatterColorKind::Categorical,
-    });
-
-    let s_vals = if let Some(s) = size {
-        let _ = df
-            .column(s)
-            .map_err(|e| AppError::bad_request(format!("Missing column '{}': {}", s, e)))?;
-        Some(series_to_scatter_values(df, s)?)
-    } else {
-        None
-    };
-
-    let mut all_x: Vec<f64> = Vec::new();
-    let mut all_y: Vec<f64> = Vec::new();
-    let mut all_color_value: Vec<Option<f64>> = Vec::new();
-    let mut all_color_label: Vec<Option<String>> = Vec::new();
-    let mut all_size_value: Vec<Option<f64>> = Vec::new();
-    let mut total_points = 0usize;
-
-    for idx in 0..df.height() {
-        let ox = x_vals.get(idx).copied().flatten();
-        let oy = y_vals.get(idx).copied().flatten();
-        let (Some(xv), Some(yv)) = (ox, oy) else {
-            continue;
-        };
-        if !(xv.is_finite() && yv.is_finite()) {
-            continue;
-        }
-
-        let (color_value, color_label) = match c_vals.as_ref() {
-            Some(ScatterColorColumn::Continuous(values)) => (
-                values
-                    .get(idx)
-                    .copied()
-                    .flatten()
-                    .filter(|value| value.is_finite()),
-                None,
-            ),
-            Some(ScatterColorColumn::Categorical(values)) => {
-                (None, values.get(idx).cloned().flatten())
-            }
-            None => (None, None),
-        };
-
-        let size_value = s_vals.as_ref().and_then(|vals| {
-            vals.get(idx).copied().flatten().filter(|v| v.is_finite())
-        });
-
-        total_points += 1;
-        all_x.push(xv);
-        all_y.push(yv);
-        all_color_value.push(color_value);
-        all_color_label.push(color_label);
-        all_size_value.push(size_value);
-
-        if total_points >= effective_limit {
-            break;
-        }
-    }
-
-    let (sampled_x, sampled_y, sampled_color) = if matches!(c_vals, Some(ScatterColorColumn::Continuous(_))) {
-        let color_f64: Vec<f64> = all_color_value.iter().filter_map(|v| *v).collect();
-        let (sx, sy, sc) = downsample_xy_pairs(&all_x, &all_y, Some(&color_f64), effective_limit);
-        (sx, sy, sc)
-    } else {
-        let (sx, sy, sc) = downsample_xy_pairs(&all_x, &all_y, None, effective_limit);
-        (sx, sy, sc)
-    };
-
-    // Downsample size values in sync with xy pairs
-    let sampled_len = sampled_x.len();
-    let mut sampled_size_value: Vec<Option<f64>> = Vec::with_capacity(sampled_len);
-    for i in 0..sampled_len {
-        sampled_size_value.push(all_size_value.get(i).copied().flatten());
-    }
-
-    let mut sampled = Vec::with_capacity(sampled_len);
-
-    if let Some(cv) = sampled_color {
-        for i in 0..sampled_len {
-            sampled.push(SampledScatterRow {
-                x: sampled_x[i],
-                y: sampled_y[i],
-                color_value: Some(cv[i]),
-                color_label: None,
-                size_value: sampled_size_value[i],
-            });
-        }
-    } else {
-        for i in 0..sampled_len {
-            sampled.push(SampledScatterRow {
-                x: sampled_x[i],
-                y: sampled_y[i],
-                color_value: None,
-                color_label: all_color_label.get(i).cloned().flatten(),
-                size_value: sampled_size_value[i],
-            });
-        }
-    }
-
-    Ok((total_points, sampled, color_kind))
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
-mod tests {
-    use super::*;
-    use polars::df;
-
-    #[test]
-    fn sampled_rows_report_continuous_color_kind() {
-        let df = df!(
-            "x" => &[1.0_f64, 2.0, 3.0],
-            "y" => &[10.0_f64, 20.0, 30.0],
-            "color" => &[0.1_f64, 0.5, 0.9],
-        )
-        .expect("test dataframe should be created");
-
-        let effective = 16;
-        let (total, rows, color_kind) = collect_sampled_xyc_rows(&df, "x", "y", Some("color"), None, 16, effective)
-            .expect("sampling should succeed");
-
-        assert_eq!(total, 3);
-        assert_eq!(rows.len(), 3);
-        assert_eq!(color_kind, Some(ScatterColorKind::Continuous));
-        assert!(rows.iter().all(|row| row.color_value.is_some()));
-        assert!(rows.iter().all(|row| row.color_label.is_none()));
-    }
-
-    #[test]
-    fn sampled_rows_report_categorical_color_kind() {
-        let df = df!(
-            "x" => &[1.0_f64, 2.0, 3.0],
-            "y" => &[10.0_f64, 20.0, 30.0],
-            "category" => &[Some("alpha"), None, Some("beta")],
-        )
-        .expect("test dataframe should be created");
-
-        let effective = 16;
-        let (total, rows, color_kind) =
-            collect_sampled_xyc_rows(&df, "x", "y", Some("category"), None, 16, effective)
-                .expect("sampling should succeed");
-
-        assert_eq!(total, 3);
-        assert_eq!(rows.len(), 3);
-        assert_eq!(color_kind, Some(ScatterColorKind::Categorical));
-        assert!(rows.iter().all(|row| row.color_value.is_none()));
-        assert!(rows.iter().any(|row| row.color_label.is_some()));
-    }
 }

@@ -1,7 +1,7 @@
 import { Component, createSignal, createMemo, createEffect, Show, For, onMount, onCleanup } from 'solid-js';
 import * as echarts from 'echarts';
 import { fftStore, datasetStore, uiStore } from '../stores';
-import { fetchFft, fetchSpectrogram } from '../services/api';
+import { fetchFftData, fetchSpectrogram } from '../services/api';
 import { getColorPalette } from '../utils/colorScale';
 import { getActivePlotTemplate, toEChartsTheme } from '../utils/plotTemplate';
 import type { FftTrace } from '../types';

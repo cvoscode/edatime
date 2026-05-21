@@ -243,7 +243,7 @@ export class EChartsAdapter implements ChartAdapter {
 
   onEngineChanged?(callback: (engineName: string) => void): () => void {
     // ECharts does not emit engine change events
-    return () => {};
+    return () => { };
   }
 
   dispose(): void {

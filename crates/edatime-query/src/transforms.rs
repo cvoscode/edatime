@@ -1,7 +1,7 @@
 //! Composable LazyFrame transformation stages.
 
 use edatime_core::pipeline::PipelineStage;
-use edatime_core::types::{LazyFrame, Expr, col};
+use edatime_core::types::{Expr, LazyFrame, col};
 
 pub struct LttbStage {
     pub ts_col: String,
@@ -11,7 +11,11 @@ pub struct LttbStage {
 
 impl LttbStage {
     pub fn new(ts_col: String, value_cols: Vec<String>, target_points: usize) -> Self {
-        Self { ts_col, value_cols, target_points }
+        Self {
+            ts_col,
+            value_cols,
+            target_points,
+        }
     }
 }
 
@@ -23,7 +27,9 @@ impl PipelineStage for LttbStage {
         }
         lf.select(cols)
     }
-    fn name(&self) -> &'static str { "lttb_downsample" }
+    fn name(&self) -> &'static str {
+        "lttb_downsample"
+    }
 }
 
 pub struct BucketAggStage {
@@ -35,11 +41,19 @@ pub struct BucketAggStage {
 
 impl BucketAggStage {
     pub fn new(ts_col: String, value_cols: Vec<String>, buckets: usize, agg_fn: &str) -> Self {
-        Self { ts_col, value_cols, buckets, agg_fn: agg_fn.to_string() }
+        Self {
+            ts_col,
+            value_cols,
+            buckets,
+            agg_fn: agg_fn.to_string(),
+        }
     }
 
     fn value_col(&self) -> &str {
-        self.value_cols.first().map(|s| s.as_str()).unwrap_or("value")
+        self.value_cols
+            .first()
+            .map(|s| s.as_str())
+            .unwrap_or("value")
     }
 }
 
@@ -57,5 +71,7 @@ impl PipelineStage for BucketAggStage {
             .agg([agg_expr])
             .sort([self.ts_col.as_str()], Default::default())
     }
-    fn name(&self) -> &'static str { "bucket_agg" }
+    fn name(&self) -> &'static str {
+        "bucket_agg"
+    }
 }

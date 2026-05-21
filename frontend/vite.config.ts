@@ -50,8 +50,8 @@ export default defineConfig({
   build: {
     target: 'esnext',
     outDir: 'dist',
-    sourcemap: true,
-    minify: false,
+    sourcemap: false,
+    minify: 'terser',
     rollupOptions: {
       input: resolve(__dirname, 'index.html'),
       output: {

@@ -10,6 +10,7 @@ export interface ScatterDataResult {
   colorLabels: (string | null)[] | null;
   colorMin: number | null;
   colorMax: number | null;
+  colorKind: 'continuous' | 'categorical' | null;
   sizeValues: number[] | null;
   sizeMin: number | null;
   sizeMax: number | null;
@@ -328,7 +329,7 @@ export async function fetchScatterData(
   const scatterReturned = parseInt(res.headers.get('x-edatime-scatter-returned') ?? '0', 10);
   const colorMin = res.headers.get('x-edatime-color-min');
   const colorMax = res.headers.get('x-edatime-color-max');
-  const colorKind = res.headers.get('x-edatime-scatter-color'); // 'continuous' or 'categorical'
+  const colorKind = res.headers.get('x-edatime-scatter-color-kind') as 'continuous' | 'categorical' | null;
 
   // Parse Arrow IPC body
   const buffer = await res.arrayBuffer();
@@ -398,6 +399,7 @@ export async function fetchScatterData(
     colorLabels,
     colorMin: colorMin != null ? parseFloat(colorMin) : null,
     colorMax: colorMax != null ? parseFloat(colorMax) : null,
+    colorKind: colorKind ?? null,
     sizeValues,
     sizeMin: sizeValues && sizeValues.length > 0 ? Math.min(...sizeValues.filter(Number.isFinite)) : null,
     sizeMax: sizeValues && sizeValues.length > 0 ? Math.max(...sizeValues.filter(Number.isFinite)) : null,

@@ -104,12 +104,21 @@ pub fn apply_reduction(
             Ok((out, true))
         }
 
-        Reduction::BucketAgg { buckets, agg } => bucket_aggregate(df, value_cols, *buckets, *agg, ts_col),
+        Reduction::BucketAgg { buckets, agg } => {
+            bucket_aggregate(df, value_cols, *buckets, *agg, ts_col)
+        }
         Reduction::WindowAgg {
             window_size_native,
             step_size_native,
             agg,
-        } => window_aggregate(df, value_cols, *window_size_native, *step_size_native, *agg, ts_col),
+        } => window_aggregate(
+            df,
+            value_cols,
+            *window_size_native,
+            *step_size_native,
+            *agg,
+            ts_col,
+        ),
     }
 }
 
@@ -189,11 +198,8 @@ fn window_aggregate(
         if lo < hi {
             out_ts.push(midpoint);
             for (col_idx, source_values) in per_col_values.iter().enumerate() {
-                let window_vals: Vec<f64> = source_values[lo..hi]
-                    .iter()
-                    .copied()
-                    .flatten()
-                    .collect();
+                let window_vals: Vec<f64> =
+                    source_values[lo..hi].iter().copied().flatten().collect();
                 out_cols[col_idx].push(reduce_window_values(&window_vals, agg_fn));
             }
         }
@@ -319,7 +325,9 @@ fn bucket_aggregate(
 /// Serialize a DataFrame to Arrow IPC bytes, normalizing the timestamp column
 /// to Datetime(Milliseconds) for consistent frontend parsing.
 pub fn serialize_arrow(df: DataFrame, ts_col: &str) -> Result<Vec<u8>, AppError> {
-    let ts_dtype = df.column(ts_col).map(|c| c.as_materialized_series().dtype().clone());
+    let ts_dtype = df
+        .column(ts_col)
+        .map(|c| c.as_materialized_series().dtype().clone());
     let df = match ts_dtype {
         Ok(DataType::Datetime(TimeUnit::Milliseconds, _)) => df,
         Ok(DataType::Datetime(_, _)) => df
@@ -396,29 +404,30 @@ pub fn serialize_json(
     payload.insert("values".to_string(), serde_json::json!(values));
 
     if let Some(color_column) = color_col
-        && let Ok(color_series) = df.column(color_column) {
-            let color_vals: Vec<serde_json::Value> = (0..df.height())
-                .map(|i| match color_series.get(i) {
-                    Ok(AnyValue::Null) => serde_json::Value::Null,
-                    Ok(AnyValue::String(s)) => serde_json::json!(s),
-                    Ok(AnyValue::StringOwned(s)) => serde_json::Value::String(s.to_string()),
-                    Ok(AnyValue::Boolean(v)) => serde_json::json!(v),
-                    Ok(av) => {
-                        // Numeric and temporal types: extract as f64 where possible.
-                        let series = color_series.as_materialized_series();
-                        series
-                            .cast(&DataType::Float64)
-                            .ok()
-                            .and_then(|c| c.f64().ok().and_then(|ca| ca.get(i)))
-                            .map(|v| serde_json::json!(v))
-                            .unwrap_or_else(|| serde_json::Value::String(format!("{av}")))
-                    }
-                    Err(_) => serde_json::Value::Null,
-                })
-                .collect();
-            payload.insert("color".to_string(), serde_json::json!(color_vals));
-            payload.insert("color_column".to_string(), serde_json::json!(color_column));
-        }
+        && let Ok(color_series) = df.column(color_column)
+    {
+        let color_vals: Vec<serde_json::Value> = (0..df.height())
+            .map(|i| match color_series.get(i) {
+                Ok(AnyValue::Null) => serde_json::Value::Null,
+                Ok(AnyValue::String(s)) => serde_json::json!(s),
+                Ok(AnyValue::StringOwned(s)) => serde_json::Value::String(s.to_string()),
+                Ok(AnyValue::Boolean(v)) => serde_json::json!(v),
+                Ok(av) => {
+                    // Numeric and temporal types: extract as f64 where possible.
+                    let series = color_series.as_materialized_series();
+                    series
+                        .cast(&DataType::Float64)
+                        .ok()
+                        .and_then(|c| c.f64().ok().and_then(|ca| ca.get(i)))
+                        .map(|v| serde_json::json!(v))
+                        .unwrap_or_else(|| serde_json::Value::String(format!("{av}")))
+                }
+                Err(_) => serde_json::Value::Null,
+            })
+            .collect();
+        payload.insert("color".to_string(), serde_json::json!(color_vals));
+        payload.insert("color_column".to_string(), serde_json::json!(color_column));
+    }
 
     Ok(serde_json::Value::Object(payload))
 }

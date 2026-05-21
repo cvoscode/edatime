@@ -6,13 +6,19 @@ import { createSessionPersistence } from './stores/sessionStore';
 const TimeseriesPage = lazy(() => import('./pages/TimeseriesPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const HomePage = lazy(() => import('./pages/HomePage'));
-const UploadPage = lazy(() => import('./pages/UploadPage'));
+const UploadPage_ = lazy(() => import('./pages/UploadPage'));
 const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'));
 const HeatmapPage = lazy(() => import('./pages/HeatmapPage'));
 const ScatterPage = lazy(() => import('./pages/ScatterPage'));
 const FftPage = lazy(() => import('./pages/FftPage'));
 const CausalPage = lazy(() => import('./pages/CausalPage'));
 const DriftPage = lazy(() => import('./pages/DriftPage'));
+
+const UploadPage = (props: any) => (
+  <Suspense fallback={<Loading />}>
+    <UploadPage_ {...props} />
+  </Suspense>
+);
 
 const Loading: Component = () => <div class="loading">Loading...</div>;
 

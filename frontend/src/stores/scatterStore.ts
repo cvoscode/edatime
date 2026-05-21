@@ -22,6 +22,7 @@ interface ScatterState {
   colorLabels: (string | null)[] | null;
   colorMin: number | null;
   colorMax: number | null;
+  colorKind: 'continuous' | 'categorical' | null;
   sizeValues: number[] | null;
   sizeMin: number | null;
   sizeMax: number | null;
@@ -54,6 +55,7 @@ const [scatterState, setScatterState] = createStore<ScatterState>({
   colorLabels: null,
   colorMin: null,
   colorMax: null,
+  colorKind: null,
   sizeValues: null,
   sizeMin: null,
   sizeMax: null,
@@ -111,6 +113,10 @@ export const scatterStore = {
     setScatterState('colorLabels', labels);
   },
 
+  setColorKind(kind: 'continuous' | 'categorical' | null) {
+    setScatterState('colorKind', kind);
+  },
+
   setSizeValues(values: number[] | null, sizeMin: number | null, sizeMax: number | null) {
     setScatterState('sizeValues', values);
     setScatterState('sizeMin', sizeMin);
@@ -137,6 +143,7 @@ export const scatterStore = {
     if (patch.colorLabels !== undefined) setScatterState('colorLabels', patch.colorLabels);
     if (patch.colorMin !== undefined) setScatterState('colorMin', patch.colorMin);
     if (patch.colorMax !== undefined) setScatterState('colorMax', patch.colorMax);
+    if (patch.colorKind !== undefined) setScatterState('colorKind', patch.colorKind);
     if (patch.sizeValues !== undefined) setScatterState('sizeValues', patch.sizeValues);
     if (patch.sizeMin !== undefined) setScatterState('sizeMin', patch.sizeMin);
     if (patch.sizeMax !== undefined) setScatterState('sizeMax', patch.sizeMax);
@@ -159,6 +166,7 @@ export const scatterStore = {
       colorLabels: null,
       colorMin: null,
       colorMax: null,
+      colorKind: null,
       sizeValues: null,
       sizeMin: null,
       sizeMax: null,

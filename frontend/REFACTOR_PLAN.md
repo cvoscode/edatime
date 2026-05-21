@@ -790,58 +790,1065 @@ export function buildSeriesConfig(
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true
   }
 }
 ```
+
+**Key settings explained**:
+- `strict: true` enables all strict type-checking options
+- `noUncheckedIndexedAccess` prevents silent `undefined` from array/object index access
+- `exactOptionalPropertyTypes` distinguishes `optional?: T` from `optional: T | undefined`
+- `noImplicitOverride` ensures `override` keyword is used when overriding inherited members
+- `noUncheckedIndexedAccess` combined with `exactOptionalPropertyTypes` forces explicit handling of nullable values
 
 ### 10.2 Path Aliases
 
 ```json
 {
-  "@/*": ["src/*"],
-  "@domain/*": ["src/domain/*"],
-  "@components/*": ["src/components/*"],
-  "@services/*": ["src/services/*"],
-  "@stores/*": ["src/stores/*"],
-  "@hooks/*": ["src/hooks/*"],
-  "@utils/*": ["src/utils/*"],
-  "@types/*": ["src/types/*"]
-}
-```
-
-### 10.3 ESLint Rules
-
-```javascript
-{
-  "rules": {
-    "no-restricted-imports": [2, {
-      "paths": ["stores"],
-      "message": "Use domain hooks instead of direct store imports in pages"
-    }],
-    "solid/reactivity": ["error", { "memoizeSideEffects": true }]
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"],
+      "@domain/*": ["./src/domain/*"],
+      "@domain/timeseries/*": ["./src/domain/timeseries/*"],
+      "@domain/scatter/*": ["./src/domain/scatter/*"],
+      "@components/*": ["./src/components/*"],
+      "@components/ui/*": ["./src/components/ui/*"],
+      "@components/chart/*": ["./src/components/chart/*"],
+      "@services/*": ["./src/services/*"],
+      "@services/api/*": ["./src/services/api/*"],
+      "@stores/*": ["./src/stores/*"],
+      "@hooks/*": ["./src/hooks/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@types/*": ["./src/types/*"]
+    }
   }
 }
 ```
+
+**Setup requirements**:
+```bash
+# Install path alias resolver for Vite
+pnpm add -D vite-tsconfig-paths
+```
+
+```typescript
+// vite.config.ts
+import tsconfigPaths from 'vite-tsconfig-paths';
+
+export default defineConfig({
+  plugins: [tsconfigPaths()],
+  // Also add resolve.alias manually if tsconfig-paths has issues:
+  resolve: {
+    alias: {
+      '@': '/src',
+      '@domain': '/src/domain',
+      '@components': '/src/components',
+      '@services': '/src/services',
+      '@stores': '/src/stores',
+      '@hooks': '/src/hooks',
+      '@utils': '/src/utils',
+      '@types': '/src/types',
+    }
+  }
+});
+```
+
+**Usage**: All imports use `@/` prefix — no relative paths crossing directory boundaries:
+```typescript
+// GOOD
+import { useTimeseriesDomain } from '@domain/timeseries/hooks';
+import { Button } from '@components/ui/Button';
+import { fetchTimeseriesData } from '@services/api/endpoints';
+
+// BAD
+import { useTimeseriesDomain } from '../../../domain/timeseries/hooks';
+import { Button } from '../components/ui/Button';
+```
+
+### 10.3 ESLint Configuration
+
+```javascript
+// .eslintrc.cjs
+module.exports = {
+  root: true,
+  parser: '@typescript-eslint/parser',
+  plugins: ['solid', '@typescript-eslint'],
+  extends: [
+    'eslint:recommended',
+    'plugin:solid/recommended',
+    'plugin:@typescript-eslint/recommended',
+  ],
+  rules: {
+    // Architecture enforcement — prevent store imports in pages
+    'no-restricted-imports': [2, {
+      paths: [
+        {
+          name: 'stores',
+          message: 'Pages must use domain hooks (e.g., useTimeseriesDomain) instead of importing stores directly. Only uiStore and datasetStore are allowed in pages.',
+        },
+      ],
+      patterns: ['stores/!(uiStore|datasetStore)*'],
+    }],
+
+    // SolidJS reactivity — prevent effect-driven derived state
+    'solid/reactivity': ['error', {
+      memoizeSideEffects: true,
+      warnOnRefEffect: true,
+    }],
+
+    // TypeScript strictness
+    '@typescript-eslint/no-unused-vars': ['error', {
+      argsIgnorePattern: '^_',
+      varsIgnorePattern: '^_',
+      caughtErrorsIgnorePattern: '^_',
+    }],
+    '@typescript-eslint/no-explicit-any': 'error',
+    '@typescript-eslint/explicit-module-boundary-types': 'error',
+    '@typescript-eslint/no-floating-promises': 'error',
+    '@typescript-eslint/await-thenable': 'error',
+
+    // No console.log in production paths (allow console.error for error logging)
+    'no-console': ['warn', { allow: ['debug', 'error', 'warn'] }],
+
+    // Consistent return types
+    '@typescript-eslint/explicit-function-return-type': ['error', {
+      allowExpressions: true,
+      allowTypedFunctionExpressions: true,
+    }],
+
+    // Consistent import order
+    'import/order': ['error', {
+      groups: [
+        ['builtin', 'external'],
+        'internal',
+        ['parent', 'sibling'],
+        'index',
+      ],
+      pathGroups: [
+        { pattern: '@/**', group: 'internal', position: 'above' },
+        { pattern: 'solid-js', group: 'external', position: 'above' },
+      ],
+      pathGroupsExcludedImportTypes: ['internal'],
+      'newlines-between': 'always',
+    }],
+  },
+  overrides: [
+    {
+      files: ['*.test.ts', '*.test.tsx'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        'no-console': 'off',
+      },
+    },
+  ],
+};
+```
+
+**Custom architectural lint rule** for preventing cross-store imports:
+```javascript
+// .eslint/rules/no-cross-store-imports.js
+// Prevents domain stores from importing other stores
+module.exports = {
+  create(context) {
+    return {
+      ImportDeclaration(node) {
+        const source = node.source.value;
+        if (typeof source !== 'string') return;
+
+        // domain/*/store.ts may only import from services/, not from other stores/
+        if (context.getFilename().includes('domain/') && context.getFilename().endsWith('store.ts')) {
+          if (source.startsWith('stores/')) {
+            context.report({
+              node,
+              message: `Domain stores must not import from 'stores/'. Domain state belongs in the domain layer. Found: '${source}'`,
+            });
+          }
+        }
+      },
+    };
+  },
+};
+```
+
+**Running lint**:
+```bash
+pnpm lint          # Run ESLint
+pnpm lint:fix      # Auto-fix violations
+pnpm typecheck     # Run tsc --noEmit
+```
+
+### 10.4 Architectural Linting Rules
+
+Additional rules to enforce the architecture described in this plan:
+
+```javascript
+// .eslint/rules/no-service-store-imports.js
+// Prevents services from importing SolidJS stores (services must be pure async)
+module.exports = {
+  create(context) {
+    return {
+      ImportDeclaration(node) {
+        const source = node.source.value;
+        if (typeof source !== 'string') return;
+
+        const filename = context.getFilename();
+        // services/ files must not import from stores/
+        if (filename.includes('services/') && source.startsWith('stores/')) {
+          context.report({
+            node,
+            message: `Service files ('${filename}') must not import from 'stores/'. Services are pure async with zero SolidJS dependencies. Found: '${source}'`,
+          });
+        }
+      },
+    };
+  },
+};
+
+// .eslint/rules/no-domain-logic-in-primitives.js
+// components/ui/* files must not import domain types
+module.exports = {
+  create(context) {
+    return {
+      ImportDeclaration(node) {
+        const source = node.source.value;
+        if (typeof source !== 'string') return;
+
+        const filename = context.getFilename();
+        // components/ui/* files must not import from domain/* or stores/*
+        if (filename.includes('components/ui/') && (source.startsWith('domain/') || source.startsWith('stores/'))) {
+          context.report({
+            node,
+            message: `UI primitives (components/ui/*) must not import domain types or stores. Use only primitive props (string, number, boolean, () => void). Found: '${source}'`,
+          });
+        }
+      },
+    };
+  },
+};
+```
+
+**Enable in `.eslintrc.cjs`**:
+```javascript
+rules: {
+  // ... other rules
+  'no-service-store-imports': ['error', { plugin: '禁' }],
+  'no-domain-logic-in-primitives': ['error', { plugin: '禁' }],
+}
+```
+
+### 10.5 Component Documentation Standards
+
+Every component, hook, service function, and domain module MUST have a block comment:
+
+```typescript
+/**
+ * SeriesSelector — displays selected time-series columns as chips with color pickers.
+ *
+ * Provides column selection, custom per-series coloring, and adaptive filter targeting.
+ * Each chip is a toggle — clicking selects/deselects the column.
+ *
+ * @param columns - All available column names
+ * @param selected - Currently selected column names
+ * @param colors - Per-column color map (column name → hex color)
+ * @param onSelect - Called with column name when chip is toggled
+ * @param onColorChange - Called with (column, color) when color picker changes
+ * @param onAdaptiveTarget - Called with column name when Ctrl+clicked (adaptive filter target)
+ *
+ * @example
+ * ```tsx
+ * <SeriesSelector
+ *   columns={metadata().numericCols}
+ *   selected={store.state.selectedColumns}
+ *   colors={store.state.seriesColors}
+ *   onSelect={(col) => store.actions.toggleColumn(col)}
+ *   onColorChange={(col, color) => store.actions.setColor(col, color)}
+ * />
+ * ```
+ *
+ * @see domain/timeseries/store.ts — TimeseriesState.seriesColors
+ * @see domain/timeseries/hooks.ts — useTimeseriesDomain
+ */
+```
+
+**Hook documentation template**:
+```typescript
+/**
+ * useTimeseriesData — fetches and transforms timeseries data for the current viewport.
+ *
+ * Bridges the domain store (which holds viewport + selected columns) with the
+ * service layer (which performs fetching and transformation). Returns a
+ * createResource-compatible result that includes loading/error/data state.
+ *
+ * @param () => FetchParams - Reactive accessor for fetch parameters (viewport + columns).
+ *                            Changes to any dependency automatically trigger a refetch.
+ *
+ * @returns ResourceAccessors<TimeseriesData> with:
+ *   - `data()` — TimeseriesData if loaded, undefined if loading/error
+ *   - `loading` — boolean
+ *   - `error` — Error | undefined
+ *   - `()` — shorthand for `data()`
+ *
+ * @example
+ * ```typescript
+ * const params = () => ({
+ *   start: store.state.viewport.xMin,
+ *   end: store.state.viewport.xMax,
+ *   columns: store.state.selectedColumns,
+ * });
+ * const timeseries = useTimeseriesData(params);
+ * ```
+ *
+ * @performance Fetches are deduplicated by URL key; concurrent requests to the same
+ *               URL return the same Promise. AbortController cancels in-flight requests
+ *               when params change or component unmounts.
+ */
+```
+
+**Service function documentation template**:
+```typescript
+/**
+ * transformArrowToTimeseries — converts Arrow IPC binary to chart-ready timeseries data.
+ *
+ * Pure function: no SolidJS imports, no store access, no side effects.
+ * Thread-safe: can be called concurrently from multiple components.
+ *
+ * @param buffer - ArrayBuffer containing Arrow IPC stream or file format data
+ * @returns TimeseriesData with xValues (Float64Array of timestamps) and
+ *          series (Record<string, Float64Array> of column data)
+ * @throws Error if buffer is not a valid Arrow IPC format
+ *
+ * @example
+ * ```typescript
+ * const buffer = await fetchArrow(`/api/data?start=0&end=1000`);
+ * const { xValues, series } = transformArrowToTimeseries(buffer.arrayBuffer());
+ * const tempSeries = series['temperature'];
+ * ```
+ *
+ * @see services/api/endpoints.ts — fetchTimeseriesData calls this function
+ * @see services/dataTransformers/timeseries.ts — transformer unit tests
+ */
+```
+
+### 10.6 Code Generation
+
+**OpenAPI client generation** (if backend exposes an OpenAPI spec):
+```bash
+# Generate typed API client from OpenAPI spec
+npx openapi-typescript ./openapi.yaml \
+  --output ./src/services/api/types.gen.ts \
+  --client fetch
+
+# This generates services/api/types.gen.ts with all request/response types
+# Run this when the backend API changes
+```
+
+**Domain module scaffolding**:
+```javascript
+// scripts/generate-domain.js
+// Usage: node scripts/generate-domain.js fft
+// Creates: domain/fft/{types.ts,store.ts,hooks.ts,components/}
+import { mkdir, writeFile } from 'fs/promises';
+import { join } from 'path';
+
+const DOMAIN = process.argv[2];
+if (!DOMAIN) { console.error('Usage: node generate-domain.js <domain>'); process.exit(1); }
+
+const BASE = join(process.cwd(), 'src', 'domain', DOMAIN);
+const COMPONENTS = join(BASE, 'components');
+
+await mkdir(COMPONENTS, { recursive: true });
+
+const typesContent = `// domain/${DOMAIN}/types.ts
+export interface ${capitalize(DOMAIN)}State {
+  // TODO: define state shape
+}
+`;
+
+const storeContent = `// domain/${DOMAIN}/store.ts
+import { createStore } from 'solid-js/store';
+import type { ${capitalize(DOMAIN)}State } from './types';
+
+const initialState: ${capitalize(DOMAIN)}State = {
+  // TODO: initial state
+};
+
+export const ${DOMAIN}Store = createStore<${capitalize(DOMAIN)}State>(initialState);
+
+export const ${DOMAIN}Actions = {
+  // TODO: actions
+};
+
+export type ${capitalize(DOMAIN)}Domain = {
+  state: ${capitalize(DOMAIN)}State;
+  actions: typeof ${DOMAIN}Actions;
+};
+`;
+
+const hooksContent = `// domain/${DOMAIN}/hooks.ts
+import { useCallback } from 'solid-js';
+import { ${DOMAIN}Store, ${DOMAIN}Actions } from './store';
+import type { ${capitalize(DOMAIN)}Domain } from './store';
+
+export function use${capitalize(DOMAIN)}Domain(): ${capitalize(DOMAIN)}Domain {
+  return {
+    state: ${DOMAIN}Store.state,
+    actions: ${DOMAIN}Actions,
+  };
+}
+`;
+
+await writeFile(join(BASE, 'types.ts'), typesContent);
+await writeFile(join(BASE, 'store.ts'), storeContent);
+await writeFile(join(BASE, 'hooks.ts'), hooksContent);
+console.log(`Domain '${DOMAIN}' created at ${BASE}/`);
+```
+
+### 10.7 CI/CD Quality Gates
+
+Every PR must pass these gates before merge:
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck:
+    name: Type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+
+  lint:
+    name: ESLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:unit --coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:integration
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpx vite-bundle-visualizer || true
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm test:e2e
+
+  # Block merge if any gate fails
+  # All jobs must pass for merge gate to green
+```
+
+**Coverage threshold** (enforced in CI):
+```json
+// vitest.config.ts
+export default defineConfig({
+  test: {
+    coverage: {
+      provider: 'v8',
+      thresholds: {
+        lines: 70,
+        functions: 70,
+        branches: 60,
+        files: 70,
+      },
+      reporter: ['text', 'lcov'],
+    },
+  },
+});
+```
+
+### 10.8 Commit Standards
+
+**Conventional Commits format** with domain prefixes:
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
+```
+
+**Types**:
+- `feat` — New feature
+- `fix` — Bug fix
+- `refactor` — Code restructure (no behavior change)
+- `perf` — Performance improvement
+- `test` — Adding or updating tests
+- `docs` — Documentation changes
+- `chore` — Build/tooling changes
+- `arch` — Architecture changes (new patterns, refactor of existing code)
+
+**Domain scopes** (required for feat/fix/refactor):
+- `timeseries` — Timeseries domain
+- `scatter` — Scatter domain
+- `fft` — FFT domain
+- `drift` — Drift domain
+- `causal` — Causal domain
+- `upload` — Upload domain
+- `chart` — Chart infrastructure
+- `store` — State management
+- `api` — Service/API layer
+- `ui` — UI components
+
+**Examples**:
+```bash
+# Good commits
+git commit -m "feat(timeseries): add adaptive filter via Ctrl+click on chart"
+git commit -m "fix(scatter): correct color contract for numeric color columns"
+git commit -m "refactor(timeseries): extract TimeseriesChart to domain component"
+git commit -m "perf(chart): add RAF batching to series updates"
+git commit -m "docs(scatter): update scatter page architecture docs"
+git commit -m "test(domain): add unit tests for timeseries transformer"
+git commit -m "arch(store): consolidate analyticsStore into domain/timeseries/store"
+git commit -m "chore: upgrade solid-js to 1.9.5"
+
+# Bad commits (will be rejected by commitlint)
+git commit -m "updated stuff"
+git commit -m "fix bug"
+git commit -m "WIP"
+git commit -m "feat: timeseries page"
+```
+
+**Commitlint configuration**:
+```javascript
+// commitlint.config.cjs
+module.exports = {
+  extends: ['@commitlint/config-conventional'],
+  rules: {
+    'type-enum': [2, 'always', [
+      'feat', 'fix', 'refactor', 'perf', 'test', 'docs', 'chore', 'arch',
+    ]],
+    'scope-enum': [2, 'always', [
+      'timeseries', 'scatter', 'fft', 'drift', 'causal', 'upload',
+      'chart', 'store', 'api', 'ui',
+    ]],
+  },
+};
+```
+
+### 10.9 Visual Regression Testing
+
+```typescript
+// tests/visual/timeseries.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.describe('Timeseries chart visual regression', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/#/timeseries');
+    await page.waitForSelector('[data-testid="timeseries-chart"]');
+  });
+
+  test('renders chart with multiple series', async ({ page }) => {
+    // Select multiple columns
+    await page.click('[data-testid="column-selector"]');
+    await page.check('input[value="temperature"]');
+    await page.check('input[value="humidity"]');
+
+    const chart = page.locator('[data-testid="timeseries-chart"]');
+    await expect(chart).toHaveScreenshot('timeseries-multiple-series.png', {
+      maxDiffPixelRatio: 0.05, // 5% pixel tolerance
+    });
+  });
+
+  test('adaptive filter overlay renders correctly', async ({ page }) => {
+    // Ctrl+click to create adaptive filter
+    const chart = page.locator('[data-testid="timeseries-chart"]');
+    const box = await chart.boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, {
+      modifiers: ['Control'],
+    });
+
+    await expect(page.locator('[data-testid="adaptive-filter-panel"]'))
+      .toHaveScreenshot('timeseries-adaptive-filter.png');
+  });
+});
+```
+
+**Running visual tests**:
+```bash
+# Run visual regression tests
+pnpm test:visual
+
+# Update baselines (run when intentional UI changes)
+pnpm test:visual:update
+
+# In CI: fail on pixel regression >5%
+```
+
+### 10.10 Storybook Integration (Future)
+
+If Storybook is added (optional for this project):
+
+```bash
+# Initialize Storybook
+pnpm dlx storybook@latest init
+```
+
+```typescript
+// domain/timeseries/components/SeriesSelector.stories.tsx
+import type { Meta, StoryObj } from '@storybook/solid-js';
+import { SeriesSelector } from './SeriesSelector';
+
+const meta: Meta<typeof SeriesSelector> = {
+  component: SeriesSelector,
+  tags: ['autodocs'],
+  argTypes: {
+    columns: { control: 'array' },
+    selected: { control: 'array' },
+    onSelect: { action: 'selected' },
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof SeriesSelector>;
+
+export const Default: Story = {
+  args: {
+    columns: ['temperature', 'humidity', 'pressure'],
+    selected: ['temperature'],
+    colors: { temperature: '#ff6b6b', humidity: '#4dabf7' },
+  },
+};
+
+export const Empty: Story = {
+  args: {
+    columns: [],
+    selected: [],
+    colors: {},
+  },
+};
+```
+
+**Note**: Storybook is **optional** — the primary documentation is inline block comments (Section 10.5). Storybook is useful for UI primitive components in `components/ui/` but not required for domain components.
+
+### 10.11 Coding Standards Summary
+
+| Standard | Rule |
+|---|---|
+| **Naming — variables/functions** | `camelCase` |
+| **Naming — components/types** | `PascalCase` |
+| **Naming — constants** | `SCREAMING_SNAKE_CASE` |
+| **Naming — files** | `kebab-case.ts`, `PascalCase.tsx` for components |
+| **Imports** | Absolute paths via `@/` aliases; order: external → internal → types → styles |
+| **Props interfaces** | Explicit typed interfaces; no spreading `...rest` |
+| **State — local UI** | Local signals; no module-level mutables |
+| **State — domain** | Domain store via domain hook |
+| **Effects** | All effects have explicit deps; all have cleanup via `onCleanup` |
+| **Async errors** | All async functions wrapped in try/catch |
+| **Testing** | Every service function has unit tests; every component has render tests |
+| **Documentation** | Block comment on every exported function, component, hook, and domain module |
+| **Exports** | Named exports only (no `export default`); one `index.ts` per directory |
+| **File limits** | Max 10 files per directory — if exceeded, create subdirectory |
+
+### 10.12 DX Anti-Patterns
+
+| Anti-Pattern | Manifestation | Fix |
+|---|---|---|
+| Inconsistent module boundaries | `stores/` has 9 files, `domain/` has 2 | Enforce feature-first pattern consistently |
+| Implicit architecture | No lint rule preventing cross-store imports | Architectural ESLint rules |
+| Utility dumping grounds | `utils/` with 50 unrelated functions | Group by purpose (colorScale.ts, formatUtils.ts, etc.) |
+| Oversized barrel exports | `components/ui/index.ts` exports 50 things | Split: `@components/ui/Button`, `@components/ui/Chip`, etc. |
+| Weak typing escape hatches | `const x: any = getConfig()` | Strict TypeScript + `no-explicit-any` |
+| Unclear ownership | No owner for shared components | Assign component owners in `CODEOWNERS` |
+| No automated quality gates | PRs merged without tests or lint | CI enforces all gates before merge |
+| Missing type contracts | Function return types inferred | `explicit-module-boundary-types` rule enforces explicit returns |
+| Inconsistent file organization | Some features in `stores/`, some in `domain/` | Enforced directory structure, linted |
+| Circular dependencies | A imports B, B imports A | ESLint `import/no-cycle` rule |
 
 ---
 
 ## 11. Testing Strategy
 
+### 11.1 Test Types Overview
+
 | Test Type | What to Test | What NOT to Test |
 |---|---|---|
-| Unit | Service functions, store actions, transformers | UI rendering |
-| Component | Props → render output, callbacks | Store internals |
-| Integration | Page + domain + service + API | Implementation details |
-| E2E | Full user flows | Internal state |
+| **Unit** | Service functions, store actions, transformers, data transformations | UI rendering, DOM |
+| **Component** | Props → render output, callbacks fired, event handlers | Store internals, API calls |
+| **Integration** | Page + domain + service + API integration, full data flows | Implementation details |
+| **E2E** (Playwright) | Full user flows across pages, auth, multi-step workflows | Internal state, DOM structure |
 
-### 11.1 Testing Anti-Patterns
+### 11.2 Unit Testing
+
+**Pure service functions** (highest ROI for unit tests):
+```typescript
+// services/dataTransformers/timeseries.test.ts
+import { describe, it, expect } from 'vitest';
+import { transformArrowToTimeseries } from './timeseries';
+import { tableFromIPC } from 'apache-arrow';
+
+describe('transformArrowToTimeseries', () => {
+  it('should return empty arrays for empty buffer', () => {
+    const emptyArrow = createEmptyArrowBuffer();
+    const result = transformArrowToTimeseries(emptyArrow);
+    expect(result.xValues).toHaveLength(0);
+    expect(Object.keys(result.series)).toHaveLength(0);
+  });
+
+  it('should throw for non-Arrow data', () => {
+    const invalid = new ArrayBuffer(8);
+    expect(() => transformArrowToTimeseries(invalid)).toThrow();
+  });
+
+  it('should produce Float64Arrays for numeric columns', () => {
+    const arrow = createArrowWithNumericColumns();
+    const result = transformArrowToTimeseries(arrow);
+    for (const arr of Object.values(result.series)) {
+      expect(arr).toBeInstanceOf(Float64Array);
+    }
+  });
+});
+```
+
+**Store actions**:
+```typescript
+// domain/timeseries/store.test.ts
+import { describe, it, expect, vi } from 'vitest';
+import { TimeseriesActions } from './store';
+
+describe('TimeseriesActions', () => {
+  describe('setViewport', () => {
+    it('should update viewport in store', () => {
+      const initial = TimeseriesStore.state.viewport;
+      TimeseriesActions.setViewport({ xMin: 100, xMax: 200 });
+      expect(TimeseriesStore.state.viewport.xMin).toBe(100);
+      expect(TimeseriesStore.state.viewport.xMax).toBe(200);
+    });
+  });
+});
+```
+
+**Transformer functions**:
+```typescript
+// services/dataTransformers/scatter.test.ts
+import { describe, it, expect } from 'vitest';
+import { buildScatterConfig } from './scatter';
+
+describe('buildScatterConfig', () => {
+  it('should produce correct point count', () => {
+    const x = Float64Array.from([1, 2, 3]);
+    const y = Float64Array.from([4, 5, 6]);
+    const config = buildScatterConfig(x, y, {}, null, null);
+    expect(config.points).toHaveLength(3);
+  });
+
+  it('should handle numeric color column', () => {
+    const x = Float64Array.from([1, 2, 3]);
+    const y = Float64Array.from([4, 5, 6]);
+    const colors = Float64Array.from([0.1, 0.5, 0.9]);
+    const config = buildScatterConfig(x, y, { colors }, 'value', null);
+    expect(config.colorScale).toBeDefined();
+  });
+});
+```
+
+### 11.3 Component Testing
+
+Using `@solidjs/testing-library`:
+
+```typescript
+// components/ui/Button.test.tsx
+import { describe, it, expect, vi } from 'vitest';
+import { render, fireEvent, screen } from '@solidjs/testing-library';
+import { Button } from './Button';
+import { JSDOM } from 'jsdom';
+
+// Add JSDOM to test environment
+const dom = new JSDOM('<!doctype html><html><body></body></html>');
+global.document = dom.window.document;
+
+describe('Button', () => {
+  it('should render children', () => {
+    render(() => <Button>Click me</Button>);
+    expect(screen.getByText('Click me')).toBeDefined();
+  });
+
+  it('should call onClick when clicked', () => {
+    const handler = vi.fn();
+    render(() => <Button onClick={handler}>Click me</Button>);
+    fireEvent.click(screen.getByText('Click me'));
+    expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it('should be disabled when disabled prop is true', () => {
+    const handler = vi.fn();
+    render(() => <Button onClick={handler} disabled>Click me</Button>);
+    fireEvent.click(screen.getByText('Click me'));
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('should render loading state', () => {
+    render(() => <Button loading>Click me</Button>);
+    expect(screen.getByRole('progressbar')).toBeDefined();
+  });
+});
+```
+
+**Page integration tests** (lightweight, no Playwright):
+```typescript
+// pages/TimeseriesPage.integration.test.tsx
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@solidjs/testing-library';
+import { TimeseriesPage } from './TimeseriesPage';
+import { timeseriesApi } from '@services/api/endpoints';
+import type { TimeseriesData } from '@types/domains';
+
+// Mock API
+vi.mock('@services/api/endpoints', () => ({
+  timeseriesApi: {
+    fetchTimeseriesData: vi.fn(),
+  },
+}));
+
+const mockData: TimeseriesData = {
+  xValues: Float64Array.from([1, 2, 3]),
+  series: { temperature: Float64Array.from([20, 21, 22]) },
+  returnedRows: 3,
+  downsampled: false,
+};
+
+describe('TimeseriesPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should render loading state initially', async () => {
+    (timeseriesApi.fetchTimeseriesData as any).mockReturnValue(
+      new Promise(() => {}) // Never resolves
+    );
+    render(() => <TimeseriesPage />);
+    expect(screen.getByRole('progressbar')).toBeDefined();
+  });
+});
+```
+
+### 11.4 E2E Testing with Playwright
+
+```typescript
+// e2e/timeseries.spec.ts
+import { test, expect, Page } from '@playwright/test';
+import { login, uploadDataset } from './helpers';
+
+test.describe('Timeseries page', () => {
+  test.beforeEach(async ({ page }) => {
+    await login(page);
+    await uploadDataset(page, 'test-data.csv');
+    await page.goto('/#/timeseries');
+    await page.waitForSelector('[data-testid="timeseries-chart"]');
+  });
+
+  test('should load and display timeseries data', async ({ page }) => {
+    // Select a column
+    await page.click('[data-testid="column-selector-toggle"]');
+    await page.check('input[value="temperature"]');
+
+    // Chart should display
+    const chart = page.locator('[data-testid="timeseries-chart"]');
+    await expect(chart).toBeVisible();
+
+    // Status bar should show data info
+    await expect(page.locator('[data-testid="status-rows"]')).toContainText('3');
+  });
+
+  test('should support zoom interaction', async ({ page }) => {
+    const chart = page.locator('[data-testid="timeseries-chart"]');
+    const box = await chart.boundingBox();
+    if (!box) throw new Error('Chart bounding box not found');
+
+    // Scroll to zoom
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, -100);
+
+    // Viewport should have changed (status bar shows new range)
+    await expect(page.locator('[data-testid="status-range"]')).not.toContainText('0 — 100');
+  });
+
+  test('should create adaptive filter via Ctrl+click', async ({ page }) => {
+    const chart = page.locator('[data-testid="timeseries-chart"]');
+    const box = await chart.boundingBox();
+    if (!box) throw new Error('Chart bounding box not found');
+
+    // Ctrl+click on chart
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, {
+      modifiers: ['Control'],
+    });
+
+    // Adaptive filter panel should appear
+    await expect(page.locator('[data-testid="adaptive-filter-panel"]')).toBeVisible();
+  });
+});
+
+test.describe('Scatter page', () => {
+  test.beforeEach(async ({ page }) => {
+    await login(page);
+    await uploadDataset(page, 'test-data.csv');
+    await page.goto('/#/scatter');
+  });
+
+  test('should render scatter plot with auto-selected columns', async ({ page }) => {
+    await expect(page.locator('[data-testid="scatter-chart"]')).toBeVisible();
+    await expect(page.locator('[data-testid="correlation-suggestions"]')).not.toBeEmpty();
+  });
+
+  test('should update scatter when X/Y columns change', async ({ page }) => {
+    // Change X column
+    await page.selectOption('[data-testid="scatter-x-select"]', 'humidity');
+    await page.selectOption('[data-testid="scatter-y-select"]', 'temperature');
+
+    // Wait for scatter to update
+    await page.waitForResponse(
+      resp => resp.url().includes('/api/scatter/points') && resp.status() === 200
+    );
+
+    const points = page.locator('[data-testid="scatter-chart"] circle');
+    await expect(points).not.toHaveCount(0);
+  });
+});
+
+test.describe('Upload flow', () => {
+  test('should upload and preview CSV', async ({ page }) => {
+    await page.goto('/#/upload');
+
+    // Set up file chooser
+    const [fileChooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.click('[data-testid="upload-dropzone"]'),
+    ]);
+    await fileChooser.setFiles('test-data.csv');
+
+    // Preview should appear
+    await expect(page.locator('[data-testid="upload-preview-table"]')).toBeVisible();
+    await expect(page.locator('[data-testid="column-profiles-grid"]')).toBeVisible();
+  });
+});
+```
+
+**Playwright helpers**:
+```typescript
+// e2e/helpers.ts
+import { Page, Request } from '@playwright/test';
+
+export async function login(page: Page): Promise<void> {
+  await page.goto('/#/login');
+  await page.fill('[data-testid="username-input"]', 'testuser');
+  await page.fill('[data-testid="password-input"]', 'testpassword');
+  await page.click('[data-testid="login-button"]');
+  await page.waitForURL('/#/');
+}
+
+export async function uploadDataset(page: Page, filename: string): Promise<void> {
+  await page.goto('/#/upload');
+  const [fileChooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.click('[data-testid="upload-dropzone"]'),
+  ]);
+  await fileChooser.setFiles(filename);
+  await page.click('[data-testid="confirm-upload-button"]');
+  await page.waitForSelector('[data-testid="upload-success"]', { timeout: 10000 });
+}
+```
+
+**Running tests**:
+```bash
+# Run unit tests
+pnpm test:unit
+
+# Run unit tests with coverage
+pnpm test:unit --coverage
+
+# Run component + integration tests
+pnpm test:integration
+
+# Run all tests (unit + integration + E2E)
+pnpm test
+
+# Run E2E only
+pnpm test:e2e
+
+# Run E2E in headed mode (for debugging)
+pnpm test:e2e --headed
+
+# Run specific E2E test
+pnpm test:e2e --grep "should render scatter"
+```
+
+### 11.5 Testing Anti-Patterns
 
 | Anti-Pattern | Problem | Fix |
 |---|---|---|
-| Implementation-detail testing | Test store internals, not behavior | Test public API |
+| Implementation-detail testing | Test store internals, not behavior | Test public API only |
 | Brittle snapshots | Snapshot breaks on any change | Test behavior, not structure |
-| Reactive timing assumptions | `vi.waitFor(() => ...)` flaky | Use `flushPromises` |
+| Reactive timing assumptions | `vi.waitFor(() => ...)` flaky | Use `flushPromises` + `vi.waitFor` properly |
+| Testing cross-store coupling | Domain test relies on uiStore state | Isolate via dependency injection |
+| Untested async chains | `fetchThenTransform` not tested end-to-end | Test full pipeline via integration test |
+| Missing error path tests | Only testing happy path | Add test cases for Error, empty data, partial data |
+| Testing module-level mutable | Relying on global `chartInstance` | All state via signals; reset state in `beforeEach` |
+| DOM dependency in services | Service tests import DOM globals | Services must be pure; no DOM, no SolidJS |
+| Unreliable selectors | Tests break on CSS class changes | Use `data-testid` attributes |
+
+### 11.6 Test Coverage Targets
+
+| Layer | Target | Current (est.) |
+|---|---|---|
+| Services (`services/`) | 90% | ~40% |
+| Stores (`domain/*/store.ts`) | 85% | ~30% |
+| Transformers | 90% | ~20% |
+| Components (`components/ui/`) | 70% | ~10% |
+| Hooks (`hooks/`) | 80% | ~15% |
+| Pages | Integration only | — |
+
+**Note**: Page-level tests are integration tests (Playwright). Unit tests for page components are discouraged — pages are orchestrators with complex reactive wiring that is better tested via E2E.
 
 ---
 
@@ -1098,3 +2105,497 @@ createEffect(() => sideEffect(derived()));
 3. Playwright E2E — timeseries, scatter, upload flows
 4. Visual regression — chart renders identically post-refactor
 5. Performance — no >5% regression in Lighthouse scores
+
+### 14.5 Migration Checklist
+
+**Pre-migration**:
+- [ ] `pnpm test` passes on current main
+- [ ] `pnpm build` succeeds
+- [ ] All TypeScript strict flags enabled in tsconfig (existing plan)
+- [ ] ESLint with architectural rules running clean
+
+**Phase 1 (Foundation) — Checklist**:
+- [ ] `services/api/client.ts` exists and all callers migrated
+- [ ] `services/dataTransformers/timeseries.ts` — unit tests cover happy + error paths
+- [ ] `services/dataTransformers/scatter.ts` — unit tests for buildScatterConfig
+- [ ] `stores/uiStore.ts` — only theme/sidebar/toasts remain
+- [ ] `stores/datasetStore.ts` — only metadata/columns/revision remain
+- [ ] `analyticsStore`, `fftStore`, `causalStore` — removed or empty
+- [ ] `domain/timeseries/store.ts` — created with viewport/selectedColumns/seriesVisibility/drawings
+- [ ] `domain/scatter/store.ts` — created with config/points/color/size arrays
+- [ ] `types/domains.ts` — single source for ChartViewport, AdaptiveLineFilter, RollingBandData, AnomalyRegionData
+- [ ] `styles/tokens.css` — CSS custom properties for all design tokens
+- [ ] `tsc --noEmit` passes
+- [ ] `pnpm lint` passes
+- [ ] Existing pages still work without modification
+
+**Phase 2 (Timeseries) — Checklist**:
+- [ ] TimeseriesPage <150 lines
+- [ ] TimeseriesChart in `domain/timeseries/components/`
+- [ ] ViewportManager extracted
+- [ ] OverlayRenderer extracted
+- [ ] CanvasOverlay extracted (if needed)
+- [ ] `domain/timeseries/hooks.ts` created: useTimeseriesData, useTimeseriesViewport
+- [ ] `tsc --noEmit` passes
+- [ ] Playwright: timeseries page loads, zoom works, column selection works
+
+**Phase 3 (Scatter) — Checklist**:
+- [ ] ScatterPage <150 lines
+- [ ] `domain/scatter/store.ts` consolidated
+- [ ] Color-by-column: numeric columns return consistent color array
+- [ ] Color-by-column: categorical columns return consistent color array
+- [ ] Color scale legend renders correctly
+- [ ] Density mode works with color-by-column
+- [ ] `tsc --noEmit` passes
+- [ ] Playwright: scatter renders, X/Y selection works, color legend visible
+
+**Phase 4 (UI Cleanup) — Checklist**:
+- [ ] `components/ui/` contains only primitives (Button, Chip, Select, Modal, etc.)
+- [ ] `components/layout/` contains AppShell, PageContainer, Toolbar
+- [ ] No domain logic in `components/chart/`
+- [ ] `tsc --noEmit` passes
+
+**Phase 5 (Analytics Domains) — Checklist**:
+- [ ] `domain/fft/` exists with types.ts, store.ts, hooks.ts, components/
+- [ ] `domain/drift/` exists with types.ts, store.ts, hooks.ts, components/
+- [ ] `domain/causal/` exists with types.ts, store.ts, hooks.ts, components/
+- [ ] All pages still work
+- [ ] `tsc --noEmit` passes
+
+**Phase 6 (Polish) — Checklist**:
+- [ ] 9 stores → 3 + domain pattern verified
+- [ ] No dead code files remaining
+- [ ] All imports updated to new paths
+- [ ] `pnpm test` full suite passes
+- [ ] `pnpm build` succeeds
+- [ ] `pnpm lint` passes
+- [ ] Playwright full suite passes
+
+### 14.6 Performance Benchmark Plan
+
+**Baseline measurements** (before refactor):
+```bash
+# Run Lighthouse on current build
+pnpm build
+npx lighthouse http://localhost:3000 --output=json --output-path=./benchmark-baseline.json
+
+# Measure key metrics from baseline:
+# - Initial page load (LCP)
+# - Chart render time (1200 points)
+# - Zoom interaction latency
+# - Scatter matrix render time
+# - Memory idle (1M rows loaded)
+
+# Save baseline to benchmark/baseline-YYYY-MM-DD.json
+```
+
+**Per-phase measurements**:
+```bash
+# After each phase, run:
+pnpm build
+npx lighthouse http://localhost:3000/#/timeseries --output=json --output-path=./benchmark-phaseN-timeseries.json
+npx lighthouse http://localhost:3000/#/scatter --output=json --output-path=./benchmark-phaseN-scatter.json
+
+# Compare phase N to baseline
+node scripts/compare-benchmark.js --baseline benchmark-baseline.json --current benchmark-phaseN-timeseries.json
+```
+
+**Benchmark comparison script** (`scripts/compare-benchmark.js`):
+```javascript
+#!/usr/bin/env node
+// Usage: node scripts/compare-benchmark.js --baseline <path> --current <path>
+import { readFile } from 'fs/promises';
+import { parseArgs } from 'util';
+
+const { values } = parseArgs({ options: {
+  baseline: { type: 'string' },
+  current: { type: 'string' },
+}});
+
+const baseline = JSON.parse(await readFile(values.baseline));
+const current = JSON.parse(await readFile(values.current));
+
+const metrics = [
+  { name: 'Largest Contentful Paint', key: 'performance' },
+  { name: 'First Input Delay', key: '交互延迟' },
+  { name: 'Cumulative Layout Shift', key: '稳定性' },
+  { name: 'Speed Index', key: '速度指数' },
+];
+
+console.log('## Performance Comparison\n');
+console.log('| Metric | Baseline | Current | Change |');
+console.log('|---|---|---|---|');
+for (const m of metrics) {
+  const b = baseline.categories?.[m.key]?.score ?? 0;
+  const c = current.categories?.[m.key]?.score ?? 0;
+  const delta = ((c - b) / b * 100).toFixed(1);
+  const sign = delta >= 0 ? '+' : '';
+  console.log(`| ${m.name} | ${(b * 100).toFixed(0)} | ${(c * 100).toFixed(0)} | ${sign}${delta}% |`);
+}
+```
+
+**Acceptance criteria**:
+- No single metric regresses by >5% vs baseline
+- If regression >5%: block merge, fix before continuing
+- If regression >10%: rollback phase, investigate
+
+**Performance test targets** (from Section 9.3):
+
+| Metric | Target | Measurement |
+|---|---|---|
+| Initial page load | <2s on 3G | Lighthouse |
+| Chart render (1200 points) | <100ms | Performance marks in browser |
+| Zoom interaction | <16ms (60fps) | `performance.measure()` around zoom handler |
+| Scatter matrix (20 cols) | <500ms | `performance.now()` around render |
+| Memory (idle, 1M rows) | <150MB | Chrome DevTools Memory panel |
+| Bundle size (initial) | <200KB gzipped | `pnpm build && npx vite-bundle-visualizer` |
+
+### 14.7 Architecture Diagrams
+
+**Overall architecture** (Mermaid):
+```mermaid
+graph TB
+  subgraph "UI Layer"
+    Pages["Pages<br/>(TimeseriesPage, ScatterPage, etc.)"]
+    Components["Components<br/>(ChartView, SeriesSelector, etc.)"]
+    UI["UI Primitives<br/>(Button, Chip, Modal)"]
+  end
+
+  subgraph "Domain Layer"
+    TimeseriesDomain["domain/timeseries/<br/>types.ts, store.ts, hooks.ts, components/"]
+    ScatterDomain["domain/scatter/<br/>types.ts, store.ts, hooks.ts, components/"]
+    AnalyticsDomains["domain/fft/, drift/, causal/"]
+  end
+
+  subgraph "Service Layer"
+    API["services/api/<br/>client.ts, endpoints.ts"]
+    Transformers["services/dataTransformers/<br/>timeseries.ts, scatter.ts"]
+    ChartAdapter["services/chartAdapter.ts"]
+    ColorManager["services/colorManager.ts"]
+  end
+
+  subgraph "State Layer"
+    UIStore["stores/uiStore.ts<br/>(theme, sidebar, toasts)"]
+    DatasetStore["stores/datasetStore.ts<br/>(metadata, columns, revision)"]
+  end
+
+  Pages --> TimeseriesDomain
+  Pages --> ScatterDomain
+  Pages --> AnalyticsDomains
+  TimeseriesDomain --> API
+  ScatterDomain --> API
+  API --> Transformers
+  Transformers --> ChartAdapter
+  ChartAdapter --> Components
+  Components --> UI
+```
+
+**Timeseries data flow** (Mermaid):
+```mermaid
+sequenceDiagram
+  participant User
+  participant TimeseriesPage
+  participant useTimeseriesData (hook)
+  participant timeseriesApi (service)
+  participant fetchArrow (service)
+  participant transformArrowToTimeseries
+  participant TimeseriesChart
+  participant ChartGPU
+
+  User->>TimeseriesPage: Select columns
+  TimeseriesPage->>useTimeseriesData: Read viewport + selectedColumns
+  useTimeseriesData->>timeseriesApi: fetchTimeseriesData(params)
+  timeseriesApi->>fetchArrow: GET /api/data (Arrow IPC)
+  fetchArrow-->>timeseriesApi: Response (Arrow binary)
+  timeseriesApi-->>useTimeseriesData: ArrayBuffer
+  useTimeseriesData->>transformArrowToTimeseries: transformArrowToTimeseries(buffer)
+  transformArrowToTimeseries-->>useTimeseriesData: TimeseriesData
+  useTimeseriesData-->>TimeseriesPage: TimeseriesData resource
+  TimeseriesPage->>TimeseriesChart: Pass series config
+  TimeseriesChart->>ChartGPU: GPU.renderSeries(config)
+  ChartGPU-->>User: Rendered chart
+```
+
+**Store architecture** (Mermaid):
+```mermaid
+graph TB
+  subgraph "App-Wide Stores (3)"
+    UIStore["uiStore.ts<br/>theme, sidebarOpen, plotTheme, toasts"]
+    DatasetStore["datasetStore.ts<br/>metadata, columns, numericCols, revision"]
+  end
+
+  subgraph "Domain Stores (N)"
+    TimeseriesStore["domain/timeseries/store.ts<br/>viewport, selectedColumns,<br/>seriesVisibility, drawings"]
+    ScatterStore["domain/scatter/store.ts<br/>xCol, yCol, colorCol, sizeCol,<br/>colorArray, points, correlations"]
+    FFTStore["domain/fft/store.ts"]
+    DriftStore["domain/drift/store.ts"]
+    CausalStore["domain/causal/store.ts"]
+  end
+
+  subgraph "Pages (consumers only)"
+    TimeseriesPage["TimeseriesPage"]
+    ScatterPage["ScatterPage"]
+    UploadPage["UploadPage"]
+  end
+
+  TimeseriesPage-->TimeseriesStore
+  TimeseriesPage-->UIStore
+  TimeseriesPage-->DatasetStore
+  ScatterPage-->ScatterStore
+  ScatterPage-->UIStore
+  ScatterPage-->DatasetStore
+
+  TimeseriesStore-.->API
+  ScatterStore-.->API
+```
+
+**Chart lifecycle** (Mermaid):
+```mermaid
+graph LR
+  subgraph "Chart Lifecycle"
+    A[TimeseriesPage] --> B[TimeseriesChart]
+    B --> C[ChartGPU Adapter]
+    C --> D[ChartGPU<br/>(WebGPU)]
+    C --> E[ECharts Adapter<br/>(WebGL/Canvas fallback)]
+    B --> F[ViewportManager<br/>zoom/pan state]
+    B --> G[OverlayRenderer<br/>drawings/lines]
+    B --> H[CanvasOverlay<br/>drawing interaction]
+  end
+```
+
+### 14.8 State Ownership Diagrams
+
+**Timeseries domain state ownership**:
+```mermaid
+graph TB
+  subgraph "TimeseriesState"
+    VP["viewport: ChartViewport<br/>xMin, xMax, yMin, yMax, width, height"]
+    SC["selectedColumns: string[]<br/>active column list"]
+    SV["seriesVisibility: Record<string, boolean><br/>column → visible"]
+    SC_COL["seriesColors: Record<string, string><br/>column → hex color"]
+    AF["adaptiveFilters: AdaptiveLineFilter[]<br/>region filters from Ctrl+click"]
+    DR["drawings: Drawing[]<br/>line/region drawings"]
+    ZL["zoomHistory: ChartViewport[]<br/>navigation stack"]
+  end
+
+  subgraph "Actions"
+    setViewport["setViewport(vp)"]
+    toggleColumn["toggleColumn(col)"]
+    setColor["setColor(col, color)"]
+    setAdaptiveFilter["setAdaptiveFilter(filter)"]
+    clearAdaptiveFilters["clearAdaptiveFilters()"]
+    addDrawing["addDrawing(drawing)"]
+    zoomIn["zoomIn()"]
+    zoomOut["zoomOut()"]
+    resetView["resetView()"]
+  end
+
+  VP <--> setViewport
+  SC <--> toggleColumn
+  SC_COL <--> setColor
+  AF <--> setAdaptiveFilter
+  AF <--> clearAdaptiveFilters
+  DR <--> addDrawing
+  ZL <--> zoomIn
+  ZL <--> zoomOut
+  ZL <--> resetView
+```
+
+**Scatter domain state ownership**:
+```mermaid
+graph TB
+  subgraph "ScatterState"
+    XC["xColumn: string | null"]
+    YC["yColumn: string | null"]
+    CC["colorColumn: string | null"]
+    SC["sizeColumn: string | null"]
+    CA["colorArray: Float64Array | string[] | null"]
+    SA["sizeArray: Float64Array | null"]
+    PT["points: ScatterPoint[]<br/>cached points"]
+    CR["correlations: CorrelationSuggestion[]<br/>from /api/scatter/correlations"]
+    MTR["matrixRows: CorrelationRow[]<br/>full correlation matrix"]
+    MDE["mode: 'scatter' | 'density'"]
+    CSC["colorScale: ColorScaleName"]
+    RCL["renderConfig: RenderConfig<br/>limit, filters, linked range"]
+  end
+
+  subgraph "Actions"
+    setXColumn["setXColumn(col)"]
+    setYColumn["setYColumn(col)"]
+    setColorColumn["setColorColumn(col)"]
+    setSizeColumn["setSizeColumn(col)"]
+    fetchPoints["fetchPoints()"]
+    setMode["setMode(mode)"]
+    setColorScale["setColorScale(scale)"]
+    applyLinkedFilter["applyLinkedFilter(range)"]
+  end
+
+  XC <--> setXColumn
+  YC <--> setYColumn
+  CC <--> setColorColumn
+  SC <--> setSizeColumn
+  PT <--> fetchPoints
+  MDE <--> setMode
+  CSC <--> setColorScale
+  RCL <--> applyLinkedFilter
+```
+
+**Data ownership rules**:
+```
+✓ Domain stores own domain state (viewport, selectedColumns, etc.)
+✓ Services own data transformation (Arrow → chart config)
+✓ UI components own presentation state (loading spinners, open/closed modals)
+✓ Stores do NOT import from other stores
+✓ Services do NOT import from stores (pure async)
+✓ Pages do NOT import from stores directly (use domain hooks)
+
+✗ No cross-store imports
+✗ No store imports in service files
+✗ No direct store imports in page files
+✗ No module-level mutable state (except cached RAF ids)
+```
+
+---
+
+## 15. Output Expectations
+
+### 15.1 File Deliverables
+
+After full refactor, the following files should exist:
+
+**Service layer** (`src/services/`):
+```
+services/
+├── api/
+│   ├── client.ts          # getJson, fetchArrow with deduplication
+│   ├── endpoints.ts       # fetchTimeseriesData, fetchScatterPoints, etc.
+│   └── types.gen.ts       # (generated from OpenAPI, if available)
+├── dataTransformers/
+│   ├── timeseries.ts      # transformArrowToTimeseries, buildSeriesConfig
+│   └── scatter.ts         # buildScatterConfig
+├── chartAdapter.ts        # ChartAdapter interface
+├── colorManager.ts        # Color scale management
+└── index.ts
+```
+
+**Domain layer** (`src/domain/`):
+```
+domain/
+├── timeseries/
+│   ├── types.ts           # TimeseriesState, TimeseriesActions
+│   ├── store.ts           # TimeseriesStore, TimeseriesActions
+│   ├── hooks.ts           # useTimeseriesDomain, useTimeseriesData
+│   └── components/
+│       ├── TimeseriesChart.tsx
+│       ├── ViewportManager.tsx
+│       ├── OverlayRenderer.tsx
+│       └── CanvasOverlay.tsx
+├── scatter/
+│   ├── types.ts           # ScatterState, ScatterActions
+│   ├── store.ts           # ScatterStore, ScatterActions
+│   ├── hooks.ts           # useScatterDomain, useScatterData
+│   └── components/
+│       ├── ScatterChart.tsx
+│       ├── DensityChart.tsx
+│       └── CorrelationMatrix.tsx
+├── fft/
+│   ├── types.ts, store.ts, hooks.ts, components/
+├── drift/
+│   ├── types.ts, store.ts, hooks.ts, components/
+└── causal/
+    ├── types.ts, store.ts, hooks.ts, components/
+```
+
+**Store layer** (`src/stores/`):
+```
+stores/
+├── uiStore.ts             # theme, sidebarOpen, plotTheme, toasts
+├── datasetStore.ts        # metadata, columns, numericCols, datetimeCols, revision
+└── index.ts               # re-exports
+```
+
+**Type layer** (`src/types/`):
+```
+types/
+├── domains.ts             # ChartViewport, AdaptiveLineFilter, RollingBandData, AnomalyRegionData, ScatterPoint, etc.
+└── index.ts
+```
+
+**UI components** (`src/components/`):
+```
+components/
+├── ui/                    # Primitives ONLY
+│   ├── Button.tsx
+│   ├── Chip.tsx
+│   ├── Select.tsx
+│   ├── Modal.tsx
+│   ├── Toast.tsx
+│   └── index.ts
+├── layout/
+│   ├── AppShell.tsx
+│   ├── PageContainer.tsx
+│   └── Toolbar.tsx
+└── chart/                 # Chart adapters only, NO domain logic
+    ├── ChartGPUAdapter.ts
+    └── EChartsAdapter.ts
+```
+
+### 15.2 Import Map (Before vs After)
+
+**Before** (current, problematic):
+```typescript
+// TimeseriesPage.tsx
+import { timeseriesStore } from '../stores/timeseriesStore';
+import { fetchTimeseriesData } from '../services/dataFetch';
+import { useChartController } from '../hooks/useChartController';
+import { useTimeseriesData } from '../hooks/useTimeseriesData';
+import { buildSeriesConfig } from '../services/chartConfigBuilder';
+
+// Direct store access in page
+const [columns, setColumns] = createSignal(timeseriesStore.state.columns);
+```
+
+**After** (target):
+```typescript
+// TimeseriesPage.tsx
+import { useTimeseriesDomain } from '@domain/timeseries/hooks';
+
+// Page is a thin orchestrator — only composes domain + components
+const TimeseriesPage = () => {
+  const { state, actions } = useTimeseriesDomain();
+  return <TimeseriesChart {...state} onZoom={actions.setViewport} />;
+};
+```
+
+### 15.3 Success Criteria
+
+| Criterion | How to Verify |
+|---|---|
+| Store count | 3 app-wide stores + domain stores; no `analyticsStore`, `fftStore`, `causalStore` |
+| Page line count | TimeseriesPage <150L, ScatterPage <150L, ChartView <100L |
+| Service purity | `services/` files have zero `createSignal`, `createStore`, `createEffect` |
+| Type consistency | `types/domains.ts` is single canonical source; no duplicates in stores or hooks |
+| Architecture lint | `pnpm lint` passes with no architectural rule violations |
+| Build clean | `pnpm build` succeeds with `tsc --noEmit` clean |
+| Test coverage | Unit tests: services >90%, stores >85%, transformers >90% |
+| E2E pass | Playwright suite: timeseries load, scatter render, upload flow |
+| No regression | Lighthouse scores within 5% of baseline |
+| Chart quality | ChartGPU renders identically to pre-refactor; zoom/pan/overlay all work |
+| Scatter color | Color-by-column works for both numeric and categorical columns |
+
+### 15.4 Anti-Goals (What We're NOT Doing)
+
+1. **Not rewriting from scratch** — incremental refactor via strangler fig
+2. **Not adding a component library** — keeping existing design system
+3. **Not switching frameworks** — SolidJS stays throughout
+4. **Not adding Redux/MobX/Zustand** — SolidJS stores are the state layer
+5. **Not adding GraphQL** — REST API stays as-is
+6. **Not adding Storybook** — inline docs sufficient for this project size
+7. **Not adding Storyshot/snapshot testing** — behavior tests preferred over structure tests
+8. **Not adding server-side rendering** — SPA stays as-is
+9. **Not migrating to React** — SolidJS stays
+10. **Not rewriting ChartGPU** — adapter interface only, ChartGPU stays
+
+---
+
+*End of Frontend Refactor Plan — v2.0*
