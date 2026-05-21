@@ -120,7 +120,7 @@ export async function createAndInitChartAdapter(
 ): Promise<ChartAdapter> {
   console.error('[ChartRegistry] createAndInitChartAdapter ENTRY');
   const { enginePreference = 'auto', chartType = 'timeseries' } = registryOptions;
-  
+
   // Determine which engine to use based on preference and actual availability
   let engine: 'ChartGPU' | 'ECharts';
   if (enginePreference === 'echarts') {
@@ -161,7 +161,8 @@ export async function createAndInitChartAdapter(
       }
       // instance is null or invalid - this shouldn't happen but handle it
       console.error('[ChartRegistry] ChartGPU instance invalid after init, falling back to ECharts');
-      throw new Error('ChartGPU instance check failed');    } catch (gpuErr) {
+      throw new Error('ChartGPU instance check failed');
+    } catch (gpuErr) {
       console.error('[ChartRegistry] ChartGPU init failed, falling back to ECharts:', gpuErr);
       adapter = new EChartsAdapter();
       await adapter.initialize(container, chartOptions);

@@ -1,0 +1,62 @@
+.iconButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    transition: background var(--duration-normal), color var(--duration-normal);
+    flex-shrink: 0;
+}
+
+.iconButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Sizes */
+.sm {
+    width: 28px;
+    height: 28px;
+    font-size: var(--font-sm);
+}
+
+.md {
+    width: 36px;
+    height: 36px;
+    font-size: var(--font-md);
+}
+
+.lg {
+    width: 44px;
+    height: 44px;
+    font-size: var(--font-lg);
+}
+
+/* Variants */
+.primary {
+    background: var(--color-accent);
+    color: white;
+}
+
+.primary:hover:not(:disabled) {
+    background: var(--color-accent-hover);
+}
+
+.secondary {
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+}
+
+.secondary:hover:not(:disabled) {
+    background: var(--color-surface-hover);
+}
+
+.ghost {
+    background: transparent;
+    color: var(--color-text-muted);
+}
+
+.ghost:hover:not(:disabled) {
+    background: var(--color-surface);
+    color: var(--color-text);
+}

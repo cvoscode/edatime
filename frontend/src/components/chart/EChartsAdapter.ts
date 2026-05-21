@@ -60,9 +60,6 @@ export class EChartsAdapter implements ChartAdapter {
 
     this.instance = echarts.init(container, themeName, { renderer: 'canvas' });
 
-    // ECharts may fire resize/events during init - suppress until fully ready
-    this._initializing = true;
-
     const colorPalette = getColorPalette(uiStore.state.colorScale, 8);
     const initOpts: any = {
       grid,
