@@ -38,8 +38,10 @@ export class ChartGPUAdapter implements ChartAdapter {
   }
 
   async initialize(container: HTMLElement, options: ChartOptions): Promise<void> {
+    console.error('[ChartGPUAdapter] initialize START');
     if (this.disposed) throw new Error('Adapter already disposed');
     if (!isWebGPUSupported()) throw new Error('WebGPU not supported');
+    console.error('[ChartGPUAdapter] WebGPU supported check passed');
 
     this.container = container;
     const grid = options.grid ?? this.getGrid();
@@ -48,20 +50,27 @@ export class ChartGPUAdapter implements ChartAdapter {
     while (container.firstChild) {
       container.removeChild(container.firstChild);
     }
+    console.error('[ChartGPUAdapter] Container cleaned');
 
-    const chartgpuUrl = '/libs/chartgpu/dist/index.js';
+    const chartgpuUrl = '/frontend/libs/chartgpu/index.js';
+    console.error('[ChartGPUAdapter] Fetching ChartGPU from:', chartgpuUrl);
     const resp = await fetch(chartgpuUrl);
     if (!resp.ok) throw new Error(`ChartGPU fetch failed: ${resp.status}`);
+    console.error('[ChartGPUAdapter] ChartGPU fetched, size:', resp.headers.get('content-length'));
     const code = await resp.text();
     const blob = new Blob([code], { type: 'application/javascript' });
     const blobUrl = URL.createObjectURL(blob);
+    console.error('[ChartGPUAdapter] Blob URL created');
 
     try {
+      console.error('[ChartGPUAdapter] About to import blob URL');
       const chartModule = await import(/* @vite-ignore */ blobUrl);
+      console.error('[ChartGPUAdapter] Blob imported, module keys:', Object.keys(chartModule));
       const createChartFn =
         (chartModule as any).createChart ??
         (chartModule as any).default?.createChart;
       if (!createChartFn) throw new Error('createChart not found');
+      console.error('[ChartGPUAdapter] createChartFn found');
 
       const tmpl = getActivePlotTemplate(uiStore.state.plotTheme, uiStore.state.theme);
       const chartOpts = {
@@ -72,13 +81,34 @@ export class ChartGPUAdapter implements ChartAdapter {
         series: [],
         theme: tmpl.id,
       };
+      console.error('[ChartGPUAdapter] About to call createChartFn with container and opts');
 
       const initPromise = createChartFn(container, chartOpts);
+      console.error('[ChartGPUAdapter] createChartFn called, got promise');
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('ChartGPU init timeout (5s)')), CHARTGPU_INIT_TIMEOUT_MS)
       );
 
-      this.instance = await Promise.race([initPromise, timeoutPromise]);
+      let chartInstance;
+      try {
+        console.error('[ChartGPUAdapter] Awaiting Promise.race...');
+        chartInstance = await Promise.race([initPromise, timeoutPromise]);
+        console.error('[ChartGPUAdapter] Promise.race resolved, chartInstance:', !!chartInstance);
+        if (!chartInstance || typeof chartInstance !== 'object' || (typeof chartInstance.on !== 'function' && typeof (chartInstance as any).setOption !== 'function')) {
+          throw new Error('ChartGPU returned invalid instance type');
+        }
+      } catch (initError) {
+        console.error('[ChartGPUAdapter] Promise.race rejected:', initError);
+        // Clean up the canvas that was added to container before throwing
+        while (container.firstChild) {
+          container.removeChild(container.firstChild);
+        }
+        const errorMsg = initError instanceof Error ? initError.message : String(initError);
+        throw new Error(`ChartGPU init failed: ${errorMsg}`);
+      }
+
+      this.instance = chartInstance;
+      console.error('[ChartGPUAdapter] this.instance set, about to wire events');
 
       // Wire events
       if (this.zoomCallback) {

@@ -1,8 +1,16 @@
 //! edatime-service — Axum HTTP service layer.
-//! Depends on query, store, ingest; handles routing, middleware, handlers.
 
+pub mod handlers;
+pub mod middleware;
+pub mod rates;
+pub mod metrics;
+pub mod error;
+pub mod analytics;
+pub mod causal;
+pub mod dto;
 pub mod router;
 pub mod state;
-pub mod middleware;
-pub mod handlers;
-pub mod dto;
+
+// Re-export router as routes for backwards compatibility with consumers
+// that expect `edatime_service::routes::api_router`
+pub use crate::router as routes;

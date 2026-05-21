@@ -18,13 +18,13 @@ pub fn extract_ts_epoch_ms_with_col(df: &DataFrame, ts_col: &str) -> Result<Vec<
     let ts_i64 = ts_col_series
         .cast(&DataType::Int64)
         .map_err(|e| AppError::internal(format!("ts cast: {}", e)))?;
-    let ts_dtype = crate::temporal::ts_dtype(df, ts_col)?;
+    let ts_dtype = edatime_core::temporal::ts_dtype(df, ts_col)?;
     Ok(ts_i64
         .i64()
         .map_err(|e| AppError::internal(format!("ts i64: {}", e)))?
         .into_iter()
         .map(|v| {
-            v.map(|t| crate::temporal::native_to_epoch_ms(t, &ts_dtype))
+            v.map(|t| edatime_core::temporal::native_to_epoch_ms(t, &ts_dtype))
                 .unwrap_or(f64::NAN)
         })
         .collect())

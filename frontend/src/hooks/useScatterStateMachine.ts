@@ -7,12 +7,12 @@ import { scatterStore } from '../stores/scatterStore';
 import { uiStore } from '../stores/uiStore';
 import { fetchScatterCorrelations } from '../services/api';
 import { fetchScatterData } from '../services/dataFetch';
-import type { CorrelationItem } from '../types';
+import type { SuggestionItem } from '../types';
 
 export type ScatterPageState =
     | { name: 'idle' }
     | { name: 'loading_correlations'; xCol: string }
-    | { name: 'correlations_loaded'; xCol: string; correlations: Record<string, { pearson: number | null; spearman: number | null }>; suggestions: CorrelationItem[] }
+    | { name: 'correlations_loaded'; xCol: string; correlations: Record<string, { pearson: number | null; spearman: number | null }>; suggestions: SuggestionItem[] }
     | { name: 'loading_points'; xCol: string; yCol: string; colorCol: string | null; sizeCol: string | null }
     | { name: 'points_loaded'; xCol: string; yCol: string; points: [number, number][]; totalPoints: number; colorValues: number[] | null; colorLabels: (string | null)[] | null; colorMin: number | null; colorMax: number | null }
     | { name: 'error'; message: string; previousState: ScatterPageState };
@@ -58,19 +58,16 @@ export function useScatterStateMachine(): UseScatterStateMachine {
                         corrMap[item.column] = { pearson: item.pearson, spearman: item.spearman };
                     }
 
-                    const suggestionItems: CorrelationItem[] = (resp.suggestions ?? []).map(s => ({
-                        column: `${s.x} × ${s.y}`,
-                        count: 0,
-                        pearson: s.correlation,
-                        spearman: null,
-                    }));
+                    // Backend returns suggestions as SuggestionItem[] with {x, y, correlation}
+                    // ScatterStore expects SuggestionItem[] format directly
+                    const suggestions = resp.suggestions ?? [];
 
                     // Update scatterStore
                     scatterStore.setCorrelations(corrMap);
-                    scatterStore.setSuggestions(suggestionItems);
+                    scatterStore.setSuggestions(suggestions);
                     scatterStore.setConfig({ xCol: col });
 
-                    setState({ name: 'correlations_loaded', xCol: col, correlations: corrMap, suggestions: suggestionItems });
+                    setState({ name: 'correlations_loaded', xCol: col, correlations: corrMap, suggestions });
                     break;
                 }
 

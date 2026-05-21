@@ -6,13 +6,14 @@ use polars::prelude::{DataFrame, LazyFrame, SchemaExt};
 use tokio::sync::RwLock;
 
 use crate::cache::{DriftCache, ResponseCache};
-use crate::config::AppConfig;
 use crate::db::DbPool;
-use crate::error::AppError;
-use crate::metrics::AppMetrics;
-use crate::query::QueryEntry;
 use crate::repository::{DataRepository, InMemoryDataRepository};
+use edatime_core::config::AppConfig;
+use edatime_core::error::AppError;
+use edatime_core::metrics::AppMetrics;
+use edatime_core::temporal::{TsContext, ts_context};
 use edatime_query::executor::{ExecutionContext, QueryExecutor};
+use edatime_query::query::QueryEntry;
 
 /// Live database connection state, set after a successful `/api/database/connect`.
 #[derive(Clone, Debug)]
@@ -56,7 +57,11 @@ impl Clone for AppState {
 impl AppState {
     pub fn new(df: DataFrame, config: AppConfig) -> Self {
         let repository = Arc::new(InMemoryDataRepository::new(df));
-        let cache = Arc::new(ResponseCache::new(config.cache.to_runtime_config()));
+        let cache = Arc::new(ResponseCache::new(crate::cache::CacheConfig {
+            ttl: std::time::Duration::from_secs(config.cache.ttl_seconds.max(1)),
+            max_entries: config.cache.max_entries.max(1),
+            max_bytes: config.cache.max_bytes.max(1024),
+        }));
         let metrics = Arc::new(AppMetrics::new());
         let max_stored = config.query.max_stored.max(1);
         // QueryExecutor uses Streaming mode by default for memory efficiency.
@@ -115,7 +120,10 @@ impl AppState {
     }
 
     pub async fn replace_dataset(&self, df: DataFrame) -> u64 {
-        self.repository.replace_from_dataframe(df)
+        let rev = self.repository.replace_from_dataframe(df);
+        // Invalidate cached responses so stale data is never served after upload.
+        self.cache.invalidate_all().await;
+        rev
     }
 
     pub fn set_time_column_display_name(&self, name: Option<String>) {
@@ -128,22 +136,19 @@ impl AppState {
 
     /// Returns TsContext (ts_col name, multiplier, dtype) for the time column.
     /// All route handlers that duplicate the 3-line pattern should use this.
-    pub fn ts_context(&self, lf: &LazyFrame) -> Result<crate::temporal::TsContext, AppError> {
+    pub fn ts_context(&self, lf: &LazyFrame) -> Result<TsContext, AppError> {
         let ts_col = self
             .time_column_display_name_sync()
             .unwrap_or_else(|| "ts".to_string());
-        crate::temporal::ts_context(lf, &ts_col)
+        ts_context(lf, &ts_col)
     }
 
+    /// Returns row count without forcing a full collect of the active frame.
+    /// Uses `count()` on the repository's metadata — O(1) instead of O(n).
     pub async fn dataset_rows(&self) -> usize {
-        let lock = self.repository.shared_frame();
-        let lf = lock.read().await;
-        lf.clone()
-            .select([polars::prelude::len().cast(polars::prelude::DataType::UInt64)])
-            .with_new_streaming(true)
-            .collect()
-            .map(|df| df.height())
-            .unwrap_or(0)
+        let meta = self.repository.meta();
+        let meta = meta.read().unwrap();
+        meta.row_count
     }
 
     pub fn dataset_revision(&self) -> u64 {
@@ -169,7 +174,7 @@ impl AppState {
             tracing::warn!("query_log drain failed, returning empty");
             return Vec::new();
         };
-        log.drain(..).collect()
+        log.drain(..).collect::<Vec<_>>()
     }
 
     pub fn next_query_id(&self) -> u64 {

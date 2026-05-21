@@ -10,7 +10,7 @@ use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 
 // Re-export filter types used by consumers.
-pub use crate::filters::{
+pub use edatime_query::filters::{
     LineFilter as ScatterLineFilterSpec, RangeFilter as ScatterFilterSpec,
     apply_filters as apply_scatter_filters, parse_line_filters as parse_scatter_line_filters,
     parse_range_filters as parse_scatter_filters,
@@ -70,13 +70,22 @@ pub struct CorrelationItem {
     pub spearman: Option<f64>,
 }
 
+/// Suggestion item with explicit x/y column names and correlation value.
+/// This is the format the frontend expects for rendering suggestion chips.
+#[derive(Debug, Serialize, Clone)]
+pub struct SuggestionItem {
+    pub x: String,
+    pub y: String,
+    pub correlation: f64,
+}
+
 // ── Shared helpers ───────────────────────────────────────────────────────────
 
 fn default_scatter_limit() -> usize {
     1_000_000
 }
 
-fn clamp_limit(limit: usize, validation: &crate::config::ValidationSettings) -> usize {
+fn clamp_limit(limit: usize, validation: &edatime_core::config::ValidationSettings) -> usize {
     limit.clamp(1, validation.max_scatter_limit)
 }
 
@@ -94,9 +103,7 @@ pub fn numeric_columns<I: Into<LazyFrame>>(df: I) -> Vec<String> {
             let name = field.name();
             match field.dtype() {
                 dt if dt.is_numeric() => Some(name.to_string()),
-                DataType::Datetime(_, _) | DataType::Date if name == "ts" => {
-                    Some(name.to_string())
-                }
+                DataType::Datetime(_, _) | DataType::Date if name == "ts" => Some(name.to_string()),
                 _ => None,
             }
         })
@@ -107,7 +114,7 @@ pub fn numeric_columns<I: Into<LazyFrame>>(df: I) -> Vec<String> {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
-    use crate::config::ValidationSettings;
+    use edatime_core::config::ValidationSettings;
     use polars::prelude::{DataFrame, DataType, Series, TimeUnit};
 
     #[test]

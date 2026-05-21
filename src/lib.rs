@@ -1,22 +1,11 @@
-pub mod analytics;
-pub mod arrow_export;
-pub mod cache;
-pub mod causal;
-pub mod config;
-pub mod db;
-pub mod downsample;
-pub mod error;
-pub mod filters;
-pub mod ingest;
-pub mod metrics;
-pub mod middleware;
-pub mod pipeline;
-pub mod query;
-pub mod rates;
-pub mod repository;
-pub mod routes;
-
-pub mod state;
-pub mod stats;
-pub mod temporal;
-pub mod validation;
+//! edatime — workspace root re-export for backwards compatibility.
+//!
+//! All implementation has moved to workspace crates:
+//! - edatime-core: core types, pipeline, cache, error
+//! - edatime-store: data repository, state management
+//! - edatime-query: query executor, filters, pipeline
+//! - edatime-service: HTTP handlers, routing, middleware
+//! - edatime-ingest: data ingestion
+//!
+//! This root crate is kept minimal so that `edatime::*` references
+//! from older code or tests continue to resolve during the transition.

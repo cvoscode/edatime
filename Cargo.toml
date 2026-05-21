@@ -27,6 +27,7 @@ chrono = { version = "0.4.41", features = ["serde"] }
 minmaxlttb = "0.1.4"
 ndarray = { version = "0.16", features = ["rayon"] }
 polars = { version = "0.53.0", features = ["lazy", "temporal", "parquet", "csv", "dtype-datetime", "ipc", "ipc_streaming", "is_in"] }
+rand = "0.8"
 rayon = "1.10"
 rustfft = "6.2.0"
 serde = { version = "1.0.228", features = ["derive"] }
@@ -55,7 +56,6 @@ deadpool-postgres = { version = "0.14", features = ["serde"] }
 minmaxlttb = "0.1.4"
 ndarray = { version = "0.16", features = ["rayon"] }
 polars = { workspace = true }
-rand = "0.8"
 rayon = { workspace = true }
 rustfft = "6.2.0"
 serde = { workspace = true }
@@ -83,6 +83,7 @@ debug = true
 [profile.release]
 opt-level = 3
 lto = true
+
 
 
 

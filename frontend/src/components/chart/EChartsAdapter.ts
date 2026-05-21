@@ -60,6 +60,9 @@ export class EChartsAdapter implements ChartAdapter {
 
     this.instance = echarts.init(container, themeName, { renderer: 'canvas' });
 
+    // ECharts may fire resize/events during init - suppress until fully ready
+    this._initializing = true;
+
     const colorPalette = getColorPalette(uiStore.state.colorScale, 8);
     const initOpts: any = {
       grid,
@@ -102,8 +105,13 @@ export class EChartsAdapter implements ChartAdapter {
     // Resize observer
     this.resizeObserver = new ResizeObserver(() => this.instance.resize());
     this.resizeObserver.observe(container);
-
-    this.readyCallback?.(this.engineName);
+    // Defer readyCallback to avoid triggering Solid.js reactive updates during chart init.
+    // Solid.js processes effects after microtask queue is empty, so scheduling after
+    // a double rAF ensures all reactive updates from initialization complete first.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      console.error('[EChartsAdapter] initialize COMPLETE, calling readyCallback');
+      this.readyCallback?.(this.engineName);
+    }));
   }
 
   setData(series: ChartSeriesData[]): void {

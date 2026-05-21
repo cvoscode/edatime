@@ -1,6 +1,6 @@
 use axum::{Json, extract::State};
 
-use crate::state::AppState;
+use edatime_store::state::AppState;
 
 pub async fn get_metrics(State(state): State<AppState>) -> Json<serde_json::Value> {
     let rows = state.dataset_rows().await;

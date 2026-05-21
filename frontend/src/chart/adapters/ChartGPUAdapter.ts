@@ -251,7 +251,7 @@ export class ChartGPUAdapter implements ChartAdapter {
 
   onEngineChanged?(callback: (engineName: string) => void): () => void {
     // ChartGPU does not emit engine change events
-    return () => {};
+    return () => { };
   }
 
   dispose(): void {

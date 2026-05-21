@@ -494,7 +494,7 @@ pub fn compute_temporal_drift(
 
         let (ks_stat, ks_pvalue, es_stat, es_pvalue, wasserstein, psi) = if vals.len() >= 5 {
             let (ks_s, ks_p) = ks_test_2sample(&ref_sorted, vals);
-            let (es_s, es_p) = crate::stats::epps_singleton_test(&es_ref_sample, vals);
+            let (es_s, es_p) = edatime_core::stats::epps_singleton_test(&es_ref_sample, vals);
             let w = wasserstein_distance_1d(&ref_sorted, vals);
             let p = compute_psi_with_ref_props(&psi_ref_props, vals, &hist_edges);
             (ks_s, ks_p, es_s, es_p, w, p)

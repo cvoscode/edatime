@@ -7,7 +7,7 @@ use std::time::Instant;
 use axum::{extract::ConnectInfo, http::HeaderValue, middleware::Next, response::IntoResponse};
 
 use crate::error::AppError;
-use crate::metrics::AppMetrics;
+use edatime_core::metrics::AppMetrics;
 use crate::rates::RateLimiter;
 
 /// Proxy header names examined when resolving the real client IP, in priority

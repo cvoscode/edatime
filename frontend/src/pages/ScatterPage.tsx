@@ -1,7 +1,8 @@
 import { Component, createSignal, createEffect, createMemo, Show, For, onMount, onCleanup } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { scatterStore, datasetStore, uiStore } from '../stores';
-import type { CorrelationItem } from '../types';
+import { datasetStore, uiStore } from '../stores';
+import { scatterStore } from '../stores/scatterStore';
+import type { SuggestionItem } from '../types';
 import { fetchScatterCorrelations } from '../services/api';
 import { fetchScatterData } from '../services/dataFetch';
 import { getColorPalette, buildCategoricalColorGroups, getCategoryColor, sampleGradient } from '../utils/colorScale';
@@ -94,13 +95,9 @@ const ScatterPage: Component = () => {
         corrMap[item.column] = { pearson: item.pearson, spearman: item.spearman };
       }
       scatterStore.setCorrelations(corrMap);
-      const suggestionItems: CorrelationItem[] = (resp.suggestions ?? []).map(s => ({
-        column: `${s.x} × ${s.y}`,
-        count: 0,
-        pearson: s.correlation,
-        spearman: null,
-      }));
-      scatterStore.setSuggestions(suggestionItems);
+      // Backend returns suggestions as SuggestionItem[] with {x, y, correlation}
+      // ScatterStore expects SuggestionItem[] format
+      scatterStore.setSuggestions(resp.suggestions ?? []);
     } catch (e) {
       console.error('Failed to fetch correlations:', e);
     }
@@ -207,8 +204,13 @@ const ScatterPage: Component = () => {
         updateChartFn({ series });
         return;
       }
-      // High cardinality — show message in legend, skip color rendering
-      updateChartFn({ series: [{ type: 'scatter', name: `${colorCol()} (${new Set(colorLabels).size} categories — too many to display)`, data: points.map(p => sizeVals ? [...p, sizeVals[points.indexOf(p)]] : p), symbolSize }] });
+      // High cardinality — show message in legend, skip per-category color rendering
+      // Collect all points as-is so the chart still renders
+      const data: any[] = [];
+      for (let i = 0; i < n; i++) {
+        data.push(sizeVals ? [points[i][0], points[i][1], sizeVals[i]] : points[i]);
+      }
+      updateChartFn({ series: [{ type: 'scatter', name: `${colorCol()} (${new Set(colorLabels).size} categories — too many to display)`, data, symbolSize }] });
       return;
     }
 
@@ -393,11 +395,11 @@ const ScatterPage: Component = () => {
             {(item) => (
               <button
                 class={styles.suggestionChip}
-                onClick={() => handleSuggestionClick(item.column)}
+                onClick={() => handleSuggestionClick(`${item.x} × ${item.y}`)}
               >
-                <span class={styles.chipName}>{item.column}</span>
+                <span class={styles.chipName}>{item.x} × {item.y}</span>
                 <span class={styles.chipCorr}>
-                  {item.pearson?.toFixed(2) ?? '—'}
+                  {item.correlation?.toFixed(2) ?? '—'}
                 </span>
               </button>
             )}

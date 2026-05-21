@@ -16,6 +16,39 @@
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "@shared/*": [
+        "src/shared/*"
+      ],
+      "@shared/ui": [
+        "src/shared/ui"
+      ],
+      "@shared/layout": [
+        "src/shared/layout"
+      ],
+      "@shared/hooks": [
+        "src/shared/hooks"
+      ],
+      "@chart/*": [
+        "src/chart/*"
+      ],
+      "@features/*": [
+        "src/features/*"
+      ],
+      "@services/*": [
+        "src/services/*"
+      ],
+      "@stores/*": [
+        "src/stores/*"
+      ],
+      "@domain/*": [
+        "src/domain/*"
+      ],
+      "@utils/*": [
+        "src/utils/*"
+      ],
+      "@types/*": [
+        "src/types/*"
       ]
     }
   },

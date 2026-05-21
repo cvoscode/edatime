@@ -1,3 +1,13 @@
+/**
+ * TimeseriesPage — main timeseries visualization page.
+ *
+ * Phase 3: Wired to features/timeseries composables and hooks:
+ *   - useChartLifecycle: chartReady, chartInstance, updateChartFn, onChartReady, onEngineReady
+ *   - useChartSeries: selectedColumns, traceColumns, allTraceColumns, mergedColors, colorPalette, columnBounds, xAxisColumn
+ *   - useChartViewportSync: viewport, initialView, viewportActions
+ *   - useAdaptiveFilters: adaptive line filter state
+ *   - TimeseriesChart: feature component replacing inline ChartView
+ */
 import { Component, createSignal, Show, createMemo, onMount, createEffect, onCleanup, untrack } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { chartStore } from '../stores/chartStore';
@@ -5,26 +15,46 @@ import { datasetStore } from '../stores/datasetStore';
 import { uiStore } from '../stores/uiStore';
 import { analyticsStore } from '../stores/analyticsStore';
 import { timeseriesStore } from '../domain/timeseries/store';
-import ChartView from '../components/chart/ChartView';
 import SeriesToolbar from './SeriesToolbar';
 import ChartToolbar from './ChartToolbar';
 import ColumnFilterModal from '../domain/timeseries/components/ColumnFilterModal';
 import AnalyticsDrawer from '../domain/timeseries/components/AnalyticsDrawer';
 import LabelsDrawer from '../domain/timeseries/components/LabelsDrawer';
-import AdaptiveFilterPopup from '../domain/timeseries/components/AdaptiveFilterPopup';
+import TimeseriesChart from '../features/timeseries/components/TimeseriesChart';
 import { fetchTimeseriesData, buildSeriesConfig, updateCachedColors, getCachedData } from '../services/dataFetch';
 import { fetchRollingBands, fetchAnomalies } from '../services/api';
 import { exportChartAsPNG, exportChartAsCSV, exportChartAsSVG, exportChartAsJSON, exportChartAsHTML } from '../utils/exportUtils';
 import { debugLog, debugLogOnce } from '../utils/debug';
-import { getColorPalette } from '../utils/colorScale';
 import { useDebouncedEffect } from '../hooks/useDebouncedEffect';
 import { useAbortController } from '../hooks/useAbortController';
+import { useChartLifecycle } from '../features/timeseries/composables/useChartLifecycle';
+import { useChartSeries } from '../features/timeseries/composables/useChartSeries';
+import { useChartViewportSync } from '../features/timeseries/composables/useChartViewportSync';
+import { useAdaptiveFilters } from '../features/timeseries/hooks/useAdaptiveFilters';
 import styles from './TimeseriesPage.module.css';
 
 const TimeseriesPage: Component = () => {
   let pageRef: HTMLDivElement | undefined;
   const navigate = useNavigate();
 
+  // Phase 3: Use composables instead of inline signals
+  const { chartReady, chartInstance, updateChartFn, onChartReady, onEngineReady } = useChartLifecycle();
+  const { allTraceColumns, traceColumns, selectedColumns, mergedColors, colorPalette, columnBounds, xAxisColumn } = useChartSeries();
+  const { viewport, initialView, actions: viewportActions } = useChartViewportSync();
+  const {
+    adaptiveLineFilters,
+    pendingAdaptivePoint,
+    setPendingAdaptivePoint,
+    adaptiveFilterPoints,
+    setAdaptiveFilterPoints,
+    showAdaptivePopup,
+    setShowAdaptivePopup,
+    popupScreenPos,
+    setPopupScreenPos,
+    addAdaptiveFilter,
+  } = useAdaptiveFilters();
+
+  // UI-only local signals (not in composables — still page-scoped)
   const [drawTool, setDrawTool] = createSignal<'none' | 'zoom' | 'arrow' | 'box'>('none');
   const [drawColor, setDrawColor] = createSignal('#ff0055');
   const [drawWidth, setDrawWidth] = createSignal(2);
@@ -41,37 +71,23 @@ const TimeseriesPage: Component = () => {
   const [isDownsampled, setIsDownsampled] = createSignal(false);
   const [showSkeleton, setShowSkeleton] = createSignal(false);
   const [colorColumn, setColorColumn] = createSignal<string | null>(null);
-  const [showAdaptivePopup, setShowAdaptivePopup] = createSignal(false);
-  const [adaptiveFilterPoints, setAdaptiveFilterPoints] = createSignal<{
-    x1: number; y1: number; x2: number; y2: number; screenX: number; screenY: number;
-  } | null>(null);
-
-  // FIXED: chartUpdateFn, chartReady, chartInstanceRef, lastContextMenuTime, fetchInProgress,
-  // and viewportDebounceTimer were module-level mutable vars that bypassed reactivity.
-  // Now they are proper signals at component level.
-  const [updateChartFn, setUpdateChartFn] = createSignal<((series: any[], xMin?: number, xMax?: number, yMin?: number, yMax?: number) => void) | null>(null);
-  const [chartReady, setChartReady] = createSignal(false);
-  const [chartInstanceRef, setChartInstanceRef] = createSignal<any>(null);
-  const [lastContextMenuTime, setLastContextMenuTime] = createSignal(0);
   const [fetchInProgress, setFetchInProgress] = createSignal(false);
+
+  // Re-expose chart lifecycle callbacks for TimeseriesChart
+  const handleChartReady = onChartReady((instance) => {
+    initViewportFromMetadata();
+    void fetchAndRender();
+  });
+
+  const handleEngineReady = onEngineReady((name) => {
+    setChartEngine(name);
+  });
+
   const { signal: abortSignal, abort, restart: restartAbort } = useAbortController();
   let viewportDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   const numericCols = createMemo(() => datasetStore.state.numericCols);
   const datetimeCols = createMemo(() => datasetStore.state.datetimeCols);
-
-  const xAxisColumn = createMemo(() =>
-    datasetStore.state.xAxisColumn ?? datasetStore.state.metadata?.timestampColumn ?? numericCols()[0] ?? null
-  );
-
-  const selectedColumns = createMemo(() => {
-    const s = uiStore.state.selectedColumns;
-    const xCol = xAxisColumn();
-    if (s.length === 0) {
-      return numericCols().filter(c => c !== xCol);
-    }
-    return s;
-  });
 
   const initViewportFromMetadata = () => {
     const metadata = datasetStore.state.metadata;
@@ -91,48 +107,7 @@ const TimeseriesPage: Component = () => {
     }
   };
 
-  const allTraceColumns = createMemo(() => numericCols().filter(c => c !== xAxisColumn()));
-  const traceColumns = createMemo(() =>
-    selectedColumns().filter(c => c !== xAxisColumn() && !uiStore.state.hiddenColumns.includes(c))
-  );
-  const colorPalette = createMemo(() => getColorPalette(uiStore.state.colorScale, allTraceColumns().length));
-
-  const mergedColors = createMemo(() => {
-    const result: Record<string, string> = { ...uiStore.state.colors };
-    allTraceColumns().forEach((col, idx) => {
-      if (!result.hasOwnProperty(col)) {
-        result[col] = colorPalette()[idx % colorPalette().length];
-      }
-    });
-    return result;
-  });
-
-  const columnBounds = createMemo(() => {
-    const bounds: Record<string, { min: number; max: number }> = {};
-    for (const col of numericCols()) {
-      const profile = datasetStore.state.columns.find(c => c.name === col);
-      if (profile?.min !== undefined && profile?.max !== undefined) {
-        bounds[col] = { min: profile.min, max: profile.max };
-      }
-    }
-    return bounds;
-  });
-
-  const handleChartReady = (updateFn: (series: any[], xMin?: number, xMax?: number, yMin?: number, yMax?: number) => void, chartInstance?: any) => {
-    setUpdateChartFn(() => updateFn);
-    setChartReady(true);
-    if (chartInstance) setChartInstanceRef(chartInstance);
-    initViewportFromMetadata();
-    void fetchAndRender();
-  };
-
-  const handleEngineReady = (engineName: string) => {
-    setChartEngine(engineName);
-  };
-
-  const handleChartInstance = (instance: any) => {
-    setChartInstanceRef(instance);
-  };
+  // Removed: allTraceColumns, traceColumns, colorPalette, mergedColors, columnBounds — now from useChartSeries
 
   const handleLabelsChange = (title: string, xLabel: string, yLabel: string) => {
     setChartTitle(title);
@@ -169,7 +144,7 @@ const TimeseriesPage: Component = () => {
       debugLogOnce('fetchAndRender-result', 'fetchAndRender result', { returnedRows: result.returnedRows, downsampled: result.downsampled });
       setIsDownsampled(result.downsampled);
 
-      const seriesConfig = buildSeriesConfig(result.xValues, result.series, mergedColors(), uiStore.state.filters, result.colorByColumn, colorColumn(), !result.downsampled, uiStore.state.colorScale, uiStore.state.adaptiveLineFilters);
+      const seriesConfig = buildSeriesConfig(result.xValues, result.series, mergedColors(), timeseriesStore.state.filters, result.colorByColumn, colorColumn(), !result.downsampled, uiStore.state.colorScale, adaptiveLineFilters());
       const doUpdate = updateChartFn();
       if (!doUpdate) {
         debugLog('fetchAndRender skipped: no updateChartFn');
@@ -268,11 +243,11 @@ const TimeseriesPage: Component = () => {
   };
 
   const handleFilterApply = (column: string, range: { min: number; max: number }) => {
-    uiStore.setFilter(column, range);
+    timeseriesStore.setFilter(column, range);
   };
 
   const handleFilterClear = (column: string) => {
-    uiStore.removeFilter(column);
+    timeseriesStore.removeFilter(column);
   };
 
   const handleXAxisChange = (col: string) => {
@@ -326,8 +301,8 @@ const TimeseriesPage: Component = () => {
 
   onMount(() => {
     if (numericCols().length > 0) {
-      uiStore.setSelectedColumns(numericCols());
-      uiStore.setHiddenColumns([]);
+      timeseriesStore.setSelectedColumns(numericCols());
+      timeseriesStore.setHiddenColumns([]);
     }
 
     const handleShortcut = (e: Event) => {
@@ -342,9 +317,9 @@ const TimeseriesPage: Component = () => {
       } else if (key === 'e') {
         handleExportCSV();
       } else if (key === 'c') {
-        const filters = uiStore.state.filters;
+        const filters = timeseriesStore.state.filters;
         for (const col of Object.keys(filters)) {
-          uiStore.removeFilter(col);
+          timeseriesStore.removeFilter(col);
         }
         void fetchAndRender();
       }
@@ -375,16 +350,16 @@ const TimeseriesPage: Component = () => {
     // Ctrl+Click key tracking for adaptive line filters
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Control') {
-        uiStore.setPendingAdaptivePoint(null); // clear on new Ctrl press
+        setPendingAdaptivePoint(null); // clear on new Ctrl press
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === 'Control') {
-        const pending = uiStore.state.pendingAdaptivePoint;
+        const pending = pendingAdaptivePoint();
         if (pending?.x2 !== null && pending?.x2 !== undefined) {
           const screenPos = popupScreenPos();
-          setAdaptiveFilterPoints({
+          addAdaptiveFilter({
             x1: pending.x1, y1: pending.y1,
             x2: pending.x2!, y2: pending.y2!,
             screenX: screenPos?.x ?? (pending.x1 + pending.x2!) / 2,
@@ -404,19 +379,16 @@ const TimeseriesPage: Component = () => {
     });
   });
 
-  // Popup screen position for AdaptiveFilterPopup
-  const [popupScreenPos, setPopupScreenPos] = createSignal<{ x: number; y: number } | null>(null);
-
   // handleCtrlClick - called by ChartView when Ctrl+Click on chart
   const handleCtrlClick = (dataX: number, dataY: number, clientX: number, clientY: number) => {
-    const pending = uiStore.state.pendingAdaptivePoint;
+    const pending = pendingAdaptivePoint();
     if (!pending) {
       // First click - start line
-      uiStore.setPendingAdaptivePoint({ x1: dataX, y1: dataY, x2: null, y2: null });
+      setPendingAdaptivePoint({ x1: dataX, y1: dataY, x2: null, y2: null });
       setPopupScreenPos({ x: clientX, y: clientY });
     } else if (pending.x2 === null) {
       // Second click - complete line (don't overwrite x1/y1)
-      uiStore.setPendingAdaptivePoint({ x1: pending.x1, y1: pending.y1, x2: dataX, y2: dataY });
+      setPendingAdaptivePoint({ x1: pending.x1, y1: pending.y1, x2: dataX, y2: dataY });
       // Use midpoint between first and second click for popup position
       setPopupScreenPos({ x: clientX, y: clientY });
     }
@@ -454,8 +426,8 @@ const TimeseriesPage: Component = () => {
     // Use untrack to avoid reactive tracking of lastColCount
     const prevColCount = untrack(() => lastColCount);
     if (cols.length > 0 && cols.length !== prevColCount && prevColCount > 0) {
-      uiStore.setSelectedColumns(cols);
-      uiStore.setHiddenColumns([]);
+      timeseriesStore.setSelectedColumns(cols);
+      timeseriesStore.setHiddenColumns([]);
     }
     if (cols.length > 0 && metadata?.timeRange) {
       const [t0, t1] = metadata.timeRange;
@@ -490,7 +462,7 @@ const TimeseriesPage: Component = () => {
       return { reason: 'range-outside-dataset' as const, title: 'Current range is outside this dataset', message: 'Reset to dataset range to recover visible data.' };
     }
     // Check if any filters would exclude all data
-    const filters = uiStore.state.filters;
+    const filters = timeseriesStore.state.filters;
     const hasActiveFilters = Object.keys(filters).length > 0;
     if (hasActiveFilters && !canShowChart()) {
       return { reason: 'data-filtered-out' as const, title: 'No points match current filters', message: 'Try widening the time range or clearing filters.' };
@@ -542,9 +514,9 @@ const TimeseriesPage: Component = () => {
         mergedColors={mergedColors()}
         onXAxisChange={handleXAxisChange}
         onColorByChange={setColorColumn}
-        onColumnChange={(cols) => { console.debug('[TimeseriesPage] onChange selected:', JSON.stringify(cols)); uiStore.setSelectedColumns(cols); }}
-        onHiddenChange={(hidden) => { console.debug('[TimeseriesPage] onHiddenChange:', JSON.stringify(hidden)); uiStore.setHiddenColumns(hidden); }}
-        onColorChange={(col, color) => { console.debug('[TimeseriesPage] onColorChange:', col, color); uiStore.setColumnColor(col, color); }}
+        onColumnChange={(cols) => { console.debug('[TimeseriesPage] onChange selected:', JSON.stringify(cols)); timeseriesStore.setSelectedColumns(cols); }}
+        onHiddenChange={(hidden) => { console.debug('[TimeseriesPage] onHiddenChange:', JSON.stringify(hidden)); timeseriesStore.setHiddenColumns(hidden); }}
+        onColorChange={(col, color) => { console.debug('[TimeseriesPage] onColorChange:', col, color); timeseriesStore.setColumnColor(col, color); }}
         onOpenFilter={openFilterModal}
       />
 
@@ -578,14 +550,10 @@ const TimeseriesPage: Component = () => {
       />
 
       <main class={styles.main} id="main">
-        <ChartView
+        <TimeseriesChart
           containerId="main-chart"
-          onReady={handleChartReady}
-          onChartReady={handleChartInstance}
+          onChartReady={handleChartReady}
           onEngineReady={handleEngineReady}
-          onZoom={handleZoom}
-          onZoomOut={handleZoomOut}
-          onCtrlClick={handleCtrlClick}
           rollingBands={timeseriesStore.state.rollingBands}
           anomalyRegions={timeseriesStore.state.anomalyRegions}
           drawMode={drawTool() === 'zoom' ? 'zoom' : drawTool() === 'none' ? 'pan' : drawTool() as any}
@@ -594,8 +562,8 @@ const TimeseriesPage: Component = () => {
           chartTitle={chartTitle()}
           xAxisLabel={xAxisLabel()}
           yAxisLabel={yAxisLabel()}
-          pendingAdaptivePoint={uiStore.state.pendingAdaptivePoint}
-          adaptiveLineFilters={uiStore.state.adaptiveLineFilters}
+          pendingAdaptivePoint={pendingAdaptivePoint()}
+          adaptiveLineFilters={adaptiveLineFilters()}
         />
 
         <Show when={emptyStateInfo()}>
@@ -626,12 +594,12 @@ const TimeseriesPage: Component = () => {
                   </button>
                 </Show>
                 <Show when={info().reason === 'no-columns-selected'}>
-                  <button class={styles.primaryBtn} id="timeseries-empty-select-btn" type="button" aria-label="Select all columns" onClick={() => { uiStore.setSelectedColumns(numericCols()); }}>
+                  <button class={styles.primaryBtn} id="timeseries-empty-select-btn" type="button" aria-label="Select all columns" onClick={() => { timeseriesStore.setSelectedColumns(numericCols()); }}>
                     Select all columns
                   </button>
                 </Show>
                 <Show when={info().reason === 'data-filtered-out'}>
-                  <button class={styles.primaryBtn} id="timeseries-empty-clear-filters-btn" type="button" aria-label="Clear all filters" onClick={() => { for (const col of Object.keys(uiStore.state.filters)) { uiStore.removeFilter(col); } void fetchAndRender(); }}>
+                  <button class={styles.primaryBtn} id="timeseries-empty-clear-filters-btn" type="button" aria-label="Clear all filters" onClick={() => { for (const col of Object.keys(timeseriesStore.state.filters)) { timeseriesStore.removeFilter(col); } void fetchAndRender(); }}>
                     Clear filters
                   </button>
                 </Show>
@@ -723,7 +691,7 @@ const TimeseriesPage: Component = () => {
         column={filterModalColumn()}
         columns={traceColumns()}
         bounds={columnBounds()}
-        currentFilters={uiStore.state.filters}
+        currentFilters={timeseriesStore.state.filters}
         onApply={handleFilterApply}
         onClear={handleFilterClear}
         onClose={() => setFilterModalOpen(false)}

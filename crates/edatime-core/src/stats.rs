@@ -6,7 +6,7 @@ use crate::error::AppError;
 
 /// Cast a series to f64 and collect values, filtering out non-finite entries.
 /// Returns `Vec<Option<f64>>` where `None` was either null or non-finite.
-pub fn series_to_finite_f64(series: &Series, label: &str) -> Result<Vec<Option<f64>>, AppError> {
+pub fn series_to_finite_f64(series: &Series, label: &str) -> Result<Vec<f64>, AppError> {
     let casted = series
         .cast(&DataType::Float64)
         .map_err(|e| AppError::internal(format!("Cast '{label}': {e}")))?;
@@ -15,7 +15,7 @@ pub fn series_to_finite_f64(series: &Series, label: &str) -> Result<Vec<Option<f
         .map_err(|e| AppError::internal(format!("Read '{label}': {e}")))?;
     Ok(ca
         .into_iter()
-        .map(|v| v.filter(|f| f.is_finite()))
+        .filter_map(|v| v.filter(|f| f.is_finite()))
         .collect())
 }
 

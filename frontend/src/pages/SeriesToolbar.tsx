@@ -49,7 +49,7 @@ const SeriesToolbar: Component<SeriesToolbarProps> = (props) => {
         <select
           id="color-by-select"
           class={styles.xAxisSelect}
-          value={props.colors.colorColumn ?? ''}
+          value={props.mergedColors.colorColumn ?? ''}
           onChange={(e) => props.onColorByChange(e.currentTarget.value || null)}
           aria-label="Color by column"
         >

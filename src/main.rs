@@ -9,30 +9,11 @@ use tower_http::{
 };
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-pub mod analytics;
-pub mod arrow_export;
-pub mod cache;
-pub mod causal;
-pub mod config;
-pub mod db;
-pub mod downsample;
-pub mod error;
-pub mod filters;
-pub mod ingest;
-pub mod metrics;
-pub mod middleware;
-pub mod pipeline;
-pub mod query;
-pub mod rates;
-pub mod repository;
-pub mod routes;
-pub mod state;
-pub mod stats;
-pub mod temporal;
-pub mod validation;
-
-use config::AppConfig;
-use state::AppState;
+use edatime_core::config::AppConfig;
+use edatime_service::state::AppState;
+use edatime_service::routes;
+use edatime_service::middleware;
+use edatime_service::rates;
 
 #[tokio::main]
 async fn main() {

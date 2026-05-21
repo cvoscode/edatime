@@ -8,11 +8,15 @@ edatime-core = { path = "../edatime-core" }
 polars.workspace = true
 arrow.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 bytes.workspace = true
 tokio.workspace = true
-rayon = "1.10"
+chrono.workspace = true
+rayon.workspace = true
+minmaxlttb.workspace = true
+axum.workspace = true
 
 [dev-dependencies]
 criterion = "0.5.1"

@@ -70,6 +70,13 @@ export interface CorrelationItem {
   spearman: number | null;
 }
 
+/// Suggestion item from scatter correlations API - explicit x/y column names
+export interface SuggestionItem {
+  x: string;
+  y: string;
+  correlation: number;
+}
+
 // =============================================================================
 // Chart Overlays
 // =============================================================================

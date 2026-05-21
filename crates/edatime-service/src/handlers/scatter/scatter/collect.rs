@@ -22,7 +22,10 @@ pub fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option
         .as_materialized_series();
 
     match series.dtype() {
-        dt if dt.is_numeric() => crate::stats::series_to_finite_f64(series, name),
+        dt if dt.is_numeric() => Ok(edatime_core::stats::series_to_finite_f64(series, name)?
+        .into_iter()
+        .map(Some)
+        .collect()),
         DataType::Datetime(_, _) | DataType::Date => {
             let casted = series.cast(&DataType::Int64).map_err(|e| {
                 AppError::internal(format!(
@@ -35,7 +38,7 @@ pub fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option
             })?;
 
             let dtype = series.dtype();
-            let divisor = crate::temporal::unit_multiplier(dtype);
+            let divisor = edatime_core::temporal::unit_multiplier(dtype);
 
             Ok(vals
                 .into_iter()
@@ -117,20 +120,37 @@ pub fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
     line_filters: &[ScatterLineFilterSpec],
 ) -> Result<LazyFrame, AppError> {
     let lf: LazyFrame = df.into();
-    let schema = lf.clone().collect_schema().map_err(|e| AppError::bad_request(format!("schema: {}", e)))?;
+    let schema = lf
+        .clone()
+        .collect_schema()
+        .map_err(|e| AppError::bad_request(format!("schema: {}", e)))?;
 
-    let x_dtype = schema.get(x).ok_or_else(|| AppError::bad_request(format!("Unknown column '{}'", x)))?;
+    let x_dtype = schema
+        .get(x)
+        .ok_or_else(|| AppError::bad_request(format!("Unknown column '{}'", x)))?;
     if !(x_dtype.is_numeric() || matches!(x_dtype, DataType::Datetime(_, _) | DataType::Date)) {
-        return Err(AppError::bad_request(format!("Column '{}' is not numeric or temporal", x)));
+        return Err(AppError::bad_request(format!(
+            "Column '{}' is not numeric or temporal",
+            x
+        )));
     }
-    let y_dtype = schema.get(y).ok_or_else(|| AppError::bad_request(format!("Unknown column '{}'", y)))?;
+    let y_dtype = schema
+        .get(y)
+        .ok_or_else(|| AppError::bad_request(format!("Unknown column '{}'", y)))?;
     if !(y_dtype.is_numeric() || matches!(y_dtype, DataType::Datetime(_, _) | DataType::Date)) {
-        return Err(AppError::bad_request(format!("Column '{}' is not numeric or temporal", y)));
+        return Err(AppError::bad_request(format!(
+            "Column '{}' is not numeric or temporal",
+            y
+        )));
     }
-    if let Some(c) = color && !schema.contains(c) {
+    if let Some(c) = color
+        && !schema.contains(c)
+    {
         return Err(AppError::bad_request(format!("Unknown column '{}'", c)));
     }
-    if let Some(s) = size && !schema.contains(s) {
+    if let Some(s) = size
+        && !schema.contains(s)
+    {
         return Err(AppError::bad_request(format!("Unknown column '{}'", s)));
     }
 

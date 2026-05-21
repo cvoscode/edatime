@@ -6,6 +6,8 @@ use thiserror::Error;
 pub enum AppError {
     #[error("validation error: {0}")]
     Validation(String),
+    #[error("bad request: {0}")]
+    BadRequest(String),
     #[error("not found: {0}")]
     NotFound(String),
     #[error("query error: {0}")]
@@ -14,6 +16,20 @@ pub enum AppError {
     Io(String),
     #[error("internal error: {0}")]
     Internal(String),
+}
+
+impl AppError {
+    pub fn bad_request(msg: impl Into<String>) -> Self {
+        Self::BadRequest(msg.into())
+    }
+
+    pub fn validation(msg: impl Into<String>) -> Self {
+        Self::Validation(msg.into())
+    }
+
+    pub fn internal(msg: impl Into<String>) -> Self {
+        Self::Internal(msg.into())
+    }
 }
 
 impl From<polars::prelude::PolarsError> for AppError {

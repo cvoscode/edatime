@@ -13,17 +13,14 @@ use axum::{
 use polars::prelude::*;
 use std::sync::Arc;
 
-use crate::arrow_export::dataframe_to_arrow_ipc;
+use edatime_query::arrow_export::dataframe_to_arrow_ipc;
 use crate::error::AppError;
-use crate::state::AppState;
-use crate::validation::{validate_scatter_limit, validate_time_window};
+use edatime_store::state::AppState;
+use edatime_query::validation::{validate_scatter_limit, validate_time_window};
 
-use super::{
-    clamp_limit, parse_scatter_filters, parse_scatter_line_filters,
-    ScatterPointsQuery,
-};
 use super::collect::collect_filtered_scatter_frame;
-use super::sample::{collect_sampled_xyc_rows, ScatterColorKind};
+use super::sample::{ScatterColorKind, collect_sampled_xyc_rows};
+use super::{ScatterPointsQuery, clamp_limit, parse_scatter_filters, parse_scatter_line_filters};
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
 
@@ -105,117 +102,123 @@ async fn scatter_points_response(
         &line_filters,
     )?;
 
-    let (total_points, returned_points, color_min, color_max, size_min, size_max, color_kind, arrow_bytes) =
-        tokio::task::spawn_blocking(move || {
-            let x_col_str: &str = &x_col_name;
-            let y_col_str: &str = &y_col_name;
-            let filtered_df = lazy_frame
-                .clone()
-                .with_new_streaming(true)
-                .collect()
-                .map_err(|e| AppError::io(e.to_string()))?;
+    let (
+        total_points,
+        returned_points,
+        color_min,
+        color_max,
+        size_min,
+        size_max,
+        color_kind,
+        arrow_bytes,
+    ) = tokio::task::spawn_blocking(move || {
+        let x_col_str: &str = &x_col_name;
+        let y_col_str: &str = &y_col_name;
+        let filtered_df = lazy_frame
+            .clone()
+            .with_new_streaming(true)
+            .collect()
+            .map_err(|e| AppError::io(e.to_string()))?;
 
-            let effective_limit = limit.min(state.config.validation.max_scatter_effective_points);
-            let slice_df = if filtered_df.height() > effective_limit {
-                filtered_df.slice(0, effective_limit)
-            } else {
-                filtered_df
-            };
+        let effective_limit = limit.min(state.config.validation.max_scatter_effective_points);
+        let slice_df = if filtered_df.height() > effective_limit {
+            filtered_df.slice(0, effective_limit)
+        } else {
+            filtered_df
+        };
 
-            let (total, sampled_rows, color_kind) = collect_sampled_xyc_rows(
-                &slice_df,
-                &x_col,
-                &y_col,
-                color_col.as_deref(),
-                size_col.as_deref(),
-                limit,
-                effective_limit,
-            )?;
+        let (total, sampled_rows, color_kind) = collect_sampled_xyc_rows(
+            &slice_df,
+            &x_col,
+            &y_col,
+            color_col.as_deref(),
+            size_col.as_deref(),
+            limit,
+            effective_limit,
+        )?;
 
-            let n = sampled_rows.len();
-            let mut x_buf = Vec::with_capacity(n);
-            let mut y_buf = Vec::with_capacity(n);
-            let mut cv_buf: Vec<f64> = Vec::with_capacity(n);
-            let mut color_strings: Vec<String> = Vec::with_capacity(n);
-            let mut sv_buf: Vec<f64> = Vec::with_capacity(n);
+        let n = sampled_rows.len();
+        let mut x_buf = Vec::with_capacity(n);
+        let mut y_buf = Vec::with_capacity(n);
+        let mut cv_buf: Vec<f64> = Vec::with_capacity(n);
+        let mut color_strings: Vec<String> = Vec::with_capacity(n);
+        let mut sv_buf: Vec<f64> = Vec::with_capacity(n);
 
-            let mut cmin = f64::INFINITY;
-            let mut cmax = f64::NEG_INFINITY;
-            let mut smin = f64::INFINITY;
-            let mut smax = f64::NEG_INFINITY;
+        let mut cmin = f64::INFINITY;
+        let mut cmax = f64::NEG_INFINITY;
+        let mut smin = f64::INFINITY;
+        let mut smax = f64::NEG_INFINITY;
 
-            for row in sampled_rows {
-                x_buf.push(row.x);
-                y_buf.push(row.y);
-                match row.color_value {
-                    Some(v) if v.is_finite() => {
-                        cv_buf.push(v);
-                        color_strings.push(String::new());
-                        if v < cmin {
-                            cmin = v;
-                        }
-                        if v > cmax {
-                            cmax = v;
-                        }
+        for row in sampled_rows {
+            x_buf.push(row.x);
+            y_buf.push(row.y);
+            match row.color_value {
+                Some(v) if v.is_finite() => {
+                    cv_buf.push(v);
+                    color_strings.push(String::new());
+                    if v < cmin {
+                        cmin = v;
                     }
-                    _ => {
-                        cv_buf.push(f64::NAN);
-                        color_strings.push(row.color_label.unwrap_or_default());
+                    if v > cmax {
+                        cmax = v;
                     }
                 }
-                if let Some(sv) = row.size_value {
-                    sv_buf.push(sv);
-                    if sv < smin {
-                        smin = sv;
-                    }
-                    if sv > smax {
-                        smax = sv;
-                    }
+                _ => {
+                    cv_buf.push(f64::NAN);
+                    color_strings.push(row.color_label.unwrap_or_default());
                 }
             }
+            if let Some(sv) = row.size_value {
+                sv_buf.push(sv);
+                if sv < smin {
+                    smin = sv;
+                }
+                if sv > smax {
+                    smax = sv;
+                }
+            }
+        }
 
-            let color_min = if cmin.is_finite() { Some(cmin) } else { None };
-            let color_max = if cmax.is_finite() { Some(cmax) } else { None };
-            let size_min = if smin.is_finite() { Some(smin) } else { None };
-            let size_max = if smax.is_finite() { Some(smax) } else { None };
+        let color_min = if cmin.is_finite() { Some(cmin) } else { None };
+        let color_max = if cmax.is_finite() { Some(cmax) } else { None };
+        let size_min = if smin.is_finite() { Some(smin) } else { None };
+        let size_max = if smax.is_finite() { Some(smax) } else { None };
 
-            let x_s = Series::new(PlSmallStr::from(x_col_str), x_buf.as_slice());
-            let y_s = Series::new(PlSmallStr::from(y_col_str), y_buf.as_slice());
+        let x_s = Series::new(PlSmallStr::from(x_col_str), x_buf.as_slice());
+        let y_s = Series::new(PlSmallStr::from(y_col_str), y_buf.as_slice());
 
-            let actual_color_col = color_col_name.clone();
-            let columns: Vec<Series> = if matches!(color_kind, Some(ScatterColorKind::Categorical)) {
-                let cs = Series::new(
-                    PlSmallStr::from(&actual_color_col),
-                    color_strings.as_slice(),
-                );
-                vec![x_s, y_s, cs]
-            } else {
-                let cv_s = Series::new(PlSmallStr::from(&actual_color_col), cv_buf.as_slice());
-                vec![x_s, y_s, cv_s]
-            };
+        let actual_color_col = color_col_name.clone();
+        let columns: Vec<Series> = if matches!(color_kind, Some(ScatterColorKind::Categorical)) {
+            let cs = Series::new(
+                PlSmallStr::from(&actual_color_col),
+                color_strings.as_slice(),
+            );
+            vec![x_s, y_s, cs]
+        } else {
+            let cv_s = Series::new(PlSmallStr::from(&actual_color_col), cv_buf.as_slice());
+            vec![x_s, y_s, cv_s]
+        };
 
-            let columns: Vec<Column> = columns.into_iter().map(|s| s.into_column()).collect();
-            let scatter_df = DataFrame::new(x_buf.len(), columns)
-                .map_err(|e| AppError::internal(format!("build scatter dataframe: {}", e)))?;
+        let columns: Vec<Column> = columns.into_iter().map(|s| s.into_column()).collect();
+        let scatter_df = DataFrame::new(x_buf.len(), columns)
+            .map_err(|e| AppError::internal(format!("build scatter dataframe: {}", e)))?;
 
-            let arrow_bytes = dataframe_to_arrow_ipc(scatter_df)
-                .map_err(|e| AppError::internal(format!("Arrow serialization: {}", e)))?;
+        let arrow_bytes = dataframe_to_arrow_ipc(scatter_df)
+            .map_err(|e| AppError::internal(format!("Arrow serialization: {}", e)))?;
 
-            Ok::<_, AppError>((
-                total,
-                n,
-                color_min,
-                color_max,
-                size_min,
-                size_max,
-                color_kind,
-                arrow_bytes,
-            ))
-        })
-        .await
-        .map_err(|e| {
-            AppError::internal(format!("Failed to join scatter points task: {:?}", e))
-        })??;
+        Ok::<_, AppError>((
+            total,
+            n,
+            color_min,
+            color_max,
+            size_min,
+            size_max,
+            color_kind,
+            arrow_bytes,
+        ))
+    })
+    .await
+    .map_err(|e| AppError::internal(format!("Failed to join scatter points task: {:?}", e)))??;
 
     metrics.record_scatter_sampling(total_points, returned_points);
 

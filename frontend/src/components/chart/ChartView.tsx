@@ -42,6 +42,8 @@ const ChartView: Component<ChartViewProps> = (props) => {
   const [themeVersion, setThemeVersion] = createSignal(0);
   let chartInstanceRef: any = null;
   let axisLabelX = '';
+
+  console.error('[ChartView] CONSTRUCTOR called');
   let axisLabelY = '';
 
   const activeTemplate = createMemo(() =>
@@ -183,6 +185,16 @@ const ChartView: Component<ChartViewProps> = (props) => {
         props.onCtrlClick?.(dataX, dataY, e.clientX, e.clientY);
       }
     });
+  });
+
+  // Call onReady when chart becomes ready
+  createEffect(() => {
+    const status = chartEngine.chartStatus();
+    console.debug('[ChartView] createEffect ran, chartStatus:', status);
+    if (status === 'ready') {
+      console.debug('[ChartView] calling props.onReady');
+      props.onReady?.(handleUpdateChart);
+    }
   });
 
   createEffect(() => {

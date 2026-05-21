@@ -6,10 +6,9 @@
 use polars::prelude::*;
 
 use crate::arrow_export::dataframe_to_arrow_ipc;
-use crate::error::AppError;
 use crate::query::{AggFn, OutputFormat};
-
-// ── Stage 1: Filter by time range ──────────────────────────────────────────
+use edatime_core::error::AppError;
+use edatime_core::stats::series_to_finite_f64;
 
 /// Filter a `LazyFrame` to only rows whose timestamp column falls within
 /// `[start_ts, end_ts]` (in milliseconds), selecting only the requested columns.
@@ -76,7 +75,7 @@ pub fn apply_reduction(
             }
             let out = df
                 .select(select_cols)
-                .map_err(|e| AppError::io(format!("select error: {}", e)))?;
+                .map_err(|e| AppError::Io(format!("select error: {}", e)))?;
             Ok((out, false))
         }
 
@@ -88,7 +87,7 @@ pub fn apply_reduction(
                 select_cols.extend_from_slice(extra_cols);
                 let out = df
                     .select(select_cols)
-                    .map_err(|e| AppError::io(format!("select error: {}", e)))?;
+                    .map_err(|e| AppError::Io(format!("select error: {}", e)))?;
                 return Ok((out, false));
             }
             let col_refs: Vec<&str> = value_cols.iter().map(|s| s.as_str()).collect();
@@ -100,7 +99,7 @@ pub fn apply_reduction(
                 &extra_refs,
                 target,
             )
-            .map_err(|e| AppError::io(format!("Downsample error: {}", e)))?;
+            .map_err(|e| AppError::Io(format!("Downsample error: {}", e)))?;
             Ok((out, true))
         }
 
@@ -148,20 +147,20 @@ fn window_aggregate(
         return Ok((DataFrame::default(), true));
     }
     if window_size_native <= 0 || step_size_native <= 0 {
-        return Err(AppError::bad_request(
-            "Window and step sizes must be positive",
+        return Err(AppError::BadRequest(
+            "Window and step sizes must be positive".to_string(),
         ));
     }
 
     let ts_i64 = df
         .column(ts_col)
         .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::bad_request(format!("Missing ts column '{}': {}", ts_col, e)))?
+        .map_err(|e| AppError::BadRequest(format!("Missing ts column '{}': {}", ts_col, e)))?
         .cast(&DataType::Int64)
-        .map_err(|e| AppError::io(format!("ts cast: {}", e)))?;
+        .map_err(|e| AppError::Io(format!("ts cast: {}", e)))?;
     let ts_values = ts_i64
         .i64()
-        .map_err(|e| AppError::io(format!("ts i64: {}", e)))?;
+        .map_err(|e| AppError::Io(format!("ts i64: {}", e)))?;
 
     let ts_vec: Vec<i64> = ts_values.into_iter().flatten().collect();
     if ts_vec.is_empty() {
@@ -176,8 +175,9 @@ fn window_aggregate(
         let series = df
             .column(col_name)
             .map(|c| c.as_materialized_series())
-            .map_err(|e| AppError::bad_request(format!("Missing '{}': {}", col_name, e)))?;
-        per_col_values.push(crate::stats::series_to_finite_f64(series, col_name)?);
+            .map_err(|e| AppError::BadRequest(format!("Missing '{}': {}", col_name, e)))?;
+        let finite: Vec<f64> = edatime_core::stats::series_to_finite_f64(series, col_name)?;
+        per_col_values.push(finite.into_iter().map(Some).collect());
     }
 
     let mut out_ts: Vec<i64> = Vec::new();
@@ -213,7 +213,7 @@ fn window_aggregate(
         columns.push(Series::new(name.as_str().into(), out_cols[idx].clone()).into());
     }
     let result = DataFrame::new(columns.len(), columns)
-        .map_err(|e| AppError::io(format!("window aggregate frame: {}", e)))?;
+        .map_err(|e| AppError::Io(format!("window aggregate frame: {}", e)))?;
 
     Ok((result, true))
 }
@@ -239,12 +239,12 @@ fn bucket_aggregate(
     let ts_series = df
         .column(ts_col)
         .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::io(format!("Missing ts column '{}': {}", ts_col, e)))?
+        .map_err(|e| AppError::Io(format!("Missing ts column '{}': {}", ts_col, e)))?
         .cast(&DataType::Int64)
-        .map_err(|e| AppError::io(format!("ts cast failed: {}", e)))?;
+        .map_err(|e| AppError::Io(format!("ts cast failed: {}", e)))?;
     let mut iter = ts_series
         .i64()
-        .map_err(|e| AppError::io(format!("ts i64 failed: {}", e)))?
+        .map_err(|e| AppError::Io(format!("ts i64 failed: {}", e)))?
         .into_iter()
         .flatten();
     let first = iter.next();
@@ -315,7 +315,7 @@ fn bucket_aggregate(
         })
         .with_new_streaming(true)
         .collect()
-        .map_err(|e| AppError::io(e.to_string()))?;
+        .map_err(|e| AppError::Io(e.to_string()))?;
 
     Ok((result, true))
 }
@@ -334,11 +334,11 @@ pub fn serialize_arrow(df: DataFrame, ts_col: &str) -> Result<Vec<u8>, AppError>
             .lazy()
             .with_column(col(ts_col).cast(DataType::Datetime(TimeUnit::Milliseconds, None)))
             .collect()
-            .map_err(|e| AppError::io(format!("ts cast: {}", e)))?,
+            .map_err(|e| AppError::Io(format!("ts cast: {}", e)))?,
         _ => df,
     };
     dataframe_to_arrow_ipc(df)
-        .map_err(|e| AppError::io(format!("Arrow IPC serialization: {:?}", e)))
+        .map_err(|e| AppError::Io(format!("Arrow IPC serialization: {:?}", e)))
 }
 
 /// Serialize a DataFrame to a JSON value with `ts` and `values` keys.
@@ -349,21 +349,21 @@ pub fn serialize_json(
     ts_dtype: &DataType,
     ts_col: &str,
 ) -> Result<serde_json::Value, AppError> {
-    let multiplier = crate::temporal::unit_multiplier(ts_dtype);
+    let multiplier = edatime_core::temporal::unit_multiplier(ts_dtype);
 
     let ts_series = df
         .column(ts_col)
         .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::io(format!("Missing ts '{}': {}", ts_col, e)))?
+        .map_err(|e| AppError::Io(format!("Missing ts '{}': {}", ts_col, e)))?
         .clone();
 
     let ts_i64 = ts_series
         .cast(&DataType::Int64)
-        .map_err(|e| AppError::io(format!("ts cast: {}", e)))?;
+        .map_err(|e| AppError::Io(format!("ts cast: {}", e)))?;
 
     let ts: Vec<f64> = ts_i64
         .i64()
-        .map_err(|e| AppError::io(format!("ts i64: {}", e)))?
+        .map_err(|e| AppError::Io(format!("ts i64: {}", e)))?
         .into_iter()
         .map(|v| {
             v.map(|raw| {
@@ -382,16 +382,16 @@ pub fn serialize_json(
         let col_series = df
             .column(col_name.as_str())
             .map(|c| c.as_materialized_series())
-            .map_err(|e| AppError::io(format!("Missing '{}': {}", col_name, e)))?
+            .map_err(|e| AppError::Io(format!("Missing '{}': {}", col_name, e)))?
             .clone();
 
         let col_series = col_series
             .cast(&DataType::Float64)
-            .map_err(|e| AppError::io(format!("Cast '{}': {}", col_name, e)))?;
+            .map_err(|e| AppError::Io(format!("Cast '{}': {}", col_name, e)))?;
 
         let vals: Vec<f64> = col_series
             .f64()
-            .map_err(|e| AppError::io(format!("Read '{}': {}", col_name, e)))?
+            .map_err(|e| AppError::Io(format!("Read '{}': {}", col_name, e)))?
             .into_iter()
             .map(|v| v.unwrap_or(f64::NAN))
             .collect();
@@ -430,46 +430,4 @@ pub fn serialize_json(
     }
 
     Ok(serde_json::Value::Object(payload))
-}
-
-// ── Convenience: build a full response ─────────────────────────────────────
-
-use axum::Json;
-use axum::http::header;
-use axum::response::{IntoResponse, Response};
-
-pub use crate::routes::shared::ResponseMeta;
-use crate::routes::shared::add_edatime_headers;
-
-/// Build the final HTTP response from a processed DataFrame.
-pub fn build_response(
-    df: DataFrame,
-    value_cols: &[String],
-    format: OutputFormat,
-    ts_dtype: &DataType,
-    ts_col: &str,
-    meta: ResponseMeta,
-) -> Result<Response, AppError> {
-    let response = match format {
-        OutputFormat::Arrow => {
-            let ipc_bytes = serialize_arrow(df, ts_col)?;
-            (
-                [(header::CONTENT_TYPE, "application/vnd.apache.arrow.stream")],
-                ipc_bytes,
-            )
-                .into_response()
-        }
-        OutputFormat::Json => {
-            let json = serialize_json(&df, value_cols, None, ts_dtype, ts_col)?;
-            Json(json).into_response()
-        }
-    };
-
-    let response_meta = ResponseMeta {
-        is_downsampled: meta.is_downsampled,
-        returned_rows: meta.returned_rows,
-        target_points: meta.target_points,
-    };
-    let response = add_edatime_headers(response, &response_meta);
-    Ok(response)
 }

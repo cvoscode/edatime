@@ -4,8 +4,8 @@
 //! (e.g., via `tokio::task::spawn_blocking`). They do NOT use `block_in_place`
 //! internally — callers are responsible for proper async thread dispatch.
 
-use polars::prelude::*;
 use crate::error::AppError;
+use polars::prelude::*;
 
 const ALLOWED_OPS: &[&str] = &["+", "-", "*", "/", "%"];
 const ALLOWED_FUNCTIONS: &[&str] = &[
@@ -171,7 +171,10 @@ fn apply_function(name: &str, inner: Expr) -> Result<Expr, AppError> {
         "ceil" => Ok(float_map(inner, |x| x.ceil())),
         "floor" => Ok(float_map(inner, |x| x.floor())),
         "round" => Ok(float_map(inner, |x| x.round())),
-        _ => Err(AppError::bad_request(format!("Unknown function '{}'", name))),
+        _ => Err(AppError::bad_request(format!(
+            "Unknown function '{}'",
+            name
+        ))),
     }
 }
 

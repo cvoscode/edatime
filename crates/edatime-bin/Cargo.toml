@@ -4,9 +4,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-edatime = { path = "../.." }
 edatime-core = { path = "../edatime-core" }
 edatime-query = { path = "../edatime-query" }
+edatime-store = { path = "../edatime-store" }
+edatime-service = { path = "../edatime-service" }
 polars.workspace = true
 tokio.workspace = true
 serde.workspace = true

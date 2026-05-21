@@ -5,10 +5,16 @@ edition.workspace = true
 
 [dependencies]
 edatime-core = { path = "../edatime-core" }
+edatime-query = { path = "../edatime-query" }
 polars.workspace = true
 arrow.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 bytes.workspace = true
 tokio.workspace = true
+axum.workspace = true
+deadpool-postgres = { version = "0.14", features = ["serde"] }
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
+chrono.workspace = true

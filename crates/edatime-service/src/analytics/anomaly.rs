@@ -136,7 +136,7 @@ pub fn detect_anomalies_iqr(
     for col_name in columns {
         let values = extract_f64_column_opt(df, col_name)?;
 
-        let stats = crate::stats::compute_column_stats(
+        let stats = edatime_core::stats::compute_column_stats(
             &values.iter().copied().flatten().collect::<Vec<_>>(),
         );
         let (q1, q3) = match (stats.q1, stats.q3) {

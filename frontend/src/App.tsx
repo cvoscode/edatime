@@ -1,7 +1,9 @@
 import { lazy, Suspense, Component, onMount, onCleanup } from 'solid-js';
 import { HashRouter, Route } from '@solidjs/router';
-import AppShell from './components/layout/AppShell';
+import AppShell from '@/shared/layout/AppShell';
 import { createSessionPersistence } from './stores/sessionStore';
+import { datasetStore } from './stores';
+import { fetchMetadata } from './services/api';
 
 const TimeseriesPage = lazy(() => import('./pages/TimeseriesPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
@@ -42,8 +44,45 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 const App: Component = () => {
   const persistence = createSessionPersistence();
-  onMount(() => {
+  onMount(async () => {
     persistence.start();
+
+    // Sync metadata with server to handle case where data was loaded externally
+    try {
+      console.debug('[App] Fetching metadata from server...');
+      const metadata = await fetchMetadata();
+      console.debug('[App] Metadata response:', metadata);
+      if (metadata && metadata.total_rows > 0) {
+        console.debug('[App] Setting dataset store with metadata, numericCols:', metadata.numeric_columns);
+        datasetStore.setMetadata({
+          revision: metadata.revision,
+          name: metadata.name ?? 'Loaded dataset',
+          rowCount: metadata.total_rows,
+          columns: metadata.columns.map(c => c.name),
+          numericColumns: metadata.numeric_columns,
+          timestampColumn: metadata.time_column ?? '',
+          timeRange: metadata.time_range ? [metadata.time_range.min, metadata.time_range.max] : null,
+          fileSize: 0,
+          uploadedAt: new Date().toISOString(),
+        });
+        datasetStore.setColumns(metadata.column_profiles.map(cp => ({
+          name: cp.name,
+          type: cp.dtype.includes('int') || cp.dtype.includes('float') || cp.dtype.includes('double') ? 'numeric' :
+            cp.dtype.includes('datetime') || cp.dtype.includes('date') ? 'datetime' : 'categorical',
+          min: cp.min ?? undefined,
+          max: cp.max ?? undefined,
+          nullCount: cp.null_count,
+        })));
+        datasetStore.setNumericCols(metadata.numeric_columns);
+        console.debug('[App] Dataset store updated successfully');
+      } else {
+        console.debug('[App] Server has no data loaded (total_rows=0)');
+      }
+    } catch (e) {
+      console.debug('[App] Metadata fetch failed:', e);
+      // Server has no data loaded yet - not an error, just means no dataset in memory
+      console.debug('[App] No dataset loaded on server');
+    }
 
     const onKeydown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || isTypingTarget(event.target)) return;

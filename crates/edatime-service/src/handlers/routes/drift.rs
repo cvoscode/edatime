@@ -7,9 +7,9 @@ use serde::Deserialize;
 
 use crate::analytics::compute_temporal_drift;
 use crate::error::AppError;
-use crate::pipeline::filter_time_range;
-use crate::state::AppState;
-use crate::validation::validate_time_window;
+use edatime_query::pipeline::filter_time_range;
+use edatime_query::validation::validate_time_window;
+use edatime_store::state::AppState;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -62,7 +62,8 @@ pub async fn post_drift_stats(
         let max_expr = col(&ts_col).cast(polars::prelude::DataType::Int64).max();
         let max_lf = lf_max.select([max_expr]);
         let df = state.query_executor.execute_async(max_lf).await?;
-        df.get_column_names().first()
+        df.get_column_names()
+            .first()
             .and_then(|n| df.column(n).ok())
             .and_then(|c| c.as_materialized_series().get(0).ok())
             .and_then(|v| v.try_extract::<i64>().ok())
@@ -73,7 +74,9 @@ pub async fn post_drift_stats(
     let curr_end_ms = max_ts_i64 as f64;
 
     // filter_time_range now returns LazyFrame; execute on Rayon pool
-    let filtered_lf = filter_time_range(lf, ref_start_ms, max_ts_i64, &[], &ts_col)?;
+    // Include the target column in the selection so compute_temporal_drift can access it
+    let col_name = query.column.clone();
+    let filtered_lf = filter_time_range(lf, ref_start_ms, max_ts_i64, &[col_name], &ts_col)?;
     let df = state.query_executor.execute_async(filtered_lf).await?;
 
     // Normalize multiplier:

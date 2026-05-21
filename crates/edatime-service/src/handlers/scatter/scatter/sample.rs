@@ -6,7 +6,7 @@
 
 use polars::prelude::*;
 
-use crate::downsample::downsample_xy_pairs;
+use edatime_query::downsample::downsample_xy_pairs;
 use crate::error::AppError;
 
 use super::collect::{series_to_label_values, series_to_scatter_values};
@@ -59,9 +59,13 @@ pub(super) fn collect_sampled_xyc_rows(
         if series.dtype().is_numeric()
             || matches!(series.dtype(), DataType::Datetime(_, _) | DataType::Date)
         {
-            Some(ScatterColorColumn::Continuous(series_to_scatter_values(df, c)?))
+            Some(ScatterColorColumn::Continuous(series_to_scatter_values(
+                df, c,
+            )?))
         } else {
-            Some(ScatterColorColumn::Categorical(series_to_label_values(df, c)?))
+            Some(ScatterColorColumn::Categorical(series_to_label_values(
+                df, c,
+            )?))
         }
     } else {
         None
@@ -131,7 +135,8 @@ pub(super) fn collect_sampled_xyc_rows(
     let (sampled_x, sampled_y, sampled_color) =
         if matches!(c_vals, Some(ScatterColorColumn::Continuous(_))) {
             let color_f64: Vec<f64> = all_color_value.iter().filter_map(|v| *v).collect();
-            let (sx, sy, sc) = downsample_xy_pairs(&all_x, &all_y, Some(&color_f64), effective_limit);
+            let (sx, sy, sc) =
+                downsample_xy_pairs(&all_x, &all_y, Some(&color_f64), effective_limit);
             (sx, sy, sc)
         } else {
             let (sx, sy, sc) = downsample_xy_pairs(&all_x, &all_y, None, effective_limit);

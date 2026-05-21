@@ -81,5 +81,29 @@ if (isWatch) {
     shell: true,
     cwd: ROOT,
   });
+
+  // Copy ChartGPU library to dist AFTER Vite build (needed at runtime)
+  const libsSrc = path.join(FRONTEND_DIR, 'libs');
+  const libsDest = path.join(FRONTEND_DIR, 'dist', 'libs');
+  if (fs.existsSync(libsSrc)) {
+    if (fs.existsSync(libsDest)) {
+      fs.rmSync(libsDest, { recursive: true });
+    }
+    const copyDir = (src, dest) => {
+      fs.mkdirSync(dest, { recursive: true });
+      for (const entry of fs.readdirSync(src)) {
+        const srcPath = path.join(src, entry);
+        const destPath = path.join(dest, entry);
+        if (fs.statSync(srcPath).isDirectory()) {
+          copyDir(srcPath, destPath);
+        } else {
+          fs.copyFileSync(srcPath, destPath);
+        }
+      }
+    };
+    copyDir(libsSrc, libsDest);
+    console.log('Copied libs to dist/libs');
+  }
+
   process.exit(result.status ?? 0);
 }

@@ -9,11 +9,11 @@ use chrono::Utc;
 use edatime_core::pipeline::{Pipeline, ProjectStage, TimeFilterStage};
 
 use crate::error::AppError;
-use crate::pipeline::{self, Reduction};
-use crate::query::{self, AggregateQuery, AggregateWindowMode, QueryEntry, ReductionSpec, AggFn};
-use crate::routes::shared::ResponseMeta;
-use crate::state::AppState;
-use crate::validation::{
+use edatime_query::pipeline::{self, Reduction};
+use edatime_query::query::{self, AggregateQuery, AggregateWindowMode, QueryEntry, ReductionSpec, AggFn};
+use edatime_store::cache::CachedResponse;
+use edatime_store::state::AppState;
+use edatime_query::validation::{
     validate_bucket_count, validate_numeric_columns_lazy, validate_time_window, validate_window_ms,
 };
 
@@ -127,16 +127,23 @@ pub async fn get_aggregate(
         ts_dtype: dtype.to_string(),
     });
 
-    pipeline::build_response(
-        aggregated,
-        &value_cols,
-        query::output_format(params.format.as_deref()),
-        &dtype,
-        &ts_col,
-        ResponseMeta {
-            is_downsampled: true,
-            returned_rows,
-            target_points: Some(params.buckets),
-        },
-    )
+    let cache_key = format!(
+        "agg:v{}:{}:{}:{}:{}:{}",
+        state.dataset_revision(),
+        params.start.timestamp_millis(),
+        params.end.timestamp_millis(),
+        value_cols.join(","),
+        format!("{:?}", params.agg),
+        format!("{:?}", params.window_mode),
+    );
+
+    let cached = CachedResponse::arrow(
+        pipeline::serialize_arrow(aggregated.clone(), &ts_col)?,
+        true,
+        returned_rows,
+        params.buckets,
+    );
+
+    state.cache.insert(cache_key, cached.clone()).await;
+    Ok(cached.into_response("miss"))
 }

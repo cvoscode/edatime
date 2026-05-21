@@ -8,9 +8,9 @@ use polars::prelude::{
 use serde::Serialize;
 
 use crate::error::AppError;
-use crate::state::AppState;
-use crate::stats;
-use crate::temporal;
+use edatime_store::state::AppState;
+use edatime_core::stats;
+use edatime_core::temporal;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DatasetMetadata {

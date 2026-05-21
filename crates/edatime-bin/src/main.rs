@@ -13,7 +13,11 @@ use tower_http::{
 };
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-use edatime::{config::AppConfig, middleware, rates, routes, state::AppState};
+use edatime_core::config::AppConfig;
+use edatime_service::middleware;
+use edatime_service::rates;
+use edatime_service::routes;
+use edatime_service::state::AppState;
 
 #[tokio::main]
 async fn main() {

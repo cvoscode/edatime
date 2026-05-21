@@ -7,8 +7,8 @@
 use polars::prelude::*;
 use serde::Deserialize;
 
-use crate::error::AppError;
-use crate::temporal;
+use edatime_core::error::AppError;
+use edatime_core::temporal;
 
 // ── Filter specification types ─────────────────────────────────────────────
 

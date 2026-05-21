@@ -14,7 +14,7 @@ use polars::prelude::{DataFrame, DataType, NamedFrom, Series, TimeUnit};
 use serde::{Deserialize, Serialize};
 use tokio_postgres::{NoTls, Row};
 
-use crate::error::AppError;
+use edatime_core::error::AppError;
 
 // ── Public types ───────────────────────────────
 

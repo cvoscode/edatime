@@ -5,7 +5,6 @@ use std::sync::{
 
 use polars::prelude::{DataFrame, IntoLazy, LazyFrame};
 use std::sync::RwLock as StdRwLock;
-use tokio::sync::RwLock;
 
 #[derive(Debug, Clone, Default)]
 pub struct DatasetMeta {
@@ -17,15 +16,16 @@ pub struct DatasetMeta {
 /// Thread-safe repository with fast reads.
 ///
 /// Design:
-/// - `LazyFrame` stored behind `Arc<RwLock<_>>` — write path only
-/// - Read path: `snapshot()` acquires read lock briefly, then clones — cloning is ~microseconds
-/// - Write path: `replace_from_dataframe()` acquires write lock — only blocks during upload
+/// - `LazyFrame` stored behind `Arc<StdRwLock<_>>` — sync RwLock for all access paths
+/// - Both read path (`snapshot()`) and write path (`replace_from_dataframe()`) use std sync primitives
+/// - This allows calling snapshot() from async handlers without blocking the runtime
 /// - Revision counter is atomic — lock-free reads
 pub struct InMemoryDataRepository {
-    /// The LazyFrame — accessed via RwLock for write path only.
-    /// Read path uses RwLock read guard + clone (microseconds).
-    lf: Arc<tokio::sync::RwLock<LazyFrame>>,
-    meta: Arc<RwLock<DatasetMeta>>,
+    /// The LazyFrame — accessed via StdRwLock (sync, not async).
+    /// Read path: `snapshot()` acquires read lock briefly, then clones — cloning is ~microseconds.
+    /// Write path: `replace_from_dataframe()` acquires write lock — only blocks during upload.
+    lf: Arc<StdRwLock<LazyFrame>>,
+    meta: Arc<StdRwLock<DatasetMeta>>,
     revision: AtomicU64,
     time_column_display_name: Arc<StdRwLock<Option<String>>>,
 }
@@ -44,7 +44,11 @@ impl Clone for InMemoryDataRepository {
 impl InMemoryDataRepository {
     pub fn new(df: DataFrame) -> Self {
         // Capture df metadata BEFORE moving df into lazy()
-        let column_names: Vec<String> = df.get_column_names().iter().map(|s| s.to_string()).collect();
+        let column_names: Vec<String> = df
+            .get_column_names()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         let row_count = df.height();
         let lf = df.lazy();
         let meta = DatasetMeta {
@@ -53,8 +57,8 @@ impl InMemoryDataRepository {
             time_column: None,
         };
         Self {
-            lf: Arc::new(tokio::sync::RwLock::new(lf)),
-            meta: Arc::new(RwLock::new(meta)),
+            lf: Arc::new(StdRwLock::new(lf)),
+            meta: Arc::new(StdRwLock::new(meta)),
             revision: AtomicU64::new(0),
             time_column_display_name: Arc::new(StdRwLock::new(None)),
         }
@@ -63,13 +67,11 @@ impl InMemoryDataRepository {
     /// Get a clone of the current LazyFrame — acquires read lock briefly, then clone.
     /// This is fast (~microseconds) because LazyFrame clone is a shallow clone.
     pub fn snapshot(&self) -> LazyFrame {
-        // Use blocking RwLock for sync context; in async handlers this is called
-        // via spawn_blocking so it's acceptable.
-        self.lf.blocking_read().clone()
+        self.lf.read().unwrap().clone()
     }
 
     /// Get a shared handle to the metadata store.
-    pub fn meta(&self) -> Arc<RwLock<DatasetMeta>> {
+    pub fn meta(&self) -> Arc<StdRwLock<DatasetMeta>> {
         Arc::clone(&self.meta)
     }
 
@@ -90,7 +92,7 @@ pub trait DataRepository: Send + Sync {
     /// Get a clone of the current LazyFrame — acquires read lock briefly.
     fn snapshot(&self) -> LazyFrame;
 
-    fn meta(&self) -> Arc<RwLock<DatasetMeta>>;
+    fn meta(&self) -> Arc<StdRwLock<DatasetMeta>>;
     fn revision(&self) -> u64;
     fn bump_revision(&self) -> u64;
     fn time_column_display_name(&self) -> Arc<StdRwLock<Option<String>>>;
@@ -100,19 +102,14 @@ pub trait DataRepository: Send + Sync {
     /// Replace the dataset — blocks until write lock acquired.
     /// Returns the new revision number.
     fn replace_from_dataframe(&self, df: DataFrame) -> u64;
-
-    /// Legacy alias — prefer `snapshot()`.
-    fn shared_frame(&self) -> Arc<RwLock<LazyFrame>> {
-        Arc::new(RwLock::new(self.snapshot()))
-    }
 }
 
 impl DataRepository for InMemoryDataRepository {
     fn snapshot(&self) -> LazyFrame {
-        self.lf.blocking_read().clone()
+        self.lf.read().unwrap().clone()
     }
 
-    fn meta(&self) -> Arc<RwLock<DatasetMeta>> {
+    fn meta(&self) -> Arc<StdRwLock<DatasetMeta>> {
         Arc::clone(&self.meta)
     }
 
@@ -129,7 +126,10 @@ impl DataRepository for InMemoryDataRepository {
     }
 
     fn time_column_display_name_sync(&self) -> Option<String> {
-        self.time_column_display_name.read().ok().and_then(|g| g.as_ref().cloned())
+        self.time_column_display_name
+            .read()
+            .ok()
+            .and_then(|g| g.as_ref().cloned())
     }
 
     fn set_time_column_display_name(&self, name: Option<String>) {
@@ -140,7 +140,11 @@ impl DataRepository for InMemoryDataRepository {
 
     fn replace_from_dataframe(&self, df: DataFrame) -> u64 {
         // Capture df info BEFORE moving df into lazy()
-        let column_names: Vec<String> = df.get_column_names().iter().map(|s| s.to_string()).collect();
+        let column_names: Vec<String> = df
+            .get_column_names()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         let row_count = df.height();
         let lf = df.lazy();
         let meta = DatasetMeta {

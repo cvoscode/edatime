@@ -7,16 +7,18 @@ pub mod drift;
 pub mod export;
 pub mod metadata;
 pub mod metrics;
-pub mod scatter;
 pub mod shared;
 pub mod upload;
+
+// Re-export scatter from parent module (handlers::scatter)
+pub use crate::handlers::scatter;
 
 use axum::Json;
 use axum::Router;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 
-use crate::state::AppState;
+use edatime_store::state::AppState;
 
 pub fn api_router() -> Router<AppState> {
     Router::new()
@@ -27,19 +29,19 @@ pub fn api_router() -> Router<AppState> {
         .route("/metrics", get(metrics::get_metrics))
         .route(
             "/scatter/points",
-            get(scatter::get_scatter_points).post(scatter::post_scatter_points),
+            get(scatter::scatter::get_scatter_points).post(scatter::scatter::post_scatter_points),
         )
         .route(
             "/scatter/export/parquet",
-            post(scatter::post_scatter_export_parquet),
+            post(scatter::scatter::post_scatter_export_parquet),
         )
         .route(
             "/scatter/correlations",
-            get(scatter::get_scatter_correlations),
+            get(scatter::scatter::get_scatter_correlations),
         )
         .route(
             "/scatter/correlations/matrix",
-            get(scatter::get_correlation_matrix),
+            get(scatter::scatter::get_correlation_matrix),
         )
         .route("/upload", post(upload::upload_data))
         .route("/upload/preview", post(upload::preview_upload_data))

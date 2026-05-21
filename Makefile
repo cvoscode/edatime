@@ -12,7 +12,7 @@ run:
 
 # Development: build frontend (if Node available) then run in debug mode
 dev:
-	@if command -v node >/dev/null 2>&1; then node scripts/build-frontend.mjs; fi
+	@if command -v node >/dev/null 2>&1; then node scripts/build-frontend.mjs && rm -rf crates/edatime-bin/frontend/dist && cp -r frontend/dist crates/edatime-bin/frontend/dist; fi
 	cargo run -p edatime-bin
 
 # Type-check and lint

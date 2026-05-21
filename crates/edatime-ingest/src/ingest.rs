@@ -196,18 +196,18 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
                 })
                 .unwrap_or(0);
 
-            if let Some(unit) = crate::temporal::detect_time_unit(max_abs) {
+            if let Some(unit) = edatime_core::temporal::detect_time_unit(max_abs) {
                 match unit {
-                    crate::temporal::DetectedTimeUnit::Seconds => {
+                    edatime_core::temporal::DetectedTimeUnit::Seconds => {
                         ts_expr = ts_expr * lit(1_000_i64); // s → ms
                     }
-                    crate::temporal::DetectedTimeUnit::Milliseconds => {
+                    edatime_core::temporal::DetectedTimeUnit::Milliseconds => {
                         // already ms — no change
                     }
-                    crate::temporal::DetectedTimeUnit::Microseconds => {
+                    edatime_core::temporal::DetectedTimeUnit::Microseconds => {
                         ts_expr = ts_expr / lit(1_000_i64); // μs → ms
                     }
-                    crate::temporal::DetectedTimeUnit::Nanoseconds => {
+                    edatime_core::temporal::DetectedTimeUnit::Nanoseconds => {
                         ts_expr = ts_expr / lit(1_000_000_i64); // ns → ms
                     }
                 }

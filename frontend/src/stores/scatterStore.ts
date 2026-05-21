@@ -3,7 +3,7 @@
  * Handles both scatter and density rendering modes.
  */
 import { createStore } from 'solid-js/store';
-import type { ScatterConfig, CorrelationItem } from '../types';
+import type { ScatterConfig, CorrelationItem, SuggestionItem } from '../types';
 
 // Module-level revision tracker for cache invalidation
 let _currentRevision: number | null = null;
@@ -15,7 +15,7 @@ interface ScatterState {
   matrixColumns: string[];
   isLoading: boolean;
   correlations: Record<string, { pearson: number | null; spearman: number | null }>;
-  suggestions: CorrelationItem[];
+  suggestions: SuggestionItem[];
   suggestionThreshold: number;
   scatterPoints: [number, number][];
   colorValues: number[] | null;
@@ -90,7 +90,7 @@ export const scatterStore = {
     setScatterState('correlations', correlations);
   },
 
-  setSuggestions(suggestions: CorrelationItem[]) {
+  setSuggestions(suggestions: SuggestionItem[]) {
     setScatterState('suggestions', suggestions);
   },
 

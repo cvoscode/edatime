@@ -136,11 +136,25 @@ export async function initChartEngine(config: ChartEngineConfig): Promise<ChartE
 
   const { createAndInitChartAdapter } = await import('./ChartRegistry');
 
-  const adapter = await createAndInitChartAdapter(
-    container,
-    { grid, xAxisType, xAxisLabel, yAxisLabel, chartTitle },
-    { chartType: xAxisType === 'value' ? 'scatter' : 'timeseries' }
-  );
+  let adapter: any;
+  try {
+    adapter = await createAndInitChartAdapter(
+      container,
+      { grid, xAxisType, xAxisLabel, yAxisLabel, chartTitle },
+      { chartType: xAxisType === 'value' ? 'scatter' : 'timeseries' }
+    );
+  } catch (firstError) {
+    console.error('[initChartEngine] First attempt failed:', firstError);
+    // Clean container again
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
+    // Fall back to ECharts
+    const { EChartsAdapter } = await import('./EChartsAdapter');
+    adapter = new EChartsAdapter();
+    await adapter.initialize(container, { grid, xAxisType, xAxisLabel, yAxisLabel, chartTitle });
+    console.error('[initChartEngine] Fallback to ECharts succeeded');
+  }
 
   // Wire callbacks
   if (onZoom) adapter.onZoom(onZoom);

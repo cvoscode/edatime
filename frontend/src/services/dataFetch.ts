@@ -337,12 +337,12 @@ export async function fetchScatterData(
 
   const numRows = table.numRows;
   const columns = table.schema.fields.map(f => f.name);
-  
+
   // Extract columns from Arrow table
   // Backend sends: [x, y, color_value_or_label]
   const xColumn = table.getChild(xCol);
   const yColumn = table.getChild(yCol);
-  
+
   if (!xColumn || !yColumn) {
     throw new Error(`Missing x/y column in scatter response: ${columns.join(', ')}`);
   }
@@ -350,7 +350,7 @@ export async function fetchScatterData(
   // Extract color column if present
   let colorValues: number[] | null = null;
   let colorLabels: (string | null)[] | null = null;
-  
+
   if (colorCol) {
     const colorColumn = table.getChild(colorCol);
     if (colorColumn) {

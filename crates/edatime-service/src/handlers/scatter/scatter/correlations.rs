@@ -7,11 +7,11 @@ use axum::{
 use serde::Deserialize;
 
 use crate::error::AppError;
-use crate::state::AppState;
-use crate::stats;
+use edatime_core::stats;
+use edatime_store::state::AppState;
 use polars::prelude::LazyFrame;
 
-use super::{CorrelationItem, collect_xy_pairs, numeric_columns};
+use super::{CorrelationItem, SuggestionItem, collect_xy_pairs, numeric_columns};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -26,7 +26,7 @@ pub struct ScatterCorrelationsResponse {
     pub threshold: f64,
     pub numeric_columns: Vec<String>,
     pub correlations: Vec<CorrelationItem>,
-    pub suggestions: Vec<CorrelationItem>,
+    pub suggestions: Vec<SuggestionItem>,
 }
 
 fn build_correlation_item(
@@ -34,7 +34,10 @@ fn build_correlation_item(
     base: &str,
     other: &str,
 ) -> Result<CorrelationItem, AppError> {
-    let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::internal(format!("correlation collect: {}", e)))?;
+    let df = lf
+        .with_new_streaming(true)
+        .collect()
+        .map_err(|e| AppError::internal(format!("correlation collect: {}", e)))?;
     let pairs = collect_xy_pairs(&df, base, other)?;
     let pearson = stats::pearson(&pairs);
     let spearman = stats::spearman(&pairs);
@@ -113,13 +116,17 @@ pub async fn get_scatter_correlations(
             b_score.total_cmp(&a_score)
         });
 
-        let suggestions: Vec<CorrelationItem> = correlations
+        let suggestions: Vec<SuggestionItem> = correlations
             .iter()
             .filter(|item| {
                 item.pearson.map(|v| v.abs()).unwrap_or(0.0) >= threshold
                     || item.spearman.map(|v| v.abs()).unwrap_or(0.0) >= threshold
             })
-            .cloned()
+            .map(|item| SuggestionItem {
+                x: base_column.clone(),
+                y: item.column.clone(),
+                correlation: item.pearson.unwrap_or(item.spearman.unwrap_or(0.0)),
+            })
             .collect();
 
         Ok(Json(ScatterCorrelationsResponse {
@@ -163,7 +170,10 @@ pub async fn get_correlation_matrix(
         let mut pearson = vec![vec![None; n]; n];
         let mut spearman = vec![vec![None; n]; n];
 
-        let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::internal(format!("correlation matrix collect: {}", e)))?;
+        let df = lf
+            .with_new_streaming(true)
+            .collect()
+            .map_err(|e| AppError::internal(format!("correlation matrix collect: {}", e)))?;
 
         for i in 0..n {
             pearson[i][i] = Some(1.0);

@@ -101,7 +101,7 @@ function triggerAutoSave(isRestoring: { current: boolean }): void {
   setTimeout(() => {
     try {
       autoSaveSession(captureSession(getCurrentPageFromHash(), getStoresSnap()));
-    } catch {}
+    } catch { }
   }, 2000);
 }
 
@@ -144,14 +144,14 @@ export function createSessionPersistence(): SessionPersistenceHandle {
       window.addEventListener('beforeunload', () => {
         try {
           autoSaveSession(captureSession(getCurrentPageFromHash(), getStoresSnap()));
-        } catch {}
+        } catch { }
       });
     },
 
     stop() {
       window.removeEventListener('hashchange', () => triggerAutoSave(isRestoring));
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('beforeunload', () => {});
+      window.removeEventListener('beforeunload', () => { });
       if (autoSaveTimer) {
         clearTimeout(autoSaveTimer);
         autoSaveTimer = null;

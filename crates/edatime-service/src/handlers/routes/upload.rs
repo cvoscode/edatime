@@ -9,10 +9,10 @@ use chrono::{DateTime, Utc};
 use tempfile::{Builder, TempPath};
 
 use crate::error::AppError;
-use crate::ingest::IngestParams;
-use crate::routes::metadata::build_dataset_metadata_from_path_with_time_column;
-use crate::state::AppState;
-use crate::validation::validate_upload_size_with_limit;
+use edatime_ingest::ingest::IngestParams;
+use crate::handlers::routes::metadata::build_dataset_metadata_from_path_with_time_column;
+use edatime_store::state::AppState;
+use edatime_query::validation::validate_upload_size_with_limit;
 
 #[tracing::instrument(skip(state, multipart))]
 pub async fn upload_data(
@@ -24,7 +24,7 @@ pub async fn upload_data(
 let (path, ingest_params, file_name) = extract_upload_parts(&state, multipart).await?;
 
     let df = tokio::task::spawn_blocking(move || {
-        crate::ingest::load_dataframe_partial(&path, &ingest_params)
+        edatime_ingest::ingest::load_dataframe_partial(&path, &ingest_params)
     })
     .await
     .map_err(|error| AppError::internal(format!("Failed to join upload task: {error:?}")))?

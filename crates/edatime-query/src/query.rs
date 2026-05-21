@@ -93,7 +93,7 @@ pub fn parse_columns(raw: Option<&str>) -> Vec<String> {
 }
 
 // Re-export temporal helpers so existing callers keep compiling.
-pub use crate::temporal::{ts_dtype, ts_dtype_lazy, unit_multiplier_for_ts, unit_multiplier_for_ts_lazy};
+pub use edatime_core::temporal::{ts_dtype, ts_dtype_lazy, unit_multiplier_for_ts, unit_multiplier_for_ts_lazy};
 
 /// Determine the requested output format (defaults to `"arrow"`).
 pub fn output_format(raw: Option<&str>) -> OutputFormat {

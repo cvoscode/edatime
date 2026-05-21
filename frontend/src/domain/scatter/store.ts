@@ -70,16 +70,9 @@ export const scatterDomain = {
   },
 
   setSuggestions(
-    suggestions: Array<{ column: string; count: number; pearson: number | null; spearman: number | null }>
+    suggestions: Array<{ x: string; y: string; correlation: number }>
   ) {
-    // scatterStore.setSuggestions expects CorrelationItem[] from types/api.ts
-    _scatterStore.setSuggestions(
-      suggestions.map((s) => ({
-        column: s.column,
-        count: s.count,
-        pearson: s.pearson,
-        spearman: s.spearman,
-      }))
-    );
+    // scatterStore.setSuggestions expects SuggestionItem[] with {x, y, correlation}
+    _scatterStore.setSuggestions(suggestions);
   },
 };

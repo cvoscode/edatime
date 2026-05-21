@@ -1228,7 +1228,6 @@ dependencies = [
  "minmaxlttb",
  "ndarray",
  "polars",
- "rand 0.8.6",
  "rayon",
  "rustfft",
  "serde",
@@ -1250,9 +1249,10 @@ name = "edatime-bin"
 version = "0.1.0"
 dependencies = [
  "axum",
- "edatime",
  "edatime-core",
  "edatime-query",
+ "edatime-service",
+ "edatime-store",
  "polars",
  "serde",
  "tokio",
@@ -1270,9 +1270,11 @@ dependencies = [
  "bytes",
  "chrono",
  "polars",
+ "rand 0.8.6",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
+ "toml",
  "tracing",
 ]
 
@@ -1295,12 +1297,16 @@ name = "edatime-query"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "axum",
  "bytes",
+ "chrono",
  "criterion",
  "edatime-core",
+ "minmaxlttb",
  "polars",
  "rayon",
  "serde",
+ "serde_json",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
@@ -1319,10 +1325,15 @@ dependencies = [
  "edatime-query",
  "edatime-store",
  "minmaxlttb",
+ "ndarray",
  "polars",
+ "rand 0.8.6",
+ "rayon",
  "rustfft",
  "serde",
  "serde_json",
+ "statrs",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tower-http",
@@ -1334,12 +1345,18 @@ name = "edatime-store"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "axum",
  "bytes",
+ "chrono",
+ "deadpool-postgres",
  "edatime-core",
+ "edatime-query",
  "polars",
  "serde",
+ "serde_json",
  "thiserror 1.0.69",
  "tokio",
+ "tokio-postgres",
  "tracing",
 ]
 

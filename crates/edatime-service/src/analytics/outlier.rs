@@ -47,7 +47,7 @@ pub fn remove_outliers_global(
                     .flatten()
                     .filter(|v| v.is_finite())
                     .collect();
-                let stats = crate::stats::compute_column_stats(&finite);
+                let stats = edatime_core::stats::compute_column_stats(&finite);
                 match (stats.q1, stats.q3) {
                     (Some(q1), Some(q3)) => {
                         let iqr = q3 - q1;
@@ -162,7 +162,7 @@ pub fn remove_outliers_windowed(
 
             let is_outlier = match method {
                 "iqr" => {
-                    let stats = crate::stats::compute_column_stats(&window_vals);
+                    let stats = edatime_core::stats::compute_column_stats(&window_vals);
                     match (stats.q1, stats.q3) {
                         (Some(q1), Some(q3)) => {
                             let iqr = q3 - q1;

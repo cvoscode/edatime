@@ -2,7 +2,6 @@ use std::{env, fs, path::Path};
 
 use serde::Deserialize;
 
-use crate::cache::CacheConfig;
 use crate::error::AppError;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -232,10 +231,30 @@ impl AppConfig {
     }
 }
 
+/// Cache configuration for runtime use.
+/// Defined here so edatime-core is self-contained;
+/// edatime-store re-exports its own copy with axum dependencies.
+#[derive(Debug, Clone, Copy)]
+pub struct CacheConfig {
+    pub ttl_seconds: u64,
+    pub max_entries: usize,
+    pub max_bytes: usize,
+}
+
+impl Default for CacheConfig {
+    fn default() -> Self {
+        Self {
+            ttl_seconds: 60,
+            max_entries: 128,
+            max_bytes: 32 * 1024 * 1024,
+        }
+    }
+}
+
 impl CacheSettings {
     pub fn to_runtime_config(&self) -> CacheConfig {
         CacheConfig {
-            ttl: std::time::Duration::from_secs(self.ttl_seconds.max(1)),
+            ttl_seconds: self.ttl_seconds.max(1),
             max_entries: self.max_entries.max(1),
             max_bytes: self.max_bytes.max(1024),
         }

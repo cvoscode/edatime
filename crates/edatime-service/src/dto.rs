@@ -1,1 +1,1 @@
-//! Service DTOs.
+//! DTOs for request/response types.

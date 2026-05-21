@@ -10,3 +10,9 @@
  */
 export { uiStore } from './uiStore';
 export { datasetStore } from './datasetStore';
+export { fftStore } from './fftStore';
+export { chartStore } from './chartStore';
+export { causalStore } from './causalStore';
+export { scatterStore } from './scatterStore';
+export { uploadStore } from './uploadStore';
+export { sessionStore } from './sessionStore';

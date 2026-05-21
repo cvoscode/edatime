@@ -7,12 +7,14 @@ use axum::{
 
 use edatime_core::pipeline::{Pipeline, ProjectStage, TimeFilterStage};
 
-use crate::cache::CachedResponse;
 use crate::error::AppError;
-use crate::pipeline::{self, Reduction};
-use crate::query::{self, DataQuery};
-use crate::state::AppState;
-use crate::validation::{validate_numeric_columns_lazy, validate_time_window, validate_width};
+use edatime_query::pipeline::{self, Reduction};
+use edatime_query::query::{self, DataQuery};
+use edatime_query::validation::{
+    validate_numeric_columns_lazy, validate_time_window, validate_width,
+};
+use edatime_store::cache::CachedResponse;
+use edatime_store::state::AppState;
 
 #[tracing::instrument(skip(state))]
 pub async fn get_data(
@@ -83,8 +85,13 @@ pub async fn get_data(
     // ── Lazy pipeline: time filter + column projection ───────────────────────
     let time_filter = TimeFilterStage::optional(ts_col.clone(), Some(start_ts), Some(end_ts))
         .expect("both start and end are Some");
+    // Ensure ts_col is included in the projection (apply_reduction needs it for downsampling)
+    let mut project_cols = output_cols.clone();
+    if !project_cols.iter().any(|c| c.as_str() == ts_col.as_str()) {
+        project_cols.insert(0, ts_col.clone());
+    }
     let project = ProjectStage {
-        columns: output_cols.clone(),
+        columns: project_cols,
     };
 
     let pipeline = Pipeline::new().then(time_filter).then(project);

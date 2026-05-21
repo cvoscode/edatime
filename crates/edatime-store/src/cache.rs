@@ -12,7 +12,7 @@ use bytes::Bytes;
 /// The `Instant` field is used for TTL-based eviction of stale drift results.
 pub type DriftCache = Arc<std::sync::Mutex<HashMap<String, (u64, Instant, Vec<u8>)>>>;
 
-use crate::routes::shared::{add_edatime_headers, ResponseMeta};
+use edatime_core::http::ResponseMeta;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CacheConfig {
@@ -98,7 +98,19 @@ impl CachedResponse {
             returned_rows: self.returned_rows,
             target_points: Some(self.target_points),
         };
-        add_edatime_headers(response, &meta)
+        headers.insert(
+            "x-edatime-downsampled",
+            HeaderValue::from_static(if meta.is_downsampled { "1" } else { "0" }),
+        );
+        if let Ok(v) = HeaderValue::from_str(&meta.returned_rows.to_string()) {
+            headers.insert("x-edatime-returned-rows", v);
+        }
+        if let Some(tp) = meta.target_points {
+            if let Ok(v) = HeaderValue::from_str(&tp.to_string()) {
+                headers.insert("x-edatime-target-points", v);
+            }
+        }
+        response
     }
 }
 
