@@ -267,7 +267,7 @@ pub async fn serve_sample_file(
 
     let base_dir = std::env::var("EDATIME_SAMPLE_DATA_DIR")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("."));
+        .unwrap_or_else(|_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".."));
 
     let file_path = base_dir.join(&name);
     if !file_path.exists() {

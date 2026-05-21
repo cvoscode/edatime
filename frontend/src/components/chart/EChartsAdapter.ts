@@ -58,6 +58,17 @@ export class EChartsAdapter implements ChartAdapter {
     const tmpl = getActivePlotTemplate(uiStore.state.plotTheme, uiStore.state.theme);
     const themeName = `edatime-${tmpl.id}`;
 
+    // Schedule echarts.init after the current execution context so any
+    // Solid.js reactive updates (including component mounting) complete first.
+    // The insertBefore error occurs when echarts creates canvas elements
+    // while the DOM tree is being concurrently modified by reactivity.
+    await new Promise(resolve => { queueMicrotask(resolve); });
+
+    // Clean container again right before init - reactivity may have added things
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
+
     this.instance = echarts.init(container, themeName, { renderer: 'canvas' });
 
     const colorPalette = getColorPalette(uiStore.state.colorScale, 8);
@@ -102,13 +113,10 @@ export class EChartsAdapter implements ChartAdapter {
     // Resize observer
     this.resizeObserver = new ResizeObserver(() => this.instance.resize());
     this.resizeObserver.observe(container);
-    // Defer readyCallback to avoid triggering Solid.js reactive updates during chart init.
-    // Solid.js processes effects after microtask queue is empty, so scheduling after
-    // a double rAF ensures all reactive updates from initialization complete first.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      console.error('[EChartsAdapter] initialize COMPLETE, calling readyCallback');
-      this.readyCallback?.(this.engineName);
-    }));
+    // Call readyCallback synchronously — any Solid.js reactivity triggered by
+    // setChartInstance will run before the current execution context completes,
+    // avoiding the race where dispose() is called before the callback fires.
+    this.readyCallback?.(this.engineName);
   }
 
   setData(series: ChartSeriesData[]): void {
