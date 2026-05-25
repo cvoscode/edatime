@@ -32,7 +32,8 @@ let (path, ingest_params, file_name) = extract_upload_parts(&state, multipart).a
 
 let time_column_name = df.time_column_name.clone();
     let row_count = df.df.height();
-    state.replace_dataset(df.df.clone()).await;
+    state.replace_dataset(df.df.clone()).await
+        .map_err(|e| AppError::internal(format!("Failed to store dataset: {e}")))?;
     state.set_time_column_display_name(time_column_name.clone());
 
     Ok(Json(serde_json::json!({
@@ -267,7 +268,7 @@ pub async fn serve_sample_file(
 
     let base_dir = std::env::var("EDATIME_SAMPLE_DATA_DIR")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".."));
+        .unwrap_or_else(|_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."));
 
     let file_path = base_dir.join(&name);
     if !file_path.exists() {

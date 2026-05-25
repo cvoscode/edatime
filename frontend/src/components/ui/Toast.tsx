@@ -1,10 +1,10 @@
-import { Component, For, createSignal } from 'solid-js';
+import { Component, For } from 'solid-js';
 import { Portal } from 'solid-js/web';
-import { uiStore } from '../../stores';
+import { useToasts } from '@/shared/ui/toast';
 import styles from './Toast.module.css';
 
 const ToastContainer: Component = () => {
-  const [visible, setVisible] = createSignal(true);
+  const { toasts, remove } = useToasts();
 
   const iconFor = (type: string) => {
     switch (type) {
@@ -18,14 +18,14 @@ const ToastContainer: Component = () => {
   return (
     <Portal>
       <div class={styles.container}>
-        <For each={uiStore.state.toasts}>
+        <For each={toasts()}>
           {(toast) => (
             <div class={`${styles.toast} ${styles[toast.type]}`}>
               <span class={styles.icon}>{iconFor(toast.type)}</span>
               <span class={styles.message}>{toast.message}</span>
               <button
                 class={styles.dismiss}
-                onClick={() => uiStore.removeToast(toast.id)}
+                onClick={() => remove(toast.id)}
                 aria-label="Dismiss"
               >
                 ×

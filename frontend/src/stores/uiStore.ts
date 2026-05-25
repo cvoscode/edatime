@@ -3,9 +3,9 @@
  * Persists theme/colorScale/plotTheme to localStorage.
  */
 import { createStore } from 'solid-js/store';
-import type { ToastMessage } from '../types/domains';
 import type { ColorScaleName } from '../utils/colorScale';
 import type { PlotThemeMode } from '../utils/plotTemplate';
+import { addToast as sharedAddToast, removeToast as sharedRemoveToast } from '@/shared/ui/toast';
 
 interface UiState {
   // Theme & presentation
@@ -13,7 +13,6 @@ interface UiState {
   colorScale: ColorScaleName;
   plotTheme: PlotThemeMode;
   sidebarOpen: boolean;
-  toasts: ToastMessage[];
   isUploadPanelOpen: boolean;
 }
 
@@ -82,7 +81,6 @@ const [uiState, setUiState] = createStore<UiState>({
   colorScale: getSavedColorScale(),
   plotTheme: getSavedPlotTheme(),
   sidebarOpen: true,
-  toasts: [],
   isUploadPanelOpen: false,
 });
 
@@ -115,22 +113,11 @@ export const uiStore = {
     setUiState('sidebarOpen', !uiState.sidebarOpen);
   },
 
-  addToast(toast: Omit<ToastMessage, 'id'>) {
-    const id = Math.random().toString(36).slice(2);
-    setUiState('toasts', [...uiState.toasts, { ...toast, id }]);
-
-    if (toast.duration !== 0) {
-      setTimeout(() => this.removeToast(id), toast.duration ?? 3000);
-    }
+  addToast(toast: Parameters<typeof sharedAddToast>[0]) {
+    sharedAddToast(toast);
   },
 
-  removeToast(id: string) {
-    setUiState('toasts', uiState.toasts.filter(t => t.id !== id));
-  },
-
-  setToasts(toasts: ToastMessage[]) {
-    setUiState('toasts', toasts);
-  },
+  removeToast: sharedRemoveToast,
 
   setUploadPanelOpen(open: boolean) {
     setUiState('isUploadPanelOpen', open);
@@ -139,7 +126,6 @@ export const uiStore = {
   reset() {
     setUiState({
       sidebarOpen: true,
-      toasts: [],
       isUploadPanelOpen: false,
     });
     // Preserve theme, colorScale, plotTheme — they persist to localStorage

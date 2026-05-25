@@ -116,6 +116,12 @@ const UploadPage: Component = () => {
       const result = await uploadPreview(file);
       uploadStore.setPreview(result.metadata, result.metadata.column_profiles);
       setProfileMode('preview');
+
+      try {
+        await handleUpload();
+      } catch (_) {
+        // handleUpload already showed its own error toast — don't double-toast
+      }
       uploadStore.setUploadStatus('');
     } catch (err) {
       uiStore.addToast({ message: `Error loading sample: ${err}`, type: 'error', duration: 0 });

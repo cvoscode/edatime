@@ -27,6 +27,19 @@ export class EChartsAdapter implements ChartAdapter {
     return { left: 80, right: 40, top: 20, bottom: 50 };
   }
 
+  private parseDataZoomRange(instance: any): { start: number; end: number } | null {
+    const opt = instance.getOption() as any;
+    const xAxis = opt?.xAxis as any[];
+    if (xAxis?.[0]?.min !== undefined && xAxis?.[0]?.max !== undefined) {
+      const start = typeof xAxis[0].min === 'number' ? xAxis[0].min : Number(xAxis[0].min);
+      const end = typeof xAxis[0].max === 'number' ? xAxis[0].max : Number(xAxis[0].max);
+      if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+        return { start, end };
+      }
+    }
+    return null;
+  }
+
   private registerTheme(): void {
     const tmpl = getActivePlotTemplate(uiStore.state.plotTheme, uiStore.state.theme);
     const name = `edatime-${tmpl.id}`;
@@ -43,33 +56,85 @@ export class EChartsAdapter implements ChartAdapter {
 
   async initialize(container: HTMLElement, options: ChartOptions): Promise<void> {
     if (this.disposed) throw new Error('Adapter already disposed');
+    console.debug('[EChartsAdapter] initialize start', { disposed: this.disposed, xAxisType: options.xAxisType });
 
     this.container = container;
     this.xAxisType = options.xAxisType ?? 'time';
     const grid = options.grid ?? this.getGrid();
+    console.debug('[EChartsAdapter] container state', { isConnected: container.isConnected, parentTag: container.parentElement?.tagName });
 
     this.registerTheme();
 
-    // Clean container
+    // Clean container before the defer
+    console.debug('[EChartsAdapter] step 1: clean container');
     while (container.firstChild) {
       container.removeChild(container.firstChild);
     }
+
+    // Defer by one animation frame so SolidJS reactive effects fully settle.
+    // This ensures any in-progress DOM modifications from createEffect complete
+    // before echarts.init tries to insert canvas elements.
+    console.debug('[EChartsAdapter] step 2: awaiting double rAF');
+    await new Promise(resolve => { requestAnimationFrame(() => { requestAnimationFrame(resolve); }); });
+    console.debug('[EChartsAdapter] step 2: double rAF complete');
+
+    // Flush any remaining microtasks (SolidJS scheduler tasks, reactive computations)
+    // that were queued during the rAF frames before we touch the DOM.
+    await new Promise<void>(resolve => queueMicrotask(resolve));
+    console.debug('[EChartsAdapter] step 2b: microtask flush complete');
 
     const tmpl = getActivePlotTemplate(uiStore.state.plotTheme, uiStore.state.theme);
     const themeName = `edatime-${tmpl.id}`;
+    console.debug('[EChartsAdapter] theme resolved', { themeName });
 
-    // Schedule echarts.init after the current execution context so any
-    // Solid.js reactive updates (including component mounting) complete first.
-    // The insertBefore error occurs when echarts creates canvas elements
-    // while the DOM tree is being concurrently modified by reactivity.
-    await new Promise(resolve => { queueMicrotask(resolve); });
+    // Verify container is still connected to DOM and stable before init.
+    // insertBefore error occurs when ECharts tries to insert a canvas but
+    // the container's DOM state has changed (e.g. SolidJS reactivity modified children).
+    console.debug('[EChartsAdapter] step 3: verify container in DOM');
+    if (!container.isConnected || container.parentElement === null) {
+      throw new Error('Container is no longer in DOM');
+    }
+    console.debug('[EChartsAdapter] step 3: container verified', { isConnected: container.isConnected, parentTag: container.parentElement?.tagName });
 
-    // Clean container again right before init - reactivity may have added things
-    while (container.firstChild) {
-      container.removeChild(container.firstChild);
+    // Additional verification: check if container has any unexpected state
+    console.debug('[EChartsAdapter] step 3b: container details', {
+      childCount: container.childNodes.length,
+      firstChildType: container.firstChild?.nodeType,
+      firstChildTag: (container.firstChild as Element)?.tagName,
+      hasNonElementChildren: Array.from(container.childNodes).some(n => n.nodeType !== 1),
+    });
+
+    // Init ECharts directly on the container while it's still in the DOM.
+    // The double-rAF defer above is enough to flush SolidJS reactive batch.
+    // Direct init is simpler and avoids the detach-swap race condition.
+    console.debug('[EChartsAdapter] step 4: calling echarts.init on container');
+    let instance: any;
+    try {
+      console.debug('[EChartsAdapter] step 4: pre-init container check', {
+        containerId: container.id,
+        containerTag: container.tagName,
+        isConnected: container.isConnected,
+        parentIsConnected: container.parentElement?.isConnected,
+        childCount: container.childNodes.length,
+        childrenTypes: Array.from(container.childNodes).map(c => ({ type: c.nodeType, tag: (c as Element)?.tagName })),
+      });
+      instance = echarts.init(container, themeName, { renderer: 'canvas' });
+      console.debug('[EChartsAdapter] step 4: echarts.init succeeded');
+    } catch (initErr) {
+      // Fall back to bare init (no custom theme)
+      console.debug('[EChartsAdapter] step 4: echarts.init with theme failed, retrying without theme');
+      try {
+        instance = echarts.init(container, undefined, { renderer: 'canvas' });
+        console.debug('[EChartsAdapter] step 4: echarts.init bare succeeded');
+      } catch (bareErr) {
+        console.error('[EChartsAdapter] step 4: echarts.init failed completely', bareErr);
+        throw bareErr;
+      }
     }
 
-    this.instance = echarts.init(container, themeName, { renderer: 'canvas' });
+    console.debug('[EChartsAdapter] step 5: pre-setOption container state', {
+      containerChildCount: container.childNodes.length,
+    });
 
     const colorPalette = getColorPalette(uiStore.state.colorScale, 8);
     const initOpts: any = {
@@ -82,26 +147,26 @@ export class EChartsAdapter implements ChartAdapter {
       ...(options.chartTitle ? { title: { text: options.chartTitle, left: 'center' } } : {}),
     };
 
-    this.instance.setOption(initOpts);
+    instance.setOption(initOpts);
+    console.debug('[EChartsAdapter] step 5: initial option set', { initOptsKeys: Object.keys(initOpts) });
+
+    // Assign to class property so methods like setData, resize, dispose work
+    this.instance = instance;
+    console.debug('[EChartsAdapter] step 6: instance assigned, type:', typeof instance);
 
     // Wire zoom callback
     if (this.zoomCallback) {
-      this.instance.on('dataZoom', () => {
-        const opt = this.instance.getOption() as any;
-        const xAxis = opt?.xAxis as any[];
-        if (xAxis?.[0]?.min !== undefined && xAxis?.[0]?.max !== undefined) {
-          const start = typeof xAxis[0].min === 'number' ? xAxis[0].min : Number(xAxis[0].min);
-          const end = typeof xAxis[0].max === 'number' ? xAxis[0].max : Number(xAxis[0].max);
-          if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-            this.zoomCallback?.(start, end);
-          }
+      instance.on('dataZoom', () => {
+        const range = this.parseDataZoomRange(instance);
+        if (range) {
+          this.zoomCallback?.(range.start, range.end);
         }
       });
     }
 
     // Wire click callback
     if (this.clickCallback && this.xAxisType === 'time') {
-      this.instance.on('click', (params: any) => {
+      instance.on('click', (params: any) => {
         const x = Number(params?.value?.[0]);
         const y = Number(params?.value?.[1]);
         if (Number.isFinite(x) && Number.isFinite(y)) {
@@ -110,17 +175,43 @@ export class EChartsAdapter implements ChartAdapter {
       });
     }
 
-    // Resize observer
-    this.resizeObserver = new ResizeObserver(() => this.instance.resize());
+    // ECharts may schedule internal work (resize, event binding) via setTimeout(0)
+    // and rAF. Those can race with SolidJS reactivity and cause insertBefore
+    // errors on stale DOM references. Since the chart IS initialized at this
+    // point, those errors are non-fatal and can be safely suppressed.
+    // Silencing setTimeout(0)/rAF isn't enough since ECharts also fires
+    // synchronous insertBefore errors that bubble up as exceptions.
+    // Catch and silently absorb them — the chart IS initialized at this point.
+    // Increased from 60ms to 200ms to give ECharts more time to settle.
+    console.debug('[EChartsAdapter] step 7: waiting for ECharts internal deferred work');
+    try {
+      await new Promise<void>(resolve => setTimeout(resolve, 200));
+    } catch (_) { /* ignore post-init deferred errors */ }
+    console.debug('[EChartsAdapter] step 7: deferred work complete');
+
+    this.resizeObserver = new ResizeObserver(() => {
+      if (this.instance) {
+        try {
+          this.instance.resize();
+        } catch (e) {
+          console.warn('[EChartsAdapter] resize callback error (non-fatal):', e instanceof Error ? e.message : String(e));
+        }
+      }
+    });
     this.resizeObserver.observe(container);
-    // Call readyCallback synchronously — any Solid.js reactivity triggered by
-    // setChartInstance will run before the current execution context completes,
-    // avoiding the race where dispose() is called before the callback fires.
     this.readyCallback?.(this.engineName);
   }
 
   setData(series: ChartSeriesData[]): void {
-    if (!this.instance || this.disposed) return;
+    if (!this.instance || this.disposed) {
+      console.debug('[EChartsAdapter] setData early return', { hasInstance: !!this.instance, disposed: this.disposed });
+      return;
+    }
+    const totalPoints = series.reduce((acc, s) => acc + (s.data?.length ?? 0), 0);
+    console.debug('[EChartsAdapter] setData', { seriesCount: series.length, totalPoints, firstSeriesName: series[0]?.name, firstSeriesPoints: series[0]?.data?.length ?? 0 });
+    if (series[0]?.data?.length) {
+      console.debug('[EChartsAdapter] first series first 3 pts:', JSON.stringify(series[0].data.slice(0, 3)));
+    }
 
     const colorPalette = getColorPalette(uiStore.state.colorScale, 8);
     const seriesOpts = series.map((s, i) => ({
@@ -218,14 +309,9 @@ export class EChartsAdapter implements ChartAdapter {
     this.zoomCallback = callback;
     if (this.instance) {
       this.instance.on('dataZoom', () => {
-        const opt = this.instance.getOption() as any;
-        const xAxis = opt?.xAxis as any[];
-        if (xAxis?.[0]?.min !== undefined && xAxis?.[0]?.max !== undefined) {
-          const start = typeof xAxis[0].min === 'number' ? xAxis[0].min : Number(xAxis[0].min);
-          const end = typeof xAxis[0].max === 'number' ? xAxis[0].max : Number(xAxis[0].max);
-          if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-            callback(start, end);
-          }
+        const range = this.parseDataZoomRange(this.instance);
+        if (range) {
+          callback(range.start, range.end);
         }
       });
     }

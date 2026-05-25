@@ -1,7 +1,6 @@
 //! edatime-bin — main binary entry point.
 //! Re-exports the application from the root src/ crate for backwards compatibility.
 
-use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::{Router, extract::DefaultBodyLimit, http::Method, middleware::from_fn};

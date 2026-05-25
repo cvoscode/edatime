@@ -15,4 +15,5 @@ export { chartStore } from './chartStore';
 export { causalStore } from './causalStore';
 export { scatterStore } from './scatterStore';
 export { uploadStore } from './uploadStore';
-export { sessionStore } from './sessionStore';
+// Re-export toast helpers so pages can keep importing from '@/stores'
+export { addToast, removeToast } from '../shared/ui/toast';

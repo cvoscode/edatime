@@ -1,0 +1,40 @@
+[console] [debug] [TimeseriesPage] chartData hook initialized {hasData: false}
+[console] [debug] [App] Fetching metadata from server...
+[console] [debug] [TimeseriesPage] render check {canShowChart: false, hasData: false, dataLen: 0, isLoading: false, hasMetadata: false}
+[console] [debug] [useChartEngine] init starting {containerId: main-chart, hasParent: true}
+[console] [debug] [useChartEngine] status -> loading
+[console] [debug] [useChartEngine] pre-init ref identity {refId: #main-chart, tagName: DIV, parentTag: #main, refPointer: NaN}
+[console] [debug] [TimeseriesChart] effect fired {hasSeries: false, seriesLength: 0, chartStatus: loading, vp: Proxy(Object)}
+[console] [debug] [ChartRegistry] createAndInitChartAdapter {chartType: timeseries, enginePreference: echarts, selectedEngine: ECharts, webgpuSupported: true}
+[console] [debug] [ChartRegistry] adapter created: ECharts
+[console] [debug] [EChartsAdapter] initialize start {disposed: false, xAxisType: time}
+[console] [debug] [EChartsAdapter] container state {isConnected: true, parentTag: MAIN}
+[console] [debug] [EChartsAdapter] step 1: clean container
+[console] [debug] [EChartsAdapter] step 2: awaiting double rAF
+[console] [debug] [EChartsAdapter] step 2: double rAF complete
+[console] [debug] [EChartsAdapter] step 2b: microtask flush complete
+[console] [debug] [EChartsAdapter] theme resolved {themeName: edatime-dark}
+[console] [debug] [EChartsAdapter] step 3: verify container in DOM
+[console] [debug] [EChartsAdapter] step 3: container verified {isConnected: true, parentTag: MAIN}
+[console] [debug] [EChartsAdapter] step 3b: container details {childCount: 0, firstChildType: undefined, firstChildTag: undefined, hasNonElementChildren: false}
+[console] [debug] [EChartsAdapter] step 4: calling echarts.init on container
+[console] [debug] [EChartsAdapter] step 4: pre-init container check {containerId: main-chart, containerTag: DIV, isConnected: true, parentIsConnected: true, childCount: 0}
+[console] [debug] [EChartsAdapter] step 4: echarts.init succeeded
+[console] [debug] [EChartsAdapter] step 5: pre-setOption container state {containerChildCount: 1}
+[console] [debug] [EChartsAdapter] step 5: initial option set {initOptsKeys: Array(6)}
+[console] [debug] [EChartsAdapter] step 6: instance assigned, type: object
+[console] [debug] [EChartsAdapter] step 7: waiting for ECharts internal deferred work
+[console] [debug] [App] Metadata response: {revision: 2, total_rows: 69680, columns: Array(8), numeric_columns: Array(7), time_column: date}
+[console] [debug] [App] Setting dataset store with metadata, numericCols: [HUFL, HULL, MUFL, MULL, LUFL, LULL, OT]
+[console] [debug] [TimeseriesPage] render check {canShowChart: false, hasData: false, dataLen: 0, isLoading: false, hasMetadata: true}
+[console] [debug] [TimeseriesPage] render check {canShowChart: true, hasData: false, dataLen: 0, isLoading: false, hasMetadata: true}
+[console] [debug] [App] Dataset store updated successfully
+[console] [debug] [useTimeseriesChartData] doFetch {xCol: date, colCount: 7, colSlice: Array(5)}
+[console] [debug] [useTimeseriesChartData] no timeRange in metadata
+[console] [debug] [EChartsAdapter] step 7: deferred work complete
+[console] [debug] [ChartRegistry] adapter initialized successfully
+[console] [debug] [useChartEngine] ECharts forced init done {engineName: ECharts, instanceType: object}
+[console] [debug] [useChartEngine] init complete {engineName: ECharts}
+[console] [warning] [useChartEngine] setChartStatus insertBefore, retrying in 500ms (attempt 1/8)...
+Chart info: No chart container found. Body: 
+  <div id="root"><div class="_shell_sdoey_1"><aside class="_sidebar_sdoey_8 "><header class="_header_sdoey_25"><div class="_headerTop_sdoey_35"><a href="#/" class="_logoRow_sdoey_42 active" link=""><img src="/logo.svg" alt="edatime" class="_logoImg_sdoey_48"></a><button type="button" class="_toggle_sdoey_62" aria-label="Collapse sidebar">◀</button></div></header><nav aria-label="Main navigation" class="_nav_sdoey_98"><a href="#/" class="_navItem_sdoey_108 inactive" link=""><span class="_symbol_

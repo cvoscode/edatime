@@ -105,5 +105,20 @@ if (isWatch) {
     console.log('Copied libs to dist/libs');
   }
 
+  // Append cache-busting query param to index.html script/style tags so
+  // browsers always fetch fresh assets after each rebuild.
+  // Using query param (?v=) so file lookup still works correctly.
+  const indexPath = path.join(FRONTEND_DIR, 'dist', 'index.html');
+  if (fs.existsSync(indexPath)) {
+    const version = Date.now().toString(36);
+    let html = fs.readFileSync(indexPath, 'utf8');
+    // Add ?v=VERSION before the closing quote for src= and href= attributes
+    html = html.replace(/(src|href)="([^"]+\.(?:js|css))"/g, (match, attr, path) => {
+      return `${attr}="${path}?v=${version}"`;
+    });
+    fs.writeFileSync(indexPath, html);
+    console.log(`Cache-busting applied: ?v=${version}`);
+  }
+
   process.exit(result.status ?? 0);
 }

@@ -1,0 +1,68 @@
+{
+    "name": "Secure Vibe Coding Sandbox",
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+    "features": {
+        "ghcr.io/devcontainers/features/node:2.0.0": {},
+        "ghcr.io/devcontainers/features/rust:1": {},
+        "ghcr.io/devcontainers/features/python:1": {}
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "github.copilot",
+                "github.copilot-chat",
+                "sst-dev.opencode",
+                "ms-vscode.remote-explorer"
+            ],
+            "settings": {
+                "ai.mcp.servers": {
+                    "chrome-devtools": {
+                        "command": "npx",
+                        "args": [
+                            "-y",
+                            "@anthropic/mcp-chrome-devtools"
+                        ]
+                    },
+                    "sourcegraph": {
+                        "command": "npx",
+                        "args": [
+                            "-y",
+                            "@sourcegraph/mcp"
+                        ]
+                    },
+                    "playwright": {
+                        "command": "npx",
+                        "args": [
+                            "-y",
+                            "@playwright/mcp"
+                        ]
+                    }
+                }
+            }
+        }
+    },
+    "forwardPorts": [
+        3000,
+        5173,
+        8000
+    ],
+    "portsAttributes": {
+        "3000": {
+            "label": "Frontend App",
+            "onAutoForward": "openBrowserOnce"
+        },
+        "5173": {
+            "label": "Vite Dev Server",
+            "onAutoForward": "openBrowserOnce"
+        }
+    },
+    "remoteUser": "vscode",
+    "runArgs": [
+        "--cap-drop=ALL",
+        "--cap-add=NET_RAW",
+        "--cap-add=NET_ADMIN",
+        "--security-opt=no-new-privileges:true"
+    ],
+    // FIX: Spoofs the platform environment string to trick Playwright into downloading the compatible 24.04 build inside Ubuntu 26.04
+    "postCreateCommand": "mkdir -p ~/.npm-global && npm config set prefix '~/.npm-global' && echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc && echo 'export PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64' >> ~/.bashrc && export PATH=~/.npm-global/bin:$PATH && export PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64 && npm install -g @anthropic-ai/claude-code opencode-ai && npx playwright install && mkdir -p ~/.config/Claude"
+}

@@ -1,28 +1,20 @@
-import { lazy, Suspense, Component, onMount, onCleanup } from 'solid-js';
+import { Component, onMount, onCleanup } from 'solid-js';
 import { HashRouter, Route } from '@solidjs/router';
 import AppShell from '@/shared/layout/AppShell';
 import { createSessionPersistence } from './stores/sessionStore';
 import { datasetStore } from './stores';
 import { fetchMetadata } from './services/api';
 
-const TimeseriesPage = lazy(() => import('./pages/TimeseriesPage'));
-const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-const HomePage = lazy(() => import('./pages/HomePage'));
-const UploadPage_ = lazy(() => import('./pages/UploadPage'));
-const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'));
-const HeatmapPage = lazy(() => import('./pages/HeatmapPage'));
-const ScatterPage = lazy(() => import('./pages/ScatterPage'));
-const FftPage = lazy(() => import('./pages/FftPage'));
-const CausalPage = lazy(() => import('./pages/CausalPage'));
-const DriftPage = lazy(() => import('./pages/DriftPage'));
-
-const UploadPage = (props: any) => (
-  <Suspense fallback={<Loading />}>
-    <UploadPage_ {...props} />
-  </Suspense>
-);
-
-const Loading: Component = () => <div class="loading">Loading...</div>;
+import TimeseriesPage from './pages/TimeseriesPage';
+import SettingsPage from './pages/SettingsPage';
+import HomePage from './pages/HomePage';
+import UploadPage from './pages/UploadPage';
+import PlaceholderPage from './pages/PlaceholderPage';
+import HeatmapPage from './pages/HeatmapPage';
+import ScatterPage from './pages/ScatterPage';
+import FftPage from './pages/FftPage';
+import CausalPage from './pages/CausalPage';
+import DriftPage from './pages/DriftPage';
 
 const PAGE_KEYS: Record<string, string> = {
   '1': '/upload',
@@ -110,18 +102,18 @@ const App: Component = () => {
   });
 
   return (
-    <HashRouter root={AppShell}>
-      <Route path="/" component={HomePage} />
-      <Route path="/upload" component={UploadPage} />
-      <Route path="/timeseries" component={TimeseriesPage} />
-      <Route path="/fft" component={() => <Suspense fallback={<Loading />}><FftPage /></Suspense>} />
-      <Route path="/heatmap" component={() => <Suspense fallback={<Loading />}><HeatmapPage /></Suspense>} />
-      <Route path="/scatter" component={() => <Suspense fallback={<Loading />}><ScatterPage /></Suspense>} />
-      <Route path="/drift" component={() => <Suspense fallback={<Loading />}><DriftPage /></Suspense>} />
-      <Route path="/causal" component={() => <Suspense fallback={<Loading />}><CausalPage /></Suspense>} />
-      <Route path="/settings" component={SettingsPage} />
-    </HashRouter>
-  );
+  <HashRouter root={AppShell}>
+    <Route path="/" component={HomePage} />
+    <Route path="/upload" component={UploadPage} />
+    <Route path="/timeseries" component={TimeseriesPage} />
+    <Route path="/fft" component={FftPage} />
+    <Route path="/heatmap" component={HeatmapPage} />
+    <Route path="/scatter" component={ScatterPage} />
+    <Route path="/drift" component={DriftPage} />
+    <Route path="/causal" component={CausalPage} />
+    <Route path="/settings" component={SettingsPage} />
+  </HashRouter>
+);
 };
 
 export default App;

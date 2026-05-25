@@ -48,10 +48,12 @@ export function removeToast(id: string): void {
     setToastState('toasts', (t) => t.filter((msg) => msg.id !== id));
 }
 
-/** Expose current toasts for ToastContainer */
 export function useToasts() {
     return {
         toasts: () => toastState.toasts,
         remove: removeToast,
     };
 }
+
+/** Expose the raw store for test access */
+export { toastState };

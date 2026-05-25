@@ -407,9 +407,3 @@ export function isDrift(d: Domain): d is DriftDomain {
 export function isCausal(d: Domain): d is CausalDomain {
     return d.kind === 'causal';
 }
-
-// Re-export helpers for use in stores
-import type { ToastMessage } from './domains';
-import type { RollingBandData, AnomalyRegionData } from './domains';
-import type { ChartViewport, Drawing, ZoomState, Annotation, AdaptiveLineFilter, PendingAdaptivePoint } from './domains';
-import type { ScatterConfig, ScatterState, ScatterFilterParams } from './domains';

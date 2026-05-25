@@ -136,7 +136,7 @@ const FftPage: Component = () => {
     try {
       const start = new Date(startMs).toISOString();
       const end = new Date(endMs).toISOString();
-      const resp = await fetchFft(start, end, column);
+      const resp = await fetchFftData({ start, end, columns: column });
 
       if (resp.results.length > 0) {
         const result = resp.results[0];
@@ -356,7 +356,7 @@ const FftPage: Component = () => {
     try {
       const start = new Date(startMs).toISOString();
       const end = new Date(endMs).toISOString();
-      const resp = await fetchSpectrogram(start, end, column, spectrogramWindow(), spectrogramHop());
+      const resp = await fetchSpectrogram({ start, end, column, windowSize: spectrogramWindow(), hopSize: spectrogramHop() });
 
       fftStore.setSpectrogramResult({
         time_points: resp.result.times_ms,

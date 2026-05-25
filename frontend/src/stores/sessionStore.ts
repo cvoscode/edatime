@@ -56,9 +56,9 @@ export function applySessionToStores(snap: SessionSnapshot, isRestoringRef?: { c
   if (snap.scatterColorColumn) scatterStore.setConfig({ colorCol: snap.scatterColorColumn });
   if (snap.scatterRenderMode) scatterStore.setRenderMode(snap.scatterRenderMode as 'scatter' | 'density');
 
-  // Navigate to saved page
+  // Navigate to saved page — defer to next tick so App's onMount completes first
   if (snap.page && snap.page !== getCurrentPageFromHash()) {
-    window.location.hash = `/${snap.page}`;
+    setTimeout(() => { window.location.hash = `/${snap.page}`; }, 0);
   }
 
   if (isRestoringRef) isRestoringRef.current = false;

@@ -34,7 +34,7 @@ export interface ChartOptions {
 export interface ChartAdapter {
   engineName: string;
   instance: any;
-  initialize(container: HTMLElement, options: ChartOptions): Promise<void>;
+  initialize(container: HTMLElement, options: ChartOptions): void;
   setData(series: ChartSeriesData[]): void;
   setViewport(xMin: number, xMax: number, yMin?: number, yMax?: number): void;
   setOverlays(rollingBands?: RollingBandData[], anomalyRegions?: AnomalyRegionData[]): void;

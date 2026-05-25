@@ -5,7 +5,7 @@
  * All chart engine logic stays in ChartView; this component maps domain
  * store state to ChartView props and wires up update callbacks.
  */
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, onCleanup } from 'solid-js';
 import { chartStore } from '../../../stores/chartStore';
 import { timeseriesStore } from '../../../domain/timeseries/store';
 import { useAdaptiveFilters } from '../hooks/useAdaptiveFilters';
@@ -21,6 +21,7 @@ interface TimeseriesChartProps {
 }
 
 const TimeseriesChart: Component<TimeseriesChartProps> = (props) => {
+    console.error('[TimeseriesChart] CONSTRUCTOR called');
     const [chartUpdateFn, setChartUpdateFn] = createSignal<ChartUpdateFn | null>(null);
     const [chartReady, setChartReady] = createSignal(false);
 
@@ -30,6 +31,10 @@ const TimeseriesChart: Component<TimeseriesChartProps> = (props) => {
         setPendingAdaptivePoint,
         setPopupScreenPos,
     } = useAdaptiveFilters();
+
+    onCleanup(() => {
+        console.error('[TimeseriesChart] onCleanup called');
+    });
 
     const handleChartReady = (updateFn: ChartUpdateFn, chartInstance?: any) => {
         setChartUpdateFn(() => updateFn);

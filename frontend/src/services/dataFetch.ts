@@ -595,12 +595,22 @@ export function buildSeriesConfig(
     adaptiveFilters: adaptiveFilters?.length ?? 0,
   });
 
+  console.debug('[buildSeriesConfig] START', {
+    xValuesLen: xValues.length,
+    seriesCount: Object.keys(series).length,
+    seriesKeys: Object.keys(series),
+    filtersCount: filters ? Object.keys(filters).length : 0,
+    colorColumn: colorColumn ?? 'none',
+    adaptiveFiltersCount: adaptiveFilters?.length ?? 0,
+  });
+
   let filteredX = xValues;
   let filteredSeries = series;
   if (filters && Object.keys(filters).length > 0 || adaptiveFilters?.length) {
     const result = applyColumnRanges(xValues, series, filters || {}, adaptiveFilters);
     filteredX = result.xValues;
     filteredSeries = result.series;
+    console.debug('[buildSeriesConfig] after filter', { filteredXLen: filteredX.length });
   }
 
   const resultSeries: any[] = [];
@@ -649,6 +659,17 @@ export function buildSeriesConfig(
         color: colors[colName] ?? '#5470C6',
         data: points,
       });
+    }
+  }
+
+  console.debug('[buildSeriesConfig] END', {
+    resultSeriesCount: resultSeries.length,
+    totalAnnotations: resultAnnotations.length,
+  });
+  if (resultSeries.length > 0) {
+    console.debug('[buildSeriesConfig] first series name:', resultSeries[0].name, 'points:', resultSeries[0].data?.length ?? 0);
+    if (resultSeries[0].data?.length > 0) {
+      console.debug('[buildSeriesConfig] first 3 points:', JSON.stringify(resultSeries[0].data.slice(0, 3)));
     }
   }
 

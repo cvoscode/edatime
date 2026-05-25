@@ -90,7 +90,8 @@ pub async fn post_connect(
             )
             .await?;
             let n = df.height();
-            state.replace_dataset(df).await;
+            state.replace_dataset(df).await
+                .map_err(|e| AppError::internal(format!("Failed to store dataset: {e}")))?;
             if let Some(ref tc) = body.time_column {
                 state.set_time_column_display_name(Some(tc.clone()));
             }
@@ -280,7 +281,8 @@ pub async fn post_load(
         })
         .collect();
     let time_col_clone = body.time_column.clone();
-    let rev = state.replace_dataset(df).await;
+    let rev = state.replace_dataset(df).await
+        .map_err(|e| AppError::internal(format!("Failed to store dataset: {e}")))?;
     if let Some(ref tc) = body.time_column {
         state.set_time_column_display_name(Some(tc.clone()));
     }

@@ -25,7 +25,7 @@ interface CanvasOverlayProps {
   chartTitle?: string;
   xAxisLabel?: string;
   yAxisLabel?: string;
-  pendingAdaptivePoint?: PendingAdaptivePoint | null;
+  pendingAdaptivePoint?: any;
   adaptiveLineFilters?: AdaptiveLineFilter[];
 }
 

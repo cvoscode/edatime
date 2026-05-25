@@ -3,14 +3,21 @@
  *
  * Centralized API-level types that mirror the backend contracts.
  * These types are used by services/api.ts and dataFetch.ts.
+ *
+ * NOTE: Shared chart/domain types (ToastMessage, RollingBandData,
+ * AnomalyRegionData, ZoomState, Drawing, etc.) live in domains.ts.
+ * Only API-specific shapes belong here.
  */
 
 import type { ChartViewport, TimeRange } from './domains';
 
-// FftTrace from domains to avoid duplicate export conflicts
+// Re-export FftTrace from domains to avoid duplicate export conflicts
 export type { FftTrace } from './domains';
 
-// SeriesData is defined later in this file and used by FilteredDataObject
+// =============================================================================
+// Dataset Metadata
+// =============================================================================
+
 export interface ColumnMetadata {
   name: string;
   dtype: string;
@@ -78,36 +85,14 @@ export interface SuggestionItem {
 }
 
 // =============================================================================
-// Chart Overlays
+// Chart State — API-specific shapes
+// (These differ from domains.ts counterparts in structure)
 // =============================================================================
 
-export interface RollingBandData {
-  column: string;
-  ts: number[];
-  mean: (number | null)[];
-  upper1: (number | null)[];
-  lower1: (number | null)[];
-  upper2: (number | null)[];
-  lower2: (number | null)[];
-}
-
-export interface AnomalyRegionData {
-  column: string;
-  method: string;
-  start_ms: number;
-  end_ms: number;
-  score: number;
-}
-
-// =============================================================================
-// Chart State (shared across stores)
-// =============================================================================
-
-export interface ZoomState {
-  zoomStack: ChartViewport[];
-  currentIndex: number;
-}
-
+/**
+ * Rich annotation with type, color, and time range.
+ * Differs from domains.ts Annotation which is a simple {id, text, x, y} marker.
+ */
 export interface Annotation {
   id: string;
   type: 'bookmark' | 'note' | 'region';
@@ -116,27 +101,43 @@ export interface Annotation {
   timeRange: { start: number; end: number };
 }
 
+/**
+ * Method-based chart instance interface for API consumers.
+ * Differs from domains.ts ChartInstance which is an opaque record.
+ */
 export interface ChartInstance {
   initialize(): void;
-  setData(data: FilteredDataObject): void;
+  setData(data: ApiFilteredDataObject): void;
   setViewport(viewport: ChartViewport): void;
   dispose(): void;
   exportPNG(): Promise<Blob>;
   exportSVG(): Promise<string>;
 }
 
-export interface FilteredDataObject {
-  series: Record<string, SeriesData>;
+/**
+ * API-level filtered data object using named series records.
+ * Differs from domains.ts FilteredDataObject which uses Float64Array-based series.
+ */
+export interface ApiFilteredDataObject {
+  series: Record<string, ApiSeriesData>;
   tsRange: [number, number];
   rowCount: number;
 }
 
-export interface SeriesData {
+/**
+ * API-level series data with ts/values Float64Arrays.
+ * Differs from domains.ts SeriesData which uses {name, color, visible, data[]}.
+ */
+export interface ApiSeriesData {
   ts: Float64Array;
   values: Float64Array;
   color?: string;
 }
 
+/**
+ * Pointer-based drag state for chart interactions.
+ * Differs from domains.ts DragState which uses a mode-based state.
+ */
 export interface DragState {
   pointerId: number;
   startX: number;
@@ -145,24 +146,9 @@ export interface DragState {
   endY: number;
 }
 
-export interface Drawing {
-  id: string;
-  kind: 'arrow' | 'box';
-  color: string;
-  lineWidth: number;
-  points: [number, number][]; // [x,y] in data coordinates
-}
-
 // =============================================================================
 // Scatter API Response Types
 // =============================================================================
-
-export interface CorrelationItem {
-  column: string;
-  count: number;
-  pearson: number | null;
-  spearman: number | null;
-}
 
 export interface CorrelationMatrixResponse {
   columns: string[];
@@ -205,9 +191,7 @@ export interface FrequencyPeak {
   rank: number;
 }
 
-// FftResult is re-exported from domains.ts to avoid duplicate export conflicts
-
-// FftTrace is re-exported from domains.ts to avoid duplicate export conflicts
+// FftResult and FftTrace are re-exported from domains.ts
 
 // =============================================================================
 // Misc chart types
@@ -220,10 +204,3 @@ export interface SpectralConfig {
 }
 
 export type Theme = 'dark' | 'light' | 'system';
-
-export interface ToastMessage {
-  id: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  message: string;
-  duration?: number;
-}

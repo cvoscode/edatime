@@ -10,8 +10,9 @@ build-release:
 run:
 	cargo run --release -p edatime-bin
 
-# Development: build frontend (if Node available) then run in debug mode
+# Development: wipe dist, rebuild frontend, then run in debug mode
 dev:
+	rm -rf frontend/dist
 	@if command -v node >/dev/null 2>&1; then node scripts/build-frontend.mjs; fi
 	EDATIME_FRONTEND_DIR=$(PWD)/frontend/dist cargo run -p edatime-bin
 
@@ -37,7 +38,7 @@ bench:
 
 # Build frontend for production (requires Node)
 frontend-prod:
-	node scripts/build-frontend.mjs --prod
+	VITE_BUILD_PWA=true node scripts/build-frontend.mjs --prod
 
 # Docker
 docker:

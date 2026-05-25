@@ -6,9 +6,8 @@
 use polars::prelude::*;
 
 use crate::arrow_export::dataframe_to_arrow_ipc;
-use crate::query::{AggFn, OutputFormat};
+use crate::query::AggFn;
 use edatime_core::error::AppError;
-use edatime_core::stats::series_to_finite_f64;
 
 /// Filter a `LazyFrame` to only rows whose timestamp column falls within
 /// `[start_ts, end_ts]` (in milliseconds), selecting only the requested columns.

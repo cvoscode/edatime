@@ -4,6 +4,7 @@ import { uiStore } from '../stores/uiStore';
 import { datasetStore } from '../stores/datasetStore';
 import { scatterStore } from '../stores/scatterStore';
 import { uploadStore } from '../stores/uploadStore';
+import { toastState, addToast, removeToast } from '../shared/ui/toast';
 
 const DEFAULT_VIEWPORT = { xMin: 0, xMax: 100, yMin: 0, yMax: 1 };
 
@@ -147,17 +148,17 @@ describe('uiStore', () => {
   });
 
   it('addToast appends toast message', () => {
-    const before = uiStore.state.toasts.length;
-    uiStore.addToast({ message: 'test', type: 'info' });
-    expect(uiStore.state.toasts.length).toBe(before + 1);
+    const before = toastState.toasts.length;
+    addToast({ message: 'test', type: 'info' });
+    expect(toastState.toasts.length).toBe(before + 1);
   });
 
   it('removeToast removes toast by id', () => {
-    uiStore.addToast({ message: 'to-remove', type: 'info' });
-    const toast = uiStore.state.toasts[uiStore.state.toasts.length - 1];
+    addToast({ message: 'to-remove', type: 'info' });
+    const toast = toastState.toasts[toastState.toasts.length - 1];
     if (toast) {
-      uiStore.removeToast(toast.id);
-      expect(uiStore.state.toasts.some(t => t.id === toast.id)).toBe(false);
+      removeToast(toast.id);
+      expect(toastState.toasts.some(t => t.id === toast.id)).toBe(false);
     }
   });
 

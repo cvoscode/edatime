@@ -100,8 +100,8 @@ pub trait DataRepository: Send + Sync {
     fn set_time_column_display_name(&self, name: Option<String>);
 
     /// Replace the dataset — blocks until write lock acquired.
-    /// Returns the new revision number.
-    fn replace_from_dataframe(&self, df: DataFrame) -> u64;
+    /// Returns the new revision number, or Err(()) if lock couldn't be acquired.
+    fn replace_from_dataframe(&self, df: DataFrame) -> Result<u64, ()>;
 }
 
 impl DataRepository for InMemoryDataRepository {
@@ -138,7 +138,7 @@ impl DataRepository for InMemoryDataRepository {
         }
     }
 
-    fn replace_from_dataframe(&self, df: DataFrame) -> u64 {
+    fn replace_from_dataframe(&self, df: DataFrame) -> Result<u64, ()> {
         // Capture df info BEFORE moving df into lazy()
         let column_names: Vec<String> = df
             .get_column_names()
@@ -152,13 +152,16 @@ impl DataRepository for InMemoryDataRepository {
             column_names,
             time_column: None,
         };
-        // Try write — only blocks if a read is in progress (rare, only during upload)
-        if let Ok(mut guard) = self.lf.try_write() {
-            *guard = lf;
-        }
-        if let Ok(mut meta_guard) = self.meta.try_write() {
-            *meta_guard = meta;
-        }
-        self.bump_revision()
+        // Use blocking write — only blocks if a snapshot is being collected concurrently.
+        // This is the write path for uploads, which should block reads briefly.
+        let mut guard = self.lf.write().map_err(|_| ())?;
+        *guard = lf;
+        drop(guard);
+
+        let mut meta_guard = self.meta.write().map_err(|_| ())?;
+        *meta_guard = meta;
+        drop(meta_guard);
+
+        Ok(self.bump_revision())
     }
 }

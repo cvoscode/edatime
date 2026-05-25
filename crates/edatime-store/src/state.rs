@@ -119,11 +119,12 @@ impl AppState {
         }
     }
 
-    pub async fn replace_dataset(&self, df: DataFrame) -> u64 {
-        let rev = self.repository.replace_from_dataframe(df);
+    pub async fn replace_dataset(&self, df: DataFrame) -> Result<u64, std::io::Error> {
+        let rev = self.repository.replace_from_dataframe(df)
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::WouldBlock, "failed to acquire write lock"))?;
         // Invalidate cached responses so stale data is never served after upload.
         self.cache.invalidate_all().await;
-        rev
+        Ok(rev)
     }
 
     pub fn set_time_column_display_name(&self, name: Option<String>) {
