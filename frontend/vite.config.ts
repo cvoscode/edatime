@@ -1,81 +1,72 @@
 import { defineConfig } from 'vite';
-import solid from 'vite-plugin-solid';
-import { VitePWA } from 'vite-plugin-pwa';
 import { resolve } from 'path';
 
-const __dirname = import.meta.dirname;
-
-const enablePWA = process.env.VITE_BUILD_PWA === 'true';
-
+/**
+ * Vite config for EdaTime frontend migration (esbuild → Vite 6).
+ *
+ * Design decisions:
+ * - root: 'frontend' (where package.json, tsconfig.json, and src/ live)
+ * - outDir: 'js' (matches the static path the Rust backend serves)
+ * - Entry: src/app.ts (TypeScript entry, no HTML input needed)
+ * - entryFileNames: '[name].js' → output is always js/app.js (no hash)
+ * - index HTML: the existing frontend/index.html is served as-is by the
+ *   Rust backend; it references js/app.js which is the Vite output
+ * - Service worker: existing frontend/sw.js is kept as-is (not managed by Vite)
+ * - PWA plugin: disabled (existing sw.js handles all caching)
+ */
 export default defineConfig({
-  root: __dirname,
-  plugins: [
-    solid(),
-    ...(enablePWA ? [
-      VitePWA({
-        registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'robots.txt'],
-        workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-          runtimeCaching: [
-            {
-              urlPattern: /\/api\/arrow/,
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'arrow-data',
-                expiration: { maxEntries: 50, maxAgeSeconds: 3600 }
-              }
-            },
-            {
-              urlPattern: /\/api\/analytics/,
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'analytics-data',
-                expiration: { maxEntries: 20, maxAgeSeconds: 1800 }
-              }
-            }
-          ]
-        }
-      })
-    ] : [])
-  ],
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src')
-    }
+  root: 'frontend',
+  // Don't emit index.html — the Rust backend serves frontend/index.html.
+  // Vite still processes the root to find index.html for dev server, but
+  // build output goes to js/ only.
+  publicDir: 'public',
+  build: {
+    outDir: 'js',
+    // Wipe js/ before each build so stale esbuild/PWA artifacts are removed
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        app: resolve(__dirname, 'src/app.ts'),
+      },
+      output: {
+        // Flat naming: entry is always 'app.js' (no hash)
+        entryFileNames: '[name].js',
+        // Vendor + page-level code splitting
+        manualChunks(id) {
+          if (id.includes('chartgpu')) return 'chartgpu';
+          if (id.includes('apache-arrow') || id.includes('apache_arrow')) return 'arrow';
+          if (id.includes('echarts')) return 'echarts';
+          if (id.includes('/scatter/')) return 'scatter';
+          if (id.includes('/causal/')) return 'causal';
+          if (id.includes('/drift/')) return 'drift';
+          if (
+            id.includes('/pages/fft') ||
+            id.includes('/pages/heatmap') ||
+            id.includes('/pages/spectrogram')
+          )
+            return 'frequency';
+          return undefined;
+        },
+      },
+    },
+    target: 'esnext',
+    sourcemap: true,
+    minify: false,
   },
   server: {
-    port: 5174,
+    port: 5173,
     proxy: {
-      '/api': { target: 'http://localhost:3000' }
-    }
-  },
-  build: {
-    target: 'esnext',
-    outDir: 'dist',
-    sourcemap: false,
-    minify: 'terser',
-    chunkSizeWarningLimit: 1100,
-    rollupOptions: {
-      input: resolve(__dirname, 'index.html'),
-      output: {
-        entryFileNames: 'assets/[name].[hash].js',
-        chunkFileNames: 'assets/[name].[hash].js',
-        assetFileNames: 'assets/[name].[hash].[ext]',
-        manualChunks: (id) => {
-          if (id.includes('node_modules/echarts')) return 'echarts';
-          if (id.includes('node_modules/apache-arrow')) return 'arrow';
-          if (id.includes('node_modules/solid-js')) return 'solid-runtime';
-          if (id.includes('node_modules/@solidjs/router')) return 'solid-router';
-          if (id.includes('node_modules/chroma-js')) return 'chroma';
-        }
-      }
-    }
+      '/api': { target: 'http://localhost:3000', changeOrigin: true },
+    },
   },
   css: {
     modules: {
-      localsConvention: 'camelCase'
-    }
-  }
+      localsConvention: 'camelCase',
+    },
+  },
 });
+
+// ── Dev server ────────────────────────────────────────────
+// Run `npm run dev` from the workspace root to start the Vite dev server.
+// Vite proxies /api/* to the Rust backend on port 3000 so you get live data
+// while developing with HMR. Open http://localhost:5173 in your browser.

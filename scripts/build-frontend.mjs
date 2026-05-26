@@ -21,6 +21,11 @@ function copyDir(src, dest) {
   }
 }
 
+function copyFile(src, dest) {
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(src, dest);
+}
+
 // Clean stale esbuild-era output before running Vite.
 // Vite only cleans the specific outDir when emptyOutDir is true;
 // these were created by the old esbuild multi-entry build.
@@ -75,11 +80,17 @@ for (const rel of pwaArtifacts) {
 }
 
 // Run Vite build.  The config at frontend/vite.config.ts handles:
-// - root: frontend (where tsconfig.json lives)
-// - outDir: dist (frontend/dist — where the Rust backend serves from)
+// - root: frontend
+// - TS entry: frontend/src/app.ts
+// - outDir: frontend/js, matching the static script tag in frontend/index.html
 const isWatch = process.argv.includes('--watch');
 const isProd = process.argv.includes('--prod');
-const VITE_BIN = './frontend/node_modules/vite/bin/vite.js';
+const VITE_BIN = path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js');
+
+if (!fs.existsSync(VITE_BIN)) {
+  console.error('Vite is not installed. Run `npm ci` from the repository root, then retry.');
+  process.exit(1);
+}
 
 if (isWatch) {
   // Start Vite in watch mode (for development)
@@ -98,6 +109,25 @@ if (isWatch) {
   });
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
+  }
+
+  // Assemble the static frontend served by the Rust binary. The reinstated
+  // frontend keeps source HTML/CSS at frontend/ and Vite emits JS to
+  // frontend/js; make dev serves frontend/dist, so dist must contain all of it.
+  if (fs.existsSync(FRONTEND_DIST)) {
+    fs.rmSync(FRONTEND_DIST, { recursive: true });
+  }
+  fs.mkdirSync(FRONTEND_DIST, { recursive: true });
+
+  copyFile(path.join(FRONTEND_DIR, 'index.html'), path.join(FRONTEND_DIST, 'index.html'));
+  if (fs.existsSync(path.join(FRONTEND_DIR, 'css'))) {
+    copyDir(path.join(FRONTEND_DIR, 'css'), path.join(FRONTEND_DIST, 'css'));
+  }
+  if (fs.existsSync(JS_DIR)) {
+    copyDir(JS_DIR, path.join(FRONTEND_DIST, 'js'));
+  }
+  if (fs.existsSync(path.join(FRONTEND_DIR, 'sw.js'))) {
+    copyFile(path.join(FRONTEND_DIR, 'sw.js'), path.join(FRONTEND_DIST, 'sw.js'));
   }
 
   // Copy ChartGPU library to dist AFTER Vite build (needed at runtime)
