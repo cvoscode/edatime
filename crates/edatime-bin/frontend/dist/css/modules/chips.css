@@ -1,0 +1,380 @@
+/* ─── Series chips & color selector ──────────────────────────── */
+/*
+   Series chips and the "Color by" selector share the same pill
+   shape, border, and background. Active / adaptive-target states
+   layer a glow on top via color-mix().
+*/
+.series-toggles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 100px;
+  max-width: 72%;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.series-empty {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 2px 4px;
+}
+
+/* Color-by selector — chip-style, same pill as series chips */
+.series-color-selector {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.series-color-selector label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  white-space: nowrap;
+  cursor: default;
+  font-size: 0.6875rem !important;
+  color: var(--text-dim) !important;
+}
+
+.series-color-selector label>span {
+  font-weight: 600;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Select inside the color-by chip — transparent, no border */
+#color-column-select {
+  height: var(--ctrl-h-xs) !important;
+  padding: 0 20px 0 4px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  min-width: 56px;
+  max-width: 120px;
+  font-size: 0.75rem !important;
+  color: var(--text) !important;
+}
+
+#color-column-select:focus {
+  background: rgba(0, 168, 255, 0.08) !important;
+  box-shadow: none !important;
+}
+
+/* Series chip */
+.series-chip {
+  --chip-accent: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--chip-accent, var(--border));
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  position: relative;
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    box-shadow var(--transition);
+}
+
+.series-chip input[type="checkbox"] {
+  display: none;
+}
+
+/* Chip menu (kebab) button */
+.chip-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  margin-left: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: background var(--transition), color var(--transition), opacity var(--transition);
+}
+
+.chip-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+
+.chip-menu-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Show chip menu on hover when chip is active */
+.series-chip.active:hover .chip-menu-btn,
+.series-chip.adaptive-target:hover .chip-menu-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Chip dropdown menu */
+.chip-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 160px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-0, rgba(16, 21, 33, 0.98));
+  box-shadow: var(--shadow);
+  z-index: 100;
+}
+
+.chip-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.chip-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.chip-menu-item--active {
+  color: var(--accent);
+}
+
+.chip-menu-item svg {
+  width: 13px;
+  height: 13px;
+  opacity: 0.8;
+}
+
+.chip-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+
+
+.series-chip .chip-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  transition: color var(--transition);
+}
+
+.series-chip .chip-color-picker {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin-left: 2px;
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  overflow: hidden;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.series-chip .chip-color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.series-chip .chip-color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: var(--radius-pill);
+}
+
+.series-chip .chip-color-picker::-moz-color-swatch {
+  border: none;
+  border-radius: var(--radius-pill);
+}
+
+/* Active state */
+.series-chip.active {
+  border-color: color-mix(in srgb, var(--chip-accent) 72%, var(--border-hi));
+  background: color-mix(in srgb, var(--chip-accent) 13%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--chip-accent) 20%, transparent),
+    0 0 16px color-mix(in srgb, var(--chip-accent) 12%, transparent);
+}
+
+.series-chip.active .chip-label {
+  color: var(--text);
+}
+
+/* Adaptive-filter target — slightly stronger glow, no label change */
+.series-chip.adaptive-target {
+  border-color: color-mix(in srgb, var(--chip-accent) 82%, var(--border-hi));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--chip-accent) 28%, transparent),
+    0 0 20px color-mix(in srgb, var(--chip-accent) 16%, transparent);
+}
+
+/* ── FFT traces bar ──────────────────────────────────────── */
+.fft-traces-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg, #0e1220);
+  min-height: 34px;
+  flex-shrink: 0;
+}
+
+.fft-trace-chip {
+  gap: 6px;
+}
+
+.fft-trace-chip .chip-color-picker {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin-left: 2px;
+}
+
+.fft-trace-chip .chip-color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.fft-trace-chip .chip-color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: 999px;
+}
+
+.fft-trace-chip .chip-color-picker::-moz-color-swatch {
+  border: none;
+  border-radius: 999px;
+}
+
+.fft-trace-chip:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.fft-trace-chip.active {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--chip-accent) 20%, transparent),
+    0 0 16px color-mix(in srgb, var(--chip-accent) 12%, transparent);
+}
+
+.fft-trace-chip.loading {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+
+
+.fft-trace-chip .chip-label {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fft-chip-remove {
+  margin-left: 2px;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.45;
+  pointer-events: auto;
+}
+
+.fft-trace-chip.active:hover .fft-chip-remove {
+  opacity: 0.9;
+}
+
+/* ─── Adaptive-filter trace picker popup ─────────────────────── */
+.adaptive-trace-picker {
+  position: fixed;
+  z-index: 400;
+  min-width: 160px;
+  background: rgba(18, 23, 38, 0.97);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-lg, 10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Nudge so the popup doesn't go offscreen */
+  transform: translate(4px, 4px);
+}
+
+.adaptive-trace-picker__label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #788bae);
+  text-transform: uppercase;
+  padding: 4px 6px 2px;
+}
+
+.adaptive-trace-picker__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: var(--radius-pill, 9999px);
+  background: transparent;
+  color: var(--text-dim, #9fb1d1);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition, 120ms), color var(--transition, 120ms);
+  white-space: nowrap;
+}
+
+.adaptive-trace-picker__option::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pick-accent, #9fb1d1);
+  flex-shrink: 0;
+}
+
+.adaptive-trace-picker__option:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text, #eef4ff);
+}
+
+.adaptive-trace-picker__option.current {
+  color: var(--text, #eef4ff);
+  background: color-mix(in srgb, var(--pick-accent, #fff) 14%, transparent);
+}

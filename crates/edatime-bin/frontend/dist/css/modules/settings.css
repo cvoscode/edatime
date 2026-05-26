@@ -1,0 +1,148 @@
+/* ─── Settings Modal ─────────────────────────────────────────────────────── */
+
+.settings-modal .modal {
+    width: min(720px, 95%);
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid var(--border);
+}
+
+.settings-tab-btn {
+    padding: 10px 16px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color var(--transition), border-color var(--transition);
+}
+
+.settings-tab-btn:hover {
+    color: var(--text);
+}
+
+.settings-tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.settings-tab-panel {
+    padding: 16px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.settings-section {
+    margin-bottom: 20px;
+}
+
+.settings-section:last-child {
+    margin-bottom: 0;
+}
+
+.settings-section-title {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+}
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.settings-row:last-child {
+    margin-bottom: 0;
+}
+
+.settings-label {
+    flex: 0 0 140px;
+    font-size: 0.8125rem;
+    color: var(--text);
+}
+
+.settings-control {
+    flex: 1;
+    min-width: 0;
+}
+
+.settings-control select,
+.settings-control input[type="text"],
+.settings-control input[type="number"] {
+    width: 100%;
+    max-width: 240px;
+}
+
+.settings-hint {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+/* Palette preview */
+.palette-preview {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.palette-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+
+/* Layout density adjustments */
+:root[data-layout="compact"] {
+    --ctrl-h: 28px;
+    --ctrl-h-sm: 24px;
+    --ctrl-h-xs: 20px;
+}
+
+:root[data-layout="compact"] .toolbar {
+    padding: 6px 12px;
+    gap: 8px;
+}
+
+:root[data-layout="compact"] .nav-item {
+    padding: 6px 10px;
+}
+
+:root[data-layout="compact"] .modal-body {
+    padding: 12px;
+    gap: 10px;
+}
+
+/* Settings modal actions */
+.settings-modal .modal-actions {
+    border-top: 1px solid var(--border);
+}
+
+/* Checkbox toggle style */
+.settings-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.settings-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+}

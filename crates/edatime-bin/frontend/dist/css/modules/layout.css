@@ -1,0 +1,45 @@
+/* ─── App Shell ───────────────────────────────────────────────── */
+.app-layout {
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  overflow: hidden;
+}
+
+.app-content {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.page[hidden] { display: none !important; }
+
+/* ─── Main chart areas ─────────────────────────────────────────── */
+/* Standard chart container with position:relative for overlays */
+.main--chart {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Padded chart container for heatmap-style layouts */
+.main--padded {
+  overflow: auto;
+  padding: 12px;
+}
+
+/* Main with flex:1 but no min-height constraint (for flex children) */
+.main--flex {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}

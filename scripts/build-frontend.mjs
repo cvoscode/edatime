@@ -167,5 +167,18 @@ if (isWatch) {
     console.log('Synced frontend dist to crates/edatime-bin/frontend/dist');
   }
 
+  // Clean up SolidJS-specific artifacts from the packaged dist.
+  // The Vite build above produces flat-output JS (no hashes), but if a previous
+  // build placed a SolidJS+hashed version in BIN_FRONTEND_DIST, those files would
+  // still be there and would clobber the flat output. Remove them explicitly.
+  const solidJsArtifacts = ['assets', 'frontend'];
+  for (const artifact of solidJsArtifacts) {
+    const artifactPath = path.join(BIN_FRONTEND_DIST, artifact);
+    if (fs.existsSync(artifactPath)) {
+      fs.rmSync(artifactPath, { recursive: true, force: true });
+      console.log(`Removed SolidJS artifact: ${artifact}`);
+    }
+  }
+
   process.exit(result.status ?? 0);
 }

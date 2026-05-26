@@ -1,0 +1,162 @@
+/* ─── Accessibility & Focus Indicators ────────────────── */
+
+/* Skip to content link - visually hidden until focused */
+.skip-to-content {
+  position: fixed;
+  top: -100px;
+  left: 16px;
+  z-index: 9999;
+  padding: 12px 20px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: 0 0 var(--radius) var(--radius);
+  text-decoration: none;
+  transition: top 0.2s ease;
+}
+
+.skip-to-content:focus {
+  top: 0;
+  outline: none;
+  box-shadow: 0 4px 20px rgba(0, 168, 255, 0.4);
+}
+
+/* Enhanced focus indicators for WCAG AA compliance */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Remove default outline when mouse is used */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Interactive elements - buttons, links, inputs */
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 168, 255, 0.2);
+}
+
+/* Navigation items - enhanced focus */
+.nav-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: rgba(0, 168, 255, 0.08);
+}
+
+/* Sidebar navigation */
+.sidebar .nav-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: rgba(0, 168, 255, 0.1);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Focus ring for toolbar controls */
+.toolbar button:focus-visible,
+.toolbar input:focus-visible,
+.toolbar select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(0, 168, 255, 0.15);
+}
+
+/* Modal focus trap styling */
+.modal-backdrop:focus-within {
+  outline: none;
+}
+
+/* Form field focus improvements */
+.form-field:focus-within {
+  border-color: var(--accent);
+}
+
+/* Drop zone focus state */
+.drop-zone:focus-visible {
+  outline: 2px dashed var(--accent);
+  outline-offset: 4px;
+  background: rgba(0, 168, 255, 0.05);
+}
+
+/* Screen reader only - visually hidden but accessible */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ARIA live region styles (visual indicator for debugging - remove in production) */
+[aria-live="polite"]:empty::before,
+[aria-live="assertive"]:empty::before {
+  content: '';
+}
+
+/* High contrast focus for reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+
+  *:focus-visible {
+    outline-width: 3px;
+    outline-offset: 3px;
+  }
+}
+
+/* High contrast mode support */
+@media (forced-colors: active) {
+  *:focus-visible {
+    outline: 3px solid CanvasText;
+    outline-offset: 2px;
+  }
+
+  .btn:focus-visible,
+  button:focus-visible {
+    outline: 3px solid CanvasText;
+  }
+}
+
+/* Ensure minimum touch target size of 44x44px for WCAG 2.1 AAA */
+/* Custom-styled checkboxes use their own sizing, so exclude them */
+button,
+[role="button"],
+input[type="radio"],
+a,
+select {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Exception for icon-only buttons */
+.icon-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px;
+}
+
+/* Links with text content can be smaller */
+a:not([class*="icon"]) {
+  min-height: auto;
+  min-width: auto;
+}
+
+/* Loading indicator focus */
+.loading-indicator:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

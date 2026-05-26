@@ -1,0 +1,192 @@
+/* ─── Chart text overlays ─────────────────────────────────────── */
+.chart-text-overlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 7;
+  color: var(--text);
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .35);
+}
+
+.chart-title-overlay {
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-weight: 600;
+}
+
+.chart-xlabel-overlay {
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--text-dim);
+}
+
+.chart-ylabel-overlay {
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%) rotate(-90deg);
+  transform-origin: left top;
+  color: var(--text-dim);
+}
+
+/* ─── Chart container ─────────────────────────────────────────── */
+.main {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: var(--bg);
+}
+
+#main-chart {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+}
+
+.plot-empty-state {
+  position: absolute;
+  inset: 16px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(11, 15, 24, 0.72);
+  color: var(--text-dim);
+  text-align: center;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+.plot-empty-state strong {
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.plot-empty-state span {
+  max-width: 38rem;
+  line-height: 1.5;
+}
+
+.plot-empty-illustration {
+  width: 96px;
+  height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.plot-empty-illustration svg {
+  width: 100%;
+  height: auto;
+}
+
+.plot-empty-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.plot-empty-actions .btn {
+  pointer-events: auto;
+}
+
+.plot-empty-state[hidden] {
+  display: none;
+}
+
+/* ─── Skeleton loading for chart area ──────────────────────── */
+.chart-skeleton {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 8;
+  background: var(--bg);
+}
+
+.chart-skeleton-wave {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 60px;
+}
+
+.chart-skeleton-wave-bar {
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(to bottom,
+      rgba(0, 168, 255, 0.1) 0%,
+      rgba(0, 168, 255, 0.3) 50%,
+      rgba(0, 168, 255, 0.1) 100%);
+  border-radius: 2px;
+  animation: skeleton-bar-pulse 1.2s ease-in-out infinite;
+}
+
+.chart-skeleton-wave-bar:nth-child(1) {
+  animation-delay: 0s;
+  height: 60%;
+}
+
+.chart-skeleton-wave-bar:nth-child(2) {
+  animation-delay: 0.1s;
+  height: 80%;
+}
+
+.chart-skeleton-wave-bar:nth-child(3) {
+  animation-delay: 0.2s;
+  height: 50%;
+}
+
+.chart-skeleton-wave-bar:nth-child(4) {
+  animation-delay: 0.3s;
+  height: 90%;
+}
+
+.chart-skeleton-wave-bar:nth-child(5) {
+  animation-delay: 0.4s;
+  height: 70%;
+}
+
+.chart-skeleton-wave-bar:nth-child(6) {
+  animation-delay: 0.5s;
+  height: 40%;
+}
+
+.chart-skeleton-wave-bar:nth-child(7) {
+  animation-delay: 0.6s;
+  height: 85%;
+}
+
+@keyframes skeleton-bar-pulse {
+
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scaleY(0.8);
+  }
+
+  50% {
+    opacity: 0.8;
+    transform: scaleY(1);
+  }
+}
+
+.chart-skeleton-text {
+  color: var(--text-dim);
+  font-size: 0.8125rem;
+}
