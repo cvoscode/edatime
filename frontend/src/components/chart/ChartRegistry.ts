@@ -4,7 +4,7 @@
  * Decision order:
  *  1. WebGPU availability check
  *  2. User preference from uiStore (forceWebGPU / forceECharts)
- *  3. Chart type support (timeseries → ChartGPU/ECharts, scatter → ECharts)
+ *  3. Chart type support (timeseries/scatter → ChartGPU/ECharts, heatmap → ECharts)
  *
  * All adapters implement the ChartAdapter interface so consumers are
  * decoupled from engine-specific details.
@@ -46,7 +46,7 @@ async function selectEngineForInit(options: ChartRegistryOptions = {}): Promise<
   const { enginePreference = 'auto', chartType = 'timeseries' } = options;
 
   if (enginePreference === 'echarts') return 'ECharts';
-  if (chartType === 'scatter' || chartType === 'heatmap') return 'ECharts';
+  if (chartType === 'heatmap') return 'ECharts';
 
   const hasAdapter = await hasWebGPUAdapter();
   if (enginePreference === 'webgpu') {
@@ -68,7 +68,7 @@ export function selectEngine(options: ChartRegistryOptions = {}): 'ChartGPU' | '
     return isWebGPUSupported() ? 'ChartGPU' : 'ECharts';
   }
 
-  if (chartType === 'scatter' || chartType === 'heatmap') {
+  if (chartType === 'heatmap') {
     return 'ECharts';
   }
 

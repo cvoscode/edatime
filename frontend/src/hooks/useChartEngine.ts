@@ -118,7 +118,7 @@ export function useChartEngine(
         { grid: chartGrid, xAxisType, xAxisLabel: options.xAxisLabel, yAxisLabel: options.yAxisLabel, chartTitle: options.chartTitle },
         {
           chartType: options.type === 'timeseries' ? 'timeseries' : 'scatter',
-          enginePreference: options.type === 'timeseries' ? 'auto' : 'echarts',
+          enginePreference: options.type === 'echarts' ? 'echarts' : 'auto',
         }
       );
       const initializedChart = chartResult;
@@ -184,6 +184,7 @@ export function useChartEngine(
               if (msg.includes('insertBefore')) {
                 const delay = Math.min(BASE_DELAY_MS * Math.pow(2, attempts - 1), MAX_DELAY_MS);
                 console.warn(`[useChartEngine] setChartStatus insertBefore, retrying in ${delay}ms (attempt ${attempts}/${MAX_ATTEMPTS})...`);
+                setChartStatus('loading');
                 await new Promise<void>(resolve => setTimeout(resolve, delay));
               } else {
                 console.error('[useChartEngine] setStatus error:', msg);

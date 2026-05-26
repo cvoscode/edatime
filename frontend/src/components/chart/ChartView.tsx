@@ -12,6 +12,7 @@ import { getActivePlotTemplate } from '../../utils/plotTemplate';
 
 interface ChartViewProps {
   containerId?: string;
+  chartType?: 'timeseries' | 'scatter';
   onReady?: (updateChart: (series: any[], xAxisMin?: number, xAxisMax?: number, yAxisMin?: number, yAxisMax?: number) => void) => void;
   onChartReady?: (chartInstance: any) => void;
   onEngineReady?: (engineName: string) => void;
@@ -36,22 +37,22 @@ const CHART_GRID = DEFAULT_GRID;
 const MIN_DRAG_PX = 8;
 
 const ChartView: Component<ChartViewProps> = (props) => {
-  let containerRef: HTMLDivElement | undefined;
+  let wrapperRef: HTMLDivElement | undefined;
+  let chartContainerRef: HTMLDivElement | undefined;
   let selectionBoxRef: HTMLDivElement | undefined;
   const [drag, setDrag] = createSignal<DragState | null>(null);
   const [themeVersion, setThemeVersion] = createSignal(0);
   let chartInstanceRef: any = null;
   let axisLabelX = '';
-
-  console.error('[ChartView] CONSTRUCTOR called');
   let axisLabelY = '';
+  const isScatter = () => props.chartType === 'scatter';
 
   const activeTemplate = createMemo(() =>
     getActivePlotTemplate(uiStore.state.plotTheme, uiStore.state.theme)
   );
 
   const viewport = useChartViewport(
-    () => containerRef,
+    () => wrapperRef,
     {
       grid: CHART_GRID,
       onZoom: (start, end, yMin, yMax) => props.onZoom?.(start, end, yMin, yMax),
@@ -61,9 +62,9 @@ const ChartView: Component<ChartViewProps> = (props) => {
   );
 
   const chartEngine = useChartEngine(
-    () => containerRef,
+    () => chartContainerRef,
     {
-      type: 'timeseries',
+      type: isScatter() ? 'scatter' : 'timeseries',
       grid: CHART_GRID,
       xAxisLabel: props.xAxisLabel,
       yAxisLabel: props.yAxisLabel,
@@ -111,13 +112,13 @@ const ChartView: Component<ChartViewProps> = (props) => {
 
     const opts: any = {
       grid: CHART_GRID,
-      xAxis: { type: 'time' as const, name: axisLabelX },
+      xAxis: { type: isScatter() ? ('value' as const) : ('time' as const), name: axisLabelX },
       yAxis: { type: 'value' as const, name: axisLabelY },
       legend: { show: true, position: 'right' },
       series: seriesWithVisibility,
     };
     if (xMin !== undefined && xMax !== undefined) {
-      opts.xAxis = { type: 'time' as const, min: xMin, max: xMax, name: axisLabelX };
+      opts.xAxis = { type: isScatter() ? ('value' as const) : ('time' as const), min: xMin, max: xMax, name: axisLabelX };
       const yRange = chartStore.getLastDataYRange();
       const yMinVal = yMin ?? (yRange?.min ?? 0);
       const yMaxVal = yMax ?? (yRange?.max ?? 1);
@@ -141,14 +142,16 @@ const ChartView: Component<ChartViewProps> = (props) => {
       if (list.length === 0) return '';
       const first = list[0] as TooltipEntry;
       const x = Number(first?.value?.[0]);
-      const date = Number.isFinite(x) ? new Date(x).toISOString().replace('T', ' ').slice(0, 19) : '';
+      const xLabel = Number.isFinite(x)
+        ? (isScatter() ? x.toFixed(3) : new Date(x).toISOString().replace('T', ' ').slice(0, 19))
+        : '';
       const rows = list.map((p) => {
         const pp = p as TooltipEntry;
         const name = String(pp?.seriesName ?? 'series').replace(/__color_seg__.*/, '');
         const y = Number.isFinite(pp?.value?.[1]) ? pp.value![1].toFixed(2) : 'NaN';
         return `<div style="display:flex;justify-content:space-between;gap:12px;"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span><span style="font-variant-numeric:tabular-nums;white-space:nowrap;">${y}</span></div>`;
       }).join('');
-      return date ? `<div style="opacity:0.8;margin-bottom:6px;">${date}</div>${rows}` : rows;
+      return xLabel ? `<div style="opacity:0.8;margin-bottom:6px;">${xLabel}</div>${rows}` : rows;
     };
     opts.tooltip = { show: true, trigger: 'axis', formatter: tooltipFormatter };
 
@@ -176,9 +179,9 @@ const ChartView: Component<ChartViewProps> = (props) => {
       props.onReady?.(handleUpdateChart);
     }
 
-    containerRef?.addEventListener('click', (e: MouseEvent) => {
+    wrapperRef?.addEventListener('click', (e: MouseEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
-      const rect = containerRef?.getBoundingClientRect();
+      const rect = wrapperRef?.getBoundingClientRect();
       if (!rect) return;
       const { dataX, dataY } = viewport.cssToData(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
       if (Number.isFinite(dataX) && Number.isFinite(dataY)) {
@@ -193,7 +196,7 @@ const ChartView: Component<ChartViewProps> = (props) => {
     console.debug('[ChartView] createEffect ran, chartStatus:', status);
     if (status === 'ready') {
       console.debug('[ChartView] calling props.onReady');
-      props.onReady?.(handleUpdateChart);
+      queueMicrotask(() => props.onReady?.(handleUpdateChart));
     }
   });
 
@@ -225,7 +228,7 @@ const ChartView: Component<ChartViewProps> = (props) => {
     axisLabelX = xLabel;
     axisLabelY = yLabel;
     const labelOpts: any = {
-      xAxis: { type: 'time' as const, name: xLabel },
+      xAxis: { type: isScatter() ? ('value' as const) : ('time' as const), name: xLabel },
       yAxis: { type: 'value' as const, name: yLabel },
     };
     if (chartEngine.engineName() === 'ECharts') {
@@ -242,18 +245,18 @@ const ChartView: Component<ChartViewProps> = (props) => {
   const handlePointerDown = (e: PointerEvent) => {
     if (props.drawMode !== 'zoom') return;
     if (e.button !== 0) return;
-    const rect = containerRef?.getBoundingClientRect();
+    const rect = wrapperRef?.getBoundingClientRect();
     if (!rect) return;
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    containerRef?.setPointerCapture(e.pointerId);
+    wrapperRef?.setPointerCapture(e.pointerId);
     setDrag({ pointerId: e.pointerId, startX: x, endX: x, startY: y, endY: y });
   };
 
   const handlePointerMove = (e: PointerEvent) => {
     const d = drag();
     if (!d || e.pointerId !== d.pointerId) return;
-    const rect = containerRef?.getBoundingClientRect();
+    const rect = wrapperRef?.getBoundingClientRect();
     if (!rect) return;
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -275,9 +278,9 @@ const ChartView: Component<ChartViewProps> = (props) => {
   const handlePointerUp = (e: PointerEvent) => {
     const d = drag();
     if (!d || e.pointerId !== d.pointerId) return;
-    const rect = containerRef?.getBoundingClientRect();
+    const rect = wrapperRef?.getBoundingClientRect();
     if (!rect) return;
-    containerRef?.releasePointerCapture(e.pointerId);
+    wrapperRef?.releasePointerCapture(e.pointerId);
 
     const dx = Math.abs(d.endX - d.startX);
 
@@ -305,7 +308,7 @@ const ChartView: Component<ChartViewProps> = (props) => {
 
   return (
     <div
-      ref={containerRef}
+      ref={wrapperRef}
       id={props.containerId ?? 'main-chart'}
       class="chart-container"
       data-status={chartEngine.chartStatus()}
@@ -316,6 +319,15 @@ const ChartView: Component<ChartViewProps> = (props) => {
       onDblClick={handleDoubleClick}
       onWheel={handleWheel}
     >
+      <div
+        ref={chartContainerRef}
+        style={{
+          width: '100%',
+          height: '100%',
+          position: 'absolute',
+          inset: 0,
+        }}
+      />
       {chartEngine.chartStatus() === 'loading' && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', 'align-items': 'center', 'justify-content': 'center', color: 'var(--color-text-muted, #888)' }}>
           Loading chart engine...
@@ -350,8 +362,8 @@ const ChartView: Component<ChartViewProps> = (props) => {
           drawColor={props.drawColor}
           drawWidth={props.drawWidth}
           drag={drag()}
-          containerWidth={containerRef?.clientWidth ?? 1200}
-          containerHeight={containerRef?.clientHeight ?? 600}
+          containerWidth={wrapperRef?.clientWidth ?? 1200}
+          containerHeight={wrapperRef?.clientHeight ?? 600}
           chartTitle={props.chartTitle}
           xAxisLabel={axisLabelX}
           yAxisLabel={axisLabelY}

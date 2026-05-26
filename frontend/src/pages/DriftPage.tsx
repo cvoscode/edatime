@@ -221,8 +221,8 @@ const DriftPage: Component = () => {
             body: JSON.stringify({
               column: col,
               window: windowSize(),
-              reference_start: refStart(),
-              reference_end: refEnd(),
+              referenceStart: refStart(),
+              referenceEnd: refEnd(),
             }),
           });
           if (!res.ok) throw new Error(`${res.status}`);

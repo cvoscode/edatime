@@ -16,6 +16,7 @@ import {
   getColorPalette,
   sampleGradient,
 } from '../../../utils/colorScale';
+import ChartView from '../../../components/chart/ChartView';
 
 interface ScatterChartProps {
   xAxisLabel?: string;
@@ -163,13 +164,26 @@ export const ScatterChart: Component<ScatterChartProps> = (props) => {
   });
 
   const handleReady = (updateFn: (options: any) => void) => {
-    updateFn({ series: series() });
-    props.onReady?.(updateFn);
+    const updateChartOptions = (options: any) => {
+      updateFn(options?.series ?? []);
+    };
+    updateChartOptions({ series: series() });
+    props.onReady?.(updateChartOptions);
   };
 
-  // ScatterChart doesn't render directly - it acts as a data bridge
-  // The parent ScatterPage receives handleReady and uses the series data
-  return null;
+  return (
+    <ChartView
+      containerId="scatter-chart"
+      chartType="scatter"
+      chartTitle={props.chartTitle}
+      xAxisLabel={props.xAxisLabel}
+      yAxisLabel={props.yAxisLabel}
+      onReady={handleReady}
+      onEngineReady={props.onEngineReady}
+      onEngineChanged={props.onEngineChanged}
+      onZoom={props.onZoom}
+    />
+  );
 };
 
 export default ScatterChart;
