@@ -64,8 +64,28 @@ export const chartStore = {
   },
 
   setViewport(viewport: ChartViewport) {
+    if (
+      !Number.isFinite(viewport.xMin) ||
+      !Number.isFinite(viewport.xMax) ||
+      !Number.isFinite(viewport.yMin) ||
+      !Number.isFinite(viewport.yMax) ||
+      viewport.xMax <= viewport.xMin ||
+      viewport.yMax <= viewport.yMin
+    ) {
+      return;
+    }
+
     // Save current view to history before changing
     const currentView = { ...chartState.viewport };
+    if (
+      currentView.xMin === viewport.xMin &&
+      currentView.xMax === viewport.xMax &&
+      currentView.yMin === viewport.yMin &&
+      currentView.yMax === viewport.yMax
+    ) {
+      return;
+    }
+
     setChartState('viewport', viewport);
 
     // Push current view to history stack (limit to 10 entries)
@@ -82,7 +102,7 @@ export const chartStore = {
     const current = chartState.viewport;
     const xRange = current.xMax - current.xMin;
     const yRange = current.yMax - current.yMin;
-    const factor = 0.5;
+    const factor = 0.25;
 
     this.setViewport({
       xMin: current.xMin + xRange * factor,

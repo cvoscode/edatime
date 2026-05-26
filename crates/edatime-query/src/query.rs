@@ -79,7 +79,6 @@ pub enum AggregateWindowMode {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 /// Parse the `columns` query param into a list of column name strings.
-/// Falls back to `["value"]` when absent or empty.
 pub fn parse_columns(raw: Option<&str>) -> Vec<String> {
     let trimmed = raw.map(|s| s.trim()).filter(|s| !s.is_empty());
     match trimmed {
@@ -88,7 +87,7 @@ pub fn parse_columns(raw: Option<&str>) -> Vec<String> {
             .map(|c| c.trim().to_string())
             .filter(|c| !c.is_empty())
             .collect(),
-        None => vec!["value".to_string()],
+        None => Vec::new(),
     }
 }
 

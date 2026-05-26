@@ -16,11 +16,61 @@ export function getCurrentPageFromHash(): string {
   return hash || 'home';
 }
 
+export function reconcileSessionColumnsWithMetadata(): void {
+  const numericColumns = new Set(datasetStore.state.numericCols);
+  const allColumns = new Set(datasetStore.state.columns.map((column) => column.name));
+  const validColumns = allColumns.size > 0 ? allColumns : numericColumns;
+  if (validColumns.size === 0) return;
+
+  const selected = timeseriesStore.state.selectedColumns.filter((column) => numericColumns.has(column));
+  if (timeseriesStore.state.selectedColumns.length > 0) {
+    timeseriesStore.setSelectedColumns(selected.length > 0 ? selected : [...numericColumns]);
+  }
+
+  timeseriesStore.setHiddenColumns(
+    timeseriesStore.state.hiddenColumns.filter((column) => numericColumns.has(column))
+  );
+
+  if (timeseriesStore.state.colorColumn && !numericColumns.has(timeseriesStore.state.colorColumn)) {
+    timeseriesStore.setColorColumn(null);
+  }
+
+  timeseriesStore.setColors(
+    Object.fromEntries(
+      Object.entries(timeseriesStore.state.colors).filter(([column]) => numericColumns.has(column))
+    )
+  );
+
+  timeseriesStore.setFilters(
+    Object.fromEntries(
+      Object.entries(timeseriesStore.state.filters).filter(([column]) => numericColumns.has(column))
+    )
+  );
+
+  const scatterPatch: Partial<typeof scatterStore.state.config> = {};
+  if (scatterStore.state.config.xCol && !numericColumns.has(scatterStore.state.config.xCol)) {
+    scatterPatch.xCol = '';
+  }
+  if (scatterStore.state.config.yCol && !numericColumns.has(scatterStore.state.config.yCol)) {
+    scatterPatch.yCol = '';
+  }
+  if (scatterStore.state.config.colorCol && !validColumns.has(scatterStore.state.config.colorCol)) {
+    scatterPatch.colorCol = '';
+  }
+  if (scatterStore.state.config.sizeCol && !numericColumns.has(scatterStore.state.config.sizeCol)) {
+    scatterPatch.sizeCol = '';
+  }
+  if (Object.keys(scatterPatch).length > 0) {
+    scatterStore.setConfig(scatterPatch);
+  }
+}
+
 export function applySessionToStores(snap: SessionSnapshot, isRestoringRef?: { current: boolean }): void {
   if (isRestoringRef) isRestoringRef.current = true;
 
   if (snap.selectedCols) timeseriesStore.setSelectedColumns(snap.selectedCols);
   if (snap.hiddenCols) timeseriesStore.setHiddenColumns(snap.hiddenCols);
+  if (snap.colorColumn !== undefined) timeseriesStore.setColorColumn(snap.colorColumn);
   if (snap.seriesColors) {
     for (const [col, color] of Object.entries(snap.seriesColors)) {
       timeseriesStore.setColumnColor(col, color);
@@ -56,6 +106,8 @@ export function applySessionToStores(snap: SessionSnapshot, isRestoringRef?: { c
   if (snap.scatterColorColumn) scatterStore.setConfig({ colorCol: snap.scatterColorColumn });
   if (snap.scatterRenderMode) scatterStore.setRenderMode(snap.scatterRenderMode as 'scatter' | 'density');
 
+  reconcileSessionColumnsWithMetadata();
+
   // Navigate to saved page — defer to next tick so App's onMount completes first
   if (snap.page && snap.page !== getCurrentPageFromHash()) {
     setTimeout(() => { window.location.hash = `/${snap.page}`; }, 0);
@@ -67,7 +119,6 @@ export function applySessionToStores(snap: SessionSnapshot, isRestoringRef?: { c
 function getStoresSnap() {
   const uiSnap = uiStore.serialize();
   const chartSnap = chartStore.serialize();
-  const datasetSnap = datasetStore.serialize();
   const scatterSnap = scatterStore.serialize();
   const tsState = timeseriesStore.state;
   return {
@@ -80,7 +131,10 @@ function getStoresSnap() {
       colorScale: uiSnap.colorScale,
     },
     chart: { viewport: chartSnap.viewport },
-    dataset: datasetSnap,
+    dataset: {
+      xAxisColumn: datasetStore.state.xAxisColumn,
+      colorColumn: tsState.colorColumn,
+    },
     analytics: {
       rollingEnabled: analyticsStore.state.rollingEnabled,
       rollingWindow: analyticsStore.state.rollingWindow,

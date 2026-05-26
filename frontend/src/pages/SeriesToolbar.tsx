@@ -10,6 +10,7 @@ interface SeriesToolbarProps {
   hiddenColumns: string[];
   colors: Record<string, string>;
   mergedColors: Record<string, string>;
+  colorColumn: string | null;
   onXAxisChange: (col: string) => void;
   onColorByChange: (col: string | null) => void;
   onColumnChange: (cols: string[]) => void;
@@ -49,7 +50,7 @@ const SeriesToolbar: Component<SeriesToolbarProps> = (props) => {
         <select
           id="color-by-select"
           class={styles.xAxisSelect}
-          value={props.mergedColors.colorColumn ?? ''}
+          value={props.colorColumn ?? ''}
           onChange={(e) => props.onColorByChange(e.currentTarget.value || null)}
           aria-label="Color by column"
         >

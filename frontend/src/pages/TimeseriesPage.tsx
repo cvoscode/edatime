@@ -302,25 +302,31 @@ const TimeseriesPage: Component = () => {
   });
 
   // Reset viewport when dataset changes
-  let lastColCount = 0;
+  let lastDatasetKey = '';
   createEffect(() => {
     const cols = numericCols();
     const metadata = datasetStore.state.metadata;
-    const prevColCount = untrack(() => lastColCount);
-    if (cols.length > 0 && cols.length !== prevColCount && prevColCount > 0) {
+    const timeRange = getMetadataTimeRange(metadata);
+    const datasetKey = `${datasetStore.state.revision ?? 'none'}:${cols.join('\u001f')}:${timeRange?.min ?? ''}:${timeRange?.max ?? ''}`;
+    const prevDatasetKey = untrack(() => lastDatasetKey);
+
+    if (!prevDatasetKey) {
+      lastDatasetKey = datasetKey;
+    }
+
+    if (cols.length > 0 && datasetKey !== prevDatasetKey && prevDatasetKey) {
       timeseriesStore.setSelectedColumns(cols);
       timeseriesStore.setHiddenColumns([]);
     }
-    const timeRange = getMetadataTimeRange(metadata);
-    if (cols.length > 0 && timeRange) {
+    if (cols.length > 0 && timeRange && datasetKey !== prevDatasetKey) {
       const [t0, t1] = [timeRange.min, timeRange.max];
-      const vp = chartStore.state.viewport;
+      const vp = untrack(() => chartStore.state.viewport);
       if (vp.xMin !== t0 || vp.xMax !== t1) {
         chartStore.setViewport({ xMin: t0, xMax: t1, yMin: 0, yMax: 1 });
         chartStore.forceResetZoom();
       }
     }
-    lastColCount = cols.length;
+    lastDatasetKey = datasetKey;
   });
 
   // Ctrl key tracking for adaptive filter
@@ -397,6 +403,7 @@ const TimeseriesPage: Component = () => {
         hiddenColumns={timeseriesStore.state.hiddenColumns}
         colors={timeseriesStore.state.colors}
         mergedColors={mergedColors()}
+        colorColumn={timeseriesStore.state.colorColumn}
         onXAxisChange={handleXAxisChange}
         onColorByChange={(col) => timeseriesStore.setColorColumn(col)}
         onColumnChange={(cols) => timeseriesStore.setSelectedColumns(cols)}

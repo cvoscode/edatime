@@ -21,7 +21,7 @@ export interface TimeseriesRequest {
 }
 
 export async function fetchTimeseriesData(req: TimeseriesRequest): Promise<TimeseriesData> {
-    const { start, end, width, xCol, columns, signal, colorColumn } = req;
+    const { start, end, width, columns, signal, colorColumn } = req;
 
     const params = new URLSearchParams({
         start,
@@ -29,8 +29,7 @@ export async function fetchTimeseriesData(req: TimeseriesRequest): Promise<Times
         width: String(width),
         columns: columns.join(','),
     });
-    if (xCol) params.set('xCol', xCol);
-    if (colorColumn) params.set('colorColumn', colorColumn);
+    if (colorColumn) params.set('color_column', colorColumn);
 
     const url = `/api/data?${params.toString()}`;
 

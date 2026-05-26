@@ -8,7 +8,7 @@
  * NOTE: Viewport/zoom are mirrored FROM chartStore so both stores stay in sync.
  * Components should prefer chartStore for viewport actions to avoid duplication.
  */
-import { createStore } from 'solid-js/store';
+import { createStore, reconcile } from 'solid-js/store';
 import { createSignal } from 'solid-js';
 import type { TimeseriesState } from './types';
 import type { Drawing } from '../../types/domains';
@@ -113,6 +113,14 @@ export const timeseriesStore = {
 
   setColorColumn(col: string | null) {
     setState('colorColumn', col);
+  },
+
+  setColors(colors: Record<string, string>) {
+    setState('colors', reconcile({ ...colors }));
+  },
+
+  setFilters(filters: Record<string, { min: number; max: number }>) {
+    setState('filters', reconcile({ ...filters }));
   },
 
   setHiddenColumns(columns: string[]) {

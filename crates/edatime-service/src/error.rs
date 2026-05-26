@@ -153,7 +153,34 @@ impl From<serde_json::Error> for AppError {
 
 impl From<edatime_core::error::AppError> for AppError {
     fn from(value: edatime_core::error::AppError) -> Self {
-        AppError::internal(format!("core error: {value}"))
+        match value {
+            edatime_core::error::AppError::Validation(message)
+            | edatime_core::error::AppError::BadRequest(message) => {
+                let lower = message.to_lowercase();
+                let code = if lower.contains("time") && lower.contains("before") {
+                    ErrorCode::InvalidTimeRange
+                } else if lower.contains("width") {
+                    ErrorCode::InvalidWidth
+                } else if lower.contains("bucket") {
+                    ErrorCode::InvalidBuckets
+                } else if lower.contains("scatter") && lower.contains("limit") {
+                    ErrorCode::InvalidScatterLimit
+                } else if lower.contains("unknown column") {
+                    ErrorCode::ColumnNotFound
+                } else if lower.contains("column") {
+                    ErrorCode::InvalidColumnSelection
+                } else {
+                    ErrorCode::InvalidRequest
+                };
+                AppError::bad_request_code(code, message)
+            }
+            edatime_core::error::AppError::NotFound(message) => {
+                AppError::new(ErrorKind::NotFound, ErrorCode::NotFound, message)
+            }
+            edatime_core::error::AppError::Query(message)
+            | edatime_core::error::AppError::Io(message)
+            | edatime_core::error::AppError::Internal(message) => AppError::internal(message),
+        }
     }
 }
 

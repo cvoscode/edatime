@@ -5,6 +5,8 @@ import { datasetStore } from '../stores/datasetStore';
 import { scatterStore } from '../stores/scatterStore';
 import { uploadStore } from '../stores/uploadStore';
 import { toastState, addToast, removeToast } from '../shared/ui/toast';
+import { timeseriesStore } from '../domain/timeseries/store';
+import { reconcileSessionColumnsWithMetadata } from './sessionStore';
 
 const DEFAULT_VIEWPORT = { xMin: 0, xMax: 100, yMin: 0, yMax: 1 };
 
@@ -26,6 +28,14 @@ describe('chartStore', () => {
     chartStore.setViewport({ xMin: 10, xMax: 20, yMin: 0, yMax: 1 });
     expect(chartStore.state.viewport.xMin).toBe(10);
     expect(chartStore.state.viewport.xMax).toBe(20);
+  });
+
+  it('setViewport ignores invalid ranges', () => {
+    chartStore.setViewport({ xMin: 10, xMax: 20, yMin: 0, yMax: 1 });
+    chartStore.setViewport({ xMin: 20, xMax: 20, yMin: 0, yMax: 1 });
+    chartStore.setViewport({ xMin: 10, xMax: 20, yMin: 1, yMax: 1 });
+    chartStore.setViewport({ xMin: Number.NaN, xMax: 20, yMin: 0, yMax: 1 });
+    expect(chartStore.state.viewport).toEqual({ xMin: 10, xMax: 20, yMin: 0, yMax: 1 });
   });
 
   it('setDrawMode updates drawMode', () => {
@@ -67,6 +77,8 @@ describe('chartStore', () => {
     const before = { ...chartStore.state.viewport };
     chartStore.zoomIn();
     const after = chartStore.state.viewport;
+    expect(after.xMax).toBeGreaterThan(after.xMin);
+    expect(after.yMax).toBeGreaterThan(after.yMin);
     expect(after.xMax - after.xMin).toBeLessThan(before.xMax - before.xMin);
   });
 
@@ -180,6 +192,16 @@ describe('uiStore', () => {
 // datasetStore tests
 // ---------------------------------------------------------------------------
 describe('datasetStore', () => {
+  beforeEach(() => {
+    datasetStore.reset();
+    timeseriesStore.setSelectedColumns([]);
+    timeseriesStore.setHiddenColumns([]);
+    timeseriesStore.setColorColumn(null);
+    timeseriesStore.setColors({});
+    timeseriesStore.setFilters({});
+    scatterStore.reset();
+  });
+
   it('exposes state getter', () => {
     expect(datasetStore.state).toBeDefined();
   });
@@ -226,6 +248,31 @@ describe('datasetStore', () => {
     datasetStore.reset();
     expect(datasetStore.state.metadata).toBeNull();
     expect(datasetStore.state.revision).toBeNull();
+  });
+
+  it('drops session columns that are absent from current metadata', () => {
+    datasetStore.setColumns([
+      { name: 'ts', type: 'datetime', min: 0, max: 100, nullCount: 0 },
+      { name: 'col_a', type: 'numeric', min: 0, max: 100, nullCount: 0 },
+      { name: 'col_b', type: 'numeric', min: 0, max: 100, nullCount: 0 },
+    ]);
+    timeseriesStore.setSelectedColumns(['col_a', 'humidity']);
+    timeseriesStore.setHiddenColumns(['pressure', 'col_b']);
+    timeseriesStore.setColorColumn('temperature');
+    timeseriesStore.setColors({ col_a: '#ff0000', humidity: '#00ff00' });
+    timeseriesStore.setFilters({ col_b: { min: 0, max: 1 }, pressure: { min: 2, max: 3 } });
+    scatterStore.setConfig({ xCol: 'humidity', yCol: 'col_b', colorCol: 'temperature' });
+
+    reconcileSessionColumnsWithMetadata();
+
+    expect(timeseriesStore.state.selectedColumns).toEqual(['col_a']);
+    expect(timeseriesStore.state.hiddenColumns).toEqual(['col_b']);
+    expect(timeseriesStore.state.colorColumn).toBeNull();
+    expect(timeseriesStore.state.colors).toEqual({ col_a: '#ff0000' });
+    expect(timeseriesStore.state.filters).toEqual({ col_b: { min: 0, max: 1 } });
+    expect(scatterStore.state.config.xCol).toBe('');
+    expect(scatterStore.state.config.yCol).toBe('col_b');
+    expect(scatterStore.state.config.colorCol).toBe('');
   });
 });
 

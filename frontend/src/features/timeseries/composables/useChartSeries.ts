@@ -46,19 +46,24 @@ export function useChartSeries(): UseChartSeriesReturn {
     );
 
     const selectedColumns = createMemo(() => {
+        const validNumericCols = numericCols();
+        const validNumericSet = new Set(validNumericCols);
         const s = timeseriesStore.state.selectedColumns;
         const xCol = xAxisColumn();
         if (s.length === 0) {
-            return numericCols().filter(c => c !== xCol);
+            return validNumericCols.filter(c => c !== xCol);
         }
-        return s;
+        return s.filter(c => validNumericSet.has(c) && c !== xCol);
     });
 
-    const traceColumns = createMemo(() =>
-        selectedColumns().filter(c =>
-            c !== xAxisColumn() && !timeseriesStore.state.hiddenColumns.includes(c)
-        )
-    );
+    const traceColumns = createMemo(() => {
+        const validNumericSet = new Set(numericCols());
+        return selectedColumns().filter(c =>
+            validNumericSet.has(c) &&
+            c !== xAxisColumn() &&
+            !timeseriesStore.state.hiddenColumns.includes(c)
+        );
+    });
 
     const colorPalette = createMemo(() =>
         getColorPalette(uiStore.state.colorScale, allTraceColumns().length)

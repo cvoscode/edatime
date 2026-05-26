@@ -103,6 +103,7 @@ export function useChartViewport(
     const plotRight = rect.width - options.grid.right;
     const plotWidth = Math.max(1, plotRight - plotLeft);
     const relX = (e.clientX - rect.left - plotLeft) / plotWidth;
+    if (relX < 0 || relX > 1) return;
     const centerDataX = vb.xMin + relX * xRange;
     const deltaFactor = e.deltaY > 0 ? 1.15 : factor;
     const newXMin = centerDataX - (centerDataX - vb.xMin) * deltaFactor;

@@ -56,8 +56,8 @@ interface CacheEntry {
   dataYMax: number;
 }
 
-function buildCacheKey(vp: { xMin: number; xMax: number }, columns: string[]): string {
-  return `${vp.xMin.toFixed(0)}_${vp.xMax.toFixed(0)}_${columns.slice().sort().join(',')}`;
+function buildCacheKey(vp: { xMin: number; xMax: number }, columns: string[], colorColumn: string | null): string {
+  return `${vp.xMin.toFixed(0)}_${vp.xMax.toFixed(0)}_${columns.slice().sort().join(',')}_${colorColumn ?? ''}`;
 }
 
 function computeYRange(config: any[]): { min: number; max: number } {
@@ -116,7 +116,8 @@ export function useTimeseriesChartData(
 
   const doFetch = async () => {
     const xCol = options.xAxisColumn();
-    const cols = options.columns();
+    const validNumericColumns = new Set(datasetStore.state.numericCols);
+    const cols = options.columns().filter((column) => validNumericColumns.has(column));
     console.debug('[useTimeseriesChartData] doFetch', { xCol, colCount: cols.length, colSlice: cols.slice(0, 5) });
     if (!xCol || cols.length === 0) {
       console.debug('[useTimeseriesChartData] doFetch early return - no xCol or cols');
@@ -133,7 +134,8 @@ export function useTimeseriesChartData(
     }
 
     const vp = options.viewport();
-    const cacheKey = buildCacheKey(vp, cols);
+    const colorColumn = options.colorColumn();
+    const cacheKey = buildCacheKey(vp, cols, colorColumn);
     console.debug('[useTimeseriesChartData] viewport & cacheKey', { vp, cacheKey });
 
     const cached = cache.get(cacheKey);
@@ -166,7 +168,7 @@ export function useTimeseriesChartData(
         xCol,
         cols,
         abortController.signal,
-        options.colorColumn()
+        colorColumn
       );
       console.debug('[useTimeseriesChartData] fetchTimeseriesData returned', { returnedRows: result.returnedRows, downsampled: result.downsampled, xValuesLen: result.xValues.length, seriesKeys: Object.keys(result.series) });
 

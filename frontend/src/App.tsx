@@ -1,7 +1,7 @@
 import { Component, onMount, onCleanup } from 'solid-js';
 import { HashRouter, Route } from '@solidjs/router';
 import AppShell from '@/shared/layout/AppShell';
-import { createSessionPersistence } from './stores/sessionStore';
+import { createSessionPersistence, reconcileSessionColumnsWithMetadata } from './stores/sessionStore';
 import { datasetStore } from './stores';
 import { fetchMetadata } from './services/api';
 
@@ -92,6 +92,7 @@ const App: Component = () => {
           nullCount: cp.null_count,
         })));
         datasetStore.setNumericCols(metadata.numeric_columns);
+        reconcileSessionColumnsWithMetadata();
         console.debug('[App] Dataset store updated successfully');
       } else {
         console.debug('[App] Server has no data loaded (total_rows=0)');

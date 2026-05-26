@@ -4,7 +4,6 @@
 
 import type {
   TimeseriesRequest,
-  ArrowResponse,
   ScatterRequest,
   ScatterPointsResponse,
   CorrelationsResponse,
@@ -23,7 +22,7 @@ import type {
   DbTablesResponse,
 } from './types';
 
-import { getJson, postJson, buildUrl } from './client';
+import { getJson, postJson, fetchArrow, buildUrl } from './client';
 
 // =============================================================================
 // Metadata API
@@ -41,7 +40,7 @@ export async function fetchTimeseriesRange(): Promise<{ status: 'ok'; ts_range: 
 // Timeseries data — returns raw Arrow Response for streaming decode
 // =============================================================================
 
-export async function fetchTimeseriesData(params: TimeseriesRequest): Promise<ArrowResponse> {
+export async function fetchTimeseriesData(params: TimeseriesRequest): Promise<Response> {
   const url = buildUrl('/data', {
     start: params.start,
     end: params.end,
@@ -50,7 +49,7 @@ export async function fetchTimeseriesData(params: TimeseriesRequest): Promise<Ar
     color_column: params.colorColumn,
   });
   // Returns raw Response — caller handles Arrow decoding
-  return getJson(url) as Promise<ArrowResponse>;
+  return fetchArrow(url, params.signal);
 }
 
 // =============================================================================

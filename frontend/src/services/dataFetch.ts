@@ -468,6 +468,12 @@ export interface ColorizedResult {
   annotations: any[];
 }
 
+interface ColorCandidateEntry {
+  colName: string;
+  points: [number, number][];
+  colorValues: unknown[];
+}
+
 export function buildColorizedSeries(
   colName: string,
   points: [number, number][],
@@ -485,7 +491,15 @@ export function buildColorizedSeries(
 
   if (points.length === 1) {
     const pointColor = colorForScaleValue(colorValues[0], scaleInfo, scaleName) || '#888888';
-    result.push({ type: 'line', name: colName, color: pointColor, visible, data: [points[0], points[0]] });
+    result.push({
+      type: 'line',
+      name: colName,
+      color: pointColor,
+      lineStyle: { color: pointColor },
+      itemStyle: { color: pointColor },
+      visible,
+      data: [points[0], points[0]],
+    });
     if (showMarkers && visible) {
       annotations.push({ type: 'point', x: points[0][0], y: points[0][1], layer: 'aboveSeries', marker: { symbol: 'circle', size: 5, style: { color: pointColor } } });
     }
@@ -515,11 +529,13 @@ export function buildColorizedSeries(
       for (let j = runStart; j < segEnd; j++) segData.push(points[j]);
       if (segEnd < points.length) segData.push(points[segEnd]);
 
-      const color = palette[bucket];
+      const color = palette[bucket] ?? '#888888';
       result.push({
         type: 'line',
         name: segIdx === 0 ? colName : `__color_seg__${colName}::${segIdx}`,
         color,
+        lineStyle: { color },
+        itemStyle: { color },
         visible,
         showInLegend: false,
         data: segData,
@@ -546,6 +562,8 @@ export function buildColorizedSeries(
         type: 'line',
         name: segIdx === 0 ? colName : `__color_seg__${colName}::${segIdx}`,
         color,
+        lineStyle: { color },
+        itemStyle: { color },
         visible,
         showInLegend: false,
         data: segData,
@@ -604,63 +622,94 @@ export function buildSeriesConfig(
     adaptiveFiltersCount: adaptiveFilters?.length ?? 0,
   });
 
+  const originalSeriesKeys = Object.keys(series);
+  const rawColorValues = colorColumn ? colorByColumn?.[colorColumn] : undefined;
+  const seriesForFiltering: Record<string, Float64Array> = { ...series };
+  if (colorColumn && rawColorValues && !seriesForFiltering[colorColumn]) {
+    seriesForFiltering[colorColumn] = rawColorValues;
+  }
+
   let filteredX = xValues;
-  let filteredSeries = series;
+  let filteredSeries = seriesForFiltering;
   if (filters && Object.keys(filters).length > 0 || adaptiveFilters?.length) {
-    const result = applyColumnRanges(xValues, series, filters || {}, adaptiveFilters);
+    const result = applyColumnRanges(xValues, seriesForFiltering, filters || {}, adaptiveFilters);
     filteredX = result.xValues;
     filteredSeries = result.series;
     console.debug('[buildSeriesConfig] after filter', { filteredXLen: filteredX.length });
   }
 
-  const resultSeries: any[] = [];
+  const filteredColorValues = colorColumn ? filteredSeries[colorColumn] : undefined;
+  const baseSeries: any[] = [];
+  const colorCandidates: ColorCandidateEntry[] = [];
   const resultAnnotations: any[] = [];
 
-  for (const [colName, yValues] of Object.entries(filteredSeries)) {
+  for (const colName of originalSeriesKeys) {
+    const yValues = filteredSeries[colName];
+    if (!yValues) continue;
     const points: [number, number][] = [];
+    const pointColorValues: number[] = [];
     for (let i = 0; i < Math.min(filteredX.length, yValues.length); i++) {
       const x = filteredX[i];
       const y = yValues[i];
       if (Number.isFinite(x) && Number.isFinite(y)) {
         points.push([x, y]);
+        if (filteredColorValues) {
+          pointColorValues.push(Number(filteredColorValues[i]));
+        }
       }
     }
 
     if (points.length === 0) continue;
 
-    const wantsColorBy = !!colorColumn && colorByColumn && colorByColumn[colorColumn] && colorByColumn[colorColumn].length === points.length;
+    const wantsColorBy = !!colorColumn && !!filteredColorValues && pointColorValues.length === points.length;
     if (wantsColorBy) {
-      const colorValues = colorByColumn![colorColumn!];
-      const displayedValues = Array.from(colorValues).map((v, i) => {
-        if (i < filteredX.length && filteredSeries[colName]) {
-          return v;
-        }
-        return null;
-      });
-
-      const sampleForAnalysis = displayedValues.slice(0, Math.min(displayedValues.length, 1000));
-      const scaleInfo = analyzeColorValues(sampleForAnalysis);
-      if (scaleInfo) {
-        const colorized = buildColorizedSeries(colName, points, displayedValues, scaleInfo, true, showMarkers, scaleName);
-        resultSeries.push(...colorized.series);
-        resultAnnotations.push(...colorized.annotations);
-      } else {
-        resultSeries.push({
-          name: colName,
-          type: 'line',
-          color: colors[colName] ?? '#5470C6',
-          data: points,
-        });
-      }
+      colorCandidates.push({ colName, points, colorValues: pointColorValues });
     } else {
-      resultSeries.push({
+      const color = colors[colName] ?? '#5470C6';
+      baseSeries.push({
         name: colName,
         type: 'line',
-        color: colors[colName] ?? '#5470C6',
+        color,
+        lineStyle: { color },
+        itemStyle: { color },
         data: points,
       });
     }
   }
+
+  const colorDecoratedSeries: any[] = [];
+  const displayedColorValues = colorCandidates.flatMap((entry) => entry.colorValues);
+  const scaleInfo = colorColumn ? analyzeColorValues(displayedColorValues) : null;
+
+  if (colorColumn && scaleInfo && colorCandidates.length > 0) {
+    for (const entry of colorCandidates) {
+      const colorized = buildColorizedSeries(
+        entry.colName,
+        entry.points,
+        entry.colorValues,
+        scaleInfo,
+        true,
+        showMarkers,
+        scaleName
+      );
+      colorDecoratedSeries.push(...colorized.series);
+      resultAnnotations.push(...colorized.annotations);
+    }
+  } else {
+    for (const entry of colorCandidates) {
+      const color = colors[entry.colName] ?? '#5470C6';
+      baseSeries.push({
+        name: entry.colName,
+        type: 'line',
+        color,
+        lineStyle: { color },
+        itemStyle: { color },
+        data: entry.points,
+      });
+    }
+  }
+
+  const resultSeries = [...baseSeries, ...colorDecoratedSeries];
 
   console.debug('[buildSeriesConfig] END', {
     resultSeriesCount: resultSeries.length,

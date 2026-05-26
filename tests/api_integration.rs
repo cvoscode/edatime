@@ -15,9 +15,9 @@ use axum::{
 use http_body_util::BodyExt;
 use tower::ServiceExt;
 
-use edatime::config::AppConfig;
-use edatime::routes;
-use edatime::state::AppState;
+use edatime_core::config::AppConfig;
+use edatime_service::routes;
+use edatime_store::state::AppState;
 use polars::prelude::*;
 
 /// Build a deterministic test fixture: hourly data for 30 days, 3 numeric columns.
@@ -210,6 +210,32 @@ async fn data_rejects_unknown_column() {
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["code"], "column_not_found");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn data_rejects_missing_columns_without_hardcoded_default() {
+    let app = test_app();
+    let req = Request::builder()
+        .uri("/api/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=500")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["code"], "invalid_column_selection");
+    assert!(
+        !json["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("value")
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -575,5 +601,3 @@ async fn database_status_without_connection() {
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["connected"], false);
 }
-
-

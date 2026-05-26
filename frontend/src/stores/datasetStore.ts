@@ -105,6 +105,7 @@ export const datasetStore = {
       numericCols: [],
       datetimeCols: [],
       xAxisColumn: null,
+      selectedColorColumn: null,
       data: null,
       filteredData: null,
       isLoading: false,
