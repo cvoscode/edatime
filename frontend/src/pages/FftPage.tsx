@@ -184,9 +184,7 @@ const FftPage: Component = () => {
     updateFftChart();
   };
 
-  const handleOpenFilter = (col: string) => {
-    console.log('Open filter for', col);
-  };
+  const handleOpenFilter = (_col: string) => {};
 
   // ===== Spectrogram functions =====
 
@@ -480,6 +478,12 @@ const FftPage: Component = () => {
   });
 
   createEffect(() => {
+    const firstColumn = numericCols()[0];
+    if (activeTab() !== 'fft' || !firstColumn || fftTraces().length > 0 || loading()) return;
+    void handleFetchFft(firstColumn);
+  });
+
+  createEffect(() => {
     const tab = activeTab();
     if (tab === 'spectrogram') {
       setTimeout(() => {
@@ -530,6 +534,7 @@ const FftPage: Component = () => {
               <label class={styles.label}>Mode</label>
               <select
                 class={styles.select}
+                aria-label="FFT display mode"
                 value={fftMode()}
                 onChange={(e) => {
                   setFftMode(e.currentTarget.value as 'magnitude' | 'psd');
@@ -544,6 +549,7 @@ const FftPage: Component = () => {
               <label class={styles.checkboxLabel}>
                 <input
                   type="checkbox"
+                  aria-label="Use logarithmic FFT scale"
                   checked={logScale()}
                   onChange={(e) => {
                     setLogScale(e.currentTarget.checked);
@@ -577,6 +583,7 @@ const FftPage: Component = () => {
             <label class={styles.label}>Column</label>
             <select
               class={styles.select}
+              aria-label="Spectrogram column"
               value={spectrogramColumn()}
               onChange={(e) => setSpectrogramColumn(e.currentTarget.value)}
             >
@@ -590,6 +597,7 @@ const FftPage: Component = () => {
             <label class={styles.label}>Window</label>
             <select
               class={styles.select}
+              aria-label="Spectrogram window size"
               value={spectrogramWindow()}
               onChange={(e) => setSpectrogramWindow(parseInt(e.currentTarget.value))}
             >
@@ -602,6 +610,7 @@ const FftPage: Component = () => {
             <label class={styles.label}>Hop</label>
             <select
               class={styles.select}
+              aria-label="Spectrogram hop size"
               value={spectrogramHop()}
               onChange={(e) => setSpectrogramHop(parseInt(e.currentTarget.value))}
             >
@@ -614,16 +623,17 @@ const FftPage: Component = () => {
             <label class={styles.checkboxLabel}>
               <input
                 type="checkbox"
+                aria-label="Use logarithmic spectrogram scale"
                 checked={spectrogramLogScale()}
                 onChange={(e) => setSpectrogramLogScale(e.currentTarget.checked)}
               />
               Log scale
             </label>
           </div>
-          <button class={styles.computeBtn} onClick={handleFetchSpectrogram} disabled={loading()}>
+          <button class={styles.computeBtn} onClick={handleFetchSpectrogram} disabled={loading()} aria-label="Compute spectrogram">
             Compute
           </button>
-          <button class={styles.resetZoomBtn} onClick={resetSpectrogramZoom}>
+          <button class={styles.resetZoomBtn} onClick={resetSpectrogramZoom} aria-label="Reset spectrogram zoom">
             Reset Zoom
           </button>
         </div>
@@ -647,9 +657,9 @@ const FftPage: Component = () => {
       <div class={styles.footer}>
         <div class={styles.status}>{status()}</div>
         <div class={styles.exportButtons}>
-          <button class={styles.exportBtn} disabled={!chartInstance && !spectrogramInstance}>PNG</button>
-          <button class={styles.exportBtn} disabled={!chartInstance && !spectrogramInstance}>SVG</button>
-          <button class={styles.exportBtn} disabled={!chartInstance && !spectrogramInstance}>CSV</button>
+          <button class={styles.exportBtn} disabled={activeTab() === 'fft' ? fftTraces().length === 0 : !spectrogramResult()} aria-label="Export FFT chart as PNG">PNG</button>
+          <button class={styles.exportBtn} disabled={activeTab() === 'fft' ? fftTraces().length === 0 : !spectrogramResult()} aria-label="Export FFT chart as SVG">SVG</button>
+          <button class={styles.exportBtn} disabled={activeTab() === 'fft' ? fftTraces().length === 0 : !spectrogramResult()} aria-label="Export FFT data as CSV">CSV</button>
         </div>
       </div>
     </div>

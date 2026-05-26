@@ -34,11 +34,38 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
 }
 
+function profileType(dtype: string): 'numeric' | 'datetime' | 'categorical' {
+  const normalized = dtype.toLowerCase();
+  if (/(^|[^a-z])(u?int|float|double|f\d+|i\d+|u\d+)([^a-z]|$)/.test(normalized)) return 'numeric';
+  if (normalized.includes('datetime') || normalized.includes('date') || normalized.includes('timestamp')) return 'datetime';
+  return 'categorical';
+}
+
 const App: Component = () => {
   const persistence = createSessionPersistence();
-  onMount(async () => {
-    persistence.start();
 
+  const onKeydown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || isTypingTarget(event.target)) return;
+    const key = String(event.key || '').toLowerCase();
+
+    if (event.altKey && !event.ctrlKey && !event.metaKey) {
+      const route = PAGE_KEYS[key];
+      if (route) {
+        event.preventDefault();
+        window.location.hash = route;
+        return;
+      }
+    }
+
+    if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+    // Shift+* shortcuts dispatch custom events for the active page.
+    if (key === 'r' || key === 'z' || key === 'c' || key === 'p' || key === 'e') {
+      event.preventDefault();
+      window.dispatchEvent(new CustomEvent('edatime:shortcut', { detail: { key } }));
+    }
+  };
+
+  const syncMetadata = async () => {
     // Sync metadata with server to handle case where data was loaded externally
     try {
       console.debug('[App] Fetching metadata from server...');
@@ -59,8 +86,7 @@ const App: Component = () => {
         });
         datasetStore.setColumns(metadata.column_profiles.map(cp => ({
           name: cp.name,
-          type: cp.dtype.includes('int') || cp.dtype.includes('float') || cp.dtype.includes('double') ? 'numeric' :
-            cp.dtype.includes('datetime') || cp.dtype.includes('date') ? 'datetime' : 'categorical',
+          type: profileType(cp.dtype),
           min: cp.min ?? undefined,
           max: cp.max ?? undefined,
           nullCount: cp.null_count,
@@ -75,31 +101,14 @@ const App: Component = () => {
       // Server has no data loaded yet - not an error, just means no dataset in memory
       console.debug('[App] No dataset loaded on server');
     }
+  };
 
-    const onKeydown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || isTypingTarget(event.target)) return;
-      const key = String(event.key || '').toLowerCase();
-
-      if (event.altKey && !event.ctrlKey && !event.metaKey) {
-        const route = PAGE_KEYS[key];
-        if (route) {
-          event.preventDefault();
-          window.location.hash = route;
-          return;
-        }
-      }
-
-      if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
-      // Shift+* shortcuts — dispatch custom events for active page to handle
-      if (key === 'r' || key === 'z' || key === 'c' || key === 'p' || key === 'e') {
-        event.preventDefault();
-        window.dispatchEvent(new CustomEvent('edatime:shortcut', { detail: { key } }));
-      }
-    };
-
+  onMount(() => {
+    persistence.start();
+    void syncMetadata();
     window.addEventListener('keydown', onKeydown);
-    onCleanup(() => window.removeEventListener('keydown', onKeydown));
   });
+  onCleanup(() => window.removeEventListener('keydown', onKeydown));
 
   return (
   <HashRouter root={AppShell}>

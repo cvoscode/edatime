@@ -10,8 +10,8 @@
  *   <MyPageContent />
  * </AppShell>
  */
-import { Component, JSX, Show } from 'solid-js';
-import { A } from '@solidjs/router';
+import { Component, createEffect, JSX, Show } from 'solid-js';
+import { A, useLocation } from '@solidjs/router';
 import ToastContainer from '../ui/Toast';
 import { uiStore } from '@/stores/uiStore';
 import styles from './AppShell.module.css';
@@ -34,6 +34,17 @@ const navItems = [
 ];
 
 export const AppShell: Component<AppShellProps> = (props) => {
+    const location = useLocation();
+    let previousPath = location.pathname;
+
+    createEffect(() => {
+        const path = location.pathname;
+        if (path !== previousPath) {
+            previousPath = path;
+            uiStore.clearToasts();
+        }
+    });
+
     return (
         <div class={styles.shell}>
             {/* Collapsible sidebar */}

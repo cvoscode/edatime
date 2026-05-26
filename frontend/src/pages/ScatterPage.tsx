@@ -277,6 +277,7 @@ const ScatterPage: Component = () => {
             <label class={styles.label}>X</label>
             <select
               class={styles.select}
+              aria-label="Scatter X column"
               value={xCol()}
               onChange={(e) => handleXChange(e.currentTarget.value)}
             >
@@ -289,6 +290,7 @@ const ScatterPage: Component = () => {
             <label class={styles.label}>Y</label>
             <select
               class={styles.select}
+              aria-label="Scatter Y column"
               value={yCol()}
               onChange={(e) => handleYChange(e.currentTarget.value)}
             >
@@ -301,6 +303,7 @@ const ScatterPage: Component = () => {
             <label class={styles.label}>Color</label>
             <select
               class={styles.select}
+              aria-label="Scatter color column"
               value={colorCol()}
               onChange={(e) => handleColorChange(e.currentTarget.value)}
             >
@@ -314,6 +317,7 @@ const ScatterPage: Component = () => {
             <label class={styles.label}>Size</label>
             <select
               class={styles.select}
+              aria-label="Scatter size column"
               value={sizeCol()}
               onChange={(e) => handleSizeChange(e.currentTarget.value)}
             >
@@ -330,6 +334,7 @@ const ScatterPage: Component = () => {
               <label class={styles.label}>Bin</label>
               <select
                 class={styles.select}
+                aria-label="Density bin size"
                 value={binSize()}
                 onChange={(e) => setBinSize(Number(e.currentTarget.value))}
               >
@@ -343,6 +348,7 @@ const ScatterPage: Component = () => {
               <label class={styles.label}>Norm</label>
               <select
                 class={styles.select}
+                aria-label="Density normalization"
                 value={densityNormalization()}
                 onChange={(e) => setDensityNormalization(e.currentTarget.value as 'linear' | 'sqrt' | 'log')}
               >
@@ -356,6 +362,7 @@ const ScatterPage: Component = () => {
             <label class={styles.label}>Mode</label>
             <select
               class={styles.select}
+              aria-label="Scatter render mode"
               value={renderMode()}
               onChange={(e) => setRenderMode(e.currentTarget.value as 'scatter' | 'density')}
             >

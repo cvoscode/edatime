@@ -62,9 +62,11 @@ const CausalPage: Component = () => {
   const [nodePositions, setNodePositions] = createSignal<Map<string, { x: number; y: number }>>(new Map());
   const [exportMenuOpen, setExportMenuOpen] = createSignal(false);
   const [compareResult, setCompareResult] = createSignal<{ added: CausalLink[]; removed: CausalLink[] } | null>(null);
+  const [initializedDefaultColumns, setInitializedDefaultColumns] = createSignal(false);
 
   const numericCols = createMemo(() => datasetStore.state.numericCols ?? []);
   const selectedColumns = createMemo(() => causalStore.state.selectedColumns);
+  const canCompute = createMemo(() => selectedColumns().length >= 2 && !loading());
   const links = createMemo(() => causalStore.state.links);
   const loading = createMemo(() => causalStore.state.loading);
   const savedRuns = createMemo(() => causalStore.state.savedRuns);
@@ -551,6 +553,15 @@ const CausalPage: Component = () => {
     uiStore.addToast({ message: `Added: ${added.length}, Removed: ${removed.length}`, type: 'info', duration: 4000 });
   };
 
+  createEffect(() => {
+    if (initializedDefaultColumns()) return;
+    const cols = numericCols();
+    if (causalStore.state.selectedColumns.length < 2 && cols.length >= 2) {
+      causalStore.setSelectedColumns(cols.slice(0, 2));
+      setInitializedDefaultColumns(true);
+    }
+  });
+
   return (
     <div class={styles.page}>
       <div class={styles.toolbar}>
@@ -558,6 +569,7 @@ const CausalPage: Component = () => {
           <label class={styles.toolbarLabel}>Method</label>
           <select
             class={styles.select}
+            aria-label="Causal discovery method"
             value={causalStore.state.method}
             onChange={e => causalStore.setMethod(e.currentTarget.value as CausalMethod)}
           >
@@ -568,6 +580,7 @@ const CausalPage: Component = () => {
           <label class={styles.toolbarLabel}>Test</label>
           <select
             class={styles.select}
+            aria-label="Causal independence test"
             value={causalStore.state.test}
             onChange={e => causalStore.setTest(e.currentTarget.value as CausalTest)}
           >
@@ -579,6 +592,7 @@ const CausalPage: Component = () => {
           <input
             type="number"
             class={styles.numberInput}
+            aria-label="Maximum time lag"
             min="1"
             max="10"
             value={causalStore.state.tauMax}
@@ -590,6 +604,7 @@ const CausalPage: Component = () => {
           <input
             type="number"
             class={styles.numberInput}
+            aria-label="Significance alpha"
             min="0.001"
             max="0.5"
             step="0.001"
@@ -603,6 +618,7 @@ const CausalPage: Component = () => {
             <input
               type="number"
               class={styles.numberInput}
+              aria-label="PC stage alpha"
               min="0.001"
               max="0.5"
               step="0.001"
@@ -617,6 +633,7 @@ const CausalPage: Component = () => {
             <input
               type="number"
               class={styles.numberInput}
+              aria-label="Maximum conditioning dimensions"
               min="1"
               max="20"
               placeholder="auto"
@@ -629,6 +646,7 @@ const CausalPage: Component = () => {
           <label class={styles.toolbarLabel}>FDR</label>
           <select
             class={styles.select}
+            aria-label="False discovery rate correction"
             value={causalStore.state.fdrMethod}
             onChange={e => causalStore.setFdrMethod(e.currentTarget.value as FdrMethod)}
           >
@@ -638,12 +656,14 @@ const CausalPage: Component = () => {
         <div class={styles.toolbarGroupPush}>
           <button
             class={`${styles.btn} ${addEdgeMode() ? styles.btnAccent : styles.btnGhost}`}
+            aria-pressed={addEdgeMode()}
+            aria-label={addEdgeMode() ? 'Cancel manual edge creation' : 'Add manual causal edge'}
             onClick={() => setAddEdgeMode(!addEdgeMode())}
           >
             {addEdgeMode() ? 'Cancel Edge' : '+ Edge'}
           </button>
           <div class={styles.exportWrapper}>
-            <button class={styles.btnGhost} onClick={() => setExportMenuOpen(!exportMenuOpen())}>Export ▾</button>
+            <button class={styles.btnGhost} aria-label="Open causal export menu" onClick={() => setExportMenuOpen(!exportMenuOpen())}>Export ▾</button>
             <Show when={exportMenuOpen()}>
               <div class={styles.exportMenu}>
                 <button onClick={() => handleExport('json')}>JSON</button>
@@ -652,11 +672,13 @@ const CausalPage: Component = () => {
               </div>
             </Show>
           </div>
-          <button class={styles.btnGhost} onClick={handleSaveRun}>Save Run</button>
+          <button class={styles.btnGhost} aria-label="Save causal run" onClick={handleSaveRun}>Save Run</button>
           <button
             class={styles.btnAccent}
+            aria-label="Compute causal graph"
             onClick={fetchCausalGraph}
-            disabled={loading() || numericCols().length === 0}
+            disabled={!canCompute()}
+            title={selectedColumns().length < 2 ? 'Select at least 2 columns to compute a causal graph' : undefined}
           >
             {loading() ? 'Computing...' : 'Compute'}
           </button>
@@ -668,6 +690,7 @@ const CausalPage: Component = () => {
           type="text"
           class={styles.filterInput}
           placeholder="Filter columns..."
+          aria-label="Filter causal columns"
           value={columnFilter()}
           onInput={e => setColumnFilter(e.currentTarget.value)}
         />
@@ -679,7 +702,7 @@ const CausalPage: Component = () => {
           colors={colorPalette()}
           onColorChange={handleColorChange}
         />
-        <button class={styles.selectAllBtn} onClick={() => {
+        <button class={styles.selectAllBtn} aria-label={selectedColumns().length === numericCols().length ? 'Clear all causal columns' : 'Select all causal columns'} onClick={() => {
           if (selectedColumns().length === numericCols().length) {
             handleColumnChange([]);
           } else {
@@ -760,8 +783,12 @@ const CausalPage: Component = () => {
                         </label>
                         <label class={styles.fieldCol}>
                           <span>Type</span>
-                          <select class={styles.smallSelect} value={conn.type}
-                            onChange={e => handleConnectionChange(idx(), 'type', e.currentTarget.value)}>
+                          <select
+                            class={styles.smallSelect}
+                            value={conn.type}
+                            aria-label={`Connection type for ${conn.source} to ${conn.target}`}
+                            onChange={e => handleConnectionChange(idx(), 'type', e.currentTarget.value)}
+                          >
                             <option value="-->">--&gt;</option>
                             <option value="o-&gt;">o-&gt;</option>
                             <option value="&lt;--">&lt;--</option>
@@ -799,11 +826,11 @@ const CausalPage: Component = () => {
         <div class={styles.comparePanel}>
           <div class={styles.compareHeader}>Run Comparison</div>
           <div class={styles.compareSelectors}>
-            <select class={styles.select} onChange={e => causalStore.setCompareRunA(e.currentTarget.value || null)}>
+            <select class={styles.select} aria-label="Select first saved run to compare" onChange={e => causalStore.setCompareRunA(e.currentTarget.value || null)}>
               <option value="">Select run A</option>
               <For each={savedRuns()}>{run => <option value={run.id}>{run.name}</option>}</For>
             </select>
-            <select class={styles.select} onChange={e => causalStore.setCompareRunB(e.currentTarget.value || null)}>
+            <select class={styles.select} aria-label="Select second saved run to compare" onChange={e => causalStore.setCompareRunB(e.currentTarget.value || null)}>
               <option value="">Select run B</option>
               <For each={savedRuns()}>{run => <option value={run.id}>{run.name}</option>}</For>
             </select>

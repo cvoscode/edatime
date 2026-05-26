@@ -1,5 +1,6 @@
 /* @refresh reload */
 import { render } from 'solid-js/web';
+import './utils/debug';
 import App from './App';
 import './styles/global.css';
 

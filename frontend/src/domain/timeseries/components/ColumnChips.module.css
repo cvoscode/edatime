@@ -17,6 +17,7 @@
   border-radius: 20px;
   font-size: var(--font-sm);
   cursor: pointer;
+  color: var(--color-text-muted);
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, opacity 0.15s;
   user-select: none;
   opacity: 0.55;
@@ -29,10 +30,16 @@
 
 .chip.selected {
   opacity: 1;
+  color: var(--color-text);
   border-color: color-mix(in srgb, var(--chip-accent) 72%, var(--color-border));
   background: color-mix(in srgb, var(--chip-accent) 13%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--chip-accent) 20%, transparent),
     0 0 16px color-mix(in srgb, var(--chip-accent) 12%, transparent);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .chip.hidden {

@@ -448,3 +448,77 @@ input[type="color"]::-webkit-color-swatch {
   height: 1px;
   left: 10%;
 }
+
+@media (max-width: 640px) {
+  .page {
+    min-width: 0;
+  }
+
+  .toolbarSeries,
+  .toolbarTools {
+    padding: var(--space-1) var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .toolbarSeries {
+    align-items: flex-start;
+    max-height: 34vh;
+    overflow: auto;
+    flex-wrap: wrap;
+  }
+
+  .toolbarTools {
+    max-height: 18vh;
+    overflow: auto;
+  }
+
+  .toolbarGroup {
+    flex-wrap: wrap;
+  }
+
+  .toolbarGroupPush {
+    margin-left: 0;
+  }
+
+  .toolbarGroupSep {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .toolbarLabel,
+  .drawSelect,
+  .ghostBtn,
+  .panelOpenBtn,
+  .zoomRangeBadge {
+    font-size: var(--font-xs);
+  }
+
+  .columnFilterInput {
+    width: min(100%, 180px);
+  }
+
+  .overlayStack {
+    top: var(--space-2);
+    right: var(--space-2);
+    left: var(--space-2);
+    max-height: calc(100% - var(--space-4));
+    overflow: auto;
+    pointer-events: none;
+  }
+
+  .overlayStack > * {
+    pointer-events: auto;
+  }
+
+  .downsampledBadge {
+    top: var(--space-2);
+    right: var(--space-2);
+  }
+
+  .skeletonChartArea {
+    left: 42px;
+    right: 12px;
+    top: 28px;
+    bottom: 24px;
+  }
+}

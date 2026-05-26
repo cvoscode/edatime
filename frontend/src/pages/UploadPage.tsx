@@ -12,11 +12,54 @@ import styles from './UploadPage.module.css';
 const UploadPage: Component = () => {
   const [profileMode, setProfileMode] = createSignal<'dataset' | 'preview'>('dataset');
 
-  onMount(() => {
+  const profileType = (dtype: string): 'numeric' | 'datetime' | 'categorical' => {
+    const normalized = dtype.toLowerCase();
+    if (/(^|[^a-z])(u?int|float|double|f\d+|i\d+|u\d+)([^a-z]|$)/.test(normalized)) return 'numeric';
+    if (normalized.includes('datetime') || normalized.includes('date') || normalized.includes('timestamp')) return 'datetime';
+    return 'categorical';
+  };
+
+  const applyMetadataToStores = (metadata: Awaited<ReturnType<typeof fetchMetadata>>, name?: string, fileSize = 0) => {
+    uploadStore.setPreview(metadata, metadata.column_profiles);
+    setProfileMode('dataset');
+    datasetStore.setColumns(metadata.column_profiles.map(cp => ({
+      name: cp.name,
+      type: profileType(cp.dtype),
+      min: cp.min ?? undefined,
+      max: cp.max ?? undefined,
+      nullCount: cp.null_count,
+    })));
+    datasetStore.setMetadata({
+      revision: metadata.revision,
+      name: name ?? metadata.name ?? 'Loaded dataset',
+      rowCount: metadata.total_rows,
+      columns: metadata.columns.map(c => c.name),
+      numericColumns: metadata.numeric_columns,
+      timestampColumn: metadata.time_column ?? '',
+      fileSize,
+      uploadedAt: new Date().toISOString(),
+      timeRange: metadata.time_range ? [metadata.time_range.min, metadata.time_range.max] : null,
+    });
+    datasetStore.setNumericCols(metadata.numeric_columns);
+  };
+
+  onMount(async () => {
     const sampleId = sessionStorage.getItem('sampleDataset');
     if (sampleId) {
       sessionStorage.removeItem('sampleDataset');
-      handleSampleDataset(sampleId);
+      void handleSampleDataset(sampleId);
+      return;
+    }
+
+    if (!uploadStore.state.previewMetadata) {
+      try {
+        const metadata = await fetchMetadata();
+        if (metadata.total_rows > 0) {
+          applyMetadataToStores(metadata);
+        }
+      } catch (_) {
+        // No active backend dataset yet.
+      }
     }
   });
 
@@ -60,33 +103,13 @@ const UploadPage: Component = () => {
       const colCount = result.columns?.length ?? 0;
 
       const freshMetadata = await fetchMetadata();
-      uploadStore.setPreview(freshMetadata, freshMetadata.column_profiles);
-      setProfileMode('dataset');
+      applyMetadataToStores(freshMetadata, file.name, file.size);
 
       uiStore.addToast({
         message: `Uploaded ${file.name} with ${rowCount.toLocaleString()} rows and ${colCount} columns.`,
         type: 'success',
         duration: 5000,
       });
-      datasetStore.setColumns(freshMetadata.column_profiles.map(cp => ({
-        name: cp.name,
-        type: cp.dtype.includes('int') || cp.dtype.includes('float') || cp.dtype.includes('double') ? 'numeric' :
-              cp.dtype.includes('datetime') || cp.dtype.includes('date') ? 'datetime' : 'categorical',
-        min: cp.min ?? undefined,
-        max: cp.max ?? undefined,
-        nullCount: cp.null_count,
-      })));
-      datasetStore.setMetadata({
-        name: file.name,
-        rowCount: rowCount,
-        columns: freshMetadata.columns.map(c => c.name),
-        numericColumns: freshMetadata.numeric_columns,
-        timestampColumn: result.timestamp_column ?? freshMetadata.time_column ?? '',
-        fileSize: file.size,
-        uploadedAt: new Date().toISOString(),
-        timeRange: freshMetadata.time_range ? [freshMetadata.time_range.min, freshMetadata.time_range.max] : null,
-      });
-      datasetStore.setNumericCols(freshMetadata.numeric_columns);
     } catch (err) {
       uiStore.addToast({ message: `Error: ${err}`, type: 'error', duration: 0 });
     } finally {
@@ -170,32 +193,12 @@ const UploadPage: Component = () => {
       const result = await dbLoad(table, { schema, time_column: timeCol || undefined });
       const rowCount = result.row_count ?? result.rows ?? 0;
       const freshMetadata = await fetchMetadata();
-      uploadStore.setPreview(freshMetadata, freshMetadata.column_profiles);
-      setProfileMode('dataset');
+      applyMetadataToStores(freshMetadata, `${schema}.${table}`);
       uiStore.addToast({
         message: `Loaded ${rowCount.toLocaleString()} rows from ${schema}.${table}.`,
         type: 'success',
         duration: 5000,
       });
-      datasetStore.setColumns(freshMetadata.column_profiles.map(cp => ({
-        name: cp.name,
-        type: cp.dtype.includes('int') || cp.dtype.includes('float') || cp.dtype.includes('double') ? 'numeric' :
-              cp.dtype.includes('datetime') || cp.dtype.includes('date') ? 'datetime' : 'categorical',
-        min: cp.min ?? undefined,
-        max: cp.max ?? undefined,
-        nullCount: cp.null_count,
-      })));
-      datasetStore.setMetadata({
-        name: `${schema}.${table}`,
-        rowCount: rowCount,
-        columns: freshMetadata.columns.map(c => c.name),
-        numericColumns: freshMetadata.numeric_columns,
-        timestampColumn: result.timestamp_column ?? freshMetadata.time_column ?? '',
-        fileSize: 0,
-        uploadedAt: new Date().toISOString(),
-        timeRange: freshMetadata.time_range ? [freshMetadata.time_range.min, freshMetadata.time_range.max] : null,
-      });
-      datasetStore.setNumericCols(freshMetadata.numeric_columns);
     } catch (e: any) {
       uiStore.addToast({ message: 'Error: ' + (e?.message ?? String(e)), type: 'error', duration: 0 });
     }
@@ -267,6 +270,7 @@ const UploadPage: Component = () => {
                     <input
                       type="range"
                       id="n-rows-range"
+                      aria-label="Max rows range"
                       min="1000"
                       max="5000000"
                       step="1000"
@@ -295,12 +299,14 @@ const UploadPage: Component = () => {
                     <input
                       type="datetime-local"
                       id="time-start-input"
+                      aria-label="Load time range start"
                       value={uploadStore.state.timeStart}
                       onInput={(e) => uploadStore.setTimeStart(e.currentTarget.value)}
                     />
                     <input
                       type="datetime-local"
                       id="time-end-input"
+                      aria-label="Load time range end"
                       value={uploadStore.state.timeEnd}
                       onInput={(e) => uploadStore.setTimeEnd(e.currentTarget.value)}
                     />
@@ -436,26 +442,27 @@ const UploadPage: Component = () => {
 
       <div class={styles.uploadPreview}>
         <div class={styles.uploadPreviewHead}>
-          <span class={styles.toolbarLabel}>File Preview</span>
+          <span class={styles.toolbarLabel}>{profileMode() === 'dataset' ? 'Dataset Profile' : 'File Preview'}</span>
           <span class={`${styles.profileModeBadge}`} data-mode={profileMode()}>
             {profileMode() === 'dataset' ? 'Current dataset' : 'Pending upload'}
           </span>
           <div class={styles.uploadPreviewSelection}>
-            <button class={styles.selectBtn} id="profile-select-all-btn" type="button" onClick={handleSelectAll}>All</button>
-            <button class={styles.selectBtn} id="profile-select-none-btn" type="button" onClick={handleSelectNone}>None</button>
+            <button class={styles.selectBtn} id="profile-select-all-btn" type="button" aria-label="Select all preview columns" onClick={handleSelectAll}>All</button>
+            <button class={styles.selectBtn} id="profile-select-none-btn" type="button" aria-label="Clear preview column selection" onClick={handleSelectNone}>None</button>
           </div>
           <input
             type="text"
             id="profile-filter-input"
             class={styles.columnFilterInput}
             placeholder="Filter columns…"
+            aria-label="Filter profile columns"
           />
           <span class={styles.uploadPreviewStatus}>
             {uploadStore.state.isPreviewing
               ? 'Loading preview...'
               : uploadStore.state.previewMetadata
               ? `${uploadStore.state.previewMetadata.total_rows.toLocaleString()} rows × ${uploadStore.state.previewMetadata.columns.length} columns`
-              : 'Select a file to preview columns'}
+              : 'No active dataset. Select a file to preview columns'}
           </span>
         </div>
 

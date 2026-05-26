@@ -212,6 +212,7 @@ const HeatmapPage: Component = () => {
             <label class={styles.label}>Metric</label>
             <select
               class={styles.select}
+              aria-label="Correlation metric"
               value={metric()}
               onChange={(e) => setMetric(e.currentTarget.value as 'pearson' | 'spearman')}
             >
@@ -223,6 +224,7 @@ const HeatmapPage: Component = () => {
             <label class={styles.label}>Zoom</label>
             <input
               type="range"
+              aria-label="Heatmap zoom level"
               min="0.5"
               max="4"
               step="0.1"

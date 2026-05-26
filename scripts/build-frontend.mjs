@@ -5,6 +5,21 @@ import { spawnSync } from 'node:child_process';
 const ROOT = path.resolve('.');
 const FRONTEND_DIR = path.join(ROOT, 'frontend');
 const JS_DIR = path.join(ROOT, 'frontend/js');
+const FRONTEND_DIST = path.join(FRONTEND_DIR, 'dist');
+const BIN_FRONTEND_DIST = path.join(ROOT, 'crates', 'edatime-bin', 'frontend', 'dist');
+
+function copyDir(src, dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src)) {
+    const srcPath = path.join(src, entry);
+    const destPath = path.join(dest, entry);
+    if (fs.statSync(srcPath).isDirectory()) {
+      copyDir(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
 
 // Clean stale esbuild-era output before running Vite.
 // Vite only cleans the specific outDir when emptyOutDir is true;
@@ -81,26 +96,17 @@ if (isWatch) {
     shell: true,
     cwd: ROOT,
   });
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
 
   // Copy ChartGPU library to dist AFTER Vite build (needed at runtime)
   const libsSrc = path.join(FRONTEND_DIR, 'libs');
-  const libsDest = path.join(FRONTEND_DIR, 'dist', 'libs');
+  const libsDest = path.join(FRONTEND_DIST, 'libs');
   if (fs.existsSync(libsSrc)) {
     if (fs.existsSync(libsDest)) {
       fs.rmSync(libsDest, { recursive: true });
     }
-    const copyDir = (src, dest) => {
-      fs.mkdirSync(dest, { recursive: true });
-      for (const entry of fs.readdirSync(src)) {
-        const srcPath = path.join(src, entry);
-        const destPath = path.join(dest, entry);
-        if (fs.statSync(srcPath).isDirectory()) {
-          copyDir(srcPath, destPath);
-        } else {
-          fs.copyFileSync(srcPath, destPath);
-        }
-      }
-    };
     copyDir(libsSrc, libsDest);
     console.log('Copied libs to dist/libs');
   }
@@ -108,7 +114,7 @@ if (isWatch) {
   // Append cache-busting query param to index.html script/style tags so
   // browsers always fetch fresh assets after each rebuild.
   // Using query param (?v=) so file lookup still works correctly.
-  const indexPath = path.join(FRONTEND_DIR, 'dist', 'index.html');
+  const indexPath = path.join(FRONTEND_DIST, 'index.html');
   if (fs.existsSync(indexPath)) {
     const version = Date.now().toString(36);
     let html = fs.readFileSync(indexPath, 'utf8');
@@ -118,6 +124,17 @@ if (isWatch) {
     });
     fs.writeFileSync(indexPath, html);
     console.log(`Cache-busting applied: ?v=${version}`);
+  }
+
+  // The root binary serves frontend/dist, while crates/edatime-bin serves its
+  // own packaged frontend directory. Keep both in sync so hashed chunks and
+  // sourcemap references cannot drift between launch paths.
+  if (fs.existsSync(FRONTEND_DIST)) {
+    if (fs.existsSync(BIN_FRONTEND_DIST)) {
+      fs.rmSync(BIN_FRONTEND_DIST, { recursive: true });
+    }
+    copyDir(FRONTEND_DIST, BIN_FRONTEND_DIST);
+    console.log('Synced frontend dist to crates/edatime-bin/frontend/dist');
   }
 
   process.exit(result.status ?? 0);

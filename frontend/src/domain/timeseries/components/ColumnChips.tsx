@@ -53,7 +53,7 @@ const ColumnChips: Component<ColumnChipsProps> = (props) => {
     props.onColorChange?.(col, value);
   };
 
-  const handleMenuClick = (col: string, e: MouseEvent) => {
+  const handleMenuClick = (col: string, e: Event) => {
     e.stopPropagation();
     e.preventDefault();
     props.onOpenFilter?.(col);
@@ -64,17 +64,29 @@ const ColumnChips: Component<ColumnChipsProps> = (props) => {
       <For each={filteredColumns()}>
         {(col) => (
           <div
+            role="button"
+            tabindex="0"
             class={`${styles.chip} ${isSelected(col) && !isHidden(col) ? styles.selected : ''} ${isHidden(col) ? styles.hidden : ''}`}
             style={{ '--chip-color': chipColor(col) }}
+            aria-pressed={isSelected(col) && !isHidden(col)}
+            aria-label={`${isSelected(col) && !isHidden(col) ? 'Hide' : 'Show'} column ${col}`}
             onClick={(e) => {
               e.preventDefault();
               toggle(col);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggle(col);
+              }
             }}
           >
             <input
               type="checkbox"
               class={styles.checkbox}
               checked={isSelected(col) && !isHidden(col)}
+              tabindex="-1"
+              aria-label={`${col} selected`}
               onClick={(e) => e.stopPropagation()}
             />
             <span
@@ -93,19 +105,23 @@ const ColumnChips: Component<ColumnChipsProps> = (props) => {
               />
             </span>
             <span class={styles.label}>{col}</span>
-            <button
+            <span
               class={styles.menuBtn}
-              type="button"
+              role="button"
+              tabindex="0"
               title={`Filter range for ${col}`}
               aria-label={`Filter range for ${col}`}
               onClick={(e) => handleMenuClick(col, e)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') handleMenuClick(col, e);
+              }}
             >
               <svg viewBox="0 0 16 16" fill="currentColor">
                 <circle cx="8" cy="3" r="1.5"/>
                 <circle cx="8" cy="8" r="1.5"/>
                 <circle cx="8" cy="13" r="1.5"/>
               </svg>
-            </button>
+            </span>
           </div>
         )}
       </For>

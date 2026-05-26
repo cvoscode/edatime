@@ -48,10 +48,15 @@ export function removeToast(id: string): void {
     setToastState('toasts', (t) => t.filter((msg) => msg.id !== id));
 }
 
+export function clearToasts(): void {
+    setToastState('toasts', []);
+}
+
 export function useToasts() {
     return {
         toasts: () => toastState.toasts,
         remove: removeToast,
+        clear: clearToasts,
     };
 }
 

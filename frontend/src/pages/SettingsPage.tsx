@@ -13,7 +13,7 @@ const SettingsPage: Component = () => {
     {
       id: 'dark',
       name: 'Dark Mode',
-      desc: 'Easy on the eyes during late-night analysis sessions.',
+      desc: 'Reduced brightness for extended analysis sessions.',
       icon: (
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 10.5A7 7 0 1 1 5.5 2a5 5 0 0 0 8.5 8.5z" />
@@ -23,7 +23,7 @@ const SettingsPage: Component = () => {
     {
       id: 'light',
       name: 'Light Mode',
-      desc: 'Clean and crisp for daytime viewing.',
+      desc: 'High-contrast interface for bright environments.',
       icon: (
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="8" cy="8" r="3" />
@@ -41,7 +41,7 @@ const SettingsPage: Component = () => {
     {
       id: 'system',
       name: 'Follow System',
-      desc: 'Matches whatever your computer is set to. Zero effort.',
+      desc: 'Use the operating system appearance preference.',
       icon: (
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="2" width="12" height="10" rx="1.5" />
@@ -55,7 +55,7 @@ const SettingsPage: Component = () => {
     {
       id: 'auto' as PlotThemeMode,
       name: 'Auto',
-      desc: 'Follows your UI theme setting. Syncs nicely.',
+      desc: 'Use the active interface theme for chart styling.',
       icon: (
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 2a4 4 0 0 1 4 4 4 4 0 0 1-.5 1.9l2.1 2.1a4 4 0 0 1-5.6 5.6l-2.1-2.1A4 4 0 0 1 2 8a4 4 0 0 1 10-6z" />
@@ -66,7 +66,7 @@ const SettingsPage: Component = () => {
     {
       id: 'light' as PlotThemeMode,
       name: 'Light',
-      desc: 'Light background, dark text. Easier on the eyes in bright environments.',
+      desc: 'Light chart background with dark labels and grid lines.',
       icon: (
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="8" cy="8" r="3" />
@@ -84,7 +84,7 @@ const SettingsPage: Component = () => {
     {
       id: 'dark' as PlotThemeMode,
       name: 'Dark',
-      desc: 'Dark background, light text. Puts focus on your data.',
+      desc: 'Dark chart background with light labels and grid lines.',
       icon: (
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 10.5A7 7 0 1 1 5.5 2a5 5 0 0 0 8.5 8.5z" />
@@ -103,13 +103,13 @@ const SettingsPage: Component = () => {
           </svg>
         </div>
         <h1 class={styles.title}>Settings</h1>
-        <p class={styles.tagline}>Tweak things until it feels just right. Changes happen instantly.</p>
+        <p class={styles.tagline}>Configure appearance, chart palettes, and keyboard shortcuts.</p>
       </div>
 
       <div class={styles.content}>
         <div class={styles.section}>
-          <h2 class={styles.sectionTitle}>Make it yours</h2>
-          <p class={styles.sectionCopy}>Pick a theme that works for you. Your eyes will thank you.</p>
+          <h2 class={styles.sectionTitle}>Interface theme</h2>
+          <p class={styles.sectionCopy}>Choose the application color mode used for navigation and controls.</p>
           <div class={styles.themeGrid}>
             {themeOptions.map((theme) => (
               <button
@@ -136,7 +136,7 @@ const SettingsPage: Component = () => {
 
         <div class={styles.section}>
           <h2 class={styles.sectionTitle}>Color scale</h2>
-          <p class={styles.sectionCopy}>Sets the palette for heatmaps, scatter plots, and charts. Pick what feels right for your data.</p>
+          <p class={styles.sectionCopy}>Sets the palette for heatmaps, scatter plots, and charts.</p>
           <div class={styles.colorScaleGrid}>
             {(Object.keys(COLORMAPS) as ColorScaleName[]).map((id) => (
               <button
@@ -166,7 +166,7 @@ const SettingsPage: Component = () => {
 
         <div class={styles.section}>
           <h2 class={styles.sectionTitle}>Plot appearance</h2>
-          <p class={styles.sectionCopy}>Controls the background and colors of charts. Independent of the UI theme — set it however you like.</p>
+          <p class={styles.sectionCopy}>Controls chart background and foreground colors independently of the interface theme.</p>
           <div class={styles.plotThemeGrid}>
             {plotThemeOptions.map((opt) => (
               <button
@@ -193,7 +193,7 @@ const SettingsPage: Component = () => {
 
         <div class={styles.section}>
           <h2 class={styles.sectionTitle}>Keyboard shortcuts</h2>
-          <p class={styles.sectionCopy}>Once you memorize these, you'll feel like a pro. No cap.</p>
+          <p class={styles.sectionCopy}>Keyboard commands for navigation, chart interaction, and session actions.</p>
           <div class={styles.shortcutsGrid}>
             <div class={styles.shortcutGroup}>
               <h4 class={styles.shortcutGroupTitle}>Navigation</h4>
@@ -244,7 +244,7 @@ const SettingsPage: Component = () => {
             </div>
           </div>
           <p class={styles.aboutDesc}>
-            Upload your data, explore patterns, and export insights. Built for people who actually work with time series.
+            Upload data, explore time-series patterns, and export analysis results from a local browser session.
           </p>
           <div class={styles.links}>
             <a href="/" class={styles.link}>Documentation</a>

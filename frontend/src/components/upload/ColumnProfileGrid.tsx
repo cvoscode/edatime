@@ -111,9 +111,10 @@ const ColumnProfileGrid: Component<ColumnProfileGridProps> = (props) => {
   const allSelected = () => props.profiles.length > 0 && props.selectedColumns.length === props.profiles.length;
 
   const getTypeLabel = (dtype: string) => {
-    if (dtype.includes('int') || dtype.includes('float') || dtype.includes('double')) return 'numeric';
-    if (dtype.includes('datetime') || dtype.includes('date')) return 'datetime';
-    if (dtype.includes('bool')) return 'bool';
+    const normalized = dtype.toLowerCase();
+    if (/(^|[^a-z])(u?int|float|double|f\d+|i\d+|u\d+)([^a-z]|$)/.test(normalized)) return 'numeric';
+    if (normalized.includes('datetime') || normalized.includes('date') || normalized.includes('timestamp')) return 'datetime';
+    if (normalized.includes('bool')) return 'bool';
     return 'categorical';
   };
 

@@ -282,6 +282,8 @@ const DriftPage: Component = () => {
               {(col) => (
                 <button
                   class={`${styles.chip} ${selectedColumns().includes(col) ? styles.active : ''}`}
+                  aria-pressed={selectedColumns().includes(col)}
+                  aria-label={`${selectedColumns().includes(col) ? 'Remove' : 'Add'} drift column ${col}`}
                   onClick={() => {
                     const cur = selectedColumns();
                     if (cur.includes(col)) {
@@ -300,7 +302,7 @@ const DriftPage: Component = () => {
 
         <div class={styles.controlGroup}>
           <label class={styles.label}>Window</label>
-          <select class={styles.select} value={windowSize()} onChange={e => setWindowSize(e.currentTarget.value as any)}>
+          <select class={styles.select} aria-label="Drift window size" value={windowSize()} onChange={e => setWindowSize(e.currentTarget.value as any)}>
             <option value="hourly">Hourly</option>
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
@@ -309,12 +311,12 @@ const DriftPage: Component = () => {
 
         <div class={styles.controlGroup}>
           <label class={styles.label}>Reference Start</label>
-          <input type="datetime-local" class={styles.input} value={refStart()} onInput={e => setRefStart(e.currentTarget.value)} />
+          <input type="datetime-local" class={styles.input} aria-label="Reference start datetime" value={refStart()} onInput={e => setRefStart(e.currentTarget.value)} />
         </div>
 
         <div class={styles.controlGroup}>
           <label class={styles.label}>Reference End</label>
-          <input type="datetime-local" class={styles.input} value={refEnd()} onInput={e => setRefEnd(e.currentTarget.value)} />
+          <input type="datetime-local" class={styles.input} aria-label="Reference end datetime" value={refEnd()} onInput={e => setRefEnd(e.currentTarget.value)} />
         </div>
 
         <button class={styles.computeBtn} onClick={handleCompute} disabled={loading()}>Compute</button>
@@ -332,7 +334,7 @@ const DriftPage: Component = () => {
         <div class={styles.rightPanel}>
           <div class={styles.chartHeader}>
             <span class={styles.chartTitle}>Window Detail</span>
-            <select class={styles.select} value={sortBy()} onChange={e => setSortBy(e.currentTarget.value as any)}>
+            <select class={styles.select} aria-label="Sort drift window details" value={sortBy()} onChange={e => setSortBy(e.currentTarget.value as any)}>
               <option value="time-asc">Sort: Time</option>
               <option value="psi-desc">Sort: PSI</option>
               <option value="severity-desc">Sort: Severity</option>

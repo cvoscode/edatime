@@ -5,7 +5,7 @@
 import { createStore } from 'solid-js/store';
 import type { ColorScaleName } from '../utils/colorScale';
 import type { PlotThemeMode } from '../utils/plotTemplate';
-import { addToast as sharedAddToast, removeToast as sharedRemoveToast } from '@/shared/ui/toast';
+import { addToast as sharedAddToast, clearToasts as sharedClearToasts, removeToast as sharedRemoveToast } from '@/shared/ui/toast';
 
 interface UiState {
   // Theme & presentation
@@ -118,6 +118,8 @@ export const uiStore = {
   },
 
   removeToast: sharedRemoveToast,
+
+  clearToasts: sharedClearToasts,
 
   setUploadPanelOpen(open: boolean) {
     setUiState('isUploadPanelOpen', open);

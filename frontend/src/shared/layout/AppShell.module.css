@@ -229,3 +229,49 @@
     flex-direction: column;
     background: var(--color-bg);
 }
+
+@media (max-width: 640px) {
+    .sidebar {
+        width: 52px;
+        min-width: 52px;
+    }
+
+    .sidebar .logoRow,
+    .sidebar .label,
+    .sidebar .footer {
+        display: none;
+    }
+
+    .header {
+        padding: var(--space-2);
+        align-items: center;
+    }
+
+    .headerTop {
+        justify-content: center;
+    }
+
+    .toggle {
+        display: none;
+    }
+
+    .nav {
+        padding: var(--space-2) var(--space-1);
+        gap: 2px;
+    }
+
+    .navItem,
+    .sidebar.collapsed .navItem {
+        justify-content: center;
+        padding: 9px 0;
+        gap: 0;
+    }
+
+    .navItem::before {
+        display: none;
+    }
+
+    .symbol {
+        width: 100%;
+    }
+}
