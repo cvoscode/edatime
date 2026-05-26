@@ -129,9 +129,12 @@ export class ChartGPUAdapter implements ChartAdapter {
     this.currentSeries = series;
 
     const colorPalette = getColorPalette(uiStore.state.colorScale, 8);
+    const currentOptions = this.instance.options ?? {};
     const opts: any = {
+      ...currentOptions,
       series: series.map((s, i) => ({
         ...s,
+        type: (s as any).type ?? 'line',
         color: s.color ?? colorPalette[i % colorPalette.length],
         visible: s.visible !== false,
       })),
@@ -144,11 +147,15 @@ export class ChartGPUAdapter implements ChartAdapter {
     if (!this.instance || this.disposed) return;
     this.currentViewport = { xMin, xMax, yMin: yMin ?? 0, yMax: yMax ?? 1 };
 
-    if (typeof this.instance.setZoomRange === 'function') {
-      this.instance.setZoomRange(xMin, xMax);
-    }
-    if (yMin !== undefined && yMax !== undefined && typeof this.instance.setYRange === 'function') {
-      this.instance.setYRange(yMin, yMax);
+    if (typeof this.instance.setOption === 'function') {
+      const currentOptions = this.instance.options ?? {};
+      this.instance.setOption({
+        ...currentOptions,
+        xAxis: { ...(currentOptions.xAxis ?? {}), min: xMin, max: xMax },
+        yAxis: yMin !== undefined && yMax !== undefined
+          ? { ...(currentOptions.yAxis ?? {}), min: yMin, max: yMax }
+          : currentOptions.yAxis,
+      });
     }
   }
 

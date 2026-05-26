@@ -108,11 +108,15 @@ function seriesToEChartsFormat(series: any[]): any {
 }
 
 function applyViewportToChartGPU(instance: any, xMin: number, xMax: number, yMin?: number, yMax?: number): void {
-    if (typeof instance.setZoomRange === 'function') {
-        instance.setZoomRange(xMin, xMax);
-    }
-    if (yMin !== undefined && yMax !== undefined && typeof instance.setYRange === 'function') {
-        instance.setYRange(yMin, yMax);
+    if (typeof instance.setOption === 'function') {
+        const currentOptions = instance.options ?? {};
+        instance.setOption({
+            ...currentOptions,
+            xAxis: { ...(currentOptions.xAxis ?? {}), min: xMin, max: xMax },
+            yAxis: yMin !== undefined && yMax !== undefined
+                ? { ...(currentOptions.yAxis ?? {}), min: yMin, max: yMax }
+                : currentOptions.yAxis,
+        });
     }
 }
 

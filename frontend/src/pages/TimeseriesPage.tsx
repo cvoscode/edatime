@@ -28,6 +28,18 @@ import { useAdaptiveFilters } from '../features/timeseries/hooks/useAdaptiveFilt
 import { useTimeseriesChartData } from '../hooks/useTimeseriesChartData';
 import styles from './TimeseriesPage.module.css';
 
+function getMetadataTimeRange(metadata: any): { min: number; max: number } | null {
+  const range = metadata?.timeRange ?? metadata?.time_range;
+  if (Array.isArray(range)) {
+    const [min, max] = range;
+    return Number.isFinite(min) && Number.isFinite(max) ? { min, max } : null;
+  }
+  if (range && Number.isFinite(range.min) && Number.isFinite(range.max)) {
+    return { min: range.min, max: range.max };
+  }
+  return null;
+}
+
 const TimeseriesPage: Component = () => {
   let pageRef: HTMLDivElement | undefined;
   const navigate = useNavigate();
@@ -93,7 +105,7 @@ const TimeseriesPage: Component = () => {
 
   const initViewportFromMetadata = () => {
     const metadata = datasetStore.state.metadata;
-    const timeRange = metadata?.time_range;
+    const timeRange = getMetadataTimeRange(metadata);
     if (timeRange && chartStore.state.viewport.xMax < timeRange?.max * 0.01) {
       const newViewport = {
         xMin: timeRange?.min,
@@ -164,7 +176,7 @@ const TimeseriesPage: Component = () => {
       timeseriesStore.setRollingBands([]);
     } else {
       const metadata = datasetStore.state.metadata;
-      const timeRange = metadata?.time_range;
+      const timeRange = getMetadataTimeRange(metadata);
       if (timeRange && chartInstanceRef) {
         const vp = chartStore.state.viewport;
         const start = new Date(vp.xMin || timeRange?.min).toISOString();
@@ -182,7 +194,7 @@ const TimeseriesPage: Component = () => {
       timeseriesStore.setAnomalyRegions([]);
     } else {
       const metadata = datasetStore.state.metadata;
-      const timeRange = metadata?.time_range;
+      const timeRange = getMetadataTimeRange(metadata);
       if (timeRange && chartInstanceRef) {
         const vp = chartStore.state.viewport;
         const start = new Date(vp.xMin || timeRange?.min).toISOString();
@@ -268,7 +280,7 @@ const TimeseriesPage: Component = () => {
 
   const emptyStateInfo = createMemo(() => {
     const metadata = datasetStore.state.metadata;
-    const timeRange = metadata?.time_range;
+    const timeRange = getMetadataTimeRange(metadata);
     const vp = chartStore.state.viewport;
     const selected = selectedColumns();
 
@@ -299,8 +311,9 @@ const TimeseriesPage: Component = () => {
       timeseriesStore.setSelectedColumns(cols);
       timeseriesStore.setHiddenColumns([]);
     }
-    if (cols.length > 0 && metadata?.time_range) {
-      const [t0, t1] = [metadata.time_range.min, metadata.time_range.max];
+    const timeRange = getMetadataTimeRange(metadata);
+    if (cols.length > 0 && timeRange) {
+      const [t0, t1] = [timeRange.min, timeRange.max];
       const vp = chartStore.state.viewport;
       if (vp.xMin !== t0 || vp.xMax !== t1) {
         chartStore.setViewport({ xMin: t0, xMax: t1, yMin: 0, yMax: 1 });

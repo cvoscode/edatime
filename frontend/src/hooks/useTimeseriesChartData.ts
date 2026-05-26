@@ -33,6 +33,18 @@ export interface TimeseriesChartDataResult {
   invalidateCache: () => void;
 }
 
+function getMetadataTimeRange(metadata: any): { min: number; max: number } | null {
+  const range = metadata?.timeRange ?? metadata?.time_range;
+  if (Array.isArray(range)) {
+    const [min, max] = range;
+    return Number.isFinite(min) && Number.isFinite(max) ? { min, max } : null;
+  }
+  if (range && Number.isFinite(range.min) && Number.isFinite(range.max)) {
+    return { min: range.min, max: range.max };
+  }
+  return null;
+}
+
 interface CacheEntry {
   xValues: Float64Array;
   series: Record<string, Float64Array>;
@@ -70,7 +82,7 @@ function computeYRange(config: any[]): { min: number; max: number } {
 export function useTimeseriesChartData(
   options: TimeseriesChartDataOptions
 ): TimeseriesChartDataResult {
-  const { signal: abortSignal, abort, restart: restartAbort } = useAbortController();
+  const abortController = useAbortController();
 
   const [isLoading, setIsLoading] = createSignal(false);
   const [isDownsampled, setIsDownsampled] = createSignal(false);
@@ -81,6 +93,7 @@ export function useTimeseriesChartData(
   let cache = new Map<string, CacheEntry>();
   let currentCacheKey = '';
   let fetchTimer: ReturnType<typeof setTimeout> | null = null;
+  let renderTimer: ReturnType<typeof setTimeout> | null = null;
 
   function rebuildWithCurrentOptions(
     xValues: Float64Array,
@@ -112,7 +125,7 @@ export function useTimeseriesChartData(
     }
 
     const metadata = datasetStore.state.metadata;
-    const timeRange = metadata?.time_range;
+    const timeRange = getMetadataTimeRange(metadata);
     if (!timeRange) {
       debugLog('useTimeseriesChartData: no timeRange in metadata');
       console.debug('[useTimeseriesChartData] no timeRange in metadata');
@@ -142,8 +155,7 @@ export function useTimeseriesChartData(
 
     setIsLoading(true);
     setError(null);
-    abort();
-    restartAbort();
+    abortController.abort();
 
     try {
       console.debug('[useTimeseriesChartData] calling fetchTimeseriesData');
@@ -153,7 +165,7 @@ export function useTimeseriesChartData(
         1200,
         xCol,
         cols,
-        abortSignal,
+        abortController.signal,
         options.colorColumn()
       );
       console.debug('[useTimeseriesChartData] fetchTimeseriesData returned', { returnedRows: result.returnedRows, downsampled: result.downsampled, xValuesLen: result.xValues.length, seriesKeys: Object.keys(result.series) });
@@ -233,8 +245,9 @@ export function useTimeseriesChartData(
   createEffect(() => {
     void options.colors();
     void options.colorColumn();
-    if (fetchTimer) clearTimeout(fetchTimer);
-    fetchTimer = setTimeout(() => {
+    if (!currentCacheKey) return;
+    if (renderTimer) clearTimeout(renderTimer);
+    renderTimer = setTimeout(() => {
       if (!currentCacheKey) return;
       const cached = cache.get(currentCacheKey);
       if (cached) {
@@ -249,7 +262,8 @@ export function useTimeseriesChartData(
 
   onCleanup(() => {
     if (fetchTimer) clearTimeout(fetchTimer);
-    abort();
+    if (renderTimer) clearTimeout(renderTimer);
+    abortController.abort();
   });
 
   return {

@@ -25,6 +25,37 @@ export interface ChartRegistryOptions {
 
 import { isWebGPUSupported } from '../../chart/isWebGPU';
 
+let webGPUAdapterAvailablePromise: Promise<boolean> | null = null;
+
+async function hasWebGPUAdapter(): Promise<boolean> {
+  if (!isWebGPUSupported()) return false;
+  if (!webGPUAdapterAvailablePromise) {
+    webGPUAdapterAvailablePromise = (async () => {
+      try {
+        const adapter = await (navigator as any).gpu.requestAdapter();
+        return !!adapter;
+      } catch {
+        return false;
+      }
+    })();
+  }
+  return webGPUAdapterAvailablePromise;
+}
+
+async function selectEngineForInit(options: ChartRegistryOptions = {}): Promise<'ChartGPU' | 'ECharts'> {
+  const { enginePreference = 'auto', chartType = 'timeseries' } = options;
+
+  if (enginePreference === 'echarts') return 'ECharts';
+  if (chartType === 'scatter' || chartType === 'heatmap') return 'ECharts';
+
+  const hasAdapter = await hasWebGPUAdapter();
+  if (enginePreference === 'webgpu') {
+    return hasAdapter ? 'ChartGPU' : 'ECharts';
+  }
+
+  return hasAdapter ? 'ChartGPU' : 'ECharts';
+}
+
 /**
  * Select which engine to use based on availability and preferences.
  * Uses fast sync check only — no async adapter request.
@@ -69,8 +100,15 @@ export async function createAndInitChartAdapter(
 ): Promise<ChartAdapter> {
   // Use engine preference from options, with ECharts as safe default fallback
   const enginePreference = registryOptions.enginePreference ?? 'auto';
-  const engine = selectEngine({ ...registryOptions, enginePreference });
-  console.debug('[ChartRegistry] createAndInitChartAdapter', { chartType: registryOptions.chartType, enginePreference, selectedEngine: engine, webgpuSupported: isWebGPUSupported() });
+  const engine = await selectEngineForInit({ ...registryOptions, enginePreference });
+  const webgpuAdapterAvailable = await hasWebGPUAdapter();
+  console.debug('[ChartRegistry] createAndInitChartAdapter', {
+    chartType: registryOptions.chartType,
+    enginePreference,
+    selectedEngine: engine,
+    webgpuSupported: isWebGPUSupported(),
+    webgpuAdapterAvailable,
+  });
 
   const adapter: ChartAdapter = engine === 'ChartGPU'
     ? new ChartGPUAdapter()
@@ -82,6 +120,11 @@ export async function createAndInitChartAdapter(
     console.debug('[ChartRegistry] adapter initialized successfully');
     return adapter;
   } catch (chartError) {
+    const message = chartError instanceof Error ? chartError.message : String(chartError);
+    if (message.includes('Container is no longer in DOM') || !container.isConnected) {
+      adapter.dispose();
+      throw chartError;
+    }
     console.warn('[ChartRegistry] primary engine init failed, falling back to ECharts:', chartError);
     adapter.dispose();
 

@@ -36,14 +36,21 @@ export function useChartEngine(
   const [webgpuReason, setWebgpuReason] = createSignal<string>('');
   const [themeVersion, setThemeVersion] = createSignal(0);
 
-  let chartResult: { instance: any; engineName: 'ChartGPU' | 'ECharts'; dispose: () => void; resize: () => void } | null = null;
+  let chartResult: { instance: any; engineName: string; dispose: () => void; resize: () => void } | null = null;
   let resizeObserver: ResizeObserver | null = null;
   let initInProgress = false;
+  let disposed = false;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   const grid = () => options.grid ?? (options.type === 'echarts' ? ECHARTS_GRID : DEFAULT_GRID);
 
   const dispose = () => {
+    disposed = true;
     initInProgress = false;
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
     if (chartResult) {
       chartResult.dispose();
       chartResult = null;
@@ -51,17 +58,35 @@ export function useChartEngine(
     resizeObserver?.disconnect();
     resizeObserver = null;
     setChartInstance(null);
+    setEngineName('');
   };
 
   const resize = () => {
     chartResult?.resize();
   };
 
+  const scheduleInitRetry = () => {
+    if (disposed || retryTimer) return;
+    setChartStatus('loading');
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      if (!disposed) {
+        void init().catch(() => { });
+      }
+    }, 50);
+  };
+
   const init = async () => {
+    if (disposed) return;
     if (initInProgress) return;
     const ref = containerRef();
     if (!ref || !ref.parentElement) {
       console.debug('[useChartEngine] init skip - no ref or no parent', { hasRef: !!ref, hasParent: ref?.parentElement });
+      return;
+    }
+    if (!ref.isConnected) {
+      console.debug('[useChartEngine] init retry - container is not connected yet');
+      scheduleInitRetry();
       return;
     }
     initInProgress = true;
@@ -87,17 +112,28 @@ export function useChartEngine(
       const refParentId = ref.parentElement?.id ? `#${ref.parentElement.id}` : ref.parentElement?.tagName ?? 'none';
       console.debug('[useChartEngine] pre-init ref identity', { refId, tagName: ref.tagName, parentTag: refParentId, refPointer: Number(ref) });
 
-      // Force ECharts to rule out ChartGPU as the error source
       const { createAndInitChartAdapter } = await import('../components/chart/ChartRegistry');
       chartResult = await createAndInitChartAdapter(
         ref,
         { grid: chartGrid, xAxisType, xAxisLabel: options.xAxisLabel, yAxisLabel: options.yAxisLabel, chartTitle: options.chartTitle },
-        { chartType: options.type === 'timeseries' ? 'timeseries' : 'scatter', enginePreference: 'echarts' }
+        {
+          chartType: options.type === 'timeseries' ? 'timeseries' : 'scatter',
+          enginePreference: options.type === 'timeseries' ? 'auto' : 'echarts',
+        }
       );
-      console.debug('[useChartEngine] ECharts forced init done', { engineName: chartResult.engineName, instanceType: typeof chartResult.instance });
+      const initializedChart = chartResult;
+      console.debug('[useChartEngine] chart init done', { engineName: initializedChart.engineName, instanceType: typeof initializedChart.instance });
 
-      const capturedInstance = chartResult.instance;
-      const capturedEngine = chartResult.engineName;
+      const capturedInstance = initializedChart.instance;
+      const capturedEngine = initializedChart.engineName;
+      if (disposed || !ref.isConnected) {
+        initializedChart.dispose();
+        chartResult = null;
+        return;
+      }
+      setChartInstance(capturedInstance);
+      setEngineName(capturedEngine);
+      options.onEngineReady?.(capturedEngine);
 
       // The adapter has returned successfully — the chart IS initialized.
       // ECharts internal setTimeout(0) callbacks may still fire and throw
@@ -137,7 +173,7 @@ export function useChartEngine(
               // Wait for ECharts's rAF-based deferred work to complete.
               // double rAF flushes all ECharts internal setTimeout(0) and rAF callbacks.
               await new Promise<void>(resolve => {
-                requestAnimationFrame(() => { requestAnimationFrame(resolve); });
+                requestAnimationFrame(() => { requestAnimationFrame(() => resolve()); });
               });
               // One more microtask flush for SolidJS reactive propagation
               await new Promise<void>(resolve => queueMicrotask(resolve));
@@ -163,8 +199,14 @@ export function useChartEngine(
       return;
     } catch (e) {
       initInProgress = false;
+      if (disposed) return;
       const msg = e instanceof Error ? e.message : String(e);
       const stack = e instanceof Error ? e.stack?.split('\n').slice(0, 3).join(' | ') : '';
+      if (msg.includes('Container is no longer in DOM') || !ref.isConnected) {
+        console.debug('[useChartEngine] init stale container, retrying with current ref');
+        scheduleInitRetry();
+        return;
+      }
       console.error('[useChartEngine] init failed:', msg, '| stack:', stack);
       setWebgpuReason(msg);
       setChartStatus('error');
