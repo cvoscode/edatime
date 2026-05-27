@@ -1,5 +1,5 @@
 import { A as Ad } from './chartgpu-CqrjGxnD.js';
-import { w as getSeriesColor, c as appStateComposite, X as buildAdaptiveLineY, D as DEBUG, M as dbg, a as formatTwoDecimals, e as downloadUrl, d as downloadBlob, Y as ensureRelativePosition, Z as createCanvasOverlay, $ as initBoxZoom, f as formatTimestamp, a0 as formatTimeTooltip, h as escapeHtml } from './frequency-BkpduCZb.js';
+import { w as getSeriesColor, c as appStateComposite, X as buildAdaptiveLineY, D as DEBUG, M as dbg, a as formatTwoDecimals, e as downloadUrl, d as downloadBlob, Y as ensureRelativePosition, Z as createCanvasOverlay, $ as initBoxZoom, f as formatTimestamp, a0 as formatTimeTooltip, h as escapeHtml } from './frequency-BhMsdefW.js';
 import { g as getSetting, C as COLOR_SCALES } from '../app.js';
 
 const _SCALE_RGB = {
@@ -1709,4 +1709,4 @@ class DataChart {
 }
 
 export { DataChart };
-//# sourceMappingURL=DataChart-I3-wfsvf.js.map
+//# sourceMappingURL=DataChart-BsiU0xWV.js.map

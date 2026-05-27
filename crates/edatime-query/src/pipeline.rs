@@ -322,7 +322,8 @@ fn bucket_aggregate(
 // ── Stage 3: Serialize ─────────────────────────────────────────────────────
 
 /// Serialize a DataFrame to Arrow IPC bytes, normalizing the timestamp column
-/// to Datetime(Milliseconds) for consistent frontend parsing.
+/// to Datetime(Milliseconds) for consistent frontend parsing while preserving
+/// the source timestamp column name.
 pub fn serialize_arrow(df: DataFrame, ts_col: &str) -> Result<Vec<u8>, AppError> {
     let ts_dtype = df
         .column(ts_col)
@@ -340,7 +341,8 @@ pub fn serialize_arrow(df: DataFrame, ts_col: &str) -> Result<Vec<u8>, AppError>
         .map_err(|e| AppError::Io(format!("Arrow IPC serialization: {:?}", e)))
 }
 
-/// Serialize a DataFrame to a JSON value with `ts` and `values` keys.
+/// Serialize a DataFrame to a JSON value with the original timestamp column
+/// name and a `values` object.
 pub fn serialize_json(
     df: &DataFrame,
     value_cols: &[String],
@@ -399,7 +401,7 @@ pub fn serialize_json(
     }
 
     let mut payload = serde_json::Map::new();
-    payload.insert("ts".to_string(), serde_json::json!(ts));
+    payload.insert(ts_col.to_string(), serde_json::json!(ts));
     payload.insert("values".to_string(), serde_json::json!(values));
 
     if let Some(color_column) = color_col
@@ -429,4 +431,36 @@ pub fn serialize_json(
     }
 
     Ok(serde_json::Value::Object(payload))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::serialize_json;
+    use polars::prelude::*;
+
+    #[test]
+    fn serialize_json_preserves_original_timestamp_key() {
+        let df = DataFrame::new(
+            2,
+            vec![
+                Series::new("event_time".into(), &[1_704_067_200_000_i64, 1_704_153_600_000_i64])
+                    .into(),
+                Series::new("value".into(), &[1.0_f64, 2.0_f64]).into(),
+            ],
+        )
+        .expect("dataframe");
+
+        let payload = serialize_json(
+            &df,
+            &[String::from("value")],
+            None,
+            &DataType::Datetime(TimeUnit::Milliseconds, None),
+            "event_time",
+        )
+        .expect("serialize json");
+
+        let object = payload.as_object().expect("object payload");
+        assert!(object.contains_key("event_time"));
+        assert!(!object.contains_key("ts"));
+    }
 }

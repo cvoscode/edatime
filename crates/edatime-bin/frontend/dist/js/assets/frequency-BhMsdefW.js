@@ -675,6 +675,18 @@ function debounce(fn, ms) {
   });
 }
 
+function resolveTimestampColumnName(table, requestedCols, colorColumn, headerName) {
+  if (headerName && table.getChild(headerName)) return headerName;
+  const fieldNames = (table.schema?.fields ?? []).map((field) => field?.name).filter((name) => typeof name === "string" && name.length > 0);
+  const excluded = new Set(requestedCols);
+  if (colorColumn) excluded.add(colorColumn);
+  const nonValueFields = fieldNames.filter((name) => !excluded.has(name) && table.getChild(name));
+  if (nonValueFields.length === 1) return nonValueFields[0];
+  const temporalFields = fieldNames.filter((name) => /(^ts$|time|date|timestamp)/i.test(name) && table.getChild(name));
+  if (temporalFields.length === 1) return temporalFields[0];
+  if (fieldNames.length > 0 && table.getChild(fieldNames[0])) return fieldNames[0];
+  return null;
+}
 let tableFromIPCFn = null;
 const inflight = /* @__PURE__ */ new Map();
 function dedupe(key, factory) {
@@ -748,6 +760,7 @@ async function fetchMetadata() {
   return data;
 }
 async function fetchData(start, end, width, columns = "value", colorColumn = null, signal) {
+  const requestedCols = columns.split(",").map((col) => col.trim()).filter(Boolean);
   const params = new URLSearchParams({
     start,
     end,
@@ -767,6 +780,7 @@ async function fetchData(start, end, width, columns = "value", colorColumn = nul
   const downsampledHeader = res.headers.get("x-edatime-downsampled");
   const returnedRowsHeader = res.headers.get("x-edatime-returned-rows");
   const targetPointsHeader = res.headers.get("x-edatime-target-points");
+  const timeColumnHeader = res.headers.get("x-edatime-time-column");
   const hasDownsampleHeader = downsampledHeader === "0" || downsampledHeader === "1";
   let isDownsampled = downsampledHeader === "1";
   const returnedRows = Number.parseInt(returnedRowsHeader ?? "", 10);
@@ -793,7 +807,13 @@ async function fetchData(start, end, width, columns = "value", colorColumn = nul
     } catch {
     }
   }
-  const tsCol = table.getChild("ts");
+  const timestampColumnName = resolveTimestampColumnName(
+    table,
+    requestedCols,
+    colorColumn,
+    timeColumnHeader
+  );
+  const tsCol = timestampColumnName ? table.getChild(timestampColumnName) : null;
   if (!tsCol) throw new Error("No timestamp column found");
   const len = table.numRows;
   const tsArray = new Float64Array(len);
@@ -830,7 +850,6 @@ async function fetchData(start, end, width, columns = "value", colorColumn = nul
   if (DEBUG) {
     dbg("downsample meta", dataObj._meta);
   }
-  const requestedCols = columns.split(",");
   for (const colName of requestedCols) {
     const valCol = table.getChild(colName);
     if (valCol) {
@@ -2862,4 +2881,4 @@ const heatmapPage = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
 }, Symbol.toStringTag, { value: 'Module' }));
 
 export { initBoxZoom as $, fetchMetadata as A, formatCount as B, formatToDatetimeLocal as C, DEBUG as D, formatAnalysisTime as E, PROFILE_COLUMNS as F, normalizeDtypeLabel as G, formatProfileValue as H, getDefaultProfileColumnWidths as I, PROFILE_OVERSCAN as J, toFiniteNumberOrNull as K, dbgGroup as L, dbg as M, ensureRangeStateFromData as N, setMetaText as O, PROFILE_ROW_HEIGHT as P, applyColumnRanges as Q, getNumericColumns as R, SERIES_COLORS as S, getAnalyticsChipColor as T, debounce as U, installWindowsWebGpuRequestAdapterWorkaround as V, getDefaultTimeseriesColumns as W, buildAdaptiveLineY as X, ensureRelativePosition as Y, createCanvasOverlay as Z, __vitePreload as _, formatTwoDecimals as a, formatTimeTooltip as a0, dataClient as a1, toast$1 as a2, spectrogramPage as a3, fftPage as a4, heatmapPage as a5, buildAdaptiveLineFiltersForQuery as b, appStateComposite as c, downloadBlob as d, downloadUrl as e, formatTimestamp as f, getEl as g, escapeHtml$1 as h, isTemporalDtype as i, fetchFft as j, fetchScatterPoints as k, isRangeOutsideDataset as l, fetchScatterCorrelations as m, defaultGpuPowerPreference as n, createEmptyStateController as o, exportEChartsPNG as p, fetchCausalGraph as q, requestGpuAdapter as r, scatterState as s, toast as t, formatAnalysisNumber as u, sanitizeSelectedColumns as v, getSeriesColor as w, buildMetaBar as x, setSeriesColor as y, computeBounds as z };
-//# sourceMappingURL=frequency-BkpduCZb.js.map
+//# sourceMappingURL=frequency-BhMsdefW.js.map

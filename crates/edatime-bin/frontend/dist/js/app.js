@@ -1,5 +1,5 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/frequency-BkpduCZb.js","assets/chartgpu-CqrjGxnD.js","assets/scatter-Dao--s14.js","assets/drift-CSAT5uxB.js","assets/causal-BEFGWehV.js","assets/DataChart-I3-wfsvf.js"])))=>i.map(i=>d[i]);
-import { c as appStateComposite, u as formatAnalysisNumber, v as sanitizeSelectedColumns, w as getSeriesColor, h as escapeHtml$2, x as buildMetaBar, y as setSeriesColor, z as computeBounds, A as fetchMetadata$1, B as formatCount, C as formatToDatetimeLocal, E as formatAnalysisTime, P as PROFILE_ROW_HEIGHT, F as PROFILE_COLUMNS, G as normalizeDtypeLabel, H as formatProfileValue, I as getDefaultProfileColumnWidths, J as PROFILE_OVERSCAN, K as toFiniteNumberOrNull, L as dbgGroup, M as dbg, D as DEBUG, N as ensureRangeStateFromData, O as setMetaText, o as createEmptyStateController, Q as applyColumnRanges, l as isRangeOutsideDataset, d as downloadBlob, S as SERIES_COLORS, t as toast, _ as __vitePreload, R as getNumericColumns, T as getAnalyticsChipColor, U as debounce, V as installWindowsWebGpuRequestAdapterWorkaround, W as getDefaultTimeseriesColumns, r as requestGpuAdapter, X as buildAdaptiveLineY } from './assets/frequency-BkpduCZb.js';
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/frequency-BhMsdefW.js","assets/chartgpu-CqrjGxnD.js","assets/scatter-CcBpGp_U.js","assets/drift-CTXdHWVt.js","assets/causal-CDS_i7Yt.js","assets/DataChart-BsiU0xWV.js"])))=>i.map(i=>d[i]);
+import { c as appStateComposite, u as formatAnalysisNumber, v as sanitizeSelectedColumns, w as getSeriesColor, h as escapeHtml$2, x as buildMetaBar, y as setSeriesColor, z as computeBounds, A as fetchMetadata$1, B as formatCount, C as formatToDatetimeLocal, E as formatAnalysisTime, P as PROFILE_ROW_HEIGHT, F as PROFILE_COLUMNS, G as normalizeDtypeLabel, H as formatProfileValue, I as getDefaultProfileColumnWidths, J as PROFILE_OVERSCAN, K as toFiniteNumberOrNull, L as dbgGroup, M as dbg, D as DEBUG, N as ensureRangeStateFromData, O as setMetaText, o as createEmptyStateController, Q as applyColumnRanges, l as isRangeOutsideDataset, d as downloadBlob, S as SERIES_COLORS, t as toast, _ as __vitePreload, R as getNumericColumns, T as getAnalyticsChipColor, U as debounce, V as installWindowsWebGpuRequestAdapterWorkaround, W as getDefaultTimeseriesColumns, r as requestGpuAdapter, X as buildAdaptiveLineY } from './assets/frequency-BhMsdefW.js';
 import './assets/chartgpu-CqrjGxnD.js';
 
 let _seriesCollapsed = false;
@@ -3832,7 +3832,7 @@ function initTransformModal(deps) {
         applyBtn.textContent = "Applying…";
         applyBtn.disabled = true;
       }
-      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/frequency-BkpduCZb.js').then(n => n.a1);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/frequency-BhMsdefW.js').then(n => n.a1);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
       await postTransform(expr, name);
       close();
       await deps.refreshDataset({ selectedColumn: name });
@@ -3880,7 +3880,7 @@ function initOutlierModal(deps) {
         applyBtn.disabled = true;
         applyBtn.textContent = "Removing…";
       }
-      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/frequency-BkpduCZb.js').then(n => n.a1);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/frequency-BhMsdefW.js').then(n => n.a1);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
       const result = await postRemoveOutliers(
         columns,
         method,
@@ -4134,7 +4134,7 @@ function generateWeatherCsv() {
   return rows.join("\n");
 }
 async function loadSampleDataset(datasetId, showPage) {
-  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/frequency-BkpduCZb.js').then(n => n.a2);return { toast }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/frequency-BhMsdefW.js').then(n => n.a2);return { toast }},true              ?__vite__mapDeps([0,1]):void 0);
   if (datasetId === "ettm2") {
     const dismissLoading = toast("Loading ETTm2 sample dataset…", "info", 0);
     let file;
@@ -4240,16 +4240,16 @@ function initAppShell(deps) {
 }
 
 async function initSpectrogramPage() {
-  const { initSpectrogramPage: init } = await __vitePreload(async () => { const { initSpectrogramPage: init } = await import('./assets/frequency-BkpduCZb.js').then(n => n.a3);return { initSpectrogramPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { initSpectrogramPage: init } = await __vitePreload(async () => { const { initSpectrogramPage: init } = await import('./assets/frequency-BhMsdefW.js').then(n => n.a3);return { initSpectrogramPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
   await init({ setLoading: setComputeLoading });
 }
 async function initFftPage() {
-  const { initFftPage: init } = await __vitePreload(async () => { const { initFftPage: init } = await import('./assets/frequency-BkpduCZb.js').then(n => n.a4);return { initFftPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { initFftPage: init } = await __vitePreload(async () => { const { initFftPage: init } = await import('./assets/frequency-BhMsdefW.js').then(n => n.a4);return { initFftPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
   await init({ renderTimeseries: () => {
   } });
 }
 async function initHeatmapPage() {
-  const { initHeatmapPage: init } = await __vitePreload(async () => { const { initHeatmapPage: init } = await import('./assets/frequency-BkpduCZb.js').then(n => n.a5);return { initHeatmapPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { initHeatmapPage: init } = await __vitePreload(async () => { const { initHeatmapPage: init } = await import('./assets/frequency-BhMsdefW.js').then(n => n.a5);return { initHeatmapPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
   await init({
     showPage: (name) => {
       document.querySelector(`.sidebar .nav-item[data-page="${name}"]`)?.click?.();
@@ -4259,16 +4259,16 @@ async function initHeatmapPage() {
 async function initScatterPage() {
   const scatterPage = document.getElementById("page-scatter");
   if (!scatterPage) return;
-  const { initScatterPage: initScatterPage2 } = await __vitePreload(async () => { const { initScatterPage: initScatterPage2 } = await import('./assets/scatter-Dao--s14.js');return { initScatterPage: initScatterPage2 }},true              ?__vite__mapDeps([2,1,0]):void 0);
+  const { initScatterPage: initScatterPage2 } = await __vitePreload(async () => { const { initScatterPage: initScatterPage2 } = await import('./assets/scatter-CcBpGp_U.js');return { initScatterPage: initScatterPage2 }},true              ?__vite__mapDeps([2,1,0]):void 0);
   await initScatterPage2(appStateComposite.metadata);
 }
 async function initDriftPage() {
-  const { initDriftPage: init } = await __vitePreload(async () => { const { initDriftPage: init } = await import('./assets/drift-CSAT5uxB.js');return { initDriftPage: init }},true              ?__vite__mapDeps([3,0,1]):void 0);
+  const { initDriftPage: init } = await __vitePreload(async () => { const { initDriftPage: init } = await import('./assets/drift-CTXdHWVt.js');return { initDriftPage: init }},true              ?__vite__mapDeps([3,0,1]):void 0);
   await init(appStateComposite.metadata);
 }
 async function initCausalPage() {
-  const { initCausalPage: init } = await __vitePreload(async () => { const { initCausalPage: init } = await import('./assets/causal-BEFGWehV.js').then(n => n.a);return { initCausalPage: init }},true              ?__vite__mapDeps([4,0,1]):void 0);
-  const { initCausalComparison } = await __vitePreload(async () => { const { initCausalComparison } = await import('./assets/causal-BEFGWehV.js').then(n => n.c);return { initCausalComparison }},true              ?__vite__mapDeps([4,0,1]):void 0);
+  const { initCausalPage: init } = await __vitePreload(async () => { const { initCausalPage: init } = await import('./assets/causal-CDS_i7Yt.js').then(n => n.a);return { initCausalPage: init }},true              ?__vite__mapDeps([4,0,1]):void 0);
+  const { initCausalComparison } = await __vitePreload(async () => { const { initCausalComparison } = await import('./assets/causal-CDS_i7Yt.js').then(n => n.c);return { initCausalComparison }},true              ?__vite__mapDeps([4,0,1]):void 0);
   init({
     getMetadata: () => appStateComposite.metadata,
     chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
@@ -4766,7 +4766,7 @@ function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
   if (overlay) overlay.hidden = !loading;
 }
 async function fetchAndRenderAnalytics() {
-  const { fetchAnomalies: fetchAnomalies2 } = await __vitePreload(async () => { const { fetchAnomalies: fetchAnomalies2 } = await import('./assets/frequency-BkpduCZb.js').then(n => n.a1);return { fetchAnomalies: fetchAnomalies2 }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { fetchAnomalies: fetchAnomalies2 } = await __vitePreload(async () => { const { fetchAnomalies: fetchAnomalies2 } = await import('./assets/frequency-BhMsdefW.js').then(n => n.a1);return { fetchAnomalies: fetchAnomalies2 }},true              ?__vite__mapDeps([0,1]):void 0);
   await fetchAnomalyRegions(fetchAnomalies2);
 }
 let fetchMetadata = null;
@@ -4775,8 +4775,8 @@ let DataChartCtor = null;
 async function ensureChartModules() {
   if (fetchMetadata && fetchData && DataChartCtor) return;
   const [dataClient, chartModule] = await Promise.all([
-    __vitePreload(() => import('./assets/frequency-BkpduCZb.js').then(n => n.a1),true              ?__vite__mapDeps([0,1]):void 0),
-    __vitePreload(() => import('./assets/DataChart-I3-wfsvf.js'),true              ?__vite__mapDeps([5,1,0]):void 0)
+    __vitePreload(() => import('./assets/frequency-BhMsdefW.js').then(n => n.a1),true              ?__vite__mapDeps([0,1]):void 0),
+    __vitePreload(() => import('./assets/DataChart-BsiU0xWV.js'),true              ?__vite__mapDeps([5,1,0]):void 0)
   ]);
   fetchMetadata = dataClient.fetchMetadata;
   fetchData = dataClient.fetchData;

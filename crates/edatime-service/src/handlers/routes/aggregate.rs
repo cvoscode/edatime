@@ -142,6 +142,7 @@ pub async fn get_aggregate(
         true,
         returned_rows,
         params.buckets,
+        Some(ts_col.to_string()),
     );
 
     state.cache.insert(cache_key, cached.clone()).await;

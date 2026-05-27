@@ -19,6 +19,30 @@ interface ArrowColumn {
     get(index: number): unknown;
 }
 
+function resolveTimestampColumnName(
+    table: ArrowTable,
+    requestedCols: string[],
+    colorColumn: string | null,
+    headerName: string | null,
+): string | null {
+    if (headerName && table.getChild(headerName)) return headerName;
+
+    const fieldNames = (table.schema?.fields ?? [])
+        .map((field) => field?.name)
+        .filter((name): name is string => typeof name === 'string' && name.length > 0);
+    const excluded = new Set(requestedCols);
+    if (colorColumn) excluded.add(colorColumn);
+
+    const nonValueFields = fieldNames.filter((name) => !excluded.has(name) && table.getChild(name));
+    if (nonValueFields.length === 1) return nonValueFields[0];
+
+    const temporalFields = fieldNames.filter((name) => /(^ts$|time|date|timestamp)/i.test(name) && table.getChild(name));
+    if (temporalFields.length === 1) return temporalFields[0];
+
+    if (fieldNames.length > 0 && table.getChild(fieldNames[0])) return fieldNames[0];
+    return null;
+}
+
 let tableFromIPCFn: TableFromIPCFn | null = null;
 
 // Inflight request deduplication: prevents concurrent duplicate requests.
@@ -118,6 +142,10 @@ export async function fetchData(
     colorColumn: string | null = null,
     signal?: AbortSignal,
 ): Promise<DataObject> {
+    const requestedCols = columns
+        .split(',')
+        .map((col) => col.trim())
+        .filter(Boolean);
     const params = new URLSearchParams({
         start,
         end,
@@ -141,6 +169,7 @@ export async function fetchData(
     const downsampledHeader = res.headers.get('x-edatime-downsampled');
     const returnedRowsHeader = res.headers.get('x-edatime-returned-rows');
     const targetPointsHeader = res.headers.get('x-edatime-target-points');
+    const timeColumnHeader = res.headers.get('x-edatime-time-column');
 
     const hasDownsampleHeader = downsampledHeader === '0' || downsampledHeader === '1';
     let isDownsampled = downsampledHeader === '1';
@@ -176,7 +205,13 @@ export async function fetchData(
         }
     }
 
-    const tsCol = table.getChild('ts');
+    const timestampColumnName = resolveTimestampColumnName(
+        table,
+        requestedCols,
+        colorColumn,
+        timeColumnHeader,
+    );
+    const tsCol = timestampColumnName ? table.getChild(timestampColumnName) : null;
     if (!tsCol) throw new Error('No timestamp column found');
 
     const len = table.numRows;
@@ -226,7 +261,6 @@ export async function fetchData(
         dbg('downsample meta', dataObj._meta);
     }
 
-    const requestedCols = columns.split(',');
     for (const colName of requestedCols) {
         const valCol = table.getChild(colName);
         if (valCol) {
@@ -568,4 +602,3 @@ export async function postRemoveOutliers(
     const url = '/api/analytics/remove_outliers';
     return postJson<OutlierRemovalResult>(url, body, 'Outlier removal');
 }
-

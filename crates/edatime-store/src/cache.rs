@@ -39,6 +39,7 @@ pub struct CachedResponse {
     pub is_downsampled: bool,
     pub returned_rows: usize,
     pub target_points: usize,
+    pub time_column: Option<String>,
 }
 
 impl CachedResponse {
@@ -47,6 +48,7 @@ impl CachedResponse {
         is_downsampled: bool,
         returned_rows: usize,
         target_points: usize,
+        time_column: Option<String>,
     ) -> Self {
         Self {
             status: StatusCode::OK,
@@ -55,6 +57,7 @@ impl CachedResponse {
             is_downsampled,
             returned_rows,
             target_points,
+            time_column,
         }
     }
 
@@ -63,6 +66,7 @@ impl CachedResponse {
         is_downsampled: bool,
         returned_rows: usize,
         target_points: usize,
+        time_column: Option<String>,
     ) -> Self {
         Self {
             status: StatusCode::OK,
@@ -71,6 +75,7 @@ impl CachedResponse {
             is_downsampled,
             returned_rows,
             target_points,
+            time_column,
         }
     }
 
@@ -109,6 +114,11 @@ impl CachedResponse {
             if let Ok(v) = HeaderValue::from_str(&tp.to_string()) {
                 headers.insert("x-edatime-target-points", v);
             }
+        }
+        if let Some(time_column) = self.time_column.as_deref()
+            && let Ok(v) = HeaderValue::from_str(time_column)
+        {
+            headers.insert("x-edatime-time-column", v);
         }
         response
     }

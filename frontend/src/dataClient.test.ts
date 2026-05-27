@@ -21,10 +21,10 @@ vi.mock('apache-arrow', () => ({
     tableFromIPC: (buffer: ArrayBuffer) => {
         // Return a mock table with controllable columns
         return {
-            schema: { fields: [{ name: 'ts', type: 'Int64' }, { name: 'value', type: 'Float64' }] },
+            schema: { fields: [{ name: 'event_time', type: 'Int64' }, { name: 'value', type: 'Float64' }] },
             numRows: 3,
             getChild(name: string) {
-                if (name === 'ts') return { get: (i: number) => [1704067200000, 1704153600000, 1704240000000][i] };
+                if (name === 'event_time') return { get: (i: number) => [1704067200000, 1704153600000, 1704240000000][i] };
                 if (name === 'value') return { get: (i: number) => [1.0, 2.0, 3.0][i] };
                 return null;
             },
@@ -101,6 +101,26 @@ describe('dataClient fetch helpers', () => {
     });
 
     describe('fetchData', () => {
+        it('reads the original timestamp column from the Arrow schema', async () => {
+            const { fetchData } = await import('./dataClient');
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([
+                    ['x-edatime-downsampled', '0'],
+                    ['x-edatime-returned-rows', '3'],
+                    ['x-edatime-target-points', '1000'],
+                    ['x-edatime-time-column', 'event_time'],
+                ]),
+                arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+            });
+
+            const result = await fetchData('1704067200000', '1706745600000', 1000, 'value');
+
+            expect(Array.from(result.ts)).toEqual([1704067200000, 1704153600000, 1704240000000]);
+            expect(Array.from(result.values.value)).toEqual([1, 2, 3]);
+        });
+
         it('constructs correct URL with parameters', async () => {
             const { fetchData } = await import('./dataClient');
 

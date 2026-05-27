@@ -124,6 +124,7 @@ pub async fn get_data(
             was_downsampled,
             returned_rows,
             target_points,
+            Some(ts_col.to_string()),
         ),
         query::OutputFormat::Json => {
             let json_bytes = serde_json::to_vec(&pipeline::serialize_json(
@@ -136,7 +137,13 @@ pub async fn get_data(
             .map_err(|error| {
                 AppError::internal(format!("Failed to encode JSON response: {error}"))
             })?;
-            CachedResponse::json(json_bytes, was_downsampled, returned_rows, target_points)
+            CachedResponse::json(
+                json_bytes,
+                was_downsampled,
+                returned_rows,
+                target_points,
+                Some(ts_col.to_string()),
+            )
         }
     };
 

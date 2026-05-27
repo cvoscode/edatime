@@ -1,5 +1,5 @@
 import { A as Ad } from './chartgpu-CqrjGxnD.js';
-import { g as getEl, i as isTemporalDtype, f as formatTimestamp, a as formatTwoDecimals, S as SERIES_COLORS, b as buildAdaptiveLineFiltersForQuery, c as appStateComposite, s as scatterState, d as downloadBlob, e as downloadUrl, _ as __vitePreload, h as escapeHtml, j as fetchFft, k as fetchScatterPoints, l as isRangeOutsideDataset, m as fetchScatterCorrelations, n as defaultGpuPowerPreference, o as createEmptyStateController, r as requestGpuAdapter } from './frequency-BkpduCZb.js';
+import { g as getEl, i as isTemporalDtype, f as formatTimestamp, a as formatTwoDecimals, S as SERIES_COLORS, b as buildAdaptiveLineFiltersForQuery, c as appStateComposite, s as scatterState, d as downloadBlob, e as downloadUrl, _ as __vitePreload, h as escapeHtml, j as fetchFft, k as fetchScatterPoints, l as isRangeOutsideDataset, m as fetchScatterCorrelations, n as defaultGpuPowerPreference, o as createEmptyStateController, r as requestGpuAdapter } from './frequency-BhMsdefW.js';
 
 const MATRIX_POINT_LIMIT = 8e3;
 const MATRIX_MAX_COLUMNS = 4;
@@ -2535,4 +2535,4 @@ async function initScatterPage(metadata) {
 }
 
 export { initScatterPage };
-//# sourceMappingURL=scatter-Dao--s14.js.map
+//# sourceMappingURL=scatter-CcBpGp_U.js.map
