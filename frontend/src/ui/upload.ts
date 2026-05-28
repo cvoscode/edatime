@@ -23,6 +23,7 @@ import {
     setPreviewTimeColumn,
 } from '../store/index.js';
 import type { DatasetMetadata } from '../types.js';
+import { toast } from '../utils/toast.js';
 
 interface UploadPanelDeps {
     buildColumnToggles: () => void;
@@ -30,6 +31,10 @@ interface UploadPanelDeps {
 }
 
 const UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
+
+function notify(message: string, kind: 'success' | 'error' | 'warning' | 'info'): void {
+    toast(message, kind, {});
+}
 
 interface PartialTimeRangeInputs {
     startInput: HTMLInputElement;
@@ -273,6 +278,7 @@ export function initUploadPanel(
                 setPreviewTimeColumn(null);
             }
             setUploadPreviewStatus(`Preview failed: ${e.message}`, 'error');
+            notify(`Upload preview failed: ${e.message}`, 'error');
             applyPartialTimeRangeFromMetadata(null, false);
         }
     }
@@ -308,6 +314,7 @@ export function initUploadPanel(
             fileDisplay!.textContent = '';
             setStatus(invalidFileMsg, 'error');
             setUploadPreviewStatus(invalidFileMsg, 'error');
+            notify(invalidFileMsg, 'error');
             return;
         }
         fileDisplay!.textContent = selectedFile ? selectedFile.name : '';
@@ -328,6 +335,7 @@ export function initUploadPanel(
             fileDisplay!.textContent = '';
             setStatus(invalidFileMsg, 'error');
             setUploadPreviewStatus(invalidFileMsg, 'error');
+            notify(invalidFileMsg, 'error');
             return;
         }
         fileDisplay!.textContent = selectedFile ? selectedFile.name : '';
@@ -373,17 +381,20 @@ export function initUploadPanel(
     uploadBtn.addEventListener('click', async () => {
         if (!selectedFile) {
             setStatus('Please select a file first.', 'error');
+            notify('Please select a file first.', 'error');
             return;
         }
 
         const invalidFileMsg = validateSelectedFile(selectedFile);
         if (invalidFileMsg) {
             setStatus(invalidFileMsg, 'error');
+            notify(invalidFileMsg, 'error');
             return;
         }
 
         if (!appState.previewTimeColumn && !(appState.metadata && appState.metadata.time_range)) {
             setStatus('No time column selected. Please choose a time column in the upload panel before ingest.', 'error');
+            notify('No time column selected. Please choose a time column in the upload panel before ingest.', 'error');
             return;
         }
 
@@ -397,6 +408,7 @@ export function initUploadPanel(
                 formData.append('n_rows', String(nRows));
             } else {
                 setStatus('Enter a valid Max rows value for partial load.', 'error');
+                notify('Enter a valid Max rows value for partial load.', 'error');
                 uploadBtn!.disabled = false;
                 progressWrap!.style.display = 'none';
                 progressBar!.style.width = '0';
@@ -415,6 +427,7 @@ export function initUploadPanel(
             const tEndIso = toIsoOrNull(timeEndInput?.value || '');
             if (tStartIso && tEndIso && Date.parse(tStartIso) > Date.parse(tEndIso)) {
                 setStatus('Start time must be before end time.', 'error');
+                notify('Start time must be before end time.', 'error');
                 return;
             }
             if (tStartIso) formData.append('time_start', tStartIso);
@@ -449,9 +462,11 @@ export function initUploadPanel(
                     }
                 } catch { /* ignore */ }
                 setStatus('Error: ' + message, 'error');
+                notify(`Upload failed: ${message}`, 'error');
             } else {
                 const result = await res.json();
                 setStatus(`Loaded ${result.rows.toLocaleString()} rows. Refreshing stats…`, 'success');
+                notify(`${formatCount(Number(result.rows || 0))} rows loaded. Dataset ready.`, 'success');
 // Fetch fresh metadata and refresh the profile grid without page reload
                     try {
                         const freshMetadata = await dataClientFetchMetadata();
@@ -479,6 +494,7 @@ export function initUploadPanel(
             }
         } catch (e: any) {
             setStatus('Error: ' + e.message, 'error');
+            notify(`Upload failed: ${e.message}`, 'error');
         } finally {
             stopProgress();
             uploadBtn!.disabled = false;
@@ -581,6 +597,7 @@ export function initUploadPanel(
 
             if (!connectionString.trim()) {
                 if (dbStatus) { dbStatus.textContent = 'Connection string is required.'; dbStatus.className = 'upload-status error'; }
+                notify('Connection string is required.', 'error');
                 return;
             }
 
@@ -595,12 +612,14 @@ export function initUploadPanel(
                 }) as { message?: string; error?: string };
                 if (result) {
                     if (dbStatus) { dbStatus.textContent = 'Connected. Choose a table and click Load data.'; dbStatus.className = 'upload-status success'; }
+                    notify('Database connected. Choose a table and click Load data.', 'success');
                     if (dbLoadBtn) dbLoadBtn.disabled = false;
                     if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
                     await refreshDbTables();
                 }
             } catch (e: any) {
                 if (dbStatus) { dbStatus.textContent = 'Error: ' + e.message; dbStatus.className = 'upload-status error'; }
+                notify(`Database connection failed: ${e.message}`, 'error');
             } finally {
                 dbConnectBtn.disabled = false;
             }
@@ -617,6 +636,7 @@ export function initUploadPanel(
 
             if (!table) {
                 if (dbStatus) { dbStatus.textContent = 'Select or enter a table name.'; dbStatus.className = 'upload-status error'; }
+                notify('Select or enter a table name.', 'error');
                 return;
             }
 
@@ -636,11 +656,13 @@ export function initUploadPanel(
                         dbStatus.textContent = `Loaded ${loadedRows.toLocaleString()} rows from ${table}.`;
                         dbStatus.className = 'upload-status success';
                     }
+                    notify(`${formatCount(loadedRows)} rows loaded from ${table}.`, 'success');
                     // Trigger a full metadata reload so the chart page refreshes.
                     window.dispatchEvent(new CustomEvent('edatime:dataset-changed', { detail: { source: 'database', table } }));
                 }
             } catch (e: any) {
                 if (dbStatus) { dbStatus.textContent = 'Error: ' + e.message; dbStatus.className = 'upload-status error'; }
+                notify(`Database load failed: ${e.message}`, 'error');
             } finally {
                 dbLoadBtn.disabled = false;
             }
@@ -654,6 +676,7 @@ export function initUploadPanel(
                 await deleteDatabaseConnection();
             } catch { /* ignore */ }
             if (dbStatus) { dbStatus.textContent = 'Disconnected.'; dbStatus.className = 'upload-status'; }
+            notify('Database disconnected.', 'info');
             if (dbLoadBtn) dbLoadBtn.disabled = true;
             if (dbDisconnectBtn) dbDisconnectBtn.hidden = true;
             if (dbTableSelect) {

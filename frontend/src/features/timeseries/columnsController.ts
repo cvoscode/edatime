@@ -21,12 +21,14 @@ let _seriesCollapsed = false;
 function buildMetaBar(metadata: { total_rows?: number } | null): void {
     const rows = metadata?.total_rows?.toLocaleString() ?? '—';
     const cols = metadata ? String(appState.numericCols?.length ?? 0) : '—';
-    const el = document.getElementById('header-meta');
-    if (!el) return;
-    el.innerHTML = `
+    const markup = `
       <div class="meta-stat live"><strong>${rows}</strong> rows</div>
       <div class="meta-stat"><strong>${cols}</strong> numeric series</div>
     `;
+    const headerMeta = document.getElementById('header-meta');
+    if (headerMeta) headerMeta.innerHTML = markup;
+    const pageMeta = document.getElementById('timeseries-meta-bar');
+    if (pageMeta) pageMeta.innerHTML = markup;
 }
 
 function sanitizeSelectedColumns(): void {
@@ -70,7 +72,7 @@ function updateCollapseButton(btn: HTMLElement): void {
 }
 
 function applyCollapse(): void {
-    const chips = document.querySelectorAll<HTMLElement>('#column-toggles .series-chip, #column-toggles .series-color-selector');
+    const chips = document.querySelectorAll<HTMLElement>('#column-toggles .series-chip');
     const collapseThreshold = 3;
     chips.forEach((chip, i) => {
         if (!_seriesCollapsed || i < collapseThreshold) {
@@ -115,6 +117,8 @@ export function buildColumnToggles(
         setAdaptiveFilterColumn(appState.selectedCols[0] || null);
     }
     container.innerHTML = '';
+    const colorSlot = document.getElementById('timeseries-color-slot');
+    if (colorSlot) colorSlot.innerHTML = '';
     const finish = () => { container.dataset.rebuilding = ''; };
 
     // Double-right-click a chip to open the filter modal for that column.
@@ -159,7 +163,7 @@ export function buildColumnToggles(
             <select id="color-column-select" name="color-column-select" aria-label="Color-by column"></select>
     </label>
   `;
-    container.appendChild(colorControl);
+    (colorSlot || container).appendChild(colorControl);
 
     const colorSelect = colorControl.querySelector('#color-column-select') as HTMLSelectElement | null;
     if (colorSelect) {
@@ -218,7 +222,6 @@ export function buildColumnToggles(
                     setAdaptiveFilterColumn(appState.selectedCols[0] || null);
                 }
                 buildMetaBar(appState.metadata);
-                buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
                 buildRangeControlsFn();
                 (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
                 fetchAndRender();

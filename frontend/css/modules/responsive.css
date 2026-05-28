@@ -60,6 +60,25 @@
     grid-template-columns: 180px 1fr;
   }
 
+  .timeseries-command-bar {
+    row-gap: 10px;
+  }
+
+  .timeseries-command-bar__left,
+  .timeseries-command-bar__right {
+    min-width: 0;
+  }
+
+  .timeseries-command-bar__right {
+    max-width: none;
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+
+  .timeseries-utility-shelf__secondary {
+    justify-content: flex-start;
+  }
+
   .toolbar {
     height: auto;
     flex-wrap: wrap;
@@ -79,6 +98,21 @@
 }
 
 @media (max-width: 900px) {
+  .timeseries-command-bar__left,
+  .timeseries-command-bar__center,
+  .timeseries-command-bar__right {
+    flex: 1 1 100%;
+  }
+
+  .timeseries-chip-rail {
+    width: 100%;
+  }
+
+  .timeseries-color-slot,
+  .timeseries-meta-bar {
+    justify-content: flex-start;
+  }
+
   .series-toggles {
     max-width: 62%;
   }
@@ -96,6 +130,24 @@
 }
 
 @media (max-width: 760px) {
+  .timeseries-command-bar {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .timeseries-filter-shell {
+    width: 100%;
+  }
+
+  .timeseries-filter-shell .column-filter-input {
+    width: 100%;
+  }
+
+  .timeseries-utility-shelf__primary,
+  .timeseries-utility-shelf__secondary {
+    flex: 1 1 100%;
+  }
+
   .toolbar {
     height: auto;
     flex-wrap: wrap;
@@ -241,6 +293,21 @@
   .toolbar--series .toolbar-group {
     flex: 1 1 100%;
     min-width: 0;
+  }
+
+  .timeseries-command-bar__left,
+  .timeseries-command-bar__center,
+  .timeseries-command-bar__right,
+  .timeseries-color-slot,
+  .timeseries-meta-bar {
+    width: 100%;
+  }
+
+  .timeseries-chip-rail {
+    flex: 1 1 100%;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
   .toolbar--series .series-toggles {

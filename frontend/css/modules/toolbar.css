@@ -72,6 +72,86 @@
   flex-shrink: 0;
 }
 
+.timeseries-command-bar {
+  height: auto;
+  min-height: 72px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  gap: 16px;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.timeseries-command-bar__left,
+.timeseries-command-bar__right {
+  flex: 0 0 auto;
+}
+
+.timeseries-command-bar__left {
+  min-width: 280px;
+  gap: 12px;
+}
+
+.timeseries-command-bar__center {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.timeseries-command-bar__right {
+  min-width: 0;
+  max-width: 34%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.timeseries-filter-shell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.timeseries-filter-shell .column-filter-input {
+  width: clamp(180px, 18vw, 260px);
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.timeseries-filter-shell .column-filter-input:focus {
+  border: none;
+  box-shadow: none;
+}
+
+.timeseries-collapse-btn {
+  flex: 0 0 auto;
+  min-width: 40px;
+}
+
+.timeseries-color-slot,
+.timeseries-meta-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.timeseries-meta-bar .meta-stat {
+  min-height: 36px;
+  padding-inline: 14px;
+}
+
 .toolbar-disclosure {
   position: relative;
 }
@@ -170,13 +250,49 @@
 
 /* Series row — allows chips to scroll horizontally */
 .toolbar--series {
-  height: 44px;
   border-bottom: 1px solid var(--border);
 }
 
 /* Tools row — all the action groups */
 .toolbar--tools {
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.timeseries-utility-shelf {
+  height: auto;
+  min-height: 58px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 18px;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.timeseries-utility-shelf__primary,
+.timeseries-utility-shelf__secondary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.timeseries-utility-shelf__primary {
+  flex: 1 1 520px;
+}
+
+.timeseries-utility-shelf__secondary {
+  flex: 1 1 440px;
+  justify-content: flex-end;
+}
+
+.timeseries-zoom-cluster {
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 /* Hide toolbar labels in the tools row — icons have title attributes for hover */

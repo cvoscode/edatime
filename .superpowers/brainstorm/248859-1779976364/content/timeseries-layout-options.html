@@ -1,0 +1,107 @@
+<h2>Timeseries Redesign Direction</h2>
+<p class="subtitle">Pick the layout direction that feels right for the Timeseries workspace. I will carry that through the toolbar cleanup, spacing fixes, and toast styling.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A · Two-band workspace</div>
+        <div class="mockup-body">
+          <div style="display:grid; gap:10px;">
+            <div style="display:grid; grid-template-columns: 220px 1fr 220px; gap:10px;">
+              <div class="placeholder" style="height:52px;">Series search</div>
+              <div class="placeholder" style="height:52px;">Scrollable chip rail</div>
+              <div class="placeholder" style="height:52px;">Dataset stats</div>
+            </div>
+            <div style="display:grid; grid-template-columns: 1.3fr 1fr 1fr auto; gap:10px;">
+              <div class="placeholder" style="height:64px;">Draw + labels</div>
+              <div class="placeholder" style="height:64px;">Export</div>
+              <div class="placeholder" style="height:64px;">Analytics</div>
+              <div class="placeholder" style="height:64px;">Zoom</div>
+            </div>
+            <div class="placeholder" style="height:190px;">Chart</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Two-band workspace</h3>
+      <p>Keeps the current mental model, but makes the top area cleaner, denser, and stable. Best if you want familiar behavior with fewer overlaps.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B · Command bar + utility shelf</div>
+        <div class="mockup-body">
+          <div style="display:grid; gap:10px;">
+            <div style="display:grid; grid-template-columns: 1.5fr 1fr auto; gap:10px;">
+              <div class="placeholder" style="height:58px;">Search + chips</div>
+              <div class="placeholder" style="height:58px;">Color / stats</div>
+              <div class="placeholder" style="height:58px;">Zoom</div>
+            </div>
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
+              <div class="placeholder" style="height:48px;">Draw</div>
+              <div class="placeholder" style="height:48px;">Notes</div>
+              <div class="placeholder" style="height:48px;">Export</div>
+              <div class="placeholder" style="height:48px;">Analytics</div>
+            </div>
+            <div class="placeholder" style="height:190px;">Chart</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Command bar + utility shelf</h3>
+      <p>More product-like and modern. Primary actions stay in one command row, secondary tools drop into a shorter utility shelf below.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C · Compact analyst console</div>
+        <div class="mockup-body">
+          <div style="display:grid; gap:10px;">
+            <div style="display:grid; grid-template-columns: 180px 1fr 160px 160px; gap:10px;">
+              <div class="placeholder" style="height:70px;">Search + collapse</div>
+              <div class="placeholder" style="height:70px;">Multi-line chips</div>
+              <div class="placeholder" style="height:70px;">Export</div>
+              <div class="placeholder" style="height:70px;">Analytics + zoom</div>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr auto; gap:10px;">
+              <div class="placeholder" style="height:40px;">Draw / labels / notes inline</div>
+              <div class="placeholder" style="height:40px;">View state</div>
+            </div>
+            <div class="placeholder" style="height:190px;">Chart</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Compact analyst console</h3>
+      <p>Most aggressive density reduction. Better for expert workflows, but it pushes the page toward a control console instead of a visibly grouped toolbar layout.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>My recommendation</h4>
+      <ul>
+        <li><strong>B</strong> gives the cleanest modern hierarchy.</li>
+        <li>It solves the overlap problem without hiding tools.</li>
+        <li>It gives us a better place to introduce a designed, app-wide toast system.</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>Tradeoff</h4>
+      <ul>
+        <li><strong>A</strong> is the safest and lowest-risk.</li>
+        <li><strong>C</strong> is the densest, but easier to over-compress.</li>
+      </ul>
+    </div>
+  </div>
+</div>

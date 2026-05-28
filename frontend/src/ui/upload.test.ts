@@ -3,15 +3,111 @@
  *
  * Covers: setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+    connectDatabase: vi.fn(),
+    deleteDatabaseConnection: vi.fn(),
+    fetchDatabaseStatus: vi.fn(),
+    fetchDatabaseTables: vi.fn(),
+    fetchMetadata: vi.fn(),
+    loadDatabaseTable: vi.fn(),
+    previewUpload: vi.fn(),
+    toast: vi.fn(),
+    uploadDataset: vi.fn(),
+}));
+
+vi.mock('../services/api/index.js', () => ({
+    connectDatabase: mocks.connectDatabase,
+    deleteDatabaseConnection: mocks.deleteDatabaseConnection,
+    fetchDatabaseStatus: mocks.fetchDatabaseStatus,
+    fetchDatabaseTables: mocks.fetchDatabaseTables,
+    fetchMetadata: mocks.fetchMetadata,
+    loadDatabaseTable: mocks.loadDatabaseTable,
+    previewUpload: mocks.previewUpload,
+    uploadDataset: mocks.uploadDataset,
+}));
+
+vi.mock('../utils/toast.js', () => ({
+    toast: mocks.toast,
+}));
+
 import {
+    initUploadPanel,
     setUploadPreviewStatus,
     setProfileMode,
     applyPartialTimeRangeFromMetadata,
     formatUploadRowCount,
     loadedRowCountFromResponse,
 } from './upload';
+import { appState } from '../state';
 import type { DatasetMetadata } from '../types';
+
+function makeMetadata(overrides: Partial<DatasetMetadata> = {}): DatasetMetadata {
+    return {
+        total_rows: 1234,
+        columns: [
+            { name: 'timestamp', dtype: 'datetime64[ms]' } as any,
+            { name: 'value', dtype: 'float64' } as any,
+        ],
+        numeric_columns: ['value'],
+        time_column: 'timestamp',
+        time_range: { min: 1700000000000, max: 1700001000000 },
+        column_profiles: [],
+        revision: 7,
+        ...overrides,
+    };
+}
+
+function buildUploadDom(): void {
+    document.body.innerHTML = `
+        <button id="upload-toggle-btn" type="button"></button>
+        <div id="upload-panel"></div>
+        <button id="browse-btn" type="button"></button>
+        <input id="file-upload" type="file" />
+        <div id="drop-zone" tabindex="0"></div>
+        <span id="file-name-display"></span>
+        <input id="partial-enabled" type="checkbox" />
+        <div id="partial-fields"></div>
+        <input id="n-rows-input" value="1000" />
+        <input id="n-rows-range" value="1000" max="1000000" />
+        <span id="n-rows-display"></span>
+        <input id="skip-rows-input" value="0" />
+        <input id="time-start-input" type="datetime-local" />
+        <input id="time-end-input" type="datetime-local" />
+        <button id="upload-btn" type="button"></button>
+        <div id="upload-status"></div>
+        <div id="progress-wrap"></div>
+        <div id="progress-bar"></div>
+        <button id="profile-select-all-btn" type="button"></button>
+        <button id="profile-select-none-btn" type="button"></button>
+        <input id="profile-select-all-checkbox" type="checkbox" />
+        <span id="upload-preview-status"></span>
+        <span id="profile-mode-badge" data-mode="dataset">Current dataset</span>
+        <span id="time-range-hint"></span>
+        <select id="time-column-select"></select>
+        <button id="upload-source-file-btn" type="button"></button>
+        <button id="upload-source-database-btn" type="button"></button>
+        <div data-upload-source-panel="file"></div>
+        <div data-upload-source-panel="database" hidden></div>
+        <button id="db-connect-btn" type="button"></button>
+        <button id="db-load-btn" type="button" disabled></button>
+        <button id="db-disconnect-btn" type="button" hidden></button>
+        <div id="db-status"></div>
+        <select id="db-table-select"></select>
+        <input id="db-connection-input" />
+        <input id="db-schema-input" value="public" />
+        <input id="db-table-input" />
+        <input id="db-time-col-input" />
+        <div id="header-meta"></div>
+    `;
+}
+
+async function flushPromises(): Promise<void> {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+}
 
 describe('formatUploadRowCount', () => {
     it('formats small counts without suffixes', () => {
@@ -71,6 +167,76 @@ describe('setUploadPreviewStatus', () => {
     it('is a no-op when element is missing', () => {
         document.body.innerHTML = '';
         expect(() => setUploadPreviewStatus('noop')).not.toThrow();
+    });
+});
+
+describe('initUploadPanel notifications', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        buildUploadDom();
+        appState.metadata = null;
+        appState.columnProfiles = [];
+        appState.previewSelectedColumns = [];
+        appState.previewTimeColumn = null;
+    });
+
+    it('shows a success toast after upload completes and metadata refreshes', async () => {
+        const previewMetadata = makeMetadata();
+        const refreshedMetadata = makeMetadata({ total_rows: 2468 });
+        const file = new File(['timestamp,value\n2024-01-01T00:00:00Z,1\n'], 'demo.csv', { type: 'text/csv' });
+        const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+
+        mocks.previewUpload.mockResolvedValue({
+            ok: true,
+            json: async () => ({ metadata: previewMetadata, preview_rows: 1 }),
+        });
+        mocks.uploadDataset.mockResolvedValue({
+            ok: true,
+            json: async () => ({ rows: 2468 }),
+        });
+        mocks.fetchMetadata.mockResolvedValue(refreshedMetadata);
+
+        initUploadPanel(vi.fn(), vi.fn(), {
+            buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(),
+        });
+
+        Object.defineProperty(fileInput, 'files', {
+            configurable: true,
+            value: [file],
+        });
+        fileInput.dispatchEvent(new Event('change'));
+        await flushPromises();
+
+        document.getElementById('upload-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        await flushPromises();
+
+        expect(mocks.toast).toHaveBeenCalledWith(
+            expect.stringContaining('rows'),
+            'success',
+            expect.anything(),
+        );
+    });
+
+    it('shows an error toast when database connect fails', async () => {
+        mocks.connectDatabase.mockRejectedValue(new Error('bad credentials'));
+
+        initUploadPanel(vi.fn(), vi.fn(), {
+            buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(),
+        });
+
+        const input = document.getElementById('db-connection-input') as HTMLInputElement;
+        input.value = 'postgres://user:pass@localhost:5432/db';
+
+        document.getElementById('db-connect-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        await flushPromises();
+
+        expect(mocks.toast).toHaveBeenCalledWith(
+            expect.stringContaining('bad credentials'),
+            'error',
+            expect.anything(),
+        );
     });
 });
 

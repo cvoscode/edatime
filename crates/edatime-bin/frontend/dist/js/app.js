@@ -1,17 +1,19 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/frequency-n-sNTR41.js","assets/chartgpu-CqrjGxnD.js","assets/scatter-B8aRtwzw.js","assets/drift-C3pRJo2E.js","assets/causal-CTa75mHv.js","assets/DataChart-CEj5EGXC.js"])))=>i.map(i=>d[i]);
-import { b as appStateComposite, x as formatAnalysisNumber, y as setAdaptiveFilterColumn, z as setSelectedColorColumn, A as getSeriesColor, w as SeriesChip, B as setSelectedCols, C as setPendingAdaptivePoint, E as computeBounds, F as setAdaptiveLineFilters, G as setSeriesColor, H as setPreviewTimeColumn, I as uploadDataset, J as fetchMetadata$1, K as setMetadata, L as setDatasetRevision, M as buildMetaBar$1, N as connectDatabase, O as loadDatabaseTable, P as deleteDatabaseConnection, Q as previewUpload, R as formatCount, T as formatToDatetimeLocal, U as formatAnalysisTime, V as setPreviewSelectedColumns, W as fetchDatabaseTables, X as fetchDatabaseStatus, Y as setProfileGridBound, Z as PROFILE_ROW_HEIGHT, $ as PROFILE_COLUMNS, a0 as normalizeDtypeLabel, a1 as formatProfileValue, a2 as setProfileGridSort, a3 as setProfileGridHeaderBound, a4 as getDefaultProfileColumnWidths, a5 as setColumnProfiles, a6 as PROFILE_OVERSCAN, a7 as toFiniteNumberOrNull, a8 as setAnomalyRegions, a9 as setRollingBands, aa as applyColumnRanges, m as isRangeOutsideDataset, ab as dbgGroup, ac as setZoomHistory, ad as setViewport, ae as setPendingYMode, af as setPendingRestoreY, ag as setFetchDebounceId, ah as sanitizeSelectedColumns$1, ai as dbg, aj as setLastFetchedData, D as DEBUG, ak as ensureRangeStateFromData, al as setMetaText, p as createEmptyStateController, d as downloadBlob, am as setChartText, an as setRollingEnabled, ao as setRollingWindow, ap as setAnomalyEnabled, aq as setAnomalyMethod, ar as setAnomalyThreshold, as as setAnalysisBound, S as SERIES_COLORS, u as toast, _ as __vitePreload, at as fetchSampleDataset, au as getNumericColumns, av as getAnalyticsChipColor, aw as setSeriesColors, ax as setColumnRanges, ay as debounce, az as setFilterText, aA as setProfileFilterText, aB as installWindowsWebGpuRequestAdapterWorkaround, aC as setNumericCols, aD as getDefaultTimeseriesColumns, aE as setChartInstance, aF as setInitialView, r as requestGpuAdapter, aG as appendAdaptiveLineFilter, aH as buildAdaptiveLineY } from './assets/frequency-n-sNTR41.js';
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/frequency-DMq4pW7n.js","assets/chartgpu-CqrjGxnD.js","assets/scatter-m5u40SfE.js","assets/drift-B-yhWDTr.js","assets/causal-BrwfIAaH.js","assets/DataChart-DLVcTNyS.js"])))=>i.map(i=>d[i]);
+import { b as appStateComposite, x as formatAnalysisNumber, y as setAdaptiveFilterColumn, z as setSelectedColorColumn, A as getSeriesColor, w as SeriesChip, B as setSelectedCols, C as setPendingAdaptivePoint, E as computeBounds, F as setAdaptiveLineFilters, G as setSeriesColor, H as setPreviewTimeColumn, I as uploadDataset, J as formatCount, K as fetchMetadata$1, L as setMetadata, M as setDatasetRevision, N as buildMetaBar$1, O as connectDatabase, P as loadDatabaseTable, Q as deleteDatabaseConnection, u as toast, R as previewUpload, T as formatToDatetimeLocal, U as formatAnalysisTime, V as setPreviewSelectedColumns, W as fetchDatabaseTables, X as fetchDatabaseStatus, Y as setProfileGridBound, Z as PROFILE_ROW_HEIGHT, $ as PROFILE_COLUMNS, a0 as normalizeDtypeLabel, a1 as formatProfileValue, a2 as setProfileGridSort, a3 as setProfileGridHeaderBound, a4 as getDefaultProfileColumnWidths, a5 as setColumnProfiles, a6 as PROFILE_OVERSCAN, a7 as toFiniteNumberOrNull, a8 as setAnomalyRegions, a9 as setRollingBands, aa as applyColumnRanges, m as isRangeOutsideDataset, ab as dbgGroup, ac as setZoomHistory, ad as setViewport, ae as setPendingYMode, af as setPendingRestoreY, ag as setFetchDebounceId, ah as sanitizeSelectedColumns$1, ai as dbg, aj as setLastFetchedData, D as DEBUG, ak as ensureRangeStateFromData, al as setMetaText, p as createEmptyStateController, d as downloadBlob, am as setChartText, an as setRollingEnabled, ao as setRollingWindow, ap as setAnomalyEnabled, aq as setAnomalyMethod, ar as setAnomalyThreshold, as as setAnalysisBound, S as SERIES_COLORS, _ as __vitePreload, at as fetchSampleDataset, au as getNumericColumns, av as getAnalyticsChipColor, aw as setSeriesColors, ax as setColumnRanges, ay as debounce, az as setFilterText, aA as setProfileFilterText, aB as installWindowsWebGpuRequestAdapterWorkaround, aC as setNumericCols, aD as getDefaultTimeseriesColumns, aE as setChartInstance, aF as setInitialView, r as requestGpuAdapter, aG as appendAdaptiveLineFilter, aH as buildAdaptiveLineY } from './assets/frequency-DMq4pW7n.js';
 import './assets/chartgpu-CqrjGxnD.js';
 
 let _seriesCollapsed = false;
 function buildMetaBar(metadata) {
   const rows = metadata?.total_rows?.toLocaleString() ?? "—";
   const cols = metadata ? String(appStateComposite.numericCols?.length ?? 0) : "—";
-  const el = document.getElementById("header-meta");
-  if (!el) return;
-  el.innerHTML = `
+  const markup = `
       <div class="meta-stat live"><strong>${rows}</strong> rows</div>
       <div class="meta-stat"><strong>${cols}</strong> numeric series</div>
     `;
+  const headerMeta = document.getElementById("header-meta");
+  if (headerMeta) headerMeta.innerHTML = markup;
+  const pageMeta = document.getElementById("timeseries-meta-bar");
+  if (pageMeta) pageMeta.innerHTML = markup;
 }
 function sanitizeSelectedColumns() {
   const blockedNames = /* @__PURE__ */ new Set(["ts", "timestamp", "time"]);
@@ -47,7 +49,7 @@ function updateCollapseButton(btn) {
   }
 }
 function applyCollapse() {
-  const chips = document.querySelectorAll("#column-toggles .series-chip, #column-toggles .series-color-selector");
+  const chips = document.querySelectorAll("#column-toggles .series-chip");
   const collapseThreshold = 3;
   chips.forEach((chip, i) => {
     if (!_seriesCollapsed || i < collapseThreshold) {
@@ -84,6 +86,8 @@ function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentD
     setAdaptiveFilterColumn(appStateComposite.selectedCols[0] || null);
   }
   container.innerHTML = "";
+  const colorSlot = document.getElementById("timeseries-color-slot");
+  if (colorSlot) colorSlot.innerHTML = "";
   const finish = () => {
     container.dataset.rebuilding = "";
   };
@@ -123,7 +127,7 @@ function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentD
             <select id="color-column-select" name="color-column-select" aria-label="Color-by column"></select>
     </label>
   `;
-  container.appendChild(colorControl);
+  (colorSlot || container).appendChild(colorControl);
   const colorSelect = colorControl.querySelector("#color-column-select");
   if (colorSelect) {
     colorSelect.innerHTML = '<option value="">None</option>';
@@ -174,7 +178,6 @@ function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentD
           setAdaptiveFilterColumn(appStateComposite.selectedCols[0] || null);
         }
         buildMetaBar(appStateComposite.metadata);
-        buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
         buildRangeControlsFn();
         appStateComposite.chart?.requestOverlayRender?.();
         fetchAndRender();
@@ -569,6 +572,9 @@ function initColumnFilterModal(renderCurrentData, updateAnalysisYRange) {
 }
 
 const UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
+function notify(message, kind) {
+  toast(message, kind, {});
+}
 function getPartialTimeRangeInputs() {
   const startInput = document.getElementById("time-start-input");
   const endInput = document.getElementById("time-end-input");
@@ -753,6 +759,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
         setPreviewTimeColumn(null);
       }
       setUploadPreviewStatus(`Preview failed: ${e.message}`, "error");
+      notify(`Upload preview failed: ${e.message}`, "error");
       applyPartialTimeRangeFromMetadata(null, false);
     }
   }
@@ -784,6 +791,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
       fileDisplay.textContent = "";
       setStatus(invalidFileMsg, "error");
       setUploadPreviewStatus(invalidFileMsg, "error");
+      notify(invalidFileMsg, "error");
       return;
     }
     fileDisplay.textContent = selectedFile ? selectedFile.name : "";
@@ -805,6 +813,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
       fileDisplay.textContent = "";
       setStatus(invalidFileMsg, "error");
       setUploadPreviewStatus(invalidFileMsg, "error");
+      notify(invalidFileMsg, "error");
       return;
     }
     fileDisplay.textContent = selectedFile ? selectedFile.name : "";
@@ -841,15 +850,18 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
   uploadBtn.addEventListener("click", async () => {
     if (!selectedFile) {
       setStatus("Please select a file first.", "error");
+      notify("Please select a file first.", "error");
       return;
     }
     const invalidFileMsg = validateSelectedFile(selectedFile);
     if (invalidFileMsg) {
       setStatus(invalidFileMsg, "error");
+      notify(invalidFileMsg, "error");
       return;
     }
     if (!appStateComposite.previewTimeColumn && !(appStateComposite.metadata && appStateComposite.metadata.time_range)) {
       setStatus("No time column selected. Please choose a time column in the upload panel before ingest.", "error");
+      notify("No time column selected. Please choose a time column in the upload panel before ingest.", "error");
       return;
     }
     const formData = new FormData();
@@ -861,6 +873,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
         formData.append("n_rows", String(nRows));
       } else {
         setStatus("Enter a valid Max rows value for partial load.", "error");
+        notify("Enter a valid Max rows value for partial load.", "error");
         uploadBtn.disabled = false;
         progressWrap.style.display = "none";
         progressBar.style.width = "0";
@@ -878,6 +891,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
       const tEndIso = toIsoOrNull(timeEndInput?.value || "");
       if (tStartIso && tEndIso && Date.parse(tStartIso) > Date.parse(tEndIso)) {
         setStatus("Start time must be before end time.", "error");
+        notify("Start time must be before end time.", "error");
         return;
       }
       if (tStartIso) formData.append("time_start", tStartIso);
@@ -907,9 +921,11 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
         } catch {
         }
         setStatus("Error: " + message, "error");
+        notify(`Upload failed: ${message}`, "error");
       } else {
         const result = await res.json();
         setStatus(`Loaded ${result.rows.toLocaleString()} rows. Refreshing stats…`, "success");
+        notify(`${formatCount(Number(result.rows || 0))} rows loaded. Dataset ready.`, "success");
         try {
           const freshMetadata = await fetchMetadata$1();
           setMetadata(freshMetadata);
@@ -932,6 +948,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
       }
     } catch (e) {
       setStatus("Error: " + e.message, "error");
+      notify(`Upload failed: ${e.message}`, "error");
     } finally {
       stopProgress();
       uploadBtn.disabled = false;
@@ -1023,6 +1040,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
           dbStatus.textContent = "Connection string is required.";
           dbStatus.className = "upload-status error";
         }
+        notify("Connection string is required.", "error");
         return;
       }
       dbConnectBtn.disabled = true;
@@ -1041,6 +1059,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
             dbStatus.textContent = "Connected. Choose a table and click Load data.";
             dbStatus.className = "upload-status success";
           }
+          notify("Database connected. Choose a table and click Load data.", "success");
           if (dbLoadBtn) dbLoadBtn.disabled = false;
           if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
           await refreshDbTables();
@@ -1050,6 +1069,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
           dbStatus.textContent = "Error: " + e.message;
           dbStatus.className = "upload-status error";
         }
+        notify(`Database connection failed: ${e.message}`, "error");
       } finally {
         dbConnectBtn.disabled = false;
       }
@@ -1065,6 +1085,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
           dbStatus.textContent = "Select or enter a table name.";
           dbStatus.className = "upload-status error";
         }
+        notify("Select or enter a table name.", "error");
         return;
       }
       dbLoadBtn.disabled = true;
@@ -1085,6 +1106,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
             dbStatus.textContent = `Loaded ${loadedRows.toLocaleString()} rows from ${table}.`;
             dbStatus.className = "upload-status success";
           }
+          notify(`${formatCount(loadedRows)} rows loaded from ${table}.`, "success");
           window.dispatchEvent(new CustomEvent("edatime:dataset-changed", { detail: { source: "database", table } }));
         }
       } catch (e) {
@@ -1092,6 +1114,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
           dbStatus.textContent = "Error: " + e.message;
           dbStatus.className = "upload-status error";
         }
+        notify(`Database load failed: ${e.message}`, "error");
       } finally {
         dbLoadBtn.disabled = false;
       }
@@ -1107,6 +1130,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
         dbStatus.textContent = "Disconnected.";
         dbStatus.className = "upload-status";
       }
+      notify("Database disconnected.", "info");
       if (dbLoadBtn) dbLoadBtn.disabled = true;
       if (dbDisconnectBtn) dbDisconnectBtn.hidden = true;
       if (dbTableSelect) {
@@ -3825,7 +3849,7 @@ function initTransformModal(deps) {
         applyBtn.textContent = "Applying…";
         applyBtn.disabled = true;
       }
-      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/frequency-n-sNTR41.js').then(n => n.aN);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/frequency-DMq4pW7n.js').then(n => n.aN);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
       await postTransform(expr, name);
       close();
       await deps.refreshDataset({ selectedColumn: name });
@@ -3873,7 +3897,7 @@ function initOutlierModal(deps) {
         applyBtn.disabled = true;
         applyBtn.textContent = "Removing…";
       }
-      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/frequency-n-sNTR41.js').then(n => n.aN);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/frequency-DMq4pW7n.js').then(n => n.aN);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
       const result = await postRemoveOutliers(
         columns,
         method,
@@ -4127,7 +4151,7 @@ function generateWeatherCsv() {
   return rows.join("\n");
 }
 async function loadSampleDataset(datasetId, showPage) {
-  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/frequency-n-sNTR41.js').then(n => n.aO);return { toast }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/frequency-DMq4pW7n.js').then(n => n.aO);return { toast }},true              ?__vite__mapDeps([0,1]):void 0);
   if (datasetId === "ettm2") {
     const dismissLoading = toast("Loading ETTm2 sample dataset…", "info", 0);
     let file;
@@ -4231,16 +4255,16 @@ function initAppShell(deps) {
 }
 
 async function initSpectrogramPage() {
-  const { initSpectrogramPage: init } = await __vitePreload(async () => { const { initSpectrogramPage: init } = await import('./assets/frequency-n-sNTR41.js').then(n => n.aP);return { initSpectrogramPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { initSpectrogramPage: init } = await __vitePreload(async () => { const { initSpectrogramPage: init } = await import('./assets/frequency-DMq4pW7n.js').then(n => n.aP);return { initSpectrogramPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
   await init({ setLoading: setComputeLoading });
 }
 async function initFftPage() {
-  const { initFftPage: init } = await __vitePreload(async () => { const { initFftPage: init } = await import('./assets/frequency-n-sNTR41.js').then(n => n.aQ);return { initFftPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { initFftPage: init } = await __vitePreload(async () => { const { initFftPage: init } = await import('./assets/frequency-DMq4pW7n.js').then(n => n.aQ);return { initFftPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
   await init({ renderTimeseries: () => {
   } });
 }
 async function initHeatmapPage() {
-  const { initHeatmapPage: init } = await __vitePreload(async () => { const { initHeatmapPage: init } = await import('./assets/frequency-n-sNTR41.js').then(n => n.aR);return { initHeatmapPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { initHeatmapPage: init } = await __vitePreload(async () => { const { initHeatmapPage: init } = await import('./assets/frequency-DMq4pW7n.js').then(n => n.aR);return { initHeatmapPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
   await init({
     showPage: (name) => {
       document.querySelector(`.sidebar .nav-item[data-page="${name}"]`)?.click?.();
@@ -4250,16 +4274,16 @@ async function initHeatmapPage() {
 async function initScatterPage() {
   const scatterPage = document.getElementById("page-scatter");
   if (!scatterPage) return;
-  const { initScatterPage: initScatterPage2 } = await __vitePreload(async () => { const { initScatterPage: initScatterPage2 } = await import('./assets/scatter-B8aRtwzw.js');return { initScatterPage: initScatterPage2 }},true              ?__vite__mapDeps([2,1,0]):void 0);
+  const { initScatterPage: initScatterPage2 } = await __vitePreload(async () => { const { initScatterPage: initScatterPage2 } = await import('./assets/scatter-m5u40SfE.js');return { initScatterPage: initScatterPage2 }},true              ?__vite__mapDeps([2,1,0]):void 0);
   await initScatterPage2(appStateComposite.metadata);
 }
 async function initDriftPage() {
-  const { initDriftPage: init } = await __vitePreload(async () => { const { initDriftPage: init } = await import('./assets/drift-C3pRJo2E.js');return { initDriftPage: init }},true              ?__vite__mapDeps([3,0,1]):void 0);
+  const { initDriftPage: init } = await __vitePreload(async () => { const { initDriftPage: init } = await import('./assets/drift-B-yhWDTr.js');return { initDriftPage: init }},true              ?__vite__mapDeps([3,0,1]):void 0);
   await init(appStateComposite.metadata);
 }
 async function initCausalPage() {
-  const { initCausalPage: init } = await __vitePreload(async () => { const { initCausalPage: init } = await import('./assets/causal-CTa75mHv.js').then(n => n.a);return { initCausalPage: init }},true              ?__vite__mapDeps([4,0,1]):void 0);
-  const { initCausalComparison } = await __vitePreload(async () => { const { initCausalComparison } = await import('./assets/causal-CTa75mHv.js').then(n => n.c);return { initCausalComparison }},true              ?__vite__mapDeps([4,0,1]):void 0);
+  const { initCausalPage: init } = await __vitePreload(async () => { const { initCausalPage: init } = await import('./assets/causal-BrwfIAaH.js').then(n => n.a);return { initCausalPage: init }},true              ?__vite__mapDeps([4,0,1]):void 0);
+  const { initCausalComparison } = await __vitePreload(async () => { const { initCausalComparison } = await import('./assets/causal-BrwfIAaH.js').then(n => n.c);return { initCausalComparison }},true              ?__vite__mapDeps([4,0,1]):void 0);
   init({
     getMetadata: () => appStateComposite.metadata,
     chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
@@ -4755,7 +4779,7 @@ function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
   if (overlay) overlay.hidden = !loading;
 }
 async function fetchAndRenderAnalytics() {
-  const { fetchAnomalies: fetchAnomalies2 } = await __vitePreload(async () => { const { fetchAnomalies: fetchAnomalies2 } = await import('./assets/frequency-n-sNTR41.js').then(n => n.aN);return { fetchAnomalies: fetchAnomalies2 }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { fetchAnomalies: fetchAnomalies2 } = await __vitePreload(async () => { const { fetchAnomalies: fetchAnomalies2 } = await import('./assets/frequency-DMq4pW7n.js').then(n => n.aN);return { fetchAnomalies: fetchAnomalies2 }},true              ?__vite__mapDeps([0,1]):void 0);
   await fetchAnomalyRegions(fetchAnomalies2);
 }
 let fetchMetadata = null;
@@ -4764,8 +4788,8 @@ let DataChartCtor = null;
 async function ensureChartModules() {
   if (fetchMetadata && fetchData && DataChartCtor) return;
   const [dataClient, chartModule] = await Promise.all([
-    __vitePreload(() => import('./assets/frequency-n-sNTR41.js').then(n => n.aN),true              ?__vite__mapDeps([0,1]):void 0),
-    __vitePreload(() => import('./assets/DataChart-CEj5EGXC.js'),true              ?__vite__mapDeps([5,1,0]):void 0)
+    __vitePreload(() => import('./assets/frequency-DMq4pW7n.js').then(n => n.aN),true              ?__vite__mapDeps([0,1]):void 0),
+    __vitePreload(() => import('./assets/DataChart-DLVcTNyS.js'),true              ?__vite__mapDeps([5,1,0]):void 0)
   ]);
   fetchMetadata = dataClient.fetchMetadata;
   fetchData = dataClient.fetchData;

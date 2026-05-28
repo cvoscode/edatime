@@ -270,77 +270,88 @@
       <section id="workflow-panel" class="workflow-panel"></section>
 
       <section class="page" id="page-timeseries" data-page-name="timeseries" hidden>
-        <!-- Row 1: Series chips -->
-        <div class="toolbar toolbar--series">
-          <div class="toolbar-group" role="group" aria-label="Series selection tools">
+        <div class="toolbar toolbar--series timeseries-command-bar">
+          <div class="timeseries-command-bar__left toolbar-group" role="group" aria-label="Series selection tools">
             <span class="toolbar-label">Series</span>
-            <input type="text" id="column-filter-input" name="column-filter" class="column-filter-input"
-              placeholder="Filter columns…" aria-label="Filter columns">
-            <button class="btn btn-ghost btn-sm" id="collapse-series-btn" type="button" title="Collapse series list">
-              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="4,6 8,10 12,6"/>
-              </svg>
-            </button>
-            <div class="series-toggles" id="column-toggles"></div>
+            <div class="timeseries-filter-shell">
+              <input type="text" id="column-filter-input" name="column-filter" class="column-filter-input"
+                placeholder="Filter columns…" aria-label="Filter columns">
+              <button class="btn btn-ghost btn-sm timeseries-collapse-btn" id="collapse-series-btn" type="button"
+                title="Collapse series list">
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="4,6 8,10 12,6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="timeseries-command-bar__center">
+            <div class="series-toggles timeseries-chip-rail" id="column-toggles"></div>
+          </div>
+          <div class="timeseries-command-bar__right" aria-label="Timeseries context">
+            <div id="timeseries-color-slot" class="timeseries-color-slot"></div>
+            <div id="timeseries-meta-bar" class="timeseries-meta-bar" role="status" aria-live="polite"></div>
           </div>
         </div>
 
-        <!-- Row 2: Draw | Labels | Export | Analytics -->
-        <div class="toolbar toolbar--tools">
-          <div class="toolbar-group draw-toolbar" role="group" aria-label="Drawing tools">
-            <span class="toolbar-label">Draw</span>
-            <select id="draw-tool" name="draw-tool" class="draw-select" aria-label="Draw tool">
-              <option value="none">None (Pan)</option>
-              <option value="arrow">Arrow</option>
-              <option value="box">Box</option>
-            </select>
-            <input type="color" id="draw-color" name="draw-color" value="#ff0055" title="Color" aria-label="Draw color">
-            <input type="number" id="draw-width" name="draw-width" value="2" min="1" max="10" title="Thickness"
-              aria-label="Draw thickness">
-            <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings">Clear Drawings</button>
-            <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button"
-              title="Clear adaptive line filters (Shift+C)">Clear Column Filter</button>
+        <div class="toolbar toolbar--tools timeseries-utility-shelf">
+          <div class="timeseries-utility-shelf__primary">
+            <div class="toolbar-group draw-toolbar" role="group" aria-label="Drawing tools">
+              <span class="toolbar-label">Draw</span>
+              <select id="draw-tool" name="draw-tool" class="draw-select" aria-label="Draw tool">
+                <option value="none">None (Pan)</option>
+                <option value="arrow">Arrow</option>
+                <option value="box">Box</option>
+              </select>
+              <input type="color" id="draw-color" name="draw-color" value="#ff0055" title="Color" aria-label="Draw color">
+              <input type="number" id="draw-width" name="draw-width" value="2" min="1" max="10" title="Thickness"
+                aria-label="Draw thickness">
+              <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings">Clear Drawings</button>
+              <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button"
+                title="Clear adaptive line filters (Shift+C)">Clear Column Filter</button>
+            </div>
+            <div class="toolbar-group labels-toolbar toolbar-group--sep" role="group" aria-label="Chart label controls">
+              <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-labels-panel-btn" type="button"
+                title="Edit chart title and axis labels">
+                <span class="toolbar-label">Labels</span>
+                <span class="toolbar-disclosure__value">Title + axes</span>
+              </button>
+            </div>
+            <div class="toolbar-group annotations-toolbar toolbar-group--sep" role="group"
+              aria-label="Note and annotation tools">
+              <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-notes-panel-btn" type="button"
+                title="Open annotation tools">
+                <span class="toolbar-label">Notes</span>
+                <span class="toolbar-disclosure__value">Annotations</span>
+              </button>
+            </div>
           </div>
-          <div class="toolbar-group labels-toolbar toolbar-group--sep" role="group" aria-label="Chart label controls">
-            <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-labels-panel-btn" type="button"
-              title="Edit chart title and axis labels">
-              <span class="toolbar-label">Labels</span>
-              <span class="toolbar-disclosure__value">Title + axes</span>
-            </button>
-          </div>
-          <div class="toolbar-group annotations-toolbar toolbar-group--sep" role="group"
-            aria-label="Note and annotation tools">
-            <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-notes-panel-btn" type="button"
-              title="Open annotation tools">
-              <span class="toolbar-label">Notes</span>
-              <span class="toolbar-disclosure__value">Annotations</span>
-            </button>
-          </div>
-          <div class="toolbar-group export-toolbar toolbar-group--push" role="group"
-            aria-label="Export chart and data options">
-            <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button" title="Export chart as PNG (P)"
-              aria-label="Export chart as PNG">PNG <kbd class="toolbar-kbd">P</kbd></button>
-            <button class="btn btn-ghost btn-sm" id="export-csv-btn" type="button"
-              title="Export filtered data as CSV (E)" aria-label="Export filtered data as CSV">CSV <kbd
-                class="toolbar-kbd">E</kbd></button>
-            <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-export-options-btn" type="button"
-              title="More export options">
-              <span class="toolbar-label">More</span>
-              <span class="toolbar-disclosure__value">SVG, JSON, Parquet</span>
-            </button>
-          </div>
-          <div class="toolbar-group analytics-toolbar toolbar-group--sep toolbar-group--push" role="group"
-            aria-label="Analytics controls">
-            <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-analytics-panel-btn" type="button"
-              title="Open analytics controls">
-              <span class="toolbar-label">Analytics</span>
-              <span class="toolbar-disclosure__value">Bands, anomalies, cleanup</span>
-            </button>
-          </div>
-          <div class="toolbar-group zoom-toolbar" role="group" aria-label="Zoom controls">
-            <button class="btn btn-ghost btn-sm" id="zoom-out-btn" type="button" title="Zoom out">−</button>
-            <span class="zoom-range-badge" id="zoom-range-badge">—</span>
-            <button class="btn btn-ghost btn-sm" id="zoom-reset-btn" type="button" title="Reset zoom to initial view">↺</button>
+          <div class="timeseries-utility-shelf__secondary">
+            <div class="toolbar-group export-toolbar" role="group" aria-label="Export chart and data options">
+              <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button" title="Export chart as PNG (P)"
+                aria-label="Export chart as PNG">PNG <kbd class="toolbar-kbd">P</kbd></button>
+              <button class="btn btn-ghost btn-sm" id="export-csv-btn" type="button"
+                title="Export filtered data as CSV (E)" aria-label="Export filtered data as CSV">CSV <kbd
+                  class="toolbar-kbd">E</kbd></button>
+              <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-export-options-btn" type="button"
+                title="More export options">
+                <span class="toolbar-label">More</span>
+                <span class="toolbar-disclosure__value">SVG, JSON, Parquet</span>
+              </button>
+            </div>
+            <div class="toolbar-group analytics-toolbar toolbar-group--sep" role="group"
+              aria-label="Analytics controls">
+              <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-analytics-panel-btn" type="button"
+                title="Open analytics controls">
+                <span class="toolbar-label">Analytics</span>
+                <span class="toolbar-disclosure__value">Bands, anomalies, cleanup</span>
+              </button>
+            </div>
+            <div class="toolbar-group zoom-toolbar timeseries-zoom-cluster" role="group" aria-label="Zoom controls">
+              <button class="btn btn-ghost btn-sm" id="zoom-out-btn" type="button" title="Zoom out">−</button>
+              <span class="zoom-range-badge" id="zoom-range-badge">—</span>
+              <button class="btn btn-ghost btn-sm" id="zoom-reset-btn" type="button" title="Reset zoom to initial view">↺</button>
+            </div>
           </div>
         </div>
 
