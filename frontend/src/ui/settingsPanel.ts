@@ -19,26 +19,32 @@ import {
     DEFAULT_SETTINGS,
 } from '../utils/settings.js';
 import { SERIES_COLORS, appState } from '../state.js';
+import { createModalController } from './shell/createModalController';
 
 let currentSettings: AppSettings | null = null;
 let activeTab = 'appearance';
 
+const controller = createModalController({
+    modalId: 'settings-modal',
+    closeButtonIds: ['settings-close-btn', 'settings-cancel-btn'],
+    onOpen: () => {
+        currentSettings = loadSettings();
+        populateSettingsForm(currentSettings);
+        setActiveTab('appearance');
+    },
+    onClose: () => {
+        currentSettings = null;
+    },
+});
+
 /** Open the settings modal. */
 export function openSettingsModal(): void {
-    const modal = document.getElementById('settings-modal');
-    if (!modal) return;
-
-    currentSettings = loadSettings();
-    populateSettingsForm(currentSettings);
-    setActiveTab('appearance');
-    modal.hidden = false;
+    controller.open();
 }
 
 /** Close the settings modal. */
 export function closeSettingsModal(): void {
-    const modal = document.getElementById('settings-modal');
-    if (modal) modal.hidden = true;
-    currentSettings = null;
+    controller.close();
 }
 
 /** Set the active tab in the settings modal. */
@@ -178,18 +184,6 @@ function getCheckboxValue(id: string): boolean {
 
 /** Initialize the settings panel event handlers. */
 export function initSettingsPanel(): void {
-    const modal = document.getElementById('settings-modal');
-    if (!modal) return;
-
-    // Close button
-    document.getElementById('settings-close-btn')?.addEventListener('click', closeSettingsModal);
-    document.getElementById('settings-cancel-btn')?.addEventListener('click', closeSettingsModal);
-
-    // Backdrop click to close
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) closeSettingsModal();
-    });
-
     // Apply button
     document.getElementById('settings-apply-btn')?.addEventListener('click', applySettings);
 

@@ -4,54 +4,27 @@
  */
 
 import { getSetting, updateSetting } from '../utils/settings.js';
+import { createDrawerController } from './shell/createDrawerController';
 
-let _open = false;
-
-function isDrawerOpen(): boolean {
-    return _open;
-}
-
-function openDrawer(): void {
-    const drawer = document.getElementById('analytics-drawer');
-    if (!drawer) return;
-    drawer.hidden = false;
-    document.body.classList.add('drawer-open');
-    _open = true;
-    updateSetting('analyticsDrawerOpen', true);
-}
-
-function closeDrawer(): void {
-    const drawer = document.getElementById('analytics-drawer');
-    if (!drawer) return;
-    drawer.hidden = true;
-    document.body.classList.remove('drawer-open');
-    _open = false;
-    updateSetting('analyticsDrawerOpen', false);
-}
-
-function toggleDrawer(): void {
-    if (isDrawerOpen()) closeDrawer();
-    else openDrawer();
-}
+const controller = createDrawerController({
+    drawerId: 'analytics-drawer',
+    toggleButtonIds: ['open-analytics-panel-btn'],
+    onOpen: () => {
+        updateSetting('analyticsDrawerOpen', true);
+    },
+    onClose: () => {
+        updateSetting('analyticsDrawerOpen', false);
+    },
+});
 
 export function initAnalyticsDrawer(): void {
-    const drawer = document.getElementById('analytics-drawer');
-    if (!drawer) return;
-
-    document.getElementById('analytics-close-btn')?.addEventListener('click', closeDrawer);
-
-    drawer.addEventListener('click', (e) => {
-        if ((e.target as HTMLElement) === drawer) closeDrawer();
-    });
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && isDrawerOpen()) closeDrawer();
-    });
-
-    document.getElementById('open-analytics-panel-btn')?.addEventListener('click', toggleDrawer);
+    document.getElementById('analytics-close-btn')?.addEventListener('click', controller.close);
 
     const saved = getSetting('analyticsDrawerOpen');
-    if (saved) openDrawer();
+    if (saved) controller.open();
 }
 
-export { openDrawer, closeDrawer, toggleDrawer };
+export const openDrawer = controller.open;
+export const closeDrawer = controller.close;
+export const toggleDrawer = controller.toggle;
+export { controller };

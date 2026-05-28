@@ -1,5 +1,5 @@
 import { appState } from '../state.js';
-import { initModalClose } from './modalUtils.js';
+import { createModalController } from './shell/createModalController';
 
 interface RefreshDatasetOptions {
     selectedColumn?: string;
@@ -15,10 +15,13 @@ export function initTransformModal(deps: DataMutationModalDeps): void {
     const nameInput = document.getElementById('transform-output-name') as HTMLInputElement | null;
     const errorEl = document.getElementById('transform-error') as HTMLElement | null;
 
-    const close = initModalClose('transform-modal', 'transform-close-btn', 'transform-cancel-btn', () => {
-        if (errorEl) errorEl.textContent = '';
+    const controller = createModalController({
+        modalId: 'transform-modal',
+        closeButtonIds: ['transform-close-btn', 'transform-cancel-btn'],
+        onOpen: () => {
+            if (errorEl) errorEl.textContent = '';
+        },
     });
-    if (!close) return;
 
     applyBtn?.addEventListener('click', async () => {
         const expr = exprInput?.value?.trim();
@@ -40,7 +43,7 @@ export function initTransformModal(deps: DataMutationModalDeps): void {
             }
             const { postTransform } = await import('../services/api/index.js');
             await postTransform(expr, name);
-            close();
+            controller.close();
             await deps.refreshDataset({ selectedColumn: name });
         } catch (error: any) {
             if (errorEl) errorEl.textContent = error?.message || 'Transform failed.';
@@ -62,15 +65,17 @@ export function initOutlierModal(deps: DataMutationModalDeps): void {
     const errorEl = document.getElementById('outlier-error') as HTMLElement | null;
     const resultEl = document.getElementById('outlier-result') as HTMLElement | null;
 
-    const close = initModalClose('outlier-modal', 'outlier-close-btn', 'outlier-cancel-btn', () => {
-        if (errorEl) errorEl.textContent = '';
-        if (resultEl) resultEl.textContent = '';
+    const controller = createModalController({
+        modalId: 'outlier-modal',
+        closeButtonIds: ['outlier-close-btn', 'outlier-cancel-btn'],
+        onOpen: () => {
+            if (errorEl) errorEl.textContent = '';
+            if (resultEl) resultEl.textContent = '';
+        },
     });
-    if (!close) return;
 
-    const modal = document.getElementById('outlier-modal') as HTMLElement | null;
     openBtn?.addEventListener('click', () => {
-        if (modal) modal.hidden = false;
+        controller.open();
     });
 
     methodSelect?.addEventListener('change', () => {
