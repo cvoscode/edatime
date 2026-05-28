@@ -1,13 +1,11 @@
-import type { HeatmapPageDeps } from '../../pages/heatmapPage.js';
 import { initHeatmapPage } from '../../pages/heatmapPage.js';
 
 export interface HeatmapEntrypointDeps {
-    initHeatmapPage: (deps: HeatmapPageDeps) => Promise<void>;
-    deps: HeatmapPageDeps;
+    showPage: (pageName: string) => void;
 }
 
 export function createHeatmapEntrypoint(deps: HeatmapEntrypointDeps) {
     return {
-        init: () => deps.initHeatmapPage(deps.deps),
+        init: () => initHeatmapPage(deps),
     };
 }

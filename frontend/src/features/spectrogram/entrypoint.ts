@@ -1,13 +1,11 @@
-import type { SpectrogramPageDeps } from '../../pages/spectrogramPage.js';
 import { initSpectrogramPage } from '../../pages/spectrogramPage.js';
 
 export interface SpectrogramEntrypointDeps {
-    initSpectrogramPage: (deps: SpectrogramPageDeps) => Promise<void>;
-    deps: SpectrogramPageDeps;
+    setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
 }
 
 export function createSpectrogramEntrypoint(deps: SpectrogramEntrypointDeps) {
     return {
-        init: () => deps.initSpectrogramPage(deps.deps),
+        init: () => initSpectrogramPage(deps),
     };
 }
