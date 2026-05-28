@@ -30,6 +30,7 @@ import { getDefaultTimeseriesColumns, getNumericColumns } from './pages/analytic
 import { createTimeseriesPageController } from './pages/timeseriesPage.js';
 import { fetchAnomalyRegions, computeAndSetRollingBands, cancelAnalyticsFetch } from './bootstrap/analyticsOverlay.js';
 import { initAppShell } from './bootstrap/appShell.js';
+import { createAppRuntime } from './app/runtime.js';
 import { ensurePageModuleLoaded, isMetadataReady, markMetadataReady, clearLoadedPageModules } from './bootstrap/pageLoaders.js';
 import { restoreSessionAfterChartReady, startSessionPersistence } from './bootstrap/sessionBootstrap.js';
 import { getHashPage } from './utils/router.js';
@@ -67,6 +68,7 @@ import {
 } from './store/index.js';
 
 const _appCleanups: Array<() => void> = [];
+const runtime = createAppRuntime();
 
 function storeFetchedMetadata(metadata: DatasetMetadata): void {
     setMetadata(metadata);
@@ -683,7 +685,7 @@ async function init(): Promise<void> {
         refreshDatasetAfterMutation,
         hydrateColumnProfiles,
         renderColumnProfilesGrid,
-        registerCleanup: (cleanup) => _appCleanups.push(cleanup),
+        registerCleanup: runtime.registerCleanup,
     });
 
     (window).__edatime = (window).__edatime || {};
