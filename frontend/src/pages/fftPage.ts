@@ -161,6 +161,8 @@ function renderChips(): void {
 
         chip.className = `series-chip fft-trace-chip${isActive ? ' active' : ''}`;
         chip.style.setProperty('--chip-accent', color);
+        const checkbox = chip.querySelector<HTMLInputElement>('input[type="checkbox"]');
+        if (checkbox) checkbox.checked = isActive;
     }
 
     bar.hidden = columns.length === 0;

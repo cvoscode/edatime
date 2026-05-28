@@ -16,6 +16,10 @@ import { resolve } from 'path';
  */
 export default defineConfig({
   root: 'frontend',
+  // The packaged frontend is served from / with the JS bundle under /js/.
+  // Setting the base keeps Vite's modulepreload helper aligned with that
+  // layout so lazy chunks resolve to /js/assets/* instead of /assets/*.
+  base: '/js/',
   // Don't emit index.html — the Rust backend serves frontend/index.html.
   // Vite still processes the root to find index.html for dev server, but
   // build output goes to js/ only.

@@ -134,4 +134,45 @@ describe('initFftPage', () => {
         expect((document.getElementById('fft-empty-state') as HTMLElement).hidden).toBe(true);
         expect(document.getElementById('fft-status')?.textContent).toContain('3 bins');
     });
+
+    it('reconciles chip checkbox state from the active FFT traces on rerender', async () => {
+        fetchFftMock.mockResolvedValueOnce({
+            sample_count: 64,
+            results: [{
+                column: 'value',
+                frequencies: [1, 2, 3],
+                magnitudes: [10, 8, 6],
+                psd: [100, 64, 36],
+            }],
+        });
+
+        const { appState } = await import('../state');
+        appState.metadata = {
+            total_rows: 10,
+            columns: [],
+            numeric_columns: ['value'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1000 },
+            column_profiles: [],
+        } as any;
+        appState.currentStart = 0;
+        appState.currentEnd = 1000;
+
+        const { initFftPage } = await import('./fftPage');
+        await initFftPage({ renderTimeseries: vi.fn() });
+
+        const chip = document.querySelector<HTMLElement>('.fft-trace-chip')!;
+        chip.click();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        const checkbox = chip.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+        expect(checkbox.checked).toBe(true);
+
+        checkbox.checked = false;
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+
+        expect(chip.classList.contains('active')).toBe(true);
+        expect(checkbox.checked).toBe(true);
+    });
 });

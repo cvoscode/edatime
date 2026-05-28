@@ -218,6 +218,7 @@ export function buildColumnToggles(
                     setAdaptiveFilterColumn(appState.selectedCols[0] || null);
                 }
                 buildMetaBar(appState.metadata);
+                buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
                 buildRangeControlsFn();
                 (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
                 fetchAndRender();
