@@ -99,8 +99,6 @@ function renderChips(): void {
                 checked: isActive,
                 color,
                 label: column,
-                menuLabel: isActive ? `Remove ${column} FFT trace` : `FFT options for ${column}`,
-                title: isActive ? `Remove ${column} FFT trace` : `FFT options for ${column}`,
                 onToggle: async (checked) => {
                     if (chip?.classList.contains('loading')) return;
                     if (checked) {
@@ -146,17 +144,6 @@ function renderChips(): void {
                         rerenderOrClear();
                     }
                 },
-                onMenuClick: () => {
-                    if (!fftTraces.some((trace) => trace.column === column)) return;
-                    fftTraces = fftTraces.filter((trace) => trace.column !== column);
-                    renderChips();
-                    rerenderOrClear();
-                    if (statusEl) {
-                        statusEl.textContent = fftTraces.length
-                            ? fftTraces.map((trace) => trace.column).join(', ')
-                            : 'Select a column chip to compute its FFT.';
-                    }
-                },
             });
             (chip as HTMLElement).classList.add('fft-trace-chip');
             (chip as HTMLElement).setAttribute('role', 'button');
@@ -174,11 +161,6 @@ function renderChips(): void {
 
         chip.className = `series-chip fft-trace-chip${isActive ? ' active' : ''}`;
         chip.style.setProperty('--chip-accent', color);
-        const menuBtn = chip.querySelector('.chip-menu-btn');
-        if (menuBtn) {
-            menuBtn.setAttribute('aria-label', isActive ? `Remove ${column} FFT trace` : `FFT options for ${column}`);
-            menuBtn.title = isActive ? `Remove ${column} FFT trace` : `FFT options for ${column}`;
-        }
     }
 
     bar.hidden = columns.length === 0;
