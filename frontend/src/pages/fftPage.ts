@@ -91,16 +91,21 @@ function renderChips(): void {
     for (const [index, column] of columns.entries()) {
         const isActive = fftTraces.some((trace) => trace.column === column);
         const color = fftColorFor(column, index);
-        let chip = existing.get(column) as HTMLButtonElement | undefined;
+        let chip = existing.get(column);
         if (!chip) {
-            chip = document.createElement('button');
+            chip = document.createElement('div');
             chip.className = 'series-chip fft-trace-chip';
-            chip.type = 'button';
+            chip.setAttribute('role', 'button');
+            chip.tabIndex = 0;
             chip.dataset.col = column;
             chip.addEventListener('click', async (event) => {
+                if (chip?.classList.contains('loading')) return;
                 const currentColumn = chip?.dataset.col || '';
                 if ((event.target as HTMLElement)?.closest?.('.chip-color-picker')) return;
-                if ((event.target as HTMLElement).classList.contains('fft-chip-remove')) {
+                if ((event.target as HTMLElement)?.closest?.('.chip-menu-btn')) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (!fftTraces.some((trace) => trace.column === currentColumn)) return;
                     fftTraces = fftTraces.filter((trace) => trace.column !== currentColumn);
                     renderChips();
                     rerenderOrClear();
@@ -115,7 +120,7 @@ function renderChips(): void {
                 const activeChip = chip;
                 if (!activeChip) return;
                 activeChip.classList.add('loading');
-                activeChip.disabled = true;
+                activeChip.setAttribute('aria-disabled', 'true');
                 const loadingEl = document.getElementById('fft-chart-loading');
                 if (loadingEl) loadingEl.hidden = false;
                 if (statusEl) statusEl.textContent = `Computing FFT for ${currentColumn}…`;
@@ -129,18 +134,25 @@ function renderChips(): void {
                     if (statusEl) statusEl.textContent = `FFT failed for ${currentColumn}: ${error?.message || 'error'}`;
                 } finally {
                     activeChip.classList.remove('loading');
-                    activeChip.disabled = false;
+                    activeChip.removeAttribute('aria-disabled');
                     if (loadingEl) loadingEl.hidden = true;
                 }
+            });
+            chip.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                chip?.click();
             });
             bar.insertBefore(chip, zoomButton || null);
         }
 
         chip.className = `series-chip fft-trace-chip${isActive ? ' active' : ''}`;
         chip.style.setProperty('--chip-accent', color);
-        chip.innerHTML = `<span class="chip-label">${column}</span>`
-            + `<input type="color" class="chip-color-picker fft-chip-color-picker" value="${color}" aria-label="Set ${column} FFT color" title="Set ${column} FFT color">`
-            + (isActive ? '<span class="fft-chip-remove" aria-hidden="true">×</span>' : '');
+        chip.innerHTML = `<input type="color" class="chip-color-picker fft-chip-color-picker" value="${color}" aria-label="Set ${column} FFT color" title="Set ${column} FFT color">`
+            + `<span class="chip-label">${column}</span>`
+            + `<button class="chip-menu-btn" type="button" aria-label="${isActive ? `Remove ${column} FFT trace` : `FFT options for ${column}`}" title="${isActive ? `Remove ${column} FFT trace` : `FFT options for ${column}`}">`
+            + '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>'
+            + '</button>';
 
         const colorInput = chip.querySelector('.chip-color-picker') as HTMLInputElement | null;
         if (colorInput) {

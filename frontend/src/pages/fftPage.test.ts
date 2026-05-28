@@ -86,6 +86,10 @@ describe('initFftPage', () => {
 
         expect(fftChartInstance.init).toHaveBeenCalledTimes(1);
         expect(document.querySelectorAll('.fft-trace-chip')).toHaveLength(2);
+        const firstChip = document.querySelector<HTMLElement>('.fft-trace-chip')!;
+        expect(firstChip.querySelector('.chip-color-picker')).toBeTruthy();
+        expect(firstChip.querySelector('.chip-label')).toBeTruthy();
+        expect(firstChip.querySelector('.chip-menu-btn')).toBeTruthy();
         const emptyState = document.getElementById('fft-empty-state') as HTMLElement;
         expect(emptyState.hidden).toBe(false);
         expect(emptyState.getAttribute('data-empty-reason')).toBe('no-columns-selected');
@@ -123,6 +127,10 @@ describe('initFftPage', () => {
 
         expect(fetchFftMock).toHaveBeenCalledTimes(1);
         expect(fftChartInstance.updateData).toHaveBeenCalledTimes(1);
+        const chip = document.querySelector<HTMLElement>('.fft-trace-chip')!;
+        expect(chip.classList.contains('active')).toBe(true);
+        expect(chip.querySelector('.fft-chip-remove')).toBeNull();
+        expect(chip.querySelector('.chip-menu-btn')?.getAttribute('aria-label')).toBe('Remove value FFT trace');
         expect((document.getElementById('fft-empty-state') as HTMLElement).hidden).toBe(true);
         expect(document.getElementById('fft-status')?.textContent).toContain('3 bins');
     });

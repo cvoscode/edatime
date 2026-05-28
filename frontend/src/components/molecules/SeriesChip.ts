@@ -38,13 +38,13 @@ export function SeriesChip(props: SeriesChipProps): HTMLLabelElement {
     menu.className = 'chip-menu-btn';
     menu.setAttribute('aria-label', `Filter range for ${props.column}`);
     menu.title = `Filter range for ${props.column}`;
-    menu.textContent = '⋮';
+    menu.innerHTML = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>';
     menu.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
         props.onMenu?.();
     });
 
-    chip.append(checkbox, label, colorInput, menu);
+    chip.append(checkbox, colorInput, label, menu);
     return chip;
 }

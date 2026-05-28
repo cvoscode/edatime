@@ -515,25 +515,35 @@ function renderColumnChips(deps: CausalDeps, columnsBar: HTMLElement): void {
         const currentColor = _chipColors.get(col) ?? '#00a8ff';
         const active = _selectedColumns.has(col);
 
-        const chip = document.createElement('button');
+        const chip = document.createElement('div');
         chip.className = `series-chip fft-trace-chip${active ? ' active' : ''}${numericColumn ? '' : ' causal-chip-nonnumeric'}`;
-        chip.type = 'button';
+        chip.setAttribute('role', 'button');
+        chip.tabIndex = 0;
         chip.dataset.col = col;
         chip.style.setProperty('--chip-accent', currentColor);
         chip.title = numericColumn
             ? `Toggle ${col} for causal discovery`
             : `Toggle ${col} as a manual graph/meta node`;
         chip.innerHTML =
-            `<span class="chip-label">${escH(col)}</span>` +
             `<input type="color" class="chip-color-picker" value="${escH(currentColor)}" ` +
-            `aria-label="Set ${escH(col)} color" title="Set ${escH(col)} color">`;
+            `aria-label="Set ${escH(col)} color" title="Set ${escH(col)} color">` +
+            `<span class="chip-label">${escH(col)}</span>` +
+            `<button class="chip-menu-btn" type="button" aria-label="Edit ${escH(col)} causal node" title="Edit ${escH(col)} causal node">` +
+            '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>' +
+            '</button>';
 
         chip.addEventListener('click', (event) => {
             if ((event.target as HTMLElement)?.closest?.('.chip-color-picker')) return;
+            if ((event.target as HTMLElement)?.closest?.('.chip-menu-btn')) return;
             if (_selectedColumns.has(col)) _selectedColumns.delete(col);
             else _selectedColumns.add(col);
             renderColumnChips(deps, columnsBar);
             syncCausalEmptyState();
+        });
+        chip.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            chip.click();
         });
 
         const colorInput = chip.querySelector('.chip-color-picker') as HTMLInputElement | null;
@@ -547,6 +557,13 @@ function renderColumnChips(deps: CausalDeps, columnsBar: HTMLElement): void {
                 if (_currentColumns.includes(col)) renderEChartsGraph();
             });
         }
+
+        const menuBtn = chip.querySelector('.chip-menu-btn') as HTMLButtonElement | null;
+        menuBtn?.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            openEditPanel({ kind: 'node', col });
+        });
 
         columnsBar.appendChild(chip);
     }

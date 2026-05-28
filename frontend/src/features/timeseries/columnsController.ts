@@ -210,8 +210,8 @@ export function buildColumnToggles(
             : `Ctrl+click to target adaptive filters to ${col}`;
         chip.innerHTML = `
             <input type="checkbox" id="series-toggle-${safeKey}" name="series-toggle-${safeKey}" aria-label="Toggle ${escapeHtml(col)} series" ${isActive ? 'checked' : ''} value="${escapeHtml(col)}">
-      <span class="chip-label">${escapeHtml(col)}</span>
             <input type="color" class="chip-color-picker" id="series-color-${safeKey}" name="series-color-${safeKey}" value="${escapeHtml(color)}" aria-label="Set ${escapeHtml(col)} color" title="Set ${escapeHtml(col)} color">
+      <span class="chip-label">${escapeHtml(col)}</span>
             <button class="chip-menu-btn" type="button" aria-label="Filter range for ${escapeHtml(col)}" title="Filter range for ${escapeHtml(col)}">
               <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>
             </button>
