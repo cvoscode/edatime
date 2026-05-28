@@ -78,7 +78,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         syncHeatmapEmptyState('', false);
         const labelWidth = Math.max(84, Math.min(180, Math.round(heatmapCellSize * 2.5)));
 
-        let html = `<div class="heatmap-grid" style="display:inline-grid;grid-template-columns:${labelWidth}px repeat(${size},${heatmapCellSize}px);grid-template-rows:${labelWidth}px repeat(${size},${heatmapCellSize}px);gap:1px;font-size:0.65rem;">`;
+        let html = '<div style="display:flex;align-items:flex-end;gap:0;">';
+        html += `<div class="heatmap-grid" style="display:inline-grid;grid-template-columns:${labelWidth}px repeat(${size},${heatmapCellSize}px);grid-template-rows:${labelWidth}px repeat(${size},${heatmapCellSize}px);gap:1px;font-size:0.65rem;">`;
         html += '<div></div>';
         for (const column of columns) {
             html += `<div class="heatmap-header" style="writing-mode:vertical-rl;text-orientation:mixed;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;color:var(--text-dim);padding:4px 2px;" title="${column}">${column}</div>`;
@@ -96,10 +97,13 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         }
 
         html += '</div>';
-        html += '<div style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:0.7rem;color:var(--text-dim);">';
+        html += '<div style="display:flex;align-items:flex-end;gap:10px;margin-left:10px;">';
+        html += '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;font-size:0.7rem;color:var(--text-dim);">';
         html += '<span>-1.0</span>';
-        html += '<div style="flex:0 0 200px;height:12px;border-radius:4px;background:linear-gradient(90deg,#2166AC,#67A9CF,#F7F7F7,#EF8A62,#B2182B);"></div>';
+        html += '<div style="width:12px;flex:0 0 120px;border-radius:4px;background:linear-gradient(180deg,#B2182B,#EF8A62,#F7F7F7,#67A9CF,#2166AC);"></div>';
         html += '<span>+1.0</span>';
+        html += '</div>';
+        html += '</div>';
         html += '</div>';
 
         containerEl.innerHTML = html;

@@ -1,5 +1,5 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/frequency-DMq4pW7n.js","assets/chartgpu-CqrjGxnD.js","assets/scatter-m5u40SfE.js","assets/drift-B-yhWDTr.js","assets/causal-BrwfIAaH.js","assets/DataChart-DLVcTNyS.js"])))=>i.map(i=>d[i]);
-import { b as appStateComposite, x as formatAnalysisNumber, y as setAdaptiveFilterColumn, z as setSelectedColorColumn, A as getSeriesColor, w as SeriesChip, B as setSelectedCols, C as setPendingAdaptivePoint, E as computeBounds, F as setAdaptiveLineFilters, G as setSeriesColor, H as setPreviewTimeColumn, I as uploadDataset, J as formatCount, K as fetchMetadata$1, L as setMetadata, M as setDatasetRevision, N as buildMetaBar$1, O as connectDatabase, P as loadDatabaseTable, Q as deleteDatabaseConnection, u as toast, R as previewUpload, T as formatToDatetimeLocal, U as formatAnalysisTime, V as setPreviewSelectedColumns, W as fetchDatabaseTables, X as fetchDatabaseStatus, Y as setProfileGridBound, Z as PROFILE_ROW_HEIGHT, $ as PROFILE_COLUMNS, a0 as normalizeDtypeLabel, a1 as formatProfileValue, a2 as setProfileGridSort, a3 as setProfileGridHeaderBound, a4 as getDefaultProfileColumnWidths, a5 as setColumnProfiles, a6 as PROFILE_OVERSCAN, a7 as toFiniteNumberOrNull, a8 as setAnomalyRegions, a9 as setRollingBands, aa as applyColumnRanges, m as isRangeOutsideDataset, ab as dbgGroup, ac as setZoomHistory, ad as setViewport, ae as setPendingYMode, af as setPendingRestoreY, ag as setFetchDebounceId, ah as sanitizeSelectedColumns$1, ai as dbg, aj as setLastFetchedData, D as DEBUG, ak as ensureRangeStateFromData, al as setMetaText, p as createEmptyStateController, d as downloadBlob, am as setChartText, an as setRollingEnabled, ao as setRollingWindow, ap as setAnomalyEnabled, aq as setAnomalyMethod, ar as setAnomalyThreshold, as as setAnalysisBound, S as SERIES_COLORS, _ as __vitePreload, at as fetchSampleDataset, au as getNumericColumns, av as getAnalyticsChipColor, aw as setSeriesColors, ax as setColumnRanges, ay as debounce, az as setFilterText, aA as setProfileFilterText, aB as installWindowsWebGpuRequestAdapterWorkaround, aC as setNumericCols, aD as getDefaultTimeseriesColumns, aE as setChartInstance, aF as setInitialView, r as requestGpuAdapter, aG as appendAdaptiveLineFilter, aH as buildAdaptiveLineY } from './assets/frequency-DMq4pW7n.js';
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/frequency-fNc7OkYg.js","assets/chartgpu-CqrjGxnD.js","assets/scatter-i8LVvIZq.js","assets/drift-OT4VVbA0.js","assets/causal-kLKA98Fu.js","assets/DataChart-CUsQqWXa.js"])))=>i.map(i=>d[i]);
+import { b as appStateComposite, x as formatAnalysisNumber, y as setAdaptiveFilterColumn, z as setSelectedColorColumn, A as getSeriesColor, w as SeriesChip, B as setSelectedCols, C as setPendingAdaptivePoint, E as computeBounds, F as setAdaptiveLineFilters, G as setSeriesColor, H as setPreviewTimeColumn, I as uploadDataset, J as formatCount, K as fetchMetadata$1, L as setMetadata, M as setDatasetRevision, N as buildMetaBar$1, O as connectDatabase, P as loadDatabaseTable, Q as deleteDatabaseConnection, u as toast, R as previewUpload, T as formatToDatetimeLocal, U as formatAnalysisTime, V as setPreviewSelectedColumns, W as fetchDatabaseTables, X as fetchDatabaseStatus, Y as setProfileGridBound, Z as PROFILE_ROW_HEIGHT, $ as PROFILE_COLUMNS, a0 as normalizeDtypeLabel, a1 as formatProfileValue, a2 as setProfileGridSort, a3 as setProfileGridHeaderBound, a4 as getDefaultProfileColumnWidths, a5 as setColumnProfiles, a6 as PROFILE_OVERSCAN, a7 as toFiniteNumberOrNull, a8 as setAnomalyRegions, a9 as setRollingBands, aa as applyColumnRanges, m as isRangeOutsideDataset, ab as dbgGroup, ac as setZoomHistory, ad as setViewport, ae as setPendingYMode, af as setPendingRestoreY, ag as setFetchDebounceId, ah as sanitizeSelectedColumns$1, ai as dbg, aj as setLastFetchedData, D as DEBUG, ak as ensureRangeStateFromData, al as setMetaText, p as createEmptyStateController, d as downloadBlob, am as setChartText, an as setRollingEnabled, ao as setRollingWindow, ap as setAnomalyEnabled, aq as setAnomalyMethod, ar as setAnomalyThreshold, as as setAnalysisBound, S as SERIES_COLORS, _ as __vitePreload, at as fetchSampleDataset, au as getNumericColumns, av as getAnalyticsChipColor, aw as setSeriesColors, ax as setColumnRanges, ay as debounce, az as setFilterText, aA as setProfileFilterText, aB as installWindowsWebGpuRequestAdapterWorkaround, aC as setNumericCols, aD as getDefaultTimeseriesColumns, aE as setChartInstance, aF as setInitialView, r as requestGpuAdapter, aG as appendAdaptiveLineFilter, aH as buildAdaptiveLineY } from './assets/frequency-fNc7OkYg.js';
 import './assets/chartgpu-CqrjGxnD.js';
 
 let _seriesCollapsed = false;
@@ -3849,7 +3849,7 @@ function initTransformModal(deps) {
         applyBtn.textContent = "Applying…";
         applyBtn.disabled = true;
       }
-      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/frequency-DMq4pW7n.js').then(n => n.aN);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/frequency-fNc7OkYg.js').then(n => n.aN);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
       await postTransform(expr, name);
       close();
       await deps.refreshDataset({ selectedColumn: name });
@@ -3897,7 +3897,7 @@ function initOutlierModal(deps) {
         applyBtn.disabled = true;
         applyBtn.textContent = "Removing…";
       }
-      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/frequency-DMq4pW7n.js').then(n => n.aN);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/frequency-fNc7OkYg.js').then(n => n.aN);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
       const result = await postRemoveOutliers(
         columns,
         method,
@@ -4151,7 +4151,7 @@ function generateWeatherCsv() {
   return rows.join("\n");
 }
 async function loadSampleDataset(datasetId, showPage) {
-  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/frequency-DMq4pW7n.js').then(n => n.aO);return { toast }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/frequency-fNc7OkYg.js').then(n => n.aO);return { toast }},true              ?__vite__mapDeps([0,1]):void 0);
   if (datasetId === "ettm2") {
     const dismissLoading = toast("Loading ETTm2 sample dataset…", "info", 0);
     let file;
@@ -4255,16 +4255,16 @@ function initAppShell(deps) {
 }
 
 async function initSpectrogramPage() {
-  const { initSpectrogramPage: init } = await __vitePreload(async () => { const { initSpectrogramPage: init } = await import('./assets/frequency-DMq4pW7n.js').then(n => n.aP);return { initSpectrogramPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { initSpectrogramPage: init } = await __vitePreload(async () => { const { initSpectrogramPage: init } = await import('./assets/frequency-fNc7OkYg.js').then(n => n.aP);return { initSpectrogramPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
   await init({ setLoading: setComputeLoading });
 }
 async function initFftPage() {
-  const { initFftPage: init } = await __vitePreload(async () => { const { initFftPage: init } = await import('./assets/frequency-DMq4pW7n.js').then(n => n.aQ);return { initFftPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { initFftPage: init } = await __vitePreload(async () => { const { initFftPage: init } = await import('./assets/frequency-fNc7OkYg.js').then(n => n.aQ);return { initFftPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
   await init({ renderTimeseries: () => {
   } });
 }
 async function initHeatmapPage() {
-  const { initHeatmapPage: init } = await __vitePreload(async () => { const { initHeatmapPage: init } = await import('./assets/frequency-DMq4pW7n.js').then(n => n.aR);return { initHeatmapPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { initHeatmapPage: init } = await __vitePreload(async () => { const { initHeatmapPage: init } = await import('./assets/frequency-fNc7OkYg.js').then(n => n.aR);return { initHeatmapPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
   await init({
     showPage: (name) => {
       document.querySelector(`.sidebar .nav-item[data-page="${name}"]`)?.click?.();
@@ -4274,16 +4274,16 @@ async function initHeatmapPage() {
 async function initScatterPage() {
   const scatterPage = document.getElementById("page-scatter");
   if (!scatterPage) return;
-  const { initScatterPage: initScatterPage2 } = await __vitePreload(async () => { const { initScatterPage: initScatterPage2 } = await import('./assets/scatter-m5u40SfE.js');return { initScatterPage: initScatterPage2 }},true              ?__vite__mapDeps([2,1,0]):void 0);
+  const { initScatterPage: initScatterPage2 } = await __vitePreload(async () => { const { initScatterPage: initScatterPage2 } = await import('./assets/scatter-i8LVvIZq.js');return { initScatterPage: initScatterPage2 }},true              ?__vite__mapDeps([2,1,0]):void 0);
   await initScatterPage2(appStateComposite.metadata);
 }
 async function initDriftPage() {
-  const { initDriftPage: init } = await __vitePreload(async () => { const { initDriftPage: init } = await import('./assets/drift-B-yhWDTr.js');return { initDriftPage: init }},true              ?__vite__mapDeps([3,0,1]):void 0);
+  const { initDriftPage: init } = await __vitePreload(async () => { const { initDriftPage: init } = await import('./assets/drift-OT4VVbA0.js');return { initDriftPage: init }},true              ?__vite__mapDeps([3,0,1]):void 0);
   await init(appStateComposite.metadata);
 }
 async function initCausalPage() {
-  const { initCausalPage: init } = await __vitePreload(async () => { const { initCausalPage: init } = await import('./assets/causal-BrwfIAaH.js').then(n => n.a);return { initCausalPage: init }},true              ?__vite__mapDeps([4,0,1]):void 0);
-  const { initCausalComparison } = await __vitePreload(async () => { const { initCausalComparison } = await import('./assets/causal-BrwfIAaH.js').then(n => n.c);return { initCausalComparison }},true              ?__vite__mapDeps([4,0,1]):void 0);
+  const { initCausalPage: init } = await __vitePreload(async () => { const { initCausalPage: init } = await import('./assets/causal-kLKA98Fu.js').then(n => n.a);return { initCausalPage: init }},true              ?__vite__mapDeps([4,0,1]):void 0);
+  const { initCausalComparison } = await __vitePreload(async () => { const { initCausalComparison } = await import('./assets/causal-kLKA98Fu.js').then(n => n.c);return { initCausalComparison }},true              ?__vite__mapDeps([4,0,1]):void 0);
   init({
     getMetadata: () => appStateComposite.metadata,
     chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
@@ -4779,7 +4779,7 @@ function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
   if (overlay) overlay.hidden = !loading;
 }
 async function fetchAndRenderAnalytics() {
-  const { fetchAnomalies: fetchAnomalies2 } = await __vitePreload(async () => { const { fetchAnomalies: fetchAnomalies2 } = await import('./assets/frequency-DMq4pW7n.js').then(n => n.aN);return { fetchAnomalies: fetchAnomalies2 }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { fetchAnomalies: fetchAnomalies2 } = await __vitePreload(async () => { const { fetchAnomalies: fetchAnomalies2 } = await import('./assets/frequency-fNc7OkYg.js').then(n => n.aN);return { fetchAnomalies: fetchAnomalies2 }},true              ?__vite__mapDeps([0,1]):void 0);
   await fetchAnomalyRegions(fetchAnomalies2);
 }
 let fetchMetadata = null;
@@ -4788,8 +4788,8 @@ let DataChartCtor = null;
 async function ensureChartModules() {
   if (fetchMetadata && fetchData && DataChartCtor) return;
   const [dataClient, chartModule] = await Promise.all([
-    __vitePreload(() => import('./assets/frequency-DMq4pW7n.js').then(n => n.aN),true              ?__vite__mapDeps([0,1]):void 0),
-    __vitePreload(() => import('./assets/DataChart-DLVcTNyS.js'),true              ?__vite__mapDeps([5,1,0]):void 0)
+    __vitePreload(() => import('./assets/frequency-fNc7OkYg.js').then(n => n.aN),true              ?__vite__mapDeps([0,1]):void 0),
+    __vitePreload(() => import('./assets/DataChart-CUsQqWXa.js'),true              ?__vite__mapDeps([5,1,0]):void 0)
   ]);
   fetchMetadata = dataClient.fetchMetadata;
   fetchData = dataClient.fetchData;
