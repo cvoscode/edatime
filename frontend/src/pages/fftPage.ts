@@ -6,6 +6,7 @@ import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanv
 import { toast } from '../utils/toast.js';
 import { getAnalyticsChipColor, getNumericColumns } from './analyticsPageUtils.js';
 import { setSpectralFilterPreview } from '../store/index.js';
+import { SeriesChip } from '../components/molecules/SeriesChip.js';
 
 interface FftPageDeps {
     renderTimeseries: () => void;
@@ -93,20 +94,61 @@ function renderChips(): void {
         const color = fftColorFor(column, index);
         let chip = existing.get(column);
         if (!chip) {
-            chip = document.createElement('div');
-            chip.className = 'series-chip fft-trace-chip';
-            chip.setAttribute('role', 'button');
-            chip.tabIndex = 0;
-            chip.dataset.col = column;
-            chip.addEventListener('click', async (event) => {
-                if (chip?.classList.contains('loading')) return;
-                const currentColumn = chip?.dataset.col || '';
-                if ((event.target as HTMLElement)?.closest?.('.chip-color-picker')) return;
-                if ((event.target as HTMLElement)?.closest?.('.chip-menu-btn')) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    if (!fftTraces.some((trace) => trace.column === currentColumn)) return;
-                    fftTraces = fftTraces.filter((trace) => trace.column !== currentColumn);
+            chip = SeriesChip({
+                column,
+                checked: isActive,
+                color,
+                label: column,
+                menuLabel: isActive ? `Remove ${column} FFT trace` : `FFT options for ${column}`,
+                title: isActive ? `Remove ${column} FFT trace` : `FFT options for ${column}`,
+                onToggle: async (checked) => {
+                    if (chip?.classList.contains('loading')) return;
+                    if (checked) {
+                        if (fftTraces.some((trace) => trace.column === column)) return;
+                        const activeChip = chip;
+                        if (!activeChip) return;
+                        activeChip.classList.add('loading');
+                        activeChip.classList.add('fft-trace-chip');
+                        activeChip.setAttribute('aria-disabled', 'true');
+                        const loadingEl = document.getElementById('fft-chart-loading');
+                        if (loadingEl) loadingEl.hidden = false;
+                        if (statusEl) statusEl.textContent = `Computing FFT for ${column}…`;
+                        try {
+                            await fetchAndAddTrace(column);
+                            renderChips();
+                            rerenderOrClear();
+                            const bins = fftTraces.find((trace) => trace.column === column)?.frequencies.length ?? 0;
+                            if (statusEl) statusEl.textContent = `${fftTraces.map((trace) => trace.column).join(', ')} · ${bins} bins`;
+                        } catch (error: any) {
+                            if (statusEl) statusEl.textContent = `FFT failed for ${column}: ${error?.message || 'error'}`;
+                        } finally {
+                            activeChip.classList.remove('loading');
+                            activeChip.removeAttribute('aria-disabled');
+                            if (loadingEl) loadingEl.hidden = true;
+                        }
+                    } else {
+                        fftTraces = fftTraces.filter((trace) => trace.column !== column);
+                        renderChips();
+                        rerenderOrClear();
+                        if (statusEl) {
+                            statusEl.textContent = fftTraces.length
+                                ? fftTraces.map((trace) => trace.column).join(', ')
+                                : 'Select a column chip to compute its FFT.';
+                        }
+                    }
+                },
+                onColorInput: (nextColor) => {
+                    fftTraceColors[column] = nextColor;
+                    chip?.style.setProperty('--chip-accent', nextColor);
+                    const trace = fftTraces.find((item) => item.column === column);
+                    if (trace) {
+                        trace.color = nextColor;
+                        rerenderOrClear();
+                    }
+                },
+                onMenuClick: () => {
+                    if (!fftTraces.some((trace) => trace.column === column)) return;
+                    fftTraces = fftTraces.filter((trace) => trace.column !== column);
                     renderChips();
                     rerenderOrClear();
                     if (statusEl) {
@@ -114,61 +156,28 @@ function renderChips(): void {
                             ? fftTraces.map((trace) => trace.column).join(', ')
                             : 'Select a column chip to compute its FFT.';
                     }
-                    return;
-                }
-                if (!currentColumn || fftTraces.some((trace) => trace.column === currentColumn)) return;
-                const activeChip = chip;
-                if (!activeChip) return;
-                activeChip.classList.add('loading');
-                activeChip.setAttribute('aria-disabled', 'true');
-                const loadingEl = document.getElementById('fft-chart-loading');
-                if (loadingEl) loadingEl.hidden = false;
-                if (statusEl) statusEl.textContent = `Computing FFT for ${currentColumn}…`;
-                try {
-                    await fetchAndAddTrace(currentColumn);
-                    renderChips();
-                    rerenderOrClear();
-                    const bins = fftTraces.find((trace) => trace.column === currentColumn)?.frequencies.length ?? 0;
-                    if (statusEl) statusEl.textContent = `${fftTraces.map((trace) => trace.column).join(', ')} · ${bins} bins`;
-                } catch (error: any) {
-                    if (statusEl) statusEl.textContent = `FFT failed for ${currentColumn}: ${error?.message || 'error'}`;
-                } finally {
-                    activeChip.classList.remove('loading');
-                    activeChip.removeAttribute('aria-disabled');
-                    if (loadingEl) loadingEl.hidden = true;
-                }
+                },
             });
+            (chip as HTMLElement).classList.add('fft-trace-chip');
+            (chip as HTMLElement).setAttribute('role', 'button');
+            (chip as HTMLElement).tabIndex = 0;
+            (chip as HTMLElement).dataset.col = column;
             chip.addEventListener('keydown', (event) => {
                 if (event.key !== 'Enter' && event.key !== ' ') return;
                 event.preventDefault();
-                chip?.click();
+                const checkbox = chip.querySelector('input[type="checkbox"]') as HTMLInputElement;
+                checkbox.checked = !checkbox.checked;
+                checkbox.dispatchEvent(new Event('change'));
             });
             bar.insertBefore(chip, zoomButton || null);
         }
 
         chip.className = `series-chip fft-trace-chip${isActive ? ' active' : ''}`;
         chip.style.setProperty('--chip-accent', color);
-        chip.innerHTML = `<input type="color" class="chip-color-picker fft-chip-color-picker" value="${color}" aria-label="Set ${column} FFT color" title="Set ${column} FFT color">`
-            + `<span class="chip-label">${column}</span>`
-            + `<button class="chip-menu-btn" type="button" aria-label="${isActive ? `Remove ${column} FFT trace` : `FFT options for ${column}`}" title="${isActive ? `Remove ${column} FFT trace` : `FFT options for ${column}`}">`
-            + '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>'
-            + '</button>';
-
-        const colorInput = chip.querySelector('.chip-color-picker') as HTMLInputElement | null;
-        if (colorInput) {
-            for (const eventName of ['pointerdown', 'mousedown', 'click', 'dblclick'] as const) {
-                colorInput.addEventListener(eventName, (event) => event.stopPropagation());
-            }
-            colorInput.addEventListener('input', (event) => {
-                const nextColor = (event.target as HTMLInputElement).value;
-                fftTraceColors[column] = nextColor;
-                chip?.style.setProperty('--chip-accent', nextColor);
-                const trace = fftTraces.find((item) => item.column === column);
-                if (trace) {
-                    trace.color = nextColor;
-                    rerenderOrClear();
-                }
-            });
+        const menuBtn = chip.querySelector('.chip-menu-btn');
+        if (menuBtn) {
+            menuBtn.setAttribute('aria-label', isActive ? `Remove ${column} FFT trace` : `FFT options for ${column}`);
+            menuBtn.title = isActive ? `Remove ${column} FFT trace` : `FFT options for ${column}`;
         }
     }
 
