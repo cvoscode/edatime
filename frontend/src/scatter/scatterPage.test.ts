@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { createScatterEntrypoint } from '../features/scatter/entrypoint.js';
 
 const createChartMock = vi.fn();
 const fetchScatterCorrelationsMock = vi.fn();
