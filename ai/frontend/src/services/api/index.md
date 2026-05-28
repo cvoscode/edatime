@@ -10,6 +10,7 @@
 
 ### Scatter
 - `fetchScatterPoints(x, y, limit?, color?, options?, signal?): Promise<ScatterPointsResponse>`
+  - Expects Arrow `x`, `y` columns; falls back to header-guided column resolution (`x-edatime-scatter-x`, `x-edatime-scatter-y`, `x-edatime-scatter-color`).
 - `fetchScatterCorrelations(base?, threshold?): Promise<ScatterCorrelationsResponse>`
 - `fetchCorrelationMatrix(): Promise<CorrelationMatrixResponse>`
 - `exportScatterParquet(payload): Promise<Blob>`

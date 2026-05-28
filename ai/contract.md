@@ -366,8 +366,11 @@ max_points: number (default: 16384)
 
 **Response (Arrow):**
 - Content-Type: `application/vnd.apache.arrow.stream`
-- Columns: `x`, `y`, `color_value` (numeric) or `color_label` (categorical)
+- Columns: `x`, `y`, `color_value` (numeric) or `color_label` (categorical) — standardized names
 - Headers:
+  - `x-edatime-scatter-x` — original x column name
+  - `x-edatime-scatter-y` — original y column name
+  - `x-edatime-scatter-color` — original color/timestamp column name (used as fallback for column resolution)
   - `x-edatime-scatter-total`
   - `x-edatime-scatter-returned`
   - `x-edatime-color-min`, `x-edatime-color-max`

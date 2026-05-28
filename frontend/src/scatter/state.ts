@@ -123,10 +123,15 @@ export function buildScatterQueryContext(
 ): ScatterQueryContext {
     const start = Number(appState.currentStart);
     const end = Number(appState.currentEnd);
+    const hasTimeColumn = !!String(appState.metadata?.time_column || '').trim();
     const allFilters = collectColumnRangeFilters();
     const filters = scopeFiltersToColumns(allFilters, [columns.x || '', columns.y || '', columns.colorColumn || '']);
 
-    const linkedRangeValid = isLinkedBrushEnabled() && Number.isFinite(start) && Number.isFinite(end) && start < end;
+    const linkedRangeValid = hasTimeColumn
+        && isLinkedBrushEnabled()
+        && Number.isFinite(start)
+        && Number.isFinite(end)
+        && start < end;
     return {
         start: linkedRangeValid ? start : undefined,
         end: linkedRangeValid ? end : undefined,

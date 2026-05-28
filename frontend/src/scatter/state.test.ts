@@ -8,6 +8,7 @@ describe('scatter query context builders', () => {
         appState.currentStart = null;
         appState.currentEnd = null;
         appState.columnRanges = {};
+        appState.metadata = null;
     });
 
     it('returns undefined start/end for invalid linked ranges in scatter queries', () => {
@@ -24,10 +25,36 @@ describe('scatter query context builders', () => {
         document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
         appState.currentStart = 100;
         appState.currentEnd = 200;
+        appState.metadata = {
+            total_rows: 3,
+            columns: [],
+            numeric_columns: [],
+            time_column: 'timestamp',
+            time_range: { min: 0, max: 200 },
+            column_profiles: [],
+        };
 
         const result = buildScatterQueryContext();
         expect(result.start).toBe(100);
         expect(result.end).toBe(200);
+    });
+
+    it('does not include linked time ranges when the dataset has no time column', () => {
+        document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
+        appState.currentStart = 100;
+        appState.currentEnd = 200;
+        appState.metadata = {
+            total_rows: 3,
+            columns: [],
+            numeric_columns: [],
+            time_column: null,
+            time_range: null,
+            column_profiles: [],
+        };
+
+        const result = buildScatterQueryContext();
+        expect(result.start).toBeUndefined();
+        expect(result.end).toBeUndefined();
     });
 
     it('scopes column-range filters to active scatter columns', () => {

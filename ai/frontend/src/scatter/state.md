@@ -1,6 +1,5 @@
 # state.ts
-
-Scatter plot state management: controls readers, query builders, view utilities, and state re-exports.
+> Scatter plot state management: controls readers, query builders, view utilities, and state re-exports.
 
 ## Interfaces
 
@@ -44,6 +43,7 @@ type MatrixCellData = { totalPoints: number; points: [number, number][]; colorVa
 function currentControls(): ScatterControls
 function isLinkedBrushEnabled(): boolean
 function buildScatterQueryContext(columns?: { x?: string; y?: string; colorColumn?: string }): ScatterQueryContext
+  - Builds query context filtering linked time range only when metadata time_column is present.
 function getActiveScatterFilterColumns(columns?: { x?: string; y?: string; colorColumn?: string }): string[]
 function buildRenderSignature(controls: ScatterControls): string
 function buildOverviewContextKey(context: Partial<ScatterQueryContext>): string

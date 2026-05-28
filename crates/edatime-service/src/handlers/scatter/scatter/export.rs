@@ -26,6 +26,12 @@ pub async fn post_scatter_export_parquet(
     let size = params.size.clone().filter(|s| !s.trim().is_empty());
     let filters = parse_scatter_filters(params.filters.as_deref())?;
     let line_filters = parse_scatter_line_filters(params.line_filters.as_deref())?;
+    let requires_time_column = params.start.zip(params.end).is_some() || !line_filters.is_empty();
+    let time_column = if requires_time_column {
+        Some(state.ts_context(&lf)?.ts_col)
+    } else {
+        None
+    };
 
     let lazy_frame = collect_filtered_scatter_frame(
         lf,
@@ -33,6 +39,7 @@ pub async fn post_scatter_export_parquet(
         &y,
         color.as_deref(),
         size.as_deref(),
+        time_column.as_deref(),
         params.start,
         params.end,
         &filters,

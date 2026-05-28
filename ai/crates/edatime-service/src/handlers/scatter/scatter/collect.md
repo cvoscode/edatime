@@ -8,5 +8,5 @@
   - Converts column to String labels for categorical coloring.
 - `pub fn collect_xy_pairs(df: &DataFrame, x: &str, y: &str) -> Result<Vec<[f64; 2]>, AppError>`
   - Collects x/y pairs filtering out non-finite values.
-- `pub fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(df: I, x: &str, y: &str, color: Option<&str>, size: Option<&str>, start: Option<f64>, end: Option<f64>, filters: &[ScatterFilterSpec], line_filters: &[ScatterLineFilterSpec]) -> Result<LazyFrame, AppError>`
-  - Core LazyFrame filter + project for scatter.
+- `pub fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(df: I, x: &str, y: &str, color: Option<&str>, size: Option<&str>, time_column: Option<&str>, start: Option<f64>, end: Option<f64>, filters: &[ScatterFilterSpec], line_filters: &[ScatterLineFilterSpec]) -> Result<LazyFrame, AppError>`
+  - Core LazyFrame filter + project for scatter. Accepts `time_column` for time-based filtering.

@@ -340,20 +340,23 @@ export async function fetchScatterPoints(
         const tableFromIPC = await ensureArrowParser();
         const table = tableFromIPC(buffer);
 
-        const xCol = table.getChild('x');
-        const yCol = table.getChild('y');
-        const colorCol = table.getChild('color_value') ?? table.getChild('color_label');
+        const xHeader = res.headers.get('x-edatime-scatter-x');
+        const yHeader = res.headers.get('x-edatime-scatter-y');
+        const colorHeader = res.headers.get('x-edatime-scatter-color');
+        const xCol = table.getChild('x') ?? (xHeader ? table.getChild(xHeader) : null);
+        const yCol = table.getChild('y') ?? (yHeader ? table.getChild(yHeader) : null);
+        const colorValueCol = table.getChild('color_value') ?? (colorHeader ? table.getChild(colorHeader) : null);
+        const colorLabelCol = table.getChild('color_label');
 
         const n = table.numRows;
         const points: [number, number][] = new Array(n);
-        const color_values: number[] | null = colorCol && table.getChild('color_value') ? [] : null;
-        const color_labels: (string | null)[] | null =
-            table.getChild('color_label') ? [] : null;
+        const color_values: number[] | null = colorValueCol ? [] : null;
+        const color_labels: (string | null)[] | null = colorLabelCol ? [] : null;
 
         for (let i = 0; i < n; i++) {
             points[i] = [xCol?.get(i) as number, yCol?.get(i) as number];
-            if (color_values) color_values.push((colorCol as ArrowColumn).get(i) as number);
-            if (color_labels) color_labels.push((colorCol as ArrowColumn).get(i) as string | null);
+            if (color_values) color_values.push((colorValueCol as ArrowColumn).get(i) as number);
+            if (color_labels) color_labels.push((colorLabelCol as ArrowColumn).get(i) as string | null);
         }
 
         const total = Number(res.headers.get('x-edatime-scatter-total') ?? n);

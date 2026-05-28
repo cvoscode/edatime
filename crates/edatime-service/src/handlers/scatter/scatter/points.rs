@@ -69,6 +69,12 @@ async fn scatter_points_response(
     let end = params.end;
     let filters = parse_scatter_filters(params.filters.as_deref())?;
     let line_filters = parse_scatter_line_filters(params.line_filters.as_deref())?;
+    let requires_time_column = start.zip(end).is_some() || !line_filters.is_empty();
+    let time_column = if requires_time_column {
+        Some(state.ts_context(&lf)?.ts_col)
+    } else {
+        None
+    };
     let limit = clamp_limit(params.limit, &state.config.validation);
     validate_scatter_limit(limit, &state.config.validation)?;
     if let (Some(start_ms), Some(end_ms)) = (start, end) {
@@ -84,18 +90,13 @@ async fn scatter_points_response(
     }
     let metrics = Arc::clone(&state.metrics);
 
-    let color_col_name = color_col_for_headers
-        .clone()
-        .unwrap_or_else(|| "color_value".to_string());
-    let x_col_name = x_col_for_headers.clone();
-    let y_col_name = y_col_for_headers.clone();
-
     let lazy_frame = collect_filtered_scatter_frame(
         lf,
         &x_col,
         &y_col,
         color_col.as_deref(),
         size_col.as_deref(),
+        time_column.as_deref(),
         start,
         end,
         &filters,
@@ -112,8 +113,6 @@ async fn scatter_points_response(
         color_kind,
         arrow_bytes,
     ) = tokio::task::spawn_blocking(move || {
-        let x_col_str: &str = &x_col_name;
-        let y_col_str: &str = &y_col_name;
         let filtered_df = lazy_frame
             .clone()
             .with_new_streaming(true)
@@ -184,18 +183,14 @@ async fn scatter_points_response(
         let size_min = if smin.is_finite() { Some(smin) } else { None };
         let size_max = if smax.is_finite() { Some(smax) } else { None };
 
-        let x_s = Series::new(PlSmallStr::from(x_col_str), x_buf.as_slice());
-        let y_s = Series::new(PlSmallStr::from(y_col_str), y_buf.as_slice());
+        let x_s = Series::new(PlSmallStr::from("x"), x_buf.as_slice());
+        let y_s = Series::new(PlSmallStr::from("y"), y_buf.as_slice());
 
-        let actual_color_col = color_col_name.clone();
         let columns: Vec<Series> = if matches!(color_kind, Some(ScatterColorKind::Categorical)) {
-            let cs = Series::new(
-                PlSmallStr::from(&actual_color_col),
-                color_strings.as_slice(),
-            );
+            let cs = Series::new(PlSmallStr::from("color_label"), color_strings.as_slice());
             vec![x_s, y_s, cs]
         } else {
-            let cv_s = Series::new(PlSmallStr::from(&actual_color_col), cv_buf.as_slice());
+            let cv_s = Series::new(PlSmallStr::from("color_value"), cv_buf.as_slice());
             vec![x_s, y_s, cv_s]
         };
 
@@ -285,4 +280,44 @@ async fn scatter_points_response(
         response.headers_mut().insert("x-edatime-scatter-size", sv);
     }
     Ok(response)
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
+mod tests {
+    use super::post_scatter_points;
+    use crate::handlers::scatter::scatter::ScatterPointsQuery;
+    use axum::{Json, extract::State};
+    use edatime_core::config::AppConfig;
+    use edatime_store::state::AppState;
+    use polars::prelude::{DataFrame, NamedFrom, Series};
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn scatter_points_allow_color_column_matching_axis() {
+        let df = DataFrame::new(
+            3,
+            vec![
+                Series::new("LULL".into(), [1.0_f64, 2.0, 3.0]).into(),
+                Series::new("HULL".into(), [10.0_f64, 20.0, 30.0]).into(),
+            ],
+        )
+        .expect("test dataframe should build");
+        let state = AppState::new(df, AppConfig::default());
+        let params = ScatterPointsQuery {
+            x: "LULL".to_string(),
+            y: "HULL".to_string(),
+            color: Some("LULL".to_string()),
+            size: None,
+            start: None,
+            end: None,
+            filters: None,
+            line_filters: None,
+            limit: 10,
+            format: None,
+        };
+
+        let result = post_scatter_points(State(state), Json(params)).await;
+
+        assert!(result.is_ok(), "scatter points request should succeed: {result:?}");
+    }
 }

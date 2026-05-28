@@ -7,3 +7,5 @@
 
 ## Internal
 - `async fn scatter_points_response(state: AppState, params: ScatterPointsQuery) -> Result<Response, AppError>`
+  - Returns Arrow IPC with standardized column names (`x`, `y`, `color_value`, `color_label`) and metadata headers (`x-edatime-scatter-x`, `x-edatime-scatter-y`, `x-edatime-scatter-color`).
+  - Uses configurable time column from `state.ts_context()` when time filtering is needed.

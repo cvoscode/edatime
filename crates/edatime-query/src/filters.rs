@@ -91,6 +91,7 @@ fn temporal_ms_expr(column: &str, dtype: &DataType) -> Expr {
 
 pub fn apply_filters<I: Into<LazyFrame>>(
     df: I,
+    time_column: Option<&str>,
     start_ms: Option<f64>,
     end_ms: Option<f64>,
     range_filters: &[RangeFilter],
@@ -99,17 +100,21 @@ pub fn apply_filters<I: Into<LazyFrame>>(
     let mut lf: LazyFrame = df.into();
 
     if let (Some(start), Some(end)) = (start_ms, end_ms) {
+        let time_column = time_column
+            .map(str::trim)
+            .filter(|column| !column.is_empty())
+            .ok_or_else(|| AppError::bad_request("Missing time column for time filter".to_string()))?;
         let schema = lf.clone().collect_schema().map_err(|e| {
             AppError::bad_request(format!("Failed to get schema for time filter: {}", e))
         })?;
-        let ts_dtype = schema.get("ts").ok_or_else(|| {
-            AppError::bad_request("Missing ts column for time filter".to_string())
+        let ts_dtype = schema.get(time_column).ok_or_else(|| {
+            AppError::bad_request(format!("Missing time column '{}' for time filter", time_column))
         })?;
         let start_native = temporal::epoch_ms_to_native(start.min(end), ts_dtype, false)?;
         let end_native = temporal::epoch_ms_to_native(start.max(end), ts_dtype, true)?;
         lf = lf
-            .filter(col("ts").cast(DataType::Int64).gt_eq(lit(start_native)))
-            .filter(col("ts").cast(DataType::Int64).lt_eq(lit(end_native)));
+            .filter(col(time_column).cast(DataType::Int64).gt_eq(lit(start_native)))
+            .filter(col(time_column).cast(DataType::Int64).lt_eq(lit(end_native)));
     }
 
     for filter in range_filters {
@@ -141,13 +146,20 @@ pub fn apply_filters<I: Into<LazyFrame>>(
     }
 
     if !line_filters.is_empty() {
+        let time_column = time_column
+            .map(str::trim)
+            .filter(|column| !column.is_empty())
+            .ok_or_else(|| AppError::bad_request("Missing time column for adaptive filter".to_string()))?;
         let schema = lf.clone().collect_schema().map_err(|e| {
             AppError::bad_request(format!("Failed to get schema for line filter: {}", e))
         })?;
-        let ts_dtype = schema.get("ts").ok_or_else(|| {
-            AppError::bad_request("Missing ts column for adaptive filter".to_string())
+        let ts_dtype = schema.get(time_column).ok_or_else(|| {
+            AppError::bad_request(format!(
+                "Missing time column '{}' for adaptive filter",
+                time_column
+            ))
         })?;
-        let ts_expr = temporal_ms_expr("ts", ts_dtype);
+        let ts_expr = temporal_ms_expr(time_column, ts_dtype);
 
         for filter in line_filters {
             let column = filter.column.trim();

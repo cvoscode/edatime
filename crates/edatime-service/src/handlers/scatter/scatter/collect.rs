@@ -114,6 +114,7 @@ pub fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
     y: &str,
     color: Option<&str>,
     size: Option<&str>,
+    time_column: Option<&str>,
     start: Option<f64>,
     end: Option<f64>,
     filters: &[ScatterFilterSpec],
@@ -154,7 +155,7 @@ pub fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
         return Err(AppError::bad_request(format!("Unknown column '{}'", s)));
     }
 
-    let lf = apply_scatter_filters(lf, start, end, filters, line_filters)?;
+    let lf = apply_scatter_filters(lf, time_column, start, end, filters, line_filters)?;
 
     let mut selected_columns = Vec::with_capacity(4);
     for name in [Some(x), Some(y), color, size].into_iter().flatten() {
@@ -166,4 +167,54 @@ pub fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
     let select_exprs = selected_columns.into_iter().map(col).collect::<Vec<_>>();
 
     Ok(lf.select(select_exprs))
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
+mod tests {
+    use super::collect_filtered_scatter_frame;
+    use crate::error::AppError;
+    use polars::prelude::{DataFrame, DataType, IntoColumn, IntoLazy, NamedFrom, Series, TimeUnit};
+
+    fn build_scatter_df() -> Result<DataFrame, AppError> {
+        let timestamp = Series::new("timestamp".into(), [1_000_i64, 2_000, 3_000])
+            .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+            .expect("timestamp cast should succeed in test");
+        let x = Series::new("x".into(), [10.0_f64, 20.0, 30.0]);
+        let y = Series::new("y".into(), [100.0_f64, 200.0, 300.0]);
+        DataFrame::new(
+            3,
+            vec![timestamp.into_column(), x.into_column(), y.into_column()],
+        )
+        .map_err(|e| AppError::internal(format!("test dataframe build failed: {}", e)))
+    }
+
+    #[test]
+    fn scatter_filters_support_custom_time_column_names() {
+        let df = build_scatter_df().expect("test dataframe should build");
+
+        let filtered = collect_filtered_scatter_frame(
+            df.lazy(),
+            "x",
+            "y",
+            None,
+            None,
+            Some("timestamp"),
+            Some(1_500.0),
+            Some(2_500.0),
+            &[],
+            &[],
+        )
+        .expect("scatter filtering should accept non-ts time columns")
+        .collect()
+        .expect("collect should succeed");
+
+        assert_eq!(filtered.height(), 1);
+        let x_values = filtered
+            .column("x")
+            .expect("x column should exist")
+            .f64()
+            .expect("x column should be f64");
+        assert_eq!(x_values.get(0), Some(20.0));
+    }
 }

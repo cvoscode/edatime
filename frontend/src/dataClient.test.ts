@@ -6,6 +6,17 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+const arrowMockState = vi.hoisted(() => ({
+    fields: [
+        { name: 'event_time', type: 'Int64' },
+        { name: 'value', type: 'Float64' },
+    ] as Array<{ name: string; type: string }>,
+    rows: {
+        event_time: [1704067200000, 1704153600000, 1704240000000],
+        value: [1.0, 2.0, 3.0],
+    } as Record<string, unknown[]>,
+}));
+
 // We need to mock fetch and the arrow import before importing the module
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -21,11 +32,11 @@ vi.mock('apache-arrow', () => ({
     tableFromIPC: (buffer: ArrayBuffer) => {
         // Return a mock table with controllable columns
         return {
-            schema: { fields: [{ name: 'event_time', type: 'Int64' }, { name: 'value', type: 'Float64' }] },
-            numRows: 3,
+            schema: { fields: arrowMockState.fields },
+            numRows: Math.max(0, ...Object.values(arrowMockState.rows).map((values) => values.length)),
             getChild(name: string) {
-                if (name === 'event_time') return { get: (i: number) => [1704067200000, 1704153600000, 1704240000000][i] };
-                if (name === 'value') return { get: (i: number) => [1.0, 2.0, 3.0][i] };
+                const values = arrowMockState.rows[name];
+                if (values) return { get: (i: number) => values[i] };
                 return null;
             },
         };
@@ -35,6 +46,14 @@ vi.mock('apache-arrow', () => ({
 describe('dataClient fetch helpers', () => {
     beforeEach(() => {
         mockFetch.mockReset();
+        arrowMockState.fields = [
+            { name: 'event_time', type: 'Int64' },
+            { name: 'value', type: 'Float64' },
+        ];
+        arrowMockState.rows = {
+            event_time: [1704067200000, 1704153600000, 1704240000000],
+            value: [1.0, 2.0, 3.0],
+        };
     });
 
     afterEach(() => {
@@ -239,6 +258,41 @@ describe('dataClient fetch helpers', () => {
                 expect.stringContaining('/api/scatter/points'),
                 expect.objectContaining({ method: 'POST' }),
             );
+        });
+
+        it('reads scatter Arrow responses using the declared axis columns', async () => {
+            const { fetchScatterPoints } = await import('./dataClient');
+
+            arrowMockState.fields = [
+                { name: 'LULL', type: 'Float64' },
+                { name: 'HULL', type: 'Float64' },
+                { name: 'color_value', type: 'Float64' },
+            ];
+            arrowMockState.rows = {
+                LULL: [1.5, 2.5],
+                HULL: [10.0, 20.0],
+                color_value: [0.1, 0.9],
+            };
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([
+                    ['Content-Type', 'application/vnd.apache.arrow.stream'],
+                    ['x-edatime-scatter-x', 'LULL'],
+                    ['x-edatime-scatter-y', 'HULL'],
+                    ['x-edatime-scatter-total', '70000'],
+                    ['x-edatime-scatter-returned', '2'],
+                    ['x-edatime-color-min', '0.1'],
+                    ['x-edatime-color-max', '0.9'],
+                ]),
+                arrayBuffer: () => Promise.resolve(new ArrayBuffer(128)),
+            });
+
+            const result = await fetchScatterPoints('LULL', 'HULL', 5000, 'MUFL');
+
+            expect(result.points).toEqual([[1.5, 10.0], [2.5, 20.0]]);
+            expect(result.total_points).toBe(70000);
+            expect(result.color_values).toEqual([0.1, 0.9]);
         });
     });
 });
