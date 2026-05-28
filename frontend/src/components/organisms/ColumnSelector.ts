@@ -27,7 +27,7 @@ export function ColumnSelector(props: ColumnSelectorProps): HTMLDivElement {
             color: props.colors[column] ?? '#00d4ff',
             onToggle: (checked) => props.onToggle?.(column, checked),
             onColorInput: (color) => props.onColorInput?.(column, color),
-            onMenu: () => props.onOpenRange?.(column),
+            onMenuClick: () => props.onOpenRange?.(column),
         }));
     }
     return root;

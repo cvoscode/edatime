@@ -4,7 +4,6 @@
 
 import { formatAnalysisNumber } from '../../utils/format.js';
 import { computeBounds } from '../../services/timeseries/filtering.js';
-import { escapeHtml } from '../../utils/dom.js';
 import {
     appStateComposite as appState,
     getSeriesColor,
@@ -15,6 +14,7 @@ import {
     setSelectedCols,
     setSeriesColor,
 } from '../../store/index.js';
+import { SeriesChip } from '../../components/molecules/SeriesChip.js';
 
 let _seriesCollapsed = false;
 
@@ -193,29 +193,47 @@ export function buildColumnToggles(
     }
 
     visibleCols.forEach((col) => {
-        const safeKey = col.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         const colIdx = appState.numericCols.indexOf(col);
         const color = getSeriesColor(col, colIdx >= 0 ? colIdx : 0);
         const isActive = appState.selectedCols.includes(col);
         const isAdaptiveTarget = isActive && appState.adaptiveFilterColumn === col;
 
-        const chip = document.createElement('label');
-        chip.className =
-            'series-chip' +
-            (isActive ? ' active' : '') +
-            (isAdaptiveTarget ? ' adaptive-target' : '');
-        chip.style.setProperty('--chip-accent', color);
-        chip.title = isAdaptiveTarget
+        const chipTitle = isAdaptiveTarget
             ? `Adaptive filter target: ${col}`
             : `Ctrl+click to target adaptive filters to ${col}`;
-        chip.innerHTML = `
-            <input type="checkbox" id="series-toggle-${safeKey}" name="series-toggle-${safeKey}" aria-label="Toggle ${escapeHtml(col)} series" ${isActive ? 'checked' : ''} value="${escapeHtml(col)}">
-            <input type="color" class="chip-color-picker" id="series-color-${safeKey}" name="series-color-${safeKey}" value="${escapeHtml(color)}" aria-label="Set ${escapeHtml(col)} color" title="Set ${escapeHtml(col)} color">
-      <span class="chip-label">${escapeHtml(col)}</span>
-            <button class="chip-menu-btn" type="button" aria-label="Filter range for ${escapeHtml(col)}" title="Filter range for ${escapeHtml(col)}">
-              <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>
-            </button>
-    `;
+
+        const chip = SeriesChip({
+            column: col,
+            checked: isActive,
+            color,
+            adaptiveTarget: isAdaptiveTarget,
+            title: chipTitle,
+            onToggle: (checked) => {
+                if (checked) {
+                    if (!appState.selectedCols.includes(col)) setSelectedCols([...appState.selectedCols, col]);
+                } else {
+                    setSelectedCols(appState.selectedCols.filter((c) => c !== col));
+                }
+                if (!appState.selectedCols.includes(appState.adaptiveFilterColumn!)) {
+                    setAdaptiveFilterColumn(appState.selectedCols[0] || null);
+                }
+                buildMetaBar(appState.metadata);
+                buildRangeControlsFn();
+                (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
+                fetchAndRender();
+            },
+            onColorInput: (nextColor) => {
+                const updated = setSeriesColor(col, nextColor);
+                if (!updated) return;
+                chip.style.setProperty('--chip-accent', updated);
+                renderCurrentDataFn?.();
+            },
+            onMenuClick: () => {
+                const open = window.__edatime?.openFilterForCol;
+                if (typeof open === 'function') open(col);
+            },
+            menuLabel: `Filter range for ${col}`,
+        });
 
         chip.addEventListener(
             'click',
@@ -239,49 +257,6 @@ export function buildColumnToggles(
             },
             true,
         );
-
-        const checkbox = chip.querySelector('input[type="checkbox"]') as HTMLInputElement;
-        checkbox.addEventListener('change', () => {
-            if (checkbox.checked) {
-                if (!appState.selectedCols.includes(col)) setSelectedCols([...appState.selectedCols, col]);
-                chip.classList.add('active');
-            } else {
-                setSelectedCols(appState.selectedCols.filter((c) => c !== col));
-                chip.classList.remove('active');
-            }
-            if (!appState.selectedCols.includes(appState.adaptiveFilterColumn!)) {
-                setAdaptiveFilterColumn(appState.selectedCols[0] || null);
-            }
-            buildMetaBar(appState.metadata);
-            buildRangeControlsFn();
-            (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
-            fetchAndRender();
-        });
-
-        const colorInput = chip.querySelector('.chip-color-picker') as HTMLInputElement;
-        for (const eventName of ['pointerdown', 'mousedown', 'click', 'dblclick'] as const) {
-            colorInput.addEventListener(eventName, (event) => event.stopPropagation());
-        }
-        colorInput.addEventListener('input', (event) => {
-            const nextColor = setSeriesColor(col, (event.target as HTMLInputElement).value);
-            if (!nextColor) return;
-            chip.style.setProperty('--chip-accent', nextColor);
-            renderCurrentDataFn?.();
-        });
-
-        // Chip menu dropdown
-        const menuBtn = chip.querySelector('.chip-menu-btn') as HTMLButtonElement | null;
-        if (menuBtn) {
-            menuBtn.setAttribute('aria-label', `Filter range for ${col}`);
-            menuBtn.title = `Filter range for ${col}`;
-            menuBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                e.preventDefault();
-
-                const open = window.__edatime?.openFilterForCol;
-                if (typeof open === 'function') open(col);
-            });
-        }
 
         container.appendChild(chip);
     });
