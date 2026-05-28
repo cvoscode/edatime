@@ -51,13 +51,27 @@ import { initAnnotations } from './chart/annotations.js';
 import { setAnnotationOverlayCallback } from './ui/annotationPanel.js';
 import { setAnomalyOverlayCallback } from './bootstrap/analyticsOverlay.js';
 import { toast } from './utils/toast.js';
+import {
+    appendAdaptiveLineFilter,
+    setAdaptiveFilterColumn,
+    setAnalysisBound,
+    setChartInstance,
+    setDatasetRevision,
+    setInitialView,
+    setMetadata,
+    setNumericCols,
+    setPendingAdaptivePoint,
+    setRollingBands,
+    setSelectedCols,
+    setViewport,
+} from './store/index.js';
 
 const _appCleanups: Array<() => void> = [];
 
 function storeFetchedMetadata(metadata: DatasetMetadata): void {
-    appState.metadata = metadata;
+    setMetadata(metadata);
     const revision = metadata?.revision;
-    appState.datasetRevision = typeof revision === 'number' ? revision : 0;
+    setDatasetRevision(typeof revision === 'number' ? revision : 0);
 }
 
 /* ── UI Helpers ───────────────────────────────────────── */
@@ -73,7 +87,7 @@ export function setComputeLoading(btnId: string, overlayId: string, loading: boo
 /* ── Analytics overlay fetch ──────────────────────────── */
 
 async function fetchAndRenderAnalytics(): Promise<void> {
-    const { fetchAnomalies } = await import('./dataClient.js');
+    const { fetchAnomalies } = await import('./services/api/index.js');
     await fetchAnomalyRegions(fetchAnomalies);
 }
 
@@ -88,7 +102,7 @@ let DataChartCtor: (new (containerId: string, onZoomCb: ((start: number, end: nu
 async function ensureChartModules(): Promise<void> {
     if (fetchMetadata && fetchData && DataChartCtor) return;
     const [dataClient, chartModule] = await Promise.all([
-        import('./dataClient.js'),
+        import('./services/api/index.js'),
         import('./chart/DataChart.js'),
     ]);
     fetchMetadata = dataClient.fetchMetadata;
@@ -196,14 +210,15 @@ async function ensureTimeseriesReady(): Promise<void> {
 
             const lineType = getChartType('line');
             if (lineType) {
-                appState.chart = lineType.create('main-chart', {
+                setChartInstance(lineType.create('main-chart', {
                     onZoom: onZoomRangeChange,
                     onYRange: updateAnalysisYRange,
                     onZoomOut: () => zoomOut(fetchAndRender),
-                });
+                }));
             } else {
                 if (!DataChartCtor) throw new Error('DataChart module not loaded');
-                appState.chart = new DataChartCtor('main-chart', onZoomRangeChange, updateAnalysisYRange, () => zoomOut(fetchAndRender));
+                setChartInstance(new DataChartCtor('main-chart', onZoomRangeChange, updateAnalysisYRange, () => zoomOut(fetchAndRender)));
+
             }
 
             if (gpuError) throw new Error(gpuError);
@@ -213,14 +228,15 @@ async function ensureTimeseriesReady(): Promise<void> {
                 new Promise((_, reject) => setTimeout(() => reject(new Error('ChartGPU init timed out')), 6000)),
             ]);
 
-            appState.analysisBound = false;
+            setAnalysisBound(false);
             bindAnalysisChartEvents();
             initAdaptiveFilterGesture();
             refreshZoomControlsState();
             setAnnotationOverlayCallback(() => appState.chart?.requestOverlayRender?.());
             setAnomalyOverlayCallback(() => appState.chart?.requestOverlayRender?.());
-            appState.chart?.setXRange?.(appState.currentStart!, appState.currentEnd!);
-            appState.chart?.setChartText?.(
+            const chart = appState.chart as ChartInstance | null;
+            chart?.setXRange?.(appState.currentStart!, appState.currentEnd!);
+            chart?.setChartText?.(
                 appState.chartText?.title || '',
                 appState.chartText?.xLabel || '',
                 appState.chartText?.yLabel || '',
@@ -229,7 +245,7 @@ async function ensureTimeseriesReady(): Promise<void> {
             renderCurrentData();
 
             await timeseriesPage.fetchAndRender();
-            appState.initialView = getCurrentView();
+            setInitialView(getCurrentView());
             dbgGroup('initialView snapshot', () => dbg(appState.initialView));
 
             await restoreSessionAfterChartReady({
@@ -246,11 +262,12 @@ async function ensureTimeseriesReady(): Promise<void> {
             console.warn('Primary chart failed, switching to fallback:', e);
             try {
                 const fallbackType = getChartType('fallback');
-                appState.chart = fallbackType
+                setChartInstance(fallbackType
                     ? fallbackType.create('main-chart', {})
-                    : new FallbackChart('main-chart');
+                    : new FallbackChart('main-chart'));
+
                 await appState.chart!.init();
-                appState.analysisBound = false;
+                setAnalysisBound(false);
                 bindAnalysisChartEvents();
                 refreshZoomControlsState();
                 await timeseriesPage.fetchAndRender();
@@ -343,29 +360,29 @@ function initAdaptiveFilterGesture(): void {
     const cancelPending = () => {
         _firstPoint = null;
         _secondPoint = null;
-        appState.pendingAdaptivePoint = null;
+        setPendingAdaptivePoint(null);
         appState.chart?.requestOverlayRender?.();
     };
 
     const updateOverlay = () => {
-        if (!_firstPoint) { appState.pendingAdaptivePoint = null; return; }
+        if (!_firstPoint) { setPendingAdaptivePoint(null); return; }
         const col = appState.adaptiveFilterColumn ?? (appState.selectedCols?.[0] ?? '');
         if (_secondPoint) {
-            appState.pendingAdaptivePoint = {
+            setPendingAdaptivePoint({
                 column: col, x: _firstPoint.x, y: _firstPoint.y,
                 x2: _secondPoint.x, y2: _secondPoint.y,
-            };
+            });
         } else {
-            appState.pendingAdaptivePoint = { column: col, x: _firstPoint.x, y: _firstPoint.y };
+            setPendingAdaptivePoint({ column: col, x: _firstPoint.x, y: _firstPoint.y });
         }
         appState.chart?.requestOverlayRender?.();
     };
 
     const applyFilterForColumn = (column: string, p1: { x: number; y: number }, p2: { x: number; y: number }) => {
-        appState.adaptiveFilterColumn = column;
+        setAdaptiveFilterColumn(column);
         const filter = buildAdaptiveFilterFromPoints(column, p1, p2);
         if (!filter) return;
-        appState.adaptiveLineFilters = [...(appState.adaptiveLineFilters || []), filter];
+        appendAdaptiveLineFilter(filter);
         applyAdaptiveFiltersLocally();
         buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
     };
@@ -578,9 +595,10 @@ function initializeDatasetUi(metadata: DatasetMetadata): void {
 
     const timeRange = metadata.time_range;
     if (!timeRange) return;
-    appState.currentStart = Number(timeRange.min);
-    appState.currentEnd = Number(timeRange.max);
-    updateAnalysisZoom(appState.currentStart, appState.currentEnd, 'initial');
+    const start = Number(timeRange.min);
+    const end = Number(timeRange.max);
+    setViewport(start, end);
+    updateAnalysisZoom(start, end, 'initial');
     emitChartRangeChange('initial');
 }
 
@@ -603,11 +621,11 @@ async function ensureDatasetReady(_pageName = 'timeseries'): Promise<void> {
             return;
         }
 
-        appState.numericCols = getNumericColumns(metadata);
+        setNumericCols(getNumericColumns(metadata));
         if (!appState.selectedCols.length) {
-            appState.selectedCols = getDefaultTimeseriesColumns(metadata);
+            setSelectedCols(getDefaultTimeseriesColumns(metadata));
         }
-        appState.adaptiveFilterColumn = appState.selectedCols[0] || null;
+        setAdaptiveFilterColumn(appState.selectedCols[0] || null);
         sanitizeSelectedColumns();
 
         initializeDatasetUi(metadata);
@@ -624,10 +642,10 @@ async function refreshDatasetAfterMutation(options?: { selectedColumn?: string }
     if (!fetchMetadata) return;
     storeFetchedMetadata(await fetchMetadata());
     markMetadataReady();
-    appState.numericCols = getNumericColumns(appState.metadata);
+    setNumericCols(getNumericColumns(appState.metadata));
     const selectedColumn = options?.selectedColumn;
     if (selectedColumn && !appState.selectedCols.includes(selectedColumn)) {
-        appState.selectedCols.push(selectedColumn);
+        setSelectedCols([...appState.selectedCols, selectedColumn]);
     }
     sanitizeSelectedColumns();
     buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
@@ -653,9 +671,9 @@ async function init(): Promise<void> {
                     if (appState.rollingEnabled) {
                         const filtered = applyColumnRanges(appState.lastFetchedData);
                         const { computeFrontendRollingBands } = await import('./bootstrap/analyticsOverlay.js');
-                        appState.rollingBands = computeFrontendRollingBands(filtered as any, appState.selectedCols, (appState.rollingWindow as number | undefined) || 50);
+                        setRollingBands(computeFrontendRollingBands(filtered as any, appState.selectedCols, (appState.rollingWindow as number | undefined) || 50));
                     } else {
-                        appState.rollingBands = null;
+                        setRollingBands(null);
                     }
                     appState.chart?.requestOverlayRender?.();
                 }

@@ -7,6 +7,20 @@
  */
 
 import { appState } from '../state.js';
+import {
+    setAdaptiveLineFilters,
+    setAnomalyEnabled,
+    setAnomalyMethod,
+    setAnomalyThreshold,
+    setChartText,
+    setColumnRanges,
+    setRollingEnabled,
+    setRollingWindow,
+    setSelectedColorColumn,
+    setSelectedCols,
+    setSeriesColors,
+    setViewport,
+} from '../store/index.js';
 import { toast } from './toast.js';
 import { getHashPage } from './router.js';
 
@@ -123,19 +137,19 @@ export function applySession(
     const revisionMismatch = hasRevisions && currentRevision !== snapshotRevision;
     result.revisionMismatch = revisionMismatch;
 
-    appState.selectedCols = Array.isArray(snap.selectedCols) ? snap.selectedCols : [];
-    if (snap.seriesColors) appState.seriesColors = { ...snap.seriesColors };
+    setSelectedCols(Array.isArray(snap.selectedCols) ? snap.selectedCols : []);
+    if (snap.seriesColors) setSeriesColors({ ...snap.seriesColors });
 
     if (revisionMismatch) {
         const staleRanges = Object.keys(snap.columnRanges || {}).length;
         const staleLines = Array.isArray(snap.adaptiveLineFilters) ? snap.adaptiveLineFilters.length : 0;
         result.droppedFilterCount = staleRanges + staleLines;
-        appState.columnRanges = {};
-        appState.adaptiveLineFilters = [];
+        setColumnRanges({});
+        setAdaptiveLineFilters([]);
     } else {
-        if (snap.columnRanges) appState.columnRanges = { ...snap.columnRanges };
+        if (snap.columnRanges) setColumnRanges({ ...snap.columnRanges });
         if (Array.isArray(snap.adaptiveLineFilters)) {
-            appState.adaptiveLineFilters = snap.adaptiveLineFilters.map((f) => ({ ...f }));
+            setAdaptiveLineFilters(snap.adaptiveLineFilters.map((f) => ({ ...f })));
         }
     }
 
@@ -173,18 +187,17 @@ export function applySession(
                 }
             }
 
-            appState.currentStart = nextStart;
-            appState.currentEnd = nextEnd;
+            setViewport(nextStart, nextEnd);
         }
     }
 
-    if (snap.selectedColorColumn !== undefined) appState.selectedColorColumn = snap.selectedColorColumn;
-    if (snap.chartText) appState.chartText = { ...snap.chartText };
-    if (snap.rollingEnabled !== undefined) appState.rollingEnabled = snap.rollingEnabled;
-    if (Number.isFinite(snap.rollingWindow)) appState.rollingWindow = snap.rollingWindow;
-    if (snap.anomalyEnabled !== undefined) appState.anomalyEnabled = snap.anomalyEnabled;
-    if (snap.anomalyMethod) appState.anomalyMethod = snap.anomalyMethod;
-    if (Number.isFinite(snap.anomalyThreshold)) appState.anomalyThreshold = snap.anomalyThreshold;
+    if (snap.selectedColorColumn !== undefined) setSelectedColorColumn(snap.selectedColorColumn);
+    if (snap.chartText) setChartText({ ...snap.chartText });
+    if (snap.rollingEnabled !== undefined) setRollingEnabled(snap.rollingEnabled);
+    if (Number.isFinite(snap.rollingWindow)) setRollingWindow(snap.rollingWindow);
+    if (snap.anomalyEnabled !== undefined) setAnomalyEnabled(snap.anomalyEnabled);
+    if (snap.anomalyMethod) setAnomalyMethod(snap.anomalyMethod);
+    if (Number.isFinite(snap.anomalyThreshold)) setAnomalyThreshold(snap.anomalyThreshold);
 
     // Restore scatter dropdowns
     const setSelect = (id: string, val: string) => {

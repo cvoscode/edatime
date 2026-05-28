@@ -52,7 +52,7 @@ vi.mock('../utils/platform.js', () => ({
     requestGpuAdapter: vi.fn(async () => ({ name: 'mock-adapter' })),
 }));
 
-vi.mock('../dataClient.js', () => ({
+vi.mock('../services/api/index.js', () => ({
     fetchScatterCorrelations: (...args: unknown[]) => fetchScatterCorrelationsMock(...args),
     fetchScatterPoints: (...args: unknown[]) => fetchScatterPointsMock(...args),
 }));

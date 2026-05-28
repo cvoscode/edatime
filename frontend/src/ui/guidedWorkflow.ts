@@ -284,8 +284,14 @@ export function buildWorkflowSuggestion(snapshot: WorkflowSnapshot): WorkflowSug
     }
 
     if (snapshot.currentPage === 'timeseries') {
-        // Never show the guided banner on the timeseries page itself.
-        // The workflow is complete from the timeseries perspective.
+        if (snapshot.hasDataset && snapshot.selectedSeriesCount === 0) {
+            return {
+                title: 'Choose a starting set',
+                body: 'Start with 2 to 4 important numeric series so the first chart remains readable.',
+                actionLabel: null,
+                actionPage: null,
+            };
+        }
         return { title: '', body: '', actionLabel: null, actionPage: null };
     }
 

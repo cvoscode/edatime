@@ -4,6 +4,7 @@
  */
 
 import { appState } from '../state.js';
+import { setAdaptiveLineFilters, setPendingAdaptivePoint } from '../store/index.js';
 
 export function initDrawControls(fetchAndRender: () => void): void {
     const zoomResetBtn = document.getElementById('zoom-reset-btn') as HTMLElement | null;
@@ -36,8 +37,8 @@ export function initDrawControls(fetchAndRender: () => void): void {
     }
     if (adaptiveClearBtn && !adaptiveClearBtn.dataset.bound) {
         adaptiveClearBtn.addEventListener('click', () => {
-            appState.adaptiveLineFilters = [];
-            appState.pendingAdaptivePoint = null;
+            setAdaptiveLineFilters([]);
+            setPendingAdaptivePoint(null);
             (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
             window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
         });

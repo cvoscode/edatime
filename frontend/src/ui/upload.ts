@@ -6,7 +6,22 @@ import {
     appState, formatAnalysisTime, formatAnalysisNumber, formatCount,
     formatToDatetimeLocal, toFiniteNumberOrNull, buildMetaBar,
 } from '../state.js';
-import { fetchMetadata as dataClientFetchMetadata } from '../dataClient.js';
+import {
+    connectDatabase,
+    deleteDatabaseConnection,
+    fetchDatabaseStatus,
+    fetchDatabaseTables,
+    fetchMetadata as dataClientFetchMetadata,
+    loadDatabaseTable,
+    previewUpload,
+    uploadDataset,
+} from '../services/api/index.js';
+import {
+    setDatasetRevision,
+    setMetadata,
+    setPreviewSelectedColumns,
+    setPreviewTimeColumn,
+} from '../store/index.js';
 import type { DatasetMetadata } from '../types.js';
 
 interface UploadPanelDeps {
@@ -168,13 +183,13 @@ export function initUploadPanel(
         const metadataTimeCol = String(metadata?.time_column || '').trim() || null;
         const detectedTimeCol = columns.find((col) => /date|time|ts|timestamp/i.test(String(col?.name || '')))?.name || null;
 
-        appState.previewSelectedColumns = columns
+        setPreviewSelectedColumns(columns
             .map((col) => String(col?.name || '').trim())
-            .filter(Boolean);
+            .filter(Boolean));
 
         const timeColumnExists = appState.previewTimeColumn && columns.some((col) => String(col?.name || '').trim() === appState.previewTimeColumn);
         const calledTimeColumn = metadataTimeCol || detectedTimeCol || (timeColumnExists ? appState.previewTimeColumn : null);
-        appState.previewTimeColumn = calledTimeColumn;
+        setPreviewTimeColumn(calledTimeColumn);
 
         const timeColumnSelect = document.getElementById('time-column-select') as HTMLSelectElement | null;
         if (timeColumnSelect) {
@@ -196,7 +211,7 @@ export function initUploadPanel(
             }
 
             timeColumnSelect.onchange = () => {
-                appState.previewTimeColumn = timeColumnSelect.value || null;
+                setPreviewTimeColumn(timeColumnSelect.value || null);
                 if (selectedFile) runFilePreview(selectedFile);
             };
         }
@@ -211,7 +226,7 @@ export function initUploadPanel(
         if (mode === 'all') {
             for (const name of columns) next.add(name);
         }
-        appState.previewSelectedColumns = Array.from(next);
+        setPreviewSelectedColumns(Array.from(next));
         renderColumnProfilesGrid(false);
     }
 
@@ -230,11 +245,7 @@ export function initUploadPanel(
             const timeColumn = String(appState.previewTimeColumn || '').trim();
             if (timeColumn) formData.append('time_column', timeColumn);
 
-            const res = await fetch('/api/upload/preview', {
-                method: 'POST',
-                body: formData,
-                signal: previewController.signal,
-            });
+            const res = await previewUpload(formData, previewController.signal);
             if (!res.ok) {
                 const txt = await res.text().catch(() => 'Preview failed');
                 throw new Error(txt || 'Preview failed');
@@ -244,7 +255,7 @@ export function initUploadPanel(
             if (!previewMetadata || !Array.isArray(previewMetadata.columns)) {
                 throw new Error('Preview response missing metadata');
             }
-            appState.metadata = previewMetadata;
+            setMetadata(previewMetadata);
             hydrateColumnProfiles(previewMetadata);
             applyPreviewColumnSelection(previewMetadata);
             renderColumnProfilesGrid(true);
@@ -259,7 +270,7 @@ export function initUploadPanel(
         } catch (e: any) {
             if (e?.name === 'AbortError') return;
             if (String(e?.message || '').includes('Specified time column not found')) {
-                appState.previewTimeColumn = null;
+                setPreviewTimeColumn(null);
             }
             setUploadPreviewStatus(`Preview failed: ${e.message}`, 'error');
             applyPartialTimeRangeFromMetadata(null, false);
@@ -300,7 +311,7 @@ export function initUploadPanel(
             return;
         }
         fileDisplay!.textContent = selectedFile ? selectedFile.name : '';
-        appState.previewTimeColumn = null;
+        setPreviewTimeColumn(null);
         if (selectedFile) runFilePreview(selectedFile);
     });
 
@@ -320,7 +331,7 @@ export function initUploadPanel(
             return;
         }
         fileDisplay!.textContent = selectedFile ? selectedFile.name : '';
-        appState.previewTimeColumn = null;
+        setPreviewTimeColumn(null);
         if (selectedFile) runFilePreview(selectedFile);
     });
 
@@ -426,7 +437,7 @@ export function initUploadPanel(
         const stopProgress = animateProgress(progressBar!);
 
         try {
-            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            const res = await uploadDataset(formData);
             progressBar!.style.width = '100%';
             if (!res.ok) {
                 const txt = await res.text();
@@ -444,9 +455,9 @@ export function initUploadPanel(
 // Fetch fresh metadata and refresh the profile grid without page reload
                     try {
                         const freshMetadata = await dataClientFetchMetadata();
-                        appState.metadata = freshMetadata;
+                        setMetadata(freshMetadata);
                         const revision = freshMetadata?.revision;
-                        appState.datasetRevision = typeof revision === 'number' ? revision : 0;
+                        setDatasetRevision(typeof revision === 'number' ? revision : 0);
                         // Reset upload state
                         selectedFile = null;
                         fileInput!.value = '';
@@ -542,9 +553,7 @@ export function initUploadPanel(
     async function refreshDbTables(): Promise<void> {
         if (!dbTableSelect) return;
         try {
-            const r = await fetch('/api/database/tables');
-            if (!r.ok) return;
-            const data = await r.json();
+            const data = await fetchDatabaseTables() as { tables?: Array<{ schema: string; name: string; kind: string }> };
             const tables: Array<{ schema: string; name: string; kind: string }> = data.tables ?? [];
             dbTableSelect.innerHTML = '<option value="">— select table —</option>';
             for (const t of tables) {
@@ -579,23 +588,16 @@ export function initUploadPanel(
             if (dbStatus) { dbStatus.textContent = 'Connecting…'; dbStatus.className = 'upload-status loading'; }
 
             try {
-                const res = await fetch('/api/database/connect', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        connection_string: connectionString.trim(),
-                        schema,
-                        load_snapshot: false,
-                    }),
-                });
-                const result = await res.json();
-                if (res.ok) {
+                const result = await connectDatabase({
+                    connection_string: connectionString.trim(),
+                    schema,
+                    load_snapshot: false,
+                }) as { message?: string; error?: string };
+                if (result) {
                     if (dbStatus) { dbStatus.textContent = 'Connected. Choose a table and click Load data.'; dbStatus.className = 'upload-status success'; }
                     if (dbLoadBtn) dbLoadBtn.disabled = false;
                     if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
                     await refreshDbTables();
-                } else {
-                    if (dbStatus) { dbStatus.textContent = result.message ?? result.error ?? 'Connection failed.'; dbStatus.className = 'upload-status error'; }
                 }
             } catch (e: any) {
                 if (dbStatus) { dbStatus.textContent = 'Error: ' + e.message; dbStatus.className = 'upload-status error'; }
@@ -622,18 +624,13 @@ export function initUploadPanel(
             if (dbStatus) { dbStatus.textContent = 'Loading data…'; dbStatus.className = 'upload-status loading'; }
 
             try {
-                const res = await fetch('/api/database/load', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        schema,
-                        table,
-                        time_column: timeColumn || null,
-                        limit: 1_000_000,
-                    }),
-                });
-                const result = await res.json();
-                if (res.ok) {
+                const result = await loadDatabaseTable({
+                    schema,
+                    table,
+                    time_column: timeColumn || null,
+                    limit: 1_000_000,
+                }) as { message?: string; error?: string };
+                if (result) {
                     const loadedRows = loadedRowCountFromResponse(result);
                     if (dbStatus) {
                         dbStatus.textContent = `Loaded ${loadedRows.toLocaleString()} rows from ${table}.`;
@@ -641,8 +638,6 @@ export function initUploadPanel(
                     }
                     // Trigger a full metadata reload so the chart page refreshes.
                     window.dispatchEvent(new CustomEvent('edatime:dataset-changed', { detail: { source: 'database', table } }));
-                } else {
-                    if (dbStatus) { dbStatus.textContent = result.message ?? result.error ?? 'Load failed.'; dbStatus.className = 'upload-status error'; }
                 }
             } catch (e: any) {
                 if (dbStatus) { dbStatus.textContent = 'Error: ' + e.message; dbStatus.className = 'upload-status error'; }
@@ -656,7 +651,7 @@ export function initUploadPanel(
     if (dbDisconnectBtn) {
         dbDisconnectBtn.addEventListener('click', async () => {
             try {
-                await fetch('/api/database/connect', { method: 'DELETE' });
+                await deleteDatabaseConnection();
             } catch { /* ignore */ }
             if (dbStatus) { dbStatus.textContent = 'Disconnected.'; dbStatus.className = 'upload-status'; }
             if (dbLoadBtn) dbLoadBtn.disabled = true;
@@ -671,7 +666,7 @@ export function initUploadPanel(
         if (dbStatusLoaded) return;
         dbStatusLoaded = true;
         try {
-            const s = await fetch('/api/database/status').then((r) => r.json());
+            const s = await fetchDatabaseStatus() as { connected?: boolean; table?: string };
             if (s.connected) {
                 if (dbLoadBtn) dbLoadBtn.disabled = false;
                 if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;

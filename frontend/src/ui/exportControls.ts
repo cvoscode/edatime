@@ -4,6 +4,7 @@
  */
 
 import { appState, applyColumnRanges, buildAdaptiveLineFiltersForQuery } from '../state.js';
+import { exportParquet } from '../services/api/index.js';
 import { downloadBlob } from '../utils/dom.js';
 import { zoomOut, resetZoom } from './viewport.js';
 
@@ -99,13 +100,7 @@ export async function exportChartFilteredParquet(): Promise<boolean> {
         params.set('line_filters', JSON.stringify(lineFilters));
     }
 
-    const res = await fetch(`/api/export/parquet?${params.toString()}`);
-    if (!res.ok) {
-        const text = await res.text().catch(() => 'Parquet export failed');
-        throw new Error(text || 'Parquet export failed');
-    }
-
-    const blob = await res.blob();
+    const blob = await exportParquet(params);
     downloadBlob(blob, 'edatime_filtered_series.parquet');
     return true;
 }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../debug.js', () => ({ DEBUG: true }));
+vi.mock('../debug.js', () => ({ DEBUG: true, dbg: vi.fn() }));
 const chartHandlers = new Map<string, (params: any) => void>();
 const chartMock = {
     setOption: vi.fn(),

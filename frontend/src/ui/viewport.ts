@@ -5,6 +5,13 @@
  */
 
 import { appState } from '../state.js';
+import {
+    setFetchDebounceId,
+    setPendingRestoreY,
+    setPendingYMode,
+    setViewport,
+    setZoomHistory,
+} from '../store/index.js';
 import { dbg, dbgGroup } from '../debug.js';
 import { updateAnalysisZoom, updateAnalysisYRange } from './analysisStatus.js';
 import type { ViewSnapshot } from '../types.js';
@@ -55,23 +62,22 @@ export function applyViewport(
     dbgGroup(`applyViewport (${sourceKind})`, () => {
         dbg('incoming view', view);
     });
-    appState.currentStart = view.xMin;
-    appState.currentEnd = view.xMax;
+    setViewport(view.xMin, view.xMax);
     appState.chart?.setXRange?.(appState.currentStart as number, appState.currentEnd as number);
 
     updateAnalysisZoom(appState.currentStart as number, appState.currentEnd as number, sourceKind);
 
     if (Number.isFinite(view.yMin) && Number.isFinite(view.yMax) && view.yMax! > view.yMin!) {
         updateAnalysisYRange(view.yMin!, view.yMax!, sourceKind);
-        appState.pendingYMode = 'restore' as any;
-        appState.pendingRestoreY = { min: view.yMin!, max: view.yMax! };
+        setPendingYMode('restore');
+        setPendingRestoreY({ min: view.yMin!, max: view.yMax! });
     } else {
-        appState.pendingYMode = 'fit';
-        appState.pendingRestoreY = null;
+        setPendingYMode('fit');
+        setPendingRestoreY(null);
     }
 
     if (appState.fetchDebounceId) clearTimeout(appState.fetchDebounceId);
-    appState.fetchDebounceId = setTimeout(fetchAndRender, 0);
+    setFetchDebounceId(setTimeout(fetchAndRender, 0));
     updateZoomRangeBadge();
 }
 
@@ -81,7 +87,10 @@ export function zoomOut(fetchAndRender: () => void): void {
         dbg('initialView', appState.initialView);
     });
     if (appState.zoomHistory.length > 0) {
-        applyViewport(appState.zoomHistory.pop() as ViewSnapshot, fetchAndRender, 'zoom-out');
+        const nextHistory = appState.zoomHistory.slice(0, -1);
+        const nextView = appState.zoomHistory[appState.zoomHistory.length - 1] as ViewSnapshot;
+        setZoomHistory(nextHistory);
+        applyViewport(nextView, fetchAndRender, 'zoom-out');
     } else if (appState.initialView) {
         applyViewport(appState.initialView as ViewSnapshot, fetchAndRender, 'zoom-out');
     }
@@ -92,7 +101,7 @@ export function resetZoom(fetchAndRender: () => void): void {
         dbg('initialView', appState.initialView);
     });
     if (!appState.initialView) return;
-    appState.zoomHistory = [];
+    setZoomHistory([]);
     applyViewport(appState.initialView as ViewSnapshot, fetchAndRender, 'reset');
 }
 

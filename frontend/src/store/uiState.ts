@@ -5,6 +5,7 @@
  */
 
 import type { AdaptiveLineFilter, ColumnRange, PendingAdaptivePoint, ProfileGridSort } from '../types.js';
+import { emitStoreEvent } from './events.js';
 
 export interface UiState {
     filterText: string;
@@ -44,7 +45,7 @@ export const uiState: UiState = {
 
 /* ── Series color helpers ───────────────────────────────── */
 
-import { SERIES_COLORS } from '../state.js';
+import { SERIES_COLORS } from '../utils/seriesColors.js';
 
 function normalizeSeriesColor(value: unknown): string | null {
     const text = String(value || '').trim();
@@ -62,81 +63,123 @@ export function setSeriesColor(column: string, value: string): string | null {
     const name = String(column || '').trim();
     const normalized = normalizeSeriesColor(value);
     if (!name || !normalized) return null;
-    uiState.seriesColors = { ...uiState.seriesColors, [name]: normalized };
+    setSeriesColors({ ...uiState.seriesColors, [name]: normalized });
     return normalized;
 }
 
 /* ── Column selection mutations ──────────────────────────── */
 
 export function setSelectedCols(cols: string[]): void {
-    uiState.selectedCols = cols;
+    const previous = uiState.selectedCols;
+    uiState.selectedCols = [...cols];
+    emitStoreEvent('ui:selectedCols', { previous, next: uiState.selectedCols });
 }
 
 export function setAdaptiveFilterColumn(col: string | null): void {
+    const previous = uiState.adaptiveFilterColumn;
     uiState.adaptiveFilterColumn = col;
+    emitStoreEvent('ui:adaptiveFilterColumn', { previous, next: col });
 }
 
 export function setColumnRange(col: string, range: ColumnRange): void {
+    const previous = uiState.columnRanges;
     uiState.columnRanges = { ...uiState.columnRanges, [col]: range };
+    emitStoreEvent('ui:columnRanges', { previous, next: uiState.columnRanges });
 }
 
 export function clearColumnRange(col: string): void {
+    const previous = uiState.columnRanges;
     const { [col]: _, ...rest } = uiState.columnRanges;
     uiState.columnRanges = rest;
+    emitStoreEvent('ui:columnRanges', { previous, next: uiState.columnRanges });
+}
+
+export function setColumnRanges(ranges: Record<string, ColumnRange>): void {
+    const previous = uiState.columnRanges;
+    uiState.columnRanges = { ...ranges };
+    emitStoreEvent('ui:columnRanges', { previous, next: uiState.columnRanges });
 }
 
 export function setAdaptiveLineFilters(filters: AdaptiveLineFilter[]): void {
-    uiState.adaptiveLineFilters = filters;
+    const previous = uiState.adaptiveLineFilters;
+    uiState.adaptiveLineFilters = filters.map((filter) => ({ ...filter }));
+    emitStoreEvent('ui:adaptiveLineFilters', { previous, next: uiState.adaptiveLineFilters });
 }
 
 export function appendAdaptiveLineFilter(filter: AdaptiveLineFilter): void {
-    uiState.adaptiveLineFilters = [...uiState.adaptiveLineFilters, filter];
+    setAdaptiveLineFilters([...uiState.adaptiveLineFilters, filter]);
 }
 
 export function removeAdaptiveLineFilter(index: number): void {
-    uiState.adaptiveLineFilters = uiState.adaptiveLineFilters.filter((_, i) => i !== index);
+    setAdaptiveLineFilters(uiState.adaptiveLineFilters.filter((_, i) => i !== index));
 }
 
 export function clearAdaptiveLineFilters(): void {
-    uiState.adaptiveLineFilters = [];
+    setAdaptiveLineFilters([]);
 }
 
 export function setPendingAdaptivePoint(point: PendingAdaptivePoint | null): void {
-    uiState.pendingAdaptivePoint = point;
+    const previous = uiState.pendingAdaptivePoint;
+    uiState.pendingAdaptivePoint = point ? { ...point } : null;
+    emitStoreEvent('ui:pendingAdaptivePoint', { previous, next: uiState.pendingAdaptivePoint });
 }
 
 export function setSelectedColorColumn(col: string | null): void {
+    const previous = uiState.selectedColorColumn;
     uiState.selectedColorColumn = col;
+    emitStoreEvent('ui:selectedColorColumn', { previous, next: col });
+}
+
+export function setSeriesColors(colors: Record<string, string>): void {
+    const previous = uiState.seriesColors;
+    uiState.seriesColors = { ...colors };
+    emitStoreEvent('ui:seriesColors', { previous, next: uiState.seriesColors });
 }
 
 export function setFilterText(text: string): void {
+    const previous = uiState.filterText;
     uiState.filterText = text;
+    emitStoreEvent('ui:filterText', { previous, next: text });
 }
 
 export function setProfileFilterText(text: string): void {
+    const previous = uiState.profileFilterText;
     uiState.profileFilterText = text;
+    emitStoreEvent('ui:profileFilterText', { previous, next: text });
 }
 
 export function setPreviewSelectedColumns(cols: string[]): void {
-    uiState.previewSelectedColumns = cols;
+    const previous = uiState.previewSelectedColumns;
+    uiState.previewSelectedColumns = [...cols];
+    emitStoreEvent('ui:previewSelectedColumns', { previous, next: uiState.previewSelectedColumns });
 }
 
 export function setPreviewTimeColumn(col: string | null): void {
+    const previous = uiState.previewTimeColumn;
     uiState.previewTimeColumn = col;
+    emitStoreEvent('ui:previewTimeColumn', { previous, next: col });
 }
 
 export function setProfileGridSort(sort: ProfileGridSort): void {
-    uiState.profileGridSort = sort;
+    const previous = uiState.profileGridSort;
+    uiState.profileGridSort = { ...sort };
+    emitStoreEvent('ui:profileGridSort', { previous, next: uiState.profileGridSort });
 }
 
 export function setProfileGridColWidths(widths: number[]): void {
-    uiState.profileGridColWidths = widths;
+    const previous = uiState.profileGridColWidths;
+    uiState.profileGridColWidths = [...widths];
+    emitStoreEvent('ui:profileGridColWidths', { previous, next: uiState.profileGridColWidths });
 }
 
 export function setProfileGridBound(bound: boolean): void {
+    const previous = uiState.profileGridBound;
     uiState.profileGridBound = bound;
+    emitStoreEvent('ui:profileGridBound', { previous, next: bound });
 }
 
 export function setProfileGridHeaderBound(bound: boolean): void {
+    const previous = uiState.profileGridHeaderBound;
     uiState.profileGridHeaderBound = bound;
+    emitStoreEvent('ui:profileGridHeaderBound', { previous, next: bound });
 }

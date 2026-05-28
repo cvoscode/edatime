@@ -4,7 +4,7 @@
 
 import { createChart } from '../../libs/chartgpu/dist/index.js';
 import { defaultGpuPowerPreference, requestGpuAdapter } from '../utils/platform.js';
-import { fetchScatterCorrelations, fetchScatterPoints } from '../dataClient.js';
+import { fetchScatterCorrelations, fetchScatterPoints } from '../services/api/index.js';
 import { appState } from '../state.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
 import {

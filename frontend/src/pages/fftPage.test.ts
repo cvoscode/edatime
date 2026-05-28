@@ -23,7 +23,7 @@ vi.mock('../chart/FftChart.js', () => ({
     },
 }));
 
-vi.mock('../dataClient.js', () => ({
+vi.mock('../services/api/index.js', () => ({
     fetchFft: (...args: unknown[]) => fetchFftMock(...args),
 }));
 

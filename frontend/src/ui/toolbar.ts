@@ -6,6 +6,7 @@
 import {
     appState,
 } from '../state.js';
+import { setAnalysisBound } from '../store/index.js';
 import { DEBUG, dbg } from '../debug.js';
 import {
     updateAnalysisZoom,
@@ -82,7 +83,7 @@ export function bindAnalysisChartEvents(): void {
         updateAnalysisClick(payload);
     });
 
-    appState.analysisBound = true;
+    setAnalysisBound(true);
 }
 
 // ─── Main init — wires all sub-controls ─────────────────────────────────────

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../dataClient.js', () => ({
+vi.mock('../services/api/index.js', () => ({
     fetchCausalGraph: vi.fn(),
 }));
 

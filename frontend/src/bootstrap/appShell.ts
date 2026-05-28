@@ -17,6 +17,7 @@ import { initAnnotations } from '../chart/annotations.js';
 import { initAnnotationPanel } from '../ui/annotationPanel.js';
 import { disableGuidedWorkflow, enableGuidedWorkflow, goToNextGuidedStep, initGuidedWorkflow } from '../ui/guidedWorkflow.js';
 import { initOutlierModal, initTransformModal } from '../ui/dataMutationModals.js';
+import { fetchSampleDataset } from '../services/api/index.js';
 
 import { APP_COMMAND_DEFINITIONS, registerAppCommands } from './commands.js';
 import { initKeyboardShortcuts } from './shortcuts.js';
@@ -200,9 +201,7 @@ async function loadSampleDataset(datasetId: string, showPage: (pageName: string)
         // Fetch the static sample file from the backend
         let file: File;
         try {
-            const res = await fetch(`/api/sample/ETTm2.csv`);
-            if (!res.ok) throw new Error(`Failed to fetch ETTm2.csv: ${res.status}`);
-            const blob = await res.blob();
+            const blob = await fetchSampleDataset('ETTm2.csv');
             file = new File([blob], 'ETTm2.csv', { type: 'text/csv' });
         } catch (err) {
             dismissLoading();
@@ -293,7 +292,7 @@ export function initAppShell(deps: AppShellDeps): void {
     wireHomeNavigationCards(deps.showPage);
     wireSampleDatasetCards(deps.showPage);
     initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid, {
-        buildColumnToggles,
+        buildColumnToggles: () => buildColumnToggles(deps.fetchAndRender, buildRangeControls, deps.renderCurrentData),
         buildRangeControls,
     });
     initColumnProfilesGrid();

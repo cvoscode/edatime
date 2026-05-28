@@ -18,6 +18,7 @@ import {
     currentControls,
     type ScatterControls,
 } from './state.js';
+import { exportScatterParquet as exportScatterParquetBlob } from '../services/api/index.js';
 
 /* ── Linear tick helper ───────────────────────────────── */
 
@@ -357,8 +358,6 @@ export async function exportScatterParquet(): Promise<boolean> {
     if (Array.isArray(context.filters) && context.filters.length > 0) payload.filters = JSON.stringify(context.filters);
     if (Array.isArray(context.lineFilters) && context.lineFilters.length > 0) payload.line_filters = JSON.stringify(context.lineFilters);
 
-    const res = await fetch('/api/scatter/export/parquet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    if (!res.ok) { const text = await res.text().catch(() => 'Scatter parquet export failed'); throw new Error(text || 'Scatter parquet export failed'); }
-    downloadBlob(await res.blob(), 'edatime_scatter_filtered.parquet');
+    downloadBlob(await exportScatterParquetBlob(payload), 'edatime_scatter_filtered.parquet');
     return true;
 }

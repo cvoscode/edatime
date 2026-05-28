@@ -38,7 +38,7 @@ export function initTransformModal(deps: DataMutationModalDeps): void {
                 applyBtn.textContent = 'Applying…';
                 applyBtn.disabled = true;
             }
-            const { postTransform } = await import('../dataClient.js');
+            const { postTransform } = await import('../services/api/index.js');
             await postTransform(expr, name);
             close();
             await deps.refreshDataset({ selectedColumn: name });
@@ -94,7 +94,7 @@ export function initOutlierModal(deps: DataMutationModalDeps): void {
                 applyBtn.textContent = 'Removing…';
             }
 
-            const { postRemoveOutliers } = await import('../dataClient.js');
+            const { postRemoveOutliers } = await import('../services/api/index.js');
             const result = await postRemoveOutliers(
                 columns,
                 method,

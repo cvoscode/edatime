@@ -7,6 +7,7 @@
 
 import type { ChartGPUInstance, SeriesConfig } from '../../libs/chartgpu/dist/index.js';
 import type { DatasetMetadata, ScatterFilterSpec, ScatterLineFilterSpec } from '../types.js';
+import { emitStoreEvent } from './events.js';
 
 /* ── Types (mirror of ScatterState in types.ts) ─────────── */
 
@@ -118,28 +119,40 @@ export const scatterState: ScatterState = {
 /* ── Mutations ──────────────────────────────────────────── */
 
 export function setScatterChart(chart: ChartGPUInstance | null): void {
+    const previous = { ...scatterState };
     scatterState.chart = chart;
+    emitStoreEvent('scatter:state', { previous, next: scatterState });
 }
 
 export function setScatterInitialized(v: boolean): void {
+    const previous = { ...scatterState };
     scatterState.initialized = v;
+    emitStoreEvent('scatter:state', { previous, next: scatterState });
 }
 
 export function setScatterPageInitialized(v: boolean): void {
+    const previous = { ...scatterState };
     scatterState.pageInitialized = v;
+    emitStoreEvent('scatter:state', { previous, next: scatterState });
 }
 
 export function setScatterView(view: ScatterView): void {
-    scatterState.view = view;
+    const previous = { ...scatterState };
+    scatterState.view = { ...view };
+    emitStoreEvent('scatter:state', { previous, next: scatterState });
 }
 
 export function setScatterActiveView(view: string): void {
+    const previous = { ...scatterState };
     scatterState.activeView = view;
+    emitStoreEvent('scatter:state', { previous, next: scatterState });
 }
 
 export function setScatterPoints(allPoints: [number, number][], points: [number, number][]): void {
-    scatterState.allPoints = allPoints;
-    scatterState.points = points;
+    const previous = { ...scatterState };
+    scatterState.allPoints = allPoints.map((point) => [point[0], point[1]]);
+    scatterState.points = points.map((point) => [point[0], point[1]]);
+    emitStoreEvent('scatter:state', { previous, next: scatterState });
 }
 
 export function setScatterColorState(
@@ -149,21 +162,35 @@ export function setScatterColorState(
     colorMin: number | null,
     colorMax: number | null,
 ): void {
+    const previous = { ...scatterState };
     scatterState.colorColumn = column;
-    scatterState.colorValues = colorValues;
-    scatterState.colorLabels = colorLabels;
+    scatterState.colorValues = colorValues ? [...colorValues] : null;
+    scatterState.colorLabels = colorLabels ? [...colorLabels] : null;
     scatterState.colorMin = colorMin;
     scatterState.colorMax = colorMax;
+    emitStoreEvent('scatter:state', { previous, next: scatterState });
 }
 
 export function setScatterMetadata(metadata: DatasetMetadata | null): void {
+    const previous = { ...scatterState };
     scatterState.metadata = metadata;
+    emitStoreEvent('scatter:state', { previous, next: scatterState });
 }
 
 export function setScatterLoading(v: boolean): void {
+    const previous = { ...scatterState };
     scatterState.loading = v;
+    emitStoreEvent('scatter:state', { previous, next: scatterState });
 }
 
 export function setScatterTotalPoints(n: number): void {
+    const previous = { ...scatterState };
     scatterState.totalPoints = n;
+    emitStoreEvent('scatter:state', { previous, next: scatterState });
+}
+
+export function replaceScatterState(next: Partial<ScatterState>): void {
+    const previous = { ...scatterState };
+    Object.assign(scatterState, next);
+    emitStoreEvent('scatter:state', { previous, next: scatterState });
 }

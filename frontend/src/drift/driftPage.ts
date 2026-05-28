@@ -6,6 +6,7 @@
  */
 
 import { DEBUG } from '../debug.js';
+import { fetchDriftStats } from '../services/api/index.js';
 import { exportEChartsPNG } from '../utils/chartExport.js';
 
 // ── Module-level ECharts cache (issue #3: avoid re-importing on every page visit) ──
@@ -1016,16 +1017,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
             };
 
             const settled = await Promise.allSettled(columns.map(async (column) => {
-                const res = await fetch('/api/drift/stats', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...basePayload, column }),
-                });
-                if (!res.ok) {
-                    const text = await res.text().catch(() => '');
-                    throw new Error(`${column}: ${res.status} ${text || res.statusText}`);
-                }
-                const payload = await res.json() as DriftResponse;
+                const payload = await fetchDriftStats<DriftResponse>({ ...basePayload, column });
                 return { column, payload };
             }));
 

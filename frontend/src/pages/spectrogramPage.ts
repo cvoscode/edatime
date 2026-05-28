@@ -1,4 +1,4 @@
-import { fetchSpectrogram, type SpectrogramResult } from '../dataClient.js';
+import { fetchSpectrogram, type SpectrogramResult } from '../services/api/index.js';
 import { appState } from '../state.js';
 import { createEmptyStateController } from '../ui/emptyState.js';
 import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../utils/chartExport.js';

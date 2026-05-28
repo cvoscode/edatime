@@ -12,16 +12,62 @@
  * re-exports these sub-states. New code should prefer importing from here directly.
  */
 
-import type { AppStateType, RollingBandData, AnomalyRegionData, AdaptiveLineFilter, ColumnRange, PendingAdaptivePoint, ProfileRow, DatasetMetadata, SpectralFilterPreview, ViewSnapshot, ChartInstance, YMode, ScatterView } from '../types.js';
-import { datasetState, setMetadata, type DatasetState } from './datasetState.js';
-import { uiState, type UiState } from './uiState.js';
-import { analyticsState, type AnalyticsState } from './analyticsState.js';
-import { chartState, type ChartState } from './chartState.js';
-import { scatterState, type ScatterState } from './scatterState.js';
+import type { AppStateType, RollingBandData, AnomalyRegionData, AdaptiveLineFilter, ColumnRange, PendingAdaptivePoint, ProfileRow, DatasetMetadata, SpectralFilterPreview, ViewSnapshot, ChartInstance, YMode } from '../types.js';
+import { datasetState, setColumnProfiles, setDatasetRevision, setMetadata, setNumericCols, type DatasetState } from './datasetState.js';
+import {
+    setAdaptiveFilterColumn,
+    setAdaptiveLineFilters,
+    setColumnRanges,
+    setFilterText,
+    setPendingAdaptivePoint,
+    setPreviewSelectedColumns,
+    setPreviewTimeColumn,
+    setProfileFilterText,
+    setProfileGridBound,
+    setProfileGridColWidths,
+    setProfileGridHeaderBound,
+    setProfileGridSort,
+    setSelectedColorColumn,
+    setSelectedCols,
+    setSeriesColors,
+    uiState,
+    type UiState,
+} from './uiState.js';
+import {
+    analyticsState,
+    setAnomalyEnabled,
+    setAnomalyMethod,
+    setAnomalyRegions,
+    setAnomalyThreshold,
+    setRollingBands,
+    setRollingEnabled,
+    setRollingWindow,
+    setSpectralFilterPreview,
+    type AnalyticsState,
+} from './analyticsState.js';
+import { chartState, setChartInstance, setChartText, setInitialView, setViewport, setZoomHistory, type ChartState } from './chartState.js';
+import { replaceScatterState, scatterState, type ScatterState } from './scatterState.js';
+import {
+    runtimeState,
+    setAnalysisBound,
+    setFetchDebounceId,
+    setLastFetchedData,
+    setPendingRestoreY,
+    setPendingYMode,
+    setRefetchOnZoom,
+    type RuntimeState,
+} from './runtimeState.js';
+import { clearSubscribers, subscribe, unsubscribe } from './events.js';
 
 // Re-export the sub-states
-export { chartState, analyticsState, uiState, datasetState, scatterState };
-export type { ChartState, AnalyticsState, UiState, DatasetState, ScatterState };
+export { chartState, analyticsState, uiState, datasetState, scatterState, runtimeState, subscribe, unsubscribe };
+export type { ChartState, AnalyticsState, UiState, DatasetState, ScatterState, RuntimeState };
+export * from './analyticsState.js';
+export * from './chartState.js';
+export * from './datasetState.js';
+export * from './runtimeState.js';
+export * from './scatterState.js';
+export * from './uiState.js';
 
 // ── AppState composite (backward-compatible) ──────────────────────────────
 //
@@ -45,7 +91,14 @@ export type { ChartState, AnalyticsState, UiState, DatasetState, ScatterState };
 //   seriesColors, selectedColorColumn → uiState
 //   numericCols, columnProfiles, datasetRevision → datasetState
 
-export const appStateComposite = {
+function warnLegacyAppStateWrite(property: PropertyKey): void {
+    const meta = import.meta as ImportMeta & { env?: { DEV?: boolean; MODE?: string } };
+    const env = meta.env;
+    if (!env?.DEV || env.MODE === 'test') return;
+    console.warn(`[EdaTime] Direct appState.${String(property)} writes are deprecated. Import the matching store setter from ./store/index.js instead.`);
+}
+
+const appStateCompositeTarget = {
     // ── Delegated properties ─────────────────────────────────────────────────
     // These delegate to sub-states so that imports from '../state.js'
     // stay in sync with the authoritative sub-state values.
@@ -54,137 +107,140 @@ export const appStateComposite = {
     set metadata(v: DatasetMetadata | null) { setMetadata(v); },
 
     get numericCols(): string[] { return datasetState.numericCols; },
-    set numericCols(v: string[]) { datasetState.numericCols = v; },
+    set numericCols(v: string[]) { setNumericCols(v); },
 
     get columnProfiles(): ProfileRow[] { return datasetState.columnProfiles; },
-    set columnProfiles(v: ProfileRow[]) { datasetState.columnProfiles = v; },
+    set columnProfiles(v: ProfileRow[]) { setColumnProfiles(v); },
 
     get datasetRevision(): number { return datasetState.datasetRevision; },
-    set datasetRevision(v: number) { datasetState.datasetRevision = v; },
+    set datasetRevision(v: number) { setDatasetRevision(v); },
 
     get selectedCols(): string[] { return uiState.selectedCols; },
-    set selectedCols(v: string[]) { uiState.selectedCols = v; },
+    set selectedCols(v: string[]) { setSelectedCols(v); },
+
+    get adaptiveFilterColumn(): string | null { return uiState.adaptiveFilterColumn; },
+    set adaptiveFilterColumn(v: string | null) { setAdaptiveFilterColumn(v); },
 
     get columnRanges(): Record<string, ColumnRange> { return uiState.columnRanges; },
-    set columnRanges(v: Record<string, ColumnRange>) { uiState.columnRanges = v; },
+    set columnRanges(v: Record<string, ColumnRange>) { setColumnRanges(v); },
 
     get adaptiveLineFilters(): AdaptiveLineFilter[] { return uiState.adaptiveLineFilters; },
-    set adaptiveLineFilters(v: AdaptiveLineFilter[]) { uiState.adaptiveLineFilters = v; },
+    set adaptiveLineFilters(v: AdaptiveLineFilter[]) { setAdaptiveLineFilters(v); },
 
     get pendingAdaptivePoint(): PendingAdaptivePoint | null { return uiState.pendingAdaptivePoint; },
-    set pendingAdaptivePoint(v: PendingAdaptivePoint | null) { uiState.pendingAdaptivePoint = v; },
+    set pendingAdaptivePoint(v: PendingAdaptivePoint | null) { setPendingAdaptivePoint(v); },
 
     get seriesColors(): Record<string, string> { return uiState.seriesColors; },
-    set seriesColors(v: Record<string, string>) { uiState.seriesColors = v; },
+    set seriesColors(v: Record<string, string>) { setSeriesColors(v); },
 
     get selectedColorColumn(): string | null { return uiState.selectedColorColumn; },
-    set selectedColorColumn(v: string | null) { uiState.selectedColorColumn = v; },
+    set selectedColorColumn(v: string | null) { setSelectedColorColumn(v); },
+
+    get filterText(): string { return uiState.filterText; },
+    set filterText(v: string) { setFilterText(v); },
+
+    get profileFilterText(): string { return uiState.profileFilterText; },
+    set profileFilterText(v: string) { setProfileFilterText(v); },
+
+    get previewSelectedColumns(): string[] { return uiState.previewSelectedColumns; },
+    set previewSelectedColumns(v: string[]) { setPreviewSelectedColumns(v); },
+
+    get previewTimeColumn(): string | null { return uiState.previewTimeColumn; },
+    set previewTimeColumn(v: string | null) { setPreviewTimeColumn(v); },
+
+    get profileGridBound(): boolean { return uiState.profileGridBound; },
+    set profileGridBound(v: boolean) { setProfileGridBound(v); },
+
+    get profileGridHeaderBound(): boolean { return uiState.profileGridHeaderBound; },
+    set profileGridHeaderBound(v: boolean) { setProfileGridHeaderBound(v); },
+
+    get profileGridSort(): UiState['profileGridSort'] { return uiState.profileGridSort; },
+    set profileGridSort(v: UiState['profileGridSort']) { setProfileGridSort(v); },
+
+    get profileGridColWidths(): number[] { return uiState.profileGridColWidths; },
+    set profileGridColWidths(v: number[]) { setProfileGridColWidths(v); },
 
     get rollingEnabled(): boolean { return analyticsState.rollingEnabled; },
-    set rollingEnabled(v: boolean) { analyticsState.rollingEnabled = v; },
+    set rollingEnabled(v: boolean) { setRollingEnabled(v); },
 
     get rollingWindow(): number { return analyticsState.rollingWindow; },
-    set rollingWindow(v: number) { analyticsState.rollingWindow = v; },
+    set rollingWindow(v: number) { setRollingWindow(v); },
 
     get rollingBands(): RollingBandData[] | null { return analyticsState.rollingBands; },
-    set rollingBands(v: RollingBandData[] | null) { analyticsState.rollingBands = v; },
+    set rollingBands(v: RollingBandData[] | null) { setRollingBands(v); },
 
     get anomalyEnabled(): boolean { return analyticsState.anomalyEnabled; },
-    set anomalyEnabled(v: boolean) { analyticsState.anomalyEnabled = v; },
+    set anomalyEnabled(v: boolean) { setAnomalyEnabled(v); },
 
     get anomalyMethod(): string { return analyticsState.anomalyMethod; },
-    set anomalyMethod(v: string) { analyticsState.anomalyMethod = v; },
+    set anomalyMethod(v: string) { setAnomalyMethod(v); },
 
     get anomalyThreshold(): number { return analyticsState.anomalyThreshold; },
-    set anomalyThreshold(v: number) { analyticsState.anomalyThreshold = v; },
+    set anomalyThreshold(v: number) { setAnomalyThreshold(v); },
 
     get anomalyRegions(): AnomalyRegionData[] | null { return analyticsState.anomalyRegions; },
-    set anomalyRegions(v: AnomalyRegionData[] | null) { analyticsState.anomalyRegions = v; },
+    set anomalyRegions(v: AnomalyRegionData[] | null) { setAnomalyRegions(v); },
 
     get spectralFilterPreview(): SpectralFilterPreview | null { return analyticsState.spectralFilterPreview; },
-    set spectralFilterPreview(v: SpectralFilterPreview | null) { analyticsState.spectralFilterPreview = v; },
+    set spectralFilterPreview(v: SpectralFilterPreview | null) { setSpectralFilterPreview(v); },
 
     // ── Delegated viewport properties ─────────────────────────────────────────
     // These delegate to chartState so the store index stays in sync.
 
     get currentStart(): number | null { return chartState.currentStart; },
-    set currentStart(v: number | null) { chartState.currentStart = v; },
+    set currentStart(v: number | null) { setViewport(v, chartState.currentEnd); },
 
     get currentEnd(): number | null { return chartState.currentEnd; },
-    set currentEnd(v: number | null) { chartState.currentEnd = v; },
+    set currentEnd(v: number | null) { setViewport(chartState.currentStart, v); },
 
     get initialView(): ViewSnapshot | null { return chartState.initialView; },
-    set initialView(v: ViewSnapshot | null) { chartState.initialView = v; },
+    set initialView(v: ViewSnapshot | null) { setInitialView(v); },
 
     get zoomHistory(): ViewSnapshot[] { return chartState.zoomHistory; },
-    set zoomHistory(v: ViewSnapshot[]) { chartState.zoomHistory = v; },
+    set zoomHistory(v: ViewSnapshot[]) { setZoomHistory(v); },
 
     get chartText(): { title: string; xLabel: string; yLabel: string } { return chartState.chartText; },
-    set chartText(v: { title: string; xLabel: string; yLabel: string }) { chartState.chartText = v; },
+    set chartText(v: { title: string; xLabel: string; yLabel: string }) { setChartText(v); },
 
-    // ── Standalone properties ────────────────────────────────────────────────
-
-    fetchDebounceId: null as ReturnType<typeof setTimeout> | null,
     get chart(): ChartInstance | null { return chartState.chart; },
-    set chart(v: ChartInstance | null) { chartState.chart = v; },
+    set chart(v: ChartInstance | null) { setChartInstance(v); },
 
-    filterText: '',
-    profileFilterText: '',
-    previewSelectedColumns: [] as string[],
-    previewTimeColumn: null as string | null,
-    profileGridBound: false,
-    profileGridHeaderBound: false,
-    profileGridSort: { key: 'name', dir: 'asc' as const },
-    profileGridColWidths: [56, 220, 120, 140, 100, 130, 130, 260],
+    get scatter(): ScatterState { return scatterState; },
+    set scatter(v: ScatterState) { replaceScatterState(v); },
 
-    scatter: {
-        chart: null,
-        initialized: false,
-        pageInitialized: false,
-        activeView: 'plot',
-        loading: false,
-        metadata: null,
-        totalPoints: 0,
-        allPoints: [] as [number, number][],
-        points: [] as [number, number][],
-        allColorValues: null,
-        allColorLabels: null,
-        full: { xMin: 0, xMax: 1, yMin: 0, yMax: 1 },
-        view: { xMin: 0, xMax: 1, yMin: 0, yMax: 1 },
-        zoomHistory: [] as ScatterView[],
-        drag: null,
-        selectionBox: null,
-        colorColumn: '',
-        colorValues: null,
-        colorLabels: null,
-        colorMin: null,
-        colorMax: null,
-        correlationsByColumn: new Map(),
-        suggestionThreshold: 0.7,
-        lastBinnedText: '',
-        lastUpdateMs: 0,
-        densityTooltipCache: null,
-        lastOptionSeries: null,
-        columnTypes: new Map(),
-        lastSuggestions: [] as unknown[],
-        lastRenderSignature: '',
-        matrixCache: new Map(),
-        matrixColumnOrder: [] as string[],
-        overviewRequestId: 0,
-        scatterRequestId: 0,
-    } as AppStateType['scatter'],
+    get fetchDebounceId(): ReturnType<typeof setTimeout> | null { return runtimeState.fetchDebounceId; },
+    set fetchDebounceId(v: ReturnType<typeof setTimeout> | null) { setFetchDebounceId(v); },
 
-    // appState-only fields
-    lastFetchedData: null,
-    analysisBound: false,
-    refetchOnZoom: true,
-    pendingYMode: 'fit' as YMode,
-    pendingRestoreY: null,
+    get lastFetchedData(): AppStateType['lastFetchedData'] { return runtimeState.lastFetchedData; },
+    set lastFetchedData(v: AppStateType['lastFetchedData']) { setLastFetchedData(v); },
+
+    get analysisBound(): boolean { return runtimeState.analysisBound; },
+    set analysisBound(v: boolean) { setAnalysisBound(v); },
+
+    get refetchOnZoom(): boolean { return runtimeState.refetchOnZoom; },
+    set refetchOnZoom(v: boolean) { setRefetchOnZoom(v); },
+
+    get pendingYMode(): YMode | null { return runtimeState.pendingYMode; },
+    set pendingYMode(v: YMode | null) { setPendingYMode(v); },
+
+    get pendingRestoreY(): { min: number; max: number } | null { return runtimeState.pendingRestoreY; },
+    set pendingRestoreY(v: { min: number; max: number } | null) { setPendingRestoreY(v); },
 } as AppStateType;
+
+export const appStateComposite = new Proxy(appStateCompositeTarget, {
+    set(target, property, value, receiver) {
+        warnLegacyAppStateWrite(property);
+        return Reflect.set(target, property, value, receiver);
+    },
+}) as AppStateType;
 
 /* ── Store ────────────────────────────────────────────────────────────────── */
 
 export const store = {
+    subscribe,
+    unsubscribe,
+    clearSubscribers,
+
     get<K extends keyof ChartState>(key: K): ChartState[K] {
         switch (key) {
             case 'chart': return chartState[key];

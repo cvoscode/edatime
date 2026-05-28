@@ -9,6 +9,15 @@ import {
 import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
 import { announceChartLoading, announceDataUpdate } from '../utils/a11y.js';
 import { computeFrontendRollingBands } from '../bootstrap/analyticsOverlay.js';
+import {
+    setFetchDebounceId,
+    setLastFetchedData,
+    setPendingRestoreY,
+    setPendingYMode,
+    setRollingBands,
+    setViewport,
+    setZoomHistory,
+} from '../store/index.js';
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
 
@@ -108,7 +117,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
         if (!appState.chart) return;
         if (!hasSelection) {
-            appState.rollingBands = null;
+            setRollingBands(null);
             appState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
             return;
         }
@@ -133,7 +142,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 showResetAction: true,
             });
 
-            appState.rollingBands = null;
+            setRollingBands(null);
             appState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
             if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
                 appState.chart.setXRange(start, end);
@@ -160,7 +169,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         }
 
         if (appState.rollingEnabled) {
-            appState.rollingBands = computeFrontendRollingBands(filtered as any, appState.selectedCols, (appState as any).rollingWindow || 50);
+            setRollingBands(computeFrontendRollingBands(filtered as any, appState.selectedCols, (appState as any).rollingWindow || 50));
             appState.chart?.requestOverlayRender?.();
         }
         window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
@@ -201,7 +210,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             });
 
             const data = await deps.fetchData(startIso, endIso, width, cols, colorCol, signal);
-            appState.lastFetchedData = data;
+            setLastFetchedData(data);
 
             if (DEBUG) {
                 const n = data?.ts?.length ?? 0;
@@ -237,8 +246,8 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'data');
             if (DEBUG) dbg('post-render yRange', yr);
 
-            appState.pendingYMode = null;
-            appState.pendingRestoreY = null;
+            setPendingYMode(null);
+            setPendingRestoreY(null);
         } catch (err: any) {
             if (err?.name === 'AbortError') return;
             console.error('Failed to fetch data:', err);
@@ -260,18 +269,17 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         if (!Number.isFinite(newStart) || !Number.isFinite(newEnd) || newStart >= newEnd) return;
 
         const snap = deps.getCurrentView();
-        appState.zoomHistory = [...appState.zoomHistory, snap].slice(-5);
+        setZoomHistory([...appState.zoomHistory, snap].slice(-5));
 
-        appState.currentStart = newStart;
-        appState.currentEnd = newEnd;
-        appState.chart?.setXRange?.(appState.currentStart, appState.currentEnd);
-        appState.pendingYMode = 'fit';
-        appState.pendingRestoreY = null;
+        setViewport(newStart, newEnd);
+        appState.chart?.setXRange?.(newStart, newEnd);
+        setPendingYMode('fit');
+        setPendingRestoreY(null);
 
         deps.updateAnalysisZoom(newStart, newEnd, sourceKind);
         emitChartRangeChange(sourceKind);
         if (!appState.refetchOnZoom) return;
-        appState.fetchDebounceId = setTimeout(fetchAndRender, 150);
+        setFetchDebounceId(setTimeout(fetchAndRender, 150));
     }
 
     return {

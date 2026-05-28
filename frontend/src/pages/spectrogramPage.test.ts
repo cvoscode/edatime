@@ -8,7 +8,7 @@ const chartInstance = {
     convertFromPixel: vi.fn(() => [0, 0]),
 };
 
-vi.mock('../dataClient.js', () => ({
+vi.mock('../services/api/index.js', () => ({
     fetchSpectrogram: (...args: unknown[]) => fetchSpectrogramMock(...args),
 }));
 

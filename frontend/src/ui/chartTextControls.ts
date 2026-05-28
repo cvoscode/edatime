@@ -4,6 +4,7 @@
  */
 
 import { appState } from '../state.js';
+import { setChartText } from '../store/index.js';
 
 export function initChartTextControls(): void {
     const titleInput = document.getElementById('chart-title-input') as HTMLInputElement | null;
@@ -11,11 +12,11 @@ export function initChartTextControls(): void {
     const yLabelInput = document.getElementById('y-axis-label-input') as HTMLInputElement | null;
 
     const applyChartText = () => {
-        appState.chartText = {
+        setChartText({
             title: titleInput?.value ?? appState.chartText.title,
             xLabel: xLabelInput?.value ?? appState.chartText.xLabel,
             yLabel: yLabelInput?.value ?? appState.chartText.yLabel,
-        };
+        });
         appState.chart?.setChartText?.(appState.chartText.title, appState.chartText.xLabel, appState.chartText.yLabel);
     };
 

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fetchCorrelationMatrixMock = vi.fn();
 
-vi.mock('../dataClient.js', () => ({
+vi.mock('../services/api/index.js', () => ({
     fetchCorrelationMatrix: (...args: unknown[]) => fetchCorrelationMatrixMock(...args),
 }));
 

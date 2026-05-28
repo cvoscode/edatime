@@ -11,7 +11,7 @@
 > (documentation, ownership, history, decisions). **Always verify against
 > actual source files before making changes** — the index may be stale.
 
-Last indexed: 2026-05-26 (commit d7590db)
+Last indexed: 2026-05-27 (commit 995143f)
 ### Entry Points
 - `frontend/src/store/index.ts`
 - `docs/developer/index.md`
@@ -28,7 +28,7 @@ Last indexed: 2026-05-26 (commit d7590db)
 **Infra:** Docker, Vite### Hotspots (High Churn)
 | File | Churn | 90d Commits | Owner |
 |------|-------|-------------|-------|
-| `frontend/js/app.js` | 100.0th %ile | 29 | cvoscode |
+| `frontend/js/app.js` | 100.0th %ile | 30 | cvoscode |
 | `frontend/index.html` | 99.9th %ile | 30 | cvoscode |
 | `frontend/src/app.ts` | 99.9th %ile | 21 | cvoscode |
 | `frontend/src/pages/TimeseriesPage.tsx` | 99.8th %ile | 16 | cvoscode |

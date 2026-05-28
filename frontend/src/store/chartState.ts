@@ -6,6 +6,7 @@
  */
 
 import type { ChartInstance, ViewSnapshot } from '../types.js';
+import { emitStoreEvent } from './events.js';
 
 /* ── State shape ──────────────────────────────────────── */
 
@@ -30,25 +31,54 @@ export const chartState: ChartState = {
 /* ── Mutations ──────────────────────────────────────────── */
 
 export function setChartInstance(chart: ChartInstance | null): void {
+    const previous = chartState.chart;
     chartState.chart = chart;
+    emitStoreEvent('chart:chart', { previous, next: chart });
 }
 
 export function setViewport(start: number | null, end: number | null): void {
+    const previousViewport = { start: chartState.currentStart, end: chartState.currentEnd };
+    const previousStart = chartState.currentStart;
+    const previousEnd = chartState.currentEnd;
     chartState.currentStart = start;
     chartState.currentEnd = end;
+    emitStoreEvent('chart:currentStart', { previous: previousStart, next: start });
+    emitStoreEvent('chart:currentEnd', { previous: previousEnd, next: end });
+    emitStoreEvent('chart:viewport', {
+        previous: previousViewport,
+        next: { start, end },
+    });
 }
 
 export function pushZoomHistory(entry: ViewSnapshot): void {
-    chartState.zoomHistory.push(entry);
+    const previous = chartState.zoomHistory;
+    chartState.zoomHistory = [...chartState.zoomHistory, { ...entry }];
     if (chartState.zoomHistory.length > 20) {
         chartState.zoomHistory = chartState.zoomHistory.slice(-20);
     }
+    emitStoreEvent('chart:zoomHistory', { previous, next: chartState.zoomHistory });
 }
 
 export function clearZoomHistory(): void {
+    const previous = chartState.zoomHistory;
     chartState.zoomHistory = [];
+    emitStoreEvent('chart:zoomHistory', { previous, next: chartState.zoomHistory });
 }
 
 export function setInitialView(view: ViewSnapshot | null): void {
-    chartState.initialView = view;
+    const previous = chartState.initialView;
+    chartState.initialView = view ? { ...view } : null;
+    emitStoreEvent('chart:initialView', { previous, next: chartState.initialView });
+}
+
+export function setZoomHistory(history: ViewSnapshot[]): void {
+    const previous = chartState.zoomHistory;
+    chartState.zoomHistory = history.map((entry) => ({ ...entry }));
+    emitStoreEvent('chart:zoomHistory', { previous, next: chartState.zoomHistory });
+}
+
+export function setChartText(text: ChartState['chartText']): void {
+    const previous = chartState.chartText;
+    chartState.chartText = { ...text };
+    emitStoreEvent('chart:chartText', { previous, next: chartState.chartText });
 }

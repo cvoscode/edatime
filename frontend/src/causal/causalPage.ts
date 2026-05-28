@@ -1,4 +1,4 @@
-import { fetchCausalGraph } from '../dataClient.js';
+import { fetchCausalGraph } from '../services/api/index.js';
 import { notifyCausalGraphUpdated, type CausalLink } from './causalComparison.js';
 
 

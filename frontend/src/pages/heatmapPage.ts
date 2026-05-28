@@ -1,4 +1,4 @@
-import { fetchCorrelationMatrix } from '../dataClient.js';
+import { fetchCorrelationMatrix } from '../services/api/index.js';
 import { createEmptyStateController } from '../ui/emptyState.js';
 import { exportElementPNG, exportElementSVG, exportElementHTML, exportMatrixCSV } from '../utils/chartExport.js';
 import { toast } from '../utils/toast.js';

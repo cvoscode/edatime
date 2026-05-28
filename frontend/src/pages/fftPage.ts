@@ -1,10 +1,11 @@
 import { appState } from '../state.js';
-import { fetchFft } from '../dataClient.js';
+import { fetchFft, fetchSpectralFilter } from '../services/api/index.js';
 import { FftChart, type FftTrace } from '../chart/FftChart.js';
 import { createEmptyStateController } from '../ui/emptyState.js';
 import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanvasHTML, exportTraceCSV } from '../utils/chartExport.js';
 import { toast } from '../utils/toast.js';
 import { getAnalyticsChipColor, getNumericColumns } from './analyticsPageUtils.js';
+import { setSpectralFilterPreview } from '../store/index.js';
 
 interface FftPageDeps {
     renderTimeseries: () => void;
@@ -214,7 +215,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
         const filterType = (document.getElementById('fft-filter-type') as HTMLSelectElement)?.value;
         if (!filterType || filterType === 'none') {
             if (appState.spectralFilterPreview) {
-                appState.spectralFilterPreview = null;
+                setSpectralFilterPreview(null);
                 appState.chart?.requestOverlayRender?.();
                 deps.renderTimeseries();
             }
@@ -246,17 +247,15 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
                 ...(lowHz !== undefined ? { low_hz: String(lowHz) } : {}),
                 ...(highHz !== undefined ? { high_hz: String(highHz) } : {}),
             });
-            const response = await fetch(`/api/analytics/spectral-filter?${params.toString()}`);
-            if (!response.ok) throw new Error(await response.text());
-            const data = await response.json();
-            appState.spectralFilterPreview = {
+            const data = await fetchSpectralFilter(params);
+            setSpectralFilterPreview({
                 column: data.column,
                 ts: data.ts as number[],
                 values: data.values as number[],
                 filterType,
                 lowHz: data.low_hz,
                 highHz: data.high_hz,
-            };
+            });
             if (statusEl) statusEl.textContent = `${filterType} preview active`;
             toast(`Spectral filter preview: ${filterType} applied to "${column}". Switch to Timeseries to view.`, 'success');
             deps.renderTimeseries();

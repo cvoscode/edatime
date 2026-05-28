@@ -13,6 +13,13 @@ import {
     getDefaultProfileColumnWidths, formatCount, formatProfileValue,
     normalizeDtypeLabel, toFiniteNumberOrNull,
 } from '../state.js';
+import {
+    setColumnProfiles,
+    setPreviewSelectedColumns,
+    setProfileGridBound,
+    setProfileGridHeaderBound,
+    setProfileGridSort,
+} from '../store/index.js';
 import type { DatasetMetadata, ProfileRow } from '../types.js';
 
 function createProfileRow(raw: any): ProfileRow | null {
@@ -104,7 +111,7 @@ export function hydrateColumnProfiles(metadata: DatasetMetadata): void {
         profileByName.set(profile.name, profile);
     }
 
-    appState.columnProfiles = Array.from(profileByName.values());
+    setColumnProfiles(Array.from(profileByName.values()));
 }
 
 // ─── Filtering + sorting ────────────────────────────────────────────────────
@@ -217,9 +224,9 @@ function initProfileGridHeaderControls(): void {
             cell.addEventListener('click', () => {
                 const current = appState.profileGridSort || { key: def.key, dir: 'asc' as const };
                 if (current.key === def.key) {
-                    appState.profileGridSort = { key: def.key, dir: current.dir === 'asc' ? 'desc' : 'asc' };
+                    setProfileGridSort({ key: def.key, dir: current.dir === 'asc' ? 'desc' : 'asc' });
                 } else {
-                    appState.profileGridSort = { key: def.key, dir: 'asc' };
+                    setProfileGridSort({ key: def.key, dir: 'asc' });
                 }
                 updateProfileGridHeaderState();
                 renderColumnProfilesGrid(true);
@@ -259,7 +266,7 @@ function initProfileGridHeaderControls(): void {
     });
 
     updateProfileGridHeaderState();
-    appState.profileGridHeaderBound = true;
+    setProfileGridHeaderBound(true);
 }
 
 // ─── Cell creators ──────────────────────────────────────────────────────────
@@ -291,7 +298,7 @@ function createSelectionCell(profile: ProfileRow): HTMLDivElement {
         if (checkbox.checked) selected.add(profile.name);
         else selected.delete(profile.name);
         if (appState.previewTimeColumn) selected.add(appState.previewTimeColumn);
-        appState.previewSelectedColumns = Array.from(selected);
+        setPreviewSelectedColumns(Array.from(selected));
         syncUploadSelectionUI();
     });
 
@@ -417,5 +424,5 @@ export function initColumnProfilesGrid(): void {
     initProfileGridHeaderControls();
     applyProfileGridColumnsTemplate();
 
-    appState.profileGridBound = true;
+    setProfileGridBound(true);
 }

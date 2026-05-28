@@ -2,7 +2,7 @@
  * Scatter matrix view: pairwise grid with mini scatter canvases and diagonal distributions.
  */
 
-import { fetchScatterPoints, fetchFft } from '../dataClient.js';
+import { fetchScatterPoints, fetchFft } from '../services/api/index.js';
 import {
     getEl,
     fmt,

@@ -1,4 +1,11 @@
 import { appState } from '../state.js';
+import {
+    setAdaptiveLineFilters,
+    setColumnRanges,
+    setFilterText,
+    setProfileFilterText,
+    setViewport,
+} from '../store/index.js';
 import { debounce } from '../utils/dom.js';
 
 interface TimeseriesBootstrapDeps {
@@ -16,7 +23,7 @@ export function initDatasetSearchInputs(deps: Pick<TimeseriesBootstrapDeps, 'reb
     const columnFilterInput = document.getElementById('column-filter-input') as HTMLInputElement | null;
     if (columnFilterInput) {
         const onFilterInput = debounce(() => {
-            appState.filterText = (columnFilterInput.value || '').trim().toLowerCase();
+            setFilterText((columnFilterInput.value || '').trim().toLowerCase());
             deps.rebuildColumnToggles();
         }, 120);
         columnFilterInput.addEventListener('input', onFilterInput);
@@ -25,7 +32,7 @@ export function initDatasetSearchInputs(deps: Pick<TimeseriesBootstrapDeps, 'reb
     const profileFilterInput = document.getElementById('profile-filter-input') as HTMLInputElement | null;
     if (profileFilterInput) {
         const onProfileFilterInput = debounce(() => {
-            appState.profileFilterText = (profileFilterInput.value || '').trim().toLowerCase();
+            setProfileFilterText((profileFilterInput.value || '').trim().toLowerCase());
             deps.renderColumnProfilesGrid(true);
         }, 120);
         profileFilterInput.addEventListener('input', onProfileFilterInput);
@@ -37,8 +44,7 @@ export function initTimeseriesActions(deps: TimeseriesBootstrapDeps): void {
         const minMs = Number((appState.metadata as any)?.time_range?.min);
         const maxMs = Number((appState.metadata as any)?.time_range?.max);
         if (!Number.isFinite(minMs) || !Number.isFinite(maxMs) || minMs >= maxMs) return;
-        appState.currentStart = minMs;
-        appState.currentEnd = maxMs;
+        setViewport(minMs, maxMs);
         appState.chart?.setXRange?.(minMs, maxMs);
         deps.updateAnalysisZoom(minMs, maxMs, source);
         deps.emitChartRangeChange(source);
@@ -53,8 +59,8 @@ export function initTimeseriesActions(deps: TimeseriesBootstrapDeps): void {
     (window as any).__edatime.resetChartRangeToDataset = () => void resetChartRangeToDataset('reset');
 
     const clearAllFilters = async (source = 'clear') => {
-        appState.columnRanges = {};
-        appState.adaptiveLineFilters = [];
+        setColumnRanges({});
+        setAdaptiveLineFilters([]);
         deps.buildRangeControls();
         deps.renderCurrentData();
         window.dispatchEvent(new CustomEvent('edatime:column-filters-change', { detail: { source } }));

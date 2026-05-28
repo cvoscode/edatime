@@ -12,6 +12,7 @@
  */
 
 import { appState, applyColumnRanges } from '../state.js';
+import { setAnomalyRegions, setRollingBands } from '../store/index.js';
 import type { AnomalyResponse, AdaptiveLineFilter } from '../types.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -115,15 +116,15 @@ export async function fetchAnomalyRegions(
     try {
         if (appState.anomalyEnabled && fetchAnomalies) {
             const resp = await fetchAnomalies(startIso, endIso, cols, appState.anomalyMethod, appState.anomalyThreshold, controllerSignal);
-            appState.anomalyRegions = resp?.regions ?? null;
+            setAnomalyRegions(resp?.regions ?? null);
         } else {
-            appState.anomalyRegions = null;
+            setAnomalyRegions(null);
         }
     } catch (e: unknown) {
         if (!(e instanceof Error) || e.name !== 'AbortError') {
             console.warn('Anomaly fetch failed:', e);
         }
-        appState.anomalyRegions = null;
+        setAnomalyRegions(null);
     }
 
     requestOverlayRender();
@@ -132,11 +133,11 @@ export async function fetchAnomalyRegions(
 /** Compute rolling bands from lastFetchedData + column ranges; update appState. */
 export function computeAndSetRollingBands(windowSize: number): void {
     if (!appState.rollingEnabled) {
-        appState.rollingBands = null;
+        setRollingBands(null);
         return;
     }
     const filtered = applyColumnRanges(appState.lastFetchedData!);
-    appState.rollingBands = computeFrontendRollingBands(filtered, appState.selectedCols, windowSize);
+    setRollingBands(computeFrontendRollingBands(filtered, appState.selectedCols, windowSize));
 }
 
 /** Stop any in-flight anomaly request. */

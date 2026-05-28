@@ -5,6 +5,7 @@
  */
 
 import type { DatasetMetadata, ProfileRow } from '../types.js';
+import { emitStoreEvent } from './events.js';
 
 export interface DatasetState {
     metadata: DatasetMetadata | null;
@@ -23,6 +24,8 @@ export const datasetState: DatasetState = {
 /* ── Mutations ──────────────────────────────────────────── */
 
 export function setMetadata(metadata: DatasetMetadata | null): void {
+    const previousMetadata = datasetState.metadata;
+    const previousNumericCols = datasetState.numericCols;
     datasetState.metadata = metadata;
     // Keep numericCols in sync when metadata changes
     if (metadata) {
@@ -33,16 +36,28 @@ export function setMetadata(metadata: DatasetMetadata | null): void {
     } else {
         datasetState.numericCols = [];
     }
+    emitStoreEvent('dataset:metadata', { previous: previousMetadata, next: metadata });
+    emitStoreEvent('dataset:numericCols', { previous: previousNumericCols, next: datasetState.numericCols });
+}
+
+export function setNumericCols(cols: string[]): void {
+    const previous = datasetState.numericCols;
+    datasetState.numericCols = [...cols];
+    emitStoreEvent('dataset:numericCols', { previous, next: datasetState.numericCols });
 }
 
 export function setColumnProfiles(profiles: ProfileRow[]): void {
-    datasetState.columnProfiles = profiles;
+    const previous = datasetState.columnProfiles;
+    datasetState.columnProfiles = profiles.map((profile) => ({ ...profile }));
+    emitStoreEvent('dataset:columnProfiles', { previous, next: datasetState.columnProfiles });
 }
 
 export function setDatasetRevision(rev: number): void {
+    const previous = datasetState.datasetRevision;
     datasetState.datasetRevision = rev;
+    emitStoreEvent('dataset:datasetRevision', { previous, next: rev });
 }
 
 export function incrementDatasetRevision(): void {
-    datasetState.datasetRevision += 1;
+    setDatasetRevision(datasetState.datasetRevision + 1);
 }

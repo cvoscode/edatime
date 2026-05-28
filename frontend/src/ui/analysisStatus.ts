@@ -4,6 +4,7 @@
  */
 
 import { appState, formatAnalysisTime, formatAnalysisNumber } from '../state.js';
+import { setPendingRestoreY, setPendingYMode } from '../store/index.js';
 
 function setText(id: string, text: string): void {
     const el = document.getElementById(id);
@@ -17,8 +18,8 @@ export function updateAnalysisZoom(startMs: number, endMs: number, sourceKind = 
 export function updateAnalysisYRange(min: number, max: number, sourceKind = 'user'): void {
     if (appState.pendingYMode === 'restore' && appState.pendingRestoreY) {
         const savedY = appState.pendingRestoreY;
-        appState.pendingYMode = null;
-        appState.pendingRestoreY = null;
+        setPendingYMode(null);
+        setPendingRestoreY(null);
         appState.chart?.setYRange(savedY.min, savedY.max);
         setText('analysis-y', `Y: ${formatAnalysisNumber(savedY.min)} → ${formatAnalysisNumber(savedY.max)} (restore)`);
         return;
