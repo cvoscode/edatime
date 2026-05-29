@@ -1,12 +1,11 @@
-import { initDriftPage } from '../../drift/driftPage.js';
-
-export interface DriftEntrypointDeps {
-    initDriftPage: (metadata: any) => Promise<void>;
-    metadata: any;
-}
+import type { DriftEntrypointDeps } from '../../drift/driftPage.js';
 
 export function createDriftEntrypoint(deps: DriftEntrypointDeps) {
     return {
-        init: () => deps.initDriftPage(deps.metadata),
+        init: async () => {
+            const { initDriftPage } = await import('../../drift/driftPage.js');
+            const metadata = deps.getMetadata();
+            initDriftPage(metadata);
+        },
     };
 }

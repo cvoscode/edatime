@@ -128,7 +128,10 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             try {
                 matrixData = await fetchCorrelationMatrix();
                 if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns · ${heatmapCellSize}px cells`;
-                renderHeatmap();
+                // Wait for fonts/CSS to be ready so the grid layout is correct
+                // and avoids the "layout was forced" warning from a stylesheet race.
+                await document.fonts.ready;
+                requestAnimationFrame(() => renderHeatmap());
             } catch (error: any) {
                 const message = error?.message || '';
                 const isInsufficient = message.toLowerCase().includes('two')

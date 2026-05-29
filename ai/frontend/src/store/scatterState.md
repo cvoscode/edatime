@@ -1,4 +1,4 @@
-# ai/frontend/src/store/scatterState.ts
+# frontend/src/store/scatterState.ts
 > Scatter analytics page state management.
 
 ## Interfaces

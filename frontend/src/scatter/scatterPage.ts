@@ -612,6 +612,14 @@ appState.scatter.suggestionThreshold = normalizeScatterSuggestionThreshold(sugge
             });
         }
 
+        // If scatter metadata is still empty (was initialized with the boot-time
+        // empty placeholder), copy the real dataset metadata now.
+        if (!appState.scatter.metadata || !(appState.scatter.metadata as any)?.columns?.length) {
+            if (appState.metadata) {
+                appState.scatter.metadata = appState.metadata;
+            }
+        }
+
         appState.scatter.activeView = normalizeAnalyticsView(ev?.detail?.analyticsView);
         await setScatterView(appState.scatter.activeView, { render: false });
         if (!appState.scatter.pageInitialized) {

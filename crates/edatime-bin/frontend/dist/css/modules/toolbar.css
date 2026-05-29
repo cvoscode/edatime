@@ -20,6 +20,13 @@
   overflow-y: visible;
 }
 
+/* Scatter disclosure menus are absolutely positioned and must not be clipped
+   by the toolbar's horizontal scrolling container. */
+.scatter-toolbar {
+  position: relative;
+  overflow: visible;
+}
+
 .range-toolbar {
   flex-shrink: 0;
   background: rgba(15, 20, 30, 0.90);

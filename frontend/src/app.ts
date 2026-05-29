@@ -26,8 +26,11 @@ import { buildColumnToggles, buildRangeControls, initColumnFilterModal } from '.
 import { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata, initUploadPanel } from './ui/upload.js';
 import { hydrateColumnProfiles, renderColumnProfilesGrid, initColumnProfilesGrid } from './ui/profile.js';
 import { installWindowsWebGpuRequestAdapterWorkaround, requestGpuAdapter } from './utils/platform.js';
-import { getDefaultTimeseriesColumns, getNumericColumns } from './pages/analyticsPageUtils.js';
+import { getAnalyticsChipColor, getDefaultTimeseriesColumns, getNumericColumns } from './pages/analyticsPageUtils.js';
 import { createTimeseriesPageController } from './pages/timeseriesPage.js';
+import { createHeatmapEntrypoint } from './features/heatmap/entrypoint.js';
+import { createScatterEntrypoint } from './features/scatter/entrypoint.js';
+import { initScatterPage } from './scatter/scatterPage.js';
 import { fetchAnomalyRegions, computeAndSetRollingBands, cancelAnalyticsFetch } from './bootstrap/analyticsOverlay.js';
 import { initAppShell } from './bootstrap/appShell.js';
 import { createAppRuntime } from './app/runtime.js';
@@ -69,6 +72,23 @@ import {
 
 const _appCleanups: Array<() => void> = [];
 const runtime = createAppRuntime();
+
+// Register lazy-loaded page modules so ensurePageModuleLoaded is not a no-op.
+import { register } from './app/pageRegistry.js';
+import { createFftEntrypoint } from './features/fft/entrypoint.js';
+import { createHeatmapEntrypoint } from './features/heatmap/entrypoint.js';
+import { createScatterEntrypoint } from './features/scatter/entrypoint.js';
+import { createSpectrogramEntrypoint } from './features/spectrogram/entrypoint.js';
+import { createCausalEntrypoint } from './features/causal/entrypoint.js';
+import { createDriftEntrypoint } from './features/drift/entrypoint.js';
+import { initDriftPage } from './drift/driftPage.js';
+
+register('fft', { requiresMetadata: true, init: createFftEntrypoint({ getRenderTimeseries: () => renderCurrentData }).init });
+register('heatmap', { requiresMetadata: true, init: createHeatmapEntrypoint({ showPage }).init });
+register('scatter', { requiresMetadata: true, init: createScatterEntrypoint({ initScatterPage, getMetadata: () => appState.metadata! }).init });
+register('spectrogram', { requiresMetadata: true, init: createSpectrogramEntrypoint({ setLoading: setComputeLoading }).init });
+register('causal', { requiresMetadata: true, init: createCausalEntrypoint({ getMetadata: () => appState.metadata, chipColor: (col, idx) => getAnalyticsChipColor(col, idx), numericColumns: () => getNumericColumns(appState.metadata), setLoading: setComputeLoading }).init });
+register('drift', { requiresMetadata: true, init: createDriftEntrypoint({ initDriftPage, getMetadata: () => appState.metadata! }).init });
 
 function storeFetchedMetadata(metadata: DatasetMetadata): void {
     setMetadata(metadata);
@@ -173,6 +193,8 @@ const timeseriesPage = createTimeseriesPageController({
     getCurrentView,
     fetchAndRenderAnalytics: () => fetchAndRenderAnalytics(),
 });
+
+const renderTimeseries = () => timeseriesPage.renderCurrentData();
 
 let _timeseriesReady = false;
 let _timeseriesReadyPromise: Promise<void> | null = null;

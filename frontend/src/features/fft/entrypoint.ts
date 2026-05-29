@@ -1,11 +1,11 @@
 import { initFftPage } from '../../pages/fftPage.js';
 
 export interface FftEntrypointDeps {
-    renderTimeseries: () => void;
+    getRenderTimeseries: () => () => void;
 }
 
 export function createFftEntrypoint(deps: FftEntrypointDeps) {
     return {
-        init: () => initFftPage(deps),
+        init: () => initFftPage({ renderTimeseries: deps.getRenderTimeseries() }),
     };
 }

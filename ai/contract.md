@@ -16,9 +16,9 @@ All timestamps in requests/responses are **epoch milliseconds** unless noted.
 | GET | `/api/metadata` | JSON | Dataset column metadata |
 | GET | `/api/metrics` | JSON | Application metrics |
 | GET/POST | `/api/scatter/points` | Arrow/JSON | Scatter plot points |
-| POST | `/api/scatter/export/parquet` | Binary | Export scatter as Parquet |
 | GET | `/api/scatter/correlations` | JSON | Pairwise correlations + suggestions |
 | GET | `/api/scatter/correlations/matrix` | JSON | Full N×N correlation matrix |
+| POST | `/api/scatter/export/parquet` | Binary | Export scatter as Parquet |
 | POST | `/api/upload` | JSON | Upload CSV/Parquet dataset |
 | POST | `/api/upload/preview` | JSON | Preview upload without committing |
 | GET | `/api/sample/{name}` | Binary | Serve built-in sample dataset |
@@ -392,7 +392,7 @@ max_points: number (default: 16384)
 }
 ```
 
-**[6]: [../../crates/edatime-service/src/handlers/scatter/scatter/mod.md][6]**
+**[6]: [crates/edatime-service/src/handlers/scatter/scatter/points.md][6]**
 
 ---
 
@@ -427,7 +427,7 @@ threshold: number (default: 0.7)
 }
 ```
 
-**[7]: [../../crates/edatime-service/src/handlers/scatter/scatter/mod.md][7]**
+**[7]: [crates/edatime-service/src/handlers/scatter/scatter/correlations.md][7]**
 
 ---
 

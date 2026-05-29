@@ -1,5 +1,8 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/frequency-RcuLtxnY.js","assets/chartgpu-CqrjGxnD.js","assets/scatter-CBersIsh.js","assets/drift-BaKl-oHI.js","assets/causal-8v1hrf0J.js","assets/DataChart-1bbInoCD.js"])))=>i.map(i=>d[i]);
-import { b as appStateComposite, x as formatAnalysisNumber, y as setAdaptiveFilterColumn, z as setSelectedColorColumn, A as getSeriesColor, w as SeriesChip, B as setSelectedCols, C as setPendingAdaptivePoint, E as computeBounds, F as setAdaptiveLineFilters, G as setSeriesColor, H as setPreviewTimeColumn, I as uploadDataset, J as formatCount, K as fetchMetadata$1, L as setMetadata, M as setDatasetRevision, N as buildMetaBar$1, O as connectDatabase, P as loadDatabaseTable, Q as deleteDatabaseConnection, u as toast, R as previewUpload, T as formatToDatetimeLocal, U as formatAnalysisTime, V as setPreviewSelectedColumns, W as fetchDatabaseTables, X as fetchDatabaseStatus, Y as setProfileGridBound, Z as PROFILE_ROW_HEIGHT, $ as PROFILE_COLUMNS, a0 as normalizeDtypeLabel, a1 as formatProfileValue, a2 as setProfileGridSort, a3 as setProfileGridHeaderBound, a4 as getDefaultProfileColumnWidths, a5 as setColumnProfiles, a6 as PROFILE_OVERSCAN, a7 as toFiniteNumberOrNull, a8 as setAnomalyRegions, a9 as setRollingBands, aa as applyColumnRanges, m as isRangeOutsideDataset, ab as dbgGroup, ac as setZoomHistory, ad as setViewport, ae as setPendingYMode, af as setPendingRestoreY, ag as setFetchDebounceId, ah as sanitizeSelectedColumns$1, ai as dbg, aj as setLastFetchedData, D as DEBUG, ak as ensureRangeStateFromData, al as setMetaText, p as createEmptyStateController, d as downloadBlob, am as setChartText, an as setRollingEnabled, ao as setRollingWindow, ap as setAnomalyEnabled, aq as setAnomalyMethod, ar as setAnomalyThreshold, as as setAnalysisBound, S as SERIES_COLORS, _ as __vitePreload, at as fetchSampleDataset, au as getNumericColumns, av as getAnalyticsChipColor, aw as setSeriesColors, ax as setColumnRanges, ay as debounce, az as setFilterText, aA as setProfileFilterText, aB as installWindowsWebGpuRequestAdapterWorkaround, aC as setNumericCols, aD as getDefaultTimeseriesColumns, aE as setChartInstance, aF as setInitialView, r as requestGpuAdapter, aG as appendAdaptiveLineFilter, aH as buildAdaptiveLineY } from './assets/frequency-RcuLtxnY.js';
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/scatter-UdQnbmcA.js","assets/chartgpu-CqrjGxnD.js","assets/frequency-CAxkn98O.js","assets/DataChart-DIUuEchO.js","assets/causal-D9qSmWsX.js","assets/drift-GmFLwnPR.js"])))=>i.map(i=>d[i]);
+import { b as appStateComposite, k as formatAnalysisNumber, l as setAdaptiveFilterColumn, m as setSelectedColorColumn, n as getSeriesColor, o as setSelectedCols, p as setPendingAdaptivePoint, q as computeBounds, r as setAdaptiveLineFilters, t as setSeriesColor, u as setPreviewTimeColumn, v as uploadDataset, w as formatCount, x as fetchMetadata$1, y as setMetadata, z as setDatasetRevision, A as buildMetaBar$1, B as connectDatabase, C as loadDatabaseTable, E as deleteDatabaseConnection, F as previewUpload, G as formatToDatetimeLocal, H as formatAnalysisTime, I as setPreviewSelectedColumns, J as fetchDatabaseTables, K as fetchDatabaseStatus, L as setProfileGridBound, P as PROFILE_ROW_HEIGHT, M as PROFILE_COLUMNS, N as normalizeDtypeLabel, O as formatProfileValue, Q as setProfileGridSort, R as setProfileGridHeaderBound, S as getDefaultProfileColumnWidths, T as setColumnProfiles, U as PROFILE_OVERSCAN, V as toFiniteNumberOrNull, W as setAnomalyRegions, X as setRollingBands, Y as applyColumnRanges, Z as isRangeOutsideDataset, $ as dbgGroup, a0 as setZoomHistory, a1 as setViewport, a2 as setPendingYMode, a3 as setPendingRestoreY, a4 as setFetchDebounceId, a5 as sanitizeSelectedColumns$1, a6 as dbg, a7 as setLastFetchedData, D as DEBUG, a8 as ensureRangeStateFromData, a9 as setMetaText, c as createEmptyStateController, a as downloadBlob, aa as setChartText, ab as setRollingEnabled, ac as setRollingWindow, ad as setAnomalyEnabled, ae as setAnomalyMethod, af as setAnomalyThreshold, ag as setAnalysisBound, ah as SERIES_COLORS, _ as __vitePreload, ai as setSeriesColors, aj as setColumnRanges, ak as debounce, al as setFilterText, am as setProfileFilterText, an as installWindowsWebGpuRequestAdapterWorkaround, ao as setNumericCols, ap as setChartInstance, aq as setInitialView, ar as requestGpuAdapter, as as appendAdaptiveLineFilter, at as buildAdaptiveLineY, au as createScatterEntrypoint, av as initScatterPage } from './assets/scatter-UdQnbmcA.js';
+import { S as SeriesChip, t as toast, i as initFftPage, a as initHeatmapPage, b as initSpectrogramPage, g as getNumericColumns, c as getDefaultTimeseriesColumns, d as getAnalyticsChipColor } from './assets/frequency-CAxkn98O.js';
+import { c as createCausalEntrypoint } from './assets/causal-D9qSmWsX.js';
+import { c as createDriftEntrypoint, i as initDriftPage } from './assets/drift-GmFLwnPR.js';
 import './assets/chartgpu-CqrjGxnD.js';
 
 let _seriesCollapsed = false;
@@ -2944,19 +2947,43 @@ function initSettings() {
   return settings;
 }
 
+function createModalController(opts) {
+  const modal = document.getElementById(opts.modalId);
+  const open = () => {
+    if (modal) modal.hidden = false;
+    opts.onOpen?.();
+  };
+  const close = () => {
+    if (modal) modal.hidden = true;
+    opts.onClose?.();
+  };
+  for (const id of opts.closeButtonIds) {
+    document.getElementById(id)?.addEventListener("click", close);
+  }
+  modal?.addEventListener("click", (event) => {
+    if (event.target === modal) close();
+  });
+  return { open, close };
+}
+
 let currentSettings = null;
+const controller$1 = createModalController({
+  modalId: "settings-modal",
+  closeButtonIds: ["settings-close-btn", "settings-cancel-btn"],
+  onOpen: () => {
+    currentSettings = loadSettings();
+    populateSettingsForm(currentSettings);
+    setActiveTab("appearance");
+  },
+  onClose: () => {
+    currentSettings = null;
+  }
+});
 function openSettingsModal() {
-  const modal = document.getElementById("settings-modal");
-  if (!modal) return;
-  currentSettings = loadSettings();
-  populateSettingsForm(currentSettings);
-  setActiveTab("appearance");
-  modal.hidden = false;
+  controller$1.open();
 }
 function closeSettingsModal() {
-  const modal = document.getElementById("settings-modal");
-  if (modal) modal.hidden = true;
-  currentSettings = null;
+  controller$1.close();
 }
 function setActiveTab(tab) {
   document.querySelectorAll(".settings-tab-btn").forEach((btn) => {
@@ -3045,13 +3072,6 @@ function getCheckboxValue(id) {
   return el?.checked || false;
 }
 function initSettingsPanel() {
-  const modal = document.getElementById("settings-modal");
-  if (!modal) return;
-  document.getElementById("settings-close-btn")?.addEventListener("click", closeSettingsModal);
-  document.getElementById("settings-cancel-btn")?.addEventListener("click", closeSettingsModal);
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) closeSettingsModal();
-  });
   document.getElementById("settings-apply-btn")?.addEventListener("click", applySettings);
   document.getElementById("settings-reset-btn")?.addEventListener("click", resetSettings);
   document.querySelectorAll(".settings-tab-btn").forEach((btn) => {
@@ -3088,43 +3108,52 @@ const settingsPanel = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePrope
   openSettingsModal
 }, Symbol.toStringTag, { value: 'Module' }));
 
-let _open = false;
-function isDrawerOpen() {
-  return _open;
-}
-function openDrawer() {
-  const drawer = document.getElementById("analytics-drawer");
-  if (!drawer) return;
-  drawer.hidden = false;
-  document.body.classList.add("drawer-open");
-  _open = true;
-  updateSetting("analyticsDrawerOpen", true);
-}
-function closeDrawer() {
-  const drawer = document.getElementById("analytics-drawer");
-  if (!drawer) return;
-  drawer.hidden = true;
-  document.body.classList.remove("drawer-open");
-  _open = false;
-  updateSetting("analyticsDrawerOpen", false);
-}
-function toggleDrawer() {
-  if (isDrawerOpen()) closeDrawer();
-  else openDrawer();
-}
-function initAnalyticsDrawer() {
-  const drawer = document.getElementById("analytics-drawer");
-  if (!drawer) return;
-  document.getElementById("analytics-close-btn")?.addEventListener("click", closeDrawer);
-  drawer.addEventListener("click", (e) => {
-    if (e.target === drawer) closeDrawer();
+function createDrawerController(opts) {
+  const drawer = document.getElementById(opts.drawerId);
+  let _isOpen = false;
+  const isOpen = () => _isOpen;
+  const open = () => {
+    if (drawer) drawer.hidden = false;
+    document.body.classList.add("drawer-open");
+    _isOpen = true;
+    opts.onOpen?.();
+  };
+  const close = () => {
+    if (drawer) drawer.hidden = true;
+    document.body.classList.remove("drawer-open");
+    _isOpen = false;
+    opts.onClose?.();
+  };
+  const toggle = () => {
+    if (_isOpen) close();
+    else open();
+  };
+  for (const id of opts.toggleButtonIds) {
+    document.getElementById(id)?.addEventListener("click", toggle);
+  }
+  drawer?.addEventListener("click", (event) => {
+    if (event.target === drawer) close();
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && isDrawerOpen()) closeDrawer();
+    if (e.key === "Escape" && _isOpen) close();
   });
-  document.getElementById("open-analytics-panel-btn")?.addEventListener("click", toggleDrawer);
+  return { open, close, toggle, isOpen };
+}
+
+const controller = createDrawerController({
+  drawerId: "analytics-drawer",
+  toggleButtonIds: ["open-analytics-panel-btn"],
+  onOpen: () => {
+    updateSetting("analyticsDrawerOpen", true);
+  },
+  onClose: () => {
+    updateSetting("analyticsDrawerOpen", false);
+  }
+});
+function initAnalyticsDrawer() {
+  document.getElementById("analytics-close-btn")?.addEventListener("click", controller.close);
   const saved = getSetting("analyticsDrawerOpen");
-  if (saved) openDrawer();
+  if (saved) controller.open();
 }
 
 const STORAGE_KEY$2 = "edatime-annotations";
@@ -3808,30 +3837,18 @@ const guidedWorkflow = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProp
   renderGuidedWorkflow
 }, Symbol.toStringTag, { value: 'Module' }));
 
-function initModalClose(modalId, closeBtnId, cancelBtnId, onClose) {
-  const modal = document.getElementById(modalId);
-  if (!modal) return null;
-  const close = () => {
-    modal.hidden = true;
-    onClose?.();
-  };
-  document.getElementById(closeBtnId)?.addEventListener("click", close);
-  document.getElementById(cancelBtnId)?.addEventListener("click", close);
-  modal.addEventListener("click", (event) => {
-    if (event.target === modal) close();
-  });
-  return close;
-}
-
 function initTransformModal(deps) {
   const applyBtn = document.getElementById("transform-apply-btn");
   const exprInput = document.getElementById("transform-expression");
   const nameInput = document.getElementById("transform-output-name");
   const errorEl = document.getElementById("transform-error");
-  const close = initModalClose("transform-modal", "transform-close-btn", "transform-cancel-btn", () => {
-    if (errorEl) errorEl.textContent = "";
+  const controller = createModalController({
+    modalId: "transform-modal",
+    closeButtonIds: ["transform-close-btn", "transform-cancel-btn"],
+    onOpen: () => {
+      if (errorEl) errorEl.textContent = "";
+    }
   });
-  if (!close) return;
   applyBtn?.addEventListener("click", async () => {
     const expr = exprInput?.value?.trim();
     const name = nameInput?.value?.trim();
@@ -3849,9 +3866,9 @@ function initTransformModal(deps) {
         applyBtn.textContent = "Applying…";
         applyBtn.disabled = true;
       }
-      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/frequency-RcuLtxnY.js').then(n => n.aN);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/scatter-UdQnbmcA.js').then(n => n.aB);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
       await postTransform(expr, name);
-      close();
+      controller.close();
       await deps.refreshDataset({ selectedColumn: name });
     } catch (error) {
       if (errorEl) errorEl.textContent = error?.message || "Transform failed.";
@@ -3871,14 +3888,16 @@ function initOutlierModal(deps) {
   const windowInput = document.getElementById("outlier-window");
   const errorEl = document.getElementById("outlier-error");
   const resultEl = document.getElementById("outlier-result");
-  const close = initModalClose("outlier-modal", "outlier-close-btn", "outlier-cancel-btn", () => {
-    if (errorEl) errorEl.textContent = "";
-    if (resultEl) resultEl.textContent = "";
+  const controller = createModalController({
+    modalId: "outlier-modal",
+    closeButtonIds: ["outlier-close-btn", "outlier-cancel-btn"],
+    onOpen: () => {
+      if (errorEl) errorEl.textContent = "";
+      if (resultEl) resultEl.textContent = "";
+    }
   });
-  if (!close) return;
-  const modal = document.getElementById("outlier-modal");
   openBtn?.addEventListener("click", () => {
-    if (modal) modal.hidden = false;
+    controller.open();
   });
   methodSelect?.addEventListener("change", () => {
     if (thresholdInput) {
@@ -3897,7 +3916,7 @@ function initOutlierModal(deps) {
         applyBtn.disabled = true;
         applyBtn.textContent = "Removing…";
       }
-      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/frequency-RcuLtxnY.js').then(n => n.aN);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/scatter-UdQnbmcA.js').then(n => n.aB);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
       const result = await postRemoveOutliers(
         columns,
         method,
@@ -4116,7 +4135,7 @@ function wireSampleDatasetCards(showPage) {
     element.addEventListener("click", () => {
       const dataset = element.dataset.sampleDataset;
       if (dataset) {
-        loadSampleDataset(dataset, showPage);
+        void loadSampleDataset(dataset, showPage);
       }
     });
   });
@@ -4151,7 +4170,8 @@ function generateWeatherCsv() {
   return rows.join("\n");
 }
 async function loadSampleDataset(datasetId, showPage) {
-  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/frequency-RcuLtxnY.js').then(n => n.aO);return { toast }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/frequency-CAxkn98O.js').then(n => n.k);return { toast }},true              ?__vite__mapDeps([2,0,1]):void 0);
+  const { fetchSampleDataset } = await __vitePreload(async () => { const { fetchSampleDataset } = await import('./assets/scatter-UdQnbmcA.js').then(n => n.aB);return { fetchSampleDataset }},true              ?__vite__mapDeps([0,1]):void 0);
   if (datasetId === "ettm2") {
     const dismissLoading = toast("Loading ETTm2 sample dataset…", "info", 0);
     let file;
@@ -4254,82 +4274,52 @@ function initAppShell(deps) {
   deps.initAnalyticsListeners();
 }
 
-async function initSpectrogramPage() {
-  const { initSpectrogramPage: init } = await __vitePreload(async () => { const { initSpectrogramPage: init } = await import('./assets/frequency-RcuLtxnY.js').then(n => n.aP);return { initSpectrogramPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
-  await init({ setLoading: setComputeLoading });
-}
-async function initFftPage() {
-  const { initFftPage: init } = await __vitePreload(async () => { const { initFftPage: init } = await import('./assets/frequency-RcuLtxnY.js').then(n => n.aQ);return { initFftPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
-  await init({ renderTimeseries: () => {
-  } });
-}
-async function initHeatmapPage() {
-  const { initHeatmapPage: init } = await __vitePreload(async () => { const { initHeatmapPage: init } = await import('./assets/frequency-RcuLtxnY.js').then(n => n.aR);return { initHeatmapPage: init }},true              ?__vite__mapDeps([0,1]):void 0);
-  await init({
-    showPage: (name) => {
-      document.querySelector(`.sidebar .nav-item[data-page="${name}"]`)?.click?.();
-    }
-  });
-}
-async function initScatterPage() {
-  const scatterPage = document.getElementById("page-scatter");
-  if (!scatterPage) return;
-  const { initScatterPage: initScatterPage2 } = await __vitePreload(async () => { const { initScatterPage: initScatterPage2 } = await import('./assets/scatter-CBersIsh.js');return { initScatterPage: initScatterPage2 }},true              ?__vite__mapDeps([2,1,0]):void 0);
-  await initScatterPage2(appStateComposite.metadata);
-}
-async function initDriftPage() {
-  const { initDriftPage: init } = await __vitePreload(async () => { const { initDriftPage: init } = await import('./assets/drift-BaKl-oHI.js');return { initDriftPage: init }},true              ?__vite__mapDeps([3,0,1]):void 0);
-  await init(appStateComposite.metadata);
-}
-async function initCausalPage() {
-  const { initCausalPage: init } = await __vitePreload(async () => { const { initCausalPage: init } = await import('./assets/causal-8v1hrf0J.js').then(n => n.a);return { initCausalPage: init }},true              ?__vite__mapDeps([4,0,1]):void 0);
-  const { initCausalComparison } = await __vitePreload(async () => { const { initCausalComparison } = await import('./assets/causal-8v1hrf0J.js').then(n => n.c);return { initCausalComparison }},true              ?__vite__mapDeps([4,0,1]):void 0);
-  init({
-    getMetadata: () => appStateComposite.metadata,
-    chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
-    numericColumns: () => getNumericColumns(appStateComposite.metadata),
-    setLoading: setComputeLoading
-  });
-}
-const pageModuleLoaders = {
-  scatter: initScatterPage,
-  scattermatrix: initScatterPage,
-  heatmap: initHeatmapPage,
-  spectrogram: initSpectrogramPage,
-  causal: initCausalPage,
-  fft: initFftPage,
-  drift: initDriftPage
-};
-const _loadedPageModules = /* @__PURE__ */ new Set();
-let _metadataReady = false;
-async function ensurePageModuleLoaded(page) {
-  if (_loadedPageModules.has(page)) return;
-  const loader = pageModuleLoaders[page];
-  if (!loader) return;
-  if (!_metadataReady) {
-    await new Promise((resolve) => {
-      const onReady = () => {
-        window.removeEventListener("edatime:metadata-ready", onReady);
-        resolve();
+function createAppRuntime() {
+  const cleanups = /* @__PURE__ */ new Set();
+  let disposed = false;
+  return {
+    registerCleanup(fn) {
+      if (disposed) return () => {
       };
-      window.addEventListener("edatime:metadata-ready", onReady);
-    });
-  }
-  try {
-    await loader();
-    _loadedPageModules.add(page);
-  } catch (error) {
-    console.error(`Failed to load page module for ${page}:`, error);
-  }
+      cleanups.add(fn);
+      return () => cleanups.delete(fn);
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      for (const fn of cleanups) fn();
+      cleanups.clear();
+    }
+  };
+}
+
+const loaded = /* @__PURE__ */ new Set();
+const pages = /* @__PURE__ */ new Map();
+let metadataReady = false;
+let releaseMetadata = null;
+const metadataPromise = new Promise((resolve) => {
+  releaseMetadata = resolve;
+});
+function register(name, page) {
+  pages.set(name, page);
+}
+async function ensurePageModuleLoaded(name) {
+  if (loaded.has(name)) return;
+  const page = pages.get(name);
+  if (!page) return;
+  if (page.requiresMetadata && !metadataReady) await metadataPromise;
+  await page.init();
+  loaded.add(name);
 }
 function markMetadataReady() {
-  _metadataReady = true;
+  metadataReady = true;
+  releaseMetadata?.();
 }
 function isMetadataReady() {
-  return _metadataReady;
+  return metadataReady;
 }
 function clearLoadedPageModules() {
-  _loadedPageModules.clear();
+  loaded.clear();
 }
 
 const STORAGE_KEY = "edatime-session";
@@ -4763,7 +4753,32 @@ class FallbackChart {
   }
 }
 
+function createFftEntrypoint(deps) {
+  return {
+    init: () => initFftPage({ renderTimeseries: deps.getRenderTimeseries() })
+  };
+}
+
+function createHeatmapEntrypoint(deps) {
+  return {
+    init: () => initHeatmapPage(deps)
+  };
+}
+
+function createSpectrogramEntrypoint(deps) {
+  return {
+    init: () => initSpectrogramPage(deps)
+  };
+}
+
 const _appCleanups = [];
+const runtime = createAppRuntime();
+register("fft", { requiresMetadata: true, init: createFftEntrypoint({ getRenderTimeseries: () => renderCurrentData }).init });
+register("heatmap", { requiresMetadata: true, init: createHeatmapEntrypoint({ showPage }).init });
+register("scatter", { requiresMetadata: true, init: createScatterEntrypoint({ initScatterPage, getMetadata: () => appStateComposite.metadata }).init });
+register("spectrogram", { requiresMetadata: true, init: createSpectrogramEntrypoint({ setLoading: setComputeLoading }).init });
+register("causal", { requiresMetadata: true, init: createCausalEntrypoint({ getMetadata: () => appStateComposite.metadata, chipColor: (col, idx) => getAnalyticsChipColor(col, idx), numericColumns: () => getNumericColumns(appStateComposite.metadata), setLoading: setComputeLoading }).init });
+register("drift", { requiresMetadata: true, init: createDriftEntrypoint({ initDriftPage, getMetadata: () => appStateComposite.metadata }).init });
 function storeFetchedMetadata(metadata) {
   setMetadata(metadata);
   const revision = metadata?.revision;
@@ -4779,7 +4794,7 @@ function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
   if (overlay) overlay.hidden = !loading;
 }
 async function fetchAndRenderAnalytics() {
-  const { fetchAnomalies: fetchAnomalies2 } = await __vitePreload(async () => { const { fetchAnomalies: fetchAnomalies2 } = await import('./assets/frequency-RcuLtxnY.js').then(n => n.aN);return { fetchAnomalies: fetchAnomalies2 }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { fetchAnomalies: fetchAnomalies2 } = await __vitePreload(async () => { const { fetchAnomalies: fetchAnomalies2 } = await import('./assets/scatter-UdQnbmcA.js').then(n => n.aB);return { fetchAnomalies: fetchAnomalies2 }},true              ?__vite__mapDeps([0,1]):void 0);
   await fetchAnomalyRegions(fetchAnomalies2);
 }
 let fetchMetadata = null;
@@ -4788,8 +4803,8 @@ let DataChartCtor = null;
 async function ensureChartModules() {
   if (fetchMetadata && fetchData && DataChartCtor) return;
   const [dataClient, chartModule] = await Promise.all([
-    __vitePreload(() => import('./assets/frequency-RcuLtxnY.js').then(n => n.aN),true              ?__vite__mapDeps([0,1]):void 0),
-    __vitePreload(() => import('./assets/DataChart-1bbInoCD.js'),true              ?__vite__mapDeps([5,1,0]):void 0)
+    __vitePreload(() => import('./assets/scatter-UdQnbmcA.js').then(n => n.aB),true              ?__vite__mapDeps([0,1]):void 0),
+    __vitePreload(() => import('./assets/DataChart-DIUuEchO.js'),true              ?__vite__mapDeps([3,1,0,2,4,5]):void 0)
   ]);
   fetchMetadata = dataClient.fetchMetadata;
   fetchData = dataClient.fetchData;
@@ -5250,7 +5265,7 @@ async function init() {
     refreshDatasetAfterMutation,
     hydrateColumnProfiles,
     renderColumnProfilesGrid,
-    registerCleanup: (cleanup) => _appCleanups.push(cleanup)
+    registerCleanup: runtime.registerCleanup
   });
   window.__edatime = window.__edatime || {};
   window.__edatime.ensureDatasetReady = ensureDatasetReady;
