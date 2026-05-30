@@ -32,6 +32,10 @@ for (const file of files) {
   const text = await readFile(file, 'utf8');
   const isTest = /\.test\.ts$/.test(file);
   const isLegacyState = rel === 'frontend/src/state.ts' || rel === 'frontend/src/store/index.ts';
+  const isLegacy = rel.startsWith('frontend/src/legacy/');
+
+  // Skip files in the legacy archive tree.
+  if (isLegacy) continue;
 
   if (!isTest && !isLegacyState) {
     const directWrite = /appState\.[A-Za-z0-9_]+\s*=(?!=)/g;
@@ -54,11 +58,27 @@ for (const file of files) {
     }
   }
 
-  if (rel !== 'frontend/src/store/index.ts' && /^frontend\/src\/(components|features|services|store|types)\//.test(rel)) {
-    const stateImport = /from\s+['"]([^'"]+)['"]/g;
-    for (const match of text.matchAll(stateImport)) {
-      if (/(^|\/)state(\.js)?$/.test(match[1])) {
-        add(file, 'new modules must not import from state.ts', lineOf(text, match.index ?? 0));
+  // Rule 4: Block imports from deprecated surfaces in live files.
+  // Test files are exempted to preserve coverage during migration.
+  if (!isTest) {
+    const importRe = /from\s+['"]([^'"]+)['"]/g;
+    for (const match of text.matchAll(importRe)) {
+      const src = match[1];
+      // scatter/state.ts exports appState for the scatter module's internal use — skip it.
+      if (rel !== 'frontend/src/scatter/state.ts' && /(^|\/)state\.ts$/.test(src)) {
+        add(file, 'import from state.ts is deprecated — use store/ sub-states or store/appStateCompat.js', lineOf(text, match.index ?? 0));
+      } else if (src !== './state.js' && /(^|\/)state\.js$/.test(src) && rel !== 'frontend/src/store/index.ts') {
+        add(file, 'import from state.ts is deprecated — use store/ sub-states or store/appStateCompat.js', lineOf(text, match.index ?? 0));
+      } else if (/ui\/columns(\.js)?$/.test(src)) {
+        add(file, 'import from ui/columns.ts is deprecated — use features/timeseries/columnsController.js', lineOf(text, match.index ?? 0));
+      } else if (/bootstrap\/appShell(\.js)?$/.test(src)) {
+        add(file, 'import from bootstrap/appShell.ts is deprecated — use app/shell.js', lineOf(text, match.index ?? 0));
+      } else if (/bootstrap\/pageLoaders(\.js)?$/.test(src)) {
+        add(file, 'import from bootstrap/pageLoaders.ts is deprecated — use app/pageRegistry.js', lineOf(text, match.index ?? 0));
+      } else if (/bootstrap\/timeseriesBootstrap(\.js)?$/.test(src)) {
+        add(file, 'import from bootstrap/timeseriesBootstrap.ts is deprecated — use features/timeseries/entrypoint.js', lineOf(text, match.index ?? 0));
+      } else if ((/^(\.\.\/)+components\//.test(src) || src.startsWith('components/')) && !/^frontend\/src\/components\//.test(rel)) {
+        add(file, 'import from components/ is deprecated — use ui/ instead', lineOf(text, match.index ?? 0));
       }
     }
   }

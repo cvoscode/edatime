@@ -5,7 +5,7 @@ import {
     initChartPageFilterGesture,
     initPages,
 } from '../ui/toolbar.js';
-import { initColumnFilterModal, buildColumnToggles, buildRangeControls } from '../ui/columns.js';
+import { initColumnFilterModal, buildColumnToggles, buildRangeControls } from '../features/timeseries/columnsController.js';
 import { initHashRouting } from '../utils/router.js';
 import { initCommandPalette } from '../utils/palette.js';
 import { initProvenance } from '../utils/provenance.js';

@@ -3,7 +3,8 @@
  * Extracted from toolbar.ts to reduce its size and improve maintainability.
  */
 
-import { appState, applyColumnRanges, buildAdaptiveLineFiltersForQuery } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
+import { applyColumnRanges, buildAdaptiveLineFiltersForQuery } from '../services/timeseries/filtering.js';
 import { exportParquet } from '../services/api/index.js';
 import { downloadBlob } from '../utils/dom.js';
 import { zoomOut, resetZoom } from './viewport.js';

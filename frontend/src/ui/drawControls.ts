@@ -3,7 +3,7 @@
  * Extracted from toolbar.ts to reduce its size and improve maintainability.
  */
 
-import { appState } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
 import { setAdaptiveLineFilters, setPendingAdaptivePoint } from '../store/index.js';
 
 export function initDrawControls(fetchAndRender: () => void): void {

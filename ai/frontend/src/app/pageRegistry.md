@@ -1,28 +1,38 @@
-# frontend/src/app/pageRegistry.md
-> Centralized page registration and lazy-loading with metadata readiness tracking.
+# frontend/src/app/pageRegistry.ts
+> Centralized page registration and lazy-loading with metadata readiness gating. Pages declaring `requiresMetadata: true` block their init until metadata is marked ready.
+
+## Module-Level State
+
+```typescript
+const loaded: Set<string>
+const pages: Map<string, { requiresMetadata: boolean; init: () => Promise<void> }>
+let metadataReady: boolean
+let releaseMetadata: (() => void) | null
+const metadataPromise: Promise<void>
+```
 
 ## Functions
 
 ### register
 - `register(name: string, page: { requiresMetadata: boolean; init: () => Promise<void> }): void`
-  - Registers a page module with its initialization requirements.
+  - Registers a page module. If `requiresMetadata` is true, `ensurePageModuleLoaded` will wait for `markMetadataReady()` before calling `page.init()`.
 
 ### ensurePageModuleLoaded
 - `ensurePageModuleLoaded(name: string): Promise<void>`
-  - Loads and initializes a page module (once). Waits for metadata if required.
+  - Loads and initializes a page module once. Idempotent (checks `loaded` set first).
 
 ### markMetadataReady
 - `markMetadataReady(): void`
-  - Marks metadata as ready, unblocking gated page initializations.
+  - Sets `metadataReady = true` and resolves the metadata promise, unblocking all pending page initializations.
 
 ### isMetadataReady
 - `isMetadataReady(): boolean`
-  - Returns true if metadata has been marked ready.
+  - Returns current metadata readiness state.
 
 ### clearLoadedPageModules
 - `clearLoadedPageModules(): void`
-  - Clears the loaded page cache for re-initialization on next visit.
+  - Clears the loaded set to allow re-initialization on revisit.
 
 ### createPageRegistry
 - `createPageRegistry(): { register, ensurePageModuleLoaded, markMetadataReady, isMetadataReady, clearLoadedPageModules }`
-  - Creates an isolated page registry instance for testing.
+  - Factory for isolated registry instances used in tests.

@@ -6,7 +6,8 @@
  * Toggleable via button in the header.
  */
 
-import { appState, formatAnalysisTime, formatAnalysisNumber } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
+import { formatAnalysisTime, formatAnalysisNumber } from '../utils/format.js';
 
 let _panel: HTMLElement | null = null;
 let _content: HTMLElement | null = null;

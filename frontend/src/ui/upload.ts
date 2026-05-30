@@ -2,10 +2,9 @@
  * Upload panel logic (file drop, partial load, preview).
  */
 
-import {
-    appState, formatAnalysisTime, formatAnalysisNumber, formatCount,
-    formatToDatetimeLocal, toFiniteNumberOrNull, buildMetaBar,
-} from '../state.js';
+import { appState } from '../store/appStateCompat.js';
+import { formatAnalysisTime, formatAnalysisNumber, formatCount, formatToDatetimeLocal, toFiniteNumberOrNull } from '../utils/format.js';
+import { buildMetaBar } from './metaBar.js';
 import {
     connectDatabase,
     deleteDatabaseConnection,

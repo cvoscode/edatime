@@ -6,7 +6,7 @@
  * Provides localStorage auto-save and manual JSON export/import.
  */
 
-import { appState } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
 import {
     setAdaptiveLineFilters,
     setAnomalyEnabled,

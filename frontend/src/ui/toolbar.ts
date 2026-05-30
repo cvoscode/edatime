@@ -3,9 +3,7 @@
  * Thin orchestrator that delegates to focused sub-modules.
  */
 
-import {
-    appState,
-} from '../state.js';
+import { appState } from '../store/appStateCompat.js';
 import { setAnalysisBound } from '../store/index.js';
 import { DEBUG, dbg } from '../debug.js';
 import {

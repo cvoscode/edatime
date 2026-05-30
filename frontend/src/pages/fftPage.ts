@@ -1,4 +1,4 @@
-import { appState } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
 import { fetchFft, fetchSpectralFilter } from '../services/api/index.js';
 import { FftChart, type FftTrace } from '../chart/FftChart.js';
 import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanvasHTML, exportTraceCSV } from '../utils/chartExport.js';

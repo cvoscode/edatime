@@ -3,7 +3,7 @@
  * Extracted from toolbar.ts to reduce its size and improve maintainability.
  */
 
-import { appState } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
 import { setChartText } from '../store/index.js';
 
 export function initChartTextControls(): void {

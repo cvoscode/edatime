@@ -1,11 +1,7 @@
 import { DEBUG, dbg, dbgGroup } from '../debug.js';
-import {
-    appState,
-    ensureRangeStateFromData,
-    applyColumnRanges,
-    sanitizeSelectedColumns,
-    setMetaText,
-} from '../state.js';
+import { appState } from '../store/appStateCompat.js';
+import { setMetaText } from '../ui/metaBar.js';
+import { ensureRangeStateFromData, applyColumnRanges, sanitizeSelectedColumns } from '../services/timeseries/filtering.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
 import { announceChartLoading, announceDataUpdate } from '../utils/a11y.js';
 import { computeFrontendRollingBands } from '../bootstrap/analyticsOverlay.js';

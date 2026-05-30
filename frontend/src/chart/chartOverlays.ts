@@ -4,8 +4,8 @@
  * Extracted from DataChart.ts to reduce its size and improve maintainability.
  */
 
-import { appState } from '../state.js';
-import { buildAdaptiveLineY } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
+import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 
 const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
 

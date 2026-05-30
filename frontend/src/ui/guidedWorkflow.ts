@@ -1,4 +1,4 @@
-import { appState } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
 import { toast } from '../utils/toast.js';
 
 export type WorkflowStepId = 'upload' | 'timeseries' | 'correlations' | 'scatter' | 'causal';

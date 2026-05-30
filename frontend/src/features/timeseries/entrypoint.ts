@@ -10,7 +10,7 @@ import {
     buildRangeControls,
     initColumnFilterModal,
 } from './columnsController.js';
-import { initDatasetSearchInputs, initTimeseriesActions } from '../../bootstrap/timeseriesBootstrap.js';
+import { initDatasetSearchInputs, initTimeseriesActions } from './actions.js';
 
 export interface TimeseriesFeatureDeps {
     fetchAndRender: () => Promise<void>;

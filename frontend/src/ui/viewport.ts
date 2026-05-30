@@ -4,7 +4,7 @@
  * Also handles context-menu filter gestures on the chart page.
  */
 
-import { appState } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
 import {
     setFetchDebounceId,
     setPendingRestoreY,

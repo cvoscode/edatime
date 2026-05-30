@@ -9,8 +9,9 @@
  * still owned by this module as they are scatter-page specific.
  */
 
-import { appState, buildAdaptiveLineFiltersForQuery } from '../state.js';
-export { appState } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
+import { buildAdaptiveLineFiltersForQuery } from '../services/timeseries/filtering.js';
+export { appState } from '../store/appStateCompat.js';
 
 // Import scatterState locally as `state` for use in helper functions defined
 // in this module, and re-export it so external callers can also use it as `state`.

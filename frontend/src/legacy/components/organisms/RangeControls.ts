@@ -1,0 +1,2 @@
+// DEPRECATED: import from 'ui/' directly. Will be removed after verifying no internal imports remain.
+export { RangeControls, type RangeControlsProps, type RangeControlItem } from '../../ui/composites/RangeControls.js';

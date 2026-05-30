@@ -15,7 +15,7 @@ import {
     exportAnnotations,
     Annotation,
 } from '../chart/annotations.js';
-import { appState } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
 import { toast } from '../utils/toast.js';
 
 // Called by DataChart to request an overlay re-render when annotations change

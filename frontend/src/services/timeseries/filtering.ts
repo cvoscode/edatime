@@ -3,7 +3,23 @@ import type {
     ColumnRange,
     DataObject,
     FilteredDataObject,
+    ColumnMetadata,
 } from '../../types.js';
+import { appState } from '../../store/appStateCompat.js';
+import { setColumnRanges, setSelectedCols } from '../../store/uiState.js';
+
+/**
+ * Ensure column ranges are populated from data for any selected column
+ * that doesn't already have a range.
+ */
+export function ensureRangeStateFromData(dataObj: DataObject): void {
+    const next = ensureRangeStateFromDataState(
+        dataObj,
+        appState.selectedCols || [],
+        appState.columnRanges || {},
+    );
+    if (next !== appState.columnRanges) setColumnRanges(next);
+}
 
 export function computeBounds(values: ArrayLike<number>): { min: number; max: number } | null {
     let min = Number.POSITIVE_INFINITY;
@@ -150,4 +166,54 @@ export function applyColumnRangesToData(
         }
     }
     return filtered;
+}
+
+/**
+ * Returns adaptive line filters with non-finite values stripped.
+ * Reads from appState.adaptiveLineFilters.
+ */
+export function buildAdaptiveLineFiltersForQuery(): AdaptiveLineFilter[] {
+    return buildAdaptiveLineFiltersForQueryState(appState.adaptiveLineFilters || []);
+}
+
+/**
+ * Apply column ranges and adaptive line filters to a data object.
+ * Reads selected columns and ranges from appState.
+ */
+export function applyColumnRanges(dataObj: DataObject): FilteredDataObject {
+    return applyColumnRangesToData(
+        dataObj,
+        appState.selectedCols || [],
+        appState.columnRanges || {},
+        appState.adaptiveLineFilters || [],
+    );
+}
+
+/**
+ * Remove selected columns that are time/dataset columns or don't exist
+ * in the current metadata. Mutates appState.selectedCols in place.
+ */
+export function sanitizeSelectedColumns(): void {
+    const blockedNames = new Set(['ts', 'timestamp', 'time']);
+    const datetimeCols = new Set(
+        (appState.metadata?.columns || [])
+            .filter((col) => /date|time/i.test(String(col?.dtype || '')))
+            .map((col) => String(col?.name || '').toLowerCase()),
+    );
+
+    const validColNames = new Set(
+        (appState.metadata?.columns || []).map((c) => String(c?.name || '').trim()),
+    );
+
+    const filtered = (appState.selectedCols || []).filter((col) => {
+        const name = String(col || '').trim();
+        if (!name) return false;
+        const lower = name.toLowerCase();
+        if (blockedNames.has(lower)) return false;
+        if (datetimeCols.has(lower)) return false;
+        // Only keep columns that exist in the current dataset
+        if (!validColNames.has(name)) return false;
+        return true;
+    });
+    setSelectedCols(filtered);
 }

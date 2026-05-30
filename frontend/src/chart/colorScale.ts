@@ -6,7 +6,7 @@
 
 import { getSetting, COLOR_SCALES, type ColorScaleName } from '../utils/settings.js';
 export { COLOR_SCALES as VIRIDIS } from '../utils/settings.js';
-import { getSeriesColor } from '../state.js';
+import { getSeriesColor } from '../utils/seriesColors.js';
 
 /** Build RGB arrays for each scale from COLOR_SCALES. */
 const _SCALE_RGB: Record<ColorScaleName, [number, number, number][]> = {

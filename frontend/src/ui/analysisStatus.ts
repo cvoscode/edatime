@@ -3,7 +3,8 @@
  * Updated on zoom, Y-range, cursor, and click events from the chart.
  */
 
-import { appState, formatAnalysisTime, formatAnalysisNumber } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
+import { formatAnalysisTime, formatAnalysisNumber } from '../utils/format.js';
 import { setPendingRestoreY, setPendingYMode } from '../store/index.js';
 
 function setText(id: string, text: string): void {

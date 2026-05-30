@@ -16,13 +16,15 @@
  */
 
 import { DEBUG, dbg, dbgGroup } from './debug.js';
+import { appState } from './store/appStateCompat.js';
+import { SERIES_COLORS } from './utils/seriesColors.js';
+import { setMetaText, buildMetaBar } from './ui/metaBar.js';
 import {
-    appState, SERIES_COLORS,
-    setMetaText, buildMetaBar, sanitizeSelectedColumns,
+    sanitizeSelectedColumns,
     applyColumnRanges,
     buildAdaptiveLineY,
-} from './state.js';
-import { buildColumnToggles, buildRangeControls, initColumnFilterModal } from './ui/columns.js';
+} from './services/timeseries/filtering.js';
+import { buildColumnToggles, buildRangeControls, initColumnFilterModal } from './features/timeseries/columnsController.js';
 import { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata, initUploadPanel } from './ui/upload.js';
 import { hydrateColumnProfiles, renderColumnProfilesGrid, initColumnProfilesGrid } from './ui/profile.js';
 import { installWindowsWebGpuRequestAdapterWorkaround, requestGpuAdapter } from './utils/platform.js';
@@ -30,14 +32,14 @@ import { getAnalyticsChipColor, getDefaultTimeseriesColumns, getNumericColumns }
 import { createTimeseriesPageController } from './pages/timeseriesPage.js';
 import { initScatterPage } from './scatter/scatterPage.js';
 import { fetchAnomalyRegions, computeAndSetRollingBands, cancelAnalyticsFetch } from './bootstrap/analyticsOverlay.js';
-import { initAppShell } from './bootstrap/appShell.js';
+import { initAppShell } from './app/shell.js';
 import { createAppRuntime } from './app/runtime.js';
-import { ensurePageModuleLoaded, isMetadataReady, markMetadataReady, clearLoadedPageModules } from './bootstrap/pageLoaders.js';
+import { ensurePageModuleLoaded, isMetadataReady, markMetadataReady, clearLoadedPageModules } from './app/pageRegistry.js';
 import { restoreSessionAfterChartReady, startSessionPersistence } from './bootstrap/sessionBootstrap.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
-import { initDatasetSearchInputs, initTimeseriesActions } from './bootstrap/timeseriesBootstrap.js';
-import { initSeriesCollapse } from './ui/columns.js';
+import { initDatasetSearchInputs, initTimeseriesActions } from './features/timeseries/actions.js';
+import { initSeriesCollapse } from './features/timeseries/columnsController.js';
 import {
     updateAnalysisZoom, updateAnalysisYRange,
     refreshZoomControlsState, getCurrentView,

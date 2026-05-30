@@ -1,5 +1,5 @@
 import { fetchSpectrogram, type SpectrogramResult } from '../services/api/index.js';
-import { appState } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
 import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../utils/chartExport.js';
 import { bindExportButtons } from '../utils/bindExportButtons.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';

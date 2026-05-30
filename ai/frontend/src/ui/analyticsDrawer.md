@@ -1,12 +1,21 @@
 # frontend/src/ui/analyticsDrawer.ts
-> Right-side collapsible analytics panel for timeseries. Toggles open/closed via toolbar button.
+> Right-side collapsible analytics panel, controlled by `createDrawerController`.
 
-## Functions
+## Exports
 - `initAnalyticsDrawer(): void`
-  - Initializes drawer close button, escape key handler, and backdrop click to close.
-- `openDrawer(): void`
-  - Shows the analytics drawer and persists state to preferences.
-- `closeDrawer(): void`
-  - Hides the analytics drawer and persists state to preferences.
-- `toggleDrawer(): void`
-  - Toggles drawer open/closed state.
+- `openDrawer: () => void`
+- `closeDrawer: () => void`
+- `toggleDrawer: () => void`
+- `controller: DrawerController`
+
+## Controller
+- `createDrawerController(opts: DrawerControllerOptions): DrawerController`
+  - `drawerId: 'analytics-drawer'`
+  - `toggleButtonIds: ['open-analytics-panel-btn']`
+  - `onOpen` — calls `updateSetting('analyticsDrawerOpen', true)`
+  - `onClose` — calls `updateSetting('analyticsDrawerOpen', false)`
+
+## DrawerController
+- `open(): void`
+- `close(): void`
+- `toggle(): void`

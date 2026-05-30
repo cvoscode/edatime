@@ -18,7 +18,8 @@ import {
     CHART_PALETTES,
     DEFAULT_SETTINGS,
 } from '../utils/settings.js';
-import { SERIES_COLORS, appState } from '../state.js';
+import { SERIES_COLORS } from '../utils/seriesColors.js';
+import { appState } from '../store/appStateCompat.js';
 import { createModalController } from './shell/createModalController';
 
 let currentSettings: AppSettings | null = null;

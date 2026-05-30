@@ -8,7 +8,9 @@ import { DEBUG, dbg } from '../debug.js';
 import { escapeHtml, downloadUrl, downloadBlob } from '../utils/dom.js';
 import { defaultGpuPowerPreference } from '../utils/platform.js';
 import { formatTwoDecimals } from '../formatUtils.js';
-import { appState, getSeriesColor, buildAdaptiveLineY } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
+import { getSeriesColor } from '../utils/seriesColors.js';
+import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 import type { AdaptiveLineFilter, ChartTextOverlays, DataObject, FilteredDataObject } from '../types.js';
 import {
     type ChartGPUOptions,

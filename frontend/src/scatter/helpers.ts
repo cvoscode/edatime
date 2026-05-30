@@ -2,7 +2,8 @@
  * Scatter-page shared utilities: palettes, formatting, helpers.
  */
 
-import { SERIES_COLORS, isTemporalDtype } from '../state.js';
+import { SERIES_COLORS } from '../utils/seriesColors.js';
+import { isTemporalDtype } from '../utils/format.js';
 import { formatTwoDecimals, formatTimestamp } from '../formatUtils.js';
 import { escapeHtml, downloadUrl, downloadBlob, getEl } from '../utils/dom.js';
 

@@ -44,6 +44,10 @@ edatime/
 - **Charts:** WebGPU via ChartGPU library, ECharts fallback, Canvas 2D fallback chart
 - **State:** Custom pub/sub store (`store/index.ts`), module-level `appState` wrapper
 
+## Planning Notes
+
+- `ai/frontend/refactor/2026-05-30-broad-frontend-consolidation.md` — approved target architecture and migration status for the broad frontend consolidation and legacy archive refactor.
+
 ## Key Architecture Notes
 
 - **`frontend/src/ui/`** is the canonical shared component surface. `primitives/` holds basic building blocks (Button, Chip, ColorInput, IconButton, Select, TextInput). `composites/` holds domain-aware components (SeriesChip, RangeControls, ColumnSelector, etc.).

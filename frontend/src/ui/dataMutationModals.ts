@@ -1,4 +1,4 @@
-import { appState } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
 import { createModalController } from './shell/createModalController';
 
 interface RefreshDatasetOptions {

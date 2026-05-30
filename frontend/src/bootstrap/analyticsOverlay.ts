@@ -11,7 +11,8 @@
  *   setAnomalyOverlayCallback     — for ChartGPU wiring
  */
 
-import { appState, applyColumnRanges } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
+import { applyColumnRanges } from '../services/timeseries/filtering.js';
 import { setAnomalyRegions, setRollingBands } from '../store/index.js';
 import type { AnomalyResponse, AdaptiveLineFilter } from '../types.js';
 
