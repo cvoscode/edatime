@@ -122,4 +122,4 @@ describe('causal page chart bootstrap', () => {
         expect(echarts.getInstanceByDom(chartEl)).toBeTruthy();
     });
 
-    });
+});

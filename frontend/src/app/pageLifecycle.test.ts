@@ -47,7 +47,7 @@ describe('createPageLifecycle', () => {
 
     it('calls onVisible when the registered page becomes visible', () => {
         const onVisible = vi.fn();
-        const unregister = createPageLifecycle({ page: 'test', init() {}, onVisible });
+        const unregister = createPageLifecycle({ page: 'test', init() { }, onVisible });
         dispatchPageChange('test');
         expect(onVisible).toHaveBeenCalledTimes(1);
         dispatchPageChange('test');
@@ -58,7 +58,7 @@ describe('createPageLifecycle', () => {
 
     it('does NOT call onVisible when a different page is active', () => {
         const onVisible = vi.fn();
-        const unregister = createPageLifecycle({ page: 'test', init() {}, onVisible });
+        const unregister = createPageLifecycle({ page: 'test', init() { }, onVisible });
         dispatchPageChange('other');
         expect(onVisible).not.toHaveBeenCalled();
         dispatchPageChange('another');
@@ -68,7 +68,7 @@ describe('createPageLifecycle', () => {
 
     it('calls onEveryPageChange on every page change regardless of page', () => {
         const onEveryPageChange = vi.fn();
-        const unregister = createPageLifecycle({ page: 'test', init() {}, onEveryPageChange });
+        const unregister = createPageLifecycle({ page: 'test', init() { }, onEveryPageChange });
         dispatchPageChange('test');
         dispatchPageChange('fft');
         dispatchPageChange('heatmap');
@@ -122,7 +122,7 @@ describe('createPageLifecycle', () => {
 
     it('onEveryPageChange fires on init page activation too', () => {
         const onEveryPageChange = vi.fn();
-        createPageLifecycle({ page: 'test', init() {}, onEveryPageChange });
+        createPageLifecycle({ page: 'test', init() { }, onEveryPageChange });
         dispatchPageChange('test');
         // onEveryPageChange fires alongside init on the same event
         expect(onEveryPageChange).toHaveBeenCalledTimes(1);

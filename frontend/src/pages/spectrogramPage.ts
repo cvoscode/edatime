@@ -1,9 +1,8 @@
 import { fetchSpectrogram, type SpectrogramResult } from '../services/api/index.js';
 import { appState } from '../state.js';
-import { createEmptyStateController } from '../ui/emptyState.js';
 import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../utils/chartExport.js';
 import { bindExportButtons } from '../utils/bindExportButtons.js';
-import { createPageLifecycle } from '../app/pageLifecycle.js';
+import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
@@ -13,17 +12,10 @@ let spectrogramChart: any = null;
 let spectrogramResizeObserver: ResizeObserver | null = null;
 let spectrogramResult: SpectrogramResult | null = null;
 let spectrogramSampleCount = 0;
-let spectrogramEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
-
-function getSpectrogramEmptyStateController() {
-    if (!spectrogramEmptyStateController) {
-        spectrogramEmptyStateController = createEmptyStateController({ rootId: 'spectrogram-empty-state' });
-    }
-    return spectrogramEmptyStateController;
-}
+let spectrogramRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 
 function syncSpectrogramEmptyState(message?: string): void {
-    getSpectrogramEmptyStateController().update({
+    spectrogramRuntime?.updateEmptyState({
         visible: !spectrogramResult,
         reason: spectrogramResult ? '' : 'no-columns-selected',
         title: '',
@@ -56,8 +48,16 @@ export async function initSpectrogramPage(deps: SpectrogramPageDeps): Promise<vo
 
     if (!chartEl || !colSelect) return;
 
-    const unregisterLifecycle = createPageLifecycle({
+    spectrogramRuntime = createAnalysisPageRuntime({
         page: 'spectrogram',
+        emptyStateRootId: 'spectrogram-empty-state',
+        bindExports() {
+            bindExportButtons('spectrogram', {
+                png: { fn: exportEChartsPNG, filename: 'edatime_spectrogram.png' },
+                svg: { fn: exportEChartsSVG, filename: 'edatime_spectrogram.svg' },
+                html: { fn: exportEChartsHTML, filename: 'edatime_spectrogram.html' },
+            });
+        },
         init() {
             const ensureSpectrogramChartDimensions = () => {
                 if (chartEl.clientHeight > 0) return;
@@ -404,5 +404,5 @@ export async function initSpectrogramPage(deps: SpectrogramPageDeps): Promise<vo
         },
     });
 
-    void unregisterLifecycle;
+    spectrogramRuntime.mount();
 }

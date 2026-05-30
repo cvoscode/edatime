@@ -1,9 +1,8 @@
 import { fetchCorrelationMatrix } from '../services/api/index.js';
-import { createEmptyStateController } from '../ui/emptyState.js';
 import { exportElementPNG, exportElementSVG, exportElementHTML, exportMatrixCSV } from '../utils/chartExport.js';
 import { toast } from '../utils/toast.js';
 import { bindExportButtons } from '../utils/bindExportButtons.js';
-import { createPageLifecycle } from '../app/pageLifecycle.js';
+import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 
 interface HeatmapPageDeps {
     showPage: (pageName: string) => void;
@@ -13,17 +12,10 @@ let heatmapCellSize = 36;
 let matrixData: { columns: string[]; pearson: (number | null)[][]; spearman: (number | null)[][] } | null = null;
 let metric = 'pearson';
 let matrixLoadInFlight: Promise<void> | null = null;
-let heatmapEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
-
-function getHeatmapEmptyStateController() {
-    if (!heatmapEmptyStateController) {
-        heatmapEmptyStateController = createEmptyStateController({ rootId: 'heatmap-empty-state' });
-    }
-    return heatmapEmptyStateController;
-}
+let heatmapRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 
 function syncHeatmapEmptyState(message: string, visible: boolean, reason = ''): void {
-    getHeatmapEmptyStateController().update({
+    heatmapRuntime?.updateEmptyState({
         visible,
         reason: visible ? (reason || 'no-data') : '',
         title: '',
@@ -144,8 +136,24 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         };
     }
 
-    const unregisterLifecycle = createPageLifecycle({
+    heatmapRuntime = createAnalysisPageRuntime({
         page: 'heatmap',
+        emptyStateRootId: 'heatmap-empty-state',
+        bindExports() {
+            bindExportButtons('heatmap', {
+                png: { fn: exportElementPNG, filename: 'edatime_heatmap.png' },
+                svg: { fn: exportElementSVG, filename: 'edatime_heatmap.svg' },
+                html: { fn: (filename) => exportElementHTML('heatmap-container', filename), filename: 'edatime_heatmap.html' },
+                csv: {
+                    fn: (filename) => {
+                        const data = metric === 'spearman' ? matrixData!.spearman : matrixData!.pearson;
+                        exportMatrixCSV(matrixData!.columns, data, filename);
+                    },
+                    filename: `edatime_correlation_${metric}.csv`,
+                    dataCheck: () => matrixData != null,
+                },
+            });
+        },
         init() {
             const container = document.getElementById('heatmap-container');
             const metricSelect = document.getElementById('heatmap-metric') as HTMLSelectElement | null;
@@ -163,25 +171,11 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                 if (statusEl && matrixData) statusEl.textContent = `${matrixData.columns.length} columns · ${heatmapCellSize}px cells`;
                 renderHeatmap();
             });
-
-            bindExportButtons('heatmap', {
-                png: { fn: exportElementPNG, filename: 'edatime_heatmap.png' },
-                svg: { fn: exportElementSVG, filename: 'edatime_heatmap.svg' },
-                html: { fn: (filename) => exportElementHTML('heatmap-container', filename), filename: 'edatime_heatmap.html' },
-                csv: {
-                    fn: (filename) => {
-                        const data = metric === 'spearman' ? matrixData!.spearman : matrixData!.pearson;
-                        exportMatrixCSV(matrixData!.columns, data, filename);
-                    },
-                    filename: `edatime_correlation_${metric}.csv`,
-                    dataCheck: () => matrixData != null,
-                },
-            });
         },
         onVisible() {
             void loadMatrix();
         },
     });
 
-    void unregisterLifecycle;
+    heatmapRuntime.mount();
 }

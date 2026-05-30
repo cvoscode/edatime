@@ -1,7 +1,6 @@
 import { appState } from '../state.js';
 import { fetchFft, fetchSpectralFilter } from '../services/api/index.js';
 import { FftChart, type FftTrace } from '../chart/FftChart.js';
-import { createEmptyStateController } from '../ui/emptyState.js';
 import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanvasHTML, exportTraceCSV } from '../utils/chartExport.js';
 import { toast } from '../utils/toast.js';
 import { getAnalyticsChipColor, getNumericColumns } from './analyticsPageUtils.js';
@@ -9,7 +8,7 @@ import { setSpectralFilterPreview } from '../store/index.js';
 import { SeriesChip } from '../ui/composites/SeriesChip.js';
 import { renderSeriesChipList } from '../ui/index.js';
 import { bindExportButtons } from '../utils/bindExportButtons.js';
-import { createPageLifecycle } from '../app/pageLifecycle.js';
+import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 
 interface FftPageDeps {
     renderTimeseries: () => void;
@@ -20,14 +19,7 @@ let fftMode = 'magnitude';
 let fftLogScale = true;
 let fftChart: FftChart | null = null;
 const fftTraceColors: Record<string, string> = {};
-let fftEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
-
-function getFftEmptyStateController() {
-    if (!fftEmptyStateController) {
-        fftEmptyStateController = createEmptyStateController({ rootId: 'fft-empty-state' });
-    }
-    return fftEmptyStateController;
-}
+let fftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 
 function fftColumns(): string[] {
     return getNumericColumns(appState.metadata);
@@ -43,7 +35,7 @@ function updateZoomButton(isZoomed?: boolean): void {
 }
 
 function rerenderOrClear(): void {
-    getFftEmptyStateController().update({
+    fftRuntime?.updateEmptyState({
         visible: fftTraces.length === 0,
         reason: fftTraces.length > 0 ? '' : 'no-columns-selected',
         title: '',
@@ -181,25 +173,10 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
     const logCheck = document.getElementById('fft-log-scale') as HTMLInputElement | null;
     const zoomResetBtn = document.getElementById('fft-zoom-reset-btn') as HTMLButtonElement | null;
 
-    const unregisterLifecycle = createPageLifecycle({
+    fftRuntime = createAnalysisPageRuntime({
         page: 'fft',
-        init() {
-            // one-time setup
-            fftChart = new FftChart('fft-chart');
-            void fftChart.init().then(() => {
-                fftChart!.onZoomChange = (isZoomed: boolean) => updateZoomButton(isZoomed);
-            });
-
-            modeSelect?.addEventListener('change', () => {
-                fftMode = modeSelect.value;
-                rerenderOrClear();
-            });
-            logCheck?.addEventListener('change', () => {
-                fftLogScale = logCheck.checked;
-                rerenderOrClear();
-            });
-            zoomResetBtn?.addEventListener('click', () => fftChart?.resetView());
-
+        emptyStateRootId: 'fft-empty-state',
+        bindExports() {
             bindExportButtons('fft', {
                 png: { fn: exportContainerCanvasPNG, filename: 'edatime_fft.png' },
                 svg: { fn: exportContainerCanvasSVG, filename: 'edatime_fft.svg' },
@@ -217,6 +194,23 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
                     dataCheck: () => fftTraces.length > 0,
                 },
             });
+        },
+        init() {
+            // one-time setup
+            fftChart = new FftChart('fft-chart');
+            void fftChart.init().then(() => {
+                fftChart!.onZoomChange = (isZoomed: boolean) => updateZoomButton(isZoomed);
+            });
+
+            modeSelect?.addEventListener('change', () => {
+                fftMode = modeSelect.value;
+                rerenderOrClear();
+            });
+            logCheck?.addEventListener('change', () => {
+                fftLogScale = logCheck.checked;
+                rerenderOrClear();
+            });
+            zoomResetBtn?.addEventListener('click', () => fftChart?.resetView());
 
             document.getElementById('fft-filter-apply-btn')?.addEventListener('click', async () => {
                 const filterType = (document.getElementById('fft-filter-type') as HTMLSelectElement)?.value;
@@ -289,6 +283,5 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
         },
     });
 
-    // Keep reference for potential cleanup (currently not called externally, but the pattern is ready)
-    void unregisterLifecycle;
+    fftRuntime.mount();
 }

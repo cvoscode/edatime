@@ -62,6 +62,17 @@ for (const file of files) {
       }
     }
   }
+
+  // Rule 5: Only frontend/src/components/ may import from itself (re-exports allowed).
+  // All other internal modules must import from the canonical ui/ surface.
+  if (!/^frontend\/src\/components\//.test(rel)) {
+    const componentImport = /from\s+['"]([^'"]+)['"]/g;
+    for (const match of text.matchAll(componentImport)) {
+      if (/^(\.\.\/)+components\//.test(match[1]) || match[1].startsWith('components/')) {
+        add(file, 'internal modules must not import from deprecated components/ — use ui/ instead', lineOf(text, match.index ?? 0));
+      }
+    }
+  }
 }
 
 if (violations.length > 0) {

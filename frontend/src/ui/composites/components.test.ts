@@ -3,7 +3,7 @@ import { ColumnFilterModal } from './ColumnFilterModal.js';
 import { ColumnSelector } from './ColumnSelector.js';
 import { RangeControls } from './RangeControls.js';
 
-describe('DOM component factories', () => {
+describe('DOM component factories (canonical surface)', () => {
     it('ColumnSelector emits toggle, color, range, and color-by callbacks', () => {
         const onToggle = vi.fn();
         const onColorInput = vi.fn();

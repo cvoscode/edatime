@@ -36,13 +36,13 @@ export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
             initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange);
             initDatasetSearchInputs({
                 rebuildColumnToggles: rebuildColumns,
-                renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => {}),
+                renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => { }),
             });
             initTimeseriesActions({
                 ...deps,
                 rebuildColumnToggles: rebuildColumns,
                 buildRangeControls,
-                renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => {}),
+                renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => { }),
             });
         },
         rebuildColumns,

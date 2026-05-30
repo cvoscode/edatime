@@ -38,6 +38,7 @@ export function SeriesChip(props: SeriesChipProps): HTMLLabelElement {
     const chip = document.createElement('label');
     chip.className = `series-chip${props.checked ? ' active' : ''}${props.adaptiveTarget ? ' adaptive-target' : ''}${props.disabled ? ' disabled' : ''}`;
     chip.style.setProperty('--chip-accent', props.color);
+    chip.dataset.col = props.column;
     if (props.title) chip.title = props.title;
 
     const checkbox = document.createElement('input');
