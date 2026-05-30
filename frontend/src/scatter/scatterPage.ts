@@ -494,7 +494,7 @@ function bindControls(): void {
 
     binSizeValue.textContent = binSizeInput.value;
     if (suggestionThresholdInput) {
-appState.scatter.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
+        appState.scatter.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
         suggestionThresholdInput.value = appState.scatter.suggestionThreshold.toFixed(2);
     }
     if (suggestionThresholdValue) suggestionThresholdValue.textContent = appState.scatter.suggestionThreshold.toFixed(2);

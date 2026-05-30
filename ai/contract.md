@@ -77,6 +77,7 @@ format: "arrow" | "json" (default: arrow)
   "color_column": "string" | null
 }
 ```
+- Headers: `x-edatime-time-column: string`
 
 **[1]: [../../crates/edatime-query/src/query.md][1]**
 

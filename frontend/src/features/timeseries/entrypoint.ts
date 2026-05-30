@@ -9,18 +9,17 @@ import {
     buildColumnToggles,
     buildRangeControls,
     initColumnFilterModal,
-    initDatasetSearchInputs,
-    initTimeseriesActions,
 } from './columnsController.js';
+import { initDatasetSearchInputs, initTimeseriesActions } from '../../bootstrap/timeseriesBootstrap.js';
 
 export interface TimeseriesFeatureDeps {
     fetchAndRender: () => Promise<void>;
     renderCurrentData: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     renderColumnProfilesGrid?: (force?: boolean) => void;
-    updateAnalysisZoom?: (start: number, end: number, sourceKind?: string) => void;
-    emitChartRangeChange?: (sourceKind?: string) => void;
-    registerCleanup?: (cleanup: () => void) => void;
+    updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
+    emitChartRangeChange: (sourceKind?: string) => void;
+    registerCleanup: (cleanup: () => void) => void;
 }
 
 /**
@@ -43,6 +42,7 @@ export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
                 ...deps,
                 rebuildColumnToggles: rebuildColumns,
                 buildRangeControls,
+                renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => {}),
             });
         },
         rebuildColumns,

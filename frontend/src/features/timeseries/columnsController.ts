@@ -14,7 +14,8 @@ import {
     setSelectedCols,
     setSeriesColor,
 } from '../../store/index.js';
-import { SeriesChip } from '../../components/molecules/SeriesChip.js';
+import { SeriesChip } from '../../ui/composites/SeriesChip.js';
+import { renderSeriesChipList } from '../../ui/index.js';
 
 let _seriesCollapsed = false;
 
@@ -196,7 +197,7 @@ export function buildColumnToggles(
         return;
     }
 
-    visibleCols.forEach((col) => {
+    const chipListItems = visibleCols.map((col) => {
         const colIdx = appState.numericCols.indexOf(col);
         const color = getSeriesColor(col, colIdx >= 0 ? colIdx : 0);
         const isActive = appState.selectedCols.includes(col);
@@ -206,13 +207,13 @@ export function buildColumnToggles(
             ? `Adaptive filter target: ${col}`
             : `Ctrl+click to target adaptive filters to ${col}`;
 
-        const chip = SeriesChip({
+        return {
             column: col,
             checked: isActive,
             color,
             adaptiveTarget: isAdaptiveTarget,
             title: chipTitle,
-            onToggle: (checked) => {
+            onToggle: (checked: boolean) => {
                 if (checked) {
                     if (!appState.selectedCols.includes(col)) setSelectedCols([...appState.selectedCols, col]);
                 } else {
@@ -226,10 +227,9 @@ export function buildColumnToggles(
                 (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
                 fetchAndRender();
             },
-            onColorInput: (nextColor) => {
+            onColorInput: (nextColor: string) => {
                 const updated = setSeriesColor(col, nextColor);
                 if (!updated) return;
-                chip.style.setProperty('--chip-accent', updated);
                 renderCurrentDataFn?.();
             },
             onMenuClick: () => {
@@ -237,8 +237,22 @@ export function buildColumnToggles(
                 if (typeof open === 'function') open(col);
             },
             menuLabel: `Filter range for ${col}`,
-        });
+        };
+    });
 
+    renderSeriesChipList({
+        container,
+        items: chipListItems,
+        chipClass: 'timeseries-chip',
+        onColorUpdate: (col, color) => {
+            const chip = container.querySelector(`[data-col="${col}"]`) as HTMLElement | null;
+            if (chip) chip.style.setProperty('--chip-accent', color);
+        },
+    });
+
+    // Re-attach Ctrl+click adaptive-target handler to chips.
+    // The chip-color-picker click is excluded so color changes don't trigger it.
+    for (const chip of container.querySelectorAll<HTMLElement>('.series-chip')) {
         chip.addEventListener(
             'click',
             (e: MouseEvent) => {
@@ -246,6 +260,10 @@ export function buildColumnToggles(
                 if (!e.ctrlKey) return;
                 e.preventDefault();
                 e.stopPropagation();
+
+                const input = chip.querySelector<HTMLInputElement>('input[type="checkbox"]');
+                const col = input?.value;
+                if (!col) return;
 
                 const hadColumn = appState.selectedCols.includes(col);
                 if (!hadColumn) setSelectedCols([...appState.selectedCols, col]);
@@ -259,11 +277,9 @@ export function buildColumnToggles(
 
                 if (!hadColumn) fetchAndRender();
             },
-            true,
+            true, // capture phase
         );
-
-        container.appendChild(chip);
-    });
+    }
     finish();
     applyCollapse();
 }

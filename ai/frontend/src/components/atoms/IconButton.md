@@ -1,20 +1,8 @@
 # IconButton.ts
 
-Icon-only button.
+> DEPRECATED — re-exports from `../../ui/primitives/IconButton.js`. Will be removed after verifying no internal imports remain.
 
-## Functions
-
-### IconButton
-
-```typescript
-function IconButton(props: IconButtonProps): HTMLButtonElement
-```
-
-**Props:**
-
-```typescript
-interface IconButtonProps extends Omit<ButtonProps, 'label'> {
-    icon: string;
-    label: string;
-}
+## Re-export
+- `IconButton` — from `../../ui/primitives/IconButton.js`
+- `IconButtonProps` — type re-export
 ```

@@ -32,4 +32,11 @@
   - Cell click navigates to scatter page for off-diagonal cells.
 
 - `export async initHeatmapPage(deps: HeatmapPageDeps): Promise<void>`
-  - Initializes heatmap page: sets up event listeners, loads matrix data, renders heatmap, and registers export handlers.
+  - Initializes heatmap page with pageLifecycle wiring, bindExportButtons, loads matrix data, renders heatmap, and registers export handlers.
+
+## Exported
+- `initHeatmapPage`
+- `matrixData` (let)
+- `metric` (let)
+- `heatmapCellSize` (let)
+- `heatmapEmptyStateController` (let)

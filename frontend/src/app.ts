@@ -28,8 +28,6 @@ import { hydrateColumnProfiles, renderColumnProfilesGrid, initColumnProfilesGrid
 import { installWindowsWebGpuRequestAdapterWorkaround, requestGpuAdapter } from './utils/platform.js';
 import { getAnalyticsChipColor, getDefaultTimeseriesColumns, getNumericColumns } from './pages/analyticsPageUtils.js';
 import { createTimeseriesPageController } from './pages/timeseriesPage.js';
-import { createHeatmapEntrypoint } from './features/heatmap/entrypoint.js';
-import { createScatterEntrypoint } from './features/scatter/entrypoint.js';
 import { initScatterPage } from './scatter/scatterPage.js';
 import { fetchAnomalyRegions, computeAndSetRollingBands, cancelAnalyticsFetch } from './bootstrap/analyticsOverlay.js';
 import { initAppShell } from './bootstrap/appShell.js';

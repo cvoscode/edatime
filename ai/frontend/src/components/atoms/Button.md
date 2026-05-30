@@ -1,23 +1,8 @@
 # Button.ts
 
-Reusable button component.
+> DEPRECATED — re-exports from `../../ui/primitives/Button.js`. Will be removed after verifying no internal imports remain.
 
-## Functions
-
-### Button
-
-```typescript
-function Button(props: ButtonProps): HTMLButtonElement
-```
-
-**Props:**
-
-```typescript
-interface ButtonProps {
-    label: string;
-    className?: string;
-    type?: 'button' | 'submit' | 'reset';
-    disabled?: boolean;
-    onClick?: (event: MouseEvent) => void;
-}
+## Re-export
+- `Button` — from `../../ui/primitives/Button.js`
+- `ButtonProps` — type re-export
 ```

@@ -1,24 +1,7 @@
 # TextInput.ts
 
-Text input field.
+> DEPRECATED — re-exports from `../../ui/primitives/TextInput.js`. Will be removed after verifying no internal imports remain.
 
-## Functions
-
-### TextInput
-
-```typescript
-function TextInput(props: TextInputProps): HTMLInputElement
-```
-
-**Props:**
-
-```typescript
-interface TextInputProps {
-    id?: string;
-    label: string;
-    value?: string;
-    placeholder?: string;
-    className?: string;
-    onInput?: (value: string, event: Event) => void;
-}
-```
+## Re-export
+- `TextInput` — from `../../ui/primitives/TextInput.js`
+- `TextInputProps` — type re-export

@@ -6,13 +6,15 @@ import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanv
 import { toast } from '../utils/toast.js';
 import { getAnalyticsChipColor, getNumericColumns } from './analyticsPageUtils.js';
 import { setSpectralFilterPreview } from '../store/index.js';
-import { SeriesChip } from '../components/molecules/SeriesChip.js';
+import { SeriesChip } from '../ui/composites/SeriesChip.js';
+import { renderSeriesChipList } from '../ui/index.js';
+import { bindExportButtons } from '../utils/bindExportButtons.js';
+import { createPageLifecycle } from '../app/pageLifecycle.js';
 
 interface FftPageDeps {
     renderTimeseries: () => void;
 }
 
-let initialized = false;
 let fftTraces: FftTrace[] = [];
 let fftMode = 'magnitude';
 let fftLogScale = true;
@@ -81,6 +83,7 @@ function renderChips(): void {
     if (!bar || !appState.metadata) return;
     const columns = fftColumns();
 
+    // Capture loading chips before renderSeriesChipList clears the container
     const existing = new Map<string, HTMLElement>();
     for (const element of bar.querySelectorAll<HTMLElement>('.fft-trace-chip')) {
         const column = element.dataset.col as string;
@@ -89,21 +92,21 @@ function renderChips(): void {
     }
 
     const zoomButton = bar.querySelector('#fft-zoom-reset-btn');
-    for (const [index, column] of columns.entries()) {
-        const isActive = fftTraces.some((trace) => trace.column === column);
-        const color = fftColorFor(column, index);
-        let chip = existing.get(column);
-        if (!chip) {
-            chip = SeriesChip({
+
+    renderSeriesChipList({
+        container: bar,
+        items: columns.map((column, index) => {
+            const isActive = fftTraces.some((trace) => trace.column === column);
+            const color = fftColorFor(column, index);
+            return {
                 column,
+                label: column,
                 checked: isActive,
                 color,
-                label: column,
                 onToggle: async (checked) => {
-                    if (chip?.classList.contains('loading')) return;
                     if (checked) {
                         if (fftTraces.some((trace) => trace.column === column)) return;
-                        const activeChip = chip;
+                        const activeChip = bar.querySelector(`[data-col="${column}"]`) as HTMLElement | null;
                         if (!activeChip) return;
                         activeChip.classList.add('loading');
                         activeChip.classList.add('fft-trace-chip');
@@ -137,147 +140,155 @@ function renderChips(): void {
                 },
                 onColorInput: (nextColor) => {
                     fftTraceColors[column] = nextColor;
-                    chip?.style.setProperty('--chip-accent', nextColor);
-                    const trace = fftTraces.find((item) => item.column === column);
-                    if (trace) {
-                        trace.color = nextColor;
-                        rerenderOrClear();
-                    }
                 },
-            });
-            (chip as HTMLElement).classList.add('fft-trace-chip');
-            (chip as HTMLElement).setAttribute('role', 'button');
-            (chip as HTMLElement).tabIndex = 0;
-            (chip as HTMLElement).dataset.col = column;
-            chip.addEventListener('keydown', (event) => {
-                if (event.key !== 'Enter' && event.key !== ' ') return;
-                event.preventDefault();
-                const checkbox = chip.querySelector('input[type="checkbox"]') as HTMLInputElement;
-                checkbox.checked = !checkbox.checked;
-                checkbox.dispatchEvent(new Event('change'));
-            });
-            bar.insertBefore(chip, zoomButton || null);
-        }
+            };
+        }),
+        chipClass: 'fft-trace-chip',
+        onColorUpdate: (column, color) => {
+            const trace = fftTraces.find((item) => item.column === column);
+            if (trace) {
+                trace.color = color;
+                rerenderOrClear();
+            }
+        },
+    });
 
-        chip.className = `series-chip fft-trace-chip${isActive ? ' active' : ''}`;
-        chip.style.setProperty('--chip-accent', color);
-        const checkbox = chip.querySelector<HTMLInputElement>('input[type="checkbox"]');
-        if (checkbox) checkbox.checked = isActive;
+    // Re-apply role/tabIndex that renderSeriesChipList doesn't set
+    for (const column of columns) {
+        const chip = bar.querySelector(`[data-col="${column}"]`) as HTMLElement | null;
+        if (chip) {
+            chip.setAttribute('role', 'button');
+            chip.tabIndex = 0;
+        }
+    }
+
+    // Restore chips that were loading (they get replaced by renderSeriesChipList)
+    for (const [col, chip] of existing.entries()) {
+        if (chip.classList.contains('loading')) {
+            const restored = bar.querySelector(`[data-col="${col}"]`) as HTMLElement | null;
+            if (restored) {
+                restored.classList.add('loading');
+                restored.setAttribute('aria-disabled', 'true');
+            }
+        }
     }
 
     bar.hidden = columns.length === 0;
 }
 
 export async function initFftPage(deps: FftPageDeps): Promise<void> {
-    if (initialized) return;
-    initialized = true;
-
     const modeSelect = document.getElementById('fft-mode-select') as HTMLSelectElement | null;
     const logCheck = document.getElementById('fft-log-scale') as HTMLInputElement | null;
     const zoomResetBtn = document.getElementById('fft-zoom-reset-btn') as HTMLButtonElement | null;
 
-    fftChart = new FftChart('fft-chart');
-    await fftChart.init();
-    fftChart.onZoomChange = (isZoomed: boolean) => updateZoomButton(isZoomed);
-
-    const populateChips = () => { if (appState.metadata) renderChips(); };
-    populateChips();
-    window.addEventListener('edatime:page-change', populateChips);
-
-    modeSelect?.addEventListener('change', () => {
-        fftMode = modeSelect.value;
-        rerenderOrClear();
-    });
-    logCheck?.addEventListener('change', () => {
-        fftLogScale = logCheck.checked;
-        rerenderOrClear();
-    });
-    zoomResetBtn?.addEventListener('click', () => fftChart?.resetView());
-
-    document.getElementById('fft-export-png-btn')?.addEventListener('click', () => {
-        exportContainerCanvasPNG('fft-chart', 'edatime_fft.png');
-    });
-    document.getElementById('fft-export-svg-btn')?.addEventListener('click', () => {
-        exportContainerCanvasSVG('fft-chart', 'edatime_fft.svg');
-    });
-    document.getElementById('fft-export-html-btn')?.addEventListener('click', () => {
-        exportContainerCanvasHTML('fft-chart', 'edatime_fft.html');
-    });
-    document.getElementById('fft-export-csv-btn')?.addEventListener('click', () => {
-        if (fftTraces.length === 0) {
-            toast('No FFT data to export.', 'warning');
-            return;
-        }
-        const csvTraces = fftTraces.map((trace) => ({
-            column: trace.column,
-            xs: trace.frequencies,
-            ys: fftMode === 'psd' ? trace.psd : trace.magnitudes,
-        }));
-        exportTraceCSV(csvTraces, 'frequency_hz', `edatime_fft_${fftMode}.csv`);
-    });
-
-    document.getElementById('fft-filter-apply-btn')?.addEventListener('click', async () => {
-        const filterType = (document.getElementById('fft-filter-type') as HTMLSelectElement)?.value;
-        if (!filterType || filterType === 'none') {
-            if (appState.spectralFilterPreview) {
-                setSpectralFilterPreview(null);
-                appState.chart?.requestOverlayRender?.();
-                deps.renderTimeseries();
-            }
-            return;
-        }
-
-        const column = fftTraces[0]?.column || appState.selectedCols[0];
-        if (!column) {
-            toast('Select a column chip below first.', 'warning');
-            return;
-        }
-
-        const statusEl = document.getElementById('fft-filter-status') as HTMLElement | null;
-        const lowHz = parseFloat((document.getElementById('fft-filter-low-hz') as HTMLInputElement)?.value) || undefined;
-        const highHz = parseFloat((document.getElementById('fft-filter-high-hz') as HTMLInputElement)?.value) || undefined;
-
-        if (statusEl) statusEl.textContent = 'Computing…';
-        try {
-            const start = appState.currentStart;
-            const end = appState.currentEnd;
-            if (start == null || end == null || !Number.isFinite(start) || !Number.isFinite(end)) {
-                throw new Error('No range selected');
-            }
-            const params = new URLSearchParams({
-                start: new Date(start).toISOString(),
-                end: new Date(end).toISOString(),
-                column,
-                filter_type: filterType,
-                ...(lowHz !== undefined ? { low_hz: String(lowHz) } : {}),
-                ...(highHz !== undefined ? { high_hz: String(highHz) } : {}),
+    const unregisterLifecycle = createPageLifecycle({
+        page: 'fft',
+        init() {
+            // one-time setup
+            fftChart = new FftChart('fft-chart');
+            void fftChart.init().then(() => {
+                fftChart!.onZoomChange = (isZoomed: boolean) => updateZoomButton(isZoomed);
             });
-            const data = await fetchSpectralFilter(params);
-            setSpectralFilterPreview({
-                column: data.column,
-                ts: data.ts as number[],
-                values: data.values as number[],
-                filterType,
-                lowHz: data.low_hz,
-                highHz: data.high_hz,
+
+            modeSelect?.addEventListener('change', () => {
+                fftMode = modeSelect.value;
+                rerenderOrClear();
             });
-            if (statusEl) statusEl.textContent = `${filterType} preview active`;
-            toast(`Spectral filter preview: ${filterType} applied to "${column}". Switch to Timeseries to view.`, 'success');
-            deps.renderTimeseries();
-        } catch (error) {
-            if (statusEl) statusEl.textContent = 'Error';
-            toast(`Spectral filter failed: ${String(error)}`, 'error');
-        }
+            logCheck?.addEventListener('change', () => {
+                fftLogScale = logCheck.checked;
+                rerenderOrClear();
+            });
+            zoomResetBtn?.addEventListener('click', () => fftChart?.resetView());
+
+            bindExportButtons('fft', {
+                png: { fn: exportContainerCanvasPNG, filename: 'edatime_fft.png' },
+                svg: { fn: exportContainerCanvasSVG, filename: 'edatime_fft.svg' },
+                html: { fn: exportContainerCanvasHTML, filename: 'edatime_fft.html' },
+                csv: {
+                    fn: (filename) => {
+                        const csvTraces = fftTraces.map((trace) => ({
+                            column: trace.column,
+                            xs: trace.frequencies,
+                            ys: fftMode === 'psd' ? trace.psd : trace.magnitudes,
+                        }));
+                        exportTraceCSV(csvTraces, 'frequency_hz', filename);
+                    },
+                    filename: `edatime_fft_${fftMode}.csv`,
+                    dataCheck: () => fftTraces.length > 0,
+                },
+            });
+
+            document.getElementById('fft-filter-apply-btn')?.addEventListener('click', async () => {
+                const filterType = (document.getElementById('fft-filter-type') as HTMLSelectElement)?.value;
+                if (!filterType || filterType === 'none') {
+                    if (appState.spectralFilterPreview) {
+                        setSpectralFilterPreview(null);
+                        appState.chart?.requestOverlayRender?.();
+                        deps.renderTimeseries();
+                    }
+                    return;
+                }
+
+                const column = fftTraces[0]?.column || appState.selectedCols[0];
+                if (!column) {
+                    toast('Select a column chip below first.', 'warning');
+                    return;
+                }
+
+                const statusEl = document.getElementById('fft-filter-status') as HTMLElement | null;
+                const lowHz = parseFloat((document.getElementById('fft-filter-low-hz') as HTMLInputElement)?.value) || undefined;
+                const highHz = parseFloat((document.getElementById('fft-filter-high-hz') as HTMLInputElement)?.value) || undefined;
+
+                if (statusEl) statusEl.textContent = 'Computing…';
+                try {
+                    const start = appState.currentStart;
+                    const end = appState.currentEnd;
+                    if (start == null || end == null || !Number.isFinite(start) || !Number.isFinite(end)) {
+                        throw new Error('No range selected');
+                    }
+                    const params = new URLSearchParams({
+                        start: new Date(start).toISOString(),
+                        end: new Date(end).toISOString(),
+                        column,
+                        filter_type: filterType,
+                        ...(lowHz !== undefined ? { low_hz: String(lowHz) } : {}),
+                        ...(highHz !== undefined ? { high_hz: String(highHz) } : {}),
+                    });
+                    const data = await fetchSpectralFilter(params);
+                    setSpectralFilterPreview({
+                        column: data.column,
+                        ts: data.ts as number[],
+                        values: data.values as number[],
+                        filterType,
+                        lowHz: data.low_hz,
+                        highHz: data.high_hz,
+                    });
+                    if (statusEl) statusEl.textContent = `${filterType} preview active`;
+                    toast(`Spectral filter preview: ${filterType} applied to "${column}". Switch to Timeseries to view.`, 'success');
+                    deps.renderTimeseries();
+                } catch (error) {
+                    if (statusEl) statusEl.textContent = 'Error';
+                    toast(`Spectral filter failed: ${String(error)}`, 'error');
+                }
+            });
+
+            const filterTypeSelect = document.getElementById('fft-filter-type') as HTMLSelectElement | null;
+            filterTypeSelect?.addEventListener('change', () => {
+                const filterType = filterTypeSelect.value;
+                const lowEl = document.getElementById('fft-filter-low-hz') as HTMLInputElement | null;
+                const highEl = document.getElementById('fft-filter-high-hz') as HTMLInputElement | null;
+                if (lowEl) lowEl.disabled = filterType === 'none' || filterType === 'lowpass';
+                if (highEl) highEl.disabled = filterType === 'none' || filterType === 'highpass';
+            });
+
+            rerenderOrClear();
+        },
+        onEveryPageChange() {
+            // Re-render chips on every page change (fft needs to reflect selected columns from any page)
+            if (appState.metadata) renderChips();
+        },
     });
 
-    const filterTypeSelect = document.getElementById('fft-filter-type') as HTMLSelectElement | null;
-    filterTypeSelect?.addEventListener('change', () => {
-        const filterType = filterTypeSelect.value;
-        const lowEl = document.getElementById('fft-filter-low-hz') as HTMLInputElement | null;
-        const highEl = document.getElementById('fft-filter-high-hz') as HTMLInputElement | null;
-        if (lowEl) lowEl.disabled = filterType === 'none' || filterType === 'lowpass';
-        if (highEl) highEl.disabled = filterType === 'none' || filterType === 'highpass';
-    });
-
-    rerenderOrClear();
+    // Keep reference for potential cleanup (currently not called externally, but the pattern is ready)
+    void unregisterLifecycle;
 }

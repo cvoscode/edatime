@@ -1,6 +1,7 @@
 import { fetchCausalGraph } from '../services/api/index.js';
 import { notifyCausalGraphUpdated, type CausalLink } from './causalComparison.js';
-import { SeriesChip } from '../components/molecules/SeriesChip.js';
+import { SeriesChip } from '../ui/composites/SeriesChip.js';
+import { renderSeriesChipList } from '../ui/index.js';
 
 
 interface MetadataColumn {
@@ -485,6 +486,7 @@ function renderColumnChips(deps: CausalDeps, columnsBar: HTMLElement): void {
     const cols = metadataColumns(meta);
     columnsBar.innerHTML = '';
 
+    // Select-all button appended first (kept outside chip list for separate styling)
     const allSelected = cols.length > 0 && cols.every((item) => _selectedColumns.has(item.name));
     const selectAllBtn = document.createElement('button');
     selectAllBtn.className = `series-chip fft-trace-chip causal-column-action${allSelected ? ' active' : ''}`;
@@ -509,49 +511,51 @@ function renderColumnChips(deps: CausalDeps, columnsBar: HTMLElement): void {
     });
     columnsBar.appendChild(selectAllBtn);
 
+    renderSeriesChipList({
+        container: columnsBar,
+        items: cols.map((item) => {
+            const col = item.name;
+            const numericColumn = numeric.has(col);
+            ensureNodeMetadata(col, meta, deps);
+            const currentColor = _chipColors.get(col) ?? '#00a8ff';
+            const active = _selectedColumns.has(col);
+            return {
+                column: col,
+                checked: active,
+                color: currentColor,
+                title: numericColumn
+                    ? `Toggle ${col} for causal discovery`
+                    : `Toggle ${col} as a manual graph/meta node`,
+                onToggle: (checked) => {
+                    if (checked) _selectedColumns.add(col);
+                    else _selectedColumns.delete(col);
+                    renderColumnChips(deps, columnsBar);
+                    syncCausalEmptyState();
+                },
+                onColorInput: (color) => {
+                    _chipColors.set(col, color);
+                    if (_currentColumns.includes(col)) renderEChartsGraph();
+                },
+                onMenuClick: () => openEditPanel({ kind: 'node', col }),
+                menuLabel: `Edit ${col} causal node`,
+            };
+        }),
+        chipClass: 'fft-trace-chip',
+        onColorUpdate: (col, color) => {
+            const chip = columnsBar.querySelector(`[data-col="${col}"]`) as HTMLElement | null;
+            if (chip) chip.style.setProperty('--chip-accent', color);
+        },
+    });
+
+    // Apply non-numeric chip variant class and role/tabIndex after render
     for (const item of cols) {
         const col = item.name;
         const numericColumn = numeric.has(col);
-        ensureNodeMetadata(col, meta, deps);
-        const currentColor = _chipColors.get(col) ?? '#00a8ff';
-        const active = _selectedColumns.has(col);
-
-        const chip = SeriesChip({
-            column: col,
-            checked: active,
-            color: currentColor,
-            title: numericColumn
-                ? `Toggle ${col} for causal discovery`
-                : `Toggle ${col} as a manual graph/meta node`,
-            onToggle: (checked) => {
-                if (checked) _selectedColumns.add(col);
-                else _selectedColumns.delete(col);
-                renderColumnChips(deps, columnsBar);
-                syncCausalEmptyState();
-            },
-            onColorInput: (color) => {
-                _chipColors.set(col, color);
-                chip.style.setProperty('--chip-accent', color);
-                if (_currentColumns.includes(col)) renderEChartsGraph();
-            },
-            onMenuClick: () => openEditPanel({ kind: 'node', col }),
-            menuLabel: `Edit ${col} causal node`,
-        });
-
-        chip.classList.add('fft-trace-chip');
+        const chip = columnsBar.querySelector(`[data-col="${col}"]`) as HTMLElement | null;
+        if (!chip) continue;
         if (!numericColumn) chip.classList.add('causal-chip-nonnumeric');
         chip.setAttribute('role', 'button');
         chip.tabIndex = 0;
-        (chip as HTMLElement).dataset.col = col;
-        chip.addEventListener('keydown', (event) => {
-            if (event.key !== 'Enter' && event.key !== ' ') return;
-            event.preventDefault();
-            const checkbox = chip.querySelector('input[type="checkbox"]') as HTMLInputElement;
-            checkbox.checked = !checkbox.checked;
-            checkbox.dispatchEvent(new Event('change'));
-        });
-
-        columnsBar.appendChild(chip);
     }
 }
 

@@ -1,23 +1,8 @@
 # Chip.ts
 
-Chip/tag component.
+> DEPRECATED — re-exports from `../../ui/primitives/Chip.js`. Will be removed after verifying no internal imports remain.
 
-## Functions
-
-### Chip
-
-```typescript
-function Chip(props: ChipProps): HTMLSpanElement
-```
-
-**Props:**
-
-```typescript
-interface ChipProps {
-    label: string;
-    className?: string;
-    active?: boolean;
-    accent?: string;
-    onClick?: (event: MouseEvent) => void;
-}
+## Re-export
+- `Chip` — from `../../ui/primitives/Chip.js`
+- `ChipProps` — type re-export
 ```

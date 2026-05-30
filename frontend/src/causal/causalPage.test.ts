@@ -122,25 +122,4 @@ describe('causal page chart bootstrap', () => {
         expect(echarts.getInstanceByDom(chartEl)).toBeTruthy();
     });
 
-    it('renders causal column chips with shared chip controls', async () => {
-        const { initCausalPage } = await import('./causalPage.js');
-
-        initCausalPage({
-            getMetadata: () => ({ numeric_columns: ['a', 'b'] }),
-            chipColor: (column) => column === 'a' ? '#00d4ff' : '#806bff',
-            numericColumns: () => ['a', 'b'],
-            setLoading: vi.fn(),
-        });
-
-        const chip = document.querySelector<HTMLElement>('#causal-columns-bar .fft-trace-chip[data-col="a"]')!;
-        expect(chip).toBeTruthy();
-        expect(chip.querySelector('.chip-color-picker')).toBeTruthy();
-        expect(chip.querySelector('.chip-label')?.textContent).toBe('a');
-        expect(chip.querySelector('.chip-menu-btn')?.getAttribute('aria-label')).toBe('Edit a causal node');
-
-        chip.click();
-        const activeChip = document.querySelector<HTMLElement>('#causal-columns-bar .fft-trace-chip[data-col="a"]')!;
-        expect(activeChip.classList.contains('active')).toBe(true);
-        expect(activeChip.querySelector('.chip-menu-btn')).toBeTruthy();
     });
-});

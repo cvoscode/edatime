@@ -1,6 +1,13 @@
 # frontend/src/app.ts
 > Main bootstrapping — orchestrates app shell, chart, pages, analytics overlays.
 
+register('fft', { requiresMetadata: true, init: createFftEntrypoint({ getRenderTimeseries: () => renderCurrentData }).init });
+register('heatmap', { requiresMetadata: true, init: createHeatmapEntrypoint({ showPage }).init });
+register('scatter', { requiresMetadata: true, init: createScatterEntrypoint({ showPage }).init });
+register('spectrogram', { requiresMetadata: true, init: createSpectrogramEntrypoint({ showPage }).init });
+register('causal', { requiresMetadata: true, init: createCausalEntrypoint({ showPage }).init });
+register('drift', { requiresMetadata: true, init: createDriftEntrypoint({ showPage }).init });
+
 ## State Variables
 
 ```typescript
@@ -46,7 +53,9 @@ let fetchAnomalies: ((start: string, end: string, columns: string, method?: stri
 - `setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata, initUploadPanel` — from `../ui/upload.js`
 - `hydrateColumnProfiles, renderColumnProfilesGrid, initColumnProfilesGrid` — from `../ui/profile.js`
 - `installWindowsWebGpuRequestAdapterWorkaround, requestGpuAdapter` — from `../utils/platform.js`
-- `getDefaultTimeseriesColumns, getNumericColumns` — from `../pages/analyticsPageUtils.js`
+- `getAnalyticsChipColor, getDefaultTimeseriesColumns, getNumericColumns` — from `../pages/analyticsPageUtils.js`
+- `createTimeseriesPageController` — from `../pages/timeseriesPage.js`
+- `initScatterPage` — from `../scatter/scatterPage.js`
 - `fetchAnomalyRegions, computeAndSetRollingBands, cancelAnalyticsFetch` — from `../bootstrap/analyticsOverlay.js`
 - `initAppShell` — from `../bootstrap/appShell.js`
 - `createAppRuntime` — from `../app/runtime.js`
@@ -62,4 +71,5 @@ let fetchAnomalies: ((start: string, end: string, columns: string, method?: stri
 - `initAnnotations, setAnnotationOverlayCallback` — from `../chart/annotations.js` and `../ui/annotationPanel.js`
 - `setAnomalyOverlayCallback` — from `../bootstrap/analyticsOverlay.js`
 - `toast` — from `../utils/toast.js`
+- `initDriftPage` — from `../drift/driftPage.js`
 - Store setters: `appendAdaptiveLineFilter, setAdaptiveFilterColumn, setAnalysisBound, setChartInstance, setDatasetRevision, setInitialView, setMetadata, setNumericCols, setPendingAdaptivePoint, setRollingBands, setSelectedCols, setViewport` — from `../store/index.js`

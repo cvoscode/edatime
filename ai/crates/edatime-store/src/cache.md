@@ -14,23 +14,13 @@
 - `is_downsampled: bool`
 - `returned_rows: usize`
 - `target_points: Option<usize>`
-- `ts_col: Option<String>`
+- `time_column: Option<String>`  [deps: [data handler][1]]
 - `created_at: std::time::Instant`
 
-### `DriftCache`
-- Thread-safe store for drift statistics results.
-
-## Methods
-
-### `ResponseCache`
-- `new(config: CacheConfig) -> Self`
-- `get(&self, key: &str) -> Option<CachedResponse>`
-- `insert(&self, key: String, value: CachedResponse)`
-- `invalidate_all(&self)`
-- `len(&self) -> usize`
-
 ### `CachedResponse`
-- `arrow(data: Vec<u8>, is_downsampled: bool, returned_rows: usize, target_points: Option<usize>, ts_col: Option<String>) -> Self`
-- `json(data: Vec<u8>, is_downsampled: bool, returned_rows: usize, target_points: Option<usize>, ts_col: Option<String>) -> Self`
+- `arrow(data: Vec<u8>, is_downsampled: bool, returned_rows: usize, target_points: Option<usize>, time_column: Option<String>) -> Self`
+- `json(data: Vec<u8>, is_downsampled: bool, returned_rows: usize, target_points: Option<usize>, time_column: Option<String>) -> Self`
 - `into_response(self, hit: &str) -> Response`
 - `is_expired(&self) -> bool`
+---
+[1]: ../../edatime-service/src/handlers/routes/data.md

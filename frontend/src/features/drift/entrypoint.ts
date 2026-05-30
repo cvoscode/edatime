@@ -1,4 +1,7 @@
-import type { DriftEntrypointDeps } from '../../drift/driftPage.js';
+export interface DriftEntrypointDeps {
+    initDriftPage: (metadata: unknown) => void;
+    getMetadata: () => unknown;
+}
 
 export function createDriftEntrypoint(deps: DriftEntrypointDeps) {
     return {

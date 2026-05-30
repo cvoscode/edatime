@@ -1,33 +1,7 @@
 # Select.ts
 
-Dropdown select component.
+> DEPRECATED — re-exports from `../../ui/primitives/Select.js`. Will be removed after verifying no internal imports remain.
 
-## Types
-
-```typescript
-interface SelectOption {
-    value: string;
-    label: string;
-}
-```
-
-## Functions
-
-### Select
-
-```typescript
-function Select(props: SelectProps): HTMLSelectElement
-```
-
-**Props:**
-
-```typescript
-interface SelectProps {
-    id?: string;
-    label: string;
-    value?: string;
-    options: SelectOption[];
-    className?: string;
-    onChange?: (value: string, event: Event) => void;
-}
-```
+## Re-export
+- `Select` — from `../../ui/primitives/Select.js`
+- `SelectProps` — type re-export

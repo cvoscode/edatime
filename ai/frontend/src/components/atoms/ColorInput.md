@@ -1,23 +1,8 @@
 # ColorInput.ts
 
-Color picker input.
+> DEPRECATED — re-exports from `../../ui/primitives/ColorInput.js`. Will be removed after verifying no internal imports remain.
 
-## Functions
-
-### ColorInput
-
-```typescript
-function ColorInput(props: ColorInputProps): HTMLInputElement
-```
-
-**Props:**
-
-```typescript
-interface ColorInputProps {
-    id?: string;
-    label: string;
-    value: string;
-    className?: string;
-    onInput?: (value: string, event: Event) => void;
-}
+## Re-export
+- `ColorInput` — from `../../ui/primitives/ColorInput.js`
+- `ColorInputProps` — type re-export
 ```
