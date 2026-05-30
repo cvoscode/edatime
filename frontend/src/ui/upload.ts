@@ -466,27 +466,27 @@ export function initUploadPanel(
                 const result = await res.json();
                 setStatus(`Loaded ${result.rows.toLocaleString()} rows. Refreshing stats…`, 'success');
                 notify(`${formatCount(Number(result.rows || 0))} rows loaded. Dataset ready.`, 'success');
-// Fetch fresh metadata and refresh the profile grid without page reload
-                    try {
-                        const freshMetadata = await dataClientFetchMetadata();
-                        setMetadata(freshMetadata);
-                        const revision = freshMetadata?.revision;
-                        setDatasetRevision(typeof revision === 'number' ? revision : 0);
-                        // Reset upload state
-                        selectedFile = null;
-                        fileInput!.value = '';
-                        fileDisplay!.textContent = '';
-                        setUploadPreviewStatus('Upload complete. Select a file to preview.', '');
-                        setProfileMode('dataset');
-                        // Re-hydrate and render the profile grid with the new dataset metadata
-                        hydrateColumnProfiles(freshMetadata);
-                        applyPartialTimeRangeFromMetadata(freshMetadata, false);
-                        renderColumnProfilesGrid(true);
-                        // Update header meta stats and UI controls
-                        buildMetaBar(freshMetadata);
-                        deps.buildColumnToggles();
-                        deps.buildRangeControls();
-                    } catch {
+                // Fetch fresh metadata and refresh the profile grid without page reload
+                try {
+                    const freshMetadata = await dataClientFetchMetadata();
+                    setMetadata(freshMetadata);
+                    const revision = freshMetadata?.revision;
+                    setDatasetRevision(typeof revision === 'number' ? revision : 0);
+                    // Reset upload state
+                    selectedFile = null;
+                    fileInput!.value = '';
+                    fileDisplay!.textContent = '';
+                    setUploadPreviewStatus('Upload complete. Select a file to preview.', '');
+                    setProfileMode('dataset');
+                    // Re-hydrate and render the profile grid with the new dataset metadata
+                    hydrateColumnProfiles(freshMetadata);
+                    applyPartialTimeRangeFromMetadata(freshMetadata, false);
+                    renderColumnProfilesGrid(true);
+                    // Update header meta stats and UI controls
+                    buildMetaBar(freshMetadata);
+                    deps.buildColumnToggles();
+                    deps.buildRangeControls();
+                } catch {
                     // Fall back to reload if metadata refresh fails
                     setTimeout(() => window.location.reload(), 1200);
                 }

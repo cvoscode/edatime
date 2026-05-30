@@ -541,22 +541,16 @@ function renderColumnChips(deps: CausalDeps, columnsBar: HTMLElement): void {
             };
         }),
         chipClass: 'fft-trace-chip',
+        postChipAttributes: { role: 'button', tabIndex: '0' },
+        postChipClass: (item) => {
+            const col = item.column;
+            return numeric.has(col) ? '' : 'causal-chip-nonnumeric';
+        },
         onColorUpdate: (col, color) => {
             const chip = columnsBar.querySelector(`[data-col="${col}"]`) as HTMLElement | null;
             if (chip) chip.style.setProperty('--chip-accent', color);
         },
     });
-
-    // Apply non-numeric chip variant class and role/tabIndex after render
-    for (const item of cols) {
-        const col = item.name;
-        const numericColumn = numeric.has(col);
-        const chip = columnsBar.querySelector(`[data-col="${col}"]`) as HTMLElement | null;
-        if (!chip) continue;
-        if (!numericColumn) chip.classList.add('causal-chip-nonnumeric');
-        chip.setAttribute('role', 'button');
-        chip.tabIndex = 0;
-    }
 }
 
 async function initChart(): Promise<void> {

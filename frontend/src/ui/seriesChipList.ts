@@ -2,11 +2,11 @@
  * Shared SeriesChip list orchestration.
  *
  * Owns: rendering a list of chips into a container, keyboard activation
- * (Enter/Space → toggle checkbox), post-creation class wiring, and color
- * update plumbing. Does NOT own data fetching or domain logic.
+ * (Enter/Space → toggle checkbox), post-creation class/attribute wiring,
+ * and color update plumbing. Does NOT own data fetching or domain logic.
  */
 
-import { SeriesChip, type SeriesChipProps } from './composites/SeriesChip.js';
+import { SeriesChip } from './composites/SeriesChip.js';
 
 export interface SeriesChipListItem {
     column: string;
@@ -39,6 +39,36 @@ export interface SeriesChipListOptions {
      * Useful when the caller needs to persist the color somewhere (e.g. a module-level map).
      */
     onColorUpdate?: (column: string, color: string) => void;
+    /**
+     * Additional static attributes applied to every chip element after creation.
+     * E.g. { role: 'button', tabIndex: '0' } makes chips keyboard-accessible.
+     */
+    postChipAttributes?: Record<string, string>;
+    /**
+     * Additional CSS class applied to each chip after creation, conditional on
+     * the item. Return '' for chips that should not receive the class.
+     * E.g. (item) => item.column.startsWith('meta_') ? 'meta-chip' : ''
+     */
+    postChipClass?: (item: SeriesChipListItem) => string;
+}
+
+/** Extra attributes/class applied to each chip after creation. */
+interface ChipExtras {
+    postChipAttributes?: Record<string, string>;
+    postChipClass?: (item: SeriesChipListItem) => string;
+}
+
+/** Shared chip post-creation step: applies attributes + conditional class. */
+function applyChipExtras(chip: HTMLElement, item: SeriesChipListItem, extras: ChipExtras): void {
+    if (extras.postChipAttributes) {
+        for (const [attr, val] of Object.entries(extras.postChipAttributes)) {
+            chip.setAttribute(attr, val);
+        }
+    }
+    if (extras.postChipClass) {
+        const cls = extras.postChipClass(item);
+        if (cls) chip.classList.add(cls);
+    }
 }
 
 /**
@@ -47,8 +77,14 @@ export interface SeriesChipListOptions {
  * keyboard handler.
  */
 export function renderSeriesChipList(options: SeriesChipListOptions): void {
-    const { container, items, chipClass, onColorUpdate } = options;
+    const { container, items, chipClass, onColorUpdate, postChipAttributes, postChipClass } = options;
     container.innerHTML = '';
+
+    // Clean up any prior keyboard listener
+    const prevCleanup = (container as any).__chipKeyboardCleanup;
+    if (typeof prevCleanup === 'function') prevCleanup();
+    const cleanup = bindSeriesChipKeyboard(container);
+    (container as any).__chipKeyboardCleanup = cleanup;
 
     const fragment = document.createDocumentFragment();
     for (const item of items) {
@@ -69,31 +105,28 @@ export function renderSeriesChipList(options: SeriesChipListOptions): void {
             menuLabel: item.menuLabel,
         });
 
-        if (chipClass) {
-            (chip as HTMLElement).classList.add(chipClass);
-        }
-
+        (chip as HTMLElement).classList.add(chipClass ?? '');
+        applyChipExtras(chip as HTMLElement, item, { postChipAttributes, postChipClass });
         fragment.appendChild(chip);
     }
 
     container.appendChild(fragment);
-
-    // Delegated keyboard handler: Enter / Space toggles the checkbox
-    bindSeriesChipKeyboard(container);
 }
 
 /**
  * Updates only the checked/active state and color of existing chips in
  * `container` without rebuilding the DOM. Uses `data-col` to match chips
  * to items. Chips whose column no longer appears in `items` are removed.
+ * New chips receive the same post-creation extras as `renderSeriesChipList`.
  */
 export function updateSeriesChipList(options: SeriesChipListOptions): void {
-    const { container, items, chipClass, onColorUpdate } = options;
+    const { container, items, chipClass, onColorUpdate, postChipAttributes, postChipClass } = options;
 
     // Build a map of existing chip elements by column
     const existing = new Map<string, HTMLElement>();
     for (const el of container.querySelectorAll<HTMLElement>('[data-col]')) {
-        existing.set(el.dataset.col ?? '', el);
+        const col = el.dataset.col;
+        if (col !== undefined) existing.set(col, el);
     }
 
     // Determine which columns should remain
@@ -127,10 +160,8 @@ export function updateSeriesChipList(options: SeriesChipListOptions): void {
                 menuLabel: item.menuLabel,
             });
 
-            if (chipClass) {
-                (chip as HTMLElement).classList.add(chipClass);
-            }
-
+            (chip as HTMLElement).classList.add(chipClass ?? '');
+            applyChipExtras(chip as HTMLElement, item, { postChipAttributes, postChipClass });
             container.appendChild(chip);
         } else {
             // Update existing chip state
@@ -142,6 +173,8 @@ export function updateSeriesChipList(options: SeriesChipListOptions): void {
         }
     }
 }
+
+/**
 
 /**
  * Attaches a delegated `keydown` listener to `container` so that any chip

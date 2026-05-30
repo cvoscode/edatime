@@ -7,7 +7,6 @@ import { getAnalyticsChipColor, getNumericColumns } from './analyticsPageUtils.j
 import { setSpectralFilterPreview } from '../store/index.js';
 import { SeriesChip } from '../ui/composites/SeriesChip.js';
 import { renderSeriesChipList } from '../ui/index.js';
-import { bindExportButtons } from '../utils/bindExportButtons.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 
 interface FftPageDeps {
@@ -136,6 +135,7 @@ function renderChips(): void {
             };
         }),
         chipClass: 'fft-trace-chip',
+        postChipAttributes: { role: 'button', tabIndex: '0' },
         onColorUpdate: (column, color) => {
             const trace = fftTraces.find((item) => item.column === column);
             if (trace) {
@@ -144,15 +144,6 @@ function renderChips(): void {
             }
         },
     });
-
-    // Re-apply role/tabIndex that renderSeriesChipList doesn't set
-    for (const column of columns) {
-        const chip = bar.querySelector(`[data-col="${column}"]`) as HTMLElement | null;
-        if (chip) {
-            chip.setAttribute('role', 'button');
-            chip.tabIndex = 0;
-        }
-    }
 
     // Restore chips that were loading (they get replaced by renderSeriesChipList)
     for (const [col, chip] of existing.entries()) {
@@ -176,24 +167,23 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
     fftRuntime = createAnalysisPageRuntime({
         page: 'fft',
         emptyStateRootId: 'fft-empty-state',
-        bindExports() {
-            bindExportButtons('fft', {
-                png: { fn: exportContainerCanvasPNG, filename: 'edatime_fft.png' },
-                svg: { fn: exportContainerCanvasSVG, filename: 'edatime_fft.svg' },
-                html: { fn: exportContainerCanvasHTML, filename: 'edatime_fft.html' },
-                csv: {
-                    fn: (filename) => {
-                        const csvTraces = fftTraces.map((trace) => ({
-                            column: trace.column,
-                            xs: trace.frequencies,
-                            ys: fftMode === 'psd' ? trace.psd : trace.magnitudes,
-                        }));
-                        exportTraceCSV(csvTraces, 'frequency_hz', filename);
-                    },
-                    filename: `edatime_fft_${fftMode}.csv`,
-                    dataCheck: () => fftTraces.length > 0,
+        exportConfig: {
+            key: 'fft',
+            png: { fn: exportContainerCanvasPNG, filename: 'edatime_fft.png' },
+            svg: { fn: exportContainerCanvasSVG, filename: 'edatime_fft.svg' },
+            html: { fn: exportContainerCanvasHTML, filename: 'edatime_fft.html' },
+            csv: {
+                fn: (filename) => {
+                    const csvTraces = fftTraces.map((trace) => ({
+                        column: trace.column,
+                        xs: trace.frequencies,
+                        ys: fftMode === 'psd' ? trace.psd : trace.magnitudes,
+                    }));
+                    exportTraceCSV(csvTraces, 'frequency_hz', filename);
                 },
-            });
+                filename: `edatime_fft_${fftMode}.csv`,
+                dataCheck: () => fftTraces.length > 0,
+            },
         },
         init() {
             // one-time setup

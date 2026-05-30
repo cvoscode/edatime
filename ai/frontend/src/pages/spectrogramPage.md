@@ -1,44 +1,25 @@
 # spectrogramPage.ts
+> Spectrogram visualization page — refactored to use `createAnalysisPageRuntime` for empty-state and export wiring.
 
-Spectrogram visualization page.
+## Interface: SpectrogramPageDeps
+- `setLoading(btnId: string, overlayId: string, loading: boolean, label?: string): void`
 
-## Interfaces
-
-```typescript
-interface SpectrogramPageDeps {
-    setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
-}
-```
-
-## State Variables
-
-```typescript
-let loaded: boolean
-let spectrogramChart: any
-let spectrogramResizeObserver: ResizeObserver | null
-let spectrogramResult: SpectrogramResult | null
-let spectrogramSampleCount: number
-let spectrogramEmptyStateController: ReturnType<typeof createEmptyStateController> | null
-```
+## State
+- `spectrogramChart: any`
+- `spectrogramResizeObserver: ResizeObserver | null`
+- `spectrogramResult: SpectrogramResult | null`
+- `spectrogramSampleCount: number`
+- `spectrogramRuntime: ReturnType<typeof createAnalysisPageRuntime> | null`
 
 ## Functions
+- `syncSpectrogramEmptyState(message?: string): void`
+  - Updates empty state via `spectrogramRuntime?.updateEmptyState`.
+- `formatSpectrogramTime(timestampMs: number): string`
+- `formatSpectrogramFrequency(frequency: number): string`
+- `export async initSpectrogramPage(deps: SpectrogramPageDeps): Promise<void>`
+  - Uses `createAnalysisPageRuntime` pattern; wires spectrogram chart init, resize observer, selection box, column select, window size, log scale, and export buttons.
 
-```typescript
-function getSpectrogramEmptyStateController(): ReturnType<typeof createEmptyStateController>
-```
-
-```typescript
-function syncSpectrogramEmptyState(message?: string): void
-```
-
-```typescript
-function formatSpectrogramTime(timestampMs: number): string
-```
-
-```typescript
-function formatSpectrogramFrequency(frequency: number): string
-```
-
-```typescript
-export async function initSpectrogramPage(deps: SpectrogramPageDeps): Promise<void>
-```
+---
+[1]: ./shared/analysisPageRuntime.md
+[2]: ../utils/bindExportButtons.md
+[3]: ../store/appStateCompat.md

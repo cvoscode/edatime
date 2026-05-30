@@ -1,7 +1,6 @@
 import { fetchSpectrogram, type SpectrogramResult } from '../services/api/index.js';
 import { appState } from '../store/appStateCompat.js';
 import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../utils/chartExport.js';
-import { bindExportButtons } from '../utils/bindExportButtons.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 
 interface SpectrogramPageDeps {
@@ -51,12 +50,11 @@ export async function initSpectrogramPage(deps: SpectrogramPageDeps): Promise<vo
     spectrogramRuntime = createAnalysisPageRuntime({
         page: 'spectrogram',
         emptyStateRootId: 'spectrogram-empty-state',
-        bindExports() {
-            bindExportButtons('spectrogram', {
-                png: { fn: exportEChartsPNG, filename: 'edatime_spectrogram.png' },
-                svg: { fn: exportEChartsSVG, filename: 'edatime_spectrogram.svg' },
-                html: { fn: exportEChartsHTML, filename: 'edatime_spectrogram.html' },
-            });
+        exportConfig: {
+            key: 'spectrogram',
+            png: { fn: exportEChartsPNG, filename: 'edatime_spectrogram.png' },
+            svg: { fn: exportEChartsSVG, filename: 'edatime_spectrogram.svg' },
+            html: { fn: exportEChartsHTML, filename: 'edatime_spectrogram.html' },
         },
         init() {
             const ensureSpectrogramChartDimensions = () => {
@@ -365,12 +363,6 @@ export async function initSpectrogramPage(deps: SpectrogramPageDeps): Promise<vo
                 if (!spectrogramChart) return;
                 spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 0, start: 0, end: 100 });
                 spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 1, start: 0, end: 100 });
-            });
-
-            bindExportButtons('spectrogram', {
-                png: { fn: exportEChartsPNG, filename: 'edatime_spectrogram.png' },
-                svg: { fn: exportEChartsSVG, filename: 'edatime_spectrogram.svg' },
-                html: { fn: exportEChartsHTML, filename: 'edatime_spectrogram.html' },
             });
         },
         onVisible() {

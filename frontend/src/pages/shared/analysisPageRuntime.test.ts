@@ -16,16 +16,22 @@ describe('createAnalysisPageRuntime', () => {
         expect(init).toHaveBeenCalled();
     });
 
-    it('mount() calls bindExports once during init', () => {
-        const bindExports = vi.fn();
+    it('mount() wires exportConfig when provided', async () => {
+        const bindExportButtonsModule = await import('../../utils/bindExportButtons.js');
+        const spy = vi.spyOn(bindExportButtonsModule, 'bindExportButtons' as keyof typeof bindExportButtonsModule);
         const runtime = createAnalysisPageRuntime({
             page: 'fft',
             emptyStateRootId: 'fft-empty-state',
-            bindExports,
+            exportConfig: {
+                key: 'fft',
+                png: { fn: () => {}, filename: 'fft.png' },
+                svg: { fn: () => {}, filename: 'fft.svg' },
+                html: { fn: () => {}, filename: 'fft.html' },
+            },
         });
         runtime.mount();
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
-        expect(bindExports).toHaveBeenCalledTimes(1);
+        expect(spy).toHaveBeenCalledWith('fft', expect.any(Object));
     });
 
     it('mount() calls onVisible once when the registered page becomes active', () => {

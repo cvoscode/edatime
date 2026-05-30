@@ -48,9 +48,9 @@ describe('heatmapPage', () => {
             <div id="heatmap-cell-size"></div>
             <div id="heatmap-cell-size-value"></div>
         `;
-        container = document.getElementById('heatmap-container')!;
-        statusEl = document.getElementById('heatmap-status')!;
-        emptyStateEl = document.getElementById('heatmap-empty-state')!;
+        container = document.getElementById('heatmap-container') as HTMLDivElement;
+        statusEl = document.getElementById('heatmap-status') as HTMLDivElement;
+        emptyStateEl = document.getElementById('heatmap-empty-state') as HTMLDivElement;
     });
 
     it('empty state root id is registered with the runtime', async () => {

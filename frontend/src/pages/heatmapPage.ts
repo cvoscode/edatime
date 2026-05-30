@@ -1,7 +1,6 @@
 import { fetchCorrelationMatrix } from '../services/api/index.js';
 import { exportElementPNG, exportElementSVG, exportElementHTML, exportMatrixCSV } from '../utils/chartExport.js';
 import { toast } from '../utils/toast.js';
-import { bindExportButtons } from '../utils/bindExportButtons.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 
 interface HeatmapPageDeps {
@@ -139,20 +138,19 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
     heatmapRuntime = createAnalysisPageRuntime({
         page: 'heatmap',
         emptyStateRootId: 'heatmap-empty-state',
-        bindExports() {
-            bindExportButtons('heatmap', {
-                png: { fn: exportElementPNG, filename: 'edatime_heatmap.png' },
-                svg: { fn: exportElementSVG, filename: 'edatime_heatmap.svg' },
-                html: { fn: (filename) => exportElementHTML('heatmap-container', filename), filename: 'edatime_heatmap.html' },
-                csv: {
-                    fn: (filename) => {
-                        const data = metric === 'spearman' ? matrixData!.spearman : matrixData!.pearson;
-                        exportMatrixCSV(matrixData!.columns, data, filename);
-                    },
-                    filename: `edatime_correlation_${metric}.csv`,
-                    dataCheck: () => matrixData != null,
+        exportConfig: {
+            key: 'heatmap',
+            png: { fn: exportElementPNG, filename: 'edatime_heatmap.png' },
+            svg: { fn: exportElementSVG, filename: 'edatime_heatmap.svg' },
+            html: { fn: (filename) => exportElementHTML('heatmap-container', filename), filename: 'edatime_heatmap.html' },
+            csv: {
+                fn: (filename) => {
+                    const data = metric === 'spearman' ? matrixData!.spearman : matrixData!.pearson;
+                    exportMatrixCSV(matrixData!.columns, data, filename);
                 },
-            });
+                filename: `edatime_correlation_${metric}.csv`,
+                dataCheck: () => matrixData != null,
+            },
         },
         init() {
             const container = document.getElementById('heatmap-container');

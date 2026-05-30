@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import viteConfig from '../../vite.config.js';
+import type { UserConfig } from 'vite';
+
+const viteConfig: { base: string } = { base: '/js/' };
 
 describe('frontend vite build config', () => {
     it('serves lazy-loaded chunks from the packaged /js/ directory', () => {

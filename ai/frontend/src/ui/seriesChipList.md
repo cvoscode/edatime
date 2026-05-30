@@ -1,13 +1,15 @@
 # frontend/src/ui/seriesChipList.ts
 > Shared SeriesChip list orchestration — renders chips into a container, wires keyboard activation, and manages color updates.
 
-## Functions
-- `renderSeriesChipList(options: SeriesChipListOptions): void`
-  - Renders items into container, adds `chipClass`, wires keyboard handler.
-- `updateSeriesChipList(options: SeriesChipListOptions): void`
-  - Updates checked/color state without full DOM rebuild.
+## Interface: SeriesChipListOptions
+- `container: HTMLElement`
+- `items: SeriesChipListItem[]`
+- `chipClass?: string`
+- `onColorUpdate?: (column: string, color: string) => void`
+- `postChipAttributes?: Record<string, string>`
+- `postChipClass?: (item: SeriesChipListItem) => string`
 
-## SeriesChipListItem
+## Interface: SeriesChipListItem
 - `column: string`
 - `label?: string`
 - `checked: boolean`
@@ -20,11 +22,13 @@
 - `onMenuClick?: (column: string) => void`
 - `menuLabel?: string`
 
-## SeriesChipListOptions
-- `container: HTMLElement`
-- `items: SeriesChipListItem[]`
-- `chipClass?: string`
-- `onColorUpdate?: (column: string, color: string) => void`
+## Functions
+- `renderSeriesChipList(options: SeriesChipListOptions): void`
+  - Renders items into container, adds `chipClass`, wires delegated keyboard handler, stores cleanup.
+- `updateSeriesChipList(options: SeriesChipListOptions): void`
+  - Incremental DOM update: upserts/removes chips by `data-col` without full rebuild.
+- `bindSeriesChipKeyboard(container: HTMLElement): () => void`
+  - Delegated keydown handler (Enter/Space toggles checkbox); returns cleanup function.
 
 ---
 [1]: ./composites/SeriesChip.md

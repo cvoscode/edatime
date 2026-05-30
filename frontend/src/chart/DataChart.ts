@@ -432,11 +432,11 @@ export class DataChart {
                     document.getElementById('timeseries-colorbar-max')!.textContent = formatTwoDecimals(scaleInfo.max);
                     const scaleName = getSetting('colorScale') as ColorScaleName;
                     const scaleColors = {
-                        viridis: ['#440154','#482878','#3e4a89','#31688e','#26838f','#1f9d89','#35b779','#6ece58','#b5de2b','#fde725'],
-                        plasma: ['#0d0887','#5302a3','#8b0aa5','#b83289','#e16462','#fca636','#f0f921'],
-                        magma: ['#000004','#1b0c41','#4a0c6b','#781c6d','#a52c60','#cf4446','#f26b1d','#fca50a','#fca636','#fde725'],
-                        coolwarm: ['#3b4cc0','#6786d1','#9eb2de','#c9d3e8','#f7f7f7','#f4a582','#d6605a','#b2182b'],
-                        inferno: ['#000004','#1b0c41','#4a0c6b','#781c6d','#a52c60','#cf4446','#fca636','#fca50a','#fde725'],
+                        viridis: ['#440154', '#482878', '#3e4a89', '#31688e', '#26838f', '#1f9d89', '#35b779', '#6ece58', '#b5de2b', '#fde725'],
+                        plasma: ['#0d0887', '#5302a3', '#8b0aa5', '#b83289', '#e16462', '#fca636', '#f0f921'],
+                        magma: ['#000004', '#1b0c41', '#4a0c6b', '#781c6d', '#a52c60', '#cf4446', '#f26b1d', '#fca50a', '#fca636', '#fde725'],
+                        coolwarm: ['#3b4cc0', '#6786d1', '#9eb2de', '#c9d3e8', '#f7f7f7', '#f4a582', '#d6605a', '#b2182b'],
+                        inferno: ['#000004', '#1b0c41', '#4a0c6b', '#781c6d', '#a52c60', '#cf4446', '#fca636', '#fca50a', '#fde725'],
                     } as const;
                     const gradient = scaleColors[scaleName] ?? scaleColors.viridis;
                     document.getElementById('timeseries-colorbar')!.style.background = `linear-gradient(90deg, ${gradient.join(',')})`;
@@ -698,7 +698,7 @@ export class DataChart {
         ctx.stroke();
     }
 
-private _renderDrawings(): void {
+    private _renderDrawings(): void {
         if (!this._overlayCtx || !this._overlayCanvas) return;
         const ctx = this._overlayCtx;
         ctx.clearRect(0, 0, this._overlayCanvas.width, this._overlayCanvas.height);
