@@ -78,7 +78,26 @@ export interface ScatterState {
 }
 ```
 
-## State
+## Exports
+
+### State
+- `scatterState: ScatterState`
+
+### Mutations
+- `setScatterChart(chart: ChartGPUInstance | null): void`
+- `setScatterInitialized(v: boolean): void`
+- `setScatterPageInitialized(v: boolean): void`
+- `setScatterView(view: ScatterView): void`
+- `setScatterActiveView(view: string): void`
+- `setScatterPoints(allPoints: [number, number][], points: [number, number][]): void`
+- `setScatterColorState(column: string, colorValues: number[] | null, colorLabels: unknown[] | null, colorMin: number | null, colorMax: number | null): void`
+- `setScatterMetadata(metadata: DatasetMetadata | null): void`
+- `setScatterLoading(v: boolean): void`
+- `setScatterTotalPoints(n: number): void`
+- `replaceScatterState(next: Partial<ScatterState>): void`
+
+---
+[1]: events.md
 
 ```typescript
 export const scatterState: ScatterState

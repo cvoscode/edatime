@@ -24,9 +24,9 @@ describe('createAnalysisPageRuntime', () => {
             emptyStateRootId: 'fft-empty-state',
             exportConfig: {
                 key: 'fft',
-                png: { fn: () => {}, filename: 'fft.png' },
-                svg: { fn: () => {}, filename: 'fft.svg' },
-                html: { fn: () => {}, filename: 'fft.html' },
+                png: { fn: () => { }, filename: 'fft.png' },
+                svg: { fn: () => { }, filename: 'fft.svg' },
+                html: { fn: () => { }, filename: 'fft.html' },
             },
         });
         runtime.mount();

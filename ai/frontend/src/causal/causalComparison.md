@@ -1,64 +1,18 @@
-# causalComparison.ts
+# ai/frontend/src/causal/causalComparison.md
+> Causal run comparison — saves causal runs with parameters and edge sets, computes diffs between runs (added/removed/changed edges).
 
-Causal method comparison utilities for saving, loading, and comparing causal runs.
-
-## Interfaces
-
-```typescript
-interface CausalLink {
-    source: string;
-    target: string;
-    lag: number;
-    type: string;
-    value: number;
-    pvalue: number;
-}
-
-interface SavedCausalRun {
-    id: string;
-    label: string;
-    timestamp: number;
-    method: string;
-    test: string;
-    tauMax: number;
-    alpha: number;
-    columns: string[];
-    links: CausalLink[];
-}
-
-interface ChangedLink {
-    key: string;
-    a: CausalLink;
-    b: CausalLink;
-    changes: string[];
-}
-```
+## Types
+- `CausalLink` — `{ source: string; target: string; lag: number; type: string; value: number; pvalue: number }`
+- `SavedCausalRun` — `{ id: string; label: string; timestamp: number; method: string; test: string; tauMax: number; alpha: number; columns: string[]; links: CausalLink[] }`
 
 ## Functions
+- `loadSavedRuns(): SavedCausalRun[]` — Loads saved runs from localStorage.
+- `saveRun(links: CausalLink[], columns: string[], params: { method: string; test: string; tauMax: number; alpha: number }, label?: string): SavedCausalRun` — Saves a new causal run (newest first; capped at 20).
+- `deleteRun(id: string): void` — Deletes a run by ID.
+- `clearAllRuns(): void` — Removes all saved runs.
+- `initCausalComparison(): void` — Initialises the comparison UI and load/save handlers.
 
-```typescript
-function generateId(): string
-function loadSavedRuns(): SavedCausalRun[]
-function persistRuns(): void
-function saveRun(
-    links: CausalLink[],
-    columns: string[],
-    params: { method: string; test: string; tauMax: number; alpha: number },
-    label?: string,
-): SavedCausalRun
-function deleteRun(id: string): void
-function clearAllRuns(): void
-function edgeDiff(runA: SavedCausalRun, runB: SavedCausalRun): { added: CausalLink[]; removed: CausalLink[]; changed: ChangedLink[] }
-function escHtml(s: string): string
-function formatDiffMetric(value: number): string
-function renderRunSelector(
-    containerId: string,
-    runs: SavedCausalRun[],
-    selectedId: string | null,
-    onSelect: (id: string) => void,
-): void
-function renderDiff(runA: SavedCausalRun, runB: SavedCausalRun): string
-function refreshCompareUI(): void
-function initCausalComparison(): void
-function notifyCausalGraphUpdated(columns: string[], links: CausalLink[]): void
-```
+---
+[1]: ../services/api/index.md#fetchCausalGraph
+[2]: ../ui/composites/SeriesChip.md#SeriesChip
+[3]: ../ui/index.md#renderSeriesChipList

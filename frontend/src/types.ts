@@ -124,6 +124,7 @@ export interface ColumnRange {
 }
 
 export interface AdaptiveLineFilter {
+    id: string;
     column: string;
     x1: number;
     y1: number;

@@ -42,3 +42,6 @@
 - `setProfileGridColWidths(widths: number[]): void`
 - `setProfileGridBound(bound: boolean): void`
 - `setProfileGridHeaderBound(bound: boolean): void`
+
+---
+[1]: events.md

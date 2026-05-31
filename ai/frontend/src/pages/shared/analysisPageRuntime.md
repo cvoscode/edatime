@@ -1,5 +1,5 @@
-# frontend/src/pages/shared/analysisPageRuntime.ts
-> Shared runtime factory for analytics pages — consolidates `createEmptyStateController` + `bindExportButtons` + `createPageLifecycle` wiring.
+# ai/frontend/src/pages/shared/analysisPageRuntime.md
+> Shared runtime factory for analytics pages — consolidates empty-state management, export bindings, and page lifecycle wiring.
 
 ## Interface: ExportConfig
 ```typescript
@@ -13,20 +13,18 @@ interface ExportConfig {
 ```
 
 ## Interface: AnalysisPageRuntimeOptions
-- `page: string`
-- `emptyStateRootId: string`
-- `exportConfig?: ExportConfig`
-- `init?: () => void | (() => void)`
-- `onVisible?: () => void`
-- `onEveryPageChange?: () => void`
+- `page: string` — page name passed to createPageLifecycle
+- `emptyStateRootId: string` — DOM id of the empty-state root element
+- `exportConfig?: ExportConfig` — export button bindings
+- `init?: () => void | (() => void)` — called once on page mount
+- `onVisible?: () => void` — called when page becomes visible
+- `onEveryPageChange?: () => void` — called on every page change
 
 ## Function: createAnalysisPageRuntime
-- `createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions)`
-  - Returns `{ mount(), updateEmptyState(opts) }`.
-  - `mount()` calls `createPageLifecycle` with init (binds export buttons) and `onVisible`.
-  - `updateEmptyState(opts)` delegates to lazy-initialized `createEmptyStateController`.
+- `createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions): { mount(): void; updateEmptyState(model: EmptyStateViewModel): void }` [deps: [createPageLifecycle][1], [createEmptyStateController][2], [bindExportButtons][3]]
+  - Returns page runtime with lazy empty-state controller and lifecycle hooks.
 
 ---
 [1]: ../../../app/pageLifecycle.md#createPageLifecycle
-[2]: ../../../ui/emptyState.md
-[3]: ../../../utils/bindExportButtons.md
+[2]: ../../../ui/emptyState.md#createEmptyStateController
+[3]: ../../../utils/bindExportButtons.md#bindExportButtons

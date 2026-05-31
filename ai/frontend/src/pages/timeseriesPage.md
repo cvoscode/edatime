@@ -1,52 +1,38 @@
-# timeseriesPage.ts
+# pages/timeseriesPage.md
 
-Main timeseries page.
-
-## Constants
-
-```typescript
-EMPTY_TIMESERIES_DATA: { ts: [], values: {}, series: {}, colorByColumn: {} }
-```
-
-## Interfaces
-
-```typescript
-interface TimeseriesControllerDeps {
-    fetchData: (startIso: string, endIso: string, width: number, cols: string, colorCol: string | null, signal: AbortSignal) => Promise<any>;
-    buildRangeControls: () => void;
-    updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
-    updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
-    getCurrentView: () => any;
-    fetchAndRenderAnalytics: () => Promise<void>;
-}
-```
-
-## State Variables
-
-```typescript
-let timeseriesEmptyStateController: ReturnType<typeof createEmptyStateController> | null
-```
+> Assembles the timeseries page controller: data fetching, chart updates, zoom handling, empty states, and analytics integration.
 
 ## Functions
 
-```typescript
-function getTimeseriesEmptyStateController(): ReturnType<typeof createEmptyStateController>
-```
+- `createTimeseriesPageController(deps: TimeseriesControllerDeps): object`
+  - Creates and returns the controller with `emitChartRangeChange`, `fetchAndRender`, `onZoomRangeChange`, and `renderCurrentData`.
 
-```typescript
-function computeRenderedYDebugSnapshot(): {
-    selectedCols: string[];
-    globalYMin: number | null;
-    globalYMax: number | null;
-    perSeries: Array<{ name: string; points: number; yMin: number | null; yMax: number | null }>;
-} | null
-```
+## TimeseriesControllerDeps Interface
 
-```typescript
-export function createTimeseriesPageController(deps: TimeseriesControllerDeps): {
-    emitChartRangeChange: (sourceKind?: string) => void;
-    fetchAndRender: () => Promise<void>;
-    onZoomRangeChange: (newStart: number, newEnd: number, sourceKind?: string) => void;
-    renderCurrentData: () => void;
+- `fetchData(startIso: string, endIso: string, width: number, cols: string, colorCol: string | null, signal: AbortSignal): Promise<any>`
+- `buildRangeControls(): void`
+- `updateAnalysisYRange(min: number, max: number, sourceKind?: string): void`
+- `updateAnalysisZoom(start: number, end: number, sourceKind?: string): void`
+- `getCurrentView(): any`
+- `fetchAndRenderAnalytics(): Promise<void>`
+
+## Controller Methods
+
+- `controller.emitChartRangeChange(sourceKind?: string): void`
+  - Dispatches `edatime:chart-range-change` with the current viewport timestamps.
+- `controller.fetchAndRender(): Promise<void>`
+  - Abort-safe fetch of data, update of `appState.lastFetchedData`, range sync, empty-state management, and chart render.
+- `controller.onZoomRangeChange(newStart: number, newEnd: number, sourceKind?: string): void`
+  - Updates zoom history, viewport, and chart X range; optionally debounces a refetch.
+- `controller.renderCurrentData(): void`
+  - Applies column ranges, handles no-selection and no-data empty states, sends `updateDataMulti` to the chart, and updates rolling bands.
+
+---
+[1]: ../services/timeseries/filtering.md
+[2]: ../store/appStateCompat.md
+[3]: ../bootstrap/analyticsOverlay.md
+[4]: ../store/index.md
+[5]: ../ui/emptyState.md
+[6]: ../utils/a11y.md
 }
 ```

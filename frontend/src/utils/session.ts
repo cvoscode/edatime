@@ -149,7 +149,7 @@ export function applySession(
     } else {
         if (snap.columnRanges) setColumnRanges({ ...snap.columnRanges });
         if (Array.isArray(snap.adaptiveLineFilters)) {
-            setAdaptiveLineFilters(snap.adaptiveLineFilters.map((f) => ({ ...f })));
+            setAdaptiveLineFilters(snap.adaptiveLineFilters.map((f: any) => ({ ...f, id: f.id ?? `restored-${Date.now()}` })));
         }
     }
 

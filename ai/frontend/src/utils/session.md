@@ -1,9 +1,8 @@
-# session.ts
+# ai/frontend/src/utils/session.md
 
-Session save/restore for serializing analysis state to JSON with localStorage auto-save and file export/import.
+> Session save/restore for analysis state: localStorage auto-save, manual JSON export/import, and `SessionSnapshot` schema.
 
-## Interfaces
-
+## Interface: SessionSnapshot
 ```typescript
 interface SessionSnapshot {
     version: 1;
@@ -12,9 +11,7 @@ interface SessionSnapshot {
     selectedCols: string[];
     seriesColors: Record<string, string>;
     columnRanges: Record<string, { from: number; to: number }>;
-    adaptiveLineFilters: Array<{
-        column: string; x1: number; y1: number; x2: number; y2: number; keepAbove: boolean;
-    }>;
+    adaptiveLineFilters: Array<{ column: string; x1: number; y1: number; x2: number; y2: number; keepAbove: boolean }>;
     currentStart: number | null;
     currentEnd: number | null;
     selectedColorColumn: string | null;
@@ -33,6 +30,7 @@ interface SessionSnapshot {
 }
 ```
 
+## Interface: ApplySessionOptions
 ```typescript
 interface ApplySessionOptions {
     navigate?: boolean;
@@ -43,6 +41,7 @@ interface ApplySessionOptions {
 }
 ```
 
+## Interface: ApplySessionResult
 ```typescript
 interface ApplySessionResult {
     revisionMismatch: boolean;
@@ -54,51 +53,22 @@ interface ApplySessionResult {
 ```
 
 ## Functions
+- `captureSession(): SessionSnapshot`
+  - Captures the current analysis state as a serializable snapshot.
+- `applySession(snap: SessionSnapshot, options?: ApplySessionOptions): ApplySessionResult`
+  - Restores appState from a snapshot, handling revision mismatches and range clamping.
+- `autoSaveSession(): void`
+  - Saves the current session to localStorage.
+- `autoRestoreSession(): SessionSnapshot | null`
+  - Loads and validates a session snapshot from localStorage.
+- `clearSavedSession(): void`
+  - Removes the saved session from localStorage.
+- `exportSessionToFile(): void`
+  - Downloads the current session as a timestamped `.json` file.
+- `importSessionFromFile(): void`
+  - Opens a file picker and imports a session from a `.json` file.
 
-```typescript
-function captureSession(): SessionSnapshot
-```
-
-Capture the current analysis state as a serializable snapshot.
-
-```typescript
-function applySession(snap: SessionSnapshot, options?: ApplySessionOptions): ApplySessionResult
-```
-
-Restore appState from a snapshot.
-
-```typescript
-function autoSaveSession(): void
-```
-
-Auto-save session to localStorage.
-
-```typescript
-function autoRestoreSession(): SessionSnapshot | null
-```
-
-Auto-restore session from localStorage.
-
-```typescript
-function clearSavedSession(): void
-```
-
-Clear saved session from localStorage.
-
-```typescript
-function exportSessionToFile(): void
-```
-
-Export session to JSON file.
-
-```typescript
-function importSessionFromFile(): void
-```
-
-Import session from JSON file.
-
-```typescript
-function initAutoSave(): void
-```
-
-Initialize auto-save on navigation and filter changes.
+---
+[1]: ./toast.md
+[2]: ./router.md#getHashPage
+[3]: ../store/index.md

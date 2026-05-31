@@ -14,3 +14,6 @@
 - `setColumnProfiles(profiles: ProfileRow[]): void`
 - `setDatasetRevision(rev: number): void`
 - `incrementDatasetRevision(): void`
+
+---
+[1]: events.md

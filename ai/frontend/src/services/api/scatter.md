@@ -1,49 +1,11 @@
-# scatter.ts
-
-Scatter plot API client for correlation and point data.
+# ai/frontend/src/services/api/scatter.md
+> Scatter point and correlation fetching with Arrow IPC and JSON fallback support.
 
 ## Functions
+- `fetchScatterPoints(x: string, y: string, limit?: number, color?: string | null, options?: ScatterFetchOptions | null, signal?: AbortSignal): Promise<ScatterPointsResponse>`
+  - Fetches scatter points for an X/Y pair with optional color encoding, time range, and filter propagation; supports Arrow IPC (with metadata headers) and JSON responses. [deps: [http][1]]
+- `fetchScatterCorrelations(base?: string | null, threshold?: number): Promise<ScatterCorrelationsResponse>`
+  - Fetches ranked correlation suggestions filtered by a minimum threshold; optionally scoped to a base column. [deps: [http][1]]
 
-```typescript
-function fetchScatterPoints(
-    x: string,
-    y: string,
-    limit?: number,
-    color?: string | null,
-    options?: ScatterFetchOptions | null,
-    signal?: AbortSignal,
-): Promise<ScatterPointsResponse>
-
-function fetchScatterCorrelations(
-    base?: string | null,
-    threshold?: number,
-): Promise<ScatterCorrelationsResponse>
-```
-
-## Types
-
-```typescript
-interface ScatterCorrelationsResponse {
-    correlations: unknown[];
-}
-
-interface ScatterFetchOptions {
-    start?: number;
-    end?: number;
-    filters?: unknown[];
-    lineFilters?: unknown[];
-}
-
-interface ScatterPointsResponse {
-    x: string;
-    y: string;
-    color: string | null;
-    total_points: number;
-    returned_points: number;
-    points: [number, number][];
-    color_values: number[] | null;
-    color_labels: (string | null)[] | null;
-    color_min: number | null;
-    color_max: number | null;
-}
-```
+---
+[1]: ./http.md

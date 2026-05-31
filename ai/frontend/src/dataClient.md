@@ -1,4 +1,4 @@
-# frontend/src/dataClient.ts
+# ai/frontend/src/dataClient.md
 > HTTP/Arrow data transport layer with response guards, inflight deduplication, and timestamp resolution.
 
 ## Interfaces
@@ -38,7 +38,7 @@ type TableFromIPCFn = (buffer: ArrayBuffer) => ArrowTable;
 
 ## Scatter
 - `export async function fetchScatterPoints(x: string, y: string, limit?: number, color?: string | null, options?: ScatterFetchOptions | null, signal?: AbortSignal): Promise<ScatterPointsResponse>`
-  - Handles Arrow IPC responses with header-guided column resolution (`x-edatime-scatter-x`, `x-edatime-scatter-y`, `x-edatime-scatter-color`).
+  - Handles Arrow IPC responses with header-guided column resolution.
 - `export async function fetchScatterCorrelations(base: string | null, threshold?: number): Promise<ScatterCorrelationsResponse>`
 
 ## Analytics

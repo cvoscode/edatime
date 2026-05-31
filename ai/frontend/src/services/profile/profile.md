@@ -1,29 +1,17 @@
-# profile.ts
+# services/profile/profile.md
 
-User profile service for column definitions and layout constants.
+> Configures the column profile grid layout: column definitions, sizing constants, and default widths.
 
 ## Constants
 
-```typescript
-const PROFILE_ROW_HEIGHT: number
-const PROFILE_OVERSCAN: number
-const PROFILE_COLUMNS: ProfileColumnDef[]
-```
+- `PROFILE_ROW_HEIGHT: number = 38`
+  - Fixed row height in pixels for virtualized profile rows.
+- `PROFILE_OVERSCAN: number = 8`
+  - Number of off-screen rows to render for smooth scrolling.
+- `PROFILE_COLUMNS: ProfileColumnDef[]`
+  - Column descriptors for the profile grid: `selected`, `name`, `dtype`, `nonNullCount`, `nullCount`, `min`, `max`, `histCounts`.
 
 ## Functions
 
-```typescript
-function getDefaultProfileColumnWidths(): number[]
-```
-
-## Types
-
-```typescript
-interface ProfileColumnDef {
-    key: string;
-    label: string;
-    minWidth: number;
-    defaultWidth: number;
-    sortable: boolean;
-}
-```
+- `getDefaultProfileColumnWidths(): number[]`
+  - Returns an array of default widths matching the `PROFILE_COLUMNS` order.

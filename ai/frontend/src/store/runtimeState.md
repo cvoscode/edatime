@@ -1,32 +1,26 @@
 # ai/frontend/src/store/runtimeState.ts
-> Runtime state for fetch management and analysis coordination.
+> Runtime state for fetch debouncing, data cache, Y-axis mode, and analysis binding.
 
-## Interface
+## Interface `RuntimeState`
+- `lastFetchedData: DataObject | null`
+- `fetchDebounceId: ReturnType<typeof setTimeout> | null`
+- `pendingYMode: YMode | null`
+- `pendingRestoreY: { min: number; max: number } | null`
+- `analysisBound: boolean`
+- `refetchOnZoom: boolean`
 
-```typescript
-export interface RuntimeState {
-    lastFetchedData: DataObject | null;
-    fetchDebounceId: ReturnType<typeof setTimeout> | null;
-    pendingYMode: YMode | null;
-    pendingRestoreY: { min: number; max: number } | null;
-    analysisBound: boolean;
-    refetchOnZoom: boolean;
-}
-```
+## Exports
 
-## State
+### State
+- `runtimeState: RuntimeState`
 
-```typescript
-export const runtimeState: RuntimeState
-```
+### Mutations
+- `setLastFetchedData(data: DataObject | null): void`
+- `setFetchDebounceId(id: ReturnType<typeof setTimeout> | null): void`
+- `setPendingYMode(mode: YMode | null): void`
+- `setPendingRestoreY(range: { min: number; max: number } | null): void`
+- `setAnalysisBound(bound: boolean): void`
+- `setRefetchOnZoom(refetch: boolean): void`
 
-## Functions
-
-```typescript
-export function setLastFetchedData(data: DataObject | null): void
-export function setFetchDebounceId(id: ReturnType<typeof setTimeout> | null): void
-export function setPendingYMode(mode: YMode | null): void
-export function setPendingRestoreY(range: { min: number; max: number } | null): void
-export function setAnalysisBound(bound: boolean): void
-export function setRefetchOnZoom(refetch: boolean): void
-```
+---
+[1]: events.md

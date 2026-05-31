@@ -1,12 +1,19 @@
-# frontend/src/types/index.ts
-
-Type exports from the EdaTime frontend types module.
+# ai/frontend/src/types/index.md
+> Re-exports all type definitions from sub-modules for convenient top-level import.
 
 ## Re-exports
+- `*` from `./api.js` [deps: [types/api.md][1]]
+- `*` from `./chart.js` [deps: [types/chart.md][2]]
+- `*` from `./store.js` [deps: [types/store.md][3]]
+- `*` from `./scatter.js` [deps: [types/scatter.md][4]]
+- `*` from `./analytics.js` [deps: [types/analytics.md][5]]
 
-```typescript
-export type { ChartAdapter, ChartInstance, ChartTextOverlays, ClickData, CrosshairData, FilteredDataObject, SeriesData, ViewSnapshot, YMode, ZoomEntry } from '../types.js';
-```
+---
+[1]: ./api.md
+[2]: ./chart.md
+[3]: ./store.md
+[4]: ./scatter.md
+[5]: ./analytics.md
 
 ```typescript
 export type { AdaptiveLineFilter, AnomalyRegionData, AppStateType, ColumnRange, PendingAdaptivePoint, ProfileColumnDef, ProfileGridSort, ProfileRow, RollingBandData, SpectralFilterPreview } from '../types.js';

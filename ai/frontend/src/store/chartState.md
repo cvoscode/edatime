@@ -18,3 +18,6 @@
 - `setInitialView(view: ViewSnapshot | null): void`
 - `setZoomHistory(history: ViewSnapshot[]): void`
 - `setChartText(text: ChartState['chartText']): void`
+
+---
+[1]: events.md

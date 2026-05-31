@@ -1,29 +1,19 @@
-# pageStyles.ts
+# ai/frontend/src/utils/pageStyles.md
 
-Page styling utilities for dynamic CSS module loading.
+> Dynamic CSS module loader for per-page stylesheets (drift, home).
+
+## Constants
+- `STYLE_MODULES: Record<StyleModuleName, string>` — maps page names to stylesheet URLs.
 
 ## Types
-
 ```typescript
-type StyleModuleName = 'drift' | 'home'
+type StyleModuleName = 'drift' | 'home';
 ```
 
 ## Functions
-
-```typescript
-function pageStyleModulesFor(pageName: string): StyleModuleName[]
-```
-
-Get style module names required for a page.
-
-```typescript
-function ensureStyleModule(name: StyleModuleName): HTMLLinkElement | null
-```
-
-Ensure a style module is loaded in the document head.
-
-```typescript
-function preloadPageStyles(pageName: string): void
-```
-
-Preload page styles for a given page name.
+- `pageStyleModulesFor(pageName: string): StyleModuleName[]`
+  - Returns the list of style module names required for a given page.
+- `ensureStyleModule(name: StyleModuleName): HTMLLinkElement | null`
+  - Ensures a stylesheet link is present in `<head>`, deduplicating if already loaded.
+- `preloadPageStyles(pageName: string): void`
+  - Preloads all style modules for a page by calling `ensureStyleModule` for each.

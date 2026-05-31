@@ -1,8 +1,25 @@
-# frontend/src/ui/composites/RangeChip.ts
-> Clickable range display chip.
+# ai/frontend/src/ui/composites/RangeChip.md
+> Renders a labeled chip showing a name and a range string, optionally clickable.
+
+## Interface: RangeChipProps
+```typescript
+interface RangeChipProps {
+    name: string;
+    range: string;
+    className?: string;
+    ariaLabel?: string;
+    onActivate?: () => void;
+}
+```
 
 ## Function: RangeChip
-- `RangeChip(props: RangeChipProps): HTMLDivElement`
+```typescript
+function RangeChip(props: RangeChipProps): HTMLDivElement
+```
+Creates a div with `.name` and `.range` spans; if `onActivate` is provided, makes it focusable and clickable (Enter/Space).
+
+---
+[1]: index.md
   - Creates a chip with name and range text, optionally clickable.
 
 ## RangeChipProps

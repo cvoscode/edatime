@@ -50,6 +50,21 @@ export interface SeriesChipListOptions {
      * E.g. (item) => item.column.startsWith('meta_') ? 'meta-chip' : ''
      */
     postChipClass?: (item: SeriesChipListItem) => string;
+    /**
+     * When true, `renderSeriesChipList` preserves any existing chip elements
+     * that match a rendered `data-col` even when the render would normally clear
+     * and rebuild them. This is useful when callers need to preserve transient
+     * DOM state (e.g. loading classes) across render cycles without having to
+     * manually capture and restore those elements.
+     *
+     * Implementation note: existing elements with matching columns are updated
+     * in-place using the update path, so any post-creation extras
+     * (`postChipAttributes`, `postChipClass`, `chipClass`) are NOT re-applied
+     * to preserved chips — only their checked state and color are synced.
+     *
+     * Default: false (full clear-and-rebuild, matching the historical behavior).
+     */
+    preserveExisting?: boolean;
 }
 
 /** Extra attributes/class applied to each chip after creation. */
@@ -75,9 +90,17 @@ function applyChipExtras(chip: HTMLElement, item: SeriesChipListItem, extras: Ch
  * Renders a list of `SeriesChip` items into `container`, replacing any existing
  * chips. Adds `chipClass` to each chip after creation and wires the delegated
  * keyboard handler.
+ *
+ * When `preserveExisting` is true, existing chip elements with matching columns
+ * are preserved and updated in-place rather than replaced, which avoids
+ * destroying transient DOM state (e.g. loading indicators).
  */
 export function renderSeriesChipList(options: SeriesChipListOptions): void {
-    const { container, items, chipClass, onColorUpdate, postChipAttributes, postChipClass } = options;
+    const { container, items, chipClass, onColorUpdate, postChipAttributes, postChipClass, preserveExisting } = options;
+    if (preserveExisting) {
+        updateSeriesChipList({ container, items, chipClass, onColorUpdate, postChipAttributes, postChipClass });
+        return;
+    }
     container.innerHTML = '';
 
     // Clean up any prior keyboard listener

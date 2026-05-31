@@ -15,17 +15,18 @@
 All setters re-exported from sub-state modules.
 
 ### Event emitter
+- `emitStoreEvent<K extends keyof StoreEventMap>(eventName: K, payload: StoreEventMap[K]): void`
 - `subscribe<K extends keyof StoreEventMap>(eventName: K, handler: StoreHandler<K>): () => void`
+  - Returns unsubscribe function.
 - `unsubscribe<K extends keyof StoreEventMap>(eventName: K, handler: StoreHandler<K>): void`
 - `clearSubscribers(): void`
-- `emitStoreEvent<K extends keyof StoreEventMap>(eventName: K, payload: StoreEventMap[K]): void`
 
 ### Store
 - `store.get<K extends keyof ChartState>(key: K): ChartState[K]`
 - `store.set<K extends keyof ChartState>(key: K, value: ChartState[K]): void`
 
 ### Backward-compatible composite
-- `appStateComposite: AppStateType` — Proxy over sub-states with deprecation warnings
+- `appStateComposite: AppStateType` — Proxy over sub-states; emits deprecation warnings on direct writes. Re-exported as `appState` via `appStateCompat.md` [deps: [appStateCompat][7]].
 
 ---
 [1]: chartState.md
@@ -34,3 +35,4 @@ All setters re-exported from sub-state modules.
 [4]: datasetState.md
 [5]: scatterState.md
 [6]: runtimeState.md
+[7]: appStateCompat.md

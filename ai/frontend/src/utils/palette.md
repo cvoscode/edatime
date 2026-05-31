@@ -1,9 +1,8 @@
-# palette.ts
+# ai/frontend/src/utils/palette.md
 
-Command palette (Ctrl+K) for fuzzy-searchable access to pages, shortcuts, and actions.
+> Command palette (Ctrl+K) providing fuzzy-searchable access to pages, shortcuts, and actions.
 
-## Interfaces
-
+## Interface: PaletteCommand
 ```typescript
 interface PaletteCommand {
     id: string;
@@ -16,21 +15,9 @@ interface PaletteCommand {
 ```
 
 ## Functions
-
-```typescript
-function registerCommands(commands: PaletteCommand[]): void
-```
-
-Register the full command list. Call once during app init.
-
-```typescript
-function openPalette(): void
-```
-
-Open the command palette.
-
-```typescript
-function initCommandPalette(): void
-```
-
-Bind Ctrl+K to open the palette.
+- `registerCommands(commands: PaletteCommand[]): void`
+  - Registers the full command list. Call once during app init.
+- `openPalette(): void`
+  - Opens the command palette and focuses the input field.
+- `initCommandPalette(): void`
+  - Builds DOM and binds Ctrl+K to toggle the palette.

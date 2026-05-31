@@ -1,9 +1,12 @@
-# frontend/src/types/analytics.ts
-
-Analytics-specific type re-exports.
+# ai/frontend/src/types/analytics.md
+> Re-exports analytics-specific type definitions.
 
 ## Re-exports
+- `AnomalyRegionData` [deps: [types.md][1]]
+- `AnomalyResponse` [deps: [types.md][1]]
+- `RollingBandData` [deps: [types.md][1]]
+- `SpectralFilterPreview` [deps: [types.md][1]]
+- `TransformResponse` [deps: [types.md][1]]
 
-```typescript
-export type { AdaptiveLineFilter, AnomalyRegionData, AppStateType, ColumnRange, PendingAdaptivePoint, ProfileColumnDef, ProfileGridSort, ProfileRow, RollingBandData, SpectralFilterPreview } from '../types.js';
-```
+---
+[1]: ../types.md

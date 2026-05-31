@@ -36,3 +36,11 @@ const metadataPromise: Promise<void>
 ### createPageRegistry
 - `createPageRegistry(): { register, ensurePageModuleLoaded, markMetadataReady, isMetadataReady, clearLoadedPageModules }`
   - Factory for isolated registry instances used in tests.
+
+### clearLoadedPageModules
+- `clearLoadedPageModules(): void`
+  - Clears the loaded set to allow re-initialization on revisit.
+
+### createPageRegistry
+- `createPageRegistry(): { register, ensurePageModuleLoaded, markMetadataReady, isMetadataReady, clearLoadedPageModules }`
+  - Factory for isolated registry instances used in tests.

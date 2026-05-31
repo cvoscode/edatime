@@ -1,43 +1,16 @@
-# pageBootstrap.ts
+# ai/frontend/src/utils/pageBootstrap.md
 
-Page bootstrap helpers determining which pages require eager dataset loading and which load analysis modules lazily.
+> Page classification utilities that determine dataset bootstrap behavior and lazy loading strategy.
 
 ## Constants
-
-```typescript
-const DATASET_BOOTSTRAP_PAGES: Set<string>
-```
-
-Pages that trigger eager dataset bootstrap on initial navigation.
-
-```typescript
-const LAZY_ANALYSIS_PAGES: Set<string>
-```
-
-Pages that load analysis-specific module code lazily on first visit.
-
-```typescript
-const CORE_WORKFLOW_PAGES: Set<string>
-```
-
-Core workflow pages: home, upload, timeseries, correlations, scatter.
+- `DATASET_BOOTSTRAP_PAGES: Set<string>` — pages that require eager dataset bootstrap on navigation.
+- `LAZY_ANALYSIS_PAGES: Set<string>` — pages that load analysis modules lazily on first visit.
+- `CORE_WORKFLOW_PAGES: Set<string>` — primary path pages: home, upload, timeseries, correlations, scatter.
 
 ## Functions
-
-```typescript
-function pageNeedsDatasetBootstrap(pageName: string | null | undefined): boolean
-```
-
-Check if a page needs dataset bootstrap.
-
-```typescript
-function isLazyAnalysisPage(pageName: string | null | undefined): boolean
-```
-
-Check if a page is a lazy analysis page.
-
-```typescript
-function isCoreWorkflowPage(pageName: string | null | undefined): boolean
-```
-
-Check if a page is a core workflow page.
+- `pageNeedsDatasetBootstrap(pageName: string | null | undefined): boolean`
+  - Returns true if the page requires dataset metadata/data/status fetches on initial navigation.
+- `isLazyAnalysisPage(pageName: string | null | undefined): boolean`
+  - Returns true if the page loads analysis-specific code lazily on first visit.
+- `isCoreWorkflowPage(pageName: string | null | undefined): boolean`
+  - Returns true if the page is part of the primary Upload → Timeseries → Correlations → Scatter path.

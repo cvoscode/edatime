@@ -1,45 +1,54 @@
 # frontend/src/app.ts
-> Main bootstrapping — orchestrates app shell, chart, pages, analytics overlays.
+> Slim orchestrator — wires all domain modules, initializes chart runtime, and bootstraps the session.
 
-## State Variables
-- `const runtime = createAppRuntime()`
-- `const _appCleanups: Array<() => void>` — now delegates to `runtime.registerCleanup`
+## State
 
-## Page Registration
 ```typescript
-register('fft', { requiresMetadata: true, init: createFftEntrypoint({ getRenderTimeseries: () => renderCurrentData }).init });
-register('heatmap', { requiresMetadata: true, init: createHeatmapEntrypoint({ showPage }).init });
-register('scatter', { requiresMetadata: true, init: createScatterEntrypoint({ initScatterPage, getMetadata: () => appState.metadata! }).init });
-register('spectrogram', { requiresMetadata: true, init: createSpectrogramEntrypoint({ setLoading: setComputeLoading }).init });
-register('causal', { requiresMetadata: true, init: createCausalEntrypoint({ getMetadata: () => appState.metadata, chipColor: (col, idx) => getAnalyticsChipColor(col, idx), numericColumns: () => getNumericColumns(appState.metadata), setLoading: setComputeLoading }).init });
-register('drift', { requiresMetadata: true, init: createDriftEntrypoint({ initDriftPage, getMetadata: () => appState.metadata! }).init });
+let _timeseriesReady: boolean
+let _timeseriesReadyPromise: Promise<void> | null
+let _sessionPersistenceStarted: boolean
+const _appCleanups: Array<() => void>
+const runtime: ReturnType<typeof createAppRuntime>
+const timeseriesPage: ReturnType<typeof createTimeseriesPageController>
 ```
 
-## Key Functions
-- `storeFetchedMetadata(metadata: DatasetMetadata): void`
-- `setComputeLoading(btnId, overlayId, loading, label?): void`
-- `fetchAndRenderAnalytics(): Promise<void>`
-- `ensureChartModules(): Promise<void>`
-- `checkWebGPU(): Promise<string | null>`
-- `showFatalError(message: string): void`
-- `ensureTimeseriesReady(): Promise<void>`
-- `renderCurrentData(): void` — via timeseriesPage
-- `init(): Promise<void>` — main entry point
+## Functions
 
-## Delegated to sub-modules
-- `createAppRuntime` from `./app/runtime.js`
-- `register` from `./app/pageRegistry.js`
-- `initScatterPage` from `./scatter/scatterPage.js`
-- `initDriftPage` from `./drift/driftPage.js`
-- `createFftEntrypoint`, `createHeatmapEntrypoint`, `createScatterEntrypoint`, `createSpectrogramEntrypoint`, `createCausalEntrypoint`, `createDriftEntrypoint` from `./features/*/entrypoint.js`
+### ensureSessionPersistenceStarted
+- `ensureSessionPersistenceStarted(): void`
+  - Starts session persistence once (`startSessionPersistence`). Idempotent.
+
+### ensureTimeseriesReady
+- `ensureTimeseriesReady(): Promise<void>`
+  - Initializes ChartGPU (or fallback) once; runs adaptive gesture binding, overlay callbacks, chart text, initial render, and session restore. Returns early if already ready.
+
+### fetchAndRender
+- `fetchAndRender(): Promise<void>`
+  - Ensures timeseries ready then calls `timeseriesPage.fetchAndRender()`.
+
+### renderCurrentData
+- `renderCurrentData(): void`
+  - Delegates to `timeseriesPage.renderCurrentData()`.
+
+### emitChartRangeChange
+- `emitChartRangeChange(sourceKind?: string): void`
+  - Emits chart range change via `timeseriesPage.emitChartRangeChange()`.
+
+### onZoomRangeChange
+- `onZoomRangeChange(newStart: number, newEnd: number, sourceKind?: string): void`
+  - Delegates to `timeseriesPage.onZoomRangeChange()`.
 
 ---
 [1]: ./app/runtime.md
 [2]: ./app/pageRegistry.md
-[3]: ./app/pageLifecycle.md
-[4]: ./features/fft/entrypoint.md
-[5]: ./features/heatmap/entrypoint.md
-[6]: ./features/scatter/entrypoint.md
-[7]: ./features/spectrogram/entrypoint.md
-[8]: ./features/causal/entrypoint.md
-[9]: ./features/drift/entrypoint.md
+[3]: ./app/shell.md
+[4]: ./app/webgpuGuard.md
+[5]: ./app/adaptiveGesture.md
+[6]: ./app/pageModules.md
+[7]: ./bootstrap/sessionBootstrap.md
+[8]: ./bootstrap/analyticsOverlay.md
+[9]: ../store/index.md
+[10]: ../ui/toolbar.md
+[11]: ../ui/upload.md
+[12]: ../ui/profile.md
+[13]: ../chart/annotations.md

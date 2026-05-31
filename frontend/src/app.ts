@@ -2,16 +2,16 @@
  * app.ts — Slim orchestrator.
  *
  * All domain logic lives in focused modules:
- *   state.ts          — centralised appState, format helpers, column-range filtering
- *   debug.ts          — DEBUG flag, dbg(), dbgGroup()
- *   ui/columns.ts     — column toggle chips, range chips, filter modal
- *   ui/upload.ts      — upload panel (drag-drop, preview, partial load)
- *   ui/profile.ts     — virtualised column-profile grid
- *   ui/toolbar.ts     — analysis status, zoom/draw/export/label controls, pages
+ *   store/          — centralized sub-states (chart, analytics, ui, dataset, scatter)
+ *   app/            — bootstrap helpers (WebGPU guard, adaptive gesture, keyboard shortcuts, page modules)
+ *   debug.ts        — DEBUG flag, dbg(), dbgGroup()
+ *   ui/upload.ts    — upload panel (drag-drop, preview, partial load)
+ *   ui/profile.ts   — virtualised column-profile grid
+ *   ui/toolbar.ts   — analysis status, zoom/draw/export/label controls, pages
  *   charts/registry.ts — pluggable chart-type registry
  *   charts/fallback.ts — Canvas 2D fallback chart
  *   chart/DataChart.ts — DataChart (ChartGPU WebGPU adapter)
- *   dataClient.ts      — Arrow IPC fetch + aggregate fetch
+ *   dataClient.ts   — Arrow IPC fetch + aggregate fetch
  *   scatter/scatterPage.ts — full scatter page with plot/matrix views
  */
 
@@ -22,12 +22,11 @@ import { setMetaText, buildMetaBar } from './ui/metaBar.js';
 import {
     sanitizeSelectedColumns,
     applyColumnRanges,
-    buildAdaptiveLineY,
 } from './services/timeseries/filtering.js';
 import { buildColumnToggles, buildRangeControls, initColumnFilterModal } from './features/timeseries/columnsController.js';
 import { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata, initUploadPanel } from './ui/upload.js';
 import { hydrateColumnProfiles, renderColumnProfilesGrid, initColumnProfilesGrid } from './ui/profile.js';
-import { installWindowsWebGpuRequestAdapterWorkaround, requestGpuAdapter } from './utils/platform.js';
+import { installWindowsWebGpuRequestAdapterWorkaround } from './utils/platform.js';
 import { getAnalyticsChipColor, getDefaultTimeseriesColumns, getNumericColumns } from './pages/analyticsPageUtils.js';
 import { createTimeseriesPageController } from './pages/timeseriesPage.js';
 import { initScatterPage } from './scatter/scatterPage.js';
@@ -36,6 +35,9 @@ import { initAppShell } from './app/shell.js';
 import { createAppRuntime } from './app/runtime.js';
 import { ensurePageModuleLoaded, isMetadataReady, markMetadataReady, clearLoadedPageModules } from './app/pageRegistry.js';
 import { restoreSessionAfterChartReady, startSessionPersistence } from './bootstrap/sessionBootstrap.js';
+import { checkWebGPU, showFatalError } from './app/webgpuGuard.js';
+import { initAdaptiveFilterGesture, buildAdaptiveFilterFromPoints } from './app/adaptiveGesture.js';
+import { loadEntrypoints } from './app/pageModules.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
 import { initDatasetSearchInputs, initTimeseriesActions } from './features/timeseries/actions.js';
@@ -72,118 +74,6 @@ import {
 
 const _appCleanups: Array<() => void> = [];
 const runtime = createAppRuntime();
-
-// Register lazy-loaded page modules so ensurePageModuleLoaded is not a no-op.
-import { register } from './app/pageRegistry.js';
-import { createFftEntrypoint } from './features/fft/entrypoint.js';
-import { createHeatmapEntrypoint } from './features/heatmap/entrypoint.js';
-import { createScatterEntrypoint } from './features/scatter/entrypoint.js';
-import { createSpectrogramEntrypoint } from './features/spectrogram/entrypoint.js';
-import { createCausalEntrypoint } from './features/causal/entrypoint.js';
-import { createDriftEntrypoint } from './features/drift/entrypoint.js';
-import { initDriftPage } from './drift/driftPage.js';
-
-register('fft', { requiresMetadata: true, init: createFftEntrypoint({ getRenderTimeseries: () => renderCurrentData }).init });
-register('heatmap', { requiresMetadata: true, init: createHeatmapEntrypoint({ showPage }).init });
-register('scatter', { requiresMetadata: true, init: createScatterEntrypoint({ initScatterPage, getMetadata: () => appState.metadata! }).init });
-register('spectrogram', { requiresMetadata: true, init: createSpectrogramEntrypoint({ setLoading: setComputeLoading }).init });
-register('causal', { requiresMetadata: true, init: createCausalEntrypoint({ getMetadata: () => appState.metadata, chipColor: (col, idx) => getAnalyticsChipColor(col, idx), numericColumns: () => getNumericColumns(appState.metadata), setLoading: setComputeLoading }).init });
-register('drift', { requiresMetadata: true, init: createDriftEntrypoint({ initDriftPage, getMetadata: () => appState.metadata! }).init });
-
-function storeFetchedMetadata(metadata: DatasetMetadata): void {
-    setMetadata(metadata);
-    const revision = metadata?.revision;
-    setDatasetRevision(typeof revision === 'number' ? revision : 0);
-}
-
-/* ── UI Helpers ───────────────────────────────────────── */
-
-/** Set a compute button + loading overlay into loading or idle state. */
-export function setComputeLoading(btnId: string, overlayId: string, loading: boolean, label = 'Compute'): void {
-    const btn = document.getElementById(btnId) as HTMLButtonElement | null;
-    const overlay = document.getElementById(overlayId) as HTMLElement | null;
-    if (btn) { btn.disabled = loading; btn.textContent = loading ? 'Computing…' : label; }
-    if (overlay) overlay.hidden = !loading;
-}
-
-/* ── Analytics overlay fetch ──────────────────────────── */
-
-async function fetchAndRenderAnalytics(): Promise<void> {
-    const { fetchAnomalies } = await import('./services/api/index.js');
-    await fetchAnomalyRegions(fetchAnomalies);
-}
-
-/* ── Lazy-loaded modules ──────────────────────────────── */
-
-let fetchMetadata: ((signal?: AbortSignal) => Promise<DatasetMetadata>) | null = null;
-let fetchData: ((start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<DataObject>) | null = null;
-let fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null = null;
-let postTransform: ((expression: string, outputName: string) => Promise<TransformResponse>) | null = null;
-let DataChartCtor: (new (containerId: string, onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null = null;
-
-async function ensureChartModules(): Promise<void> {
-    if (fetchMetadata && fetchData && DataChartCtor) return;
-    const [dataClient, chartModule] = await Promise.all([
-        import('./services/api/index.js'),
-        import('./chart/DataChart.js'),
-    ]);
-    fetchMetadata = dataClient.fetchMetadata;
-    fetchData = dataClient.fetchData;
-    fetchAnomalies = dataClient.fetchAnomalies;
-    postTransform = dataClient.postTransform;
-    DataChartCtor = chartModule.DataChart;
-
-    registerChartType('line', {
-        label: 'Line',
-        create: (containerId: string, callbacks: Record<string, unknown>) => {
-            const ctor = DataChartCtor;
-            if (!ctor) throw new Error('DataChart module not loaded');
-            return new ctor(
-                containerId,
-                (callbacks.onZoom as ((start: number, end: number, sourceKind: string) => void) | null) ?? null,
-                (callbacks.onYRange as ((min: number, max: number, sourceKind: string) => void) | null) ?? null,
-                (callbacks.onZoomOut as (() => void) | null) ?? null,
-            );
-        },
-    });
-    registerChartType('fallback', {
-        label: 'Fallback (Canvas 2D)',
-        create: (containerId: string) => new FallbackChart(containerId),
-    });
-}
-
-/* ── WebGPU guard ─────────────────────────────────────── */
-
-async function checkWebGPU(): Promise<string | null> {
-    if (!navigator.gpu) {
-        return 'WebGPU is not supported in this browser. Use Chrome 113+, Edge 113+, or Safari 18+.';
-    }
-    try {
-        const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('requestAdapter timed out')), 5000));
-        const adapter = await Promise.race([
-            requestGpuAdapter(),
-            timeout,
-        ]);
-        if (!adapter) {
-            return 'No WebGPU adapter found. Your GPU may not be supported or hardware acceleration may be disabled.';
-        }
-    } catch (e: unknown) {
-        const message = (e as Error).message ?? 'Unknown error';
-        return `WebGPU adapter request failed: ${message}`;
-    }
-    return null;
-}
-
-function showFatalError(message: string): void {
-    const container = document.getElementById('main-chart');
-    if (container) {
-        const div = document.createElement('div');
-        div.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:#ff4a6e;font-size:1rem;padding:2rem;text-align:center;';
-        div.textContent = message;
-        container.replaceChildren(div);
-    }
-    setMetaText('Error — rendering unavailable');
-}
 
 const timeseriesPage = createTimeseriesPageController({
     fetchData: (start, end, width, columns, colorColumn, signal) => fetchData!(start, end, width, columns, colorColumn, signal),
@@ -242,7 +132,6 @@ async function ensureTimeseriesReady(): Promise<void> {
             } else {
                 if (!DataChartCtor) throw new Error('DataChart module not loaded');
                 setChartInstance(new DataChartCtor('main-chart', onZoomRangeChange, updateAnalysisYRange, () => zoomOut(fetchAndRender)));
-
             }
 
             if (gpuError) throw new Error(gpuError);
@@ -254,7 +143,12 @@ async function ensureTimeseriesReady(): Promise<void> {
 
             setAnalysisBound(false);
             bindAnalysisChartEvents();
-            initAdaptiveFilterGesture();
+            initAdaptiveFilterGesture({
+                buildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
+                buildRangeControls,
+                renderCurrentData,
+                updateAnalysisYRange,
+            });
             refreshZoomControlsState();
             setAnnotationOverlayCallback(() => appState.chart?.requestOverlayRender?.());
             setAnomalyOverlayCallback(() => appState.chart?.requestOverlayRender?.());
@@ -318,207 +212,6 @@ function emitAdaptiveFiltersChange(): void {
     }));
 }
 
-function buildAdaptiveFilterFromPoints(column: string, firstPoint: { x: number; y: number }, secondPoint: { x: number; y: number }) {
-    if (!column || !firstPoint || !secondPoint) return null;
-    if (!appState.lastFetchedData) return null;
-    const filtered = applyColumnRanges(appState.lastFetchedData);
-    const columnData = filtered.series?.[column] || filtered.values?.[column];
-    const xs = columnData?.x;
-    const ys = columnData?.y;
-    if (!xs || !ys || xs.length === 0 || xs.length !== ys.length) return null;
-
-    const x1 = Number(firstPoint.x);
-    const y1 = Number(firstPoint.y);
-    const x2 = Number(secondPoint.x);
-    const y2 = Number(secondPoint.y);
-    if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2) || x1 === x2) return null;
-
-    const minX = Math.min(x1, x2);
-    const maxX = Math.max(x1, x2);
-    const tempFilter: AdaptiveLineFilter = { column, x1, y1, x2, y2, keepAbove: true };
-    let above = 0;
-    let below = 0;
-    for (let idx = 0; idx < xs.length; idx++) {
-        const x = Number(xs[idx]);
-        const y = Number(ys[idx]);
-        if (!Number.isFinite(x) || !Number.isFinite(y) || x < minX || x > maxX) continue;
-        const lineY = buildAdaptiveLineY(tempFilter, x);
-        if (lineY == null || !Number.isFinite(lineY)) continue;
-        if (y >= lineY) above += 1; else below += 1;
-    }
-
-    return {
-        id: `adaptive-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        column,
-        x1,
-        y1,
-        x2,
-        y2,
-        keepAbove: above > below,
-    };
-}
-
-function applyAdaptiveFiltersLocally(sourceKind = 'adaptive'): void {
-    buildRangeControls();
-    renderCurrentData();
-    appState.chart?.requestOverlayRender?.();
-    appState.chart?.fitYToData?.();
-    const yr = appState.chart?.getYRange?.();
-    if (yr) updateAnalysisYRange(yr.min, yr.max, sourceKind);
-    emitAdaptiveFiltersChange();
-}
-
-function initAdaptiveFilterGesture(): void {
-    const container: (HTMLElement & { dataset: DOMStringMap }) | null = document.getElementById('main-chart');
-    if (!container || container.dataset.adaptiveBound) return;
-
-    let _activePicker: HTMLElement | null = null;
-    let _firstPoint: { x: number; y: number } | null = null;
-    let _secondPoint: { x: number; y: number } | null = null;
-    // Screen position of the last click — used to anchor the picker popup.
-    let _lastClickX = 0;
-    let _lastClickY = 0;
-
-    const dismissPicker = () => { _activePicker?.remove(); _activePicker = null; };
-
-    const cancelPending = () => {
-        _firstPoint = null;
-        _secondPoint = null;
-        setPendingAdaptivePoint(null);
-        appState.chart?.requestOverlayRender?.();
-    };
-
-    const updateOverlay = () => {
-        if (!_firstPoint) { setPendingAdaptivePoint(null); return; }
-        const col = appState.adaptiveFilterColumn ?? (appState.selectedCols?.[0] ?? '');
-        if (_secondPoint) {
-            setPendingAdaptivePoint({
-                column: col, x: _firstPoint.x, y: _firstPoint.y,
-                x2: _secondPoint.x, y2: _secondPoint.y,
-            });
-        } else {
-            setPendingAdaptivePoint({ column: col, x: _firstPoint.x, y: _firstPoint.y });
-        }
-        appState.chart?.requestOverlayRender?.();
-    };
-
-    const applyFilterForColumn = (column: string, p1: { x: number; y: number }, p2: { x: number; y: number }) => {
-        setAdaptiveFilterColumn(column);
-        const filter = buildAdaptiveFilterFromPoints(column, p1, p2);
-        if (!filter) return;
-        appendAdaptiveLineFilter(filter);
-        applyAdaptiveFiltersLocally();
-        buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
-    };
-
-    // Show the trace-selection popup. Called on Ctrl release when a line is drawn.
-    const showTracePicker = (p1: { x: number; y: number }, p2: { x: number; y: number }) => {
-        const cols = appState.selectedCols;
-        if (!cols?.length) return;
-
-        if (cols.length === 1) { applyFilterForColumn(cols[0], p1, p2); return; }
-
-        dismissPicker();
-        const picker = document.createElement('div');
-        picker.className = 'adaptive-trace-picker';
-        picker.style.left = `${_lastClickX}px`;
-        picker.style.top = `${_lastClickY}px`;
-
-        const label = document.createElement('div');
-        label.className = 'adaptive-trace-picker__label';
-        label.textContent = 'Filter which trace?';
-        picker.appendChild(label);
-
-        cols.forEach((col, idx) => {
-            const color = appState.seriesColors?.[col] ?? SERIES_COLORS[idx % SERIES_COLORS.length];
-            const isCurrentTarget = col === appState.adaptiveFilterColumn;
-            const btn = document.createElement('button');
-            btn.className = 'adaptive-trace-picker__option' + (isCurrentTarget ? ' current' : '');
-            btn.type = 'button';
-            btn.style.setProperty('--pick-accent', color);
-            btn.textContent = col;
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                dismissPicker();
-                applyFilterForColumn(col, p1, p2);
-            });
-            picker.appendChild(btn);
-        });
-
-        document.body.appendChild(picker);
-        _activePicker = picker;
-
-        const onOutside = (e: MouseEvent) => {
-            if (!picker.contains(e.target as Node)) {
-                dismissPicker();
-                document.removeEventListener('click', onOutside, true);
-            }
-        };
-        document.addEventListener('click', onOutside, true);
-    };
-
-    container.addEventListener('click', (event) => {
-        if (!event.ctrlKey || event.button !== 0) return;
-
-        const cols = appState.selectedCols;
-        if (!cols?.length) return;
-
-        const point = appState.chart?.cssPointToData?.(event.clientX, event.clientY) ?? null;
-        if (!point) return;
-
-        event.preventDefault(); event.stopPropagation();
-        _lastClickX = event.clientX;
-        _lastClickY = event.clientY;
-
-        if (!_firstPoint) {
-            // First click: anchor the start of the line.
-            _firstPoint = point;
-            _secondPoint = null;
-        } else {
-            // Each subsequent Ctrl+click moves the second endpoint forward.
-            _secondPoint = point;
-        }
-        updateOverlay();
-    }, true);
-
-    const onEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') { dismissPicker(); cancelPending(); }
-    };
-
-    // Releasing Ctrl: if a line is fully drawn, show the picker; otherwise cancel.
-    const onCtrlUp = (e: KeyboardEvent) => {
-        if (e.key !== 'Control') return;
-        if (_firstPoint && _secondPoint) {
-            const p1 = _firstPoint;
-            const p2 = _secondPoint;
-            cancelPending();
-            showTracePicker(p1, p2);
-        } else {
-            cancelPending();
-        }
-    };
-
-    const onAdaptiveChange = () => {
-        if (!appState.lastFetchedData) return;
-        buildRangeControls(); renderCurrentData();
-        appState.chart?.requestOverlayRender?.(); appState.chart?.fitYToData?.();
-        const yr = appState.chart?.getYRange?.();
-        if (yr) updateAnalysisYRange(yr.min, yr.max, 'adaptive');
-    };
-
-    window.addEventListener('keydown', onEscape);
-    window.addEventListener('keyup', onCtrlUp);
-    window.addEventListener('edatime:adaptive-filters-change', onAdaptiveChange as EventListener);
-
-    _appCleanups.push(
-        () => window.removeEventListener('keydown', onEscape),
-        () => window.removeEventListener('keyup', onCtrlUp),
-        () => window.removeEventListener('edatime:adaptive-filters-change', onAdaptiveChange as EventListener),
-    );
-
-    (container as HTMLElement & { dataset: DOMStringMap }).dataset.adaptiveBound = '1';
-}
-
 /* ── Keyboard shortcuts ───────────────────────────────── */
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -575,8 +268,70 @@ function initKeyboardShortcuts(): void {
     (window).__edatime.keyboardShortcutsBound = true;
 }
 
+/* ── UI Helpers ───────────────────────────────────────── */
+
+/** Set a compute button + loading overlay into loading or idle state. */
+export function setComputeLoading(btnId: string, overlayId: string, loading: boolean, label = 'Compute'): void {
+    const btn = document.getElementById(btnId) as HTMLButtonElement | null;
+    const overlay = document.getElementById(overlayId) as HTMLElement | null;
+    if (btn) { btn.disabled = loading; btn.textContent = loading ? 'Computing…' : label; }
+    if (overlay) overlay.hidden = !loading;
+}
+
+/* ── Lazy-loaded modules ──────────────────────────────── */
+
+let fetchMetadata: ((signal?: AbortSignal) => Promise<DatasetMetadata>) | null = null;
+let fetchData: ((start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<DataObject>) | null = null;
+let fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null = null;
+let postTransform: ((expression: string, outputName: string) => Promise<TransformResponse>) | null = null;
+let DataChartCtor: (new (containerId: string, onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null = null;
+
+async function ensureChartModules(): Promise<void> {
+    if (fetchMetadata && fetchData && DataChartCtor) return;
+    const [dataClient, chartModule] = await Promise.all([
+        import('./services/api/index.js'),
+        import('./chart/DataChart.js'),
+    ]);
+    fetchMetadata = dataClient.fetchMetadata;
+    fetchData = dataClient.fetchData;
+    fetchAnomalies = dataClient.fetchAnomalies;
+    postTransform = dataClient.postTransform;
+    DataChartCtor = chartModule.DataChart;
+
+    registerChartType('line', {
+        label: 'Line',
+        create: (containerId: string, callbacks: Record<string, unknown>) => {
+            const ctor = DataChartCtor;
+            if (!ctor) throw new Error('DataChart module not loaded');
+            return new ctor(
+                containerId,
+                (callbacks.onZoom as ((start: number, end: number, sourceKind: string) => void) | null) ?? null,
+                (callbacks.onYRange as ((min: number, max: number, sourceKind: string) => void) | null) ?? null,
+                (callbacks.onZoomOut as (() => void) | null) ?? null,
+            );
+        },
+    });
+    registerChartType('fallback', {
+        label: 'Fallback (Canvas 2D)',
+        create: (containerId: string) => new FallbackChart(containerId),
+    });
+}
+
+/* ── Analytics overlay fetch ──────────────────────────── */
+
+async function fetchAndRenderAnalytics(): Promise<void> {
+    const { fetchAnomalies: fa } = await import('./services/api/index.js');
+    await fetchAnomalyRegions(fa ?? fetchAnomalies);
+}
+
 let _datasetReadyPromise: Promise<void> | null = null;
 let _datasetUiReady = false;
+
+function storeFetchedMetadata(metadata: DatasetMetadata): void {
+    setMetadata(metadata);
+    const revision = metadata?.revision;
+    setDatasetRevision(typeof revision === 'number' ? revision : 0);
+}
 
 function initializeDatasetUi(metadata: DatasetMetadata): void {
     if (!_datasetUiReady) {
@@ -710,8 +465,22 @@ async function init(): Promise<void> {
         registerCleanup: runtime.registerCleanup,
     });
 
+    // Register lazy-loaded page modules.
+    await loadEntrypoints({
+        getRenderTimeseries: renderTimeseries,
+        showPage,
+        initScatterPage,
+        getMetadata: () => appState.metadata ?? null,
+        chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
+        numericColumns: () => getNumericColumns(appState.metadata),
+        setLoading: setComputeLoading,
+        initDriftPage: (metadata: unknown) => { void import('./drift/driftPage.js').then(m => m.initDriftPage(metadata)); },
+    });
+
     (window).__edatime = (window).__edatime || {};
     (window).__edatime.ensureDatasetReady = ensureDatasetReady;
+
+    initKeyboardShortcuts();
 
     try {
         const initialPage = getHashPage();

@@ -42,3 +42,6 @@
 - `setAnomalyThreshold(t: number): void`
 - `setAnomalyRegions(regions: AnomalyRegionData[] | null): void`
 - `setSpectralFilterPreview(preview: SpectralFilterPreview | null): void`
+
+---
+[1]: events.md

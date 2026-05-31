@@ -1,35 +1,39 @@
-# fftPage.ts
-> FFT analysis page — refactored to use `createAnalysisPageRuntime` and `renderSeriesChipList`.
+# ai/frontend/src/pages/fftPage.md
+> FFT frequency analysis page with magnitude/psd modes, log-scale toggle, and per-series chip controls.
 
-## Interface: FftPageDeps
-- `renderTimeseries(): void`
+## Interface
+- `FftPageDeps { renderTimeseries: () => void }`
 
 ## State
-- `fftTraces: FftTrace[]`
-- `fftMode: string` (default: `'magnitude'`)
-- `fftLogScale: boolean` (default: `true`)
-- `fftChart: FftChart | null`
-- `fftTraceColors: Record<string, string>`
+- `fftTraces: FftTrace[]` — active FFT trace series
+- `fftMode: string` — current display mode ('magnitude' | 'psd')
+- `fftLogScale: boolean` — whether logarithmic frequency scale is enabled
+- `fftChart: FftChart | null` — the FFT chart instance
+- `fftTraceColors: Record<string, string>` — per-column color overrides
 - `fftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null`
 
 ## Functions
-- `fftColumns(): string[]`
-  - Returns numeric columns from metadata via `getAnalyticsChipColor`.
-- `fftColorFor(column: string, fallbackIndex: number): string`
+- `fftColumns(): string[]` [deps: [getNumericColumns][1]]
+  - Returns numeric columns from metadata.
+- `fftColorFor(column: string, fallbackIndex: number): string` [deps: [getAnalyticsChipColor][1]]
+  - Resolves trace color from overrides or fallback palette.
 - `updateZoomButton(isZoomed?: boolean): void`
-  - Shows/hides zoom reset button.
+  - Shows/hides zoom reset button based on chart zoom state.
 - `rerenderOrClear(): void`
-  - Calls `fftRuntime?.updateEmptyState` and updates or clears FFT chart.
-- `fetchAndAddTrace(column: string): Promise<void>`
-  - Fetches FFT data for column and appends to `fftTraces`.
-- `renderChips(): void`
-  - Uses `renderSeriesChipList` for chip rendering.
-- `export async initFftPage(deps: FftPageDeps): Promise<void>`
-  - Uses `createAnalysisPageRuntime`; wires chips, chart, zoom button, and export buttons.
+  - Clears chart when no traces; otherwise updates chart with current mode/log-scale.
+- `fetchAndAddTrace(column: string): Promise<void>` [deps: [fetchFft][2]]
+  - Fetches FFT data for a column and appends to `fftTraces`.
+- `renderChips(): void` [deps: [renderSeriesChipList][3]]
+  - Renders series chip list with loading state and toggle handlers.
+- `initFftPage(deps: FftPageDeps): Promise<void>` [deps: [createAnalysisPageRuntime][4], [exportContainerCanvasPNG][5], [exportContainerCanvasSVG][6], [exportContainerCanvasHTML][7], [exportTraceCSV][8]]
+  - Initializes FFT page, chart, controls, zoom button, and export bindings.
 
 ---
-[1]: ./shared/analysisPageRuntime.md
-[2]: ../utils/bindExportButtons.md
-[3]: ../ui/composites/SeriesChip.md
-[4]: ../ui/index.md#renderSeriesChipList
-[5]: ../store/appStateCompat.md
+[1]: ./analyticsPageUtils.md#getNumericColumns
+[2]: ../../services/api/index.md#fetchFft
+[3]: ../../ui/index.md#renderSeriesChipList
+[4]: ./shared/analysisPageRuntime.md#createAnalysisPageRuntime
+[5]: ../../utils/chartExport.md#exportContainerCanvasPNG
+[6]: ../../utils/chartExport.md#exportContainerCanvasSVG
+[7]: ../../utils/chartExport.md#exportContainerCanvasHTML
+[8]: ../../utils/chartExport.md#exportTraceCSV

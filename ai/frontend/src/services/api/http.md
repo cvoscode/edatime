@@ -1,31 +1,35 @@
-# http.ts
+# ai/frontend/src/services/api/http.md
+> Core HTTP fetch helpers with in-flight request deduplication, Arrow IPC parsing utilities, timestamp resolution, and response-shape assertion helpers.
 
-HTTP client wrapper with JSON helpers and request deduplication.
+## Types
+- `ArrowTable { schema?: { fields?: Array<{ name?: string; type?: unknown }> }; numRows: number; getChild(name: string): ArrowColumn | null }`
+- `ArrowColumn { get(index: number): unknown }`
 
 ## Functions
+- `dedupe<T>(key: string, factory: () => Promise<T>): Promise<T>`
+  - Deduplicates in-flight requests by URL+body key; ensures only one outstanding request per key.
+- `ensureArrowParser(): Promise<TableFromIPCFn>`
+  - Lazily loads and caches the Apache Arrow `tableFromIPC` parser.
+- `resolveTimestampColumnName(table: ArrowTable, requestedCols: string[], colorColumn: string | null, headerName: string | null): string | null`
+  - Resolves the timestamp column name from explicit header, single non-value column, temporal name pattern, or first column fallback.
+- `toEpochMs(value: unknown): number`
+  - Converts numeric timestamps to epoch-ms using backend-aligned unit thresholds (s/ms/µs/ns). [deps: [debug][1]]
+- `isObject(v: unknown): v is Record<string, unknown>`
+  - Type guard that returns true for plain object values.
+- `assertDatasetMetadata(data: unknown): asserts data is DatasetMetadata`
+  - Throws if the metadata response lacks required `total_rows`, `columns`, and `numeric_columns` fields.
+- `assertScatterPoints(data: unknown): asserts data is ScatterPointsResponse`
+  - Throws if scatter points response lacks a `points` array.
+- `assertScatterCorrelations(data: unknown): asserts data is ScatterCorrelationsResponse`
+  - Throws if correlations response lacks a `correlations` array.
+- `getJson<T>(url: string, label: string, signal?: AbortSignal): Promise<T>`
+  - Performs a cached GET request with deduplication and JSON parsing; throws on non-OK status.
+- `postJson<T>(url: string, body: unknown, label: string, signal?: AbortSignal): Promise<T>`
+  - Performs a POST request with JSON serialization and deduplication; throws on non-OK status.
+- `getJsonForApi`, `postJsonForApi`
+  - Aliases of `getJson` / `postJson` for backward-compatible facade file imports.
+- `dbg`, `DEBUG`
+  - Debug logging utilities re-exported for route-family modules. [deps: [debug][1]]
 
-```typescript
-function getJson<T>(
-    url: string,
-    label: string,
-    signal?: AbortSignal,
-): Promise<T>
-
-function postJson<T>(
-    url: string,
-    body: unknown,
-    label: string,
-    signal?: AbortSignal,
-): Promise<T>
-
-function fetchData(
-    start: string,
-    end: string,
-    width: number,
-    columns?: string,
-    colorColumn?: string | null,
-    signal?: AbortSignal,
-): Promise<DataObject>
-
-function fetchDriftStats<T>(payload: unknown): Promise<T>
-```
+---
+[1]: ../../../debug.md

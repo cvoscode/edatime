@@ -13,12 +13,12 @@ describe('timeseries filtering helpers', () => {
 
     it('normalizes adaptive line filters for query payloads', () => {
         const filters = buildAdaptiveLineFiltersForQueryState([
-            { column: 'value', x1: '0' as any, y1: 1, x2: 10, y2: 5, keepAbove: true },
-            { column: '', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: false },
+            { id: 'f1', column: 'value', x1: '0' as any, y1: 1, x2: 10, y2: 5, keepAbove: true },
+            { id: 'f2', column: '', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: false },
         ]);
 
         expect(filters).toEqual([
-            { column: 'value', x1: 0, y1: 1, x2: 10, y2: 5, keepAbove: true },
+            { id: 'f1', column: 'value', x1: 0, y1: 1, x2: 10, y2: 5, keepAbove: true },
         ]);
     });
 
@@ -41,12 +41,12 @@ describe('timeseries filtering helpers', () => {
             },
             ['value'],
             { value: { from: 0, to: 10 } },
-            [{ column: 'guard', x1: 0, y1: 5, x2: 10, y2: 5, keepAbove: true }],
+            [{ id: 'g1', column: 'guard', x1: 0, y1: 5, x2: 10, y2: 5, keepAbove: true }],
         );
 
         expect(Array.from(filtered.series.value.x)).toEqual([0, 10]);
         expect(Array.from(filtered.series.value.y)).toEqual([1, 9]);
         expect(filtered.colorByColumn.value).toEqual(['a', 'c']);
-        expect(buildAdaptiveLineY({ column: 'x', x1: 0, y1: 0, x2: 10, y2: 20, keepAbove: true }, 5)).toBe(10);
+        expect(buildAdaptiveLineY({ id: 'x1', column: 'x', x1: 0, y1: 0, x2: 10, y2: 20, keepAbove: true }, 5)).toBe(10);
     });
 });

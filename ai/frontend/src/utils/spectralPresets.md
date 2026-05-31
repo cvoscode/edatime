@@ -1,9 +1,8 @@
-# spectralPresets.ts
+# ai/frontend/src/utils/spectralPresets.md
 
-Spectral analysis presets and guidance for FFT/spectrogram analysis.
+> Spectral analysis presets and guidance for FFT/spectrogram analysis, with human-readable descriptions and window size recommendations.
 
-## Interfaces
-
+## Interface: SpectralPreset
 ```typescript
 interface SpectralPreset {
     id: string;
@@ -14,6 +13,11 @@ interface SpectralPreset {
 }
 ```
 
+## Constants
+- `SPECTRAL_PRESETS: SpectralPreset[]` — five presets: auto, slow-trends, fast-oscillations, balanced, high-resolution.
+- `SPECTRAL_GUIDANCE: Record<string, { title: string; description: string }>` — guidance entries for Nyquist, sampling rate, window size trade-off, dominant frequency, and DC component.
+
+## Interface: FrequencyPeak
 ```typescript
 interface FrequencyPeak {
     frequency_hz: number;
@@ -23,6 +27,7 @@ interface FrequencyPeak {
 }
 ```
 
+## Interface: SpectralInfo
 ```typescript
 interface SpectralInfo {
     sampleRateHz: number;
@@ -32,54 +37,6 @@ interface SpectralInfo {
 }
 ```
 
-## Constants
-
-```typescript
-const SPECTRAL_PRESETS: SpectralPreset[]
-```
-
-Preset configurations for spectral analysis.
-
-```typescript
-const SPECTRAL_GUIDANCE: Record<string, { title: string; description: string }>
-```
-
-Spectral guidance messages and explanations.
-
 ## Functions
-
-```typescript
-function getPresetById(id: string): SpectralPreset | undefined
-```
-
-Get a spectral preset by ID.
-
-```typescript
-function formatFrequency(hz: number): string
-```
-
-Format frequency for human-readable display.
-
-```typescript
-function frequencyToPeriod(hz: number): string
-```
-
-Convert frequency to period.
-
-```typescript
-function describeFrequency(hz: number, sampleRateHz: number): string
-```
-
-Get a human-readable description for a frequency.
-
-```typescript
-function checkAliasingWarning(dominantHz: number, nyquistHz: number): string | null
-```
-
-Check for potential aliasing concern.
-
-```typescript
-function suggestPreset(sampleRateHz: number, dominantPeaks: FrequencyPeak[]): SpectralPreset
-```
-
-Suggest an appropriate spectrogram preset based on signal characteristics.
+- `getPresetById(id: string): SpectralPreset | undefined`
+  - Returns the spectral preset matching the given id.

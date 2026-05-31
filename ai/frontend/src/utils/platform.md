@@ -1,35 +1,15 @@
-# platform.ts
+# ai/frontend/src/utils/platform.md
 
-Platform detection and WebGPU adapter utilities.
+> Platform detection and WebGPU adapter initialization helpers, including a Windows-specific workaround.
 
 ## Functions
-
-```typescript
-function isWindowsPlatform(): boolean
-```
-
-Check if running on Windows.
-
-```typescript
-function defaultGpuPowerPreference(): 'low-power' | 'high-performance' | undefined
-```
-
-Get default GPU power preference.
-
-```typescript
-function stripIgnoredPowerPreference(options?: Record<string, unknown>): Record<string, unknown> | undefined
-```
-
-Remove powerPreference from WebGPU adapter options (Windows workaround).
-
-```typescript
-function installWindowsWebGpuRequestAdapterWorkaround(): void
-```
-
-Install Windows WebGPU requestAdapter shim to strip powerPreference.
-
-```typescript
-async function requestGpuAdapter(): Promise<unknown | null
-```
-
-Request WebGPU adapter with platform-specific handling.
+- `isWindowsPlatform(): boolean`
+  - Returns true if `navigator.userAgent` matches Windows.
+- `defaultGpuPowerPreference(): 'low-power' | 'high-performance' | undefined`
+  - Returns the default GPU power preference.
+- `stripIgnoredPowerPreference(options?: Record<string, unknown>): Record<string, unknown> | undefined`
+  - Removes `powerPreference` from GPU adapter options when it should be ignored.
+- `installWindowsWebGpuRequestAdapterWorkaround(): void`
+  - Patches `navigator.gpu.requestAdapter` on Windows to strip problematic power preference.
+- `requestGpuAdapter(): Promise<unknown | null>`
+  - Requests a WebGPU adapter using the platform-appropriate options.

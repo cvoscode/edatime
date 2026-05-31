@@ -1,30 +1,19 @@
-# chartOverlays.ts
-
-Renders rolling bands, anomaly regions, adaptive filter lines, and annotations on a transparent canvas overlaying the chart.
-
-## Interface: ChartOverlayOptions
-
-```typescript
-interface ChartOverlayOptions {
-  getXMin: () => number | null;
-  getXMax: () => number | null;
-  getContainer: () => HTMLElement | null;
-  getOverlayCanvas: () => HTMLCanvasElement | null;
-  getYRange: () => { min: number; max: number } | null;
-  getPendingAdaptivePoint: () => { column: string; x: number; y: number; x2?: number; y2?: number } | null;
-}
-```
+# ai/frontend/src/chart/chartOverlays.md
+> Renders rolling bands, anomaly regions, adaptive filter lines, and annotations on a transparent canvas overlaying the chart.
 
 ## Class: ChartOverlays
+- `constructor(opts: ChartOverlayOptions)` — Creates the overlay renderer with accessor functions.
+- `renderAll(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void` — Renders all overlay layers: rolling bands, anomaly regions, adaptive filter lines, and annotations.
 
-```typescript
-export class ChartOverlays {
-  constructor(opts: ChartOverlayOptions);
-}
-```
+## Interface: ChartOverlayOptions
+- `getXMin: () => number | null`
+- `getXMax: () => number | null`
+- `getContainer: () => HTMLElement | null`
+- `getOverlayCanvas: () => HTMLCanvasElement | null`
+- `getYRange: () => { min: number; max: number } | null`
+- `getPendingAdaptivePoint: () => { column: string; x: number; y: number; x2?: number; y2?: number } | null`
 
-### Methods
-
-```typescript
-renderAll(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void;
-```
+---
+[1]: ../store/appStateCompat.md#appState
+[2]: ../services/timeseries/filtering.md#buildAdaptiveLineY
+[3]: ./chartInteractions.md#createCanvasOverlay

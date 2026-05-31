@@ -1,64 +1,9 @@
-# timeseries.ts
+# ai/frontend/src/services/api/timeseries.md
+> Time-series data fetching from the Arrow IPC endpoint with timestamp resolution and color column support.
 
-Timeseries API client re-exports from analytics module.
+## Functions
+- `fetchData(start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal): Promise<DataObject>`
+  - Fetches downsampled time-series data for the specified columns and color column over a time range, returning a `DataObject` with epoch-ms timestamps and per-column `Float64Array` values. [deps: [http][1]]
 
-## Re-exports
-
-```typescript
-function fetchAnomalies(
-    start: string,
-    end: string,
-    columns: string,
-    method?: string,
-    threshold?: number,
-    signal?: AbortSignal,
-): Promise<AnomalyResponse>
-
-function fetchCausalGraph(
-    columns: string[],
-    tauMax?: number,
-    alpha?: number,
-    method?: string,
-    maxPoints?: number,
-    signal?: AbortSignal,
-    pcAlpha?: number,
-    test?: string,
-    maxCondsDim?: number,
-    fdrMethod?: string,
-): Promise<CausalGraphResponse>
-
-function fetchCorrelationMatrix(): Promise<CorrelationMatrixResponse>
-
-function fetchFft(
-    start: string,
-    end: string,
-    columns: string,
-    maxPoints?: number,
-    signal?: AbortSignal,
-): Promise<FftResponse>
-
-function fetchRollingBands(
-    start: string,
-    end: string,
-    columns: string,
-    window?: number,
-    signal?: AbortSignal,
-): Promise<RollingResponse>
-
-function fetchSpectralFilter(
-    params: URLSearchParams,
-    signal?: AbortSignal,
-): Promise<SpectralFilterResponse>
-
-function postRemoveOutliers(
-    columns: string[] | null,
-    method?: string,
-    threshold?: number,
-    window?: number,
-): Promise<OutlierRemovalResult>
-
-function postTransform(
-    expression: string,
-    outputName: string,
-): Promise<TransformResponse>
-```
+---
+[1]: ./http.md

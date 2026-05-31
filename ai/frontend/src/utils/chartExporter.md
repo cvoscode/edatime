@@ -1,9 +1,8 @@
-# chartExporter.ts
+# ai/frontend/src/utils/chartExporter.md
 
-Standalone export helpers for PNG/SVG/HTML chart export with SVG drawing serialization. Reference implementation extracted from DataChart.
+> Standalone export helpers extracted from DataChart; encapsulates PNG/SVG/HTML export and SVG drawing serialization.
 
-## Interfaces
-
+## Interface: DrawItem
 ```typescript
 interface DrawItem {
     type: string;
@@ -17,6 +16,7 @@ interface DrawItem {
 }
 ```
 
+## Interface: ExportViewport
 ```typescript
 interface ExportViewport {
     cssWidth: number;
@@ -27,6 +27,7 @@ interface ExportViewport {
 }
 ```
 
+## Interface: ExportDomains
 ```typescript
 interface ExportDomains {
     xMin: number;
@@ -37,51 +38,13 @@ interface ExportDomains {
 ```
 
 ## Functions
-
-```typescript
-function getExportViewport(container: HTMLElement | null, overlayCanvas: HTMLCanvasElement | null): ExportViewport
-```
-
-Get viewport dimensions for export.
-
-```typescript
-function getExportDomains(xMin: number | null, xMax: number | null, lastXDomainMin: number | null, lastXDomainMax: number | null, getYRange: () => { min: number; max: number } | null): ExportDomains | null
-```
-
-Get export domains from range values.
-
-```typescript
-function renderChartToCanvas(canvas: HTMLCanvasElement, viewport: ExportViewport, domains: ExportDomains, seriesList: unknown[]): void
-```
-
-Render chart data to canvas.
-
-```typescript
-function exportSVGDrawings(drawings: DrawItem[], currentDraw: DrawItem | null, overlayCanvas: HTMLCanvasElement | null, container: HTMLElement | null, viewWidth: number, viewHeight: number): string
-```
-
-Export SVG drawings as SVG markup.
-
-```typescript
-async function getCombinedExportCanvas(container: HTMLElement | null, overlayCanvas: HTMLCanvasElement | null, getXRange: () => { min: number; max: number }, lastSeriesList: unknown[], getYRange: () => { min: number; max: number } | null, lastXDomainMin: number | null, lastXDomainMax: number | null, renderFn: typeof renderChartToCanvas, includeDrawings: boolean): Promise<HTMLCanvasElement | null>
-```
-
-Get combined export canvas with chart and drawings.
-
-```typescript
-async function exportChartPNG(container: HTMLElement | null, overlayCanvas: HTMLCanvasElement | null, getXRange: () => { min: number; max: number }, lastSeriesList: unknown[], getYRange: () => { min: number; max: number } | null, lastXDomainMin: number | null, lastXDomainMax: number | null, renderFn: typeof renderChartToCanvas): Promise<void>
-```
-
-Export chart as PNG.
-
-```typescript
-async function exportChartSVG(container: HTMLElement | null, overlayCanvas: HTMLCanvasElement | null, getXRange: () => { min: number; max: number }, lastSeriesList: unknown[], getYRange: () => { min: number; max: number } | null, lastXDomainMin: number | null, lastXDomainMax: number | null, renderFn: typeof renderChartToCanvas, drawings: DrawItem[], currentDraw: DrawItem | null, viewWidth: number, viewHeight: number): Promise<void>
-```
-
-Export chart as SVG.
-
-```typescript
-async function exportChartHTML(container: HTMLElement | null, overlayCanvas: HTMLCanvasElement | null, getXRange: () => { min: number; max: number }, lastSeriesList: unknown[], getYRange: () => { min: number; max: number } | null, lastXDomainMin: number | null, lastXDomainMax: number | null, renderFn: typeof renderChartToCanvas): Promise<void>
-```
-
-Export chart as standalone HTML.
+- `getExportViewport(container: HTMLElement | null, overlayCanvas: HTMLCanvasElement | null): ExportViewport`
+  - Computes viewport dimensions and device pixel ratio for export rendering.
+- `getExportDomains(xMin: number | null, xMax: number | null, lastXDomainMin: number | null, lastXDomainMax: number | null, getYRange: () => { min: number; max: number } | null): ExportDomains | null`
+  - Computes safe axis domains with 4% Y-axis padding.
+- `renderChartToCanvas(canvas: HTMLCanvasElement, viewport: ExportViewport, domains: ExportDomains, seriesList: unknown[]): void`
+  - Renders chart series and axes to an off-DOM canvas for export.
+- `exportSVGDrawings(drawings: DrawItem[], currentDraw: DrawItem | null, overlayCanvas: HTMLCanvasElement | null, container: HTMLElement | null, viewWidth: number, viewHeight: number): string`
+  - Serializes line/rectangle drawing annotations as SVG markup.
+- `getCombinedExportCanvas(container: HTMLElement | null, overlayCanvas: HTMLCanvasElement | null, getXRange: () => { min: number; max: number }, lastSeriesList: unknown[], getYRange: () => { min: number; max: number } | null, lastXDomainMin: number | null, lastXDomainMax: number | null, renderFn: typeof renderChartToCanvas, includeDrawings: boolean): Promise<HTMLCanvasElement | null>`
+  - Combines chart canvas and drawings into a single export canvas.

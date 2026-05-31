@@ -96,6 +96,7 @@ function passesAdaptiveLineFilters(
 export function buildAdaptiveLineFiltersForQueryState(filters: AdaptiveLineFilter[]): AdaptiveLineFilter[] {
     return (filters || [])
         .map((filter) => ({
+            id: filter.id,
             column: filter.column,
             x1: Number(filter.x1),
             y1: Number(filter.y1),

@@ -1,25 +1,35 @@
-# ai/frontend/src/types.ts
+# ai/frontend/src/types.md
 > Shared type definitions for the EdaTime frontend.
 
-## Interface Types
+## Interfaces
 
+### `ColumnMetadata`
 ```typescript
-export interface ColumnMetadata {
+interface ColumnMetadata {
     name: string;
     dtype: string;
 }
+```
 
-export interface TimeRange {
+### `TimeRange`
+```typescript
+interface TimeRange {
     min: number;
     max: number;
 }
+```
 
-export interface Histogram {
+### `Histogram`
+```typescript
+interface Histogram {
     bin_edges: number[];
     counts: number[];
 }
+```
 
-export interface ColumnProfile {
+### `ColumnProfile`
+```typescript
+interface ColumnProfile {
     name: string;
     dtype: string;
     count: number;
@@ -35,8 +45,11 @@ export interface ColumnProfile {
     freq: number | null;
     histogram: Histogram | null;
 }
+```
 
-export interface DatasetMetadata {
+### `DatasetMetadata`
+```typescript
+interface DatasetMetadata {
     revision?: number;
     total_rows: number;
     columns: ColumnMetadata[];
@@ -45,9 +58,211 @@ export interface DatasetMetadata {
     time_range: TimeRange | null;
     column_profiles: ColumnProfile[];
 }
+```
 
-export interface DataFetchMeta {
+### `DataFetchMeta`
+```typescript
+interface DataFetchMeta {
     downsampled: boolean;
+    downsampleKnown: boolean;
+    returnedRows: number;
+    targetPoints: number;
+}
+```
+
+### `DataObject`
+```typescript
+interface DataObject {
+    ts: Float64Array;
+    values: Record<string, Float64Array>;
+    color: (number | string | null)[] | null;
+    color_column: string | null;
+    _meta: DataFetchMeta;
+}
+```
+
+### `FilteredDataObject`
+```typescript
+interface FilteredDataObject {
+    ts?: Float64Array;
+    values?: Record<string, Float64Array>;
+    color?: (number | string | null)[] | null;
+    color_column?: string | null;
+    _meta?: DataFetchMeta;
+    series: Record<string, SeriesData>;
+    colorByColumn: Record<string, (number | string | null)[]>;
+}
+```
+
+### `SeriesData`
+```typescript
+interface SeriesData {
+    x: Float64Array;
+    y: Float64Array;
+}
+```
+
+### `ScatterPointsResponse`
+```typescript
+interface ScatterPointsResponse {
+    x: string;
+    y: string;
+    color: string | null;
+    total_points: number;
+    returned_points: number;
+    points: [number, number][];
+    color_values: number[] | null;
+    color_labels: (string | null)[] | null;
+    color_min: number | null;
+    color_max: number | null;
+}
+```
+
+### `CorrelationItem`
+```typescript
+interface CorrelationItem {
+    column: string;
+    count: number;
+    pearson: number | null;
+    spearman: number | null;
+}
+```
+
+### `ScatterCorrelationsResponse`
+```typescript
+interface ScatterCorrelationsResponse {
+    base_column: string;
+    threshold: number;
+    numeric_columns: string[];
+    correlations: CorrelationItem[];
+    suggestions: CorrelationItem[];
+}
+```
+
+### `ProfileRow`
+```typescript
+interface ProfileRow {
+    name: string;
+    dtype: string;
+    nonNullCount: number;
+    nullCount: number;
+    min: number | null;
+    max: number | null;
+    histCounts: number[];
+    [key: string]: unknown;
+}
+```
+
+### `ColumnRange`
+```typescript
+interface ColumnRange {
+    from: number;
+    to: number;
+}
+```
+
+### `AdaptiveLineFilter`
+```typescript
+interface AdaptiveLineFilter {
+    id: string;
+    column: string;
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    keepAbove: boolean;
+}
+```
+
+### `PendingAdaptivePoint`
+```typescript
+interface PendingAdaptivePoint {
+    column: string;
+    x: number;
+    y: number;
+    x2?: number;
+    y2?: number;
+}
+```
+
+### `ChartTextOverlays`
+```typescript
+interface ChartTextOverlays {
+    title: string;
+    xLabel: string;
+    yLabel: string;
+}
+```
+
+### `ZoomEntry`
+```typescript
+interface ZoomEntry {
+    start: number;
+    end: number;
+}
+```
+
+### `ViewSnapshot`
+```typescript
+interface ViewSnapshot {
+    xMin: number | null;
+    xMax: number | null;
+    yMin: number | null;
+    yMax: number | null;
+}
+```
+
+### `YMode`
+```typescript
+type YMode = 'fit' | 'lock' | 'restore';
+```
+
+### `ProfileGridSort`
+```typescript
+interface ProfileGridSort {
+    key: string | null;
+    dir: 'asc' | 'desc';
+}
+```
+
+### `ProfileColumnDef`
+```typescript
+interface ProfileColumnDef {
+    key: string;
+    label: string;
+    minWidth: number;
+    defaultWidth: number;
+    sortable: boolean;
+}
+```
+
+### `AppStateType`
+```typescript
+interface AppStateType {
+    metadata: DatasetMetadata | null;
+    numericCols: string[];
+    seriesColors: Record<string, string>;
+    columnProfiles: ProfileRow[];
+    previewSelectedColumns: string[];
+    previewTimeColumn: string | null;
+    profileFilterText: string;
+    filterText: string;
+    selectedCols: string[];
+    adaptiveFilterColumn: string | null;
+    columnRanges: Record<string, ColumnRange>;
+    adaptiveLineFilters: AdaptiveLineFilter[];
+    pendingAdaptivePoint: PendingAdaptivePoint | null;
+    lastFetchedData: DataObject | null;
+    currentStart: number | null;
+    currentEnd: number | null;
+    chart: ChartInstance | null;
+    fetchDebounceId: ReturnType<typeof setTimeout> | null;
+    selectedColorColumn: string | null;
+    analysisBound: boolean;
+    refetchOnZoom: boolean;
+    initialView: ViewSnapshot | null;
+}
+```
     downsampleKnown: boolean;
     returnedRows: number;
     targetPoints: number;

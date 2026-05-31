@@ -1,5 +1,6 @@
-# frontend/src/utils/bindExportButtons.ts
-> Declaratively wires PNG/SVG/HTML/CSV export buttons — replaces repeated boilerplate across fftPage, heatmapPage, spectrogramPage.
+# ai/frontend/src/utils/bindExportButtons.md
+
+> Declaratively wires PNG/SVG/HTML/CSV export buttons across FFT, heatmap, and spectrogram pages.
 
 ## Interface: ExportButtonConfig
 ```typescript
@@ -11,10 +12,9 @@ interface ExportButtonConfig {
 }
 ```
 
-## Function: bindExportButtons
+## Functions
 - `bindExportButtons(prefix: string, config: ExportButtonConfig): void`
-  - Binds click handlers to `{prefix}-export-png-btn`, `{prefix}-export-svg-btn`, `{prefix}-export-html-btn`, and optionally `{prefix}-export-csv-btn`.
-  - Shows toast warning if CSV export attempted with no data and `dataCheck` returns false.
+  - Binds click handlers to export buttons for a given page prefix.
 
 ---
-[1]: ./chartExport.md
+[1]: ./toast.md

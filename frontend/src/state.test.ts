@@ -251,7 +251,7 @@ describe('sanitizeSelectedColumns', () => {
 });
 
 describe('buildAdaptiveLineY', () => {
-    const filter = { column: 'temp', x1: 0, y1: 0, x2: 100, y2: 100, keepAbove: true };
+    const filter = { id: 'test-filter', column: 'temp', x1: 0, y1: 0, x2: 100, y2: 100, keepAbove: true };
 
     it('computes linear interpolation along the filter line', () => {
         expect(buildAdaptiveLineY(filter, 50)).toBe(50);
@@ -281,7 +281,7 @@ describe('buildAdaptiveLineFiltersForQuery', () => {
 
     it('includes valid filters', () => {
         appState.adaptiveLineFilters = [
-            { column: 'temp', x1: 0, y1: 10, x2: 100, y2: 50, keepAbove: true },
+            { id: 'f1', column: 'temp', x1: 0, y1: 10, x2: 100, y2: 50, keepAbove: true },
         ];
         const result = buildAdaptiveLineFiltersForQuery();
         expect(result).toHaveLength(1);
@@ -290,14 +290,14 @@ describe('buildAdaptiveLineFiltersForQuery', () => {
 
     it('excludes filters with missing column', () => {
         appState.adaptiveLineFilters = [
-            { column: '', x1: 0, y1: 10, x2: 100, y2: 50, keepAbove: true },
+            { id: 'f2', column: '', x1: 0, y1: 10, x2: 100, y2: 50, keepAbove: true },
         ];
         expect(buildAdaptiveLineFiltersForQuery()).toHaveLength(0);
     });
 
     it('excludes degenerate filters', () => {
         appState.adaptiveLineFilters = [
-            { column: 'temp', x1: 50, y1: 10, x2: 50, y2: 50, keepAbove: true },
+            { id: 'f3', column: 'temp', x1: 50, y1: 10, x2: 50, y2: 50, keepAbove: true },
         ];
         expect(buildAdaptiveLineFiltersForQuery()).toHaveLength(0);
     });
@@ -365,7 +365,7 @@ describe('applyColumnRanges', () => {
 
     it('applies adaptive line filters', () => {
         appState.adaptiveLineFilters = [
-            { column: 'value', x1: 0, y1: 25, x2: 10, y2: 25, keepAbove: true },
+            { id: 'f4', column: 'value', x1: 0, y1: 25, x2: 10, y2: 25, keepAbove: true },
         ];
         const dataObj = {
             ts: [1, 2, 3, 4, 5],
