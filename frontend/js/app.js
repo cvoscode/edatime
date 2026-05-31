@@ -1,11 +1,12 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/scatter-UdQnbmcA.js","assets/chartgpu-CqrjGxnD.js","assets/frequency-CAxkn98O.js","assets/DataChart-DIUuEchO.js","assets/causal-D9qSmWsX.js","assets/drift-GmFLwnPR.js"])))=>i.map(i=>d[i]);
-import { b as appStateComposite, k as formatAnalysisNumber, l as setAdaptiveFilterColumn, m as setSelectedColorColumn, n as getSeriesColor, o as setSelectedCols, p as setPendingAdaptivePoint, q as computeBounds, r as setAdaptiveLineFilters, t as setSeriesColor, u as setPreviewTimeColumn, v as uploadDataset, w as formatCount, x as fetchMetadata$1, y as setMetadata, z as setDatasetRevision, A as buildMetaBar$1, B as connectDatabase, C as loadDatabaseTable, E as deleteDatabaseConnection, F as previewUpload, G as formatToDatetimeLocal, H as formatAnalysisTime, I as setPreviewSelectedColumns, J as fetchDatabaseTables, K as fetchDatabaseStatus, L as setProfileGridBound, P as PROFILE_ROW_HEIGHT, M as PROFILE_COLUMNS, N as normalizeDtypeLabel, O as formatProfileValue, Q as setProfileGridSort, R as setProfileGridHeaderBound, S as getDefaultProfileColumnWidths, T as setColumnProfiles, U as PROFILE_OVERSCAN, V as toFiniteNumberOrNull, W as setAnomalyRegions, X as setRollingBands, Y as applyColumnRanges, Z as isRangeOutsideDataset, $ as dbgGroup, a0 as setZoomHistory, a1 as setViewport, a2 as setPendingYMode, a3 as setPendingRestoreY, a4 as setFetchDebounceId, a5 as sanitizeSelectedColumns$1, a6 as dbg, a7 as setLastFetchedData, D as DEBUG, a8 as ensureRangeStateFromData, a9 as setMetaText, c as createEmptyStateController, a as downloadBlob, aa as setChartText, ab as setRollingEnabled, ac as setRollingWindow, ad as setAnomalyEnabled, ae as setAnomalyMethod, af as setAnomalyThreshold, ag as setAnalysisBound, ah as SERIES_COLORS, _ as __vitePreload, ai as setSeriesColors, aj as setColumnRanges, ak as debounce, al as setFilterText, am as setProfileFilterText, an as installWindowsWebGpuRequestAdapterWorkaround, ao as setNumericCols, ap as setChartInstance, aq as setInitialView, ar as requestGpuAdapter, as as appendAdaptiveLineFilter, at as buildAdaptiveLineY, au as createScatterEntrypoint, av as initScatterPage } from './assets/scatter-UdQnbmcA.js';
-import { S as SeriesChip, t as toast, i as initFftPage, a as initHeatmapPage, b as initSpectrogramPage, g as getNumericColumns, c as getDefaultTimeseriesColumns, d as getAnalyticsChipColor } from './assets/frequency-CAxkn98O.js';
-import { c as createCausalEntrypoint } from './assets/causal-D9qSmWsX.js';
-import { c as createDriftEntrypoint, i as initDriftPage } from './assets/drift-GmFLwnPR.js';
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/scatter-BfitVHBo.js","assets/chartgpu-CqrjGxnD.js","assets/frequency-_vP7LSE1.js","assets/entrypoint-2vpmLGf5.js","assets/entrypoint-CDumNbFx.js","assets/entrypoint-QhIze1Oh.js","assets/causal-iIlmKuxO.js","assets/drift-4m4314Io.js","assets/DataChart-CyWw3AM_.js"])))=>i.map(i=>d[i]);
+import { b as appStateComposite, k as setSelectedCols, l as setAdaptiveFilterColumn, m as setSelectedColorColumn, n as formatAnalysisNumber, o as setAdaptiveLineFilters, p as setPendingAdaptivePoint, q as getSeriesColor, r as setSeriesColor, t as computeBounds, u as setPreviewTimeColumn, v as uploadDataset, w as formatCount, x as fetchMetadata$1, y as setMetadata, z as setDatasetRevision, A as connectDatabase, B as loadDatabaseTable, C as deleteDatabaseConnection, E as previewUpload, F as formatToDatetimeLocal, G as formatAnalysisTime, H as setPreviewSelectedColumns, I as fetchDatabaseTables, J as fetchDatabaseStatus, K as setProfileGridBound, L as normalizeDtypeLabel, M as formatProfileValue, N as setProfileGridSort, O as setProfileGridHeaderBound, P as setColumnProfiles, Q as toFiniteNumberOrNull, R as setAnomalyRegions, S as setRollingBands, T as applyColumnRanges, U as isRangeOutsideDataset, V as dbgGroup, W as setZoomHistory, X as setViewport, Y as setPendingYMode, Z as setPendingRestoreY, $ as setFetchDebounceId, a0 as sanitizeSelectedColumns$1, a1 as dbg, a2 as setLastFetchedData, D as DEBUG, a3 as ensureRangeStateFromData, c as createEmptyStateController, d as downloadBlob, a4 as setChartText, a5 as setRollingEnabled, a6 as setRollingWindow, a7 as setAnomalyEnabled, a8 as setAnomalyMethod, a9 as setAnomalyThreshold, aa as setAnalysisBound, ab as SERIES_COLORS, _ as __vitePreload, ac as setSeriesColors, ad as setColumnRanges, ae as requestGpuAdapter, af as installWindowsWebGpuRequestAdapterWorkaround, ag as appendAdaptiveLineFilter, ah as buildAdaptiveLineY, ai as debounce, aj as setFilterText, ak as setProfileFilterText, al as setNumericCols, am as setChartInstance, an as setInitialView, ao as initScatterPage } from './assets/scatter-BfitVHBo.js';
+import { r as renderSeriesChipList, t as toast, g as getNumericColumns, a as getDefaultTimeseriesColumns, b as getAnalyticsChipColor } from './assets/frequency-_vP7LSE1.js';
 import './assets/chartgpu-CqrjGxnD.js';
 
-let _seriesCollapsed = false;
+function setMetaText(text) {
+  const el = document.getElementById("stat-rows");
+  if (el) el.textContent = text;
+}
 function buildMetaBar(metadata) {
   const rows = metadata?.total_rows?.toLocaleString() ?? "—";
   const cols = metadata ? String(appStateComposite.numericCols?.length ?? 0) : "—";
@@ -14,26 +15,171 @@ function buildMetaBar(metadata) {
       <div class="meta-stat"><strong>${cols}</strong> numeric series</div>
     `;
   const headerMeta = document.getElementById("header-meta");
-  if (headerMeta) headerMeta.innerHTML = markup;
+  if (headerMeta) {
+    headerMeta.innerHTML = markup;
+  }
   const pageMeta = document.getElementById("timeseries-meta-bar");
-  if (pageMeta) pageMeta.innerHTML = markup;
+  if (pageMeta) {
+    pageMeta.innerHTML = markup;
+  }
 }
+
 function sanitizeSelectedColumns() {
   const blockedNames = /* @__PURE__ */ new Set(["ts", "timestamp", "time"]);
   const datetimeCols = new Set(
-    (appStateComposite.metadata?.columns || []).filter((col) => /date|time/i.test(String(col?.dtype || ""))).map((col) => String(col?.name || "").toLowerCase())
+    (appStateComposite.metadata?.columns ?? []).filter((col) => /date|time/i.test(String(col?.dtype ?? ""))).map((col) => String(col?.name ?? "").toLowerCase())
   );
   const validColNames = new Set(
-    (appStateComposite.metadata?.columns || []).map((col) => String(col?.name || "").trim())
+    (appStateComposite.metadata?.columns ?? []).map((col) => String(col?.name ?? "").trim())
   );
-  setSelectedCols((appStateComposite.selectedCols || []).filter((col) => {
-    const name = String(col || "").trim();
-    if (!name) return false;
-    const lower = name.toLowerCase();
-    if (blockedNames.has(lower) || datetimeCols.has(lower)) return false;
-    return validColNames.has(name);
-  }));
+  setSelectedCols(
+    (appStateComposite.selectedCols ?? []).filter((col) => {
+      const name = String(col ?? "").trim();
+      if (!name) return false;
+      const lower = name.toLowerCase();
+      if (blockedNames.has(lower) || datetimeCols.has(lower)) return false;
+      return validColNames.has(name);
+    })
+  );
 }
+function ensureAdaptiveTargetStillValid() {
+  if (!appStateComposite.adaptiveFilterColumn) return;
+  if (appStateComposite.selectedCols.includes(appStateComposite.adaptiveFilterColumn)) return;
+  setAdaptiveFilterColumn(appStateComposite.selectedCols[0] ?? null);
+}
+
+function renderColorByControl(options) {
+  const { onColorColumnChange } = options;
+  const slot = document.getElementById(options.slotId ?? "timeseries-color-slot");
+  if (!slot) return;
+  slot.innerHTML = "";
+  const control = document.createElement("div");
+  control.className = "series-color-selector";
+  control.innerHTML = `
+    <label>
+      <span>Color by</span>
+      <select id="color-column-select" name="color-column-select" aria-label="Color-by column"></select>
+    </label>
+  `;
+  slot.appendChild(control);
+  const select = control.querySelector("#color-column-select");
+  if (!select) return;
+  select.innerHTML = '<option value="">None</option>';
+  const metadataCols = (appStateComposite.metadata?.columns ?? []).map((c) => ({
+    name: c?.name,
+    dtype: c?.dtype
+  }));
+  for (const col of metadataCols) {
+    const name = String(col.name ?? "").trim();
+    if (!name) continue;
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    if (name === appStateComposite.selectedColorColumn) opt.selected = true;
+    select.appendChild(opt);
+  }
+  select.addEventListener("change", () => {
+    setSelectedColorColumn(select.value || null);
+    onColorColumnChange();
+  });
+}
+
+function buildRangeControls() {
+  const container = document.getElementById("column-range-controls");
+  if (!container) return;
+  container.innerHTML = "";
+  if (appStateComposite.adaptiveFilterColumn && appStateComposite.selectedCols.includes(appStateComposite.adaptiveFilterColumn)) {
+    const targetChip = document.createElement("div");
+    targetChip.className = "range-chip";
+    targetChip.innerHTML = `
+      <span class="name">Adaptive target</span>
+      <span class="range">${appStateComposite.adaptiveFilterColumn}</span>
+    `;
+    container.appendChild(targetChip);
+  }
+  for (const col of appStateComposite.selectedCols) {
+    const range = appStateComposite.columnRanges[col];
+    if (!range) continue;
+    const chip = document.createElement("div");
+    chip.className = "range-chip range-chip--clickable";
+    chip.setAttribute("role", "button");
+    chip.setAttribute("tabindex", "0");
+    chip.setAttribute("aria-label", `Filter ${col}`);
+    chip.innerHTML = `
+      <span class="name">${col}</span>
+      <span class="range">${formatAnalysisNumber(range.from)} → ${formatAnalysisNumber(range.to)}</span>
+    `;
+    const open = () => {
+      const fn = window.__edatime?.openFilterForCol;
+      if (typeof fn === "function") fn(col);
+    };
+    chip.addEventListener("click", open);
+    chip.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        open();
+      }
+    });
+    container.appendChild(chip);
+  }
+  for (const filter of appStateComposite.adaptiveLineFilters ?? []) {
+    const chip = document.createElement("div");
+    chip.className = "range-chip range-chip--clickable";
+    chip.setAttribute("role", "button");
+    chip.setAttribute("tabindex", "0");
+    chip.setAttribute("aria-label", `Remove adaptive filter for ${filter.column}`);
+    chip.innerHTML = `
+      <span class="name">Adaptive ${filter.column}</span>
+      <span class="range">${filter.keepAbove ? "keep above" : "keep below"}</span>
+    `;
+    const remove = () => {
+      setAdaptiveLineFilters(
+        (appStateComposite.adaptiveLineFilters ?? []).filter(
+          (item) => item.id !== filter.id
+        )
+      );
+      setPendingAdaptivePoint(null);
+      buildRangeControls();
+      window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change"));
+    };
+    chip.addEventListener("click", remove);
+    chip.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        remove();
+      }
+    });
+    container.appendChild(chip);
+  }
+  if ((appStateComposite.adaptiveLineFilters?.length ?? 0) > 0 || appStateComposite.pendingAdaptivePoint) {
+    const clearChip = document.createElement("div");
+    clearChip.className = "range-chip range-chip--clickable";
+    clearChip.setAttribute("role", "button");
+    clearChip.setAttribute("tabindex", "0");
+    clearChip.setAttribute("aria-label", "Clear adaptive filters");
+    clearChip.innerHTML = `
+      <span class="name">Adaptive filters</span>
+      <span class="range">Clear all</span>
+    `;
+    const clearAll = () => {
+      setAdaptiveLineFilters([]);
+      setPendingAdaptivePoint(null);
+      buildRangeControls();
+      appStateComposite.chart?.requestOverlayRender?.();
+      window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change"));
+    };
+    clearChip.addEventListener("click", clearAll);
+    clearChip.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        clearAll();
+      }
+    });
+    container.appendChild(clearChip);
+  }
+}
+
+let _seriesCollapsed = false;
 function initSeriesCollapse() {
   const btn = document.getElementById("collapse-series-btn");
   if (!btn) return;
@@ -85,12 +231,8 @@ function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentD
   if (!container || container?.dataset?.rebuilding) return;
   container.dataset.rebuilding = "1";
   sanitizeSelectedColumns();
-  if (!appStateComposite.selectedCols.includes(appStateComposite.adaptiveFilterColumn)) {
-    setAdaptiveFilterColumn(appStateComposite.selectedCols[0] || null);
-  }
+  ensureAdaptiveTargetStillValid();
   container.innerHTML = "";
-  const colorSlot = document.getElementById("timeseries-color-slot");
-  if (colorSlot) colorSlot.innerHTML = "";
   const finish = () => {
     container.dataset.rebuilding = "";
   };
@@ -122,36 +264,12 @@ function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentD
     if (!appStateComposite.filterText) return true;
     return col.toLowerCase().includes(appStateComposite.filterText);
   });
-  const colorControl = document.createElement("div");
-  colorControl.className = "series-color-selector";
-  colorControl.innerHTML = `
-    <label>
-      <span>Color by</span>
-            <select id="color-column-select" name="color-column-select" aria-label="Color-by column"></select>
-    </label>
-  `;
-  (colorSlot || container).appendChild(colorControl);
-  const colorSelect = colorControl.querySelector("#color-column-select");
-  if (colorSelect) {
-    colorSelect.innerHTML = '<option value="">None</option>';
-    const metadataCols = (appStateComposite.metadata?.columns || []).map((c) => ({
-      name: c?.name,
-      dtype: c?.dtype
-    }));
-    for (const col of metadataCols) {
-      const name = String(col.name || "").trim();
-      if (!name) continue;
-      const opt = document.createElement("option");
-      opt.value = name;
-      opt.textContent = name;
-      if (name === appStateComposite.selectedColorColumn) opt.selected = true;
-      colorSelect.appendChild(opt);
-    }
-    colorSelect.onchange = () => {
-      setSelectedColorColumn(colorSelect.value || null);
+  renderColorByControl({
+    onColorColumnChange: () => {
       if (typeof fetchAndRender === "function") fetchAndRender();
-    };
-  }
+    },
+    slotId: "timeseries-color-slot"
+  });
   if (visibleCols.length === 0) {
     const empty = document.createElement("span");
     empty.className = "series-empty";
@@ -159,13 +277,13 @@ function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentD
     container.appendChild(empty);
     return;
   }
-  visibleCols.forEach((col) => {
+  const chipListItems = visibleCols.map((col) => {
     const colIdx = appStateComposite.numericCols.indexOf(col);
     const color = getSeriesColor(col, colIdx >= 0 ? colIdx : 0);
     const isActive = appStateComposite.selectedCols.includes(col);
     const isAdaptiveTarget = isActive && appStateComposite.adaptiveFilterColumn === col;
     const chipTitle = isAdaptiveTarget ? `Adaptive filter target: ${col}` : `Ctrl+click to target adaptive filters to ${col}`;
-    const chip = SeriesChip({
+    return {
       column: col,
       checked: isActive,
       color,
@@ -177,10 +295,7 @@ function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentD
         } else {
           setSelectedCols(appStateComposite.selectedCols.filter((c) => c !== col));
         }
-        if (!appStateComposite.selectedCols.includes(appStateComposite.adaptiveFilterColumn)) {
-          setAdaptiveFilterColumn(appStateComposite.selectedCols[0] || null);
-        }
-        buildMetaBar(appStateComposite.metadata);
+        ensureAdaptiveTargetStillValid();
         buildRangeControlsFn();
         appStateComposite.chart?.requestOverlayRender?.();
         fetchAndRender();
@@ -188,7 +303,6 @@ function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentD
       onColorInput: (nextColor) => {
         const updated = setSeriesColor(col, nextColor);
         if (!updated) return;
-        chip.style.setProperty("--chip-accent", updated);
         renderCurrentDataFn?.();
       },
       onMenuClick: () => {
@@ -196,7 +310,18 @@ function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentD
         if (typeof open === "function") open(col);
       },
       menuLabel: `Filter range for ${col}`
-    });
+    };
+  });
+  renderSeriesChipList({
+    container,
+    items: chipListItems,
+    chipClass: "timeseries-chip",
+    onColorUpdate: (col, color) => {
+      const chip = container.querySelector(`[data-col="${col}"]`);
+      if (chip) chip.style.setProperty("--chip-accent", color);
+    }
+  });
+  for (const chip of container.querySelectorAll(".series-chip")) {
     chip.addEventListener(
       "click",
       (e) => {
@@ -204,114 +329,24 @@ function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentD
         if (!e.ctrlKey) return;
         e.preventDefault();
         e.stopPropagation();
+        const input = chip.querySelector('input[type="checkbox"]');
+        const col = input?.value;
+        if (!col) return;
         const hadColumn = appStateComposite.selectedCols.includes(col);
         if (!hadColumn) setSelectedCols([...appStateComposite.selectedCols, col]);
         setAdaptiveFilterColumn(col);
         setPendingAdaptivePoint(null);
-        buildMetaBar(appStateComposite.metadata);
         buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
         buildRangeControlsFn();
         appStateComposite.chart?.requestOverlayRender?.();
         if (!hadColumn) fetchAndRender();
       },
       true
+      // capture phase
     );
-    container.appendChild(chip);
-  });
+  }
   finish();
   applyCollapse();
-}
-function buildRangeControls() {
-  const container = document.getElementById("column-range-controls");
-  if (!container) return;
-  container.innerHTML = "";
-  if (appStateComposite.adaptiveFilterColumn && appStateComposite.selectedCols.includes(appStateComposite.adaptiveFilterColumn)) {
-    const targetChip = document.createElement("div");
-    targetChip.className = "range-chip";
-    targetChip.innerHTML = `
-      <span class="name">Adaptive target</span>
-      <span class="range">${appStateComposite.adaptiveFilterColumn}</span>
-    `;
-    container.appendChild(targetChip);
-  }
-  for (const col of appStateComposite.selectedCols) {
-    const range = appStateComposite.columnRanges[col];
-    if (!range) continue;
-    const chip = document.createElement("div");
-    chip.className = "range-chip range-chip--clickable";
-    chip.setAttribute("role", "button");
-    chip.setAttribute("tabindex", "0");
-    chip.setAttribute("aria-label", `Filter ${col}`);
-    chip.innerHTML = `
-      <span class="name">${col}</span>
-      <span class="range">${formatAnalysisNumber(range.from)} → ${formatAnalysisNumber(range.to)}</span>
-    `;
-    const open = () => {
-      const fn = window.__edatime?.openFilterForCol;
-      if (typeof fn === "function") fn(col);
-    };
-    chip.addEventListener("click", open);
-    chip.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        open();
-      }
-    });
-    container.appendChild(chip);
-  }
-  for (const filter of appStateComposite.adaptiveLineFilters || []) {
-    const chip = document.createElement("div");
-    chip.className = "range-chip range-chip--clickable";
-    chip.setAttribute("role", "button");
-    chip.setAttribute("tabindex", "0");
-    chip.setAttribute("aria-label", `Remove adaptive filter for ${filter.column}`);
-    chip.innerHTML = `
-      <span class="name">Adaptive ${filter.column}</span>
-      <span class="range">${filter.keepAbove ? "keep above" : "keep below"}</span>
-    `;
-    const remove = () => {
-      setAdaptiveLineFilters((appStateComposite.adaptiveLineFilters || []).filter(
-        (item) => item.id !== filter.id
-      ));
-      setPendingAdaptivePoint(null);
-      buildRangeControls();
-      window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change"));
-    };
-    chip.addEventListener("click", remove);
-    chip.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        remove();
-      }
-    });
-    container.appendChild(chip);
-  }
-  if ((appStateComposite.adaptiveLineFilters || []).length > 0 || appStateComposite.pendingAdaptivePoint) {
-    const clearChip = document.createElement("div");
-    clearChip.className = "range-chip range-chip--clickable";
-    clearChip.setAttribute("role", "button");
-    clearChip.setAttribute("tabindex", "0");
-    clearChip.setAttribute("aria-label", "Clear adaptive filters");
-    clearChip.innerHTML = `
-      <span class="name">Adaptive filters</span>
-      <span class="range">Clear all</span>
-    `;
-    const clearAll = () => {
-      setAdaptiveLineFilters([]);
-      setPendingAdaptivePoint(null);
-      buildRangeControls();
-      appStateComposite.chart?.requestOverlayRender?.();
-      window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change"));
-    };
-    clearChip.addEventListener("click", clearAll);
-    clearChip.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        clearAll();
-      }
-    });
-    container.appendChild(clearChip);
-  }
 }
 function initColumnFilterModal(renderCurrentData, updateAnalysisYRange) {
   const modal = document.getElementById("column-filter-modal");
@@ -942,7 +977,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
           hydrateColumnProfiles(freshMetadata);
           applyPartialTimeRangeFromMetadata(freshMetadata, false);
           renderColumnProfilesGrid(true);
-          buildMetaBar$1(freshMetadata);
+          buildMetaBar(freshMetadata);
           deps.buildColumnToggles();
           deps.buildRangeControls();
         } catch {
@@ -1159,6 +1194,22 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
       dbStatusLoaded = false;
     }
   }
+}
+
+const PROFILE_ROW_HEIGHT = 38;
+const PROFILE_OVERSCAN = 8;
+const PROFILE_COLUMNS = [
+  { key: "selected", label: "", minWidth: 56, defaultWidth: 56, sortable: false },
+  { key: "name", label: "Name", minWidth: 160, defaultWidth: 220, sortable: true },
+  { key: "dtype", label: "Type", minWidth: 110, defaultWidth: 120, sortable: true },
+  { key: "nonNullCount", label: "Non-Null", minWidth: 130, defaultWidth: 140, sortable: true },
+  { key: "nullCount", label: "Null", minWidth: 90, defaultWidth: 100, sortable: true },
+  { key: "min", label: "Min", minWidth: 120, defaultWidth: 130, sortable: true },
+  { key: "max", label: "Max", minWidth: 120, defaultWidth: 130, sortable: true },
+  { key: "histCounts", label: "Distribution", minWidth: 220, defaultWidth: 260, sortable: false }
+];
+function getDefaultProfileColumnWidths() {
+  return PROFILE_COLUMNS.map((col) => col.defaultWidth);
 }
 
 function createProfileRow(raw) {
@@ -1684,10 +1735,10 @@ async function fetchAnomalyRegions(fetchAnomalies, signal) {
 }
 
 const analyticsOverlay = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  computeFrontendRollingBands,
-  fetchAnomalyRegions,
-  setAnomalyOverlayCallback
+    __proto__: null,
+    computeFrontendRollingBands,
+    fetchAnomalyRegions,
+    setAnomalyOverlayCallback
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} };
@@ -2651,10 +2702,10 @@ function initCommandPalette() {
 }
 
 const palette = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  initCommandPalette,
-  openPalette,
-  registerCommands
+    __proto__: null,
+    initCommandPalette,
+    openPalette,
+    registerCommands
 }, Symbol.toStringTag, { value: 'Module' }));
 
 let _panel = null;
@@ -2797,10 +2848,10 @@ function initProvenance() {
 }
 
 const provenance = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  initProvenance,
-  refreshProvenance,
-  toggleProvenance
+    __proto__: null,
+    initProvenance,
+    refreshProvenance,
+    toggleProvenance
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const COLOR_SCALES = {
@@ -3102,10 +3153,10 @@ function initSettingsPanel() {
 }
 
 const settingsPanel = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  closeSettingsModal,
-  initSettingsPanel,
-  openSettingsModal
+    __proto__: null,
+    closeSettingsModal,
+    initSettingsPanel,
+    openSettingsModal
 }, Symbol.toStringTag, { value: 'Module' }));
 
 function createDrawerController(opts) {
@@ -3827,14 +3878,14 @@ function initGuidedWorkflow() {
 }
 
 const guidedWorkflow = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  buildWorkflowSuggestion,
-  computeWorkflowProgress,
-  disableGuidedWorkflow,
-  enableGuidedWorkflow,
-  goToNextGuidedStep,
-  initGuidedWorkflow,
-  renderGuidedWorkflow
+    __proto__: null,
+    buildWorkflowSuggestion,
+    computeWorkflowProgress,
+    disableGuidedWorkflow,
+    enableGuidedWorkflow,
+    goToNextGuidedStep,
+    initGuidedWorkflow,
+    renderGuidedWorkflow
 }, Symbol.toStringTag, { value: 'Module' }));
 
 function initTransformModal(deps) {
@@ -3866,7 +3917,7 @@ function initTransformModal(deps) {
         applyBtn.textContent = "Applying…";
         applyBtn.disabled = true;
       }
-      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/scatter-UdQnbmcA.js').then(n => n.aB);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/scatter-BfitVHBo.js').then(n => n.au);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
       await postTransform(expr, name);
       controller.close();
       await deps.refreshDataset({ selectedColumn: name });
@@ -3916,7 +3967,7 @@ function initOutlierModal(deps) {
         applyBtn.disabled = true;
         applyBtn.textContent = "Removing…";
       }
-      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/scatter-UdQnbmcA.js').then(n => n.aB);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/scatter-BfitVHBo.js').then(n => n.au);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
       const result = await postRemoveOutliers(
         columns,
         method,
@@ -3987,18 +4038,18 @@ const KEYBOARD_ONLY_SHORTCUTS = [
   { key: "e", shift: true, action: () => triggerActivePageCsvExport() }
 ];
 function triggerActivePageCsvExport() {
-  if (currentPageName() === "scatter") {
+  if (currentPageName$1() === "scatter") {
     document.getElementById("scatter-export-csv-btn")?.click?.();
     return;
   }
   window.__edatime?.exportChartFilteredData?.("csv");
 }
-function isTypingTarget(target) {
+function isTypingTarget$1(target) {
   if (target.isContentEditable) return true;
   const tag = String(target.tagName || "").toLowerCase();
   return tag === "input" || tag === "textarea" || tag === "select";
 }
-function currentPageName() {
+function currentPageName$1() {
   return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
 }
 function matchesKeyboardShortcut(shortcut, key, pageName, options) {
@@ -4022,14 +4073,14 @@ function findMatchingShortcut(key, pageName, options, commandDefs, deps) {
   return KEYBOARD_ONLY_SHORTCUTS.find((shortcut) => matchesKeyboardShortcut(shortcut, key, pageName, options));
 }
 let _bound = false;
-function initKeyboardShortcuts(deps, commandDefs) {
+function initKeyboardShortcuts$1(deps, commandDefs) {
   if (_bound) return;
   _bound = true;
   window.__edatime = window.__edatime || {};
   const onKeydown = (event) => {
-    if (event.defaultPrevented || isTypingTarget(event.target)) return;
+    if (event.defaultPrevented || isTypingTarget$1(event.target)) return;
     const key = String(event.key || "").toLowerCase();
-    const pageName = currentPageName();
+    const pageName = currentPageName$1();
     if (event.altKey && !event.ctrlKey && !event.metaKey) {
       const shortcut2 = findMatchingShortcut(key, pageName, { alt: true, shift: false }, commandDefs, deps);
       if (shortcut2) {
@@ -4170,8 +4221,8 @@ function generateWeatherCsv() {
   return rows.join("\n");
 }
 async function loadSampleDataset(datasetId, showPage) {
-  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/frequency-CAxkn98O.js').then(n => n.k);return { toast }},true              ?__vite__mapDeps([2,0,1]):void 0);
-  const { fetchSampleDataset } = await __vitePreload(async () => { const { fetchSampleDataset } = await import('./assets/scatter-UdQnbmcA.js').then(n => n.aB);return { fetchSampleDataset }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/frequency-_vP7LSE1.js').then(n => n.k);return { toast }},true              ?__vite__mapDeps([2,0,1]):void 0);
+  const { fetchSampleDataset } = await __vitePreload(async () => { const { fetchSampleDataset } = await import('./assets/scatter-BfitVHBo.js').then(n => n.au);return { fetchSampleDataset }},true              ?__vite__mapDeps([0,1]):void 0);
   if (datasetId === "ettm2") {
     const dismissLoading = toast("Loading ETTm2 sample dataset…", "info", 0);
     let file;
@@ -4265,7 +4316,7 @@ function initAppShell(deps) {
   initAnalysisControls(deps.fetchAndRender);
   initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange);
   initChartPageFilterGesture();
-  initKeyboardShortcuts(deps, APP_COMMAND_DEFINITIONS);
+  initKeyboardShortcuts$1(deps, APP_COMMAND_DEFINITIONS);
   initCommandPalette();
   initProvenance();
   registerAppCommands(deps);
@@ -4384,7 +4435,7 @@ function applySession(snap, options = {}) {
   } else {
     if (snap.columnRanges) setColumnRanges({ ...snap.columnRanges });
     if (Array.isArray(snap.adaptiveLineFilters)) {
-      setAdaptiveLineFilters(snap.adaptiveLineFilters.map((f) => ({ ...f })));
+      setAdaptiveLineFilters(snap.adaptiveLineFilters.map((f) => ({ ...f, id: f.id ?? `restored-${Date.now()}` })));
     }
   }
   if (!revisionMismatch) {
@@ -4524,14 +4575,14 @@ function initAutoSave() {
 }
 
 const session = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  applySession,
-  autoRestoreSession,
-  autoSaveSession,
-  captureSession,
-  exportSessionToFile,
-  importSessionFromFile,
-  initAutoSave
+    __proto__: null,
+    applySession,
+    autoRestoreSession,
+    autoSaveSession,
+    captureSession,
+    exportSessionToFile,
+    importSessionFromFile,
+    initAutoSave
 }, Symbol.toStringTag, { value: 'Module' }));
 
 async function restoreSessionAfterChartReady(deps) {
@@ -4552,6 +4603,255 @@ function startSessionPersistence() {
   window.__edatime = window.__edatime || {};
   window.__edatime.exportSession = exportSessionToFile;
   window.__edatime.importSession = importSessionFromFile;
+}
+
+async function checkWebGPU() {
+  if (!navigator.gpu) {
+    return "WebGPU is not supported in this browser. Use Chrome 113+, Edge 113+, or Safari 18+.";
+  }
+  try {
+    const timeout = new Promise(
+      (_, reject) => setTimeout(() => reject(new Error("requestAdapter timed out")), 5e3)
+    );
+    const adapter = await Promise.race([requestGpuAdapter(), timeout]);
+    if (!adapter) {
+      return "No WebGPU adapter found. Your GPU may not be supported or hardware acceleration may be disabled.";
+    }
+    installWindowsWebGpuRequestAdapterWorkaround();
+    return null;
+  } catch (e) {
+    const message = e.message ?? "Unknown error";
+    return `WebGPU adapter request failed: ${message}`;
+  }
+}
+
+function buildAdaptiveFilterFromPoints(column, firstPoint, secondPoint) {
+  if (!column || !firstPoint || !secondPoint) return null;
+  if (!appStateComposite.lastFetchedData) return null;
+  const filtered = applyColumnRanges(appStateComposite.lastFetchedData);
+  const columnData = filtered.series?.[column] || filtered.values?.[column];
+  const xs = columnData?.x;
+  const ys = columnData?.y;
+  if (!xs || !ys || xs.length === 0 || xs.length !== ys.length) return null;
+  const x1 = Number(firstPoint.x);
+  const y1 = Number(firstPoint.y);
+  const x2 = Number(secondPoint.x);
+  const y2 = Number(secondPoint.y);
+  if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2) || x1 === x2) return null;
+  const minX = Math.min(x1, x2);
+  const maxX = Math.max(x1, x2);
+  const tempFilter = { x1, y1, x2, y2};
+  let above = 0;
+  let below = 0;
+  for (let idx = 0; idx < xs.length; idx++) {
+    const x = Number(xs[idx]);
+    const y = Number(ys[idx]);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < minX || x > maxX) continue;
+    const lineY = buildAdaptiveLineY(tempFilter, x);
+    if (lineY == null || !Number.isFinite(lineY)) continue;
+    if (y >= lineY) above += 1;
+    else below += 1;
+  }
+  return {
+    id: `adaptive-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    column,
+    x1,
+    y1,
+    x2,
+    y2,
+    keepAbove: above > below
+  };
+}
+function initAdaptiveFilterGesture(deps) {
+  const container = document.getElementById("main-chart");
+  if (!container || container.dataset.adaptiveBound) return () => {
+  };
+  let _activePicker = null;
+  let _firstPoint = null;
+  let _secondPoint = null;
+  let _lastClickX = 0;
+  let _lastClickY = 0;
+  const dismissPicker = () => {
+    _activePicker?.remove();
+    _activePicker = null;
+  };
+  const cancelPending = () => {
+    _firstPoint = null;
+    _secondPoint = null;
+    setPendingAdaptivePoint(null);
+    appStateComposite.chart?.requestOverlayRender?.();
+  };
+  const updateOverlay = () => {
+    if (!_firstPoint) {
+      setPendingAdaptivePoint(null);
+      return;
+    }
+    const col = appStateComposite.adaptiveFilterColumn ?? (appStateComposite.selectedCols?.[0] ?? "");
+    if (_secondPoint) {
+      setPendingAdaptivePoint({ column: col, x: _firstPoint.x, y: _firstPoint.y, x2: _secondPoint.x, y2: _secondPoint.y });
+    } else {
+      setPendingAdaptivePoint({ column: col, x: _firstPoint.x, y: _firstPoint.y });
+    }
+    appStateComposite.chart?.requestOverlayRender?.();
+  };
+  const applyFilterForColumn = (column, p1, p2) => {
+    setAdaptiveFilterColumn(column);
+    const filter = buildAdaptiveFilterFromPoints(column, p1, p2);
+    if (!filter) return;
+    appendAdaptiveLineFilter(filter);
+    deps.buildRangeControls();
+    deps.renderCurrentData();
+    appStateComposite.chart?.requestOverlayRender?.();
+    appStateComposite.chart?.fitYToData?.();
+    const yr = appStateComposite.chart?.getYRange?.();
+    if (yr) deps.updateAnalysisYRange(yr.min, yr.max, "adaptive");
+    deps.buildColumnToggles();
+  };
+  const showTracePicker = (p1, p2) => {
+    const cols = appStateComposite.selectedCols;
+    if (!cols?.length) return;
+    if (cols.length === 1) {
+      applyFilterForColumn(cols[0], p1, p2);
+      return;
+    }
+    dismissPicker();
+    const picker = document.createElement("div");
+    picker.className = "adaptive-trace-picker";
+    picker.style.left = `${_lastClickX}px`;
+    picker.style.top = `${_lastClickY}px`;
+    const label = document.createElement("div");
+    label.className = "adaptive-trace-picker__label";
+    label.textContent = "Filter which trace?";
+    picker.appendChild(label);
+    cols.forEach((col, idx) => {
+      const color = appStateComposite.seriesColors?.[col] ?? SERIES_COLORS[idx % SERIES_COLORS.length];
+      const isCurrentTarget = col === appStateComposite.adaptiveFilterColumn;
+      const btn = document.createElement("button");
+      btn.className = "adaptive-trace-picker__option" + (isCurrentTarget ? " current" : "");
+      btn.type = "button";
+      btn.style.setProperty("--pick-accent", color);
+      btn.textContent = col;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        dismissPicker();
+        applyFilterForColumn(col, p1, p2);
+      });
+      picker.appendChild(btn);
+    });
+    document.body.appendChild(picker);
+    _activePicker = picker;
+    const onOutside = (e) => {
+      if (!picker.contains(e.target)) {
+        dismissPicker();
+        document.removeEventListener("click", onOutside, true);
+      }
+    };
+    document.addEventListener("click", onOutside, true);
+  };
+  const clickHandler = (event) => {
+    if (!event.ctrlKey || event.button !== 0) return;
+    const cols = appStateComposite.selectedCols;
+    if (!cols?.length) return;
+    const point = appStateComposite.chart?.cssPointToData?.(event.clientX, event.clientY) ?? null;
+    if (!point) return;
+    event.preventDefault();
+    event.stopPropagation();
+    _lastClickX = event.clientX;
+    _lastClickY = event.clientY;
+    if (!_firstPoint) {
+      _firstPoint = point;
+      _secondPoint = null;
+    } else {
+      _secondPoint = point;
+    }
+    updateOverlay();
+  };
+  const onEscape = (e) => {
+    if (e.key === "Escape") {
+      dismissPicker();
+      cancelPending();
+    }
+  };
+  const onCtrlUp = (e) => {
+    if (e.key !== "Control") return;
+    if (_firstPoint && _secondPoint) {
+      const p1 = _firstPoint, p2 = _secondPoint;
+      cancelPending();
+      showTracePicker(p1, p2);
+    } else {
+      cancelPending();
+    }
+  };
+  const onAdaptiveChange = () => {
+    if (!appStateComposite.lastFetchedData) return;
+    deps.buildRangeControls();
+    deps.renderCurrentData();
+    appStateComposite.chart?.requestOverlayRender?.();
+    appStateComposite.chart?.fitYToData?.();
+    const yr = appStateComposite.chart?.getYRange?.();
+    if (yr) deps.updateAnalysisYRange(yr.min, yr.max, "adaptive");
+  };
+  container.addEventListener("click", clickHandler, true);
+  window.addEventListener("keydown", onEscape);
+  window.addEventListener("keyup", onCtrlUp);
+  window.addEventListener("edatime:adaptive-filters-change", onAdaptiveChange);
+  container.dataset.adaptiveBound = "1";
+  return () => {
+    container.removeEventListener("click", clickHandler, true);
+    window.removeEventListener("keydown", onEscape);
+    window.removeEventListener("keyup", onCtrlUp);
+    window.removeEventListener("edatime:adaptive-filters-change", onAdaptiveChange);
+  };
+}
+
+async function loadEntrypoints(deps) {
+  const [
+    { createFftEntrypoint },
+    { createHeatmapEntrypoint },
+    { createScatterEntrypoint },
+    { createSpectrogramEntrypoint },
+    { createCausalEntrypoint },
+    { createDriftEntrypoint }
+  ] = await Promise.all([
+    __vitePreload(() => import('./assets/entrypoint-2vpmLGf5.js'),true              ?__vite__mapDeps([3,2,0,1]):void 0),
+    __vitePreload(() => import('./assets/entrypoint-CDumNbFx.js'),true              ?__vite__mapDeps([4,2,0,1]):void 0),
+    __vitePreload(() => import('./assets/scatter-BfitVHBo.js').then(n => n.av),true              ?__vite__mapDeps([0,1]):void 0),
+    __vitePreload(() => import('./assets/entrypoint-QhIze1Oh.js'),true              ?__vite__mapDeps([5,2,0,1]):void 0),
+    __vitePreload(() => import('./assets/causal-iIlmKuxO.js'),true              ?__vite__mapDeps([6,0,1,2]):void 0),
+    __vitePreload(() => import('./assets/drift-4m4314Io.js').then(n => n.e),true              ?__vite__mapDeps([7,0,1,2]):void 0)
+  ]);
+  register("fft", {
+    requiresMetadata: true,
+    init: createFftEntrypoint({ getRenderTimeseries: deps.getRenderTimeseries }).init
+  });
+  register("heatmap", {
+    requiresMetadata: true,
+    init: createHeatmapEntrypoint({ showPage: deps.showPage }).init
+  });
+  register("scatter", {
+    requiresMetadata: true,
+    init: createScatterEntrypoint({
+      initScatterPage: deps.initScatterPage,
+      getMetadata: () => deps.getMetadata()
+    }).init
+  });
+  register("spectrogram", {
+    requiresMetadata: true,
+    init: createSpectrogramEntrypoint({ setLoading: deps.setLoading }).init
+  });
+  register("causal", {
+    requiresMetadata: true,
+    init: createCausalEntrypoint({
+      getMetadata: deps.getMetadata,
+      chipColor: deps.chipColor,
+      numericColumns: deps.numericColumns,
+      setLoading: deps.setLoading
+    }).init
+  });
+  register("drift", {
+    requiresMetadata: true,
+    init: createDriftEntrypoint({ initDriftPage: deps.initDriftPage, getMetadata: () => deps.getMetadata() }).init
+  });
 }
 
 function initDatasetSearchInputs(deps) {
@@ -4753,101 +5053,8 @@ class FallbackChart {
   }
 }
 
-function createFftEntrypoint(deps) {
-  return {
-    init: () => initFftPage({ renderTimeseries: deps.getRenderTimeseries() })
-  };
-}
-
-function createHeatmapEntrypoint(deps) {
-  return {
-    init: () => initHeatmapPage(deps)
-  };
-}
-
-function createSpectrogramEntrypoint(deps) {
-  return {
-    init: () => initSpectrogramPage(deps)
-  };
-}
-
 const _appCleanups = [];
 const runtime = createAppRuntime();
-register("fft", { requiresMetadata: true, init: createFftEntrypoint({ getRenderTimeseries: () => renderCurrentData }).init });
-register("heatmap", { requiresMetadata: true, init: createHeatmapEntrypoint({ showPage }).init });
-register("scatter", { requiresMetadata: true, init: createScatterEntrypoint({ initScatterPage, getMetadata: () => appStateComposite.metadata }).init });
-register("spectrogram", { requiresMetadata: true, init: createSpectrogramEntrypoint({ setLoading: setComputeLoading }).init });
-register("causal", { requiresMetadata: true, init: createCausalEntrypoint({ getMetadata: () => appStateComposite.metadata, chipColor: (col, idx) => getAnalyticsChipColor(col, idx), numericColumns: () => getNumericColumns(appStateComposite.metadata), setLoading: setComputeLoading }).init });
-register("drift", { requiresMetadata: true, init: createDriftEntrypoint({ initDriftPage, getMetadata: () => appStateComposite.metadata }).init });
-function storeFetchedMetadata(metadata) {
-  setMetadata(metadata);
-  const revision = metadata?.revision;
-  setDatasetRevision(typeof revision === "number" ? revision : 0);
-}
-function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
-  const btn = document.getElementById(btnId);
-  const overlay = document.getElementById(overlayId);
-  if (btn) {
-    btn.disabled = loading;
-    btn.textContent = loading ? "Computing…" : label;
-  }
-  if (overlay) overlay.hidden = !loading;
-}
-async function fetchAndRenderAnalytics() {
-  const { fetchAnomalies: fetchAnomalies2 } = await __vitePreload(async () => { const { fetchAnomalies: fetchAnomalies2 } = await import('./assets/scatter-UdQnbmcA.js').then(n => n.aB);return { fetchAnomalies: fetchAnomalies2 }},true              ?__vite__mapDeps([0,1]):void 0);
-  await fetchAnomalyRegions(fetchAnomalies2);
-}
-let fetchMetadata = null;
-let fetchData = null;
-let DataChartCtor = null;
-async function ensureChartModules() {
-  if (fetchMetadata && fetchData && DataChartCtor) return;
-  const [dataClient, chartModule] = await Promise.all([
-    __vitePreload(() => import('./assets/scatter-UdQnbmcA.js').then(n => n.aB),true              ?__vite__mapDeps([0,1]):void 0),
-    __vitePreload(() => import('./assets/DataChart-DIUuEchO.js'),true              ?__vite__mapDeps([3,1,0,2,4,5]):void 0)
-  ]);
-  fetchMetadata = dataClient.fetchMetadata;
-  fetchData = dataClient.fetchData;
-  dataClient.fetchAnomalies;
-  dataClient.postTransform;
-  DataChartCtor = chartModule.DataChart;
-  registerChartType("line", {
-    label: "Line",
-    create: (containerId, callbacks) => {
-      const ctor = DataChartCtor;
-      if (!ctor) throw new Error("DataChart module not loaded");
-      return new ctor(
-        containerId,
-        callbacks.onZoom ?? null,
-        callbacks.onYRange ?? null,
-        callbacks.onZoomOut ?? null
-      );
-    }
-  });
-  registerChartType("fallback", {
-    label: "Fallback (Canvas 2D)",
-    create: (containerId) => new FallbackChart(containerId)
-  });
-}
-async function checkWebGPU() {
-  if (!navigator.gpu) {
-    return "WebGPU is not supported in this browser. Use Chrome 113+, Edge 113+, or Safari 18+.";
-  }
-  try {
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("requestAdapter timed out")), 5e3));
-    const adapter = await Promise.race([
-      requestGpuAdapter(),
-      timeout
-    ]);
-    if (!adapter) {
-      return "No WebGPU adapter found. Your GPU may not be supported or hardware acceleration may be disabled.";
-    }
-  } catch (e) {
-    const message = e.message ?? "Unknown error";
-    return `WebGPU adapter request failed: ${message}`;
-  }
-  return null;
-}
 const timeseriesPage = createTimeseriesPageController({
   fetchData: (start, end, width, columns, colorColumn, signal) => fetchData(start, end, width, columns, colorColumn, signal),
   buildRangeControls,
@@ -4856,6 +5063,7 @@ const timeseriesPage = createTimeseriesPageController({
   getCurrentView,
   fetchAndRenderAnalytics: () => fetchAndRenderAnalytics()
 });
+const renderTimeseries = () => timeseriesPage.renderCurrentData();
 let _timeseriesReady = false;
 let _timeseriesReadyPromise = null;
 let _sessionPersistenceStarted = false;
@@ -4903,7 +5111,12 @@ async function ensureTimeseriesReady() {
       ]);
       setAnalysisBound(false);
       bindAnalysisChartEvents();
-      initAdaptiveFilterGesture();
+      initAdaptiveFilterGesture({
+        buildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
+        buildRangeControls,
+        renderCurrentData,
+        updateAnalysisYRange
+      });
       refreshZoomControlsState();
       setAnnotationOverlayCallback(() => appStateComposite.chart?.requestOverlayRender?.());
       setAnomalyOverlayCallback(() => appStateComposite.chart?.requestOverlayRender?.());
@@ -4952,202 +5165,156 @@ async function ensureTimeseriesReady() {
     _timeseriesReadyPromise = null;
   }
 }
-function emitAdaptiveFiltersChange() {
-  window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change", {
-    detail: { count: (appStateComposite.adaptiveLineFilters || []).length }
-  }));
+function isTypingTarget(target) {
+  if (!target) return false;
+  if (target.isContentEditable) return true;
+  const tag = String(target.tagName || "").toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select";
 }
-function buildAdaptiveFilterFromPoints(column, firstPoint, secondPoint) {
-  if (!column || !firstPoint || !secondPoint) return null;
-  if (!appStateComposite.lastFetchedData) return null;
-  const filtered = applyColumnRanges(appStateComposite.lastFetchedData);
-  const columnData = filtered.series?.[column] || filtered.values?.[column];
-  const xs = columnData?.x;
-  const ys = columnData?.y;
-  if (!xs || !ys || xs.length === 0 || xs.length !== ys.length) return null;
-  const x1 = Number(firstPoint.x);
-  const y1 = Number(firstPoint.y);
-  const x2 = Number(secondPoint.x);
-  const y2 = Number(secondPoint.y);
-  if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2) || x1 === x2) return null;
-  const minX = Math.min(x1, x2);
-  const maxX = Math.max(x1, x2);
-  const tempFilter = { x1, y1, x2, y2};
-  let above = 0;
-  let below = 0;
-  for (let idx = 0; idx < xs.length; idx++) {
-    const x = Number(xs[idx]);
-    const y = Number(ys[idx]);
-    if (!Number.isFinite(x) || !Number.isFinite(y) || x < minX || x > maxX) continue;
-    const lineY = buildAdaptiveLineY(tempFilter, x);
-    if (lineY == null || !Number.isFinite(lineY)) continue;
-    if (y >= lineY) above += 1;
-    else below += 1;
-  }
-  return {
-    id: `adaptive-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    column,
-    x1,
-    y1,
-    x2,
-    y2,
-    keepAbove: above > below
-  };
-}
-function applyAdaptiveFiltersLocally(sourceKind = "adaptive") {
-  buildRangeControls();
-  renderCurrentData();
-  appStateComposite.chart?.requestOverlayRender?.();
-  appStateComposite.chart?.fitYToData?.();
-  const yr = appStateComposite.chart?.getYRange?.();
-  if (yr) updateAnalysisYRange(yr.min, yr.max, sourceKind);
-  emitAdaptiveFiltersChange();
-}
-function initAdaptiveFilterGesture() {
-  const container = document.getElementById("main-chart");
-  if (!container || container.dataset.adaptiveBound) return;
-  let _activePicker = null;
-  let _firstPoint = null;
-  let _secondPoint = null;
-  let _lastClickX = 0;
-  let _lastClickY = 0;
-  const dismissPicker = () => {
-    _activePicker?.remove();
-    _activePicker = null;
-  };
-  const cancelPending = () => {
-    _firstPoint = null;
-    _secondPoint = null;
-    setPendingAdaptivePoint(null);
-    appStateComposite.chart?.requestOverlayRender?.();
-  };
-  const updateOverlay = () => {
-    if (!_firstPoint) {
-      setPendingAdaptivePoint(null);
-      return;
-    }
-    const col = appStateComposite.adaptiveFilterColumn ?? (appStateComposite.selectedCols?.[0] ?? "");
-    if (_secondPoint) {
-      setPendingAdaptivePoint({
-        column: col,
-        x: _firstPoint.x,
-        y: _firstPoint.y,
-        x2: _secondPoint.x,
-        y2: _secondPoint.y
-      });
-    } else {
-      setPendingAdaptivePoint({ column: col, x: _firstPoint.x, y: _firstPoint.y });
-    }
-    appStateComposite.chart?.requestOverlayRender?.();
-  };
-  const applyFilterForColumn = (column, p1, p2) => {
-    setAdaptiveFilterColumn(column);
-    const filter = buildAdaptiveFilterFromPoints(column, p1, p2);
-    if (!filter) return;
-    appendAdaptiveLineFilter(filter);
-    applyAdaptiveFiltersLocally();
-    buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
-  };
-  const showTracePicker = (p1, p2) => {
-    const cols = appStateComposite.selectedCols;
-    if (!cols?.length) return;
-    if (cols.length === 1) {
-      applyFilterForColumn(cols[0], p1, p2);
-      return;
-    }
-    dismissPicker();
-    const picker = document.createElement("div");
-    picker.className = "adaptive-trace-picker";
-    picker.style.left = `${_lastClickX}px`;
-    picker.style.top = `${_lastClickY}px`;
-    const label = document.createElement("div");
-    label.className = "adaptive-trace-picker__label";
-    label.textContent = "Filter which trace?";
-    picker.appendChild(label);
-    cols.forEach((col, idx) => {
-      const color = appStateComposite.seriesColors?.[col] ?? SERIES_COLORS[idx % SERIES_COLORS.length];
-      const isCurrentTarget = col === appStateComposite.adaptiveFilterColumn;
-      const btn = document.createElement("button");
-      btn.className = "adaptive-trace-picker__option" + (isCurrentTarget ? " current" : "");
-      btn.type = "button";
-      btn.style.setProperty("--pick-accent", color);
-      btn.textContent = col;
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        dismissPicker();
-        applyFilterForColumn(col, p1, p2);
-      });
-      picker.appendChild(btn);
-    });
-    document.body.appendChild(picker);
-    _activePicker = picker;
-    const onOutside = (e) => {
-      if (!picker.contains(e.target)) {
-        dismissPicker();
-        document.removeEventListener("click", onOutside, true);
-      }
-    };
-    document.addEventListener("click", onOutside, true);
-  };
-  container.addEventListener("click", (event) => {
-    if (!event.ctrlKey || event.button !== 0) return;
-    const cols = appStateComposite.selectedCols;
-    if (!cols?.length) return;
-    const point = appStateComposite.chart?.cssPointToData?.(event.clientX, event.clientY) ?? null;
-    if (!point) return;
-    event.preventDefault();
-    event.stopPropagation();
-    _lastClickX = event.clientX;
-    _lastClickY = event.clientY;
-    if (!_firstPoint) {
-      _firstPoint = point;
-      _secondPoint = null;
-    } else {
-      _secondPoint = point;
-    }
-    updateOverlay();
-  }, true);
-  const onEscape = (e) => {
-    if (e.key === "Escape") {
-      dismissPicker();
-      cancelPending();
-    }
-  };
-  const onCtrlUp = (e) => {
-    if (e.key !== "Control") return;
-    if (_firstPoint && _secondPoint) {
-      const p1 = _firstPoint;
-      const p2 = _secondPoint;
-      cancelPending();
-      showTracePicker(p1, p2);
-    } else {
-      cancelPending();
-    }
-  };
-  const onAdaptiveChange = () => {
-    if (!appStateComposite.lastFetchedData) return;
-    buildRangeControls();
-    renderCurrentData();
-    appStateComposite.chart?.requestOverlayRender?.();
-    appStateComposite.chart?.fitYToData?.();
-    const yr = appStateComposite.chart?.getYRange?.();
-    if (yr) updateAnalysisYRange(yr.min, yr.max, "adaptive");
-  };
-  window.addEventListener("keydown", onEscape);
-  window.addEventListener("keyup", onCtrlUp);
-  window.addEventListener("edatime:adaptive-filters-change", onAdaptiveChange);
-  _appCleanups.push(
-    () => window.removeEventListener("keydown", onEscape),
-    () => window.removeEventListener("keyup", onCtrlUp),
-    () => window.removeEventListener("edatime:adaptive-filters-change", onAdaptiveChange)
-  );
-  container.dataset.adaptiveBound = "1";
+function currentPageName() {
+  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
 }
 function showPage(pageName) {
   document.querySelector(`.sidebar .nav-item[data-page="${pageName}"]`)?.click?.();
 }
+function initKeyboardShortcuts() {
+  const win = window;
+  if (win.__edatime?.keyboardShortcutsBound) return;
+  if (!win.__edatime) win.__edatime = {};
+  const onKeydown = (event) => {
+    if (event.defaultPrevented || isTypingTarget(event.target)) return;
+    const key = String(event.key || "").toLowerCase();
+    if (event.altKey && !event.ctrlKey && !event.metaKey) {
+      if (key === "1") {
+        event.preventDefault();
+        showPage("upload");
+        return;
+      }
+      if (key === "2") {
+        event.preventDefault();
+        showPage("timeseries");
+        return;
+      }
+      if (key === "3") {
+        event.preventDefault();
+        showPage("scatter");
+        return;
+      }
+      if (key === "4") {
+        event.preventDefault();
+        showPage("scattermatrix");
+        return;
+      }
+      if (key === "6") {
+        event.preventDefault();
+        showPage("fft");
+        return;
+      }
+      if (key === "7") {
+        event.preventDefault();
+        showPage("heatmap");
+        return;
+      }
+      if (key === "8") {
+        event.preventDefault();
+        showPage("spectrogram");
+        return;
+      }
+      if (key === "9") {
+        event.preventDefault();
+        showPage("causal");
+        return;
+      }
+      if (key === "0") {
+        event.preventDefault();
+        showPage("drift");
+        return;
+      }
+    }
+    if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (key === "r" && currentPageName() === "timeseries") {
+      event.preventDefault();
+      resetZoom(fetchAndRender);
+      return;
+    }
+    if (key === "z" && currentPageName() === "timeseries") {
+      event.preventDefault();
+      zoomOut(fetchAndRender);
+      return;
+    }
+    if (key === "c" && currentPageName() === "timeseries") {
+      event.preventDefault();
+      document.getElementById("adaptive-clear-btn")?.click?.();
+      return;
+    }
+    if (key === "p") {
+      event.preventDefault();
+      appStateComposite.chart?.exportPNG?.();
+      return;
+    }
+    if (key === "e") {
+      event.preventDefault();
+      if (currentPageName() === "scatter") document.getElementById("scatter-export-csv-btn")?.click?.();
+      else window.__edatime?.exportChartFilteredData?.("csv");
+    }
+  };
+  window.addEventListener("keydown", onKeydown);
+  _appCleanups.push(() => window.removeEventListener("keydown", onKeydown));
+  window.__edatime.keyboardShortcutsBound = true;
+}
+function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
+  const btn = document.getElementById(btnId);
+  const overlay = document.getElementById(overlayId);
+  if (btn) {
+    btn.disabled = loading;
+    btn.textContent = loading ? "Computing…" : label;
+  }
+  if (overlay) overlay.hidden = !loading;
+}
+let fetchMetadata = null;
+let fetchData = null;
+let fetchAnomalies = null;
+let DataChartCtor = null;
+async function ensureChartModules() {
+  if (fetchMetadata && fetchData && DataChartCtor) return;
+  const [dataClient, chartModule] = await Promise.all([
+    __vitePreload(() => import('./assets/scatter-BfitVHBo.js').then(n => n.au),true              ?__vite__mapDeps([0,1]):void 0),
+    __vitePreload(() => import('./assets/DataChart-CyWw3AM_.js'),true              ?__vite__mapDeps([8,1,0,2]):void 0)
+  ]);
+  fetchMetadata = dataClient.fetchMetadata;
+  fetchData = dataClient.fetchData;
+  fetchAnomalies = dataClient.fetchAnomalies;
+  dataClient.postTransform;
+  DataChartCtor = chartModule.DataChart;
+  registerChartType("line", {
+    label: "Line",
+    create: (containerId, callbacks) => {
+      const ctor = DataChartCtor;
+      if (!ctor) throw new Error("DataChart module not loaded");
+      return new ctor(
+        containerId,
+        callbacks.onZoom ?? null,
+        callbacks.onYRange ?? null,
+        callbacks.onZoomOut ?? null
+      );
+    }
+  });
+  registerChartType("fallback", {
+    label: "Fallback (Canvas 2D)",
+    create: (containerId) => new FallbackChart(containerId)
+  });
+}
+async function fetchAndRenderAnalytics() {
+  const { fetchAnomalies: fa } = await __vitePreload(async () => { const { fetchAnomalies: fa } = await import('./assets/scatter-BfitVHBo.js').then(n => n.au);return { fetchAnomalies: fa }},true              ?__vite__mapDeps([0,1]):void 0);
+  await fetchAnomalyRegions(fa ?? fetchAnomalies);
+}
 let _datasetReadyPromise = null;
 let _datasetUiReady = false;
+function storeFetchedMetadata(metadata) {
+  setMetadata(metadata);
+  const revision = metadata?.revision;
+  setDatasetRevision(typeof revision === "number" ? revision : 0);
+}
 function initializeDatasetUi(metadata) {
   if (!_datasetUiReady) {
     initDatasetSearchInputs({
@@ -5180,7 +5347,7 @@ function initializeDatasetUi(metadata) {
   setUploadPreviewStatus("Showing current dataset profile. Drop/select a file to preview before loading.");
   setProfileMode("dataset");
   buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
-  buildMetaBar$1(metadata);
+  buildMetaBar(metadata);
   buildRangeControls();
   window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
   const timeRange = metadata.time_range;
@@ -5231,12 +5398,12 @@ async function refreshDatasetAfterMutation(options) {
   }
   sanitizeSelectedColumns$1();
   buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
-  buildMetaBar$1(appStateComposite.metadata);
+  buildMetaBar(appStateComposite.metadata);
   await fetchAndRender();
 }
 async function init() {
   installWindowsWebGpuRequestAdapterWorkaround();
-  buildMetaBar$1(null);
+  buildMetaBar(null);
   initAppShell({
     ensurePageModuleLoaded,
     showPage,
@@ -5267,8 +5434,21 @@ async function init() {
     renderColumnProfilesGrid,
     registerCleanup: runtime.registerCleanup
   });
+  await loadEntrypoints({
+    getRenderTimeseries: renderTimeseries,
+    showPage,
+    initScatterPage,
+    getMetadata: () => appStateComposite.metadata ?? null,
+    chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
+    numericColumns: () => getNumericColumns(appStateComposite.metadata),
+    setLoading: setComputeLoading,
+    initDriftPage: (metadata) => {
+      void __vitePreload(() => import('./assets/drift-4m4314Io.js').then(n => n.d),true              ?__vite__mapDeps([7,0,1,2]):void 0).then((m) => m.initDriftPage(metadata));
+    }
+  });
   window.__edatime = window.__edatime || {};
   window.__edatime.ensureDatasetReady = ensureDatasetReady;
+  initKeyboardShortcuts();
   try {
     const initialPage = getHashPage();
     if (pageNeedsDatasetBootstrap(initialPage)) {

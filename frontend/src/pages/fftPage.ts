@@ -3,6 +3,7 @@ import { fetchFft, fetchSpectralFilter } from '../services/api/index.js';
 import { FftChart, type FftTrace } from '../chart/FftChart.js';
 import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanvasHTML, exportTraceCSV } from '../utils/chartExport.js';
 import { toast } from '../utils/toast.js';
+import { bindExportButtons } from '../utils/bindExportButtons.js';
 import { getAnalyticsChipColor, getNumericColumns } from './analyticsPageUtils.js';
 import { setSpectralFilterPreview } from '../store/index.js';
 import { SeriesChip } from '../ui/composites/SeriesChip.js';
@@ -167,6 +168,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
     fftRuntime = createAnalysisPageRuntime({
         page: 'fft',
         emptyStateRootId: 'fft-empty-state',
+        bindExportsOnInit: false,
         exportConfig: {
             key: 'fft',
             png: { fn: exportContainerCanvasPNG, filename: 'edatime_fft.png' },
@@ -266,6 +268,26 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
             });
 
             rerenderOrClear();
+
+            // Deferred export binding so csv dataCheck captures the current fftTraces
+            // reference rather than a stale closure from mount time.
+            bindExportButtons('fft', {
+                png: { fn: exportContainerCanvasPNG, filename: 'edatime_fft.png' },
+                svg: { fn: exportContainerCanvasSVG, filename: 'edatime_fft.svg' },
+                html: { fn: exportContainerCanvasHTML, filename: 'edatime_fft.html' },
+                csv: {
+                    fn: (filename) => {
+                        const csvTraces = fftTraces.map((trace) => ({
+                            column: trace.column,
+                            xs: trace.frequencies,
+                            ys: fftMode === 'psd' ? trace.psd : trace.magnitudes,
+                        }));
+                        exportTraceCSV(csvTraces, 'frequency_hz', filename);
+                    },
+                    filename: `edatime_fft_${fftMode}.csv`,
+                    dataCheck: () => fftTraces.length > 0,
+                },
+            });
         },
         onEveryPageChange() {
             // Re-render chips on every page change (fft needs to reflect selected columns from any page)

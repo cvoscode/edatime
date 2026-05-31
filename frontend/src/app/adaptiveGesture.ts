@@ -76,7 +76,7 @@ export function initAdaptiveFilterGesture(
     },
 ): () => void {
     const container = document.getElementById('main-chart') as (HTMLElement & { dataset: DOMStringMap }) | null;
-    if (!container || container.dataset.adaptiveBound) return () => {};
+    if (!container || container.dataset.adaptiveBound) return () => { };
 
     let _activePicker: HTMLElement | null = null;
     let _firstPoint: { x: number; y: number } | null = null;

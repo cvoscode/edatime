@@ -177,6 +177,189 @@ describe('dataClient fetch helpers', () => {
             const calledUrl = mockFetch.mock.calls[0][0];
             expect(calledUrl).toContain('color_column=temperature');
         });
+
+        it('populates data.color_column and data.color when a color column is present in the Arrow table', async () => {
+            const { fetchData } = await import('./dataClient');
+
+            arrowMockState.fields = [
+                { name: 'event_time', type: 'Int64' },
+                { name: 'value', type: 'Float64' },
+                { name: 'temperature', type: 'Float64' },
+            ];
+            arrowMockState.rows = {
+                event_time: [1704067200000, 1704153600000],
+                value: [1.0, 2.0],
+                temperature: [20.5, 21.0],
+            };
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([
+                    ['x-edatime-downsampled', '0'],
+                    ['x-edatime-returned-rows', '2'],
+                    ['x-edatime-target-points', '500'],
+                    ['x-edatime-time-column', 'event_time'],
+                ]),
+                arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+            });
+
+            const result = await fetchData('1704067200000', '1704153600000', 500, 'value', 'temperature');
+
+            expect(result.color_column).toBe('temperature');
+            expect(result.color).toEqual([20.5, 21.0]);
+        });
+
+        it('sets downsampleKnown to false when x-edatime-downsampled header is absent', async () => {
+            const { fetchData } = await import('./dataClient');
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([
+                    // no x-edatime-downsampled header
+                    ['x-edatime-returned-rows', '2'],
+                    ['x-edatime-target-points', '500'],
+                ]),
+                arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+            });
+
+            const result = await fetchData('0', '1000', 500, 'value');
+
+            expect(result._meta.downsampleKnown).toBe(false);
+        });
+
+        it('reads x-edatime-returned-rows and x-edatime-target-points into _meta', async () => {
+            const { fetchData } = await import('./dataClient');
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([
+                    ['x-edatime-downsampled', '1'],
+                    ['x-edatime-returned-rows', '512'],
+                    ['x-edatime-target-points', '1024'],
+                ]),
+                arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+            });
+
+            const result = await fetchData('0', '1000', 500, 'value');
+
+            expect(result._meta.downsampleKnown).toBe(true);
+            expect(result._meta.downsampled).toBe(true);
+            expect(result._meta.returnedRows).toBe(512);
+            expect(result._meta.targetPoints).toBe(1024);
+        });
+
+        it('interprets timestamps below 1e11 as seconds (epoch seconds → ms)', async () => {
+            const { fetchData } = await import('./dataClient');
+
+            arrowMockState.fields = [
+                { name: 'ts', type: 'Int64' },
+                { name: 'value', type: 'Float64' },
+            ];
+            // 1704067200 = 2024-01-01 00:00:00 UTC — epoch seconds
+            arrowMockState.rows = {
+                ts: [1704067200, 1704153600],
+                value: [1.0, 2.0],
+            };
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([
+                    ['x-edatime-downsampled', '0'],
+                    ['x-edatime-returned-rows', '2'],
+                ]),
+                arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+            });
+
+            const result = await fetchData('0', '2000000000', 500, 'value');
+
+            // 1704067200 × 1000 = 1704067200000 ms
+            expect(result.ts[0]).toBe(1704067200000);
+            expect(result.ts[1]).toBe(1704153600000);
+        });
+
+        it('interprets timestamps between 1e11 and 1e14 as milliseconds (passthrough)', async () => {
+            const { fetchData } = await import('./dataClient');
+
+            arrowMockState.fields = [
+                { name: 'ts', type: 'Int64' },
+                { name: 'value', type: 'Float64' },
+            ];
+            // 1704067200000 — already in ms
+            arrowMockState.rows = {
+                ts: [1704067200000, 1704153600000],
+                value: [1.0, 2.0],
+            };
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([
+                    ['x-edatime-downsampled', '0'],
+                    ['x-edatime-returned-rows', '2'],
+                ]),
+                arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+            });
+
+            const result = await fetchData('0', '2000000000000', 500, 'value');
+
+            expect(result.ts[0]).toBe(1704067200000);
+            expect(result.ts[1]).toBe(1704153600000);
+        });
+
+        it('interprets timestamps between 1e14 and 1e17 as microseconds (÷ 1000)', async () => {
+            const { fetchData } = await import('./dataClient');
+
+            arrowMockState.fields = [
+                { name: 'ts', type: 'Int64' },
+                { name: 'value', type: 'Float64' },
+            ];
+            // 1704067200000000 µs → 1704067200000 ms
+            arrowMockState.rows = {
+                ts: [1704067200000000, 1704153600000000],
+                value: [1.0, 2.0],
+            };
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([
+                    ['x-edatime-downsampled', '0'],
+                    ['x-edatime-returned-rows', '2'],
+                ]),
+                arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+            });
+
+            const result = await fetchData('0', '2000000000000000', 500, 'value');
+
+            expect(result.ts[0]).toBe(1704067200000);
+            expect(result.ts[1]).toBe(1704153600000);
+        });
+
+        it('interprets timestamps ≥ 1e17 as nanoseconds (÷ 1e6)', async () => {
+            const { fetchData } = await import('./dataClient');
+
+            arrowMockState.fields = [
+                { name: 'ts', type: 'Int64' },
+                { name: 'value', type: 'Float64' },
+            ];
+            // 1704067200000000000 ns → 1704067200000 ms
+            arrowMockState.rows = {
+                ts: [1704067200000000000, 1704153600000000000],
+                value: [1.0, 2.0],
+            };
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([
+                    ['x-edatime-downsampled', '0'],
+                    ['x-edatime-returned-rows', '2'],
+                ]),
+                arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+            });
+
+            const result = await fetchData('0', '2000000000000000000', 500, 'value');
+
+            expect(result.ts[0]).toBe(1704067200000);
+            expect(result.ts[1]).toBe(1704153600000);
+        });
     });
 
     describe('fetchScatterCorrelations', () => {

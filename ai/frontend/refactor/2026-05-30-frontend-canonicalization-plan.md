@@ -1,394 +1,659 @@
-# Frontend Canonicalization And Deduplication Refactor Plan
+# Frontend Canonicalization And Deduplication Refactor Implementation Plan
 
-> This plan is based on the live code in `frontend/src/` as of 2026-05-30. It intentionally uses the `ai/frontend/refactor/` folder instead of `docs/superpowers/plans/` per user request. Some earlier refactor notes are forward-looking; this document reflects the current tree, not the intended end state.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Converge the frontend onto one shared UI surface, one API contract layer, and one owner for repeated analysis-page and chip-list orchestration without changing routes, DOM ids, export filenames, or backend payload semantics.
+**Goal:** Consolidate duplicated frontend logic behind existing shared boundaries, split oversized orchestration modules into focused owners, and preserve the current backend/frontend contract, routes, DOM ids, export filenames, and page behavior.
 
-**Architecture:** Keep page and feature behavior local, but move repeated shell and rendering glue into small shared modules that already exist (`pages/shared/analysisPageRuntime.ts`, `ui/seriesChipList.ts`, `services/api/*`, `store/*`). Preserve the backend contract by treating `services/api/*` and `types.ts` as the only frontend/backend boundary, then refactor internals behind that boundary in small waves.
+**Architecture:** Use a shared-boundary-first approach. Stabilize `frontend/src/services/api/*`, `frontend/src/pages/shared/analysisPageRuntime.ts`, `frontend/src/ui/seriesChipList.ts`, and `frontend/src/store/*` first, then drain orchestration out of `frontend/src/app.ts`, `frontend/src/features/timeseries/columnsController.ts`, and `frontend/src/causal/causalPage.ts` into small modules that match the existing repo structure.
 
-**Tech Stack:** Vanilla TypeScript, Vite, Vitest, custom store, ECharts, ChartGPU, Axum backend, Arrow IPC + JSON API mix.
+**Tech Stack:** TypeScript, Vite, Vitest, Happy DOM, vanilla DOM rendering, ECharts, ChartGPU, Axum backend, Arrow IPC for timeseries transport.
 
 ---
 
-## Current Assessment
+## Scope And Invariants
 
-### Concrete hotspots
+This plan covers both:
 
-- `frontend/src/services/api/index.ts` is 684 lines and contains the live implementation for all route families, while sibling files such as `analytics.ts`, `metadata.ts`, `timeseries.ts`, `scatter.ts`, `upload.ts`, and `export.ts` are thin re-export facades. This creates two API organization schemes at once.
-- `frontend/src/app.ts` is 751 lines and still acts as both app bootstrap and cross-feature orchestration hub.
-- `frontend/src/features/timeseries/columnsController.ts` is 681 lines and mixes meta-bar rendering, chip orchestration, adaptive-filter interaction wiring, color-by wiring, and range-control concerns.
-- `frontend/src/causal/causalPage.ts` is 1670 lines and contains column-chip UI, graph rendering, edit-panel flows, progress/status handling, and layout logic in one file.
-- `frontend/src/scatter/rendering.ts` is 571 lines and combines series building, tooltip factories, colorbar rendering, and plot view management.
-- `frontend/src/pages/spectrogramPage.ts`, `frontend/src/pages/heatmapPage.ts`, and `frontend/src/pages/fftPage.ts` already share `createAnalysisPageRuntime(...)`, but they still duplicate shell-level glue around empty-state updates, export wiring assumptions, and local DOM lifecycle work.
-- `frontend/src/pages/fftPage.ts`, `frontend/src/features/timeseries/columnsController.ts`, and `frontend/src/causal/causalPage.ts` all render chip lists, but each layer still carries local repair logic or full rerender patterns around the shared chip helper.
-- Deprecated compatibility surfaces still exist in the live tree:
-  - `frontend/src/state.ts`
-  - `frontend/src/ui/columns.ts`
-  - `frontend/src/bootstrap/appShell.ts`
-  - `frontend/src/bootstrap/pageLoaders.ts`
-  - `frontend/src/bootstrap/timeseriesBootstrap.ts`
-  - `frontend/src/legacy/*`
+1. shared UI and page-shell deduplication
+2. broader app-shell, timeseries, and causal decomposition
 
-### What is already in good shape
+This plan does **not** authorize:
 
-- `frontend/src/store/*` is the correct long-term state ownership surface.
-- `frontend/src/pages/shared/analysisPageRuntime.ts` is the right place to centralize analysis-page shell behavior.
-- `frontend/src/ui/seriesChipList.ts` already exists and is the correct place to own shared chip-list rendering mechanics.
-- `frontend/src/services/api/index.ts` is currently the real frontend/backend contract owner, which means contract-preserving refactors can stay inside the API layer.
-- `tsconfig.json` already excludes `frontend/src/legacy/**`.
-- `scripts/check-frontend-architecture.mjs` already enforces important architectural rules and should remain the guardrail.
+- changing backend routes or DTO semantics
+- changing visible page ids or section ids
+- changing export button ids or export filenames
+- rewriting the store architecture
+- changing the current SPA navigation model
+- merging feature pages into one generic framework
 
-## Frontend/Backend Contract Analysis
+## Backend/Frontend Contract Fence
 
-This refactor must preserve the current contract exactly. That means the following boundary stays stable while internal frontend ownership changes.
+Treat the following as fixed contract surfaces throughout the refactor:
 
-### Contract rules to preserve
+### API ownership rules
 
-- Backend routes remain mounted under both `/api/*` and `/api/v1/*`.
-- Only `frontend/src/services/api/*` should call `fetch(...)`, build URLs, or interpret HTTP headers.
-- Page modules, feature modules, and UI modules should consume typed service functions only.
-- Runtime behavior must preserve existing route names, request parameters, empty-state behavior, export filenames, and visible page ids.
+- Only `frontend/src/services/api/*` may call `fetch(...)`.
+- Only `frontend/src/services/api/*` may build API URLs or inspect API headers.
+- Feature, page, UI, and chart modules consume typed service functions only.
+- Transport-specific parsing stays inside the API layer.
 
-### Core live contract surfaces
+### Live route contracts to preserve
 
-#### Metadata
+- `GET /api/metadata` -> `DatasetMetadata`
+- `GET /api/data` -> Arrow IPC decoded into `DataObject`
+- `GET|POST /api/scatter/points` -> `ScatterPointsResponse`
+- `GET /api/scatter/correlations/matrix` -> correlation matrix payload
+- `GET /api/analytics/fft` -> `FftResponse`
+- `GET /api/analytics/spectrogram` -> `SpectrogramResponse`
+- `POST /api/analytics/causal` -> `CausalGraphResponse`
+- `GET /api/analytics/spectral-filter` -> `SpectralFilterResponse`
 
-- Function: `fetchMetadata()`
-- Route: `GET /api/metadata`
-- Response type: `DatasetMetadata`
-- Used by: `frontend/src/app.ts` and metadata-dependent feature initialization
+### Header and payload semantics to preserve
 
-#### Timeseries data
+- `x-edatime-downsampled`
+- `x-edatime-returned-rows`
+- `x-edatime-target-points`
+- `x-edatime-time-column`
+- `DatasetMetadata`, `DataObject`, `ScatterPointsResponse`, `FftResponse`, `SpectrogramResponse`, and `CausalGraphResponse` shapes in [frontend/src/types.ts](/home/crispy/edatime/frontend/src/types.ts:1)
 
-- Function: `fetchData(start, end, width, columns, colorColumn, signal)`
-- Route: `GET /api/data`
-- Transport: Arrow IPC
-- Headers used by frontend:
-  - `x-edatime-downsampled`
-  - `x-edatime-returned-rows`
-  - `x-edatime-target-points`
-  - `x-edatime-time-column`
-- Frontend return shape: `DataObject`
-- Critical rule: Arrow parsing and timestamp-column resolution stay inside the API layer only
+## Current Hotspots
 
-#### Scatter and correlation
-
-- Function: `fetchScatterPoints(...)`
-- Route: `GET` or `POST /api/scatter/points`
-- Response type: `ScatterPointsResponse`
-- Function: `fetchCorrelationMatrix()`
-- Route: `GET /api/scatter/correlations/matrix`
-- Response type: `{ columns, pearson, spearman }`
-
-#### Analytics
-
-- Function: `fetchFft(...)`
-- Route: `GET /api/analytics/fft`
-- Response type: `FftResponse`
-- Function: `fetchSpectrogram(...)`
-- Route: `GET /api/analytics/spectrogram`
-- Response type: `SpectrogramResponse`
-- Function: `fetchCausalGraph(...)`
-- Route: `POST /api/analytics/causal`
-- Response type: `CausalGraphResponse`
-- Function: `fetchSpectralFilter(...)`
-- Route: `GET /api/analytics/spectral-filter`
-- Response type: `SpectralFilterResponse`
-
-### Refactor implication
-
-The safest boundary is:
-
-- Backend owns transport shape, route names, and payload semantics.
-- `services/api/*` owns request construction, response validation, Arrow decoding, and typed return values.
-- Everything above that boundary is free to be refactored as long as it keeps calling the same typed functions.
-
-That makes the API layer the first place to normalize before doing broader UI cleanup.
+- [frontend/src/app.ts](/home/crispy/edatime/frontend/src/app.ts:1): mixed bootstrap, keyboard shortcuts, chart initialization, metadata flow, and page orchestration
+- [frontend/src/features/timeseries/columnsController.ts](/home/crispy/edatime/frontend/src/features/timeseries/columnsController.ts:1): meta bar rendering, chip rendering, color-by control, adaptive filter targeting, and range controls mixed together
+- [frontend/src/causal/causalPage.ts](/home/crispy/edatime/frontend/src/causal/causalPage.ts:1): selection state, graph rendering, edit flows, status/progress, and layout state all in one file
+- [frontend/src/pages/shared/analysisPageRuntime.ts](/home/crispy/edatime/frontend/src/pages/shared/analysisPageRuntime.ts:1): good shared seam, but still too thin
+- [frontend/src/ui/seriesChipList.ts](/home/crispy/edatime/frontend/src/ui/seriesChipList.ts:1): good shared seam, but callers still own too much orchestration
+- [frontend/src/state.ts](/home/crispy/edatime/frontend/src/state.ts:1) and related compatibility surfaces: still present in the live tree and still referenced by tests
 
 ## Target Ownership Model
 
-### Canonical live surfaces
+### Stable long-term owners
 
-- `frontend/src/app/*`
-  - app runtime, shell, page registry, page lifecycle, boot sequencing
-- `frontend/src/features/*`
-  - feature-owned orchestration and page-specific control flows
-- `frontend/src/pages/*`
-  - page behavior and render/update logic
-- `frontend/src/pages/shared/*`
-  - shared page scaffolding only
-- `frontend/src/store/*`
-  - state ownership and setters
-- `frontend/src/services/api/*`
-  - the only frontend/backend contract boundary
-- `frontend/src/services/*`
-  - pure business logic and non-DOM transforms
-- `frontend/src/ui/primitives/*`
-  - low-level reusable UI elements
-- `frontend/src/ui/composites/*`
-  - composed UI elements
-- `frontend/src/ui/seriesChipList.ts`
-  - the canonical shared chip-list orchestration owner
+- `frontend/src/services/api/*`: backend contract boundary
+- `frontend/src/store/*`: shared state and setters
+- `frontend/src/app/*`: app runtime, bootstrap helpers, lifecycle wiring
+- `frontend/src/features/*`: feature-specific orchestration
+- `frontend/src/pages/*`: page behavior and page-specific rendering
+- `frontend/src/pages/shared/*`: shared page-shell composition only
+- `frontend/src/ui/primitives/*`: low-level controls
+- `frontend/src/ui/composites/*`: reusable composed UI
+- `frontend/src/ui/seriesChipList.ts`: canonical shared chip orchestration
 
-### Compatibility surfaces to drain or archive
+### Files to drain, slim, or archive
 
-- `frontend/src/state.ts`
-- `frontend/src/ui/columns.ts`
-- `frontend/src/bootstrap/appShell.ts`
-- `frontend/src/bootstrap/pageLoaders.ts`
-- `frontend/src/bootstrap/timeseriesBootstrap.ts`
-- thin API re-export files that do not own implementation
-
-## Wave 1: Normalize The API Boundary First
-
-**Why this improves maintainability:** The contract layer is already centralized logically but not physically. Splitting the implementation by route family reduces one 684-line hotspot, removes the current “real module plus façade modules” duplication, and gives later page refactors a stable boundary.
-
-**Files to modify**
-
-- `frontend/src/services/api/index.ts`
-- `frontend/src/services/api/http.ts`
-- `frontend/src/services/api/metadata.ts`
-- `frontend/src/services/api/timeseries.ts`
-- `frontend/src/services/api/scatter.ts`
-- `frontend/src/services/api/analytics.ts`
-- `frontend/src/services/api/export.ts`
-- `frontend/src/services/api/upload.ts`
-- `frontend/src/types/api.ts`
-- `frontend/src/dataClient.test.ts`
-
-**Actions**
-
-- Move `getJson`, `postJson`, inflight dedupe, Arrow parser loading, and response guards into `frontend/src/services/api/http.ts` or small API-internal helpers.
-- Move each route-family implementation out of `index.ts` and into the matching route-family file:
-  - metadata/sample dataset
-  - timeseries Arrow fetch
-  - scatter/correlation
-  - analytics
-  - export
-  - upload/database
-- Turn `frontend/src/services/api/index.ts` into a barrel that re-exports the route-family modules.
-- Keep all existing exported function names stable so no consumer API changes are required.
-- Keep Arrow decoding code only in the timeseries API module.
-- Keep runtime response assertions near the functions that use them so contract expectations stay explicit.
-
-**Exit criteria**
-
-- `services/api/index.ts` becomes a barrel, not a monolith.
-- Route-family files own implementation instead of re-exporting from `index.ts`.
-- No feature/page/UI module contains direct `fetch(...)`.
-- Existing tests for metadata, Arrow parsing, and scatter requests still pass unchanged or with only import-path updates.
-
-## Wave 2: Finish The Live/Legacy Boundary
-
-**Why this improves maintainability:** Several deprecated files still exist in the live tree, which weakens navigation and invites drift. The goal is not a rewrite; it is to make the canonical ownership obvious.
-
-**Files to modify**
-
-- `frontend/src/state.ts`
-- `frontend/src/ui/columns.ts`
-- `frontend/src/bootstrap/appShell.ts`
-- `frontend/src/bootstrap/pageLoaders.ts`
-- `frontend/src/bootstrap/timeseriesBootstrap.ts`
 - `frontend/src/app.ts`
-- `frontend/src/store/index.ts`
-- `scripts/check-frontend-architecture.mjs`
-- `ai/README.md`
-- `docs/developer/frontend.md`
+- `frontend/src/features/timeseries/columnsController.ts`
+- `frontend/src/causal/causalPage.ts`
+- `frontend/src/state.ts`
+- `frontend/src/ui/columns.ts`
+- `frontend/src/bootstrap/appShell.ts`
+- `frontend/src/bootstrap/pageLoaders.ts`
+- `frontend/src/bootstrap/timeseriesBootstrap.ts`
 
-**Actions**
+## Implementation Sequence
 
-- Verify which of the deprecated files are still needed only for tests versus live runtime.
-- If a file is only a compatibility re-export, either:
-  - archive it under `frontend/src/legacy/`, or
-  - leave it temporarily but mark it as non-canonical and remove all remaining imports.
-- Remove stale top-of-file architecture comments in `frontend/src/app.ts` that still describe `state.ts` and `ui/columns.ts` as primary owners.
-- Keep `store/appStateCompat.ts` as the minimal bridge while old test code is migrated.
-- Decide one explicit policy for `state.ts`:
-  - either keep it as a deliberate compatibility shim used by tests only, or
-  - migrate tests and archive it fully
-- Update the architecture check only if needed to enforce the final policy more clearly; do not weaken it.
+Balanced delivery means six waves:
 
-**Exit criteria**
+1. contract and guardrails
+2. shared analysis-page shell
+3. shared chip and timeseries control split
+4. app orchestrator decomposition
+5. causal page decomposition
+6. compatibility cleanup and docs alignment
 
-- Canonical ownership is obvious from the live tree.
-- Deprecated surfaces are either archived or explicitly documented as temporary shims.
-- `app.ts` comments and docs match the actual runtime architecture.
-- No new code paths depend on `state.ts`, `ui/columns.ts`, or old bootstrap entrypoints.
+Each wave should land independently and keep the app runnable.
 
-## Wave 3: Make Analysis Page Runtime The Full Shell Owner
+### Task 1: Lock The Contract And Architecture Guardrails
 
-**Why this improves maintainability:** FFT, heatmap, and spectrogram already share a runtime helper, but the helper stops short of owning the shell responsibilities that are still duplicated. Expanding that helper slightly reduces page glue without creating a generic framework.
+**Files:**
+- Modify: `frontend/src/services/api/index.ts`
+- Modify: `frontend/src/services/api/http.ts`
+- Modify: `frontend/src/services/api/timeseries.ts`
+- Modify: `frontend/src/types/api.ts`
+- Modify: `scripts/check-frontend-architecture.mjs`
+- Modify: `frontend/src/dataClient.test.ts`
+- Modify: `frontend/src/utils/bindExportButtons.test.ts`
 
-**Files to modify**
+- [ ] **Step 1: Confirm the API layer remains a barrel, not a logic sink**
 
+Keep [frontend/src/services/api/index.ts](/home/crispy/edatime/frontend/src/services/api/index.ts:1) as a pure export surface. If any new helper logic is needed, place it in `http.ts` or the matching route-family file instead of adding implementation back to `index.ts`.
+
+Expected public surface:
+
+```ts
+export { getJsonForApi as getJson, postJsonForApi as postJson } from './http.js';
+export { fetchMetadata, fetchSampleDataset } from './metadata.js';
+export { fetchData } from './timeseries.js';
+export { fetchScatterPoints, fetchScatterCorrelations } from './scatter.js';
+export { fetchCorrelationMatrix } from './scatter-matrix.js';
+export { fetchFft, fetchSpectrogram, fetchCausalGraph, fetchSpectralFilter } from './analytics.js';
+```
+
+- [ ] **Step 2: Add or tighten architecture checks**
+
+Ensure `scripts/check-frontend-architecture.mjs` enforces:
+
+- no `fetch(` outside `frontend/src/services/api/`
+- no imports from `frontend/src/legacy/` in live modules
+- no new imports from deprecated bootstrap surfaces
+
+Representative rule targets:
+
+```txt
+frontend/src/**            allowed: services/api/**
+frontend/src/pages/**      blocked: fetch(
+frontend/src/features/**   blocked: fetch(
+frontend/src/ui/**         blocked: fetch(
+frontend/src/chart/**      blocked: fetch(
+```
+
+- [ ] **Step 3: Keep timeseries transport parsing internal to the API layer**
+
+Do not move any of this logic out of [frontend/src/services/api/timeseries.ts](/home/crispy/edatime/frontend/src/services/api/timeseries.ts:1):
+
+- `ensureArrowParser()`
+- `resolveTimestampColumnName(...)`
+- `toEpochMs(...)`
+- downsample header interpretation
+
+If tests are missing, add focused coverage around:
+
+```ts
+expect(data._meta.downsampleKnown).toBe(true);
+expect(data._meta.returnedRows).toBe(512);
+expect(data.color_column).toBe('some_column');
+```
+
+- [ ] **Step 4: Verify the contract fence**
+
+Run:
+
+```bash
+npm run validate
+npm run test -- frontend/src/dataClient.test.ts frontend/src/utils/bindExportButtons.test.ts
+```
+
+Expected result:
+
+- architecture check passes
+- API surface remains stable
+- no consumer import churn beyond route-family modules already in place
+
+### Task 2: Make `analysisPageRuntime.ts` The Full Shared Analysis Shell Owner
+
+**Files:**
+- Modify: `frontend/src/pages/shared/analysisPageRuntime.ts`
+- Modify: `frontend/src/pages/shared/analysisPageRuntime.test.ts`
+- Modify: `frontend/src/pages/fftPage.ts`
+- Modify: `frontend/src/pages/fftPage.test.ts`
+- Modify: `frontend/src/pages/heatmapPage.ts`
+- Modify: `frontend/src/pages/heatmapPage.test.ts`
+- Modify: `frontend/src/pages/spectrogramPage.ts`
+- Modify: `frontend/src/pages/spectrogramPage.test.ts`
+- Modify: `frontend/src/ui/emptyState.ts`
+
+- [ ] **Step 1: Expand the shared runtime without turning it into a framework**
+
+Extend `AnalysisPageRuntimeOptions` only for shell concerns already duplicated in multiple pages:
+
+```ts
+export interface AnalysisPageRuntimeOptions {
+    page: string;
+    emptyStateRootId: string;
+    exportConfig?: ExportConfig;
+    init?: () => void | (() => void);
+    onVisible?: () => void;
+    onEveryPageChange?: () => void;
+    syncEmptyState?: () => EmptyStateViewModel;
+    bindExportsOnInit?: boolean;
+}
+```
+
+Do not move FFT math, heatmap rendering, or spectrogram chart configuration into the shared runtime.
+
+- [ ] **Step 2: Remove per-page export duplication**
+
+Refactor FFT, heatmap, and spectrogram page modules so export binding flows only through `createAnalysisPageRuntime(...)`.
+
+Preserve:
+
+- page key strings
+- export button ids
+- filenames
+- empty-state root ids
+
+Regression to remove explicitly:
+
+- duplicate spectrogram export binding
+
+- [ ] **Step 3: Centralize empty-state synchronization**
+
+Use one pattern for empty-state updates across the analysis pages:
+
+```ts
+runtime.updateEmptyState({
+    visible: !hasData,
+    reason: hasSelection ? 'no-data' : 'no-columns-selected',
+    title: hasSelection ? 'No results' : 'Select one or more columns',
+});
+```
+
+Keep page-specific text local when it differs. Only centralize the controller lifecycle and call pattern.
+
+- [ ] **Step 4: Add focused runtime tests before and after the extraction**
+
+Add or update tests to prove:
+
+- exports bind once
+- empty-state controller is lazy
+- `onVisible` still fires
+- page mount/unmount behavior remains intact
+
+Run:
+
+```bash
+npm run test -- frontend/src/pages/shared/analysisPageRuntime.test.ts frontend/src/pages/fftPage.test.ts frontend/src/pages/heatmapPage.test.ts frontend/src/pages/spectrogramPage.test.ts
+```
+
+### Task 3: Split Timeseries Column Controls Around Shared Chip And Range Primitives
+
+**Files:**
+- Create: `frontend/src/features/timeseries/metaBar.ts`
+- Create: `frontend/src/features/timeseries/colorByControl.ts`
+- Create: `frontend/src/features/timeseries/columnSelection.ts`
+- Create: `frontend/src/features/timeseries/rangeControls.ts`
+- Modify: `frontend/src/features/timeseries/columnsController.ts`
+- Modify: `frontend/src/features/timeseries/entrypoint.ts`
+- Modify: `frontend/src/features/timeseries/columnsController.test.ts`
+- Modify: `frontend/src/ui/seriesChipList.ts`
+- Modify: `frontend/src/ui/seriesChipList.test.ts`
+- Modify: `frontend/src/ui/metaBar.ts`
+
+- [ ] **Step 1: Move timeseries-only helpers out of `columnsController.ts`**
+
+Extract the following responsibilities into feature-local modules:
+
+- `buildMetaBar(...)` -> `features/timeseries/metaBar.ts`
+- color-by select creation and binding -> `features/timeseries/colorByControl.ts`
+- selected-column sanitization and adaptive-target fallback -> `features/timeseries/columnSelection.ts`
+- range-control construction helpers -> `features/timeseries/rangeControls.ts`
+
+Target public surfaces:
+
+```ts
+export function buildTimeseriesMetaBar(metadata: { total_rows?: number } | null): void;
+export function renderColorByControl(options: ColorByControlOptions): void;
+export function sanitizeSelectedColumnsAgainstMetadata(): void;
+export function ensureAdaptiveTargetStillValid(): void;
+export function buildRangeControls(): void;
+```
+
+- [ ] **Step 2: Promote `seriesChipList.ts` from renderer to orchestration primitive**
+
+Use [frontend/src/ui/seriesChipList.ts](/home/crispy/edatime/frontend/src/ui/seriesChipList.ts:1) to own:
+
+- stable update path via `updateSeriesChipList(...)`
+- keyboard activation
+- post-render class/attribute wiring
+- preserve-existing behavior for transient loading state
+
+Extend only if at least two live callers need the behavior. Expected callers:
+
+- `frontend/src/pages/fftPage.ts`
+- `frontend/src/features/timeseries/columnsController.ts`
+- `frontend/src/causal/causalPage.ts`
+
+- [ ] **Step 3: Simplify `columnsController.ts` into orchestration only**
+
+After extraction, `columnsController.ts` should mostly:
+
+- derive visible numeric columns
+- build `SeriesChipListItem[]`
+- connect item callbacks to store setters and feature hooks
+- call `renderSeriesChipList(...)`
+
+Target shape:
+
+```ts
+export function buildColumnToggles(
+    fetchAndRender: () => void,
+    buildRangeControlsFn: () => void,
+    renderCurrentDataFn?: (() => void) | null,
+): void;
+```
+
+Keep the public function name stable to minimize blast radius.
+
+- [ ] **Step 4: Move tests with the new ownership**
+
+Cover:
+
+- column sanitization removes blocked or missing columns
+- adaptive filter target falls back when selection changes
+- color-by control renders metadata columns and updates state
+- chip rerender preserves loading state when requested
+
+Run:
+
+```bash
+npm run test -- frontend/src/features/timeseries/columnsController.test.ts frontend/src/ui/seriesChipList.test.ts frontend/src/features/timeseries/entrypoint.test.ts
+```
+
+### Task 4: Decompose `app.ts` Into Boot, Chart, Metadata, And Shortcut Owners
+
+**Files:**
+- Create: `frontend/src/app/chartRuntime.ts`
+- Create: `frontend/src/app/metadataBootstrap.ts`
+- Create: `frontend/src/app/keyboardShortcuts.ts`
+- Create: `frontend/src/app/timeseriesBootstrap.ts`
+- Modify: `frontend/src/app.ts`
+- Modify: `frontend/src/app/runtime.ts`
+- Modify: `frontend/src/app/pageRegistry.ts`
+- Modify: `frontend/src/app/shell.ts`
+- Modify: `frontend/src/bootstrap/analyticsOverlay.ts`
+- Modify: `frontend/src/bootstrap/sessionBootstrap.ts`
+- Modify: `frontend/src/app/shell.test.ts`
+- Modify: `frontend/src/app/runtime.test.ts`
+
+- [ ] **Step 1: Extract chart initialization from `app.ts`**
+
+Move `ensureTimeseriesReady()` and related chart startup concerns into `frontend/src/app/chartRuntime.ts`.
+
+Expected owner responsibilities:
+
+- create chart instance
+- fallback from ChartGPU to fallback chart
+- bind chart events
+- restore chart text
+- hand off to timeseries page fetch/render after chart init
+
+Representative surface:
+
+```ts
+export interface ChartRuntimeDeps {
+    onZoomRangeChange: (start: number, end: number, sourceKind?: string) => void;
+    updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
+    fetchAndRenderTimeseries: () => Promise<void>;
+    renderCurrentData: () => void;
+}
+
+export function createChartRuntime(deps: ChartRuntimeDeps): {
+    ensureReady(): Promise<void>;
+};
+```
+
+- [ ] **Step 2: Extract metadata bootstrap flow**
+
+Move metadata load, numeric-column defaults, and initial page bootstrap decisions into `frontend/src/app/metadataBootstrap.ts`.
+
+Expected owner responsibilities:
+
+- fetch metadata
+- push metadata into the store
+- derive default selected columns
+- hydrate meta bar and profile grid
+- decide whether a page needs dataset bootstrap
+
+- [ ] **Step 3: Extract keyboard shortcuts from `app.ts`**
+
+Move inline shortcut logic into `frontend/src/app/keyboardShortcuts.ts`.
+
+Preserve exact shortcuts already supported by the live app:
+
+- `Alt+1..0` page navigation
+- `Shift+R`, `Shift+Z`, `Shift+C`
+- `Shift+P`, `Shift+E`
+
+Target surface:
+
+```ts
+export function initKeyboardShortcuts(options: KeyboardShortcutOptions): void;
+```
+
+- [ ] **Step 4: Keep `app.ts` as composition root only**
+
+After extraction, [frontend/src/app.ts](/home/crispy/edatime/frontend/src/app.ts:1) should primarily:
+
+- wire dependencies
+- create controller instances
+- register cleanup
+- start initialization in order
+
+It should stop owning long imperative blocks for:
+
+- keyboard shortcut definitions
+- chart fallback setup
+- metadata boot flow
+- mixed feature boot logic
+
+- [ ] **Step 5: Verify app startup behavior**
+
+Run:
+
+```bash
+npm run test -- frontend/src/app/runtime.test.ts frontend/src/app/shell.test.ts frontend/src/utils/pageBootstrap.test.ts frontend/src/utils/router.test.ts
+```
+
+Smoke-check manually:
+
+- upload page still opens first
+- timeseries initializes after metadata exists
+- chart fallback still activates on chart failure
+- page navigation and keyboard shortcuts still work
+
+### Task 5: Decompose `causalPage.ts` By Responsibility, Not By Widget
+
+**Files:**
+- Create: `frontend/src/causal/selectionState.ts`
+- Create: `frontend/src/causal/chipPanel.ts`
+- Create: `frontend/src/causal/graphView.ts`
+- Create: `frontend/src/causal/editPanel.ts`
+- Create: `frontend/src/causal/statusView.ts`
+- Modify: `frontend/src/causal/causalPage.ts`
+- Modify: `frontend/src/causal/causalPage.test.ts`
+- Modify: `frontend/src/causal/causalComparison.ts`
+- Modify: `frontend/src/ui/seriesChipList.ts`
+
+- [ ] **Step 1: Extract selection and metadata state helpers**
+
+Move stateful helpers that do not need DOM ownership into `selectionState.ts`:
+
+- metadata normalization
+- numeric-column checks
+- chip color defaults
+- current selection bookkeeping
+- pair/group derivation helpers
+
+Representative surface:
+
+```ts
+export interface CausalSelectionState {
+    currentColumns: string[];
+    selectedColumns: Set<string>;
+    chipColors: Map<string, string>;
+}
+
+export function ensureNodeMetadata(
+    column: string,
+    metadata: CausalMetadata | null,
+    deps: CausalDeps,
+): void;
+export function listPairGroups(links: CausalLink[], columns: string[]): PairEdgeGroup[];
+```
+
+- [ ] **Step 2: Extract chip rendering and chip interactions**
+
+Move chip-list rendering and chip event plumbing into `chipPanel.ts`, reusing `renderSeriesChipList(...)` instead of maintaining causal-specific DOM orchestration in the page file.
+
+The page should pass data and callbacks, not construct chips inline.
+
+- [ ] **Step 3: Extract graph view ownership**
+
+Move ECharts instance lifecycle, resize observer setup, and render/update behavior into `graphView.ts`.
+
+Keep `causalPage.ts` responsible for:
+
+- when to fetch
+- when to re-render
+- how edits mutate domain state
+
+Keep `graphView.ts` responsible for:
+
+- chart init
+- chart disposal
+- resize observation
+- option generation and event binding
+
+- [ ] **Step 4: Extract edit-panel and status/progress concerns**
+
+Move these into focused modules:
+
+- node and edge edit UI -> `editPanel.ts`
+- status text and progress UI -> `statusView.ts`
+
+Representative surface:
+
+```ts
+export function setCausalStatus(text: string): void;
+export function setCausalProgress(percent: number, label?: string): void;
+export function hideCausalProgress(): void;
+```
+
+- [ ] **Step 5: Keep `causalPage.ts` as page orchestration**
+
+After extraction, `causalPage.ts` should be the single page coordinator for:
+
+- collecting params
+- calling `fetchCausalGraph(...)`
+- reconciling API results with local state
+- delegating rendering and editing to helpers
+
+It should stop being the owner of raw DOM construction for every concern on the page.
+
+- [ ] **Step 6: Verify the causal workflow end to end**
+
+Run:
+
+```bash
+npm run test -- frontend/src/causal/causalPage.test.ts
+```
+
+Manual smoke checks:
+
+- chip selection works
+- progress/status updates still display
+- graph renders and resizes
+- node/edge edits still apply
+- comparison/update events still fire
+
+### Task 6: Finish Compatibility Cleanup, Docs Alignment, And Residual Hotspots
+
+**Files:**
+- Modify: `frontend/src/state.ts`
+- Modify: `frontend/src/store/index.ts`
+- Modify: `frontend/src/ui/columns.ts`
+- Modify: `frontend/src/bootstrap/appShell.ts`
+- Modify: `frontend/src/bootstrap/pageLoaders.ts`
+- Modify: `frontend/src/bootstrap/timeseriesBootstrap.ts`
+- Modify: `docs/developer/frontend.md`
+- Modify: `ai/README.md`
+- Modify: `ai/frontend/refactor/2026-05-30-broad-frontend-consolidation.md`
+
+- [ ] **Step 1: Decide the final policy for compatibility files**
+
+Use one of these end states and document it clearly:
+
+- `state.ts` remains a deliberate test-only compatibility shim
+- or `state.ts` is archived after test imports are migrated
+
+Do not leave the repo in an ambiguous middle state.
+
+- [ ] **Step 2: Update comments and docs to match the live architecture**
+
+Align:
+
+- [docs/developer/frontend.md](/home/crispy/edatime/docs/developer/frontend.md:1)
+- [ai/README.md](/home/crispy/edatime/ai/README.md:1)
+- [frontend/src/store/index.ts](/home/crispy/edatime/frontend/src/store/index.ts:1)
+
+with the actual post-refactor ownership model.
+
+- [ ] **Step 3: Triage residual large-module cleanup**
+
+Do a final pass on these files and extract only if duplication remains concrete after Waves 1-5:
+
+- `frontend/src/scatter/rendering.ts`
+- `frontend/src/scatter/scatterPage.ts`
+- `frontend/src/ui/profile.ts`
+
+Rule:
+
+- extract only proven repeated logic
+- do not start a second architecture program inside this one
+
+- [ ] **Step 4: Run the final verification sweep**
+
+Run:
+
+```bash
+npm run validate
+npm run test -- frontend/src/pages/shared/analysisPageRuntime.test.ts frontend/src/ui/seriesChipList.test.ts frontend/src/features/timeseries/columnsController.test.ts frontend/src/app/runtime.test.ts frontend/src/app/shell.test.ts frontend/src/causal/causalPage.test.ts
+```
+
+Then smoke-check:
+
+- upload
+- timeseries
+- FFT
+- heatmap
+- spectrogram
+- scatter
+- causal
+
+## File Map Summary
+
+### New files expected
+
+- `frontend/src/features/timeseries/metaBar.ts`
+- `frontend/src/features/timeseries/colorByControl.ts`
+- `frontend/src/features/timeseries/columnSelection.ts`
+- `frontend/src/features/timeseries/rangeControls.ts`
+- `frontend/src/app/chartRuntime.ts`
+- `frontend/src/app/metadataBootstrap.ts`
+- `frontend/src/app/keyboardShortcuts.ts`
+- `frontend/src/app/timeseriesBootstrap.ts`
+- `frontend/src/causal/selectionState.ts`
+- `frontend/src/causal/chipPanel.ts`
+- `frontend/src/causal/graphView.ts`
+- `frontend/src/causal/editPanel.ts`
+- `frontend/src/causal/statusView.ts`
+
+### Existing files expected to slim down materially
+
+- `frontend/src/app.ts`
+- `frontend/src/features/timeseries/columnsController.ts`
+- `frontend/src/causal/causalPage.ts`
 - `frontend/src/pages/shared/analysisPageRuntime.ts`
-- `frontend/src/pages/shared/analysisPageRuntime.test.ts`
-- `frontend/src/pages/fftPage.ts`
-- `frontend/src/pages/heatmapPage.ts`
-- `frontend/src/pages/spectrogramPage.ts`
-- `frontend/src/pages/fftPage.test.ts`
-- `frontend/src/pages/heatmapPage.test.ts`
-- `frontend/src/pages/spectrogramPage.test.ts`
-
-**Actions**
-
-- Extend `createAnalysisPageRuntime(...)` so it owns:
-  - one-time export-button binding
-  - lazy empty-state controller creation
-  - optional shell-level visibility hooks
-  - optional default empty-state/fallback behavior
-- Keep page-specific computation, chart config, and fetch semantics inside each page module.
-- Remove repeated export-shell assumptions from FFT, heatmap, and spectrogram page modules.
-- Remove any duplicate export binding path in spectrogram.
-- Keep page ids, export button ids, export filenames, and empty-state DOM ids unchanged.
-
-**Exit criteria**
-
-- Each analysis page declares shell behavior; it does not rebuild shell wiring itself.
-- There is exactly one export-binding path per analysis page.
-- `analysisPageRuntime.ts` remains small and focused on shell composition only.
-
-## Wave 4: Promote `seriesChipList.ts` From Renderer To Orchestration Primitive
-
-**Why this improves maintainability:** Shared chip rendering exists, but callers still repair or rebuild DOM around it. The shared helper should own the stable mechanics, while page and feature modules keep domain behavior.
-
-**Files to modify**
-
 - `frontend/src/ui/seriesChipList.ts`
-- `frontend/src/ui/seriesChipList.test.ts`
-- `frontend/src/pages/fftPage.ts`
-- `frontend/src/features/timeseries/columnsController.ts`
-- `frontend/src/causal/causalPage.ts`
-- `frontend/src/features/timeseries/columnsController.test.ts`
-- `frontend/src/causal/causalPage.test.ts`
 
-**Actions**
+## Review Checklist
 
-- Extend the shared chip-list helper to support keyed incremental updates as the default live-update path.
-- Add explicit support for preserving transient shared state that is currently repaired manually in callers, especially:
-  - loading classes
-  - `aria-disabled`
-  - chip accent updates
-- Keep domain-specific behaviors outside the helper, including:
-  - FFT fetch logic
-  - adaptive-filter semantics
-  - causal select-all behavior
-  - filter-modal actions
-- Migrate `fftPage.ts` first because it currently re-renders and then restores loading state manually.
-- Migrate `columnsController.ts` second so it stops clearing and rebuilding the entire chip container for routine updates.
-- Migrate `causalPage.ts` third where the abstraction fits cleanly; keep the separate “Select all / Clear all” action external if that remains clearer than generalizing it.
+Before implementation starts, confirm each wave still satisfies all of the following:
 
-**Exit criteria**
-
-- `SeriesChip` is not imported directly in page/feature modules unless a module is doing something genuinely outside the shared chip-list model.
-- FFT no longer captures/restores chip DOM state manually.
-- Timeseries and causal chip updates stop doing full-container rebuilds for normal state changes.
-
-## Wave 5: Decompose The Largest Files Without Changing Public Entry Points
-
-**Why this improves maintainability:** Once the shared seams are clean, the remaining risk is concentrated in a handful of large files. Breaking those files by responsibility makes future changes cheaper and safer without changing runtime behavior.
-
-**Files to modify**
-
-- `frontend/src/app.ts`
-- `frontend/src/features/timeseries/columnsController.ts`
-- `frontend/src/causal/causalPage.ts`
-- `frontend/src/scatter/rendering.ts`
-- optionally new sibling modules under:
-  - `frontend/src/app/`
-  - `frontend/src/features/timeseries/`
-  - `frontend/src/causal/`
-  - `frontend/src/scatter/`
-
-**Recommended decomposition**
-
-- `frontend/src/app.ts`
-  - split page registration, chart bootstrap, metadata bootstrap, and runtime event wiring into focused `app/*` modules
-- `frontend/src/features/timeseries/columnsController.ts`
-  - split meta-bar rendering, chip orchestration, and adaptive-filter interaction wiring
-- `frontend/src/causal/causalPage.ts`
-  - split column panel, graph runtime, node/edge edit panel, and chart lifecycle helpers
-- `frontend/src/scatter/rendering.ts`
-  - split series builders, tooltip factories, colorbar helpers, and view-state rendering
-
-**Exit criteria**
-
-- The public entrypoint file for each feature/page stays stable.
-- New sibling files each have one primary responsibility.
-- Large-file decomposition happens only after Waves 1-4 reduce shared duplication first.
+- behavior preserved
+- API routes and payloads unchanged
+- no new fetch logic outside `services/api/*`
+- extraction follows existing folders and naming patterns
+- each wave has focused tests
+- compatibility surfaces end in a clearly documented state
 
 ## Recommended Execution Order
 
-1. Wave 1: API boundary normalization
-2. Wave 2: live/legacy boundary cleanup
-3. Wave 3: analysis-page shell consolidation
-4. Wave 4: chip-list orchestration consolidation
-5. Wave 5: large-file decomposition
+1. Task 1
+2. Task 2
+3. Task 3
+4. Task 4
+5. Task 5
+6. Task 6
 
-This order minimizes risk because it stabilizes the contract layer first, then removes dead surfaces, then consolidates shared UI behavior, and only then breaks up the biggest modules.
-
-## Validation Plan
-
-### Always run after each wave
-
-- `npm run check:frontend`
-- `node scripts/check-frontend-architecture.mjs`
-
-### Full validation before closing the refactor
-
-- `npm run validate`
-- `npm test -- frontend/src/pages/shared/analysisPageRuntime.test.ts`
-- `npm test -- frontend/src/ui/seriesChipList.test.ts`
-- `npm test -- frontend/src/pages/fftPage.test.ts`
-- `npm test -- frontend/src/pages/heatmapPage.test.ts`
-- `npm test -- frontend/src/pages/spectrogramPage.test.ts`
-- `npm test -- frontend/src/features/timeseries/columnsController.test.ts`
-- `npm test -- frontend/src/causal/causalPage.test.ts`
-- `npm test -- frontend/src/dataClient.test.ts`
-
-### Manual smoke checks
-
-- Upload a dataset and confirm metadata still hydrates before lazy pages initialize.
-- Timeseries:
-  - select and deselect chips
-  - color a series
-  - set adaptive target with Ctrl+click
-  - open the range modal
-- FFT:
-  - add and remove traces
-  - confirm loading state survives rerenders
-  - export PNG, SVG, HTML, and CSV
-- Heatmap:
-  - load matrix
-  - change metric and cell size
-  - click a matrix cell to open Scatter
-- Spectrogram:
-  - compute
-  - drag zoom
-  - reset zoom
-  - export PNG, SVG, and HTML
-- Causal:
-  - toggle columns
-  - select all / clear all
-  - recolor nodes
-  - run graph generation
-
-## Risks And Guardrails
-
-- Do not change backend payloads or route names as part of this refactor.
-- Do not move Arrow decoding or header parsing out of the API layer.
-- Do not fold page-specific chart logic into the shared runtime helper.
-- Do not generalize chip-list helpers to the point that feature semantics become opaque.
-- Do not archive `state.ts` until test imports are accounted for.
-- Keep each wave releasable on its own.
-
-## Recommended First Implementation Slice
-
-If this plan is executed incrementally, the safest first slice is:
-
-1. Split `services/api/index.ts` into real route-family modules.
-2. Keep `index.ts` as a barrel with the same exports.
-3. Add or update targeted `dataClient.test.ts` coverage if imports move.
-4. Run `npm run validate`.
-
-That delivers immediate structural value with minimal product risk and no user-visible behavior change.
+Stop after each task and run its targeted tests before continuing.

@@ -50,7 +50,7 @@ start: ISO 8601 datetime (required)
 end: ISO 8601 datetime (required)
 width: number (required) — target horizontal pixel width
 columns: string (optional) — comma-separated column names
-color_column: string (optional)
+color_column: string (optional) — column to use for point coloring in response
 format: "arrow" | "json" (default: arrow)
 ```
 
@@ -64,6 +64,7 @@ format: "arrow" | "json" (default: arrow)
   - `x-edatime-returned-rows: number`
   - `x-edatime-target-points: number`
   - `x-edatime-time-column: string`
+- When `color_column` is set, the Arrow table includes the color column and the response color header `x-edatime-color-column: string` is added.
 
 **Response (JSON):**
 ```json

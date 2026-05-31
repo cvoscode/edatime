@@ -13,7 +13,7 @@
 
 ### initAdaptiveFilterGesture
 - `initAdaptiveFilterGesture(deps: { buildColumnToggles: () => void; buildRangeControls: () => void; renderCurrentData: () => void; updateAnalysisYRange: (min: number, max: number, sourceKind: string) => void }): () => void`
-  - Attaches Ctrl+click handler to main chart for two-point selection; shows column picker when multiple series are selected. Returns cleanup unlistener.
+  - Attaches Ctrl+click handler to main chart for two-point adaptive line filter creation; shows column picker when multiple series are selected. Returns cleanup unlistener.
 
 ---
 [1]: ../store/index.md

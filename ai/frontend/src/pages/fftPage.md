@@ -25,8 +25,8 @@
   - Fetches FFT data for a column and appends to `fftTraces`.
 - `renderChips(): void` [deps: [renderSeriesChipList][3]]
   - Renders series chip list with loading state and toggle handlers.
-- `initFftPage(deps: FftPageDeps): Promise<void>` [deps: [createAnalysisPageRuntime][4], [exportContainerCanvasPNG][5], [exportContainerCanvasSVG][6], [exportContainerCanvasHTML][7], [exportTraceCSV][8]]
-  - Initializes FFT page, chart, controls, zoom button, and export bindings.
+- `initFftPage(deps: FftPageDeps): Promise<void>` [deps: [createAnalysisPageRuntime][4], [exportContainerCanvasPNG][5], [exportContainerCanvasSVG][6], [exportContainerCanvasHTML][7], [exportTraceCSV][8], [bindExportButtons][9]]
+  - Initializes FFT page with `bindExportsOnInit: false`; export buttons are bound after data fetch so `fftTraces` closure captures live state.
 
 ---
 [1]: ./analyticsPageUtils.md#getNumericColumns
@@ -37,3 +37,4 @@
 [6]: ../../utils/chartExport.md#exportContainerCanvasSVG
 [7]: ../../utils/chartExport.md#exportContainerCanvasHTML
 [8]: ../../utils/chartExport.md#exportTraceCSV
+[9]: ../../utils/bindExportButtons.md#bindExportButtons

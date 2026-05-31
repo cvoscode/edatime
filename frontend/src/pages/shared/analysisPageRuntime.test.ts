@@ -90,4 +90,23 @@ describe('createAnalysisPageRuntime', () => {
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'scatter' } }));
         expect(onEveryPageChange).toHaveBeenCalledTimes(2);
     });
+
+    it('bindExportsOnInit defaults to true (binds exports in init)', async () => {
+        const bindExportButtonsModule = await import('../../utils/bindExportButtons.js');
+        const spy = vi.spyOn(bindExportButtonsModule, 'bindExportButtons' as keyof typeof bindExportButtonsModule);
+        const runtime = createAnalysisPageRuntime({
+            page: 'fft',
+            emptyStateRootId: 'fft-empty-state',
+            exportConfig: {
+                key: 'fft',
+                png: { fn: () => { }, filename: 'fft.png' },
+                svg: { fn: () => { }, filename: 'fft.svg' },
+                html: { fn: () => { }, filename: 'fft.html' },
+            },
+            // bindExportsOnInit not set — defaults to true
+        });
+        runtime.mount();
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        expect(spy).toHaveBeenCalled();
+    });
 });

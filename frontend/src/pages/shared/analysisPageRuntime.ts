@@ -18,6 +18,14 @@ export interface AnalysisPageRuntimeOptions {
     page: string;
     emptyStateRootId: string;
     exportConfig?: ExportConfig;
+    /**
+     * When true (the default), bindExportButtons is called automatically during
+     * the init phase so that export closures capture fresh state on mount.
+     * Set to false when the caller needs to manage export binding itself —
+     * for example, when the csv dataCheck closure must capture a live module
+     * reference that is not yet populated at mount time.
+     */
+    bindExportsOnInit?: boolean;
     init?: () => void | (() => void);
     onVisible?: () => void;
     onEveryPageChange?: () => void;
@@ -32,12 +40,15 @@ export function createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions) {
         return emptyState;
     };
 
+    // Default to true for backward compatibility.
+    const bindExports = options.bindExportsOnInit ?? true;
+
     return {
         mount() {
             return createPageLifecycle({
                 page: options.page,
                 init() {
-                    if (options.exportConfig) {
+                    if (bindExports && options.exportConfig) {
                         bindExportButtons(options.exportConfig.key, {
                             png: options.exportConfig.png,
                             svg: options.exportConfig.svg,

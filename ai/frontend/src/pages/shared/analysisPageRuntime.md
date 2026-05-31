@@ -16,13 +16,14 @@ interface ExportConfig {
 - `page: string` — page name passed to createPageLifecycle
 - `emptyStateRootId: string` — DOM id of the empty-state root element
 - `exportConfig?: ExportConfig` — export button bindings
+- `bindExportsOnInit?: boolean` — when false, caller manages export binding itself (default: `true`)
 - `init?: () => void | (() => void)` — called once on page mount
 - `onVisible?: () => void` — called when page becomes visible
 - `onEveryPageChange?: () => void` — called on every page change
 
 ## Function: createAnalysisPageRuntime
 - `createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions): { mount(): void; updateEmptyState(model: EmptyStateViewModel): void }` [deps: [createPageLifecycle][1], [createEmptyStateController][2], [bindExportButtons][3]]
-  - Returns page runtime with lazy empty-state controller and lifecycle hooks.
+  - Returns page runtime with lazy empty-state controller and lifecycle hooks. When `bindExportsOnInit` is false, export binding is deferred to the caller.
 
 ---
 [1]: ../../../app/pageLifecycle.md#createPageLifecycle

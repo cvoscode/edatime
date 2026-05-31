@@ -2,6 +2,7 @@
  * Column toggle chip UI + column range filter controls.
  */
 
+import { buildMetaBar } from '../../ui/metaBar.js';
 import { formatAnalysisNumber } from '../../utils/format.js';
 import { computeBounds } from '../../services/timeseries/filtering.js';
 import {
@@ -10,46 +11,16 @@ import {
     setAdaptiveFilterColumn,
     setAdaptiveLineFilters,
     setPendingAdaptivePoint,
-    setSelectedColorColumn,
     setSelectedCols,
     setSeriesColor,
 } from '../../store/index.js';
 import { SeriesChip } from '../../ui/composites/SeriesChip.js';
 import { renderSeriesChipList } from '../../ui/index.js';
+import { sanitizeSelectedColumns, ensureAdaptiveTargetStillValid } from './columnSelection.js';
+import { renderColorByControl } from './colorByControl.js';
+import { buildRangeControls } from './rangeControls.js';
 
 let _seriesCollapsed = false;
-
-function buildMetaBar(metadata: { total_rows?: number } | null): void {
-    const rows = metadata?.total_rows?.toLocaleString() ?? '—';
-    const cols = metadata ? String(appState.numericCols?.length ?? 0) : '—';
-    const markup = `
-      <div class="meta-stat live"><strong>${rows}</strong> rows</div>
-      <div class="meta-stat"><strong>${cols}</strong> numeric series</div>
-    `;
-    const headerMeta = document.getElementById('header-meta');
-    if (headerMeta) headerMeta.innerHTML = markup;
-    const pageMeta = document.getElementById('timeseries-meta-bar');
-    if (pageMeta) pageMeta.innerHTML = markup;
-}
-
-function sanitizeSelectedColumns(): void {
-    const blockedNames = new Set(['ts', 'timestamp', 'time']);
-    const datetimeCols = new Set(
-        (appState.metadata?.columns || [])
-            .filter((col) => /date|time/i.test(String(col?.dtype || '')))
-            .map((col) => String(col?.name || '').toLowerCase()),
-    );
-    const validColNames = new Set(
-        (appState.metadata?.columns || []).map((col) => String(col?.name || '').trim()),
-    );
-    setSelectedCols((appState.selectedCols || []).filter((col) => {
-        const name = String(col || '').trim();
-        if (!name) return false;
-        const lower = name.toLowerCase();
-        if (blockedNames.has(lower) || datetimeCols.has(lower)) return false;
-        return validColNames.has(name);
-    }));
-}
 
 // ─── Collapse toggle ───────────────────────────────────────────────────────
 
@@ -114,12 +85,8 @@ export function buildColumnToggles(
     if (!container || (container as any)?.dataset?.rebuilding) return;
     container.dataset.rebuilding = '1';
     sanitizeSelectedColumns();
-    if (!appState.selectedCols.includes(appState.adaptiveFilterColumn!)) {
-        setAdaptiveFilterColumn(appState.selectedCols[0] || null);
-    }
+    ensureAdaptiveTargetStillValid();
     container.innerHTML = '';
-    const colorSlot = document.getElementById('timeseries-color-slot');
-    if (colorSlot) colorSlot.innerHTML = '';
     const finish = () => { container.dataset.rebuilding = ''; };
 
     // Double-right-click a chip to open the filter modal for that column.
@@ -155,39 +122,12 @@ export function buildColumnToggles(
         return col.toLowerCase().includes(appState.filterText);
     });
 
-    // Add color-by selector for time series point coloring.
-    const colorControl = document.createElement('div');
-    colorControl.className = 'series-color-selector';
-    colorControl.innerHTML = `
-    <label>
-      <span>Color by</span>
-            <select id="color-column-select" name="color-column-select" aria-label="Color-by column"></select>
-    </label>
-  `;
-    (colorSlot || container).appendChild(colorControl);
-
-    const colorSelect = colorControl.querySelector('#color-column-select') as HTMLSelectElement | null;
-    if (colorSelect) {
-        colorSelect.innerHTML = '<option value="">None</option>';
-        const metadataCols = (appState.metadata?.columns || []).map((c) => ({
-            name: c?.name,
-            dtype: c?.dtype,
-        }));
-        for (const col of metadataCols) {
-            const name = String(col.name || '').trim();
-            if (!name) continue;
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
-            if (name === appState.selectedColorColumn) opt.selected = true;
-            colorSelect.appendChild(opt);
-        }
-
-        colorSelect.onchange = () => {
-            setSelectedColorColumn(colorSelect.value || null);
+    renderColorByControl({
+        onColorColumnChange: () => {
             if (typeof fetchAndRender === 'function') fetchAndRender();
-        };
-    }
+        },
+        slotId: 'timeseries-color-slot',
+    });
 
     if (visibleCols.length === 0) {
         const empty = document.createElement('span');
@@ -219,10 +159,7 @@ export function buildColumnToggles(
                 } else {
                     setSelectedCols(appState.selectedCols.filter((c) => c !== col));
                 }
-                if (!appState.selectedCols.includes(appState.adaptiveFilterColumn!)) {
-                    setAdaptiveFilterColumn(appState.selectedCols[0] || null);
-                }
-                buildMetaBar(appState.metadata);
+                ensureAdaptiveTargetStillValid();
                 buildRangeControlsFn();
                 (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
                 fetchAndRender();
@@ -270,7 +207,6 @@ export function buildColumnToggles(
                 setAdaptiveFilterColumn(col);
                 setPendingAdaptivePoint(null);
 
-                buildMetaBar(appState.metadata);
                 buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
                 buildRangeControlsFn();
                 (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
@@ -284,102 +220,8 @@ export function buildColumnToggles(
     applyCollapse();
 }
 
-// ─── Range control chips ────────────────────────────────────────────────────
-
-export function buildRangeControls(): void {
-    const container = document.getElementById('column-range-controls');
-    if (!container) return;
-    container.innerHTML = '';
-
-    if (appState.adaptiveFilterColumn && appState.selectedCols.includes(appState.adaptiveFilterColumn)) {
-        const targetChip = document.createElement('div');
-        targetChip.className = 'range-chip';
-        targetChip.innerHTML = `
-      <span class="name">Adaptive target</span>
-      <span class="range">${appState.adaptiveFilterColumn}</span>
-    `;
-        container.appendChild(targetChip);
-    }
-
-    for (const col of appState.selectedCols) {
-        const range = appState.columnRanges[col];
-        if (!range) continue;
-
-        const chip = document.createElement('div');
-        chip.className = 'range-chip range-chip--clickable';
-        chip.setAttribute('role', 'button');
-        chip.setAttribute('tabindex', '0');
-        chip.setAttribute('aria-label', `Filter ${col}`);
-        chip.innerHTML = `
-      <span class="name">${col}</span>
-      <span class="range">${formatAnalysisNumber(range.from)} → ${formatAnalysisNumber(range.to)}</span>
-    `;
-
-        const open = () => {
-            const fn = window.__edatime?.openFilterForCol;
-            if (typeof fn === 'function') fn(col);
-        };
-
-        chip.addEventListener('click', open);
-        chip.addEventListener('keydown', (e: KeyboardEvent) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
-        });
-        container.appendChild(chip);
-    }
-
-    for (const filter of appState.adaptiveLineFilters || []) {
-        const chip = document.createElement('div');
-        chip.className = 'range-chip range-chip--clickable';
-        chip.setAttribute('role', 'button');
-        chip.setAttribute('tabindex', '0');
-        chip.setAttribute('aria-label', `Remove adaptive filter for ${filter.column}`);
-        chip.innerHTML = `
-      <span class="name">Adaptive ${filter.column}</span>
-      <span class="range">${filter.keepAbove ? 'keep above' : 'keep below'}</span>
-    `;
-
-        const remove = () => {
-            setAdaptiveLineFilters((appState.adaptiveLineFilters || []).filter(
-                (item) => (item as unknown as { id?: string }).id !== (filter as unknown as { id?: string }).id,
-            ));
-            setPendingAdaptivePoint(null);
-            buildRangeControls();
-            window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
-        };
-
-        chip.addEventListener('click', remove);
-        chip.addEventListener('keydown', (e: KeyboardEvent) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); remove(); }
-        });
-        container.appendChild(chip);
-    }
-
-    if ((appState.adaptiveLineFilters || []).length > 0 || appState.pendingAdaptivePoint) {
-        const clearChip = document.createElement('div');
-        clearChip.className = 'range-chip range-chip--clickable';
-        clearChip.setAttribute('role', 'button');
-        clearChip.setAttribute('tabindex', '0');
-        clearChip.setAttribute('aria-label', 'Clear adaptive filters');
-        clearChip.innerHTML = `
-      <span class="name">Adaptive filters</span>
-      <span class="range">Clear all</span>
-    `;
-
-        const clearAll = () => {
-            setAdaptiveLineFilters([]);
-            setPendingAdaptivePoint(null);
-            buildRangeControls();
-            (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
-            window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
-        };
-
-        clearChip.addEventListener('click', clearAll);
-        clearChip.addEventListener('keydown', (e: KeyboardEvent) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); clearAll(); }
-        });
-        container.appendChild(clearChip);
-    }
-}
+// ─── Range control chips (delegated) ──────────────────────────────────────────
+export { buildRangeControls } from './rangeControls.js';
 
 // ─── Column filter modal ───────────────────────────────────────────────────
 

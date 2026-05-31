@@ -11,7 +11,7 @@
 > (documentation, ownership, history, decisions). **Always verify against
 > actual source files before making changes** — the index may be stale.
 
-Last indexed: 2026-05-30 (commit 3afe622)
+Last indexed: 2026-05-31 (commit 104b395)
 ### Entry Points
 - `frontend/src/store/index.ts`
 - `docs/developer/index.md`
@@ -30,7 +30,7 @@ Last indexed: 2026-05-30 (commit 3afe622)
 |------|-------|-------------|-------|
 | `frontend/js/app.js` | 100.0th %ile | 37 | cvoscode |
 | `frontend/index.html` | 100.0th %ile | 31 | cvoscode |
-| `frontend/src/app.ts` | 99.9th %ile | 26 | cvoscode |
+| `frontend/src/app.ts` | 99.9th %ile | 27 | cvoscode |
 | `frontend/src/pages/TimeseriesPage.tsx` | 99.9th %ile | 16 | cvoscode |
 | `frontend/css/style.css` | 99.8th %ile | 15 | cvoscode |
 
