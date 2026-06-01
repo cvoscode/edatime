@@ -8,6 +8,7 @@
 import { DEBUG } from '../debug.js';
 import { fetchDriftStats } from '../services/api/index.js';
 import { exportEChartsPNG } from '../utils/chartExport.js';
+import { bindDriftControls, getSelectedColumns } from './controls.js';
 
 // ── Module-level ECharts cache (issue #3: avoid re-importing on every page visit) ──
 let _echartsModule: typeof import('echarts') | null = null;
@@ -200,155 +201,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
     const driftLayoutEl = document.querySelector('#page-drift .drift-layout') as HTMLElement | null;
     const sortSelect = document.getElementById('drift-sort-select') as HTMLSelectElement | null;
 
-    if (!timelineEl || !detailEl || !computeBtn || !detailColumnSelect) return;
-
-    // Const aliases to preserve closure narrowing after the null guard.
-    const detailColumnSelectEl = detailColumnSelect;
-    const computeBtnEl = computeBtn;
-    const timelineElNN = timelineEl;
-    const detailElNN = detailEl;
-
-    const numericCols: string[] = Array.isArray(metadata?.numeric_columns)
-        ? metadata.numeric_columns.filter((c: string) => c && c.toLowerCase() !== 'ts')
-        : [];
-
-    // ── Picker state ─────────────────────────────────────────────────────────
-    // selectedCols is the single source of truth for which columns are chosen.
-    let selectedCols = new Set<string>(numericCols.length > 0 ? [numericCols[0]!] : []);
-
-    function syncPickerLabel(): void {
-        if (!colPickerLabel) return;
-        const n = selectedCols.size;
-        colPickerLabel.textContent = n === 0 ? 'Select columns' : n === 1 ? `${[...selectedCols][0]}` : `${n} columns`;
-    }
-
-    function syncHiddenSelect(allCols: string[]): void {
-        if (!colSelect) return;
-        // Rebuild hidden <select> options to match current selectedCols.
-        colSelect.innerHTML = '';
-        allCols.forEach((col) => {
-            const opt = document.createElement('option');
-            opt.value = col;
-            opt.textContent = col;
-            opt.selected = selectedCols.has(col);
-            colSelect.appendChild(opt);
-        });
-    }
-
-    function getCheckboxes(): NodeListOf<HTMLInputElement> {
-        return (colPickerList ?? document).querySelectorAll<HTMLInputElement>('.drift-col-cb');
-    }
-
-    function syncCheckboxes(): void {
-        getCheckboxes().forEach((cb) => {
-            cb.checked = selectedCols.has(cb.value);
-        });
-        syncPickerLabel();
-    }
-
-    function repopulateColumnSelect(nextColumns: string[]): void {
-        if (!colPickerList) return;
-        // Preserve previously selected columns that still exist.
-        selectedCols = new Set([...selectedCols].filter((c) => nextColumns.includes(c)));
-        if (selectedCols.size === 0 && nextColumns.length > 0) selectedCols.add(nextColumns[0]!);
-
-        colPickerList.innerHTML = '';
-        nextColumns.forEach((col) => {
-            const label = document.createElement('label');
-            label.className = 'drift-col-picker-item';
-            label.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;cursor:pointer;font-size:0.75rem;color:var(--text-dim,#788bae);user-select:none;';
-            const cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.className = 'drift-col-cb';
-            cb.value = col;
-            cb.checked = selectedCols.has(col);
-            cb.addEventListener('change', () => {
-                if (cb.checked) {
-                    selectedCols.add(col);
-                } else {
-                    selectedCols.delete(col);
-                    // Always keep at least one selected.
-                    if (selectedCols.size === 0 && nextColumns.length > 0) selectedCols.add(nextColumns[0]!);
-                    syncCheckboxes();
-                }
-                syncPickerLabel();
-                syncHiddenSelect(nextColumns);
-            });
-            const span = document.createElement('span');
-            span.textContent = col;
-            label.appendChild(cb);
-            label.appendChild(span);
-            colPickerList.appendChild(label);
-        });
-        syncPickerLabel();
-        syncHiddenSelect(nextColumns);
-    }
-
-    function openPicker(): void {
-        if (!colPickerPanel || !colPickerBtn) return;
-        // Teleport panel to <body> to escape backdrop-filter containment on the toolbar.
-        // backdrop-filter creates a new containing block for position:fixed children,
-        // so we must place the panel directly on body to get true viewport positioning.
-        if (colPickerPanel.parentElement !== document.body) {
-            document.body.appendChild(colPickerPanel);
-        }
-        const rect = colPickerBtn.getBoundingClientRect();
-        colPickerPanel.style.position = 'fixed';
-        colPickerPanel.style.top = `${rect.bottom + 4}px`;
-        colPickerPanel.style.left = `${rect.left}px`;
-        colPickerPanel.style.bottom = 'auto';
-        colPickerPanel.style.right = 'auto';
-        colPickerPanel.hidden = false;
-        colPickerBtn.setAttribute('aria-expanded', 'true');
-    }
-
-    function closePicker(): void {
-        if (!colPickerPanel || !colPickerBtn) return;
-        colPickerPanel.hidden = true;
-        colPickerBtn.setAttribute('aria-expanded', 'false');
-    }
-
-    function getSelectedColumns(): string[] {
-        return [...selectedCols];
-    }
-
-    // Picker open/close toggle.
-    colPickerBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (colPickerPanel?.hidden === false) {
-            closePicker();
-        } else {
-            openPicker();
-        }
-    });
-
-    // Close picker when clicking outside.
-    document.addEventListener('click', (e) => {
-        if (!colPickerPanel || colPickerPanel.hidden) return;
-        const wrap = document.getElementById('drift-col-picker-wrap');
-        const target = e.target as Node;
-        // Check both the picker wrapper and the panel itself (panel may have been teleported to body)
-        if (wrap && !wrap.contains(target) && !colPickerPanel.contains(target)) closePicker();
-    });
-
-    // Close picker on Escape.
-    colPickerPanel?.addEventListener('keydown', (e: KeyboardEvent) => {
-        if (e.key === 'Escape') { closePicker(); colPickerBtn?.focus(); }
-    });
-
-    repopulateColumnSelect(numericCols);
-
-    const timeRange = metadata?.time_range as { min: number; max: number } | undefined;
-    function applyReferencePreset(preset: string): void {
-        if (!timeRange || preset === 'custom') return;
-        const pct = Number(preset);
-        if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) return;
-        const end = timeRange.min + ((timeRange.max - timeRange.min) * pct) / 100;
-        if (refStartInput) refStartInput.value = toDatetimeLocal(timeRange.min);
-        if (refEndInput) refEndInput.value = toDatetimeLocal(end);
-    }
-    applyReferencePreset(refPresetSelect?.value || '50');
-
+    // ── Chart and data state (stays in driftPage — shared by render/export callbacks) ──
     let timelineChart: EChartLike | null = null;
     let detailChart: EChartLike | null = null;
     let resizeObserver: ResizeObserver | null = null;
@@ -357,7 +210,6 @@ export async function initDriftPage(metadata: any): Promise<void> {
     let activeDetailColumn: string | null = null;
     let selectedWindowIdx: number | null = null;
     let windowSort = sortSelect?.value || 'time-asc';
-    /** When true, the next renderTimeline/renderDetail call uses notMerge:true (full reset). */
     let _pendingFullReset = false;
 
     const isRenderable = (element: HTMLElement | null): boolean => (
@@ -369,18 +221,15 @@ export async function initDriftPage(metadata: any): Promise<void> {
         return !!(page && !page.hidden && isRenderable(timelineElNN) && isRenderable(detailElNN));
     }
 
-    // Pre-load ECharts so it is available immediately on first compute (issue #3).
     getECharts().catch(() => { /* non-critical; will retry on first ensureCharts() call */ });
 
     function ensureCharts(): void {
         if (!isDriftChartReadyForInit()) return;
         if (!timelineChart) {
-            // Dispose any lingering ECharts instance on the same DOM node before creating
-            // a new one (issue #3: guard against double-instance on repeated page visits).
             if (_echartsModule && timelineElNN) {
                 (_echartsModule as any).getInstanceByDom?.(timelineElNN)?.dispose?.();
             }
-            if (!_echartsModule) return; // module not yet loaded; caller should retry
+            if (!_echartsModule) return;
             timelineChart = _echartsModule.init(timelineElNN, undefined, { renderer: 'canvas' }) as unknown as EChartLike;
             timelineChart.on('click', (params: any) => {
                 if (params?.seriesType !== 'boxplot') return;
@@ -416,7 +265,6 @@ export async function initDriftPage(metadata: any): Promise<void> {
         }
     }
 
-    // Async variant — used when ECharts may not yet be loaded.
     async function ensureChartsAsync(): Promise<void> {
         await getECharts();
         ensureCharts();
@@ -454,18 +302,12 @@ export async function initDriftPage(metadata: any): Promise<void> {
             const wa = response.windows[a];
             const wb = response.windows[b];
             switch (windowSort) {
-                case 'time-desc':
-                    return wb.start_ms - wa.start_ms;
-                case 'psi-desc':
-                    return (wb.psi - wa.psi) || (wb.start_ms - wa.start_ms);
-                case 'wasserstein-desc':
-                    return (wb.wasserstein - wa.wasserstein) || (wb.start_ms - wa.start_ms);
-                case 'severity-desc':
-                    return (severityScore(wb.drift_level) - severityScore(wa.drift_level))
-                        || ((wb.psi - wa.psi) || (wb.start_ms - wa.start_ms));
+                case 'time-desc': return wb.start_ms - wa.start_ms;
+                case 'psi-desc': return (wb.psi - wa.psi) || (wb.start_ms - wa.start_ms);
+                case 'wasserstein-desc': return (wb.wasserstein - wa.wasserstein) || (wb.start_ms - wa.start_ms);
+                case 'severity-desc': return (severityScore(wb.drift_level) - severityScore(wa.drift_level)) || ((wb.psi - wa.psi) || (wb.start_ms - wa.start_ms));
                 case 'time-asc':
-                default:
-                    return wa.start_ms - wb.start_ms;
+                default: return wa.start_ms - wb.start_ms;
             }
         });
         return idxs;
@@ -1122,124 +964,85 @@ export async function initDriftPage(metadata: any): Promise<void> {
         URL.revokeObjectURL(url);
     }
 
-    computeBtn.addEventListener('click', () => {
-        runCompute();
-    });
+    if (!timelineEl || !detailEl || !computeBtn || !detailColumnSelect) return;
 
-    sortSelect?.addEventListener('change', () => {
-        windowSort = sortSelect.value || 'time-asc';
-        renderWindowList();
-    });
+    // Aliases for closures that need narrowed non-null references
+    const detailColumnSelectEl = detailColumnSelect as HTMLSelectElement;
+    const computeBtnEl = computeBtn as HTMLButtonElement;
+    const timelineElNN = timelineEl;
+    const detailElNN = detailEl;
 
-    detailColumnSelect.addEventListener('change', () => {
-        activeDetailColumn = detailColumnSelectEl.value || null;
-        const response = getActiveResponse();
-        if (!response || response.windows.length === 0) {
-            selectedWindowIdx = null;
-        } else if (selectedWindowIdx === null || selectedWindowIdx >= response.windows.length) {
-            selectedWindowIdx = 0;
-        }
-        renderTimeline();
-        renderDetail();
-        renderWindowList();
-        updateDetailStats();
-    });
-
-    // Debounce rapid plot-type changes to avoid rebuilding option objects on every keypress
-    // when a user cycles through options quickly (issue #4).
-    let _plotTypeDebounce: ReturnType<typeof setTimeout> | null = null;
-    plotTypeSelect?.addEventListener('change', () => {
-        if (_plotTypeDebounce !== null) clearTimeout(_plotTypeDebounce);
-        _plotTypeDebounce = setTimeout(() => {
-            _plotTypeDebounce = null;
-            renderDetail();
-        }, 80);
-    });
-
-    refPresetSelect?.addEventListener('change', () => {
-        applyReferencePreset(refPresetSelect.value || 'custom');
-    });
-
-    colSelectAllBtn?.addEventListener('click', () => {
-        numericCols.forEach((c) => selectedCols.add(c));
-        syncCheckboxes();
-        syncHiddenSelect(numericCols);
-        closePicker();
-    });
-
-    colSelectSingleBtn?.addEventListener('click', () => {
-        const keep = [...selectedCols][0] || numericCols[0];
-        if (keep) {
-            selectedCols = new Set([keep]);
-            syncCheckboxes();
-            syncHiddenSelect(numericCols);
-        }
-        closePicker();
-    });
-
-    colSelectNoneBtn?.addEventListener('click', () => {
-        // Always keep at least one – fall back to first column.
-        selectedCols = new Set(numericCols.length > 0 ? [numericCols[0]!] : []);
-        syncCheckboxes();
-        syncHiddenSelect(numericCols);
-    });
-
-    zoomResetBtn?.addEventListener('click', () => {
-        timelineChart?.dispatchAction?.({ type: 'dataZoom', dataZoomIndex: 0, start: 0, end: 100 });
-        timelineChart?.dispatchAction?.({ type: 'dataZoom', dataZoomIndex: 1, start: 0, end: 100 });
-        detailChart?.dispatchAction?.({ type: 'dataZoom', dataZoomIndex: 0, start: 0, end: 100 });
-        detailChart?.dispatchAction?.({ type: 'dataZoom', dataZoomIndex: 1, start: 0, end: 100 });
-    });
-
-    document.getElementById('drift-export-png')?.addEventListener('click', () => {
-        if (timelineChart) exportEChartsPNG(timelineChart, `drift_timeline_${activeDetailColumn || 'chart'}.png`);
-    });
-
-    document.getElementById('drift-export-detail-png')?.addEventListener('click', () => {
-        if (detailChart) exportEChartsPNG(detailChart, `drift_detail_${activeDetailColumn || 'chart'}.png`);
-    });
-
-    document.getElementById('drift-export-csv')?.addEventListener('click', exportDriftCsv);
-    document.getElementById('drift-export-json')?.addEventListener('click', exportDriftJson);
-
-    const driftPage = document.getElementById('page-drift');
-    driftPage?.addEventListener('keydown', (e: KeyboardEvent) => {
-        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-        if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
-        if (e.metaKey || e.ctrlKey || e.altKey) return;
-        switch (e.key) {
-            case 'Enter':
-            case 'd':
-            case 'D':
-                e.preventDefault();
-                runCompute();
-                break;
-            case 'e':
-            case 'E':
-                e.preventDefault();
-                exportDriftCsv();
-                break;
-            case 'j':
-            case 'J':
-                e.preventDefault();
-                exportDriftJson();
-                break;
-            case 'p':
-            case 'P':
-                e.preventDefault();
+    // ── Wire controls ────────────────────────────────────────────────────────
+    bindDriftControls(
+        {
+            getSelectedColumns,
+            runCompute,
+            exportDriftCsv,
+            exportDriftJson,
+            renderTimeline,
+            renderDetail,
+            renderWindowList,
+            updateDetailStats,
+            syncEmptyState,
+            scheduleDriftChartRefresh,
+        },
+        {
+            pageMetadata: metadata,
+            colPickerBtn,
+            colPickerPanel,
+            colPickerList,
+            colPickerLabel,
+            colSelectAllBtn,
+            colSelectSingleBtn,
+            colSelectNoneBtn,
+            colSelect,
+            windowSelect,
+            plotTypeSelect,
+            refPresetSelect,
+            refStartInput,
+            refEndInput,
+            computeBtn,
+            zoomResetBtn,
+            statusEl,
+            detailColumnSelect,
+            loadingOverlay,
+            emptyState,
+            driftLayoutEl,
+            sortSelect,
+            onDetailColumnChange: (column, windowIdx) => {
+                activeDetailColumn = column;
+                selectedWindowIdx = windowIdx;
+            },
+            timelineChartDispatch: (action) => timelineChart?.dispatchAction?.(action),
+            detailChartDispatch: (action) => detailChart?.dispatchAction?.(action),
+            exportTimelinePNG: () => {
                 if (timelineChart) exportEChartsPNG(timelineChart, `drift_timeline_${activeDetailColumn || 'chart'}.png`);
-                break;
-        }
-    });
+            },
+            exportDetailPNG: () => {
+                if (detailChart) exportEChartsPNG(detailChart, `drift_detail_${activeDetailColumn || 'chart'}.png`);
+            },
+        },
+    );
 
-    window.addEventListener('edatime:page-change', (e: any) => {
-        if (e?.detail?.page !== 'drift') return;
-        const cols: string[] = Array.isArray(metadata?.numeric_columns)
-            ? metadata.numeric_columns.filter((c: string) => c && c.toLowerCase() !== 'ts')
-            : [];
-        repopulateColumnSelect(cols);
-        scheduleDriftChartRefresh();
-    });
+    // ── Chart click handler ──────────────────────────────────────────────────
+    // (needs access to chart state — lives here, not in controls.ts)
+    const timelineChartInstance = timelineChart as EChartLike | null;
+    if (timelineChartInstance) {
+        timelineChartInstance.on('click', (params: any) => {
+            if (params?.seriesType !== 'boxplot') return;
+            const clickedCol = String(params?.seriesName || '');
+            const clickedIndex = Number(params?.dataIndex);
+            if (!clickedCol || !Number.isFinite(clickedIndex)) return;
+            if (clickedIndex <= 0) return;
+            activeDetailColumn = clickedCol;
+            if (detailColumnSelectEl.value !== clickedCol) detailColumnSelectEl.value = clickedCol;
+            selectedWindowIdx = clickedIndex - 1;
+            renderTimeline();
+            renderDetail();
+            renderWindowList();
+            updateDetailStats();
+        });
+    }
 
     scheduleDriftChartRefresh();
 }

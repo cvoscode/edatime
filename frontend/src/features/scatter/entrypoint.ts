@@ -8,9 +8,9 @@ export interface ScatterEntrypointDeps {
 
 export function createScatterEntrypoint(deps: ScatterEntrypointDeps) {
     return {
-        init: () => {
+        init: async () => {
             const metadata = deps.getMetadata();
-            return deps.initScatterPage(metadata);
+            await deps.initScatterPage(metadata);
         },
     };
 }
