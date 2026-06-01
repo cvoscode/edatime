@@ -4,11 +4,17 @@ export interface DriftEntrypointDeps {
 }
 
 export function createDriftEntrypoint(deps: DriftEntrypointDeps) {
+    let initialized = false;
+
     return {
-        init: async () => {
-            const { initDriftPage } = await import('../../drift/driftPage.js');
-            const metadata = deps.getMetadata();
-            initDriftPage(metadata);
+        init() {
+            if (initialized) return;
+            initialized = true;
+            // Async work (dynamic import) is handled internally so init() stays synchronous.
+            void (async () => {
+                const { initDriftPage } = await import('../../drift/driftPage.js');
+                initDriftPage(deps.getMetadata());
+            })();
         },
     };
 }
