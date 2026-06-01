@@ -68,3 +68,13 @@ export function initPageNavigation(): void {
 
     showPage('home');
 }
+
+/**
+ * Sync active state on the sidebar navigation.
+ * Call this whenever the current page changes so the nav reflects the active page.
+ */
+export function syncActivePageNav(page: string): void {
+    document.querySelectorAll<HTMLElement>('.sidebar .nav-item[data-page]').forEach((el) => {
+        el.classList.toggle('active', el.dataset.page === page);
+    });
+}
