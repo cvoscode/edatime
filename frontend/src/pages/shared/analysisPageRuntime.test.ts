@@ -231,4 +231,87 @@ describe('createAnalysisPageRuntime', () => {
         // Should not throw
         runtime.bindExports();
     });
+
+    // -------------------------------------------------------------------------
+    // Delegation tests — createAnalysisPageRuntime delegates to createPageLifecycle
+    // -------------------------------------------------------------------------
+
+    it('init fires exactly once even when the same page is visited multiple times (delegates to createPageLifecycle)', () => {
+        const init = vi.fn();
+        const runtime = createAnalysisPageRuntime({
+            page: 'fft',
+            emptyStateRootId: 'fft-empty-state',
+            init,
+        });
+        runtime.mount();
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        // init is called once — the wrapper does not re-implement the once-only guarantee
+        expect(init).toHaveBeenCalledTimes(1);
+    });
+
+    it('init does not fire before the registered page is activated (delegates to createPageLifecycle)', () => {
+        const init = vi.fn();
+        const runtime = createAnalysisPageRuntime({
+            page: 'target',
+            emptyStateRootId: 'fft-empty-state',
+            init,
+        });
+        runtime.mount();
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'other' } }));
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'another' } }));
+        expect(init).not.toHaveBeenCalled();
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'target' } }));
+        expect(init).toHaveBeenCalledTimes(1);
+    });
+
+    it('createAnalysisPageRuntime does NOT re-implement its own page-change listener — onVisible fires through createPageLifecycle', () => {
+        const onVisible = vi.fn();
+        const runtime = createAnalysisPageRuntime({
+            page: 'heatmap',
+            emptyStateRootId: 'heatmap-empty-state',
+            onVisible,
+        });
+        runtime.mount();
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'heatmap' } }));
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'heatmap' } }));
+        // onVisible is forwarded to createPageLifecycle — fires on every activation
+        expect(onVisible).toHaveBeenCalledTimes(2);
+    });
+
+    it('createAnalysisPageRuntime does NOT re-implement its own page-change listener — onEveryPageChange fires through createPageLifecycle', () => {
+        const onEveryPageChange = vi.fn();
+        const runtime = createAnalysisPageRuntime({
+            page: 'fft',
+            emptyStateRootId: 'fft-empty-state',
+            onEveryPageChange,
+        });
+        runtime.mount();
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'timeseries' } }));
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'scatter' } }));
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'heatmap' } }));
+        // onEveryPageChange fires on every event — no duplicate listener in the wrapper
+        expect(onEveryPageChange).toHaveBeenCalledTimes(3);
+    });
+
+    it('createAnalysisPageRuntime mount returns the createPageLifecycle unregister (no extra wrapper listener)', () => {
+        const init = vi.fn();
+        const onEveryPageChange = vi.fn();
+        const runtime = createAnalysisPageRuntime({
+            page: 'fft',
+            emptyStateRootId: 'fft-empty-state',
+            init,
+            onEveryPageChange,
+        });
+        const unregister = runtime.mount();
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        expect(init).toHaveBeenCalledTimes(1);
+        expect(onEveryPageChange).toHaveBeenCalledTimes(1);
+        unregister();
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        // After unregister, no further calls — wrapper does not add a second listener
+        expect(init).toHaveBeenCalledTimes(1);
+        expect(onEveryPageChange).toHaveBeenCalledTimes(1);
+    });
 });
