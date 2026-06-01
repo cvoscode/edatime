@@ -1,5 +1,9 @@
 /**
  * Scatter analytics page — main entry, controls binding, and orchestration.
+ *
+ * Delegates to:
+ *   viewController.ts — active view management
+ *   controls.ts        — event listeners and control wiring
  */
 
 import { createChart } from '../../libs/chartgpu/dist/index.js';
@@ -13,15 +17,6 @@ import {
     showError,
     normalizeScatterSuggestionThreshold,
 } from './helpers.js';
-
-/** Whether we've detected WebGPU is unavailable and should use fallback. */
-let _gpuUnavailable: boolean | null = null;
-
-/** Log + display an error. */
-function handleErr(err: unknown): void {
-    console.error(err);
-    showError(String((err as any)?.message ?? err));
-}
 import {
     currentControls,
     isLinkedBrushEnabled,
@@ -59,6 +54,20 @@ import {
 } from './matrix.js';
 
 import type { DatasetMetadata } from '../types.js';
+
+/** Whether we've detected WebGPU is unavailable and should use fallback. */
+let _gpuUnavailable: boolean | null = null;
+
+/** Log + display an error. */
+function handleErr(err: unknown): void {
+    console.error(err);
+    showError(String((err as any)?.message ?? err));
+}
+
+// Export render pipeline functions for use by viewController.ts and controls.ts
+export { handleErr };
+export { refreshCorrelationsAndSuggestions, renderScatter, renderScatterDebounced, rerenderScatterFromCache };
+export { syncScatterFilterBadge };
 
 let scatterEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
 
@@ -470,174 +479,19 @@ async function onMatrixCellClick(x: string, y: string): Promise<void> {
 
 /* ── Control binding ──────────────────────────────────── */
 
-function bindControls(): void {
-    const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
-    const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
-    const binSizeInput = getEl('scatter-bin-size') as HTMLInputElement | null;
-    const binSizeValue = getEl('scatter-bin-size-value');
-    const colormapSelect = getEl('scatter-colormap') as HTMLSelectElement | null;
-    const normalizationSelect = getEl('scatter-normalization') as HTMLSelectElement | null;
-    const renderModeSelect = getEl('scatter-render-mode') as HTMLSelectElement | null;
-    const diagonalModeSelect = getEl('scatter-diagonal-mode') as HTMLSelectElement | null;
-    const colorColumnSelect = getEl('scatter-color-column') as HTMLSelectElement | null;
-    const colorScaleSelect = getEl('scatter-color-scale') as HTMLSelectElement | null;
-    const linkBrushInput = getEl('scatter-link-brush') as HTMLInputElement | null;
-    const suggestionThresholdInput = getEl('scatter-suggestion-threshold') as HTMLInputElement | null;
-    const suggestionThresholdValue = getEl('scatter-suggestion-threshold-value');
-    const suggestionThresholdLabel = getEl('scatter-suggestions-label');
-    const openCausalBtn = getEl('scatter-open-causal-btn') as HTMLButtonElement | null;
-
-    if (!xSelect || !ySelect || !binSizeInput || !binSizeValue || !colormapSelect || !normalizationSelect || !renderModeSelect) return;
-
-    (window as any).__edatime = (window as any).__edatime || {};
-    (window as any).__edatime.exportScatterData = exportScatterData;
-
-    binSizeValue.textContent = binSizeInput.value;
-    if (suggestionThresholdInput) {
-        appState.scatter.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
-        suggestionThresholdInput.value = appState.scatter.suggestionThreshold.toFixed(2);
-    }
-    if (suggestionThresholdValue) suggestionThresholdValue.textContent = appState.scatter.suggestionThreshold.toFixed(2);
-    if (suggestionThresholdLabel) suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${appState.scatter.suggestionThreshold.toFixed(2)})`;
-    syncModeUI();
-    void setScatterView(appState.scatter.activeView, { render: false });
-
-    document.querySelectorAll<HTMLButtonElement>('[data-scatter-view]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            const nextView = normalizeAnalyticsView(btn.dataset.scatterView || 'plot');
-            void setScatterView(nextView);
-        });
-    });
-
-    const rerender = () => {
-        const container = getEl('scatter-chart');
-        if (!appState.scatter.chart) return;
-        appState.scatter.chart.setOption(buildOption(appState.scatter.points, container));
-        updateColorbarUI();
-        updateBinnedReadout();
-    };
-
-    binSizeInput.addEventListener('input', () => { binSizeValue!.textContent = binSizeInput.value; rerender(); });
-    colormapSelect.addEventListener('change', rerender);
-    normalizationSelect.addEventListener('change', rerender);
-    renderModeSelect.addEventListener('change', () => { syncModeUI(); rerender(); });
-    diagonalModeSelect?.addEventListener('change', () => { void refreshActiveScatterView(); });
-    colorColumnSelect?.addEventListener('change', () => { void renderScatter(); });
-    colorScaleSelect?.addEventListener('change', () => { rerender(); updateColorbarUI(); });
-    suggestionThresholdInput?.addEventListener('input', () => {
-        appState.scatter.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
-        suggestionThresholdInput.value = appState.scatter.suggestionThreshold.toFixed(2);
-        if (suggestionThresholdValue) suggestionThresholdValue.textContent = appState.scatter.suggestionThreshold.toFixed(2);
-        if (suggestionThresholdLabel) {
-            suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${appState.scatter.suggestionThreshold.toFixed(2)})`;
-        }
-    });
-    suggestionThresholdInput?.addEventListener('change', async () => {
-        try {
-            await refreshCorrelationsAndSuggestions();
-        } catch (err: any) {
-            handleErr(err);
-        }
-    });
-    linkBrushInput?.addEventListener('change', async () => {
-        try { await renderScatter(); } catch (err: any) { handleErr(err); }
-    });
-    openCausalBtn?.addEventListener('click', openScatterPairInCausal);
-
-    getScatterEmptyStateController();
-
-    // Matrix mode toggle buttons (replaces <select>)
-    const matrixModeHidden = getEl('scatter-matrix-mode') as HTMLInputElement | null;
-    const matrixSizeInput = getEl('scatter-matrix-cell-size') as HTMLInputElement | null;
-    const matrixSizeValue = getEl('scatter-matrix-cell-size-value');
-    document.querySelectorAll<HTMLButtonElement>('[data-matrix-mode]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            const mode = btn.dataset.matrixMode || 'scatter';
-            if (matrixModeHidden) matrixModeHidden.value = mode;
-            document.querySelectorAll<HTMLButtonElement>('[data-matrix-mode]').forEach((b) => {
-                b.classList.toggle('active', b.dataset.matrixMode === mode);
-                b.setAttribute('aria-pressed', b.dataset.matrixMode === mode ? 'true' : 'false');
-            });
-            void refreshActiveScatterView();
-        });
-    });
-    matrixSizeInput?.addEventListener('input', () => {
-        if (matrixSizeValue) matrixSizeValue.textContent = matrixSizeInput.value;
-        if (appState.scatter.activeView === 'matrix') void refreshActiveScatterView();
-    });
-
-    // Export buttons
-    getEl('scatter-export-png-btn')?.addEventListener('click', () => exportScatterPNG());
-    getEl('scatter-export-svg-btn')?.addEventListener('click', () => exportScatterSVG());
-    getEl('scatter-export-html-btn')?.addEventListener('click', () => exportScatterHTML());
-    getEl('scatter-export-csv-btn')?.addEventListener('click', () => exportScatterData('csv'));
-    getEl('scatter-export-json-btn')?.addEventListener('click', () => exportScatterData('json'));
-    getEl('scatter-export-parquet-btn')?.addEventListener('click', async () => {
-        try { await exportScatterParquet(); } catch (error: any) { handleErr(error); }
-    });
-
-    ySelect.addEventListener('change', async () => { updateCorrelationStats(); await renderScatter(); });
-    xSelect.addEventListener('change', async () => { await refreshCorrelationsAndSuggestions(); await renderScatter(); });
-    window.addEventListener('resize', () => { appState.scatter.chart?.resize?.(); });
-
-    const handleFilterEvent = async (requireLinkedBrush: boolean) => {
-        const page = getEl('page-scatter');
-        if (page?.hidden) return;
-        try {
-            syncScatterFilterBadge();
-            if (!requireLinkedBrush || isLinkedBrushEnabled()) renderScatterDebounced();
-        } catch (err: any) { handleErr(err); }
-    };
-
-    window.addEventListener('edatime:chart-range-change', () => handleFilterEvent(true));
-    window.addEventListener('edatime:column-filters-change', () => handleFilterEvent(false));
-    window.addEventListener('edatime:adaptive-filters-change', () => handleFilterEvent(false));
-
-    window.addEventListener('edatime:page-change', async (ev: any) => {
-        if (ev?.detail?.page !== 'scatter') return;
-
-        if (!appState.scatter.metadata) {
-            await new Promise<void>((resolve) => {
-                const handler = () => {
-                    if (appState.scatter.metadata) {
-                        window.removeEventListener('edatime:metadata-ready', handler);
-                        resolve();
-                    }
-                };
-                window.addEventListener('edatime:metadata-ready', handler);
-                if (appState.scatter.metadata) {
-                    window.removeEventListener('edatime:metadata-ready', handler);
-                    resolve();
-                }
-            });
-        }
-
-        // If scatter metadata is still empty (was initialized with the boot-time
-        // empty placeholder), copy the real dataset metadata now.
-        if (!appState.scatter.metadata || !(appState.scatter.metadata as any)?.columns?.length) {
-            if (appState.metadata) {
-                appState.scatter.metadata = appState.metadata;
-            }
-        }
-
-        appState.scatter.activeView = normalizeAnalyticsView(ev?.detail?.analyticsView);
-        await setScatterView(appState.scatter.activeView, { render: false });
-        if (!appState.scatter.pageInitialized) {
-            refreshCorrelationsAndSuggestions()
-                .then(() => renderScatter())
-                .then(() => { appState.scatter.pageInitialized = true; })
-                .catch((err: any) => { handleErr(err); });
-        } else {
-            try {
-                if (isLinkedBrushEnabled() || Object.keys(appState.columnRanges || {}).length > 0 || (appState.adaptiveLineFilters || []).length > 0) {
-                    await renderScatter();
-                } else {
-                    await rerenderScatterFromCache(true);
-                }
-            } catch (err: any) { handleErr(err); }
-        }
-        void refreshActiveScatterView();
-    });
+function bindControls(): Promise<void> {
+    return import('./controls.js').then(({ bindScatterControls }) =>
+        bindScatterControls({
+            renderScatter,
+            refreshCorrelationsAndSuggestions,
+            refreshActiveScatterView,
+            setScatterView,
+            handleErr,
+            rerenderScatterFromCache,
+            renderScatterDebounced,
+            syncScatterFilterBadge,
+        }),
+    );
 }
 
 /* ── Public init ──────────────────────────────────────── */
@@ -666,7 +520,7 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
     syncScatterEmptyState();
     syncScatterFilterBadge();
 
-    if (!appState.scatter.initialized) { bindControls(); appState.scatter.initialized = true; }
+    if (!appState.scatter.initialized) { await bindControls(); appState.scatter.initialized = true; }
     if (appState.scatter.pageInitialized) return;
 
     const isVisible = !page.hidden;
