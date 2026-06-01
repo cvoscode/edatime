@@ -1,4 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('./shell/themeToggle.js', () => ({ initThemeToggle: vi.fn() }));
+vi.mock('./shell/a11yNormalization.js', () => ({ normalizeFormControlAccessibility: vi.fn() }));
+vi.mock('./shell/homeNavigation.js', () => ({ wireHomeNavigationCards: vi.fn() }));
+vi.mock('./shell/sampleDatasets.js', () => ({ wireSampleDatasetCards: vi.fn() }));
 
 vi.mock('../ui/upload.js', () => ({ initUploadPanel: vi.fn() }));
 vi.mock('../ui/profile.js', () => ({ initColumnProfilesGrid: vi.fn() }));
@@ -31,6 +36,10 @@ vi.mock('../bootstrap/commands.js', () => ({
 }));
 vi.mock('../bootstrap/shortcuts.js', () => ({ initKeyboardShortcuts: vi.fn() }));
 
+beforeEach(() => {
+    vi.clearAllMocks();
+});
+
 describe('shell bootstrap', () => {
     it('initializes global shell services without owning feature-specific behavior', async () => {
         const deps = {
@@ -42,5 +51,26 @@ describe('shell bootstrap', () => {
         const { initAppShell } = await import('./shell.js');
         initAppShell(deps as any);
         expect(deps.initAnalyticsListeners).toHaveBeenCalledTimes(1);
+    });
+
+    it('delegates to focused shell modules in the correct order', async () => {
+        const { initThemeToggle } = await import('./shell/themeToggle.js');
+        const { normalizeFormControlAccessibility } = await import('./shell/a11yNormalization.js');
+        const { wireHomeNavigationCards } = await import('./shell/homeNavigation.js');
+        const { wireSampleDatasetCards } = await import('./shell/sampleDatasets.js');
+
+        const deps = {
+            showPage: vi.fn(),
+            ensurePageModuleLoaded: vi.fn(),
+            initAnalyticsListeners: vi.fn(),
+            registerCleanup: vi.fn(),
+        };
+        const { initAppShell } = await import('./shell.js');
+        initAppShell(deps as any);
+
+        expect(normalizeFormControlAccessibility).toHaveBeenCalledTimes(1);
+        expect(initThemeToggle).toHaveBeenCalledTimes(1);
+        expect(wireHomeNavigationCards).toHaveBeenCalledWith(deps.showPage);
+        expect(wireSampleDatasetCards).toHaveBeenCalledWith(deps.showPage);
     });
 });
