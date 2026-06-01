@@ -71,7 +71,6 @@ async function fetchAndAddTrace(column: string): Promise<void> {
 
 function renderChips(): void {
     const bar = document.getElementById('fft-traces-bar');
-    const statusEl = document.getElementById('fft-status') as HTMLElement | null;
     if (!bar || !appState.metadata) return;
     const columns = fftColumns();
 
@@ -105,15 +104,15 @@ function renderChips(): void {
                         activeChip.setAttribute('aria-disabled', 'true');
                         const loadingEl = document.getElementById('fft-chart-loading');
                         if (loadingEl) loadingEl.hidden = false;
-                        if (statusEl) statusEl.textContent = `Computing FFT for ${column}…`;
+                        fftRuntime?.updateStatus(`Computing FFT for ${column}…`);
                         try {
                             await fetchAndAddTrace(column);
                             renderChips();
                             rerenderOrClear();
                             const bins = fftTraces.find((trace) => trace.column === column)?.frequencies.length ?? 0;
-                            if (statusEl) statusEl.textContent = `${fftTraces.map((trace) => trace.column).join(', ')} · ${bins} bins`;
+                            fftRuntime?.updateStatus(`${fftTraces.map((trace) => trace.column).join(', ')} · ${bins} bins`);
                         } catch (error: any) {
-                            if (statusEl) statusEl.textContent = `FFT failed for ${column}: ${error?.message || 'error'}`;
+                            fftRuntime?.updateStatus(`FFT failed for ${column}: ${error?.message || 'error'}`);
                         } finally {
                             activeChip.classList.remove('loading');
                             activeChip.removeAttribute('aria-disabled');
@@ -123,11 +122,11 @@ function renderChips(): void {
                         fftTraces = fftTraces.filter((trace) => trace.column !== column);
                         renderChips();
                         rerenderOrClear();
-                        if (statusEl) {
-                            statusEl.textContent = fftTraces.length
+                        fftRuntime?.updateStatus(
+                            fftTraces.length
                                 ? fftTraces.map((trace) => trace.column).join(', ')
-                                : 'Select a column chip to compute its FFT.';
-                        }
+                                : 'Select a column chip to compute its FFT.',
+                        );
                     }
                 },
                 onColorInput: (nextColor) => {
@@ -168,6 +167,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
     fftRuntime = createAnalysisPageRuntime({
         page: 'fft',
         emptyStateRootId: 'fft-empty-state',
+        statusElId: 'fft-status',
         bindExportsOnInit: false,
         exportConfig: {
             key: 'fft',

@@ -40,15 +40,13 @@ function correlationColor(value: number): string {
 }
 
 export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
-    const statusEl = document.getElementById('heatmap-status') as HTMLElement | null;
-
     async function loadMatrix(): Promise<void> {
         if (matrixLoadInFlight) return matrixLoadInFlight;
         matrixLoadInFlight = (async () => {
-            if (statusEl) statusEl.textContent = 'Loading correlation matrix…';
+            heatmapRuntime?.updateStatus('Loading correlation matrix…');
             try {
                 matrixData = await fetchCorrelationMatrix();
-                if (statusEl) statusEl.textContent = `${matrixData.columns.length} columns · ${heatmapCellSize}px cells`;
+                heatmapRuntime?.updateStatus(`${matrixData.columns.length} columns · ${heatmapCellSize}px cells`);
                 await document.fonts.ready;
                 requestAnimationFrame(() => renderHeatmap());
             } catch (error: any) {
@@ -63,7 +61,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                     true,
                     isInsufficient ? 'no-columns-available' : 'render-failure',
                 );
-                if (statusEl) statusEl.textContent = isInsufficient ? 'Not enough numeric columns' : `Error: ${message || 'failed'}`;
+                heatmapRuntime?.updateStatus(isInsufficient ? 'Not enough numeric columns' : `Error: ${message || 'failed'}`);
             }
         })().finally(() => {
             matrixLoadInFlight = null;
@@ -138,6 +136,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
     heatmapRuntime = createAnalysisPageRuntime({
         page: 'heatmap',
         emptyStateRootId: 'heatmap-empty-state',
+        statusElId: 'heatmap-status',
         exportConfig: {
             key: 'heatmap',
             png: { fn: exportElementPNG, filename: 'edatime_heatmap.png' },
@@ -166,7 +165,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             sizeInput?.addEventListener('input', () => {
                 heatmapCellSize = Math.max(24, Math.min(72, Number(sizeInput.value || 36)));
                 if (sizeValue) sizeValue.textContent = String(heatmapCellSize);
-                if (statusEl && matrixData) statusEl.textContent = `${matrixData.columns.length} columns · ${heatmapCellSize}px cells`;
+                if (matrixData) heatmapRuntime?.updateStatus(`${matrixData.columns.length} columns · ${heatmapCellSize}px cells`);
                 renderHeatmap();
             });
         },

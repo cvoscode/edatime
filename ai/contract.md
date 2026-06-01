@@ -271,47 +271,57 @@ max_points: number (default: 16384)
 
 ---
 
-## `/api/analytics/causal` — Causal Graph (PCMCI)
+## `/api/analytics/causal` — Causal Graph
 
 **Method:** `POST`
-**Request body:**
-```json
+
+**Request (TS):** `fetchCausalGraph(columns: string[], tauMax?: number, alpha?: number, method?: string, maxPoints?: number, signal?: AbortSignal, pcAlpha?: number, test?: string, maxCondsDim?: number, fdrMethod?: string): Promise<CausalGraphResponse>`
+
+**Request body (TS JSON sent today):**
+```ts
 {
-  "columns": "col1,col2,...",
-  "tau_max": 3,
-  "pc_alpha": 0.2,
-  "alpha": 0.05,
-  "method": "pcmci" | "pcmciplus" | "fullci" | "bivci" | "lpcmci",
-  "test": "par_corr" | "cmi_knn" | "robust_parcorr" | "gsquared" | "cmi_symb",
-  "max_points": 5000,
-  "max_conds_dim": number | null,
-  "fdr_method": "none" | "fdr_bh",
-  "n_preliminary_iterations": 1,
-  "knn": 10,
-  "sig_samples": 200
+  columns: string;
+  tau_max: number;
+  alpha: number;
+  method: string;
+  max_points: number;
+  pc_alpha: number;
+  test: string;
+  max_conds_dim?: number;
+  fdr_method: string;
 }
 ```
 
-**Handler (Rust):** `post_causal_graph` [deps: [CausalGraphRequest][5]]
+**Request payload (Rust):** `pub struct CausalGraphRequest { columns: Option<String>, tau_max: Option<usize>, pc_alpha: Option<f64>, alpha: Option<f64>, method: Option<String>, test: Option<String>, max_points: Option<usize>, max_conds_dim: Option<usize>, fdr_method: Option<String>, n_preliminary_iterations: Option<usize>, knn: Option<usize>, sig_samples: Option<usize> }`
 
-**Response:**
-```json
+**Handler (Rust):** `pub async fn post_causal_graph(State(state): State<AppState>, Json(params): Json<CausalGraphRequest>) -> Result<impl IntoResponse, AppError>`
+
+**Success Response:** `200 OK`
+```ts
 {
-  "columns": ["col1", "col2", ...],
-  "tau_max": number,
-  "links": [{
-    "source": "string",
-    "target": "string",
-    "lag": number,
-    "type": "string",
-    "value": number,
-    "pvalue": number
-  }],
-  "graph": [[["string"]]],
-  "val_matrix": [[[number]]],
-  "p_matrix": [[[number]]]
+  columns: string[];
+  tau_max: number;
+  links: Array<{
+    source: string;
+    target: string;
+    lag: number;
+    type: string;
+    value: number;
+    pvalue: number;
+  }>;
+  graph: string[][][];
+  val_matrix: number[][][];
+  p_matrix: number[][][];
 }
 ```
+
+**Error Responses:**
+- `400 Bad Request` -> invalid causal selection, including `"Need at least 2 numeric columns"` and `"Too many columns (max 20)"`.
+- `500 Internal Server Error` -> dataset collection, validation, or causal execution failure.
+
+**Notes:**
+- The current frontend sends a subset of `CausalGraphRequest`; Rust fills defaults for `n_preliminary_iterations`, `knn`, and `sig_samples`.
+- The backend clamps `tau_max`, `pc_alpha`, `alpha`, and `max_points` to server-side safety limits before execution.
 
 **[5]: [../../crates/edatime-service/src/handlers/routes/analytics.md][5]**
 

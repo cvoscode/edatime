@@ -138,8 +138,10 @@ function exportJSON(): string {
         position: _nodePositions.get(col) ?? null,
     }));
     return JSON.stringify({
-        meta: { tau_max: _currentTauMax, rendered_edge_mode: 'one_edge_per_node_pair',
-            references: { overview: 'Runge et al. Nat Rev Earth Environ (2023)', pcmci: 'Runge et al. Science Advances (2019)', pcmciplus: 'Runge UAI (2020)', lpcmci: 'Gerhardus and Runge NeurIPS (2020)' } },
+        meta: {
+            tau_max: _currentTauMax, rendered_edge_mode: 'one_edge_per_node_pair',
+            references: { overview: 'Runge et al. Nat Rev Earth Environ (2023)', pcmci: 'Runge et al. Science Advances (2019)', pcmciplus: 'Runge UAI (2020)', lpcmci: 'Gerhardus and Runge NeurIPS (2020)' }
+        },
         nodes, edges: aggregateExportEdges(), raw_links: _currentLinks,
     }, null, 2);
 }
@@ -175,9 +177,11 @@ function exportTorchGeometric(): string {
     });
     const nodeFeatures = _currentColumns.map((col) => ({ index: nodeIndex[col], id: col, label: _nodeLabels.get(col) || col, attrs: _nodeAttrs.get(col) ?? {} }));
     return JSON.stringify({
-        meta: { description: 'Aggregated pair-edge export for downstream graph modeling', edge_mode: 'one_edge_per_node_pair', tau_max: _currentTauMax,
+        meta: {
+            description: 'Aggregated pair-edge export for downstream graph modeling', edge_mode: 'one_edge_per_node_pair', tau_max: _currentTauMax,
             edge_attr_names: ['connection_count', 'min_lag', 'max_lag', 'mean_value', 'min_pvalue', 'direction_code'],
-            direction_codes: { 0: 'mixed_or_unknown', 1: 'node_a_to_node_b', 2: 'node_b_to_node_a', 3: 'undirected_or_uncertain' } },
+            direction_codes: { 0: 'mixed_or_unknown', 1: 'node_a_to_node_b', 2: 'node_b_to_node_a', 3: 'undirected_or_uncertain' }
+        },
         node_features: nodeFeatures, edge_index: [edgeIndexA, edgeIndexB], edge_attr: edgeAttr, edge_details: edgeDetails, raw_links: _currentLinks,
     }, null, 2);
 }

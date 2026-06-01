@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAnalysisPageRuntime } from './analysisPageRuntime.js';
 
 describe('createAnalysisPageRuntime', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
     it('mount() returns an unregister function and wires createPageLifecycle', () => {
         const init = vi.fn();
         const runtime = createAnalysisPageRuntime({
@@ -108,5 +112,56 @@ describe('createAnalysisPageRuntime', () => {
         runtime.mount();
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
         expect(spy).toHaveBeenCalled();
+    });
+
+    it('updateStatus writes text to the configured status element', () => {
+        document.body.innerHTML = `<div id="fft-status"></div>`;
+        const runtime = createAnalysisPageRuntime({
+            page: 'fft',
+            emptyStateRootId: 'fft-empty-state',
+            statusElId: 'fft-status',
+        });
+        runtime.mount();
+        runtime.updateStatus('3 columns selected');
+        expect(document.getElementById('fft-status')?.textContent).toBe('3 columns selected');
+    });
+
+    it('updateStatus clears the element when given an empty string', () => {
+        document.body.innerHTML = `<div id="fft-status">previous text</div>`;
+        const runtime = createAnalysisPageRuntime({
+            page: 'fft',
+            emptyStateRootId: 'fft-empty-state',
+            statusElId: 'fft-status',
+        });
+        runtime.mount();
+        runtime.updateStatus('');
+        expect(document.getElementById('fft-status')?.textContent).toBe('');
+    });
+
+    it('updateStatus is a no-op when no statusElId is configured', () => {
+        document.body.innerHTML = `<div id="some-other-status"></div>`;
+        const runtime = createAnalysisPageRuntime({
+            page: 'fft',
+            emptyStateRootId: 'fft-empty-state',
+            // no statusElId
+        });
+        runtime.mount();
+        // Should not throw
+        runtime.updateStatus('anything');
+        expect(document.getElementById('some-other-status')?.textContent).toBe('');
+    });
+
+    it('statusElId is accepted without breaking mount or empty-state', () => {
+        document.body.innerHTML = `<div id="heatmap-empty-state"></div><div id="heatmap-status"></div>`;
+        const runtime = createAnalysisPageRuntime({
+            page: 'heatmap',
+            emptyStateRootId: 'heatmap-empty-state',
+            statusElId: 'heatmap-status',
+        });
+        runtime.mount();
+        runtime.updateEmptyState({ visible: true, reason: 'no-data', title: '', message: '' });
+        runtime.updateStatus('5 columns loaded');
+        expect(document.getElementById('heatmap-empty-state')!.getAttribute('data-empty-reason')).toBe('no-data');
+        expect(document.getElementById('heatmap-status')!.textContent).toBe('5 columns loaded');
     });
 });

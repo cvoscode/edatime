@@ -19,60 +19,10 @@ import { renderSeriesChipList } from '../../ui/index.js';
 import { sanitizeSelectedColumns, ensureAdaptiveTargetStillValid } from './columnSelection.js';
 import { renderColorByControl } from './colorByControl.js';
 import { buildRangeControls } from './rangeControls.js';
-
-let _seriesCollapsed = false;
-
-// ─── Collapse toggle ───────────────────────────────────────────────────────
-
-export function initSeriesCollapse(): void {
-    const btn = document.getElementById('collapse-series-btn');
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-        _seriesCollapsed = !_seriesCollapsed;
-        updateCollapseButton(btn);
-        applyCollapse();
-    });
-}
-
-function updateCollapseButton(btn: HTMLElement): void {
-    btn.title = _seriesCollapsed ? 'Expand series list' : 'Collapse series list';
-    btn.setAttribute('aria-label', _seriesCollapsed ? 'Expand series list' : 'Collapse series list');
-    const svg = btn.querySelector('svg');
-    if (svg) {
-        svg.style.transform = _seriesCollapsed ? 'rotate(180deg)' : '';
-    }
-}
-
-function applyCollapse(): void {
-    const chips = document.querySelectorAll<HTMLElement>('#column-toggles .series-chip');
-    const collapseThreshold = 3;
-    chips.forEach((chip, i) => {
-        if (!_seriesCollapsed || i < collapseThreshold) {
-            (chip as HTMLElement).style.display = '';
-        } else {
-            (chip as HTMLElement).style.display = 'none';
-        }
-    });
-
-    const container = document.getElementById('column-toggles');
-    if (_seriesCollapsed && container) {
-        let existingBadge = container.querySelector('.collapse-badge');
-        if (!existingBadge) {
-            const badge = document.createElement('span');
-            badge.className = 'collapse-badge';
-            badge.id = 'series-collapse-badge';
-            container.appendChild(badge);
-        }
-        const badge = container.querySelector('#series-collapse-badge');
-        if (badge) {
-            badge.textContent = `+${chips.length - collapseThreshold} more`;
-            (badge as HTMLElement).style.display = '';
-        }
-    } else {
-        const badge = document.getElementById('series-collapse-badge');
-        if (badge) (badge as HTMLElement).style.display = 'none';
-    }
-}
+import { applyCollapse } from './seriesCollapse.js';
+import { bindChipContextMenu } from './chipContextMenu.js';
+import { composeChipListItems, bindChipCtrlClick } from './chipComposition.js';
+export { initSeriesCollapse } from './seriesCollapse.js';
 
 // ─── Column toggles (chips) ─────────────────────────────────────────────────
 
@@ -89,47 +39,16 @@ export function buildColumnToggles(
     container.innerHTML = '';
     const finish = () => { container.dataset.rebuilding = ''; };
 
-    // Double-right-click a chip to open the filter modal for that column.
-    if (!container.dataset.ctxBound) {
-        let lastContextTs = 0;
-        let lastContextCol = '';
-        container.addEventListener('contextmenu', (e: MouseEvent) => {
-            const chip = (e.target as HTMLElement)?.closest?.('.series-chip');
-            if (!chip) return;
-            const input = chip.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
-            const col = input?.value;
-            if (!col) return;
-            e.preventDefault();
-            e.stopPropagation();
+    bindChipContextMenu(container);
 
-            const now = performance.now();
-            const isDoubleContext = lastContextCol === col && (now - lastContextTs) <= 450;
-            lastContextTs = now;
-            lastContextCol = col;
-            if (!isDoubleContext) return;
-
-            lastContextTs = 0;
-            lastContextCol = '';
-            const open = window.__edatime?.openFilterForCol;
-            if (typeof open !== 'function') return;
-            open(col);
-        });
-        container.dataset.ctxBound = '1';
-    }
-
-    const visibleCols = appState.numericCols.filter((col) => {
-        if (!appState.filterText) return true;
-        return col.toLowerCase().includes(appState.filterText);
+    const items = composeChipListItems({
+        filterText: appState.filterText ?? '',
+        buildRangeControlsFn,
+        fetchAndRender,
+        renderCurrentDataFn,
     });
 
-    renderColorByControl({
-        onColorColumnChange: () => {
-            if (typeof fetchAndRender === 'function') fetchAndRender();
-        },
-        slotId: 'timeseries-color-slot',
-    });
-
-    if (visibleCols.length === 0) {
+    if (items.length === 0) {
         const empty = document.createElement('span');
         empty.className = 'series-empty';
         empty.textContent = 'No matching columns';
@@ -137,49 +56,9 @@ export function buildColumnToggles(
         return;
     }
 
-    const chipListItems = visibleCols.map((col) => {
-        const colIdx = appState.numericCols.indexOf(col);
-        const color = getSeriesColor(col, colIdx >= 0 ? colIdx : 0);
-        const isActive = appState.selectedCols.includes(col);
-        const isAdaptiveTarget = isActive && appState.adaptiveFilterColumn === col;
-
-        const chipTitle = isAdaptiveTarget
-            ? `Adaptive filter target: ${col}`
-            : `Ctrl+click to target adaptive filters to ${col}`;
-
-        return {
-            column: col,
-            checked: isActive,
-            color,
-            adaptiveTarget: isAdaptiveTarget,
-            title: chipTitle,
-            onToggle: (checked: boolean) => {
-                if (checked) {
-                    if (!appState.selectedCols.includes(col)) setSelectedCols([...appState.selectedCols, col]);
-                } else {
-                    setSelectedCols(appState.selectedCols.filter((c) => c !== col));
-                }
-                ensureAdaptiveTargetStillValid();
-                buildRangeControlsFn();
-                (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
-                fetchAndRender();
-            },
-            onColorInput: (nextColor: string) => {
-                const updated = setSeriesColor(col, nextColor);
-                if (!updated) return;
-                renderCurrentDataFn?.();
-            },
-            onMenuClick: () => {
-                const open = window.__edatime?.openFilterForCol;
-                if (typeof open === 'function') open(col);
-            },
-            menuLabel: `Filter range for ${col}`,
-        };
-    });
-
     renderSeriesChipList({
         container,
-        items: chipListItems,
+        items: items.map((item) => ({ ...item, onToggle: item.onToggle })),
         chipClass: 'timeseries-chip',
         onColorUpdate: (col, color) => {
             const chip = container.querySelector(`[data-col="${col}"]`) as HTMLElement | null;
@@ -187,35 +66,16 @@ export function buildColumnToggles(
         },
     });
 
-    // Re-attach Ctrl+click adaptive-target handler to chips.
-    // The chip-color-picker click is excluded so color changes don't trigger it.
-    for (const chip of container.querySelectorAll<HTMLElement>('.series-chip')) {
-        chip.addEventListener(
-            'click',
-            (e: MouseEvent) => {
-                if ((e.target as HTMLElement)?.closest?.('.chip-color-picker')) return;
-                if (!e.ctrlKey) return;
-                e.preventDefault();
-                e.stopPropagation();
-
-                const input = chip.querySelector<HTMLInputElement>('input[type="checkbox"]');
-                const col = input?.value;
-                if (!col) return;
-
-                const hadColumn = appState.selectedCols.includes(col);
-                if (!hadColumn) setSelectedCols([...appState.selectedCols, col]);
-                setAdaptiveFilterColumn(col);
-                setPendingAdaptivePoint(null);
-
-                buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
-                buildRangeControlsFn();
-                (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
-
-                if (!hadColumn) fetchAndRender();
-            },
-            true, // capture phase
-        );
-    }
+    bindChipCtrlClick(
+        container,
+        () => {
+            buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
+            buildRangeControlsFn();
+        },
+        buildRangeControlsFn,
+        renderCurrentDataFn,
+        fetchAndRender,
+    );
     finish();
     applyCollapse();
 }

@@ -1,6 +1,6 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/scatter-BfitVHBo.js","assets/chartgpu-CqrjGxnD.js","assets/frequency-_vP7LSE1.js","assets/entrypoint-2vpmLGf5.js","assets/entrypoint-CDumNbFx.js","assets/entrypoint-QhIze1Oh.js","assets/causal-iIlmKuxO.js","assets/drift-4m4314Io.js","assets/DataChart-CyWw3AM_.js"])))=>i.map(i=>d[i]);
-import { b as appStateComposite, k as setSelectedCols, l as setAdaptiveFilterColumn, m as setSelectedColorColumn, n as formatAnalysisNumber, o as setAdaptiveLineFilters, p as setPendingAdaptivePoint, q as getSeriesColor, r as setSeriesColor, t as computeBounds, u as setPreviewTimeColumn, v as uploadDataset, w as formatCount, x as fetchMetadata$1, y as setMetadata, z as setDatasetRevision, A as connectDatabase, B as loadDatabaseTable, C as deleteDatabaseConnection, E as previewUpload, F as formatToDatetimeLocal, G as formatAnalysisTime, H as setPreviewSelectedColumns, I as fetchDatabaseTables, J as fetchDatabaseStatus, K as setProfileGridBound, L as normalizeDtypeLabel, M as formatProfileValue, N as setProfileGridSort, O as setProfileGridHeaderBound, P as setColumnProfiles, Q as toFiniteNumberOrNull, R as setAnomalyRegions, S as setRollingBands, T as applyColumnRanges, U as isRangeOutsideDataset, V as dbgGroup, W as setZoomHistory, X as setViewport, Y as setPendingYMode, Z as setPendingRestoreY, $ as setFetchDebounceId, a0 as sanitizeSelectedColumns$1, a1 as dbg, a2 as setLastFetchedData, D as DEBUG, a3 as ensureRangeStateFromData, c as createEmptyStateController, d as downloadBlob, a4 as setChartText, a5 as setRollingEnabled, a6 as setRollingWindow, a7 as setAnomalyEnabled, a8 as setAnomalyMethod, a9 as setAnomalyThreshold, aa as setAnalysisBound, ab as SERIES_COLORS, _ as __vitePreload, ac as setSeriesColors, ad as setColumnRanges, ae as requestGpuAdapter, af as installWindowsWebGpuRequestAdapterWorkaround, ag as appendAdaptiveLineFilter, ah as buildAdaptiveLineY, ai as debounce, aj as setFilterText, ak as setProfileFilterText, al as setNumericCols, am as setChartInstance, an as setInitialView, ao as initScatterPage } from './assets/scatter-BfitVHBo.js';
-import { r as renderSeriesChipList, t as toast, g as getNumericColumns, a as getDefaultTimeseriesColumns, b as getAnalyticsChipColor } from './assets/frequency-_vP7LSE1.js';
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/scatter-INiNSUmD.js","assets/chartgpu-CqrjGxnD.js","assets/frequency-DDhj7cvA.js","assets/entrypoint-DDKmoufg.js","assets/entrypoint-CoinkpZQ.js","assets/entrypoint-DIE5s4DQ.js","assets/causal-fh9kzEa_.js","assets/drift-DzhJ3DU9.js","assets/DataChart-DesO8rUf.js"])))=>i.map(i=>d[i]);
+import { b as appStateComposite, k as setSelectedCols, l as setAdaptiveFilterColumn, m as formatAnalysisNumber, n as setAdaptiveLineFilters, o as setPendingAdaptivePoint, p as getSeriesColor, q as setSeriesColor, r as computeBounds, t as setPreviewTimeColumn, u as uploadDataset, v as formatCount, w as fetchMetadata$1, x as setMetadata, y as setDatasetRevision, z as connectDatabase, A as loadDatabaseTable, B as deleteDatabaseConnection, C as previewUpload, E as formatToDatetimeLocal, F as formatAnalysisTime, G as setPreviewSelectedColumns, H as fetchDatabaseTables, I as fetchDatabaseStatus, J as setProfileGridBound, K as normalizeDtypeLabel, L as formatProfileValue, M as setProfileGridSort, N as setProfileGridHeaderBound, O as setColumnProfiles, P as toFiniteNumberOrNull, Q as setAnomalyRegions, R as setRollingBands, S as applyColumnRanges, T as isRangeOutsideDataset, U as dbgGroup, V as setZoomHistory, W as setViewport, X as setPendingYMode, Y as setPendingRestoreY, Z as setFetchDebounceId, $ as sanitizeSelectedColumns$1, a0 as dbg, a1 as setLastFetchedData, D as DEBUG, a2 as ensureRangeStateFromData, c as createEmptyStateController, d as downloadBlob, a3 as setChartText, a4 as setRollingEnabled, a5 as setRollingWindow, a6 as setAnomalyEnabled, a7 as setAnomalyMethod, a8 as setAnomalyThreshold, a9 as setAnalysisBound, aa as SERIES_COLORS, _ as __vitePreload, ab as setSeriesColors, ac as setColumnRanges, ad as setSelectedColorColumn, ae as requestGpuAdapter, af as installWindowsWebGpuRequestAdapterWorkaround, ag as appendAdaptiveLineFilter, ah as buildAdaptiveLineY, ai as debounce, aj as setFilterText, ak as setProfileFilterText, al as setNumericCols, am as setChartInstance, an as setInitialView, ao as initScatterPage } from './assets/scatter-INiNSUmD.js';
+import { r as renderSeriesChipList, t as toast, g as getNumericColumns, a as getDefaultTimeseriesColumns, b as getAnalyticsChipColor } from './assets/frequency-DDhj7cvA.js';
 import './assets/chartgpu-CqrjGxnD.js';
 
 function setMetaText(text) {
@@ -46,42 +46,6 @@ function ensureAdaptiveTargetStillValid() {
   if (!appStateComposite.adaptiveFilterColumn) return;
   if (appStateComposite.selectedCols.includes(appStateComposite.adaptiveFilterColumn)) return;
   setAdaptiveFilterColumn(appStateComposite.selectedCols[0] ?? null);
-}
-
-function renderColorByControl(options) {
-  const { onColorColumnChange } = options;
-  const slot = document.getElementById(options.slotId ?? "timeseries-color-slot");
-  if (!slot) return;
-  slot.innerHTML = "";
-  const control = document.createElement("div");
-  control.className = "series-color-selector";
-  control.innerHTML = `
-    <label>
-      <span>Color by</span>
-      <select id="color-column-select" name="color-column-select" aria-label="Color-by column"></select>
-    </label>
-  `;
-  slot.appendChild(control);
-  const select = control.querySelector("#color-column-select");
-  if (!select) return;
-  select.innerHTML = '<option value="">None</option>';
-  const metadataCols = (appStateComposite.metadata?.columns ?? []).map((c) => ({
-    name: c?.name,
-    dtype: c?.dtype
-  }));
-  for (const col of metadataCols) {
-    const name = String(col.name ?? "").trim();
-    if (!name) continue;
-    const opt = document.createElement("option");
-    opt.value = name;
-    opt.textContent = name;
-    if (name === appStateComposite.selectedColorColumn) opt.selected = true;
-    select.appendChild(opt);
-  }
-  select.addEventListener("change", () => {
-    setSelectedColorColumn(select.value || null);
-    onColorColumnChange();
-  });
 }
 
 function buildRangeControls() {
@@ -226,58 +190,41 @@ function applyCollapse() {
     if (badge) badge.style.display = "none";
   }
 }
-function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn = null) {
-  const container = document.getElementById("column-toggles");
-  if (!container || container?.dataset?.rebuilding) return;
-  container.dataset.rebuilding = "1";
-  sanitizeSelectedColumns();
-  ensureAdaptiveTargetStillValid();
-  container.innerHTML = "";
-  const finish = () => {
-    container.dataset.rebuilding = "";
-  };
-  if (!container.dataset.ctxBound) {
-    let lastContextTs = 0;
-    let lastContextCol = "";
-    container.addEventListener("contextmenu", (e) => {
-      const chip = e.target?.closest?.(".series-chip");
-      if (!chip) return;
-      const input = chip.querySelector('input[type="checkbox"]');
-      const col = input?.value;
-      if (!col) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const now = performance.now();
-      const isDoubleContext = lastContextCol === col && now - lastContextTs <= 450;
-      lastContextTs = now;
-      lastContextCol = col;
-      if (!isDoubleContext) return;
-      lastContextTs = 0;
-      lastContextCol = "";
-      const open = window.__edatime?.openFilterForCol;
-      if (typeof open !== "function") return;
-      open(col);
-    });
-    container.dataset.ctxBound = "1";
-  }
+
+let _lastContextTs = 0;
+let _lastContextCol = "";
+function bindChipContextMenu(container) {
+  if (container.dataset.ctxBound) return;
+  container.dataset.ctxBound = "1";
+  container.addEventListener("contextmenu", (e) => {
+    const chip = e.target?.closest?.(".series-chip");
+    if (!chip) return;
+    const input = chip.querySelector('input[type="checkbox"]');
+    const col = input?.value;
+    if (!col) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const now = performance.now();
+    const isDoubleContext = _lastContextCol === col && now - _lastContextTs <= 450;
+    _lastContextTs = now;
+    _lastContextCol = col;
+    if (!isDoubleContext) return;
+    _lastContextTs = 0;
+    _lastContextCol = "";
+    const open = window.__edatime?.openFilterForCol;
+    if (typeof open !== "function") return;
+    open(col);
+  });
+}
+
+function composeChipListItems(options) {
+  const { filterText, buildRangeControlsFn, fetchAndRender, renderCurrentDataFn } = options;
   const visibleCols = appStateComposite.numericCols.filter((col) => {
-    if (!appStateComposite.filterText) return true;
-    return col.toLowerCase().includes(appStateComposite.filterText);
+    if (!filterText) return true;
+    return col.toLowerCase().includes(filterText.toLowerCase());
   });
-  renderColorByControl({
-    onColorColumnChange: () => {
-      if (typeof fetchAndRender === "function") fetchAndRender();
-    },
-    slotId: "timeseries-color-slot"
-  });
-  if (visibleCols.length === 0) {
-    const empty = document.createElement("span");
-    empty.className = "series-empty";
-    empty.textContent = "No matching columns";
-    container.appendChild(empty);
-    return;
-  }
-  const chipListItems = visibleCols.map((col) => {
+  if (visibleCols.length === 0) return [];
+  return visibleCols.map((col) => {
     const colIdx = appStateComposite.numericCols.indexOf(col);
     const color = getSeriesColor(col, colIdx >= 0 ? colIdx : 0);
     const isActive = appStateComposite.selectedCols.includes(col);
@@ -312,15 +259,8 @@ function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentD
       menuLabel: `Filter range for ${col}`
     };
   });
-  renderSeriesChipList({
-    container,
-    items: chipListItems,
-    chipClass: "timeseries-chip",
-    onColorUpdate: (col, color) => {
-      const chip = container.querySelector(`[data-col="${col}"]`);
-      if (chip) chip.style.setProperty("--chip-accent", color);
-    }
-  });
+}
+function bindChipCtrlClick(container, rebuildAndRender, buildRangeControlsFn, renderCurrentDataFn, fetchAndRender) {
   for (const chip of container.querySelectorAll(".series-chip")) {
     chip.addEventListener(
       "click",
@@ -336,8 +276,7 @@ function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentD
         if (!hadColumn) setSelectedCols([...appStateComposite.selectedCols, col]);
         setAdaptiveFilterColumn(col);
         setPendingAdaptivePoint(null);
-        buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
-        buildRangeControlsFn();
+        rebuildAndRender();
         appStateComposite.chart?.requestOverlayRender?.();
         if (!hadColumn) fetchAndRender();
       },
@@ -345,6 +284,51 @@ function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentD
       // capture phase
     );
   }
+}
+
+function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn = null) {
+  const container = document.getElementById("column-toggles");
+  if (!container || container?.dataset?.rebuilding) return;
+  container.dataset.rebuilding = "1";
+  sanitizeSelectedColumns();
+  ensureAdaptiveTargetStillValid();
+  container.innerHTML = "";
+  const finish = () => {
+    container.dataset.rebuilding = "";
+  };
+  bindChipContextMenu(container);
+  const items = composeChipListItems({
+    filterText: appStateComposite.filterText ?? "",
+    buildRangeControlsFn,
+    fetchAndRender,
+    renderCurrentDataFn
+  });
+  if (items.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "series-empty";
+    empty.textContent = "No matching columns";
+    container.appendChild(empty);
+    return;
+  }
+  renderSeriesChipList({
+    container,
+    items: items.map((item) => ({ ...item, onToggle: item.onToggle })),
+    chipClass: "timeseries-chip",
+    onColorUpdate: (col, color) => {
+      const chip = container.querySelector(`[data-col="${col}"]`);
+      if (chip) chip.style.setProperty("--chip-accent", color);
+    }
+  });
+  bindChipCtrlClick(
+    container,
+    () => {
+      buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
+      buildRangeControlsFn();
+    },
+    buildRangeControlsFn,
+    renderCurrentDataFn,
+    fetchAndRender
+  );
   finish();
   applyCollapse();
 }
@@ -3917,7 +3901,7 @@ function initTransformModal(deps) {
         applyBtn.textContent = "Applying…";
         applyBtn.disabled = true;
       }
-      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/scatter-BfitVHBo.js').then(n => n.au);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/scatter-INiNSUmD.js').then(n => n.au);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
       await postTransform(expr, name);
       controller.close();
       await deps.refreshDataset({ selectedColumn: name });
@@ -3967,7 +3951,7 @@ function initOutlierModal(deps) {
         applyBtn.disabled = true;
         applyBtn.textContent = "Removing…";
       }
-      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/scatter-BfitVHBo.js').then(n => n.au);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/scatter-INiNSUmD.js').then(n => n.au);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
       const result = await postRemoveOutliers(
         columns,
         method,
@@ -4221,8 +4205,8 @@ function generateWeatherCsv() {
   return rows.join("\n");
 }
 async function loadSampleDataset(datasetId, showPage) {
-  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/frequency-_vP7LSE1.js').then(n => n.k);return { toast }},true              ?__vite__mapDeps([2,0,1]):void 0);
-  const { fetchSampleDataset } = await __vitePreload(async () => { const { fetchSampleDataset } = await import('./assets/scatter-BfitVHBo.js').then(n => n.au);return { fetchSampleDataset }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/frequency-DDhj7cvA.js').then(n => n.k);return { toast }},true              ?__vite__mapDeps([2,0,1]):void 0);
+  const { fetchSampleDataset } = await __vitePreload(async () => { const { fetchSampleDataset } = await import('./assets/scatter-INiNSUmD.js').then(n => n.au);return { fetchSampleDataset }},true              ?__vite__mapDeps([0,1]):void 0);
   if (datasetId === "ettm2") {
     const dismissLoading = toast("Loading ETTm2 sample dataset…", "info", 0);
     let file;
@@ -4813,12 +4797,12 @@ async function loadEntrypoints(deps) {
     { createCausalEntrypoint },
     { createDriftEntrypoint }
   ] = await Promise.all([
-    __vitePreload(() => import('./assets/entrypoint-2vpmLGf5.js'),true              ?__vite__mapDeps([3,2,0,1]):void 0),
-    __vitePreload(() => import('./assets/entrypoint-CDumNbFx.js'),true              ?__vite__mapDeps([4,2,0,1]):void 0),
-    __vitePreload(() => import('./assets/scatter-BfitVHBo.js').then(n => n.av),true              ?__vite__mapDeps([0,1]):void 0),
-    __vitePreload(() => import('./assets/entrypoint-QhIze1Oh.js'),true              ?__vite__mapDeps([5,2,0,1]):void 0),
-    __vitePreload(() => import('./assets/causal-iIlmKuxO.js'),true              ?__vite__mapDeps([6,0,1,2]):void 0),
-    __vitePreload(() => import('./assets/drift-4m4314Io.js').then(n => n.e),true              ?__vite__mapDeps([7,0,1,2]):void 0)
+    __vitePreload(() => import('./assets/entrypoint-DDKmoufg.js'),true              ?__vite__mapDeps([3,2,0,1]):void 0),
+    __vitePreload(() => import('./assets/entrypoint-CoinkpZQ.js'),true              ?__vite__mapDeps([4,2,0,1]):void 0),
+    __vitePreload(() => import('./assets/scatter-INiNSUmD.js').then(n => n.av),true              ?__vite__mapDeps([0,1]):void 0),
+    __vitePreload(() => import('./assets/entrypoint-DIE5s4DQ.js'),true              ?__vite__mapDeps([5,2,0,1]):void 0),
+    __vitePreload(() => import('./assets/causal-fh9kzEa_.js'),true              ?__vite__mapDeps([6,0,1,2]):void 0),
+    __vitePreload(() => import('./assets/drift-DzhJ3DU9.js').then(n => n.e),true              ?__vite__mapDeps([7,0,1,2]):void 0)
   ]);
   register("fft", {
     requiresMetadata: true,
@@ -5278,8 +5262,8 @@ let DataChartCtor = null;
 async function ensureChartModules() {
   if (fetchMetadata && fetchData && DataChartCtor) return;
   const [dataClient, chartModule] = await Promise.all([
-    __vitePreload(() => import('./assets/scatter-BfitVHBo.js').then(n => n.au),true              ?__vite__mapDeps([0,1]):void 0),
-    __vitePreload(() => import('./assets/DataChart-CyWw3AM_.js'),true              ?__vite__mapDeps([8,1,0,2]):void 0)
+    __vitePreload(() => import('./assets/scatter-INiNSUmD.js').then(n => n.au),true              ?__vite__mapDeps([0,1]):void 0),
+    __vitePreload(() => import('./assets/DataChart-DesO8rUf.js'),true              ?__vite__mapDeps([8,1,0,2]):void 0)
   ]);
   fetchMetadata = dataClient.fetchMetadata;
   fetchData = dataClient.fetchData;
@@ -5305,7 +5289,7 @@ async function ensureChartModules() {
   });
 }
 async function fetchAndRenderAnalytics() {
-  const { fetchAnomalies: fa } = await __vitePreload(async () => { const { fetchAnomalies: fa } = await import('./assets/scatter-BfitVHBo.js').then(n => n.au);return { fetchAnomalies: fa }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { fetchAnomalies: fa } = await __vitePreload(async () => { const { fetchAnomalies: fa } = await import('./assets/scatter-INiNSUmD.js').then(n => n.au);return { fetchAnomalies: fa }},true              ?__vite__mapDeps([0,1]):void 0);
   await fetchAnomalyRegions(fa ?? fetchAnomalies);
 }
 let _datasetReadyPromise = null;
@@ -5443,7 +5427,7 @@ async function init() {
     numericColumns: () => getNumericColumns(appStateComposite.metadata),
     setLoading: setComputeLoading,
     initDriftPage: (metadata) => {
-      void __vitePreload(() => import('./assets/drift-4m4314Io.js').then(n => n.d),true              ?__vite__mapDeps([7,0,1,2]):void 0).then((m) => m.initDriftPage(metadata));
+      void __vitePreload(() => import('./assets/drift-DzhJ3DU9.js').then(n => n.d),true              ?__vite__mapDeps([7,0,1,2]):void 0).then((m) => m.initDriftPage(metadata));
     }
   });
   window.__edatime = window.__edatime || {};
