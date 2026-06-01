@@ -193,4 +193,119 @@ describe('updateSeriesChipList', () => {
         expect(onColorInput).toHaveBeenCalledTimes(1);
         expect(onColorUpdate).toHaveBeenCalledWith('p', expect.any(String));
     });
+
+    it('preserves transient chip classes when updating with preserveExisting', () => {
+        const items = [makeItem({ column: 'a' })];
+        renderSeriesChipList({ container, items });
+
+        const chip = container.querySelector<HTMLElement>('[data-col="a"]')!;
+        chip.classList.add('loading');
+
+        renderSeriesChipList({
+            container,
+            items: [makeItem({ column: 'a', checked: true })],
+            preserveExisting: true,
+        });
+
+        const updatedChip = container.querySelector<HTMLElement>('[data-col="a"]')!;
+        expect(updatedChip).toBe(chip);
+        expect(updatedChip.classList.contains('loading')).toBe(true);
+        expect(updatedChip.classList.contains('active')).toBe(true);
+    });
+
+    it('binds keyboard activation when preserveExisting is used on the initial render', () => {
+        const onToggle = vi.fn();
+        renderSeriesChipList({
+            container,
+            items: [makeItem({ column: 'kbd', onToggle })],
+            preserveExisting: true,
+        });
+
+        const chip = container.querySelector<HTMLElement>('[data-col="kbd"]')!;
+        chip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+        expect(onToggle).toHaveBeenCalledTimes(1);
+        expect(onToggle).toHaveBeenCalledWith(true, 'kbd');
+    });
+});
+
+describe('renderSeriesChipList with preserveExisting', () => {
+    let container: HTMLElement;
+
+    beforeEach(() => {
+        container = buildContainer();
+    });
+
+    it('a chip with a loading class survives an update when preserveExisting is enabled', () => {
+        // Initial render — chips start without loading class
+        const items = [makeItem({ column: 'col_a', checked: true })];
+        renderSeriesChipList({ container, items, chipClass: 'fft-trace-chip' });
+
+        // Manually add loading class to simulate what FFT does between fetch start and end
+        const chip = container.querySelector<HTMLElement>('[data-col="col_a"]')!;
+        chip.classList.add('loading');
+        chip.setAttribute('aria-disabled', 'true');
+
+        // Re-render with preserveExisting — loading class must survive
+        renderSeriesChipList({ container, items, chipClass: 'fft-trace-chip', preserveExisting: true });
+
+        const restored = container.querySelector<HTMLElement>('[data-col="col_a"]')!;
+        expect(restored).toBe(chip); // Same element, not rebuilt
+        expect(restored.classList.contains('loading')).toBe(true);
+        expect(restored.getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('loading state persists across multiple render calls with preserveExisting true', () => {
+        const items = [makeItem({ column: 'col_b', checked: false })];
+        renderSeriesChipList({ container, items, chipClass: 'fft-trace-chip', preserveExisting: true });
+
+        // Simulate multiple loading cycles
+        for (let i = 0; i < 3; i++) {
+            const chip = container.querySelector<HTMLElement>('[data-col="col_b"]')!;
+            chip.classList.add('loading');
+            chip.setAttribute('aria-disabled', 'true');
+
+            renderSeriesChipList({ container, items, chipClass: 'fft-trace-chip', preserveExisting: true });
+
+            const restored = container.querySelector<HTMLElement>('[data-col="col_b"]')!;
+            expect(restored.classList.contains('loading')).toBe(true);
+            expect(restored.getAttribute('aria-disabled')).toBe('true');
+        }
+    });
+
+    it('preserved chips that are no longer in items get removed even with preserveExisting', () => {
+        const items = [
+            makeItem({ column: 'col_x' }),
+            makeItem({ column: 'col_y' }),
+        ];
+        renderSeriesChipList({ container, items, preserveExisting: true });
+
+        // Manually mark one as loading
+        const chipX = container.querySelector<HTMLElement>('[data-col="col_x"]')!;
+        chipX.classList.add('loading');
+
+        // Re-render with only col_y — col_x should be removed (including its loading class)
+        renderSeriesChipList({
+            container,
+            items: [items[1]],
+            preserveExisting: true,
+        });
+
+        expect(container.querySelector('[data-col="col_x"]')).toBeFalsy();
+        expect(container.querySelector('[data-col="col_y"]')).toBeTruthy();
+    });
+
+    it('chips without loading class are not affected by preserveExisting behavior', () => {
+        const items = [makeItem({ column: 'col_z', checked: true })];
+        renderSeriesChipList({ container, items, chipClass: 'fft-trace-chip' });
+
+        const chip = container.querySelector<HTMLElement>('[data-col="col_z"]')!;
+        expect(chip.classList.contains('loading')).toBe(false);
+
+        renderSeriesChipList({ container, items, chipClass: 'fft-trace-chip', preserveExisting: true });
+
+        const restored = container.querySelector<HTMLElement>('[data-col="col_z"]')!;
+        expect(restored).toBe(chip);
+        expect(restored.classList.contains('loading')).toBe(false);
+    });
 });

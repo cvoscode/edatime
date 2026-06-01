@@ -98,6 +98,33 @@ describe('createEmptyStateController', () => {
         expect((document.getElementById('timeseries-clear-filters-btn') as HTMLButtonElement | null)?.hidden).toBe(true);
     });
 
+    it('can hide a previously visible empty state and clear its reason', () => {
+        document.body.innerHTML = `
+            <div id="fft-empty-state" data-empty-reason="no-columns-selected"></div>
+        `;
+
+        const controller = createEmptyStateController({
+            rootId: 'fft-empty-state',
+        });
+
+        controller.update({
+            visible: true,
+            reason: 'no-columns-selected',
+            title: '',
+            message: '',
+        });
+        controller.update({
+            visible: false,
+            reason: '',
+            title: '',
+            message: '',
+        });
+
+        const root = document.getElementById('fft-empty-state')!;
+        expect(root.hidden).toBe(true);
+        expect(root.getAttribute('data-empty-reason')).toBe('');
+    });
+
     it('dispatches configured empty-state actions', () => {
         document.body.innerHTML = `
             <div id="scatter-empty-state" data-empty-reason="">

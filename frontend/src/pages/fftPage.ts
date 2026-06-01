@@ -3,10 +3,8 @@ import { fetchFft, fetchSpectralFilter } from '../services/api/index.js';
 import { FftChart, type FftTrace } from '../chart/FftChart.js';
 import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanvasHTML, exportTraceCSV } from '../utils/chartExport.js';
 import { toast } from '../utils/toast.js';
-import { bindExportButtons } from '../utils/bindExportButtons.js';
 import { getAnalyticsChipColor, getNumericColumns } from './analyticsPageUtils.js';
 import { setSpectralFilterPreview } from '../store/index.js';
-import { SeriesChip } from '../ui/composites/SeriesChip.js';
 import { renderSeriesChipList } from '../ui/index.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 
@@ -20,6 +18,22 @@ let fftLogScale = true;
 let fftChart: FftChart | null = null;
 const fftTraceColors: Record<string, string> = {};
 let fftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
+let fftPageCleanup: (() => void) | null = null;
+
+function resetFftPageState(): void {
+    fftPageCleanup?.();
+    fftPageCleanup = null;
+    fftTraces = [];
+    fftMode = 'magnitude';
+    fftLogScale = true;
+    fftChart = null;
+    fftRuntime = null;
+    for (const key of Object.keys(fftTraceColors)) delete fftTraceColors[key];
+}
+
+export function __resetFftPageForTests(): void {
+    resetFftPageState();
+}
 
 function fftColumns(): string[] {
     return getNumericColumns(appState.metadata);
@@ -34,13 +48,26 @@ function updateZoomButton(isZoomed?: boolean): void {
     if (button) button.hidden = !(isZoomed ?? fftChart?.getIsZoomed() ?? false);
 }
 
-function rerenderOrClear(): void {
-    fftRuntime?.updateEmptyState({
-        visible: fftTraces.length === 0,
-        reason: fftTraces.length > 0 ? '' : 'no-columns-selected',
+function syncFftEmptyState(): void {
+    const visible = fftTraces.length === 0;
+    const reason = visible ? 'no-columns-selected' : '';
+    const model = {
+        visible,
+        reason,
         title: '',
         message: '',
-    });
+    };
+
+    fftRuntime?.updateEmptyState(model);
+
+    const root = document.getElementById('fft-empty-state') as HTMLElement | null;
+    if (!root) return;
+    root.hidden = !visible;
+    root.setAttribute('data-empty-reason', reason);
+}
+
+function rerenderOrClear(): void {
+    syncFftEmptyState();
     if (!fftChart) return;
     if (fftTraces.length === 0) {
         fftChart.clear();
@@ -73,16 +100,6 @@ function renderChips(): void {
     const bar = document.getElementById('fft-traces-bar');
     if (!bar || !appState.metadata) return;
     const columns = fftColumns();
-
-    // Capture loading chips before renderSeriesChipList clears the container
-    const existing = new Map<string, HTMLElement>();
-    for (const element of bar.querySelectorAll<HTMLElement>('.fft-trace-chip')) {
-        const column = element.dataset.col as string;
-        if (columns.includes(column)) existing.set(column, element);
-        else element.remove();
-    }
-
-    const zoomButton = bar.querySelector('#fft-zoom-reset-btn');
 
     renderSeriesChipList({
         container: bar,
@@ -135,6 +152,7 @@ function renderChips(): void {
             };
         }),
         chipClass: 'fft-trace-chip',
+        preserveExisting: true,
         postChipAttributes: { role: 'button', tabIndex: '0' },
         onColorUpdate: (column, color) => {
             const trace = fftTraces.find((item) => item.column === column);
@@ -145,21 +163,12 @@ function renderChips(): void {
         },
     });
 
-    // Restore chips that were loading (they get replaced by renderSeriesChipList)
-    for (const [col, chip] of existing.entries()) {
-        if (chip.classList.contains('loading')) {
-            const restored = bar.querySelector(`[data-col="${col}"]`) as HTMLElement | null;
-            if (restored) {
-                restored.classList.add('loading');
-                restored.setAttribute('aria-disabled', 'true');
-            }
-        }
-    }
-
     bar.hidden = columns.length === 0;
 }
 
 export async function initFftPage(deps: FftPageDeps): Promise<void> {
+    resetFftPageState();
+
     const modeSelect = document.getElementById('fft-mode-select') as HTMLSelectElement | null;
     const logCheck = document.getElementById('fft-log-scale') as HTMLInputElement | null;
     const zoomResetBtn = document.getElementById('fft-zoom-reset-btn') as HTMLButtonElement | null;
@@ -271,23 +280,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
 
             // Deferred export binding so csv dataCheck captures the current fftTraces
             // reference rather than a stale closure from mount time.
-            bindExportButtons('fft', {
-                png: { fn: exportContainerCanvasPNG, filename: 'edatime_fft.png' },
-                svg: { fn: exportContainerCanvasSVG, filename: 'edatime_fft.svg' },
-                html: { fn: exportContainerCanvasHTML, filename: 'edatime_fft.html' },
-                csv: {
-                    fn: (filename) => {
-                        const csvTraces = fftTraces.map((trace) => ({
-                            column: trace.column,
-                            xs: trace.frequencies,
-                            ys: fftMode === 'psd' ? trace.psd : trace.magnitudes,
-                        }));
-                        exportTraceCSV(csvTraces, 'frequency_hz', filename);
-                    },
-                    filename: `edatime_fft_${fftMode}.csv`,
-                    dataCheck: () => fftTraces.length > 0,
-                },
-            });
+            fftRuntime?.bindExports();
         },
         onEveryPageChange() {
             // Re-render chips on every page change (fft needs to reflect selected columns from any page)
@@ -295,5 +288,5 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
         },
     });
 
-    fftRuntime.mount();
+    fftPageCleanup = fftRuntime.mount();
 }

@@ -1,7 +1,16 @@
-# frontend/src/features/fft/entrypoint.ts
-> FFT feature page entrypoint.
+# fft/entrypoint.ts
+> Normalized entrypoint for FFT analysis page — uses getter-based deps injection.
+
+## Interface: FftEntrypointDeps
+```typescript
+interface FftEntrypointDeps {
+    getRenderTimeseries: () => void;
+}
+```
 
 ## Function: createFftEntrypoint
-- `createFftEntrypoint(deps: { getRenderTimeseries: () => () => void }): { init: () => Promise<void> }`
-  - Creates FFT page entrypoint with timeseries render callback.
-  - `init()` — registers page lifecycle, sets up FFT chart and controls.
+- `createFftEntrypoint(deps: FftEntrypointDeps): { init: () => void }`
+  - `init()` — calls `initFftPage({ renderTimeseries: deps.getRenderTimeseries })`.
+
+---
+[1]: ../../pages/fftPage.md

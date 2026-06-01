@@ -1,7 +1,16 @@
-# frontend/src/features/spectrogram/entrypoint.ts
-> Spectrogram feature page entrypoint.
+# spectrogram/entrypoint.ts
+> Normalized entrypoint for spectrogram page — uses getter-based deps injection.
+
+## Interface: SpectrogramEntrypointDeps
+```typescript
+interface SpectrogramEntrypointDeps {
+    setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
+}
+```
 
 ## Function: createSpectrogramEntrypoint
-- `createSpectrogramEntrypoint(deps: { showPage: (page: string) => void }): { init: () => Promise<void> }`
-  - Creates spectrogram page entrypoint.
-  - `init()` — registers page lifecycle, sets up spectrogram chart and controls.
+- `createSpectrogramEntrypoint(deps: SpectrogramEntrypointDeps): { init: () => void }`
+  - `init()` — calls `initSpectrogramPage(deps)` directly.
+
+---
+[1]: ../../pages/spectrogramPage.md

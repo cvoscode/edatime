@@ -30,6 +30,8 @@
 - `fetchAndRender(): void`
 - `renderCurrentData(): void`
 - `updateAnalysisYRange(min: number, max: number, sourceKind?: string): void`
+- `buildTimeseriesColumns(): void` [deps: [columnsController][13]]
+- `buildTimeseriesRanges(): void` [deps: [columnsController][13]]
 - `zoomOut(): void`
 - `resetZoom(): void`
 - `initAnalyticsListeners(): void`
@@ -51,3 +53,4 @@
 [10]: ../bootstrap/commands.md
 [11]: ../bootstrap/shortcuts.md
 [12]: ../chart/annotations.md
+[13]: ../features/timeseries/columnsController.md

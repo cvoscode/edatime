@@ -529,3 +529,179 @@ interface DatasetMetadata {
 ```
 
 **Handler (Rust):** `post_drift_stats`
+
+---
+
+## `/api/export/parquet` — Dataset Parquet Export
+
+**Method:** `GET`
+**Query params:**
+```
+start: ISO 8601 datetime (required)
+end: ISO 8601 datetime (required)
+columns: string (optional) — comma-separated column names
+filters: string (optional) — JSON array of range filters
+line_filters: string (optional) — JSON array of line filters
+```
+
+**Handler (Rust):** `export_parquet` [deps: [ExportParquetQuery][8]]
+
+**Response:**
+- Content-Type: `application/x-parquet`
+- Content-Disposition: `attachment; filename=edatime_timeseries_filtered.parquet`
+- Body: Parquet binary
+
+**[8]: [../../crates/edatime-service/src/handlers/routes/export.md][8]**
+
+---
+
+## `/api/scatter/export/parquet` — Scatter Parquet Export
+
+**Method:** `POST`
+**Request body (ScatterPointsQuery):**
+```json
+{
+  "x": "column_name",
+  "y": "column_name",
+  "color": "column_name" | null,
+  "size": "column_name" | null,
+  "start": epoch_ms | null,
+  "end": epoch_ms | null,
+  "filters": "[{...}]" | null,
+  "line_filters": "[{...}]" | null,
+  "limit": 1000000
+}
+```
+
+**Handler (Rust):** `post_scatter_export_parquet` [deps: [ScatterPointsQuery][6]]
+
+**Response:**
+- Content-Type: `application/x-parquet`
+- Content-Disposition: `attachment; filename=edatime_scatter_filtered.parquet`
+- Body: Parquet binary with x, y, and optional color_value columns.
+
+---
+
+## `/api/drift/stats` — Drift Detection (complete)
+
+**Method:** `POST`
+**Request body:**
+```json
+{
+  "column": "string",
+  "window": "hourly" | "daily" | "weekly",
+  "reference_start": "ISO 8601 datetime",
+  "reference_end": "ISO 8601 datetime"
+}
+```
+
+**Handler (Rust):** `post_drift_stats` [deps: [DriftQuery][9], [DriftResponse][10]]
+
+**Response:** `200 OK`
+```json
+{
+  "column": "string",
+  "reference": {
+    "start_ms": number,
+    "end_ms": number,
+    "label": "string",
+    "count": number,
+    "mean": number,
+    "std": number,
+    "min": number,
+    "max": number,
+    "histogram": [number]
+  },
+  "windows": [{
+    "start_ms": number,
+    "end_ms": number,
+    "label": "string",
+    "count": number,
+    "mean": number,
+    "std": number,
+    "min": number,
+    "max": number,
+    "ks_stat": number,
+    "ks_pvalue": number,
+    "es_stat": number,
+    "es_pvalue": number,
+    "wasserstein": number,
+    "psi": number,
+    "drift_level": "none" | "minor" | "moderate" | "major",
+    "low_sample_warning": boolean
+  }],
+  "thresholds": {
+    "ks_threshold": number,
+    "wasserstein_threshold": number,
+    "psi_minor_threshold": number,
+    "psi_major_threshold": number
+  },
+  "metadata": {
+    "computation_time_ms": number,
+    "num_windows": number,
+    "reference_samples": number
+  }
+}
+```
+
+**[9]: [../../crates/edatime-service/src/handlers/routes/drift.md][9]**
+**[10]: [../../crates/edatime-service/src/analytics/drift.md][10]**
+
+
+---
+  "reference_start": "ISO 8601 datetime",
+  "reference_end": "ISO 8601 datetime"
+}
+```
+
+**Handler (Rust):** `post_drift_stats` [deps: [DriftQuery][9], [DriftResponse][10]]
+
+**Response:** `200 OK`
+```json
+{
+  "column": "string",
+  "reference": {
+    "start_ms": number,
+    "end_ms": number,
+    "label": "string",
+    "count": number,
+    "mean": number,
+    "std": number,
+    "min": number,
+    "max": number,
+    "histogram": [number]
+  },
+  "windows": [{
+    "start_ms": number,
+    "end_ms": number,
+    "label": "string",
+    "count": number,
+    "mean": number,
+    "std": number,
+    "min": number,
+    "max": number,
+    "ks_stat": number,
+    "ks_pvalue": number,
+    "es_stat": number,
+    "es_pvalue": number,
+    "wasserstein": number,
+    "psi": number,
+    "drift_level": "none" | "minor" | "moderate" | "major",
+    "low_sample_warning": boolean
+  }],
+  "thresholds": {
+    "ks_threshold": number,
+    "wasserstein_threshold": number,
+    "psi_minor_threshold": number,
+    "psi_major_threshold": number
+  },
+  "metadata": {
+    "computation_time_ms": number,
+    "num_windows": number,
+    "reference_samples": number
+  }
+}
+```
+
+**[9]: [../../crates/edatime-service/src/handlers/routes/drift.md][9]**
+**[10]: [../../crates/edatime-service/src/analytics/drift.md][10]

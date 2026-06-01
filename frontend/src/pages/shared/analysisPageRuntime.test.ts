@@ -81,6 +81,21 @@ describe('createAnalysisPageRuntime', () => {
         expect(root.getAttribute('data-empty-reason')).toBe('test');
     });
 
+    it('updateEmptyState can hide a previously visible empty state', () => {
+        document.body.innerHTML = `<div id="fft-empty-state" data-empty-reason=""></div>`;
+        const runtime = createAnalysisPageRuntime({
+            page: 'fft',
+            emptyStateRootId: 'fft-empty-state',
+        });
+        runtime.mount();
+        runtime.updateEmptyState({ visible: true, reason: 'no-columns-selected', title: '', message: '' });
+        runtime.updateEmptyState({ visible: false, reason: '', title: '', message: '' });
+
+        const root = document.getElementById('fft-empty-state')!;
+        expect(root.hidden).toBe(true);
+        expect(root.getAttribute('data-empty-reason')).toBe('');
+    });
+
     it('onEveryPageChange callback fires on every page change', () => {
         const onEveryPageChange = vi.fn();
         const runtime = createAnalysisPageRuntime({
@@ -163,5 +178,57 @@ describe('createAnalysisPageRuntime', () => {
         runtime.updateStatus('5 columns loaded');
         expect(document.getElementById('heatmap-empty-state')!.getAttribute('data-empty-reason')).toBe('no-data');
         expect(document.getElementById('heatmap-status')!.textContent).toBe('5 columns loaded');
+    });
+
+    it('bindExports() calls bindExportButtons with the configured exportConfig', async () => {
+        const bindExportButtonsModule = await import('../../utils/bindExportButtons.js');
+        const spy = vi.spyOn(bindExportButtonsModule, 'bindExportButtons' as keyof typeof bindExportButtonsModule);
+        const runtime = createAnalysisPageRuntime({
+            page: 'fft',
+            emptyStateRootId: 'fft-empty-state',
+            bindExportsOnInit: false,
+            exportConfig: {
+                key: 'fft',
+                png: { fn: () => {}, filename: 'fft.png' },
+                svg: { fn: () => {}, filename: 'fft.svg' },
+                html: { fn: () => {}, filename: 'fft.html' },
+            },
+        });
+        runtime.mount();
+        runtime.bindExports();
+        expect(spy).toHaveBeenCalledWith('fft', expect.any(Object));
+    });
+
+    it('bindExports() is idempotent (calls bindExportButtons only once across multiple calls)', async () => {
+        const bindExportButtonsModule = await import('../../utils/bindExportButtons.js');
+        const spy = vi.spyOn(bindExportButtonsModule, 'bindExportButtons' as keyof typeof bindExportButtonsModule);
+        const runtime = createAnalysisPageRuntime({
+            page: 'fft',
+            emptyStateRootId: 'fft-empty-state',
+            bindExportsOnInit: false,
+            exportConfig: {
+                key: 'fft',
+                png: { fn: () => {}, filename: 'fft.png' },
+                svg: { fn: () => {}, filename: 'fft.svg' },
+                html: { fn: () => {}, filename: 'fft.html' },
+            },
+        });
+        runtime.mount();
+        runtime.bindExports();
+        runtime.bindExports();
+        runtime.bindExports();
+        expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it('bindExports() is a no-op when no exportConfig is provided', () => {
+        const runtime = createAnalysisPageRuntime({
+            page: 'fft',
+            emptyStateRootId: 'fft-empty-state',
+            bindExportsOnInit: false,
+            // no exportConfig
+        });
+        runtime.mount();
+        // Should not throw
+        runtime.bindExports();
     });
 });

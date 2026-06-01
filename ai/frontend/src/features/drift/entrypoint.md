@@ -1,7 +1,17 @@
-# frontend/src/features/drift/entrypoint.ts
-> Drift feature page entrypoint.
+# drift/entrypoint.ts
+> Normalized entrypoint for drift analysis page — uses getter-based deps injection.
+
+## Interface: DriftEntrypointDeps
+```typescript
+interface DriftEntrypointDeps {
+    initDriftPage: (metadata: unknown) => void;
+    getMetadata: () => unknown;
+}
+```
 
 ## Function: createDriftEntrypoint
-- `createDriftEntrypoint(deps: { showPage: (page: string) => void }): { init: () => Promise<void> }`
-  - Creates drift analysis page entrypoint.
-  - `init()` — registers page lifecycle, sets up drift chart and controls.
+- `createDriftEntrypoint(deps: DriftEntrypointDeps): { init: () => Promise<void> }`
+  - `init()` — dynamic import of `driftPage.ts` + calls `initDriftPage` with `deps.getMetadata()`.
+
+---
+[1]: ../../drift/driftPage.md

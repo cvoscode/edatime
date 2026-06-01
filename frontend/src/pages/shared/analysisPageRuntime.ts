@@ -51,7 +51,8 @@ export function createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions) {
         return emptyState;
     };
 
-    const bindExports = options.bindExportsOnInit ?? true;
+    const shouldBindOnInit = options.bindExportsOnInit ?? true;
+    let bound = false;
 
     /** Lazily-resolved status element. */
     const getStatusEl = (): HTMLElement | null =>
@@ -62,13 +63,14 @@ export function createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions) {
             return createPageLifecycle({
                 page: options.page,
                 init() {
-                    if (bindExports && options.exportConfig) {
+                    if (shouldBindOnInit && options.exportConfig) {
                         bindExportButtons(options.exportConfig.key, {
                             png: options.exportConfig.png,
                             svg: options.exportConfig.svg,
                             html: options.exportConfig.html,
                             csv: options.exportConfig.csv,
                         });
+                        bound = true;
                     }
                     return options.init?.();
                 },
@@ -86,6 +88,23 @@ export function createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions) {
         updateStatus(text: string) {
             const el = getStatusEl();
             if (el) el.textContent = text;
+        },
+
+        /**
+         * Bind export buttons using the configured exportConfig.
+         * Idempotent — calling multiple times only binds once.
+         * Use this for deferred binding when `bindExportsOnInit` is false.
+         */
+        bindExports() {
+            if (!options.exportConfig) return;
+            if (bound) return;
+            bound = true;
+            bindExportButtons(options.exportConfig.key, {
+                png: options.exportConfig.png,
+                svg: options.exportConfig.svg,
+                html: options.exportConfig.html,
+                csv: options.exportConfig.csv,
+            });
         },
     };
 }

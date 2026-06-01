@@ -73,6 +73,12 @@ interface ChipExtras {
     postChipClass?: (item: SeriesChipListItem) => string;
 }
 
+function ensureChipKeyboardBinding(container: HTMLElement): void {
+    const existingCleanup = (container as any).__chipKeyboardCleanup;
+    if (typeof existingCleanup === 'function') return;
+    (container as any).__chipKeyboardCleanup = bindSeriesChipKeyboard(container);
+}
+
 /** Shared chip post-creation step: applies attributes + conditional class. */
 function applyChipExtras(chip: HTMLElement, item: SeriesChipListItem, extras: ChipExtras): void {
     if (extras.postChipAttributes) {
@@ -98,6 +104,7 @@ function applyChipExtras(chip: HTMLElement, item: SeriesChipListItem, extras: Ch
 export function renderSeriesChipList(options: SeriesChipListOptions): void {
     const { container, items, chipClass, onColorUpdate, postChipAttributes, postChipClass, preserveExisting } = options;
     if (preserveExisting) {
+        ensureChipKeyboardBinding(container);
         updateSeriesChipList({ container, items, chipClass, onColorUpdate, postChipAttributes, postChipClass });
         return;
     }
@@ -106,8 +113,8 @@ export function renderSeriesChipList(options: SeriesChipListOptions): void {
     // Clean up any prior keyboard listener
     const prevCleanup = (container as any).__chipKeyboardCleanup;
     if (typeof prevCleanup === 'function') prevCleanup();
-    const cleanup = bindSeriesChipKeyboard(container);
-    (container as any).__chipKeyboardCleanup = cleanup;
+    delete (container as any).__chipKeyboardCleanup;
+    ensureChipKeyboardBinding(container);
 
     const fragment = document.createDocumentFragment();
     for (const item of items) {
@@ -190,14 +197,11 @@ export function updateSeriesChipList(options: SeriesChipListOptions): void {
             // Update existing chip state
             const checkbox = chip.querySelector<HTMLInputElement>('input[type="checkbox"]');
             if (checkbox) checkbox.checked = item.checked;
-            chip.className = chip.className.replace(/\bactive\b/g, '').trim() +
-                (item.checked ? ' active' : '');
+            chip.classList.toggle('active', item.checked);
             chip.style.setProperty('--chip-accent', item.color);
         }
     }
 }
-
-/**
 
 /**
  * Attaches a delegated `keydown` listener to `container` so that any chip

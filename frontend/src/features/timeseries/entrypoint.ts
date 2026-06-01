@@ -9,6 +9,7 @@ import {
     buildColumnToggles,
     buildRangeControls,
     initColumnFilterModal,
+    initSeriesCollapse,
 } from './columnsController.js';
 import { initDatasetSearchInputs, initTimeseriesActions } from './actions.js';
 
@@ -34,6 +35,7 @@ export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
     return {
         init() {
             initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange);
+            initSeriesCollapse();
             initDatasetSearchInputs({
                 rebuildColumnToggles: rebuildColumns,
                 renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => { }),

@@ -1,7 +1,17 @@
-# frontend/src/features/scatter/entrypoint.ts
-> Scatter feature page entrypoint.
+# scatter/entrypoint.ts
+> Normalized entrypoint for scatter analytics page — uses getter-based deps injection.
+
+## Interface: ScatterEntrypointDeps
+```typescript
+interface ScatterEntrypointDeps {
+    initScatterPage: (metadata: DatasetMetadata) => Promise<void>;
+    getMetadata: () => DatasetMetadata;
+}
+```
 
 ## Function: createScatterEntrypoint
-- `createScatterEntrypoint(deps: { showPage: (page: string) => void }): { init: () => Promise<void> }`
-  - Creates scatter/density page entrypoint.
-  - `init()` — registers page lifecycle, sets up scatter plot and controls.
+- `createScatterEntrypoint(deps: ScatterEntrypointDeps): { init: () => void }`
+  - `init()` — calls `deps.initScatterPage(deps.getMetadata())`.
+
+---
+[1]: ../../scatter/scatterPage.md

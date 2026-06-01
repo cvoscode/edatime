@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fftChartInstance = {
     init: vi.fn(async () => undefined),
@@ -66,6 +66,11 @@ describe('initFftPage', () => {
         vi.clearAllMocks();
         (window as any).__edatime = {};
         buildDom();
+    });
+
+    afterEach(async () => {
+        const module = await import('./fftPage');
+        module.__resetFftPageForTests();
     });
 
     it('renders FFT chips and starts with the empty state visible', async () => {
@@ -182,5 +187,56 @@ describe('initFftPage', () => {
         const reconciledCheckbox = reconciledChip.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
         expect(reconciledChip.classList.contains('active')).toBe(true);
         expect(reconciledCheckbox.checked).toBe(true);
+    });
+
+    it('starts from an empty trace state when the page is initialized again on a fresh DOM', async () => {
+        fetchFftMock.mockResolvedValueOnce({
+            sample_count: 64,
+            results: [{
+                column: 'value',
+                frequencies: [1, 2, 3],
+                magnitudes: [10, 8, 6],
+                psd: [100, 64, 36],
+            }],
+        });
+
+        const { appState } = await import('../state');
+        appState.metadata = {
+            total_rows: 10,
+            columns: [],
+            numeric_columns: ['value'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1000 },
+            column_profiles: [],
+        } as any;
+        appState.currentStart = 0;
+        appState.currentEnd = 1000;
+
+        const { initFftPage } = await import('./fftPage');
+        await initFftPage({ renderTimeseries: vi.fn() });
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+
+        (document.querySelector('.fft-trace-chip') as HTMLButtonElement).click();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect((document.getElementById('fft-empty-state') as HTMLElement).hidden).toBe(true);
+
+        buildDom();
+        appState.metadata = {
+            total_rows: 8,
+            columns: [],
+            numeric_columns: ['value', 'temp'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1000 },
+            column_profiles: [],
+        } as any;
+
+        await initFftPage({ renderTimeseries: vi.fn() });
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+
+        expect(document.querySelectorAll('.fft-trace-chip')).toHaveLength(2);
+        expect((document.getElementById('fft-empty-state') as HTMLElement).hidden).toBe(false);
+        expect((document.getElementById('fft-empty-state') as HTMLElement).getAttribute('data-empty-reason')).toBe('no-columns-selected');
     });
 });

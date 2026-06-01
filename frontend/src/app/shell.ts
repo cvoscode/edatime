@@ -5,7 +5,6 @@ import {
     initChartPageFilterGesture,
     initPages,
 } from '../ui/toolbar.js';
-import { initColumnFilterModal, buildColumnToggles, buildRangeControls } from '../features/timeseries/columnsController.js';
 import { initHashRouting } from '../utils/router.js';
 import { initCommandPalette } from '../utils/palette.js';
 import { initProvenance } from '../utils/provenance.js';
@@ -31,6 +30,8 @@ export interface AppShellDeps {
     fetchAndRender: () => void;
     renderCurrentData: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
+    buildTimeseriesColumns: () => void;
+    buildTimeseriesRanges: () => void;
     zoomOut: () => void;
     resetZoom: () => void;
     initAnalyticsListeners: () => void;
@@ -277,12 +278,11 @@ export function initAppShell(deps: AppShellDeps): void {
     wireHomeNavigationCards(deps.showPage);
     wireSampleDatasetCards(deps.showPage);
     initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid, {
-        buildColumnToggles: () => buildColumnToggles(deps.fetchAndRender, buildRangeControls, deps.renderCurrentData),
-        buildRangeControls,
+        buildColumnToggles: deps.buildTimeseriesColumns,
+        buildRangeControls: deps.buildTimeseriesRanges,
     });
     initColumnProfilesGrid();
     initAnalysisControls(deps.fetchAndRender);
-    initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange);
     initChartPageFilterGesture();
     initKeyboardShortcuts(deps, APP_COMMAND_DEFINITIONS);
     initCommandPalette();

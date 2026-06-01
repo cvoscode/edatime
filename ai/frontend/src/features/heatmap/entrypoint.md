@@ -1,7 +1,16 @@
-# frontend/src/features/heatmap/entrypoint.ts
-> Heatmap feature page entrypoint.
+# heatmap/entrypoint.ts
+> Normalized entrypoint for correlation heatmap page — uses getter-based deps injection.
+
+## Interface: HeatmapEntrypointDeps
+```typescript
+interface HeatmapEntrypointDeps {
+    showPage: (pageName: string) => void;
+}
+```
 
 ## Function: createHeatmapEntrypoint
-- `createHeatmapEntrypoint(deps: { showPage: (page: string) => void }): { init: () => Promise<void> }`
-  - Creates heatmap page entrypoint.
-  - `init()` — registers page lifecycle, sets up heatmap chart and controls.
+- `createHeatmapEntrypoint(deps: HeatmapEntrypointDeps): { init: () => void }`
+  - `init()` — calls `initHeatmapPage(deps)` directly.
+
+---
+[1]: ../../pages/heatmapPage.md
