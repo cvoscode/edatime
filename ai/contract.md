@@ -1,707 +1,160 @@
 # ai/contract.md
-> Single source of truth for Frontend (TypeScript) ↔ Backend (Rust) communication.
+> Single source of truth for the current Frontend (TypeScript) <-> Backend (Rust) HTTP contract.
 
-All timestamps in requests/responses are **epoch milliseconds** unless noted.
+All frontend transport calls stay in `frontend/src/services/api/*`. All route handlers live under `crates/edatime-service/src/handlers/routes/*` and `crates/edatime-service/src/handlers/scatter/*`.
 
----
+## Dataset Bootstrap
 
-## API Summary
+### `GET /api/metadata`
+- **TS caller:** `fetchMetadata(): Promise<DatasetMetadata>` [deps: [fetchMetadata][1]]
+- **Rust handler:** `pub async fn get_metadata(State(state): State<AppState>) -> Result<Json<DatasetMetadata>, AppError>` [deps: [DatasetMetadata][2]]
+- **Response `200 OK`:** `DatasetMetadata { revision: number; total_rows: number; columns: ColumnMetadata[]; numeric_columns: string[]; time_column: string | null; time_range: { min: number; max: number } | null; column_profiles: ColumnProfile[] }`
+- **Error:** `4xx|5xx` -> `AppError` JSON envelope.
 
-| Method | Path | Format | Description |
-|--------|------|--------|-------------|
-| GET | `/api/health` | JSON | Health check |
-| GET | `/api/data` | Arrow/JSON | Full dataset with LTTB downsampling |
-| GET | `/api/aggregate` | JSON | Bucket-aggregated bar/heatmap data |
-| GET | `/api/export/parquet` | Binary | Export dataset as Parquet |
-| GET | `/api/metadata` | JSON | Dataset column metadata |
-| GET | `/api/metrics` | JSON | Application metrics |
-| GET/POST | `/api/scatter/points` | Arrow/JSON | Scatter plot points |
-| GET | `/api/scatter/correlations` | JSON | Pairwise correlations + suggestions |
-| GET | `/api/scatter/correlations/matrix` | JSON | Full N×N correlation matrix |
-| POST | `/api/scatter/export/parquet` | Binary | Export scatter as Parquet |
-| POST | `/api/upload` | JSON | Upload CSV/Parquet dataset |
-| POST | `/api/upload/preview` | JSON | Preview upload without committing |
-| GET | `/api/sample/{name}` | Binary | Serve built-in sample dataset |
-| POST | `/api/database/connect` | JSON | Connect to Postgres/Sqlite/TimescaleDB |
-| DELETE | `/api/database/connect` | JSON | Disconnect database |
-| GET | `/api/database/status` | JSON | Database connection status |
-| GET | `/api/database/tables` | JSON | List database tables |
-| GET | `/api/database/columns` | JSON | List columns for a table |
-| POST | `/api/database/load` | JSON | Load table into repository |
-| GET/POST | `/api/config/database` | JSON | Get/set database config |
-| POST | `/api/transform` | JSON | Column transformation expression |
-| POST | `/api/drift/stats` | JSON | Temporal drift analysis |
-| GET | `/api/analytics/rolling` | JSON | Rolling mean ±σ bands |
-| GET | `/api/analytics/anomalies` | JSON | Z-score / IQR anomaly regions |
-| GET | `/api/analytics/fft` | JSON | FFT frequency analysis |
-| GET | `/api/analytics/spectrogram` | JSON | STFT spectrogram heatmap |
-| GET | `/api/analytics/spectral-filter` | JSON | Frequency-domain filter |
-| POST | `/api/analytics/causal` | JSON | PCMCI/PCMCI+ causal graph |
-| POST | `/api/analytics/remove_outliers` | JSON | Z-score / IQR outlier removal |
+### `GET /api/sample/{name}`
+- **TS caller:** `fetchSampleDataset(filename: string): Promise<Blob>` [deps: [fetchSampleDataset][1]]
+- **Rust handler:** `pub async fn serve_sample_file(...) -> Result<Response, AppError>`
+- **Response `200 OK`:** sample dataset binary body.
+- **Error:** `404|500` -> text or `AppError` body.
 
----
+## Timeseries Page
 
-## `/api/data` — Full Dataset
+### `GET /api/data`
+- **TS caller:** `fetchData(start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal): Promise<DataObject>` [deps: [fetchData][3]]
+- **Rust query:** `DataQuery { start: DateTime<Utc>, end: DateTime<Utc>, width: usize, columns?: String, color_column?: String, format?: String }` [deps: [DataQuery][4]]
+- **Rust handler:** `pub async fn get_data(State(state): State<AppState>, Query(params): Query<DataQuery>) -> Result<Response, AppError>`
+- **Request contract:** frontend sends `start` and `end` as ISO 8601 strings, `width` as target pixel width, `columns` as a comma-separated list, and optional `color_column`.
+- **Response `200 OK` Arrow:** `DataObject { ts: Float64Array; values: Record<string, Float64Array>; color: Array<number | string | null> | null; color_column: string | null; _meta: { downsampled: boolean; downsampleKnown: boolean; returnedRows: number; targetPoints: number } }`
+- **Response headers:** `x-edatime-downsampled`, `x-edatime-returned-rows`, `x-edatime-target-points`, `x-edatime-time-column`, optional `x-edatime-color-column`.
+- **Response `200 OK` JSON fallback:** `{ "<timeColumn>": number[]; values: Record<string, number[]>; color: Array<number | string | null> | null; color_column: string | null }`
+- **Error:** `400` invalid time window, width, or color column; `500` pipeline/serialization failure.
 
-**Method:** `GET`
-**Query params:**
-```
-start: ISO 8601 datetime (required)
-end: ISO 8601 datetime (required)
-width: number (required) — target horizontal pixel width
-columns: string (optional) — comma-separated column names
-color_column: string (optional) — column to use for point coloring in response
-format: "arrow" | "json" (default: arrow)
-```
+### `GET /api/analytics/rolling`
+- **TS caller:** `fetchRollingBands(start: string, end: string, columns: string, window?: number, signal?: AbortSignal): Promise<RollingResponse>` [deps: [fetchRollingBands][5]]
+- **Rust query:** `RollingQuery { start: DateTime<Utc>, end: DateTime<Utc>, columns?: String, window?: usize }` [deps: [RollingQuery][6]]
+- **Rust handler:** `pub async fn get_rolling(State(state): State<AppState>, Query(params): Query<RollingQuery>) -> Result<impl IntoResponse, AppError>`
+- **Response `200 OK`:** `RollingResponse { bands: Array<{ column: string; ts: number[]; mean: (number | null)[]; upper1: (number | null)[]; lower1: (number | null)[]; upper2: (number | null)[]; lower2: (number | null)[] }> }`
 
-**Handler (Rust):** `get_data(State(state): State<AppState>, Query(params): Query<DataQuery>)` [deps: [DataQuery][1]]
+### `GET /api/analytics/anomalies`
+- **TS caller:** `fetchAnomalies(start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal): Promise<AnomalyResponse>` [deps: [fetchAnomalies][5]]
+- **Rust query:** `AnomalyQuery { start: DateTime<Utc>, end: DateTime<Utc>, columns?: String, method?: String, threshold?: f64 }` [deps: [AnomalyQuery][6]]
+- **Rust handler:** `pub async fn get_anomalies(State(state): State<AppState>, Query(params): Query<AnomalyQuery>) -> Result<impl IntoResponse, AppError>`
+- **Response `200 OK`:** `AnomalyResponse { method: string; threshold: number; regions: Array<{ column: string; method: string; start_ms: number; end_ms: number; score: number }> }`
 
-**Response (Arrow):**
-- Content-Type: `application/vnd.apache.arrow.stream`
-- Body: Apache Arrow IPC flatbuf streaming format
-- Headers:
-  - `x-edatime-downsampled: "0" | "1"`
-  - `x-edatime-returned-rows: number`
-  - `x-edatime-target-points: number`
-  - `x-edatime-time-column: string`
-- When `color_column` is set, the Arrow table includes the color column and the response color header `x-edatime-color-column: string` is added.
+## FFT / Spectrogram / Heatmap Pages
 
-**Response (JSON):**
-```json
-{
-  "<ts_column>": [ /* epoch ms */ ],
-  "values": {
-    "<column>": [ /* float64 */ ],
-    ...
-  },
-  "color": [ /* number | string | null */ ] | null,
-  "color_column": "string" | null
-}
-```
-- Headers: `x-edatime-time-column: string`
+### `GET /api/analytics/fft`
+- **TS caller:** `fetchFft(start: string, end: string, columns: string, maxPoints?: number, signal?: AbortSignal): Promise<FftResponse>` [deps: [fetchFft][5]]
+- **Rust query:** `FftQuery { start: DateTime<Utc>, end: DateTime<Utc>, columns?: String, max_points?: usize }` [deps: [FftQuery][6]]
+- **Rust handler:** `pub async fn get_fft(State(state): State<AppState>, Query(params): Query<FftQuery>) -> Result<impl IntoResponse, AppError>`
+- **Response `200 OK`:** `FftResponse { sample_count: number; results: Array<{ column: string; frequencies: number[]; magnitudes: number[]; psd: number[] }> }`
 
-**[1]: [../../crates/edatime-query/src/query.md][1]**
+### `GET /api/analytics/spectral-filter`
+- **TS caller:** `fetchSpectralFilter(params: URLSearchParams, signal?: AbortSignal): Promise<SpectralFilterResponse>` [deps: [fetchSpectralFilter][5]]
+- **Rust query:** `SpectralFilterQuery { start?: DateTime<Utc>, end?: DateTime<Utc>, column: String, filter_type: String, low_hz?: f64, high_hz?: f64, sample_rate_hz?: f64, max_points?: usize }` [deps: [SpectralFilterQuery][6]]
+- **Rust handler:** `pub async fn get_spectral_filter(State(state): State<AppState>, Query(params): Query<SpectralFilterQuery>) -> Result<impl IntoResponse, AppError>`
+- **Response `200 OK`:** `SpectralFilterResponse { column: string; ts: number[]; values: number[]; filter_type: string; low_hz?: number; high_hz?: number }`
+- **Error:** `400` unknown filter type or invalid cutoffs; `500` compute failure.
 
----
+### `GET /api/analytics/spectrogram`
+- **TS caller:** `fetchSpectrogram(start: string, end: string, column: string, windowSize?: number, hopSize?: number, maxPoints?: number, signal?: AbortSignal): Promise<SpectrogramResponse>` [deps: [fetchSpectrogram][5]]
+- **Rust query:** `SpectrogramQuery { start: DateTime<Utc>, end: DateTime<Utc>, column: String, window_size?: usize, hop_size?: usize, max_points?: usize }` [deps: [SpectrogramQuery][6]]
+- **Rust handler:** `pub async fn get_spectrogram(State(state): State<AppState>, Query(params): Query<SpectrogramQuery>) -> Result<impl IntoResponse, AppError>`
+- **Response `200 OK`:** `SpectrogramResponse { sample_count: number; result: { column: string; times_ms: number[]; frequencies: number[]; magnitudes: number[][] } }`
 
-## `/api/aggregate` — Bucket Aggregation
+### `GET /api/scatter/correlations/matrix`
+- **TS caller:** `fetchCorrelationMatrix(): Promise<CorrelationMatrixResponse>` [deps: [fetchCorrelationMatrix][5]]
+- **Rust handler:** `pub async fn get_correlation_matrix(...) -> Result<Json<CorrelationMatrixResponse>, AppError>`
+- **Response `200 OK`:** `CorrelationMatrixResponse { columns: string[]; pearson: (number | null)[][]; spearman: (number | null)[][] }`
 
-**Method:** `GET`
-**Query params:**
-```
-start: ISO 8601 datetime (required)
-end: ISO 8601 datetime (required)
-columns: string (optional)
-buckets: number (default: 50)
-window_mode: "buckets" | "tumbling" | "sliding" (default: buckets)
-window_ms: number (optional)
-step_ms: number (optional)
-agg: "mean" | "sum" | "min" | "max" | "count" (default: mean)
-format: "arrow" | "json" (optional)
-```
+## Scatter Page
 
-**Handler (Rust):** `get_aggregate` [deps: [AggregateQuery][2]]
+### `GET|POST /api/scatter/points`
+- **TS caller:** `fetchScatterPoints(x: string, y: string, limit?: number, color?: string | null, options?: ScatterFetchOptions | null, signal?: AbortSignal): Promise<ScatterPointsResponse>` [deps: [fetchScatterPoints][7]]
+- **Rust payload/query:** `ScatterPointsQuery { x: String, y: String, color?: String, size?: String, start?: f64, end?: f64, filters?: String, line_filters?: String, limit: usize, format?: String }` [deps: [ScatterPointsQuery][8]]
+- **Rust handlers:** `pub async fn get_scatter_points(...) -> Result<Response, AppError>` and `pub async fn post_scatter_points(...) -> Result<Response, AppError>`
+- **Request contract:** frontend currently uses `POST` with JSON; `filters` and `line_filters` are JSON-serialized strings inside the payload.
+- **Response `200 OK` Arrow or JSON:** `ScatterPointsResponse { x: string; y: string; color: string | null; total_points: number; returned_points: number; points: Array<[number, number]>; color_values: number[] | null; color_labels: Array<string | null> | null; color_min: number | null; color_max: number | null }`
+- **Response headers (Arrow):** `x-edatime-scatter-x`, `x-edatime-scatter-y`, `x-edatime-scatter-color`, `x-edatime-scatter-total`, `x-edatime-scatter-returned`, optional `x-edatime-color-min`, `x-edatime-color-max`.
 
-**Response:** JSON `{ "<ts_col>": [...], "values": { "<col>": [...] } }`
+### `GET /api/scatter/correlations`
+- **TS caller:** `fetchScatterCorrelations(base: string | null, threshold?: number): Promise<ScatterCorrelationsResponse>` [deps: [fetchScatterCorrelations][7]]
+- **Rust query:** `ScatterCorrelationsQuery { base?: String, threshold?: f64 }` [deps: [ScatterCorrelationsQuery][8]]
+- **Response `200 OK`:** `ScatterCorrelationsResponse { base_column: string; threshold: number; numeric_columns: string[]; correlations: CorrelationItem[]; suggestions: SuggestionItem[] }`
 
-**[2]: [../../crates/edatime-query/src/query.md][2]**
+### `POST /api/scatter/export/parquet`
+- **TS caller:** `exportScatterToParquet(...)` [deps: [scatterExport][9]]
+- **Rust payload:** `Json<ScatterPointsQuery>` [deps: [ScatterPointsQuery][8]]
+- **Response `200 OK`:** Parquet binary export.
 
----
+## Mutations And Derived Data
 
-## `/api/analytics/rolling` — Rolling Bands
+### `POST /api/transform`
+- **TS caller:** `postTransform(expression: string, outputName: string): Promise<TransformResponse>` [deps: [postTransform][5]]
+- **Rust payload:** `TransformRequest { expression: String, output_name: String }` [deps: [TransformRequest][6]]
+- **Rust handler:** `pub async fn post_transform(State(state): State<AppState>, Json(params): Json<TransformRequest>) -> Result<impl IntoResponse, AppError>`
+- **Response `200 OK`:** `TransformResponse { status: string; column: string; expression: string }`
+- **Error:** `400` empty or invalid expression/output name; `500` evaluation failure.
 
-**Method:** `GET`
-**Query params:**
-```
-start: ISO 8601 datetime
-end: ISO 8601 datetime
-columns: string (comma-separated)
-window: number (default: 50)
-```
+### `POST /api/analytics/remove_outliers`
+- **TS caller:** `postRemoveOutliers(columns: string[] | null, method?: string, threshold?: number, window?: number): Promise<OutlierRemovalResult>` [deps: [postRemoveOutliers][5]]
+- **Rust payload:** `OutlierRemovalRequest { columns?: String, method?: String, threshold?: f64, window?: usize }` [deps: [OutlierRemovalRequest][6]]
+- **Response `200 OK`:** `OutlierRemovalResult { method: string; columns: string[]; rows_before: number; rows_after: number; rows_removed: number }`
 
-**Handler (Rust):** `get_rolling` [deps: [RollingQuery][3]]
+### `POST /api/analytics/causal`
+- **TS caller:** `fetchCausalGraph(columns: string[], tauMax?: number, alpha?: number, method?: string, maxPoints?: number, signal?: AbortSignal, pcAlpha?: number, test?: string, maxCondsDim?: number, fdrMethod?: string): Promise<CausalGraphResponse>` [deps: [fetchCausalGraph][5]]
+- **Rust payload:** `CausalGraphRequest { columns: String, tau_max?: usize, alpha?: f64, method?: String, max_points?: usize, pc_alpha?: f64, test?: String, max_conds_dim?: usize, fdr_method?: String }` [deps: [CausalGraphRequest][6]]
+- **Response `200 OK`:** `CausalGraphResponse { columns: string[]; tau_max: number; links: CausalLink[]; graph: string[][][]; val_matrix: number[][][]; p_matrix: number[][][] }`
 
-**Response:**
-```json
-{
-  "bands": [{
-    "column": "string",
-    "ts": [/* epoch ms */],
-    "mean": [(number | null)],
-    "upper1": [(number | null)],
-    "lower1": [(number | null)],
-    "upper2": [(number | null)],
-    "lower2": [(number | null)]
-  }]
-}
-```
+### `POST /api/drift/stats`
+- **TS caller:** `fetchDriftStats<T>(payload: unknown): Promise<T>` [deps: [fetchDriftStats][10]]
+- **Rust payload:** `DriftQuery { ... }` [deps: [DriftQuery][11]]
+- **Response `200 OK`:** drift statistics JSON shaped by the selected request.
 
-**[3]: [../../crates/edatime-service/src/handlers/routes/analytics.md][3]**
+## Upload And Database
 
----
+### `POST /api/upload`
+- **TS caller:** `uploadDataset(formData: FormData): Promise<Response>` [deps: [uploadDataset][10]]
+- **Rust handler:** `pub async fn upload_data(...) -> Result<impl IntoResponse, AppError>`
+- **Request contract:** multipart form upload.
+- **Response `200 OK`:** upload completion payload.
 
-## `/api/analytics/anomalies` — Anomaly Detection
+### `POST /api/upload/preview`
+- **TS caller:** `previewUpload(formData: FormData, signal?: AbortSignal): Promise<Response>` [deps: [previewUpload][10]]
+- **Rust handler:** `pub async fn preview_upload_data(...) -> Result<impl IntoResponse, AppError>`
+- **Request contract:** multipart form upload preview.
+- **Response `200 OK`:** preview payload.
 
-**Method:** `GET`
-**Query params:**
-```
-start: ISO 8601 datetime
-end: ISO 8601 datetime
-columns: string
-method: "zscore" | "iqr" (default: zscore)
-threshold: number (default: 3.0 for zscore, 1.5 for iqr)
-```
+### `POST|DELETE /api/database/connect`
+- **TS callers:** `connectDatabase(body: unknown): Promise<unknown>` and `deleteDatabaseConnection(): Promise<Response>` [deps: [connectDatabase][10], [deleteDatabaseConnection][10]]
+- **Rust payload:** `ConnectRequest { kind: String, ... }` [deps: [ConnectRequest][12]]
+- **Response `200 OK`:** database connection state JSON.
 
-**Handler (Rust):** `get_anomalies` [deps: [AnomalyQuery][4]]
+### `GET /api/database/status`
+- **TS caller:** `fetchDatabaseStatus(): Promise<unknown>` [deps: [fetchDatabaseStatus][10]]
+- **Rust handler:** `pub async fn get_status(...) -> Result<impl IntoResponse, AppError>`
+- **Response `200 OK`:** database connection status JSON.
 
-**Response:**
-```json
-{
-  "method": "zscore" | "iqr",
-  "threshold": number,
-  "regions": [{
-    "column": "string",
-    "method": "string",
-    "start_ms": number,
-    "end_ms": number,
-    "score": number
-  }]
-}
-```
+### `GET /api/database/tables`
+- **TS caller:** `fetchDatabaseTables(): Promise<unknown>` [deps: [fetchDatabaseTables][10]]
+- **Rust handler:** `pub async fn get_tables(...) -> Result<impl IntoResponse, AppError>`
+- **Response `200 OK`:** table list JSON.
 
-**[4]: [../../crates/edatime-service/src/handlers/routes/analytics.md][4]**
+### `POST /api/database/load`
+- **TS caller:** `loadDatabaseTable(body: unknown): Promise<unknown>` [deps: [loadDatabaseTable][10]]
+- **Rust payload:** `LoadRequest { ... }` [deps: [LoadRequest][12]]
+- **Response `200 OK`:** loaded-dataset metadata JSON.
 
 ---
-
-## `/api/analytics/fft` — FFT
-
-**Method:** `GET`
-**Query params:**
-```
-start: ISO 8601 datetime
-end: ISO 8601 datetime
-columns: string
-max_points: number (default: 8192)
-```
-
-**Handler (Rust):** `get_fft`
-
-**Response:**
-```json
-{
-  "sample_count": number,
-  "results": [{
-    "column": "string",
-    "frequencies": [/* Hz */],
-    "magnitudes": [/* */],
-    "psd": [/* */],
-    "sample_rate_hz": number,
-    "nyquist_hz": number,
-    "dominant_peaks": [{
-      "frequency_hz": number,
-      "magnitude": number,
-      "power": number,
-      "rank": number
-    }]
-  }]
-}
-```
-
----
-
-## `/api/analytics/spectrogram` — STFT Spectrogram
-
-**Method:** `GET`
-**Query params:**
-```
-start: ISO 8601 datetime
-end: ISO 8601 datetime
-column: string (single column)
-window_size: number (default: 256)
-hop_size: number (optional)
-max_points: number (default: 32768)
-```
-
-**Handler (Rust):** `get_spectrogram`
-
-**Response:**
-```json
-{
-  "sample_count": number,
-  "result": {
-    "column": "string",
-    "times_ms": [/* epoch ms */],
-    "frequencies": [/* Hz */],
-    "magnitudes": [[/* per window */]]
-  }
-}
-```
-
----
-
-## `/api/analytics/spectral-filter` — Frequency-Domain Filter
-
-**Method:** `GET`
-**Query params:**
-```
-start: ISO 8601 datetime (optional)
-end: ISO 8601 datetime (optional)
-column: string
-filter_type: "lowpass" | "highpass" | "bandpass" | "bandstop"
-low_hz: number (required for highpass/bandpass/bandstop)
-high_hz: number (required for lowpass/bandpass/bandstop)
-sample_rate_hz: number (optional, auto-detected)
-max_points: number (default: 16384)
-```
-
-**Handler (Rust):** `get_spectral_filter`
-
-**Response:**
-```json
-{
-  "column": "string",
-  "ts": [/* epoch ms */],
-  "values": [/* filtered signal */],
-  "filter_type": "string",
-  "low_hz": number | null,
-  "high_hz": number | null,
-  "sample_count": number
-}
-```
-
----
-
-## `/api/analytics/causal` — Causal Graph
-
-**Method:** `POST`
-
-**Request (TS):** `fetchCausalGraph(columns: string[], tauMax?: number, alpha?: number, method?: string, maxPoints?: number, signal?: AbortSignal, pcAlpha?: number, test?: string, maxCondsDim?: number, fdrMethod?: string): Promise<CausalGraphResponse>`
-
-**Request body (TS JSON sent today):**
-```ts
-{
-  columns: string;
-  tau_max: number;
-  alpha: number;
-  method: string;
-  max_points: number;
-  pc_alpha: number;
-  test: string;
-  max_conds_dim?: number;
-  fdr_method: string;
-}
-```
-
-**Request payload (Rust):** `pub struct CausalGraphRequest { columns: Option<String>, tau_max: Option<usize>, pc_alpha: Option<f64>, alpha: Option<f64>, method: Option<String>, test: Option<String>, max_points: Option<usize>, max_conds_dim: Option<usize>, fdr_method: Option<String>, n_preliminary_iterations: Option<usize>, knn: Option<usize>, sig_samples: Option<usize> }`
-
-**Handler (Rust):** `pub async fn post_causal_graph(State(state): State<AppState>, Json(params): Json<CausalGraphRequest>) -> Result<impl IntoResponse, AppError>`
-
-**Success Response:** `200 OK`
-```ts
-{
-  columns: string[];
-  tau_max: number;
-  links: Array<{
-    source: string;
-    target: string;
-    lag: number;
-    type: string;
-    value: number;
-    pvalue: number;
-  }>;
-  graph: string[][][];
-  val_matrix: number[][][];
-  p_matrix: number[][][];
-}
-```
-
-**Error Responses:**
-- `400 Bad Request` -> invalid causal selection, including `"Need at least 2 numeric columns"` and `"Too many columns (max 20)"`.
-- `500 Internal Server Error` -> dataset collection, validation, or causal execution failure.
-
-**Notes:**
-- The current frontend sends a subset of `CausalGraphRequest`; Rust fills defaults for `n_preliminary_iterations`, `knn`, and `sig_samples`.
-- The backend clamps `tau_max`, `pc_alpha`, `alpha`, and `max_points` to server-side safety limits before execution.
-
-**[5]: [../../crates/edatime-service/src/handlers/routes/analytics.md][5]**
-
----
-
-## `/api/analytics/remove_outliers` — Outlier Removal
-
-**Method:** `POST`
-**Request body:**
-```json
-{
-  "columns": "col1,col2,...",
-  "method": "zscore" | "iqr",
-  "threshold": number,
-  "window": number | null
-}
-```
-
-**Handler (Rust):** `post_remove_outliers`
-
-**Response:**
-```json
-{
-  "method": "string",
-  "columns": ["string"],
-  "rows_before": number,
-  "rows_after": number,
-  "rows_removed": number
-}
-```
-
----
-
-## `/api/scatter/points` — Scatter Points
-
-**Method:** `GET` or `POST`
-**Request body (POST) or query params (GET):**
-```json
-{
-  "x": "column_name",
-  "y": "column_name",
-  "color": "column_name" | null,
-  "size": "column_name" | null,
-  "start": epoch_ms | null,
-  "end": epoch_ms | null,
-  "filters": "[{...}]" | null,
-  "line_filters": "[{...}]" | null,
-  "limit": 1000000,
-  "format": "arrow" | "json" (default: arrow for GET)
-}
-```
-
-**Handler (Rust):** `get_scatter_points`, `post_scatter_points` [deps: [ScatterPointsQuery][6]]
-
-**Response (Arrow):**
-- Content-Type: `application/vnd.apache.arrow.stream`
-- Columns: `x`, `y`, `color_value` (numeric) or `color_label` (categorical) — standardized names
-- Headers:
-  - `x-edatime-scatter-x` — original x column name
-  - `x-edatime-scatter-y` — original y column name
-  - `x-edatime-scatter-color` — original color/timestamp column name (used as fallback for column resolution)
-  - `x-edatime-scatter-total`
-  - `x-edatime-scatter-returned`
-  - `x-edatime-color-min`, `x-edatime-color-max`
-  - `x-edatime-scatter-color-kind: "continuous" | "categorical"`
-
-**Response (JSON):**
-```json
-{
-  "x": "string",
-  "y": "string",
-  "color": "string | null",
-  "total_points": number,
-  "returned_points": number,
-  "points": [[x, y], ...],
-  "color_values": [/* number */] | null,
-  "color_labels": ["string" | null] | null,
-  "color_min": number | null,
-  "color_max": number | null
-}
-```
-
-**[6]: [crates/edatime-service/src/handlers/scatter/scatter/points.md][6]**
-
----
-
-## `/api/scatter/correlations` — Pairwise Correlations
-
-**Method:** `GET`
-**Query params:**
-```
-base: string (optional) — base column
-threshold: number (default: 0.7)
-```
-
-**Handler (Rust):** `get_scatter_correlations` [deps: [ScatterCorrelationsQuery][7]]
-
-**Response:**
-```json
-{
-  "base_column": "string",
-  "threshold": number,
-  "numeric_columns": ["string"],
-  "correlations": [{
-    "column": "string",
-    "count": number,
-    "pearson": number | null,
-    "spearman": number | null
-  }],
-  "suggestions": [{
-    "x": "string",
-    "y": "string",
-    "correlation": number
-  }]
-}
-```
-
-**[7]: [crates/edatime-service/src/handlers/scatter/scatter/correlations.md][7]**
-
----
-
-## `/api/scatter/correlations/matrix` — Correlation Matrix
-
-**Method:** `GET`
-**Handler (Rust):** `get_correlation_matrix`
-
-**Response:**
-```json
-{
-  "columns": ["string"],
-  "pearson": [[number | null]],
-  "spearman": [[number | null]]
-}
-```
-
----
-
-## `/api/upload` — Dataset Upload
-
-**Method:** `POST`
-**Content-Type:** `multipart/form-data`
-**Body:** CSV or Parquet file
-
-**Handler (Rust):** `upload_data` [deps: [load_dataframe][8]]
-
-**Response:**
-```json
-{ "status": "ok", "columns": ["string"] }
-```
-
----
-
-## `/api/metadata` — Dataset Metadata
-
-**Method:** `GET`
-**Handler (Rust):** `get_metadata`
-
-**Response (TypeScript):** `DatasetMetadata` [deps: [types.ts][9]]
-```typescript
-interface DatasetMetadata {
-  revision?: number;
-  total_rows: number;
-  columns: { name: string; dtype: string }[];
-  numeric_columns: string[];
-  time_column: string | null;
-  time_range: { min: number; max: number } | null;
-  column_profiles: ColumnProfile[];
-}
-```
-
-**[9]: [frontend/src/types.ts][9]**
-
----
-
-## `/api/transform` — Column Transformation
-
-**Method:** `POST`
-**Request body:**
-```json
-{
-  "expression": "col_a / col_b",
-  "output_name": "result_column"
-}
-```
-
-**Handler (Rust):** `post_transform`
-
-**Response:**
-```json
-{ "status": "ok", "column": "string", "expression": "string" }
-```
-
----
-
-## `/api/drift/stats` — Drift Detection
-
-**Method:** `POST`
-**Request body:**
-```json
-{
-  "columns": "col1,col2,...",
-  "window_ms": number,
-  "method": "string"
-}
-```
-
-**Handler (Rust):** `post_drift_stats`
-
----
-
-## `/api/export/parquet` — Dataset Parquet Export
-
-**Method:** `GET`
-**Query params:**
-```
-start: ISO 8601 datetime (required)
-end: ISO 8601 datetime (required)
-columns: string (optional) — comma-separated column names
-filters: string (optional) — JSON array of range filters
-line_filters: string (optional) — JSON array of line filters
-```
-
-**Handler (Rust):** `export_parquet` [deps: [ExportParquetQuery][8]]
-
-**Response:**
-- Content-Type: `application/x-parquet`
-- Content-Disposition: `attachment; filename=edatime_timeseries_filtered.parquet`
-- Body: Parquet binary
-
-**[8]: [../../crates/edatime-service/src/handlers/routes/export.md][8]**
-
----
-
-## `/api/scatter/export/parquet` — Scatter Parquet Export
-
-**Method:** `POST`
-**Request body (ScatterPointsQuery):**
-```json
-{
-  "x": "column_name",
-  "y": "column_name",
-  "color": "column_name" | null,
-  "size": "column_name" | null,
-  "start": epoch_ms | null,
-  "end": epoch_ms | null,
-  "filters": "[{...}]" | null,
-  "line_filters": "[{...}]" | null,
-  "limit": 1000000
-}
-```
-
-**Handler (Rust):** `post_scatter_export_parquet` [deps: [ScatterPointsQuery][6]]
-
-**Response:**
-- Content-Type: `application/x-parquet`
-- Content-Disposition: `attachment; filename=edatime_scatter_filtered.parquet`
-- Body: Parquet binary with x, y, and optional color_value columns.
-
----
-
-## `/api/drift/stats` — Drift Detection (complete)
-
-**Method:** `POST`
-**Request body:**
-```json
-{
-  "column": "string",
-  "window": "hourly" | "daily" | "weekly",
-  "reference_start": "ISO 8601 datetime",
-  "reference_end": "ISO 8601 datetime"
-}
-```
-
-**Handler (Rust):** `post_drift_stats` [deps: [DriftQuery][9], [DriftResponse][10]]
-
-**Response:** `200 OK`
-```json
-{
-  "column": "string",
-  "reference": {
-    "start_ms": number,
-    "end_ms": number,
-    "label": "string",
-    "count": number,
-    "mean": number,
-    "std": number,
-    "min": number,
-    "max": number,
-    "histogram": [number]
-  },
-  "windows": [{
-    "start_ms": number,
-    "end_ms": number,
-    "label": "string",
-    "count": number,
-    "mean": number,
-    "std": number,
-    "min": number,
-    "max": number,
-    "ks_stat": number,
-    "ks_pvalue": number,
-    "es_stat": number,
-    "es_pvalue": number,
-    "wasserstein": number,
-    "psi": number,
-    "drift_level": "none" | "minor" | "moderate" | "major",
-    "low_sample_warning": boolean
-  }],
-  "thresholds": {
-    "ks_threshold": number,
-    "wasserstein_threshold": number,
-    "psi_minor_threshold": number,
-    "psi_major_threshold": number
-  },
-  "metadata": {
-    "computation_time_ms": number,
-    "num_windows": number,
-    "reference_samples": number
-  }
-}
-```
-
-**[9]: [../../crates/edatime-service/src/handlers/routes/drift.md][9]**
-**[10]: [../../crates/edatime-service/src/analytics/drift.md][10]**
-
-
----
-  "reference_start": "ISO 8601 datetime",
-  "reference_end": "ISO 8601 datetime"
-}
-```
-
-**Handler (Rust):** `post_drift_stats` [deps: [DriftQuery][9], [DriftResponse][10]]
-
-**Response:** `200 OK`
-```json
-{
-  "column": "string",
-  "reference": {
-    "start_ms": number,
-    "end_ms": number,
-    "label": "string",
-    "count": number,
-    "mean": number,
-    "std": number,
-    "min": number,
-    "max": number,
-    "histogram": [number]
-  },
-  "windows": [{
-    "start_ms": number,
-    "end_ms": number,
-    "label": "string",
-    "count": number,
-    "mean": number,
-    "std": number,
-    "min": number,
-    "max": number,
-    "ks_stat": number,
-    "ks_pvalue": number,
-    "es_stat": number,
-    "es_pvalue": number,
-    "wasserstein": number,
-    "psi": number,
-    "drift_level": "none" | "minor" | "moderate" | "major",
-    "low_sample_warning": boolean
-  }],
-  "thresholds": {
-    "ks_threshold": number,
-    "wasserstein_threshold": number,
-    "psi_minor_threshold": number,
-    "psi_major_threshold": number
-  },
-  "metadata": {
-    "computation_time_ms": number,
-    "num_windows": number,
-    "reference_samples": number
-  }
-}
-```
-
-**[9]: [../../crates/edatime-service/src/handlers/routes/drift.md][9]**
-**[10]: [../../crates/edatime-service/src/analytics/drift.md][10]
+[1]: ./frontend/src/services/api/metadata.md
+[2]: ./crates/edatime-service/src/handlers/routes/metadata.md
+[3]: ./frontend/src/services/api/timeseries.md#fetchData
+[4]: ./crates/edatime-query/src/query.md#dataquery
+[5]: ./frontend/src/services/api/analytics.md
+[6]: ./crates/edatime-service/src/handlers/routes/analytics.md
+[7]: ./frontend/src/services/api/scatter.md
+[8]: ./crates/edatime-service/src/handlers/scatter/scatter/mod.md
+[9]: ./frontend/src/scatter/export.md
+[10]: ./frontend/src/services/api/upload.md
+[11]: ./crates/edatime-service/src/handlers/routes/drift.md
+[12]: ./crates/edatime-service/src/handlers/routes/database.md

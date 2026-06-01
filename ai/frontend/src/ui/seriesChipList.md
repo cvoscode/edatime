@@ -1,13 +1,5 @@
-# frontend/src/ui/seriesChipList.ts
-> Shared SeriesChip list orchestration — renders chips into a container, wires keyboard activation, and manages color updates.
-
-## Interface: SeriesChipListOptions
-- `container: HTMLElement`
-- `items: SeriesChipListItem[]`
-- `chipClass?: string`
-- `onColorUpdate?: (column: string, color: string) => void`
-- `postChipAttributes?: Record<string, string>`
-- `postChipClass?: (item: SeriesChipListItem) => string`
+# ai/frontend/src/ui/seriesChipList.md
+> Renders shared series chips, preserves optional transient chip DOM state, and owns delegated keyboard and color-update plumbing for chip lists.
 
 ## Interface: SeriesChipListItem
 - `column: string`
@@ -22,13 +14,30 @@
 - `onMenuClick?: (column: string) => void`
 - `menuLabel?: string`
 
+## Interface: SeriesChipListOptions
+- `container: HTMLElement`
+- `items: SeriesChipListItem[]`
+- `chipClass?: string`
+- `onColorUpdate?: (column: string, color: string) => void`
+- `postChipAttributes?: Record<string, string>`
+- `postChipClass?: (item: SeriesChipListItem) => string`
+- `preserveExisting?: boolean`
+
+## Interface: ChipExtras
+- `postChipAttributes?: Record<string, string>`
+- `postChipClass?: (item: SeriesChipListItem) => string`
+
 ## Functions
-- `renderSeriesChipList(options: SeriesChipListOptions): void`
-  - Renders items into container, adds `chipClass`, wires delegated keyboard handler, stores cleanup.
-- `updateSeriesChipList(options: SeriesChipListOptions): void`
-  - Incremental DOM update: upserts/removes chips by `data-col` without full rebuild.
+- `ensureChipKeyboardBinding(container: HTMLElement): void`
+  - Installs the delegated chip keyboard handler at most once per container.
+- `applyChipExtras(chip: HTMLElement, item: SeriesChipListItem, extras: ChipExtras): void`
+  - Applies shared post-render attributes and conditional classes to a chip.
+- `renderSeriesChipList(options: SeriesChipListOptions): void` [deps: [SeriesChip][1]]
+  - Renders or preserves a chip list, depending on `preserveExisting`.
+- `updateSeriesChipList(options: SeriesChipListOptions): void` [deps: [SeriesChip][1]]
+  - Incrementally upserts chips by `data-col` and updates checked state and accent color in place.
 - `bindSeriesChipKeyboard(container: HTMLElement): () => void`
-  - Delegated keydown handler (Enter/Space toggles checkbox); returns cleanup function.
+  - Binds Enter/Space toggling for chips and returns an unbind callback.
 
 ---
-[1]: ./composites/SeriesChip.md
+[1]: ./composites/SeriesChip.md#SeriesChip

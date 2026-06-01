@@ -1,22 +1,20 @@
-# features/timeseries/columnsController.md
-> Builds and manages column toggle chips, color-by selector, adaptive-target controls, and per-column range filter controls for the timeseries page.
+# ai/frontend/src/features/timeseries/columnsController.md
+> Owns the top-level Timeseries chip composition flow by sanitizing selection state, rendering column chips, delegating range chips, and bridging the filter modal and collapse helpers.
 
 ## Functions
-
-- `initSeriesCollapse(): void`
-  - Attaches a click handler to the collapse/expand series button.
-- `buildMetaBar(metadata: { total_rows?: number } | null): void`
-  - Renders row count and numeric series count into `#header-meta` and `#timeseries-meta-bar`.
-- `sanitizeSelectedColumns(): void`
-  - Removes time/datetime and non-existent columns from the current selection. [deps: [sanitizeSelectedColumns][1]]
-- `ensureAdaptiveTargetStillValid(): void`
-  - Falls back to first selected column if adaptive-filter target is no longer selected. [deps: [ensureAdaptiveTargetStillValid][1]]
-- `buildColumnToggles(fetchAndRender: () => void, buildRangeControlsFn: () => void, renderCurrentDataFn: (() => void) | null): void`
-  - Builds checkbox chips for all numeric columns, wires color pickers, color-by dropdown via `renderColorByControl` [deps: [renderColorByControl][2]], adaptive-target Ctrl+click, double-right-click filter modal, and collapse toggle.
-- `buildRangeControls(): void`
-  - Renders range chips for each selected column; each chip is clickable to open the column filter modal. [deps: [buildRangeControls][3]]
+- `initSeriesCollapse(): void` [deps: [initSeriesCollapse][1]]
+  - Re-export of the shared Timeseries series-collapse initializer.
+- `buildColumnToggles(fetchAndRender: () => void, buildRangeControlsFn: () => void, renderCurrentDataFn: (() => void) | null = null): void` [deps: [composeChipListItems][2], [bindChipContextMenu][3], [renderSeriesChipList][4]]
+  - Rebuilds the Timeseries column-chip list and wires toggle, color, context-menu, Ctrl+click, and collapse behavior.
+- `buildRangeControls(): void` [deps: [buildRangeControls][5]]
+  - Re-export of the selected-column range chip renderer.
+- `initColumnFilterModal(renderCurrentData: () => void, updateAnalysisYRange: (min: number, max: number, source: string) => void): void` [deps: [initFilterModalController][6]]
+  - Binds the shared Timeseries filter modal controller to the page callbacks.
 
 ---
-[1]: ./columnSelection.md
-[2]: ./colorByControl.md
-[3]: ./rangeControls.md
+[1]: ./seriesCollapse.md#initSeriesCollapse
+[2]: ./chipComposition.md#composeChipListItems
+[3]: ./chipContextMenu.md#bindChipContextMenu
+[4]: ../../ui/seriesChipList.md#renderSeriesChipList
+[5]: ./rangeControls.md#buildRangeControls
+[6]: ./filterModalController.md#initFilterModalController

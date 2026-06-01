@@ -1,29 +1,26 @@
 # ai/frontend/src/pages/shared/analysisPageRuntime.md
-> Shared runtime factory for analytics pages — consolidates empty-state management, export bindings, and page lifecycle wiring.
+> Provides the shared analysis-page shell owner for lifecycle registration, lazy empty-state control, deferred export binding, and optional status text updates.
 
 ## Interface: ExportConfig
-```typescript
-interface ExportConfig {
-    key: string;
-    png: { fn: (...args: string[]) => void; filename: string };
-    svg: { fn: (...args: string[]) => void; filename: string };
-    html: { fn: (...args: string[]) => void; filename: string };
-    csv?: { fn: (filename: string) => void; filename: string; dataCheck?: () => boolean };
-}
-```
+- `key: string`
+- `png: { fn: (...args: string[]) => void; filename: string }`
+- `svg: { fn: (...args: string[]) => void; filename: string }`
+- `html: { fn: (...args: string[]) => void; filename: string }`
+- `csv?: { fn: (filename: string) => void; filename: string; dataCheck?: () => boolean }`
 
 ## Interface: AnalysisPageRuntimeOptions
-- `page: string` — page name passed to createPageLifecycle
-- `emptyStateRootId: string` — DOM id of the empty-state root element
-- `exportConfig?: ExportConfig` — export button bindings
-- `bindExportsOnInit?: boolean` — when false, caller manages export binding itself (default: `true`)
-- `init?: () => void | (() => void)` — called once on page mount
-- `onVisible?: () => void` — called when page becomes visible
-- `onEveryPageChange?: () => void` — called on every page change
+- `page: string`
+- `emptyStateRootId: string`
+- `statusElId?: string`
+- `exportConfig?: ExportConfig`
+- `bindExportsOnInit?: boolean`
+- `init?: () => void | (() => void)`
+- `onVisible?: () => void`
+- `onEveryPageChange?: () => void`
 
-## Function: createAnalysisPageRuntime
-- `createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions): { mount(): void; updateEmptyState(model: EmptyStateViewModel): void }` [deps: [createPageLifecycle][1], [createEmptyStateController][2], [bindExportButtons][3]]
-  - Returns page runtime with lazy empty-state controller and lifecycle hooks. When `bindExportsOnInit` is false, export binding is deferred to the caller.
+## Functions
+- `createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions): { mount(): () => void; updateEmptyState(model: EmptyStateViewModel): void; updateStatus(text: string): void; bindExports(): void }` [deps: [createPageLifecycle][1], [createEmptyStateController][2], [bindExportButtons][3]]
+  - Creates a shared analysis-page runtime with lazy empty-state creation, optional status writes, and one-time export binding.
 
 ---
 [1]: ../../../app/pageLifecycle.md#createPageLifecycle

@@ -1,38 +1,36 @@
-# pages/timeseriesPage.md
+# ai/frontend/src/pages/timeseriesPage.md
+> Owns the Timeseries page controller for data fetch/render, empty-state policy, viewport updates, and analytics follow-up after successful renders.
 
-> Assembles the timeseries page controller: data fetching, chart updates, zoom handling, empty states, and analytics integration.
+## Interface: TimeseriesControllerDeps
+- `fetchData: (startIso: string, endIso: string, width: number, cols: string, colorCol: string | null, signal: AbortSignal) => Promise<any>`
+- `buildRangeControls: () => void`
+- `updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void`
+- `updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void`
+- `getCurrentView: () => any`
+- `fetchAndRenderAnalytics: () => Promise<void>`
+
+## State
+- `timeseriesEmptyStateController: ReturnType<typeof createEmptyStateController> | null`
 
 ## Functions
-
-- `createTimeseriesPageController(deps: TimeseriesControllerDeps): object`
-  - Creates and returns the controller with `emitChartRangeChange`, `fetchAndRender`, `onZoomRangeChange`, and `renderCurrentData`.
-
-## TimeseriesControllerDeps Interface
-
-- `fetchData(startIso: string, endIso: string, width: number, cols: string, colorCol: string | null, signal: AbortSignal): Promise<any>`
-- `buildRangeControls(): void`
-- `updateAnalysisYRange(min: number, max: number, sourceKind?: string): void`
-- `updateAnalysisZoom(start: number, end: number, sourceKind?: string): void`
-- `getCurrentView(): any`
-- `fetchAndRenderAnalytics(): Promise<void>`
+- `getTimeseriesEmptyStateController(): ReturnType<typeof createEmptyStateController>` [deps: [createEmptyStateController][1]]
+  - Lazily creates the Timeseries empty-state controller.
+- `computeRenderedYDebugSnapshot(): { selectedCols: string[]; globalYMin: number | null; globalYMax: number | null; perSeries: Array<{ name: string; points: number; yMin: number | null; yMax: number | null }> } | null`
+  - Builds a debug snapshot of the currently rendered Y-domain data.
+- `createTimeseriesPageController(deps: TimeseriesControllerDeps): { emitChartRangeChange(sourceKind?: string): void; renderCurrentData(): void; fetchAndRender(): Promise<void>; onZoomRangeChange(newStart: number, newEnd: number, sourceKind?: string): void }` [deps: [applyColumnRanges][2], [ensureRangeStateFromData][2], [computeFrontendRollingBands][3]]
+  - Creates the Timeseries page controller that owns render passes, fetch passes, and zoom-driven range updates.
 
 ## Controller Methods
-
-- `controller.emitChartRangeChange(sourceKind?: string): void`
-  - Dispatches `edatime:chart-range-change` with the current viewport timestamps.
-- `controller.fetchAndRender(): Promise<void>`
-  - Abort-safe fetch of data, update of `appState.lastFetchedData`, range sync, empty-state management, and chart render.
-- `controller.onZoomRangeChange(newStart: number, newEnd: number, sourceKind?: string): void`
-  - Updates zoom history, viewport, and chart X range; optionally debounces a refetch.
-- `controller.renderCurrentData(): void`
-  - Applies column ranges, handles no-selection and no-data empty states, sends `updateDataMulti` to the chart, and updates rolling bands.
+- `emitChartRangeChange(sourceKind?: string): void`
+  - Emits the current viewport as `edatime:chart-range-change`.
+- `renderCurrentData(): void`
+  - Applies column filters, resolves empty-state policy, updates chart data, and refreshes rolling overlays.
+- `fetchAndRender(): Promise<void>`
+  - Fetches Timeseries data for the active viewport, stores it, rebuilds range UI, and rerenders the chart.
+- `onZoomRangeChange(newStart: number, newEnd: number, sourceKind?: string): void`
+  - Updates zoom state, viewport state, chart range, and debounced fetch behavior after zoom changes.
 
 ---
-[1]: ../services/timeseries/filtering.md
-[2]: ../store/appStateCompat.md
-[3]: ../bootstrap/analyticsOverlay.md
-[4]: ../store/index.md
-[5]: ../ui/emptyState.md
-[6]: ../utils/a11y.md
-}
-```
+[1]: ../ui/emptyState.md#createEmptyStateController
+[2]: ../services/timeseries/filtering.md
+[3]: ../bootstrap/analyticsOverlay.md#computeFrontendRollingBands

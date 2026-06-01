@@ -1,56 +1,47 @@
-# app/shell.md
+# ai/frontend/src/app/shell.md
+> Wires the shared app shell, page routing, sample datasets, upload/bootstrap surfaces, and shell-level keyboard tooling.
 
-> Wires all UI modules, routing, keyboard shortcuts, theme toggle, and sample dataset loading into the app shell.
+## Interface: RefreshDatasetOptions
+- `selectedColumn?: string`
+
+## Interface: AppShellDeps
+- `ensurePageModuleLoaded: (page: string) => Promise<void>`
+- `showPage: (pageName: string) => void`
+- `fetchAndRender: () => void`
+- `renderCurrentData: () => void`
+- `updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void`
+- `buildTimeseriesColumns: () => void`
+- `buildTimeseriesRanges: () => void`
+- `zoomOut: () => void`
+- `resetZoom: () => void`
+- `initAnalyticsListeners: () => void`
+- `refreshDatasetAfterMutation: (options?: RefreshDatasetOptions) => Promise<void>`
+- `hydrateColumnProfiles: (...args: any[]) => void`
+- `renderColumnProfilesGrid: (...args: any[]) => void`
+- `registerCleanup: (cleanup: () => void) => void`
 
 ## Functions
-
-- `initAppShell(deps: AppShellDeps): void`
-  - Initialises all panels, routing, shortcuts, command palette, provenance, guided workflow, data-mutation modals, and analytics listeners.
 - `initThemeToggle(): void`
-  - Attaches a click handler to `#theme-toggle-btn` and syncs icon visibility with localStorage and `prefers-color-scheme`.
+  - Syncs theme state with localStorage, system preference, and the theme toggle button.
 - `humanizeControlId(id: string): string`
-  - Converts kebab/camel IDs into Title Case for accessible form labels.
+  - Converts a control id into readable Title Case fallback text.
 - `normalizeFormControlAccessibility(): void`
-  - Ensures every form control has `name` and `aria-label` derived from labels, placeholder, or title.
+  - Ensures form controls have `name` and `aria-label` values.
 - `wireHomeNavigationCards(showPage: (pageName: string) => void): void`
-  - Attaches click listeners to `[data-home-nav]` elements to switch pages.
+  - Connects home navigation cards to page changes.
 - `wireSampleDatasetCards(showPage: (pageName: string) => void): void`
-  - Attaches click listeners to `[data-sample-dataset]` elements to load ETTm2 or weather CSVs and navigate to the upload page.
+  - Connects sample dataset cards to the sample-loader flow.
 - `generateSinusoidalCsv(): string`
-  - Generates a synthetic sinusoidal CSV with timestamp, temperature, humidity, pressure columns.
+  - Builds a synthetic sinusoidal CSV sample.
 - `generateWeatherCsv(): string`
-  - Generates a synthetic weather CSV with diurnal and multi-day patterns.
-- `loadSampleDataset(datasetId: string, showPage: (pageName: string) => void): Promise<void>`
-  - Fetches or generates a sample CSV and simulates a file input change event to trigger the upload flow.
-
-## AppShellDeps Interface
-
-- `ensurePageModuleLoaded(page: string): Promise<void>`
-- `showPage(pageName: string): void`
-- `fetchAndRender(): void`
-- `renderCurrentData(): void`
-- `updateAnalysisYRange(min: number, max: number, sourceKind?: string): void`
-- `buildTimeseriesColumns(): void` [deps: [columnsController][13]]
-- `buildTimeseriesRanges(): void` [deps: [columnsController][13]]
-- `zoomOut(): void`
-- `resetZoom(): void`
-- `initAnalyticsListeners(): void`
-- `refreshDatasetAfterMutation(options?: RefreshDatasetOptions): Promise<void>`
-- `hydrateColumnProfiles(...args: any[]): void`
-- `renderColumnProfilesGrid(...args: any[]): void`
-- `registerCleanup(cleanup: () => void): void`
+  - Builds a synthetic weather CSV sample.
+- `loadSampleDataset(datasetId: string, showPage: (pageName: string) => void): Promise<void>` [deps: [fetchSampleDataset][1]]
+  - Loads a built-in sample dataset or generated CSV into the upload flow.
+- `initAppShell(deps: AppShellDeps): void` [deps: [initUploadPanel][2], [initAnalysisControls][3], [initKeyboardShortcuts][4]]
+  - Initializes the shared shell, shared panels, upload bootstrap, command surfaces, and analytics listeners.
 
 ---
-[1]: ../ui/upload.md
-[2]: ../ui/profile.md
-[3]: ../ui/toolbar.md
-[4]: ../features/timeseries/columnsController.md
-[5]: ../utils/router.md
-[6]: ../utils/palette.md
-[7]: ../utils/provenance.md
-[8]: ../utils/settings.md
-[9]: ../utils/a11y.md
-[10]: ../bootstrap/commands.md
-[11]: ../bootstrap/shortcuts.md
-[12]: ../chart/annotations.md
-[13]: ../features/timeseries/columnsController.md
+[1]: ../services/api/metadata.md#fetchSampleDataset
+[2]: ../ui/upload.md#initUploadPanel
+[3]: ../ui/toolbar.md#initAnalysisControls
+[4]: ../bootstrap/shortcuts.md#initKeyboardShortcuts
