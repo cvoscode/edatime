@@ -84,6 +84,15 @@ export function bindAnalysisChartEvents(): void {
     setAnalysisBound(true);
 }
 
+// ─── Loading state helper ─────────────────────────────────────────────────────
+
+export function setComputeLoading(btnId: string, overlayId: string, loading: boolean, label = 'Compute'): void {
+    const btn = document.getElementById(btnId) as HTMLButtonElement | null;
+    const overlay = document.getElementById(overlayId) as HTMLElement | null;
+    if (btn) { btn.disabled = loading; btn.textContent = loading ? 'Computing…' : label; }
+    if (overlay) overlay.hidden = !loading;
+}
+
 // ─── Main init — wires all sub-controls ─────────────────────────────────────
 
 export function initAnalysisControls(fetchAndRender: () => void): void {

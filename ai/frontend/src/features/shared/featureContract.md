@@ -4,10 +4,10 @@
 ## Interface: FeatureEntrypoint
 ```ts
 interface FeatureEntrypoint {
-    init(): void;
+    init(): void | Promise<void>;
     dispose?: () => void;
     [extra: string]: unknown;
 }
 ```
-- `init(): void` — synchronous setup; any async work is handled internally so `init()` always returns void.
+- `init(): void | Promise<void>` — initialize the feature; may be synchronous or return a Promise for async initialization.
 - `dispose?: () => void` — optional dispose/release hook.

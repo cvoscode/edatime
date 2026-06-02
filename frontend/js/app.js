@@ -1,6 +1,6 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/scatter-CC18p9T0.js","assets/chartgpu-CqrjGxnD.js","assets/entrypoint-z6h-bxTx.js","assets/frequency-5ZwrWolA.js","assets/entrypoint-DwaSghn-.js","assets/entrypoint-HgFYvBUI.js","assets/causal-BIDACNJi.js","assets/drift-BVqxjjBm.js","assets/DataChart-D9ymouBy.js"])))=>i.map(i=>d[i]);
-import { b as appStateComposite, k as setPreviewTimeColumn, u as uploadDataset, l as formatCount, m as fetchMetadata$1, n as setMetadata, o as setDatasetRevision, p as connectDatabase, q as loadDatabaseTable, r as deleteDatabaseConnection, t as toast, v as previewUpload, w as formatToDatetimeLocal, x as formatAnalysisTime, y as setPreviewSelectedColumns, z as fetchDatabaseTables, A as fetchDatabaseStatus, B as setProfileGridBound, C as normalizeDtypeLabel, E as formatProfileValue, F as setProfileGridSort, G as setProfileGridHeaderBound, H as setColumnProfiles, I as toFiniteNumberOrNull, J as setAnomalyRegions, K as setRollingBands, L as applyColumnRanges, M as isRangeOutsideDataset, N as dbgGroup, O as setZoomHistory, P as setViewport, Q as setPendingYMode, R as setPendingRestoreY, S as setFetchDebounceId, T as sanitizeSelectedColumns$1, U as dbg, V as setLastFetchedData, D as DEBUG, W as ensureRangeStateFromData, X as createEmptyStateController, _ as __vitePreload, Y as formatAnalysisNumber, d as downloadBlob, Z as setAdaptiveLineFilters, $ as setPendingAdaptivePoint, a0 as setChartText, a1 as setRollingEnabled, a2 as setRollingWindow, a3 as setAnomalyEnabled, a4 as setAnomalyMethod, a5 as setAnomalyThreshold, a6 as setAnalysisBound, a7 as SERIES_COLORS, a8 as setSelectedCols, a9 as setSeriesColors, aa as setColumnRanges, ab as setSelectedColorColumn, ac as requestGpuAdapter, ad as installWindowsWebGpuRequestAdapterWorkaround, ae as setAdaptiveFilterColumn, af as appendAdaptiveLineFilter, ag as buildAdaptiveLineY, ah as getSeriesColor, ai as setSeriesColor, aj as computeBounds, ak as debounce, al as setFilterText, am as setProfileFilterText, an as setNumericCols, ao as setChartInstance, ap as setInitialView, aq as initScatterPage } from './assets/scatter-CC18p9T0.js';
-import { r as renderSeriesChipList, g as getNumericColumns, a as getDefaultTimeseriesColumns, b as getAnalyticsChipColor } from './assets/frequency-5ZwrWolA.js';
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/scatter-Bbu6RfNC.js","assets/chartgpu-CqrjGxnD.js","assets/entrypoint-D7xxuTWY.js","assets/frequency-CnNd5TMg.js","assets/entrypoint-0DMukTi-.js","assets/entrypoint-C4J15zrC.js","assets/causal-BbwjInex.js","assets/drift-CU9El-5H.js","assets/DataChart-BSl58AWs.js"])))=>i.map(i=>d[i]);
+import { b as appStateComposite, l as formatToDatetimeLocal, m as formatAnalysisTime, p as previewUpload, n as setMetadata, o as formatCount, q as setPreviewTimeColumn, t as toast, r as setPreviewSelectedColumns, u as fetchDatabaseTables, v as connectDatabase, w as loadDatabaseTable, x as deleteDatabaseConnection, y as fetchDatabaseStatus, z as uploadDataset, _ as __vitePreload, A as setDatasetRevision, B as setColumnProfiles, C as normalizeDtypeLabel, E as formatProfileValue, F as toFiniteNumberOrNull, G as setProfileGridBound, H as setProfileGridSort, I as setProfileGridHeaderBound, J as setAnomalyRegions, K as setRollingBands, L as applyColumnRanges, M as isRangeOutsideDataset, N as dbgGroup, O as setZoomHistory, P as setViewport, Q as setPendingYMode, R as setPendingRestoreY, S as setFetchDebounceId, T as sanitizeSelectedColumns$1, U as setLastFetchedData, D as DEBUG, V as dbg, W as ensureRangeStateFromData, X as createEmptyStateController, k as createRequestTask, Y as formatAnalysisNumber, d as downloadBlob, Z as setAdaptiveLineFilters, $ as setPendingAdaptivePoint, a0 as setChartText, a1 as setRollingEnabled, a2 as setRollingWindow, a3 as setAnomalyEnabled, a4 as setAnomalyMethod, a5 as setAnomalyThreshold, a6 as setAnalysisBound, a7 as SERIES_COLORS, a8 as setSelectedCols, a9 as setSeriesColors, aa as setColumnRanges, ab as setSelectedColorColumn, ac as requestGpuAdapter, ad as installWindowsWebGpuRequestAdapterWorkaround, ae as setAdaptiveFilterColumn, af as appendAdaptiveLineFilter, ag as buildAdaptiveLineY, ah as setChartInstance, ai as getSeriesColor, aj as setSeriesColor, ak as computeBounds, al as debounce, am as setFilterText, an as setProfileFilterText, ao as setNumericCols, ap as initScatterPage } from './assets/scatter-Bbu6RfNC.js';
+import { R as RangeControls, C as ColumnFilterModal, r as renderSeriesChipList, g as getNumericColumns, a as getDefaultTimeseriesColumns, b as getAnalyticsChipColor } from './assets/frequency-CnNd5TMg.js';
 import './assets/chartgpu-CqrjGxnD.js';
 
 function setMetaText(text) {
@@ -25,9 +25,6 @@ function buildMetaBar(metadata) {
 }
 
 const UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
-function notify(message, kind) {
-  toast(message, kind, {});
-}
 function getPartialTimeRangeInputs() {
   const startInput = document.getElementById("time-start-input");
   const endInput = document.getElementById("time-end-input");
@@ -53,27 +50,6 @@ function setPartialTimeRangeInputs(inputs, minLocal, maxLocal, overwriteInputs) 
   if (overwriteInputs || !inputs.startInput.value) inputs.startInput.value = minLocal;
   if (overwriteInputs || !inputs.endInput.value) inputs.endInput.value = maxLocal;
 }
-function setUploadPreviewStatus(text, kind = "") {
-  const el = document.getElementById("upload-preview-status");
-  if (!el) return;
-  el.textContent = text;
-  el.className = `upload-preview-status ${kind}`.trim();
-}
-function formatUploadRowCount(rowCount) {
-  return rowCount >= 1e6 ? (rowCount / 1e6).toFixed(1) + "M" : rowCount >= 1e3 ? (rowCount / 1e3).toFixed(0) + "K" : String(rowCount);
-}
-function loadedRowCountFromResponse(response) {
-  if (!response || typeof response !== "object") return 0;
-  const record = response;
-  const count = Number(record.rows ?? record.rows_loaded);
-  return Number.isFinite(count) && count >= 0 ? count : 0;
-}
-function setProfileMode(mode) {
-  const badge = document.getElementById("profile-mode-badge");
-  if (!badge) return;
-  badge.setAttribute("data-mode", mode);
-  badge.textContent = mode === "preview" ? "Upload preview" : "Current dataset";
-}
 function applyPartialTimeRangeFromMetadata(metadata, overwriteInputs = true) {
   const inputs = getPartialTimeRangeInputs();
   if (!inputs) return;
@@ -89,6 +65,446 @@ function applyPartialTimeRangeFromMetadata(metadata, overwriteInputs = true) {
   if (inputs.hint) {
     inputs.hint.textContent = `Detected: ${formatAnalysisTime(minMs)} → ${formatAnalysisTime(maxMs)}`;
   }
+}
+function validateFileSize(file) {
+  if (!file) return "Please select a file first.";
+  const name = String(file.name || "").toLowerCase();
+  if (!(name.endsWith(".csv") || name.endsWith(".parquet"))) {
+    return "Only CSV and Parquet files are supported.";
+  }
+  if (Number(file.size) > UI_MAX_UPLOAD_BYTES) {
+    const maxMb = Math.round(UI_MAX_UPLOAD_BYTES / (1024 * 1024));
+    return `File exceeds ${maxMb} MB upload limit.`;
+  }
+  return null;
+}
+
+function setUploadPreviewStatus(text, kind = "") {
+  const el = document.getElementById("upload-preview-status");
+  if (!el) return;
+  el.textContent = text;
+  el.className = `upload-preview-status ${kind}`.trim();
+}
+function setProfileMode(mode) {
+  const badge = document.getElementById("profile-mode-badge");
+  if (!badge) return;
+  badge.setAttribute("data-mode", mode);
+  badge.textContent = mode === "preview" ? "Upload preview" : "Current dataset";
+}
+let _previewController = null;
+async function runFilePreview(file, callbacks) {
+  if (!file) {
+    setUploadPreviewStatus("Select a file to preview columns");
+    return;
+  }
+  if (_previewController) _previewController.abort();
+  _previewController = new AbortController();
+  setUploadPreviewStatus("Profiling file…", "loading");
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    const timeColumn = String(appStateComposite.previewTimeColumn || "").trim();
+    if (timeColumn) formData.append("time_column", timeColumn);
+    const res = await previewUpload(formData, _previewController.signal);
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "Preview failed");
+      throw new Error(txt || "Preview failed");
+    }
+    const result = await res.json();
+    const previewMetadata = result?.metadata;
+    if (!previewMetadata || !Array.isArray(previewMetadata.columns)) {
+      throw new Error("Preview response missing metadata");
+    }
+    setMetadata(previewMetadata);
+    callbacks.hydrateColumnProfiles(previewMetadata);
+    applyPreviewColumnSelection(previewMetadata, callbacks);
+    callbacks.renderColumnProfilesGrid(true);
+    applyTimeRangeFromMetadata(previewMetadata, true);
+    const previewRows = Number(previewMetadata.total_rows || result?.preview_rows || 0);
+    if (!appStateComposite.previewTimeColumn && !previewMetadata.time_range) {
+      setUploadPreviewStatus("No time column detected in preview. Please select one from the dropdown before upload.", "warning");
+    } else {
+      setUploadPreviewStatus(`Preview ready (${formatCount(previewRows)} rows)`, "success");
+    }
+    setProfileMode("preview");
+  } catch (e) {
+    if (e?.name === "AbortError") return;
+    if (String(e?.message || "").includes("Specified time column not found")) {
+      setPreviewTimeColumn(null);
+    }
+    setUploadPreviewStatus(`Preview failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+    toast(`Upload preview failed: ${e instanceof Error ? e.message : String(e)}`, "error", {});
+    applyTimeRangeFromMetadata(null, false);
+  }
+}
+function applyPreviewColumnSelection(metadata, callbacks) {
+  const columns = Array.isArray(metadata?.columns) ? metadata.columns : [];
+  const metadataTimeCol = String(metadata?.time_column || "").trim() || null;
+  const detectedTimeCol = columns.find((col) => /date|time|ts|timestamp/i.test(String(col?.name || "")))?.name || null;
+  setPreviewSelectedColumns(columns.map((col) => String(col?.name || "").trim()).filter(Boolean));
+  const timeColumnExists = appStateComposite.previewTimeColumn && columns.some((col) => String(col?.name || "").trim() === appStateComposite.previewTimeColumn);
+  const calledTimeColumn = metadataTimeCol || detectedTimeCol || (timeColumnExists ? appStateComposite.previewTimeColumn : null);
+  setPreviewTimeColumn(calledTimeColumn);
+  const timeColumnSelect = document.getElementById("time-column-select");
+  if (timeColumnSelect) {
+    timeColumnSelect.innerHTML = "";
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "Auto-detect";
+    timeColumnSelect.appendChild(opt);
+    for (const col of columns) {
+      const name = String(col?.name || "").trim();
+      if (!name) continue;
+      const colOpt = document.createElement("option");
+      colOpt.value = name;
+      colOpt.textContent = `${name} (${col?.dtype || "unknown"})`;
+      timeColumnSelect.appendChild(colOpt);
+    }
+    if (calledTimeColumn) {
+      timeColumnSelect.value = calledTimeColumn;
+    } else {
+      timeColumnSelect.value = "";
+    }
+    timeColumnSelect.onchange = () => {
+      setPreviewTimeColumn(timeColumnSelect.value || null);
+      const fileInput = document.getElementById("file-upload");
+      const file = fileInput?.files?.[0] || null;
+      if (file) callbacks.onTimeColumnChanged(file);
+    };
+  }
+}
+function applyTimeRangeFromMetadata(metadata, overwriteInputs) {
+  const inputs = getPartialTimeRangeInputs();
+  if (!inputs) return;
+  const minMs = Number(metadata?.time_range?.min);
+  const maxMs = Number(metadata?.time_range?.max);
+  if (!Number.isFinite(minMs) || !Number.isFinite(maxMs)) {
+    if (inputs.hint) inputs.hint.textContent = "Time range not detected in this file.";
+    inputs.startInput.min = "";
+    inputs.startInput.max = "";
+    inputs.endInput.min = "";
+    inputs.endInput.max = "";
+    return;
+  }
+  const minLocal = formatToDatetimeLocal(minMs);
+  const maxLocal = formatToDatetimeLocal(maxMs);
+  inputs.startInput.min = minLocal;
+  inputs.startInput.max = maxLocal;
+  inputs.endInput.min = minLocal;
+  inputs.endInput.max = maxLocal;
+  if (overwriteInputs || !inputs.startInput.value) inputs.startInput.value = minLocal;
+  if (overwriteInputs || !inputs.endInput.value) inputs.endInput.value = maxLocal;
+  if (inputs.hint) {
+    inputs.hint.textContent = `Detected: ${formatAnalysisTime(minMs)} → ${formatAnalysisTime(maxMs)}`;
+  }
+}
+function loadedRowCountFromResponse(response) {
+  if (!response || typeof response !== "object") return 0;
+  const record = response;
+  const count = Number(record.rows ?? record.rows_loaded);
+  return Number.isFinite(count) && count >= 0 ? count : 0;
+}
+
+async function refreshDbTables() {
+  const dbTableSelect = document.getElementById("db-table-select");
+  if (!dbTableSelect) return;
+  try {
+    const data = await fetchDatabaseTables();
+    const tables = data.tables ?? [];
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "— select table —";
+    dbTableSelect.replaceChildren(placeholder);
+    for (const t of tables) {
+      const opt = document.createElement("option");
+      opt.value = t.name;
+      opt.textContent = t.kind === "hypertable" ? `⏱ ${t.schema}.${t.name}` : `${t.schema}.${t.name}`;
+      dbTableSelect.appendChild(opt);
+    }
+  } catch {
+  }
+}
+let _dbStatusLoaded = false;
+async function syncDatabaseStatus() {
+  if (_dbStatusLoaded) return;
+  _dbStatusLoaded = true;
+  try {
+    const s = await fetchDatabaseStatus();
+    if (s.connected) {
+      const dbLoadBtn = document.getElementById("db-load-btn");
+      const dbDisconnectBtn = document.getElementById("db-disconnect-btn");
+      const dbStatus = document.getElementById("db-status");
+      if (dbLoadBtn) dbLoadBtn.disabled = false;
+      if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
+      if (dbStatus) {
+        dbStatus.textContent = `Connected to ${s.table || "(no table loaded)"}`;
+        dbStatus.className = "upload-status success";
+      }
+      void refreshDbTables();
+    }
+  } catch {
+    _dbStatusLoaded = false;
+  }
+}
+async function handleDatabaseConnect(params) {
+  const { connectionString, schema, dbConnectBtn, dbStatus, dbLoadBtn, dbDisconnectBtn } = params;
+  if (!connectionString.trim()) {
+    if (dbStatus) {
+      dbStatus.textContent = "Connection string is required.";
+      dbStatus.className = "upload-status error";
+    }
+    toast("Connection string is required.", "error", {});
+    return;
+  }
+  dbConnectBtn.disabled = true;
+  if (dbStatus) {
+    dbStatus.textContent = "Connecting…";
+    dbStatus.className = "upload-status loading";
+  }
+  try {
+    const result = await connectDatabase({
+      connection_string: connectionString.trim(),
+      schema,
+      load_snapshot: false
+    });
+    if (result) {
+      if (dbStatus) {
+        dbStatus.textContent = "Connected. Choose a table and click Load data.";
+        dbStatus.className = "upload-status success";
+      }
+      toast("Database connected. Choose a table and click Load data.", "success", {});
+      if (dbLoadBtn) dbLoadBtn.disabled = false;
+      if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
+      await refreshDbTables();
+    }
+  } catch (e) {
+    if (dbStatus) {
+      dbStatus.textContent = "Error: " + (e instanceof Error ? e.message : String(e));
+      dbStatus.className = "upload-status error";
+    }
+    toast(`Database connection failed: ${e instanceof Error ? e.message : String(e)}`, "error", {});
+  } finally {
+    dbConnectBtn.disabled = false;
+  }
+}
+async function handleDatabaseLoad(params) {
+  const { schema, table, timeColumn, dbLoadBtn, dbStatus } = params;
+  if (!table) {
+    if (dbStatus) {
+      dbStatus.textContent = "Select or enter a table name.";
+      dbStatus.className = "upload-status error";
+    }
+    toast("Select or enter a table name.", "error", {});
+    return;
+  }
+  dbLoadBtn.disabled = true;
+  if (dbStatus) {
+    dbStatus.textContent = "Loading data…";
+    dbStatus.className = "upload-status loading";
+  }
+  try {
+    const result = await loadDatabaseTable({
+      schema,
+      table,
+      time_column: timeColumn || null,
+      limit: 1e6
+    });
+    if (result) {
+      const loadedRows = loadedRowCountFromResponse(result);
+      if (dbStatus) {
+        dbStatus.textContent = `Loaded ${loadedRows.toLocaleString()} rows from ${table}.`;
+        dbStatus.className = "upload-status success";
+      }
+      toast(`${formatCount(loadedRows)} rows loaded from ${table}.`, "success", {});
+      window.dispatchEvent(new CustomEvent("edatime:dataset-changed", { detail: { source: "database", table } }));
+    }
+  } catch (e) {
+    if (dbStatus) {
+      dbStatus.textContent = "Error: " + (e instanceof Error ? e.message : String(e));
+      dbStatus.className = "upload-status error";
+    }
+    toast(`Database load failed: ${e instanceof Error ? e.message : String(e)}`, "error", {});
+  } finally {
+    dbLoadBtn.disabled = false;
+  }
+}
+async function handleDatabaseDisconnect(params) {
+  const { dbDisconnectBtn, dbLoadBtn, dbStatus, dbTableSelect } = params;
+  try {
+    await deleteDatabaseConnection();
+  } catch {
+  }
+  if (dbStatus) {
+    dbStatus.textContent = "Disconnected.";
+    dbStatus.className = "upload-status";
+  }
+  toast("Database disconnected.", "info", {});
+  if (dbLoadBtn) dbLoadBtn.disabled = true;
+  if (dbDisconnectBtn) dbDisconnectBtn.hidden = true;
+  if (dbTableSelect) {
+    dbTableSelect.replaceChildren();
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "— connect first —";
+    dbTableSelect.appendChild(placeholder);
+  }
+}
+
+const databaseSource = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+    __proto__: null,
+    handleDatabaseConnect,
+    handleDatabaseDisconnect,
+    handleDatabaseLoad,
+    refreshDbTables,
+    syncDatabaseStatus
+}, Symbol.toStringTag, { value: 'Module' }));
+
+function animateProgress(bar, wrap) {
+  let w = 0;
+  if (wrap) wrap.setAttribute("aria-valuenow", "0");
+  const t = setInterval(() => {
+    w = Math.min(w + Math.random() * 8, 85);
+    bar.style.width = w + "%";
+    if (wrap) wrap.setAttribute("aria-valuenow", String(Math.round(w)));
+    if (w >= 85) clearInterval(t);
+  }, 120);
+  return () => {
+    clearInterval(t);
+    if (wrap) {
+      const current = Number(wrap.getAttribute("aria-valuenow") || "0");
+      wrap.setAttribute("aria-valuenow", String(Math.max(current, 100)));
+    }
+  };
+}
+async function submitFileUpload(params) {
+  const {
+    selectedFile,
+    partialEnabled,
+    nRowsInput,
+    skipInput,
+    timeStartInput,
+    timeEndInput,
+    uploadBtn,
+    statusEl,
+    progressWrap,
+    progressBar,
+    fileInput,
+    fileDisplay,
+    deps,
+    hydrateColumnProfiles} = params;
+  const invalidFileMsg = validateFileSize(selectedFile);
+  if (invalidFileMsg) {
+    statusEl.textContent = invalidFileMsg;
+    statusEl.className = "upload-status error";
+    toast(invalidFileMsg, "error", {});
+    return;
+  }
+  if (!appStateComposite.previewTimeColumn && !(appStateComposite.metadata && appStateComposite.metadata.time_range)) {
+    statusEl.textContent = "No time column selected. Please choose a time column in the upload panel before ingest.";
+    statusEl.className = "upload-status error";
+    toast("No time column selected. Please choose a time column in the upload panel before ingest.", "error", {});
+    return;
+  }
+  const formData = new FormData();
+  formData.append("file", selectedFile);
+  if (partialEnabled) {
+    const nRows = parseInt(nRowsInput.value, 10);
+    const skipRows = parseInt(skipInput.value, 10) || 0;
+    if (!isNaN(nRows) && nRows > 0) {
+      formData.append("n_rows", String(nRows));
+    } else {
+      statusEl.textContent = "Enter a valid Max rows value for partial load.";
+      statusEl.className = "upload-status error";
+      toast("Enter a valid Max rows value for partial load.", "error", {});
+      uploadBtn.disabled = false;
+      progressWrap.style.display = "none";
+      progressBar.style.width = "0";
+      return;
+    }
+    if (skipRows > 0) formData.append("skip_rows", String(skipRows));
+    const toIsoOrNull = (v) => {
+      const s = (v || "").trim();
+      if (!s) return null;
+      const ms = Date.parse(s);
+      if (!Number.isFinite(ms)) return null;
+      return new Date(ms).toISOString();
+    };
+    const tStartIso = toIsoOrNull(timeStartInput?.value || "");
+    const tEndIso = toIsoOrNull(timeEndInput?.value || "");
+    if (tStartIso && tEndIso && Date.parse(tStartIso) > Date.parse(tEndIso)) {
+      statusEl.textContent = "Start time must be before end time.";
+      statusEl.className = "upload-status error";
+      toast("Start time must be before end time.", "error", {});
+      return;
+    }
+    if (tStartIso) formData.append("time_start", tStartIso);
+    if (tEndIso) formData.append("time_end", tEndIso);
+  }
+  const selectedColumns = Array.isArray(appStateComposite.previewSelectedColumns) ? appStateComposite.previewSelectedColumns.filter(Boolean) : [];
+  if (selectedColumns.length > 0) {
+    formData.append("columns", JSON.stringify(selectedColumns));
+  }
+  const timeColumn = String(appStateComposite.previewTimeColumn || "").trim();
+  if (timeColumn) formData.append("time_column", timeColumn);
+  uploadBtn.disabled = true;
+  statusEl.textContent = "Uploading…";
+  statusEl.className = "upload-status loading";
+  progressWrap.style.display = "block";
+  const stopProgress = animateProgress(progressBar, progressWrap);
+  try {
+    const res = await uploadDataset(formData);
+    progressBar.style.width = "100%";
+    if (!res.ok) {
+      const txt = await res.text();
+      let message = txt;
+      try {
+        const parsed = JSON.parse(txt);
+        if (parsed && typeof parsed.error === "string" && parsed.error.trim().length > 0) {
+          message = parsed.error;
+        }
+      } catch {
+      }
+      statusEl.textContent = "Error: " + message;
+      statusEl.className = "upload-status error";
+      toast(`Upload failed: ${message}`, "error", {});
+    } else {
+      const result = await res.json();
+      statusEl.textContent = `Loaded ${result.rows.toLocaleString()} rows. Refreshing stats…`;
+      statusEl.className = "upload-status success";
+      toast(`${formatCount(Number(result.rows || 0))} rows loaded. Dataset ready.`, "success", {});
+      try {
+        const { fetchMetadata } = await __vitePreload(async () => { const { fetchMetadata } = await import('./assets/scatter-Bbu6RfNC.js').then(n => n.aw);return { fetchMetadata }},true              ?__vite__mapDeps([0,1]):void 0);
+        const freshMetadata = await fetchMetadata();
+        setMetadata(freshMetadata);
+        const revision = freshMetadata?.revision;
+        setDatasetRevision(typeof revision === "number" ? revision : 0);
+        void selectedFile;
+        fileInput.value = "";
+        fileDisplay.textContent = "";
+        hydrateColumnProfiles(freshMetadata);
+        buildMetaBar(freshMetadata);
+        deps.buildColumnToggles();
+        deps.buildRangeControls();
+      } catch {
+        setTimeout(() => window.location.reload(), 1200);
+      }
+    }
+  } catch (e) {
+    statusEl.textContent = "Error: " + (e instanceof Error ? e.message : String(e));
+    statusEl.className = "upload-status error";
+    toast(`Upload failed: ${e instanceof Error ? e.message : String(e)}`, "error", {});
+  } finally {
+    stopProgress();
+    uploadBtn.disabled = false;
+    setTimeout(() => {
+      progressWrap.style.display = "none";
+      progressBar.style.width = "0";
+    }, 1500);
+  }
+}
+
+function notify(message, kind) {
+  toast(message, kind, {});
 }
 function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) {
   const toggleBtn = document.getElementById("upload-toggle-btn");
@@ -117,104 +533,12 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
     return;
   }
   let selectedFile = null;
-  let previewController = null;
-  let dbStatusLoaded = false;
-  function validateSelectedFile(file) {
-    if (!file) return "Please select a file first.";
-    const name = String(file.name || "").toLowerCase();
-    if (!(name.endsWith(".csv") || name.endsWith(".parquet"))) {
-      return "Only CSV and Parquet files are supported.";
-    }
-    if (Number(file.size) > UI_MAX_UPLOAD_BYTES) {
-      const maxMb = Math.round(UI_MAX_UPLOAD_BYTES / (1024 * 1024));
-      return `File exceeds ${maxMb} MB upload limit.`;
-    }
-    return null;
+  function setStatus(msg, cls = "") {
+    statusEl.textContent = msg;
+    statusEl.className = "upload-status " + (cls || "");
   }
-  function applyPreviewColumnSelection(metadata) {
-    const columns = Array.isArray(metadata?.columns) ? metadata.columns : [];
-    const metadataTimeCol = String(metadata?.time_column || "").trim() || null;
-    const detectedTimeCol = columns.find((col) => /date|time|ts|timestamp/i.test(String(col?.name || "")))?.name || null;
-    setPreviewSelectedColumns(columns.map((col) => String(col?.name || "").trim()).filter(Boolean));
-    const timeColumnExists = appStateComposite.previewTimeColumn && columns.some((col) => String(col?.name || "").trim() === appStateComposite.previewTimeColumn);
-    const calledTimeColumn = metadataTimeCol || detectedTimeCol || (timeColumnExists ? appStateComposite.previewTimeColumn : null);
-    setPreviewTimeColumn(calledTimeColumn);
-    const timeColumnSelect = document.getElementById("time-column-select");
-    if (timeColumnSelect) {
-      timeColumnSelect.innerHTML = '<option value="">Auto-detect</option>';
-      for (const col of columns) {
-        const name = String(col?.name || "").trim();
-        if (!name) continue;
-        const opt = document.createElement("option");
-        opt.value = name;
-        opt.textContent = `${name} (${col?.dtype || "unknown"})`;
-        timeColumnSelect.appendChild(opt);
-      }
-      if (calledTimeColumn) {
-        timeColumnSelect.value = calledTimeColumn;
-      } else {
-        timeColumnSelect.value = "";
-      }
-      timeColumnSelect.onchange = () => {
-        setPreviewTimeColumn(timeColumnSelect.value || null);
-        if (selectedFile) runFilePreview(selectedFile);
-      };
-    }
-  }
-  function setSelectionMode(mode) {
-    const columns = Array.isArray(appStateComposite.columnProfiles) ? appStateComposite.columnProfiles.map((profile) => profile.name) : [];
-    const next = /* @__PURE__ */ new Set();
-    if (appStateComposite.previewTimeColumn) next.add(appStateComposite.previewTimeColumn);
-    if (mode === "all") {
-      for (const name of columns) next.add(name);
-    }
-    setPreviewSelectedColumns(Array.from(next));
-    renderColumnProfilesGrid(false);
-  }
-  async function runFilePreview(file) {
-    if (!file) {
-      setUploadPreviewStatus("Select a file to preview columns");
-      return;
-    }
-    if (previewController) previewController.abort();
-    previewController = new AbortController();
-    setUploadPreviewStatus("Profiling file…", "loading");
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const timeColumn = String(appStateComposite.previewTimeColumn || "").trim();
-      if (timeColumn) formData.append("time_column", timeColumn);
-      const res = await previewUpload(formData, previewController.signal);
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "Preview failed");
-        throw new Error(txt || "Preview failed");
-      }
-      const result = await res.json();
-      const previewMetadata = result?.metadata;
-      if (!previewMetadata || !Array.isArray(previewMetadata.columns)) {
-        throw new Error("Preview response missing metadata");
-      }
-      setMetadata(previewMetadata);
-      hydrateColumnProfiles(previewMetadata);
-      applyPreviewColumnSelection(previewMetadata);
-      renderColumnProfilesGrid(true);
-      applyPartialTimeRangeFromMetadata(previewMetadata, true);
-      const previewRows = Number(previewMetadata.total_rows || result?.preview_rows || 0);
-      if (!appStateComposite.previewTimeColumn && !previewMetadata.time_range) {
-        setUploadPreviewStatus("No time column detected in preview. Please select one from the dropdown before upload.", "warning");
-      } else {
-        setUploadPreviewStatus(`Preview ready (${formatCount(previewRows)} rows)`, "success");
-      }
-      setProfileMode("preview");
-    } catch (e) {
-      if (e?.name === "AbortError") return;
-      if (String(e?.message || "").includes("Specified time column not found")) {
-        setPreviewTimeColumn(null);
-      }
-      setUploadPreviewStatus(`Preview failed: ${e.message}`, "error");
-      notify(`Upload preview failed: ${e.message}`, "error");
-      applyPartialTimeRangeFromMetadata(null, false);
-    }
+  function formatUploadRowCountLocal(rowCount) {
+    return rowCount >= 1e6 ? (rowCount / 1e6).toFixed(1) + "M" : rowCount >= 1e3 ? (rowCount / 1e3).toFixed(0) + "K" : String(rowCount);
   }
   if (toggleBtn) {
     toggleBtn.addEventListener("click", () => {
@@ -224,6 +548,13 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
     });
   } else {
     panel.classList.add("open");
+  }
+  async function runPreviewWithCurrentFile(file) {
+    await runFilePreview(file, {
+      hydrateColumnProfiles,
+      renderColumnProfilesGrid,
+      onTimeColumnChanged: runPreviewWithCurrentFile
+    });
   }
   dropZone.addEventListener("click", (e) => {
     if (e.target.closest("#browse-btn")) return;
@@ -237,7 +568,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
   browseBtn.addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", () => {
     selectedFile = fileInput.files?.[0] || null;
-    const invalidFileMsg = validateSelectedFile(selectedFile);
+    const invalidFileMsg = validateFileSize(selectedFile);
     if (invalidFileMsg) {
       selectedFile = null;
       fileInput.value = "";
@@ -249,7 +580,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
     }
     fileDisplay.textContent = selectedFile ? selectedFile.name : "";
     setPreviewTimeColumn(null);
-    if (selectedFile) runFilePreview(selectedFile);
+    if (selectedFile) void runPreviewWithCurrentFile(selectedFile);
   });
   dropZone.addEventListener("dragover", (e) => {
     e.preventDefault();
@@ -260,7 +591,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
     e.preventDefault();
     dropZone.classList.remove("dragover");
     selectedFile = e.dataTransfer?.files[0] || null;
-    const invalidFileMsg = validateSelectedFile(selectedFile);
+    const invalidFileMsg = validateFileSize(selectedFile);
     if (invalidFileMsg) {
       selectedFile = null;
       fileDisplay.textContent = "";
@@ -271,7 +602,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
     }
     fileDisplay.textContent = selectedFile ? selectedFile.name : "";
     setPreviewTimeColumn(null);
-    if (selectedFile) runFilePreview(selectedFile);
+    if (selectedFile) void runPreviewWithCurrentFile(selectedFile);
   });
   partialChk.addEventListener("change", () => {
     partialFlds.classList.toggle("visible", partialChk.checked);
@@ -280,158 +611,58 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
   nRowsRange.addEventListener("input", () => {
     const v = parseInt(nRowsRange.value, 10);
     nRowsInput.value = String(v);
-    nRowsDisp.textContent = formatUploadRowCount(v);
+    nRowsDisp.textContent = formatUploadRowCountLocal(v);
   });
   nRowsInput.addEventListener("input", () => {
     const v = parseInt(nRowsInput.value, 10);
     if (!isNaN(v)) {
       nRowsRange.value = String(Math.min(v, parseInt(nRowsRange.max, 10)));
-      nRowsDisp.textContent = formatUploadRowCount(v);
+      nRowsDisp.textContent = formatUploadRowCountLocal(v);
     }
   });
   const defaultRows = parseInt(nRowsRange.value, 10);
   if (!isNaN(defaultRows) && defaultRows > 0) {
     nRowsInput.value = String(defaultRows);
-    nRowsDisp.textContent = formatUploadRowCount(defaultRows);
+    nRowsDisp.textContent = formatUploadRowCountLocal(defaultRows);
   }
-  applyPartialTimeRangeFromMetadata(appStateComposite.metadata, false);
+  applyTimeRangeFromMetadata(appStateComposite.metadata, false);
   selectAllBtn?.addEventListener("click", () => setSelectionMode("all"));
   selectNoneBtn?.addEventListener("click", () => setSelectionMode("none"));
   selectAllCheckbox?.addEventListener("change", () => {
     setSelectionMode(selectAllCheckbox.checked ? "all" : "none");
   });
-  uploadBtn.addEventListener("click", async () => {
+  function setSelectionMode(mode) {
+    const columns = Array.isArray(appStateComposite.columnProfiles) ? appStateComposite.columnProfiles.map((profile) => profile.name) : [];
+    const next = /* @__PURE__ */ new Set();
+    if (appStateComposite.previewTimeColumn) next.add(appStateComposite.previewTimeColumn);
+    if (mode === "all") {
+      for (const name of columns) next.add(name);
+    }
+    setPreviewSelectedColumns(Array.from(next));
+    renderColumnProfilesGrid(false);
+  }
+  uploadBtn.addEventListener("click", () => {
     if (!selectedFile) {
       setStatus("Please select a file first.", "error");
       notify("Please select a file first.", "error");
       return;
     }
-    const invalidFileMsg = validateSelectedFile(selectedFile);
-    if (invalidFileMsg) {
-      setStatus(invalidFileMsg, "error");
-      notify(invalidFileMsg, "error");
-      return;
-    }
-    if (!appStateComposite.previewTimeColumn && !(appStateComposite.metadata && appStateComposite.metadata.time_range)) {
-      setStatus("No time column selected. Please choose a time column in the upload panel before ingest.", "error");
-      notify("No time column selected. Please choose a time column in the upload panel before ingest.", "error");
-      return;
-    }
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-    if (partialChk.checked) {
-      const nRows = parseInt(nRowsInput.value, 10);
-      const skipRows = parseInt(skipInput.value, 10) || 0;
-      if (!isNaN(nRows) && nRows > 0) {
-        formData.append("n_rows", String(nRows));
-      } else {
-        setStatus("Enter a valid Max rows value for partial load.", "error");
-        notify("Enter a valid Max rows value for partial load.", "error");
-        uploadBtn.disabled = false;
-        progressWrap.style.display = "none";
-        progressBar.style.width = "0";
-        return;
-      }
-      if (skipRows > 0) formData.append("skip_rows", String(skipRows));
-      const toIsoOrNull = (v) => {
-        const s = (v || "").trim();
-        if (!s) return null;
-        const ms = Date.parse(s);
-        if (!Number.isFinite(ms)) return null;
-        return new Date(ms).toISOString();
-      };
-      const tStartIso = toIsoOrNull(timeStartInput?.value || "");
-      const tEndIso = toIsoOrNull(timeEndInput?.value || "");
-      if (tStartIso && tEndIso && Date.parse(tStartIso) > Date.parse(tEndIso)) {
-        setStatus("Start time must be before end time.", "error");
-        notify("Start time must be before end time.", "error");
-        return;
-      }
-      if (tStartIso) formData.append("time_start", tStartIso);
-      if (tEndIso) formData.append("time_end", tEndIso);
-    }
-    const selectedColumns = Array.isArray(appStateComposite.previewSelectedColumns) ? appStateComposite.previewSelectedColumns.filter(Boolean) : [];
-    if (selectedColumns.length > 0) {
-      formData.append("columns", JSON.stringify(selectedColumns));
-    }
-    const timeColumn = String(appStateComposite.previewTimeColumn || "").trim();
-    if (timeColumn) formData.append("time_column", timeColumn);
-    uploadBtn.disabled = true;
-    setStatus("Uploading…", "loading");
-    progressWrap.style.display = "block";
-    const stopProgress = animateProgress(progressBar);
-    try {
-      const res = await uploadDataset(formData);
-      progressBar.style.width = "100%";
-      if (!res.ok) {
-        const txt = await res.text();
-        let message = txt;
-        try {
-          const parsed = JSON.parse(txt);
-          if (parsed && typeof parsed.error === "string" && parsed.error.trim().length > 0) {
-            message = parsed.error;
-          }
-        } catch {
-        }
-        setStatus("Error: " + message, "error");
-        notify(`Upload failed: ${message}`, "error");
-      } else {
-        const result = await res.json();
-        setStatus(`Loaded ${result.rows.toLocaleString()} rows. Refreshing stats…`, "success");
-        notify(`${formatCount(Number(result.rows || 0))} rows loaded. Dataset ready.`, "success");
-        try {
-          const freshMetadata = await fetchMetadata$1();
-          setMetadata(freshMetadata);
-          const revision = freshMetadata?.revision;
-          setDatasetRevision(typeof revision === "number" ? revision : 0);
-          selectedFile = null;
-          fileInput.value = "";
-          fileDisplay.textContent = "";
-          setUploadPreviewStatus("Upload complete. Select a file to preview.", "");
-          setProfileMode("dataset");
-          hydrateColumnProfiles(freshMetadata);
-          applyPartialTimeRangeFromMetadata(freshMetadata, false);
-          renderColumnProfilesGrid(true);
-          buildMetaBar(freshMetadata);
-          deps.buildColumnToggles();
-          deps.buildRangeControls();
-        } catch {
-          setTimeout(() => window.location.reload(), 1200);
-        }
-      }
-    } catch (e) {
-      setStatus("Error: " + e.message, "error");
-      notify(`Upload failed: ${e.message}`, "error");
-    } finally {
-      stopProgress();
-      uploadBtn.disabled = false;
-      setTimeout(() => {
-        progressWrap.style.display = "none";
-        progressBar.style.width = "0";
-      }, 1500);
-    }
+    void submitFileUpload({
+      selectedFile,
+      partialEnabled: partialChk.checked,
+      nRowsInput,
+      skipInput,
+      timeStartInput,
+      timeEndInput,
+      uploadBtn,
+      statusEl,
+      progressWrap,
+      progressBar,
+      fileInput,
+      fileDisplay,
+      deps,
+      hydrateColumnProfiles});
   });
-  function setStatus(msg, cls = "") {
-    statusEl.textContent = msg;
-    statusEl.className = "upload-status " + (cls || "");
-  }
-  function animateProgress(bar) {
-    let w = 0;
-    if (progressWrap) progressWrap.setAttribute("aria-valuenow", "0");
-    const t = setInterval(() => {
-      w = Math.min(w + Math.random() * 8, 85);
-      bar.style.width = w + "%";
-      if (progressWrap) progressWrap.setAttribute("aria-valuenow", String(Math.round(w)));
-      if (w >= 85) clearInterval(t);
-    }, 120);
-    return () => {
-      clearInterval(t);
-      if (progressWrap) {
-        const current = Number(progressWrap.getAttribute("aria-valuenow") || "0");
-        progressWrap.setAttribute("aria-valuenow", String(Math.max(current, 100)));
-      }
-    };
-  }
   const fileTabBtn = document.getElementById("upload-source-file-btn");
   const dbTabBtn = document.getElementById("upload-source-database-btn");
   const filePanel = document.querySelector('[data-upload-source-panel="file"]');
@@ -465,150 +696,83 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
   const dbDisconnectBtn = document.getElementById("db-disconnect-btn");
   const dbStatus = document.getElementById("db-status");
   const dbTableSelect = document.getElementById("db-table-select");
-  async function refreshDbTables() {
-    if (!dbTableSelect) return;
-    try {
-      const data = await fetchDatabaseTables();
-      const tables = data.tables ?? [];
-      dbTableSelect.innerHTML = '<option value="">— select table —</option>';
-      for (const t of tables) {
-        const opt = document.createElement("option");
-        opt.value = t.name;
-        opt.textContent = t.kind === "hypertable" ? `⏱ ${t.schema}.${t.name}` : `${t.schema}.${t.name}`;
-        dbTableSelect.appendChild(opt);
-      }
-    } catch {
-    }
-  }
+  void refreshDbTables();
   dbTableSelect?.addEventListener("change", () => {
     const tableInput = document.getElementById("db-table-input");
     if (tableInput && dbTableSelect.value) tableInput.value = dbTableSelect.value;
   });
   if (dbConnectBtn) {
-    dbConnectBtn.addEventListener("click", async () => {
+    dbConnectBtn.addEventListener("click", () => {
       const connectionString = document.getElementById("db-connection-input")?.value ?? "";
       const schema = document.getElementById("db-schema-input")?.value.trim() || "public";
-      if (!connectionString.trim()) {
-        if (dbStatus) {
-          dbStatus.textContent = "Connection string is required.";
-          dbStatus.className = "upload-status error";
-        }
-        notify("Connection string is required.", "error");
-        return;
-      }
-      dbConnectBtn.disabled = true;
-      if (dbStatus) {
-        dbStatus.textContent = "Connecting…";
-        dbStatus.className = "upload-status loading";
-      }
-      try {
-        const result = await connectDatabase({
-          connection_string: connectionString.trim(),
-          schema,
-          load_snapshot: false
-        });
-        if (result) {
-          if (dbStatus) {
-            dbStatus.textContent = "Connected. Choose a table and click Load data.";
-            dbStatus.className = "upload-status success";
-          }
-          notify("Database connected. Choose a table and click Load data.", "success");
-          if (dbLoadBtn) dbLoadBtn.disabled = false;
-          if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
-          await refreshDbTables();
-        }
-      } catch (e) {
-        if (dbStatus) {
-          dbStatus.textContent = "Error: " + e.message;
-          dbStatus.className = "upload-status error";
-        }
-        notify(`Database connection failed: ${e.message}`, "error");
-      } finally {
-        dbConnectBtn.disabled = false;
-      }
+      void handleDatabaseConnect({
+        connectionString,
+        schema,
+        dbConnectBtn,
+        dbStatus,
+        dbLoadBtn,
+        dbDisconnectBtn
+      });
     });
   }
   if (dbLoadBtn) {
-    dbLoadBtn.addEventListener("click", async () => {
+    dbLoadBtn.addEventListener("click", () => {
       const schema = document.getElementById("db-schema-input")?.value.trim() || "public";
       const table = document.getElementById("db-table-input")?.value.trim() ?? dbTableSelect?.value ?? "";
       const timeColumn = document.getElementById("db-time-col-input")?.value.trim();
-      if (!table) {
-        if (dbStatus) {
-          dbStatus.textContent = "Select or enter a table name.";
-          dbStatus.className = "upload-status error";
-        }
-        notify("Select or enter a table name.", "error");
-        return;
-      }
-      dbLoadBtn.disabled = true;
-      if (dbStatus) {
-        dbStatus.textContent = "Loading data…";
-        dbStatus.className = "upload-status loading";
-      }
-      try {
-        const result = await loadDatabaseTable({
-          schema,
-          table,
-          time_column: timeColumn || null,
-          limit: 1e6
-        });
-        if (result) {
-          const loadedRows = loadedRowCountFromResponse(result);
-          if (dbStatus) {
-            dbStatus.textContent = `Loaded ${loadedRows.toLocaleString()} rows from ${table}.`;
-            dbStatus.className = "upload-status success";
-          }
-          notify(`${formatCount(loadedRows)} rows loaded from ${table}.`, "success");
-          window.dispatchEvent(new CustomEvent("edatime:dataset-changed", { detail: { source: "database", table } }));
-        }
-      } catch (e) {
-        if (dbStatus) {
-          dbStatus.textContent = "Error: " + e.message;
-          dbStatus.className = "upload-status error";
-        }
-        notify(`Database load failed: ${e.message}`, "error");
-      } finally {
-        dbLoadBtn.disabled = false;
-      }
+      void handleDatabaseLoad({
+        schema,
+        table,
+        timeColumn: timeColumn || null,
+        dbLoadBtn,
+        dbStatus
+      });
     });
   }
   if (dbDisconnectBtn) {
-    dbDisconnectBtn.addEventListener("click", async () => {
-      try {
-        await deleteDatabaseConnection();
-      } catch {
-      }
-      if (dbStatus) {
-        dbStatus.textContent = "Disconnected.";
-        dbStatus.className = "upload-status";
-      }
-      notify("Database disconnected.", "info");
-      if (dbLoadBtn) dbLoadBtn.disabled = true;
-      if (dbDisconnectBtn) dbDisconnectBtn.hidden = true;
-      if (dbTableSelect) {
-        dbTableSelect.innerHTML = '<option value="">— connect first —</option>';
-      }
+    dbDisconnectBtn.addEventListener("click", () => {
+      void handleDatabaseDisconnect({
+        dbDisconnectBtn,
+        dbLoadBtn,
+        dbStatus,
+        dbTableSelect
+      });
     });
   }
+  let dbStatusLoaded = false;
   async function syncDatabaseStatus() {
     if (dbStatusLoaded) return;
     dbStatusLoaded = true;
-    try {
-      const s = await fetchDatabaseStatus();
-      if (s.connected) {
-        if (dbLoadBtn) dbLoadBtn.disabled = false;
-        if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
-        if (dbStatus) {
-          dbStatus.textContent = `Connected to ${s.table || "(no table loaded)"}`;
-          dbStatus.className = "upload-status success";
-        }
-        void refreshDbTables();
-      }
-    } catch {
-      dbStatusLoaded = false;
-    }
+    const { syncDatabaseStatus: doSync } = await __vitePreload(async () => { const { syncDatabaseStatus: doSync } = await Promise.resolve().then(() => databaseSource);return { syncDatabaseStatus: doSync }},true              ?void 0:void 0);
+    await doSync();
   }
+}
+
+function createUploadEntrypoint(deps) {
+  let initialized = false;
+  let mockInitUploadPanel = null;
+  return {
+    init(hydrateColumnProfiles, renderColumnProfilesGrid) {
+      if (initialized) return;
+      initialized = true;
+      if (mockInitUploadPanel) {
+        mockInitUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, {
+          buildColumnToggles: deps.buildColumnToggles,
+          buildRangeControls: deps.buildRangeControls
+        });
+        return;
+      }
+      const { initUploadPanel } = require("../../ui/upload.js");
+      initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, {
+        buildColumnToggles: deps.buildColumnToggles,
+        buildRangeControls: deps.buildRangeControls
+      });
+    },
+    /** For testing only — allows injecting a mock initUploadPanel */
+    _setMock(fn) {
+      mockInitUploadPanel = fn;
+    }
+  };
 }
 
 const PROFILE_ROW_HEIGHT = 38;
@@ -1148,11 +1312,26 @@ async function fetchAnomalyRegions(fetchAnomalies, signal) {
   }
   requestOverlayRender();
 }
+function computeAndSetRollingBands(windowSize) {
+  if (!appStateComposite.rollingEnabled) {
+    setRollingBands(null);
+    return;
+  }
+  const filtered = applyColumnRanges(appStateComposite.lastFetchedData);
+  setRollingBands(computeFrontendRollingBands(filtered, appStateComposite.selectedCols, windowSize));
+}
+function cancelAnalyticsFetch() {
+  _anomalyController?.abort();
+}
+const isAnalyticsControllerActive = () => _anomalyController !== null && !_anomalyController.signal.aborted;
 
 const analyticsOverlay = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
+    cancelAnalyticsFetch,
+    computeAndSetRollingBands,
     computeFrontendRollingBands,
     fetchAnomalyRegions,
+    isAnalyticsControllerActive,
     setAnomalyOverlayCallback
 }, Symbol.toStringTag, { value: 'Module' }));
 
@@ -1205,13 +1384,22 @@ function computeRenderedYDebugSnapshot() {
   };
 }
 function createTimeseriesPageController(deps) {
-  let dataFetchController = null;
   const uploadButton = document.getElementById("timeseries-empty-upload-btn");
   if (uploadButton) {
     uploadButton.addEventListener("click", () => {
       window.dispatchEvent(new CustomEvent("edatime:page-change", { detail: { page: "upload" } }));
     });
   }
+  const task = createRequestTask({
+    setLoading: (loading) => {
+      const loadingEl = document.getElementById("main-chart-loading");
+      if (loadingEl) loadingEl.hidden = !loading;
+    },
+    onError: (message) => {
+      console.error("Failed to fetch data:", message);
+      setMetaText("Error: " + message);
+    }
+  });
   function emitChartRangeChange(sourceKind = "data") {
     if (!Number.isFinite(appStateComposite.currentStart) || !Number.isFinite(appStateComposite.currentEnd)) return;
     window.dispatchEvent(new CustomEvent("edatime:chart-range-change", {
@@ -1292,12 +1480,7 @@ function createTimeseriesPageController(deps) {
       renderCurrentData();
       return;
     }
-    if (dataFetchController) dataFetchController.abort();
-    dataFetchController = new AbortController();
-    const signal = dataFetchController.signal;
-    const loadingEl = document.getElementById("main-chart-loading");
-    if (loadingEl) loadingEl.hidden = false;
-    try {
+    await task.run(async (signal) => {
       const startIso = new Date(currentStart).toISOString();
       const endIso = new Date(currentEnd).toISOString();
       const width = document.getElementById("main-chart")?.clientWidth || 1200;
@@ -1343,14 +1526,7 @@ function createTimeseriesPageController(deps) {
       if (DEBUG) dbg("post-render yRange", yr);
       setPendingYMode(null);
       setPendingRestoreY(null);
-    } catch (err) {
-      if (err?.name === "AbortError") return;
-      console.error("Failed to fetch data:", err);
-      setMetaText("Error: " + err.message);
-    } finally {
-      const loadingEl2 = document.getElementById("main-chart-loading");
-      if (loadingEl2) loadingEl2.hidden = true;
-    }
+    });
   }
   function onZoomRangeChange(newStart, newEnd, sourceKind = "user") {
     if (appStateComposite.fetchDebounceId) clearTimeout(appStateComposite.fetchDebounceId);
@@ -1445,8 +1621,8 @@ function wireSampleDatasetCards(showPage) {
   });
 }
 async function loadSampleDataset(datasetId, showPage) {
-  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/scatter-CC18p9T0.js').then(n => n.ax);return { toast }},true              ?__vite__mapDeps([0,1]):void 0);
-  const { fetchSampleDataset } = await __vitePreload(async () => { const { fetchSampleDataset } = await import('./assets/scatter-CC18p9T0.js').then(n => n.aw);return { fetchSampleDataset }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/scatter-Bbu6RfNC.js').then(n => n.ax);return { toast }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { fetchSampleDataset } = await __vitePreload(async () => { const { fetchSampleDataset } = await import('./assets/scatter-Bbu6RfNC.js').then(n => n.aw);return { fetchSampleDataset }},true              ?__vite__mapDeps([0,1]):void 0);
   if (datasetId === "ettm2") {
     const dismissLoading = toast("Loading ETTm2 sample dataset…", "info", 0);
     let file;
@@ -2058,6 +2234,23 @@ function initAnalysisControls(fetchAndRender) {
 function initPages() {
   initPageNavigation();
 }
+
+const toolbar = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+    __proto__: null,
+    applyViewport,
+    bindAnalysisChartEvents,
+    getCurrentView,
+    initAnalysisControls,
+    initChartPageFilterGesture,
+    initPages,
+    refreshZoomControlsState,
+    resetZoom,
+    updateAnalysisClick,
+    updateAnalysisCursor,
+    updateAnalysisYRange,
+    updateAnalysisZoom,
+    zoomOut
+}, Symbol.toStringTag, { value: 'Module' }));
 
 const VALID_PAGES = /* @__PURE__ */ new Set([
   "home",
@@ -3019,6 +3212,12 @@ function initAnnotationPanel() {
   });
 }
 
+const annotationPanel = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+    __proto__: null,
+    initAnnotationPanel,
+    setAnnotationOverlayCallback
+}, Symbol.toStringTag, { value: 'Module' }));
+
 const STORAGE_KEY$1 = "edatime-guided-workflow";
 const WORKFLOW_STEPS = [
   { id: "upload", label: "Upload", page: "upload" },
@@ -3495,7 +3694,7 @@ function initTransformModal(deps) {
         applyBtn.textContent = "Applying…";
         applyBtn.disabled = true;
       }
-      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/scatter-CC18p9T0.js').then(n => n.aw);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/scatter-Bbu6RfNC.js').then(n => n.aw);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
       await postTransform(expr, name);
       controller.close();
       await deps.refreshDataset({ selectedColumn: name });
@@ -3545,7 +3744,7 @@ function initOutlierModal(deps) {
         applyBtn.disabled = true;
         applyBtn.textContent = "Removing…";
       }
-      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/scatter-CC18p9T0.js').then(n => n.aw);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/scatter-Bbu6RfNC.js').then(n => n.aw);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
       const result = await postRemoveOutliers(
         columns,
         method,
@@ -4047,6 +4246,244 @@ function startSessionPersistence() {
   window.__edatime.importSession = importSessionFromFile;
 }
 
+async function loadEntrypoints(deps) {
+  const [
+    { createFftEntrypoint },
+    { createHeatmapEntrypoint },
+    { createScatterEntrypoint },
+    { createSpectrogramEntrypoint },
+    { createCausalEntrypoint },
+    { createDriftEntrypoint }
+  ] = await Promise.all([
+    __vitePreload(() => import('./assets/entrypoint-D7xxuTWY.js'),true              ?__vite__mapDeps([2,3,0,1]):void 0),
+    __vitePreload(() => import('./assets/entrypoint-0DMukTi-.js'),true              ?__vite__mapDeps([4,3,0,1]):void 0),
+    __vitePreload(() => import('./assets/scatter-Bbu6RfNC.js').then(n => n.ay),true              ?__vite__mapDeps([0,1]):void 0),
+    __vitePreload(() => import('./assets/entrypoint-C4J15zrC.js'),true              ?__vite__mapDeps([5,3,0,1]):void 0),
+    __vitePreload(() => import('./assets/causal-BbwjInex.js'),true              ?__vite__mapDeps([6,0,1,3]):void 0),
+    __vitePreload(() => import('./assets/drift-CU9El-5H.js').then(n => n.e),true              ?__vite__mapDeps([7,0,1,3]):void 0)
+  ]);
+  register("fft", {
+    requiresMetadata: true,
+    init: createFftEntrypoint({ getRenderTimeseries: deps.getRenderTimeseries }).init
+  });
+  register("heatmap", {
+    requiresMetadata: true,
+    init: createHeatmapEntrypoint({ showPage: deps.showPage }).init
+  });
+  register("scatter", {
+    requiresMetadata: true,
+    init: createScatterEntrypoint({
+      initScatterPage: deps.initScatterPage,
+      getMetadata: () => deps.getMetadata()
+    }).init
+  });
+  register("spectrogram", {
+    requiresMetadata: true,
+    init: createSpectrogramEntrypoint({ setLoading: deps.setLoading }).init
+  });
+  register("causal", {
+    requiresMetadata: true,
+    init: createCausalEntrypoint({
+      getMetadata: deps.getMetadata,
+      chipColor: deps.chipColor,
+      numericColumns: deps.numericColumns,
+      setLoading: deps.setLoading
+    }).init
+  });
+  register("drift", {
+    requiresMetadata: true,
+    init: createDriftEntrypoint({ initDriftPage: deps.initDriftPage, getMetadata: () => deps.getMetadata() }).init
+  });
+}
+
+const _registry = /* @__PURE__ */ new Map();
+function registerChartType(name, adapter) {
+  if (!name || typeof adapter?.create !== "function") {
+    throw new Error(`Invalid chart adapter for "${name}"`);
+  }
+  _registry.set(name, adapter);
+}
+function getChartType(name) {
+  return _registry.get(name);
+}
+
+class FallbackChart {
+  containerId;
+  canvas = null;
+  ctx = null;
+  resizeObserver = null;
+  constructor(containerId) {
+    this.containerId = containerId;
+  }
+  async init() {
+    const container = document.getElementById(this.containerId);
+    if (!container) throw new Error("Fallback chart container not found");
+    container.innerHTML = "";
+    const canvas = document.createElement("canvas");
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.display = "block";
+    container.appendChild(canvas);
+    this.canvas = canvas;
+    this.ctx = canvas.getContext("2d");
+    const resize = () => {
+      const w = Math.max(1, container.clientWidth);
+      const h = Math.max(1, container.clientHeight);
+      this.canvas.width = w;
+      this.canvas.height = h;
+    };
+    resize();
+    this.resizeObserver = new ResizeObserver(() => resize());
+    this.resizeObserver.observe(container);
+  }
+  setXRange() {
+  }
+  setYRange() {
+  }
+  supportsZoomControls() {
+    return false;
+  }
+  onCrosshairMove() {
+  }
+  onClick() {
+  }
+  setChartText() {
+  }
+  setDrawMode() {
+  }
+  clearDrawings() {
+  }
+  fitYToData() {
+  }
+  getXDomain() {
+    return null;
+  }
+  getYRange() {
+    return null;
+  }
+  exportPNG() {
+  }
+  exportSVG() {
+  }
+  exportHTML() {
+  }
+  updateDataMulti(dataObj, columns) {
+    if (!this.ctx || !this.canvas) return;
+    const ctx = this.ctx;
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    const pad = 28;
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = "#080a10";
+    ctx.fillRect(0, 0, width, height);
+    let xMin = Number.POSITIVE_INFINITY;
+    let xMax = Number.NEGATIVE_INFINITY;
+    let yMin = Number.POSITIVE_INFINITY;
+    let yMax = Number.NEGATIVE_INFINITY;
+    const seriesToDraw = [];
+    for (const col of columns) {
+      const seriesData = dataObj.series?.[col];
+      const xs = seriesData?.x || dataObj.ts;
+      const ys = seriesData?.y || dataObj.values?.[col];
+      if (!xs || !ys || ys.length === 0) continue;
+      seriesToDraw.push({ col, xs, ys });
+      for (let i = 0; i < xs.length; i++) {
+        const x = Number(xs[i]);
+        const y = Number(ys[i]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        if (x < xMin) xMin = x;
+        if (x > xMax) xMax = x;
+        if (y < yMin) yMin = y;
+        if (y > yMax) yMax = y;
+      }
+    }
+    if (seriesToDraw.length === 0 || !Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
+      ctx.fillStyle = "#7a86a4";
+      ctx.font = "12px sans-serif";
+      ctx.fillText("No data to display", pad, pad + 2);
+      return;
+    }
+    if (xMax === xMin) xMax = xMin + 1;
+    if (yMax === yMin) yMax = yMin + 1;
+    ctx.strokeStyle = "#272d45";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad, height - pad);
+    ctx.lineTo(width - pad, height - pad);
+    ctx.moveTo(pad, pad);
+    ctx.lineTo(pad, height - pad);
+    ctx.stroke();
+    for (let s = 0; s < seriesToDraw.length; s++) {
+      const { xs, ys } = seriesToDraw[s];
+      ctx.beginPath();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = SERIES_COLORS[s % SERIES_COLORS.length];
+      let started = false;
+      for (let i = 0; i < xs.length; i++) {
+        const x = Number(xs[i]);
+        const y = Number(ys[i]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        const px = pad + (x - xMin) / (xMax - xMin) * (width - 2 * pad);
+        const py = height - pad - (y - yMin) / (yMax - yMin) * (height - 2 * pad);
+        if (!started) {
+          ctx.moveTo(px, py);
+          started = true;
+        } else {
+          ctx.lineTo(px, py);
+        }
+      }
+      ctx.stroke();
+    }
+  }
+  destroy() {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    this.ctx = null;
+    this.canvas = null;
+  }
+}
+
+let modules = null;
+let pending = null;
+async function ensureChartModules$1() {
+  if (modules) return modules;
+  if (pending) return pending;
+  pending = (async () => {
+    const [dataClient, chartModule] = await Promise.all([
+      __vitePreload(() => import('./assets/scatter-Bbu6RfNC.js').then(n => n.aw),true              ?__vite__mapDeps([0,1]):void 0),
+      __vitePreload(() => import('./assets/DataChart-BSl58AWs.js'),true              ?__vite__mapDeps([8,1,0,3]):void 0)
+    ]);
+    const result = {
+      fetchMetadata: dataClient.fetchMetadata,
+      fetchData: dataClient.fetchData,
+      fetchAnomalies: dataClient.fetchAnomalies,
+      postTransform: dataClient.postTransform,
+      DataChartCtor: chartModule.DataChart
+    };
+    const { DataChartCtor } = result;
+    registerChartType("line", {
+      label: "Line",
+      create: (containerId, callbacks) => {
+        if (!DataChartCtor) throw new Error("DataChart module not loaded");
+        const cb = callbacks;
+        return new DataChartCtor(
+          containerId,
+          cb.onZoom ?? null,
+          cb.onYRange ?? null,
+          cb.onZoomOut ?? null
+        );
+      }
+    });
+    registerChartType("fallback", {
+      label: "Fallback (Canvas 2D)",
+      create: (containerId) => new FallbackChart(containerId)
+    });
+    modules = result;
+    return result;
+  })();
+  return pending;
+}
+
 async function checkWebGPU() {
   if (!navigator.gpu) {
     return "WebGPU is not supported in this browser. Use Chrome 113+, Edge 113+, or Safari 18+.";
@@ -4246,54 +4683,99 @@ function initAdaptiveFilterGesture(deps) {
   };
 }
 
-async function loadEntrypoints(deps) {
-  const [
-    { createFftEntrypoint },
-    { createHeatmapEntrypoint },
-    { createScatterEntrypoint },
-    { createSpectrogramEntrypoint },
-    { createCausalEntrypoint },
-    { createDriftEntrypoint }
-  ] = await Promise.all([
-    __vitePreload(() => import('./assets/entrypoint-z6h-bxTx.js'),true              ?__vite__mapDeps([2,3,0,1]):void 0),
-    __vitePreload(() => import('./assets/entrypoint-DwaSghn-.js'),true              ?__vite__mapDeps([4,3,0,1]):void 0),
-    __vitePreload(() => import('./assets/scatter-CC18p9T0.js').then(n => n.ay),true              ?__vite__mapDeps([0,1]):void 0),
-    __vitePreload(() => import('./assets/entrypoint-HgFYvBUI.js'),true              ?__vite__mapDeps([5,3,0,1]):void 0),
-    __vitePreload(() => import('./assets/causal-BIDACNJi.js'),true              ?__vite__mapDeps([6,0,1,3]):void 0),
-    __vitePreload(() => import('./assets/drift-BVqxjjBm.js').then(n => n.e),true              ?__vite__mapDeps([7,0,1,3]):void 0)
-  ]);
-  register("fft", {
-    requiresMetadata: true,
-    init: createFftEntrypoint({ getRenderTimeseries: deps.getRenderTimeseries }).init
-  });
-  register("heatmap", {
-    requiresMetadata: true,
-    init: createHeatmapEntrypoint({ showPage: deps.showPage }).init
-  });
-  register("scatter", {
-    requiresMetadata: true,
-    init: createScatterEntrypoint({
-      initScatterPage: deps.initScatterPage,
-      getMetadata: () => deps.getMetadata()
-    }).init
-  });
-  register("spectrogram", {
-    requiresMetadata: true,
-    init: createSpectrogramEntrypoint({ setLoading: deps.setLoading }).init
-  });
-  register("causal", {
-    requiresMetadata: true,
-    init: createCausalEntrypoint({
-      getMetadata: deps.getMetadata,
-      chipColor: deps.chipColor,
-      numericColumns: deps.numericColumns,
-      setLoading: deps.setLoading
-    }).init
-  });
-  register("drift", {
-    requiresMetadata: true,
-    init: createDriftEntrypoint({ initDriftPage: deps.initDriftPage, getMetadata: () => deps.getMetadata() }).init
-  });
+function createTimeseriesBootstrap(deps) {
+  let ready = false;
+  let pending = null;
+  return {
+    ensureReady: async () => {
+      if (ready) return;
+      if (pending) return pending;
+      pending = (async () => {
+        if (appStateComposite.chart) {
+          ready = true;
+          return;
+        }
+        const gpuError = await checkWebGPU();
+        try {
+          dbg("initial X range (ms)", { start: appStateComposite.currentStart, end: appStateComposite.currentEnd });
+          const lineType = getChartType("line");
+          if (lineType) {
+            setChartInstance(lineType.create("main-chart", {
+              onZoom: (start, end, sourceKind) => deps.onZoom(start, end, sourceKind),
+              onYRange: deps.onYRange,
+              onZoomOut: deps.onZoomOut
+            }));
+          } else {
+            if (!deps.DataChartCtor) throw new Error("DataChart module not loaded");
+            setChartInstance(new deps.DataChartCtor("main-chart", deps.onZoom, deps.onYRange, deps.onZoomOut));
+          }
+          if (gpuError) throw new Error(gpuError);
+          await Promise.race([
+            appStateComposite.chart.init(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("ChartGPU init timed out")), 6e3))
+          ]);
+          setAnalysisBound(false);
+          bindAnalysisChartEvents();
+          initAdaptiveFilterGesture({
+            buildColumnToggles: deps.buildColumnToggles,
+            buildRangeControls: deps.buildRangeControls,
+            renderCurrentData: deps.renderCurrentData,
+            updateAnalysisYRange: deps.onYRange
+          });
+          deps.refreshZoomControlsState();
+          const { setAnnotationOverlayCallback } = await __vitePreload(async () => { const { setAnnotationOverlayCallback } = await Promise.resolve().then(() => annotationPanel);return { setAnnotationOverlayCallback }},true              ?void 0:void 0);
+          const { setAnomalyOverlayCallback } = await __vitePreload(async () => { const { setAnomalyOverlayCallback } = await Promise.resolve().then(() => analyticsOverlay);return { setAnomalyOverlayCallback }},true              ?void 0:void 0);
+          setAnnotationOverlayCallback(() => appStateComposite.chart?.requestOverlayRender?.());
+          setAnomalyOverlayCallback(() => appStateComposite.chart?.requestOverlayRender?.());
+          const chart = appStateComposite.chart;
+          chart?.setXRange?.(appStateComposite.currentStart, appStateComposite.currentEnd);
+          chart?.setChartText?.(
+            appStateComposite.chartText?.title || "",
+            appStateComposite.chartText?.xLabel || "",
+            appStateComposite.chartText?.yLabel || ""
+          );
+          deps.renderCurrentData();
+          await deps.fetchAndRender();
+          const { getCurrentView } = await __vitePreload(async () => { const { getCurrentView } = await Promise.resolve().then(() => toolbar);return { getCurrentView }},true              ?void 0:void 0);
+          const { setInitialView } = await __vitePreload(async () => { const { setInitialView } = await import('./assets/scatter-Bbu6RfNC.js').then(n => n.av);return { setInitialView }},true              ?__vite__mapDeps([0,1]):void 0);
+          setInitialView(getCurrentView());
+          dbgGroup("initialView snapshot", () => dbg(appStateComposite.initialView));
+          await restoreSessionAfterChartReady({
+            metadataTimeRange: appStateComposite.metadata?.time_range ?? null,
+            currentDatasetRevision: Number(appStateComposite.datasetRevision ?? 0),
+            buildColumnToggles: deps.buildColumnToggles,
+            buildRangeControls: deps.buildRangeControls,
+            renderCurrentData: deps.renderCurrentData,
+            fetchAndRender: deps.fetchAndRender
+          });
+          ready = true;
+        } catch (e) {
+          console.warn("Primary chart failed, switching to fallback:", e);
+          try {
+            const fallbackType = getChartType("fallback");
+            setChartInstance(fallbackType ? fallbackType.create("main-chart", {}) : new FallbackChart("main-chart"));
+            await appStateComposite.chart.init();
+            setAnalysisBound(false);
+            bindAnalysisChartEvents();
+            deps.refreshZoomControlsState();
+            await deps.fetchAndRender();
+            setMetaText("Fallback renderer active");
+            ready = true;
+          } catch (fallbackErr) {
+            const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+            console.error("Fallback chart also failed:", fallbackErr);
+            setMetaText("Error: " + msg);
+          }
+        }
+      })();
+      try {
+        await pending;
+      } finally {
+        pending = null;
+      }
+    },
+    isReady: () => ready
+  };
 }
 
 function sanitizeSelectedColumns() {
@@ -4467,95 +4949,72 @@ function buildRangeControls() {
   const container = document.getElementById("column-range-controls");
   if (!container) return;
   container.innerHTML = "";
+  const items = [];
   if (appStateComposite.adaptiveFilterColumn && appStateComposite.selectedCols.includes(appStateComposite.adaptiveFilterColumn)) {
-    const targetChip = document.createElement("div");
-    targetChip.className = "range-chip";
-    targetChip.innerHTML = `
-      <span class="name">Adaptive target</span>
-      <span class="range">${appStateComposite.adaptiveFilterColumn}</span>
-    `;
-    container.appendChild(targetChip);
+    items.push({
+      key: "adaptive-target",
+      name: "Adaptive target",
+      range: appStateComposite.adaptiveFilterColumn,
+      kind: "static"
+    });
   }
   for (const col of appStateComposite.selectedCols) {
     const range = appStateComposite.columnRanges[col];
     if (!range) continue;
-    const chip = document.createElement("div");
-    chip.className = "range-chip range-chip--clickable";
-    chip.setAttribute("role", "button");
-    chip.setAttribute("tabindex", "0");
-    chip.setAttribute("aria-label", `Filter ${col}`);
-    chip.innerHTML = `
-      <span class="name">${col}</span>
-      <span class="range">${formatAnalysisNumber(range.from)} → ${formatAnalysisNumber(range.to)}</span>
-    `;
-    const open = () => {
-      const fn = window.__edatime?.openFilterForCol;
-      if (typeof fn === "function") fn(col);
-    };
-    chip.addEventListener("click", open);
-    chip.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        open();
+    const colCopy = col;
+    items.push({
+      key: `col-${col}`,
+      name: col,
+      range: `${formatAnalysisNumber(range.from)} → ${formatAnalysisNumber(range.to)}`,
+      className: "range-chip range-chip--clickable",
+      kind: "column-range",
+      ariaLabel: `Filter ${col}`,
+      onActivate: () => {
+        const fn = window.__edatime?.openFilterForCol;
+        if (typeof fn === "function") fn(colCopy);
       }
     });
-    container.appendChild(chip);
   }
   for (const filter of appStateComposite.adaptiveLineFilters ?? []) {
-    const chip = document.createElement("div");
-    chip.className = "range-chip range-chip--clickable";
-    chip.setAttribute("role", "button");
-    chip.setAttribute("tabindex", "0");
-    chip.setAttribute("aria-label", `Remove adaptive filter for ${filter.column}`);
-    chip.innerHTML = `
-      <span class="name">Adaptive ${filter.column}</span>
-      <span class="range">${filter.keepAbove ? "keep above" : "keep below"}</span>
-    `;
-    const remove = () => {
-      setAdaptiveLineFilters(
-        (appStateComposite.adaptiveLineFilters ?? []).filter(
-          (item) => item.id !== filter.id
-        )
-      );
-      setPendingAdaptivePoint(null);
-      buildRangeControls();
-      window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change"));
-    };
-    chip.addEventListener("click", remove);
-    chip.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        remove();
+    const filterId = filter.id ?? "";
+    const filterIdCopy = filterId;
+    items.push({
+      key: `filter-${filterId}`,
+      name: `Adaptive ${filter.column}`,
+      range: filter.keepAbove ? "keep above" : "keep below",
+      className: "range-chip range-chip--clickable",
+      kind: "filter-removal",
+      ariaLabel: `Remove adaptive filter for ${filter.column}`,
+      onActivate: () => {
+        setAdaptiveLineFilters(
+          (appStateComposite.adaptiveLineFilters ?? []).filter(
+            (item) => item.id !== filterIdCopy
+          )
+        );
+        setPendingAdaptivePoint(null);
+        buildRangeControls();
+        window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change"));
       }
     });
-    container.appendChild(chip);
   }
   if ((appStateComposite.adaptiveLineFilters?.length ?? 0) > 0 || appStateComposite.pendingAdaptivePoint) {
-    const clearChip = document.createElement("div");
-    clearChip.className = "range-chip range-chip--clickable";
-    clearChip.setAttribute("role", "button");
-    clearChip.setAttribute("tabindex", "0");
-    clearChip.setAttribute("aria-label", "Clear adaptive filters");
-    clearChip.innerHTML = `
-      <span class="name">Adaptive filters</span>
-      <span class="range">Clear all</span>
-    `;
-    const clearAll = () => {
-      setAdaptiveLineFilters([]);
-      setPendingAdaptivePoint(null);
-      buildRangeControls();
-      appStateComposite.chart?.requestOverlayRender?.();
-      window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change"));
-    };
-    clearChip.addEventListener("click", clearAll);
-    clearChip.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        clearAll();
+    items.push({
+      key: "clear-all",
+      name: "Adaptive filters",
+      range: "Clear all",
+      className: "range-chip range-chip--clickable",
+      kind: "clear-all",
+      ariaLabel: "Clear adaptive filters",
+      onActivate: () => {
+        setAdaptiveLineFilters([]);
+        setPendingAdaptivePoint(null);
+        buildRangeControls();
+        appStateComposite.chart?.requestOverlayRender?.();
+        window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change"));
       }
     });
-    container.appendChild(clearChip);
   }
+  container.appendChild(RangeControls({ items }));
 }
 
 function initFilterModalController(deps) {
@@ -4776,14 +5235,44 @@ function initFilterModalController(deps) {
   for (const btn of openBtns) {
     btn.addEventListener("click", () => openModalForCol(null));
   }
-  closeButton.addEventListener("click", closeModal);
-  cancelButton.addEventListener("click", closeModal);
-  modalEl.addEventListener("click", (event) => {
-    if (event.target === modalEl) closeModal();
-  });
-  window.addEventListener("keydown", (event) => {
-    if (modalEl.hidden) return;
-    if (event.key === "Escape") closeModal();
+  ColumnFilterModal({
+    bind: {
+      root: modalEl,
+      applyBtn: applyButton,
+      cancelBtn: cancelButton,
+      closeBtn: closeButton,
+      minInput: minTextInput,
+      maxInput: maxTextInput,
+      minRangeInput: minSliderInput,
+      maxRangeInput: maxSliderInput
+    },
+    onApply: (from, to) => {
+      const col = columnSelect.value;
+      if (!col) return;
+      let fromNum = Number.parseFloat(from);
+      let toNum = Number.parseFloat(to);
+      const full = getFullBoundsForCol(col);
+      if (full) {
+        if (!Number.isFinite(fromNum)) fromNum = full.min;
+        if (!Number.isFinite(toNum)) toNum = full.max;
+      }
+      if (!Number.isFinite(fromNum) || !Number.isFinite(toNum)) {
+        setHint("Enter a valid min and max.");
+        return;
+      }
+      if (fromNum > toNum) {
+        [fromNum, toNum] = [toNum, fromNum];
+      }
+      appStateComposite.columnRanges[col] = { from: fromNum, to: toNum };
+      buildRangeControls();
+      deps.renderCurrentData();
+      appStateComposite.chart?.fitYToData?.();
+      const yr = appStateComposite.chart?.getYRange?.();
+      if (yr) deps.updateAnalysisYRange(yr.min, yr.max, "filter");
+      emitColumnFiltersChange();
+      closeModal();
+    },
+    onCancel: closeModal
   });
   columnSelect.addEventListener("change", () => refreshInputsForCol(columnSelect.value));
   minTextInput.addEventListener("input", syncFromNumericInputs);
@@ -4802,33 +5291,6 @@ function initFilterModalController(deps) {
     if (yr) deps.updateAnalysisYRange(yr.min, yr.max, "filter");
     emitColumnFiltersChange();
     refreshInputsForCol(col);
-  });
-  applyButton.addEventListener("click", () => {
-    const col = columnSelect.value;
-    if (!col) return;
-    let { from, to } = readInputs();
-    const full = getFullBoundsForCol(col);
-    if (full) {
-      if (!Number.isFinite(from)) from = full.min;
-      if (!Number.isFinite(to)) to = full.max;
-    }
-    if (!Number.isFinite(from) || !Number.isFinite(to)) {
-      setHint("Enter a valid min and max.");
-      return;
-    }
-    if (from > to) {
-      const tmp = from;
-      from = to;
-      to = tmp;
-    }
-    appStateComposite.columnRanges[col] = { from, to };
-    buildRangeControls();
-    deps.renderCurrentData();
-    appStateComposite.chart?.fitYToData?.();
-    const yr = appStateComposite.chart?.getYRange?.();
-    if (yr) deps.updateAnalysisYRange(yr.min, yr.max, "filter");
-    emitColumnFiltersChange();
-    closeModal();
   });
   modalEl.dataset.bound = "1";
 }
@@ -4964,156 +5426,10 @@ function createTimeseriesEntrypoint(deps) {
   };
 }
 
-const _registry = /* @__PURE__ */ new Map();
-function registerChartType(name, adapter) {
-  if (!name || typeof adapter?.create !== "function") {
-    throw new Error(`Invalid chart adapter for "${name}"`);
-  }
-  _registry.set(name, adapter);
-}
-function getChartType(name) {
-  return _registry.get(name);
-}
-
-class FallbackChart {
-  containerId;
-  canvas = null;
-  ctx = null;
-  resizeObserver = null;
-  constructor(containerId) {
-    this.containerId = containerId;
-  }
-  async init() {
-    const container = document.getElementById(this.containerId);
-    if (!container) throw new Error("Fallback chart container not found");
-    container.innerHTML = "";
-    const canvas = document.createElement("canvas");
-    canvas.style.width = "100%";
-    canvas.style.height = "100%";
-    canvas.style.display = "block";
-    container.appendChild(canvas);
-    this.canvas = canvas;
-    this.ctx = canvas.getContext("2d");
-    const resize = () => {
-      const w = Math.max(1, container.clientWidth);
-      const h = Math.max(1, container.clientHeight);
-      this.canvas.width = w;
-      this.canvas.height = h;
-    };
-    resize();
-    this.resizeObserver = new ResizeObserver(() => resize());
-    this.resizeObserver.observe(container);
-  }
-  setXRange() {
-  }
-  setYRange() {
-  }
-  supportsZoomControls() {
-    return false;
-  }
-  onCrosshairMove() {
-  }
-  onClick() {
-  }
-  setChartText() {
-  }
-  setDrawMode() {
-  }
-  clearDrawings() {
-  }
-  fitYToData() {
-  }
-  getXDomain() {
-    return null;
-  }
-  getYRange() {
-    return null;
-  }
-  exportPNG() {
-  }
-  exportSVG() {
-  }
-  exportHTML() {
-  }
-  updateDataMulti(dataObj, columns) {
-    if (!this.ctx || !this.canvas) return;
-    const ctx = this.ctx;
-    const width = this.canvas.width;
-    const height = this.canvas.height;
-    const pad = 28;
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#080a10";
-    ctx.fillRect(0, 0, width, height);
-    let xMin = Number.POSITIVE_INFINITY;
-    let xMax = Number.NEGATIVE_INFINITY;
-    let yMin = Number.POSITIVE_INFINITY;
-    let yMax = Number.NEGATIVE_INFINITY;
-    const seriesToDraw = [];
-    for (const col of columns) {
-      const seriesData = dataObj.series?.[col];
-      const xs = seriesData?.x || dataObj.ts;
-      const ys = seriesData?.y || dataObj.values?.[col];
-      if (!xs || !ys || ys.length === 0) continue;
-      seriesToDraw.push({ col, xs, ys });
-      for (let i = 0; i < xs.length; i++) {
-        const x = Number(xs[i]);
-        const y = Number(ys[i]);
-        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-        if (x < xMin) xMin = x;
-        if (x > xMax) xMax = x;
-        if (y < yMin) yMin = y;
-        if (y > yMax) yMax = y;
-      }
-    }
-    if (seriesToDraw.length === 0 || !Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
-      ctx.fillStyle = "#7a86a4";
-      ctx.font = "12px sans-serif";
-      ctx.fillText("No data to display", pad, pad + 2);
-      return;
-    }
-    if (xMax === xMin) xMax = xMin + 1;
-    if (yMax === yMin) yMax = yMin + 1;
-    ctx.strokeStyle = "#272d45";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(pad, height - pad);
-    ctx.lineTo(width - pad, height - pad);
-    ctx.moveTo(pad, pad);
-    ctx.lineTo(pad, height - pad);
-    ctx.stroke();
-    for (let s = 0; s < seriesToDraw.length; s++) {
-      const { xs, ys } = seriesToDraw[s];
-      ctx.beginPath();
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = SERIES_COLORS[s % SERIES_COLORS.length];
-      let started = false;
-      for (let i = 0; i < xs.length; i++) {
-        const x = Number(xs[i]);
-        const y = Number(ys[i]);
-        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-        const px = pad + (x - xMin) / (xMax - xMin) * (width - 2 * pad);
-        const py = height - pad - (y - yMin) / (yMax - yMin) * (height - 2 * pad);
-        if (!started) {
-          ctx.moveTo(px, py);
-          started = true;
-        } else {
-          ctx.lineTo(px, py);
-        }
-      }
-      ctx.stroke();
-    }
-  }
-  destroy() {
-    this.resizeObserver?.disconnect();
-    this.resizeObserver = null;
-    this.ctx = null;
-    this.canvas = null;
-  }
-}
-
 const _appCleanups = [];
 const runtime = createAppRuntime();
 let timeseriesFeature = null;
+let uploadFeature = null;
 const rebuildTimeseriesColumns = () => {
   timeseriesFeature?.rebuildColumns();
 };
@@ -5129,13 +5445,13 @@ const timeseriesPage = createTimeseriesPageController({
   fetchAndRenderAnalytics: () => fetchAndRenderAnalytics()
 });
 const renderTimeseries = () => timeseriesPage.renderCurrentData();
-let _timeseriesReady = false;
-let _timeseriesReadyPromise = null;
 let _sessionPersistenceStarted = false;
+let _timeseriesBootstrap = null;
 const renderCurrentData = () => timeseriesPage.renderCurrentData();
 const emitChartRangeChange = (sourceKind = "data") => timeseriesPage.emitChartRangeChange(sourceKind);
 const fetchAndRender = async () => {
-  await ensureTimeseriesReady();
+  const bs = _timeseriesBootstrap;
+  if (bs) await bs.ensureReady();
   return timeseriesPage.fetchAndRender();
 };
 const onZoomRangeChange = (newStart, newEnd, sourceKind = "user") => timeseriesPage.onZoomRangeChange(newStart, newEnd, sourceKind);
@@ -5145,90 +5461,7 @@ function ensureSessionPersistenceStarted() {
   _sessionPersistenceStarted = true;
 }
 async function ensureTimeseriesReady() {
-  if (_timeseriesReady) return;
-  if (_timeseriesReadyPromise) {
-    await _timeseriesReadyPromise;
-    return;
-  }
-  _timeseriesReadyPromise = (async () => {
-    if (appStateComposite.chart) {
-      _timeseriesReady = true;
-      return;
-    }
-    const gpuError = await checkWebGPU();
-    try {
-      dbg("initial X range (ms)", { start: appStateComposite.currentStart, end: appStateComposite.currentEnd });
-      const lineType = getChartType("line");
-      if (lineType) {
-        setChartInstance(lineType.create("main-chart", {
-          onZoom: onZoomRangeChange,
-          onYRange: updateAnalysisYRange,
-          onZoomOut: () => zoomOut(fetchAndRender)
-        }));
-      } else {
-        if (!DataChartCtor) throw new Error("DataChart module not loaded");
-        setChartInstance(new DataChartCtor("main-chart", onZoomRangeChange, updateAnalysisYRange, () => zoomOut(fetchAndRender)));
-      }
-      if (gpuError) throw new Error(gpuError);
-      await Promise.race([
-        appStateComposite.chart.init(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("ChartGPU init timed out")), 6e3))
-      ]);
-      setAnalysisBound(false);
-      bindAnalysisChartEvents();
-      initAdaptiveFilterGesture({
-        buildColumnToggles: rebuildTimeseriesColumns,
-        buildRangeControls: rebuildTimeseriesRanges,
-        renderCurrentData,
-        updateAnalysisYRange
-      });
-      refreshZoomControlsState();
-      setAnnotationOverlayCallback(() => appStateComposite.chart?.requestOverlayRender?.());
-      setAnomalyOverlayCallback(() => appStateComposite.chart?.requestOverlayRender?.());
-      const chart = appStateComposite.chart;
-      chart?.setXRange?.(appStateComposite.currentStart, appStateComposite.currentEnd);
-      chart?.setChartText?.(
-        appStateComposite.chartText?.title || "",
-        appStateComposite.chartText?.xLabel || "",
-        appStateComposite.chartText?.yLabel || ""
-      );
-      renderCurrentData();
-      await timeseriesPage.fetchAndRender();
-      setInitialView(getCurrentView());
-      dbgGroup("initialView snapshot", () => dbg(appStateComposite.initialView));
-      await restoreSessionAfterChartReady({
-        metadataTimeRange: appStateComposite.metadata?.time_range ?? null,
-        currentDatasetRevision: Number(appStateComposite.datasetRevision ?? 0),
-        buildColumnToggles: rebuildTimeseriesColumns,
-        buildRangeControls: rebuildTimeseriesRanges,
-        renderCurrentData,
-        fetchAndRender: () => timeseriesPage.fetchAndRender()
-      });
-      _timeseriesReady = true;
-    } catch (e) {
-      console.warn("Primary chart failed, switching to fallback:", e);
-      try {
-        const fallbackType = getChartType("fallback");
-        setChartInstance(fallbackType ? fallbackType.create("main-chart", {}) : new FallbackChart("main-chart"));
-        await appStateComposite.chart.init();
-        setAnalysisBound(false);
-        bindAnalysisChartEvents();
-        refreshZoomControlsState();
-        await timeseriesPage.fetchAndRender();
-        setMetaText("Fallback renderer active");
-        _timeseriesReady = true;
-      } catch (fallbackErr) {
-        const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
-        console.error("Fallback chart also failed:", fallbackErr);
-        setMetaText("Error: " + msg);
-      }
-    }
-  })();
-  try {
-    await _timeseriesReadyPromise;
-  } finally {
-    _timeseriesReadyPromise = null;
-  }
+  await _timeseriesBootstrap?.ensureReady();
 }
 function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
   const btn = document.getElementById(btnId);
@@ -5245,35 +5478,15 @@ let fetchAnomalies = null;
 let DataChartCtor = null;
 async function ensureChartModules() {
   if (fetchMetadata && fetchData && DataChartCtor) return;
-  const [dataClient, chartModule] = await Promise.all([
-    __vitePreload(() => import('./assets/scatter-CC18p9T0.js').then(n => n.aw),true              ?__vite__mapDeps([0,1]):void 0),
-    __vitePreload(() => import('./assets/DataChart-D9ymouBy.js'),true              ?__vite__mapDeps([8,1,0,3]):void 0)
-  ]);
-  fetchMetadata = dataClient.fetchMetadata;
-  fetchData = dataClient.fetchData;
-  fetchAnomalies = dataClient.fetchAnomalies;
-  dataClient.postTransform;
-  DataChartCtor = chartModule.DataChart;
-  registerChartType("line", {
-    label: "Line",
-    create: (containerId, callbacks) => {
-      const ctor = DataChartCtor;
-      if (!ctor) throw new Error("DataChart module not loaded");
-      return new ctor(
-        containerId,
-        callbacks.onZoom ?? null,
-        callbacks.onYRange ?? null,
-        callbacks.onZoomOut ?? null
-      );
-    }
-  });
-  registerChartType("fallback", {
-    label: "Fallback (Canvas 2D)",
-    create: (containerId) => new FallbackChart(containerId)
-  });
+  const modules = await ensureChartModules$1();
+  fetchMetadata = modules.fetchMetadata;
+  fetchData = modules.fetchData;
+  fetchAnomalies = modules.fetchAnomalies;
+  modules.postTransform;
+  DataChartCtor = modules.DataChartCtor;
 }
 async function fetchAndRenderAnalytics() {
-  const { fetchAnomalies: fa } = await __vitePreload(async () => { const { fetchAnomalies: fa } = await import('./assets/scatter-CC18p9T0.js').then(n => n.aw);return { fetchAnomalies: fa }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { fetchAnomalies: fa } = await __vitePreload(async () => { const { fetchAnomalies: fa } = await import('./assets/scatter-Bbu6RfNC.js').then(n => n.aw);return { fetchAnomalies: fa }},true              ?__vite__mapDeps([0,1]):void 0);
   await fetchAnomalyRegions(fa ?? fetchAnomalies);
 }
 let _datasetReadyPromise = null;
@@ -5367,6 +5580,14 @@ async function init() {
     emitChartRangeChange,
     registerCleanup: (cleanup) => _appCleanups.push(cleanup)
   });
+  uploadFeature = createUploadEntrypoint({
+    buildColumnToggles: rebuildTimeseriesColumns,
+    buildRangeControls: rebuildTimeseriesRanges
+  });
+  uploadFeature.init(
+    hydrateColumnProfiles,
+    renderColumnProfilesGrid
+  );
   initAppShell({
     ensurePageModuleLoaded,
     showPage,
@@ -5408,7 +5629,7 @@ async function init() {
     numericColumns: () => getNumericColumns(appStateComposite.metadata),
     setLoading: setComputeLoading,
     initDriftPage: (metadata) => {
-      void __vitePreload(() => import('./assets/drift-BVqxjjBm.js').then(n => n.d),true              ?__vite__mapDeps([7,0,1,3]):void 0).then((m) => m.initDriftPage(metadata));
+      void __vitePreload(() => import('./assets/drift-CU9El-5H.js').then(n => n.d),true              ?__vite__mapDeps([7,0,1,3]):void 0).then((m) => m.initDriftPage(metadata));
     }
   });
   window.__edatime = window.__edatime || {};
@@ -5422,6 +5643,17 @@ async function init() {
     exportFilteredCsv: () => window.__edatime?.exportChartFilteredData?.("csv"),
     exportFilteredJson: () => window.__edatime?.exportChartFilteredData?.("json")
   }, APP_COMMAND_DEFINITIONS);
+  _timeseriesBootstrap = createTimeseriesBootstrap({
+    DataChartCtor: null,
+    onZoom: onZoomRangeChange,
+    onYRange: updateAnalysisYRange,
+    onZoomOut: () => zoomOut(fetchAndRender),
+    buildColumnToggles: rebuildTimeseriesColumns,
+    buildRangeControls: rebuildTimeseriesRanges,
+    renderCurrentData,
+    fetchAndRender: () => timeseriesPage.fetchAndRender(),
+    refreshZoomControlsState
+  });
   try {
     const initialPage = getHashPage();
     if (pageNeedsDatasetBootstrap(initialPage)) {

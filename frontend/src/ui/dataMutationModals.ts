@@ -1,5 +1,8 @@
 import { appState } from '../store/appStateCompat.js';
 import { createModalController } from './shell/createModalController';
+import { createDataMutationFeature } from '../features/dataMutation/entrypoint.js';
+
+const dataMutationFeature = createDataMutationFeature();
 
 interface RefreshDatasetOptions {
     selectedColumn?: string;
@@ -41,8 +44,7 @@ export function initTransformModal(deps: DataMutationModalDeps): void {
                 applyBtn.textContent = 'Applying…';
                 applyBtn.disabled = true;
             }
-            const { postTransform } = await import('../services/api/index.js');
-            await postTransform(expr, name);
+            await dataMutationFeature.runTransform(expr, name);
             controller.close();
             await deps.refreshDataset({ selectedColumn: name });
         } catch (error: any) {
@@ -91,7 +93,6 @@ export function initOutlierModal(deps: DataMutationModalDeps): void {
         const method = methodSelect?.value || 'zscore';
         const threshold = Number.parseFloat(thresholdInput?.value || '3');
         const windowSize = Number.parseInt(windowInput?.value || '0', 10);
-        const columns = appState.selectedCols.length > 0 ? appState.selectedCols : null;
 
         try {
             if (applyBtn) {
@@ -99,13 +100,12 @@ export function initOutlierModal(deps: DataMutationModalDeps): void {
                 applyBtn.textContent = 'Removing…';
             }
 
-            const { postRemoveOutliers } = await import('../services/api/index.js');
-            const result = await postRemoveOutliers(
-                columns,
+            const result = await dataMutationFeature.removeOutliers({
+                columns: appState.selectedCols.length > 0 ? appState.selectedCols : null,
                 method,
                 threshold,
-                windowSize > 0 ? windowSize : undefined,
-            );
+                window: windowSize > 0 ? windowSize : undefined,
+            });
 
             if (resultEl) {
                 resultEl.textContent = `Removed ${result.rows_removed} rows (${result.rows_before} → ${result.rows_after})`;

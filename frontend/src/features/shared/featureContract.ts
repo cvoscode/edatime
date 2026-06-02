@@ -7,10 +7,10 @@
 export interface FeatureEntrypoint {
     /**
      * Initialize the feature module. Called once when the feature first loads.
-     * Implementations should perform synchronous setup; any async work should
-     * be handled internally so init() always returns void.
+     * Implementations may perform synchronous setup and/or launch async
+     * initialization internally; init() itself may return void or Promise<void>.
      */
-    init(): void;
+    init(): void | Promise<void>;
 
     /** Dispose the feature and release resources. Optional. */
     dispose?: () => void;

@@ -1,5 +1,5 @@
-# frontend/src/ui/toolbar.ts
-> Thin orchestrator that delegates toolbar controls to focused sub-modules.
+# ai/frontend/src/ui/toolbar.md
+> Thin orchestrator that delegates toolbar controls (zoom, draw, labels, export, analysis status) to focused sub-modules.
 
 ## Exports (from submodules)
 - `analysisStatus`: `updateAnalysisZoom, updateAnalysisYRange, updateAnalysisCursor, updateAnalysisClick`
@@ -7,9 +7,19 @@
 - `exportControls`: `exportChartFilteredData`
 
 ## Functions
+
+### bindAnalysisChartEvents
 - `bindAnalysisChartEvents(): void`
-  - Binds chart crosshair and click events to analysis status display.
-- `initAnalysisControls(fetchAndRender): void`
-  - Wires all sub-controls (toolbar modals, draw controls, chart text, analytics).
+  - Binds chart crosshair and click events to analysis status display. Guards against double-binding via `appState.analysisBound` flag.
+
+### setComputeLoading
+- `setComputeLoading(btnId: string, overlayId: string, loading: boolean, label?: string): void`
+  - Syncs a compute button's disabled state and text with a loading overlay's visibility.
+
+### initAnalysisControls
+- `initAnalysisControls(fetchAndRender: () => void): void`
+  - Wires all sub-controls (toolbar modals, draw controls, chart text, analytics drawer, reset-zoom listener) and registers `exportChartFilteredData` on `window.__edatime`.
+
+### initPages
 - `initPages(): void`
-  - Initializes page navigation.
+  - Initialises page navigation (sidebar item wiring).

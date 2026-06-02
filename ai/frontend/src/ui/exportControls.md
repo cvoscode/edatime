@@ -1,16 +1,26 @@
-# frontend/src/ui/exportControls.ts
-> Chart data export (CSV/JSON/Parquet) and toolbar modals.
+# ai/frontend/src/ui/exportControls.md
+> Toolbar modal wiring, zoom controls, and chart data export (CSV/JSON/Parquet). Transport-layer calls (CSV/JSON/Parquet export) moved to `features/export/entrypoint.ts`.
 
 ## Interfaces
-- `FilteredRow`: `{ ts_ms: number; ts_iso: string; series: string; value: number }`
-- `ToolbarPanel`: `{ openBtn, modalId, closeBtn, doneBtn?, isDrawer? }`
+- `ToolbarPanel`: `{ openBtn: string; modalId: string; closeBtn: string; doneBtn: string | null; isDrawer?: boolean }`
 
 ## Functions
-- `buildFilteredSeriesRows(): FilteredRow[]`
-  - Builds filtered series rows from current app state.
-- `exportChartFilteredData(format?: 'csv' | 'json'): boolean`
-  - Exports filtered data as CSV or JSON.
+
+### exportChartFilteredData
+- `exportChartFilteredData(format: 'csv' | 'json' = 'csv'): boolean`
+  - Delegates to `exportFeature.exportFilteredCsv()` or `exportFeature.exportFilteredJson()`. Returns whether export was attempted.
+
+### exportChartFilteredParquet
 - `exportChartFilteredParquet(): Promise<boolean>`
-  - Exports filtered data as Parquet via API.
+  - Delegates to `exportFeature.exportFilteredParquet()`.
+
+### initToolbarModals
 - `initToolbarModals(): void`
-  - Initializes toolbar modal open/close event handlers.
+  - Binds toolbar panel open/close buttons and Escape key handlers for labels/export/analytics drawer.
+
+### openToolbarModal / closeToolbarModal
+- `openToolbarModal(modalId: string): void`
+- `closeToolbarModal(modalId: string): void`
+
+---
+[1]: ../features/export/entrypoint.md#createExportFeature

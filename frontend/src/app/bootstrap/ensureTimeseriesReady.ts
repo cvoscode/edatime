@@ -6,13 +6,38 @@
  */
 
 import type { ChartInstance } from '../../types.js';
+import { appState } from '../../store/appStateCompat.js';
+import { checkWebGPU } from '../webgpuGuard.js';
+import { getChartType } from '../../charts/registry.js';
+import { FallbackChart } from '../../charts/fallback.js';
+import { setAnalysisBound, setChartInstance } from '../../store/index.js';
+import { bindAnalysisChartEvents } from '../../ui/toolbar.js';
+import { initAdaptiveFilterGesture } from '../adaptiveGesture.js';
+import { restoreSessionAfterChartReady } from '../../bootstrap/sessionBootstrap.js';
+import { dbg, dbgGroup } from '../../debug.js';
+import { setMetaText } from '../../ui/metaBar.js';
+
+export interface TimeseriesBootstrapCallbacks {
+    onZoom: (start: number, end: number, sourceKind: string) => void;
+    onYRange: (min: number, max: number, sourceKind: string) => void;
+    onZoomOut: () => void;
+}
 
 export interface TimeseriesBootstrapDeps {
-    appState: any;
-    createChart: () => Promise<ChartInstance>;
-    bindAnalysisChartEvents: () => void;
-    fetchAndRender: () => Promise<void>;
+    DataChartCtor: new (
+        containerId: string,
+        onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null,
+        onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null,
+        onZoomOutCb: (() => void) | null,
+    ) => ChartInstance;
+    onZoom: (start: number, end: number, sourceKind: string) => void;
+    onYRange: (min: number, max: number, sourceKind: string) => void;
+    onZoomOut: () => void;
+    buildColumnToggles: () => void;
+    buildRangeControls: () => void;
     renderCurrentData: () => void;
+    fetchAndRender: () => Promise<void>;
+    refreshZoomControlsState: () => void;
 }
 
 export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
@@ -23,14 +48,106 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
         ensureReady: async (): Promise<void> => {
             if (ready) return;
             if (pending) return pending;
+
             pending = (async () => {
-                await deps.createChart();
-                deps.bindAnalysisChartEvents();
-                await deps.fetchAndRender();
-                deps.renderCurrentData();
-                ready = true;
+                if (appState.chart) {
+                    ready = true;
+                    return;
+                }
+
+                const gpuError = await checkWebGPU();
+
+                try {
+                    dbg('initial X range (ms)', { start: appState.currentStart, end: appState.currentEnd });
+
+                    const lineType = getChartType('line');
+                    if (lineType) {
+                        setChartInstance(lineType.create('main-chart', {
+                            onZoom: (start: number, end: number, sourceKind: string) => deps.onZoom(start, end, sourceKind),
+                            onYRange: deps.onYRange,
+                            onZoomOut: deps.onZoomOut,
+                        }));
+                    } else {
+                        if (!deps.DataChartCtor) throw new Error('DataChart module not loaded');
+                        setChartInstance(new deps.DataChartCtor('main-chart', deps.onZoom, deps.onYRange, deps.onZoomOut));
+                    }
+
+                    if (gpuError) throw new Error(gpuError);
+
+                    await Promise.race([
+                        appState.chart!.init(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('ChartGPU init timed out')), 6000)),
+                    ]);
+
+                    setAnalysisBound(false);
+                    bindAnalysisChartEvents();
+                    initAdaptiveFilterGesture({
+                        buildColumnToggles: deps.buildColumnToggles,
+                        buildRangeControls: deps.buildRangeControls,
+                        renderCurrentData: deps.renderCurrentData,
+                        updateAnalysisYRange: deps.onYRange,
+                    });
+                    deps.refreshZoomControlsState();
+
+                    const { setAnnotationOverlayCallback } = await import('../../ui/annotationPanel.js');
+                    const { setAnomalyOverlayCallback } = await import('../../bootstrap/analyticsOverlay.js');
+                    setAnnotationOverlayCallback(() => appState.chart?.requestOverlayRender?.());
+                    setAnomalyOverlayCallback(() => appState.chart?.requestOverlayRender?.());
+
+                    const chart = appState.chart as ChartInstance | null;
+                    chart?.setXRange?.(appState.currentStart!, appState.currentEnd!);
+                    chart?.setChartText?.(
+                        appState.chartText?.title || '',
+                        appState.chartText?.xLabel || '',
+                        appState.chartText?.yLabel || '',
+                    );
+
+                    deps.renderCurrentData();
+                    await deps.fetchAndRender();
+
+                    const { getCurrentView } = await import('../../ui/toolbar.js');
+                    const { setInitialView } = await import('../../store/chartState.js');
+                    setInitialView(getCurrentView());
+                    dbgGroup('initialView snapshot', () => dbg(appState.initialView));
+
+                    await restoreSessionAfterChartReady({
+                        metadataTimeRange: appState.metadata?.time_range ?? null,
+                        currentDatasetRevision: Number(appState.datasetRevision ?? 0),
+                        buildColumnToggles: deps.buildColumnToggles,
+                        buildRangeControls: deps.buildRangeControls,
+                        renderCurrentData: deps.renderCurrentData,
+                        fetchAndRender: deps.fetchAndRender,
+                    });
+
+                    ready = true;
+                } catch (e: unknown) {
+                    console.warn('Primary chart failed, switching to fallback:', e);
+                    try {
+                        const fallbackType = getChartType('fallback');
+                        setChartInstance(fallbackType
+                            ? fallbackType.create('main-chart', {})
+                            : new FallbackChart('main-chart'));
+
+                        await appState.chart!.init();
+                        setAnalysisBound(false);
+                        bindAnalysisChartEvents();
+                        deps.refreshZoomControlsState();
+                        await deps.fetchAndRender();
+                        setMetaText('Fallback renderer active');
+                        ready = true;
+                    } catch (fallbackErr: unknown) {
+                        const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+                        console.error('Fallback chart also failed:', fallbackErr);
+                        setMetaText('Error: ' + msg);
+                    }
+                }
             })();
-            await pending;
+
+            try {
+                await pending;
+            } finally {
+                pending = null;
+            }
         },
         isReady: () => ready,
     };

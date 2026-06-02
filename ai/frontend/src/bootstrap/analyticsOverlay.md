@@ -1,4 +1,4 @@
-# frontend/src/bootstrap/analyticsOverlay.ts
+# ai/frontend/src/bootstrap/analyticsOverlay.md
 > Rolling-band computation, anomaly region fetching, and overlay render coordination.
 
 ## Interface: RollingBandData
@@ -39,6 +39,14 @@ interface RollingBandData {
 ### isAnalyticsControllerActive
 - `isAnalyticsControllerActive(): boolean`
   - Returns whether an analytics fetch is currently in-flight.
+
+### initAnalyticsListeners
+- `initAnalyticsListeners(fetchAndRenderAnalytics: () => Promise<void>): () => void`
+  - Wires `edatime:analytics-change` event to recompute rolling bands, trigger chart overlay render, and fetch fresh anomaly regions. Returns a cleanup function to remove the listener.
+
+### fetchAndRenderAnalytics
+- `fetchAndRenderAnalytics(fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null): Promise<void>`
+  - Standalone analytics fetch that calls `fetchAnomalyRegions`. Used by app.ts and shell init.
 
 ---
 [1]: ../store/index.md

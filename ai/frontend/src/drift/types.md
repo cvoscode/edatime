@@ -1,8 +1,9 @@
-/**
- * drift/types.ts — Shared TypeScript interfaces for drift page modules.
- */
+# ai/frontend/src/drift/types.md
+> Shared TypeScript interfaces for drift page modules.
 
-export interface EChartLike {
+## Interface: EChartLike
+```ts
+interface EChartLike {
     setOption: (option: Record<string, unknown>, opts?: Record<string, unknown>) => void;
     clear: () => void;
     resize: () => void;
@@ -13,3 +14,5 @@ export interface EChartLike {
     dispatchAction?: (payload: { type: string } & Record<string, unknown>) => void;
     getDataURL?: (opts?: Record<string, unknown>) => string;
 }
+```
+- Partial ECharts instance interface used by timelineView and detailView for chart initialization and rendering.

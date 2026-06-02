@@ -12,33 +12,6 @@ export { applyPartialTimeRangeFromMetadata } from '../features/upload/partialLoa
 export { formatUploadRowCountValue as formatUploadRowCount, loadedRowCountFromResponse } from '../features/upload/preview.js';
 
 import { appState } from '../store/appStateCompat.js';
-import { formatAnalysisTime, formatAnalysisNumber, formatCount, formatToDatetimeLocal, toFiniteNumberOrNull } from '../utils/format.js';
-import { buildMetaBar } from './metaBar.js';
-import {
-    connectDatabase,
-    deleteDatabaseConnection,
-    fetchDatabaseStatus,
-    fetchDatabaseTables,
-    fetchMetadata as dataClientFetchMetadata,
-    loadDatabaseTable,
-    previewUpload,
-    uploadDataset,
-} from '../services/api/index.js';
-import {
-    setDatasetRevision,
-    setMetadata,
-    setPreviewSelectedColumns,
-    setPreviewTimeColumn,
-} from '../store/index.js';
-import type { DatasetMetadata } from '../types.js';
-import { toast } from '../utils/toast.js';
-import {
-    validateFileSize,
-    getPartialTimeRangeInputs,
-    clearPartialTimeRangeInputs,
-    setPartialTimeRangeInputs,
-    UI_MAX_UPLOAD_BYTES,
-} from '../features/upload/partialLoadControls.js';
 import {
     setUploadPreviewStatus,
     setProfileMode,
@@ -46,6 +19,30 @@ import {
     applyPreviewColumnSelection,
     applyTimeRangeFromMetadata,
 } from '../features/upload/preview.js';
+import {
+    handleDatabaseConnect,
+    handleDatabaseDisconnect,
+    handleDatabaseLoad,
+    refreshDbTables,
+    resetDatabaseStatusLoaded,
+} from '../features/upload/databaseSource.js';
+import {
+    validateFileSize,
+    getPartialTimeRangeInputs,
+    clearPartialTimeRangeInputs,
+    setPartialTimeRangeInputs,
+    UI_MAX_UPLOAD_BYTES,
+} from '../features/upload/partialLoadControls.js';
+import { submitFileUpload } from '../features/upload/fileSource.js';
+import {
+    setDatasetRevision,
+    setMetadata,
+    setPreviewSelectedColumns,
+    setPreviewTimeColumn,
+} from '../store/index.js';
+import { buildMetaBar } from './metaBar.js';
+import { toast } from '../utils/toast.js';
+import type { DatasetMetadata } from '../types.js';
 
 interface UploadPanelDeps {
     buildColumnToggles: () => void;
@@ -239,128 +236,30 @@ export function initUploadPanel(
     }
 
     // Upload submit
-    uploadBtn.addEventListener('click', async () => {
+    uploadBtn.addEventListener('click', () => {
         if (!selectedFile) {
             setStatus('Please select a file first.', 'error');
             notify('Please select a file first.', 'error');
             return;
         }
 
-        const invalidFileMsg = validateFileSize(selectedFile);
-        if (invalidFileMsg) {
-            setStatus(invalidFileMsg, 'error');
-            notify(invalidFileMsg, 'error');
-            return;
-        }
-
-        if (!appState.previewTimeColumn && !(appState.metadata && appState.metadata.time_range)) {
-            setStatus('No time column selected. Please choose a time column in the upload panel before ingest.', 'error');
-            notify('No time column selected. Please choose a time column in the upload panel before ingest.', 'error');
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-
-        if (partialChk!.checked) {
-            const nRows = parseInt(nRowsInput!.value, 10);
-            const skipRows = parseInt(skipInput!.value, 10) || 0;
-            if (!isNaN(nRows) && nRows > 0) {
-                formData.append('n_rows', String(nRows));
-            } else {
-                setStatus('Enter a valid Max rows value for partial load.', 'error');
-                notify('Enter a valid Max rows value for partial load.', 'error');
-                uploadBtn!.disabled = false;
-                progressWrap!.style.display = 'none';
-                progressBar!.style.width = '0';
-                return;
-            }
-            if (skipRows > 0) formData.append('skip_rows', String(skipRows));
-
-            const toIsoOrNull = (v: string): string | null => {
-                const s = (v || '').trim();
-                if (!s) return null;
-                const ms = Date.parse(s);
-                if (!Number.isFinite(ms)) return null;
-                return new Date(ms).toISOString();
-            };
-            const tStartIso = toIsoOrNull(timeStartInput?.value || '');
-            const tEndIso = toIsoOrNull(timeEndInput?.value || '');
-            if (tStartIso && tEndIso && Date.parse(tStartIso) > Date.parse(tEndIso)) {
-                setStatus('Start time must be before end time.', 'error');
-                notify('Start time must be before end time.', 'error');
-                return;
-            }
-            if (tStartIso) formData.append('time_start', tStartIso);
-            if (tEndIso) formData.append('time_end', tEndIso);
-        }
-
-        const selectedColumns = Array.isArray(appState.previewSelectedColumns)
-            ? appState.previewSelectedColumns.filter(Boolean)
-            : [];
-        if (selectedColumns.length > 0) {
-            formData.append('columns', JSON.stringify(selectedColumns));
-        }
-
-        const timeColumn = String(appState.previewTimeColumn || '').trim();
-        if (timeColumn) formData.append('time_column', timeColumn);
-
-        uploadBtn!.disabled = true;
-        setStatus('Uploading…', 'loading');
-        progressWrap!.style.display = 'block';
-        const stopProgress = animateProgress(progressBar!);
-
-        try {
-            const res = await uploadDataset(formData);
-            progressBar!.style.width = '100%';
-            if (!res.ok) {
-                const txt = await res.text();
-                let message = txt;
-                try {
-                    const parsed = JSON.parse(txt);
-                    if (parsed && typeof parsed.error === 'string' && parsed.error.trim().length > 0) {
-                        message = parsed.error;
-                    }
-                } catch { /* ignore */ }
-                setStatus('Error: ' + message, 'error');
-                notify(`Upload failed: ${message}`, 'error');
-            } else {
-                const result = await res.json();
-                setStatus(`Loaded ${result.rows.toLocaleString()} rows. Refreshing stats…`, 'success');
-                notify(`${formatCount(Number(result.rows || 0))} rows loaded. Dataset ready.`, 'success');
-                // Fetch fresh metadata and refresh the profile grid without page reload
-                try {
-                    const freshMetadata = await dataClientFetchMetadata();
-                    setMetadata(freshMetadata);
-                    const revision = freshMetadata?.revision;
-                    setDatasetRevision(typeof revision === 'number' ? revision : 0);
-                    // Reset upload state
-                    selectedFile = null;
-                    fileInput!.value = '';
-                    fileDisplay!.textContent = '';
-                    setUploadPreviewStatus('Upload complete. Select a file to preview.', '');
-                    setProfileMode('dataset');
-                    // Re-hydrate and render the profile grid with the new dataset metadata
-                    hydrateColumnProfiles(freshMetadata);
-                    applyTimeRangeFromMetadata(freshMetadata, false);
-                    renderColumnProfilesGrid(true);
-                    // Update header meta stats and UI controls
-                    buildMetaBar(freshMetadata);
-                    deps.buildColumnToggles();
-                    deps.buildRangeControls();
-                } catch {
-                    // Fall back to reload if metadata refresh fails
-                    setTimeout(() => window.location.reload(), 1200);
-                }
-            }
-        } catch (e: unknown) {
-            setStatus('Error: ' + (e instanceof Error ? e.message : String(e)), 'error');
-            notify(`Upload failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
-        } finally {
-            stopProgress();
-            uploadBtn!.disabled = false;
-            setTimeout(() => { progressWrap!.style.display = 'none'; progressBar!.style.width = '0'; }, 1500);
-        }
+        void submitFileUpload({
+            selectedFile,
+            partialEnabled: partialChk!.checked,
+            nRowsInput: nRowsInput!,
+            skipInput: skipInput!,
+            timeStartInput: timeStartInput,
+            timeEndInput: timeEndInput,
+            uploadBtn: uploadBtn!,
+            statusEl: statusEl!,
+            progressWrap: progressWrap!,
+            progressBar: progressBar!,
+            fileInput: fileInput!,
+            fileDisplay: fileDisplay!,
+            deps,
+            hydrateColumnProfiles,
+            renderColumnProfilesGrid,
+        });
     });
 
     /* ── Upload source tabs (File | Database) ───────────── */
@@ -404,26 +303,8 @@ export function initUploadPanel(
     const dbTableSelect = document.getElementById('db-table-select') as HTMLSelectElement | null;
 
     /** Populate the table <select> from the /api/database/tables endpoint. */
-    async function refreshDbTables(): Promise<void> {
-        if (!dbTableSelect) return;
-        try {
-            const data = await fetchDatabaseTables() as { tables?: Array<{ schema: string; name: string; kind: string }> };
-            const tables: Array<{ schema: string; name: string; kind: string }> = data.tables ?? [];
-            // Use DOM methods instead of innerHTML to avoid XSS
-            const placeholder = document.createElement('option');
-            placeholder.value = '';
-            placeholder.textContent = '— select table —';
-            dbTableSelect.replaceChildren(placeholder);
-            for (const t of tables) {
-                const opt = document.createElement('option');
-                opt.value = t.name;
-                opt.textContent = t.kind === 'hypertable' ? `⏱ ${t.schema}.${t.name}` : `${t.schema}.${t.name}`;
-                dbTableSelect.appendChild(opt);
-            }
-        } catch {
-            // ignore; user can still type the name manually
-        }
-    }
+    // Delegates to databaseSource.refreshDbTables which handles the DOM
+    void refreshDbTables();
 
     /** Sync table select → text input. */
     dbTableSelect?.addEventListener('change', () => {
@@ -431,107 +312,48 @@ export function initUploadPanel(
         if (tableInput && dbTableSelect.value) tableInput.value = dbTableSelect.value;
     });
 
-    /** Connect button — establishes the pool, no data load yet. */
+    /** Connect button — delegates to databaseSource handler. */
     if (dbConnectBtn) {
-        dbConnectBtn.addEventListener('click', async () => {
+        dbConnectBtn.addEventListener('click', () => {
             const connectionString = (document.getElementById('db-connection-input') as HTMLInputElement | null)?.value ?? '';
             const schema = (document.getElementById('db-schema-input') as HTMLInputElement | null)?.value.trim() || 'public';
-
-            if (!connectionString.trim()) {
-                if (dbStatus) { dbStatus.textContent = 'Connection string is required.'; dbStatus.className = 'upload-status error'; }
-                notify('Connection string is required.', 'error');
-                return;
-            }
-
-            dbConnectBtn.disabled = true;
-            if (dbStatus) { dbStatus.textContent = 'Connecting…'; dbStatus.className = 'upload-status loading'; }
-
-            try {
-                const result = await connectDatabase({
-                    connection_string: connectionString.trim(),
-                    schema,
-                    load_snapshot: false,
-                }) as { message?: string; error?: string };
-                if (result) {
-                    if (dbStatus) { dbStatus.textContent = 'Connected. Choose a table and click Load data.'; dbStatus.className = 'upload-status success'; }
-                    notify('Database connected. Choose a table and click Load data.', 'success');
-                    if (dbLoadBtn) dbLoadBtn.disabled = false;
-                    if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
-                    await refreshDbTables();
-                }
-            } catch (e: unknown) {
-                if (dbStatus) { dbStatus.textContent = 'Error: ' + (e instanceof Error ? e.message : String(e)); dbStatus.className = 'upload-status error'; }
-                notify(`Database connection failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
-            } finally {
-                dbConnectBtn.disabled = false;
-            }
+            void handleDatabaseConnect({
+                connectionString,
+                schema,
+                dbConnectBtn,
+                dbStatus: dbStatus!,
+                dbLoadBtn,
+                dbDisconnectBtn,
+            });
         });
     }
 
-    /** Load data button — pulls selected table into in-memory store. */
+    /** Load data button — delegates to databaseSource handler. */
     if (dbLoadBtn) {
-        dbLoadBtn.addEventListener('click', async () => {
+        dbLoadBtn.addEventListener('click', () => {
             const schema = (document.getElementById('db-schema-input') as HTMLInputElement | null)?.value.trim() || 'public';
             const table = (document.getElementById('db-table-input') as HTMLInputElement | null)?.value.trim()
                 ?? dbTableSelect?.value ?? '';
             const timeColumn = (document.getElementById('db-time-col-input') as HTMLInputElement | null)?.value.trim();
-
-            if (!table) {
-                if (dbStatus) { dbStatus.textContent = 'Select or enter a table name.'; dbStatus.className = 'upload-status error'; }
-                notify('Select or enter a table name.', 'error');
-                return;
-            }
-
-            dbLoadBtn.disabled = true;
-            if (dbStatus) { dbStatus.textContent = 'Loading data…'; dbStatus.className = 'upload-status loading'; }
-
-            try {
-                const result = await loadDatabaseTable({
-                    schema,
-                    table,
-                    time_column: timeColumn || null,
-                    limit: 1_000_000,
-                }) as { message?: string; error?: string };
-                if (result) {
-                    const loadedRows = (() => {
-                        if (!result || typeof result !== 'object') return 0;
-                        const count = Number((result as Record<string, unknown>).rows ?? (result as Record<string, unknown>).rows_loaded);
-                        return Number.isFinite(count) && count >= 0 ? count : 0;
-                    })();
-                    if (dbStatus) {
-                        dbStatus.textContent = `Loaded ${loadedRows.toLocaleString()} rows from ${table}.`;
-                        dbStatus.className = 'upload-status success';
-                    }
-                    notify(`${formatCount(loadedRows)} rows loaded from ${table}.`, 'success');
-                    // Trigger a full metadata reload so the chart page refreshes.
-                    window.dispatchEvent(new CustomEvent('edatime:dataset-changed', { detail: { source: 'database', table } }));
-                }
-            } catch (e: unknown) {
-                if (dbStatus) { dbStatus.textContent = 'Error: ' + (e instanceof Error ? e.message : String(e)); dbStatus.className = 'upload-status error'; }
-                notify(`Database load failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
-            } finally {
-                dbLoadBtn.disabled = false;
-            }
+            void handleDatabaseLoad({
+                schema,
+                table,
+                timeColumn: timeColumn || null,
+                dbLoadBtn,
+                dbStatus: dbStatus!,
+            });
         });
     }
 
-    /** Disconnect button. */
+    /** Disconnect button — delegates to databaseSource handler. */
     if (dbDisconnectBtn) {
-        dbDisconnectBtn.addEventListener('click', async () => {
-            try {
-                await deleteDatabaseConnection();
-            } catch { /* ignore */ }
-            if (dbStatus) { dbStatus.textContent = 'Disconnected.'; dbStatus.className = 'upload-status'; }
-            notify('Database disconnected.', 'info');
-            if (dbLoadBtn) dbLoadBtn.disabled = true;
-            if (dbDisconnectBtn) dbDisconnectBtn.hidden = true;
-            if (dbTableSelect) {
-                dbTableSelect.replaceChildren();
-                const placeholder = document.createElement('option');
-                placeholder.value = '';
-                placeholder.textContent = '— connect first —';
-                dbTableSelect.appendChild(placeholder);
-            }
+        dbDisconnectBtn.addEventListener('click', () => {
+            void handleDatabaseDisconnect({
+                dbDisconnectBtn,
+                dbLoadBtn,
+                dbStatus: dbStatus!,
+                dbTableSelect,
+            });
         });
     }
 
@@ -540,17 +362,8 @@ export function initUploadPanel(
     async function syncDatabaseStatus(): Promise<void> {
         if (dbStatusLoaded) return;
         dbStatusLoaded = true;
-        try {
-            const s = await fetchDatabaseStatus() as { connected?: boolean; table?: string };
-            if (s.connected) {
-                if (dbLoadBtn) dbLoadBtn.disabled = false;
-                if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
-                if (dbStatus) { dbStatus.textContent = `Connected to ${s.table || '(no table loaded)'}`; dbStatus.className = 'upload-status success'; }
-                void refreshDbTables();
-            }
-        } catch {
-            dbStatusLoaded = false;
-        }
+        const { syncDatabaseStatus: doSync } = await import('../features/upload/databaseSource.js');
+        await doSync();
     }
 
 }

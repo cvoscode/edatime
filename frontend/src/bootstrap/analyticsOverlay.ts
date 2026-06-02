@@ -149,3 +149,45 @@ export function cancelAnalyticsFetch(): void {
 /** Whether an analytics fetch is currently in-flight. */
 export const isAnalyticsControllerActive = (): boolean =>
     _anomalyController !== null && !_anomalyController.signal.aborted;
+
+// ── Combined analytics listener wiring ───────────────────────────────────────
+
+/**
+ * Wire the edatime:analytics-change event to:
+ *   1. Recompute rolling bands from current lastFetchedData
+ *   2. Trigger chart overlay re-render
+ *   3. Fetch fresh anomaly regions
+ *
+ * Exported so app.ts can call this during shell init without inlining the callback.
+ */
+export function initAnalyticsListeners(fetchAndRenderAnalytics: () => Promise<void>): () => void {
+    const handler = () => {
+        if (appState.lastFetchedData) {
+            if (appState.rollingEnabled) {
+                const filtered = applyColumnRanges(appState.lastFetchedData);
+                setRollingBands(computeFrontendRollingBands(
+                    filtered as any,
+                    appState.selectedCols,
+                    (appState.rollingWindow as number | undefined) || 50,
+                ));
+            } else {
+                setRollingBands(null);
+            }
+            appState.chart?.requestOverlayRender?.();
+        }
+        fetchAndRenderAnalytics().catch((err: unknown) => { console.warn('Analytics fetch failed:', err); });
+    };
+
+    window.addEventListener('edatime:analytics-change', handler);
+    return () => window.removeEventListener('edatime:analytics-change', handler);
+}
+
+/**
+ * Standalone analytics fetch for the overlay panel.
+ * Dynamic import keeps services/api out of the main module load path.
+ */
+export async function fetchAndRenderAnalytics(
+    fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null,
+): Promise<void> {
+    await fetchAnomalyRegions(fetchAnomalies ?? null);
+}

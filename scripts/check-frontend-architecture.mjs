@@ -25,6 +25,24 @@ function lineOf(text, index) {
   return text.slice(0, index).split('\n').length;
 }
 
+/**
+ * Resolve a module import string to an absolute path, handling relative imports.
+ * e.g. "../services/api/index.js" from "frontend/src/ui/foo.ts" → "frontend/src/services/api/index.js"
+ */
+function resolveImportPath(importStr, fromFile) {
+  if (importStr.startsWith('/') || importStr.startsWith('.')) {
+    const fromDir = fromFile.substring(0, fromFile.lastIndexOf('/'));
+    const resolved = join(root, fromDir, importStr).replace(/\\/g, '/');
+    return resolved.replace(/^.*\/frontend\/src\//, 'frontend/src/');
+  }
+  return importStr;
+}
+
+/** Returns true if the resolved path lives under frontend/src/services/api/. */
+function isServicesApiPath(resolvedPath) {
+  return resolvedPath.startsWith('frontend/src/services/api/');
+}
+
 const files = await listTsFiles(srcRoot);
 
 for (const file of files) {
@@ -79,6 +97,57 @@ for (const file of files) {
         add(file, 'import from bootstrap/timeseriesBootstrap.ts is deprecated — use features/timeseries/entrypoint.js', lineOf(text, match.index ?? 0));
       } else if ((/^(\.\.\/)+components\//.test(src) || src.startsWith('components/')) && !/^frontend\/src\/components\//.test(rel)) {
         add(file, 'import from components/ is deprecated — use ui/ instead', lineOf(text, match.index ?? 0));
+      }
+    }
+  }
+
+  // Rule 9: ui/* must not import from services/api/*.
+  // ui/* is the reusable rendering surface — it should own no transport knowledge.
+  if (/^frontend\/src\/ui\//.test(rel) && !isTest) {
+    const importRe = /from\s+['"]([^'"]+)['"]/g;
+    for (const match of text.matchAll(importRe)) {
+      const src = match[1];
+      const resolved = resolveImportPath(src, rel);
+      if (isServicesApiPath(resolved)) {
+        add(file, 'ui/* must not import from services/api — transport must stay in services/api', lineOf(text, match.index ?? 0));
+      }
+    }
+  }
+
+  // Rule 10: app/* must not import from services/api/* except for approved bootstrap helpers.
+  // app/* is the composition root — it should not own transport.
+  // Approved bootstrap helpers legitimately use services/api for lazy loading and init coordination.
+  if (/^frontend\/src\/app\//.test(rel) && !isTest) {
+    const approvedBootstrapHelpers = [
+      'frontend/src/app/bootstrap/chartBootstrap.ts',
+      'frontend/src/app/bootstrap/ensureTimeseriesReady.ts',
+    ];
+    const isApproved = approvedBootstrapHelpers.some((h) => rel.endsWith(h));
+    if (!isApproved) {
+      const importRe = /from\s+['"]([^'"]+)['"]/g;
+      for (const match of text.matchAll(importRe)) {
+        const src = match[1];
+        const resolved = resolveImportPath(src, rel);
+        if (isServicesApiPath(resolved)) {
+          add(file, 'app/* must not import from services/api — transport must stay in services/api', lineOf(text, match.index ?? 0));
+        }
+      }
+    }
+  }
+
+  // Rule 11: Block imports from deprecated surfaces not yet covered above,
+  // specifically surfaces that have been replaced by ui/* or features/*.
+  if (!isTest) {
+    const importRe = /from\s+['"]([^'"]+)['"]/g;
+    for (const match of text.matchAll(importRe)) {
+      const src = match[1];
+      // ui/overlay.ts replaced by ui/annotationPanel.ts and ui/analyticsDrawer.ts
+      if (/ui\/overlay(\.js)?$/.test(src)) {
+        add(file, 'import from ui/overlay.ts is deprecated — use ui/annotationPanel.js or ui/analyticsDrawer.js', lineOf(text, match.index ?? 0));
+      }
+      // ui/chartTextEditor.ts replaced by ui/chartTextControls.ts
+      else if (/ui\/chartTextEditor(\.js)?$/.test(src)) {
+        add(file, 'import from ui/chartTextEditor.ts is deprecated — use ui/chartTextControls.js', lineOf(text, match.index ?? 0));
       }
     }
   }

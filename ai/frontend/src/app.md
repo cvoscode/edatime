@@ -9,69 +9,68 @@
 - `_timeseriesReady: boolean`
 - `_timeseriesReadyPromise: Promise<void> | null`
 - `_sessionPersistenceStarted: boolean`
+- `_timeseriesBootstrap: { ensureReady: () => Promise<void>; isReady: () => boolean } | null`
+- `_datasetReadyPromise: Promise<void> | null`
+- `_datasetUiReady: boolean`
 - `fetchMetadata: ((signal?: AbortSignal) => Promise<DatasetMetadata>) | null`
 - `fetchData: ((start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<DataObject>) | null`
 - `fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null`
 - `postTransform: ((expression: string, outputName: string) => Promise<TransformResponse>) | null`
 - `DataChartCtor: (new (containerId: string, onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null`
-- `_datasetReadyPromise: Promise<void> | null`
-- `_datasetUiReady: boolean`
 
 ## Functions
+
+### rebuildTimeseriesColumns / rebuildTimeseriesRanges
 - `rebuildTimeseriesColumns(): void`
-  - Rebuilds Timeseries column chips through the feature entrypoint.
+  - Delegates to `timeseriesFeature?.rebuildColumns()`.
 - `rebuildTimeseriesRanges(): void`
-  - Rebuilds Timeseries range chips through the feature entrypoint.
+  - Delegates to `timeseriesFeature?.buildRangeControls()`.
+
+### renderTimeseries / renderCurrentData / emitChartRangeChange
 - `renderTimeseries(): void`
-  - Delegates to the Timeseries page controller's current render pass.
+  - Alias for `timeseriesPage.renderCurrentData()`.
 - `renderCurrentData(): void`
-  - Delegates to the Timeseries page controller's current render pass.
+  - Alias for `timeseriesPage.renderCurrentData()`.
 - `emitChartRangeChange(sourceKind?: string): void`
-  - Re-emits the chart-range change via the Timeseries page controller.
+  - Alias for `timeseriesPage.emitChartRangeChange(sourceKind)`.
+
+### fetchAndRender / onZoomRangeChange
 - `fetchAndRender(): Promise<void>` [deps: [createTimeseriesPageController][1]]
-  - Ensures the Timeseries chart is ready, then fetches and renders the current range.
+  - Ensures timeseries bootstrap is ready, then delegates to `timeseriesPage.fetchAndRender()`.
 - `onZoomRangeChange(newStart: number, newEnd: number, sourceKind?: string): void` [deps: [createTimeseriesPageController][1]]
   - Delegates zoom-range updates to the Timeseries page controller.
+
+### ensureSessionPersistenceStarted
 - `ensureSessionPersistenceStarted(): void`
-  - Starts session persistence once.
-- `ensureTimeseriesReady(): Promise<void>` [deps: [checkWebGPU][2], [initAdaptiveFilterGesture][3], [restoreSessionAfterChartReady][4]]
-  - Lazily initializes the primary or fallback chart runtime, overlays, and first Timeseries fetch.
-- `emitAdaptiveFiltersChange(): void`
-  - Broadcasts the current adaptive-filter count.
-- `isTypingTarget(target: EventTarget | null): boolean`
-  - Detects whether keyboard shortcuts should ignore the current target.
-- `currentPageName(): string`
-  - Returns the visible page name from the DOM.
-- `showPage(pageName: string): void`
-  - Navigates by clicking the matching sidebar item.
-- `initKeyboardShortcuts(): void`
-  - Binds global Alt/Shift navigation and export shortcuts once.
-- `setComputeLoading(btnId: string, overlayId: string, loading: boolean, label?: string): void`
-  - Syncs a compute button and loading overlay.
-- `ensureChartModules(): Promise<void>` [deps: [fetchMetadata][5], [fetchData][5]]
-  - Hydrates cached chart/data module handles via the shared chart bootstrap owner.
-- `fetchAndRenderAnalytics(): Promise<void>` [deps: [fetchAnomalyRegions][6]]
-  - Refreshes analytics overlays for the current Timeseries view.
+  - Starts session persistence once (guards against double-call).
+
+### ensureTimeseriesReady
+- `ensureTimeseriesReady(): Promise<void>`
+  - Delegates to `_timeseriesBootstrap?.ensureReady()`.
+
+### storeFetchedMetadata / initializeDatasetUi
 - `storeFetchedMetadata(metadata: DatasetMetadata): void`
-  - Stores dataset metadata and revision in shared state.
-- `initializeDatasetUi(metadata: DatasetMetadata): void` [deps: [createTimeseriesEntrypoint][7], [createUploadEntrypoint][11], [buildMetaBar][8]]
-  - Initializes dataset-driven Timeseries, upload/profile UI, and viewport state after metadata loads.
+  - Stores metadata and revision in shared state via `setMetadata` / `setDatasetRevision`.
+- `initializeDatasetUi(metadata: DatasetMetadata): void` [deps: [createTimeseriesEntrypoint][2], [buildMetaBar][3]]
+  - Initializes timeseries/upload feature, column profiles, viewport, and analysis zoom from metadata. Called exactly once.
+
+### ensureDatasetReady
 - `ensureDatasetReady(_pageName?: string): Promise<void>`
-  - Fetches metadata once, derives default Timeseries selections, and initializes dataset UI.
+  - Fetches metadata once, derives default timeseries selections, and calls `initializeDatasetUi`.
+
+### refreshDatasetAfterMutation
 - `refreshDatasetAfterMutation(options?: { selectedColumn?: string }): Promise<void>`
-  - Reloads metadata and rerenders Timeseries after a transform or outlier mutation.
-- `init(): Promise<void>` [deps: [initAppShell][9], [loadEntrypoints][10]]
-  - Creates the Timeseries feature/runtime graph, loads page entrypoints, and performs first-page bootstrap.
+  - Reloads metadata, rerenders column profiles, and triggers timeseries fetch after a transform or outlier mutation.
+
+### init
+- `init(): Promise<void>` [deps: [initAppShell][4], [loadEntrypoints][5], [initGlobalShortcuts][6], [initTimeseriesShortcuts][7]]
+  - Creates the Timeseries feature/runtime graph, initializes app shell with analytics listeners, loads page entrypoints, and performs first-page bootstrap.
 
 ---
 [1]: ./pages/timeseriesPage.md#createTimeseriesPageController
-[2]: ./app/webgpuGuard.md#checkWebGPU
-[3]: ./app/adaptiveGesture.md#initAdaptiveFilterGesture
-[4]: ./bootstrap/sessionBootstrap.md#restoreSessionAfterChartReady
-[5]: ./services/api/index.md
-[6]: ./bootstrap/analyticsOverlay.md#fetchAnomalyRegions
-[7]: ./features/timeseries/entrypoint.md#createTimeseriesEntrypoint
-[8]: ./ui/metaBar.md#buildMetaBar
-[9]: ./app/shell.md#initAppShell
-[10]: ./app/pageModules.md#loadEntrypoints
-[11]: ./features/upload/entrypoint.md#createUploadEntrypoint
+[2]: ./features/timeseries/entrypoint.md#createTimeseriesEntrypoint
+[3]: ./ui/metaBar.md#buildMetaBar
+[4]: ./app/shell.md#initAppShell
+[5]: ./app/pageModules.md#loadEntrypoints
+[6]: ./app/bootstrap/globalShortcuts.md#initGlobalShortcuts
+[7]: ./app/bootstrap/timeseriesShortcuts.md#initTimeseriesShortcuts
