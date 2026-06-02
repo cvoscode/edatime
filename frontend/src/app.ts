@@ -17,128 +17,48 @@
 
 import { DEBUG, dbg, dbgGroup } from './debug.js';
 import { appState } from './store/appStateCompat.js';
-import { SERIES_COLORS } from './utils/seriesColors.js';
-import { setMetaText, buildMetaBar } from './ui/metaBar.js';
+import { buildMetaBar } from './ui/metaBar.js';
 import { showBootstrapError } from './ui/errorUI.js';
-import { emitAdaptiveFiltersChange } from './ui/eventHelpers.js';
-import {
-    sanitizeSelectedColumns,
-    applyColumnRanges,
-} from './services/timeseries/filtering.js';
-import { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata } from './ui/upload.js';
 import { createUploadEntrypoint } from './features/upload/entrypoint.js';
-import { hydrateColumnProfiles, renderColumnProfilesGrid, initColumnProfilesGrid } from './ui/profile.js';
+import { hydrateColumnProfiles, renderColumnProfilesGrid } from './ui/profile.js';
 import { installWindowsWebGpuRequestAdapterWorkaround } from './utils/platform.js';
-import { getAnalyticsChipColor, getDefaultTimeseriesColumns, getNumericColumns } from './pages/analyticsPageUtils.js';
-import { createTimeseriesPageController } from './pages/timeseriesPage.js';
+import { getAnalyticsChipColor, getNumericColumns } from './pages/analyticsPageUtils.js';
 import { initScatterPage } from './scatter/scatterPage.js';
-import { fetchAnomalyRegions, computeAndSetRollingBands, cancelAnalyticsFetch, initAnalyticsListeners, fetchAndRenderAnalytics as doFetchAndRenderAnalytics } from './bootstrap/analyticsOverlay.js';
+import { initAnalyticsListeners, fetchAndRenderAnalytics as doFetchAndRenderAnalytics } from './bootstrap/analyticsOverlay.js';
 import { initAppShell } from './app/shell.js';
 import { showPage } from './app/navigation/showPage.js';
 import { initGlobalShortcuts } from './app/bootstrap/globalShortcuts.js';
 import { initTimeseriesShortcuts } from './app/bootstrap/timeseriesShortcuts.js';
 import { createAppRuntime } from './app/runtime.js';
 import { APP_COMMAND_DEFINITIONS } from './bootstrap/commands.js';
-import { ensurePageModuleLoaded, isMetadataReady, markMetadataReady, clearLoadedPageModules } from './app/pageRegistry.js';
-import { restoreSessionAfterChartReady, startSessionPersistence } from './bootstrap/sessionBootstrap.js';
-import { checkWebGPU, showFatalError } from './app/webgpuGuard.js';
-import { initAdaptiveFilterGesture, buildAdaptiveFilterFromPoints } from './app/adaptiveGesture.js';
+import { ensurePageModuleLoaded } from './app/pageRegistry.js';
 import { loadEntrypoints } from './app/pageModules.js';
 import { ensureChartModules as ensureChartBootstrapModules } from './app/bootstrap/chartBootstrap.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
-import { createTimeseriesBootstrap } from './app/bootstrap/ensureTimeseriesReady.js';
-import { createTimeseriesEntrypoint } from './features/timeseries/entrypoint.js';
+import { createTimeseriesModule } from './pages/timeseriesModule.js';
 import {
     updateAnalysisZoom, updateAnalysisYRange,
     refreshZoomControlsState, getCurrentView,
     zoomOut, resetZoom,
-    initAnalysisControls, bindAnalysisChartEvents,
-    initChartPageFilterGesture, initPages,
     setComputeLoading,
 } from './ui/toolbar.js';
-import { getChartType } from './charts/registry.js';
-import { FallbackChart } from './charts/fallback.js';
-import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, ChartInstance, AdaptiveLineFilter } from './types.js';
+import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, ChartInstance } from './types.js';
 
-import { initAnnotations } from './chart/annotations.js';
-import { setAnnotationOverlayCallback } from './ui/annotationPanel.js';
-import { setAnomalyOverlayCallback } from './bootstrap/analyticsOverlay.js';
-import { toast } from './utils/toast.js';
 import {
-    appendAdaptiveLineFilter,
     setAdaptiveFilterColumn,
-    setAnalysisBound,
     setChartInstance,
     setDatasetRevision,
-    setInitialView,
     setMetadata,
     setNumericCols,
-    setPendingAdaptivePoint,
-    setRollingBands,
     setSelectedCols,
     setViewport,
 } from './store/index.js';
 
 const _appCleanups: Array<() => void> = [];
 const runtime = createAppRuntime();
-let timeseriesFeature: ReturnType<typeof createTimeseriesEntrypoint> | null = null;
-let uploadFeature: ReturnType<typeof createUploadEntrypoint> | null = null;
-
-const rebuildTimeseriesColumns = () => {
-    timeseriesFeature?.rebuildColumns();
-};
-
-const rebuildTimeseriesRanges = () => {
-    timeseriesFeature?.buildRangeControls();
-};
-
-const timeseriesPage = createTimeseriesPageController({
-    fetchData: (start, end, width, columns, colorColumn, signal) => fetchData!(start, end, width, columns, colorColumn, signal),
-    buildRangeControls: rebuildTimeseriesRanges,
-    updateAnalysisYRange,
-    updateAnalysisZoom,
-    getCurrentView,
-    fetchAndRenderAnalytics: () => fetchAndRenderAnalytics(),
-});
-
-const renderTimeseries = () => timeseriesPage.renderCurrentData();
-
-let _timeseriesReady = false;
-let _timeseriesReadyPromise: Promise<void> | null = null;
-let _sessionPersistenceStarted = false;
-let _timeseriesBootstrap: { ensureReady: () => Promise<void>; isReady: () => boolean } | null = null;
-
-const renderCurrentData = () => timeseriesPage.renderCurrentData();
-const emitChartRangeChange = (sourceKind = 'data') => timeseriesPage.emitChartRangeChange(sourceKind);
-const fetchAndRender = async () => {
-    const bs = _timeseriesBootstrap;
-    if (bs) await bs.ensureReady();
-    return timeseriesPage.fetchAndRender();
-};
-const onZoomRangeChange = (newStart: number, newEnd: number, sourceKind = 'user') => timeseriesPage.onZoomRangeChange(newStart, newEnd, sourceKind);
-
-function ensureSessionPersistenceStarted(): void {
-    if (_sessionPersistenceStarted) return;
-    startSessionPersistence();
-    _sessionPersistenceStarted = true;
-}
-
-async function ensureTimeseriesReady(): Promise<void> {
-    await _timeseriesBootstrap?.ensureReady();
-}
-
-/* ── Event helpers ─────────────────────────────────────── */
-// emitAdaptiveFiltersChange moved to ui/eventHelpers.ts
-
-/* ── Keyboard shortcuts ───────────────────────────────── */
-// Alt+1..0 navigation handled by initGlobalShortcuts via APP_COMMAND_DEFINITIONS
-// Shift+R/Z/C/P/E handled by initTimeseriesShortcuts
-// Both are called in init() below
-
-/* ── UI Helpers ───────────────────────────────────────── */
-
-/* setComputeLoading moved to ui/toolbar.ts — use toolbar.setComputeLoading instead */
+let uploadFeature!: ReturnType<typeof createUploadEntrypoint>;
+let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
 
 /* ── Lazy-loaded modules ──────────────────────────────── */
 
@@ -164,134 +84,56 @@ async function fetchAndRenderAnalytics(): Promise<void> {
     await doFetchAndRenderAnalytics(fetchAnomalies);
 }
 
-let _datasetReadyPromise: Promise<void> | null = null;
-let _datasetUiReady = false;
-
-function storeFetchedMetadata(metadata: DatasetMetadata): void {
-    setMetadata(metadata);
-    const revision = metadata?.revision;
-    setDatasetRevision(typeof revision === 'number' ? revision : 0);
-}
-
-function initializeDatasetUi(metadata: DatasetMetadata): void {
-    if (!_datasetUiReady) {
-        timeseriesFeature?.init();
-        ensureSessionPersistenceStarted();
-        window.addEventListener('edatime:page-change', (event: Event) => {
-            const ce = event as CustomEvent<{ page?: string }>;
-            if (ce.detail?.page === 'timeseries') {
-                void ensureTimeseriesReady();
-            }
-        });
-        _datasetUiReady = true;
-    }
-
-    hydrateColumnProfiles(metadata);
-    renderColumnProfilesGrid(true);
-    applyPartialTimeRangeFromMetadata(metadata, false);
-    setUploadPreviewStatus('Showing current dataset profile. Drop/select a file to preview before loading.');
-    setProfileMode('dataset');
-
-    rebuildTimeseriesColumns();
-    buildMetaBar(metadata);
-    rebuildTimeseriesRanges();
-    window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
-
-    const timeRange = metadata.time_range;
-    if (!timeRange) return;
-    const start = Number(timeRange.min);
-    const end = Number(timeRange.max);
-    setViewport(start, end);
-    updateAnalysisZoom(start, end, 'initial');
-    emitChartRangeChange('initial');
-}
-
-async function ensureDatasetReady(_pageName = 'timeseries'): Promise<void> {
-    if (isMetadataReady()) return;
-    if (_datasetReadyPromise) return _datasetReadyPromise;
-
-    _datasetReadyPromise = (async () => {
-        await ensureChartModules();
-
-        const metadata = await fetchMetadata!();
-        storeFetchedMetadata(metadata);
-        markMetadataReady();
-        window.dispatchEvent(new Event('edatime:metadata-ready'));
-        dbgGroup('metadata', () => dbg(appState.metadata));
-
-        const metadataTimeRange = appState.metadata?.time_range;
-        if (!metadataTimeRange) {
-            setMetaText('No valid time range found.');
-            return;
-        }
-
-        setNumericCols(getNumericColumns(metadata));
-        if (!appState.selectedCols.length) {
-            setSelectedCols(getDefaultTimeseriesColumns(metadata));
-        }
-        setAdaptiveFilterColumn(appState.selectedCols[0] || null);
-        sanitizeSelectedColumns();
-
-        initializeDatasetUi(metadata);
-    })().catch((error) => {
-        _datasetReadyPromise = null;
-        throw error;
-    });
-
-    return _datasetReadyPromise;
-}
-
-async function refreshDatasetAfterMutation(options?: { selectedColumn?: string }): Promise<void> {
-    clearLoadedPageModules();
-    if (!fetchMetadata) return;
-    storeFetchedMetadata(await fetchMetadata());
-    markMetadataReady();
-    setNumericCols(getNumericColumns(appState.metadata));
-    const selectedColumn = options?.selectedColumn;
-    if (selectedColumn && !appState.selectedCols.includes(selectedColumn)) {
-        setSelectedCols([...appState.selectedCols, selectedColumn]);
-    }
-    sanitizeSelectedColumns();
-    rebuildTimeseriesColumns();
-    buildMetaBar(appState.metadata);
-    await fetchAndRender();
-}
+/* ── Module creation helpers ──────────────────────────── */
+// NOTE: createDatasetBootstrap and dataset bootstrap are now owned by timeseriesModule
+// (see createDatasetBootstrap inside timeseriesModule.ts)
 
 async function init(): Promise<void> {
     installWindowsWebGpuRequestAdapterWorkaround();
     buildMetaBar(null);
 
-    timeseriesFeature = createTimeseriesEntrypoint({
-        fetchAndRender,
-        renderCurrentData,
-        updateAnalysisYRange,
-        renderColumnProfilesGrid,
-        updateAnalysisZoom,
-        emitChartRangeChange,
-        registerCleanup: (cleanup) => _appCleanups.push(cleanup),
-    });
-
     uploadFeature = createUploadEntrypoint({
-        buildColumnToggles: rebuildTimeseriesColumns,
-        buildRangeControls: rebuildTimeseriesRanges,
+        buildColumnToggles: () => timeseriesModule.buildColumnToggles(),
+        buildRangeControls: () => timeseriesModule.buildRangeControls(),
     });
     uploadFeature.init(
         hydrateColumnProfiles,
         renderColumnProfilesGrid,
     );
 
+    // Load chart modules first, then create the timeseries module once
+    await ensureChartModules();
+
+    timeseriesModule = createTimeseriesModule({
+        fetchData: (start, end, width, columns, colorColumn, signal) => fetchData!(start, end, width, columns, colorColumn, signal),
+        buildColumnToggles: () => { timeseriesModule.buildColumnToggles(); },
+        buildRangeControls: () => { timeseriesModule.buildRangeControls(); },
+        updateAnalysisYRange,
+        updateAnalysisZoom,
+        getCurrentView: () => {
+            const snap = getCurrentView();
+            return { start: snap.xMin ?? 0, end: snap.xMax ?? 0 };
+        },
+        fetchAndRenderAnalytics,
+        refreshZoomControlsState,
+        zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
+    });
+
+    // Mount registers page lifecycle (page-change listener, etc.)
+    timeseriesModule.mount();
+
     initAppShell({
         ensurePageModuleLoaded,
         showPage,
-        fetchAndRender,
-        renderCurrentData,
+        fetchAndRender: () => timeseriesModule.fetchAndRender(),
+        renderCurrentData: () => timeseriesModule.renderCurrentData(),
         updateAnalysisYRange,
-        buildTimeseriesColumns: rebuildTimeseriesColumns,
-        buildTimeseriesRanges: rebuildTimeseriesRanges,
-        zoomOut: () => zoomOut(fetchAndRender),
-        resetZoom: () => resetZoom(fetchAndRender),
+        buildTimeseriesColumns: () => timeseriesModule.buildColumnToggles(),
+        buildTimeseriesRanges: () => timeseriesModule.buildRangeControls(),
+        zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
+        resetZoom: () => resetZoom(() => timeseriesModule.fetchAndRender()),
         initAnalyticsListeners: () => initAnalyticsListeners(fetchAndRenderAnalytics),
-        refreshDatasetAfterMutation,
+        refreshDatasetAfterMutation: (opts) => timeseriesModule.refreshAfterMutation(opts),
         hydrateColumnProfiles,
         renderColumnProfilesGrid,
         registerCleanup: runtime.registerCleanup,
@@ -299,7 +141,7 @@ async function init(): Promise<void> {
 
     // Register lazy-loaded page modules.
     await loadEntrypoints({
-        getRenderTimeseries: renderTimeseries,
+        getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
         showPage,
         initScatterPage,
         getMetadata: () => appState.metadata ?? null,
@@ -310,12 +152,12 @@ async function init(): Promise<void> {
     });
 
     (window).__edatime = (window).__edatime || {};
-    (window).__edatime.ensureDatasetReady = ensureDatasetReady;
+    (window).__edatime.ensureDatasetReady = () => timeseriesModule.ensureDatasetReady();
 
     initGlobalShortcuts({
         showPage,
-        zoomOut: () => zoomOut(fetchAndRender),
-        resetZoom: () => resetZoom(fetchAndRender),
+        zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
+        resetZoom: () => resetZoom(() => timeseriesModule.fetchAndRender()),
         registerCleanup: runtime.registerCleanup,
         chartExportPng: () => appState.chart?.exportPNG?.(),
         exportFilteredCsv: () => (window as any).__edatime?.exportChartFilteredData?.('csv'),
@@ -323,35 +165,19 @@ async function init(): Promise<void> {
     }, APP_COMMAND_DEFINITIONS);
 
     initTimeseriesShortcuts({
-        fetchAndRender,
-        zoomOut: () => zoomOut(fetchAndRender),
-        resetZoom: () => resetZoom(fetchAndRender),
+        fetchAndRender: () => timeseriesModule.fetchAndRender(),
+        zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
+        resetZoom: () => resetZoom(() => timeseriesModule.fetchAndRender()),
         chartExportPng: () => appState.chart?.exportPNG?.(),
         exportFilteredCsv: () => (window as any).__edatime?.exportChartFilteredData?.('csv'),
         exportFilteredJson: () => (window as any).__edatime?.exportChartFilteredData?.('json'),
         registerCleanup: runtime.registerCleanup,
     });
 
-    _timeseriesBootstrap = createTimeseriesBootstrap({
-        DataChartCtor: null as any,
-        onZoom: onZoomRangeChange,
-        onYRange: updateAnalysisYRange,
-        onZoomOut: () => zoomOut(fetchAndRender),
-        buildColumnToggles: rebuildTimeseriesColumns,
-        buildRangeControls: rebuildTimeseriesRanges,
-        renderCurrentData,
-        fetchAndRender: () => timeseriesPage.fetchAndRender(),
-        refreshZoomControlsState,
-    });
-
     try {
         const initialPage = getHashPage();
         if (pageNeedsDatasetBootstrap(initialPage)) {
-            await ensureDatasetReady(initialPage!);
-        }
-
-        if (initialPage === 'timeseries' && isMetadataReady()) {
-            await ensureTimeseriesReady();
+            await timeseriesModule.ensureDatasetReady();
         }
     } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);

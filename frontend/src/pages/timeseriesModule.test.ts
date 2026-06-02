@@ -1,0 +1,221 @@
+// Test that freezes the Timeseries local composition seam.
+// Verifies createTimeseriesModule composes page + feature + runtime + bootstrap
+// into a single stable surface. These tests will pass once timeseriesModule.ts
+// is implemented in Task 4.
+
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+
+// ── Hoisted mocks ─────────────────────────────────────────────────────────────
+// vi.hoisted ensures mocks are created before vi.mock() calls
+const {
+    mockCreateTimeseriesPageController,
+    mockCreateTimeseriesEntrypoint,
+    mockCreateTimeseriesRuntime,
+    mockCreateDatasetBootstrap,
+} = vi.hoisted(() => {
+    const mockCreateTimeseriesPageController = vi.fn();
+    const mockCreateTimeseriesEntrypoint = vi.fn();
+    const mockCreateTimeseriesRuntime = vi.fn();
+    const mockCreateDatasetBootstrap = vi.fn();
+    return {
+        mockCreateTimeseriesPageController,
+        mockCreateTimeseriesEntrypoint,
+        mockCreateTimeseriesRuntime,
+        mockCreateDatasetBootstrap,
+    };
+});
+
+// Mock createTimeseriesPageController from ./timeseriesPage.js
+vi.mock('./timeseriesPage.js', () => ({
+    createTimeseriesPageController: mockCreateTimeseriesPageController,
+}));
+
+// Mock createTimeseriesEntrypoint from ../features/timeseries/entrypoint.js
+vi.mock('../features/timeseries/entrypoint.js', () => ({
+    createTimeseriesEntrypoint: mockCreateTimeseriesEntrypoint,
+}));
+
+// Mock createTimeseriesRuntime from ./timeseriesRuntime.js
+vi.mock('./timeseriesRuntime.js', () => ({
+    createTimeseriesRuntime: mockCreateTimeseriesRuntime,
+}));
+
+// Mock createDatasetBootstrap from ../app/bootstrap/datasetBootstrap.js
+vi.mock('../app/bootstrap/datasetBootstrap.js', () => ({
+    createDatasetBootstrap: mockCreateDatasetBootstrap,
+}));
+
+// ── Shared mock helpers ───────────────────────────────────────────────────────
+const mockPageController = () => ({
+    emitChartRangeChange: vi.fn(),
+    fetchAndRender: vi.fn().mockResolvedValue(undefined),
+    onZoomRangeChange: vi.fn(),
+    renderCurrentData: vi.fn(),
+});
+
+const mockFeatureEntrypoint = () => ({
+    init: vi.fn(),
+    rebuildColumns: vi.fn(),
+    buildRangeControls: vi.fn(),
+});
+
+const mockRuntime = () => ({
+    mount: vi.fn(() => vi.fn()),
+    ensureReady: vi.fn().mockResolvedValue(undefined),
+});
+
+const mockBootstrap = () => ({
+    ensureReady: vi.fn().mockResolvedValue(undefined),
+    ensureDatasetReady: vi.fn().mockResolvedValue(undefined),
+    refreshAfterMutation: vi.fn().mockResolvedValue(undefined),
+});
+
+const defaultDeps = () => ({
+    fetchData: vi.fn(),
+    buildColumnToggles: vi.fn(),
+    buildRangeControls: vi.fn(),
+    updateAnalysisYRange: vi.fn(),
+    updateAnalysisZoom: vi.fn(),
+    getCurrentView: vi.fn(),
+    fetchAndRenderAnalytics: vi.fn(),
+    refreshZoomControlsState: vi.fn(),
+    zoomOut: vi.fn(),
+});
+
+describe('createTimeseriesModule', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        // Reset all mock return values
+        mockCreateTimeseriesPageController.mockReturnValue(mockPageController());
+        mockCreateTimeseriesEntrypoint.mockReturnValue(mockFeatureEntrypoint());
+        mockCreateTimeseriesRuntime.mockReturnValue(mockRuntime());
+        mockCreateDatasetBootstrap.mockReturnValue(mockBootstrap());
+    });
+
+    // -------------------------------------------------------------------------
+    // Test 1: Page controller and feature entrypoint are composed together once
+    // -------------------------------------------------------------------------
+    it('composes page controller and feature entrypoint together once', async () => {
+        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+
+        const mod = createTimeseriesModule(defaultDeps());
+
+        // The module should have exposed methods from both page controller and feature
+        expect(mod.fetchAndRender).toBeDefined();
+        expect(mod.renderCurrentData).toBeDefined();
+        expect(mod.buildColumnToggles).toBeDefined();
+        expect(mod.buildRangeControls).toBeDefined();
+        expect(mod.emitChartRangeChange).toBeDefined();
+        expect(mod.onZoomRangeChange).toBeDefined();
+
+        // createTimeseriesPageController should be called once with correct deps
+        expect(mockCreateTimeseriesPageController).toHaveBeenCalledTimes(1);
+
+        // createTimeseriesEntrypoint should be called once
+        expect(mockCreateTimeseriesEntrypoint).toHaveBeenCalledTimes(1);
+    });
+
+    // -------------------------------------------------------------------------
+    // Test 2: buildColumnToggles and buildRangeControls are exposed directly
+    // -------------------------------------------------------------------------
+    it('exposes buildColumnToggles and buildRangeControls from the module surface', async () => {
+        const feature = mockFeatureEntrypoint();
+        mockCreateTimeseriesEntrypoint.mockReturnValue(feature);
+
+        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+
+        const mod = createTimeseriesModule(defaultDeps());
+
+        // These should be exposed directly from the module, not via separate trampolines
+        expect(typeof mod.buildColumnToggles).toBe('function');
+        expect(typeof mod.buildRangeControls).toBe('function');
+
+        // Calling buildColumnToggles delegates to feature.rebuildColumns()
+        mod.buildColumnToggles();
+        expect(feature.rebuildColumns).toHaveBeenCalled();
+    });
+
+    // -------------------------------------------------------------------------
+    // Test 3: Module provides a single stable interface — no direct access to internals
+    // -------------------------------------------------------------------------
+    it('provides a single stable interface with no direct access to page/feature internals', async () => {
+        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+
+        const mod = createTimeseriesModule(defaultDeps());
+
+        // The module should provide a single stable surface
+        const surfaceKeys = [
+            'mount',
+            'ensureDatasetReady',
+            'ensureReady',
+            'fetchAndRender',
+            'renderCurrentData',
+            'buildColumnToggles',
+            'buildRangeControls',
+            'emitChartRangeChange',
+            'onZoomRangeChange',
+            'refreshAfterMutation',
+        ];
+
+        for (const key of surfaceKeys) {
+            expect(key in mod).toBe(true);
+            expect(typeof (mod as any)[key]).toBe('function');
+        }
+
+        // Ensure no internal symbols leak out (module should only expose documented surface)
+        const unexpectedKeys = Object.keys(mod).filter(k => !surfaceKeys.includes(k));
+        expect(unexpectedKeys).toHaveLength(0);
+    });
+
+    // -------------------------------------------------------------------------
+    // Test 4: Module exposes mount(), ensureDatasetReady(), ensureReady(), refreshAfterMutation()
+    // -------------------------------------------------------------------------
+    it('mount() returns a cleanup function', async () => {
+        const runtime = mockRuntime();
+        const unregisterMock = vi.fn();
+        runtime.mount.mockReturnValue(unregisterMock);
+        mockCreateTimeseriesRuntime.mockReturnValue(runtime);
+
+        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+
+        const mod = createTimeseriesModule(defaultDeps());
+        const cleanup = mod.mount();
+
+        expect(typeof cleanup).toBe('function');
+        cleanup();
+        expect(unregisterMock).toHaveBeenCalled();
+    });
+
+    it('ensureDatasetReady() returns a Promise', async () => {
+        const bootstrap = mockBootstrap();
+        mockCreateDatasetBootstrap.mockReturnValue(bootstrap);
+
+        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+
+        const mod = createTimeseriesModule(defaultDeps());
+        const result = mod.ensureDatasetReady();
+
+        expect(result).toBeInstanceOf(Promise);
+        await result;
+        expect(bootstrap.ensureDatasetReady).toHaveBeenCalled();
+    });
+
+    it('refreshAfterMutation() returns a Promise and accepts optional { selectedColumn }', async () => {
+        const bootstrap = mockBootstrap();
+        mockCreateDatasetBootstrap.mockReturnValue(bootstrap);
+
+        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+
+        const mod = createTimeseriesModule(defaultDeps());
+
+        // Call without options
+        const result1 = mod.refreshAfterMutation();
+        expect(result1).toBeInstanceOf(Promise);
+        await result1;
+
+        // Call with options
+        const result2 = mod.refreshAfterMutation({ selectedColumn: 'test_col' });
+        expect(result2).toBeInstanceOf(Promise);
+        await result2;
+    });
+});
