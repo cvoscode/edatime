@@ -7,185 +7,41 @@
 
 import { DEBUG } from '../debug.js';
 import { fetchDriftStats } from '../services/api/index.js';
-import { exportEChartsPNG } from '../utils/chartExport.js';
 import { bindDriftControls, getSelectedColumns } from './controls.js';
 import { createAnalysisPageRuntime } from '../pages/shared/analysisPageRuntime.js';
+import { createRequestTask } from '../pages/shared/requestTask.js';
+import type { EChartLike } from './types.js';
+import {
+    driftColor,
+    formatValue,
+    hashColor,
+    timelineTooltipFormatter,
+    normalizeDensity,
+    COLOR_GREEN,
+    COLOR_YELLOW,
+    COLOR_RED,
+    COLOR_DIM,
+    COLOR_REF,
+    COLOR_TEXT,
+    COLOR_TEXT_DIM,
+    COLUMN_PALETTE,
+} from './viewModels.js';
+import type { DriftResponse, WindowDistributionStats, DriftWindowStats } from './viewModels.js';
+import { exportEChartsPNG } from '../utils/chartExport.js';
+import {
+    getECharts,
+    getEChartsModule,
+    _setEchartsModule,
+    syncDriftEmptyState,
+    setSyncDriftEmptyState,
+} from './runtime.js';
+
+// Re-export for test isolation
+export { _setEchartsModule };
 
 /** Module-level runtime handle for the drift page lifecycle. */
 let driftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let driftPageCleanup: (() => void) | null = null;
-
-/**
- * Module-level empty-state sync for drift.
- * Wraps the inner syncEmptyState so the runtime can call it without needing
- * a closure reference into initDriftPage.
- */
-let _syncDriftEmptyState: (show: boolean, message?: string) => void = () => {};
-
-/** Module-level wrapper to sync drift empty state from outside initDriftPage. */
-function syncDriftEmptyState(show: boolean, message?: string): void {
-    _syncDriftEmptyState(show, message);
-}
-
-// ── Module-level ECharts cache (issue #3: avoid re-importing on every page visit) ──
-let _echartsModule: typeof import('echarts') | null = null;
-async function getECharts(): Promise<typeof import('echarts')> {
-    if (!_echartsModule) {
-        _echartsModule = await import('echarts');
-    }
-    return _echartsModule;
-}
-// Exported for test isolation: reset the cache between test runs so the echarts
-// mock is re-established rather than the real module being reused.
-export function _setEchartsModule(m: typeof import('echarts') | null): void {
-    _echartsModule = m;
-}
-
-// ── Module-level tooltip formatter (issue #10: avoid closure creation per render) ──
-const timelineTooltipFormatter = (params: any): string => {
-    const v = params?.value || [];
-    const meta = params?.data?.meta || {};
-    const lines = [
-        `<strong>${meta.column || params.seriesName}</strong>`,
-        `${params.name || ''}`,
-        `Q05: ${formatValue(v[0])}`,
-        `Q25: ${formatValue(v[1])}`,
-        `Q50: ${formatValue(v[2])}`,
-        `Q75: ${formatValue(v[3])}`,
-        `Q95: ${formatValue(v[4])}`,
-    ];
-    if (meta.ref) {
-        lines.push(`Reference samples: ${meta.count ?? '-'}`);
-    } else {
-        lines.push(`Count: ${meta.count ?? '-'}`);
-        lines.push(`PSI: ${isFinite(meta.psi) ? Number(meta.psi).toFixed(4) : '-'}`);
-        lines.push(`KS: ${isFinite(meta.ks_stat) ? Number(meta.ks_stat).toFixed(3) : '-'}`);
-        lines.push(`Wasserstein: ${isFinite(meta.wasserstein) ? formatValue(Number(meta.wasserstein)) : '-'}`);
-        lines.push(`Drift: ${(meta.drift_level || '-').toUpperCase()}`);
-    }
-    return lines.join('<br/>');
-};
-
-interface WindowDistributionStats {
-    start_ms: number;
-    end_ms: number;
-    label: string;
-    count: number;
-    null_count: number;
-    completeness: number;
-    mean: number;
-    std: number;
-    min: number;
-    max: number;
-    /** [q5, q25, q50, q75, q95] */
-    quantiles: number[];
-    hist_bins: number[];
-    hist_counts: number[];
-    ecdf_x: number[];
-    ecdf_y: number[];
-}
-
-interface DriftWindowStats extends WindowDistributionStats {
-    ks_stat: number;
-    ks_pvalue: number;
-    es_stat: number;
-    es_pvalue: number;
-    wasserstein: number;
-    psi: number;
-    drift_level: 'green' | 'yellow' | 'red';
-    low_sample_warning: boolean;
-}
-
-interface DriftResponse {
-    column: string;
-    reference: WindowDistributionStats;
-    windows: DriftWindowStats[];
-    thresholds: {
-        ks_threshold: number;
-        wasserstein_threshold: number;
-        psi_minor_threshold: number;
-        psi_major_threshold: number;
-    };
-    metadata?: {
-        computation_time_ms: number;
-        num_windows: number;
-        reference_samples: number;
-        /** True when quantile-based histogram edges collapsed to fewer bins than requested. */
-        bin_count_warning?: boolean;
-        effective_bins?: number;
-        /** True when reference samples / avg monitoring window samples > 10×. */
-        psi_sample_ratio_warning?: boolean;
-        avg_window_samples?: number;
-    };
-}
-
-interface EChartLike {
-    setOption: (option: Record<string, unknown>, opts?: Record<string, unknown>) => void;
-    clear: () => void;
-    resize: () => void;
-    on: (event: string, handler: (params: any) => void) => void;
-    showLoading?: (type?: string, opts?: Record<string, unknown>) => void;
-    hideLoading?: () => void;
-    dispatchAction?: (payload: { type: string } & Record<string, unknown>) => void;
-    getDataURL?: (opts?: Record<string, unknown>) => string;
-}
-
-const COLOR_GREEN = '#00C896';
-const COLOR_YELLOW = '#FFC041';
-const COLOR_RED = '#FF6B6B';
-const COLOR_DIM = 'rgba(120,139,174,0.35)';
-const COLOR_REF = 'rgba(0,168,255,0.85)';
-const COLOR_TEXT = '#D2DAF0';
-const COLOR_TEXT_DIM = '#788BAE';
-
-const COLUMN_PALETTE = ['#00D4FF', '#7CFFB2', '#FF9E7A', '#E190FF', '#FDD663', '#58D8FF', '#58C8A6'];
-
-function driftColor(level: string): string {
-    if (level === 'red') return COLOR_RED;
-    if (level === 'yellow') return COLOR_YELLOW;
-    return COLOR_GREEN;
-}
-
-function formatValue(v: number): string {
-    if (!isFinite(v)) return '-';
-    const abs = Math.abs(v);
-    if (abs >= 1e6) return `${(v / 1e6).toFixed(2)}M`;
-    if (abs >= 1e3) return `${(v / 1e3).toFixed(2)}k`;
-    if (abs >= 10) return v.toFixed(1);
-    if (abs >= 1) return v.toFixed(2);
-    if (abs >= 0.01) return v.toFixed(4);
-    if (abs === 0) return '0';
-    return v.toExponential(2);
-}
-
-function toDatetimeLocal(ms: number): string {
-    if (!isFinite(ms)) return '';
-    const d = new Date(ms);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function hashColor(text: string, fallbackIndex: number): string {
-    let hash = 0;
-    for (let i = 0; i < text.length; i++) {
-        hash = (hash << 5) - hash + text.charCodeAt(i);
-        hash |= 0;
-    }
-    const idx = Math.abs(hash) % COLUMN_PALETTE.length;
-    return COLUMN_PALETTE[idx] || COLUMN_PALETTE[fallbackIndex % COLUMN_PALETTE.length] || '#00D4FF';
-}
-
-function normalizeDensity(stats: WindowDistributionStats): Array<[number, number]> {
-    if (stats.hist_counts.length === 0 || stats.hist_bins.length < 2) return [];
-    const max = Math.max(...stats.hist_counts, 1);
-    const pts: Array<[number, number]> = [];
-    for (let i = 0; i < stats.hist_counts.length; i++) {
-        const x = (stats.hist_bins[i] + stats.hist_bins[i + 1]) / 2;
-        const y = stats.hist_counts[i] / max;
-        pts.push([x, y]);
-    }
-    return pts;
-}
 
 export async function initDriftPage(metadata: any): Promise<void> {
     // ── Column picker (custom checkbox dropdown) ──────────────────────────────
@@ -243,11 +99,12 @@ export async function initDriftPage(metadata: any): Promise<void> {
     function ensureCharts(): void {
         if (!isDriftChartReadyForInit()) return;
         if (!timelineChart) {
-            if (_echartsModule && timelineElNN) {
-                (_echartsModule as any).getInstanceByDom?.(timelineElNN)?.dispose?.();
+            const _echarts = getEChartsModule();
+            if (_echarts && timelineElNN) {
+                (_echarts as any).getInstanceByDom?.(timelineElNN)?.dispose?.();
             }
-            if (!_echartsModule) return;
-            timelineChart = _echartsModule.init(timelineElNN, undefined, { renderer: 'canvas' }) as unknown as EChartLike;
+            if (!_echarts) return;
+            timelineChart = _echarts.init(timelineElNN, undefined, { renderer: 'canvas' }) as unknown as EChartLike;
             timelineChart.on('click', (params: any) => {
                 if (params?.seriesType !== 'boxplot') return;
                 const clickedCol = String(params?.seriesName || '');
@@ -264,12 +121,13 @@ export async function initDriftPage(metadata: any): Promise<void> {
             });
         }
 
+        const _echarts2 = getEChartsModule();
         if (!detailChart) {
-            if (_echartsModule && detailElNN) {
-                (_echartsModule as any).getInstanceByDom?.(detailElNN)?.dispose?.();
+            if (_echarts2 && detailElNN) {
+                (_echarts2 as any).getInstanceByDom?.(detailElNN)?.dispose?.();
             }
-            if (!_echartsModule) return;
-            detailChart = _echartsModule.init(detailElNN, undefined, { renderer: 'canvas' }) as unknown as EChartLike;
+            if (!_echarts2) return;
+            detailChart = _echarts2.init(detailElNN, undefined, { renderer: 'canvas' }) as unknown as EChartLike;
         }
 
         if (!resizeObserver) {
@@ -845,6 +703,17 @@ export async function initDriftPage(metadata: any): Promise<void> {
         statusEl.textContent = `${cols.length} column(s) | ~${avgWindows.toFixed(0)} windows/column | ${flaggedTotal} flagged | ref avg ${avgRef.toFixed(0)} samples | ${computeMs.toFixed(0)}ms${failedInfo}${warnInfo}`;
     }
 
+    // Module-level request task for drift compute — cancel-before-new semantics
+    const driftComputeTask = createRequestTask({
+      setLoading: (loading: boolean) => {
+        if (loadingOverlay) loadingOverlay.hidden = loading;
+      },
+      onError: (message: string) => {
+        if (statusEl) statusEl.textContent = `Error: ${message}`;
+        syncEmptyState(true, message || 'Computation failed. Check column and date ranges.');
+      },
+    });
+
     async function runCompute(): Promise<void> {
         const columns = getSelectedColumns();
         if (columns.length === 0) {
@@ -861,14 +730,12 @@ export async function initDriftPage(metadata: any): Promise<void> {
 
         computeBtnEl.disabled = true;
         computeBtnEl.textContent = 'Computing...';
-        // Show a single global overlay rather than per-chart loading spinners (issue #13).
-        if (loadingOverlay) loadingOverlay.hidden = false;
         syncEmptyState(false);
 
         // Ensure ECharts is loaded and charts are initialised before showing data.
         await ensureChartsAsync();
 
-        try {
+        await driftComputeTask.run(async (signal) => {
             const basePayload: Record<string, unknown> = {
                 window: windowSelect?.value || 'daily',
                 reference_start: new Date(refStart).toISOString(),
@@ -876,7 +743,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
             };
 
             const settled = await Promise.allSettled(columns.map(async (column) => {
-                const payload = await fetchDriftStats<DriftResponse>({ ...basePayload, column });
+                const payload = await fetchDriftStats<DriftResponse>({ ...basePayload, column }, signal);
                 return { column, payload };
             }));
 
@@ -920,15 +787,12 @@ export async function initDriftPage(metadata: any): Promise<void> {
                     const btn = document.getElementById(id) as HTMLButtonElement | null;
                     if (btn) btn.disabled = false;
                 });
-        } catch (err: any) {
-            console.error('Drift compute failed:', err);
-            if (statusEl) statusEl.textContent = `Error: ${err?.message || 'unknown'}`;
-            syncEmptyState(true, err?.message || 'Computation failed. Check column and date ranges.');
-        } finally {
-            if (loadingOverlay) loadingOverlay.hidden = true;
-            computeBtnEl.disabled = false;
-            computeBtnEl.textContent = 'Compute';
-        }
+        });
+
+        // requestTask.run() handles setLoading(false) in its finally block.
+        // Only reset the button state here since requestTask doesn't manage it.
+        computeBtnEl.disabled = false;
+        computeBtnEl.textContent = 'Compute';
     }
 
     function exportDriftCsv(): void {
@@ -1064,8 +928,8 @@ export async function initDriftPage(metadata: any): Promise<void> {
     scheduleDriftChartRefresh();
 
     // ── Shared analysis page runtime ───────────────────────────────────────────
-    // Capture the inner syncEmptyState for use by the module-level wrapper.
-    _syncDriftEmptyState = syncEmptyState;
+    // Register the inner syncEmptyState with the runtime's module-level wrapper.
+    setSyncDriftEmptyState(syncEmptyState);
 
     driftRuntime = createAnalysisPageRuntime({
         page: 'drift',
@@ -1075,6 +939,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
         exportConfig: {
             key: 'drift',
             csv: { fn: exportDriftCsv, filename: 'edatime_drift.csv', dataCheck: () => responsesByColumn.size > 0 },
+            // @ts-expect-error json export is supported by drift but not in the base ExportConfig type
             json: { fn: exportDriftJson, filename: 'edatime_drift.json', dataCheck: () => responsesByColumn.size > 0 },
         },
         init() {

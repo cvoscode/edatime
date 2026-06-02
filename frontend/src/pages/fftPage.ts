@@ -59,11 +59,6 @@ function syncFftEmptyState(): void {
     };
 
     fftRuntime?.updateEmptyState(model);
-
-    const root = document.getElementById('fft-empty-state') as HTMLElement | null;
-    if (!root) return;
-    root.hidden = !visible;
-    root.setAttribute('data-empty-reason', reason);
 }
 
 function rerenderOrClear(): void {

@@ -53,7 +53,7 @@ export async function ensureChartModules(): Promise<ChartModules> {
             label: 'Line',
             create: (containerId: string, callbacks: Record<string, unknown>) => {
                 if (!DataChartCtor) throw new Error('DataChart module not loaded');
-                const cb = callbacks as BootstrapChartCallbacks;
+                const cb = callbacks as unknown as BootstrapChartCallbacks;
                 return new DataChartCtor(
                     containerId,
                     cb.onZoom ?? null,

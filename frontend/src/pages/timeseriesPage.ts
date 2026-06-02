@@ -5,6 +5,7 @@ import { ensureRangeStateFromData, applyColumnRanges, sanitizeSelectedColumns } 
 import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
 import { announceChartLoading, announceDataUpdate } from '../utils/a11y.js';
 import { computeFrontendRollingBands } from '../bootstrap/analyticsOverlay.js';
+import { createRequestTask } from './shared/requestTask.js';
 import {
     setFetchDebounceId,
     setLastFetchedData,
@@ -81,14 +82,23 @@ function computeRenderedYDebugSnapshot() {
 }
 
 export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
-    let dataFetchController: AbortController | null = null;
-
     const uploadButton = document.getElementById('timeseries-empty-upload-btn');
     if (uploadButton) {
         uploadButton.addEventListener('click', () => {
             window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'upload' } }));
         });
     }
+
+    const task = createRequestTask({
+        setLoading: (loading: boolean) => {
+            const loadingEl = document.getElementById('main-chart-loading');
+            if (loadingEl) loadingEl.hidden = !loading;
+        },
+        onError: (message: string) => {
+            console.error('Failed to fetch data:', message);
+            setMetaText('Error: ' + message);
+        },
+    });
 
     function emitChartRangeChange(sourceKind = 'data'): void {
         if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
@@ -184,14 +194,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             return;
         }
 
-        if (dataFetchController) dataFetchController.abort();
-        dataFetchController = new AbortController();
-        const signal = dataFetchController.signal;
-
-        const loadingEl = document.getElementById('main-chart-loading');
-        if (loadingEl) loadingEl.hidden = false;
-
-        try {
+        await task.run(async (signal) => {
             const startIso = new Date(currentStart).toISOString();
             const endIso = new Date(currentEnd).toISOString();
             const width = document.getElementById('main-chart')?.clientWidth || 1200;
@@ -244,14 +247,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
             setPendingYMode(null);
             setPendingRestoreY(null);
-        } catch (err: any) {
-            if (err?.name === 'AbortError') return;
-            console.error('Failed to fetch data:', err);
-            setMetaText('Error: ' + err.message);
-        } finally {
-            const loadingEl = document.getElementById('main-chart-loading');
-            if (loadingEl) loadingEl.hidden = true;
-        }
+        });
     }
 
     function onZoomRangeChange(newStart: number, newEnd: number, sourceKind = 'user'): void {

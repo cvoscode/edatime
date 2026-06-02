@@ -107,9 +107,10 @@ All frontend transport calls stay in `frontend/src/services/api/*`. All route ha
 - **Response `200 OK`:** `CausalGraphResponse { columns: string[]; tau_max: number; links: CausalLink[]; graph: string[][][]; val_matrix: number[][][]; p_matrix: number[][][] }`
 
 ### `POST /api/drift/stats`
-- **TS caller:** `fetchDriftStats(column: string, window: string, reference_start: string, reference_end: string, signal?: AbortSignal): Promise<DriftResponse>` [deps: [fetchDriftStats][10]]
+- **TS caller:** `fetchDriftStats<T>(payload: unknown, signal?: AbortSignal): Promise<T>` [deps: [fetchDriftStats][10]]
 - **Rust payload:** `DriftQuery { column: String, window: String, reference_start: String, reference_end: String }` [deps: [DriftQuery][11]]
 - **Rust handler:** `pub async fn post_drift_stats(State(state): State<AppState>, Json(query): Json<DriftQuery>) -> Result<Response, AppError>` [deps: [compute_temporal_drift][13]]
+- **Frontend payload shape in practice:** `{ column: string; window: string; reference_start: string; reference_end: string }`
 - **Window sizes:** `hourly` (3600s), `daily` (86400s, default), `weekly` (604800s)
 - **Response `200 OK`:** `DriftResponse { column: string; reference: WindowDistributionStats; windows: DriftWindowStats[]; thresholds: { ks_threshold: number; wasserstein_threshold: number; psi_minor_threshold: number; psi_major_threshold: number }; metadata?: { computation_time_ms: number; num_windows: number; reference_samples: number; bin_count_warning?: boolean; effective_bins?: number; psi_sample_ratio_warning?: boolean; avg_window_samples?: number } }` [deps: [DriftResponse][14]]
 - **Error:** `400` invalid datetime format; `500` compute failure.

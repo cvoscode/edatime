@@ -1,23 +1,13 @@
 # ai/frontend/src/scatter/scatterPage.md
-> Main scatter analytics page entry: orchestrates chart creation, controls, view switching, WebGPU probing, and empty-state management.
+> Main scatter analytics page entry: composes scatter runtime, controls, view switching, request lifecycles, and chart rendering.
 
 ## State
-- `_gpuUnavailable: boolean | null` — cached WebGPU availability flag
-- `scatterEmptyStateController: ReturnType<typeof createEmptyStateController> | null`
-- `_scatterAbort: AbortController | null`
-- `_scatterDebounceTimer: ReturnType<typeof setTimeout> | null`
+- `_scatterDebounceTimer: ReturnType<typeof setTimeout> | null` — debounce timer for render coalescing
+- `scatterTask: ReturnType<typeof createRequestTask>` — abortable request task for scatter fetches [deps: [createRequestTask][1]]
 
 ## Functions
-- `handleErr(err: unknown): void` [deps: [showError][1]]
+- `handleErr(err: unknown): void` [deps: [showError][2]]
   - Logs error to console and displays it in the scatter error element.
-- `getScatterEmptyStateController(): ReturnType<typeof createEmptyStateController>` [deps: [createEmptyStateController][2]]
-  - Lazily creates and returns the scatter empty-state controller.
-- `syncScatterEmptyState(message?: string): void`
-  - Updates empty-state visibility, reason, and text based on GPU availability, axes selection, loading, and filter state.
-- `syncScatterFilterBadge(): void`
-  - Updates the active filter count badge from current scatter controls.
-- `isGPUAvailable(): Promise<boolean>` [deps: [requestGpuAdapter][3]]
-  - Probes WebGPU availability once and caches the result.
 - `setSidebarAnalyticsSelection(viewName: string): void`
   - Updates sidebar nav active state for scatter/scattermatrix views.
 - `syncScatterViewButtons(viewName: string): void`
@@ -30,19 +20,20 @@
   - Renders correlation suggestion chips in the scatter sidebar.
 - `refreshCorrelationsAndSuggestions(): Promise<void>` [deps: [fetchScatterCorrelations][6]]
   - Fetches correlation data and updates suggestion list.
-- `renderScatter(): Promise<void>` [deps: [fetchScatterPoints][7], [buildOption][8], [renderCurrentOption][9], [initSelectionZoom][10], [syncModeUI][11]]
-  - Fetches scatter points and renders the scatter chart.
+- `renderScatter(): Promise<void>` [deps: [scatterTask.run][1], [fetchScatterPoints][7], [buildOption][8], [renderCurrentOption][9], [initSelectionZoom][10], [syncModeUI][11]]
+  - Fetches scatter points and renders the scatter chart using the shared request task.
 - `onMatrixCellClick(x: string, y: string): Promise<void>` [deps: [selectMatrixPair][12]]
   - Handles matrix cell click to populate scatter axes.
-- `bindControls(): Promise<void>` [deps: [bindScatterControls][14]]
+- `bindControls(): Promise<void>` [deps: [bindScatterControls][13]]
   - Dynamically imports `controls.ts` and wires all scatter control DOM elements to state updates.
-- `initScatterPage(metadata: DatasetMetadata): Promise<void>` [deps: [createChart][13], [fetchScatterCorrelations][6], [buildOption][8], [renderCurrentOption][9], [initSelectionZoom][10], [syncModeUI][11], [renderScatterMatrixView][5], [bindControls][14]]
-  - Initializes scatter page, chart, controls, sidebar, and matrix view.
+- `renderScatterDebounced(): void`
+  - Coalesces scatter rerenders through a short debounce.
+- `initScatterPage(metadata: DatasetMetadata): Promise<void>` [deps: [createChart][14], [initScatterPageRuntime][15], [refreshCorrelationsAndSuggestions][16], [bindScatterControls][13]]
+  - Initializes scatter page state, runtime wiring, chart, controls, and matrix/sidebar flows.
 
 ---
-[1]: ./helpers.md#showError
-[2]: ../../ui/emptyState.md#createEmptyStateController
-[3]: ../../utils/platform.md#requestGpuAdapter
+[1]: ../pages/shared/requestTask.md#createRequestTask
+[2]: ./helpers.md#showError
 [4]: ./rendering.md#renderScatter
 [5]: ./matrix.md#renderScatterMatrixView
 [6]: ../../services/api/index.md#fetchScatterCorrelations
@@ -52,5 +43,7 @@
 [10]: ./rendering.md#initSelectionZoom
 [11]: ./rendering.md#syncModeUI
 [12]: ./matrix.md#selectMatrixPair
-[13]: ../../libs/chartgpu/dist/index.md#createChart
-[14]: ./controls.md#bindScatterControls
+[13]: ./controls.md#bindScatterControls
+[14]: ../../libs/chartgpu/dist/index.md#createChart
+[15]: ./runtime.md#initScatterPageRuntime
+[16]: ./correlationsPanel.md#refreshCorrelationsAndSuggestions

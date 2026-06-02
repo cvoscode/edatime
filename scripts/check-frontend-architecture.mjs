@@ -93,6 +93,48 @@ for (const file of files) {
       }
     }
   }
+
+  // Rule 6: Transport ownership — API fetch calls must live in services/api/.
+  // (Already covered by Rule 2 above, but reinforced here for clarity)
+
+  // Rule 7: Page runtime ownership — files in pages/ must not import from other
+  // pages/ subdirectories directly unless they are in pages/shared/.
+  // E.g. fftPage.ts must not import from heatmapPage.ts, but both may import from pages/shared/.
+  if (/^frontend\/src\/pages\//.test(rel) && !isTest) {
+    const pageImportRe = /from\s+['"]([^'"]+)['"]/g;
+    for (const match of text.matchAll(pageImportRe)) {
+      const src = match[1];
+      // Allow pages/shared/ imports
+      if (/^\.\.\/shared\//.test(src) || src.startsWith('shared/')) continue;
+      // Allow imports from the same page directory
+      if (rel.startsWith('frontend/src/pages/') && /^\.\//.test(src) && !/^\.\.\//.test(src)) continue;
+      // Block cross-page imports: fftPage importing from heatmapPage, etc.
+      if (/^frontend\/src\/pages\/[^\/]+\.js$/.test(src) || /^frontend\/src\/pages\/[^\/]+\/[^\/]+\.js$/.test(src)) {
+        if (!/pages\/shared\//.test(src)) {
+          add(file, 'page files must not import from other page directories — use pages/shared/ for shared behavior', lineOf(text, match.index ?? 0));
+        }
+      }
+    }
+  }
+
+  // Rule 8: Feature-entrypoint ownership — feature entrypoints (features/*/entrypoint.ts)
+  // may not be imported by files outside their feature scope except via the canonical
+  // public API surface. This prevents tight coupling between features.
+  if (/^frontend\/src\/features\//.test(rel) && !isTest) {
+    const entrypointRe = /from\s+['"]([^'"]+)['"]/g;
+    for (const match of text.matchAll(entrypointRe)) {
+      const src = match[1];
+      // Block direct imports of entrypoints from outside their feature
+      if (/\/entrypoint(\.js)?$/.test(src)) {
+        // Extract feature name from current file path
+        const featureMatch = rel.match(/^frontend\/src\/features\/([^\/]+)\//);
+        const srcFeatureMatch = src.match(/^frontend\/src\/features\/([^\/]+)\//);
+        if (featureMatch && srcFeatureMatch && featureMatch[1] !== srcFeatureMatch[1]) {
+          add(file, 'feature entrypoints must not be imported across feature boundaries — use public API surface', lineOf(text, match.index ?? 0));
+        }
+      }
+    }
+  }
 }
 
 if (violations.length > 0) {

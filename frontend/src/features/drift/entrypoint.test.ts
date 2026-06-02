@@ -9,7 +9,7 @@ vi.mock('../../drift/driftPage.js', () => ({
 describe('createDriftEntrypoint', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        initDriftPageMock.mockImplementation(() => {});
+        initDriftPageMock.mockImplementation(() => { });
     });
 
     it('returns an explicit init surface', () => {

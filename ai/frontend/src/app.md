@@ -5,6 +5,7 @@
 - `_appCleanups: Array<() => void>`
 - `runtime: ReturnType<typeof createAppRuntime>`
 - `timeseriesFeature: ReturnType<typeof createTimeseriesEntrypoint> | null`
+- `uploadFeature: ReturnType<typeof createUploadEntrypoint> | null`
 - `_timeseriesReady: boolean`
 - `_timeseriesReadyPromise: Promise<void> | null`
 - `_sessionPersistenceStarted: boolean`
@@ -48,13 +49,13 @@
 - `setComputeLoading(btnId: string, overlayId: string, loading: boolean, label?: string): void`
   - Syncs a compute button and loading overlay.
 - `ensureChartModules(): Promise<void>` [deps: [fetchMetadata][5], [fetchData][5]]
-  - Lazy-loads API and chart modules, then registers line and fallback chart types.
+  - Hydrates cached chart/data module handles via the shared chart bootstrap owner.
 - `fetchAndRenderAnalytics(): Promise<void>` [deps: [fetchAnomalyRegions][6]]
   - Refreshes analytics overlays for the current Timeseries view.
 - `storeFetchedMetadata(metadata: DatasetMetadata): void`
   - Stores dataset metadata and revision in shared state.
-- `initializeDatasetUi(metadata: DatasetMetadata): void` [deps: [createTimeseriesEntrypoint][7], [buildMetaBar][8]]
-  - Initializes dataset-driven Timeseries UI, profile UI, and viewport state after metadata loads.
+- `initializeDatasetUi(metadata: DatasetMetadata): void` [deps: [createTimeseriesEntrypoint][7], [createUploadEntrypoint][11], [buildMetaBar][8]]
+  - Initializes dataset-driven Timeseries, upload/profile UI, and viewport state after metadata loads.
 - `ensureDatasetReady(_pageName?: string): Promise<void>`
   - Fetches metadata once, derives default Timeseries selections, and initializes dataset UI.
 - `refreshDatasetAfterMutation(options?: { selectedColumn?: string }): Promise<void>`
@@ -73,3 +74,4 @@
 [8]: ./ui/metaBar.md#buildMetaBar
 [9]: ./app/shell.md#initAppShell
 [10]: ./app/pageModules.md#loadEntrypoints
+[11]: ./features/upload/entrypoint.md#createUploadEntrypoint

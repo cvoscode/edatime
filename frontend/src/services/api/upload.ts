@@ -34,6 +34,6 @@ export async function fetchDatabaseStatus(): Promise<unknown> {
 
 // ── Drift ──────────────────────────────────────────────────────────────────
 
-export async function fetchDriftStats<T>(payload: unknown): Promise<T> {
-    return postJson<T>('/api/drift/stats', payload, 'Drift stats');
+export async function fetchDriftStats<T>(payload: unknown, signal?: AbortSignal): Promise<T> {
+    return postJson<T>('/api/drift/stats', payload, 'Drift stats', signal);
 }

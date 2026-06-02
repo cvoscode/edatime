@@ -15,6 +15,7 @@ export interface ExportConfig {
  * @property page              - Unique page name matched against `edatime:page-change` detail.page.
  * @property emptyStateRootId  - DOM id of the empty-state container element.
  * @property statusElId        - Optional DOM id of the page's status text element.
+ * @property loadingElId       - Optional DOM id of the loading indicator element.
  * @property exportConfig      - Declarative export button configuration.
  * @property bindExportsOnInit - When true (default) bindExportButtons is called automatically
  *                               during the init phase. Set to false when the caller needs to
@@ -27,6 +28,7 @@ export interface AnalysisPageRuntimeOptions {
     page: string;
     emptyStateRootId: string;
     statusElId?: string;
+    loadingElId?: string;
     exportConfig?: ExportConfig;
     bindExportsOnInit?: boolean;
     init?: () => void | (() => void);
@@ -40,6 +42,7 @@ export function createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions) {
         page: options.page,
         emptyStateRootId: options.emptyStateRootId,
         statusElId: options.statusElId,
+        loadingElId: options.loadingElId,
         init: options.init,
         onVisible: options.onVisible,
         onEveryPageChange: options.onEveryPageChange,

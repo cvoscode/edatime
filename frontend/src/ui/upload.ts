@@ -1,6 +1,15 @@
 /**
  * Upload panel logic (file drop, partial load, preview).
+ *
+ * This module is the rendering surface: DOM manipulation and event binding.
+ * Workflow logic and state transitions live in features/upload/*.
  */
+
+// Re-export shared utilities and status setters from feature modules
+export { setUploadPreviewStatus } from '../features/upload/preview.js';
+export { setProfileMode } from '../features/upload/preview.js';
+export { applyPartialTimeRangeFromMetadata } from '../features/upload/partialLoadControls.js';
+export { formatUploadRowCountValue as formatUploadRowCount, loadedRowCountFromResponse } from '../features/upload/preview.js';
 
 import { appState } from '../store/appStateCompat.js';
 import { formatAnalysisTime, formatAnalysisNumber, formatCount, formatToDatetimeLocal, toFiniteNumberOrNull } from '../utils/format.js';
@@ -23,110 +32,28 @@ import {
 } from '../store/index.js';
 import type { DatasetMetadata } from '../types.js';
 import { toast } from '../utils/toast.js';
+import {
+    validateFileSize,
+    getPartialTimeRangeInputs,
+    clearPartialTimeRangeInputs,
+    setPartialTimeRangeInputs,
+    UI_MAX_UPLOAD_BYTES,
+} from '../features/upload/partialLoadControls.js';
+import {
+    setUploadPreviewStatus,
+    setProfileMode,
+    runFilePreview,
+    applyPreviewColumnSelection,
+    applyTimeRangeFromMetadata,
+} from '../features/upload/preview.js';
 
 interface UploadPanelDeps {
     buildColumnToggles: () => void;
     buildRangeControls: () => void;
 }
 
-const UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
-
 function notify(message: string, kind: 'success' | 'error' | 'warning' | 'info'): void {
     toast(message, kind, {});
-}
-
-interface PartialTimeRangeInputs {
-    startInput: HTMLInputElement;
-    endInput: HTMLInputElement;
-    hint: HTMLElement | null;
-}
-
-function getPartialTimeRangeInputs(): PartialTimeRangeInputs | null {
-    const startInput = document.getElementById('time-start-input') as HTMLInputElement | null;
-    const endInput = document.getElementById('time-end-input') as HTMLInputElement | null;
-    if (!startInput || !endInput) return null;
-
-    return {
-        startInput,
-        endInput,
-        hint: document.getElementById('time-range-hint'),
-    };
-}
-
-function clearPartialTimeRangeInputs(inputs: PartialTimeRangeInputs): void {
-    if (inputs.hint) inputs.hint.textContent = 'Time range not detected in this file.';
-    inputs.startInput.min = '';
-    inputs.startInput.max = '';
-    inputs.endInput.min = '';
-    inputs.endInput.max = '';
-}
-
-function setPartialTimeRangeInputs(
-    inputs: PartialTimeRangeInputs,
-    minLocal: string,
-    maxLocal: string,
-    overwriteInputs: boolean,
-): void {
-    inputs.startInput.min = minLocal;
-    inputs.startInput.max = maxLocal;
-    inputs.endInput.min = minLocal;
-    inputs.endInput.max = maxLocal;
-
-    if (overwriteInputs || !inputs.startInput.value) inputs.startInput.value = minLocal;
-    if (overwriteInputs || !inputs.endInput.value) inputs.endInput.value = maxLocal;
-}
-
-export function setUploadPreviewStatus(text: string, kind = ''): void {
-    const el = document.getElementById('upload-preview-status');
-    if (!el) return;
-    el.textContent = text;
-    el.className = `upload-preview-status ${kind}`.trim();
-}
-
-export function formatUploadRowCount(rowCount: number): string {
-    return rowCount >= 1_000_000
-        ? (rowCount / 1_000_000).toFixed(1) + 'M'
-        : rowCount >= 1_000 ? (rowCount / 1_000).toFixed(0) + 'K' : String(rowCount);
-}
-
-export function loadedRowCountFromResponse(response: unknown): number {
-    if (!response || typeof response !== 'object') return 0;
-    const record = response as Record<string, unknown>;
-    const count = Number(record.rows ?? record.rows_loaded);
-    return Number.isFinite(count) && count >= 0 ? count : 0;
-}
-
-/** Update the profile-mode badge to reflect whether the grid shows the
- *  current loaded dataset or a pending upload preview. */
-export function setProfileMode(mode: 'dataset' | 'preview'): void {
-    const badge = document.getElementById('profile-mode-badge');
-    if (!badge) return;
-    badge.setAttribute('data-mode', mode);
-    badge.textContent = mode === 'preview' ? 'Upload preview' : 'Current dataset';
-}
-
-export function applyPartialTimeRangeFromMetadata(
-    metadata: DatasetMetadata | null,
-    overwriteInputs = true,
-): void {
-    const inputs = getPartialTimeRangeInputs();
-    if (!inputs) return;
-
-    const minMs = Number(metadata?.time_range?.min);
-    const maxMs = Number(metadata?.time_range?.max);
-    if (!Number.isFinite(minMs) || !Number.isFinite(maxMs)) {
-        clearPartialTimeRangeInputs(inputs);
-        return;
-    }
-
-    const minLocal = formatToDatetimeLocal(minMs);
-    const maxLocal = formatToDatetimeLocal(maxMs);
-
-    setPartialTimeRangeInputs(inputs, minLocal, maxLocal, overwriteInputs);
-
-    if (inputs.hint) {
-        inputs.hint.textContent = `Detected: ${formatAnalysisTime(minMs)} → ${formatAnalysisTime(maxMs)}`;
-    }
 }
 
 export function initUploadPanel(
@@ -166,120 +93,34 @@ export function initUploadPanel(
     }
 
     let selectedFile: File | null = null;
-    let previewController: AbortController | null = null;
-    let dbStatusLoaded = false;
 
-    function validateSelectedFile(file: File | null): string | null {
-        if (!file) return 'Please select a file first.';
-        const name = String(file.name || '').toLowerCase();
-        if (!(name.endsWith('.csv') || name.endsWith('.parquet'))) {
-            return 'Only CSV and Parquet files are supported.';
-        }
-        if (Number(file.size) > UI_MAX_UPLOAD_BYTES) {
-            const maxMb = Math.round(UI_MAX_UPLOAD_BYTES / (1024 * 1024));
-            return `File exceeds ${maxMb} MB upload limit.`;
-        }
-        return null;
+    function setStatus(msg: string, cls = '') {
+        statusEl!.textContent = msg;
+        statusEl!.className = 'upload-status ' + (cls || '');
     }
 
-    function applyPreviewColumnSelection(metadata: DatasetMetadata) {
-        const columns = Array.isArray(metadata?.columns) ? metadata.columns : [];
-        const metadataTimeCol = String(metadata?.time_column || '').trim() || null;
-        const detectedTimeCol = columns.find((col) => /date|time|ts|timestamp/i.test(String(col?.name || '')))?.name || null;
-
-        setPreviewSelectedColumns(columns
-            .map((col) => String(col?.name || '').trim())
-            .filter(Boolean));
-
-        const timeColumnExists = appState.previewTimeColumn && columns.some((col) => String(col?.name || '').trim() === appState.previewTimeColumn);
-        const calledTimeColumn = metadataTimeCol || detectedTimeCol || (timeColumnExists ? appState.previewTimeColumn : null);
-        setPreviewTimeColumn(calledTimeColumn);
-
-        const timeColumnSelect = document.getElementById('time-column-select') as HTMLSelectElement | null;
-        if (timeColumnSelect) {
-            timeColumnSelect.innerHTML = '<option value="">Auto-detect</option>';
-
-            for (const col of columns) {
-                const name = String(col?.name || '').trim();
-                if (!name) continue;
-                const opt = document.createElement('option');
-                opt.value = name;
-                opt.textContent = `${name} (${col?.dtype || 'unknown'})`;
-                timeColumnSelect.appendChild(opt);
-            }
-
-            if (calledTimeColumn) {
-                timeColumnSelect.value = calledTimeColumn;
-            } else {
-                timeColumnSelect.value = '';
-            }
-
-            timeColumnSelect.onchange = () => {
-                setPreviewTimeColumn(timeColumnSelect.value || null);
-                if (selectedFile) runFilePreview(selectedFile);
-            };
-        }
+    function formatUploadRowCountLocal(rowCount: number): string {
+        return rowCount >= 1_000_000
+            ? (rowCount / 1_000_000).toFixed(1) + 'M'
+            : rowCount >= 1_000 ? (rowCount / 1_000).toFixed(0) + 'K' : String(rowCount);
     }
 
-    function setSelectionMode(mode: 'all' | 'none') {
-        const columns = Array.isArray(appState.columnProfiles)
-            ? appState.columnProfiles.map((profile) => profile.name)
-            : [];
-        const next = new Set<string>();
-        if (appState.previewTimeColumn) next.add(appState.previewTimeColumn);
-        if (mode === 'all') {
-            for (const name of columns) next.add(name);
-        }
-        setPreviewSelectedColumns(Array.from(next));
-        renderColumnProfilesGrid(false);
-    }
-
-    async function runFilePreview(file: File) {
-        if (!file) {
-            setUploadPreviewStatus('Select a file to preview columns');
-            return;
-        }
-        if (previewController) previewController.abort();
-        previewController = new AbortController();
-        setUploadPreviewStatus('Profiling file…', 'loading');
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
-
-            const timeColumn = String(appState.previewTimeColumn || '').trim();
-            if (timeColumn) formData.append('time_column', timeColumn);
-
-            const res = await previewUpload(formData, previewController.signal);
-            if (!res.ok) {
-                const txt = await res.text().catch(() => 'Preview failed');
-                throw new Error(txt || 'Preview failed');
+    function animateProgress(bar: HTMLElement): () => void {
+        let w = 0;
+        if (progressWrap) progressWrap.setAttribute('aria-valuenow', '0');
+        const t = setInterval(() => {
+            w = Math.min(w + Math.random() * 8, 85);
+            bar.style.width = w + '%';
+            if (progressWrap) progressWrap.setAttribute('aria-valuenow', String(Math.round(w)));
+            if (w >= 85) clearInterval(t);
+        }, 120);
+        return () => {
+            clearInterval(t);
+            if (progressWrap) {
+                const current = Number(progressWrap.getAttribute('aria-valuenow') || '0');
+                progressWrap.setAttribute('aria-valuenow', String(Math.max(current, 100)));
             }
-            const result = await res.json();
-            const previewMetadata = result?.metadata as DatasetMetadata;
-            if (!previewMetadata || !Array.isArray(previewMetadata.columns)) {
-                throw new Error('Preview response missing metadata');
-            }
-            setMetadata(previewMetadata);
-            hydrateColumnProfiles(previewMetadata);
-            applyPreviewColumnSelection(previewMetadata);
-            renderColumnProfilesGrid(true);
-            applyPartialTimeRangeFromMetadata(previewMetadata, true);
-            const previewRows = Number(previewMetadata.total_rows || (result as any)?.preview_rows || 0);
-            if (!appState.previewTimeColumn && !previewMetadata.time_range) {
-                setUploadPreviewStatus('No time column detected in preview. Please select one from the dropdown before upload.', 'warning');
-            } else {
-                setUploadPreviewStatus(`Preview ready (${formatCount(previewRows)} rows)`, 'success');
-            }
-            setProfileMode('preview');
-        } catch (e: any) {
-            if (e?.name === 'AbortError') return;
-            if (String(e?.message || '').includes('Specified time column not found')) {
-                setPreviewTimeColumn(null);
-            }
-            setUploadPreviewStatus(`Preview failed: ${e.message}`, 'error');
-            notify(`Upload preview failed: ${e.message}`, 'error');
-            applyPartialTimeRangeFromMetadata(null, false);
-        }
+        };
     }
 
     // Panel open/close
@@ -291,6 +132,14 @@ export function initUploadPanel(
         });
     } else {
         panel.classList.add('open');
+    }
+
+    async function runPreviewWithCurrentFile(file: File) {
+        await runFilePreview(file, {
+            hydrateColumnProfiles,
+            renderColumnProfilesGrid,
+            onTimeColumnChanged: runPreviewWithCurrentFile,
+        });
     }
 
     // Browse / choose
@@ -306,7 +155,7 @@ export function initUploadPanel(
     browseBtn.addEventListener('click', () => fileInput!.click());
     fileInput.addEventListener('change', () => {
         selectedFile = fileInput!.files?.[0] || null;
-        const invalidFileMsg = validateSelectedFile(selectedFile);
+        const invalidFileMsg = validateFileSize(selectedFile);
         if (invalidFileMsg) {
             selectedFile = null;
             fileInput!.value = '';
@@ -318,7 +167,7 @@ export function initUploadPanel(
         }
         fileDisplay!.textContent = selectedFile ? selectedFile.name : '';
         setPreviewTimeColumn(null);
-        if (selectedFile) runFilePreview(selectedFile);
+        if (selectedFile) void runPreviewWithCurrentFile(selectedFile);
     });
 
     // Drag and drop
@@ -328,7 +177,7 @@ export function initUploadPanel(
         e.preventDefault();
         dropZone!.classList.remove('dragover');
         selectedFile = e.dataTransfer?.files[0] || null;
-        const invalidFileMsg = validateSelectedFile(selectedFile);
+        const invalidFileMsg = validateFileSize(selectedFile);
         if (invalidFileMsg) {
             selectedFile = null;
             fileDisplay!.textContent = '';
@@ -339,7 +188,7 @@ export function initUploadPanel(
         }
         fileDisplay!.textContent = selectedFile ? selectedFile.name : '';
         setPreviewTimeColumn(null);
-        if (selectedFile) runFilePreview(selectedFile);
+        if (selectedFile) void runPreviewWithCurrentFile(selectedFile);
     });
 
     // Partial load toggle
@@ -352,29 +201,42 @@ export function initUploadPanel(
     nRowsRange.addEventListener('input', () => {
         const v = parseInt(nRowsRange!.value, 10);
         nRowsInput!.value = String(v);
-        nRowsDisp!.textContent = formatUploadRowCount(v);
+        nRowsDisp!.textContent = formatUploadRowCountLocal(v);
     });
     nRowsInput.addEventListener('input', () => {
         const v = parseInt(nRowsInput!.value, 10);
         if (!isNaN(v)) {
             nRowsRange!.value = String(Math.min(v, parseInt(nRowsRange!.max, 10)));
-            nRowsDisp!.textContent = formatUploadRowCount(v);
+            nRowsDisp!.textContent = formatUploadRowCountLocal(v);
         }
     });
 
     const defaultRows = parseInt(nRowsRange.value, 10);
     if (!isNaN(defaultRows) && defaultRows > 0) {
         nRowsInput.value = String(defaultRows);
-        nRowsDisp.textContent = formatUploadRowCount(defaultRows);
+        nRowsDisp.textContent = formatUploadRowCountLocal(defaultRows);
     }
 
-    applyPartialTimeRangeFromMetadata(appState.metadata, false);
+    applyTimeRangeFromMetadata(appState.metadata, false);
 
     selectAllBtn?.addEventListener('click', () => setSelectionMode('all'));
     selectNoneBtn?.addEventListener('click', () => setSelectionMode('none'));
     selectAllCheckbox?.addEventListener('change', () => {
         setSelectionMode(selectAllCheckbox!.checked ? 'all' : 'none');
     });
+
+    function setSelectionMode(mode: 'all' | 'none') {
+        const columns = Array.isArray(appState.columnProfiles)
+            ? appState.columnProfiles.map((profile) => profile.name)
+            : [];
+        const next = new Set<string>();
+        if (appState.previewTimeColumn) next.add(appState.previewTimeColumn);
+        if (mode === 'all') {
+            for (const name of columns) next.add(name);
+        }
+        setPreviewSelectedColumns(Array.from(next));
+        renderColumnProfilesGrid(false);
+    }
 
     // Upload submit
     uploadBtn.addEventListener('click', async () => {
@@ -384,7 +246,7 @@ export function initUploadPanel(
             return;
         }
 
-        const invalidFileMsg = validateSelectedFile(selectedFile);
+        const invalidFileMsg = validateFileSize(selectedFile);
         if (invalidFileMsg) {
             setStatus(invalidFileMsg, 'error');
             notify(invalidFileMsg, 'error');
@@ -480,7 +342,7 @@ export function initUploadPanel(
                     setProfileMode('dataset');
                     // Re-hydrate and render the profile grid with the new dataset metadata
                     hydrateColumnProfiles(freshMetadata);
-                    applyPartialTimeRangeFromMetadata(freshMetadata, false);
+                    applyTimeRangeFromMetadata(freshMetadata, false);
                     renderColumnProfilesGrid(true);
                     // Update header meta stats and UI controls
                     buildMetaBar(freshMetadata);
@@ -491,38 +353,15 @@ export function initUploadPanel(
                     setTimeout(() => window.location.reload(), 1200);
                 }
             }
-        } catch (e: any) {
-            setStatus('Error: ' + e.message, 'error');
-            notify(`Upload failed: ${e.message}`, 'error');
+        } catch (e: unknown) {
+            setStatus('Error: ' + (e instanceof Error ? e.message : String(e)), 'error');
+            notify(`Upload failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
         } finally {
             stopProgress();
             uploadBtn!.disabled = false;
             setTimeout(() => { progressWrap!.style.display = 'none'; progressBar!.style.width = '0'; }, 1500);
         }
     });
-
-    function setStatus(msg: string, cls = '') {
-        statusEl!.textContent = msg;
-        statusEl!.className = 'upload-status ' + (cls || '');
-    }
-
-    function animateProgress(bar: HTMLElement): () => void {
-        let w = 0;
-        if (progressWrap) progressWrap.setAttribute('aria-valuenow', '0');
-        const t = setInterval(() => {
-            w = Math.min(w + Math.random() * 8, 85);
-            bar.style.width = w + '%';
-            if (progressWrap) progressWrap.setAttribute('aria-valuenow', String(Math.round(w)));
-            if (w >= 85) clearInterval(t);
-        }, 120);
-        return () => {
-            clearInterval(t);
-            if (progressWrap) {
-                const current = Number(progressWrap.getAttribute('aria-valuenow') || '0');
-                progressWrap.setAttribute('aria-valuenow', String(Math.max(current, 100)));
-            }
-        };
-    }
 
     /* ── Upload source tabs (File | Database) ───────────── */
     const fileTabBtn = document.getElementById('upload-source-file-btn');
@@ -570,7 +409,11 @@ export function initUploadPanel(
         try {
             const data = await fetchDatabaseTables() as { tables?: Array<{ schema: string; name: string; kind: string }> };
             const tables: Array<{ schema: string; name: string; kind: string }> = data.tables ?? [];
-            dbTableSelect.innerHTML = '<option value="">— select table —</option>';
+            // Use DOM methods instead of innerHTML to avoid XSS
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = '— select table —';
+            dbTableSelect.replaceChildren(placeholder);
             for (const t of tables) {
                 const opt = document.createElement('option');
                 opt.value = t.name;
@@ -616,9 +459,9 @@ export function initUploadPanel(
                     if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
                     await refreshDbTables();
                 }
-            } catch (e: any) {
-                if (dbStatus) { dbStatus.textContent = 'Error: ' + e.message; dbStatus.className = 'upload-status error'; }
-                notify(`Database connection failed: ${e.message}`, 'error');
+            } catch (e: unknown) {
+                if (dbStatus) { dbStatus.textContent = 'Error: ' + (e instanceof Error ? e.message : String(e)); dbStatus.className = 'upload-status error'; }
+                notify(`Database connection failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
             } finally {
                 dbConnectBtn.disabled = false;
             }
@@ -650,7 +493,11 @@ export function initUploadPanel(
                     limit: 1_000_000,
                 }) as { message?: string; error?: string };
                 if (result) {
-                    const loadedRows = loadedRowCountFromResponse(result);
+                    const loadedRows = (() => {
+                        if (!result || typeof result !== 'object') return 0;
+                        const count = Number((result as Record<string, unknown>).rows ?? (result as Record<string, unknown>).rows_loaded);
+                        return Number.isFinite(count) && count >= 0 ? count : 0;
+                    })();
                     if (dbStatus) {
                         dbStatus.textContent = `Loaded ${loadedRows.toLocaleString()} rows from ${table}.`;
                         dbStatus.className = 'upload-status success';
@@ -659,9 +506,9 @@ export function initUploadPanel(
                     // Trigger a full metadata reload so the chart page refreshes.
                     window.dispatchEvent(new CustomEvent('edatime:dataset-changed', { detail: { source: 'database', table } }));
                 }
-            } catch (e: any) {
-                if (dbStatus) { dbStatus.textContent = 'Error: ' + e.message; dbStatus.className = 'upload-status error'; }
-                notify(`Database load failed: ${e.message}`, 'error');
+            } catch (e: unknown) {
+                if (dbStatus) { dbStatus.textContent = 'Error: ' + (e instanceof Error ? e.message : String(e)); dbStatus.className = 'upload-status error'; }
+                notify(`Database load failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
             } finally {
                 dbLoadBtn.disabled = false;
             }
@@ -679,10 +526,16 @@ export function initUploadPanel(
             if (dbLoadBtn) dbLoadBtn.disabled = true;
             if (dbDisconnectBtn) dbDisconnectBtn.hidden = true;
             if (dbTableSelect) {
-                dbTableSelect.innerHTML = '<option value="">— connect first —</option>';
+                dbTableSelect.replaceChildren();
+                const placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = '— connect first —';
+                dbTableSelect.appendChild(placeholder);
             }
         });
     }
+
+    let dbStatusLoaded = false;
 
     async function syncDatabaseStatus(): Promise<void> {
         if (dbStatusLoaded) return;

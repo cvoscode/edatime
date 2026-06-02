@@ -7,84 +7,140 @@ The editable frontend source lives under `frontend/src/`.
 The browser loads:
 
 - `frontend/index.html`
-- bundled JavaScript from `frontend/js/`
+- bundled JavaScript from the frontend build step
 - static CSS from `frontend/css/`
 
-The Node build step transpiles and bundles TypeScript from `frontend/src/` into the `frontend/js/` output consumed by the running app.
+The Node/Vite build compiles TypeScript from `frontend/src/` into the browser bundle consumed by the app shell.
+
+## Current Architecture
+
+The frontend now follows a feature-first, page-runtime-oriented structure:
+
+- `frontend/src/app.ts`
+  - top-level composition root for startup order, Timeseries wiring, dataset bootstrap, and global runtime hooks
+- `frontend/src/app/*`
+  - shell bootstrap, page lifecycle, page registry, navigation, chart bootstrap, shortcuts, and WebGPU guard rails
+- `frontend/src/pages/*`
+  - page controllers for FFT, heatmap, spectrogram, and Timeseries
+- `frontend/src/pages/shared/*`
+  - shared runtime helpers such as `analysisPageRuntime.ts`, `pageRuntime.ts`, and `requestTask.ts`
+- `frontend/src/features/*`
+  - feature entrypoints and workflow owners for Timeseries, upload, scatter, drift, causal, FFT, heatmap, and spectrogram
+- `frontend/src/scatter/*`, `frontend/src/drift/*`, `frontend/src/causal/*`
+  - page-local subsystems for the larger analytics surfaces
+- `frontend/src/services/api/*`
+  - the only transport boundary; owns fetch calls, response handling, and payload parsing
+- `frontend/src/ui/*`
+  - rendering surfaces, shared controls, empty-state helpers, export helpers, and composites
 
 ## Boot Sequence
 
-`frontend/src/app.ts` is the orchestrator.
+`frontend/src/app.ts` remains the main entrypoint, but major boot responsibilities are now split across focused modules:
 
-Its responsibilities include:
-
-- initializing page navigation
-- wiring the theme toggle and keyboard shortcuts
-- initializing upload and profile UI
-- loading metadata
-- lazy-loading chart, scatter, FFT, heatmap, spectrogram, and causal modules
-- building shared state used across pages
+- `app/shell.ts` and `app/shell/*`
+  - theme, accessibility normalization, home navigation, sample datasets
+- `app/bootstrap/chartBootstrap.ts`
+  - lazy chart module loading and chart-type registration
+- `app/bootstrap/globalShortcuts.ts`
+  - keyboard shortcuts and command wiring
+- `app/pageModules.ts`
+  - lazy page entrypoint loading
+- `app/pageRegistry.ts`
+  - metadata/page readiness tracking
 
 ## Page Model
 
-The app uses a single-page shell with hidden and visible page sections.
+The app still uses a single-page shell with hidden and visible page sections.
 
-The page switcher lives in `frontend/src/ui/toolbar.ts`.
+Runtime ownership is now more consistent:
+
+- `pages/shared/pageRuntime.ts`
+  - generic page lifecycle, status, loading, and empty-state seams
+- `pages/shared/analysisPageRuntime.ts`
+  - analysis-page wrapper that composes page runtime plus export binding
+- `pages/shared/requestTask.ts`
+  - abort-before-new async request helper used by page controllers
 
 Important current behavior:
 
 - the app opens on the Upload page by default
-- ingest does not auto-navigate to another page after reload
-- scatter, matrix, and distributions share the same underlying scatter page state
+- ingest does not auto-navigate after reload
+- scatter and scatter-matrix remain two views over one scatter state graph
 
 ## Key Frontend Modules
 
-### `ui/upload.ts`
+### `features/timeseries/*`
 
-Handles:
+Owns Timeseries control wiring:
 
-- drag-and-drop file input
-- preview profiling
-- partial load options
-- database connect and load actions
+- chip rendering and rebuild hooks
+- range/filter actions
+- search inputs
+- series collapse and context-menu behavior
 
-### `ui/profile.ts`
+### `pages/timeseriesPage.ts`
 
-Handles the virtualized column profile grid, sorting, selection counts, and filtering.
+Owns Timeseries page orchestration:
 
-### `ui/columns.ts`
+- fetch/render flow
+- empty-state policy
+- viewport updates
+- analytics follow-up after data renders
 
-Handles:
+### `features/upload/*` and `ui/upload.ts`
 
-- timeseries column chips
-- color pickers
-- adaptive target selection
-- numeric filter chip rendering
+Upload is now split between:
+
+- `features/upload/*`
+  - file-source logic, preview lifecycle, database source logic, partial-load helpers, upload feature entrypoint
+- `ui/upload.ts`
+  - DOM rendering surface and event binding facade
+
+### `scatter/*`
+
+Scatter is split into focused modules:
+
+- `scatterPage.ts`
+  - main orchestration and chart lifecycle
+- `runtime.ts`
+  - page runtime, empty state, GPU checks, filter badge
+- `correlationsPanel.ts`
+  - suggestion rendering and correlation refresh
+- `controls.ts`
+  - control event wiring
+- `rendering.ts`
+  - chart option building, overlays, exports, colorbar, and selection UX
+- `matrix.ts`
+  - matrix-view rendering and pair selection
+- `state.ts`
+  - scatter-specific state helpers
+
+### `drift/*`
+
+Drift is now split between:
+
+- `driftPage.ts`
+  - page orchestration and ECharts rendering
+- `runtime.ts`
+  - page runtime, export helpers, and ECharts module caching
+- `viewModels.ts`
+  - derived formatting, status summaries, colors, and tooltip builders
+- `controls.ts`
+  - drift control event wiring
 
 ### `ui/toolbar.ts`
 
-Handles:
+Owns shared page-level controls:
 
 - page switching
-- zoom controls
-- chart exports
+- zoom and export controls
+- analysis control sync
 - drawing tools
-- page-level analysis controls
-
-### `scatter/`
-
-This folder contains the scatter analytics subsystem:
-
-- `scatterPage.ts`: orchestration and control binding
-- `rendering.ts`: plot rendering, exports, colorbar, and overlays
-- `matrix.ts`: scatter matrix view and FFT shortcuts
-- `distributions.ts`: univariate cards and statistics
-- `state.ts`: scatter-specific shared state
 
 ## Frontend Extension Guidelines
 
-- If a new feature belongs to a single page, add it to that page module instead of app-wide state first.
-- Reuse the shared toolbar and chip patterns where possible.
-- Avoid unnecessary copies of typed-array data.
-- Keep linkages between Timeseries and Scatter explicit through events or shared query builders.
-- When you change static assets or bundled entry points, rebuild the frontend bundle.
+- Keep transport logic in `services/api/*`.
+- Add page-specific orchestration to the relevant page controller before considering app-wide state.
+- Prefer `pages/shared/*` helpers when multiple pages share lifecycle, loading, or export behavior.
+- Prefer `features/*` for control/workflow wiring instead of pushing DOM policy into `app.ts`.
+- Reuse shared chip, empty-state, and export helpers where behavior already matches.

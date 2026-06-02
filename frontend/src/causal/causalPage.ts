@@ -34,7 +34,7 @@ let causalRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let causalPageCleanup: (() => void) | null = null;
 
 /** Module-level wrapper to sync causal empty state from outside initCausalPage. */
-let _syncCausalEmptyState: (count: number) => void = (_count: number) => {};
+let _syncCausalEmptyState: (count: number) => void = (_count: number) => { };
 
 function initInfoIcons(): void {
     document.querySelectorAll<HTMLElement>('.causal-info-icon').forEach((icon) => {

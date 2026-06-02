@@ -23,7 +23,8 @@ import {
     sanitizeSelectedColumns,
     applyColumnRanges,
 } from './services/timeseries/filtering.js';
-import { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata, initUploadPanel } from './ui/upload.js';
+import { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata } from './ui/upload.js';
+import { createUploadEntrypoint } from './features/upload/entrypoint.js';
 import { hydrateColumnProfiles, renderColumnProfilesGrid, initColumnProfilesGrid } from './ui/profile.js';
 import { installWindowsWebGpuRequestAdapterWorkaround } from './utils/platform.js';
 import { getAnalyticsChipColor, getDefaultTimeseriesColumns, getNumericColumns } from './pages/analyticsPageUtils.js';
@@ -40,6 +41,7 @@ import { restoreSessionAfterChartReady, startSessionPersistence } from './bootst
 import { checkWebGPU, showFatalError } from './app/webgpuGuard.js';
 import { initAdaptiveFilterGesture, buildAdaptiveFilterFromPoints } from './app/adaptiveGesture.js';
 import { loadEntrypoints } from './app/pageModules.js';
+import { ensureChartModules as ensureChartBootstrapModules } from './app/bootstrap/chartBootstrap.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
 import { createTimeseriesEntrypoint } from './features/timeseries/entrypoint.js';
@@ -50,7 +52,7 @@ import {
     initAnalysisControls, bindAnalysisChartEvents,
     initChartPageFilterGesture, initPages,
 } from './ui/toolbar.js';
-import { registerChartType, getChartType } from './charts/registry.js';
+import { getChartType } from './charts/registry.js';
 import { FallbackChart } from './charts/fallback.js';
 import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, ChartInstance, AdaptiveLineFilter } from './types.js';
 
@@ -76,6 +78,7 @@ import {
 const _appCleanups: Array<() => void> = [];
 const runtime = createAppRuntime();
 let timeseriesFeature: ReturnType<typeof createTimeseriesEntrypoint> | null = null;
+let uploadFeature: ReturnType<typeof createUploadEntrypoint> | null = null;
 
 const rebuildTimeseriesColumns = () => {
     timeseriesFeature?.rebuildColumns();
@@ -294,33 +297,12 @@ let DataChartCtor: (new (containerId: string, onZoomCb: ((start: number, end: nu
 
 async function ensureChartModules(): Promise<void> {
     if (fetchMetadata && fetchData && DataChartCtor) return;
-    const [dataClient, chartModule] = await Promise.all([
-        import('./services/api/index.js'),
-        import('./chart/DataChart.js'),
-    ]);
-    fetchMetadata = dataClient.fetchMetadata;
-    fetchData = dataClient.fetchData;
-    fetchAnomalies = dataClient.fetchAnomalies;
-    postTransform = dataClient.postTransform;
-    DataChartCtor = chartModule.DataChart;
-
-    registerChartType('line', {
-        label: 'Line',
-        create: (containerId: string, callbacks: Record<string, unknown>) => {
-            const ctor = DataChartCtor;
-            if (!ctor) throw new Error('DataChart module not loaded');
-            return new ctor(
-                containerId,
-                (callbacks.onZoom as ((start: number, end: number, sourceKind: string) => void) | null) ?? null,
-                (callbacks.onYRange as ((min: number, max: number, sourceKind: string) => void) | null) ?? null,
-                (callbacks.onZoomOut as (() => void) | null) ?? null,
-            );
-        },
-    });
-    registerChartType('fallback', {
-        label: 'Fallback (Canvas 2D)',
-        create: (containerId: string) => new FallbackChart(containerId),
-    });
+    const modules = await ensureChartBootstrapModules();
+    fetchMetadata = modules.fetchMetadata;
+    fetchData = modules.fetchData;
+    fetchAnomalies = modules.fetchAnomalies;
+    postTransform = modules.postTransform;
+    DataChartCtor = modules.DataChartCtor;
 }
 
 /* ── Analytics overlay fetch ──────────────────────────── */
@@ -436,6 +418,15 @@ async function init(): Promise<void> {
         emitChartRangeChange,
         registerCleanup: (cleanup) => _appCleanups.push(cleanup),
     });
+
+    uploadFeature = createUploadEntrypoint({
+        buildColumnToggles: rebuildTimeseriesColumns,
+        buildRangeControls: rebuildTimeseriesRanges,
+    });
+    uploadFeature.init(
+        hydrateColumnProfiles,
+        renderColumnProfilesGrid,
+    );
 
     initAppShell({
         ensurePageModuleLoaded,
