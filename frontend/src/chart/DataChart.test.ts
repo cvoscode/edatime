@@ -11,6 +11,7 @@
  *          fitYToData, resetYRange, zoomY, destroy, supportsZoomControls.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { appState } from '../store/appStateCompat.js';
 import { DataChart } from './DataChart';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -386,5 +387,49 @@ describe('supportsZoomControls', () => {
         const chart = makeChart();
         (chart as any).chartInstance = { resize: vi.fn() };
         expect(chart.supportsZoomControls()).toBe(true);
+    });
+});
+
+// ── updateDataMulti ─────────────────────────────────────────────────────────
+
+describe('updateDataMulti', () => {
+    beforeEach(() => {
+        document.body.innerHTML = '';
+        appState.numericCols = ['temperature'];
+        appState.selectedColorColumn = null;
+        appState.seriesColors = {};
+    });
+
+    afterEach(() => {
+        appState.numericCols = [];
+        appState.selectedColorColumn = null;
+        appState.seriesColors = {};
+    });
+
+    it('disables ChartGPU animation for timeseries option updates', () => {
+        const chart = makeChart();
+        const setOption = vi.fn();
+        (chart as any).chartInstance = {
+            options: { series: [] },
+            setOption,
+            setZoomRange: vi.fn(),
+        };
+
+        chart.updateDataMulti({
+            ts: new Float64Array([1_000, 2_000]),
+            values: { temperature: new Float64Array([10, 20]) },
+            series: {
+                temperature: {
+                    x: new Float64Array([1_000, 2_000]),
+                    y: new Float64Array([10, 20]),
+                },
+            },
+            colorByColumn: {},
+        } as any, ['temperature']);
+
+        expect(setOption).toHaveBeenCalledOnce();
+        expect(setOption.mock.calls[0][0]).toEqual(expect.objectContaining({
+            animation: false,
+        }));
     });
 });

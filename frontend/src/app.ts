@@ -31,7 +31,10 @@ import { createTimeseriesPageController } from './pages/timeseriesPage.js';
 import { initScatterPage } from './scatter/scatterPage.js';
 import { fetchAnomalyRegions, computeAndSetRollingBands, cancelAnalyticsFetch } from './bootstrap/analyticsOverlay.js';
 import { initAppShell } from './app/shell.js';
+import { showPage } from './app/navigation/showPage.js';
+import { initGlobalShortcuts } from './app/bootstrap/globalShortcuts.js';
 import { createAppRuntime } from './app/runtime.js';
+import { APP_COMMAND_DEFINITIONS } from './bootstrap/commands.js';
 import { ensurePageModuleLoaded, isMetadataReady, markMetadataReady, clearLoadedPageModules } from './app/pageRegistry.js';
 import { restoreSessionAfterChartReady, startSessionPersistence } from './bootstrap/sessionBootstrap.js';
 import { checkWebGPU, showFatalError } from './app/webgpuGuard.js';
@@ -230,10 +233,6 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 function currentPageName(): string {
     return (document.querySelector('.page[data-page-name]:not([hidden])') as HTMLElement)?.dataset?.pageName || 'upload';
-}
-
-function showPage(pageName: string): void {
-    (document.querySelector(`.sidebar .nav-item[data-page="${pageName}"]`) as HTMLElement)?.click?.();
 }
 
 function initKeyboardShortcuts(): void {
@@ -484,7 +483,15 @@ async function init(): Promise<void> {
     (window).__edatime = (window).__edatime || {};
     (window).__edatime.ensureDatasetReady = ensureDatasetReady;
 
-    initKeyboardShortcuts();
+    initGlobalShortcuts({
+        showPage,
+        zoomOut: () => zoomOut(fetchAndRender),
+        resetZoom: () => resetZoom(fetchAndRender),
+        registerCleanup: runtime.registerCleanup,
+        chartExportPng: () => appState.chart?.exportPNG?.(),
+        exportFilteredCsv: () => (window as any).__edatime?.exportChartFilteredData?.('csv'),
+        exportFilteredJson: () => (window as any).__edatime?.exportChartFilteredData?.('json'),
+    }, APP_COMMAND_DEFINITIONS);
 
     try {
         const initialPage = getHashPage();

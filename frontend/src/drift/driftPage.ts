@@ -9,6 +9,23 @@ import { DEBUG } from '../debug.js';
 import { fetchDriftStats } from '../services/api/index.js';
 import { exportEChartsPNG } from '../utils/chartExport.js';
 import { bindDriftControls, getSelectedColumns } from './controls.js';
+import { createAnalysisPageRuntime } from '../pages/shared/analysisPageRuntime.js';
+
+/** Module-level runtime handle for the drift page lifecycle. */
+let driftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
+let driftPageCleanup: (() => void) | null = null;
+
+/**
+ * Module-level empty-state sync for drift.
+ * Wraps the inner syncEmptyState so the runtime can call it without needing
+ * a closure reference into initDriftPage.
+ */
+let _syncDriftEmptyState: (show: boolean, message?: string) => void = () => {};
+
+/** Module-level wrapper to sync drift empty state from outside initDriftPage. */
+function syncDriftEmptyState(show: boolean, message?: string): void {
+    _syncDriftEmptyState(show, message);
+}
 
 // ── Module-level ECharts cache (issue #3: avoid re-importing on every page visit) ──
 let _echartsModule: typeof import('echarts') | null = null;
@@ -1045,4 +1062,30 @@ export async function initDriftPage(metadata: any): Promise<void> {
     }
 
     scheduleDriftChartRefresh();
+
+    // ── Shared analysis page runtime ───────────────────────────────────────────
+    // Capture the inner syncEmptyState for use by the module-level wrapper.
+    _syncDriftEmptyState = syncEmptyState;
+
+    driftRuntime = createAnalysisPageRuntime({
+        page: 'drift',
+        emptyStateRootId: 'drift-empty',
+        statusElId: 'drift-status',
+        bindExportsOnInit: false,
+        exportConfig: {
+            key: 'drift',
+            csv: { fn: exportDriftCsv, filename: 'edatime_drift.csv', dataCheck: () => responsesByColumn.size > 0 },
+            json: { fn: exportDriftJson, filename: 'edatime_drift.json', dataCheck: () => responsesByColumn.size > 0 },
+        },
+        init() {
+            // Deferred export binding so csv/json dataCheck captures live
+            // responsesByColumn state rather than a stale closure.
+            driftRuntime?.bindExports();
+        },
+        onEveryPageChange() {
+            // Refresh chart on every page change (drift needs to reflect any range changes).
+            scheduleDriftChartRefresh();
+        },
+    });
+    driftPageCleanup = driftRuntime.mount();
 }

@@ -52,8 +52,12 @@ import {
     renderScatterMatrixView,
     selectMatrixPair,
 } from './matrix.js';
+import { createAnalysisPageRuntime } from '../pages/shared/analysisPageRuntime.js';
 
 import type { DatasetMetadata } from '../types.js';
+
+/** Module-level runtime handle for the scatter page lifecycle. */
+let scatterRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 
 /** Whether we've detected WebGPU is unavailable and should use fallback. */
 let _gpuUnavailable: boolean | null = null;
@@ -534,3 +538,35 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
         handleErr(err);
     }
 }
+
+/** Wraps scatter page setup with the shared analysis page runtime. */
+function initScatterPageRuntime(): void {
+    scatterRuntime = createAnalysisPageRuntime({
+        page: 'scatter',
+        emptyStateRootId: 'scatter-empty-state',
+        statusElId: 'scatter-status',
+        bindExportsOnInit: false,
+        exportConfig: {
+            key: 'scatter',
+            png: { fn: exportScatterPNG, filename: 'edatime_scatter.png' },
+            svg: { fn: exportScatterSVG, filename: 'edatime_scatter.svg' },
+            html: { fn: exportScatterHTML, filename: 'edatime_scatter.html' },
+            csv: { fn: exportScatterData, filename: 'edatime_scatter.csv', dataCheck: () => appState.scatter.totalPoints > 0 },
+        },
+        init() {
+            syncScatterEmptyState();
+            syncScatterFilterBadge();
+            // Deferred export binding — must happen after page state is established
+            // so that the csv dataCheck captures live appState.scatter.totalPoints.
+            scatterRuntime?.bindExports();
+        },
+        onEveryPageChange() {
+            syncScatterEmptyState();
+        },
+    });
+}
+
+/** Bootstrap call — must happen BEFORE the first edatime:page-change 'scatter' event
+ *  so that the runtime's event listener is registered before any page-change handlers
+ *  that call initScatterPage. */
+initScatterPageRuntime();

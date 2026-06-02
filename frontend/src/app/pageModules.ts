@@ -6,7 +6,7 @@
 import { register } from './pageRegistry.js';
 import type { DatasetMetadata } from '../types.js';
 
-type EntrypointCreator = (deps: Record<string, unknown>) => { init: () => void };
+type EntrypointCreator = (deps: Record<string, unknown>) => { init: () => void | Promise<void> };
 
 // Lazy-loaded so tree-shaking works for pages the user never opens.
 export async function loadEntrypoints(deps: {

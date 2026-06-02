@@ -238,6 +238,7 @@ export class DataChart {
         const container = document.getElementById(this.containerId);
         this._container = container;
         const chartOptions: Record<string, unknown> = {
+            animation: false,
             grid: CHART_GRID,
             xAxis: { type: 'time' },
             yAxis: { type: 'value' },
@@ -495,6 +496,7 @@ export class DataChart {
             };
 
             const nextOption = {
+                animation: false,
                 grid: CHART_GRID,
                 xAxis: {
                     type: 'time' as const,

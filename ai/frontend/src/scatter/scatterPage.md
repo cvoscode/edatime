@@ -34,9 +34,9 @@
   - Fetches scatter points and renders the scatter chart.
 - `onMatrixCellClick(x: string, y: string): Promise<void>` [deps: [selectMatrixPair][12]]
   - Handles matrix cell click to populate scatter axes.
-- `bindControls(): void`
-  - Wires scatter control DOM elements to state updates.
-- `initScatterPage(metadata: DatasetMetadata): Promise<void>` [deps: [createChart][13], [fetchScatterCorrelations][6], [buildOption][8], [renderCurrentOption][9], [initSelectionZoom][10], [syncModeUI][11], [renderScatterMatrixView][5]]
+- `bindControls(): Promise<void>` [deps: [bindScatterControls][14]]
+  - Dynamically imports `controls.ts` and wires all scatter control DOM elements to state updates.
+- `initScatterPage(metadata: DatasetMetadata): Promise<void>` [deps: [createChart][13], [fetchScatterCorrelations][6], [buildOption][8], [renderCurrentOption][9], [initSelectionZoom][10], [syncModeUI][11], [renderScatterMatrixView][5], [bindControls][14]]
   - Initializes scatter page, chart, controls, sidebar, and matrix view.
 
 ---
@@ -53,3 +53,4 @@
 [11]: ./rendering.md#syncModeUI
 [12]: ./matrix.md#selectMatrixPair
 [13]: ../../libs/chartgpu/dist/index.md#createChart
+[14]: ./controls.md#bindScatterControls

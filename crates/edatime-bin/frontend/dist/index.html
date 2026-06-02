@@ -12,10 +12,24 @@
   <!-- Load critical CSS via main stylesheet -->
   <link rel="stylesheet" href="css/style.css?v=61">
   <script>
-    // Register service worker for caching
+    // Register service worker for caching in deployed environments only.
+    // Local development should avoid cached HTML/JS so rebuilt bundles are
+    // always fetched fresh and old chunk graphs cannot linger.
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('/sw.js').then(function (registration) {
+        const hostname = window.location.hostname;
+        const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+
+        if (isLocalhost) {
+          navigator.serviceWorker.getRegistrations().then(function (registrations) {
+            registrations.forEach(function (registration) {
+              registration.unregister();
+            });
+          });
+          return;
+        }
+
+        navigator.serviceWorker.register('/sw.js').then(function () {
           console.log('ServiceWorker registration successful');
         }, function (err) {
           console.log('ServiceWorker registration failed: ', err);

@@ -1,6 +1,6 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/scatter-INiNSUmD.js","assets/chartgpu-CqrjGxnD.js","assets/frequency-DDhj7cvA.js","assets/entrypoint-DDKmoufg.js","assets/entrypoint-CoinkpZQ.js","assets/entrypoint-DIE5s4DQ.js","assets/causal-fh9kzEa_.js","assets/drift-DzhJ3DU9.js","assets/DataChart-DesO8rUf.js"])))=>i.map(i=>d[i]);
-import { b as appStateComposite, k as setSelectedCols, l as setAdaptiveFilterColumn, m as formatAnalysisNumber, n as setAdaptiveLineFilters, o as setPendingAdaptivePoint, p as getSeriesColor, q as setSeriesColor, r as computeBounds, t as setPreviewTimeColumn, u as uploadDataset, v as formatCount, w as fetchMetadata$1, x as setMetadata, y as setDatasetRevision, z as connectDatabase, A as loadDatabaseTable, B as deleteDatabaseConnection, C as previewUpload, E as formatToDatetimeLocal, F as formatAnalysisTime, G as setPreviewSelectedColumns, H as fetchDatabaseTables, I as fetchDatabaseStatus, J as setProfileGridBound, K as normalizeDtypeLabel, L as formatProfileValue, M as setProfileGridSort, N as setProfileGridHeaderBound, O as setColumnProfiles, P as toFiniteNumberOrNull, Q as setAnomalyRegions, R as setRollingBands, S as applyColumnRanges, T as isRangeOutsideDataset, U as dbgGroup, V as setZoomHistory, W as setViewport, X as setPendingYMode, Y as setPendingRestoreY, Z as setFetchDebounceId, $ as sanitizeSelectedColumns$1, a0 as dbg, a1 as setLastFetchedData, D as DEBUG, a2 as ensureRangeStateFromData, c as createEmptyStateController, d as downloadBlob, a3 as setChartText, a4 as setRollingEnabled, a5 as setRollingWindow, a6 as setAnomalyEnabled, a7 as setAnomalyMethod, a8 as setAnomalyThreshold, a9 as setAnalysisBound, aa as SERIES_COLORS, _ as __vitePreload, ab as setSeriesColors, ac as setColumnRanges, ad as setSelectedColorColumn, ae as requestGpuAdapter, af as installWindowsWebGpuRequestAdapterWorkaround, ag as appendAdaptiveLineFilter, ah as buildAdaptiveLineY, ai as debounce, aj as setFilterText, ak as setProfileFilterText, al as setNumericCols, am as setChartInstance, an as setInitialView, ao as initScatterPage } from './assets/scatter-INiNSUmD.js';
-import { r as renderSeriesChipList, t as toast, g as getNumericColumns, a as getDefaultTimeseriesColumns, b as getAnalyticsChipColor } from './assets/frequency-DDhj7cvA.js';
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/scatter-CC18p9T0.js","assets/chartgpu-CqrjGxnD.js","assets/entrypoint-z6h-bxTx.js","assets/frequency-5ZwrWolA.js","assets/entrypoint-DwaSghn-.js","assets/entrypoint-HgFYvBUI.js","assets/causal-BIDACNJi.js","assets/drift-BVqxjjBm.js","assets/DataChart-D9ymouBy.js"])))=>i.map(i=>d[i]);
+import { b as appStateComposite, k as setPreviewTimeColumn, u as uploadDataset, l as formatCount, m as fetchMetadata$1, n as setMetadata, o as setDatasetRevision, p as connectDatabase, q as loadDatabaseTable, r as deleteDatabaseConnection, t as toast, v as previewUpload, w as formatToDatetimeLocal, x as formatAnalysisTime, y as setPreviewSelectedColumns, z as fetchDatabaseTables, A as fetchDatabaseStatus, B as setProfileGridBound, C as normalizeDtypeLabel, E as formatProfileValue, F as setProfileGridSort, G as setProfileGridHeaderBound, H as setColumnProfiles, I as toFiniteNumberOrNull, J as setAnomalyRegions, K as setRollingBands, L as applyColumnRanges, M as isRangeOutsideDataset, N as dbgGroup, O as setZoomHistory, P as setViewport, Q as setPendingYMode, R as setPendingRestoreY, S as setFetchDebounceId, T as sanitizeSelectedColumns$1, U as dbg, V as setLastFetchedData, D as DEBUG, W as ensureRangeStateFromData, X as createEmptyStateController, _ as __vitePreload, Y as formatAnalysisNumber, d as downloadBlob, Z as setAdaptiveLineFilters, $ as setPendingAdaptivePoint, a0 as setChartText, a1 as setRollingEnabled, a2 as setRollingWindow, a3 as setAnomalyEnabled, a4 as setAnomalyMethod, a5 as setAnomalyThreshold, a6 as setAnalysisBound, a7 as SERIES_COLORS, a8 as setSelectedCols, a9 as setSeriesColors, aa as setColumnRanges, ab as setSelectedColorColumn, ac as requestGpuAdapter, ad as installWindowsWebGpuRequestAdapterWorkaround, ae as setAdaptiveFilterColumn, af as appendAdaptiveLineFilter, ag as buildAdaptiveLineY, ah as getSeriesColor, ai as setSeriesColor, aj as computeBounds, ak as debounce, al as setFilterText, am as setProfileFilterText, an as setNumericCols, ao as setChartInstance, ap as setInitialView, aq as initScatterPage } from './assets/scatter-CC18p9T0.js';
+import { r as renderSeriesChipList, g as getNumericColumns, a as getDefaultTimeseriesColumns, b as getAnalyticsChipColor } from './assets/frequency-5ZwrWolA.js';
 import './assets/chartgpu-CqrjGxnD.js';
 
 function setMetaText(text) {
@@ -22,575 +22,6 @@ function buildMetaBar(metadata) {
   if (pageMeta) {
     pageMeta.innerHTML = markup;
   }
-}
-
-function sanitizeSelectedColumns() {
-  const blockedNames = /* @__PURE__ */ new Set(["ts", "timestamp", "time"]);
-  const datetimeCols = new Set(
-    (appStateComposite.metadata?.columns ?? []).filter((col) => /date|time/i.test(String(col?.dtype ?? ""))).map((col) => String(col?.name ?? "").toLowerCase())
-  );
-  const validColNames = new Set(
-    (appStateComposite.metadata?.columns ?? []).map((col) => String(col?.name ?? "").trim())
-  );
-  setSelectedCols(
-    (appStateComposite.selectedCols ?? []).filter((col) => {
-      const name = String(col ?? "").trim();
-      if (!name) return false;
-      const lower = name.toLowerCase();
-      if (blockedNames.has(lower) || datetimeCols.has(lower)) return false;
-      return validColNames.has(name);
-    })
-  );
-}
-function ensureAdaptiveTargetStillValid() {
-  if (!appStateComposite.adaptiveFilterColumn) return;
-  if (appStateComposite.selectedCols.includes(appStateComposite.adaptiveFilterColumn)) return;
-  setAdaptiveFilterColumn(appStateComposite.selectedCols[0] ?? null);
-}
-
-function buildRangeControls() {
-  const container = document.getElementById("column-range-controls");
-  if (!container) return;
-  container.innerHTML = "";
-  if (appStateComposite.adaptiveFilterColumn && appStateComposite.selectedCols.includes(appStateComposite.adaptiveFilterColumn)) {
-    const targetChip = document.createElement("div");
-    targetChip.className = "range-chip";
-    targetChip.innerHTML = `
-      <span class="name">Adaptive target</span>
-      <span class="range">${appStateComposite.adaptiveFilterColumn}</span>
-    `;
-    container.appendChild(targetChip);
-  }
-  for (const col of appStateComposite.selectedCols) {
-    const range = appStateComposite.columnRanges[col];
-    if (!range) continue;
-    const chip = document.createElement("div");
-    chip.className = "range-chip range-chip--clickable";
-    chip.setAttribute("role", "button");
-    chip.setAttribute("tabindex", "0");
-    chip.setAttribute("aria-label", `Filter ${col}`);
-    chip.innerHTML = `
-      <span class="name">${col}</span>
-      <span class="range">${formatAnalysisNumber(range.from)} → ${formatAnalysisNumber(range.to)}</span>
-    `;
-    const open = () => {
-      const fn = window.__edatime?.openFilterForCol;
-      if (typeof fn === "function") fn(col);
-    };
-    chip.addEventListener("click", open);
-    chip.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        open();
-      }
-    });
-    container.appendChild(chip);
-  }
-  for (const filter of appStateComposite.adaptiveLineFilters ?? []) {
-    const chip = document.createElement("div");
-    chip.className = "range-chip range-chip--clickable";
-    chip.setAttribute("role", "button");
-    chip.setAttribute("tabindex", "0");
-    chip.setAttribute("aria-label", `Remove adaptive filter for ${filter.column}`);
-    chip.innerHTML = `
-      <span class="name">Adaptive ${filter.column}</span>
-      <span class="range">${filter.keepAbove ? "keep above" : "keep below"}</span>
-    `;
-    const remove = () => {
-      setAdaptiveLineFilters(
-        (appStateComposite.adaptiveLineFilters ?? []).filter(
-          (item) => item.id !== filter.id
-        )
-      );
-      setPendingAdaptivePoint(null);
-      buildRangeControls();
-      window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change"));
-    };
-    chip.addEventListener("click", remove);
-    chip.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        remove();
-      }
-    });
-    container.appendChild(chip);
-  }
-  if ((appStateComposite.adaptiveLineFilters?.length ?? 0) > 0 || appStateComposite.pendingAdaptivePoint) {
-    const clearChip = document.createElement("div");
-    clearChip.className = "range-chip range-chip--clickable";
-    clearChip.setAttribute("role", "button");
-    clearChip.setAttribute("tabindex", "0");
-    clearChip.setAttribute("aria-label", "Clear adaptive filters");
-    clearChip.innerHTML = `
-      <span class="name">Adaptive filters</span>
-      <span class="range">Clear all</span>
-    `;
-    const clearAll = () => {
-      setAdaptiveLineFilters([]);
-      setPendingAdaptivePoint(null);
-      buildRangeControls();
-      appStateComposite.chart?.requestOverlayRender?.();
-      window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change"));
-    };
-    clearChip.addEventListener("click", clearAll);
-    clearChip.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        clearAll();
-      }
-    });
-    container.appendChild(clearChip);
-  }
-}
-
-let _seriesCollapsed = false;
-function initSeriesCollapse() {
-  const btn = document.getElementById("collapse-series-btn");
-  if (!btn) return;
-  btn.addEventListener("click", () => {
-    _seriesCollapsed = !_seriesCollapsed;
-    updateCollapseButton(btn);
-    applyCollapse();
-  });
-}
-function updateCollapseButton(btn) {
-  btn.title = _seriesCollapsed ? "Expand series list" : "Collapse series list";
-  btn.setAttribute("aria-label", _seriesCollapsed ? "Expand series list" : "Collapse series list");
-  const svg = btn.querySelector("svg");
-  if (svg) {
-    svg.style.transform = _seriesCollapsed ? "rotate(180deg)" : "";
-  }
-}
-function applyCollapse() {
-  const chips = document.querySelectorAll("#column-toggles .series-chip");
-  const collapseThreshold = 3;
-  chips.forEach((chip, i) => {
-    if (!_seriesCollapsed || i < collapseThreshold) {
-      chip.style.display = "";
-    } else {
-      chip.style.display = "none";
-    }
-  });
-  const container = document.getElementById("column-toggles");
-  if (_seriesCollapsed && container) {
-    let existingBadge = container.querySelector(".collapse-badge");
-    if (!existingBadge) {
-      const badge2 = document.createElement("span");
-      badge2.className = "collapse-badge";
-      badge2.id = "series-collapse-badge";
-      container.appendChild(badge2);
-    }
-    const badge = container.querySelector("#series-collapse-badge");
-    if (badge) {
-      badge.textContent = `+${chips.length - collapseThreshold} more`;
-      badge.style.display = "";
-    }
-  } else {
-    const badge = document.getElementById("series-collapse-badge");
-    if (badge) badge.style.display = "none";
-  }
-}
-
-let _lastContextTs = 0;
-let _lastContextCol = "";
-function bindChipContextMenu(container) {
-  if (container.dataset.ctxBound) return;
-  container.dataset.ctxBound = "1";
-  container.addEventListener("contextmenu", (e) => {
-    const chip = e.target?.closest?.(".series-chip");
-    if (!chip) return;
-    const input = chip.querySelector('input[type="checkbox"]');
-    const col = input?.value;
-    if (!col) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const now = performance.now();
-    const isDoubleContext = _lastContextCol === col && now - _lastContextTs <= 450;
-    _lastContextTs = now;
-    _lastContextCol = col;
-    if (!isDoubleContext) return;
-    _lastContextTs = 0;
-    _lastContextCol = "";
-    const open = window.__edatime?.openFilterForCol;
-    if (typeof open !== "function") return;
-    open(col);
-  });
-}
-
-function composeChipListItems(options) {
-  const { filterText, buildRangeControlsFn, fetchAndRender, renderCurrentDataFn } = options;
-  const visibleCols = appStateComposite.numericCols.filter((col) => {
-    if (!filterText) return true;
-    return col.toLowerCase().includes(filterText.toLowerCase());
-  });
-  if (visibleCols.length === 0) return [];
-  return visibleCols.map((col) => {
-    const colIdx = appStateComposite.numericCols.indexOf(col);
-    const color = getSeriesColor(col, colIdx >= 0 ? colIdx : 0);
-    const isActive = appStateComposite.selectedCols.includes(col);
-    const isAdaptiveTarget = isActive && appStateComposite.adaptiveFilterColumn === col;
-    const chipTitle = isAdaptiveTarget ? `Adaptive filter target: ${col}` : `Ctrl+click to target adaptive filters to ${col}`;
-    return {
-      column: col,
-      checked: isActive,
-      color,
-      adaptiveTarget: isAdaptiveTarget,
-      title: chipTitle,
-      onToggle: (checked) => {
-        if (checked) {
-          if (!appStateComposite.selectedCols.includes(col)) setSelectedCols([...appStateComposite.selectedCols, col]);
-        } else {
-          setSelectedCols(appStateComposite.selectedCols.filter((c) => c !== col));
-        }
-        ensureAdaptiveTargetStillValid();
-        buildRangeControlsFn();
-        appStateComposite.chart?.requestOverlayRender?.();
-        fetchAndRender();
-      },
-      onColorInput: (nextColor) => {
-        const updated = setSeriesColor(col, nextColor);
-        if (!updated) return;
-        renderCurrentDataFn?.();
-      },
-      onMenuClick: () => {
-        const open = window.__edatime?.openFilterForCol;
-        if (typeof open === "function") open(col);
-      },
-      menuLabel: `Filter range for ${col}`
-    };
-  });
-}
-function bindChipCtrlClick(container, rebuildAndRender, buildRangeControlsFn, renderCurrentDataFn, fetchAndRender) {
-  for (const chip of container.querySelectorAll(".series-chip")) {
-    chip.addEventListener(
-      "click",
-      (e) => {
-        if (e.target?.closest?.(".chip-color-picker")) return;
-        if (!e.ctrlKey) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const input = chip.querySelector('input[type="checkbox"]');
-        const col = input?.value;
-        if (!col) return;
-        const hadColumn = appStateComposite.selectedCols.includes(col);
-        if (!hadColumn) setSelectedCols([...appStateComposite.selectedCols, col]);
-        setAdaptiveFilterColumn(col);
-        setPendingAdaptivePoint(null);
-        rebuildAndRender();
-        appStateComposite.chart?.requestOverlayRender?.();
-        if (!hadColumn) fetchAndRender();
-      },
-      true
-      // capture phase
-    );
-  }
-}
-
-function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn = null) {
-  const container = document.getElementById("column-toggles");
-  if (!container || container?.dataset?.rebuilding) return;
-  container.dataset.rebuilding = "1";
-  sanitizeSelectedColumns();
-  ensureAdaptiveTargetStillValid();
-  container.innerHTML = "";
-  const finish = () => {
-    container.dataset.rebuilding = "";
-  };
-  bindChipContextMenu(container);
-  const items = composeChipListItems({
-    filterText: appStateComposite.filterText ?? "",
-    buildRangeControlsFn,
-    fetchAndRender,
-    renderCurrentDataFn
-  });
-  if (items.length === 0) {
-    const empty = document.createElement("span");
-    empty.className = "series-empty";
-    empty.textContent = "No matching columns";
-    container.appendChild(empty);
-    return;
-  }
-  renderSeriesChipList({
-    container,
-    items: items.map((item) => ({ ...item, onToggle: item.onToggle })),
-    chipClass: "timeseries-chip",
-    onColorUpdate: (col, color) => {
-      const chip = container.querySelector(`[data-col="${col}"]`);
-      if (chip) chip.style.setProperty("--chip-accent", color);
-    }
-  });
-  bindChipCtrlClick(
-    container,
-    () => {
-      buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
-      buildRangeControlsFn();
-    },
-    buildRangeControlsFn,
-    renderCurrentDataFn,
-    fetchAndRender
-  );
-  finish();
-  applyCollapse();
-}
-function initColumnFilterModal(renderCurrentData, updateAnalysisYRange) {
-  const modal = document.getElementById("column-filter-modal");
-  const closeBtn = document.getElementById("column-filter-close-btn");
-  const cancelBtn = document.getElementById("column-filter-cancel-btn");
-  const applyBtn = document.getElementById("column-filter-apply-btn");
-  const clearBtn = document.getElementById("column-filter-clear-btn");
-  const colSelect = document.getElementById("column-filter-col");
-  const minInput = document.getElementById("column-filter-min");
-  const maxInput = document.getElementById("column-filter-max");
-  const minRangeInput = document.getElementById("column-filter-min-range");
-  const maxRangeInput = document.getElementById("column-filter-max-range");
-  const rangeFill = document.getElementById("column-filter-range-fill");
-  const rangeMinValue = document.getElementById("column-filter-range-min-value");
-  const rangeMaxValue = document.getElementById("column-filter-range-max-value");
-  const hint = document.getElementById("column-filter-hint");
-  const openBtn = document.getElementById("column-filter-open-btn");
-  const openBtns = [openBtn].filter(Boolean);
-  if (!modal || !closeBtn || !cancelBtn || !applyBtn || !clearBtn || !colSelect || !minInput || !maxInput || !minRangeInput || !maxRangeInput || !rangeFill || !rangeMinValue || !rangeMaxValue || !hint) return;
-  if (modal.dataset.bound) return;
-  let activeBounds = null;
-  function emitColumnFiltersChange() {
-    window.dispatchEvent(new CustomEvent("edatime:column-filters-change"));
-  }
-  function setHint(text) {
-    hint.textContent = text || "";
-  }
-  function formatInputValue(value) {
-    const n = Number(value);
-    return Number.isFinite(n) ? n.toFixed(2) : "";
-  }
-  function clampToBounds(value, bounds) {
-    if (!bounds || !Number.isFinite(value)) return value;
-    return Math.min(bounds.max, Math.max(bounds.min, value));
-  }
-  function computeSliderStep(bounds) {
-    if (!bounds) return 0.01;
-    const span = Math.abs(bounds.max - bounds.min);
-    if (!(span > 0)) return 0.01;
-    return Math.max(span / 500, 0.01);
-  }
-  function updateRangeFill(from, to) {
-    rangeMinValue.textContent = formatAnalysisNumber(from);
-    rangeMaxValue.textContent = formatAnalysisNumber(to);
-    if (!activeBounds) {
-      rangeFill.style.left = "0%";
-      rangeFill.style.width = "0%";
-      return;
-    }
-    const span = activeBounds.max - activeBounds.min;
-    if (!(span > 0)) {
-      rangeFill.style.left = "0%";
-      rangeFill.style.width = "100%";
-      return;
-    }
-    const leftPct = (from - activeBounds.min) / span * 100;
-    const rightPct = (to - activeBounds.min) / span * 100;
-    const clampedLeft = Math.max(0, Math.min(100, leftPct));
-    const clampedRight = Math.max(clampedLeft, Math.min(100, rightPct));
-    rangeFill.style.left = `${clampedLeft}%`;
-    rangeFill.style.width = `${Math.max(0, clampedRight - clampedLeft)}%`;
-  }
-  function updateSliderConfig(bounds) {
-    activeBounds = bounds;
-    if (!bounds) {
-      minRangeInput.disabled = true;
-      maxRangeInput.disabled = true;
-      updateRangeFill(0, 0);
-      return;
-    }
-    const step = computeSliderStep(bounds);
-    const min = String(bounds.min);
-    const max = String(bounds.max);
-    const disabled = !(bounds.max > bounds.min);
-    for (const input of [minRangeInput, maxRangeInput]) {
-      input.min = min;
-      input.max = max;
-      input.step = String(step);
-      input.disabled = disabled;
-    }
-    updateRangeFill(bounds.min, bounds.max);
-  }
-  function syncSliderValues(from, to) {
-    minRangeInput.value = String(from);
-    maxRangeInput.value = String(to);
-  }
-  function syncInputsFromValues(from, to) {
-    minInput.value = formatInputValue(from);
-    maxInput.value = formatInputValue(to);
-    syncSliderValues(from, to);
-    updateRangeFill(from, to);
-  }
-  function readInputs() {
-    let from = Number.parseFloat(minInput.value);
-    let to = Number.parseFloat(maxInput.value);
-    if (activeBounds) {
-      if (!Number.isFinite(from)) from = activeBounds.min;
-      if (!Number.isFinite(to)) to = activeBounds.max;
-      from = clampToBounds(from, activeBounds);
-      to = clampToBounds(to, activeBounds);
-    }
-    if (from > to) {
-      const tmp = from;
-      from = to;
-      to = tmp;
-    }
-    return { from, to };
-  }
-  function syncFromNumericInputs() {
-    const { from, to } = readInputs();
-    syncInputsFromValues(from, to);
-  }
-  function syncFromRangeInputs(changed) {
-    let from = Number.parseFloat(minRangeInput.value);
-    let to = Number.parseFloat(maxRangeInput.value);
-    if (changed === "min" && from > to) to = from;
-    if (changed === "max" && to < from) from = to;
-    if (activeBounds) {
-      from = clampToBounds(from, activeBounds);
-      to = clampToBounds(to, activeBounds);
-    }
-    syncInputsFromValues(from, to);
-  }
-  function getFullBoundsForCol(col) {
-    const rawValues = appStateComposite.lastFetchedData?.values?.[col];
-    const filteredSeries = appStateComposite.lastFetchedData?.series;
-    const filteredValues = filteredSeries?.[col]?.y;
-    const dataBounds = computeBounds(rawValues || filteredValues || new Float64Array(0));
-    if (dataBounds) return dataBounds;
-    const profile = (appStateComposite.metadata?.column_profiles || []).find((item) => item?.name === col);
-    const min = Number(profile?.min);
-    const max = Number(profile?.max);
-    if (Number.isFinite(min) && Number.isFinite(max)) return { min, max };
-    return null;
-  }
-  function populateColumns(selectedCol = null) {
-    const cols = appStateComposite.selectedCols || [];
-    colSelect.innerHTML = "";
-    if (cols.length === 0) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "No series selected";
-      colSelect.appendChild(opt);
-      colSelect.value = "";
-      return;
-    }
-    for (const col of cols) {
-      const opt = document.createElement("option");
-      opt.value = col;
-      opt.textContent = col;
-      colSelect.appendChild(opt);
-    }
-    if (selectedCol && cols.includes(selectedCol)) colSelect.value = selectedCol;
-    else colSelect.value = cols[0];
-  }
-  function refreshInputsForCol(col) {
-    if (!col) {
-      minInput.value = "";
-      maxInput.value = "";
-      updateSliderConfig(null);
-      applyBtn.disabled = true;
-      clearBtn.disabled = true;
-      setHint("Select a column to filter.");
-      return;
-    }
-    if (!appStateComposite.lastFetchedData) {
-      updateSliderConfig(null);
-      applyBtn.disabled = true;
-      clearBtn.disabled = true;
-      setHint("Data not loaded yet.");
-      return;
-    }
-    const full = getFullBoundsForCol(col);
-    if (!full) {
-      applyBtn.disabled = true;
-      clearBtn.disabled = true;
-      updateSliderConfig(null);
-      setHint("No numeric range is available for this column.");
-      return;
-    }
-    const cur = appStateComposite.columnRanges[col] ?? { from: full.min, to: full.max };
-    updateSliderConfig(full);
-    syncInputsFromValues(cur.from, cur.to);
-    applyBtn.disabled = false;
-    clearBtn.disabled = false;
-    setHint(`Available range: ${formatAnalysisNumber(full.min)} → ${formatAnalysisNumber(full.max)}`);
-  }
-  function openModalForCol(col) {
-    populateColumns(col || colSelect.value || appStateComposite.selectedCols?.[0] || null);
-    refreshInputsForCol(colSelect.value);
-    modal.hidden = false;
-    try {
-      minInput.focus();
-    } catch {
-    }
-  }
-  function closeModal() {
-    modal.hidden = true;
-    setHint("");
-  }
-  window.__edatime = window.__edatime || {};
-  window.__edatime.openFilterForCol = openModalForCol;
-  for (const btn of openBtns) {
-    btn.addEventListener("click", () => openModalForCol(null));
-  }
-  closeBtn.addEventListener("click", closeModal);
-  cancelBtn.addEventListener("click", closeModal);
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) closeModal();
-  });
-  window.addEventListener("keydown", (e) => {
-    if (modal.hidden) return;
-    if (e.key === "Escape") closeModal();
-  });
-  colSelect.addEventListener("change", () => refreshInputsForCol(colSelect.value));
-  minInput.addEventListener("input", syncFromNumericInputs);
-  maxInput.addEventListener("input", syncFromNumericInputs);
-  minRangeInput.addEventListener("input", () => syncFromRangeInputs("min"));
-  maxRangeInput.addEventListener("input", () => syncFromRangeInputs("max"));
-  clearBtn.addEventListener("click", () => {
-    const col = colSelect.value;
-    const full = getFullBoundsForCol(col);
-    if (!col || !full) return;
-    appStateComposite.columnRanges[col] = { from: full.min, to: full.max };
-    buildRangeControls();
-    renderCurrentData();
-    appStateComposite.chart?.fitYToData?.();
-    const yr = appStateComposite.chart?.getYRange?.();
-    if (yr) updateAnalysisYRange(yr.min, yr.max, "filter");
-    emitColumnFiltersChange();
-    refreshInputsForCol(col);
-  });
-  applyBtn.addEventListener("click", () => {
-    const col = colSelect.value;
-    if (!col) return;
-    let { from, to } = readInputs();
-    const full = getFullBoundsForCol(col);
-    if (full) {
-      if (!Number.isFinite(from)) from = full.min;
-      if (!Number.isFinite(to)) to = full.max;
-    }
-    if (!Number.isFinite(from) || !Number.isFinite(to)) {
-      setHint("Enter a valid min and max.");
-      return;
-    }
-    if (from > to) {
-      const tmp = from;
-      from = to;
-      to = tmp;
-    }
-    appStateComposite.columnRanges[col] = { from, to };
-    buildRangeControls();
-    renderCurrentData();
-    appStateComposite.chart?.fitYToData?.();
-    const yr = appStateComposite.chart?.getYRange?.();
-    if (yr) updateAnalysisYRange(yr.min, yr.max, "filter");
-    emitColumnFiltersChange();
-    closeModal();
-  });
-  modal.dataset.bound = "1";
 }
 
 const UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
@@ -1945,6 +1376,169 @@ function createTimeseriesPageController(deps) {
     onZoomRangeChange,
     renderCurrentData
   };
+}
+
+function initThemeToggle() {
+  const btn = document.getElementById("theme-toggle-btn");
+  const iconDark = document.getElementById("theme-icon-dark");
+  const iconLight = document.getElementById("theme-icon-light");
+  if (!btn) return;
+  const savedTheme = localStorage.getItem("edatime-theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const apply = (theme) => {
+    if (theme === "light") document.documentElement.setAttribute("data-theme", "light");
+    else document.documentElement.removeAttribute("data-theme");
+    if (iconDark) iconDark.hidden = theme === "light";
+    if (iconLight) iconLight.hidden = theme !== "light";
+  };
+  apply(savedTheme === "light" ? "light" : prefersDark ? "dark" : "dark");
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+    const manualPreference = localStorage.getItem("edatime-theme");
+    if (manualPreference) return;
+    apply(e.matches ? "dark" : "light");
+  });
+  btn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    apply(isLight ? "dark" : "light");
+    localStorage.setItem("edatime-theme", isLight ? "dark" : "light");
+  });
+}
+
+function humanizeControlId(id) {
+  return String(id || "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().replace(/\b\w/g, (match) => match.toUpperCase());
+}
+function normalizeFormControlAccessibility() {
+  const controls = document.querySelectorAll("input, select, textarea");
+  controls.forEach((control) => {
+    if (!control.name && control.id) {
+      control.name = control.id;
+    }
+    if (control.getAttribute("aria-label")) return;
+    const labelledByText = Array.from(control.labels || []).map((label) => label.textContent?.replace(/\s+/g, " ").trim() || "").filter(Boolean).join(" ");
+    const placeholder = control.getAttribute("placeholder") || "";
+    const title = control.getAttribute("title") || "";
+    const fallback = humanizeControlId(control.id) || (control.type === "file" ? "Upload file" : "Form field");
+    const derived = labelledByText || placeholder || title || fallback;
+    {
+      control.setAttribute("aria-label", derived);
+    }
+  });
+}
+
+function wireHomeNavigationCards(showPage) {
+  document.querySelectorAll("[data-home-nav]").forEach((element) => {
+    element.addEventListener("click", () => {
+      const target = element.dataset.homeNav;
+      if (target) showPage(target);
+    });
+  });
+}
+
+function wireSampleDatasetCards(showPage) {
+  document.querySelectorAll("[data-sample-dataset]").forEach((element) => {
+    element.addEventListener("click", () => {
+      const dataset = element.dataset.sampleDataset;
+      if (dataset) {
+        void loadSampleDataset(dataset, showPage);
+      }
+    });
+  });
+}
+async function loadSampleDataset(datasetId, showPage) {
+  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/scatter-CC18p9T0.js').then(n => n.ax);return { toast }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { fetchSampleDataset } = await __vitePreload(async () => { const { fetchSampleDataset } = await import('./assets/scatter-CC18p9T0.js').then(n => n.aw);return { fetchSampleDataset }},true              ?__vite__mapDeps([0,1]):void 0);
+  if (datasetId === "ettm2") {
+    const dismissLoading = toast("Loading ETTm2 sample dataset…", "info", 0);
+    let file;
+    try {
+      const blob = await fetchSampleDataset("ETTm2.csv");
+      file = new File([blob], "ETTm2.csv", { type: "text/csv" });
+    } catch (err) {
+      dismissLoading();
+      toast(`Could not load ETTm2: ${err}`, "error");
+      return;
+    }
+    const homePage = document.getElementById("page-home");
+    if (homePage) homePage.hidden = true;
+    showPage("upload");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const fileInput = document.getElementById("file-upload");
+    if (fileInput) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      dismissLoading();
+    } else {
+      dismissLoading();
+      toast("Upload panel not ready. Please navigate to Upload and drop the file manually.", "error");
+    }
+  } else if (datasetId === "sinusoidal") {
+    const dismissLoading = toast("Loading Sinusoidal Waves sample dataset…", "info", 0);
+    const file = new File([generateSinusoidalCsv()], "sinusoidal.csv", { type: "text/csv" });
+    const homePage = document.getElementById("page-home");
+    if (homePage) homePage.hidden = true;
+    showPage("upload");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const fileInput = document.getElementById("file-upload");
+    if (fileInput) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      dismissLoading();
+    } else {
+      dismissLoading();
+      toast("Upload panel not ready.", "error");
+    }
+  } else if (datasetId === "weather") {
+    const dismissLoading = toast("Loading Weather Patterns sample dataset…", "info", 0);
+    const file = new File([generateWeatherCsv()], "weather.csv", { type: "text/csv" });
+    const homePage = document.getElementById("page-home");
+    if (homePage) homePage.hidden = true;
+    showPage("upload");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const fileInput = document.getElementById("file-upload");
+    if (fileInput) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      dismissLoading();
+    } else {
+      dismissLoading();
+      toast("Upload panel not ready.", "error");
+    }
+  }
+}
+function generateSinusoidalCsv() {
+  const rows = ["timestamp,temperature,humidity,pressure"];
+  const start = (/* @__PURE__ */ new Date("2024-01-01T00:00:00Z")).getTime();
+  const end = (/* @__PURE__ */ new Date("2024-01-08T00:00:00Z")).getTime();
+  const interval = 15 * 60 * 1e3;
+  for (let t = start; t < end; t += interval) {
+    const temp = 20 + 5 * Math.sin((t - start) / (3600 * 1e3)) + (Math.random() - 0.5) * 0.5;
+    const hum = 50 + 20 * Math.sin((t - start) / (7200 * 1e3)) + (Math.random() - 0.5) * 2;
+    const pres = 1013 + 5 * Math.sin((t - start) / (5400 * 1e3)) + (Math.random() - 0.5) * 0.3;
+    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)}`);
+  }
+  return rows.join("\n");
+}
+function generateWeatherCsv() {
+  const rows = ["timestamp,temperature,humidity,pressure,wind_speed"];
+  const start = (/* @__PURE__ */ new Date("2024-03-01T00:00:00Z")).getTime();
+  const end = (/* @__PURE__ */ new Date("2024-03-08T00:00:00Z")).getTime();
+  const interval = 10 * 60 * 1e3;
+  for (let t = start; t < end; t += interval) {
+    const hour = new Date(t).getUTCHours();
+    const dayFactor = Math.sin((t - start) / (86400 * 1e3));
+    const temp = 15 + 8 * dayFactor + 3 * Math.sin(hour * Math.PI / 12) + (Math.random() - 0.5) * 0.5;
+    const hum = 60 + 15 * Math.cos((t - start) / (43200 * 1e3)) + (Math.random() - 0.5) * 3;
+    const pres = 1010 + 8 * dayFactor + (Math.random() - 0.5) * 0.5;
+    const wind = 5 + 3 * Math.abs(Math.sin((t - start) / (21600 * 1e3))) + (Math.random() - 0.5) * 1;
+    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)},${wind.toFixed(3)}`);
+  }
+  return rows.join("\n");
 }
 
 function setText(id, text) {
@@ -3901,7 +3495,7 @@ function initTransformModal(deps) {
         applyBtn.textContent = "Applying…";
         applyBtn.disabled = true;
       }
-      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/scatter-INiNSUmD.js').then(n => n.au);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/scatter-CC18p9T0.js').then(n => n.aw);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
       await postTransform(expr, name);
       controller.close();
       await deps.refreshDataset({ selectedColumn: name });
@@ -3951,7 +3545,7 @@ function initOutlierModal(deps) {
         applyBtn.disabled = true;
         applyBtn.textContent = "Removing…";
       }
-      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/scatter-INiNSUmD.js').then(n => n.au);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
+      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/scatter-CC18p9T0.js').then(n => n.aw);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
       const result = await postRemoveOutliers(
         columns,
         method,
@@ -4057,7 +3651,7 @@ function findMatchingShortcut(key, pageName, options, commandDefs, deps) {
   return KEYBOARD_ONLY_SHORTCUTS.find((shortcut) => matchesKeyboardShortcut(shortcut, key, pageName, options));
 }
 let _bound = false;
-function initKeyboardShortcuts$1(deps, commandDefs) {
+function initKeyboardShortcuts(deps, commandDefs) {
   if (_bound) return;
   _bound = true;
   window.__edatime = window.__edatime || {};
@@ -4085,192 +3679,6 @@ function initKeyboardShortcuts$1(deps, commandDefs) {
   window.__edatime.keyboardShortcutsBound = true;
 }
 
-function initThemeToggle() {
-  const btn = document.getElementById("theme-toggle-btn");
-  const iconDark = document.getElementById("theme-icon-dark");
-  const iconLight = document.getElementById("theme-icon-light");
-  if (!btn) return;
-  const savedTheme = localStorage.getItem("edatime-theme");
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  if (savedTheme) {
-    if (savedTheme === "light") {
-      document.documentElement.setAttribute("data-theme", "light");
-      if (iconDark) iconDark.hidden = true;
-      if (iconLight) iconLight.hidden = false;
-    } else {
-      document.documentElement.removeAttribute("data-theme");
-      if (iconDark) iconDark.hidden = false;
-      if (iconLight) iconLight.hidden = true;
-    }
-  } else if (prefersDark) {
-    if (iconDark) iconDark.hidden = false;
-    if (iconLight) iconLight.hidden = true;
-  } else {
-    if (iconDark) iconDark.hidden = false;
-    if (iconLight) iconLight.hidden = true;
-  }
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
-    const manualPreference = localStorage.getItem("edatime-theme");
-    if (manualPreference) return;
-    if (e.matches) {
-      document.documentElement.removeAttribute("data-theme");
-      if (iconDark) iconDark.hidden = false;
-      if (iconLight) iconLight.hidden = true;
-    } else {
-      document.documentElement.setAttribute("data-theme", "light");
-      if (iconDark) iconDark.hidden = true;
-      if (iconLight) iconLight.hidden = false;
-    }
-  });
-  btn.addEventListener("click", () => {
-    const isLight = document.documentElement.getAttribute("data-theme") === "light";
-    if (isLight) {
-      document.documentElement.removeAttribute("data-theme");
-      localStorage.setItem("edatime-theme", "dark");
-      if (iconDark) iconDark.hidden = false;
-      if (iconLight) iconLight.hidden = true;
-    } else {
-      document.documentElement.setAttribute("data-theme", "light");
-      localStorage.setItem("edatime-theme", "light");
-      if (iconDark) iconDark.hidden = true;
-      if (iconLight) iconLight.hidden = false;
-    }
-  });
-}
-function humanizeControlId(id) {
-  return String(id || "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().replace(/\b\w/g, (match) => match.toUpperCase());
-}
-function normalizeFormControlAccessibility() {
-  const controls = document.querySelectorAll("input, select, textarea");
-  controls.forEach((control) => {
-    if (!control.name && control.id) {
-      control.name = control.id;
-    }
-    if (control.getAttribute("aria-label")) return;
-    const labelledByText = Array.from(control.labels || []).map((label) => label.textContent?.replace(/\s+/g, " ").trim() || "").filter(Boolean).join(" ");
-    const placeholder = control.getAttribute("placeholder") || "";
-    const title = control.getAttribute("title") || "";
-    const fallback = humanizeControlId(control.id) || (control.type === "file" ? "Upload file" : "Form field");
-    const derived = labelledByText || placeholder || title || fallback;
-    {
-      control.setAttribute("aria-label", derived);
-    }
-  });
-}
-function wireHomeNavigationCards(showPage) {
-  document.querySelectorAll("[data-home-nav]").forEach((element) => {
-    element.addEventListener("click", () => {
-      const target = element.dataset.homeNav;
-      if (target) showPage(target);
-    });
-  });
-}
-function wireSampleDatasetCards(showPage) {
-  document.querySelectorAll("[data-sample-dataset]").forEach((element) => {
-    element.addEventListener("click", () => {
-      const dataset = element.dataset.sampleDataset;
-      if (dataset) {
-        void loadSampleDataset(dataset, showPage);
-      }
-    });
-  });
-}
-function generateSinusoidalCsv() {
-  const rows = ["timestamp,temperature,humidity,pressure"];
-  const start = (/* @__PURE__ */ new Date("2024-01-01T00:00:00Z")).getTime();
-  const end = (/* @__PURE__ */ new Date("2024-01-08T00:00:00Z")).getTime();
-  const interval = 15 * 60 * 1e3;
-  for (let t = start; t < end; t += interval) {
-    const temp = 20 + 5 * Math.sin((t - start) / (3600 * 1e3)) + (Math.random() - 0.5) * 0.5;
-    const hum = 50 + 20 * Math.sin((t - start) / (7200 * 1e3)) + (Math.random() - 0.5) * 2;
-    const pres = 1013 + 5 * Math.sin((t - start) / (5400 * 1e3)) + (Math.random() - 0.5) * 0.3;
-    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)}`);
-  }
-  return rows.join("\n");
-}
-function generateWeatherCsv() {
-  const rows = ["timestamp,temperature,humidity,pressure,wind_speed"];
-  const start = (/* @__PURE__ */ new Date("2024-03-01T00:00:00Z")).getTime();
-  const end = (/* @__PURE__ */ new Date("2024-03-08T00:00:00Z")).getTime();
-  const interval = 10 * 60 * 1e3;
-  for (let t = start; t < end; t += interval) {
-    const hour = new Date(t).getUTCHours();
-    const dayFactor = Math.sin((t - start) / (86400 * 1e3));
-    const temp = 15 + 8 * dayFactor + 3 * Math.sin(hour * Math.PI / 12) + (Math.random() - 0.5) * 0.5;
-    const hum = 60 + 15 * Math.cos((t - start) / (43200 * 1e3)) + (Math.random() - 0.5) * 3;
-    const pres = 1010 + 8 * dayFactor + (Math.random() - 0.5) * 0.5;
-    const wind = 5 + 3 * Math.abs(Math.sin((t - start) / (21600 * 1e3))) + (Math.random() - 0.5) * 1;
-    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)},${wind.toFixed(3)}`);
-  }
-  return rows.join("\n");
-}
-async function loadSampleDataset(datasetId, showPage) {
-  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/frequency-DDhj7cvA.js').then(n => n.k);return { toast }},true              ?__vite__mapDeps([2,0,1]):void 0);
-  const { fetchSampleDataset } = await __vitePreload(async () => { const { fetchSampleDataset } = await import('./assets/scatter-INiNSUmD.js').then(n => n.au);return { fetchSampleDataset }},true              ?__vite__mapDeps([0,1]):void 0);
-  if (datasetId === "ettm2") {
-    const dismissLoading = toast("Loading ETTm2 sample dataset…", "info", 0);
-    let file;
-    try {
-      const blob = await fetchSampleDataset("ETTm2.csv");
-      file = new File([blob], "ETTm2.csv", { type: "text/csv" });
-    } catch (err) {
-      dismissLoading();
-      toast(`Could not load ETTm2: ${err}`, "error");
-      return;
-    }
-    const homePage = document.getElementById("page-home");
-    if (homePage) homePage.hidden = true;
-    showPage("upload");
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const fileInput = document.getElementById("file-upload");
-    if (fileInput) {
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
-      fileInput.files = dataTransfer.files;
-      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-      dismissLoading();
-    } else {
-      dismissLoading();
-      toast("Upload panel not ready. Please navigate to Upload and drop the file manually.", "error");
-    }
-  } else if (datasetId === "sinusoidal") {
-    const dismissLoading = toast("Loading Sinusoidal Waves sample dataset…", "info", 0);
-    const file = new File([generateSinusoidalCsv()], "sinusoidal.csv", { type: "text/csv" });
-    const homePage = document.getElementById("page-home");
-    if (homePage) homePage.hidden = true;
-    showPage("upload");
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const fileInput = document.getElementById("file-upload");
-    if (fileInput) {
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
-      fileInput.files = dataTransfer.files;
-      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-      dismissLoading();
-    } else {
-      dismissLoading();
-      toast("Upload panel not ready.", "error");
-    }
-  } else if (datasetId === "weather") {
-    const dismissLoading = toast("Loading Weather Patterns sample dataset…", "info", 0);
-    const file = new File([generateWeatherCsv()], "weather.csv", { type: "text/csv" });
-    const homePage = document.getElementById("page-home");
-    if (homePage) homePage.hidden = true;
-    showPage("upload");
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const fileInput = document.getElementById("file-upload");
-    if (fileInput) {
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
-      fileInput.files = dataTransfer.files;
-      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-      dismissLoading();
-    } else {
-      dismissLoading();
-      toast("Upload panel not ready.", "error");
-    }
-  }
-}
 function initAppShell(deps) {
   window.__edatime = window.__edatime || {};
   window.__edatime.ensurePageModuleLoaded = deps.ensurePageModuleLoaded;
@@ -4293,20 +3701,70 @@ function initAppShell(deps) {
   wireHomeNavigationCards(deps.showPage);
   wireSampleDatasetCards(deps.showPage);
   initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid, {
-    buildColumnToggles: () => buildColumnToggles(deps.fetchAndRender, buildRangeControls, deps.renderCurrentData),
-    buildRangeControls
+    buildColumnToggles: deps.buildTimeseriesColumns,
+    buildRangeControls: deps.buildTimeseriesRanges
   });
   initColumnProfilesGrid();
   initAnalysisControls(deps.fetchAndRender);
-  initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange);
   initChartPageFilterGesture();
-  initKeyboardShortcuts$1(deps, APP_COMMAND_DEFINITIONS);
+  initKeyboardShortcuts(deps, APP_COMMAND_DEFINITIONS);
   initCommandPalette();
   initProvenance();
   registerAppCommands(deps);
   initTransformModal({ refreshDataset: deps.refreshDatasetAfterMutation });
   initOutlierModal({ refreshDataset: deps.refreshDatasetAfterMutation });
   deps.initAnalyticsListeners();
+}
+
+function showPage(pageName) {
+  document.querySelector(`.sidebar .nav-item[data-page="${pageName}"]`)?.click?.();
+}
+
+function isTypingTarget(target) {
+  if (!target) return false;
+  if (target.isContentEditable) return true;
+  const tag = String(target.tagName || "").toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select";
+}
+function currentPageName() {
+  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
+}
+function matchesShortcut(key, options, def, pageName) {
+  return def.key.toLowerCase() === key.toLowerCase() && Boolean(def.alt) === Boolean(options.alt) && Boolean(def.shift) === Boolean(options.shift) && (!def.page || def.page === pageName);
+}
+function initGlobalShortcuts(deps, commandDefs) {
+  const win = window;
+  if (win.__edatime?.globalShortcutsBound) return;
+  if (!win.__edatime) win.__edatime = {};
+  const handler = (event) => {
+    if (event.defaultPrevented || isTypingTarget(event.target)) return;
+    if (event.ctrlKey || event.metaKey) return;
+    const key = String(event.key || "").toLowerCase();
+    const pageName = currentPageName();
+    if (event.altKey && !event.ctrlKey && !event.metaKey) {
+      const match = commandDefs.find(
+        (def) => def.keyboard && matchesShortcut(key, { alt: true, shift: false }, def.keyboard, pageName)
+      );
+      if (match) {
+        event.preventDefault();
+        match.action(deps);
+        return;
+      }
+    }
+    if (event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      const match = commandDefs.find(
+        (def) => def.keyboard && matchesShortcut(key, { alt: false, shift: true }, def.keyboard, pageName)
+      );
+      if (match) {
+        event.preventDefault();
+        match.action(deps);
+        return;
+      }
+    }
+  };
+  window.addEventListener("keydown", handler);
+  deps.registerCleanup(() => window.removeEventListener("keydown", handler));
+  win.__edatime.globalShortcutsBound = true;
 }
 
 function createAppRuntime() {
@@ -4797,12 +4255,12 @@ async function loadEntrypoints(deps) {
     { createCausalEntrypoint },
     { createDriftEntrypoint }
   ] = await Promise.all([
-    __vitePreload(() => import('./assets/entrypoint-DDKmoufg.js'),true              ?__vite__mapDeps([3,2,0,1]):void 0),
-    __vitePreload(() => import('./assets/entrypoint-CoinkpZQ.js'),true              ?__vite__mapDeps([4,2,0,1]):void 0),
-    __vitePreload(() => import('./assets/scatter-INiNSUmD.js').then(n => n.av),true              ?__vite__mapDeps([0,1]):void 0),
-    __vitePreload(() => import('./assets/entrypoint-DIE5s4DQ.js'),true              ?__vite__mapDeps([5,2,0,1]):void 0),
-    __vitePreload(() => import('./assets/causal-fh9kzEa_.js'),true              ?__vite__mapDeps([6,0,1,2]):void 0),
-    __vitePreload(() => import('./assets/drift-DzhJ3DU9.js').then(n => n.e),true              ?__vite__mapDeps([7,0,1,2]):void 0)
+    __vitePreload(() => import('./assets/entrypoint-z6h-bxTx.js'),true              ?__vite__mapDeps([2,3,0,1]):void 0),
+    __vitePreload(() => import('./assets/entrypoint-DwaSghn-.js'),true              ?__vite__mapDeps([4,3,0,1]):void 0),
+    __vitePreload(() => import('./assets/scatter-CC18p9T0.js').then(n => n.ay),true              ?__vite__mapDeps([0,1]):void 0),
+    __vitePreload(() => import('./assets/entrypoint-HgFYvBUI.js'),true              ?__vite__mapDeps([5,3,0,1]):void 0),
+    __vitePreload(() => import('./assets/causal-BIDACNJi.js'),true              ?__vite__mapDeps([6,0,1,3]):void 0),
+    __vitePreload(() => import('./assets/drift-BVqxjjBm.js').then(n => n.e),true              ?__vite__mapDeps([7,0,1,3]):void 0)
   ]);
   register("fft", {
     requiresMetadata: true,
@@ -4835,6 +4293,596 @@ async function loadEntrypoints(deps) {
   register("drift", {
     requiresMetadata: true,
     init: createDriftEntrypoint({ initDriftPage: deps.initDriftPage, getMetadata: () => deps.getMetadata() }).init
+  });
+}
+
+function sanitizeSelectedColumns() {
+  const blockedNames = /* @__PURE__ */ new Set(["ts", "timestamp", "time"]);
+  const datetimeCols = new Set(
+    (appStateComposite.metadata?.columns ?? []).filter((col) => /date|time/i.test(String(col?.dtype ?? ""))).map((col) => String(col?.name ?? "").toLowerCase())
+  );
+  const validColNames = new Set(
+    (appStateComposite.metadata?.columns ?? []).map((col) => String(col?.name ?? "").trim())
+  );
+  setSelectedCols(
+    (appStateComposite.selectedCols ?? []).filter((col) => {
+      const name = String(col ?? "").trim();
+      if (!name) return false;
+      const lower = name.toLowerCase();
+      if (blockedNames.has(lower) || datetimeCols.has(lower)) return false;
+      return validColNames.has(name);
+    })
+  );
+}
+function ensureAdaptiveTargetStillValid() {
+  if (!appStateComposite.adaptiveFilterColumn) return;
+  if (appStateComposite.selectedCols.includes(appStateComposite.adaptiveFilterColumn)) return;
+  setAdaptiveFilterColumn(appStateComposite.selectedCols[0] ?? null);
+}
+
+let _seriesCollapsed = false;
+function initSeriesCollapse() {
+  const btn = document.getElementById("collapse-series-btn");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    _seriesCollapsed = !_seriesCollapsed;
+    updateCollapseButton(btn);
+    applyCollapse();
+  });
+}
+function updateCollapseButton(btn) {
+  btn.title = _seriesCollapsed ? "Expand series list" : "Collapse series list";
+  btn.setAttribute("aria-label", _seriesCollapsed ? "Expand series list" : "Collapse series list");
+  const svg = btn.querySelector("svg");
+  if (svg) {
+    svg.style.transform = _seriesCollapsed ? "rotate(180deg)" : "";
+  }
+}
+function applyCollapse() {
+  const chips = document.querySelectorAll("#column-toggles .series-chip");
+  const collapseThreshold = 3;
+  chips.forEach((chip, i) => {
+    if (!_seriesCollapsed || i < collapseThreshold) {
+      chip.style.display = "";
+    } else {
+      chip.style.display = "none";
+    }
+  });
+  const container = document.getElementById("column-toggles");
+  if (_seriesCollapsed && container) {
+    let existingBadge = container.querySelector(".collapse-badge");
+    if (!existingBadge) {
+      const badge2 = document.createElement("span");
+      badge2.className = "collapse-badge";
+      badge2.id = "series-collapse-badge";
+      container.appendChild(badge2);
+    }
+    const badge = container.querySelector("#series-collapse-badge");
+    if (badge) {
+      badge.textContent = `+${chips.length - collapseThreshold} more`;
+      badge.style.display = "";
+    }
+  } else {
+    const badge = document.getElementById("series-collapse-badge");
+    if (badge) badge.style.display = "none";
+  }
+}
+
+let _lastContextTs = 0;
+let _lastContextCol = "";
+function bindChipContextMenu(container) {
+  if (container.dataset.ctxBound) return;
+  container.dataset.ctxBound = "1";
+  container.addEventListener("contextmenu", (e) => {
+    const chip = e.target?.closest?.(".series-chip");
+    if (!chip) return;
+    const input = chip.querySelector('input[type="checkbox"]');
+    const col = input?.value;
+    if (!col) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const now = performance.now();
+    const isDoubleContext = _lastContextCol === col && now - _lastContextTs <= 450;
+    _lastContextTs = now;
+    _lastContextCol = col;
+    if (!isDoubleContext) return;
+    _lastContextTs = 0;
+    _lastContextCol = "";
+    const open = window.__edatime?.openFilterForCol;
+    if (typeof open !== "function") return;
+    open(col);
+  });
+}
+
+function composeChipListItems(options) {
+  const { filterText, buildRangeControlsFn, fetchAndRender, renderCurrentDataFn } = options;
+  const visibleCols = appStateComposite.numericCols.filter((col) => {
+    if (!filterText) return true;
+    return col.toLowerCase().includes(filterText.toLowerCase());
+  });
+  if (visibleCols.length === 0) return [];
+  return visibleCols.map((col) => {
+    const colIdx = appStateComposite.numericCols.indexOf(col);
+    const color = getSeriesColor(col, colIdx >= 0 ? colIdx : 0);
+    const isActive = appStateComposite.selectedCols.includes(col);
+    const isAdaptiveTarget = isActive && appStateComposite.adaptiveFilterColumn === col;
+    const chipTitle = isAdaptiveTarget ? `Adaptive filter target: ${col}` : `Ctrl+click to target adaptive filters to ${col}`;
+    return {
+      column: col,
+      checked: isActive,
+      color,
+      adaptiveTarget: isAdaptiveTarget,
+      title: chipTitle,
+      onToggle: (checked) => {
+        if (checked) {
+          if (!appStateComposite.selectedCols.includes(col)) setSelectedCols([...appStateComposite.selectedCols, col]);
+        } else {
+          setSelectedCols(appStateComposite.selectedCols.filter((c) => c !== col));
+        }
+        ensureAdaptiveTargetStillValid();
+        buildRangeControlsFn();
+        appStateComposite.chart?.requestOverlayRender?.();
+        fetchAndRender();
+      },
+      onColorInput: (nextColor) => {
+        const updated = setSeriesColor(col, nextColor);
+        if (!updated) return;
+        renderCurrentDataFn?.();
+      },
+      onMenuClick: () => {
+        const open = window.__edatime?.openFilterForCol;
+        if (typeof open === "function") open(col);
+      },
+      menuLabel: `Filter range for ${col}`
+    };
+  });
+}
+function bindChipCtrlClick(container, rebuildAndRender, buildRangeControlsFn, renderCurrentDataFn, fetchAndRender) {
+  for (const chip of container.querySelectorAll(".series-chip")) {
+    chip.addEventListener(
+      "click",
+      (e) => {
+        if (e.target?.closest?.(".chip-color-picker")) return;
+        if (!e.ctrlKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const input = chip.querySelector('input[type="checkbox"]');
+        const col = input?.value;
+        if (!col) return;
+        const hadColumn = appStateComposite.selectedCols.includes(col);
+        if (!hadColumn) setSelectedCols([...appStateComposite.selectedCols, col]);
+        setAdaptiveFilterColumn(col);
+        setPendingAdaptivePoint(null);
+        rebuildAndRender();
+        appStateComposite.chart?.requestOverlayRender?.();
+        if (!hadColumn) fetchAndRender();
+      },
+      true
+      // capture phase
+    );
+  }
+}
+
+function buildRangeControls() {
+  const container = document.getElementById("column-range-controls");
+  if (!container) return;
+  container.innerHTML = "";
+  if (appStateComposite.adaptiveFilterColumn && appStateComposite.selectedCols.includes(appStateComposite.adaptiveFilterColumn)) {
+    const targetChip = document.createElement("div");
+    targetChip.className = "range-chip";
+    targetChip.innerHTML = `
+      <span class="name">Adaptive target</span>
+      <span class="range">${appStateComposite.adaptiveFilterColumn}</span>
+    `;
+    container.appendChild(targetChip);
+  }
+  for (const col of appStateComposite.selectedCols) {
+    const range = appStateComposite.columnRanges[col];
+    if (!range) continue;
+    const chip = document.createElement("div");
+    chip.className = "range-chip range-chip--clickable";
+    chip.setAttribute("role", "button");
+    chip.setAttribute("tabindex", "0");
+    chip.setAttribute("aria-label", `Filter ${col}`);
+    chip.innerHTML = `
+      <span class="name">${col}</span>
+      <span class="range">${formatAnalysisNumber(range.from)} → ${formatAnalysisNumber(range.to)}</span>
+    `;
+    const open = () => {
+      const fn = window.__edatime?.openFilterForCol;
+      if (typeof fn === "function") fn(col);
+    };
+    chip.addEventListener("click", open);
+    chip.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        open();
+      }
+    });
+    container.appendChild(chip);
+  }
+  for (const filter of appStateComposite.adaptiveLineFilters ?? []) {
+    const chip = document.createElement("div");
+    chip.className = "range-chip range-chip--clickable";
+    chip.setAttribute("role", "button");
+    chip.setAttribute("tabindex", "0");
+    chip.setAttribute("aria-label", `Remove adaptive filter for ${filter.column}`);
+    chip.innerHTML = `
+      <span class="name">Adaptive ${filter.column}</span>
+      <span class="range">${filter.keepAbove ? "keep above" : "keep below"}</span>
+    `;
+    const remove = () => {
+      setAdaptiveLineFilters(
+        (appStateComposite.adaptiveLineFilters ?? []).filter(
+          (item) => item.id !== filter.id
+        )
+      );
+      setPendingAdaptivePoint(null);
+      buildRangeControls();
+      window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change"));
+    };
+    chip.addEventListener("click", remove);
+    chip.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        remove();
+      }
+    });
+    container.appendChild(chip);
+  }
+  if ((appStateComposite.adaptiveLineFilters?.length ?? 0) > 0 || appStateComposite.pendingAdaptivePoint) {
+    const clearChip = document.createElement("div");
+    clearChip.className = "range-chip range-chip--clickable";
+    clearChip.setAttribute("role", "button");
+    clearChip.setAttribute("tabindex", "0");
+    clearChip.setAttribute("aria-label", "Clear adaptive filters");
+    clearChip.innerHTML = `
+      <span class="name">Adaptive filters</span>
+      <span class="range">Clear all</span>
+    `;
+    const clearAll = () => {
+      setAdaptiveLineFilters([]);
+      setPendingAdaptivePoint(null);
+      buildRangeControls();
+      appStateComposite.chart?.requestOverlayRender?.();
+      window.dispatchEvent(new CustomEvent("edatime:adaptive-filters-change"));
+    };
+    clearChip.addEventListener("click", clearAll);
+    clearChip.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        clearAll();
+      }
+    });
+    container.appendChild(clearChip);
+  }
+}
+
+function initFilterModalController(deps) {
+  const modal = document.getElementById("column-filter-modal");
+  const closeBtn = document.getElementById("column-filter-close-btn");
+  const cancelBtn = document.getElementById("column-filter-cancel-btn");
+  const applyBtn = document.getElementById("column-filter-apply-btn");
+  const clearBtn = document.getElementById("column-filter-clear-btn");
+  const colSelect = document.getElementById("column-filter-col");
+  const minInput = document.getElementById("column-filter-min");
+  const maxInput = document.getElementById("column-filter-max");
+  const minRangeInput = document.getElementById("column-filter-min-range");
+  const maxRangeInput = document.getElementById("column-filter-max-range");
+  const rangeFill = document.getElementById("column-filter-range-fill");
+  const rangeMinValue = document.getElementById("column-filter-range-min-value");
+  const rangeMaxValue = document.getElementById("column-filter-range-max-value");
+  const hint = document.getElementById("column-filter-hint");
+  const openBtn = document.getElementById("column-filter-open-btn");
+  const openBtns = [openBtn].filter(Boolean);
+  if (!modal || !closeBtn || !cancelBtn || !applyBtn || !clearBtn || !colSelect || !minInput || !maxInput || !minRangeInput || !maxRangeInput || !rangeFill || !rangeMinValue || !rangeMaxValue || !hint) return;
+  if (modal.dataset.bound) return;
+  const modalEl = modal;
+  const closeButton = closeBtn;
+  const cancelButton = cancelBtn;
+  const applyButton = applyBtn;
+  const clearButton = clearBtn;
+  const columnSelect = colSelect;
+  const minTextInput = minInput;
+  const maxTextInput = maxInput;
+  const minSliderInput = minRangeInput;
+  const maxSliderInput = maxRangeInput;
+  const rangeFillEl = rangeFill;
+  const rangeMinValueEl = rangeMinValue;
+  const rangeMaxValueEl = rangeMaxValue;
+  const hintEl = hint;
+  let activeBounds = null;
+  function emitColumnFiltersChange() {
+    window.dispatchEvent(new CustomEvent("edatime:column-filters-change"));
+  }
+  function setHint(text) {
+    hintEl.textContent = text || "";
+  }
+  function formatInputValue(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n.toFixed(2) : "";
+  }
+  function clampToBounds(value, bounds) {
+    if (!bounds || !Number.isFinite(value)) return value;
+    return Math.min(bounds.max, Math.max(bounds.min, value));
+  }
+  function computeSliderStep(bounds) {
+    if (!bounds) return 0.01;
+    const span = Math.abs(bounds.max - bounds.min);
+    if (!(span > 0)) return 0.01;
+    return Math.max(span / 500, 0.01);
+  }
+  function updateRangeFill(from, to) {
+    rangeMinValueEl.textContent = formatAnalysisNumber(from);
+    rangeMaxValueEl.textContent = formatAnalysisNumber(to);
+    if (!activeBounds) {
+      rangeFillEl.style.left = "0%";
+      rangeFillEl.style.width = "0%";
+      return;
+    }
+    const span = activeBounds.max - activeBounds.min;
+    if (!(span > 0)) {
+      rangeFillEl.style.left = "0%";
+      rangeFillEl.style.width = "100%";
+      return;
+    }
+    const leftPct = (from - activeBounds.min) / span * 100;
+    const rightPct = (to - activeBounds.min) / span * 100;
+    const clampedLeft = Math.max(0, Math.min(100, leftPct));
+    const clampedRight = Math.max(clampedLeft, Math.min(100, rightPct));
+    rangeFillEl.style.left = `${clampedLeft}%`;
+    rangeFillEl.style.width = `${Math.max(0, clampedRight - clampedLeft)}%`;
+  }
+  function updateSliderConfig(bounds) {
+    activeBounds = bounds;
+    if (!bounds) {
+      minSliderInput.disabled = true;
+      maxSliderInput.disabled = true;
+      updateRangeFill(0, 0);
+      return;
+    }
+    const step = computeSliderStep(bounds);
+    const min = String(bounds.min);
+    const max = String(bounds.max);
+    const disabled = !(bounds.max > bounds.min);
+    for (const input of [minSliderInput, maxSliderInput]) {
+      input.min = min;
+      input.max = max;
+      input.step = String(step);
+      input.disabled = disabled;
+    }
+    updateRangeFill(bounds.min, bounds.max);
+  }
+  function syncSliderValues(from, to) {
+    minSliderInput.value = String(from);
+    maxSliderInput.value = String(to);
+  }
+  function syncInputsFromValues(from, to) {
+    minTextInput.value = formatInputValue(from);
+    maxTextInput.value = formatInputValue(to);
+    syncSliderValues(from, to);
+    updateRangeFill(from, to);
+  }
+  function readInputs() {
+    let from = Number.parseFloat(minTextInput.value);
+    let to = Number.parseFloat(maxTextInput.value);
+    if (activeBounds) {
+      if (!Number.isFinite(from)) from = activeBounds.min;
+      if (!Number.isFinite(to)) to = activeBounds.max;
+      from = clampToBounds(from, activeBounds);
+      to = clampToBounds(to, activeBounds);
+    }
+    if (from > to) {
+      const tmp = from;
+      from = to;
+      to = tmp;
+    }
+    return { from, to };
+  }
+  function syncFromNumericInputs() {
+    const { from, to } = readInputs();
+    syncInputsFromValues(from, to);
+  }
+  function syncFromRangeInputs(changed) {
+    let from = Number.parseFloat(minSliderInput.value);
+    let to = Number.parseFloat(maxSliderInput.value);
+    if (changed === "min" && from > to) to = from;
+    if (changed === "max" && to < from) from = to;
+    if (activeBounds) {
+      from = clampToBounds(from, activeBounds);
+      to = clampToBounds(to, activeBounds);
+    }
+    syncInputsFromValues(from, to);
+  }
+  function getFullBoundsForCol(col) {
+    const rawValues = appStateComposite.lastFetchedData?.values?.[col];
+    const filteredSeries = appStateComposite.lastFetchedData?.series;
+    const filteredValues = filteredSeries?.[col]?.y;
+    const dataBounds = computeBounds(rawValues || filteredValues || new Float64Array(0));
+    if (dataBounds) return dataBounds;
+    const profile = (appStateComposite.metadata?.column_profiles || []).find((item) => item?.name === col);
+    const min = Number(profile?.min);
+    const max = Number(profile?.max);
+    if (Number.isFinite(min) && Number.isFinite(max)) return { min, max };
+    return null;
+  }
+  function populateColumns(selectedCol = null) {
+    const cols = appStateComposite.selectedCols || [];
+    columnSelect.innerHTML = "";
+    if (cols.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "No series selected";
+      columnSelect.appendChild(opt);
+      columnSelect.value = "";
+      return;
+    }
+    for (const col of cols) {
+      const opt = document.createElement("option");
+      opt.value = col;
+      opt.textContent = col;
+      columnSelect.appendChild(opt);
+    }
+    if (selectedCol && cols.includes(selectedCol)) columnSelect.value = selectedCol;
+    else columnSelect.value = cols[0];
+  }
+  function refreshInputsForCol(col) {
+    if (!col) {
+      minTextInput.value = "";
+      maxTextInput.value = "";
+      updateSliderConfig(null);
+      applyButton.disabled = true;
+      clearButton.disabled = true;
+      setHint("Select a column to filter.");
+      return;
+    }
+    if (!appStateComposite.lastFetchedData) {
+      updateSliderConfig(null);
+      applyButton.disabled = true;
+      clearButton.disabled = true;
+      setHint("Data not loaded yet.");
+      return;
+    }
+    const full = getFullBoundsForCol(col);
+    if (!full) {
+      applyButton.disabled = true;
+      clearButton.disabled = true;
+      updateSliderConfig(null);
+      setHint("No numeric range is available for this column.");
+      return;
+    }
+    const cur = appStateComposite.columnRanges[col] ?? { from: full.min, to: full.max };
+    updateSliderConfig(full);
+    syncInputsFromValues(cur.from, cur.to);
+    applyButton.disabled = false;
+    clearButton.disabled = false;
+    setHint(`Available range: ${formatAnalysisNumber(full.min)} → ${formatAnalysisNumber(full.max)}`);
+  }
+  function openModalForCol(col) {
+    populateColumns(col || columnSelect.value || appStateComposite.selectedCols?.[0] || null);
+    refreshInputsForCol(columnSelect.value);
+    modalEl.hidden = false;
+    try {
+      minTextInput.focus();
+    } catch {
+    }
+  }
+  function closeModal() {
+    modalEl.hidden = true;
+    setHint("");
+  }
+  window.__edatime = window.__edatime || {};
+  window.__edatime.openFilterForCol = openModalForCol;
+  for (const btn of openBtns) {
+    btn.addEventListener("click", () => openModalForCol(null));
+  }
+  closeButton.addEventListener("click", closeModal);
+  cancelButton.addEventListener("click", closeModal);
+  modalEl.addEventListener("click", (event) => {
+    if (event.target === modalEl) closeModal();
+  });
+  window.addEventListener("keydown", (event) => {
+    if (modalEl.hidden) return;
+    if (event.key === "Escape") closeModal();
+  });
+  columnSelect.addEventListener("change", () => refreshInputsForCol(columnSelect.value));
+  minTextInput.addEventListener("input", syncFromNumericInputs);
+  maxTextInput.addEventListener("input", syncFromNumericInputs);
+  minSliderInput.addEventListener("input", () => syncFromRangeInputs("min"));
+  maxSliderInput.addEventListener("input", () => syncFromRangeInputs("max"));
+  clearButton.addEventListener("click", () => {
+    const col = columnSelect.value;
+    const full = getFullBoundsForCol(col);
+    if (!col || !full) return;
+    appStateComposite.columnRanges[col] = { from: full.min, to: full.max };
+    buildRangeControls();
+    deps.renderCurrentData();
+    appStateComposite.chart?.fitYToData?.();
+    const yr = appStateComposite.chart?.getYRange?.();
+    if (yr) deps.updateAnalysisYRange(yr.min, yr.max, "filter");
+    emitColumnFiltersChange();
+    refreshInputsForCol(col);
+  });
+  applyButton.addEventListener("click", () => {
+    const col = columnSelect.value;
+    if (!col) return;
+    let { from, to } = readInputs();
+    const full = getFullBoundsForCol(col);
+    if (full) {
+      if (!Number.isFinite(from)) from = full.min;
+      if (!Number.isFinite(to)) to = full.max;
+    }
+    if (!Number.isFinite(from) || !Number.isFinite(to)) {
+      setHint("Enter a valid min and max.");
+      return;
+    }
+    if (from > to) {
+      const tmp = from;
+      from = to;
+      to = tmp;
+    }
+    appStateComposite.columnRanges[col] = { from, to };
+    buildRangeControls();
+    deps.renderCurrentData();
+    appStateComposite.chart?.fitYToData?.();
+    const yr = appStateComposite.chart?.getYRange?.();
+    if (yr) deps.updateAnalysisYRange(yr.min, yr.max, "filter");
+    emitColumnFiltersChange();
+    closeModal();
+  });
+  modalEl.dataset.bound = "1";
+}
+
+function buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn = null) {
+  const container = document.getElementById("column-toggles");
+  if (!container || container?.dataset?.rebuilding) return;
+  container.dataset.rebuilding = "1";
+  sanitizeSelectedColumns();
+  ensureAdaptiveTargetStillValid();
+  container.innerHTML = "";
+  const finish = () => {
+    container.dataset.rebuilding = "";
+  };
+  bindChipContextMenu(container);
+  const items = composeChipListItems({
+    filterText: appStateComposite.filterText ?? "",
+    buildRangeControlsFn,
+    fetchAndRender,
+    renderCurrentDataFn
+  });
+  if (items.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "series-empty";
+    empty.textContent = "No matching columns";
+    container.appendChild(empty);
+    return;
+  }
+  renderSeriesChipList({
+    container,
+    items: items.map((item) => ({ ...item, onToggle: item.onToggle })),
+    chipClass: "timeseries-chip",
+    onColorUpdate: (col, color) => {
+      const chip = container.querySelector(`[data-col="${col}"]`);
+      if (chip) chip.style.setProperty("--chip-accent", color);
+    }
+  });
+  bindChipCtrlClick(
+    container,
+    () => {
+      buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
+      buildRangeControlsFn();
+    },
+    buildRangeControlsFn,
+    renderCurrentDataFn,
+    fetchAndRender
+  );
+  finish();
+  applyCollapse();
+}
+function initColumnFilterModal(renderCurrentData, updateAnalysisYRange) {
+  initFilterModalController({
+    renderCurrentData,
+    updateAnalysisYRange
   });
 }
 
@@ -4888,6 +4936,32 @@ function initTimeseriesActions(deps) {
   window.addEventListener("edatime:clear-all-filters", onClearAllFilters);
   deps.registerCleanup(() => window.removeEventListener("edatime:clear-all-filters", onClearAllFilters));
   window.__edatime.clearAllFilters = () => void clearAllFilters("clear");
+}
+
+function createTimeseriesEntrypoint(deps) {
+  const rebuildColumns = () => {
+    buildColumnToggles(deps.fetchAndRender, buildRangeControls, deps.renderCurrentData);
+  };
+  return {
+    init() {
+      initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange);
+      initSeriesCollapse();
+      initDatasetSearchInputs({
+        rebuildColumnToggles: rebuildColumns,
+        renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => {
+        })
+      });
+      initTimeseriesActions({
+        ...deps,
+        rebuildColumnToggles: rebuildColumns,
+        buildRangeControls,
+        renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => {
+        })
+      });
+    },
+    rebuildColumns,
+    buildRangeControls
+  };
 }
 
 const _registry = /* @__PURE__ */ new Map();
@@ -5039,9 +5113,16 @@ class FallbackChart {
 
 const _appCleanups = [];
 const runtime = createAppRuntime();
+let timeseriesFeature = null;
+const rebuildTimeseriesColumns = () => {
+  timeseriesFeature?.rebuildColumns();
+};
+const rebuildTimeseriesRanges = () => {
+  timeseriesFeature?.buildRangeControls();
+};
 const timeseriesPage = createTimeseriesPageController({
   fetchData: (start, end, width, columns, colorColumn, signal) => fetchData(start, end, width, columns, colorColumn, signal),
-  buildRangeControls,
+  buildRangeControls: rebuildTimeseriesRanges,
   updateAnalysisYRange,
   updateAnalysisZoom,
   getCurrentView,
@@ -5096,8 +5177,8 @@ async function ensureTimeseriesReady() {
       setAnalysisBound(false);
       bindAnalysisChartEvents();
       initAdaptiveFilterGesture({
-        buildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
-        buildRangeControls,
+        buildColumnToggles: rebuildTimeseriesColumns,
+        buildRangeControls: rebuildTimeseriesRanges,
         renderCurrentData,
         updateAnalysisYRange
       });
@@ -5118,8 +5199,8 @@ async function ensureTimeseriesReady() {
       await restoreSessionAfterChartReady({
         metadataTimeRange: appStateComposite.metadata?.time_range ?? null,
         currentDatasetRevision: Number(appStateComposite.datasetRevision ?? 0),
-        buildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
-        buildRangeControls,
+        buildColumnToggles: rebuildTimeseriesColumns,
+        buildRangeControls: rebuildTimeseriesRanges,
         renderCurrentData,
         fetchAndRender: () => timeseriesPage.fetchAndRender()
       });
@@ -5149,103 +5230,6 @@ async function ensureTimeseriesReady() {
     _timeseriesReadyPromise = null;
   }
 }
-function isTypingTarget(target) {
-  if (!target) return false;
-  if (target.isContentEditable) return true;
-  const tag = String(target.tagName || "").toLowerCase();
-  return tag === "input" || tag === "textarea" || tag === "select";
-}
-function currentPageName() {
-  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
-}
-function showPage(pageName) {
-  document.querySelector(`.sidebar .nav-item[data-page="${pageName}"]`)?.click?.();
-}
-function initKeyboardShortcuts() {
-  const win = window;
-  if (win.__edatime?.keyboardShortcutsBound) return;
-  if (!win.__edatime) win.__edatime = {};
-  const onKeydown = (event) => {
-    if (event.defaultPrevented || isTypingTarget(event.target)) return;
-    const key = String(event.key || "").toLowerCase();
-    if (event.altKey && !event.ctrlKey && !event.metaKey) {
-      if (key === "1") {
-        event.preventDefault();
-        showPage("upload");
-        return;
-      }
-      if (key === "2") {
-        event.preventDefault();
-        showPage("timeseries");
-        return;
-      }
-      if (key === "3") {
-        event.preventDefault();
-        showPage("scatter");
-        return;
-      }
-      if (key === "4") {
-        event.preventDefault();
-        showPage("scattermatrix");
-        return;
-      }
-      if (key === "6") {
-        event.preventDefault();
-        showPage("fft");
-        return;
-      }
-      if (key === "7") {
-        event.preventDefault();
-        showPage("heatmap");
-        return;
-      }
-      if (key === "8") {
-        event.preventDefault();
-        showPage("spectrogram");
-        return;
-      }
-      if (key === "9") {
-        event.preventDefault();
-        showPage("causal");
-        return;
-      }
-      if (key === "0") {
-        event.preventDefault();
-        showPage("drift");
-        return;
-      }
-    }
-    if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (key === "r" && currentPageName() === "timeseries") {
-      event.preventDefault();
-      resetZoom(fetchAndRender);
-      return;
-    }
-    if (key === "z" && currentPageName() === "timeseries") {
-      event.preventDefault();
-      zoomOut(fetchAndRender);
-      return;
-    }
-    if (key === "c" && currentPageName() === "timeseries") {
-      event.preventDefault();
-      document.getElementById("adaptive-clear-btn")?.click?.();
-      return;
-    }
-    if (key === "p") {
-      event.preventDefault();
-      appStateComposite.chart?.exportPNG?.();
-      return;
-    }
-    if (key === "e") {
-      event.preventDefault();
-      if (currentPageName() === "scatter") document.getElementById("scatter-export-csv-btn")?.click?.();
-      else window.__edatime?.exportChartFilteredData?.("csv");
-    }
-  };
-  window.addEventListener("keydown", onKeydown);
-  _appCleanups.push(() => window.removeEventListener("keydown", onKeydown));
-  window.__edatime.keyboardShortcutsBound = true;
-}
 function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
   const btn = document.getElementById(btnId);
   const overlay = document.getElementById(overlayId);
@@ -5262,8 +5246,8 @@ let DataChartCtor = null;
 async function ensureChartModules() {
   if (fetchMetadata && fetchData && DataChartCtor) return;
   const [dataClient, chartModule] = await Promise.all([
-    __vitePreload(() => import('./assets/scatter-INiNSUmD.js').then(n => n.au),true              ?__vite__mapDeps([0,1]):void 0),
-    __vitePreload(() => import('./assets/DataChart-DesO8rUf.js'),true              ?__vite__mapDeps([8,1,0,2]):void 0)
+    __vitePreload(() => import('./assets/scatter-CC18p9T0.js').then(n => n.aw),true              ?__vite__mapDeps([0,1]):void 0),
+    __vitePreload(() => import('./assets/DataChart-D9ymouBy.js'),true              ?__vite__mapDeps([8,1,0,3]):void 0)
   ]);
   fetchMetadata = dataClient.fetchMetadata;
   fetchData = dataClient.fetchData;
@@ -5289,7 +5273,7 @@ async function ensureChartModules() {
   });
 }
 async function fetchAndRenderAnalytics() {
-  const { fetchAnomalies: fa } = await __vitePreload(async () => { const { fetchAnomalies: fa } = await import('./assets/scatter-INiNSUmD.js').then(n => n.au);return { fetchAnomalies: fa }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { fetchAnomalies: fa } = await __vitePreload(async () => { const { fetchAnomalies: fa } = await import('./assets/scatter-CC18p9T0.js').then(n => n.aw);return { fetchAnomalies: fa }},true              ?__vite__mapDeps([0,1]):void 0);
   await fetchAnomalyRegions(fa ?? fetchAnomalies);
 }
 let _datasetReadyPromise = null;
@@ -5301,21 +5285,7 @@ function storeFetchedMetadata(metadata) {
 }
 function initializeDatasetUi(metadata) {
   if (!_datasetUiReady) {
-    initDatasetSearchInputs({
-      rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
-      renderColumnProfilesGrid
-    });
-    initSeriesCollapse();
-    initTimeseriesActions({
-      rebuildColumnToggles: () => buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData),
-      renderColumnProfilesGrid,
-      buildRangeControls,
-      renderCurrentData,
-      fetchAndRender,
-      updateAnalysisZoom,
-      emitChartRangeChange,
-      registerCleanup: (cleanup) => _appCleanups.push(cleanup)
-    });
+    timeseriesFeature?.init();
     ensureSessionPersistenceStarted();
     window.addEventListener("edatime:page-change", (event) => {
       const ce = event;
@@ -5330,9 +5300,9 @@ function initializeDatasetUi(metadata) {
   applyPartialTimeRangeFromMetadata(metadata, false);
   setUploadPreviewStatus("Showing current dataset profile. Drop/select a file to preview before loading.");
   setProfileMode("dataset");
-  buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
+  rebuildTimeseriesColumns();
   buildMetaBar(metadata);
-  buildRangeControls();
+  rebuildTimeseriesRanges();
   window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
   const timeRange = metadata.time_range;
   if (!timeRange) return;
@@ -5381,19 +5351,30 @@ async function refreshDatasetAfterMutation(options) {
     setSelectedCols([...appStateComposite.selectedCols, selectedColumn]);
   }
   sanitizeSelectedColumns$1();
-  buildColumnToggles(fetchAndRender, buildRangeControls, renderCurrentData);
+  rebuildTimeseriesColumns();
   buildMetaBar(appStateComposite.metadata);
   await fetchAndRender();
 }
 async function init() {
   installWindowsWebGpuRequestAdapterWorkaround();
   buildMetaBar(null);
+  timeseriesFeature = createTimeseriesEntrypoint({
+    fetchAndRender,
+    renderCurrentData,
+    updateAnalysisYRange,
+    renderColumnProfilesGrid,
+    updateAnalysisZoom,
+    emitChartRangeChange,
+    registerCleanup: (cleanup) => _appCleanups.push(cleanup)
+  });
   initAppShell({
     ensurePageModuleLoaded,
     showPage,
     fetchAndRender,
     renderCurrentData,
     updateAnalysisYRange,
+    buildTimeseriesColumns: rebuildTimeseriesColumns,
+    buildTimeseriesRanges: rebuildTimeseriesRanges,
     zoomOut: () => zoomOut(fetchAndRender),
     resetZoom: () => resetZoom(fetchAndRender),
     initAnalyticsListeners: () => {
@@ -5427,12 +5408,20 @@ async function init() {
     numericColumns: () => getNumericColumns(appStateComposite.metadata),
     setLoading: setComputeLoading,
     initDriftPage: (metadata) => {
-      void __vitePreload(() => import('./assets/drift-DzhJ3DU9.js').then(n => n.d),true              ?__vite__mapDeps([7,0,1,2]):void 0).then((m) => m.initDriftPage(metadata));
+      void __vitePreload(() => import('./assets/drift-BVqxjjBm.js').then(n => n.d),true              ?__vite__mapDeps([7,0,1,3]):void 0).then((m) => m.initDriftPage(metadata));
     }
   });
   window.__edatime = window.__edatime || {};
   window.__edatime.ensureDatasetReady = ensureDatasetReady;
-  initKeyboardShortcuts();
+  initGlobalShortcuts({
+    showPage,
+    zoomOut: () => zoomOut(fetchAndRender),
+    resetZoom: () => resetZoom(fetchAndRender),
+    registerCleanup: runtime.registerCleanup,
+    chartExportPng: () => appStateComposite.chart?.exportPNG?.(),
+    exportFilteredCsv: () => window.__edatime?.exportChartFilteredData?.("csv"),
+    exportFilteredJson: () => window.__edatime?.exportChartFilteredData?.("json")
+  }, APP_COMMAND_DEFINITIONS);
   try {
     const initialPage = getHashPage();
     if (pageNeedsDatasetBootstrap(initialPage)) {

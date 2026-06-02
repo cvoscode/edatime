@@ -107,9 +107,12 @@ All frontend transport calls stay in `frontend/src/services/api/*`. All route ha
 - **Response `200 OK`:** `CausalGraphResponse { columns: string[]; tau_max: number; links: CausalLink[]; graph: string[][][]; val_matrix: number[][][]; p_matrix: number[][][] }`
 
 ### `POST /api/drift/stats`
-- **TS caller:** `fetchDriftStats<T>(payload: unknown): Promise<T>` [deps: [fetchDriftStats][10]]
-- **Rust payload:** `DriftQuery { ... }` [deps: [DriftQuery][11]]
-- **Response `200 OK`:** drift statistics JSON shaped by the selected request.
+- **TS caller:** `fetchDriftStats(column: string, window: string, reference_start: string, reference_end: string, signal?: AbortSignal): Promise<DriftResponse>` [deps: [fetchDriftStats][10]]
+- **Rust payload:** `DriftQuery { column: String, window: String, reference_start: String, reference_end: String }` [deps: [DriftQuery][11]]
+- **Rust handler:** `pub async fn post_drift_stats(State(state): State<AppState>, Json(query): Json<DriftQuery>) -> Result<Response, AppError>` [deps: [compute_temporal_drift][13]]
+- **Window sizes:** `hourly` (3600s), `daily` (86400s, default), `weekly` (604800s)
+- **Response `200 OK`:** `DriftResponse { column: string; reference: WindowDistributionStats; windows: DriftWindowStats[]; thresholds: { ks_threshold: number; wasserstein_threshold: number; psi_minor_threshold: number; psi_major_threshold: number }; metadata?: { computation_time_ms: number; num_windows: number; reference_samples: number; bin_count_warning?: boolean; effective_bins?: number; psi_sample_ratio_warning?: boolean; avg_window_samples?: number } }` [deps: [DriftResponse][14]]
+- **Error:** `400` invalid datetime format; `500` compute failure.
 
 ## Upload And Database
 
@@ -158,3 +161,5 @@ All frontend transport calls stay in `frontend/src/services/api/*`. All route ha
 [10]: ./frontend/src/services/api/upload.md
 [11]: ./crates/edatime-service/src/handlers/routes/drift.md
 [12]: ./crates/edatime-service/src/handlers/routes/database.md
+[13]: ./crates/edatime-service/src/analytics/drift.md#compute_temporal_drift
+[14]: ./crates/edatime-service/src/analytics/drift.md#DriftResponse

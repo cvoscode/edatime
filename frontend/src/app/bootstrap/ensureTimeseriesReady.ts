@@ -24,7 +24,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
             if (ready) return;
             if (pending) return pending;
             pending = (async () => {
-                deps.createChart();
+                await deps.createChart();
                 deps.bindAnalysisChartEvents();
                 await deps.fetchAndRender();
                 deps.renderCurrentData();

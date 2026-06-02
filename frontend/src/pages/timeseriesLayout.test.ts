@@ -8,6 +8,13 @@ const toolbarCss = readFileSync(join(process.cwd(), 'frontend/css/modules/toolba
 const responsiveCss = readFileSync(join(process.cwd(), 'frontend/css/modules/responsive.css'), 'utf8');
 
 describe('timeseries layout shell', () => {
+    it('does not keep the service worker active on localhost development hosts', () => {
+        expect(indexHtml).toContain("localhost'");
+        expect(indexHtml).toContain("127.0.0.1");
+        expect(indexHtml).toContain('navigator.serviceWorker.getRegistrations()');
+        expect(indexHtml).toContain('registration.unregister()');
+    });
+
     it('uses dedicated command bar and utility shelf wrappers', () => {
         expect(indexHtml).toContain('timeseries-command-bar');
         expect(indexHtml).toContain('timeseries-chip-rail');

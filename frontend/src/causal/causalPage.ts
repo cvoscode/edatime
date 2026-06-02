@@ -6,6 +6,7 @@
  */
 import { fetchCausalGraph } from '../services/api/index.js';
 import { notifyCausalGraphUpdated } from './causalComparison.js';
+import { createAnalysisPageRuntime } from '../pages/shared/analysisPageRuntime.js';
 
 export type { CausalDeps } from './selectionState.js';
 export type { MetadataColumn, CausalMetadata } from './selectionState.js';
@@ -27,6 +28,13 @@ import { openEditPanel, applyEditPanel, closeEditPanel, deleteTarget, bindEditPa
 let _chartEl: HTMLDivElement | null = null;
 const METHOD_PC_STAGE = new Set(['pcmci', 'pcmciplus', 'lpcmci']);
 let _activePopover: HTMLElement | null = null;
+
+/** Module-level runtime handle for the causal page lifecycle. */
+let causalRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
+let causalPageCleanup: (() => void) | null = null;
+
+/** Module-level wrapper to sync causal empty state from outside initCausalPage. */
+let _syncCausalEmptyState: (count: number) => void = (_count: number) => {};
 
 function initInfoIcons(): void {
     document.querySelectorAll<HTMLElement>('.causal-info-icon').forEach((icon) => {
@@ -302,3 +310,26 @@ export function initCausalPage(deps: any): void {
         }
     });
 }
+
+/** Wraps causal page setup with the shared analysis page runtime. */
+function initCausalPageRuntime(): void {
+    _syncCausalEmptyState = syncCausalEmptyState;
+
+    causalRuntime = createAnalysisPageRuntime({
+        page: 'causal',
+        emptyStateRootId: 'causal-empty-state',
+        statusElId: 'causal-status',
+        bindExportsOnInit: false,
+        init() {
+            _syncCausalEmptyState(_currentColumns.length);
+        },
+        onEveryPageChange() {
+            _syncCausalEmptyState(_currentColumns.length);
+        },
+    });
+}
+
+/** Bootstrap call — must happen BEFORE the first edatime:page-change 'causal'
+ *  event so that the runtime's event listener is registered before any page-change
+ *  handlers that call initCausalPage. */
+initCausalPageRuntime();
