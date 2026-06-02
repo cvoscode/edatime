@@ -1,12 +1,13 @@
 # features/timeseries/rangeControls.md
-> Range filter chip rendering. Builds clickable range chips shown below the column-toggles strip; each chip opens the column-filter modal for that column.
+> State-to-items composer for range filter chips. Derives `RangeControlItem[]` from Timeseries state and delegates DOM construction to the canonical `RangeControls` surface.
 
-## Functions
-
-### buildRangeControls
-- `buildRangeControls(): void`
-  - Renders adaptive-target chip, per-column range chips, and active adaptive line-filter chips. Each chip is keyboard-accessible and opens the filter modal via `window.__edatime?.openFilterForCol`.
+## Function: buildRangeControls
+```typescript
+function buildRangeControls(): void
+```
+Reads `appState.adaptiveFilterColumn`, `appState.selectedCols`, `appState.columnRanges`, and `appState.adaptiveLineFilters` to build a `RangeControlItem[]` then appends `RangeControls({ items })` into `#column-range-controls`. Timeseries-specific side effects (clear adaptive filters, open filter modal, dispatch events) are owned here.
 
 ---
-[1]: ../../utils/format.md#formatAnalysisNumber
-[2]: ../../store/index.md
+[1]: ../../ui/composites/RangeControls.md#RangeControls
+[2]: ../../utils/format.md#formatAnalysisNumber
+[3]: ../../store/index.md

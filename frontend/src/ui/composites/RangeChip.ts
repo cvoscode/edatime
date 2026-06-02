@@ -1,9 +1,10 @@
 export interface RangeChipProps {
+    key: string;
     name: string;
     range: string;
     className?: string;
     ariaLabel?: string;
-    onActivate?: () => void;
+    onActivate?: (key: string) => void;
 }
 
 export function RangeChip(props: RangeChipProps): HTMLDivElement {
@@ -13,11 +14,11 @@ export function RangeChip(props: RangeChipProps): HTMLDivElement {
         chip.classList.add('range-chip--clickable');
         chip.setAttribute('role', 'button');
         chip.tabIndex = 0;
-        chip.addEventListener('click', () => props.onActivate?.());
+        chip.addEventListener('click', () => props.onActivate?.(props.key));
         chip.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
-                props.onActivate?.();
+                props.onActivate?.(props.key);
             }
         });
     }

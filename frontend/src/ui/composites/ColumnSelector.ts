@@ -1,5 +1,5 @@
 import { ColorBySelect } from './ColorBySelect.js';
-import { SeriesChip } from './SeriesChip.js';
+import { renderSeriesChipList } from '../seriesChipList.js';
 
 export interface ColumnSelectorProps {
     columns: string[];
@@ -15,20 +15,26 @@ export interface ColumnSelectorProps {
 export function ColumnSelector(props: ColumnSelectorProps): HTMLDivElement {
     const root = document.createElement('div');
     root.className = 'column-selector';
+
+    const chipContainer = document.createElement('div');
+    renderSeriesChipList({
+        container: chipContainer,
+        items: props.columns.map((col) => ({
+            column: col,
+            checked: props.selected.includes(col),
+            color: props.colors[col] ?? '#00d4ff',
+            onToggle: (checked: boolean) => props.onToggle?.(col, checked),
+            onColorInput: (color: string) => props.onColorInput?.(col, color),
+            onMenuClick: () => props.onOpenRange?.(col),
+            menuLabel: `Filter range for ${col}`,
+        })),
+    });
+
+    root.appendChild(chipContainer);
     root.appendChild(ColorBySelect({
         columns: props.columns,
         value: props.colorBy,
         onChange: props.onColorByChange,
     }));
-    for (const column of props.columns) {
-        root.appendChild(SeriesChip({
-            column,
-            checked: props.selected.includes(column),
-            color: props.colors[column] ?? '#00d4ff',
-            onToggle: (checked) => props.onToggle?.(column, checked),
-            onColorInput: (color) => props.onColorInput?.(column, color),
-            onMenuClick: () => props.onOpenRange?.(column),
-        }));
-    }
     return root;
 }

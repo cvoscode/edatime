@@ -3,6 +3,10 @@
  *
  * Builds the clickable range chips shown below the column-toggles strip.
  * Each chip opens the column-filter modal for that column.
+ *
+ * Architecture: this file is a state-to-items composer. It derives
+ * RangeControlItem[] from current Timeseries state and delegates
+ * DOM construction to the canonical RangeControls surface.
  */
 import { formatAnalysisNumber } from '../../utils/format.js';
 import {
@@ -10,6 +14,7 @@ import {
     setAdaptiveLineFilters,
     setPendingAdaptivePoint,
 } from '../../store/index.js';
+import { RangeControls, RangeControlItem } from '../../ui/composites/RangeControls.js';
 
 /**
  * Render clickable range chips for selected columns and active adaptive filters.
@@ -20,98 +25,80 @@ export function buildRangeControls(): void {
     if (!container) return;
     container.innerHTML = '';
 
-    // Adaptive filter target chip.
+    const items: RangeControlItem[] = [];
+
+    // Adaptive filter target chip (static — not clickable)
     if (appState.adaptiveFilterColumn && appState.selectedCols.includes(appState.adaptiveFilterColumn)) {
-        const targetChip = document.createElement('div');
-        targetChip.className = 'range-chip';
-        targetChip.innerHTML = `
-      <span class="name">Adaptive target</span>
-      <span class="range">${appState.adaptiveFilterColumn}</span>
-    `;
-        container.appendChild(targetChip);
+        items.push({
+            key: 'adaptive-target',
+            name: 'Adaptive target',
+            range: appState.adaptiveFilterColumn,
+            kind: 'static',
+        });
     }
 
-    // Per-column range chips.
+    // Per-column range chips — clickable, opens filter modal for that column
     for (const col of appState.selectedCols) {
         const range = appState.columnRanges[col];
         if (!range) continue;
 
-        const chip = document.createElement('div');
-        chip.className = 'range-chip range-chip--clickable';
-        chip.setAttribute('role', 'button');
-        chip.setAttribute('tabindex', '0');
-        chip.setAttribute('aria-label', `Filter ${col}`);
-        chip.innerHTML = `
-      <span class="name">${col}</span>
-      <span class="range">${formatAnalysisNumber(range.from)} → ${formatAnalysisNumber(range.to)}</span>
-    `;
-
-        const open = () => {
-            const fn = window.__edatime?.openFilterForCol;
-            if (typeof fn === 'function') fn(col);
-        };
-
-        chip.addEventListener('click', open);
-        chip.addEventListener('keydown', (e: KeyboardEvent) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+        const colCopy = col; // capture for closure
+        items.push({
+            key: `col-${col}`,
+            name: col,
+            range: `${formatAnalysisNumber(range.from)} → ${formatAnalysisNumber(range.to)}`,
+            className: 'range-chip range-chip--clickable',
+            kind: 'column-range',
+            ariaLabel: `Filter ${col}`,
+            onActivate: () => {
+                const fn = window.__edatime?.openFilterForCol;
+                if (typeof fn === 'function') fn(colCopy);
+            },
         });
-        container.appendChild(chip);
     }
 
-    // Adaptive line-filter chips.
+    // Adaptive line-filter removal chips — clickable
     for (const filter of appState.adaptiveLineFilters ?? []) {
-        const chip = document.createElement('div');
-        chip.className = 'range-chip range-chip--clickable';
-        chip.setAttribute('role', 'button');
-        chip.setAttribute('tabindex', '0');
-        chip.setAttribute('aria-label', `Remove adaptive filter for ${filter.column}`);
-        chip.innerHTML = `
-      <span class="name">Adaptive ${filter.column}</span>
-      <span class="range">${filter.keepAbove ? 'keep above' : 'keep below'}</span>
-    `;
-
-        const remove = () => {
-            setAdaptiveLineFilters(
-                (appState.adaptiveLineFilters ?? []).filter(
-                    (item) => (item as unknown as { id?: string }).id !== (filter as unknown as { id?: string }).id,
-                ),
-            );
-            setPendingAdaptivePoint(null);
-            buildRangeControls();
-            window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
-        };
-
-        chip.addEventListener('click', remove);
-        chip.addEventListener('keydown', (e: KeyboardEvent) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); remove(); }
+        const filterId = (filter as unknown as { id?: string }).id ?? '';
+        const filterIdCopy = filterId; // capture for closure
+        items.push({
+            key: `filter-${filterId}`,
+            name: `Adaptive ${filter.column}`,
+            range: filter.keepAbove ? 'keep above' : 'keep below',
+            className: 'range-chip range-chip--clickable',
+            kind: 'filter-removal',
+            ariaLabel: `Remove adaptive filter for ${filter.column}`,
+            onActivate: () => {
+                setAdaptiveLineFilters(
+                    (appState.adaptiveLineFilters ?? []).filter(
+                        (item) => (item as unknown as { id?: string }).id !== filterIdCopy,
+                    ),
+                );
+                setPendingAdaptivePoint(null);
+                buildRangeControls();
+                window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
+            },
         });
-        container.appendChild(chip);
     }
 
-    // Clear-all chip when any adaptive filters are active.
+    // Clear-all chip when any adaptive filters are active
     if ((appState.adaptiveLineFilters?.length ?? 0) > 0 || appState.pendingAdaptivePoint) {
-        const clearChip = document.createElement('div');
-        clearChip.className = 'range-chip range-chip--clickable';
-        clearChip.setAttribute('role', 'button');
-        clearChip.setAttribute('tabindex', '0');
-        clearChip.setAttribute('aria-label', 'Clear adaptive filters');
-        clearChip.innerHTML = `
-      <span class="name">Adaptive filters</span>
-      <span class="range">Clear all</span>
-    `;
-
-        const clearAll = () => {
-            setAdaptiveLineFilters([]);
-            setPendingAdaptivePoint(null);
-            buildRangeControls();
-            (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
-            window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
-        };
-
-        clearChip.addEventListener('click', clearAll);
-        clearChip.addEventListener('keydown', (e: KeyboardEvent) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); clearAll(); }
+        items.push({
+            key: 'clear-all',
+            name: 'Adaptive filters',
+            range: 'Clear all',
+            className: 'range-chip range-chip--clickable',
+            kind: 'clear-all',
+            ariaLabel: 'Clear adaptive filters',
+            onActivate: () => {
+                setAdaptiveLineFilters([]);
+                setPendingAdaptivePoint(null);
+                buildRangeControls();
+                (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
+                window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
+            },
         });
-        container.appendChild(clearChip);
     }
+
+    container.appendChild(RangeControls({ items }));
 }

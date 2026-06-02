@@ -19,13 +19,11 @@ interface ColumnSelectorProps {
 ```typescript
 function ColumnSelector(props: ColumnSelectorProps): HTMLDivElement
 ```
-Creates a div with a ColorBySelect and one SeriesChip per column, wired to toggle, color-input, color-by, and range callbacks.
+Creates a div with ColorBySelect and a chip container backed by `renderSeriesChipList`, which handles keyboard binding, incremental updates, and `preserveExisting` mode.
 
 ---
 [1]: ColorBySelect.md
-[2]: SeriesChip.md
-[3]: index.md
-  - Creates a composite with ColorBySelect and per-column SeriesChip components.
+[2]: ../../seriesChipList.md#renderSeriesChipList
 
 ## ColumnSelectorProps
 - `columns: string[]`

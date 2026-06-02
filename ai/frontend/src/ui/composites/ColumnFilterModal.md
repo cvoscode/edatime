@@ -1,12 +1,27 @@
 # ai/frontend/src/ui/composites/ColumnFilterModal.md
-> Renders a modal dialog for entering min/max filter bounds on a single column.
+> Renders a modal dialog for entering min/max filter bounds on a column, or wires an existing server-rendered modal via bind mode.
+
+## Interface: ColumnFilterModalBind
+```typescript
+interface ColumnFilterModalBind {
+    root: HTMLElement;
+    applyBtn: HTMLButtonElement;
+    cancelBtn: HTMLElement;
+    closeBtn: HTMLElement;
+    minInput: HTMLInputElement;
+    maxInput: HTMLInputElement;
+    minRangeInput: HTMLInputElement;
+    maxRangeInput: HTMLInputElement;
+}
+```
 
 ## Interface: ColumnFilterModalProps
 ```typescript
 interface ColumnFilterModalProps {
-    column: string;
-    from: string;
-    to: string;
+    bind?: ColumnFilterModalBind;
+    column?: string;
+    from?: string;
+    to?: string;
     onApply: (from: string, to: string) => void;
     onCancel?: () => void;
 }
@@ -14,20 +29,19 @@ interface ColumnFilterModalProps {
 
 ## Function: ColumnFilterModal
 ```typescript
-function ColumnFilterModal(props: ColumnFilterModalProps): HTMLDivElement
+function ColumnFilterModal(props: ColumnFilterModalProps): HTMLElement
 ```
-Creates a ModalFrame with two TextInputs (min/max) and Apply/Cancel buttons; calls `onApply` with the entered strings.
+In bind mode: wires existing DOM elements to apply/cancel/close/Escape/backdrop events. In create mode: builds new ModalFrame with TextInputs and Apply/Cancel buttons.
 
 ---
 [1]: primitives/Button.md
 [2]: primitives/TextInput.md
 [3]: ModalFrame.md
-[4]: index.md
-  - Creates a filter modal with from/to inputs and apply/cancel actions.
 
 ## ColumnFilterModalProps
-- `column: string`
-- `from: string`
-- `to: string`
+- `bind?: ColumnFilterModalBind` — wire existing DOM (preserves server-rendered IDs)
+- `column?: string` — create mode only
+- `from?: string` — create mode only
+- `to?: string` — create mode only
 - `onApply: (from: string, to: string) => void`
 - `onCancel?: () => void`

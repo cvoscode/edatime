@@ -2,6 +2,7 @@ import { formatAnalysisNumber } from '../../utils/format.js';
 import { computeBounds } from '../../services/timeseries/filtering.js';
 import { appStateComposite as appState } from '../../store/index.js';
 import { buildRangeControls } from './rangeControls.js';
+import { ColumnFilterModal } from '../../ui/composites/ColumnFilterModal.js';
 
 export interface FilterModalControllerDeps {
     renderCurrentData: () => void;
@@ -262,12 +263,46 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
     for (const btn of openBtns) {
         btn.addEventListener('click', () => openModalForCol(null));
     }
-    closeButton.addEventListener('click', closeModal);
-    cancelButton.addEventListener('click', closeModal);
-    modalEl.addEventListener('click', (event) => { if (event.target === modalEl) closeModal(); });
-    window.addEventListener('keydown', (event) => {
-        if (modalEl.hidden) return;
-        if (event.key === 'Escape') closeModal();
+
+    // Wire the modal event shell via the canonical ColumnFilterModal bind surface.
+    // Keep all Timeseries-specific logic (slider sync, bounds computation,
+    // apply/clear side effects, Y range fitting) in this file.
+    ColumnFilterModal({
+        bind: {
+            root: modalEl,
+            applyBtn: applyButton,
+            cancelBtn: cancelButton,
+            closeBtn: closeButton,
+            minInput: minTextInput,
+            maxInput: maxTextInput,
+            minRangeInput: minSliderInput,
+            maxRangeInput: maxSliderInput,
+        },
+        onApply: (from: string, to: string) => {
+            const col = columnSelect.value;
+            if (!col) return;
+            let fromNum = Number.parseFloat(from);
+            let toNum = Number.parseFloat(to);
+            const full = getFullBoundsForCol(col);
+            if (full) {
+                if (!Number.isFinite(fromNum)) fromNum = full.min;
+                if (!Number.isFinite(toNum)) toNum = full.max;
+            }
+            if (!Number.isFinite(fromNum) || !Number.isFinite(toNum)) {
+                setHint('Enter a valid min and max.');
+                return;
+            }
+            if (fromNum > toNum) { [fromNum, toNum] = [toNum, fromNum]; }
+            appState.columnRanges[col] = { from: fromNum, to: toNum };
+            buildRangeControls();
+            deps.renderCurrentData();
+            appState.chart?.fitYToData?.();
+            const yr = appState.chart?.getYRange?.();
+            if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'filter');
+            emitColumnFiltersChange();
+            closeModal();
+        },
+        onCancel: closeModal,
     });
 
     columnSelect.addEventListener('change', () => refreshInputsForCol(columnSelect.value));
@@ -288,34 +323,6 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
         if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'filter');
         emitColumnFiltersChange();
         refreshInputsForCol(col);
-    });
-
-    applyButton.addEventListener('click', () => {
-        const col = columnSelect.value;
-        if (!col) return;
-        let { from, to } = readInputs();
-        const full = getFullBoundsForCol(col);
-        if (full) {
-            if (!Number.isFinite(from)) from = full.min;
-            if (!Number.isFinite(to)) to = full.max;
-        }
-        if (!Number.isFinite(from) || !Number.isFinite(to)) {
-            setHint('Enter a valid min and max.');
-            return;
-        }
-        if (from > to) {
-            const tmp = from;
-            from = to;
-            to = tmp;
-        }
-        appState.columnRanges[col] = { from, to };
-        buildRangeControls();
-        deps.renderCurrentData();
-        appState.chart?.fitYToData?.();
-        const yr = appState.chart?.getYRange?.();
-        if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'filter');
-        emitColumnFiltersChange();
-        closeModal();
     });
 
     modalEl.dataset.bound = '1';

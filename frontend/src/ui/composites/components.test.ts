@@ -42,13 +42,13 @@ describe('DOM component factories (canonical surface)', () => {
     it('RangeControls activates clickable range chips with keyboard support', () => {
         const onActivate = vi.fn();
         const root = RangeControls({
-            items: [{ name: 'value', range: '1 -> 2' }],
+            items: [{ key: 'v1', name: 'value', range: '1 -> 2' }],
             onActivate,
         });
 
         const chip = root.querySelector<HTMLElement>('.range-chip')!;
         chip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-        expect(onActivate).toHaveBeenCalledWith({ name: 'value', range: '1 -> 2' });
+        expect(onActivate).toHaveBeenCalledWith({ key: 'v1', name: 'value', range: '1 -> 2' });
     });
 
     it('ColumnFilterModal submits edited bounds', () => {
@@ -59,5 +59,114 @@ describe('DOM component factories (canonical surface)', () => {
         inputs[1].value = '7';
         modal.querySelector<HTMLButtonElement>('button.primary')!.click();
         expect(onApply).toHaveBeenCalledWith('2', '7');
+    });
+
+    it('RangeControls static chip (no onActivate) has no keyboard binding', () => {
+        const onActivate = vi.fn();
+        const root = RangeControls({
+            items: [{ key: 's1', name: 'Static', range: 'no-click', kind: 'static' }],
+            onActivate,
+        });
+
+        const chip = root.querySelector<HTMLElement>('.range-chip')!;
+        // Static chip — not interactive regardless of top-level onActivate
+        expect(chip.getAttribute('role')).toBeNull();
+
+        chip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        expect(onActivate).not.toHaveBeenCalled();
+    });
+
+    it('RangeControls clickable chip responds to Enter keydown', () => {
+        const onActivate = vi.fn();
+        const root = RangeControls({
+            items: [{ key: 'c1', name: 'Clickable', range: '1->2' }],
+            onActivate,
+        });
+
+        const chip = root.querySelector<HTMLElement>('.range-chip')!;
+        chip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        // Top-level onActivate: called with full item
+        expect(onActivate).toHaveBeenCalledWith({ key: 'c1', name: 'Clickable', range: '1->2' });
+    });
+
+    it('RangeControls mixed row: static chip has no keyboard, clickable chip activates', () => {
+        const onActivate = vi.fn();
+        const root = RangeControls({
+            items: [
+                { key: 's1', name: 'Static', range: 'fixed', kind: 'static' },   // static — non-interactive
+                { key: 'c1', name: 'Clickable', range: '2->3' },                  // clickable — onActivate at top level
+            ],
+            onActivate,
+        });
+
+        const chips = root.querySelectorAll<HTMLElement>('.range-chip');
+        const staticChip = chips[0];
+        const clickableChip = chips[1];
+
+        expect(staticChip.getAttribute('role')).toBeNull();
+        staticChip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        expect(onActivate).not.toHaveBeenCalled();
+
+        clickableChip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        expect(onActivate).toHaveBeenCalledWith({ key: 'c1', name: 'Clickable', range: '2->3' });
+    });
+
+    // ----------------------------------------------------------------
+    // Tests below document the interface AFTER Phase 2 migration.
+    // They will fail at runtime until RangeControls/RangeChip are updated
+    // to support key + kind + per-item onActivate routing.
+    // TypeScript errors are suppressed with `as any` since the new
+    // interface does not exist yet — these test the *future* contract.
+    // ----------------------------------------------------------------
+
+    it('RangeControls (post-migration): static chip has no keyboard binding', () => {
+        const onActivate = vi.fn();
+        const root = RangeControls({
+            items: [{ key: 's1', name: 'Static', range: 'no-click', kind: 'static' }] as any,
+            onActivate,
+        });
+
+        const chip = root.querySelector<HTMLElement>('.range-chip')!;
+        expect(chip.getAttribute('role')).toBeNull();
+
+        chip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        expect(onActivate).not.toHaveBeenCalled();
+    });
+
+    it('RangeControls (post-migration): clickable chip routes onActivate with key', () => {
+        const onActivate = vi.fn();
+        const root = RangeControls({
+            items: [{ key: 'col-hufl', name: 'HUFL', range: '0.1→0.9', kind: 'column-range', onActivate }] as any,
+        });
+
+        const chip = root.querySelector<HTMLElement>('.range-chip')!;
+        expect(chip.getAttribute('role')).toBe('button');
+
+        chip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        expect(onActivate).toHaveBeenCalledWith('col-hufl');
+
+        chip.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+        expect(onActivate).toHaveBeenCalledTimes(2);
+    });
+
+    it('RangeControls (post-migration): mixed static + clickable rows route correctly', () => {
+        const onActivate = vi.fn();
+        const root = RangeControls({
+            items: [
+                { key: 'static-1', name: 'Adaptive target', range: 'HUFL', kind: 'static' },
+                { key: 'col-hufl', name: 'HUFL', range: '0.1→0.9', kind: 'column-range', onActivate },
+            ] as any,
+        });
+
+        const chips = root.querySelectorAll<HTMLElement>('.range-chip');
+        const staticChip = chips[0];
+        const clickableChip = chips[1];
+
+        expect(staticChip.getAttribute('role')).toBeNull();
+        staticChip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        expect(onActivate).not.toHaveBeenCalled();
+
+        clickableChip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        expect(onActivate).toHaveBeenCalledWith('col-hufl');
     });
 });

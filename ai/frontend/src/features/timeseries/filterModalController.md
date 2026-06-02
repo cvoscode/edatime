@@ -1,14 +1,17 @@
 # ai/frontend/src/features/timeseries/filterModalController.md
-> Owns the Timeseries column-range filter modal lifecycle, including bounds discovery, input synchronization, apply/clear actions, and modal open/close behavior.
+> Owns the Timeseries column-range filter modal lifecycle. Delegates the modal event shell to `ColumnFilterModal.bind`; keeps Timeseries-specific state (slider/text sync, bounds discovery, apply/clear side effects, Y range fitting).
 
 ## Interface: FilterModalControllerDeps
 - `renderCurrentData: () => void`
 - `updateAnalysisYRange: (min: number, max: number, source: string) => void`
 
-## Functions
-- `initFilterModalController(deps: FilterModalControllerDeps): void` [deps: [buildRangeControls][1], [computeBounds][2]]
-  - Binds the filter modal once, syncs numeric and slider inputs to the active column bounds, and applies or clears per-column ranges.
+## Function: initFilterModalController
+```typescript
+function initFilterModalController(deps: FilterModalControllerDeps): void
+```
+Binds the server-rendered modal DOM to `ColumnFilterModal` events, owns `getFullBoundsForCol`, `refreshInputsForCol`, `populateColumns`, input/slider sync, apply/clear handlers, and `window.__edatime.openFilterForCol`.
 
 ---
-[1]: ./rangeControls.md#buildRangeControls
-[2]: ../../services/timeseries/filtering.md#computeBounds
+[1]: ../../ui/composites/ColumnFilterModal.md#ColumnFilterModal
+[2]: ./rangeControls.md#buildRangeControls
+[3]: ../../services/timeseries/filtering.md#computeBounds
