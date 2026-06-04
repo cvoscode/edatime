@@ -8,7 +8,7 @@
 - `uploadFeature: ReturnType<typeof createUploadEntrypoint> | null`
 - `_timeseriesReady: boolean`
 - `_timeseriesReadyPromise: Promise<void> | null`
-- `_sessionPersistenceStarted: boolean`
+- `_sessionPersistenceStarted: boolean` [NEW]
 - `_timeseriesBootstrap: { ensureReady: () => Promise<void>; isReady: () => boolean } | null`
 - `_datasetReadyPromise: Promise<void> | null`
 - `_datasetUiReady: boolean`
@@ -16,7 +16,13 @@
 - `fetchData: ((start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<DataObject>) | null`
 - `fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null`
 - `postTransform: ((expression: string, outputName: string) => Promise<TransformResponse>) | null`
-- `DataChartCtor: (new (containerId: string, onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null`
+- `DataChartCtor: (new (containerId: string, onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) => void) => ChartInstance) | null`
+- `timeseriesModule: { buildColumnToggles, buildRangeControls, ... }` [NEW]
+
+## Imports (selected)
+- `sanitizeSelectedColumns` from `./services/timeseries/filtering.js` [NEW]
+- `ensurePageModuleLoaded, clearLoadedPageModules, markMetadataReady` from `./app/pageRegistry.js` [MODIFIED]
+- `startSessionPersistence` from `./bootstrap/sessionBootstrap.js` [NEW]
 
 ## Functions
 
@@ -42,29 +48,19 @@
 
 ### ensureSessionPersistenceStarted
 - `ensureSessionPersistenceStarted(): void`
-  - Starts session persistence once (guards against double-call).
+  - Starts session persistence once (guards against double-call). Delegates to `startSessionPersistence()`.
 
 ### ensureTimeseriesReady
 - `ensureTimeseriesReady(): Promise<void>`
   - Delegates to `_timeseriesBootstrap?.ensureReady()`.
 
-### storeFetchedMetadata / initializeDatasetUi
-- `storeFetchedMetadata(metadata: DatasetMetadata): void`
-  - Stores metadata and revision in shared state via `setMetadata` / `setDatasetRevision`.
-- `initializeDatasetUi(metadata: DatasetMetadata): void` [deps: [createTimeseriesEntrypoint][2], [buildMetaBar][3]]
-  - Initializes timeseries/upload feature, column profiles, viewport, and analysis zoom from metadata. Called exactly once.
-
-### ensureDatasetReady
-- `ensureDatasetReady(_pageName?: string): Promise<void>`
-  - Fetches metadata once, derives default timeseries selections, and calls `initializeDatasetUi`.
-
-### refreshDatasetAfterMutation
-- `refreshDatasetAfterMutation(options?: { selectedColumn?: string }): Promise<void>`
-  - Reloads metadata, rerenders column profiles, and triggers timeseries fetch after a transform or outlier mutation.
+### createTimeseriesModule (factory)
+- `createTimeseriesModule(deps: TimeseriesModuleDeps): TimeseriesModule`
+  - Creates the Timeseries module with a dependency-injected interface covering viewport, selection, column state, and lifecycle hooks.
 
 ### init
-- `init(): Promise<void>` [deps: [initAppShell][4], [loadEntrypoints][5], [initGlobalShortcuts][6], [initTimeseriesShortcuts][7]]
-  - Creates the Timeseries feature/runtime graph, initializes app shell with analytics listeners, loads page entrypoints, and performs first-page bootstrap.
+- `init(): Promise<void>` [deps: [initAppShell][4], [loadEntrypoints][5], [initGlobalShortcuts][6], [initTimeseriesShortcuts][7], [createTimeseriesModule][8]]
+  - Creates the Timeseries module with full dependency injection, initializes app shell with analytics listeners, loads page entrypoints, and performs first-page bootstrap.
 
 ---
 [1]: ./pages/timeseriesPage.md#createTimeseriesPageController
@@ -74,3 +70,7 @@
 [5]: ./app/pageModules.md#loadEntrypoints
 [6]: ./app/bootstrap/globalShortcuts.md#initGlobalShortcuts
 [7]: ./app/bootstrap/timeseriesShortcuts.md#initTimeseriesShortcuts
+[8]: ./pages/timeseriesModule.md#createTimeseriesModule
+[9]: ./services/timeseries/filtering.md#sanitizeSelectedColumns
+[10]: ./app/pageRegistry.md#markMetadataReady
+[11]: ./app/pageRegistry.md#clearLoadedPageModules

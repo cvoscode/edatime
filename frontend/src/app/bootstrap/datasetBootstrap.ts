@@ -5,20 +5,8 @@
  */
 
 import type { DatasetMetadata } from '../../types.js';
-import { isMetadataReady, markMetadataReady } from '../pageRegistry.js';
-import {
-    setMetadata,
-    setDatasetRevision,
-} from '../../store/index.js';
-import { appState } from '../../store/appStateCompat.js';
-import { getNumericColumns, getDefaultTimeseriesColumns } from '../../pages/analyticsPageUtils.js';
-import { hydrateColumnProfiles, renderColumnProfilesGrid } from '../../ui/profile.js';
-import { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata } from '../../ui/upload.js';
-import { setMetaText } from '../../ui/metaBar.js';
+import { isMetadataReady } from '../pageRegistry.js';
 import { DEBUG, dbg, dbgGroup } from '../../debug.js';
-
-// Note: page-change listener wiring is intentionally omitted here.
-// It will be handled by timeseriesRuntime.ts (Task 3).
 
 export interface DatasetBootstrapDeps {
     ensureChartModules: () => Promise<void>;
@@ -62,44 +50,6 @@ let _datasetReadyPromise: Promise<void> | null = null;
  * Call `result.refreshAfterMutation()` to refresh after a data mutation (e.g. upload).
  */
 export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapResult {
-    // ── storeFetchedMetadata ───────────────────────────────────────────────
-    function storeFetchedMetadata(metadata: DatasetMetadata): void {
-        setMetadata(metadata);
-        const revision = metadata?.revision;
-        setDatasetRevision(typeof revision === 'number' ? revision : 0);
-    }
-
-    // ── initializeDatasetUi ───────────────────────────────────────────────
-    // NOTE: This intentionally does NOT wire the 'edatime:page-change' listener.
-    // That wiring lives in timeseriesRuntime.ts (Task 3).
-    let _datasetUiReady = false;
-    function initializeDatasetUi(metadata: DatasetMetadata): void {
-        if (!_datasetUiReady) {
-            deps.timeseriesFeatureInit?.();
-            deps.ensureSessionPersistenceStarted?.();
-            _datasetUiReady = true;
-        }
-
-        hydrateColumnProfiles(metadata);
-        renderColumnProfilesGrid(true);
-        applyPartialTimeRangeFromMetadata(metadata, false);
-        setUploadPreviewStatus('Showing current dataset profile. Drop/select a file to preview before loading.');
-        setProfileMode('dataset');
-
-        deps.rebuildTimeseriesColumns();
-        deps.buildMetaBar(metadata);
-        // rebuildTimeseriesRanges is called by the caller (app.ts shell)
-        deps.emitWorkflowRefresh?.();
-
-        const timeRange = metadata.time_range;
-        if (!timeRange) return;
-        const start = Number(timeRange.min);
-        const end = Number(timeRange.max);
-        deps.setViewport(start, end);
-        deps.updateAnalysisZoom(start, end, 'initial');
-        deps.emitChartRangeChange?.('initial');
-    }
-
     // ── Bootstrap sequence ───────────────────────────────────────────────
     async function ensureDatasetReady(): Promise<void> {
         if (isMetadataReady()) return;
@@ -109,14 +59,13 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
             await deps.ensureChartModules();
 
             const metadata = await deps.fetchMetadata();
-            storeFetchedMetadata(metadata);
-            markMetadataReady();
+            deps.storeFetchedMetadata(metadata);
+            deps.markMetadataReady();
             window.dispatchEvent(new Event('edatime:metadata-ready'));
-            if (DEBUG) dbgGroup('metadata', () => dbg(appState.metadata));
+            if (DEBUG) dbgGroup('metadata', () => dbg(metadata));
 
-            const metadataTimeRange = appState.metadata?.time_range;
-            if (!metadataTimeRange) {
-                setMetaText('No valid time range found.');
+            if (!metadata.time_range) {
+                deps.setMetaText('No valid time range found.');
                 return;
             }
 
@@ -129,7 +78,7 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
             deps.setAdaptiveFilterColumn(deps.getSelectedCols()[0] || null);
             deps.sanitizeSelectedColumns();
 
-            initializeDatasetUi(metadata);
+            deps.initializeDatasetUi(metadata);
         })().catch((error) => {
             _datasetReadyPromise = null;
             throw error;
@@ -148,8 +97,8 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
 
         deps.clearLoadedPageModules();
         const metadata = await deps.fetchMetadata();
-        storeFetchedMetadata(metadata);
-        markMetadataReady();
+        deps.storeFetchedMetadata(metadata);
+        deps.markMetadataReady();
         deps.setNumericCols(deps.getNumericColumns(metadata));
 
         const selectedColumn = options?.selectedColumn;

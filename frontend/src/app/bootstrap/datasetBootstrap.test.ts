@@ -1,273 +1,172 @@
-// Test that freezes the current dataset bootstrap sequencing and post-mutation
-// refresh behavior. These tests verify the ownership contract — they will pass
-// once datasetBootstrap.ts is implemented in Task 2.
-
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-    ensureChartModulesMock,
-    fetchMetadataMock,
-    storeFetchedMetadataMock,
-    markMetadataReadyMock,
-    initializeDatasetUiMock,
-    setNumericColsMock,
-    setDefaultSelectedColumnsMock,
-    sanitizeSelectedColumnsMock,
-    refreshVisibleDataMock,
-    clearLoadedPageModulesMock,
-    rebuildTimeseriesColumnsMock,
-    onMetadataReadyMock,
-    createDatasetBootstrap,
+    fakeState,
+    isMetadataReadyMock,
+    importedMarkMetadataReadyMock,
+    setMetadataMock,
+    setDatasetRevisionMock,
+    hydrateColumnProfilesMock,
+    renderColumnProfilesGridMock,
+    setUploadPreviewStatusMock,
+    setProfileModeMock,
+    applyPartialTimeRangeFromMetadataMock,
+    importedSetMetaTextMock,
 } = vi.hoisted(() => {
-    const ensureChartModulesMock = vi.fn<() => Promise<void>>();
-    const fetchMetadataMock = vi.fn<() => Promise<import('../../types.js').DatasetMetadata>>();
-    const storeFetchedMetadataMock = vi.fn<(_m: import('../../types.js').DatasetMetadata) => void>();
-    const markMetadataReadyMock = vi.fn<() => void>();
-    const initializeDatasetUiMock = vi.fn<(_m: import('../../types.js').DatasetMetadata) => void>();
-    const setNumericColsMock = vi.fn<(_cols: string[]) => void>();
-    const setDefaultSelectedColumnsMock = vi.fn<(_cols: string[]) => void>();
-    const sanitizeSelectedColumnsMock = vi.fn<() => void>();
-    const refreshVisibleDataMock = vi.fn<() => Promise<void>>();
-    const clearLoadedPageModulesMock = vi.fn<() => void>();
-    const rebuildTimeseriesColumnsMock = vi.fn<() => void>();
-    const onMetadataReadyMock = vi.fn<() => void>();
-
-    const createDatasetBootstrap = vi.fn(({ ensureChartModules, fetchMetadata, storeFetchedMetadata, markMetadataReady, initializeDatasetUi, setNumericCols, setDefaultSelectedColumns, sanitizeSelectedColumns, refreshVisibleData, clearLoadedPageModules, rebuildTimeseriesColumns, getNumericColumns, getDefaultTimeseriesColumns, onMetadataReady: _onMetadataReady }) => ({
-        bootstrap: async () => {
-            await ensureChartModules();
-            const metadata = await fetchMetadata();
-            storeFetchedMetadata(metadata);
-            markMetadataReady();
-            setNumericCols(getNumericColumns(metadata));
-            setDefaultSelectedColumns(getDefaultTimeseriesColumns(metadata));
-            sanitizeSelectedColumns();
-            initializeDatasetUi(metadata);
-        },
-        refresh: async () => {
-            clearLoadedPageModules();
-            const metadata = await fetchMetadata();
-            storeFetchedMetadata(metadata);
-            markMetadataReady();
-            setNumericCols(getNumericColumns(metadata));
-            sanitizeSelectedColumns();
-            rebuildTimeseriesColumns();
-            await refreshVisibleData();
-        },
-    }));
+    const fakeState: Record<string, any> = {
+        metadata: null,
+        selectedCols: [],
+    };
 
     return {
-        ensureChartModulesMock,
-        fetchMetadataMock,
-        storeFetchedMetadataMock,
-        markMetadataReadyMock,
-        initializeDatasetUiMock,
-        setNumericColsMock,
-        setDefaultSelectedColumnsMock,
-        sanitizeSelectedColumnsMock,
-        refreshVisibleDataMock,
-        clearLoadedPageModulesMock,
-        rebuildTimeseriesColumnsMock,
-        onMetadataReadyMock,
-        createDatasetBootstrap,
+        fakeState,
+        isMetadataReadyMock: vi.fn(() => false),
+        importedMarkMetadataReadyMock: vi.fn(),
+        setMetadataMock: vi.fn((metadata: unknown) => {
+            fakeState.metadata = metadata;
+        }),
+        setDatasetRevisionMock: vi.fn(),
+        hydrateColumnProfilesMock: vi.fn(),
+        renderColumnProfilesGridMock: vi.fn(),
+        setUploadPreviewStatusMock: vi.fn(),
+        setProfileModeMock: vi.fn(),
+        applyPartialTimeRangeFromMetadataMock: vi.fn(),
+        importedSetMetaTextMock: vi.fn(),
     };
 });
 
-vi.mock('./chartBootstrap.js', () => ({
-    ensureChartModules: ensureChartModulesMock,
+vi.mock('../pageRegistry.js', () => ({
+    isMetadataReady: isMetadataReadyMock,
+    markMetadataReady: importedMarkMetadataReadyMock,
 }));
 
 vi.mock('../../store/index.js', () => ({
-    setNumericCols: setNumericColsMock,
-    setSelectedCols: vi.fn(),
-    setAdaptiveFilterColumn: vi.fn(),
-    getNumericColumns: vi.fn(() => []),
-    getDefaultTimeseriesColumns: vi.fn(() => []),
-    sanitizeSelectedColumns: sanitizeSelectedColumnsMock,
+    setMetadata: setMetadataMock,
+    setDatasetRevision: setDatasetRevisionMock,
 }));
 
-vi.mock('../../app/pageRegistry.js', () => ({
-    clearLoadedPageModules: clearLoadedPageModulesMock,
-    markMetadataReady: markMetadataReadyMock,
-    isMetadataReady: vi.fn(() => false),
+vi.mock('../../store/appStateCompat.js', () => ({
+    appState: fakeState,
 }));
 
-vi.mock('./datasetBootstrap.js', () => ({
-    createDatasetBootstrap,
+vi.mock('../../ui/profile.js', () => ({
+    hydrateColumnProfiles: hydrateColumnProfilesMock,
+    renderColumnProfilesGrid: renderColumnProfilesGridMock,
 }));
 
-beforeEach(() => {
-    vi.clearAllMocks();
-    ensureChartModulesMock.mockResolvedValue(undefined);
-    fetchMetadataMock.mockResolvedValue(fakeMetadata);
-    storeFetchedMetadataMock.mockImplementation(() => {});
-    markMetadataReadyMock.mockImplementation(() => {});
-    initializeDatasetUiMock.mockImplementation(() => {});
-    setNumericColsMock.mockImplementation(() => {});
-    setDefaultSelectedColumnsMock.mockImplementation(() => {});
-    sanitizeSelectedColumnsMock.mockImplementation(() => {});
-    refreshVisibleDataMock.mockResolvedValue(undefined);
-    clearLoadedPageModulesMock.mockImplementation(() => {});
-    rebuildTimeseriesColumnsMock.mockImplementation(() => {});
-    onMetadataReadyMock.mockImplementation(() => {});
-});
+vi.mock('../../ui/upload.js', () => ({
+    setUploadPreviewStatus: setUploadPreviewStatusMock,
+    setProfileMode: setProfileModeMock,
+    applyPartialTimeRangeFromMetadata: applyPartialTimeRangeFromMetadataMock,
+}));
 
-const fakeMetadata = {
-    dataset: { id: 'test', name: 'Test', revision: 42 },
-    columns: [{ name: 'col1', dtype: 'numeric' }],
-    profiles: {},
+vi.mock('../../ui/metaBar.js', () => ({
+    setMetaText: importedSetMetaTextMock,
+}));
+
+vi.mock('../../debug.js', () => ({
+    DEBUG: false,
+    dbg: vi.fn(),
+    dbgGroup: vi.fn((_label: string, fn: () => void) => fn()),
+}));
+
+const baseMetadata = {
     revision: 42,
-    total_rows: 1000,
-    numeric_columns: ['col1'],
-    time_column: 'ts',
-    time_range: { min: 0, max: 1000 },
-    column_profiles: [],
-};
+    columns: [{ name: 'value', dtype: 'float64' }],
+    time_range: { min: 10, max: 20 },
+} as any;
 
-const defaultDeps = () => ({
-    ensureChartModules: ensureChartModulesMock,
-    fetchMetadata: fetchMetadataMock,
-    storeFetchedMetadata: storeFetchedMetadataMock,
-    markMetadataReady: markMetadataReadyMock,
-    initializeDatasetUi: initializeDatasetUiMock,
-    setNumericCols: setNumericColsMock,
-    setDefaultSelectedColumns: setDefaultSelectedColumnsMock,
-    sanitizeSelectedColumns: sanitizeSelectedColumnsMock,
-    refreshVisibleData: refreshVisibleDataMock,
-    clearLoadedPageModules: clearLoadedPageModulesMock,
-    rebuildTimeseriesColumns: rebuildTimeseriesColumnsMock,
-    getNumericColumns: vi.fn(() => ['col1']),
-    getDefaultTimeseriesColumns: vi.fn(() => ['col1']),
-    onMetadataReady: onMetadataReadyMock,
-});
+type DatasetBootstrapDeps = import('./datasetBootstrap.js').DatasetBootstrapDeps;
+
+function createDeps(overrides: Partial<DatasetBootstrapDeps> = {}): DatasetBootstrapDeps {
+    return {
+        ensureChartModules: vi.fn().mockResolvedValue(undefined),
+        fetchMetadata: vi.fn().mockResolvedValue(baseMetadata),
+        markMetadataReady: vi.fn(),
+        clearLoadedPageModules: vi.fn(),
+        storeFetchedMetadata: vi.fn(),
+        initializeDatasetUi: vi.fn(),
+        setNumericCols: vi.fn(),
+        setDefaultSelectedColumns: vi.fn(),
+        sanitizeSelectedColumns: vi.fn(),
+        refreshVisibleData: vi.fn().mockResolvedValue(undefined),
+        getNumericColumns: vi.fn(() => ['value']),
+        getDefaultTimeseriesColumns: vi.fn(() => ['value']),
+        rebuildTimeseriesColumns: vi.fn(),
+        buildMetaBar: vi.fn(),
+        setAdaptiveFilterColumn: vi.fn(),
+        getSelectedCols: vi.fn(() => fakeState.selectedCols),
+        setSelectedCols: vi.fn((cols: string[]) => {
+            fakeState.selectedCols = cols;
+        }),
+        timeseriesFeatureInit: vi.fn(),
+        ensureSessionPersistenceStarted: vi.fn(),
+        setMetaText: vi.fn(),
+        setViewport: vi.fn(),
+        updateAnalysisZoom: vi.fn(),
+        emitChartRangeChange: vi.fn(),
+        emitWorkflowRefresh: vi.fn(),
+        ...overrides,
+    };
+}
+
+async function importCreateDatasetBootstrap() {
+    const mod = await import('./datasetBootstrap.js');
+    return mod.createDatasetBootstrap;
+}
 
 describe('createDatasetBootstrap', () => {
-    describe('initial dataset bootstrap sequencing', () => {
-        it('calls ensureChartModules first, then fetchMetadata, storeFetchedMetadata, markMetadataReady in order', async () => {
-            const bootstrap = createDatasetBootstrap(defaultDeps());
-            await bootstrap.bootstrap();
-
-            expect(ensureChartModulesMock).toHaveBeenCalledTimes(1);
-            expect(fetchMetadataMock).toHaveBeenCalledTimes(1);
-            expect(storeFetchedMetadataMock).toHaveBeenCalledTimes(1);
-            expect(markMetadataReadyMock).toHaveBeenCalledTimes(1);
-        });
-
-        it('resolves its returned promise only after all bootstrap steps complete', async () => {
-            const bootstrap = createDatasetBootstrap(defaultDeps());
-
-            let initializeDatasetUiCalled = false;
-            initializeDatasetUiMock.mockImplementation(() => {
-                initializeDatasetUiCalled = true;
-            });
-
-            await bootstrap.bootstrap();
-
-            expect(initializeDatasetUiCalled).toBe(true);
-            expect(initializeDatasetUiMock).toHaveBeenCalledWith(fakeMetadata);
-        });
-
-        it('calls setNumericCols and setDefaultSelectedColumns before sanitizeSelectedColumns', async () => {
-            const bootstrap = createDatasetBootstrap(defaultDeps());
-            await bootstrap.bootstrap();
-
-            const callOrder = [
-                ensureChartModulesMock.mock.invocationCallOrder[0],
-                fetchMetadataMock.mock.invocationCallOrder[0],
-                storeFetchedMetadataMock.mock.invocationCallOrder[0],
-                markMetadataReadyMock.mock.invocationCallOrder[0],
-                setNumericColsMock.mock.invocationCallOrder[0],
-                setDefaultSelectedColumnsMock.mock.invocationCallOrder[0],
-                sanitizeSelectedColumnsMock.mock.invocationCallOrder[0],
-                initializeDatasetUiMock.mock.invocationCallOrder[0],
-            ];
-
-            for (let i = 0; i < callOrder.length - 1; i++) {
-                expect(callOrder[i]).toBeLessThan(callOrder[i + 1]);
-            }
-        });
-
-        it('calls initializeDatasetUi once with metadata after column setup', async () => {
-            const bootstrap = createDatasetBootstrap(defaultDeps());
-            await bootstrap.bootstrap();
-
-            expect(initializeDatasetUiMock).toHaveBeenCalledTimes(1);
-            expect(initializeDatasetUiMock).toHaveBeenCalledWith(fakeMetadata);
-        });
+    beforeEach(() => {
+        vi.resetModules();
+        fakeState.metadata = null;
+        fakeState.selectedCols = [];
+        isMetadataReadyMock.mockReturnValue(false);
+        importedMarkMetadataReadyMock.mockReset();
+        setMetadataMock.mockClear();
+        setDatasetRevisionMock.mockClear();
+        hydrateColumnProfilesMock.mockClear();
+        renderColumnProfilesGridMock.mockClear();
+        setUploadPreviewStatusMock.mockClear();
+        setProfileModeMock.mockClear();
+        applyPartialTimeRangeFromMetadataMock.mockClear();
+        importedSetMetaTextMock.mockClear();
     });
 
-    describe('post-mutation refresh behavior', () => {
-        it('calls clearLoadedPageModules before fetchMetadata on refresh', async () => {
-            const bootstrap = createDatasetBootstrap(defaultDeps());
-            await bootstrap.refresh();
+    it('uses the injected storeFetchedMetadata and markMetadataReady callbacks during dataset bootstrap', async () => {
+        const createDatasetBootstrap = await importCreateDatasetBootstrap();
+        const deps = createDeps();
+        const bootstrap = createDatasetBootstrap(deps);
 
-            expect(clearLoadedPageModulesMock).toHaveBeenCalledTimes(1);
-            expect(fetchMetadataMock).toHaveBeenCalledTimes(1);
-            expect(clearLoadedPageModulesMock.mock.invocationCallOrder[0])
-                .toBeLessThan(fetchMetadataMock.mock.invocationCallOrder[0]);
+        await bootstrap.ensureDatasetReady();
+
+        expect(deps.storeFetchedMetadata).toHaveBeenCalledWith(baseMetadata);
+        expect(deps.markMetadataReady).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses the injected initializeDatasetUi callback instead of hardcoding UI hydration internally', async () => {
+        const createDatasetBootstrap = await importCreateDatasetBootstrap();
+        const deps = createDeps();
+        const bootstrap = createDatasetBootstrap(deps);
+
+        await bootstrap.ensureDatasetReady();
+
+        expect(deps.initializeDatasetUi).toHaveBeenCalledWith(baseMetadata);
+        expect(hydrateColumnProfilesMock).not.toHaveBeenCalled();
+    });
+
+    it('uses the injected setMetaText callback when metadata has no time range', async () => {
+        const createDatasetBootstrap = await importCreateDatasetBootstrap();
+        const deps = createDeps({
+            fetchMetadata: vi.fn().mockResolvedValue({
+                ...baseMetadata,
+                time_range: null,
+            }),
         });
+        const bootstrap = createDatasetBootstrap(deps);
 
-        it('calls storeFetchedMetadata and markMetadataReady before column updates', async () => {
-            const bootstrap = createDatasetBootstrap(defaultDeps());
-            await bootstrap.refresh();
+        await bootstrap.ensureDatasetReady();
 
-            const storeCallOrder = storeFetchedMetadataMock.mock.invocationCallOrder[0];
-            const markCallOrder = markMetadataReadyMock.mock.invocationCallOrder[0];
-            const setNumericCallOrder = setNumericColsMock.mock.invocationCallOrder[0];
-            const sanitizeCallOrder = sanitizeSelectedColumnsMock.mock.invocationCallOrder[0];
-
-            expect(storeCallOrder).toBeLessThan(setNumericCallOrder);
-            expect(markCallOrder).toBeLessThan(sanitizeCallOrder);
-        });
-
-        it('calls setNumericCols and sanitizeSelectedColumns before rebuildTimeseriesColumns', async () => {
-            const bootstrap = createDatasetBootstrap(defaultDeps());
-            await bootstrap.refresh();
-
-            const setNumericCallOrder = setNumericColsMock.mock.invocationCallOrder[0];
-            const sanitizeCallOrder = sanitizeSelectedColumnsMock.mock.invocationCallOrder[0];
-            const rebuildCallOrder = rebuildTimeseriesColumnsMock.mock.invocationCallOrder[0];
-
-            expect(setNumericCallOrder).toBeLessThan(rebuildCallOrder);
-            expect(sanitizeCallOrder).toBeLessThan(rebuildCallOrder);
-        });
-
-        it('calls rebuildTimeseriesColumns and refreshVisibleData last in the refresh sequence', async () => {
-            const bootstrap = createDatasetBootstrap(defaultDeps());
-            await bootstrap.refresh();
-
-            const rebuildCallOrder = rebuildTimeseriesColumnsMock.mock.invocationCallOrder[0];
-            const refreshCallOrder = refreshVisibleDataMock.mock.invocationCallOrder[0];
-
-            expect(rebuildCallOrder).toBeLessThan(refreshCallOrder);
-        });
-
-        it('refresh does not call initializeDatasetUi (only rebuildTimeseriesColumns for UI update)', async () => {
-            const bootstrap = createDatasetBootstrap(defaultDeps());
-            await bootstrap.refresh();
-
-            expect(initializeDatasetUiMock).not.toHaveBeenCalled();
-        });
-
-        it('refresh calls clearLoadedPageModules, fetchMetadata, storeFetchedMetadata, markMetadataReady, setNumericCols, sanitizeSelectedColumns, rebuildTimeseriesColumns, refreshVisibleData in that order', async () => {
-            const bootstrap = createDatasetBootstrap(defaultDeps());
-            await bootstrap.refresh();
-
-            const clearOrder = clearLoadedPageModulesMock.mock.invocationCallOrder[0];
-            const fetchOrder = fetchMetadataMock.mock.invocationCallOrder[0];
-            const storeOrder = storeFetchedMetadataMock.mock.invocationCallOrder[0];
-            const markOrder = markMetadataReadyMock.mock.invocationCallOrder[0];
-            const setNumericOrder = setNumericColsMock.mock.invocationCallOrder[0];
-            const sanitizeOrder = sanitizeSelectedColumnsMock.mock.invocationCallOrder[0];
-            const rebuildOrder = rebuildTimeseriesColumnsMock.mock.invocationCallOrder[0];
-            const refreshOrder = refreshVisibleDataMock.mock.invocationCallOrder[0];
-
-            expect(clearOrder).toBeLessThan(fetchOrder);
-            expect(fetchOrder).toBeLessThan(storeOrder);
-            expect(storeOrder).toBeLessThan(markOrder);
-            expect(markOrder).toBeLessThan(setNumericOrder);
-            expect(setNumericOrder).toBeLessThan(sanitizeOrder);
-            expect(sanitizeOrder).toBeLessThan(rebuildOrder);
-            expect(rebuildOrder).toBeLessThan(refreshOrder);
-        });
+        expect(deps.setMetaText).toHaveBeenCalledWith('No valid time range found.');
+        expect(importedSetMetaTextMock).not.toHaveBeenCalled();
     });
 });

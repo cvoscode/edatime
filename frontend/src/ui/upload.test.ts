@@ -397,6 +397,17 @@ describe('initUploadPanel database tab', () => {
         expect(mocks.fetchDatabaseTables).toHaveBeenCalled();
     });
 
+    it('does not refresh db tables on init while the file tab is active', () => {
+        appState.metadata = { total_rows: 0 } as any;
+
+        initUploadPanel(vi.fn(), vi.fn(), {
+            buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(),
+        });
+
+        expect(mocks.fetchDatabaseTables).not.toHaveBeenCalled();
+    });
+
     it('enables load button after connect success', async () => {
         mocks.connectDatabase.mockResolvedValue({ message: 'connected' });
         mocks.fetchDatabaseTables.mockResolvedValue({ tables: [] });

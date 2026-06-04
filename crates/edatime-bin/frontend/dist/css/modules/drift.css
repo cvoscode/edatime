@@ -487,3 +487,16 @@
     flex-basis: 100%;
   }
 }
+
+/* ── Causal comparison diff table colors ─────────────────── */
+.diff-added td {
+  color: #4c4;
+}
+
+.diff-removed td {
+  color: #f44;
+}
+
+.diff-changed td {
+  color: #ffc041;
+}

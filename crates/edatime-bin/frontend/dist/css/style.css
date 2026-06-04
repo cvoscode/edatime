@@ -1,9 +1,20 @@
 /* ═══════════════════════════════════════════════════════════════
-   EdaTime — CSS entry point  v38
+   EdaTime — CSS import manifest  v39
    ─────────────────────────────────────────────────────────────
-   All rules live in modules/. Import order matters:
-     tokens → base → controls → buttons → layout → shell → content
+   Layer order (foundation → primitive/component → shell → feature):
+     foundation   — design tokens, reset, scrollbars, animations, a11y
+     component    — controls, buttons, chips, modals, range-chips,
+                    chart, toast, palette, settings, loading-indicator,
+                    keyboard-help, whats-new
+     shell/layout — layout, sidebar, header, toolbar, responsive,
+                    upload, provenance
+     feature/page — scatter (lazy: drift, home; static: scatter)
+
+   Page-owned modules (lazy-loaded via pageStyles.ts):
+     drift.css, home.css
    ═══════════════════════════════════════════════════════════════ */
+
+/* ── Foundation ──────────────────────────────────────────── */
 
 /* 1. Design tokens (custom properties) */
 @import "modules/tokens.css";
@@ -11,11 +22,54 @@
 /* 2. Reset & body defaults */
 @import "modules/base.css";
 
+/* 17. Scrollbars — hidden globally, opt-in per container */
+@import "modules/scrollbars.css";
+
+/* 18. Keyframe animations */
+@import "modules/animations.css";
+
+/* 23. Accessibility - skip links, focus indicators */
+@import "modules/a11y.css";
+
+/* ── Primitive / Component ─────────────────────────────────── */
+
 /* 3. Form controls — inputs, selects, range, color, checkbox */
 @import "modules/controls.css";
 
 /* 4. Buttons — .btn, .btn-primary, .btn-ghost, .btn-danger, .btn-sm */
 @import "modules/buttons.css";
+
+/* 9. Series chips & "Color by" selector */
+@import "modules/chips.css";
+
+/* 10. Modals — backdrop, panel, dual-range slider */
+@import "modules/modals.css";
+
+/* 11. Range chips — inline filter pills */
+@import "modules/range-chips.css";
+
+/* 13. Chart — main chart canvas, text overlays */
+@import "modules/chart.css";
+
+/* 19. Toast notifications */
+@import "modules/toast.css";
+
+/* 20. Command palette */
+@import "modules/palette.css";
+
+/* 22. Settings panel */
+@import "modules/settings.css";
+
+/* 24. Loading indicator */
+@import "modules/loading-indicator.css";
+
+/* 25. Keyboard shortcuts help modal */
+@import "modules/keyboard-help.css";
+
+/* 26. What's new modal */
+@import "modules/whats-new.css";
+
+/* ── Shell / Layout ───────────────────────────────────────── */
 
 /* 5. App shell — grid layout, .page regions */
 @import "modules/layout.css";
@@ -29,66 +83,16 @@
 /* 8. Toolbars — .toolbar, .toolbar-group, .analysis-toolbar, etc. */
 @import "modules/toolbar.css";
 
-/* 9. Series chips & "Color by" selector */
-@import "modules/chips.css";
-
-/* 10. Modals — backdrop, panel, dual-range slider */
-@import "modules/modals.css";
-
-/* 11. Range chips — inline filter pills */
-@import "modules/range-chips.css";
-
 /* 12. Upload panel & virtualized profile grid */
 @import "modules/upload.css";
-
-/* 13. Chart — main chart canvas, text overlays */
-@import "modules/chart.css";
-
-/* 14. Scatter & density page */
-@import "modules/scatter.css";
 
 /* 15. Responsive breakpoints & sidebar-collapsed state */
 @import "modules/responsive.css";
 
-/* 17. Scrollbars — hidden globally, opt-in per container */
-@import "modules/scrollbars.css";
-
-/* 18. Keyframe animations */
-@import "modules/animations.css";
-
-/* 19. Toast notifications */
-@import "modules/toast.css";
-
-/* 20. Command palette */
-@import "modules/palette.css";
-
 /* 21. Provenance panel */
 @import "modules/provenance.css";
 
-/* 22. Settings panel */
-@import "modules/settings.css";
+/* ── Feature / Page (static — always loaded) ─────────────── */
 
-/* 23. Accessibility - skip links, focus indicators */
-@import "modules/a11y.css";
-
-/* 24. Loading indicator */
-@import "modules/loading-indicator.css";
-
-/* 25. Keyboard shortcuts help modal */
-@import "modules/keyboard-help.css";
-
-/* 26. What's new modal */
-@import "modules/whats-new.css";
-
-/* Causal run comparison diff table */
-.diff-added td {
-  color: #4c4;
-}
-
-.diff-removed td {
-  color: #f44;
-}
-
-.diff-changed td {
-  color: #ffc041;
-}
+/* 14. Scatter & density page */
+@import "modules/scatter.css";

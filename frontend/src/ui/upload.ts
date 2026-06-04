@@ -73,7 +73,6 @@ export function initUploadPanel(
     const timeStartInput = document.getElementById('time-start-input') as HTMLInputElement | null;
     const timeEndInput = document.getElementById('time-end-input') as HTMLInputElement | null;
     const uploadBtn = document.getElementById('upload-btn') as HTMLButtonElement | null;
-    const statusEl = document.getElementById('upload-status');
     const progressWrap = document.getElementById('progress-wrap') as HTMLElement | null;
     const progressBar = document.getElementById('progress-bar') as HTMLElement | null;
     const selectAllBtn = document.getElementById('profile-select-all-btn');
@@ -83,18 +82,13 @@ export function initUploadPanel(
     if (
         !panel || !browseBtn || !fileInput || !dropZone || !fileDisplay ||
         !partialChk || !partialFlds || !nRowsInput || !nRowsRange || !nRowsDisp ||
-        !skipInput || !uploadBtn || !statusEl || !progressWrap || !progressBar
+        !skipInput || !uploadBtn || !progressWrap || !progressBar
     ) {
         console.error('Upload panel is missing required elements.');
         return;
     }
 
     let selectedFile: File | null = null;
-
-    function setStatus(msg: string, cls = '') {
-        statusEl!.textContent = msg;
-        statusEl!.className = 'upload-status ' + (cls || '');
-    }
 
     function formatUploadRowCountLocal(rowCount: number): string {
         return rowCount >= 1_000_000
@@ -157,7 +151,6 @@ export function initUploadPanel(
             selectedFile = null;
             fileInput!.value = '';
             fileDisplay!.textContent = '';
-            setStatus(invalidFileMsg, 'error');
             setUploadPreviewStatus(invalidFileMsg, 'error');
             notify(invalidFileMsg, 'error');
             return;
@@ -178,7 +171,6 @@ export function initUploadPanel(
         if (invalidFileMsg) {
             selectedFile = null;
             fileDisplay!.textContent = '';
-            setStatus(invalidFileMsg, 'error');
             setUploadPreviewStatus(invalidFileMsg, 'error');
             notify(invalidFileMsg, 'error');
             return;
@@ -216,6 +208,22 @@ export function initUploadPanel(
 
     applyTimeRangeFromMetadata(appState.metadata, false);
 
+    // If no preview is active and we have no metadata yet, fetch existing dataset state
+    if (!appState.metadata) {
+        import('../services/api/index.js').then(({ fetchMetadata }) => {
+            fetchMetadata().then((freshMetadata) => {
+                if (freshMetadata) {
+                    setMetadata(freshMetadata);
+                    const revision = freshMetadata?.revision;
+                    setDatasetRevision(typeof revision === 'number' ? revision : 0);
+                    hydrateColumnProfiles(freshMetadata);
+                    renderColumnProfilesGrid(true);
+                    buildMetaBar(freshMetadata);
+                }
+            }).catch((err) => { console.error('[upload] metadata fetch error:', err); });
+        });
+    }
+
     selectAllBtn?.addEventListener('click', () => setSelectionMode('all'));
     selectNoneBtn?.addEventListener('click', () => setSelectionMode('none'));
     selectAllCheckbox?.addEventListener('change', () => {
@@ -238,7 +246,6 @@ export function initUploadPanel(
     // Upload submit
     uploadBtn.addEventListener('click', () => {
         if (!selectedFile) {
-            setStatus('Please select a file first.', 'error');
             notify('Please select a file first.', 'error');
             return;
         }
@@ -251,7 +258,7 @@ export function initUploadPanel(
             timeStartInput: timeStartInput,
             timeEndInput: timeEndInput,
             uploadBtn: uploadBtn!,
-            statusEl: statusEl!,
+            statusEl: null,
             progressWrap: progressWrap!,
             progressBar: progressBar!,
             fileInput: fileInput!,
@@ -301,10 +308,6 @@ export function initUploadPanel(
     const dbDisconnectBtn = document.getElementById('db-disconnect-btn') as HTMLButtonElement | null;
     const dbStatus = document.getElementById('db-status');
     const dbTableSelect = document.getElementById('db-table-select') as HTMLSelectElement | null;
-
-    /** Populate the table <select> from the /api/database/tables endpoint. */
-    // Delegates to databaseSource.refreshDbTables which handles the DOM
-    void refreshDbTables();
 
     /** Sync table select → text input. */
     dbTableSelect?.addEventListener('change', () => {

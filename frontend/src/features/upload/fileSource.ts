@@ -10,6 +10,7 @@ import {
     setDatasetRevision,
 } from '../../store/index.js';
 import { buildMetaBar } from '../../ui/metaBar.js';
+import { setProfileMode } from './preview.js';
 import { formatCount } from '../../utils/format.js';
 import { toast } from '../../utils/toast.js';
 import { validateFileSize } from './partialLoadControls.js';
@@ -53,7 +54,7 @@ export interface FileUploadParams {
     timeStartInput: HTMLInputElement | null;
     timeEndInput: HTMLInputElement | null;
     uploadBtn: HTMLButtonElement;
-    statusEl: HTMLElement;
+    statusEl: HTMLElement | null;
     progressWrap: HTMLElement;
     progressBar: HTMLElement;
     fileInput: HTMLInputElement;
@@ -84,15 +85,15 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
 
     const invalidFileMsg = validateFileSize(selectedFile);
     if (invalidFileMsg) {
-        statusEl.textContent = invalidFileMsg;
-        statusEl.className = 'upload-status error';
+        statusEl!.textContent = invalidFileMsg;
+        statusEl!.className = 'upload-status error';
         toast(invalidFileMsg, 'error', {});
         return;
     }
 
     if (!appState.previewTimeColumn && !(appState.metadata && appState.metadata.time_range)) {
-        statusEl.textContent = 'No time column selected. Please choose a time column in the upload panel before ingest.';
-        statusEl.className = 'upload-status error';
+        statusEl!.textContent = 'No time column selected. Please choose a time column in the upload panel before ingest.';
+        statusEl!.className = 'upload-status error';
         toast('No time column selected. Please choose a time column in the upload panel before ingest.', 'error', {});
         return;
     }
@@ -106,8 +107,8 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
         if (!isNaN(nRows) && nRows > 0) {
             formData.append('n_rows', String(nRows));
         } else {
-            statusEl.textContent = 'Enter a valid Max rows value for partial load.';
-            statusEl.className = 'upload-status error';
+            statusEl!.textContent = 'Enter a valid Max rows value for partial load.';
+            statusEl!.className = 'upload-status error';
             toast('Enter a valid Max rows value for partial load.', 'error', {});
             uploadBtn.disabled = false;
             progressWrap.style.display = 'none';
@@ -126,8 +127,8 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
         const tStartIso = toIsoOrNull(timeStartInput?.value || '');
         const tEndIso = toIsoOrNull(timeEndInput?.value || '');
         if (tStartIso && tEndIso && Date.parse(tStartIso) > Date.parse(tEndIso)) {
-            statusEl.textContent = 'Start time must be before end time.';
-            statusEl.className = 'upload-status error';
+            statusEl!.textContent = 'Start time must be before end time.';
+            statusEl!.className = 'upload-status error';
             toast('Start time must be before end time.', 'error', {});
             return;
         }
@@ -146,8 +147,10 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
     if (timeColumn) formData.append('time_column', timeColumn);
 
     uploadBtn.disabled = true;
-    statusEl.textContent = 'Uploading…';
-    statusEl.className = 'upload-status loading';
+    if (statusEl) {
+        statusEl.textContent = 'Uploading…';
+        statusEl.className = 'upload-status loading';
+    }
     progressWrap.style.display = 'block';
     const stopProgress = animateProgress(progressBar, progressWrap);
 
@@ -163,13 +166,16 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
                     message = parsed.error;
                 }
             } catch { /* ignore */ }
-            statusEl.textContent = 'Error: ' + message;
-            statusEl.className = 'upload-status error';
+            if (statusEl) {
+                statusEl.textContent = 'Error: ' + message;
+                statusEl.className = 'upload-status error';
+            }
             toast(`Upload failed: ${message}`, 'error', {});
         } else {
             const result = await res.json();
-            statusEl.textContent = `Loaded ${result.rows.toLocaleString()} rows. Refreshing stats…`;
-            statusEl.className = 'upload-status success';
+            if (statusEl) {
+                statusEl.className = 'upload-status';
+            }
             toast(`${formatCount(Number(result.rows || 0))} rows loaded. Dataset ready.`, 'success', {});
             // Fetch fresh metadata and refresh the profile grid without page reload
             try {
@@ -185,18 +191,23 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
                 fileDisplay.textContent = '';
                 // Re-hydrate and render the profile grid with the new dataset metadata
                 hydrateColumnProfiles(freshMetadata);
+                renderColumnProfilesGrid(true);
                 // Update header meta stats and UI controls
                 buildMetaBar(freshMetadata);
                 deps.buildColumnToggles();
                 deps.buildRangeControls();
+                // Mark the profile grid as showing the current dataset (not a preview)
+                setProfileMode('dataset');
             } catch {
                 // Fall back to reload if metadata refresh fails
                 setTimeout(() => window.location.reload(), 1200);
             }
         }
     } catch (e: unknown) {
-        statusEl.textContent = 'Error: ' + (e instanceof Error ? e.message : String(e));
-        statusEl.className = 'upload-status error';
+        if (statusEl) {
+            statusEl.textContent = 'Error: ' + (e instanceof Error ? e.message : String(e));
+            statusEl.className = 'upload-status error';
+        }
         toast(`Upload failed: ${e instanceof Error ? e.message : String(e)}`, 'error', {});
     } finally {
         stopProgress();

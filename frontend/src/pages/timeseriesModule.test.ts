@@ -12,16 +12,19 @@ const {
     mockCreateTimeseriesEntrypoint,
     mockCreateTimeseriesRuntime,
     mockCreateDatasetBootstrap,
+    mockCreateTimeseriesBootstrap,
 } = vi.hoisted(() => {
     const mockCreateTimeseriesPageController = vi.fn();
     const mockCreateTimeseriesEntrypoint = vi.fn();
     const mockCreateTimeseriesRuntime = vi.fn();
     const mockCreateDatasetBootstrap = vi.fn();
+    const mockCreateTimeseriesBootstrap = vi.fn();
     return {
         mockCreateTimeseriesPageController,
         mockCreateTimeseriesEntrypoint,
         mockCreateTimeseriesRuntime,
         mockCreateDatasetBootstrap,
+        mockCreateTimeseriesBootstrap,
     };
 });
 
@@ -43,6 +46,10 @@ vi.mock('./timeseriesRuntime.js', () => ({
 // Mock createDatasetBootstrap from ../app/bootstrap/datasetBootstrap.js
 vi.mock('../app/bootstrap/datasetBootstrap.js', () => ({
     createDatasetBootstrap: mockCreateDatasetBootstrap,
+}));
+
+vi.mock('../app/bootstrap/ensureTimeseriesReady.js', () => ({
+    createTimeseriesBootstrap: mockCreateTimeseriesBootstrap,
 }));
 
 // ── Shared mock helpers ───────────────────────────────────────────────────────
@@ -70,10 +77,24 @@ const mockBootstrap = () => ({
     refreshAfterMutation: vi.fn().mockResolvedValue(undefined),
 });
 
+const mockChartBootstrap = () => ({
+    ensureReady: vi.fn().mockResolvedValue(undefined),
+    isReady: vi.fn(() => false),
+});
+
 const defaultDeps = () => ({
     fetchData: vi.fn(),
-    buildColumnToggles: vi.fn(),
-    buildRangeControls: vi.fn(),
+    fetchMetadata: vi.fn(),
+    DataChartCtor: class {} as any,
+    markMetadataReady: vi.fn(),
+    sanitizeSelectedColumns: vi.fn(),
+    clearLoadedPageModules: vi.fn(),
+    ensureSessionPersistenceStarted: vi.fn(),
+    getSelectedCols: vi.fn(() => ['col1']),
+    setSelectedCols: vi.fn(),
+    setNumericCols: vi.fn(),
+    setAdaptiveFilterColumn: vi.fn(),
+    setViewport: vi.fn(),
     updateAnalysisYRange: vi.fn(),
     updateAnalysisZoom: vi.fn(),
     getCurrentView: vi.fn(),
@@ -90,6 +111,7 @@ describe('createTimeseriesModule', () => {
         mockCreateTimeseriesEntrypoint.mockReturnValue(mockFeatureEntrypoint());
         mockCreateTimeseriesRuntime.mockReturnValue(mockRuntime());
         mockCreateDatasetBootstrap.mockReturnValue(mockBootstrap());
+        mockCreateTimeseriesBootstrap.mockReturnValue(mockChartBootstrap());
     });
 
     // -------------------------------------------------------------------------
@@ -98,7 +120,8 @@ describe('createTimeseriesModule', () => {
     it('composes page controller and feature entrypoint together once', async () => {
         const { createTimeseriesModule } = await import('./timeseriesModule.js');
 
-        const mod = createTimeseriesModule(defaultDeps());
+        const deps = defaultDeps();
+        const mod = createTimeseriesModule(deps as any);
 
         // The module should have exposed methods from both page controller and feature
         expect(mod.fetchAndRender).toBeDefined();
@@ -113,6 +136,21 @@ describe('createTimeseriesModule', () => {
 
         // createTimeseriesEntrypoint should be called once
         expect(mockCreateTimeseriesEntrypoint).toHaveBeenCalledTimes(1);
+
+        // createDatasetBootstrap must receive the real bootstrap collaborators,
+        // not placeholder no-op functions created inside the module.
+        expect(mockCreateDatasetBootstrap).toHaveBeenCalledWith(expect.objectContaining({
+            fetchMetadata: deps.fetchMetadata,
+            markMetadataReady: deps.markMetadataReady,
+            sanitizeSelectedColumns: deps.sanitizeSelectedColumns,
+            clearLoadedPageModules: deps.clearLoadedPageModules,
+            ensureSessionPersistenceStarted: deps.ensureSessionPersistenceStarted,
+            getSelectedCols: deps.getSelectedCols,
+            setSelectedCols: deps.setSelectedCols,
+            setNumericCols: deps.setNumericCols,
+            setAdaptiveFilterColumn: deps.setAdaptiveFilterColumn,
+            setViewport: deps.setViewport,
+        }));
     });
 
     // -------------------------------------------------------------------------
@@ -133,6 +171,11 @@ describe('createTimeseriesModule', () => {
         // Calling buildColumnToggles delegates to feature.rebuildColumns()
         mod.buildColumnToggles();
         expect(feature.rebuildColumns).toHaveBeenCalled();
+
+        // Calling buildRangeControls delegates to the feature-owned range controls,
+        // not back through the outer deps trampoline.
+        mod.buildRangeControls();
+        expect(feature.buildRangeControls).toHaveBeenCalled();
     });
 
     // -------------------------------------------------------------------------
@@ -198,6 +241,23 @@ describe('createTimeseriesModule', () => {
         expect(result).toBeInstanceOf(Promise);
         await result;
         expect(bootstrap.ensureDatasetReady).toHaveBeenCalled();
+    });
+
+    it('wires runtime ensureReady through dataset bootstrap and chart bootstrap', async () => {
+        const datasetBootstrap = mockBootstrap();
+        const chartBootstrap = mockChartBootstrap();
+        mockCreateDatasetBootstrap.mockReturnValue(datasetBootstrap);
+        mockCreateTimeseriesBootstrap.mockReturnValue(chartBootstrap);
+
+        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+
+        createTimeseriesModule(defaultDeps());
+        const runtimeDeps = mockCreateTimeseriesRuntime.mock.calls[0]?.[0];
+
+        await runtimeDeps.ensureReady();
+
+        expect(datasetBootstrap.ensureDatasetReady).toHaveBeenCalledTimes(1);
+        expect(chartBootstrap.ensureReady).toHaveBeenCalledTimes(1);
     });
 
     it('refreshAfterMutation() returns a Promise and accepts optional { selectedColumn }', async () => {

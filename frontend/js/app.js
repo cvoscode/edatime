@@ -1,6 +1,6 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/scatter-Bbu6RfNC.js","assets/chartgpu-CqrjGxnD.js","assets/entrypoint-D7xxuTWY.js","assets/frequency-CnNd5TMg.js","assets/entrypoint-0DMukTi-.js","assets/entrypoint-C4J15zrC.js","assets/causal-BbwjInex.js","assets/drift-CU9El-5H.js","assets/DataChart-BSl58AWs.js"])))=>i.map(i=>d[i]);
-import { b as appStateComposite, l as formatToDatetimeLocal, m as formatAnalysisTime, p as previewUpload, n as setMetadata, o as formatCount, q as setPreviewTimeColumn, t as toast, r as setPreviewSelectedColumns, u as fetchDatabaseTables, v as connectDatabase, w as loadDatabaseTable, x as deleteDatabaseConnection, y as fetchDatabaseStatus, z as uploadDataset, _ as __vitePreload, A as setDatasetRevision, B as setColumnProfiles, C as normalizeDtypeLabel, E as formatProfileValue, F as toFiniteNumberOrNull, G as setProfileGridBound, H as setProfileGridSort, I as setProfileGridHeaderBound, J as setAnomalyRegions, K as setRollingBands, L as applyColumnRanges, M as isRangeOutsideDataset, N as dbgGroup, O as setZoomHistory, P as setViewport, Q as setPendingYMode, R as setPendingRestoreY, S as setFetchDebounceId, T as sanitizeSelectedColumns$1, U as setLastFetchedData, D as DEBUG, V as dbg, W as ensureRangeStateFromData, X as createEmptyStateController, k as createRequestTask, Y as formatAnalysisNumber, d as downloadBlob, Z as setAdaptiveLineFilters, $ as setPendingAdaptivePoint, a0 as setChartText, a1 as setRollingEnabled, a2 as setRollingWindow, a3 as setAnomalyEnabled, a4 as setAnomalyMethod, a5 as setAnomalyThreshold, a6 as setAnalysisBound, a7 as SERIES_COLORS, a8 as setSelectedCols, a9 as setSeriesColors, aa as setColumnRanges, ab as setSelectedColorColumn, ac as requestGpuAdapter, ad as installWindowsWebGpuRequestAdapterWorkaround, ae as setAdaptiveFilterColumn, af as appendAdaptiveLineFilter, ag as buildAdaptiveLineY, ah as setChartInstance, ai as getSeriesColor, aj as setSeriesColor, ak as computeBounds, al as debounce, am as setFilterText, an as setProfileFilterText, ao as setNumericCols, ap as initScatterPage } from './assets/scatter-Bbu6RfNC.js';
-import { R as RangeControls, C as ColumnFilterModal, r as renderSeriesChipList, g as getNumericColumns, a as getDefaultTimeseriesColumns, b as getAnalyticsChipColor } from './assets/frequency-CnNd5TMg.js';
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/scatter-QWGF3Xy9.js","assets/chartgpu-CqrjGxnD.js","assets/entrypoint-D40Vh8cd.js","assets/frequency-Dv5Yk2t4.js","assets/entrypoint-DTVq7z3e.js","assets/entrypoint-Dm0Czg-f.js","assets/causal-mcvdWM0b.js","assets/drift-Cwdex3KV.js","assets/DataChart-B3JqmnHs.js"])))=>i.map(i=>d[i]);
+import { b as appStateComposite, l as setProfileGridBound, n as normalizeDtypeLabel, m as formatCount, o as formatProfileValue, p as setProfileGridSort, q as setProfileGridHeaderBound, r as setPreviewSelectedColumns, u as setColumnProfiles, v as toFiniteNumberOrNull, w as setRollingBands, x as applyColumnRanges, y as setAnomalyRegions, _ as __vitePreload, z as formatToDatetimeLocal, A as formatAnalysisTime, B as previewUpload, C as setMetadata, E as setPreviewTimeColumn, t as toast, F as connectDatabase, G as loadDatabaseTable, H as deleteDatabaseConnection, I as fetchDatabaseTables, J as fetchDatabaseStatus, K as uploadDataset, L as setDatasetRevision, M as formatAnalysisNumber, N as setPendingYMode, O as setPendingRestoreY, P as dbgGroup, Q as setViewport, R as setFetchDebounceId, S as setZoomHistory, T as dbg, U as buildAdaptiveLineFiltersForQuery, V as exportParquet, d as downloadBlob, W as setAdaptiveLineFilters, X as setPendingAdaptivePoint, Y as setChartText, Z as setRollingEnabled, $ as setRollingWindow, a0 as setAnomalyEnabled, a1 as setAnomalyMethod, a2 as setAnomalyThreshold, D as DEBUG, a3 as setAnalysisBound, a4 as SERIES_COLORS, a5 as postRemoveOutliers, a6 as postTransform, a7 as isRangeOutsideDataset, a8 as sanitizeSelectedColumns$1, a9 as setLastFetchedData, aa as ensureRangeStateFromData, ab as createEmptyStateController, k as createRequestTask, ac as setSelectedCols, ad as setAdaptiveFilterColumn, ae as getSeriesColor, af as setSeriesColor, ag as computeBounds, ah as debounce, ai as setColumnRanges, aj as setFilterText, ak as setProfileFilterText, al as createPageRuntime, am as requestGpuAdapter, an as installWindowsWebGpuRequestAdapterWorkaround, ao as appendAdaptiveLineFilter, ap as buildAdaptiveLineY, aq as setSeriesColors, ar as setSelectedColorColumn, as as setChartInstance, at as setNumericCols, au as initScatterPage } from './assets/scatter-QWGF3Xy9.js';
+import { R as RangeControls, C as ColumnFilterModal, r as renderSeriesChipList, g as getDefaultTimeseriesColumns, a as getNumericColumns, b as getAnalyticsChipColor } from './assets/frequency-Dv5Yk2t4.js';
 import './assets/chartgpu-CqrjGxnD.js';
 
 function setMetaText(text) {
@@ -22,6 +22,632 @@ function buildMetaBar(metadata) {
   if (pageMeta) {
     pageMeta.innerHTML = markup;
   }
+}
+
+function showBootstrapError({ message, metaBarSelector = ".meta-bar" }) {
+  setMetaText("Error: " + message);
+  const existingRetry = document.getElementById("bootstrap-retry-btn");
+  if (existingRetry) return;
+  const metaEl = document.querySelector(metaBarSelector);
+  if (!metaEl) return;
+  const btn = document.createElement("button");
+  btn.id = "bootstrap-retry-btn";
+  btn.className = "btn btn-ghost btn-sm";
+  btn.style.marginLeft = "8px";
+  btn.textContent = "Retry";
+  btn.addEventListener("click", () => {
+    btn.disabled = true;
+    btn.textContent = "Retrying…";
+    setMetaText("Reinitializing…");
+    location.reload();
+  });
+  metaEl.appendChild(btn);
+}
+
+const PROFILE_ROW_HEIGHT = 38;
+const PROFILE_OVERSCAN = 8;
+const PROFILE_COLUMNS = [
+  { key: "selected", label: "", minWidth: 56, defaultWidth: 56, sortable: false },
+  { key: "name", label: "Name", minWidth: 160, defaultWidth: 220, sortable: true },
+  { key: "dtype", label: "Type", minWidth: 110, defaultWidth: 120, sortable: true },
+  { key: "nonNullCount", label: "Non-Null", minWidth: 130, defaultWidth: 140, sortable: true },
+  { key: "nullCount", label: "Null", minWidth: 90, defaultWidth: 100, sortable: true },
+  { key: "min", label: "Min", minWidth: 120, defaultWidth: 130, sortable: true },
+  { key: "max", label: "Max", minWidth: 120, defaultWidth: 130, sortable: true },
+  { key: "histCounts", label: "Distribution", minWidth: 220, defaultWidth: 260, sortable: false }
+];
+function getDefaultProfileColumnWidths() {
+  return PROFILE_COLUMNS.map((col) => col.defaultWidth);
+}
+
+function createProfileRow(raw) {
+  const name = String(raw?.name || "").trim();
+  if (!name) return null;
+  const counts = Array.isArray(raw?.histogram?.counts) ? raw.histogram.counts.map((count) => Math.max(0, Number(count) || 0)) : [];
+  return {
+    name,
+    dtype: String(raw?.dtype || ""),
+    nonNullCount: Math.max(0, Number(raw?.non_null_count) || 0),
+    nullCount: Math.max(0, Number(raw?.null_count) || 0),
+    min: toFiniteNumberOrNull(raw?.min),
+    max: toFiniteNumberOrNull(raw?.max),
+    histCounts: counts
+  };
+}
+function createProfileStub(column) {
+  const name = String(column?.name || "").trim();
+  if (!name) return null;
+  return {
+    name,
+    dtype: String(column?.dtype || ""),
+    nonNullCount: 0,
+    nullCount: 0,
+    min: null,
+    max: null,
+    histCounts: []
+  };
+}
+function compareProfileValues(left, right, direction) {
+  const leftValue = String(left || "").toLowerCase();
+  const rightValue = String(right || "").toLowerCase();
+  if (leftValue < rightValue) return -1 * direction;
+  if (leftValue > rightValue) return 1 * direction;
+  return 0;
+}
+function sortProfileRows(profiles, sortKey, sortDir) {
+  const sortable = new Set(PROFILE_COLUMNS.filter((column) => column.sortable).map((column) => column.key));
+  if (!sortKey || !sortable.has(sortKey)) return profiles;
+  const direction = sortDir === "desc" ? -1 : 1;
+  return profiles.sort((leftRow, rightRow) => {
+    const leftValue = leftRow[sortKey];
+    const rightValue = rightRow[sortKey];
+    if (sortKey === "name" || sortKey === "dtype") {
+      return compareProfileValues(leftValue, rightValue, direction);
+    }
+    const leftNumber = Number(leftValue);
+    const rightNumber = Number(rightValue);
+    const leftFinite = Number.isFinite(leftNumber);
+    const rightFinite = Number.isFinite(rightNumber);
+    if (!leftFinite && !rightFinite) return 0;
+    if (!leftFinite) return 1;
+    if (!rightFinite) return -1;
+    return (leftNumber - rightNumber) * direction;
+  });
+}
+function hydrateColumnProfiles(metadata) {
+  const incoming = Array.isArray(metadata?.column_profiles) ? metadata.column_profiles : [];
+  const cols = Array.isArray(metadata?.columns) ? metadata.columns : [];
+  const profileByName = /* @__PURE__ */ new Map();
+  for (const raw of incoming) {
+    const profile = createProfileRow(raw);
+    if (!profile) continue;
+    profileByName.set(profile.name, profile);
+  }
+  for (const col of cols) {
+    const profile = createProfileStub(col);
+    if (!profile || profileByName.has(profile.name)) continue;
+    profileByName.set(profile.name, profile);
+  }
+  setColumnProfiles(Array.from(profileByName.values()));
+}
+function getFilteredColumnProfiles() {
+  const profiles = appStateComposite.columnProfiles || [];
+  const q = (appStateComposite.profileFilterText || "").trim().toLowerCase();
+  const filtered = !q ? [...profiles] : profiles.filter((p) => p.name.toLowerCase().includes(q) || p.dtype.toLowerCase().includes(q));
+  const { key, dir } = appStateComposite.profileGridSort || {};
+  return sortProfileRows(filtered, key, dir);
+}
+function applyProfileGridColumnsTemplate() {
+  const grid = document.getElementById("profile-grid");
+  if (!grid) return;
+  const widths = appStateComposite.profileGridColWidths || getDefaultProfileColumnWidths();
+  const template = widths.map((w, idx) => `${Math.max(PROFILE_COLUMNS[idx]?.minWidth ?? 40, Math.round((Number(w) || PROFILE_COLUMNS[idx]?.defaultWidth) ?? 100))}px`).join(" ");
+  grid.style.setProperty("--profile-grid-cols", template);
+}
+function getSelectablePreviewColumns(profiles = appStateComposite.columnProfiles || []) {
+  return profiles.map((profile) => profile.name).filter((name) => name && name !== appStateComposite.previewTimeColumn);
+}
+function syncUploadSelectionUI(profiles = appStateComposite.columnProfiles || []) {
+  const allCheckbox = document.getElementById("profile-select-all-checkbox");
+  const selectable = getSelectablePreviewColumns(profiles);
+  const selected = new Set(appStateComposite.previewSelectedColumns || []);
+  const selectedCount = selectable.filter((name) => selected.has(name)).length;
+  if (allCheckbox) {
+    allCheckbox.checked = selectable.length > 0 && selectedCount === selectable.length;
+    allCheckbox.indeterminate = selectedCount > 0 && selectedCount < selectable.length;
+  }
+}
+function updateProfileGridHeaderState() {
+  const header = document.querySelector(".profile-grid-header");
+  if (!header) return;
+  const sortKey = appStateComposite.profileGridSort?.key;
+  const sortDir = appStateComposite.profileGridSort?.dir;
+  const cells = Array.from(header.children);
+  for (const cell of cells) {
+    const key = cell.dataset.sortKey;
+    const sortable = cell.dataset.sortable === "1";
+    cell.classList.toggle("sortable", sortable);
+    cell.classList.remove("sorted-asc", "sorted-desc");
+    cell.removeAttribute("aria-sort");
+    if (!sortable || !key) continue;
+    if (key === sortKey) {
+      const cls = sortDir === "desc" ? "sorted-desc" : "sorted-asc";
+      const aria = sortDir === "desc" ? "descending" : "ascending";
+      cell.classList.add(cls);
+      cell.setAttribute("aria-sort", aria);
+    } else {
+      cell.setAttribute("aria-sort", "none");
+    }
+  }
+}
+function initProfileGridHeaderControls() {
+  if (appStateComposite.profileGridHeaderBound) return;
+  const header = document.querySelector(".profile-grid-header");
+  if (!header) return;
+  const cells = Array.from(header.children);
+  cells.forEach((cell, idx) => {
+    const def = PROFILE_COLUMNS[idx];
+    if (!def) return;
+    cell.dataset.sortKey = def.key;
+    cell.dataset.sortable = def.sortable ? "1" : "0";
+    if (def.sortable) {
+      cell.tabIndex = 0;
+      cell.addEventListener("click", () => {
+        const current = appStateComposite.profileGridSort || { key: def.key, dir: "asc" };
+        if (current.key === def.key) {
+          setProfileGridSort({ key: def.key, dir: current.dir === "asc" ? "desc" : "asc" });
+        } else {
+          setProfileGridSort({ key: def.key, dir: "asc" });
+        }
+        updateProfileGridHeaderState();
+        renderColumnProfilesGrid(true);
+      });
+      cell.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        cell.click();
+      });
+    }
+    if (idx < cells.length - 1) {
+      const resizer = document.createElement("span");
+      resizer.className = "profile-col-resizer";
+      resizer.setAttribute("role", "separator");
+      resizer.setAttribute("aria-orientation", "vertical");
+      resizer.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const startX = event.clientX;
+        const startW = Number(appStateComposite.profileGridColWidths[idx]) || def.defaultWidth;
+        const onMove = (moveEvent) => {
+          const dx = moveEvent.clientX - startX;
+          const next = Math.max(def.minWidth, startW + dx);
+          appStateComposite.profileGridColWidths[idx] = next;
+          applyProfileGridColumnsTemplate();
+        };
+        const onUp = () => {
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+        };
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+      });
+      cell.appendChild(resizer);
+    }
+  });
+  updateProfileGridHeaderState();
+  setProfileGridHeaderBound(true);
+}
+function createProfileCell(text, extraClass = "") {
+  const cell = document.createElement("div");
+  cell.className = `profile-cell ${extraClass}`.trim();
+  cell.textContent = text;
+  return cell;
+}
+function createSelectionCell(profile) {
+  const cell = document.createElement("div");
+  cell.className = "profile-cell profile-cell-check";
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = (appStateComposite.previewSelectedColumns || []).includes(profile.name);
+  checkbox.setAttribute("aria-label", `Select ${profile.name} for upload`);
+  if (profile.name === appStateComposite.previewTimeColumn) {
+    checkbox.disabled = true;
+    checkbox.checked = true;
+    checkbox.title = "Time column is required";
+  }
+  checkbox.addEventListener("change", () => {
+    const selected = new Set(appStateComposite.previewSelectedColumns || []);
+    if (checkbox.checked) selected.add(profile.name);
+    else selected.delete(profile.name);
+    if (appStateComposite.previewTimeColumn) selected.add(appStateComposite.previewTimeColumn);
+    setPreviewSelectedColumns(Array.from(selected));
+    syncUploadSelectionUI();
+  });
+  cell.appendChild(checkbox);
+  return cell;
+}
+function createHistogramCell(profile) {
+  const cell = document.createElement("div");
+  cell.className = "profile-cell";
+  const counts = Array.isArray(profile.histCounts) ? profile.histCounts : [];
+  if (counts.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "profile-hist-empty";
+    empty.textContent = "—";
+    cell.appendChild(empty);
+    return cell;
+  }
+  const maxCount = Math.max(...counts);
+  if (!Number.isFinite(maxCount) || maxCount <= 0) {
+    const empty = document.createElement("span");
+    empty.className = "profile-hist-empty";
+    empty.textContent = "—";
+    cell.appendChild(empty);
+    return cell;
+  }
+  const hist = document.createElement("div");
+  hist.className = "profile-hist";
+  for (const count of counts) {
+    const bar = document.createElement("span");
+    bar.className = "profile-hist-bar";
+    const height = Math.max(1, Math.round(count / maxCount * 22));
+    bar.style.height = `${height}px`;
+    bar.title = formatCount(count);
+    hist.appendChild(bar);
+  }
+  cell.appendChild(hist);
+  return cell;
+}
+function renderColumnProfilesGrid(resetScroll = false) {
+  const viewport = document.getElementById("profile-grid-viewport");
+  const spacer = document.getElementById("profile-grid-spacer");
+  const rows = document.getElementById("profile-grid-rows");
+  if (!viewport || !spacer || !rows) return;
+  if (resetScroll) viewport.scrollTop = 0;
+  const profiles = getFilteredColumnProfiles();
+  const total = profiles.length;
+  const viewportHeight = Math.max(1, viewport.clientHeight || 1);
+  spacer.style.height = `${Math.max(total * PROFILE_ROW_HEIGHT, viewportHeight)}px`;
+  if (total === 0) {
+    rows.style.transform = "translateY(0px)";
+    rows.innerHTML = "";
+    const row = document.createElement("div");
+    row.className = "profile-grid-row";
+    for (let i = 0; i < PROFILE_COLUMNS.length; i++) {
+      row.appendChild(createProfileCell(i === 1 ? "No columns match this filter" : "", "muted"));
+    }
+    rows.appendChild(row);
+    syncUploadSelectionUI(profiles);
+    return;
+  }
+  const scrollTop = Math.max(0, viewport.scrollTop);
+  const visibleRows = Math.ceil(viewportHeight / PROFILE_ROW_HEIGHT);
+  const start = Math.max(0, Math.floor(scrollTop / PROFILE_ROW_HEIGHT) - PROFILE_OVERSCAN);
+  const end = Math.min(total, start + visibleRows + PROFILE_OVERSCAN * 2);
+  rows.style.transform = `translateY(${start * PROFILE_ROW_HEIGHT}px)`;
+  rows.innerHTML = "";
+  for (let idx = start; idx < end; idx++) {
+    const profile = profiles[idx];
+    const totalCount = profile.nonNullCount + profile.nullCount;
+    const nonNullPct = totalCount > 0 ? profile.nonNullCount / totalCount * 100 : 0;
+    const row = document.createElement("div");
+    row.className = "profile-grid-row";
+    row.setAttribute("role", "row");
+    row.appendChild(createSelectionCell(profile));
+    row.appendChild(createProfileCell(profile.name));
+    row.appendChild(createProfileCell(normalizeDtypeLabel(profile.dtype), "muted"));
+    row.appendChild(createProfileCell(`${formatCount(profile.nonNullCount)} (${nonNullPct.toFixed(1)}%)`, "num"));
+    row.appendChild(createProfileCell(formatCount(profile.nullCount), "num"));
+    row.appendChild(createProfileCell(formatProfileValue(profile.min, profile.dtype), "num"));
+    row.appendChild(createProfileCell(formatProfileValue(profile.max, profile.dtype), "num"));
+    row.appendChild(createHistogramCell(profile));
+    rows.appendChild(row);
+  }
+  syncUploadSelectionUI(profiles);
+}
+function initColumnProfilesGrid() {
+  if (appStateComposite.profileGridBound) return;
+  const viewport = document.getElementById("profile-grid-viewport");
+  const header = document.querySelector(".profile-grid-header");
+  if (!viewport) return;
+  viewport.addEventListener("scroll", () => {
+    renderColumnProfilesGrid(false);
+    if (header) {
+      header.style.transform = `translateX(${-viewport.scrollLeft}px)`;
+    }
+  });
+  const resizeObserver = new ResizeObserver(() => renderColumnProfilesGrid(false));
+  resizeObserver.observe(viewport);
+  initProfileGridHeaderControls();
+  applyProfileGridColumnsTemplate();
+  setProfileGridBound(true);
+}
+
+function computeFrontendRollingBands(data, cols, windowSize) {
+  const ts = data?.ts;
+  if (!ts || ts.length < 2) return [];
+  const n = ts.length;
+  const half = Math.floor((windowSize - 1) / 2);
+  const bands = [];
+  for (const col of cols) {
+    const series = data?.series?.[col];
+    const ys = series?.y;
+    if (!ys || ys.length !== n) continue;
+    const tsOut = new Array(n);
+    const mean = new Array(n).fill(null);
+    const upper1 = new Array(n).fill(null);
+    const lower1 = new Array(n).fill(null);
+    const upper2 = new Array(n).fill(null);
+    const lower2 = new Array(n).fill(null);
+    for (let i = 0; i < n; i++) {
+      tsOut[i] = Number(ts[i]);
+      const start = Math.max(0, i - half);
+      const end = Math.min(n, i + half + 1);
+      let sum = 0, sumSq = 0, cnt = 0;
+      for (let j = start; j < end; j++) {
+        const v = Number(ys[j]);
+        if (Number.isFinite(v)) {
+          sum += v;
+          sumSq += v * v;
+          cnt++;
+        }
+      }
+      if (cnt >= 2) {
+        const m = sum / cnt;
+        const std = Math.sqrt(Math.max(0, sumSq / cnt - m * m));
+        mean[i] = m;
+        upper1[i] = m + std;
+        lower1[i] = m - std;
+        upper2[i] = m + 2 * std;
+        lower2[i] = m - 2 * std;
+      }
+    }
+    bands.push({ column: col, ts: tsOut, mean, upper1, lower1, upper2, lower2 });
+  }
+  return bands;
+}
+let _anomalyController = null;
+let _overlayCallback = null;
+function setAnomalyOverlayCallback(cb) {
+  _overlayCallback = cb;
+}
+function requestOverlayRender() {
+  _overlayCallback?.();
+}
+async function fetchAnomalyRegions(fetchAnomalies, signal) {
+  if (!Number.isFinite(appStateComposite.currentStart) || !Number.isFinite(appStateComposite.currentEnd)) return;
+  if (_anomalyController) _anomalyController.abort();
+  _anomalyController = new AbortController();
+  const controllerSignal = _anomalyController.signal;
+  const startIso = new Date(appStateComposite.currentStart).toISOString();
+  const endIso = new Date(appStateComposite.currentEnd).toISOString();
+  const cols = appStateComposite.selectedCols.join(",");
+  try {
+    if (appStateComposite.anomalyEnabled && fetchAnomalies) {
+      const resp = await fetchAnomalies(startIso, endIso, cols, appStateComposite.anomalyMethod, appStateComposite.anomalyThreshold, controllerSignal);
+      setAnomalyRegions(resp?.regions ?? null);
+    } else {
+      setAnomalyRegions(null);
+    }
+  } catch (e) {
+    if (!(e instanceof Error) || e.name !== "AbortError") {
+      console.warn("Anomaly fetch failed:", e);
+    }
+    setAnomalyRegions(null);
+  }
+  requestOverlayRender();
+}
+function computeAndSetRollingBands(windowSize) {
+  if (!appStateComposite.rollingEnabled) {
+    setRollingBands(null);
+    return;
+  }
+  const filtered = applyColumnRanges(appStateComposite.lastFetchedData);
+  setRollingBands(computeFrontendRollingBands(filtered, appStateComposite.selectedCols, windowSize));
+}
+function cancelAnalyticsFetch() {
+  _anomalyController?.abort();
+}
+const isAnalyticsControllerActive = () => _anomalyController !== null && !_anomalyController.signal.aborted;
+function initAnalyticsListeners(fetchAndRenderAnalytics2) {
+  const handler = () => {
+    if (appStateComposite.lastFetchedData) {
+      if (appStateComposite.rollingEnabled) {
+        const filtered = applyColumnRanges(appStateComposite.lastFetchedData);
+        setRollingBands(computeFrontendRollingBands(
+          filtered,
+          appStateComposite.selectedCols,
+          appStateComposite.rollingWindow || 50
+        ));
+      } else {
+        setRollingBands(null);
+      }
+      appStateComposite.chart?.requestOverlayRender?.();
+    }
+    fetchAndRenderAnalytics2().catch((err) => {
+      console.warn("Analytics fetch failed:", err);
+    });
+  };
+  window.addEventListener("edatime:analytics-change", handler);
+  return () => window.removeEventListener("edatime:analytics-change", handler);
+}
+async function fetchAndRenderAnalytics$1(fetchAnomalies) {
+  await fetchAnomalyRegions(fetchAnomalies ?? null);
+}
+
+const analyticsOverlay = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+    __proto__: null,
+    cancelAnalyticsFetch,
+    computeAndSetRollingBands,
+    computeFrontendRollingBands,
+    fetchAndRenderAnalytics: fetchAndRenderAnalytics$1,
+    fetchAnomalyRegions,
+    initAnalyticsListeners,
+    isAnalyticsControllerActive,
+    setAnomalyOverlayCallback
+}, Symbol.toStringTag, { value: 'Module' }));
+
+function initThemeToggle() {
+  const btn = document.getElementById("theme-toggle-btn");
+  const iconDark = document.getElementById("theme-icon-dark");
+  const iconLight = document.getElementById("theme-icon-light");
+  if (!btn) return;
+  const savedTheme = localStorage.getItem("edatime-theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const apply = (theme) => {
+    if (theme === "light") document.documentElement.setAttribute("data-theme", "light");
+    else document.documentElement.removeAttribute("data-theme");
+    if (iconDark) iconDark.hidden = theme === "light";
+    if (iconLight) iconLight.hidden = theme !== "light";
+  };
+  apply(savedTheme === "light" ? "light" : prefersDark ? "dark" : "dark");
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+    const manualPreference = localStorage.getItem("edatime-theme");
+    if (manualPreference) return;
+    apply(e.matches ? "dark" : "light");
+  });
+  btn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    apply(isLight ? "dark" : "light");
+    localStorage.setItem("edatime-theme", isLight ? "dark" : "light");
+  });
+}
+
+function humanizeControlId(id) {
+  return String(id || "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().replace(/\b\w/g, (match) => match.toUpperCase());
+}
+function normalizeFormControlAccessibility() {
+  const controls = document.querySelectorAll("input, select, textarea");
+  controls.forEach((control) => {
+    if (!control.name && control.id) {
+      control.name = control.id;
+    }
+    if (control.getAttribute("aria-label")) return;
+    const labelledByText = Array.from(control.labels || []).map((label) => label.textContent?.replace(/\s+/g, " ").trim() || "").filter(Boolean).join(" ");
+    const placeholder = control.getAttribute("placeholder") || "";
+    const title = control.getAttribute("title") || "";
+    const fallback = humanizeControlId(control.id) || (control.type === "file" ? "Upload file" : "Form field");
+    const derived = labelledByText || placeholder || title || fallback;
+    {
+      control.setAttribute("aria-label", derived);
+    }
+  });
+}
+
+function wireHomeNavigationCards(showPage) {
+  document.querySelectorAll("[data-home-nav]").forEach((element) => {
+    element.addEventListener("click", () => {
+      const target = element.dataset.homeNav;
+      if (target) showPage(target);
+    });
+  });
+}
+
+function wireSampleDatasetCards(showPage) {
+  document.querySelectorAll("[data-sample-dataset]").forEach((element) => {
+    element.addEventListener("click", () => {
+      const dataset = element.dataset.sampleDataset;
+      if (dataset) {
+        void loadSampleDataset(dataset, showPage);
+      }
+    });
+  });
+}
+async function loadSampleDataset(datasetId, showPage) {
+  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/scatter-QWGF3Xy9.js').then(n => n.aC);return { toast }},true              ?__vite__mapDeps([0,1]):void 0);
+  const { fetchSampleDataset } = await __vitePreload(async () => { const { fetchSampleDataset } = await import('./assets/scatter-QWGF3Xy9.js').then(n => n.aB);return { fetchSampleDataset }},true              ?__vite__mapDeps([0,1]):void 0);
+  if (datasetId === "ettm2") {
+    const dismissLoading = toast("Loading ETTm2 sample dataset…", "info", 0);
+    let file;
+    try {
+      const blob = await fetchSampleDataset("ETTm2.csv");
+      file = new File([blob], "ETTm2.csv", { type: "text/csv" });
+    } catch (err) {
+      dismissLoading();
+      toast(`Could not load ETTm2: ${err}`, "error");
+      return;
+    }
+    const homePage = document.getElementById("page-home");
+    if (homePage) homePage.hidden = true;
+    showPage("upload");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const fileInput = document.getElementById("file-upload");
+    if (fileInput) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      dismissLoading();
+    } else {
+      dismissLoading();
+      toast("Upload panel not ready. Please navigate to Upload and drop the file manually.", "error");
+    }
+  } else if (datasetId === "sinusoidal") {
+    const dismissLoading = toast("Loading Sinusoidal Waves sample dataset…", "info", 0);
+    const file = new File([generateSinusoidalCsv()], "sinusoidal.csv", { type: "text/csv" });
+    const homePage = document.getElementById("page-home");
+    if (homePage) homePage.hidden = true;
+    showPage("upload");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const fileInput = document.getElementById("file-upload");
+    if (fileInput) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      dismissLoading();
+    } else {
+      dismissLoading();
+      toast("Upload panel not ready.", "error");
+    }
+  } else if (datasetId === "weather") {
+    const dismissLoading = toast("Loading Weather Patterns sample dataset…", "info", 0);
+    const file = new File([generateWeatherCsv()], "weather.csv", { type: "text/csv" });
+    const homePage = document.getElementById("page-home");
+    if (homePage) homePage.hidden = true;
+    showPage("upload");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const fileInput = document.getElementById("file-upload");
+    if (fileInput) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      dismissLoading();
+    } else {
+      dismissLoading();
+      toast("Upload panel not ready.", "error");
+    }
+  }
+}
+function generateSinusoidalCsv() {
+  const rows = ["timestamp,temperature,humidity,pressure"];
+  const start = (/* @__PURE__ */ new Date("2024-01-01T00:00:00Z")).getTime();
+  const end = (/* @__PURE__ */ new Date("2024-01-08T00:00:00Z")).getTime();
+  const interval = 15 * 60 * 1e3;
+  for (let t = start; t < end; t += interval) {
+    const temp = 20 + 5 * Math.sin((t - start) / (3600 * 1e3)) + (Math.random() - 0.5) * 0.5;
+    const hum = 50 + 20 * Math.sin((t - start) / (7200 * 1e3)) + (Math.random() - 0.5) * 2;
+    const pres = 1013 + 5 * Math.sin((t - start) / (5400 * 1e3)) + (Math.random() - 0.5) * 0.3;
+    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)}`);
+  }
+  return rows.join("\n");
+}
+function generateWeatherCsv() {
+  const rows = ["timestamp,temperature,humidity,pressure,wind_speed"];
+  const start = (/* @__PURE__ */ new Date("2024-03-01T00:00:00Z")).getTime();
+  const end = (/* @__PURE__ */ new Date("2024-03-08T00:00:00Z")).getTime();
+  const interval = 10 * 60 * 1e3;
+  for (let t = start; t < end; t += interval) {
+    const hour = new Date(t).getUTCHours();
+    const dayFactor = Math.sin((t - start) / (86400 * 1e3));
+    const temp = 15 + 8 * dayFactor + 3 * Math.sin(hour * Math.PI / 12) + (Math.random() - 0.5) * 0.5;
+    const hum = 60 + 15 * Math.cos((t - start) / (43200 * 1e3)) + (Math.random() - 0.5) * 3;
+    const pres = 1010 + 8 * dayFactor + (Math.random() - 0.5) * 0.5;
+    const wind = 5 + 3 * Math.abs(Math.sin((t - start) / (21600 * 1e3))) + (Math.random() - 0.5) * 1;
+    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)},${wind.toFixed(3)}`);
+  }
+  return rows.join("\n");
 }
 
 const UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
@@ -391,7 +1017,9 @@ async function submitFileUpload(params) {
     fileInput,
     fileDisplay,
     deps,
-    hydrateColumnProfiles} = params;
+    hydrateColumnProfiles,
+    renderColumnProfilesGrid
+  } = params;
   const invalidFileMsg = validateFileSize(selectedFile);
   if (invalidFileMsg) {
     statusEl.textContent = invalidFileMsg;
@@ -447,8 +1075,10 @@ async function submitFileUpload(params) {
   const timeColumn = String(appStateComposite.previewTimeColumn || "").trim();
   if (timeColumn) formData.append("time_column", timeColumn);
   uploadBtn.disabled = true;
-  statusEl.textContent = "Uploading…";
-  statusEl.className = "upload-status loading";
+  if (statusEl) {
+    statusEl.textContent = "Uploading…";
+    statusEl.className = "upload-status loading";
+  }
   progressWrap.style.display = "block";
   const stopProgress = animateProgress(progressBar, progressWrap);
   try {
@@ -464,16 +1094,19 @@ async function submitFileUpload(params) {
         }
       } catch {
       }
-      statusEl.textContent = "Error: " + message;
-      statusEl.className = "upload-status error";
+      if (statusEl) {
+        statusEl.textContent = "Error: " + message;
+        statusEl.className = "upload-status error";
+      }
       toast(`Upload failed: ${message}`, "error", {});
     } else {
       const result = await res.json();
-      statusEl.textContent = `Loaded ${result.rows.toLocaleString()} rows. Refreshing stats…`;
-      statusEl.className = "upload-status success";
+      if (statusEl) {
+        statusEl.className = "upload-status";
+      }
       toast(`${formatCount(Number(result.rows || 0))} rows loaded. Dataset ready.`, "success", {});
       try {
-        const { fetchMetadata } = await __vitePreload(async () => { const { fetchMetadata } = await import('./assets/scatter-Bbu6RfNC.js').then(n => n.aw);return { fetchMetadata }},true              ?__vite__mapDeps([0,1]):void 0);
+        const { fetchMetadata } = await __vitePreload(async () => { const { fetchMetadata } = await import('./assets/scatter-QWGF3Xy9.js').then(n => n.aB);return { fetchMetadata }},true              ?__vite__mapDeps([0,1]):void 0);
         const freshMetadata = await fetchMetadata();
         setMetadata(freshMetadata);
         const revision = freshMetadata?.revision;
@@ -482,16 +1115,20 @@ async function submitFileUpload(params) {
         fileInput.value = "";
         fileDisplay.textContent = "";
         hydrateColumnProfiles(freshMetadata);
+        renderColumnProfilesGrid(true);
         buildMetaBar(freshMetadata);
         deps.buildColumnToggles();
         deps.buildRangeControls();
+        setProfileMode("dataset");
       } catch {
         setTimeout(() => window.location.reload(), 1200);
       }
     }
   } catch (e) {
-    statusEl.textContent = "Error: " + (e instanceof Error ? e.message : String(e));
-    statusEl.className = "upload-status error";
+    if (statusEl) {
+      statusEl.textContent = "Error: " + (e instanceof Error ? e.message : String(e));
+      statusEl.className = "upload-status error";
+    }
     toast(`Upload failed: ${e instanceof Error ? e.message : String(e)}`, "error", {});
   } finally {
     stopProgress();
@@ -522,21 +1159,16 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
   const timeStartInput = document.getElementById("time-start-input");
   const timeEndInput = document.getElementById("time-end-input");
   const uploadBtn = document.getElementById("upload-btn");
-  const statusEl = document.getElementById("upload-status");
   const progressWrap = document.getElementById("progress-wrap");
   const progressBar = document.getElementById("progress-bar");
   const selectAllBtn = document.getElementById("profile-select-all-btn");
   const selectNoneBtn = document.getElementById("profile-select-none-btn");
   const selectAllCheckbox = document.getElementById("profile-select-all-checkbox");
-  if (!panel || !browseBtn || !fileInput || !dropZone || !fileDisplay || !partialChk || !partialFlds || !nRowsInput || !nRowsRange || !nRowsDisp || !skipInput || !uploadBtn || !statusEl || !progressWrap || !progressBar) {
+  if (!panel || !browseBtn || !fileInput || !dropZone || !fileDisplay || !partialChk || !partialFlds || !nRowsInput || !nRowsRange || !nRowsDisp || !skipInput || !uploadBtn || !progressWrap || !progressBar) {
     console.error("Upload panel is missing required elements.");
     return;
   }
   let selectedFile = null;
-  function setStatus(msg, cls = "") {
-    statusEl.textContent = msg;
-    statusEl.className = "upload-status " + (cls || "");
-  }
   function formatUploadRowCountLocal(rowCount) {
     return rowCount >= 1e6 ? (rowCount / 1e6).toFixed(1) + "M" : rowCount >= 1e3 ? (rowCount / 1e3).toFixed(0) + "K" : String(rowCount);
   }
@@ -573,7 +1205,6 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
       selectedFile = null;
       fileInput.value = "";
       fileDisplay.textContent = "";
-      setStatus(invalidFileMsg, "error");
       setUploadPreviewStatus(invalidFileMsg, "error");
       notify(invalidFileMsg, "error");
       return;
@@ -595,7 +1226,6 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
     if (invalidFileMsg) {
       selectedFile = null;
       fileDisplay.textContent = "";
-      setStatus(invalidFileMsg, "error");
       setUploadPreviewStatus(invalidFileMsg, "error");
       notify(invalidFileMsg, "error");
       return;
@@ -626,6 +1256,22 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
     nRowsDisp.textContent = formatUploadRowCountLocal(defaultRows);
   }
   applyTimeRangeFromMetadata(appStateComposite.metadata, false);
+  if (!appStateComposite.metadata) {
+    __vitePreload(async () => { const {fetchMetadata} = await import('./assets/scatter-QWGF3Xy9.js').then(n => n.aB);return { fetchMetadata }},true              ?__vite__mapDeps([0,1]):void 0).then(({ fetchMetadata }) => {
+      fetchMetadata().then((freshMetadata) => {
+        if (freshMetadata) {
+          setMetadata(freshMetadata);
+          const revision = freshMetadata?.revision;
+          setDatasetRevision(typeof revision === "number" ? revision : 0);
+          hydrateColumnProfiles(freshMetadata);
+          renderColumnProfilesGrid(true);
+          buildMetaBar(freshMetadata);
+        }
+      }).catch((err) => {
+        console.error("[upload] metadata fetch error:", err);
+      });
+    });
+  }
   selectAllBtn?.addEventListener("click", () => setSelectionMode("all"));
   selectNoneBtn?.addEventListener("click", () => setSelectionMode("none"));
   selectAllCheckbox?.addEventListener("change", () => {
@@ -643,7 +1289,6 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
   }
   uploadBtn.addEventListener("click", () => {
     if (!selectedFile) {
-      setStatus("Please select a file first.", "error");
       notify("Please select a file first.", "error");
       return;
     }
@@ -655,13 +1300,15 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
       timeStartInput,
       timeEndInput,
       uploadBtn,
-      statusEl,
+      statusEl: null,
       progressWrap,
       progressBar,
       fileInput,
       fileDisplay,
       deps,
-      hydrateColumnProfiles});
+      hydrateColumnProfiles,
+      renderColumnProfilesGrid
+    });
   });
   const fileTabBtn = document.getElementById("upload-source-file-btn");
   const dbTabBtn = document.getElementById("upload-source-database-btn");
@@ -696,7 +1343,6 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
   const dbDisconnectBtn = document.getElementById("db-disconnect-btn");
   const dbStatus = document.getElementById("db-status");
   const dbTableSelect = document.getElementById("db-table-select");
-  void refreshDbTables();
   dbTableSelect?.addEventListener("change", () => {
     const tableInput = document.getElementById("db-table-input");
     if (tableInput && dbTableSelect.value) tableInput.value = dbTableSelect.value;
@@ -746,975 +1392,6 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
     const { syncDatabaseStatus: doSync } = await __vitePreload(async () => { const { syncDatabaseStatus: doSync } = await Promise.resolve().then(() => databaseSource);return { syncDatabaseStatus: doSync }},true              ?void 0:void 0);
     await doSync();
   }
-}
-
-function createUploadEntrypoint(deps) {
-  let initialized = false;
-  let mockInitUploadPanel = null;
-  return {
-    init(hydrateColumnProfiles, renderColumnProfilesGrid) {
-      if (initialized) return;
-      initialized = true;
-      if (mockInitUploadPanel) {
-        mockInitUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, {
-          buildColumnToggles: deps.buildColumnToggles,
-          buildRangeControls: deps.buildRangeControls
-        });
-        return;
-      }
-      const { initUploadPanel } = require("../../ui/upload.js");
-      initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, {
-        buildColumnToggles: deps.buildColumnToggles,
-        buildRangeControls: deps.buildRangeControls
-      });
-    },
-    /** For testing only — allows injecting a mock initUploadPanel */
-    _setMock(fn) {
-      mockInitUploadPanel = fn;
-    }
-  };
-}
-
-const PROFILE_ROW_HEIGHT = 38;
-const PROFILE_OVERSCAN = 8;
-const PROFILE_COLUMNS = [
-  { key: "selected", label: "", minWidth: 56, defaultWidth: 56, sortable: false },
-  { key: "name", label: "Name", minWidth: 160, defaultWidth: 220, sortable: true },
-  { key: "dtype", label: "Type", minWidth: 110, defaultWidth: 120, sortable: true },
-  { key: "nonNullCount", label: "Non-Null", minWidth: 130, defaultWidth: 140, sortable: true },
-  { key: "nullCount", label: "Null", minWidth: 90, defaultWidth: 100, sortable: true },
-  { key: "min", label: "Min", minWidth: 120, defaultWidth: 130, sortable: true },
-  { key: "max", label: "Max", minWidth: 120, defaultWidth: 130, sortable: true },
-  { key: "histCounts", label: "Distribution", minWidth: 220, defaultWidth: 260, sortable: false }
-];
-function getDefaultProfileColumnWidths() {
-  return PROFILE_COLUMNS.map((col) => col.defaultWidth);
-}
-
-function createProfileRow(raw) {
-  const name = String(raw?.name || "").trim();
-  if (!name) return null;
-  const counts = Array.isArray(raw?.histogram?.counts) ? raw.histogram.counts.map((count) => Math.max(0, Number(count) || 0)) : [];
-  return {
-    name,
-    dtype: String(raw?.dtype || ""),
-    nonNullCount: Math.max(0, Number(raw?.non_null_count) || 0),
-    nullCount: Math.max(0, Number(raw?.null_count) || 0),
-    min: toFiniteNumberOrNull(raw?.min),
-    max: toFiniteNumberOrNull(raw?.max),
-    histCounts: counts
-  };
-}
-function createProfileStub(column) {
-  const name = String(column?.name || "").trim();
-  if (!name) return null;
-  return {
-    name,
-    dtype: String(column?.dtype || ""),
-    nonNullCount: 0,
-    nullCount: 0,
-    min: null,
-    max: null,
-    histCounts: []
-  };
-}
-function compareProfileValues(left, right, direction) {
-  const leftValue = String(left || "").toLowerCase();
-  const rightValue = String(right || "").toLowerCase();
-  if (leftValue < rightValue) return -1 * direction;
-  if (leftValue > rightValue) return 1 * direction;
-  return 0;
-}
-function sortProfileRows(profiles, sortKey, sortDir) {
-  const sortable = new Set(PROFILE_COLUMNS.filter((column) => column.sortable).map((column) => column.key));
-  if (!sortKey || !sortable.has(sortKey)) return profiles;
-  const direction = sortDir === "desc" ? -1 : 1;
-  return profiles.sort((leftRow, rightRow) => {
-    const leftValue = leftRow[sortKey];
-    const rightValue = rightRow[sortKey];
-    if (sortKey === "name" || sortKey === "dtype") {
-      return compareProfileValues(leftValue, rightValue, direction);
-    }
-    const leftNumber = Number(leftValue);
-    const rightNumber = Number(rightValue);
-    const leftFinite = Number.isFinite(leftNumber);
-    const rightFinite = Number.isFinite(rightNumber);
-    if (!leftFinite && !rightFinite) return 0;
-    if (!leftFinite) return 1;
-    if (!rightFinite) return -1;
-    return (leftNumber - rightNumber) * direction;
-  });
-}
-function hydrateColumnProfiles(metadata) {
-  const incoming = Array.isArray(metadata?.column_profiles) ? metadata.column_profiles : [];
-  const cols = Array.isArray(metadata?.columns) ? metadata.columns : [];
-  const profileByName = /* @__PURE__ */ new Map();
-  for (const raw of incoming) {
-    const profile = createProfileRow(raw);
-    if (!profile) continue;
-    profileByName.set(profile.name, profile);
-  }
-  for (const col of cols) {
-    const profile = createProfileStub(col);
-    if (!profile || profileByName.has(profile.name)) continue;
-    profileByName.set(profile.name, profile);
-  }
-  setColumnProfiles(Array.from(profileByName.values()));
-}
-function getFilteredColumnProfiles() {
-  const profiles = appStateComposite.columnProfiles || [];
-  const q = (appStateComposite.profileFilterText || "").trim().toLowerCase();
-  const filtered = !q ? [...profiles] : profiles.filter((p) => p.name.toLowerCase().includes(q) || p.dtype.toLowerCase().includes(q));
-  const { key, dir } = appStateComposite.profileGridSort || {};
-  return sortProfileRows(filtered, key, dir);
-}
-function applyProfileGridColumnsTemplate() {
-  const grid = document.getElementById("profile-grid");
-  if (!grid) return;
-  const widths = appStateComposite.profileGridColWidths || getDefaultProfileColumnWidths();
-  const template = widths.map((w, idx) => `${Math.max(PROFILE_COLUMNS[idx]?.minWidth ?? 40, Math.round((Number(w) || PROFILE_COLUMNS[idx]?.defaultWidth) ?? 100))}px`).join(" ");
-  grid.style.setProperty("--profile-grid-cols", template);
-}
-function getSelectablePreviewColumns(profiles = appStateComposite.columnProfiles || []) {
-  return profiles.map((profile) => profile.name).filter((name) => name && name !== appStateComposite.previewTimeColumn);
-}
-function syncUploadSelectionUI(profiles = appStateComposite.columnProfiles || []) {
-  const allCheckbox = document.getElementById("profile-select-all-checkbox");
-  const selectable = getSelectablePreviewColumns(profiles);
-  const selected = new Set(appStateComposite.previewSelectedColumns || []);
-  const selectedCount = selectable.filter((name) => selected.has(name)).length;
-  if (allCheckbox) {
-    allCheckbox.checked = selectable.length > 0 && selectedCount === selectable.length;
-    allCheckbox.indeterminate = selectedCount > 0 && selectedCount < selectable.length;
-  }
-}
-function updateProfileGridHeaderState() {
-  const header = document.querySelector(".profile-grid-header");
-  if (!header) return;
-  const sortKey = appStateComposite.profileGridSort?.key;
-  const sortDir = appStateComposite.profileGridSort?.dir;
-  const cells = Array.from(header.children);
-  for (const cell of cells) {
-    const key = cell.dataset.sortKey;
-    const sortable = cell.dataset.sortable === "1";
-    cell.classList.toggle("sortable", sortable);
-    cell.classList.remove("sorted-asc", "sorted-desc");
-    cell.removeAttribute("aria-sort");
-    if (!sortable || !key) continue;
-    if (key === sortKey) {
-      const cls = sortDir === "desc" ? "sorted-desc" : "sorted-asc";
-      const aria = sortDir === "desc" ? "descending" : "ascending";
-      cell.classList.add(cls);
-      cell.setAttribute("aria-sort", aria);
-    } else {
-      cell.setAttribute("aria-sort", "none");
-    }
-  }
-}
-function initProfileGridHeaderControls() {
-  if (appStateComposite.profileGridHeaderBound) return;
-  const header = document.querySelector(".profile-grid-header");
-  if (!header) return;
-  const cells = Array.from(header.children);
-  cells.forEach((cell, idx) => {
-    const def = PROFILE_COLUMNS[idx];
-    if (!def) return;
-    cell.dataset.sortKey = def.key;
-    cell.dataset.sortable = def.sortable ? "1" : "0";
-    if (def.sortable) {
-      cell.tabIndex = 0;
-      cell.addEventListener("click", () => {
-        const current = appStateComposite.profileGridSort || { key: def.key, dir: "asc" };
-        if (current.key === def.key) {
-          setProfileGridSort({ key: def.key, dir: current.dir === "asc" ? "desc" : "asc" });
-        } else {
-          setProfileGridSort({ key: def.key, dir: "asc" });
-        }
-        updateProfileGridHeaderState();
-        renderColumnProfilesGrid(true);
-      });
-      cell.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter" && e.key !== " ") return;
-        e.preventDefault();
-        cell.click();
-      });
-    }
-    if (idx < cells.length - 1) {
-      const resizer = document.createElement("span");
-      resizer.className = "profile-col-resizer";
-      resizer.setAttribute("role", "separator");
-      resizer.setAttribute("aria-orientation", "vertical");
-      resizer.addEventListener("pointerdown", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const startX = event.clientX;
-        const startW = Number(appStateComposite.profileGridColWidths[idx]) || def.defaultWidth;
-        const onMove = (moveEvent) => {
-          const dx = moveEvent.clientX - startX;
-          const next = Math.max(def.minWidth, startW + dx);
-          appStateComposite.profileGridColWidths[idx] = next;
-          applyProfileGridColumnsTemplate();
-        };
-        const onUp = () => {
-          window.removeEventListener("pointermove", onMove);
-          window.removeEventListener("pointerup", onUp);
-        };
-        window.addEventListener("pointermove", onMove);
-        window.addEventListener("pointerup", onUp);
-      });
-      cell.appendChild(resizer);
-    }
-  });
-  updateProfileGridHeaderState();
-  setProfileGridHeaderBound(true);
-}
-function createProfileCell(text, extraClass = "") {
-  const cell = document.createElement("div");
-  cell.className = `profile-cell ${extraClass}`.trim();
-  cell.textContent = text;
-  return cell;
-}
-function createSelectionCell(profile) {
-  const cell = document.createElement("div");
-  cell.className = "profile-cell profile-cell-check";
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.checked = (appStateComposite.previewSelectedColumns || []).includes(profile.name);
-  checkbox.setAttribute("aria-label", `Select ${profile.name} for upload`);
-  if (profile.name === appStateComposite.previewTimeColumn) {
-    checkbox.disabled = true;
-    checkbox.checked = true;
-    checkbox.title = "Time column is required";
-  }
-  checkbox.addEventListener("change", () => {
-    const selected = new Set(appStateComposite.previewSelectedColumns || []);
-    if (checkbox.checked) selected.add(profile.name);
-    else selected.delete(profile.name);
-    if (appStateComposite.previewTimeColumn) selected.add(appStateComposite.previewTimeColumn);
-    setPreviewSelectedColumns(Array.from(selected));
-    syncUploadSelectionUI();
-  });
-  cell.appendChild(checkbox);
-  return cell;
-}
-function createHistogramCell(profile) {
-  const cell = document.createElement("div");
-  cell.className = "profile-cell";
-  const counts = Array.isArray(profile.histCounts) ? profile.histCounts : [];
-  if (counts.length === 0) {
-    const empty = document.createElement("span");
-    empty.className = "profile-hist-empty";
-    empty.textContent = "—";
-    cell.appendChild(empty);
-    return cell;
-  }
-  const maxCount = Math.max(...counts);
-  if (!Number.isFinite(maxCount) || maxCount <= 0) {
-    const empty = document.createElement("span");
-    empty.className = "profile-hist-empty";
-    empty.textContent = "—";
-    cell.appendChild(empty);
-    return cell;
-  }
-  const hist = document.createElement("div");
-  hist.className = "profile-hist";
-  for (const count of counts) {
-    const bar = document.createElement("span");
-    bar.className = "profile-hist-bar";
-    const height = Math.max(1, Math.round(count / maxCount * 22));
-    bar.style.height = `${height}px`;
-    bar.title = formatCount(count);
-    hist.appendChild(bar);
-  }
-  cell.appendChild(hist);
-  return cell;
-}
-function renderColumnProfilesGrid(resetScroll = false) {
-  const viewport = document.getElementById("profile-grid-viewport");
-  const spacer = document.getElementById("profile-grid-spacer");
-  const rows = document.getElementById("profile-grid-rows");
-  if (!viewport || !spacer || !rows) return;
-  if (resetScroll) viewport.scrollTop = 0;
-  const profiles = getFilteredColumnProfiles();
-  const total = profiles.length;
-  const viewportHeight = Math.max(1, viewport.clientHeight || 1);
-  spacer.style.height = `${Math.max(total * PROFILE_ROW_HEIGHT, viewportHeight)}px`;
-  if (total === 0) {
-    rows.style.transform = "translateY(0px)";
-    rows.innerHTML = "";
-    const row = document.createElement("div");
-    row.className = "profile-grid-row";
-    for (let i = 0; i < PROFILE_COLUMNS.length; i++) {
-      row.appendChild(createProfileCell(i === 1 ? "No columns match this filter" : "", "muted"));
-    }
-    rows.appendChild(row);
-    syncUploadSelectionUI(profiles);
-    return;
-  }
-  const scrollTop = Math.max(0, viewport.scrollTop);
-  const visibleRows = Math.ceil(viewportHeight / PROFILE_ROW_HEIGHT);
-  const start = Math.max(0, Math.floor(scrollTop / PROFILE_ROW_HEIGHT) - PROFILE_OVERSCAN);
-  const end = Math.min(total, start + visibleRows + PROFILE_OVERSCAN * 2);
-  rows.style.transform = `translateY(${start * PROFILE_ROW_HEIGHT}px)`;
-  rows.innerHTML = "";
-  for (let idx = start; idx < end; idx++) {
-    const profile = profiles[idx];
-    const totalCount = profile.nonNullCount + profile.nullCount;
-    const nonNullPct = totalCount > 0 ? profile.nonNullCount / totalCount * 100 : 0;
-    const row = document.createElement("div");
-    row.className = "profile-grid-row";
-    row.setAttribute("role", "row");
-    row.appendChild(createSelectionCell(profile));
-    row.appendChild(createProfileCell(profile.name));
-    row.appendChild(createProfileCell(normalizeDtypeLabel(profile.dtype), "muted"));
-    row.appendChild(createProfileCell(`${formatCount(profile.nonNullCount)} (${nonNullPct.toFixed(1)}%)`, "num"));
-    row.appendChild(createProfileCell(formatCount(profile.nullCount), "num"));
-    row.appendChild(createProfileCell(formatProfileValue(profile.min, profile.dtype), "num"));
-    row.appendChild(createProfileCell(formatProfileValue(profile.max, profile.dtype), "num"));
-    row.appendChild(createHistogramCell(profile));
-    rows.appendChild(row);
-  }
-  syncUploadSelectionUI(profiles);
-}
-function initColumnProfilesGrid() {
-  if (appStateComposite.profileGridBound) return;
-  const viewport = document.getElementById("profile-grid-viewport");
-  const header = document.querySelector(".profile-grid-header");
-  if (!viewport) return;
-  viewport.addEventListener("scroll", () => {
-    renderColumnProfilesGrid(false);
-    if (header) {
-      header.style.transform = `translateX(${-viewport.scrollLeft}px)`;
-    }
-  });
-  const resizeObserver = new ResizeObserver(() => renderColumnProfilesGrid(false));
-  resizeObserver.observe(viewport);
-  initProfileGridHeaderControls();
-  applyProfileGridColumnsTemplate();
-  setProfileGridBound(true);
-}
-
-const LIVE_REGION_ID = "aria-live-region";
-function getLiveRegion() {
-  return document.getElementById(LIVE_REGION_ID);
-}
-function announce(message, priority = "polite") {
-  const region = getLiveRegion();
-  if (!region) return;
-  region.setAttribute("aria-live", priority);
-  region.textContent = message;
-  setTimeout(() => {
-    if (region.textContent === message) {
-      region.textContent = "";
-    }
-  }, 1e3);
-}
-function announceChartLoading(columns) {
-  const count = columns.length;
-  const msg = count === 1 ? `Loading chart for ${columns[0]}.` : `Loading chart for ${count} columns: ${columns.join(", ")}.`;
-  announce(msg, "polite");
-}
-function announceDataUpdate(pageName) {
-  announce(`Data updated on ${pageName} page.`, "polite");
-}
-const SHORTCUTS = [
-  // Navigation
-  { keys: "Alt+1", description: "Upload page", category: "Navigation" },
-  { keys: "Alt+2", description: "Timeseries page", category: "Navigation" },
-  { keys: "Alt+3", description: "Scatter page", category: "Navigation" },
-  { keys: "Alt+4", description: "Scatter matrix view", category: "Navigation" },
-  { keys: "Alt+6", description: "FFT page", category: "Navigation" },
-  { keys: "Alt+7", description: "Heatmap page", category: "Navigation" },
-  { keys: "Alt+8", description: "Spectrogram page", category: "Navigation" },
-  { keys: "Alt+9", description: "Causal page", category: "Navigation" },
-  { keys: "Alt+0", description: "Drift page", category: "Navigation" },
-  { keys: "Ctrl+K", description: "Command palette", category: "Navigation" },
-  { keys: "Ctrl+I", description: "Analysis context panel", category: "Navigation" },
-  // Chart
-  { keys: "Double-click", description: "Reset zoom", category: "Chart" },
-  { keys: "Ctrl+click", description: "Set adaptive filter", category: "Chart" },
-  { keys: "Drag", description: "Pan / draw", category: "Chart" },
-  { keys: "Shift+C", description: "Clear adaptive filters", category: "Chart" },
-  // Session
-  { keys: "Ctrl+S", description: "Save session", category: "Session" },
-  { keys: "Ctrl+Shift+S", description: "Export session file", category: "Session" },
-  { keys: "Ctrl+O", description: "Import session file", category: "Session" },
-  // Export
-  { keys: "Ctrl+E", description: "Export data", category: "Export" }
-];
-let _shortcutsModal = null;
-function showKeyboardShortcutsHelp() {
-  const existing = document.getElementById("keyboard-help-modal");
-  if (existing) existing.remove();
-  const categories = [...new Set(SHORTCUTS.map((s) => s.category))];
-  const modal = document.createElement("div");
-  modal.id = "keyboard-help-modal";
-  modal.className = "modal-backdrop keyboard-help-modal";
-  modal.setAttribute("role", "dialog");
-  modal.setAttribute("aria-modal", "true");
-  modal.setAttribute("aria-labelledby", "keyboard-help-title");
-  const content = categories.map((cat) => {
-    const shortcuts = SHORTCUTS.filter((s) => s.category === cat);
-    return `
-            <div class="keyboard-help-section">
-                <h4>${cat}</h4>
-                ${shortcuts.map((s) => `
-                    <div class="keyboard-shortcut-row">
-                        <kbd>${s.keys}</kbd>
-                        <span>${s.description}</span>
-                    </div>
-                `).join("")}
-            </div>
-        `;
-  }).join("");
-  modal.innerHTML = `
-        <div class="modal">
-            <div class="keyboard-help-header">
-                <h3 class="keyboard-help-title" id="keyboard-help-title">Keyboard Shortcuts</h3>
-                <button class="keyboard-help-close" id="keyboard-help-close" aria-label="Close">
-                    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="4" y1="4" x2="12" y2="12"/>
-                        <line x1="12" y1="4" x2="4" y2="12"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="keyboard-help-content">
-                ${content}
-            </div>
-            <div class="keyboard-help-hint">
-                Press <kbd>?</kbd> to toggle this help, or <kbd>Esc</kbd> to close.
-            </div>
-        </div>
-    `;
-  document.body.appendChild(modal);
-  const closeBtn = document.getElementById("keyboard-help-close");
-  closeBtn?.addEventListener("click", hideKeyboardShortcutsHelp);
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) hideKeyboardShortcutsHelp();
-  });
-  const escHandler = (e) => {
-    if (e.key === "Escape") {
-      hideKeyboardShortcutsHelp();
-      window.removeEventListener("keydown", escHandler);
-    }
-  };
-  window.addEventListener("keydown", escHandler);
-  const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-  if (focusable.length > 0) {
-    focusable[0].focus();
-  }
-  _shortcutsModal = modal;
-}
-function hideKeyboardShortcutsHelp() {
-  const modal = document.getElementById("keyboard-help-modal");
-  if (modal) {
-    modal.remove();
-    _shortcutsModal = null;
-  }
-}
-function initAccessibilityShortcuts() {
-  const handleKey = (e) => {
-    const target = e.target;
-    const isInput = ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable;
-    if (isInput) return;
-    if (e.key === "?" && !e.ctrlKey && !e.altKey && !e.metaKey) {
-      e.preventDefault();
-      if (_shortcutsModal) {
-        hideKeyboardShortcutsHelp();
-      } else {
-        showKeyboardShortcutsHelp();
-      }
-      return;
-    }
-    if ((e.key === "/" || e.key === "?") && e.ctrlKey) {
-      e.preventDefault();
-      if (_shortcutsModal) {
-        hideKeyboardShortcutsHelp();
-      } else {
-        showKeyboardShortcutsHelp();
-      }
-    }
-  };
-  window.addEventListener("keydown", handleKey);
-}
-
-function computeFrontendRollingBands(data, cols, windowSize) {
-  const ts = data?.ts;
-  if (!ts || ts.length < 2) return [];
-  const n = ts.length;
-  const half = Math.floor((windowSize - 1) / 2);
-  const bands = [];
-  for (const col of cols) {
-    const series = data?.series?.[col];
-    const ys = series?.y;
-    if (!ys || ys.length !== n) continue;
-    const tsOut = new Array(n);
-    const mean = new Array(n).fill(null);
-    const upper1 = new Array(n).fill(null);
-    const lower1 = new Array(n).fill(null);
-    const upper2 = new Array(n).fill(null);
-    const lower2 = new Array(n).fill(null);
-    for (let i = 0; i < n; i++) {
-      tsOut[i] = Number(ts[i]);
-      const start = Math.max(0, i - half);
-      const end = Math.min(n, i + half + 1);
-      let sum = 0, sumSq = 0, cnt = 0;
-      for (let j = start; j < end; j++) {
-        const v = Number(ys[j]);
-        if (Number.isFinite(v)) {
-          sum += v;
-          sumSq += v * v;
-          cnt++;
-        }
-      }
-      if (cnt >= 2) {
-        const m = sum / cnt;
-        const std = Math.sqrt(Math.max(0, sumSq / cnt - m * m));
-        mean[i] = m;
-        upper1[i] = m + std;
-        lower1[i] = m - std;
-        upper2[i] = m + 2 * std;
-        lower2[i] = m - 2 * std;
-      }
-    }
-    bands.push({ column: col, ts: tsOut, mean, upper1, lower1, upper2, lower2 });
-  }
-  return bands;
-}
-let _anomalyController = null;
-let _overlayCallback = null;
-function setAnomalyOverlayCallback(cb) {
-  _overlayCallback = cb;
-}
-function requestOverlayRender() {
-  _overlayCallback?.();
-}
-async function fetchAnomalyRegions(fetchAnomalies, signal) {
-  if (!Number.isFinite(appStateComposite.currentStart) || !Number.isFinite(appStateComposite.currentEnd)) return;
-  if (_anomalyController) _anomalyController.abort();
-  _anomalyController = new AbortController();
-  const controllerSignal = _anomalyController.signal;
-  const startIso = new Date(appStateComposite.currentStart).toISOString();
-  const endIso = new Date(appStateComposite.currentEnd).toISOString();
-  const cols = appStateComposite.selectedCols.join(",");
-  try {
-    if (appStateComposite.anomalyEnabled && fetchAnomalies) {
-      const resp = await fetchAnomalies(startIso, endIso, cols, appStateComposite.anomalyMethod, appStateComposite.anomalyThreshold, controllerSignal);
-      setAnomalyRegions(resp?.regions ?? null);
-    } else {
-      setAnomalyRegions(null);
-    }
-  } catch (e) {
-    if (!(e instanceof Error) || e.name !== "AbortError") {
-      console.warn("Anomaly fetch failed:", e);
-    }
-    setAnomalyRegions(null);
-  }
-  requestOverlayRender();
-}
-function computeAndSetRollingBands(windowSize) {
-  if (!appStateComposite.rollingEnabled) {
-    setRollingBands(null);
-    return;
-  }
-  const filtered = applyColumnRanges(appStateComposite.lastFetchedData);
-  setRollingBands(computeFrontendRollingBands(filtered, appStateComposite.selectedCols, windowSize));
-}
-function cancelAnalyticsFetch() {
-  _anomalyController?.abort();
-}
-const isAnalyticsControllerActive = () => _anomalyController !== null && !_anomalyController.signal.aborted;
-
-const analyticsOverlay = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-    __proto__: null,
-    cancelAnalyticsFetch,
-    computeAndSetRollingBands,
-    computeFrontendRollingBands,
-    fetchAnomalyRegions,
-    isAnalyticsControllerActive,
-    setAnomalyOverlayCallback
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} };
-let timeseriesEmptyStateController = null;
-function getTimeseriesEmptyStateController() {
-  if (!timeseriesEmptyStateController) {
-    timeseriesEmptyStateController = createEmptyStateController({
-      rootId: "timeseries-empty-state",
-      titleId: "timeseries-empty-title",
-      messageId: "timeseries-empty-message",
-      resetButtonId: "timeseries-reset-range-btn",
-      resetEventName: "edatime:request-chart-range-reset",
-      eventSource: "timeseries-empty-state"
-    });
-  }
-  return timeseriesEmptyStateController;
-}
-function computeRenderedYDebugSnapshot() {
-  if (!appStateComposite.lastFetchedData) return null;
-  const filtered = applyColumnRanges(appStateComposite.lastFetchedData);
-  let globalMin = Number.POSITIVE_INFINITY;
-  let globalMax = Number.NEGATIVE_INFINITY;
-  const perSeries = [];
-  for (const col of appStateComposite.selectedCols || []) {
-    const seriesData = filtered.series?.[col];
-    const yValues = seriesData ? seriesData.y : filtered.values?.[col];
-    if (!yValues) continue;
-    let min = Number.POSITIVE_INFINITY;
-    let max = Number.NEGATIVE_INFINITY;
-    let count = 0;
-    for (let i = 0; i < yValues.length; i++) {
-      const y = Number(yValues[i]);
-      if (!Number.isFinite(y)) continue;
-      count += 1;
-      if (y < min) min = y;
-      if (y > max) max = y;
-    }
-    if (count > 0) {
-      if (min < globalMin) globalMin = min;
-      if (max > globalMax) globalMax = max;
-    }
-    perSeries.push({ name: col, points: count, yMin: count > 0 ? min : null, yMax: count > 0 ? max : null });
-  }
-  return {
-    selectedCols: [...appStateComposite.selectedCols || []],
-    globalYMin: Number.isFinite(globalMin) ? globalMin : null,
-    globalYMax: Number.isFinite(globalMax) ? globalMax : null,
-    perSeries
-  };
-}
-function createTimeseriesPageController(deps) {
-  const uploadButton = document.getElementById("timeseries-empty-upload-btn");
-  if (uploadButton) {
-    uploadButton.addEventListener("click", () => {
-      window.dispatchEvent(new CustomEvent("edatime:page-change", { detail: { page: "upload" } }));
-    });
-  }
-  const task = createRequestTask({
-    setLoading: (loading) => {
-      const loadingEl = document.getElementById("main-chart-loading");
-      if (loadingEl) loadingEl.hidden = !loading;
-    },
-    onError: (message) => {
-      console.error("Failed to fetch data:", message);
-      setMetaText("Error: " + message);
-    }
-  });
-  function emitChartRangeChange(sourceKind = "data") {
-    if (!Number.isFinite(appStateComposite.currentStart) || !Number.isFinite(appStateComposite.currentEnd)) return;
-    window.dispatchEvent(new CustomEvent("edatime:chart-range-change", {
-      detail: { start: appStateComposite.currentStart, end: appStateComposite.currentEnd, source: sourceKind }
-    }));
-  }
-  function renderCurrentData() {
-    const emptyState = getTimeseriesEmptyStateController();
-    const hasSelection = Array.isArray(appStateComposite.selectedCols) && appStateComposite.selectedCols.length > 0;
-    if (!hasSelection) {
-      emptyState.update({
-        visible: true,
-        reason: "no-columns-selected",
-        title: "Select one or more series",
-        message: "Click a column chip above to add it to the chart. Start with 2-3 related columns for a clearer first view.",
-        showResetAction: false
-      });
-    }
-    if (!appStateComposite.chart) return;
-    if (!hasSelection) {
-      setRollingBands(null);
-      appStateComposite.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
-      return;
-    }
-    if (!appStateComposite.lastFetchedData) {
-      emptyState.update({ visible: false, reason: "", title: "", message: "", showResetAction: false });
-      return;
-    }
-    const filtered = applyColumnRanges(appStateComposite.lastFetchedData);
-    const hasPoints = !!filtered?.ts && filtered.ts.length > 0;
-    if (!hasPoints) {
-      const start = Number(appStateComposite.currentStart);
-      const end = Number(appStateComposite.currentEnd);
-      const rangeOutside = isRangeOutsideDataset(appStateComposite.metadata?.time_range, start, end);
-      emptyState.update({
-        visible: true,
-        reason: rangeOutside ? "linked-range-outside-dataset" : "no-data-after-filters",
-        title: rangeOutside ? "Current range is outside this dataset" : "No points match current filters",
-        message: rangeOutside ? "Reset to dataset range to recover visible data." : "Try widening the time range or clearing filters.",
-        showResetAction: true
-      });
-      setRollingBands(null);
-      appStateComposite.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
-      if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-        appStateComposite.chart.setXRange(start, end);
-      }
-      return;
-    }
-    emptyState.update({ visible: false, reason: "", title: "", message: "", showResetAction: false });
-    const preview = appStateComposite.spectralFilterPreview;
-    let displayCols = [...appStateComposite.selectedCols];
-    if (preview && preview.ts && preview.values && preview.ts.length > 0) {
-      const previewKey = `${preview.column} [filtered]`;
-      filtered.series = filtered.series || {};
-      filtered.series[previewKey] = { x: preview.ts, y: preview.values };
-      if (!displayCols.includes(previewKey)) displayCols = [...displayCols, previewKey];
-    }
-    appStateComposite.chart.updateDataMulti(filtered, displayCols);
-    if (appStateComposite.pendingRestoreY && appStateComposite.pendingYMode === "restore") {
-      const savedY = appStateComposite.pendingRestoreY;
-      appStateComposite.chart.setYRange(savedY.min, savedY.max);
-    }
-    if (appStateComposite.rollingEnabled) {
-      setRollingBands(computeFrontendRollingBands(filtered, appStateComposite.selectedCols, appStateComposite.rollingWindow || 50));
-      appStateComposite.chart?.requestOverlayRender?.();
-    }
-    window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
-    announceDataUpdate("timeseries");
-  }
-  async function fetchAndRender() {
-    sanitizeSelectedColumns$1();
-    if (!Number.isFinite(appStateComposite.currentStart) || !Number.isFinite(appStateComposite.currentEnd)) return;
-    const currentStart = Number(appStateComposite.currentStart);
-    const currentEnd = Number(appStateComposite.currentEnd);
-    if (currentStart >= currentEnd) return;
-    if (!Array.isArray(appStateComposite.selectedCols) || appStateComposite.selectedCols.length === 0) {
-      deps.buildRangeControls();
-      renderCurrentData();
-      return;
-    }
-    await task.run(async (signal) => {
-      const startIso = new Date(currentStart).toISOString();
-      const endIso = new Date(currentEnd).toISOString();
-      const width = document.getElementById("main-chart")?.clientWidth || 1200;
-      const cols = appStateComposite.selectedCols.join(",");
-      const colorCol = appStateComposite.selectedColorColumn || null;
-      announceChartLoading(appStateComposite.selectedCols || []);
-      dbgGroup("fetchAndRender", () => {
-        dbg("request", { startIso, endIso, width, cols, colorCol });
-        dbg("selectedCols", appStateComposite.selectedCols);
-        dbg("selectedColorColumn", appStateComposite.selectedColorColumn);
-      });
-      const data = await deps.fetchData(startIso, endIso, width, cols, colorCol, signal);
-      setLastFetchedData(data);
-      if (DEBUG) {
-        const n = data?.ts?.length ?? 0;
-        let tsMin = null;
-        let tsMax = null;
-        if (n > 0) {
-          tsMin = data.ts[0];
-          tsMax = data.ts[n - 1];
-        }
-        dbg("response points", n, "tsMin/tsMax", tsMin, tsMax);
-        if (!data?.ts || data.ts.length === 0) {
-          console.warn("[edatime] fetchAndRender: empty result for range", { startIso, endIso, width, cols });
-        }
-      }
-      ensureRangeStateFromData(data);
-      deps.buildRangeControls();
-      appStateComposite.chart?.setXRange?.(currentStart, currentEnd);
-      renderCurrentData();
-      emitChartRangeChange("data");
-      if (appStateComposite.anomalyEnabled) {
-        deps.fetchAndRenderAnalytics().catch(() => {
-        });
-      }
-      if (DEBUG) {
-        const snapshot = computeRenderedYDebugSnapshot();
-        window.__edatime.debugYSnapshot = snapshot;
-        dbg("post-render renderedSnapshot", snapshot);
-      }
-      const yr = appStateComposite.chart?.getYRange?.();
-      if (yr) deps.updateAnalysisYRange(yr.min, yr.max, "data");
-      if (DEBUG) dbg("post-render yRange", yr);
-      setPendingYMode(null);
-      setPendingRestoreY(null);
-    });
-  }
-  function onZoomRangeChange(newStart, newEnd, sourceKind = "user") {
-    if (appStateComposite.fetchDebounceId) clearTimeout(appStateComposite.fetchDebounceId);
-    dbgGroup(`onZoomRangeChange (${sourceKind})`, () => {
-      dbg("prev", { start: appStateComposite.currentStart, end: appStateComposite.currentEnd });
-      dbg("next", { start: newStart, end: newEnd });
-    });
-    if (!Number.isFinite(newStart) || !Number.isFinite(newEnd) || newStart >= newEnd) return;
-    const snap = deps.getCurrentView();
-    setZoomHistory([...appStateComposite.zoomHistory, snap].slice(-5));
-    setViewport(newStart, newEnd);
-    appStateComposite.chart?.setXRange?.(newStart, newEnd);
-    setPendingYMode("fit");
-    setPendingRestoreY(null);
-    deps.updateAnalysisZoom(newStart, newEnd, sourceKind);
-    emitChartRangeChange(sourceKind);
-    if (!appStateComposite.refetchOnZoom) return;
-    setFetchDebounceId(setTimeout(fetchAndRender, 150));
-  }
-  return {
-    emitChartRangeChange,
-    fetchAndRender,
-    onZoomRangeChange,
-    renderCurrentData
-  };
-}
-
-function initThemeToggle() {
-  const btn = document.getElementById("theme-toggle-btn");
-  const iconDark = document.getElementById("theme-icon-dark");
-  const iconLight = document.getElementById("theme-icon-light");
-  if (!btn) return;
-  const savedTheme = localStorage.getItem("edatime-theme");
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const apply = (theme) => {
-    if (theme === "light") document.documentElement.setAttribute("data-theme", "light");
-    else document.documentElement.removeAttribute("data-theme");
-    if (iconDark) iconDark.hidden = theme === "light";
-    if (iconLight) iconLight.hidden = theme !== "light";
-  };
-  apply(savedTheme === "light" ? "light" : prefersDark ? "dark" : "dark");
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
-    const manualPreference = localStorage.getItem("edatime-theme");
-    if (manualPreference) return;
-    apply(e.matches ? "dark" : "light");
-  });
-  btn.addEventListener("click", () => {
-    const isLight = document.documentElement.getAttribute("data-theme") === "light";
-    apply(isLight ? "dark" : "light");
-    localStorage.setItem("edatime-theme", isLight ? "dark" : "light");
-  });
-}
-
-function humanizeControlId(id) {
-  return String(id || "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().replace(/\b\w/g, (match) => match.toUpperCase());
-}
-function normalizeFormControlAccessibility() {
-  const controls = document.querySelectorAll("input, select, textarea");
-  controls.forEach((control) => {
-    if (!control.name && control.id) {
-      control.name = control.id;
-    }
-    if (control.getAttribute("aria-label")) return;
-    const labelledByText = Array.from(control.labels || []).map((label) => label.textContent?.replace(/\s+/g, " ").trim() || "").filter(Boolean).join(" ");
-    const placeholder = control.getAttribute("placeholder") || "";
-    const title = control.getAttribute("title") || "";
-    const fallback = humanizeControlId(control.id) || (control.type === "file" ? "Upload file" : "Form field");
-    const derived = labelledByText || placeholder || title || fallback;
-    {
-      control.setAttribute("aria-label", derived);
-    }
-  });
-}
-
-function wireHomeNavigationCards(showPage) {
-  document.querySelectorAll("[data-home-nav]").forEach((element) => {
-    element.addEventListener("click", () => {
-      const target = element.dataset.homeNav;
-      if (target) showPage(target);
-    });
-  });
-}
-
-function wireSampleDatasetCards(showPage) {
-  document.querySelectorAll("[data-sample-dataset]").forEach((element) => {
-    element.addEventListener("click", () => {
-      const dataset = element.dataset.sampleDataset;
-      if (dataset) {
-        void loadSampleDataset(dataset, showPage);
-      }
-    });
-  });
-}
-async function loadSampleDataset(datasetId, showPage) {
-  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/scatter-Bbu6RfNC.js').then(n => n.ax);return { toast }},true              ?__vite__mapDeps([0,1]):void 0);
-  const { fetchSampleDataset } = await __vitePreload(async () => { const { fetchSampleDataset } = await import('./assets/scatter-Bbu6RfNC.js').then(n => n.aw);return { fetchSampleDataset }},true              ?__vite__mapDeps([0,1]):void 0);
-  if (datasetId === "ettm2") {
-    const dismissLoading = toast("Loading ETTm2 sample dataset…", "info", 0);
-    let file;
-    try {
-      const blob = await fetchSampleDataset("ETTm2.csv");
-      file = new File([blob], "ETTm2.csv", { type: "text/csv" });
-    } catch (err) {
-      dismissLoading();
-      toast(`Could not load ETTm2: ${err}`, "error");
-      return;
-    }
-    const homePage = document.getElementById("page-home");
-    if (homePage) homePage.hidden = true;
-    showPage("upload");
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const fileInput = document.getElementById("file-upload");
-    if (fileInput) {
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
-      fileInput.files = dataTransfer.files;
-      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-      dismissLoading();
-    } else {
-      dismissLoading();
-      toast("Upload panel not ready. Please navigate to Upload and drop the file manually.", "error");
-    }
-  } else if (datasetId === "sinusoidal") {
-    const dismissLoading = toast("Loading Sinusoidal Waves sample dataset…", "info", 0);
-    const file = new File([generateSinusoidalCsv()], "sinusoidal.csv", { type: "text/csv" });
-    const homePage = document.getElementById("page-home");
-    if (homePage) homePage.hidden = true;
-    showPage("upload");
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const fileInput = document.getElementById("file-upload");
-    if (fileInput) {
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
-      fileInput.files = dataTransfer.files;
-      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-      dismissLoading();
-    } else {
-      dismissLoading();
-      toast("Upload panel not ready.", "error");
-    }
-  } else if (datasetId === "weather") {
-    const dismissLoading = toast("Loading Weather Patterns sample dataset…", "info", 0);
-    const file = new File([generateWeatherCsv()], "weather.csv", { type: "text/csv" });
-    const homePage = document.getElementById("page-home");
-    if (homePage) homePage.hidden = true;
-    showPage("upload");
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const fileInput = document.getElementById("file-upload");
-    if (fileInput) {
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
-      fileInput.files = dataTransfer.files;
-      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-      dismissLoading();
-    } else {
-      dismissLoading();
-      toast("Upload panel not ready.", "error");
-    }
-  }
-}
-function generateSinusoidalCsv() {
-  const rows = ["timestamp,temperature,humidity,pressure"];
-  const start = (/* @__PURE__ */ new Date("2024-01-01T00:00:00Z")).getTime();
-  const end = (/* @__PURE__ */ new Date("2024-01-08T00:00:00Z")).getTime();
-  const interval = 15 * 60 * 1e3;
-  for (let t = start; t < end; t += interval) {
-    const temp = 20 + 5 * Math.sin((t - start) / (3600 * 1e3)) + (Math.random() - 0.5) * 0.5;
-    const hum = 50 + 20 * Math.sin((t - start) / (7200 * 1e3)) + (Math.random() - 0.5) * 2;
-    const pres = 1013 + 5 * Math.sin((t - start) / (5400 * 1e3)) + (Math.random() - 0.5) * 0.3;
-    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)}`);
-  }
-  return rows.join("\n");
-}
-function generateWeatherCsv() {
-  const rows = ["timestamp,temperature,humidity,pressure,wind_speed"];
-  const start = (/* @__PURE__ */ new Date("2024-03-01T00:00:00Z")).getTime();
-  const end = (/* @__PURE__ */ new Date("2024-03-08T00:00:00Z")).getTime();
-  const interval = 10 * 60 * 1e3;
-  for (let t = start; t < end; t += interval) {
-    const hour = new Date(t).getUTCHours();
-    const dayFactor = Math.sin((t - start) / (86400 * 1e3));
-    const temp = 15 + 8 * dayFactor + 3 * Math.sin(hour * Math.PI / 12) + (Math.random() - 0.5) * 0.5;
-    const hum = 60 + 15 * Math.cos((t - start) / (43200 * 1e3)) + (Math.random() - 0.5) * 3;
-    const pres = 1010 + 8 * dayFactor + (Math.random() - 0.5) * 0.5;
-    const wind = 5 + 3 * Math.abs(Math.sin((t - start) / (21600 * 1e3))) + (Math.random() - 0.5) * 1;
-    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)},${wind.toFixed(3)}`);
-  }
-  return rows.join("\n");
 }
 
 function setText(id, text) {
@@ -1889,16 +1566,9 @@ function buildFilteredSeriesRows() {
   rows.sort((a, b) => a.ts_ms - b.ts_ms || a.series.localeCompare(b.series));
   return rows;
 }
-function exportChartFilteredData$1(format = "csv") {
+function exportFilteredCsv() {
   const rows = buildFilteredSeriesRows();
   if (rows.length === 0) return false;
-  if (format === "json") {
-    downloadBlob(
-      new Blob([JSON.stringify(rows, null, 2)], { type: "application/json;charset=utf-8" }),
-      "edatime_filtered_series.json"
-    );
-    return true;
-  }
   const lines = [
     "ts_ms,ts_iso,series,value",
     ...rows.map(
@@ -1910,6 +1580,57 @@ function exportChartFilteredData$1(format = "csv") {
     "edatime_filtered_series.csv"
   );
   return true;
+}
+function exportFilteredJson() {
+  const rows = buildFilteredSeriesRows();
+  if (rows.length === 0) return false;
+  downloadBlob(
+    new Blob([JSON.stringify(rows, null, 2)], { type: "application/json;charset=utf-8" }),
+    "edatime_filtered_series.json"
+  );
+  return true;
+}
+async function exportFilteredParquet() {
+  if (!Number.isFinite(appStateComposite.currentStart) || !Number.isFinite(appStateComposite.currentEnd)) {
+    return false;
+  }
+  if (!Array.isArray(appStateComposite.selectedCols) || appStateComposite.selectedCols.length === 0) {
+    return false;
+  }
+  const params = new URLSearchParams({
+    start: new Date(appStateComposite.currentStart).toISOString(),
+    end: new Date(appStateComposite.currentEnd).toISOString(),
+    columns: appStateComposite.selectedCols.join(",")
+  });
+  const filters = Object.entries(appStateComposite.columnRanges || {}).map(([column, range]) => {
+    const from = Number(range?.from);
+    const to = Number(range?.to);
+    if (!column || !Number.isFinite(from) || !Number.isFinite(to)) return null;
+    return { column, from, to };
+  }).filter(Boolean);
+  if (filters.length > 0) {
+    params.set("filters", JSON.stringify(filters));
+  }
+  const lineFilters = buildAdaptiveLineFiltersForQuery();
+  if (lineFilters.length > 0) {
+    params.set("line_filters", JSON.stringify(lineFilters));
+  }
+  const blob = await exportParquet(params);
+  downloadBlob(blob, "edatime_filtered_series.parquet");
+  return true;
+}
+function createExportFeature() {
+  return {
+    exportFilteredCsv,
+    exportFilteredJson,
+    exportFilteredParquet
+  };
+}
+
+const exportFeature = createExportFeature();
+function exportChartFilteredData$1(format = "csv") {
+  if (format === "json") return exportFeature.exportFilteredJson();
+  return exportFeature.exportFilteredCsv();
 }
 function openToolbarModal(modalId) {
   const modal = document.getElementById(modalId);
@@ -2221,6 +1942,15 @@ function bindAnalysisChartEvents() {
   });
   setAnalysisBound(true);
 }
+function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
+  const btn = document.getElementById(btnId);
+  const overlay = document.getElementById(overlayId);
+  if (btn) {
+    btn.disabled = loading;
+    btn.textContent = loading ? "Computing…" : label;
+  }
+  if (overlay) overlay.hidden = !loading;
+}
 function initAnalysisControls(fetchAndRender) {
   window.__edatime = window.__edatime || {};
   window.__edatime.exportChartFilteredData = exportChartFilteredData$1;
@@ -2245,6 +1975,7 @@ const toolbar = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     initPages,
     refreshZoomControlsState,
     resetZoom,
+    setComputeLoading,
     updateAnalysisClick,
     updateAnalysisCursor,
     updateAnalysisYRange,
@@ -2767,6 +2498,150 @@ function initSettings() {
     });
   }
   return settings;
+}
+
+const LIVE_REGION_ID = "aria-live-region";
+function getLiveRegion() {
+  return document.getElementById(LIVE_REGION_ID);
+}
+function announce(message, priority = "polite") {
+  const region = getLiveRegion();
+  if (!region) return;
+  region.setAttribute("aria-live", priority);
+  region.textContent = message;
+  setTimeout(() => {
+    if (region.textContent === message) {
+      region.textContent = "";
+    }
+  }, 1e3);
+}
+function announceChartLoading(columns) {
+  const count = columns.length;
+  const msg = count === 1 ? `Loading chart for ${columns[0]}.` : `Loading chart for ${count} columns: ${columns.join(", ")}.`;
+  announce(msg, "polite");
+}
+function announceDataUpdate(pageName) {
+  announce(`Data updated on ${pageName} page.`, "polite");
+}
+const SHORTCUTS = [
+  // Navigation
+  { keys: "Alt+1", description: "Upload page", category: "Navigation" },
+  { keys: "Alt+2", description: "Timeseries page", category: "Navigation" },
+  { keys: "Alt+3", description: "Scatter page", category: "Navigation" },
+  { keys: "Alt+4", description: "Scatter matrix view", category: "Navigation" },
+  { keys: "Alt+6", description: "FFT page", category: "Navigation" },
+  { keys: "Alt+7", description: "Heatmap page", category: "Navigation" },
+  { keys: "Alt+8", description: "Spectrogram page", category: "Navigation" },
+  { keys: "Alt+9", description: "Causal page", category: "Navigation" },
+  { keys: "Alt+0", description: "Drift page", category: "Navigation" },
+  { keys: "Ctrl+K", description: "Command palette", category: "Navigation" },
+  { keys: "Ctrl+I", description: "Analysis context panel", category: "Navigation" },
+  // Chart
+  { keys: "Double-click", description: "Reset zoom", category: "Chart" },
+  { keys: "Ctrl+click", description: "Set adaptive filter", category: "Chart" },
+  { keys: "Drag", description: "Pan / draw", category: "Chart" },
+  { keys: "Shift+C", description: "Clear adaptive filters", category: "Chart" },
+  // Session
+  { keys: "Ctrl+S", description: "Save session", category: "Session" },
+  { keys: "Ctrl+Shift+S", description: "Export session file", category: "Session" },
+  { keys: "Ctrl+O", description: "Import session file", category: "Session" },
+  // Export
+  { keys: "Ctrl+E", description: "Export data", category: "Export" }
+];
+let _shortcutsModal = null;
+function showKeyboardShortcutsHelp() {
+  const existing = document.getElementById("keyboard-help-modal");
+  if (existing) existing.remove();
+  const categories = [...new Set(SHORTCUTS.map((s) => s.category))];
+  const modal = document.createElement("div");
+  modal.id = "keyboard-help-modal";
+  modal.className = "modal-backdrop keyboard-help-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-labelledby", "keyboard-help-title");
+  const content = categories.map((cat) => {
+    const shortcuts = SHORTCUTS.filter((s) => s.category === cat);
+    return `
+            <div class="keyboard-help-section">
+                <h4>${cat}</h4>
+                ${shortcuts.map((s) => `
+                    <div class="keyboard-shortcut-row">
+                        <kbd>${s.keys}</kbd>
+                        <span>${s.description}</span>
+                    </div>
+                `).join("")}
+            </div>
+        `;
+  }).join("");
+  modal.innerHTML = `
+        <div class="modal">
+            <div class="keyboard-help-header">
+                <h3 class="keyboard-help-title" id="keyboard-help-title">Keyboard Shortcuts</h3>
+                <button class="keyboard-help-close" id="keyboard-help-close" aria-label="Close">
+                    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="4" y1="4" x2="12" y2="12"/>
+                        <line x1="12" y1="4" x2="4" y2="12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="keyboard-help-content">
+                ${content}
+            </div>
+            <div class="keyboard-help-hint">
+                Press <kbd>?</kbd> to toggle this help, or <kbd>Esc</kbd> to close.
+            </div>
+        </div>
+    `;
+  document.body.appendChild(modal);
+  const closeBtn = document.getElementById("keyboard-help-close");
+  closeBtn?.addEventListener("click", hideKeyboardShortcutsHelp);
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) hideKeyboardShortcutsHelp();
+  });
+  const escHandler = (e) => {
+    if (e.key === "Escape") {
+      hideKeyboardShortcutsHelp();
+      window.removeEventListener("keydown", escHandler);
+    }
+  };
+  window.addEventListener("keydown", escHandler);
+  const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  if (focusable.length > 0) {
+    focusable[0].focus();
+  }
+  _shortcutsModal = modal;
+}
+function hideKeyboardShortcutsHelp() {
+  const modal = document.getElementById("keyboard-help-modal");
+  if (modal) {
+    modal.remove();
+    _shortcutsModal = null;
+  }
+}
+function initAccessibilityShortcuts() {
+  const handleKey = (e) => {
+    const target = e.target;
+    const isInput = ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable;
+    if (isInput) return;
+    if (e.key === "?" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      if (_shortcutsModal) {
+        hideKeyboardShortcutsHelp();
+      } else {
+        showKeyboardShortcutsHelp();
+      }
+      return;
+    }
+    if ((e.key === "/" || e.key === "?") && e.ctrlKey) {
+      e.preventDefault();
+      if (_shortcutsModal) {
+        hideKeyboardShortcutsHelp();
+      } else {
+        showKeyboardShortcutsHelp();
+      }
+    }
+  };
+  window.addEventListener("keydown", handleKey);
 }
 
 function createModalController(opts) {
@@ -3665,6 +3540,25 @@ const guidedWorkflow = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProp
     renderGuidedWorkflow
 }, Symbol.toStringTag, { value: 'Module' }));
 
+async function runTransform(expression, outputName) {
+  await postTransform(expression, outputName);
+}
+async function removeOutliers(input) {
+  return postRemoveOutliers(
+    input.columns,
+    input.method,
+    input.threshold,
+    input.window
+  );
+}
+function createDataMutationFeature() {
+  return {
+    runTransform,
+    removeOutliers
+  };
+}
+
+const dataMutationFeature = createDataMutationFeature();
 function initTransformModal(deps) {
   const applyBtn = document.getElementById("transform-apply-btn");
   const exprInput = document.getElementById("transform-expression");
@@ -3694,8 +3588,7 @@ function initTransformModal(deps) {
         applyBtn.textContent = "Applying…";
         applyBtn.disabled = true;
       }
-      const { postTransform } = await __vitePreload(async () => { const { postTransform } = await import('./assets/scatter-Bbu6RfNC.js').then(n => n.aw);return { postTransform }},true              ?__vite__mapDeps([0,1]):void 0);
-      await postTransform(expr, name);
+      await dataMutationFeature.runTransform(expr, name);
       controller.close();
       await deps.refreshDataset({ selectedColumn: name });
     } catch (error) {
@@ -3738,19 +3631,17 @@ function initOutlierModal(deps) {
     const method = methodSelect?.value || "zscore";
     const threshold = Number.parseFloat(thresholdInput?.value || "3");
     const windowSize = Number.parseInt(windowInput?.value || "0", 10);
-    const columns = appStateComposite.selectedCols.length > 0 ? appStateComposite.selectedCols : null;
     try {
       if (applyBtn) {
         applyBtn.disabled = true;
         applyBtn.textContent = "Removing…";
       }
-      const { postRemoveOutliers } = await __vitePreload(async () => { const { postRemoveOutliers } = await import('./assets/scatter-Bbu6RfNC.js').then(n => n.aw);return { postRemoveOutliers }},true              ?__vite__mapDeps([0,1]):void 0);
-      const result = await postRemoveOutliers(
-        columns,
+      const result = await dataMutationFeature.removeOutliers({
+        columns: appStateComposite.selectedCols.length > 0 ? appStateComposite.selectedCols : null,
         method,
         threshold,
-        windowSize > 0 ? windowSize : void 0
-      );
+        window: windowSize > 0 ? windowSize : void 0
+      });
       if (resultEl) {
         resultEl.textContent = `Removed ${result.rows_removed} rows (${result.rows_before} → ${result.rows_after})`;
       }
@@ -3815,18 +3706,18 @@ const KEYBOARD_ONLY_SHORTCUTS = [
   { key: "e", shift: true, action: () => triggerActivePageCsvExport() }
 ];
 function triggerActivePageCsvExport() {
-  if (currentPageName$1() === "scatter") {
+  if (currentPageName$2() === "scatter") {
     document.getElementById("scatter-export-csv-btn")?.click?.();
     return;
   }
   window.__edatime?.exportChartFilteredData?.("csv");
 }
-function isTypingTarget$1(target) {
+function isTypingTarget$2(target) {
   if (target.isContentEditable) return true;
   const tag = String(target.tagName || "").toLowerCase();
   return tag === "input" || tag === "textarea" || tag === "select";
 }
-function currentPageName$1() {
+function currentPageName$2() {
   return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
 }
 function matchesKeyboardShortcut(shortcut, key, pageName, options) {
@@ -3855,9 +3746,9 @@ function initKeyboardShortcuts(deps, commandDefs) {
   _bound = true;
   window.__edatime = window.__edatime || {};
   const onKeydown = (event) => {
-    if (event.defaultPrevented || isTypingTarget$1(event.target)) return;
+    if (event.defaultPrevented || isTypingTarget$2(event.target)) return;
     const key = String(event.key || "").toLowerCase();
-    const pageName = currentPageName$1();
+    const pageName = currentPageName$2();
     if (event.altKey && !event.ctrlKey && !event.metaKey) {
       const shortcut2 = findMatchingShortcut(key, pageName, { alt: true, shift: false }, commandDefs, deps);
       if (shortcut2) {
@@ -3919,13 +3810,13 @@ function showPage(pageName) {
   document.querySelector(`.sidebar .nav-item[data-page="${pageName}"]`)?.click?.();
 }
 
-function isTypingTarget(target) {
+function isTypingTarget$1(target) {
   if (!target) return false;
   if (target.isContentEditable) return true;
   const tag = String(target.tagName || "").toLowerCase();
   return tag === "input" || tag === "textarea" || tag === "select";
 }
-function currentPageName() {
+function currentPageName$1() {
   return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
 }
 function matchesShortcut(key, options, def, pageName) {
@@ -3936,10 +3827,10 @@ function initGlobalShortcuts(deps, commandDefs) {
   if (win.__edatime?.globalShortcutsBound) return;
   if (!win.__edatime) win.__edatime = {};
   const handler = (event) => {
-    if (event.defaultPrevented || isTypingTarget(event.target)) return;
+    if (event.defaultPrevented || isTypingTarget$1(event.target)) return;
     if (event.ctrlKey || event.metaKey) return;
     const key = String(event.key || "").toLowerCase();
-    const pageName = currentPageName();
+    const pageName = currentPageName$1();
     if (event.altKey && !event.ctrlKey && !event.metaKey) {
       const match = commandDefs.find(
         (def) => def.keyboard && matchesShortcut(key, { alt: true, shift: false }, def.keyboard, pageName)
@@ -3964,6 +3855,60 @@ function initGlobalShortcuts(deps, commandDefs) {
   window.addEventListener("keydown", handler);
   deps.registerCleanup(() => window.removeEventListener("keydown", handler));
   win.__edatime.globalShortcutsBound = true;
+}
+
+function isTypingTarget(target) {
+  if (!target) return false;
+  if (target.isContentEditable) return true;
+  const tag = String(target.tagName || "").toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select";
+}
+function currentPageName() {
+  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
+}
+function initTimeseriesShortcuts(deps) {
+  const win = window;
+  if (win.__edatime?.timeseriesShortcutsBound) return;
+  if (!win.__edatime) win.__edatime = {};
+  const onKeydown = (event) => {
+    if (event.defaultPrevented || isTypingTarget(event.target)) return;
+    const key = String(event.key || "").toLowerCase();
+    if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (key === "r" && currentPageName() === "timeseries") {
+      event.preventDefault();
+      deps.resetZoom();
+      void deps.fetchAndRender();
+      return;
+    }
+    if (key === "z" && currentPageName() === "timeseries") {
+      event.preventDefault();
+      deps.zoomOut();
+      void deps.fetchAndRender();
+      return;
+    }
+    if (key === "c" && currentPageName() === "timeseries") {
+      event.preventDefault();
+      document.getElementById("adaptive-clear-btn")?.click?.();
+      return;
+    }
+    if (key === "p") {
+      event.preventDefault();
+      deps.chartExportPng();
+      return;
+    }
+    if (key === "e") {
+      event.preventDefault();
+      if (currentPageName() === "scatter") {
+        document.getElementById("scatter-export-csv-btn")?.click?.();
+      } else {
+        deps.exportFilteredCsv();
+      }
+      return;
+    }
+  };
+  win.addEventListener("keydown", onKeydown);
+  deps.registerCleanup(() => win.removeEventListener("keydown", onKeydown));
+  win.__edatime.timeseriesShortcutsBound = true;
 }
 
 function createAppRuntime() {
@@ -4014,238 +3959,6 @@ function clearLoadedPageModules() {
   loaded.clear();
 }
 
-const STORAGE_KEY = "edatime-session";
-function currentPage() {
-  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
-}
-function readSelect(id) {
-  return document.getElementById(id)?.value || "";
-}
-function captureSession() {
-  return {
-    version: 1,
-    timestamp: Date.now(),
-    page: currentPage(),
-    selectedCols: [...appStateComposite.selectedCols],
-    seriesColors: { ...appStateComposite.seriesColors },
-    columnRanges: { ...appStateComposite.columnRanges },
-    adaptiveLineFilters: appStateComposite.adaptiveLineFilters.map((f) => ({ ...f })),
-    currentStart: appStateComposite.currentStart,
-    currentEnd: appStateComposite.currentEnd,
-    selectedColorColumn: appStateComposite.selectedColorColumn,
-    chartText: { ...appStateComposite.chartText },
-    rollingEnabled: appStateComposite.rollingEnabled,
-    rollingWindow: appStateComposite.rollingWindow,
-    anomalyEnabled: appStateComposite.anomalyEnabled,
-    anomalyMethod: appStateComposite.anomalyMethod,
-    anomalyThreshold: appStateComposite.anomalyThreshold,
-    scatterX: readSelect("scatter-x-col"),
-    scatterY: readSelect("scatter-y-col"),
-    scatterColorColumn: readSelect("scatter-color-column"),
-    scatterRenderMode: readSelect("scatter-render-mode"),
-    theme: document.documentElement.getAttribute("data-theme") || "dark",
-    datasetRevision: Number.isFinite(Number(appStateComposite.datasetRevision)) ? Number(appStateComposite.datasetRevision) : 0
-  };
-}
-function applySession(snap, options = {}) {
-  const result = {
-    revisionMismatch: false,
-    rangeAdjusted: false,
-    usedMetadataRange: false,
-    droppedFilterCount: 0,
-    navigatedToPage: false
-  };
-  if (!snap || snap.version !== 1) return result;
-  const announceAdjustments = options.announceAdjustments !== false;
-  const metadataTimeRange = options.metadataTimeRange || (appStateComposite.metadata?.time_range ?? null);
-  const currentRevision = Number(
-    options.currentDatasetRevision ?? appStateComposite.datasetRevision ?? appStateComposite.metadata?.revision ?? 0
-  );
-  const snapshotRevision = Number(snap.datasetRevision ?? 0);
-  const hasRevisions = Number.isFinite(currentRevision) && currentRevision > 0 && Number.isFinite(snapshotRevision) && snapshotRevision > 0;
-  const revisionMismatch = hasRevisions && currentRevision !== snapshotRevision;
-  result.revisionMismatch = revisionMismatch;
-  setSelectedCols(Array.isArray(snap.selectedCols) ? snap.selectedCols : []);
-  if (snap.seriesColors) setSeriesColors({ ...snap.seriesColors });
-  if (revisionMismatch) {
-    const staleRanges = Object.keys(snap.columnRanges || {}).length;
-    const staleLines = Array.isArray(snap.adaptiveLineFilters) ? snap.adaptiveLineFilters.length : 0;
-    result.droppedFilterCount = staleRanges + staleLines;
-    setColumnRanges({});
-    setAdaptiveLineFilters([]);
-  } else {
-    if (snap.columnRanges) setColumnRanges({ ...snap.columnRanges });
-    if (Array.isArray(snap.adaptiveLineFilters)) {
-      setAdaptiveLineFilters(snap.adaptiveLineFilters.map((f) => ({ ...f, id: f.id ?? `restored-${Date.now()}` })));
-    }
-  }
-  if (!revisionMismatch) {
-    const hasStart = Number.isFinite(snap.currentStart);
-    const hasEnd = Number.isFinite(snap.currentEnd);
-    if (hasStart && hasEnd) {
-      let nextStart = Number(snap.currentStart);
-      let nextEnd = Number(snap.currentEnd);
-      const minMs = Number(metadataTimeRange?.min);
-      const maxMs = Number(metadataTimeRange?.max);
-      const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
-      if (hasMetadataBounds) {
-        const noOverlap = nextEnd <= minMs || nextStart >= maxMs;
-        if (noOverlap) {
-          nextStart = minMs;
-          nextEnd = maxMs;
-          result.rangeAdjusted = true;
-          result.usedMetadataRange = true;
-        } else {
-          const clampedStart = Math.max(nextStart, minMs);
-          const clampedEnd = Math.min(nextEnd, maxMs);
-          if (clampedStart !== nextStart || clampedEnd !== nextEnd) {
-            result.rangeAdjusted = true;
-          }
-          nextStart = clampedStart;
-          nextEnd = clampedEnd;
-          if (nextStart >= nextEnd) {
-            nextStart = minMs;
-            nextEnd = maxMs;
-            result.usedMetadataRange = true;
-          }
-        }
-      }
-      setViewport(nextStart, nextEnd);
-    }
-  }
-  if (snap.selectedColorColumn !== void 0) setSelectedColorColumn(snap.selectedColorColumn);
-  if (snap.chartText) setChartText({ ...snap.chartText });
-  if (snap.rollingEnabled !== void 0) setRollingEnabled(snap.rollingEnabled);
-  if (Number.isFinite(snap.rollingWindow)) setRollingWindow(snap.rollingWindow);
-  if (snap.anomalyEnabled !== void 0) setAnomalyEnabled(snap.anomalyEnabled);
-  if (snap.anomalyMethod) setAnomalyMethod(snap.anomalyMethod);
-  if (Number.isFinite(snap.anomalyThreshold)) setAnomalyThreshold(snap.anomalyThreshold);
-  const setSelect = (id, val) => {
-    const el = document.getElementById(id);
-    if (el && val) el.value = val;
-  };
-  setSelect("scatter-x-col", snap.scatterX);
-  setSelect("scatter-y-col", snap.scatterY);
-  setSelect("scatter-color-column", snap.scatterColorColumn);
-  setSelect("scatter-render-mode", snap.scatterRenderMode);
-  if (snap.theme === "light" || snap.theme === "dark") {
-    document.documentElement.setAttribute("data-theme", snap.theme);
-    localStorage.setItem("edatime-theme", snap.theme);
-  }
-  if (revisionMismatch && announceAdjustments) {
-    toast("Session belongs to another dataset revision; stale filters were cleared.", "warning");
-  } else if (result.usedMetadataRange && announceAdjustments) {
-    toast("Saved chart range did not match this dataset and was reset to dataset bounds.", "warning");
-  } else if (result.rangeAdjusted && announceAdjustments) {
-    toast("Saved chart range was clamped to the current dataset time range.", "warning");
-  }
-  const hashPage = getHashPage();
-  const shouldPreferHash = !!options.preferHashPage && !!hashPage;
-  const shouldNavigate = options.navigate !== false && !shouldPreferHash;
-  if (shouldNavigate && snap.page) {
-    const btn = document.querySelector(`.sidebar .nav-item[data-page="${snap.page}"]`);
-    if (btn) {
-      btn.click();
-      result.navigatedToPage = true;
-    }
-  }
-  return result;
-}
-function autoSaveSession() {
-  try {
-    const snap = captureSession();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
-  } catch {
-  }
-}
-function autoRestoreSession() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const snap = JSON.parse(raw);
-    if (snap?.version !== 1) return null;
-    return snap;
-  } catch {
-    return null;
-  }
-}
-function exportSessionToFile() {
-  const snap = captureSession();
-  const blob = new Blob([JSON.stringify(snap, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `edatime-session-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace(/:/g, "-")}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast("Session exported", "success");
-}
-function importSessionFromFile() {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".json,application/json";
-  input.addEventListener("change", () => {
-    const file = input.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const snap = JSON.parse(reader.result);
-        if (snap?.version !== 1) throw new Error("Invalid session file");
-        applySession(snap);
-        toast("Session restored from file", "success");
-        window.dispatchEvent(new CustomEvent("edatime:session-restored"));
-      } catch (e) {
-        toast(`Failed to import session: ${e.message}`, "error");
-      }
-    };
-    reader.readAsText(file);
-  });
-  input.click();
-}
-let _autoSaveTimer = null;
-function initAutoSave() {
-  const debouncedSave = () => {
-    if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
-    _autoSaveTimer = setTimeout(autoSaveSession, 2e3);
-  };
-  window.addEventListener("edatime:page-change", debouncedSave);
-  window.addEventListener("edatime:column-filters-change", debouncedSave);
-  window.addEventListener("edatime:adaptive-filters-change", debouncedSave);
-  window.addEventListener("beforeunload", autoSaveSession);
-}
-
-const session = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-    __proto__: null,
-    applySession,
-    autoRestoreSession,
-    autoSaveSession,
-    captureSession,
-    exportSessionToFile,
-    importSessionFromFile,
-    initAutoSave
-}, Symbol.toStringTag, { value: 'Module' }));
-
-async function restoreSessionAfterChartReady(deps) {
-  const savedSession = autoRestoreSession();
-  if (!savedSession) return;
-  applySession(savedSession, {
-    metadataTimeRange: deps.metadataTimeRange,
-    currentDatasetRevision: deps.currentDatasetRevision,
-    preferHashPage: !!getHashPage()
-  });
-  deps.buildColumnToggles();
-  deps.buildRangeControls();
-  deps.renderCurrentData();
-  await deps.fetchAndRender();
-}
-function startSessionPersistence() {
-  initAutoSave();
-  window.__edatime = window.__edatime || {};
-  window.__edatime.exportSession = exportSessionToFile;
-  window.__edatime.importSession = importSessionFromFile;
-}
-
 async function loadEntrypoints(deps) {
   const [
     { createFftEntrypoint },
@@ -4255,12 +3968,12 @@ async function loadEntrypoints(deps) {
     { createCausalEntrypoint },
     { createDriftEntrypoint }
   ] = await Promise.all([
-    __vitePreload(() => import('./assets/entrypoint-D7xxuTWY.js'),true              ?__vite__mapDeps([2,3,0,1]):void 0),
-    __vitePreload(() => import('./assets/entrypoint-0DMukTi-.js'),true              ?__vite__mapDeps([4,3,0,1]):void 0),
-    __vitePreload(() => import('./assets/scatter-Bbu6RfNC.js').then(n => n.ay),true              ?__vite__mapDeps([0,1]):void 0),
-    __vitePreload(() => import('./assets/entrypoint-C4J15zrC.js'),true              ?__vite__mapDeps([5,3,0,1]):void 0),
-    __vitePreload(() => import('./assets/causal-BbwjInex.js'),true              ?__vite__mapDeps([6,0,1,3]):void 0),
-    __vitePreload(() => import('./assets/drift-CU9El-5H.js').then(n => n.e),true              ?__vite__mapDeps([7,0,1,3]):void 0)
+    __vitePreload(() => import('./assets/entrypoint-D40Vh8cd.js'),true              ?__vite__mapDeps([2,3,0,1]):void 0),
+    __vitePreload(() => import('./assets/entrypoint-DTVq7z3e.js'),true              ?__vite__mapDeps([4,3,0,1]):void 0),
+    __vitePreload(() => import('./assets/scatter-QWGF3Xy9.js').then(n => n.aD),true              ?__vite__mapDeps([0,1]):void 0),
+    __vitePreload(() => import('./assets/entrypoint-Dm0Czg-f.js'),true              ?__vite__mapDeps([5,3,0,1]):void 0),
+    __vitePreload(() => import('./assets/causal-mcvdWM0b.js'),true              ?__vite__mapDeps([6,0,1,3]):void 0),
+    __vitePreload(() => import('./assets/drift-Cwdex3KV.js').then(n => n.e),true              ?__vite__mapDeps([7,0,1,3]):void 0)
   ]);
   register("fft", {
     requiresMetadata: true,
@@ -4450,8 +4163,8 @@ async function ensureChartModules$1() {
   if (pending) return pending;
   pending = (async () => {
     const [dataClient, chartModule] = await Promise.all([
-      __vitePreload(() => import('./assets/scatter-Bbu6RfNC.js').then(n => n.aw),true              ?__vite__mapDeps([0,1]):void 0),
-      __vitePreload(() => import('./assets/DataChart-BSl58AWs.js'),true              ?__vite__mapDeps([8,1,0,3]):void 0)
+      __vitePreload(() => import('./assets/scatter-QWGF3Xy9.js').then(n => n.aB),true              ?__vite__mapDeps([0,1]):void 0),
+      __vitePreload(() => import('./assets/DataChart-B3JqmnHs.js'),true              ?__vite__mapDeps([8,1,0,3]):void 0)
     ]);
     const result = {
       fetchMetadata: dataClient.fetchMetadata,
@@ -4484,297 +4197,222 @@ async function ensureChartModules$1() {
   return pending;
 }
 
-async function checkWebGPU() {
-  if (!navigator.gpu) {
-    return "WebGPU is not supported in this browser. Use Chrome 113+, Edge 113+, or Safari 18+.";
+const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} };
+let timeseriesEmptyStateController = null;
+function getTimeseriesEmptyStateController() {
+  if (!timeseriesEmptyStateController) {
+    timeseriesEmptyStateController = createEmptyStateController({
+      rootId: "timeseries-empty-state",
+      titleId: "timeseries-empty-title",
+      messageId: "timeseries-empty-message",
+      resetButtonId: "timeseries-reset-range-btn",
+      resetEventName: "edatime:request-chart-range-reset",
+      eventSource: "timeseries-empty-state"
+    });
   }
-  try {
-    const timeout = new Promise(
-      (_, reject) => setTimeout(() => reject(new Error("requestAdapter timed out")), 5e3)
-    );
-    const adapter = await Promise.race([requestGpuAdapter(), timeout]);
-    if (!adapter) {
-      return "No WebGPU adapter found. Your GPU may not be supported or hardware acceleration may be disabled.";
-    }
-    installWindowsWebGpuRequestAdapterWorkaround();
-    return null;
-  } catch (e) {
-    const message = e.message ?? "Unknown error";
-    return `WebGPU adapter request failed: ${message}`;
-  }
+  return timeseriesEmptyStateController;
 }
-
-function buildAdaptiveFilterFromPoints(column, firstPoint, secondPoint) {
-  if (!column || !firstPoint || !secondPoint) return null;
+function computeRenderedYDebugSnapshot() {
   if (!appStateComposite.lastFetchedData) return null;
   const filtered = applyColumnRanges(appStateComposite.lastFetchedData);
-  const columnData = filtered.series?.[column] || filtered.values?.[column];
-  const xs = columnData?.x;
-  const ys = columnData?.y;
-  if (!xs || !ys || xs.length === 0 || xs.length !== ys.length) return null;
-  const x1 = Number(firstPoint.x);
-  const y1 = Number(firstPoint.y);
-  const x2 = Number(secondPoint.x);
-  const y2 = Number(secondPoint.y);
-  if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2) || x1 === x2) return null;
-  const minX = Math.min(x1, x2);
-  const maxX = Math.max(x1, x2);
-  const tempFilter = { x1, y1, x2, y2};
-  let above = 0;
-  let below = 0;
-  for (let idx = 0; idx < xs.length; idx++) {
-    const x = Number(xs[idx]);
-    const y = Number(ys[idx]);
-    if (!Number.isFinite(x) || !Number.isFinite(y) || x < minX || x > maxX) continue;
-    const lineY = buildAdaptiveLineY(tempFilter, x);
-    if (lineY == null || !Number.isFinite(lineY)) continue;
-    if (y >= lineY) above += 1;
-    else below += 1;
+  let globalMin = Number.POSITIVE_INFINITY;
+  let globalMax = Number.NEGATIVE_INFINITY;
+  const perSeries = [];
+  for (const col of appStateComposite.selectedCols || []) {
+    const seriesData = filtered.series?.[col];
+    const yValues = seriesData ? seriesData.y : filtered.values?.[col];
+    if (!yValues) continue;
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    let count = 0;
+    for (let i = 0; i < yValues.length; i++) {
+      const y = Number(yValues[i]);
+      if (!Number.isFinite(y)) continue;
+      count += 1;
+      if (y < min) min = y;
+      if (y > max) max = y;
+    }
+    if (count > 0) {
+      if (min < globalMin) globalMin = min;
+      if (max > globalMax) globalMax = max;
+    }
+    perSeries.push({ name: col, points: count, yMin: count > 0 ? min : null, yMax: count > 0 ? max : null });
   }
   return {
-    id: `adaptive-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    column,
-    x1,
-    y1,
-    x2,
-    y2,
-    keepAbove: above > below
+    selectedCols: [...appStateComposite.selectedCols || []],
+    globalYMin: Number.isFinite(globalMin) ? globalMin : null,
+    globalYMax: Number.isFinite(globalMax) ? globalMax : null,
+    perSeries
   };
 }
-function initAdaptiveFilterGesture(deps) {
-  const container = document.getElementById("main-chart");
-  if (!container || container.dataset.adaptiveBound) return () => {
-  };
-  let _activePicker = null;
-  let _firstPoint = null;
-  let _secondPoint = null;
-  let _lastClickX = 0;
-  let _lastClickY = 0;
-  const dismissPicker = () => {
-    _activePicker?.remove();
-    _activePicker = null;
-  };
-  const cancelPending = () => {
-    _firstPoint = null;
-    _secondPoint = null;
-    setPendingAdaptivePoint(null);
-    appStateComposite.chart?.requestOverlayRender?.();
-  };
-  const updateOverlay = () => {
-    if (!_firstPoint) {
-      setPendingAdaptivePoint(null);
-      return;
-    }
-    const col = appStateComposite.adaptiveFilterColumn ?? (appStateComposite.selectedCols?.[0] ?? "");
-    if (_secondPoint) {
-      setPendingAdaptivePoint({ column: col, x: _firstPoint.x, y: _firstPoint.y, x2: _secondPoint.x, y2: _secondPoint.y });
-    } else {
-      setPendingAdaptivePoint({ column: col, x: _firstPoint.x, y: _firstPoint.y });
-    }
-    appStateComposite.chart?.requestOverlayRender?.();
-  };
-  const applyFilterForColumn = (column, p1, p2) => {
-    setAdaptiveFilterColumn(column);
-    const filter = buildAdaptiveFilterFromPoints(column, p1, p2);
-    if (!filter) return;
-    appendAdaptiveLineFilter(filter);
-    deps.buildRangeControls();
-    deps.renderCurrentData();
-    appStateComposite.chart?.requestOverlayRender?.();
-    appStateComposite.chart?.fitYToData?.();
-    const yr = appStateComposite.chart?.getYRange?.();
-    if (yr) deps.updateAnalysisYRange(yr.min, yr.max, "adaptive");
-    deps.buildColumnToggles();
-  };
-  const showTracePicker = (p1, p2) => {
-    const cols = appStateComposite.selectedCols;
-    if (!cols?.length) return;
-    if (cols.length === 1) {
-      applyFilterForColumn(cols[0], p1, p2);
-      return;
-    }
-    dismissPicker();
-    const picker = document.createElement("div");
-    picker.className = "adaptive-trace-picker";
-    picker.style.left = `${_lastClickX}px`;
-    picker.style.top = `${_lastClickY}px`;
-    const label = document.createElement("div");
-    label.className = "adaptive-trace-picker__label";
-    label.textContent = "Filter which trace?";
-    picker.appendChild(label);
-    cols.forEach((col, idx) => {
-      const color = appStateComposite.seriesColors?.[col] ?? SERIES_COLORS[idx % SERIES_COLORS.length];
-      const isCurrentTarget = col === appStateComposite.adaptiveFilterColumn;
-      const btn = document.createElement("button");
-      btn.className = "adaptive-trace-picker__option" + (isCurrentTarget ? " current" : "");
-      btn.type = "button";
-      btn.style.setProperty("--pick-accent", color);
-      btn.textContent = col;
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        dismissPicker();
-        applyFilterForColumn(col, p1, p2);
-      });
-      picker.appendChild(btn);
+function createTimeseriesPageController(deps) {
+  const uploadButton = document.getElementById("timeseries-empty-upload-btn");
+  if (uploadButton) {
+    uploadButton.addEventListener("click", () => {
+      window.dispatchEvent(new CustomEvent("edatime:page-change", { detail: { page: "upload" } }));
     });
-    document.body.appendChild(picker);
-    _activePicker = picker;
-    const onOutside = (e) => {
-      if (!picker.contains(e.target)) {
-        dismissPicker();
-        document.removeEventListener("click", onOutside, true);
-      }
-    };
-    document.addEventListener("click", onOutside, true);
-  };
-  const clickHandler = (event) => {
-    if (!event.ctrlKey || event.button !== 0) return;
-    const cols = appStateComposite.selectedCols;
-    if (!cols?.length) return;
-    const point = appStateComposite.chart?.cssPointToData?.(event.clientX, event.clientY) ?? null;
-    if (!point) return;
-    event.preventDefault();
-    event.stopPropagation();
-    _lastClickX = event.clientX;
-    _lastClickY = event.clientY;
-    if (!_firstPoint) {
-      _firstPoint = point;
-      _secondPoint = null;
-    } else {
-      _secondPoint = point;
-    }
-    updateOverlay();
-  };
-  const onEscape = (e) => {
-    if (e.key === "Escape") {
-      dismissPicker();
-      cancelPending();
-    }
-  };
-  const onCtrlUp = (e) => {
-    if (e.key !== "Control") return;
-    if (_firstPoint && _secondPoint) {
-      const p1 = _firstPoint, p2 = _secondPoint;
-      cancelPending();
-      showTracePicker(p1, p2);
-    } else {
-      cancelPending();
-    }
-  };
-  const onAdaptiveChange = () => {
-    if (!appStateComposite.lastFetchedData) return;
-    deps.buildRangeControls();
-    deps.renderCurrentData();
-    appStateComposite.chart?.requestOverlayRender?.();
-    appStateComposite.chart?.fitYToData?.();
-    const yr = appStateComposite.chart?.getYRange?.();
-    if (yr) deps.updateAnalysisYRange(yr.min, yr.max, "adaptive");
-  };
-  container.addEventListener("click", clickHandler, true);
-  window.addEventListener("keydown", onEscape);
-  window.addEventListener("keyup", onCtrlUp);
-  window.addEventListener("edatime:adaptive-filters-change", onAdaptiveChange);
-  container.dataset.adaptiveBound = "1";
-  return () => {
-    container.removeEventListener("click", clickHandler, true);
-    window.removeEventListener("keydown", onEscape);
-    window.removeEventListener("keyup", onCtrlUp);
-    window.removeEventListener("edatime:adaptive-filters-change", onAdaptiveChange);
-  };
-}
-
-function createTimeseriesBootstrap(deps) {
-  let ready = false;
-  let pending = null;
-  return {
-    ensureReady: async () => {
-      if (ready) return;
-      if (pending) return pending;
-      pending = (async () => {
-        if (appStateComposite.chart) {
-          ready = true;
-          return;
-        }
-        const gpuError = await checkWebGPU();
-        try {
-          dbg("initial X range (ms)", { start: appStateComposite.currentStart, end: appStateComposite.currentEnd });
-          const lineType = getChartType("line");
-          if (lineType) {
-            setChartInstance(lineType.create("main-chart", {
-              onZoom: (start, end, sourceKind) => deps.onZoom(start, end, sourceKind),
-              onYRange: deps.onYRange,
-              onZoomOut: deps.onZoomOut
-            }));
-          } else {
-            if (!deps.DataChartCtor) throw new Error("DataChart module not loaded");
-            setChartInstance(new deps.DataChartCtor("main-chart", deps.onZoom, deps.onYRange, deps.onZoomOut));
-          }
-          if (gpuError) throw new Error(gpuError);
-          await Promise.race([
-            appStateComposite.chart.init(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("ChartGPU init timed out")), 6e3))
-          ]);
-          setAnalysisBound(false);
-          bindAnalysisChartEvents();
-          initAdaptiveFilterGesture({
-            buildColumnToggles: deps.buildColumnToggles,
-            buildRangeControls: deps.buildRangeControls,
-            renderCurrentData: deps.renderCurrentData,
-            updateAnalysisYRange: deps.onYRange
-          });
-          deps.refreshZoomControlsState();
-          const { setAnnotationOverlayCallback } = await __vitePreload(async () => { const { setAnnotationOverlayCallback } = await Promise.resolve().then(() => annotationPanel);return { setAnnotationOverlayCallback }},true              ?void 0:void 0);
-          const { setAnomalyOverlayCallback } = await __vitePreload(async () => { const { setAnomalyOverlayCallback } = await Promise.resolve().then(() => analyticsOverlay);return { setAnomalyOverlayCallback }},true              ?void 0:void 0);
-          setAnnotationOverlayCallback(() => appStateComposite.chart?.requestOverlayRender?.());
-          setAnomalyOverlayCallback(() => appStateComposite.chart?.requestOverlayRender?.());
-          const chart = appStateComposite.chart;
-          chart?.setXRange?.(appStateComposite.currentStart, appStateComposite.currentEnd);
-          chart?.setChartText?.(
-            appStateComposite.chartText?.title || "",
-            appStateComposite.chartText?.xLabel || "",
-            appStateComposite.chartText?.yLabel || ""
-          );
-          deps.renderCurrentData();
-          await deps.fetchAndRender();
-          const { getCurrentView } = await __vitePreload(async () => { const { getCurrentView } = await Promise.resolve().then(() => toolbar);return { getCurrentView }},true              ?void 0:void 0);
-          const { setInitialView } = await __vitePreload(async () => { const { setInitialView } = await import('./assets/scatter-Bbu6RfNC.js').then(n => n.av);return { setInitialView }},true              ?__vite__mapDeps([0,1]):void 0);
-          setInitialView(getCurrentView());
-          dbgGroup("initialView snapshot", () => dbg(appStateComposite.initialView));
-          await restoreSessionAfterChartReady({
-            metadataTimeRange: appStateComposite.metadata?.time_range ?? null,
-            currentDatasetRevision: Number(appStateComposite.datasetRevision ?? 0),
-            buildColumnToggles: deps.buildColumnToggles,
-            buildRangeControls: deps.buildRangeControls,
-            renderCurrentData: deps.renderCurrentData,
-            fetchAndRender: deps.fetchAndRender
-          });
-          ready = true;
-        } catch (e) {
-          console.warn("Primary chart failed, switching to fallback:", e);
-          try {
-            const fallbackType = getChartType("fallback");
-            setChartInstance(fallbackType ? fallbackType.create("main-chart", {}) : new FallbackChart("main-chart"));
-            await appStateComposite.chart.init();
-            setAnalysisBound(false);
-            bindAnalysisChartEvents();
-            deps.refreshZoomControlsState();
-            await deps.fetchAndRender();
-            setMetaText("Fallback renderer active");
-            ready = true;
-          } catch (fallbackErr) {
-            const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
-            console.error("Fallback chart also failed:", fallbackErr);
-            setMetaText("Error: " + msg);
-          }
-        }
-      })();
-      try {
-        await pending;
-      } finally {
-        pending = null;
-      }
+  }
+  const task = createRequestTask({
+    setLoading: (loading) => {
+      const loadingEl = document.getElementById("main-chart-loading");
+      if (loadingEl) loadingEl.hidden = !loading;
     },
-    isReady: () => ready
+    onError: (message) => {
+      console.error("Failed to fetch data:", message);
+      setMetaText("Error: " + message);
+    }
+  });
+  function emitChartRangeChange(sourceKind = "data") {
+    if (!Number.isFinite(appStateComposite.currentStart) || !Number.isFinite(appStateComposite.currentEnd)) return;
+    window.dispatchEvent(new CustomEvent("edatime:chart-range-change", {
+      detail: { start: appStateComposite.currentStart, end: appStateComposite.currentEnd, source: sourceKind }
+    }));
+  }
+  function renderCurrentData() {
+    const emptyState = getTimeseriesEmptyStateController();
+    const hasSelection = Array.isArray(appStateComposite.selectedCols) && appStateComposite.selectedCols.length > 0;
+    if (!hasSelection) {
+      emptyState.update({
+        visible: true,
+        reason: "no-columns-selected",
+        title: "Select one or more series",
+        message: "Click a column chip above to add it to the chart. Start with 2-3 related columns for a clearer first view.",
+        showResetAction: false
+      });
+    }
+    if (!appStateComposite.chart) return;
+    if (!hasSelection) {
+      setRollingBands(null);
+      appStateComposite.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
+      return;
+    }
+    if (!appStateComposite.lastFetchedData) {
+      emptyState.update({ visible: false, reason: "", title: "", message: "", showResetAction: false });
+      return;
+    }
+    const filtered = applyColumnRanges(appStateComposite.lastFetchedData);
+    const hasPoints = !!filtered?.ts && filtered.ts.length > 0;
+    if (!hasPoints) {
+      const start = Number(appStateComposite.currentStart);
+      const end = Number(appStateComposite.currentEnd);
+      const rangeOutside = isRangeOutsideDataset(appStateComposite.metadata?.time_range, start, end);
+      emptyState.update({
+        visible: true,
+        reason: rangeOutside ? "linked-range-outside-dataset" : "no-data-after-filters",
+        title: rangeOutside ? "Current range is outside this dataset" : "No points match current filters",
+        message: rangeOutside ? "Reset to dataset range to recover visible data." : "Try widening the time range or clearing filters.",
+        showResetAction: true
+      });
+      setRollingBands(null);
+      appStateComposite.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
+      if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+        appStateComposite.chart.setXRange(start, end);
+      }
+      return;
+    }
+    emptyState.update({ visible: false, reason: "", title: "", message: "", showResetAction: false });
+    const preview = appStateComposite.spectralFilterPreview;
+    let displayCols = [...appStateComposite.selectedCols];
+    if (preview && preview.ts && preview.values && preview.ts.length > 0) {
+      const previewKey = `${preview.column} [filtered]`;
+      filtered.series = filtered.series || {};
+      filtered.series[previewKey] = { x: preview.ts, y: preview.values };
+      if (!displayCols.includes(previewKey)) displayCols = [...displayCols, previewKey];
+    }
+    appStateComposite.chart.updateDataMulti(filtered, displayCols);
+    if (appStateComposite.pendingRestoreY && appStateComposite.pendingYMode === "restore") {
+      const savedY = appStateComposite.pendingRestoreY;
+      appStateComposite.chart.setYRange(savedY.min, savedY.max);
+    }
+    if (appStateComposite.rollingEnabled) {
+      setRollingBands(computeFrontendRollingBands(filtered, appStateComposite.selectedCols, appStateComposite.rollingWindow || 50));
+      appStateComposite.chart?.requestOverlayRender?.();
+    }
+    window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
+    announceDataUpdate("timeseries");
+  }
+  async function fetchAndRender() {
+    sanitizeSelectedColumns$1();
+    if (!Number.isFinite(appStateComposite.currentStart) || !Number.isFinite(appStateComposite.currentEnd)) return;
+    const currentStart = Number(appStateComposite.currentStart);
+    const currentEnd = Number(appStateComposite.currentEnd);
+    if (currentStart >= currentEnd) return;
+    if (!Array.isArray(appStateComposite.selectedCols) || appStateComposite.selectedCols.length === 0) {
+      deps.buildRangeControls();
+      renderCurrentData();
+      return;
+    }
+    await task.run(async (signal) => {
+      const startIso = new Date(currentStart).toISOString();
+      const endIso = new Date(currentEnd).toISOString();
+      const width = document.getElementById("main-chart")?.clientWidth || 1200;
+      const cols = appStateComposite.selectedCols.join(",");
+      const colorCol = appStateComposite.selectedColorColumn || null;
+      announceChartLoading(appStateComposite.selectedCols || []);
+      dbgGroup("fetchAndRender", () => {
+        dbg("request", { startIso, endIso, width, cols, colorCol });
+        dbg("selectedCols", appStateComposite.selectedCols);
+        dbg("selectedColorColumn", appStateComposite.selectedColorColumn);
+      });
+      const data = await deps.fetchData(startIso, endIso, width, cols, colorCol, signal);
+      setLastFetchedData(data);
+      if (DEBUG) {
+        const n = data?.ts?.length ?? 0;
+        let tsMin = null;
+        let tsMax = null;
+        if (n > 0) {
+          tsMin = data.ts[0];
+          tsMax = data.ts[n - 1];
+        }
+        dbg("response points", n, "tsMin/tsMax", tsMin, tsMax);
+        if (!data?.ts || data.ts.length === 0) {
+          console.warn("[edatime] fetchAndRender: empty result for range", { startIso, endIso, width, cols });
+        }
+      }
+      ensureRangeStateFromData(data);
+      deps.buildRangeControls();
+      appStateComposite.chart?.setXRange?.(currentStart, currentEnd);
+      renderCurrentData();
+      emitChartRangeChange("data");
+      if (appStateComposite.anomalyEnabled) {
+        deps.fetchAndRenderAnalytics().catch(() => {
+        });
+      }
+      if (DEBUG) {
+        const snapshot = computeRenderedYDebugSnapshot();
+        window.__edatime.debugYSnapshot = snapshot;
+        dbg("post-render renderedSnapshot", snapshot);
+      }
+      const yr = appStateComposite.chart?.getYRange?.();
+      if (yr) deps.updateAnalysisYRange(yr.min, yr.max, "data");
+      if (DEBUG) dbg("post-render yRange", yr);
+      setPendingYMode(null);
+      setPendingRestoreY(null);
+    });
+  }
+  function onZoomRangeChange(newStart, newEnd, sourceKind = "user") {
+    if (appStateComposite.fetchDebounceId) clearTimeout(appStateComposite.fetchDebounceId);
+    dbgGroup(`onZoomRangeChange (${sourceKind})`, () => {
+      dbg("prev", { start: appStateComposite.currentStart, end: appStateComposite.currentEnd });
+      dbg("next", { start: newStart, end: newEnd });
+    });
+    if (!Number.isFinite(newStart) || !Number.isFinite(newEnd) || newStart >= newEnd) return;
+    const snap = deps.getCurrentView();
+    setZoomHistory([...appStateComposite.zoomHistory, snap].slice(-5));
+    setViewport(newStart, newEnd);
+    appStateComposite.chart?.setXRange?.(newStart, newEnd);
+    setPendingYMode("fit");
+    setPendingRestoreY(null);
+    deps.updateAnalysisZoom(newStart, newEnd, sourceKind);
+    emitChartRangeChange(sourceKind);
+    if (!appStateComposite.refetchOnZoom) return;
+    setFetchDebounceId(setTimeout(fetchAndRender, 150));
+  }
+  return {
+    emitChartRangeChange,
+    fetchAndRender,
+    onZoomRangeChange,
+    renderCurrentData
   };
 }
 
@@ -5426,56 +5064,729 @@ function createTimeseriesEntrypoint(deps) {
   };
 }
 
-const _appCleanups = [];
-const runtime = createAppRuntime();
-let timeseriesFeature = null;
-let uploadFeature = null;
-const rebuildTimeseriesColumns = () => {
-  timeseriesFeature?.rebuildColumns();
-};
-const rebuildTimeseriesRanges = () => {
-  timeseriesFeature?.buildRangeControls();
-};
-const timeseriesPage = createTimeseriesPageController({
-  fetchData: (start, end, width, columns, colorColumn, signal) => fetchData(start, end, width, columns, colorColumn, signal),
-  buildRangeControls: rebuildTimeseriesRanges,
-  updateAnalysisYRange,
-  updateAnalysisZoom,
-  getCurrentView,
-  fetchAndRenderAnalytics: () => fetchAndRenderAnalytics()
-});
-const renderTimeseries = () => timeseriesPage.renderCurrentData();
-let _sessionPersistenceStarted = false;
-let _timeseriesBootstrap = null;
-const renderCurrentData = () => timeseriesPage.renderCurrentData();
-const emitChartRangeChange = (sourceKind = "data") => timeseriesPage.emitChartRangeChange(sourceKind);
-const fetchAndRender = async () => {
-  const bs = _timeseriesBootstrap;
-  if (bs) await bs.ensureReady();
-  return timeseriesPage.fetchAndRender();
-};
-const onZoomRangeChange = (newStart, newEnd, sourceKind = "user") => timeseriesPage.onZoomRangeChange(newStart, newEnd, sourceKind);
-function ensureSessionPersistenceStarted() {
-  if (_sessionPersistenceStarted) return;
-  startSessionPersistence();
-  _sessionPersistenceStarted = true;
+function createTimeseriesRuntime(deps) {
+  return createPageRuntime({
+    page: "timeseries",
+    emptyStateRootId: "timeseries-empty-state",
+    init: () => deps.initFeature(),
+    onVisible: () => {
+      void deps.ensureReady();
+    }
+  });
 }
-async function ensureTimeseriesReady() {
-  await _timeseriesBootstrap?.ensureReady();
-}
-function setComputeLoading(btnId, overlayId, loading, label = "Compute") {
-  const btn = document.getElementById(btnId);
-  const overlay = document.getElementById(overlayId);
-  if (btn) {
-    btn.disabled = loading;
-    btn.textContent = loading ? "Computing…" : label;
+
+let _datasetReadyPromise = null;
+function createDatasetBootstrap(deps) {
+  async function ensureDatasetReady() {
+    if (isMetadataReady()) return;
+    if (_datasetReadyPromise) return _datasetReadyPromise;
+    _datasetReadyPromise = (async () => {
+      await deps.ensureChartModules();
+      const metadata = await deps.fetchMetadata();
+      deps.storeFetchedMetadata(metadata);
+      deps.markMetadataReady();
+      window.dispatchEvent(new Event("edatime:metadata-ready"));
+      if (DEBUG) dbgGroup("metadata", () => dbg(metadata));
+      if (!metadata.time_range) {
+        deps.setMetaText("No valid time range found.");
+        return;
+      }
+      deps.setNumericCols(deps.getNumericColumns(metadata));
+      const selectedCols = deps.getSelectedCols();
+      if (!selectedCols.length) {
+        deps.setSelectedCols(deps.getDefaultTimeseriesColumns(metadata));
+      }
+      deps.setAdaptiveFilterColumn(deps.getSelectedCols()[0] || null);
+      deps.sanitizeSelectedColumns();
+      deps.initializeDatasetUi(metadata);
+    })().catch((error) => {
+      _datasetReadyPromise = null;
+      throw error;
+    });
+    return _datasetReadyPromise;
   }
-  if (overlay) overlay.hidden = !loading;
+  async function refreshAfterMutation(options) {
+    if (!isMetadataReady()) {
+      await ensureDatasetReady();
+      return;
+    }
+    deps.clearLoadedPageModules();
+    const metadata = await deps.fetchMetadata();
+    deps.storeFetchedMetadata(metadata);
+    deps.markMetadataReady();
+    deps.setNumericCols(deps.getNumericColumns(metadata));
+    const selectedColumn = options?.selectedColumn;
+    if (selectedColumn && !deps.getSelectedCols().includes(selectedColumn)) {
+      deps.setSelectedCols([...deps.getSelectedCols(), selectedColumn]);
+    }
+    deps.sanitizeSelectedColumns();
+    deps.rebuildTimeseriesColumns();
+    deps.buildMetaBar(metadata);
+    await deps.refreshVisibleData();
+  }
+  return { ensureDatasetReady, refreshAfterMutation };
 }
+
+async function checkWebGPU() {
+  if (!navigator.gpu) {
+    return "WebGPU is not supported in this browser. Use Chrome 113+, Edge 113+, or Safari 18+.";
+  }
+  try {
+    const timeout = new Promise(
+      (_, reject) => setTimeout(() => reject(new Error("requestAdapter timed out")), 5e3)
+    );
+    const adapter = await Promise.race([requestGpuAdapter(), timeout]);
+    if (!adapter) {
+      return "No WebGPU adapter found. Your GPU may not be supported or hardware acceleration may be disabled.";
+    }
+    installWindowsWebGpuRequestAdapterWorkaround();
+    return null;
+  } catch (e) {
+    const message = e.message ?? "Unknown error";
+    return `WebGPU adapter request failed: ${message}`;
+  }
+}
+
+function buildAdaptiveFilterFromPoints(column, firstPoint, secondPoint) {
+  if (!column || !firstPoint || !secondPoint) return null;
+  if (!appStateComposite.lastFetchedData) return null;
+  const filtered = applyColumnRanges(appStateComposite.lastFetchedData);
+  const columnData = filtered.series?.[column] || filtered.values?.[column];
+  const xs = columnData?.x;
+  const ys = columnData?.y;
+  if (!xs || !ys || xs.length === 0 || xs.length !== ys.length) return null;
+  const x1 = Number(firstPoint.x);
+  const y1 = Number(firstPoint.y);
+  const x2 = Number(secondPoint.x);
+  const y2 = Number(secondPoint.y);
+  if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2) || x1 === x2) return null;
+  const minX = Math.min(x1, x2);
+  const maxX = Math.max(x1, x2);
+  const tempFilter = { x1, y1, x2, y2};
+  let above = 0;
+  let below = 0;
+  for (let idx = 0; idx < xs.length; idx++) {
+    const x = Number(xs[idx]);
+    const y = Number(ys[idx]);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < minX || x > maxX) continue;
+    const lineY = buildAdaptiveLineY(tempFilter, x);
+    if (lineY == null || !Number.isFinite(lineY)) continue;
+    if (y >= lineY) above += 1;
+    else below += 1;
+  }
+  return {
+    id: `adaptive-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    column,
+    x1,
+    y1,
+    x2,
+    y2,
+    keepAbove: above > below
+  };
+}
+function initAdaptiveFilterGesture(deps) {
+  const container = document.getElementById("main-chart");
+  if (!container || container.dataset.adaptiveBound) return () => {
+  };
+  let _activePicker = null;
+  let _firstPoint = null;
+  let _secondPoint = null;
+  let _lastClickX = 0;
+  let _lastClickY = 0;
+  const dismissPicker = () => {
+    _activePicker?.remove();
+    _activePicker = null;
+  };
+  const cancelPending = () => {
+    _firstPoint = null;
+    _secondPoint = null;
+    setPendingAdaptivePoint(null);
+    appStateComposite.chart?.requestOverlayRender?.();
+  };
+  const updateOverlay = () => {
+    if (!_firstPoint) {
+      setPendingAdaptivePoint(null);
+      return;
+    }
+    const col = appStateComposite.adaptiveFilterColumn ?? (appStateComposite.selectedCols?.[0] ?? "");
+    if (_secondPoint) {
+      setPendingAdaptivePoint({ column: col, x: _firstPoint.x, y: _firstPoint.y, x2: _secondPoint.x, y2: _secondPoint.y });
+    } else {
+      setPendingAdaptivePoint({ column: col, x: _firstPoint.x, y: _firstPoint.y });
+    }
+    appStateComposite.chart?.requestOverlayRender?.();
+  };
+  const applyFilterForColumn = (column, p1, p2) => {
+    setAdaptiveFilterColumn(column);
+    const filter = buildAdaptiveFilterFromPoints(column, p1, p2);
+    if (!filter) return;
+    appendAdaptiveLineFilter(filter);
+    deps.buildRangeControls();
+    deps.renderCurrentData();
+    appStateComposite.chart?.requestOverlayRender?.();
+    appStateComposite.chart?.fitYToData?.();
+    const yr = appStateComposite.chart?.getYRange?.();
+    if (yr) deps.updateAnalysisYRange(yr.min, yr.max, "adaptive");
+    deps.buildColumnToggles();
+  };
+  const showTracePicker = (p1, p2) => {
+    const cols = appStateComposite.selectedCols;
+    if (!cols?.length) return;
+    if (cols.length === 1) {
+      applyFilterForColumn(cols[0], p1, p2);
+      return;
+    }
+    dismissPicker();
+    const picker = document.createElement("div");
+    picker.className = "adaptive-trace-picker";
+    picker.style.left = `${_lastClickX}px`;
+    picker.style.top = `${_lastClickY}px`;
+    const label = document.createElement("div");
+    label.className = "adaptive-trace-picker__label";
+    label.textContent = "Filter which trace?";
+    picker.appendChild(label);
+    cols.forEach((col, idx) => {
+      const color = appStateComposite.seriesColors?.[col] ?? SERIES_COLORS[idx % SERIES_COLORS.length];
+      const isCurrentTarget = col === appStateComposite.adaptiveFilterColumn;
+      const btn = document.createElement("button");
+      btn.className = "adaptive-trace-picker__option" + (isCurrentTarget ? " current" : "");
+      btn.type = "button";
+      btn.style.setProperty("--pick-accent", color);
+      btn.textContent = col;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        dismissPicker();
+        applyFilterForColumn(col, p1, p2);
+      });
+      picker.appendChild(btn);
+    });
+    document.body.appendChild(picker);
+    _activePicker = picker;
+    const onOutside = (e) => {
+      if (!picker.contains(e.target)) {
+        dismissPicker();
+        document.removeEventListener("click", onOutside, true);
+      }
+    };
+    document.addEventListener("click", onOutside, true);
+  };
+  const clickHandler = (event) => {
+    if (!event.ctrlKey || event.button !== 0) return;
+    const cols = appStateComposite.selectedCols;
+    if (!cols?.length) return;
+    const point = appStateComposite.chart?.cssPointToData?.(event.clientX, event.clientY) ?? null;
+    if (!point) return;
+    event.preventDefault();
+    event.stopPropagation();
+    _lastClickX = event.clientX;
+    _lastClickY = event.clientY;
+    if (!_firstPoint) {
+      _firstPoint = point;
+      _secondPoint = null;
+    } else {
+      _secondPoint = point;
+    }
+    updateOverlay();
+  };
+  const onEscape = (e) => {
+    if (e.key === "Escape") {
+      dismissPicker();
+      cancelPending();
+    }
+  };
+  const onCtrlUp = (e) => {
+    if (e.key !== "Control") return;
+    if (_firstPoint && _secondPoint) {
+      const p1 = _firstPoint, p2 = _secondPoint;
+      cancelPending();
+      showTracePicker(p1, p2);
+    } else {
+      cancelPending();
+    }
+  };
+  const onAdaptiveChange = () => {
+    if (!appStateComposite.lastFetchedData) return;
+    deps.buildRangeControls();
+    deps.renderCurrentData();
+    appStateComposite.chart?.requestOverlayRender?.();
+    appStateComposite.chart?.fitYToData?.();
+    const yr = appStateComposite.chart?.getYRange?.();
+    if (yr) deps.updateAnalysisYRange(yr.min, yr.max, "adaptive");
+  };
+  container.addEventListener("click", clickHandler, true);
+  window.addEventListener("keydown", onEscape);
+  window.addEventListener("keyup", onCtrlUp);
+  window.addEventListener("edatime:adaptive-filters-change", onAdaptiveChange);
+  container.dataset.adaptiveBound = "1";
+  return () => {
+    container.removeEventListener("click", clickHandler, true);
+    window.removeEventListener("keydown", onEscape);
+    window.removeEventListener("keyup", onCtrlUp);
+    window.removeEventListener("edatime:adaptive-filters-change", onAdaptiveChange);
+  };
+}
+
+const STORAGE_KEY = "edatime-session";
+function currentPage() {
+  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
+}
+function readSelect(id) {
+  return document.getElementById(id)?.value || "";
+}
+function captureSession() {
+  return {
+    version: 1,
+    timestamp: Date.now(),
+    page: currentPage(),
+    selectedCols: [...appStateComposite.selectedCols],
+    seriesColors: { ...appStateComposite.seriesColors },
+    columnRanges: { ...appStateComposite.columnRanges },
+    adaptiveLineFilters: appStateComposite.adaptiveLineFilters.map((f) => ({ ...f })),
+    currentStart: appStateComposite.currentStart,
+    currentEnd: appStateComposite.currentEnd,
+    selectedColorColumn: appStateComposite.selectedColorColumn,
+    chartText: { ...appStateComposite.chartText },
+    rollingEnabled: appStateComposite.rollingEnabled,
+    rollingWindow: appStateComposite.rollingWindow,
+    anomalyEnabled: appStateComposite.anomalyEnabled,
+    anomalyMethod: appStateComposite.anomalyMethod,
+    anomalyThreshold: appStateComposite.anomalyThreshold,
+    scatterX: readSelect("scatter-x-col"),
+    scatterY: readSelect("scatter-y-col"),
+    scatterColorColumn: readSelect("scatter-color-column"),
+    scatterRenderMode: readSelect("scatter-render-mode"),
+    theme: document.documentElement.getAttribute("data-theme") || "dark",
+    datasetRevision: Number.isFinite(Number(appStateComposite.datasetRevision)) ? Number(appStateComposite.datasetRevision) : 0
+  };
+}
+function applySession(snap, options = {}) {
+  const result = {
+    revisionMismatch: false,
+    rangeAdjusted: false,
+    usedMetadataRange: false,
+    droppedFilterCount: 0,
+    navigatedToPage: false
+  };
+  if (!snap || snap.version !== 1) return result;
+  const announceAdjustments = options.announceAdjustments !== false;
+  const metadataTimeRange = options.metadataTimeRange || (appStateComposite.metadata?.time_range ?? null);
+  const currentRevision = Number(
+    options.currentDatasetRevision ?? appStateComposite.datasetRevision ?? appStateComposite.metadata?.revision ?? 0
+  );
+  const snapshotRevision = Number(snap.datasetRevision ?? 0);
+  const hasRevisions = Number.isFinite(currentRevision) && currentRevision > 0 && Number.isFinite(snapshotRevision) && snapshotRevision > 0;
+  const revisionMismatch = hasRevisions && currentRevision !== snapshotRevision;
+  result.revisionMismatch = revisionMismatch;
+  setSelectedCols(Array.isArray(snap.selectedCols) ? snap.selectedCols : []);
+  if (snap.seriesColors) setSeriesColors({ ...snap.seriesColors });
+  if (revisionMismatch) {
+    const staleRanges = Object.keys(snap.columnRanges || {}).length;
+    const staleLines = Array.isArray(snap.adaptiveLineFilters) ? snap.adaptiveLineFilters.length : 0;
+    result.droppedFilterCount = staleRanges + staleLines;
+    setColumnRanges({});
+    setAdaptiveLineFilters([]);
+  } else {
+    if (snap.columnRanges) setColumnRanges({ ...snap.columnRanges });
+    if (Array.isArray(snap.adaptiveLineFilters)) {
+      setAdaptiveLineFilters(snap.adaptiveLineFilters.map((f) => ({ ...f, id: f.id ?? `restored-${Date.now()}` })));
+    }
+  }
+  if (!revisionMismatch) {
+    const hasStart = Number.isFinite(snap.currentStart);
+    const hasEnd = Number.isFinite(snap.currentEnd);
+    if (hasStart && hasEnd) {
+      let nextStart = Number(snap.currentStart);
+      let nextEnd = Number(snap.currentEnd);
+      const minMs = Number(metadataTimeRange?.min);
+      const maxMs = Number(metadataTimeRange?.max);
+      const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
+      if (hasMetadataBounds) {
+        const noOverlap = nextEnd <= minMs || nextStart >= maxMs;
+        if (noOverlap) {
+          nextStart = minMs;
+          nextEnd = maxMs;
+          result.rangeAdjusted = true;
+          result.usedMetadataRange = true;
+        } else {
+          const clampedStart = Math.max(nextStart, minMs);
+          const clampedEnd = Math.min(nextEnd, maxMs);
+          if (clampedStart !== nextStart || clampedEnd !== nextEnd) {
+            result.rangeAdjusted = true;
+          }
+          nextStart = clampedStart;
+          nextEnd = clampedEnd;
+          if (nextStart >= nextEnd) {
+            nextStart = minMs;
+            nextEnd = maxMs;
+            result.usedMetadataRange = true;
+          }
+        }
+      }
+      setViewport(nextStart, nextEnd);
+    }
+  }
+  if (snap.selectedColorColumn !== void 0) setSelectedColorColumn(snap.selectedColorColumn);
+  if (snap.chartText) setChartText({ ...snap.chartText });
+  if (snap.rollingEnabled !== void 0) setRollingEnabled(snap.rollingEnabled);
+  if (Number.isFinite(snap.rollingWindow)) setRollingWindow(snap.rollingWindow);
+  if (snap.anomalyEnabled !== void 0) setAnomalyEnabled(snap.anomalyEnabled);
+  if (snap.anomalyMethod) setAnomalyMethod(snap.anomalyMethod);
+  if (Number.isFinite(snap.anomalyThreshold)) setAnomalyThreshold(snap.anomalyThreshold);
+  const setSelect = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val) el.value = val;
+  };
+  setSelect("scatter-x-col", snap.scatterX);
+  setSelect("scatter-y-col", snap.scatterY);
+  setSelect("scatter-color-column", snap.scatterColorColumn);
+  setSelect("scatter-render-mode", snap.scatterRenderMode);
+  if (snap.theme === "light" || snap.theme === "dark") {
+    document.documentElement.setAttribute("data-theme", snap.theme);
+    localStorage.setItem("edatime-theme", snap.theme);
+  }
+  if (revisionMismatch && announceAdjustments) {
+    toast("Session belongs to another dataset revision; stale filters were cleared.", "warning");
+  } else if (result.usedMetadataRange && announceAdjustments) {
+    toast("Saved chart range did not match this dataset and was reset to dataset bounds.", "warning");
+  } else if (result.rangeAdjusted && announceAdjustments) {
+    toast("Saved chart range was clamped to the current dataset time range.", "warning");
+  }
+  const hashPage = getHashPage();
+  const shouldPreferHash = !!options.preferHashPage && !!hashPage;
+  const shouldNavigate = options.navigate !== false && !shouldPreferHash;
+  if (shouldNavigate && snap.page) {
+    const btn = document.querySelector(`.sidebar .nav-item[data-page="${snap.page}"]`);
+    if (btn) {
+      btn.click();
+      result.navigatedToPage = true;
+    }
+  }
+  return result;
+}
+function autoSaveSession() {
+  try {
+    const snap = captureSession();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+  } catch {
+  }
+}
+function autoRestoreSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const snap = JSON.parse(raw);
+    if (snap?.version !== 1) return null;
+    return snap;
+  } catch {
+    return null;
+  }
+}
+function exportSessionToFile() {
+  const snap = captureSession();
+  const blob = new Blob([JSON.stringify(snap, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `edatime-session-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace(/:/g, "-")}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast("Session exported", "success");
+}
+function importSessionFromFile() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json,application/json";
+  input.addEventListener("change", () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const snap = JSON.parse(reader.result);
+        if (snap?.version !== 1) throw new Error("Invalid session file");
+        applySession(snap);
+        toast("Session restored from file", "success");
+        window.dispatchEvent(new CustomEvent("edatime:session-restored"));
+      } catch (e) {
+        toast(`Failed to import session: ${e.message}`, "error");
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+let _autoSaveTimer = null;
+function initAutoSave() {
+  const debouncedSave = () => {
+    if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = setTimeout(autoSaveSession, 2e3);
+  };
+  window.addEventListener("edatime:page-change", debouncedSave);
+  window.addEventListener("edatime:column-filters-change", debouncedSave);
+  window.addEventListener("edatime:adaptive-filters-change", debouncedSave);
+  window.addEventListener("beforeunload", autoSaveSession);
+}
+
+const session = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+    __proto__: null,
+    applySession,
+    autoRestoreSession,
+    autoSaveSession,
+    captureSession,
+    exportSessionToFile,
+    importSessionFromFile,
+    initAutoSave
+}, Symbol.toStringTag, { value: 'Module' }));
+
+async function restoreSessionAfterChartReady(deps) {
+  const savedSession = autoRestoreSession();
+  if (!savedSession) return;
+  applySession(savedSession, {
+    metadataTimeRange: deps.metadataTimeRange,
+    currentDatasetRevision: deps.currentDatasetRevision,
+    preferHashPage: !!getHashPage()
+  });
+  deps.buildColumnToggles();
+  deps.buildRangeControls();
+  deps.renderCurrentData();
+  await deps.fetchAndRender();
+}
+function startSessionPersistence() {
+  initAutoSave();
+  window.__edatime = window.__edatime || {};
+  window.__edatime.exportSession = exportSessionToFile;
+  window.__edatime.importSession = importSessionFromFile;
+}
+
+function createTimeseriesBootstrap(deps) {
+  let ready = false;
+  let pending = null;
+  return {
+    ensureReady: async () => {
+      if (ready) return;
+      if (pending) return pending;
+      pending = (async () => {
+        if (appStateComposite.chart) {
+          ready = true;
+          return;
+        }
+        const gpuError = await checkWebGPU();
+        try {
+          dbg("initial X range (ms)", { start: appStateComposite.currentStart, end: appStateComposite.currentEnd });
+          const lineType = getChartType("line");
+          if (lineType) {
+            setChartInstance(lineType.create("main-chart", {
+              onZoom: (start, end, sourceKind) => deps.onZoom(start, end, sourceKind),
+              onYRange: deps.onYRange,
+              onZoomOut: deps.onZoomOut
+            }));
+          } else {
+            if (!deps.DataChartCtor) throw new Error("DataChart module not loaded");
+            setChartInstance(new deps.DataChartCtor("main-chart", deps.onZoom, deps.onYRange, deps.onZoomOut));
+          }
+          if (gpuError) throw new Error(gpuError);
+          await Promise.race([
+            appStateComposite.chart.init(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("ChartGPU init timed out")), 6e3))
+          ]);
+          setAnalysisBound(false);
+          bindAnalysisChartEvents();
+          initAdaptiveFilterGesture({
+            buildColumnToggles: deps.buildColumnToggles,
+            buildRangeControls: deps.buildRangeControls,
+            renderCurrentData: deps.renderCurrentData,
+            updateAnalysisYRange: deps.onYRange
+          });
+          deps.refreshZoomControlsState();
+          const { setAnnotationOverlayCallback } = await __vitePreload(async () => { const { setAnnotationOverlayCallback } = await Promise.resolve().then(() => annotationPanel);return { setAnnotationOverlayCallback }},true              ?void 0:void 0);
+          const { setAnomalyOverlayCallback } = await __vitePreload(async () => { const { setAnomalyOverlayCallback } = await Promise.resolve().then(() => analyticsOverlay);return { setAnomalyOverlayCallback }},true              ?void 0:void 0);
+          setAnnotationOverlayCallback(() => appStateComposite.chart?.requestOverlayRender?.());
+          setAnomalyOverlayCallback(() => appStateComposite.chart?.requestOverlayRender?.());
+          const chart = appStateComposite.chart;
+          chart?.setXRange?.(appStateComposite.currentStart, appStateComposite.currentEnd);
+          chart?.setChartText?.(
+            appStateComposite.chartText?.title || "",
+            appStateComposite.chartText?.xLabel || "",
+            appStateComposite.chartText?.yLabel || ""
+          );
+          deps.renderCurrentData();
+          await deps.fetchAndRender();
+          const { getCurrentView } = await __vitePreload(async () => { const { getCurrentView } = await Promise.resolve().then(() => toolbar);return { getCurrentView }},true              ?void 0:void 0);
+          const { setInitialView } = await __vitePreload(async () => { const { setInitialView } = await import('./assets/scatter-QWGF3Xy9.js').then(n => n.aA);return { setInitialView }},true              ?__vite__mapDeps([0,1]):void 0);
+          setInitialView(getCurrentView());
+          dbgGroup("initialView snapshot", () => dbg(appStateComposite.initialView));
+          await restoreSessionAfterChartReady({
+            metadataTimeRange: appStateComposite.metadata?.time_range ?? null,
+            currentDatasetRevision: Number(appStateComposite.datasetRevision ?? 0),
+            buildColumnToggles: deps.buildColumnToggles,
+            buildRangeControls: deps.buildRangeControls,
+            renderCurrentData: deps.renderCurrentData,
+            fetchAndRender: deps.fetchAndRender
+          });
+          ready = true;
+        } catch (e) {
+          console.warn("Primary chart failed, switching to fallback:", e);
+          try {
+            const fallbackType = getChartType("fallback");
+            setChartInstance(fallbackType ? fallbackType.create("main-chart", {}) : new FallbackChart("main-chart"));
+            await appStateComposite.chart.init();
+            setAnalysisBound(false);
+            bindAnalysisChartEvents();
+            deps.refreshZoomControlsState();
+            await deps.fetchAndRender();
+            setMetaText("Fallback renderer active");
+            ready = true;
+          } catch (fallbackErr) {
+            const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+            console.error("Fallback chart also failed:", fallbackErr);
+            setMetaText("Error: " + msg);
+          }
+        }
+      })();
+      try {
+        await pending;
+      } finally {
+        pending = null;
+      }
+    },
+    isReady: () => ready
+  };
+}
+
+function createTimeseriesModule(deps) {
+  let datasetUiReady = false;
+  let feature;
+  const pageController = createTimeseriesPageController({
+    fetchData: deps.fetchData,
+    buildRangeControls: () => feature.buildRangeControls(),
+    updateAnalysisYRange: deps.updateAnalysisYRange,
+    updateAnalysisZoom: deps.updateAnalysisZoom,
+    getCurrentView: deps.getCurrentView,
+    fetchAndRenderAnalytics: deps.fetchAndRenderAnalytics
+  });
+  feature = createTimeseriesEntrypoint({
+    fetchAndRender: () => pageController.fetchAndRender(),
+    renderCurrentData: () => pageController.renderCurrentData(),
+    updateAnalysisYRange: deps.updateAnalysisYRange,
+    updateAnalysisZoom: deps.updateAnalysisZoom,
+    emitChartRangeChange: (sourceKind) => pageController.emitChartRangeChange(sourceKind),
+    registerCleanup: () => {
+    }
+    // owned by runtime via createPageLifecycle
+  });
+  const storeFetchedMetadata = (metadata) => {
+    setMetadata(metadata);
+    const revision = metadata?.revision;
+    setDatasetRevision(typeof revision === "number" ? revision : 0);
+  };
+  const initializeDatasetUi = (metadata) => {
+    if (!datasetUiReady) {
+      feature.init();
+      deps.ensureSessionPersistenceStarted();
+      datasetUiReady = true;
+    }
+    hydrateColumnProfiles(metadata);
+    renderColumnProfilesGrid(true);
+    applyPartialTimeRangeFromMetadata(metadata, false);
+    setUploadPreviewStatus("Showing current dataset profile. Drop/select a file to preview before loading.");
+    setProfileMode("dataset");
+    feature.rebuildColumns();
+    feature.buildRangeControls();
+    buildMetaBar(metadata);
+    window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
+    const timeRange = metadata.time_range;
+    if (!timeRange) return;
+    const start = Number(timeRange.min);
+    const end = Number(timeRange.max);
+    deps.setViewport(start, end);
+    deps.updateAnalysisZoom(start, end, "initial");
+    pageController.emitChartRangeChange("initial");
+  };
+  const bootstrap = createDatasetBootstrap({
+    ensureChartModules: async () => {
+    },
+    fetchMetadata: deps.fetchMetadata,
+    storeFetchedMetadata,
+    markMetadataReady: deps.markMetadataReady,
+    initializeDatasetUi,
+    setNumericCols: deps.setNumericCols,
+    setDefaultSelectedColumns: (cols) => deps.setSelectedCols(cols),
+    sanitizeSelectedColumns: deps.sanitizeSelectedColumns,
+    refreshVisibleData: async () => {
+      await pageController.fetchAndRender();
+    },
+    clearLoadedPageModules: deps.clearLoadedPageModules,
+    getNumericColumns: (metadata) => getNumericColumns(metadata),
+    getDefaultTimeseriesColumns: (metadata) => getDefaultTimeseriesColumns(metadata),
+    rebuildTimeseriesColumns: () => feature.rebuildColumns(),
+    buildMetaBar: (metadata) => buildMetaBar(metadata),
+    timeseriesFeatureInit: () => feature.init(),
+    ensureSessionPersistenceStarted: deps.ensureSessionPersistenceStarted,
+    setViewport: deps.setViewport,
+    updateAnalysisZoom: deps.updateAnalysisZoom,
+    setMetaText,
+    emitWorkflowRefresh: () => {
+      window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
+    },
+    emitChartRangeChange: (sourceKind) => pageController.emitChartRangeChange(sourceKind),
+    setAdaptiveFilterColumn: deps.setAdaptiveFilterColumn,
+    getSelectedCols: deps.getSelectedCols,
+    setSelectedCols: deps.setSelectedCols
+  });
+  const chartBootstrap = createTimeseriesBootstrap({
+    DataChartCtor: deps.DataChartCtor,
+    onZoom: (newStart, newEnd, sourceKind) => pageController.onZoomRangeChange(newStart, newEnd, sourceKind),
+    onYRange: deps.updateAnalysisYRange,
+    onZoomOut: deps.zoomOut,
+    buildColumnToggles: () => feature.rebuildColumns(),
+    buildRangeControls: () => feature.buildRangeControls(),
+    renderCurrentData: () => pageController.renderCurrentData(),
+    fetchAndRender: () => pageController.fetchAndRender(),
+    refreshZoomControlsState: deps.refreshZoomControlsState
+  });
+  const runtime = createTimeseriesRuntime({
+    initFeature: () => feature.init(),
+    ensureReady: async () => {
+      await bootstrap.ensureDatasetReady();
+      await chartBootstrap.ensureReady();
+    }
+  });
+  return {
+    mount: () => runtime.mount(),
+    ensureDatasetReady: () => bootstrap.ensureDatasetReady(),
+    ensureReady: () => bootstrap.ensureDatasetReady(),
+    // same as ensureDatasetReady for now
+    fetchAndRender: () => pageController.fetchAndRender(),
+    renderCurrentData: () => pageController.renderCurrentData(),
+    buildColumnToggles: () => feature.rebuildColumns(),
+    buildRangeControls: () => feature.buildRangeControls(),
+    emitChartRangeChange: (sourceKind) => pageController.emitChartRangeChange(sourceKind),
+    onZoomRangeChange: (newStart, newEnd, sourceKind) => pageController.onZoomRangeChange(newStart, newEnd, sourceKind),
+    refreshAfterMutation: (options) => bootstrap.refreshAfterMutation(options)
+  };
+}
+
+const __edatime_state = appStateComposite;
+window.__edatime = window.__edatime || {};
+try {
+  Object.defineProperty(window.__edatime, "state", {
+    get: () => __edatime_state,
+    set: (v) => {
+      Object.assign(__edatime_state, v);
+    },
+    configurable: true,
+    enumerable: true
+  });
+} catch (_) {
+}
+window.__edatime.DEBUG = true;
+const runtime = createAppRuntime();
+let timeseriesModule;
 let fetchMetadata = null;
 let fetchData = null;
 let fetchAnomalies = null;
 let DataChartCtor = null;
+let _sessionPersistenceStarted = false;
 async function ensureChartModules() {
   if (fetchMetadata && fetchData && DataChartCtor) return;
   const modules = await ensureChartModules$1();
@@ -5486,142 +5797,59 @@ async function ensureChartModules() {
   DataChartCtor = modules.DataChartCtor;
 }
 async function fetchAndRenderAnalytics() {
-  const { fetchAnomalies: fa } = await __vitePreload(async () => { const { fetchAnomalies: fa } = await import('./assets/scatter-Bbu6RfNC.js').then(n => n.aw);return { fetchAnomalies: fa }},true              ?__vite__mapDeps([0,1]):void 0);
-  await fetchAnomalyRegions(fa ?? fetchAnomalies);
+  await fetchAndRenderAnalytics$1(fetchAnomalies);
 }
-let _datasetReadyPromise = null;
-let _datasetUiReady = false;
-function storeFetchedMetadata(metadata) {
-  setMetadata(metadata);
-  const revision = metadata?.revision;
-  setDatasetRevision(typeof revision === "number" ? revision : 0);
-}
-function initializeDatasetUi(metadata) {
-  if (!_datasetUiReady) {
-    timeseriesFeature?.init();
-    ensureSessionPersistenceStarted();
-    window.addEventListener("edatime:page-change", (event) => {
-      const ce = event;
-      if (ce.detail?.page === "timeseries") {
-        void ensureTimeseriesReady();
-      }
-    });
-    _datasetUiReady = true;
-  }
-  hydrateColumnProfiles(metadata);
-  renderColumnProfilesGrid(true);
-  applyPartialTimeRangeFromMetadata(metadata, false);
-  setUploadPreviewStatus("Showing current dataset profile. Drop/select a file to preview before loading.");
-  setProfileMode("dataset");
-  rebuildTimeseriesColumns();
-  buildMetaBar(metadata);
-  rebuildTimeseriesRanges();
-  window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
-  const timeRange = metadata.time_range;
-  if (!timeRange) return;
-  const start = Number(timeRange.min);
-  const end = Number(timeRange.max);
-  setViewport(start, end);
-  updateAnalysisZoom(start, end, "initial");
-  emitChartRangeChange("initial");
-}
-async function ensureDatasetReady(_pageName = "timeseries") {
-  if (isMetadataReady()) return;
-  if (_datasetReadyPromise) return _datasetReadyPromise;
-  _datasetReadyPromise = (async () => {
-    await ensureChartModules();
-    const metadata = await fetchMetadata();
-    storeFetchedMetadata(metadata);
-    markMetadataReady();
-    window.dispatchEvent(new Event("edatime:metadata-ready"));
-    dbgGroup("metadata", () => dbg(appStateComposite.metadata));
-    const metadataTimeRange = appStateComposite.metadata?.time_range;
-    if (!metadataTimeRange) {
-      setMetaText("No valid time range found.");
-      return;
-    }
-    setNumericCols(getNumericColumns(metadata));
-    if (!appStateComposite.selectedCols.length) {
-      setSelectedCols(getDefaultTimeseriesColumns(metadata));
-    }
-    setAdaptiveFilterColumn(appStateComposite.selectedCols[0] || null);
-    sanitizeSelectedColumns$1();
-    initializeDatasetUi(metadata);
-  })().catch((error) => {
-    _datasetReadyPromise = null;
-    throw error;
-  });
-  return _datasetReadyPromise;
-}
-async function refreshDatasetAfterMutation(options) {
-  clearLoadedPageModules();
-  if (!fetchMetadata) return;
-  storeFetchedMetadata(await fetchMetadata());
-  markMetadataReady();
-  setNumericCols(getNumericColumns(appStateComposite.metadata));
-  const selectedColumn = options?.selectedColumn;
-  if (selectedColumn && !appStateComposite.selectedCols.includes(selectedColumn)) {
-    setSelectedCols([...appStateComposite.selectedCols, selectedColumn]);
-  }
-  sanitizeSelectedColumns$1();
-  rebuildTimeseriesColumns();
-  buildMetaBar(appStateComposite.metadata);
-  await fetchAndRender();
+function ensureSessionPersistenceStarted() {
+  if (_sessionPersistenceStarted) return;
+  startSessionPersistence();
+  _sessionPersistenceStarted = true;
 }
 async function init() {
   installWindowsWebGpuRequestAdapterWorkaround();
   buildMetaBar(null);
-  timeseriesFeature = createTimeseriesEntrypoint({
-    fetchAndRender,
-    renderCurrentData,
+  await ensureChartModules();
+  timeseriesModule = createTimeseriesModule({
+    fetchData: (start, end, width, columns, colorColumn, signal) => fetchData(start, end, width, columns, colorColumn, signal),
+    fetchMetadata: () => fetchMetadata(),
+    DataChartCtor,
+    markMetadataReady,
+    sanitizeSelectedColumns: sanitizeSelectedColumns$1,
+    clearLoadedPageModules,
+    ensureSessionPersistenceStarted,
+    getSelectedCols: () => appStateComposite.selectedCols,
+    setSelectedCols,
+    setNumericCols,
+    setAdaptiveFilterColumn,
+    setViewport,
     updateAnalysisYRange,
-    renderColumnProfilesGrid,
     updateAnalysisZoom,
-    emitChartRangeChange,
-    registerCleanup: (cleanup) => _appCleanups.push(cleanup)
+    getCurrentView: () => {
+      const snap = getCurrentView();
+      return { start: snap.xMin ?? 0, end: snap.xMax ?? 0 };
+    },
+    fetchAndRenderAnalytics,
+    refreshZoomControlsState,
+    zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender())
   });
-  uploadFeature = createUploadEntrypoint({
-    buildColumnToggles: rebuildTimeseriesColumns,
-    buildRangeControls: rebuildTimeseriesRanges
-  });
-  uploadFeature.init(
-    hydrateColumnProfiles,
-    renderColumnProfilesGrid
-  );
+  timeseriesModule.mount();
   initAppShell({
     ensurePageModuleLoaded,
     showPage,
-    fetchAndRender,
-    renderCurrentData,
+    fetchAndRender: () => timeseriesModule.fetchAndRender(),
+    renderCurrentData: () => timeseriesModule.renderCurrentData(),
     updateAnalysisYRange,
-    buildTimeseriesColumns: rebuildTimeseriesColumns,
-    buildTimeseriesRanges: rebuildTimeseriesRanges,
-    zoomOut: () => zoomOut(fetchAndRender),
-    resetZoom: () => resetZoom(fetchAndRender),
-    initAnalyticsListeners: () => {
-      window.addEventListener("edatime:analytics-change", async () => {
-        if (appStateComposite.lastFetchedData) {
-          if (appStateComposite.rollingEnabled) {
-            const filtered = applyColumnRanges(appStateComposite.lastFetchedData);
-            const { computeFrontendRollingBands } = await __vitePreload(async () => { const { computeFrontendRollingBands } = await Promise.resolve().then(() => analyticsOverlay);return { computeFrontendRollingBands }},true              ?void 0:void 0);
-            setRollingBands(computeFrontendRollingBands(filtered, appStateComposite.selectedCols, appStateComposite.rollingWindow || 50));
-          } else {
-            setRollingBands(null);
-          }
-          appStateComposite.chart?.requestOverlayRender?.();
-        }
-        fetchAndRenderAnalytics().catch((err) => {
-          console.warn("Analytics fetch failed:", err);
-        });
-      });
-    },
-    refreshDatasetAfterMutation,
+    buildTimeseriesColumns: () => timeseriesModule.buildColumnToggles(),
+    buildTimeseriesRanges: () => timeseriesModule.buildRangeControls(),
+    zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
+    resetZoom: () => resetZoom(() => timeseriesModule.fetchAndRender()),
+    initAnalyticsListeners: () => initAnalyticsListeners(fetchAndRenderAnalytics),
+    refreshDatasetAfterMutation: (opts) => timeseriesModule.refreshAfterMutation(opts),
     hydrateColumnProfiles,
     renderColumnProfilesGrid,
     registerCleanup: runtime.registerCleanup
   });
   await loadEntrypoints({
-    getRenderTimeseries: renderTimeseries,
+    getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
     showPage,
     initScatterPage,
     getMetadata: () => appStateComposite.metadata ?? null,
@@ -5629,61 +5857,38 @@ async function init() {
     numericColumns: () => getNumericColumns(appStateComposite.metadata),
     setLoading: setComputeLoading,
     initDriftPage: (metadata) => {
-      void __vitePreload(() => import('./assets/drift-CU9El-5H.js').then(n => n.d),true              ?__vite__mapDeps([7,0,1,3]):void 0).then((m) => m.initDriftPage(metadata));
+      void __vitePreload(() => import('./assets/drift-Cwdex3KV.js').then(n => n.d),true              ?__vite__mapDeps([7,0,1,3]):void 0).then((m) => m.initDriftPage(metadata));
     }
   });
   window.__edatime = window.__edatime || {};
-  window.__edatime.ensureDatasetReady = ensureDatasetReady;
+  window.__edatime.ensureDatasetReady = () => timeseriesModule.ensureDatasetReady();
   initGlobalShortcuts({
     showPage,
-    zoomOut: () => zoomOut(fetchAndRender),
-    resetZoom: () => resetZoom(fetchAndRender),
+    zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
+    resetZoom: () => resetZoom(() => timeseriesModule.fetchAndRender()),
     registerCleanup: runtime.registerCleanup,
     chartExportPng: () => appStateComposite.chart?.exportPNG?.(),
     exportFilteredCsv: () => window.__edatime?.exportChartFilteredData?.("csv"),
     exportFilteredJson: () => window.__edatime?.exportChartFilteredData?.("json")
   }, APP_COMMAND_DEFINITIONS);
-  _timeseriesBootstrap = createTimeseriesBootstrap({
-    DataChartCtor: null,
-    onZoom: onZoomRangeChange,
-    onYRange: updateAnalysisYRange,
-    onZoomOut: () => zoomOut(fetchAndRender),
-    buildColumnToggles: rebuildTimeseriesColumns,
-    buildRangeControls: rebuildTimeseriesRanges,
-    renderCurrentData,
-    fetchAndRender: () => timeseriesPage.fetchAndRender(),
-    refreshZoomControlsState
+  initTimeseriesShortcuts({
+    fetchAndRender: () => timeseriesModule.fetchAndRender(),
+    zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
+    resetZoom: () => resetZoom(() => timeseriesModule.fetchAndRender()),
+    chartExportPng: () => appStateComposite.chart?.exportPNG?.(),
+    exportFilteredCsv: () => window.__edatime?.exportChartFilteredData?.("csv"),
+    exportFilteredJson: () => window.__edatime?.exportChartFilteredData?.("json"),
+    registerCleanup: runtime.registerCleanup
   });
   try {
     const initialPage = getHashPage();
     if (pageNeedsDatasetBootstrap(initialPage)) {
-      await ensureDatasetReady(initialPage);
-    }
-    if (initialPage === "timeseries" && isMetadataReady()) {
-      await ensureTimeseriesReady();
+      await timeseriesModule.ensureDatasetReady();
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("Initial bootstrap failed:", e);
-    setMetaText("Error: " + message);
-    const retryBtn = document.getElementById("bootstrap-retry-btn");
-    if (!retryBtn) {
-      const metaEl = document.querySelector(".meta-bar");
-      if (metaEl) {
-        const btn = document.createElement("button");
-        btn.id = "bootstrap-retry-btn";
-        btn.className = "btn btn-ghost btn-sm";
-        btn.style.marginLeft = "8px";
-        btn.textContent = "Retry";
-        btn.addEventListener("click", () => {
-          btn.disabled = true;
-          btn.textContent = "Retrying…";
-          setMetaText("Reinitializing…");
-          location.reload();
-        });
-        metaEl.appendChild(btn);
-      }
-    }
+    showBootstrapError({ message });
   }
 }
 init();

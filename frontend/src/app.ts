@@ -19,10 +19,10 @@ import { DEBUG, dbg, dbgGroup } from './debug.js';
 import { appState } from './store/appStateCompat.js';
 import { buildMetaBar } from './ui/metaBar.js';
 import { showBootstrapError } from './ui/errorUI.js';
-import { createUploadEntrypoint } from './features/upload/entrypoint.js';
 import { hydrateColumnProfiles, renderColumnProfilesGrid } from './ui/profile.js';
 import { installWindowsWebGpuRequestAdapterWorkaround } from './utils/platform.js';
 import { getAnalyticsChipColor, getNumericColumns } from './pages/analyticsPageUtils.js';
+import { sanitizeSelectedColumns } from './services/timeseries/filtering.js';
 import { initScatterPage } from './scatter/scatterPage.js';
 import { initAnalyticsListeners, fetchAndRenderAnalytics as doFetchAndRenderAnalytics } from './bootstrap/analyticsOverlay.js';
 import { initAppShell } from './app/shell.js';
@@ -31,12 +31,13 @@ import { initGlobalShortcuts } from './app/bootstrap/globalShortcuts.js';
 import { initTimeseriesShortcuts } from './app/bootstrap/timeseriesShortcuts.js';
 import { createAppRuntime } from './app/runtime.js';
 import { APP_COMMAND_DEFINITIONS } from './bootstrap/commands.js';
-import { ensurePageModuleLoaded } from './app/pageRegistry.js';
+import { ensurePageModuleLoaded, clearLoadedPageModules, markMetadataReady } from './app/pageRegistry.js';
 import { loadEntrypoints } from './app/pageModules.js';
 import { ensureChartModules as ensureChartBootstrapModules } from './app/bootstrap/chartBootstrap.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
 import { createTimeseriesModule } from './pages/timeseriesModule.js';
+import { startSessionPersistence } from './bootstrap/sessionBootstrap.js';
 import {
     updateAnalysisZoom, updateAnalysisYRange,
     refreshZoomControlsState, getCurrentView,
@@ -55,9 +56,26 @@ import {
     setViewport,
 } from './store/index.js';
 
+// ── Debugging hook ──────────────────────────────────────────────────────────
+// Expose appState on window.__edatime for interactive debugging from DevTools.
+// Using direct property assignment (not a getter) to avoid closure issues with
+// variable renaming across Vite's chunk bundling.
+const __edatime_state = appState;
+window.__edatime = window.__edatime || {};
+try {
+    Object.defineProperty(window.__edatime, 'state', {
+        get: () => __edatime_state,
+        set: (v) => { Object.assign(__edatime_state, v); },
+        configurable: true,
+        enumerable: true,
+    });
+} catch (_) {
+    // Already defined — leave it alone.
+}
+window.__edatime.DEBUG = true;
+
 const _appCleanups: Array<() => void> = [];
 const runtime = createAppRuntime();
-let uploadFeature!: ReturnType<typeof createUploadEntrypoint>;
 let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
 
 /* ── Lazy-loaded modules ──────────────────────────────── */
@@ -67,6 +85,7 @@ let fetchData: ((start: string, end: string, width: number, columns?: string, co
 let fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null = null;
 let postTransform: ((expression: string, outputName: string) => Promise<TransformResponse>) | null = null;
 let DataChartCtor: (new (containerId: string, onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null = null;
+let _sessionPersistenceStarted = false;
 
 async function ensureChartModules(): Promise<void> {
     if (fetchMetadata && fetchData && DataChartCtor) return;
@@ -84,6 +103,12 @@ async function fetchAndRenderAnalytics(): Promise<void> {
     await doFetchAndRenderAnalytics(fetchAnomalies);
 }
 
+function ensureSessionPersistenceStarted(): void {
+    if (_sessionPersistenceStarted) return;
+    startSessionPersistence();
+    _sessionPersistenceStarted = true;
+}
+
 /* ── Module creation helpers ──────────────────────────── */
 // NOTE: createDatasetBootstrap and dataset bootstrap are now owned by timeseriesModule
 // (see createDatasetBootstrap inside timeseriesModule.ts)
@@ -92,22 +117,22 @@ async function init(): Promise<void> {
     installWindowsWebGpuRequestAdapterWorkaround();
     buildMetaBar(null);
 
-    uploadFeature = createUploadEntrypoint({
-        buildColumnToggles: () => timeseriesModule.buildColumnToggles(),
-        buildRangeControls: () => timeseriesModule.buildRangeControls(),
-    });
-    uploadFeature.init(
-        hydrateColumnProfiles,
-        renderColumnProfilesGrid,
-    );
-
     // Load chart modules first, then create the timeseries module once
     await ensureChartModules();
 
     timeseriesModule = createTimeseriesModule({
         fetchData: (start, end, width, columns, colorColumn, signal) => fetchData!(start, end, width, columns, colorColumn, signal),
-        buildColumnToggles: () => { timeseriesModule.buildColumnToggles(); },
-        buildRangeControls: () => { timeseriesModule.buildRangeControls(); },
+        fetchMetadata: () => fetchMetadata!(),
+        DataChartCtor: DataChartCtor!,
+        markMetadataReady,
+        sanitizeSelectedColumns,
+        clearLoadedPageModules,
+        ensureSessionPersistenceStarted,
+        getSelectedCols: () => appState.selectedCols,
+        setSelectedCols,
+        setNumericCols,
+        setAdaptiveFilterColumn,
+        setViewport,
         updateAnalysisYRange,
         updateAnalysisZoom,
         getCurrentView: () => {

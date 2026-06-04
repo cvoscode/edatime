@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { applyCacheBusting } from './cacheBustHtml.mjs';
 
 const ROOT = path.resolve('.');
 const FRONTEND_DIR = path.join(ROOT, 'frontend');
@@ -148,10 +149,7 @@ if (isWatch) {
   if (fs.existsSync(indexPath)) {
     const version = Date.now().toString(36);
     let html = fs.readFileSync(indexPath, 'utf8');
-    // Add ?v=VERSION before the closing quote for src= and href= attributes
-    html = html.replace(/(src|href)="([^"]+\.(?:js|css))"/g, (match, attr, path) => {
-      return `${attr}="${path}?v=${version}"`;
-    });
+    html = applyCacheBusting(html, version);
     fs.writeFileSync(indexPath, html);
     console.log(`Cache-busting applied: ?v=${version}`);
   }

@@ -30,7 +30,7 @@ export function createUploadEntrypoint(deps: UploadFeatureDeps) {
     let mockInitUploadPanel: InitUploadPanelFn | null = null;
 
     return {
-        init(
+        async init(
             hydrateColumnProfiles: (metadata: DatasetMetadata) => void,
             renderColumnProfilesGrid: (resetScroll: boolean) => void,
         ) {
@@ -45,8 +45,7 @@ export function createUploadEntrypoint(deps: UploadFeatureDeps) {
                 return;
             }
 
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const { initUploadPanel } = require('../../ui/upload.js') as { initUploadPanel: InitUploadPanelFn };
+            const { initUploadPanel } = await import('../../ui/upload.js');
             initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, {
                 buildColumnToggles: deps.buildColumnToggles,
                 buildRangeControls: deps.buildRangeControls,

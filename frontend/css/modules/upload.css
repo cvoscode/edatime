@@ -396,28 +396,6 @@
   box-shadow: 0 2px 8px rgba(0, 168, 255, 0.2);
 }
 
-.upload-status {
-  font-size: 0.75rem;
-  min-height: 18px;
-  color: var(--text-dim);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 0;
-}
-
-.upload-status.success {
-  color: var(--green);
-}
-
-.upload-status.error {
-  color: var(--red);
-}
-
-.upload-status.loading {
-  color: var(--text-dim);
-}
-
 /* Progress bar */
 .progress-bar-wrap {
   height: 4px;
