@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createScatterEntrypoint } from '../features/scatter/entrypoint.js';
 
 const createChartMock = vi.fn();
+const echartsInitMock = vi.fn();
 const fetchScatterCorrelationsMock = vi.fn();
 const fetchScatterPointsMock = vi.fn();
 const renderScatterMatrixViewMock = vi.fn();
 const emptyStateUpdateMock = vi.fn();
+const requestGpuAdapterMock = vi.hoisted(() => vi.fn(async () => ({ name: 'mock-adapter' })));
 
 const freshScatterState = vi.hoisted(() => ({
     chart: null,
@@ -48,9 +50,13 @@ vi.mock('../../libs/chartgpu/dist/index.js', () => ({
     createChart: (...args: unknown[]) => createChartMock(...args),
 }));
 
+vi.mock('echarts', () => ({
+    init: (...args: unknown[]) => echartsInitMock(...args),
+}));
+
 vi.mock('../utils/platform.js', () => ({
     defaultGpuPowerPreference: () => null,
-    requestGpuAdapter: vi.fn(async () => ({ name: 'mock-adapter' })),
+    requestGpuAdapter: (...args: unknown[]) => requestGpuAdapterMock(...args),
 }));
 
 vi.mock('../services/api/index.js', () => ({
@@ -132,7 +138,6 @@ function buildDom(): void {
             <button id="scatter-open-causal-btn" type="button">Open in Causal</button>
             <div id="scatter-active-filter-badge"></div>
             <div id="scatter-suggestions"></div>
-            <div id="scatter-active-pair-label"></div>
             <div id="scatter-chart"></div>
             <div id="scatter-chart-loading" hidden></div>
             <div id="scatter-matrix-status"></div>
@@ -147,7 +152,6 @@ function buildDom(): void {
             <div id="scatter-color-controls"></div>
             <div class="scatter-export-group"></div>
             <div class="scatter-stats-bar"></div>
-            <div class="scatter-suggestions-bar"></div>
             <div data-scatter-view-panel="plot"></div>
             <div data-scatter-view-panel="matrix" hidden></div>
         </section>
@@ -159,6 +163,8 @@ describe('initScatterPage view toggles', () => {
         vi.resetModules();
         vi.clearAllMocks();
         buildDom();
+        requestGpuAdapterMock.mockReset();
+        requestGpuAdapterMock.mockResolvedValue({ name: 'mock-adapter' });
 
         // Reset the fresh state before each test
         freshScatterState.chart = null;
@@ -210,6 +216,13 @@ describe('initScatterPage view toggles', () => {
             color: '',
         });
         renderScatterMatrixViewMock.mockResolvedValue(undefined);
+        echartsInitMock.mockReturnValue({
+            setOption: vi.fn(),
+            resize: vi.fn(),
+            dispose: vi.fn(),
+            on: vi.fn(),
+            off: vi.fn(),
+        });
     });
 
     it('switches into matrix mode when the matrix toggle is clicked', async () => {
@@ -276,5 +289,29 @@ describe('initScatterPage view toggles', () => {
             color: '',
         });
         await initPromise;
+    });
+
+    it('falls back to ECharts when WebGPU is unavailable', async () => {
+        requestGpuAdapterMock.mockResolvedValueOnce(null);
+
+        const { initScatterPage } = await import('./scatterPage.js');
+
+        await initScatterPage({
+            total_rows: 2,
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+            ],
+            numeric_columns: ['HUFL', 'HULL'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1_000 },
+            column_profiles: [],
+        } as any);
+
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(echartsInitMock).toHaveBeenCalledTimes(1);
+        expect(createChartMock).not.toHaveBeenCalled();
     });
 });

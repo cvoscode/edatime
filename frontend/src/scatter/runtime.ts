@@ -137,28 +137,8 @@ export function syncScatterEmptyState(message?: string): void {
     });
 }
 
-/**
- * Updates the active filter badge count.
- */
 export function syncScatterFilterBadge(): void {
-    const badge = getEl('scatter-active-filter-badge');
-    if (!badge) return;
-    const controls = currentControls();
-    const cols = getActiveScatterFilterColumns({
-        x: controls.x,
-        y: controls.y,
-        colorColumn: controls.selectedColorColumn,
-    });
-    const unique = Array.from(new Set(cols));
-    if (unique.length === 0) {
-        badge.hidden = true;
-        badge.textContent = '';
-        badge.removeAttribute('title');
-        return;
-    }
-    badge.hidden = false;
-    badge.textContent = `${unique.length} filter${unique.length === 1 ? '' : 's'} active`;
-    badge.setAttribute('title', `Active scatter filters: ${unique.join(', ')}`);
+    // Badge element removed — filter tracking no longer shown in stats bar.
 }
 
 /**

@@ -1,5 +1,7 @@
 import type { DataObject } from '../../types.js';
 import {
+    assertDatasetRequestScopeActive,
+    captureDatasetRequestScope,
     ensureArrowParser,
     resolveTimestampColumnName,
     toEpochMs,
@@ -15,6 +17,7 @@ export async function fetchData(
     colorColumn: string | null = null,
     signal?: AbortSignal,
 ): Promise<DataObject> {
+    const requestScope = captureDatasetRequestScope();
     const requestedCols = columns
         .split(',')
         .map((col) => col.trim())
@@ -32,6 +35,7 @@ export async function fetchData(
 
     dbg('GET', url);
     const res = await globalThis.fetch(url, signal ? { signal, cache: 'no-store' } : { cache: 'no-store' });
+    assertDatasetRequestScopeActive(requestScope);
 
     if (DEBUG) {
         dbg('status', res.status, res.statusText);
@@ -61,6 +65,7 @@ export async function fetchData(
     }
 
     const buffer = await res.arrayBuffer();
+    assertDatasetRequestScopeActive(requestScope);
 
     if (DEBUG) {
         dbg('arrow bytes', buffer.byteLength);
@@ -141,5 +146,6 @@ export async function fetchData(
         }
     }
 
+    assertDatasetRequestScopeActive(requestScope);
     return dataObj;
 }

@@ -9,7 +9,6 @@ import {
     setMetadata,
     setDatasetRevision,
 } from '../../store/index.js';
-import { buildMetaBar } from '../../ui/metaBar.js';
 import { setProfileMode } from './preview.js';
 import { formatCount } from '../../utils/format.js';
 import { toast } from '../../utils/toast.js';
@@ -44,6 +43,7 @@ export function animateProgress(bar: HTMLElement, wrap: HTMLElement | null): () 
 export interface FileUploadDeps {
     buildColumnToggles: () => void;
     buildRangeControls: () => void;
+    refreshDatasetAfterMutation?: () => Promise<void>;
 }
 
 export interface FileUploadParams {
@@ -177,27 +177,24 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
                 statusEl.className = 'upload-status';
             }
             toast(`${formatCount(Number(result.rows || 0))} rows loaded. Dataset ready.`, 'success', {});
-            // Fetch fresh metadata and refresh the profile grid without page reload
+            fileInput.value = '';
+            fileDisplay.textContent = '';
+
             try {
-                const { fetchMetadata } = await import('../../services/api/index.js');
-                const freshMetadata = await fetchMetadata();
-                setMetadata(freshMetadata);
-                const revision = freshMetadata?.revision;
-                setDatasetRevision(typeof revision === 'number' ? revision : 0);
-                // Reset upload state
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                void selectedFile; // clear from outer scope
-                fileInput.value = '';
-                fileDisplay.textContent = '';
-                // Re-hydrate and render the profile grid with the new dataset metadata
-                hydrateColumnProfiles(freshMetadata);
-                renderColumnProfilesGrid(true);
-                // Update header meta stats and UI controls
-                buildMetaBar(freshMetadata);
-                deps.buildColumnToggles();
-                deps.buildRangeControls();
-                // Mark the profile grid as showing the current dataset (not a preview)
-                setProfileMode('dataset');
+                if (deps.refreshDatasetAfterMutation) {
+                    await deps.refreshDatasetAfterMutation();
+                } else {
+                    const { fetchMetadata } = await import('../../services/api/index.js');
+                    const freshMetadata = await fetchMetadata();
+                    setMetadata(freshMetadata);
+                    const revision = freshMetadata?.revision;
+                    setDatasetRevision(typeof revision === 'number' ? revision : 0);
+                    hydrateColumnProfiles(freshMetadata);
+                    renderColumnProfilesGrid(true);
+                    deps.buildColumnToggles();
+                    deps.buildRangeControls();
+                    setProfileMode('dataset');
+                }
             } catch {
                 // Fall back to reload if metadata refresh fails
                 setTimeout(() => window.location.reload(), 1200);

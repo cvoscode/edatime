@@ -40,10 +40,6 @@ vi.mock('../debug.js', () => ({
     dbgGroup: vi.fn((_label: string, fn: () => void) => fn()),
 }));
 
-vi.mock('../ui/metaBar.js', () => ({
-    buildMetaBar: vi.fn(),
-}));
-
 vi.mock('../ui/errorUI.js', () => ({
     showBootstrapError: vi.fn(),
 }));

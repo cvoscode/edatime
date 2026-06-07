@@ -5,20 +5,20 @@
  * The `ensureReady()` call is idempotent: safe to call multiple times.
  */
 
-import type { ChartInstance } from '../../types.js';
+import type { ChartInstance, ViewSnapshot } from '../../types.js';
 import { appState } from '../../store/appStateCompat.js';
 import { checkWebGPU } from '../webgpuGuard.js';
 import { getChartType } from '../../charts/registry.js';
 import { FallbackChart } from '../../charts/fallback.js';
-import { setAnalysisBound, setChartInstance } from '../../store/index.js';
-import { bindAnalysisChartEvents } from '../../ui/toolbar.js';
+import { setAnalysisBound, setChartInstance, setInitialView } from '../../store/index.js';
+import { bindAnalysisChartEvents, getCurrentView } from '../../ui/toolbar.js';
+import { setAnnotationOverlayCallback } from '../../ui/annotationPanel.js';
+import { setAnomalyOverlayCallback } from '../../bootstrap/analyticsOverlay.js';
 import { initAdaptiveFilterGesture } from '../adaptiveGesture.js';
 import { restoreSessionAfterChartReady } from '../../bootstrap/sessionBootstrap.js';
 import { dbg, dbgGroup } from '../../debug.js';
-import { setMetaText } from '../../ui/metaBar.js';
-
 export interface TimeseriesBootstrapCallbacks {
-    onZoom: (start: number, end: number, sourceKind: string) => void;
+    onZoom: (view: ViewSnapshot, sourceKind: string) => void;
     onYRange: (min: number, max: number, sourceKind: string) => void;
     onZoomOut: () => void;
 }
@@ -26,11 +26,11 @@ export interface TimeseriesBootstrapCallbacks {
 export interface TimeseriesBootstrapDeps {
     DataChartCtor: new (
         containerId: string,
-        onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null,
+        onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
         onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null,
         onZoomOutCb: (() => void) | null,
     ) => ChartInstance;
-    onZoom: (start: number, end: number, sourceKind: string) => void;
+    onZoom: (view: ViewSnapshot, sourceKind: string) => void;
     onYRange: (min: number, max: number, sourceKind: string) => void;
     onZoomOut: () => void;
     buildColumnToggles: () => void;
@@ -55,6 +55,11 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     return;
                 }
 
+                // Wipe any leftover canvas/overlay DOM from a previous failed init
+                // so we never end up with multiple stacked charts.
+                const container = document.getElementById('main-chart');
+                if (container) container.replaceChildren();
+
                 const gpuError = await checkWebGPU();
 
                 try {
@@ -63,7 +68,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     const lineType = getChartType('line');
                     if (lineType) {
                         setChartInstance(lineType.create('main-chart', {
-                            onZoom: (start: number, end: number, sourceKind: string) => deps.onZoom(start, end, sourceKind),
+                            onZoom: (view: ViewSnapshot, sourceKind: string) => deps.onZoom(view, sourceKind),
                             onYRange: deps.onYRange,
                             onZoomOut: deps.onZoomOut,
                         }));
@@ -89,8 +94,6 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     });
                     deps.refreshZoomControlsState();
 
-                    const { setAnnotationOverlayCallback } = await import('../../ui/annotationPanel.js');
-                    const { setAnomalyOverlayCallback } = await import('../../bootstrap/analyticsOverlay.js');
                     setAnnotationOverlayCallback(() => appState.chart?.requestOverlayRender?.());
                     setAnomalyOverlayCallback(() => appState.chart?.requestOverlayRender?.());
 
@@ -105,8 +108,6 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     deps.renderCurrentData();
                     await deps.fetchAndRender();
 
-                    const { getCurrentView } = await import('../../ui/toolbar.js');
-                    const { setInitialView } = await import('../../store/chartState.js');
                     setInitialView(getCurrentView());
                     dbgGroup('initialView snapshot', () => dbg(appState.initialView));
 
@@ -133,12 +134,11 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                         bindAnalysisChartEvents();
                         deps.refreshZoomControlsState();
                         await deps.fetchAndRender();
-                        setMetaText('Fallback renderer active');
                         ready = true;
                     } catch (fallbackErr: unknown) {
                         const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
                         console.error('Fallback chart also failed:', fallbackErr);
-                        setMetaText('Error: ' + msg);
+
                     }
                 }
             })();

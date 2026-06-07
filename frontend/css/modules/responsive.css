@@ -108,8 +108,7 @@
     width: 100%;
   }
 
-  .timeseries-color-slot,
-  .timeseries-meta-bar {
+.timeseries-color-slot {
     justify-content: flex-start;
   }
 
@@ -298,8 +297,7 @@
   .timeseries-command-bar__left,
   .timeseries-command-bar__center,
   .timeseries-command-bar__right,
-  .timeseries-color-slot,
-  .timeseries-meta-bar {
+.timeseries-color-slot {
     width: 100%;
   }
 

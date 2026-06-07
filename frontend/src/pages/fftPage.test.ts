@@ -9,6 +9,7 @@ const fftChartInstance = {
     onZoomChange: null as ((isZoomed: boolean) => void) | null,
 };
 
+const echartsInitMock = vi.fn();
 const fetchFftMock = vi.fn();
 const toastMock = vi.fn();
 
@@ -25,6 +26,10 @@ vi.mock('../chart/FftChart.js', () => ({
 
 vi.mock('../services/api/index.js', () => ({
     fetchFft: (...args: unknown[]) => fetchFftMock(...args),
+}));
+
+vi.mock('echarts', () => ({
+    init: (...args: unknown[]) => echartsInitMock(...args),
 }));
 
 vi.mock('../utils/chartExport.js', () => ({
@@ -66,6 +71,13 @@ describe('initFftPage', () => {
         vi.clearAllMocks();
         (window as any).__edatime = {};
         buildDom();
+        echartsInitMock.mockReturnValue({
+            setOption: vi.fn(),
+            resize: vi.fn(),
+            dispose: vi.fn(),
+            on: vi.fn(),
+            off: vi.fn(),
+        });
     });
 
     afterEach(async () => {
@@ -129,11 +141,11 @@ describe('initFftPage', () => {
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
 
         (document.querySelector('.fft-trace-chip') as HTMLButtonElement).click();
-        await Promise.resolve();
-        await Promise.resolve();
+        await vi.waitFor(() => {
+            expect(fftChartInstance.updateData).toHaveBeenCalledTimes(1);
+        });
 
         expect(fetchFftMock).toHaveBeenCalledTimes(1);
-        expect(fftChartInstance.updateData).toHaveBeenCalledTimes(1);
         const chip = document.querySelector<HTMLElement>('.fft-trace-chip')!;
         expect(chip.classList.contains('active')).toBe(true);
         expect(chip.querySelector('.fft-chip-remove')).toBeNull();
@@ -171,8 +183,9 @@ describe('initFftPage', () => {
 
         const chip = document.querySelector<HTMLElement>('.fft-trace-chip')!;
         chip.click();
-        await Promise.resolve();
-        await Promise.resolve();
+        await vi.waitFor(() => {
+            expect(fftChartInstance.updateData).toHaveBeenCalledTimes(1);
+        });
 
         // Re-query after async handler replaces chips via renderChips()
         const activeChip = document.querySelector<HTMLElement>('.fft-trace-chip')!;
@@ -217,8 +230,9 @@ describe('initFftPage', () => {
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
 
         (document.querySelector('.fft-trace-chip') as HTMLButtonElement).click();
-        await Promise.resolve();
-        await Promise.resolve();
+        await vi.waitFor(() => {
+            expect((document.getElementById('fft-empty-state') as HTMLElement).hidden).toBe(true);
+        });
 
         expect((document.getElementById('fft-empty-state') as HTMLElement).hidden).toBe(true);
 
@@ -238,5 +252,29 @@ describe('initFftPage', () => {
         expect(document.querySelectorAll('.fft-trace-chip')).toHaveLength(2);
         expect((document.getElementById('fft-empty-state') as HTMLElement).hidden).toBe(false);
         expect((document.getElementById('fft-empty-state') as HTMLElement).getAttribute('data-empty-reason')).toBe('no-columns-selected');
+    });
+
+    it('falls back to ECharts when the WebGPU FFT chart cannot initialize', async () => {
+        fftChartInstance.init.mockRejectedValueOnce(new Error('No WebGPU adapter found'));
+
+        const { appState } = await import('../state');
+        appState.metadata = {
+            total_rows: 10,
+            columns: [],
+            numeric_columns: ['value'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1000 },
+            column_profiles: [],
+        } as any;
+        appState.currentStart = 0;
+        appState.currentEnd = 1000;
+
+        const { initFftPage } = await import('./fftPage');
+        await initFftPage({ renderTimeseries: vi.fn() });
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(echartsInitMock).toHaveBeenCalledTimes(1);
     });
 });

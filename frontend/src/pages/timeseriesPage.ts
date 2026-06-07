@@ -1,11 +1,11 @@
 import { DEBUG, dbg, dbgGroup } from '../debug.js';
 import { appState } from '../store/appStateCompat.js';
-import { setMetaText } from '../ui/metaBar.js';
 import { ensureRangeStateFromData, applyColumnRanges, sanitizeSelectedColumns } from '../services/timeseries/filtering.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
 import { announceChartLoading, announceDataUpdate } from '../utils/a11y.js';
 import { computeFrontendRollingBands } from '../bootstrap/analyticsOverlay.js';
 import { createRequestTask } from './shared/requestTask.js';
+import type { ViewSnapshot } from '../types.js';
 import {
     setFetchDebounceId,
     setLastFetchedData,
@@ -23,7 +23,7 @@ interface TimeseriesControllerDeps {
     buildRangeControls: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
-    getCurrentView: () => any;
+    getCurrentView: () => ViewSnapshot;
     fetchAndRenderAnalytics: () => Promise<void>;
 }
 
@@ -96,7 +96,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         },
         onError: (message: string) => {
             console.error('Failed to fetch data:', message);
-            setMetaText('Error: ' + message);
+
         },
     });
 
@@ -250,14 +250,16 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         });
     }
 
-    function onZoomRangeChange(newStart: number, newEnd: number, sourceKind = 'user'): void {
+    function onZoomRangeChange(view: ViewSnapshot, sourceKind = 'user'): void {
         if (appState.fetchDebounceId) clearTimeout(appState.fetchDebounceId);
 
         dbgGroup(`onZoomRangeChange (${sourceKind})`, () => {
             dbg('prev', { start: appState.currentStart, end: appState.currentEnd });
-            dbg('next', { start: newStart, end: newEnd });
+            dbg('next', view);
         });
 
+        const newStart = Number(view.xMin);
+        const newEnd = Number(view.xMax);
         if (!Number.isFinite(newStart) || !Number.isFinite(newEnd) || newStart >= newEnd) return;
 
         const snap = deps.getCurrentView();
@@ -265,8 +267,14 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
         setViewport(newStart, newEnd);
         appState.chart?.setXRange?.(newStart, newEnd);
-        setPendingYMode('fit');
-        setPendingRestoreY(null);
+        if (Number.isFinite(view.yMin) && Number.isFinite(view.yMax) && view.yMax! > view.yMin!) {
+            appState.chart?.setYRange?.(view.yMin!, view.yMax!);
+            setPendingYMode('restore');
+            setPendingRestoreY({ min: view.yMin!, max: view.yMax! });
+        } else {
+            setPendingYMode('fit');
+            setPendingRestoreY(null);
+        }
 
         deps.updateAnalysisZoom(newStart, newEnd, sourceKind);
         emitChartRangeChange(sourceKind);

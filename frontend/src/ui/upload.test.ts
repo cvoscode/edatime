@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
 beforeEach(() => {
     // Reset all mock implementations and call counts between tests
     vi.resetAllMocks();
+    mocks.fetchMetadata.mockResolvedValue(makeMetadata());
 });
 
 vi.mock('../services/api/index.js', () => ({
@@ -618,6 +619,11 @@ describe('initUploadPanel upload submission', () => {
         mocks.uploadDataset.mockReset();
         mocks.fetchMetadata.mockReset();
         mocks.toast.mockReset();
+        mocks.previewUpload.mockResolvedValue({
+            ok: true,
+            json: async () => ({ metadata: makeMetadata(), preview_rows: 1 }),
+        });
+        mocks.fetchMetadata.mockResolvedValue(makeMetadata());
         buildUploadDom();
         appState.metadata = null;
         appState.columnProfiles = [];
@@ -639,6 +645,8 @@ describe('initUploadPanel upload submission', () => {
         Object.defineProperty(fileInput, 'files', { configurable: true, value: [file] });
         fileInput.dispatchEvent(new Event('change'));
         await flushPromises();
+        appState.previewTimeColumn = null;
+        appState.metadata = null;
 
         document.getElementById('upload-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         await flushPromises();
@@ -682,13 +690,10 @@ describe('initUploadPanel upload submission', () => {
         );
     });
 
-    // Skipped: submitFileUpload uses dynamic import for fetchMetadata so the mock
-    // doesn't apply. The real integration works correctly. Fix separately.
-    // eslint-disable-next-line vitest/expect-expect
-    it.skip('refreshes metadata after successful upload', async () => {
-        const refreshedMetadata = makeMetadata({ total_rows: 2468 });
+    it('refreshes the shared dataset lifecycle after successful upload', async () => {
         const file = new File(['timestamp,value\n2024-01-01T00:00:00Z,1\n'], 'demo.csv', { type: 'text/csv' });
         const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+        const refreshDatasetAfterMutation = vi.fn().mockResolvedValue(undefined);
 
         mocks.previewUpload.mockResolvedValue({
             ok: true,
@@ -698,11 +703,11 @@ describe('initUploadPanel upload submission', () => {
             ok: true,
             json: async () => ({ rows: 2468 }),
         });
-        mocks.fetchMetadata.mockResolvedValue(refreshedMetadata);
 
         initUploadPanel(vi.fn(), vi.fn(), {
             buildColumnToggles: vi.fn(),
             buildRangeControls: vi.fn(),
+            refreshDatasetAfterMutation,
         });
 
         Object.defineProperty(fileInput, 'files', { configurable: true, value: [file] });
@@ -712,6 +717,6 @@ describe('initUploadPanel upload submission', () => {
         document.getElementById('upload-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         await flushPromises();
 
-        expect(mocks.fetchMetadata).toHaveBeenCalled();
+        expect(refreshDatasetAfterMutation).toHaveBeenCalledTimes(1);
     });
 });

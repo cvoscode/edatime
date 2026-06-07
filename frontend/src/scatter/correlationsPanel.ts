@@ -11,6 +11,7 @@ import { fetchScatterCorrelations } from '../services/api/index.js';
 import { appState } from '../store/appStateCompat.js';
 import { getEl } from './helpers.js';
 import { ensureOptions } from './state.js';
+import { updateCorrelationStats, updateColorbarUI } from './rendering.js';
 
 /**
  * Renders the list of correlation suggestion buttons in the scatter panel.
@@ -21,17 +22,10 @@ export function renderSuggestions(
     const box = getEl('scatter-suggestions');
     const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
     const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
-    const contextEl = getEl('scatter-active-pair-label');
     if (!box) return;
 
     appState.scatter.lastSuggestions = Array.isArray(suggestions) ? suggestions.slice() : [];
     box.innerHTML = '';
-
-    if (contextEl) {
-        const x = xSelect?.value || 'X';
-        const y = ySelect?.value || 'Y';
-        contextEl.textContent = `Inspecting ${x} vs ${y}`;
-    }
 
     if (!Array.isArray(suggestions) || suggestions.length === 0) {
         const empty = document.createElement('span');
@@ -49,11 +43,9 @@ export function renderSuggestions(
         const r = Number.isFinite(item.pearson) ? item.pearson!.toFixed(2) : '--';
         const rho = Number.isFinite(item.spearman) ? item.spearman!.toFixed(2) : '--';
         btn.textContent = `${item.column}  Pearson ${r}  Spearman ${rho}`;
-        btn.addEventListener('click', async () => {
+        btn.addEventListener('click', () => {
             if (!ySelect || ySelect.value === item.column) return;
             ySelect.value = item.column;
-            // updateCorrelationStats and renderSuggestions are called by the caller
-            const { updateCorrelationStats } = await import('./rendering.js');
             updateCorrelationStats();
             renderSuggestions(appState.scatter.lastSuggestions);
         });
@@ -109,7 +101,6 @@ export async function refreshCorrelationsAndSuggestions(): Promise<void> {
     if (!selectedY && yCandidates.length > 0) ySelect.value = yCandidates[0];
 
     renderSuggestions(response.suggestions || []);
-    const { updateCorrelationStats, updateColorbarUI } = await import('./rendering.js');
     updateCorrelationStats();
     updateColorbarUI();
 }

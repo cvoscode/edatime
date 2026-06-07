@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Load critical CSS via main stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=mpz8oqnv">
+  <link rel="stylesheet" href="css/style.css?v=mq43dddx">
   <script>
     // Register service worker for caching in deployed environments only.
     // Local development should avoid cached HTML/JS so rebuilt bundles are
@@ -178,7 +178,8 @@
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
             <circle cx="8" cy="8" r="2.5" />
-            <path d="M13.7 9.3l1.1.6a.5.5 0 01.2.7l-1 1.7a.5.5 0 01-.6.2l-1.1-.4a5.5 5.5 0 01-1.1.6l-.2 1.2a.5.5 0 01-.5.4H9.5a.5.5 0 01-.5-.4l-.2-1.2a5.5 5.5 0 01-1.1-.6l-1.1.4a.5.5 0 01-.6-.2l-1-1.7a.5.5 0 01.2-.7l1.1-.6a5.5 5.5 0 010-1.3l-1.1-.6a.5.5 0 01-.2-.7l1-1.7a.5.5 0 01.6-.2l1.1.4a5.5 5.5 0 011.1-.6l.2-1.2a.5.5 0 01.5-.4h2a.5.5 0 01.5.4l.2 1.2a5.5 5.5 0 011.1.6l1.1-.4a.5.5 0 01.6.2l1 1.7a.5.5 0 01-.2.7l-1.1.6a5.5 5.5 0 010 1.3z" />
+            <path
+              d="M13.7 9.3l1.1.6a.5.5 0 01.2.7l-1 1.7a.5.5 0 01-.6.2l-1.1-.4a5.5 5.5 0 01-1.1.6l-.2 1.2a.5.5 0 01-.5.4H9.5a.5.5 0 01-.5-.4l-.2-1.2a5.5 5.5 0 01-1.1-.6l-1.1.4a.5.5 0 01-.6-.2l-1-1.7a.5.5 0 01.2-.7l1.1-.6a5.5 5.5 0 010-1.3l-1.1-.6a.5.5 0 01-.2-.7l1-1.7a.5.5 0 01.6-.2l1.1.4a5.5 5.5 0 011.1-.6l.2-1.2a.5.5 0 01.5-.4h2a.5.5 0 01.5.4l.2 1.2a5.5 5.5 0 011.1.6l1.1-.4a.5.5 0 01.6.2l1 1.7a.5.5 0 01-.2.7l-1.1.6a5.5 5.5 0 010 1.3z" />
           </svg>
         </span>
         <span class="nav-text">Settings</span>
@@ -259,15 +260,6 @@
               <line x1="11.54" y1="4.46" x2="12.95" y2="3.05" />
             </svg>
           </button>
-          <div class="meta-stat" id="stat-rows">
-            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
-              stroke-linejoin="round">
-              <rect x="1" y="1" width="10" height="10" rx="1.5" />
-              <line x1="1" y1="4.5" x2="11" y2="4.5" />
-              <line x1="4" y1="4.5" x2="4" y2="11" />
-            </svg>
-            <span>Loading&hellip;</span>
-          </div>
           <button class="btn btn-ghost btn-sm provenance-header-btn" id="provenance-toggle-btn" type="button"
             title="Analysis context (Ctrl+I)" aria-label="Toggle analysis context panel">
             <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"
@@ -283,7 +275,7 @@
 
       <section id="workflow-panel" class="workflow-panel"></section>
 
-      <section class="page" id="page-timeseries" data-page-name="timeseries" hidden>
+      <section class="page page--analysis-scroll" id="page-timeseries" data-page-name="timeseries" hidden>
         <div class="toolbar toolbar--series timeseries-command-bar">
           <div class="timeseries-command-bar__left toolbar-group" role="group" aria-label="Series selection tools">
             <span class="toolbar-label">Series</span>
@@ -304,7 +296,6 @@
           </div>
           <div class="timeseries-command-bar__right" aria-label="Timeseries context">
             <div id="timeseries-color-slot" class="timeseries-color-slot"></div>
-            <div id="timeseries-meta-bar" class="timeseries-meta-bar" role="status" aria-live="polite"></div>
           </div>
         </div>
 
@@ -317,10 +308,12 @@
                 <option value="arrow">Arrow</option>
                 <option value="box">Box</option>
               </select>
-              <input type="color" id="draw-color" name="draw-color" value="#ff0055" title="Color" aria-label="Draw color">
+              <input type="color" id="draw-color" name="draw-color" value="#ff0055" title="Color"
+                aria-label="Draw color">
               <input type="number" id="draw-width" name="draw-width" value="2" min="1" max="10" title="Thickness"
                 aria-label="Draw thickness">
-              <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings">Clear Drawings</button>
+              <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings">Clear
+                Drawings</button>
               <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button"
                 title="Clear adaptive line filters (Shift+C)">Clear Column Filter</button>
             </div>
@@ -364,12 +357,13 @@
             <div class="toolbar-group zoom-toolbar timeseries-zoom-cluster" role="group" aria-label="Zoom controls">
               <button class="btn btn-ghost btn-sm" id="zoom-out-btn" type="button" title="Zoom out">−</button>
               <span class="zoom-range-badge" id="zoom-range-badge">—</span>
-              <button class="btn btn-ghost btn-sm" id="zoom-reset-btn" type="button" title="Reset zoom to initial view">↺</button>
+              <button class="btn btn-ghost btn-sm" id="zoom-reset-btn" type="button"
+                title="Reset zoom to initial view">↺</button>
             </div>
           </div>
         </div>
 
-        <main class="main" id="main">
+        <main class="main main--analysis-chart" id="main">
           <div id="main-chart"></div>
           <div id="timeseries-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <div class="plot-empty-illustration" aria-hidden="true">
@@ -507,25 +501,17 @@
         </div>
 
         <div class="analysis-toolbar scatter-stats-bar">
-          <span id="scatter-total-points">Total points: —</span>
-          <span id="scatter-binned-points">Visible points: —</span>
-          <span id="scatter-active-filter-badge" class="scatter-filter-badge" hidden></span>
-          <span id="scatter-current-pair" class="scatter-filter-badge">Pair: X vs Y</span>
           <span id="scatter-pearson">Pearson: —</span>
           <span id="scatter-spearman">Spearman: —</span>
-          <button class="btn btn-ghost btn-sm" id="scatter-open-causal-btn" type="button">Open in Causal</button>
-        </div>
-
-        <div class="range-toolbar scatter-suggestions-bar">
           <span id="scatter-suggestions-label" class="toolbar-label">Suggestions (|corr| ≥ 0.70)</span>
           <div class="scatter-suggestions-controls">
             <label class="scatter-inline-label" for="scatter-suggestion-threshold">Threshold</label>
             <input id="scatter-suggestion-threshold" type="range" min="0.30" max="0.95" step="0.05" value="0.70"
               aria-label="Correlation suggestion threshold">
             <span id="scatter-suggestion-threshold-value" class="range-value">0.70</span>
-            <span id="scatter-active-pair-label" class="scatter-filter-badge">Inspecting X vs Y</span>
           </div>
           <div id="scatter-suggestions" class="scatter-suggestions"></div>
+          <button class="btn btn-ghost btn-sm" id="scatter-open-causal-btn" type="button">Open in Causal</button>
         </div>
 
         <div class="scatter-view" data-scatter-view-panel="plot">
@@ -603,7 +589,7 @@
 
       </section>
 
-      <section class="page" id="page-fft" data-page-name="fft" hidden>
+      <section class="page page--analysis-scroll" id="page-fft" data-page-name="fft" hidden>
         <div class="toolbar">
           <div class="toolbar-group">
             <span class="toolbar-label">FFT / Power Spectral Density</span>
@@ -663,7 +649,7 @@
             the frequency content changes over time.</span>
         </div>
         <div class="fft-traces-bar" id="fft-traces-bar" hidden></div>
-        <main class="main">
+        <main class="main main--analysis-chart">
           <div id="fft-chart" style="width:100%;height:100%;"></div>
           <div id="fft-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong>Select one or more traces</strong>
@@ -703,7 +689,6 @@
                 <button id="heatmap-export-csv-btn" class="btn btn-ghost btn-sm" type="button">CSV</button>
               </div>
             </details>
-            <span class="toolbar-label" id="heatmap-status">Loading…</span>
           </div>
         </div>
         <main class="main main--padded">
@@ -714,7 +699,7 @@
         </main>
       </section>
 
-      <section class="page" id="page-spectrogram" data-page-name="spectrogram" hidden>
+      <section class="page page--analysis-scroll" id="page-spectrogram" data-page-name="spectrogram" hidden>
         <div class="toolbar">
           <div class="toolbar-group">
             <span class="toolbar-label">Spectrogram</span>
@@ -758,7 +743,7 @@
           <span class="page-guidance__item"><strong>Cost</strong> Heavier than FFT because each compute rebuilds a
             time-frequency grid. Start with a narrower range before scaling up.</span>
         </div>
-        <main class="main main--chart">
+        <main class="main main--chart main--analysis-chart">
           <div id="spectrogram-chart" style="width:100%;height:100%;display:block;"></div>
           <div id="spectrogram-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong>No spectrogram yet</strong>
@@ -1810,8 +1795,8 @@
             </label>
             <label class="toolbar-field" for="anomaly-threshold-modal">
               <span class="toolbar-field__label">Threshold</span>
-              <input id="anomaly-threshold-modal" type="number" class="modal-input" value="3" min="0.5" max="10" step="0.1"
-                title="Anomaly threshold">
+              <input id="anomaly-threshold-modal" type="number" class="modal-input" value="3" min="0.5" max="10"
+                step="0.1" title="Anomaly threshold">
             </label>
           </div>
           <div class="modal-actions">
@@ -1982,7 +1967,8 @@
               <div class="settings-row">
                 <label class="settings-label" for="settings-draw-auto-reset">Draw auto-reset</label>
                 <div class="settings-control settings-toggle">
-                  <input id="settings-draw-auto-reset" type="checkbox" aria-label="Auto-reset draw tool after annotation">
+                  <input id="settings-draw-auto-reset" type="checkbox"
+                    aria-label="Auto-reset draw tool after annotation">
                   <span>Auto-reset draw tool after placing an annotation</span>
                 </div>
               </div>
@@ -2070,7 +2056,7 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=mpz8oqnv"></script>
+  <script type="module" src="js/app.js?v=mq43dddx"></script>
 </body>
 
 </html>

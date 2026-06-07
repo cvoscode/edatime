@@ -5,6 +5,7 @@
 
 import { preloadPageStyles } from '../utils/pageStyles.js';
 import { pageNeedsDatasetBootstrap } from '../utils/pageBootstrap.js';
+import { getHashPage } from '../utils/router.js';
 
 export function initPageNavigation(): void {
     const navButtons = Array.from(document.querySelectorAll('.sidebar .nav-item[data-page]')) as HTMLElement[];
@@ -27,6 +28,12 @@ export function initPageNavigation(): void {
 
     async function showPage(pageName: string) {
         preloadPageStyles(pageName);
+
+        if (pageName === 'settings') {
+            const { openSettingsModal } = await import('./settingsPanel.js');
+            openSettingsModal();
+            return;
+        }
 
         if (pageNeedsDatasetBootstrap(pageName)) {
             await (window as any).__edatime?.ensureDatasetReady?.(pageName);
@@ -66,7 +73,7 @@ export function initPageNavigation(): void {
         btn.addEventListener('click', async () => { await showPage(btn.dataset.page!); });
     }
 
-    showPage('home');
+    showPage(getHashPage() ?? 'home');
 }
 
 /**

@@ -120,6 +120,36 @@ describe('dataClient fetch helpers', () => {
     });
 
     describe('fetchData', () => {
+        it('rejects stale data responses after the dataset request scope is invalidated', async () => {
+            const { fetchData } = await import('./dataClient');
+            const { invalidateDatasetRequestScope, __resetApiRequestStateForTests } = await import('./services/api/http.js');
+
+            __resetApiRequestStateForTests();
+
+            let resolveBuffer!: (value: ArrayBuffer) => void;
+            const bufferPromise = new Promise<ArrayBuffer>((resolve) => {
+                resolveBuffer = resolve;
+            });
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([
+                    ['x-edatime-downsampled', '0'],
+                    ['x-edatime-returned-rows', '3'],
+                    ['x-edatime-target-points', '1000'],
+                    ['x-edatime-time-column', 'event_time'],
+                ]),
+                arrayBuffer: () => bufferPromise,
+            });
+
+            const pending = fetchData('1704067200000', '1706745600000', 1000, 'value');
+
+            invalidateDatasetRequestScope();
+
+            resolveBuffer(new ArrayBuffer(100));
+
+            await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+        });
+
         it('reads the original timestamp column from the Arrow schema', async () => {
             const { fetchData } = await import('./dataClient');
 

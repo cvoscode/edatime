@@ -167,17 +167,14 @@ describe('createAnalysisPageRuntime', () => {
     });
 
     it('statusElId is accepted without breaking mount or empty-state', () => {
-        document.body.innerHTML = `<div id="heatmap-empty-state"></div><div id="heatmap-status"></div>`;
+        document.body.innerHTML = `<div id="heatmap-empty-state"></div>`;
         const runtime = createAnalysisPageRuntime({
             page: 'heatmap',
             emptyStateRootId: 'heatmap-empty-state',
-            statusElId: 'heatmap-status',
         });
         runtime.mount();
         runtime.updateEmptyState({ visible: true, reason: 'no-data', title: '', message: '' });
-        runtime.updateStatus('5 columns loaded');
         expect(document.getElementById('heatmap-empty-state')!.getAttribute('data-empty-reason')).toBe('no-data');
-        expect(document.getElementById('heatmap-status')!.textContent).toBe('5 columns loaded');
     });
 
     it('bindExports() calls bindExportButtons with the configured exportConfig', async () => {

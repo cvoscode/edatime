@@ -40,13 +40,13 @@ import {
     setPreviewSelectedColumns,
     setPreviewTimeColumn,
 } from '../store/index.js';
-import { buildMetaBar } from './metaBar.js';
 import { toast } from '../utils/toast.js';
 import type { DatasetMetadata } from '../types.js';
 
 interface UploadPanelDeps {
     buildColumnToggles: () => void;
     buildRangeControls: () => void;
+    refreshDatasetAfterMutation?: () => Promise<void>;
 }
 
 function notify(message: string, kind: 'success' | 'error' | 'warning' | 'info'): void {
@@ -73,6 +73,7 @@ export function initUploadPanel(
     const timeStartInput = document.getElementById('time-start-input') as HTMLInputElement | null;
     const timeEndInput = document.getElementById('time-end-input') as HTMLInputElement | null;
     const uploadBtn = document.getElementById('upload-btn') as HTMLButtonElement | null;
+    const uploadStatus = document.getElementById('upload-status') as HTMLElement | null;
     const progressWrap = document.getElementById('progress-wrap') as HTMLElement | null;
     const progressBar = document.getElementById('progress-bar') as HTMLElement | null;
     const selectAllBtn = document.getElementById('profile-select-all-btn');
@@ -210,17 +211,19 @@ export function initUploadPanel(
 
     // If no preview is active and we have no metadata yet, fetch existing dataset state
     if (!appState.metadata) {
-        import('../services/api/index.js').then(({ fetchMetadata }) => {
-            fetchMetadata().then((freshMetadata) => {
+        void import('../services/api/index.js').then(async ({ fetchMetadata }) => {
+            try {
+                const freshMetadata = await fetchMetadata();
                 if (freshMetadata) {
                     setMetadata(freshMetadata);
                     const revision = freshMetadata?.revision;
                     setDatasetRevision(typeof revision === 'number' ? revision : 0);
                     hydrateColumnProfiles(freshMetadata);
                     renderColumnProfilesGrid(true);
-                    buildMetaBar(freshMetadata);
                 }
-            }).catch((err) => { console.error('[upload] metadata fetch error:', err); });
+            } catch (err) {
+                console.error('[upload] metadata fetch error:', err);
+            }
         });
     }
 
@@ -258,7 +261,7 @@ export function initUploadPanel(
             timeStartInput: timeStartInput,
             timeEndInput: timeEndInput,
             uploadBtn: uploadBtn!,
-            statusEl: null,
+            statusEl: uploadStatus,
             progressWrap: progressWrap!,
             progressBar: progressBar!,
             fileInput: fileInput!,

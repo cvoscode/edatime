@@ -1,83 +1,80 @@
-export function wireSampleDatasetCards(showPage: (page: string) => void): void {
+export function wireSampleDatasetCards(
+    showPage: (page: string) => void,
+    refreshDatasetAfterMutation?: () => Promise<void>,
+): void {
     document.querySelectorAll<HTMLElement>('[data-sample-dataset]').forEach((element) => {
         element.addEventListener('click', () => {
             const dataset = element.dataset.sampleDataset;
             if (dataset) {
-                void loadSampleDataset(dataset, showPage);
+                void loadSampleDataset(dataset, showPage, refreshDatasetAfterMutation);
             }
         });
     });
 }
 
-async function loadSampleDataset(datasetId: string, showPage: (pageName: string) => void): Promise<void> {
+async function loadSampleDataset(
+    datasetId: string,
+    showPage: (pageName: string) => void,
+    refreshDatasetAfterMutation?: () => Promise<void>,
+): Promise<void> {
     const { toast } = await import('../../utils/toast.js');
-    const { fetchSampleDataset } = await import('../../services/api/index.js');
+    const { fetchSampleDataset, uploadDataset } = await import('../../services/api/index.js');
 
-    if (datasetId === 'ettm2') {
-        const dismissLoading = toast('Loading ETTm2 sample dataset…', 'info', 0);
+    const labels: Record<string, string> = {
+        ettm2: 'ETTm2',
+        sinusoidal: 'Sinusoidal Waves',
+        weather: 'Weather Patterns',
+    };
+    const label = labels[datasetId] || 'Sample';
+    const loadingToast = toast(`Loading ${label} sample dataset…`, 'info', 0);
+    const dismissLoading = typeof loadingToast === 'function' ? loadingToast : () => { };
 
+    try {
         let file: File;
-        try {
+        if (datasetId === 'ettm2') {
             const blob = await fetchSampleDataset('ETTm2.csv');
             file = new File([blob], 'ETTm2.csv', { type: 'text/csv' });
-        } catch (err) {
+        } else if (datasetId === 'sinusoidal') {
+            file = new File([generateSinusoidalCsv()], 'sinusoidal.csv', { type: 'text/csv' });
+        } else if (datasetId === 'weather') {
+            file = new File([generateWeatherCsv()], 'weather.csv', { type: 'text/csv' });
+        } else {
             dismissLoading();
-            toast(`Could not load ETTm2: ${err}`, 'error');
+            toast(`Unknown sample dataset: ${datasetId}`, 'error');
             return;
         }
 
-        const homePage = document.getElementById('page-home');
-        if (homePage) homePage.hidden = true;
-        showPage('upload');
+        const formData = new FormData();
+        formData.append('file', file);
 
-        await new Promise<void>((resolve) => setTimeout(resolve, 50));
-        const fileInput = document.getElementById('file-upload') as HTMLInputElement | null;
-        if (fileInput) {
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
-            fileInput.files = dataTransfer.files;
-            fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+        const response = await uploadDataset(formData);
+        if (!response.ok) {
+            const text = await response.text();
+            let message = text;
+            try {
+                const parsed = JSON.parse(text);
+                if (parsed && typeof parsed.error === 'string' && parsed.error.trim().length > 0) {
+                    message = parsed.error;
+                }
+            } catch {
+                // Keep the raw response text when the backend did not return JSON.
+            }
             dismissLoading();
-        } else {
-            dismissLoading();
-            toast('Upload panel not ready. Please navigate to Upload and drop the file manually.', 'error');
+            toast(`Could not load ${label}: ${message}`, 'error');
+            return;
         }
-    } else if (datasetId === 'sinusoidal') {
-        const dismissLoading = toast('Loading Sinusoidal Waves sample dataset…', 'info', 0);
-        const file = new File([generateSinusoidalCsv()], 'sinusoidal.csv', { type: 'text/csv' });
-        const homePage = document.getElementById('page-home');
-        if (homePage) homePage.hidden = true;
-        showPage('upload');
-        await new Promise<void>((resolve) => setTimeout(resolve, 50));
-        const fileInput = document.getElementById('file-upload') as HTMLInputElement | null;
-        if (fileInput) {
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
-            fileInput.files = dataTransfer.files;
-            fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-            dismissLoading();
-        } else {
-            dismissLoading();
-            toast('Upload panel not ready.', 'error');
+
+        const result = await response.json().catch(() => ({}));
+        if (refreshDatasetAfterMutation) {
+            await refreshDatasetAfterMutation();
         }
-    } else if (datasetId === 'weather') {
-        const dismissLoading = toast('Loading Weather Patterns sample dataset…', 'info', 0);
-        const file = new File([generateWeatherCsv()], 'weather.csv', { type: 'text/csv' });
-        const homePage = document.getElementById('page-home');
-        if (homePage) homePage.hidden = true;
-        showPage('upload');
-        await new Promise<void>((resolve) => setTimeout(resolve, 50));
-        const fileInput = document.getElementById('file-upload') as HTMLInputElement | null;
-        if (fileInput) {
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
-            fileInput.files = dataTransfer.files;
-            fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-            dismissLoading();
-        } else {
-            dismissLoading();
-            toast('Upload panel not ready.', 'error');
-        }
+        dismissLoading();
+        const rows = Number((result as { rows?: number })?.rows || 0);
+        toast(rows > 0 ? `${rows.toLocaleString()} rows loaded. Dataset ready.` : `${label} sample dataset loaded.`, 'success', {});
+        showPage('timeseries');
+    } catch (err) {
+        dismissLoading();
+        toast(`Could not load ${label}: ${err}`, 'error');
     }
 }
 

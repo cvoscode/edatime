@@ -7,7 +7,7 @@
 
 import { registerChartType } from '../../charts/registry.js';
 import { FallbackChart } from '../../charts/fallback.js';
-import type { ChartInstance } from '../../types.js';
+import type { ChartInstance, ViewSnapshot } from '../../types.js';
 
 export interface ChartModules {
     fetchMetadata: (signal?: AbortSignal) => Promise<import('../../types.js').DatasetMetadata>;
@@ -16,7 +16,7 @@ export interface ChartModules {
     postTransform: (expression: string, outputName: string) => Promise<import('../../types.js').TransformResponse>;
     DataChartCtor: (new (
         containerId: string,
-        onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null,
+        onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
         onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null,
         onZoomOutCb: (() => void) | null,
     ) => ChartInstance) | null;
@@ -26,7 +26,7 @@ let modules: ChartModules | null = null;
 let pending: Promise<ChartModules> | null = null;
 
 export interface BootstrapChartCallbacks {
-    onZoom: ((start: number, end: number, sourceKind: string) => void) | null;
+    onZoom: ((view: ViewSnapshot, sourceKind: string) => void) | null;
     onYRange: ((min: number, max: number, sourceKind: string) => void) | null;
     onZoomOut: (() => void) | null;
 }

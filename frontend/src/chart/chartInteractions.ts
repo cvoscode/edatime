@@ -24,6 +24,11 @@ export interface GridLayout {
     bottom: number;
 }
 
+export interface NumericRange {
+    min: number;
+    max: number;
+}
+
 /* ── Selection box ─────────────────────────────────────── */
 
 const SELECTION_BOX_CSS =
@@ -143,6 +148,42 @@ export function dragToDataRange(
     return { min: newMin, max: newMax };
 }
 
+export function dragToViewport(
+    drag: DragState,
+    containerWidth: number,
+    containerHeight: number,
+    grid: GridLayout,
+    xRange: NumericRange,
+    yRange: NumericRange,
+    minDragPx = 8,
+): { xMin: number; xMax: number; yMin: number; yMax: number } | null {
+    const dx = Math.abs(drag.endX - drag.startX);
+    const dy = Math.abs(drag.endY - drag.startY);
+    if (dx < minDragPx || dy < minDragPx) return null;
+
+    const plotLeft = grid.left;
+    const plotRight = Math.max(plotLeft + 1, containerWidth - grid.right);
+    const plotTop = grid.top;
+    const plotBottom = Math.max(plotTop + 1, containerHeight - grid.bottom);
+    const plotWidth = Math.max(1, plotRight - plotLeft);
+    const plotHeight = Math.max(1, plotBottom - plotTop);
+
+    const x0 = Math.max(plotLeft, Math.min(drag.startX, drag.endX));
+    const x1 = Math.min(plotRight, Math.max(drag.startX, drag.endX));
+    const y0 = Math.max(plotTop, Math.min(drag.startY, drag.endY));
+    const y1 = Math.min(plotBottom, Math.max(drag.startY, drag.endY));
+
+    const xSpan = xRange.max - xRange.min;
+    const ySpan = yRange.max - yRange.min;
+    const xMin = xRange.min + ((x0 - plotLeft) / plotWidth) * xSpan;
+    const xMax = xRange.min + ((x1 - plotLeft) / plotWidth) * xSpan;
+    const yMax = yRange.max - ((y0 - plotTop) / plotHeight) * ySpan;
+    const yMin = yRange.max - ((y1 - plotTop) / plotHeight) * ySpan;
+
+    if (xMax <= xMin || yMax <= yMin) return null;
+    return { xMin, xMax, yMin, yMax };
+}
+
 /**
  * Ensure a container has a non-static position so overlays work.
  */
@@ -154,10 +195,10 @@ export function ensureRelativePosition(container: HTMLElement): void {
 
 /* ── Composed box-zoom wiring ──────────────────────────── */
 
-export interface BoxZoomOptions {
+export interface XOnlyBoxZoomOptions {
     container: HTMLElement;
     grid: GridLayout;
-    getXRange: () => { min: number; max: number };
+    getXRange: () => NumericRange;
     onZoom: (min: number, max: number) => void;
     /** Return true to skip drag start (e.g. drawing mode active) */
     shouldIgnore?: (e: PointerEvent) => boolean;
@@ -166,12 +207,25 @@ export interface BoxZoomOptions {
     onDblClick?: () => void;
 }
 
+export interface ViewportBoxZoomOptions {
+    container: HTMLElement;
+    grid: GridLayout;
+    getXRange: () => NumericRange;
+    getYRange: () => NumericRange;
+    onZoom: (view: { xMin: number; xMax: number; yMin: number; yMax: number }) => void;
+    shouldIgnore?: (e: PointerEvent) => boolean;
+    onClick?: (cssX: number, cssY: number) => void;
+    onDblClick?: () => void;
+}
+
+export type BoxZoomOptions = XOnlyBoxZoomOptions | ViewportBoxZoomOptions;
+
 /**
  * Wire up the full box-selection-zoom pattern on a chart container.
  * Returns the selection box element for external reference.
  */
 export function initBoxZoom(opts: BoxZoomOptions): HTMLElement {
-    const { container, grid, getXRange, onZoom, shouldIgnore, onClick, onDblClick } = opts;
+    const { container, grid, getXRange, shouldIgnore, onClick, onDblClick } = opts;
     ensureRelativePosition(container);
     const selectionBox = createSelectionBox(container);
     let drag: DragState | null = null;
@@ -198,11 +252,22 @@ export function initBoxZoom(opts: BoxZoomOptions): HTMLElement {
 
         const rect = container.getBoundingClientRect();
         const dx = Math.abs(d.endX - d.startX);
-        const { min: xMin, max: xMax } = getXRange();
-
         if (dx >= 8) {
-            const range = dragToDataRange(d, rect.width, grid, xMin, xMax);
-            if (range) onZoom(range.min, range.max);
+            if ('getYRange' in opts) {
+                const viewport = dragToViewport(
+                    d,
+                    rect.width,
+                    rect.height,
+                    grid,
+                    getXRange(),
+                    opts.getYRange(),
+                );
+                if (viewport) opts.onZoom(viewport);
+            } else {
+                const { min: xMin, max: xMax } = getXRange();
+                const range = dragToDataRange(d, rect.width, grid, xMin, xMax);
+                if (range) opts.onZoom(range.min, range.max);
+            }
         } else if (dx < 4 && onClick) {
             onClick(d.startX, d.startY);
         }

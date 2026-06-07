@@ -11,7 +11,6 @@ const {
     setUploadPreviewStatusMock,
     setProfileModeMock,
     applyPartialTimeRangeFromMetadataMock,
-    importedSetMetaTextMock,
 } = vi.hoisted(() => {
     const fakeState: Record<string, any> = {
         metadata: null,
@@ -31,7 +30,6 @@ const {
         setUploadPreviewStatusMock: vi.fn(),
         setProfileModeMock: vi.fn(),
         applyPartialTimeRangeFromMetadataMock: vi.fn(),
-        importedSetMetaTextMock: vi.fn(),
     };
 });
 
@@ -58,10 +56,6 @@ vi.mock('../../ui/upload.js', () => ({
     setUploadPreviewStatus: setUploadPreviewStatusMock,
     setProfileMode: setProfileModeMock,
     applyPartialTimeRangeFromMetadata: applyPartialTimeRangeFromMetadataMock,
-}));
-
-vi.mock('../../ui/metaBar.js', () => ({
-    setMetaText: importedSetMetaTextMock,
 }));
 
 vi.mock('../../debug.js', () => ({
@@ -93,7 +87,6 @@ function createDeps(overrides: Partial<DatasetBootstrapDeps> = {}): DatasetBoots
         getNumericColumns: vi.fn(() => ['value']),
         getDefaultTimeseriesColumns: vi.fn(() => ['value']),
         rebuildTimeseriesColumns: vi.fn(),
-        buildMetaBar: vi.fn(),
         setAdaptiveFilterColumn: vi.fn(),
         getSelectedCols: vi.fn(() => fakeState.selectedCols),
         setSelectedCols: vi.fn((cols: string[]) => {
@@ -101,7 +94,6 @@ function createDeps(overrides: Partial<DatasetBootstrapDeps> = {}): DatasetBoots
         }),
         timeseriesFeatureInit: vi.fn(),
         ensureSessionPersistenceStarted: vi.fn(),
-        setMetaText: vi.fn(),
         setViewport: vi.fn(),
         updateAnalysisZoom: vi.fn(),
         emitChartRangeChange: vi.fn(),
@@ -129,7 +121,6 @@ describe('createDatasetBootstrap', () => {
         setUploadPreviewStatusMock.mockClear();
         setProfileModeMock.mockClear();
         applyPartialTimeRangeFromMetadataMock.mockClear();
-        importedSetMetaTextMock.mockClear();
     });
 
     it('uses the injected storeFetchedMetadata and markMetadataReady callbacks during dataset bootstrap', async () => {
@@ -154,19 +145,49 @@ describe('createDatasetBootstrap', () => {
         expect(hydrateColumnProfilesMock).not.toHaveBeenCalled();
     });
 
-    it('uses the injected setMetaText callback when metadata has no time range', async () => {
+    it('reuses initializeDatasetUi and refreshes visible data after a dataset mutation', async () => {
         const createDatasetBootstrap = await importCreateDatasetBootstrap();
         const deps = createDeps({
-            fetchMetadata: vi.fn().mockResolvedValue({
-                ...baseMetadata,
-                time_range: null,
-            }),
+            initializeDatasetUi: vi.fn(),
+            refreshVisibleData: vi.fn().mockResolvedValue(undefined),
+        });
+        const bootstrap = createDatasetBootstrap(deps);
+        isMetadataReadyMock.mockReturnValue(true);
+
+        await bootstrap.refreshAfterMutation();
+
+        expect(deps.storeFetchedMetadata).toHaveBeenCalledWith(baseMetadata);
+        expect(deps.markMetadataReady).toHaveBeenCalledTimes(1);
+        expect(deps.initializeDatasetUi).toHaveBeenCalledWith(baseMetadata);
+        expect(deps.refreshVisibleData).toHaveBeenCalledTimes(1);
+    });
+
+    it('starts a fresh metadata bootstrap when a dataset mutation happens during initial bootstrap', async () => {
+        const createDatasetBootstrap = await importCreateDatasetBootstrap();
+        let resolveInitialMetadata!: (metadata: typeof baseMetadata) => void;
+        const initialMetadata = new Promise<typeof baseMetadata>((resolve) => {
+            resolveInitialMetadata = resolve;
+        });
+        const freshMetadata = { ...baseMetadata, revision: 43 };
+        const deps = createDeps({
+            fetchMetadata: vi.fn()
+                .mockReturnValueOnce(initialMetadata)
+                .mockResolvedValueOnce(freshMetadata),
         });
         const bootstrap = createDatasetBootstrap(deps);
 
-        await bootstrap.ensureDatasetReady();
+        const initialBootstrap = bootstrap.ensureDatasetReady();
+        await Promise.resolve();
 
-        expect(deps.setMetaText).toHaveBeenCalledWith('No valid time range found.');
-        expect(importedSetMetaTextMock).not.toHaveBeenCalled();
+        const refresh = bootstrap.refreshAfterMutation();
+        await Promise.resolve();
+
+        expect(deps.fetchMetadata).toHaveBeenCalledTimes(2);
+        resolveInitialMetadata(baseMetadata);
+
+        await refresh;
+        await expect(initialBootstrap).rejects.toMatchObject({ name: 'AbortError' });
+
+        expect(deps.storeFetchedMetadata).toHaveBeenCalledWith(freshMetadata);
     });
 });

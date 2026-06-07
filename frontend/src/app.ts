@@ -17,7 +17,6 @@
 
 import { DEBUG, dbg, dbgGroup } from './debug.js';
 import { appState } from './store/appStateCompat.js';
-import { buildMetaBar } from './ui/metaBar.js';
 import { showBootstrapError } from './ui/errorUI.js';
 import { hydrateColumnProfiles, renderColumnProfilesGrid } from './ui/profile.js';
 import { installWindowsWebGpuRequestAdapterWorkaround } from './utils/platform.js';
@@ -44,7 +43,7 @@ import {
     zoomOut, resetZoom,
     setComputeLoading,
 } from './ui/toolbar.js';
-import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, ChartInstance } from './types.js';
+import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, ChartInstance, ViewSnapshot } from './types.js';
 
 import {
     setAdaptiveFilterColumn,
@@ -84,7 +83,7 @@ let fetchMetadata: ((signal?: AbortSignal) => Promise<DatasetMetadata>) | null =
 let fetchData: ((start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<DataObject>) | null = null;
 let fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null = null;
 let postTransform: ((expression: string, outputName: string) => Promise<TransformResponse>) | null = null;
-let DataChartCtor: (new (containerId: string, onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null = null;
+let DataChartCtor: (new (containerId: string, onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null = null;
 let _sessionPersistenceStarted = false;
 
 async function ensureChartModules(): Promise<void> {
@@ -115,8 +114,6 @@ function ensureSessionPersistenceStarted(): void {
 
 async function init(): Promise<void> {
     installWindowsWebGpuRequestAdapterWorkaround();
-    buildMetaBar(null);
-
     // Load chart modules first, then create the timeseries module once
     await ensureChartModules();
 
@@ -135,10 +132,7 @@ async function init(): Promise<void> {
         setViewport,
         updateAnalysisYRange,
         updateAnalysisZoom,
-        getCurrentView: () => {
-            const snap = getCurrentView();
-            return { start: snap.xMin ?? 0, end: snap.xMax ?? 0 };
-        },
+        getCurrentView,
         fetchAndRenderAnalytics,
         refreshZoomControlsState,
         zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),

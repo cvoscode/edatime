@@ -1,6 +1,8 @@
 import type { ScatterFetchOptions, ScatterPointsResponse, ScatterCorrelationsResponse } from '../../types.js';
 import {
+    assertDatasetRequestScopeActive,
     getJson,
+    captureDatasetRequestScope,
     ensureArrowParser,
     assertScatterPoints,
     assertScatterCorrelations,
@@ -16,6 +18,7 @@ export async function fetchScatterPoints(
     options: ScatterFetchOptions | null = null,
     signal?: AbortSignal,
 ): Promise<ScatterPointsResponse> {
+    const requestScope = captureDatasetRequestScope();
     const payload: Record<string, unknown> = {
         x: String(x),
         y: String(y),
@@ -46,6 +49,7 @@ export async function fetchScatterPoints(
         body: JSON.stringify(payload),
         signal,
     });
+    assertDatasetRequestScopeActive(requestScope);
     if (!res.ok) {
         const text = await res.text().catch(() => '');
         throw new Error(`Scatter points failed (${res.status}) ${text}`);
@@ -55,6 +59,7 @@ export async function fetchScatterPoints(
     if (ct.includes('apache-arrow') || ct.includes('arrow.stream')) {
         // Arrow IPC response: x, y, color columns → ScatterPointsResponse
         const buffer = await res.arrayBuffer();
+        assertDatasetRequestScopeActive(requestScope);
         const tableFromIPC = await ensureArrowParser();
         const table = tableFromIPC(buffer);
 
@@ -98,6 +103,7 @@ export async function fetchScatterPoints(
 
     // Fallback: JSON
     const data = await res.json();
+    assertDatasetRequestScopeActive(requestScope);
     assertScatterPoints(data);
     return data;
 }

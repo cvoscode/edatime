@@ -85,43 +85,5 @@ header {
   border-color: rgba(255, 255, 255, 0.10);
 }
 
-.meta-stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  font-size: 0.75rem;
-  color: var(--text-dim);
-  transition: all 0.2s ease;
-}
-
-.meta-stat:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
-}
-
-.meta-stat svg {
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
-  color: var(--text-muted);
-}
-
-.meta-stat strong {
-  color: var(--text);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.meta-stat.live::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  background: var(--green);
-  border-radius: 50%;
   animation: pulse 2s infinite;
 }

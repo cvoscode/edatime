@@ -216,17 +216,9 @@ export function applyScatterStateFromCache(resetView = true): void {
 /* ── Stats display ────────────────────────────────────── */
 
 export function setStats(partial: Record<string, string | number | null | undefined>): void {
-    const totalEl = getEl('scatter-total-points');
-    const visibleEl = getEl('scatter-binned-points');
     const pearsonEl = getEl('scatter-pearson');
     const spearmanEl = getEl('scatter-spearman');
 
-    if (Object.prototype.hasOwnProperty.call(partial, 'totalPoints') && totalEl) {
-        totalEl.textContent = `Total points: ${partial.totalPoints ?? '—'}`;
-    }
-    if (Object.prototype.hasOwnProperty.call(partial, 'visiblePoints') && visibleEl) {
-        visibleEl.textContent = `Visible points: ${partial.visiblePoints ?? '—'}`;
-    }
     if (Object.prototype.hasOwnProperty.call(partial, 'pearson') && pearsonEl) {
         pearsonEl.textContent = `Pearson: ${partial.pearson ?? '—'}`;
     }

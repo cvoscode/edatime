@@ -36,12 +36,10 @@ vi.mock('../app/pageLifecycle.js', () => ({
 
 describe('heatmapPage', () => {
     let container: HTMLDivElement;
-    let statusEl: HTMLDivElement;
     let emptyStateEl: HTMLDivElement;
 
     beforeEach(() => {
         document.body.innerHTML = `
-            <div id="heatmap-status"></div>
             <div id="heatmap-container"></div>
             <div id="heatmap-empty-state"></div>
             <div id="heatmap-metric"></div>
@@ -49,7 +47,6 @@ describe('heatmapPage', () => {
             <div id="heatmap-cell-size-value"></div>
         `;
         container = document.getElementById('heatmap-container') as HTMLDivElement;
-        statusEl = document.getElementById('heatmap-status') as HTMLDivElement;
         emptyStateEl = document.getElementById('heatmap-empty-state') as HTMLDivElement;
     });
 

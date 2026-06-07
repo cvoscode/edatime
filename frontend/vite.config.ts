@@ -37,6 +37,7 @@ export default defineConfig({
         entryFileNames: '[name].js',
         // Vendor + page-level code splitting
         manualChunks(id) {
+          if (id.includes('/utils/settings.')) return 'settings';
           if (id.includes('chartgpu')) return 'chartgpu';
           if (id.includes('apache-arrow') || id.includes('apache_arrow')) return 'arrow';
           if (id.includes('echarts')) return 'echarts';

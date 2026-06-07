@@ -11,7 +11,7 @@ import { formatTwoDecimals } from '../formatUtils.js';
 import { appState } from '../store/appStateCompat.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
 import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
-import type { AdaptiveLineFilter, ChartTextOverlays, DataObject, FilteredDataObject } from '../types.js';
+import type { AdaptiveLineFilter, ChartTextOverlays, DataObject, FilteredDataObject, ViewSnapshot } from '../types.js';
 import {
     type ChartGPUOptions,
     type ChartGPUCrosshairMovePayload,
@@ -66,7 +66,7 @@ const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
 
 export class DataChart {
     containerId: string;
-    onZoomCallback: ((start: number, end: number, sourceKind: string) => void) | null;
+    onZoomCallback: ((view: ViewSnapshot, sourceKind: string) => void) | null;
     onYRangeCallback: ((min: number, max: number, sourceKind: string) => void) | null;
     onZoomOutCallback: (() => void) | null;
     chartInstance: ChartInstanceAPI | null = null;
@@ -105,7 +105,7 @@ export class DataChart {
 
     constructor(
         containerId: string,
-        onZoomCallback: ((start: number, end: number, sourceKind: string) => void) | null,
+        onZoomCallback: ((view: ViewSnapshot, sourceKind: string) => void) | null,
         onYRangeCallback: ((min: number, max: number, sourceKind: string) => void) | null = null,
         onZoomOutCallback: (() => void) | null = null,
     ) {
@@ -236,6 +236,8 @@ export class DataChart {
 
     async init(): Promise<void> {
         const container = document.getElementById(this.containerId);
+        if (!container) throw new Error(`Chart container not found: ${this.containerId}`);
+        container.replaceChildren();
         this._container = container;
         const chartOptions: Record<string, unknown> = {
             animation: false,
@@ -248,7 +250,7 @@ export class DataChart {
         const powerPreference = defaultGpuPowerPreference();
         if (powerPreference) chartOptions.powerPreference = powerPreference;
         try {
-            this.chartInstance = await createChart(container!, chartOptions as unknown as ChartGPUOptions);
+            this.chartInstance = await createChart(container, chartOptions as unknown as ChartGPUOptions);
         } catch (e) {
             console.error('[edatime:chart] init failed:', e);
             this.chartInstance = null;
@@ -256,7 +258,7 @@ export class DataChart {
         }
         this._chartResizeObserver?.disconnect();
         this._chartResizeObserver = new ResizeObserver(() => this.resize());
-        this._chartResizeObserver.observe(container!);
+        this._chartResizeObserver.observe(container);
         this._initDrawingOverlay();
         this._initTextOverlays();
         this._initMouseSelectionZoom();
@@ -704,8 +706,7 @@ export class DataChart {
         if (!this._overlayCtx || !this._overlayCanvas) return;
         const ctx = this._overlayCtx;
         ctx.clearRect(0, 0, this._overlayCanvas.width, this._overlayCanvas.height);
-        const dpr = window.devicePixelRatio || 1;
-        this._overlays?.renderAll(ctx, { x: dpr, y: dpr });
+        this._overlays?.renderAll(ctx, { x: 1, y: 1 });
         const allDraws = [...this._drawings];
         if (this._currentDraw) allDraws.push(this._currentDraw);
         for (const item of allDraws) {
@@ -1043,7 +1044,8 @@ export class DataChart {
             container,
             grid: CHART_GRID,
             getXRange: () => ({ min: this._xMin ?? 0, max: this._xMax ?? 0 }),
-            onZoom: (min, max) => this.onZoomCallback?.(min, max, 'user'),
+            getYRange: () => this.getYRange?.() ?? { min: 0, max: 0 },
+            onZoom: (view) => this.onZoomCallback?.(view, 'user'),
             shouldIgnore: (e) => this._drawMode !== 'none' || e.ctrlKey,
             onDblClick: () => this.onZoomOutCallback?.(),
         });

@@ -4,6 +4,13 @@ import type { DatasetMetadata, ScatterPointsResponse, ScatterCorrelationsRespons
 // ── Inflight request deduplication ─────────────────────────────────────────
 
 const inflight = new Map<string, Promise<unknown>>();
+let datasetRequestScope = 0;
+
+function createStaleDatasetError(): Error {
+    const error = new Error('Stale response ignored after dataset change');
+    error.name = 'AbortError';
+    return error;
+}
 
 function dedupe<T>(key: string, factory: () => Promise<T>): Promise<T> {
     const existing = inflight.get(key);
@@ -11,6 +18,27 @@ function dedupe<T>(key: string, factory: () => Promise<T>): Promise<T> {
     const promise = factory().finally(() => inflight.delete(key));
     inflight.set(key, promise);
     return promise;
+}
+
+export function captureDatasetRequestScope(): number {
+    return datasetRequestScope;
+}
+
+export function assertDatasetRequestScopeActive(scope: number): void {
+    if (scope !== datasetRequestScope) {
+        throw createStaleDatasetError();
+    }
+}
+
+export function invalidateDatasetRequestScope(): number {
+    datasetRequestScope += 1;
+    inflight.clear();
+    return datasetRequestScope;
+}
+
+export function __resetApiRequestStateForTests(): void {
+    inflight.clear();
+    datasetRequestScope = 0;
 }
 
 // ── Arrow helpers (shared between timeseries and scatter) ──────────────────
@@ -110,13 +138,17 @@ function assertScatterCorrelations(data: unknown): asserts data is ScatterCorrel
 
 function getJson<T>(url: string, label: string, signal?: AbortSignal): Promise<T> {
     dbg(`GET (${label})`, url);
-    return dedupe(`GET:${url}`, async () => {
+    const scope = captureDatasetRequestScope();
+    return dedupe(`GET:${scope}:${url}`, async () => {
         const res = await globalThis.fetch(url, signal ? { signal, cache: 'no-store' } : { cache: 'no-store' });
+        assertDatasetRequestScopeActive(scope);
         if (!res.ok) {
             const text = await res.text().catch(() => '');
             throw new Error(`${label} failed (${res.status}) ${text}`);
         }
-        return res.json() as T;
+        const data = await res.json() as T;
+        assertDatasetRequestScopeActive(scope);
+        return data;
     });
 }
 

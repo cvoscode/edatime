@@ -7,6 +7,11 @@
 import type { DatasetMetadata } from '../../types.js';
 import { isMetadataReady } from '../pageRegistry.js';
 import { DEBUG, dbg, dbgGroup } from '../../debug.js';
+import {
+    assertDatasetRequestScopeActive,
+    captureDatasetRequestScope,
+    invalidateDatasetRequestScope,
+} from '../../services/api/http.js';
 
 export interface DatasetBootstrapDeps {
     ensureChartModules: () => Promise<void>;
@@ -22,7 +27,6 @@ export interface DatasetBootstrapDeps {
     getNumericColumns: (metadata: DatasetMetadata) => string[];
     getDefaultTimeseriesColumns: (metadata: DatasetMetadata) => string[];
     rebuildTimeseriesColumns: () => void;
-    buildMetaBar: (metadata: DatasetMetadata) => void;
     onMetadataReady?: () => void;
     emitWorkflowRefresh?: () => void;
     setAdaptiveFilterColumn: (col: string | null) => void;
@@ -30,7 +34,6 @@ export interface DatasetBootstrapDeps {
     setSelectedCols: (cols: string[]) => void;
     timeseriesFeatureInit?: () => void;
     ensureSessionPersistenceStarted?: () => void;
-    setMetaText: (text: string) => void;
     setViewport: (start: number, end: number) => void;
     updateAnalysisZoom: (start: number, end: number, sourceKind: string) => void;
     emitChartRangeChange: (sourceKind?: string) => void;
@@ -50,45 +53,69 @@ let _datasetReadyPromise: Promise<void> | null = null;
  * Call `result.refreshAfterMutation()` to refresh after a data mutation (e.g. upload).
  */
 export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapResult {
+    function syncDatasetSelection(metadata: DatasetMetadata, selectedColumn?: string): void {
+        deps.setNumericCols(deps.getNumericColumns(metadata));
+
+        if (!deps.getSelectedCols().length) {
+            deps.setSelectedCols(deps.getDefaultTimeseriesColumns(metadata));
+        }
+
+        if (selectedColumn) {
+            const next = new Set(deps.getSelectedCols());
+            next.add(selectedColumn);
+            deps.setSelectedCols(Array.from(next));
+        }
+
+        deps.sanitizeSelectedColumns();
+
+        if (!deps.getSelectedCols().length) {
+            deps.setSelectedCols(deps.getDefaultTimeseriesColumns(metadata));
+            deps.sanitizeSelectedColumns();
+        }
+
+        deps.setAdaptiveFilterColumn(deps.getSelectedCols()[0] || null);
+    }
+
     // ── Bootstrap sequence ───────────────────────────────────────────────
     async function ensureDatasetReady(): Promise<void> {
         if (isMetadataReady()) return;
         if (_datasetReadyPromise) return _datasetReadyPromise;
 
-        _datasetReadyPromise = (async () => {
+        let pending: Promise<void>;
+        pending = (async () => {
+            const requestScope = captureDatasetRequestScope();
             await deps.ensureChartModules();
 
             const metadata = await deps.fetchMetadata();
+            assertDatasetRequestScopeActive(requestScope);
             deps.storeFetchedMetadata(metadata);
             deps.markMetadataReady();
             window.dispatchEvent(new Event('edatime:metadata-ready'));
             if (DEBUG) dbgGroup('metadata', () => dbg(metadata));
 
             if (!metadata.time_range) {
-                deps.setMetaText('No valid time range found.');
                 return;
             }
 
-            deps.setNumericCols(deps.getNumericColumns(metadata));
-
-            const selectedCols = deps.getSelectedCols();
-            if (!selectedCols.length) {
-                deps.setSelectedCols(deps.getDefaultTimeseriesColumns(metadata));
-            }
-            deps.setAdaptiveFilterColumn(deps.getSelectedCols()[0] || null);
-            deps.sanitizeSelectedColumns();
+            syncDatasetSelection(metadata);
 
             deps.initializeDatasetUi(metadata);
         })().catch((error) => {
-            _datasetReadyPromise = null;
+            if (_datasetReadyPromise === pending) {
+                _datasetReadyPromise = null;
+            }
             throw error;
         });
+        _datasetReadyPromise = pending;
 
         return _datasetReadyPromise;
     }
 
     // ── Refresh after mutation ─────────────────────────────────────────────
     async function refreshAfterMutation(options?: { selectedColumn?: string }): Promise<void> {
+        invalidateDatasetRequestScope();
+        _datasetReadyPromise = null;
+
         if (!isMetadataReady()) {
             // If metadata isn't ready yet, run full bootstrap instead
             await ensureDatasetReady();
@@ -99,16 +126,9 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
         const metadata = await deps.fetchMetadata();
         deps.storeFetchedMetadata(metadata);
         deps.markMetadataReady();
-        deps.setNumericCols(deps.getNumericColumns(metadata));
-
-        const selectedColumn = options?.selectedColumn;
-        if (selectedColumn && !deps.getSelectedCols().includes(selectedColumn)) {
-            deps.setSelectedCols([...deps.getSelectedCols(), selectedColumn]);
-        }
-
-        deps.sanitizeSelectedColumns();
+        syncDatasetSelection(metadata, options?.selectedColumn);
+        deps.initializeDatasetUi(metadata);
         deps.rebuildTimeseriesColumns();
-        deps.buildMetaBar(metadata);
         await deps.refreshVisibleData();
     }
 

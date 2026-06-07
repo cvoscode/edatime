@@ -21,6 +21,10 @@
 }
 .page[hidden] { display: none !important; }
 
+.page--analysis-scroll {
+  overflow: auto;
+}
+
 /* ─── Main chart areas ─────────────────────────────────────────── */
 /* Standard chart container with position:relative for overlays */
 .main--chart {
@@ -42,4 +46,9 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.main--analysis-chart {
+  flex: 1 0 360px;
+  min-height: 360px;
 }

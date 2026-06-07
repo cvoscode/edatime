@@ -128,31 +128,6 @@ export const buildAdaptiveLineY = buildAdaptiveLineYImpl;
 
 // ─── Metadata helpers ──────────────────────────────────────────────────────
 
-export function setMetaText(text: string): void {
-    const el = document.getElementById('stat-rows');
-    if (el) el.textContent = text; // Use textContent to prevent XSS
-}
-
-export function buildMetaBar(metadata: { total_rows?: number } | null): void {
-    const rows = metadata?.total_rows?.toLocaleString() ?? '—';
-    const cols = metadata ? String(appState.numericCols?.length ?? 0) : '—';
-
-    const markup = `
-      <div class="meta-stat live"><strong>${rows}</strong> rows</div>
-      <div class="meta-stat"><strong>${cols}</strong> numeric series</div>
-    `;
-
-    const headerMeta = document.getElementById('header-meta');
-    if (headerMeta) {
-        headerMeta.innerHTML = markup;
-    }
-
-    const pageMeta = document.getElementById('timeseries-meta-bar');
-    if (pageMeta) {
-        pageMeta.innerHTML = markup;
-    }
-}
-
 export function sanitizeSelectedColumns(): void {
     const blockedNames = new Set(['ts', 'timestamp', 'time']);
     const datetimeCols = new Set(

@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     appStateComposite,
+    chartState,
     datasetState,
     runtimeState,
     scatterState,
     store,
     uiState,
 } from './index.js';
+import { setChartInstance } from './chartState.js';
 import {
     setColumnRange,
     setPreviewSelectedColumns,
@@ -23,6 +25,7 @@ describe('store contract', () => {
         setPreviewSelectedColumns([]);
         setLastFetchedData(null);
         setRefetchOnZoom(true);
+        setChartInstance(null);
         scatterState.activeView = 'plot';
         scatterState.zoomHistory = [];
         datasetState.metadata = null;
@@ -79,6 +82,30 @@ describe('store contract', () => {
         expect(runtimeState.lastFetchedData).toBe(data);
         expect(runtimeState.refetchOnZoom).toBe(false);
         expect(appStateComposite.lastFetchedData).toBe(data);
+    });
+
+    it('disposes the previous chart instance when replacing it', () => {
+        const previous = {
+            deepDispose: vi.fn(),
+            destroy: vi.fn(),
+        };
+        const next = {};
+
+        setChartInstance(previous as any);
+        setChartInstance(next as any);
+
+        expect(previous.deepDispose).toHaveBeenCalledTimes(1);
+        expect(previous.destroy).not.toHaveBeenCalled();
+        expect(chartState.chart).toBe(next);
+    });
+
+    it('does not dispose a chart when setting the same instance again', () => {
+        const chart = { deepDispose: vi.fn() };
+
+        setChartInstance(chart as any);
+        setChartInstance(chart as any);
+
+        expect(chart.deepDispose).not.toHaveBeenCalled();
     });
 
     it('delegates scatter and profile/upload preview fields from appState', () => {

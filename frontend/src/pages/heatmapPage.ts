@@ -136,7 +136,6 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
     heatmapRuntime = createAnalysisPageRuntime({
         page: 'heatmap',
         emptyStateRootId: 'heatmap-empty-state',
-        statusElId: 'heatmap-status',
         exportConfig: {
             key: 'heatmap',
             png: { fn: exportElementPNG, filename: 'edatime_heatmap.png' },

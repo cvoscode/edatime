@@ -427,27 +427,16 @@ export function resetView(clearHistory = true): void {
 }
 
 export function updateBinnedReadout(): void {
-    if (!appState.scatter.chart || appState.scatter.points.length === 0) { setStats({ visiblePoints: '0' }); return; }
-    const i0 = lowerBoundByX(appState.scatter.points, appState.scatter.view.xMin);
-    const i1 = upperBoundByX(appState.scatter.points, appState.scatter.view.xMax);
-    const visibleCount = Math.max(0, i1 - i0);
-    const text = fmt.format(visibleCount);
-    if (text !== appState.scatter.lastBinnedText) { appState.scatter.lastBinnedText = text; setStats({ visiblePoints: text }); }
+    // No longer updates a dedicated element — visible point count is shown via chart performance callbacks.
 }
 
 export function updateCorrelationStats(): void {
     const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
     const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
-    const pairEl = getEl('scatter-current-pair');
     const openCausalBtn = getEl('scatter-open-causal-btn') as HTMLButtonElement | null;
     const corr = appState.scatter.correlationsByColumn.get(ySelect?.value || '');
     const pearson = Number.isFinite(corr?.pearson) ? corr!.pearson!.toFixed(3) : '—';
     const spearman = Number.isFinite(corr?.spearman) ? corr!.spearman!.toFixed(3) : '—';
-    if (pairEl) {
-        const x = xSelect?.value || 'X';
-        const y = ySelect?.value || 'Y';
-        pairEl.textContent = `Pair: ${x} vs ${y}`;
-    }
     if (openCausalBtn) openCausalBtn.disabled = !(xSelect?.value && ySelect?.value);
     setStats({ pearson, spearman });
     setCorrelationOverlayText(corr?.pearson, corr?.spearman);
@@ -550,6 +539,7 @@ export function syncModeUI(): void {
     toggle(getEl('scatter-color-scale'), isPlot && !isDensity);
     toggle(document.querySelector('.scatter-export-group'), isPlot);
     toggle(document.querySelector('.scatter-stats-bar'), isPlot);
+    toggle(document.querySelector('.scatter-suggestions-bar'), !isMatrix);
     toggle(document.querySelector('.scatter-suggestions-bar'), !isMatrix);
     updateColorbarUI();
 }

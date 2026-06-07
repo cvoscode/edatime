@@ -10,6 +10,7 @@
 
 import { createChart } from '../../libs/chartgpu/dist/index.js';
 import { defaultGpuPowerPreference } from '../utils/platform.js';
+import { EchartsScatterChart } from '../chart/EchartsScatterChart.js';
 import { fetchScatterPoints } from '../services/api/index.js';
 import { appState } from '../store/appStateCompat.js';
 import {
@@ -187,15 +188,19 @@ async function renderScatter(): Promise<void> {
         if (!appState.scatter.chart) {
             const gpuAvailable = await isGPUAvailable();
             if (!gpuAvailable) {
-                appState.scatter.totalPoints = points.length;
-                syncScatterEmptyState();
-                return;
+                setGpuUnavailable(true);
+                const fallbackChart = new EchartsScatterChart('scatter-chart');
+                await fallbackChart.init();
+                appState.scatter.chart = fallbackChart as any;
+            } else {
+                setGpuUnavailable(false);
+                const chartOptions: Record<string, unknown> = { ...nextOption };
+                const powerPreference = defaultGpuPowerPreference();
+                if (powerPreference) chartOptions.powerPreference = powerPreference;
+                appState.scatter.chart = await createChart(container!, chartOptions as any);
             }
-            const chartOptions: Record<string, unknown> = { ...nextOption };
-            const powerPreference = defaultGpuPowerPreference();
-            if (powerPreference) chartOptions.powerPreference = powerPreference;
-            appState.scatter.chart = await createChart(container!, chartOptions as any);
             appState.scatter.lastRenderSignature = renderSignature;
+            appState.scatter.chart.setOption(nextOption);
             initSelectionZoom(container!);
             appState.scatter.chart.onPerformanceUpdate?.(() => {
                 const now = performance.now();

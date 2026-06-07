@@ -13,15 +13,14 @@ import { hydrateColumnProfiles, renderColumnProfilesGrid } from '../ui/profile.j
 import { applyPartialTimeRangeFromMetadata, setProfileMode, setUploadPreviewStatus } from '../ui/upload.js';
 import { setDatasetRevision, setMetadata } from '../store/index.js';
 import { getNumericColumns, getDefaultTimeseriesColumns } from './analyticsPageUtils.js';
-import { buildMetaBar, setMetaText } from '../ui/metaBar.js';
-import type { DatasetMetadata } from '../types.js';
+import type { DatasetMetadata, ViewSnapshot } from '../types.js';
 
 export interface TimeseriesModuleDeps {
     fetchData: (start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<import('../types.js').DataObject>;
     fetchMetadata: () => Promise<DatasetMetadata>;
     DataChartCtor: new (
         containerId: string,
-        onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null,
+        onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
         onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null,
         onZoomOutCb: (() => void) | null,
     ) => import('../types.js').ChartInstance;
@@ -36,7 +35,7 @@ export interface TimeseriesModuleDeps {
     setViewport: (start: number, end: number) => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
-    getCurrentView: () => { start: number; end: number };
+    getCurrentView: () => ViewSnapshot;
     fetchAndRenderAnalytics: () => Promise<void>;
     refreshZoomControlsState: () => void;
     zoomOut: () => void;
@@ -87,7 +86,6 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         setProfileMode('dataset');
         feature.rebuildColumns();
         feature.buildRangeControls();
-        buildMetaBar(metadata);
         window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
 
         const timeRange = metadata.time_range;
@@ -113,12 +111,10 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         getNumericColumns: (metadata: DatasetMetadata) => getNumericColumns(metadata),
         getDefaultTimeseriesColumns: (metadata: DatasetMetadata) => getDefaultTimeseriesColumns(metadata),
         rebuildTimeseriesColumns: () => feature.rebuildColumns(),
-        buildMetaBar: (metadata: DatasetMetadata) => buildMetaBar(metadata),
         timeseriesFeatureInit: () => feature.init(),
         ensureSessionPersistenceStarted: deps.ensureSessionPersistenceStarted,
         setViewport: deps.setViewport,
         updateAnalysisZoom: deps.updateAnalysisZoom,
-        setMetaText,
         emitWorkflowRefresh: () => { window.dispatchEvent(new CustomEvent('edatime:workflow-refresh')); },
         emitChartRangeChange: (sourceKind?: string) => pageController.emitChartRangeChange(sourceKind),
         setAdaptiveFilterColumn: deps.setAdaptiveFilterColumn,
@@ -128,7 +124,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
 
     const chartBootstrap = createTimeseriesBootstrap({
         DataChartCtor: deps.DataChartCtor,
-        onZoom: (newStart, newEnd, sourceKind) => pageController.onZoomRangeChange(newStart, newEnd, sourceKind),
+        onZoom: (view, sourceKind) => pageController.onZoomRangeChange(view, sourceKind),
         onYRange: deps.updateAnalysisYRange,
         onZoomOut: deps.zoomOut,
         buildColumnToggles: () => feature.rebuildColumns(),
@@ -157,7 +153,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         buildColumnToggles: () => feature.rebuildColumns(),
         buildRangeControls: () => feature.buildRangeControls(),
         emitChartRangeChange: (sourceKind?: string) => pageController.emitChartRangeChange(sourceKind),
-        onZoomRangeChange: (newStart: number, newEnd: number, sourceKind?: string) => pageController.onZoomRangeChange(newStart, newEnd, sourceKind),
+        onZoomRangeChange: (view: ViewSnapshot, sourceKind?: string) => pageController.onZoomRangeChange(view, sourceKind),
         refreshAfterMutation: (options?: { selectedColumn?: string }) => bootstrap.refreshAfterMutation(options),
     };
 }

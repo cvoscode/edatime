@@ -69,10 +69,11 @@ export function initAppShell(deps: AppShellDeps): void {
         layout.classList.add('sidebar-collapsed');
     }
     wireHomeNavigationCards(deps.showPage);
-    wireSampleDatasetCards(deps.showPage);
+    wireSampleDatasetCards(deps.showPage, () => deps.refreshDatasetAfterMutation());
     initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid, {
         buildColumnToggles: deps.buildTimeseriesColumns,
         buildRangeControls: deps.buildTimeseriesRanges,
+        refreshDatasetAfterMutation: () => deps.refreshDatasetAfterMutation(),
     });
     initColumnProfilesGrid();
     initAnalysisControls(deps.fetchAndRender);

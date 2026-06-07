@@ -72,10 +72,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
 
             // ── Chart readiness helpers ────────────────────────────────────────
             const ensureSpectrogramChartDimensions = () => {
-                if (chartEl.clientHeight > 0) return;
-                chartEl.style.minHeight = chartEl.style.minHeight || '420px';
-                if (!chartEl.style.height || chartEl.style.height === '100%') {
-                    chartEl.style.height = '420px';
+                if (chartEl.clientHeight >= 320) return;
+                chartEl.style.minHeight = chartEl.style.minHeight || '360px';
+                if (!chartEl.style.height || chartEl.style.height === '100%' || chartEl.clientHeight < 320) {
+                    chartEl.style.height = '360px';
                 }
             };
 
@@ -88,7 +88,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     && (!page || !page.hidden);
             };
 
-            const waitForSpectrogramChartReady = async (attempts = 6) => {
+            const waitForSpectrogramChartReady = async (attempts = 20) => {
                 for (let remaining = attempts; remaining >= 0; remaining -= 1) {
                     if (isSpectrogramChartReadyForInit()) return true;
                     await new Promise((resolve) => window.setTimeout(resolve, 0));
@@ -403,7 +403,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     spectrogramChart?.resize?.();
                 } else {
                     const waitForReady = async () => {
-                        for (let i = 0; i < 6; i++) {
+                        for (let i = 0; i < 20; i++) {
                             await new Promise((resolve) => window.setTimeout(resolve, 0));
                             if (chartElLocal && chartElLocal.clientWidth > 0 && chartElLocal.clientHeight > 0) {
                                 spectrogramChart?.resize?.();

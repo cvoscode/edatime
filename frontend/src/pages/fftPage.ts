@@ -1,6 +1,7 @@
 import { appState } from '../store/appStateCompat.js';
 import { fetchFft, fetchSpectralFilter } from '../services/api/index.js';
 import { FftChart, type FftTrace } from '../chart/FftChart.js';
+import { EchartsLineChart } from '../chart/EchartsLineChart.js';
 import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanvasHTML, exportTraceCSV } from '../utils/chartExport.js';
 import { toast } from '../utils/toast.js';
 import { getAnalyticsChipColor, getNumericColumns } from './analyticsPageUtils.js';
@@ -15,7 +16,8 @@ interface FftPageDeps {
 let fftTraces: FftTrace[] = [];
 let fftMode = 'magnitude';
 let fftLogScale = true;
-let fftChart: FftChart | null = null;
+let fftChart: FftChart | EchartsLineChart | null = null;
+let fftChartReady: Promise<void> | null = null;
 const fftTraceColors: Record<string, string> = {};
 let fftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let fftPageCleanup: (() => void) | null = null;
@@ -27,6 +29,7 @@ function resetFftPageState(): void {
     fftMode = 'magnitude';
     fftLogScale = true;
     fftChart = null;
+    fftChartReady = null;
     fftRuntime = null;
     for (const key of Object.keys(fftTraceColors)) delete fftTraceColors[key];
 }
@@ -69,6 +72,27 @@ function rerenderOrClear(): void {
         return;
     }
     fftChart.updateData(fftTraces, fftMode, fftLogScale);
+}
+
+async function ensureFftChartReady(): Promise<void> {
+    if (!fftChartReady) {
+        fftChartReady = (async () => {
+            const primaryChart = new FftChart('fft-chart');
+            fftChart = primaryChart;
+            try {
+                await primaryChart.init();
+                primaryChart.onZoomChange = (isZoomed: boolean) => updateZoomButton(isZoomed);
+            } catch (error) {
+                console.warn('FFT WebGPU renderer unavailable, switching to ECharts fallback:', error);
+                const fallbackChart = new EchartsLineChart('fft-chart');
+                await fallbackChart.init();
+                fallbackChart.onZoomChange = (isZoomed: boolean) => updateZoomButton(isZoomed);
+                fftChart = fallbackChart;
+                fftRuntime?.updateStatus('Fallback renderer active. FFT remains available without WebGPU.');
+            }
+        })();
+    }
+    await fftChartReady;
 }
 
 async function fetchAndAddTrace(column: string): Promise<void> {
@@ -119,6 +143,7 @@ function renderChips(): void {
                         fftRuntime?.updateStatus(`Computing FFT for ${column}…`);
                         try {
                             await fetchAndAddTrace(column);
+                            await ensureFftChartReady();
                             renderChips();
                             rerenderOrClear();
                             const bins = fftTraces.find((trace) => trace.column === column)?.frequencies.length ?? 0;
@@ -193,10 +218,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
         },
         init() {
             // one-time setup
-            fftChart = new FftChart('fft-chart');
-            void fftChart.init().then(() => {
-                fftChart!.onZoomChange = (isZoomed: boolean) => updateZoomButton(isZoomed);
-            });
+            void ensureFftChartReady();
 
             modeSelect?.addEventListener('change', () => {
                 fftMode = modeSelect.value;

@@ -189,7 +189,6 @@
 }
 
 .scatter-stats-bar #scatter-pearson {
-  margin-left: auto;
 }
 
 .scatter-filter-badge {
@@ -202,23 +201,6 @@
   white-space: nowrap;
 }
 
-.scatter-suggestions-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-}
-
-.scatter-suggestions-controls {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-#scatter-suggestion-threshold {
-  width: 110px;
-}
 
 /* Colorbar card (horizontal, used in overlay and toolbar) */
 .scatter-colorbar-wrap {

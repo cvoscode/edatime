@@ -13,12 +13,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { appState } from '../store/appStateCompat.js';
 import { DataChart } from './DataChart';
+import type { ViewSnapshot } from '../types.js';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 /** Create a chart with no callbacks to keep tests DOM-light. */
 function makeChart(
-    onZoom?: ((start: number, end: number, sourceKind: string) => void) | null,
+    onZoom?: ((view: ViewSnapshot, sourceKind: string) => void) | null,
     onYRange?: ((min: number, max: number, sourceKind: string) => void) | null,
     onZoomOut?: (() => void) | null,
 ): DataChart {
@@ -144,6 +145,34 @@ describe('requestOverlayRender', () => {
     it('does not throw when _overlayCtx is null (no-op)', () => {
         const chart = makeChart();
         expect(() => chart.requestOverlayRender()).not.toThrow();
+    });
+
+    it('renders overlays in CSS pixel space even on high-DPR displays', () => {
+        const chart = makeChart();
+        const renderAll = vi.fn();
+        const clearRect = vi.fn();
+        const originalDpr = window.devicePixelRatio;
+
+        Object.defineProperty(window, 'devicePixelRatio', {
+            configurable: true,
+            value: 2,
+        });
+
+        (chart as any)._overlayCanvas = { width: 600, height: 400 };
+        (chart as any)._overlayCtx = { clearRect } as unknown as CanvasRenderingContext2D;
+        (chart as any)._overlays = { renderAll };
+
+        try {
+            (chart as any)._renderDrawings();
+        } finally {
+            Object.defineProperty(window, 'devicePixelRatio', {
+                configurable: true,
+                value: originalDpr,
+            });
+        }
+
+        expect(clearRect).toHaveBeenCalledWith(0, 0, 600, 400);
+        expect(renderAll).toHaveBeenCalledWith((chart as any)._overlayCtx, { x: 1, y: 1 });
     });
 });
 

@@ -30,8 +30,30 @@ export const chartState: ChartState = {
 
 /* ── Mutations ──────────────────────────────────────────── */
 
+function disposeChartInstance(chart: ChartInstance): void {
+    const disposable = chart as ChartInstance & {
+        deepDispose?: () => void;
+        dispose?: () => void;
+    };
+
+    try {
+        if (typeof disposable.deepDispose === 'function') {
+            disposable.deepDispose();
+        } else if (typeof disposable.destroy === 'function') {
+            disposable.destroy();
+        } else if (typeof disposable.dispose === 'function') {
+            disposable.dispose();
+        }
+    } catch (err) {
+        console.warn('[edatime:chart] failed to dispose previous chart instance:', err);
+    }
+}
+
 export function setChartInstance(chart: ChartInstance | null): void {
     const previous = chartState.chart;
+    if (previous && previous !== chart) {
+        disposeChartInstance(previous);
+    }
     chartState.chart = chart;
     emitStoreEvent('chart:chart', { previous, next: chart });
 }
