@@ -16,6 +16,7 @@ export function ColorBySelect(props: ColorBySelectProps): HTMLDivElement {
         id: 'color-column-select',
         label: 'Color-by column',
         value: props.value ?? '',
+        variant: 'chip',
         options: [
             { value: '', label: 'None' },
             ...props.columns.map((column) => ({ value: column, label: column })),

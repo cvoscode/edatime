@@ -11,6 +11,8 @@
 
 import { appState } from '../store/appStateCompat.js';
 import { buildAdaptiveLineFiltersForQuery } from '../services/timeseries/filtering.js';
+import { getScatterPlotMetrics } from './layout.js';
+import { getDropdownValue, setDropdownOptions } from '../ui/primitives/Dropdown.js';
 export { appState } from '../store/appStateCompat.js';
 
 // Import scatterState locally as `state` for use in helper functions defined
@@ -54,33 +56,24 @@ export interface ScatterControls {
 }
 
 export function currentControls(): ScatterControls {
-    const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
-    const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
     const binSizeInput = getEl('scatter-bin-size') as HTMLInputElement | null;
-    const colormapSelect = getEl('scatter-colormap') as HTMLSelectElement | null;
-    const normalizationSelect = getEl('scatter-normalization') as HTMLSelectElement | null;
-    const renderModeSelect = getEl('scatter-render-mode') as HTMLSelectElement | null;
-    const diagonalModeSelect = getEl('scatter-diagonal-mode') as HTMLSelectElement | null;
-    const colorColumnSelect = getEl('scatter-color-column') as HTMLSelectElement | null;
-    const colorScaleSelect = getEl('scatter-color-scale') as HTMLSelectElement | null;
-    const matrixModeSelect = getEl('scatter-matrix-mode') as HTMLSelectElement | null;
     const matrixSizeInput = getEl('scatter-matrix-cell-size') as HTMLInputElement | null;
 
-    const renderMode = renderModeSelect?.value || 'density';
-    const selectedColorColumn = colorColumnSelect?.value || '';
+    const renderMode = getDropdownValue('scatter-render-mode') || 'density';
+    const selectedColorColumn = getDropdownValue('scatter-color-column') || '';
 
     return {
-        x: xSelect?.value || '',
-        y: ySelect?.value || '',
+        x: getDropdownValue('scatter-x-col') || '',
+        y: getDropdownValue('scatter-y-col') || '',
         binSize: Number(binSizeInput?.value ?? 10),
-        colormap: colormapSelect?.value ?? 'viridis',
-        normalization: normalizationSelect?.value ?? 'linear',
+        colormap: getDropdownValue('scatter-colormap') || 'viridis',
+        normalization: getDropdownValue('scatter-normalization') || 'linear',
         renderMode,
-        diagonalMode: diagonalModeSelect?.value || 'histogram',
+        diagonalMode: getDropdownValue('scatter-diagonal-mode') || 'histogram',
         colorColumn: renderMode === 'density' ? '' : selectedColorColumn,
         selectedColorColumn,
-        colorScale: colorScaleSelect?.value || 'viridis',
-        matrixMode: matrixModeSelect?.value || 'scatter',
+        colorScale: getDropdownValue('scatter-color-scale') || 'viridis',
+        matrixMode: getDropdownValue('scatter-matrix-mode') || 'scatter',
         matrixCellSize: Math.max(80, Math.min(400, Number(matrixSizeInput?.value ?? 160))),
     };
 }
@@ -234,17 +227,7 @@ export function getPlotMetrics(container: HTMLElement | null) {
     if (!rect) return null;
     const width = Math.max(1, rect.width);
     const height = Math.max(1, rect.height);
-    const grid = { left: 72, right: 32, top: 24, bottom: 50 };
-    const plotLeft = grid.left;
-    const plotRight = Math.max(plotLeft + 1, width - grid.right);
-    const plotTop = grid.top;
-    const plotBottom = Math.max(plotTop + 1, height - grid.bottom);
-    return {
-        width, height, grid,
-        plotLeft, plotRight, plotTop, plotBottom,
-        plotWidth: Math.max(1, plotRight - plotLeft),
-        plotHeight: Math.max(1, plotBottom - plotTop),
-    };
+    return getScatterPlotMetrics(width, height);
 }
 
 /* ── Misc shared accessors ────────────────────────────── */
@@ -301,17 +284,9 @@ export function resetScatterContainer(): HTMLElement | null {
     return replacement;
 }
 
-export function ensureOptions(selectEl: HTMLSelectElement | null, values: string[], preferredValue?: string): string | null {
-    if (!selectEl) return null;
-    const current = preferredValue || selectEl.value;
-    selectEl.innerHTML = '';
-    for (const v of values) {
-        const opt = document.createElement('option');
-        opt.value = v;
-        opt.textContent = v;
-        selectEl.appendChild(opt);
-    }
-    if (values.includes(current)) selectEl.value = current;
-    else if (values.length > 0) selectEl.value = values[0];
-    return selectEl.value;
+export function ensureOptions(selectEl: HTMLElement | null, values: string[], preferredValue?: string): string | null {
+    if (!selectEl?.id) return null;
+    return setDropdownOptions(selectEl.id, values.map((value) => ({ value, label: value })), {
+        preferredValue: preferredValue || getDropdownValue(selectEl.id),
+    }) || null;
 }

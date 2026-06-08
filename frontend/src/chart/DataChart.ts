@@ -50,6 +50,7 @@ import {
 } from './colorScale.js';
 import { getSetting } from '../utils/settings.js';
 import type { ColorScaleName } from '../utils/settings.js';
+import { getChartPalette, getPaletteColor, onThemeChange, type ResolvedTheme } from '../utils/theme.js';
 import {
     niceLinearTicks, niceTimeTicks, formatTimeTick, formatTimeTooltip,
 } from './ticks.js';
@@ -102,6 +103,7 @@ export class DataChart {
     _drawWidth = 2;
     _drawingRafId: number | null = null;
     _overlays: ChartOverlays | null = null;
+    _themeUnsub: (() => void) | null = null;
 
     constructor(
         containerId: string,
@@ -127,6 +129,8 @@ export class DataChart {
         this._drawingResizeObserver = null;
         this._chartResizeObserver?.disconnect();
         this._chartResizeObserver = null;
+        this._themeUnsub?.();
+        this._themeUnsub = null;
         this._overlays = null;
         this.chartInstance = null;
     }
@@ -185,6 +189,9 @@ export class DataChart {
         this._lastSeriesList = null;
         this._lastXDomainMin = null;
         this._lastXDomainMax = null;
+
+        this._themeUnsub?.();
+        this._themeUnsub = null;
     }
 
     setChartText(title: string, xLabel: string, yLabel: string): void {
@@ -262,7 +269,18 @@ export class DataChart {
         this._initDrawingOverlay();
         this._initTextOverlays();
         this._initMouseSelectionZoom();
+        this._themeUnsub?.();
+        this._themeUnsub = onThemeChange((next: ResolvedTheme) => {
+            this._onThemeChanged(next);
+        });
         requestAnimationFrame(() => this.resize());
+    }
+
+    private _onThemeChanged(_theme: ResolvedTheme): void {
+        // Re-render the drawing overlay so annotations/pending markers
+        // reflect the active palette. CSS handles the rest of the page.
+        this._renderDrawings();
+        this._syncTextOverlays();
     }
 
     supportsZoomControls(): boolean {
@@ -552,7 +570,8 @@ export class DataChart {
         const canvas = await this._getCombinedExportCanvas(true);
         if (!canvas) return;
         const dataUrl = canvas.toDataURL('image/png');
-        const html = `<!DOCTYPE html><html><head><title>EdaTime Export</title><style>body{margin:0;background:#1a1a1a;display:flex;justify-content:center;align-items:center;min-height:100vh}img{max-width:100%;height:auto;box-shadow:0 4px 12px rgba(0,0,0,0.5)}</style></head><body><img src="${dataUrl}" alt="EdaTime Chart"/></body></html>`;
+        const exportPalette = getChartPalette();
+        const html = `<!DOCTYPE html><html><head><title>EdaTime Export</title><style>body{margin:0;background:${exportPalette.background};display:flex;justify-content:center;align-items:center;min-height:100vh}img{max-width:100%;height:auto;box-shadow:0 4px 12px rgba(0,0,0,0.5)}</style></head><body><img src="${dataUrl}" alt="EdaTime Chart"/></body></html>`;
         const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
         downloadBlob(blob, 'edatime_chart.html');
     }
@@ -748,12 +767,13 @@ export class DataChart {
         const toY = (v: number) => plotBottom - ((v - yRange.min) / ySpan) * plotHeight;
 
         ctx.save();
+        const rollingPalette = getChartPalette();
         for (const band of bands) {
             const n = band.ts.length;
             if (n < 2) continue;
 
             // 2-sigma band (lighter)
-            ctx.fillStyle = 'rgba(100, 180, 255, 0.22)';
+            ctx.fillStyle = rollingPalette.rollingBandOuter;
             ctx.beginPath();
             let started = false;
             for (let i = 0; i < n; i++) {
@@ -771,7 +791,7 @@ export class DataChart {
             ctx.fill();
 
             // 1-sigma band (slightly darker)
-            ctx.fillStyle = 'rgba(100, 180, 255, 0.38)';
+            ctx.fillStyle = rollingPalette.rollingBandInner;
             ctx.beginPath();
             started = false;
             for (let i = 0; i < n; i++) {
@@ -789,7 +809,7 @@ export class DataChart {
             ctx.fill();
 
             // Mean line
-            ctx.strokeStyle = 'rgba(180, 220, 255, 0.90)';
+            ctx.strokeStyle = rollingPalette.rollingMeanStroke;
             ctx.lineWidth = 1.5 * Math.min(scale.x, scale.y);
             ctx.setLineDash([6, 3]);
             ctx.beginPath();
@@ -826,8 +846,9 @@ export class DataChart {
         const plotHeight = Math.max(1, plotBottom - plotTop);
 
         ctx.save();
-        ctx.fillStyle = 'rgba(255, 74, 110, 0.15)';
-        ctx.strokeStyle = 'rgba(255, 74, 110, 0.5)';
+        const anomalyPalette = getChartPalette();
+        ctx.fillStyle = anomalyPalette.anomalyFill;
+        ctx.strokeStyle = anomalyPalette.anomalyStroke;
         ctx.lineWidth = 1 * Math.min(scale.x, scale.y);
 
         for (const region of regions) {
@@ -872,6 +893,7 @@ export class DataChart {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.setLineDash([8 * strokeScale, 6 * strokeScale]);
+        const adaptivePalette = getChartPalette();
 
         for (const filter of filters) {
             if (!visibleCols.has(filter?.column)) continue;
@@ -885,7 +907,7 @@ export class DataChart {
             const ex = plotLeft + ((segEnd - xMin) / (xMax - xMin)) * plotWidth;
             const sy = plotBottom - ((y1! - yRange.min) / Math.max(1e-9, yRange.max - yRange.min)) * plotHeight;
             const ey = plotBottom - ((y2! - yRange.min) / Math.max(1e-9, yRange.max - yRange.min)) * plotHeight;
-            const stroke = filter.keepAbove ? 'rgba(0, 200, 150, 0.95)' : 'rgba(255, 74, 110, 0.95)';
+            const stroke = filter.keepAbove ? adaptivePalette.keepAboveStroke : adaptivePalette.keepBelowStroke;
             ctx.strokeStyle = stroke;
             ctx.lineWidth = 2 * strokeScale;
             ctx.beginPath();
@@ -914,15 +936,15 @@ export class DataChart {
                 const sx2 = toSx(px2); const sy2 = toSy(py2);
                 if (Number.isFinite(sx1) && Number.isFinite(sy1) && Number.isFinite(sx2) && Number.isFinite(sy2)) {
                     ctx.setLineDash([6 * strokeScale, 4 * strokeScale]);
-                    ctx.strokeStyle = 'rgba(0, 212, 255, 0.85)';
+                    ctx.strokeStyle = adaptivePalette.pendingPoint;
                     ctx.lineWidth = 2 * strokeScale;
                     ctx.beginPath(); ctx.moveTo(sx1, sy1); ctx.lineTo(sx2, sy2); ctx.stroke();
                     // Draw dots at both endpoints.
                     ctx.setLineDash([]);
                     for (const [ex, ey] of [[sx1, sy1], [sx2, sy2]] as [number, number][]) {
-                        ctx.fillStyle = 'rgba(0, 212, 255, 0.95)';
+                        ctx.fillStyle = adaptivePalette.pendingPoint;
                         ctx.beginPath(); ctx.arc(ex, ey, Math.max(3, 4 * strokeScale), 0, Math.PI * 2); ctx.fill();
-                        ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = Math.max(1, 1.5 * strokeScale); ctx.stroke();
+                        ctx.strokeStyle = adaptivePalette.pendingPointBorder; ctx.lineWidth = Math.max(1, 1.5 * strokeScale); ctx.stroke();
                     }
                 }
             } else if (Number.isFinite(px) && Number.isFinite(py) && px >= xMin && px <= xMax) {
@@ -930,11 +952,11 @@ export class DataChart {
                 const sy = plotBottom - ((py - yRange.min) / Math.max(1e-9, yRange.max - yRange.min)) * plotHeight;
                 if (Number.isFinite(sx) && Number.isFinite(sy)) {
                     ctx.setLineDash([]);
-                    ctx.fillStyle = 'rgba(0, 212, 255, 0.95)';
+                    ctx.fillStyle = adaptivePalette.pendingPoint;
                     ctx.beginPath();
                     ctx.arc(sx, sy, Math.max(3, 4 * strokeScale), 0, Math.PI * 2);
                     ctx.fill();
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+                    ctx.strokeStyle = adaptivePalette.pendingPointBorder;
                     ctx.lineWidth = Math.max(1, 1.5 * strokeScale);
                     ctx.stroke();
                 }
@@ -1006,7 +1028,8 @@ export class DataChart {
                 ctx.fill();
 
                 // Title
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                const annotationPalette = getChartPalette();
+                ctx.fillStyle = annotationPalette.annotationLabel;
                 ctx.textAlign = 'left';
                 ctx.fillText(ann.title, sx + 4 * strokeScale, plotTop + 14 * strokeScale);
             } else if (ann.type === 'note' || ann.type === 'region') {
@@ -1096,13 +1119,14 @@ export class DataChart {
         if (!ctx) return;
         const { cssWidth, cssHeight, width, height } = viewport;
         const scale = width / cssWidth;
-        const styles = getComputedStyle(document.body);
-        const bg = styles.getPropertyValue('--bg').trim() || '#080a10';
-        const surface2 = styles.getPropertyValue('--surface-2').trim() || '#181c2a';
-        const border = styles.getPropertyValue('--border').trim() || '#272d45';
-        const borderHi = styles.getPropertyValue('--border-hi').trim() || '#363f62';
-        const text = styles.getPropertyValue('--text').trim() || '#c8d0e4';
-        const textDim = styles.getPropertyValue('--text-dim').trim() || '#7a86a4';
+        const palette = getChartPalette();
+        const bg = palette.background;
+        const surface2 = palette.surfaceElevated;
+        const border = palette.border;
+        const borderHi = palette.borderHi;
+        const text = palette.text;
+        const textDim = palette.textDim;
+        const accentStroke = palette.accent;
 
         ctx.save();
         ctx.fillStyle = bg;
@@ -1128,7 +1152,7 @@ export class DataChart {
             const pts = Array.isArray(s.data) ? s.data : [];
             if (pts.length === 0) continue;
             ctx.beginPath();
-            ctx.strokeStyle = s.color || '#00E5FF';
+            ctx.strokeStyle = s.color || accentStroke;
             ctx.lineWidth = 1.5 * scale;
             ctx.lineJoin = 'round';
             ctx.lineCap = 'round';
@@ -1210,7 +1234,7 @@ export class DataChart {
         // Legend
         const legendEntries = seriesList
             .filter((s) => s && s.type === 'line' && typeof s.name === 'string' && !s.name.endsWith('__markers'))
-            .map((s) => ({ name: s.name as string, color: s.color || '#00E5FF' }));
+            .map((s) => ({ name: s.name as string, color: s.color || accentStroke }));
         if (legendEntries.length > 0) {
             const pad2 = 8 * scale;
             const gap = 6 * scale;

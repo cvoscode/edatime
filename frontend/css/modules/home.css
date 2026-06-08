@@ -5,7 +5,7 @@
     padding: 0;
     flex-direction: column;
     scrollbar-width: thin;
-    scrollbar-color: rgba(0, 168, 255, 0.28) rgba(255, 255, 255, 0.03);
+    scrollbar-color: rgba(0, 168, 255, 0.28) var(--scrollbar-track);
     /* Prevent hover transform clipping - padding allows translateY(-2px) to stay visible */
     padding-top: 4px;
 }
@@ -29,7 +29,7 @@
     align-items: center;
     justify-content: center;
     margin-bottom: 16px;
-    box-shadow: 0 0 30px rgba(0, 168, 255, 0.25);
+    box-shadow: 0 0 30px var(--accent-glow);
 }
 
 .home-hero-icon svg {
@@ -92,7 +92,7 @@
 
 .home-card:hover {
     border-color: var(--accent);
-    box-shadow: 0 0 16px rgba(0, 168, 255, 0.12);
+    box-shadow: 0 0 16px var(--accent-dim);
     transform: translateY(-2px);
 }
 
@@ -283,7 +283,7 @@
 
 .home-dataset-card:hover {
     border-color: var(--accent);
-    box-shadow: 0 0 16px rgba(0, 168, 255, 0.12);
+    box-shadow: 0 0 16px var(--accent-dim);
     transform: translateY(-1px);
 }
 
@@ -353,8 +353,8 @@
 .home-dataset-tag {
     font-size: 0.5625rem;
     padding: 2px 6px;
-    background: rgba(0, 168, 255, 0.1);
-    border: 1px solid rgba(0, 168, 255, 0.2);
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-glow);
     border-radius: 4px;
     color: var(--accent);
     font-weight: 500;

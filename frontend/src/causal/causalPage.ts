@@ -21,6 +21,7 @@ import { syncCausalEmptyState } from './statusView.js';
 import { openEditPanel, bindEditPanelEvents } from './editPanel.js';
 import { handleExport } from './export.js';
 import { applyMethodControlState, toggleAddEdgeMode, cancelAddEdgeMode, handleComputeClick } from './workflow.js';
+import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 
 let _chartEl: HTMLDivElement | null = null;
 let _activePopover: HTMLElement | null = null;
@@ -56,12 +57,12 @@ function initInfoIcons(): void {
 function hidePopover(): void { _activePopover?.remove(); _activePopover = null; }
 
 export function initCausalPage(deps: any): void {
-    const methodSelect = document.getElementById('causal-method-select') as HTMLSelectElement | null;
-    const testSelect = document.getElementById('causal-test-select') as HTMLSelectElement | null;
+    const methodSelect = document.getElementById('causal-method-select') as HTMLElement | null;
+    const testSelect = document.getElementById('causal-test-select') as HTMLElement | null;
     const tauInput = document.getElementById('causal-tau-max') as HTMLInputElement | null;
     const alphaInput = document.getElementById('causal-alpha') as HTMLInputElement | null;
     const maxCondsInput = document.getElementById('causal-max-conds') as HTMLInputElement | null;
-    const fdrSelect = document.getElementById('causal-fdr-select') as HTMLSelectElement | null;
+    const fdrSelect = document.getElementById('causal-fdr-select') as HTMLElement | null;
     const computeBtn = document.getElementById('causal-compute-btn') as HTMLButtonElement | null;
     const columnsBar = document.getElementById('causal-columns-bar') as HTMLElement | null;
     const addEdgeBtn = document.getElementById('causal-add-edge-btn') as HTMLButtonElement | null;
@@ -76,7 +77,7 @@ export function initCausalPage(deps: any): void {
     renderColumnChips(deps, columnsBar, openEditPanel);
     syncCausalEmptyState(_currentColumns.length);
     initInfoIcons();
-    applyMethodControlState(methodSelect?.value || 'pcmci');
+    applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci');
     scheduleCausalChartRefresh();
 
     window.addEventListener('edatime:causal-preselect', ((e: CustomEvent) => {
@@ -88,7 +89,7 @@ export function initCausalPage(deps: any): void {
         syncCausalEmptyState(_currentColumns.length);
     }) as EventListener);
 
-    methodSelect?.addEventListener('change', () => applyMethodControlState(methodSelect.value));
+    methodSelect?.addEventListener('change', () => applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci'));
 
     addEdgeBtn?.addEventListener('click', () => {
         toggleAddEdgeMode(addEdgeBtn);

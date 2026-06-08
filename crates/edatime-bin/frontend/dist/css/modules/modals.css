@@ -11,17 +11,17 @@
   justify-content: center;
   padding: 18px;
   z-index: 200;
-  background: rgba(8, 11, 20, 0.72);
+  background: var(--overlay-backdrop);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
 
 .modal {
   width: min(560px, 100%);
-  background: rgba(18, 23, 38, 0.97);
+  background: var(--shell-surface-elevated);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  border: 1px solid var(--shell-border-strong);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
   overflow: hidden;
@@ -33,7 +33,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--shell-hover);
   border-bottom: 1px solid var(--border);
 }
 
@@ -211,7 +211,8 @@
 
 /* Scatter toolbar uses compact selects */
 .scatter-toolbar .modal-select,
-.scatter-toolbar select {
+.scatter-toolbar select,
+.scatter-toolbar .dropdown {
   height: var(--ctrl-h-sm);
   min-width: 0;
   width: fit-content;

@@ -5,7 +5,11 @@
  */
 
 import type { PaletteCommand } from '../utils/palette.js';
-import { registerCommands } from '../utils/palette.js';
+import { registerCommands, openPalette } from '../utils/palette.js';
+import { exportSessionToFile, importSessionFromFile } from '../utils/session.js';
+import { toggleProvenance } from '../utils/provenance.js';
+import { openSettingsModal } from '../ui/settingsPanel.js';
+import { enableGuidedWorkflow, disableGuidedWorkflow, goToNextGuidedStep } from '../ui/guidedWorkflow.js';
 
 export type CommandDeps = {
     showPage: (pageName: string) => void;
@@ -47,14 +51,14 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
     { id: 'export-json', label: 'Export chart data as JSON', category: 'Export', action: () => exportChartFilteredData('json') },
     { id: 'export-png', label: 'Export chart as PNG', category: 'Export', action: () => (window as any).__edatime?.chart?.exportPNG?.() },
     { id: 'export-parquet', label: 'Export filtered data as Parquet', category: 'Export', action: () => document.getElementById('export-parquet-btn')?.click?.() },
-    { id: 'session-save', label: 'Export session to file', category: 'Session', action: () => import('../utils/session.js').then(({ exportSessionToFile }) => exportSessionToFile()) },
-    { id: 'session-load', label: 'Import session from file', category: 'Session', action: () => import('../utils/session.js').then(({ importSessionFromFile }) => importSessionFromFile()) },
-    { id: 'provenance', label: 'Show analysis context panel', shortcut: 'Ctrl+I', category: 'Analysis', action: () => import('../utils/provenance.js').then(({ toggleProvenance }) => toggleProvenance()) },
-    { id: 'cmd-palette', label: 'Open command palette', shortcut: 'Ctrl+K', category: 'Analysis', action: () => import('../utils/palette.js').then(({ openPalette }) => openPalette()) },
-    { id: 'settings', label: 'Open settings', shortcut: 'Ctrl+,', category: 'Analysis', action: () => import('../ui/settingsPanel.js').then(({ openSettingsModal }) => openSettingsModal()) },
-    { id: 'workflow-enable', label: 'Enable guided workflow', category: 'Analysis', action: () => import('../ui/guidedWorkflow.js').then(({ enableGuidedWorkflow }) => enableGuidedWorkflow()) },
-    { id: 'workflow-disable', label: 'Hide guided workflow', category: 'Analysis', action: () => import('../ui/guidedWorkflow.js').then(({ disableGuidedWorkflow }) => disableGuidedWorkflow()) },
-    { id: 'workflow-next', label: 'Go to next guided step', category: 'Analysis', action: () => import('../ui/guidedWorkflow.js').then(({ goToNextGuidedStep }) => goToNextGuidedStep()) },
+    { id: 'session-save', label: 'Export session to file', category: 'Session', action: () => { exportSessionToFile(); } },
+    { id: 'session-load', label: 'Import session from file', category: 'Session', action: () => { importSessionFromFile(); } },
+    { id: 'provenance', label: 'Show analysis context panel', shortcut: 'Ctrl+I', category: 'Analysis', action: () => { toggleProvenance(); } },
+    { id: 'cmd-palette', label: 'Open command palette', shortcut: 'Ctrl+K', category: 'Analysis', action: () => { openPalette(); } },
+    { id: 'settings', label: 'Open settings', shortcut: 'Ctrl+,', category: 'Analysis', action: () => { openSettingsModal(); } },
+    { id: 'workflow-enable', label: 'Enable guided workflow', category: 'Analysis', action: () => { enableGuidedWorkflow(); } },
+    { id: 'workflow-disable', label: 'Hide guided workflow', category: 'Analysis', action: () => { disableGuidedWorkflow(); } },
+    { id: 'workflow-next', label: 'Go to next guided step', category: 'Analysis', action: () => { goToNextGuidedStep(); } },
 ];
 
 export function buildPaletteCommands(deps: CommandDeps): PaletteCommand[] {

@@ -20,7 +20,7 @@
   position: absolute;
   top: 0;
   left: 0;
-  right: var(--scatter-right, 72px);
+  width: calc(100% - var(--scatter-right, 72px));
   height: 64px;
   z-index: 6;
   pointer-events: none;
@@ -43,6 +43,13 @@
 
 .scatter-right-panel[hidden] {
   display: none !important;
+}
+
+/* When the chart reserves the 64px top strip for the x-marginal, shift the
+   right panel (which hosts the y-marginal + colorbar) down by the same amount
+   so the y-marginal canvas aligns vertically with the chart's plot region. */
+#scatter-chart.with-x-marginal ~ #scatter-right-panel {
+  top: 64px;
 }
 
 .scatter-marginal-y-right {
@@ -126,7 +133,7 @@
   padding: 5px 10px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
-  background: rgba(15, 19, 32, 0.88);
+  background: var(--shell-surface-elevated);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: var(--text);
@@ -193,9 +200,9 @@
 
 .scatter-filter-badge {
   font-size: 0.625rem;
-  color: #d8e4ff;
-  background: rgba(0, 168, 255, 0.16);
-  border: 1px solid rgba(0, 168, 255, 0.35);
+  color: var(--text-strong-on-brand);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-glow);
   border-radius: 999px;
   padding: 2px 8px;
   white-space: nowrap;
@@ -210,7 +217,7 @@
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(14, 18, 32, 0.88);
+  background: var(--shell-surface);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
@@ -301,7 +308,7 @@
 
 .scatter-suggestion-btn.active {
   border-color: var(--accent);
-  background: rgba(0, 168, 255, 0.10);
+  background: var(--accent-dim);
 }
 
 .scatter-suggestion-empty {
@@ -318,7 +325,7 @@
   padding: 8px 10px;
   border-radius: var(--radius);
   border: 1px solid rgba(255, 107, 107, 0.20);
-  background: rgba(15, 19, 32, 0.92);
+  background: var(--shell-surface-elevated);
   color: var(--red);
   font-size: 0.75rem;
   max-width: min(560px, calc(100% - 28px));
@@ -333,8 +340,8 @@
   padding: 16px 20px 20px;
   border-top: 1px solid var(--border);
   background:
-    linear-gradient(180deg, rgba(11, 15, 24, .65) 0%, rgba(18, 22, 29, .45) 100%),
-    radial-gradient(circle at top right, rgba(0, 168, 255, .055), transparent 40%);
+    linear-gradient(180deg, color-mix(in srgb, var(--shell-bg) 65%, transparent) 0%, color-mix(in srgb, var(--shell-bg) 45%, transparent) 100%),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 5.5%, transparent), transparent 40%);
 }
 
 .scatter-view {
@@ -478,7 +485,7 @@
 .scatter-matrix-diagonal {
   border-radius: 14px;
   border: 1px solid var(--border);
-  background: rgba(14, 18, 32, 0.72);
+  background: var(--surface-2);
   backdrop-filter: blur(6px);
   overflow: hidden;
   display: flex;
@@ -494,7 +501,7 @@
 .scatter-matrix-cell:hover {
   border-color: var(--border-hi);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 24px var(--shadow);
 }
 
 .scatter-matrix-cell.active {
@@ -578,7 +585,7 @@
   max-width: 360px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: rgba(14, 18, 32, 0.72);
+  background: var(--surface-2);
   overflow: hidden;
 }
 

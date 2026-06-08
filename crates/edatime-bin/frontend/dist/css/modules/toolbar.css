@@ -7,10 +7,10 @@
 */
 .toolbar {
   flex-shrink: 0;
-  background: rgba(15, 20, 30, 0.92);
+  background: var(--shell-surface);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--shell-border);
   padding: 0 24px;
   height: 48px;
   display: flex;
@@ -29,8 +29,8 @@
 
 .range-toolbar {
   flex-shrink: 0;
-  background: rgba(15, 20, 30, 0.90);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--shell-surface);
+  border-bottom: 1px solid var(--shell-border);
   padding: 8px 24px;
   display: flex;
   gap: 12px;
@@ -39,8 +39,8 @@
 
 .analysis-toolbar {
   flex-shrink: 0;
-  background: rgba(15, 20, 30, 0.90);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--shell-surface);
+  border-bottom: 1px solid var(--shell-border);
   padding: 8px 24px;
   display: flex;
   align-items: center;
@@ -213,7 +213,7 @@
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: rgba(11, 15, 24, 0.98);
+  background: var(--shell-surface-elevated);
   box-shadow: 0 18px 36px rgba(0, 0, 0, 0.35);
 }
 
@@ -306,18 +306,28 @@
   gap: 6px;
 }
 
-.draw-select {
+.draw-select,
+.draw-select.dropdown .dropdown__trigger {
   height: 28px;
   padding: 2px 6px;
   font-size: 0.75rem;
   border-radius: var(--radius-sm);
+}
+
+.draw-select {
+  width: auto;
+}
+
+.draw-select.dropdown .dropdown__trigger {
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
   cursor: pointer;
 }
 
-.draw-select:focus {
+.draw-select:focus,
+.draw-select.dropdown .dropdown__trigger:focus,
+.draw-select.dropdown--open .dropdown__trigger {
   outline: 1px solid var(--accent);
   border-color: var(--accent);
 }
@@ -475,15 +485,15 @@ body.drawer-open::after {
   flex-wrap: wrap;
   gap: 10px;
   padding: 10px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background: linear-gradient(180deg, rgba(13, 19, 31, 0.94), rgba(11, 15, 24, 0.86));
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--shell-bg), var(--shell-surface));
 }
 
 .page-guidance__item {
   flex: 1 1 220px;
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.02);
   color: var(--text-dim);

@@ -16,6 +16,7 @@ import { formatCount, formatAnalysisTime, formatToDatetimeLocal } from '../../ut
 import { appState } from '../../store/appStateCompat.js';
 import { getPartialTimeRangeInputs } from './partialLoadControls.js';
 import { toast } from '../../utils/toast.js';
+import { getDropdownValue, setDropdownOptions, setDropdownValue } from '../../ui/primitives/Dropdown.js';
 import type { DatasetMetadata } from '../../types.js';
 
 // ── Status display ───────────────────────────────────────────────────────────
@@ -125,31 +126,27 @@ export function applyPreviewColumnSelection(
     const calledTimeColumn = metadataTimeCol || detectedTimeCol || (timeColumnExists ? appState.previewTimeColumn : null);
     setPreviewTimeColumn(calledTimeColumn);
 
-    const timeColumnSelect = document.getElementById('time-column-select') as HTMLSelectElement | null;
-    if (timeColumnSelect) {
-        timeColumnSelect.innerHTML = '';
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = 'Auto-detect';
-        timeColumnSelect.appendChild(opt);
-
-        for (const col of columns) {
-            const name = String(col?.name || '').trim();
-            if (!name) continue;
-            const colOpt = document.createElement('option');
-            colOpt.value = name;
-            colOpt.textContent = `${name} (${col?.dtype || 'unknown'})`;
-            timeColumnSelect.appendChild(colOpt);
-        }
+    const timeColumnControl = document.getElementById('time-column-select') as HTMLElement | null;
+    if (timeColumnControl) {
+        setDropdownOptions('time-column-select', [
+            { value: '', label: 'Auto-detect' },
+            ...columns
+                .map((col) => {
+                    const name = String(col?.name || '').trim();
+                    if (!name) return null;
+                    return { value: name, label: `${name} (${col?.dtype || 'unknown'})` };
+                })
+                .filter((option): option is { value: string; label: string } => option !== null),
+        ], { preferredValue: calledTimeColumn || '' });
 
         if (calledTimeColumn) {
-            timeColumnSelect.value = calledTimeColumn;
+            setDropdownValue('time-column-select', calledTimeColumn);
         } else {
-            timeColumnSelect.value = '';
+            setDropdownValue('time-column-select', '');
         }
 
-        timeColumnSelect.onchange = () => {
-            setPreviewTimeColumn(timeColumnSelect.value || null);
+        timeColumnControl.onchange = () => {
+            setPreviewTimeColumn(getDropdownValue('time-column-select') || null);
             const fileInput = document.getElementById('file-upload') as HTMLInputElement | null;
             const file = fileInput?.files?.[0] || null;
             if (file) callbacks.onTimeColumnChanged(file);

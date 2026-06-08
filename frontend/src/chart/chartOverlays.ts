@@ -6,6 +6,7 @@
 
 import { appState } from '../store/appStateCompat.js';
 import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
+import { getChartPalette } from '../utils/theme.js';
 
 const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
 
@@ -58,11 +59,12 @@ export class ChartOverlays {
         const toY = (v: number) => plotBottom - ((v - yRange.min) / ySpan) * plotHeight;
 
         ctx.save();
+        const rollingPalette = getChartPalette();
         for (const band of bands) {
             const n = band.ts.length;
             if (n < 2) continue;
 
-            ctx.fillStyle = 'rgba(100, 180, 255, 0.22)';
+            ctx.fillStyle = rollingPalette.rollingBandOuter;
             ctx.beginPath();
             let started = false;
             for (let i = 0; i < n; i++) {
@@ -79,7 +81,7 @@ export class ChartOverlays {
             ctx.closePath();
             ctx.fill();
 
-            ctx.fillStyle = 'rgba(100, 180, 255, 0.38)';
+            ctx.fillStyle = rollingPalette.rollingBandInner;
             ctx.beginPath();
             started = false;
             for (let i = 0; i < n; i++) {
@@ -96,7 +98,7 @@ export class ChartOverlays {
             ctx.closePath();
             ctx.fill();
 
-            ctx.strokeStyle = 'rgba(180, 220, 255, 0.90)';
+            ctx.strokeStyle = rollingPalette.rollingMeanStroke;
             ctx.lineWidth = 1.5 * Math.min(scale.x, scale.y);
             ctx.setLineDash([6, 3]);
             ctx.beginPath();
@@ -133,8 +135,9 @@ export class ChartOverlays {
         const plotWidth = Math.max(1, plotRight - plotLeft);
 
         ctx.save();
-        ctx.fillStyle = 'rgba(255, 74, 110, 0.15)';
-        ctx.strokeStyle = 'rgba(255, 74, 110, 0.5)';
+        const anomalyPalette = getChartPalette();
+        ctx.fillStyle = anomalyPalette.anomalyFill;
+        ctx.strokeStyle = anomalyPalette.anomalyStroke;
         ctx.lineWidth = 1 * Math.min(scale.x, scale.y);
 
         for (const region of regions) {
@@ -179,6 +182,7 @@ export class ChartOverlays {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.setLineDash([8 * strokeScale, 6 * strokeScale]);
+        const adaptivePalette = getChartPalette();
 
         for (const filter of filters) {
             if (!appState.selectedCols?.includes(filter.column)) continue;
@@ -192,7 +196,7 @@ export class ChartOverlays {
             const ex = plotLeft + ((segEnd - xMin) / (xMax - xMin)) * plotWidth;
             const sy = plotBottom - ((y1! - yRange.min) / Math.max(1e-9, yRange.max - yRange.min)) * plotHeight;
             const ey = plotBottom - ((y2! - yRange.min) / Math.max(1e-9, yRange.max - yRange.min)) * plotHeight;
-            const stroke = filter.keepAbove ? 'rgba(0, 200, 150, 0.95)' : 'rgba(255, 74, 110, 0.95)';
+            const stroke = filter.keepAbove ? adaptivePalette.keepAboveStroke : adaptivePalette.keepBelowStroke;
             ctx.strokeStyle = stroke;
             ctx.lineWidth = 2 * strokeScale;
             ctx.beginPath();
@@ -220,14 +224,14 @@ export class ChartOverlays {
                 const sx2 = toSx(px2); const sy2 = toSy(py2);
                 if (Number.isFinite(sx1) && Number.isFinite(sy1) && Number.isFinite(sx2) && Number.isFinite(sy2)) {
                     ctx.setLineDash([6 * strokeScale, 4 * strokeScale]);
-                    ctx.strokeStyle = 'rgba(0, 212, 255, 0.85)';
+                    ctx.strokeStyle = adaptivePalette.pendingPoint;
                     ctx.lineWidth = 2 * strokeScale;
                     ctx.beginPath(); ctx.moveTo(sx1, sy1); ctx.lineTo(sx2, sy2); ctx.stroke();
                     ctx.setLineDash([]);
                     for (const [ex, ey] of [[sx1, sy1], [sx2, sy2]] as [number, number][]) {
-                        ctx.fillStyle = 'rgba(0, 212, 255, 0.95)';
+                        ctx.fillStyle = adaptivePalette.pendingPoint;
                         ctx.beginPath(); ctx.arc(ex, ey, Math.max(3, 4 * strokeScale), 0, Math.PI * 2); ctx.fill();
-                        ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = Math.max(1, 1.5 * strokeScale); ctx.stroke();
+                        ctx.strokeStyle = adaptivePalette.pendingPointBorder; ctx.lineWidth = Math.max(1, 1.5 * strokeScale); ctx.stroke();
                     }
                 }
             } else if (Number.isFinite(px) && Number.isFinite(py) && px >= xMin && px <= xMax) {
@@ -235,11 +239,11 @@ export class ChartOverlays {
                 const sy = plotBottom - ((py - yRange.min) / Math.max(1e-9, yRange.max - yRange.min)) * plotHeight;
                 if (Number.isFinite(sx) && Number.isFinite(sy)) {
                     ctx.setLineDash([]);
-                    ctx.fillStyle = 'rgba(0, 212, 255, 0.95)';
+                    ctx.fillStyle = adaptivePalette.pendingPoint;
                     ctx.beginPath();
                     ctx.arc(sx, sy, Math.max(3, 4 * strokeScale), 0, Math.PI * 2);
                     ctx.fill();
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+                    ctx.strokeStyle = adaptivePalette.pendingPointBorder;
                     ctx.lineWidth = Math.max(1, 1.5 * strokeScale);
                     ctx.stroke();
                 }
@@ -274,6 +278,7 @@ export class ChartOverlays {
 
         ctx.save();
         ctx.font = `${Math.max(10, 11 * strokeScale)}px Inter, system-ui, sans-serif`;
+        const annotationPalette = getChartPalette();
 
         for (const ann of timeAnnotations) {
             if (!ann.timeRange) continue;
@@ -306,7 +311,7 @@ export class ChartOverlays {
                 ctx.closePath();
                 ctx.fill();
 
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                ctx.fillStyle = annotationPalette.annotationLabel;
                 ctx.textAlign = 'left';
                 ctx.fillText(ann.title, sx + 4 * strokeScale, plotTop + 14 * strokeScale);
             } else if (ann.type === 'note' || ann.type === 'region') {

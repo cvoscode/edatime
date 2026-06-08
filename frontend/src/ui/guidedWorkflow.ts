@@ -1,4 +1,5 @@
 import { appState } from '../store/appStateCompat.js';
+import { getDropdownValue } from './primitives/Dropdown.js';
 import { toast } from '../utils/toast.js';
 
 export type WorkflowStepId = 'upload' | 'timeseries' | 'correlations' | 'scatter' | 'causal';
@@ -143,7 +144,7 @@ function currentPage(): string {
 }
 
 function readSelectValue(id: string): string {
-    return (document.getElementById(id) as HTMLSelectElement | null)?.value || '';
+    return getDropdownValue(id);
 }
 
 function collectSnapshot(): WorkflowSnapshot {

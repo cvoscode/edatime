@@ -64,7 +64,11 @@
 }
 
 /* Select inside the color-by chip — transparent, no border */
-#color-column-select {
+#color-column-select.dropdown {
+  width: auto;
+}
+
+#color-column-select .dropdown__trigger {
   height: var(--ctrl-h-xs) !important;
   padding: 0 20px 0 4px !important;
   background: transparent !important;
@@ -76,7 +80,8 @@
   color: var(--text) !important;
 }
 
-#color-column-select:focus {
+#color-column-select .dropdown__trigger:focus,
+#color-column-select.dropdown--open .dropdown__trigger {
   background: rgba(0, 168, 255, 0.08) !important;
   box-shadow: none !important;
 }
@@ -298,7 +303,7 @@
   gap: 5px;
   padding: 5px 12px;
   border-bottom: 1px solid var(--border);
-  background: var(--panel-bg, #0e1220);
+  background: var(--panel-bg);
   min-height: 34px;
   flex-shrink: 0;
 }

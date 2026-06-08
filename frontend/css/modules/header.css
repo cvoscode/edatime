@@ -8,10 +8,10 @@
 */
 header {
   flex-shrink: 0;
-  background: rgba(15, 20, 30, 0.95);
+  background: var(--shell-surface);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--shell-border);
   padding: 0 24px;
   height: 56px;
   display: flex;
@@ -81,8 +81,8 @@ header {
 
 .theme-toggle:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.10);
+  background: var(--shell-hover);
+  border-color: var(--shell-border-strong);
 }
 
   animation: pulse 2s infinite;

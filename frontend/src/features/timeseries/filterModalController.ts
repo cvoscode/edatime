@@ -3,6 +3,7 @@ import { computeBounds } from '../../services/timeseries/filtering.js';
 import { appStateComposite as appState } from '../../store/index.js';
 import { buildRangeControls } from './rangeControls.js';
 import { ColumnFilterModal } from '../../ui/composites/ColumnFilterModal.js';
+import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
 
 export interface FilterModalControllerDeps {
     renderCurrentData: () => void;
@@ -15,7 +16,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
     const cancelBtn = document.getElementById('column-filter-cancel-btn');
     const applyBtn = document.getElementById('column-filter-apply-btn') as HTMLButtonElement | null;
     const clearBtn = document.getElementById('column-filter-clear-btn') as HTMLButtonElement | null;
-    const colSelect = document.getElementById('column-filter-col') as HTMLSelectElement | null;
+    const colSelect = document.getElementById('column-filter-col') as HTMLElement | null;
     const minInput = document.getElementById('column-filter-min') as HTMLInputElement | null;
     const maxInput = document.getElementById('column-filter-max') as HTMLInputElement | null;
     const minRangeInput = document.getElementById('column-filter-min-range') as HTMLInputElement | null;
@@ -193,23 +194,15 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
 
     function populateColumns(selectedCol: string | null = null) {
         const cols = appState.selectedCols || [];
-        columnSelect.innerHTML = '';
         if (cols.length === 0) {
-            const opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = 'No series selected';
-            columnSelect.appendChild(opt);
-            columnSelect.value = '';
+            setDropdownOptions('column-filter-col', [
+                { value: '', label: 'No series selected' },
+            ], { preferredValue: '' });
             return;
         }
-        for (const col of cols) {
-            const opt = document.createElement('option');
-            opt.value = col;
-            opt.textContent = col;
-            columnSelect.appendChild(opt);
-        }
-        if (selectedCol && cols.includes(selectedCol)) columnSelect.value = selectedCol;
-        else columnSelect.value = cols[0];
+        setDropdownOptions('column-filter-col', cols.map((col) => ({ value: col, label: col })), {
+            preferredValue: selectedCol && cols.includes(selectedCol) ? selectedCol : cols[0] || '',
+        });
     }
 
     function refreshInputsForCol(col: string) {
@@ -246,8 +239,8 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
     }
 
     function openModalForCol(col: string | null) {
-        populateColumns(col || columnSelect.value || appState.selectedCols?.[0] || null);
-        refreshInputsForCol(columnSelect.value);
+        populateColumns(col || getDropdownValue('column-filter-col') || appState.selectedCols?.[0] || null);
+        refreshInputsForCol(getDropdownValue('column-filter-col'));
         modalEl.hidden = false;
         try { minTextInput.focus(); } catch { }
     }
@@ -279,7 +272,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
             maxRangeInput: maxSliderInput,
         },
         onApply: (from: string, to: string) => {
-            const col = columnSelect.value;
+            const col = getDropdownValue('column-filter-col');
             if (!col) return;
             let fromNum = Number.parseFloat(from);
             let toNum = Number.parseFloat(to);
@@ -305,14 +298,14 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
         onCancel: closeModal,
     });
 
-    columnSelect.addEventListener('change', () => refreshInputsForCol(columnSelect.value));
+    columnSelect.addEventListener('change', () => refreshInputsForCol(getDropdownValue('column-filter-col')));
     minTextInput.addEventListener('input', syncFromNumericInputs);
     maxTextInput.addEventListener('input', syncFromNumericInputs);
     minSliderInput.addEventListener('input', () => syncFromRangeInputs('min'));
     maxSliderInput.addEventListener('input', () => syncFromRangeInputs('max'));
 
     clearButton.addEventListener('click', () => {
-        const col = columnSelect.value;
+        const col = getDropdownValue('column-filter-col');
         const full = getFullBoundsForCol(col);
         if (!col || !full) return;
         appState.columnRanges[col] = { from: full.min, to: full.max };

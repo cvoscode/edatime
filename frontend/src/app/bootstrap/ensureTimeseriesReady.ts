@@ -5,7 +5,7 @@
  * The `ensureReady()` call is idempotent: safe to call multiple times.
  */
 
-import type { ChartInstance, ViewSnapshot } from '../../types.js';
+import type { ChartInstance } from '../../types.js';
 import { appState } from '../../store/appStateCompat.js';
 import { checkWebGPU } from '../webgpuGuard.js';
 import { getChartType } from '../../charts/registry.js';
@@ -18,7 +18,7 @@ import { initAdaptiveFilterGesture } from '../adaptiveGesture.js';
 import { restoreSessionAfterChartReady } from '../../bootstrap/sessionBootstrap.js';
 import { dbg, dbgGroup } from '../../debug.js';
 export interface TimeseriesBootstrapCallbacks {
-    onZoom: (view: ViewSnapshot, sourceKind: string) => void;
+    onZoom: (start: number, end: number, sourceKind: string) => void;
     onYRange: (min: number, max: number, sourceKind: string) => void;
     onZoomOut: () => void;
 }
@@ -26,11 +26,11 @@ export interface TimeseriesBootstrapCallbacks {
 export interface TimeseriesBootstrapDeps {
     DataChartCtor: new (
         containerId: string,
-        onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
+        onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null,
         onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null,
         onZoomOutCb: (() => void) | null,
     ) => ChartInstance;
-    onZoom: (view: ViewSnapshot, sourceKind: string) => void;
+    onZoom: (start: number, end: number, sourceKind: string) => void;
     onYRange: (min: number, max: number, sourceKind: string) => void;
     onZoomOut: () => void;
     buildColumnToggles: () => void;
@@ -55,11 +55,6 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     return;
                 }
 
-                // Wipe any leftover canvas/overlay DOM from a previous failed init
-                // so we never end up with multiple stacked charts.
-                const container = document.getElementById('main-chart');
-                if (container) container.replaceChildren();
-
                 const gpuError = await checkWebGPU();
 
                 try {
@@ -68,7 +63,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     const lineType = getChartType('line');
                     if (lineType) {
                         setChartInstance(lineType.create('main-chart', {
-                            onZoom: (view: ViewSnapshot, sourceKind: string) => deps.onZoom(view, sourceKind),
+                            onZoom: (start: number, end: number, sourceKind: string) => deps.onZoom(start, end, sourceKind),
                             onYRange: deps.onYRange,
                             onZoomOut: deps.onZoomOut,
                         }));

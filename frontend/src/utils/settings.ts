@@ -145,7 +145,13 @@ export function updateSetting<K extends keyof AppSettings>(key: K, value: AppSet
     saveSettings(settings);
 }
 
-/** Apply theme to the document based on settings. */
+/**
+ * Apply theme to the document based on settings.
+ *
+ * `data-theme` is always set explicitly to `light` or `dark` so that stylesheets
+ * can rely on a deterministic attribute. The 'auto' mode is resolved against
+ * the current `prefers-color-scheme` value.
+ */
 export function applyTheme(theme: ThemeMode): void {
     let effectiveTheme: 'dark' | 'light' = 'dark';
 
@@ -155,20 +161,13 @@ export function applyTheme(theme: ThemeMode): void {
         effectiveTheme = theme;
     }
 
-    if (effectiveTheme === 'light') {
-        document.documentElement.setAttribute('data-theme', 'light');
-    } else {
-        document.documentElement.removeAttribute('data-theme');
-    }
+    document.documentElement.setAttribute('data-theme', effectiveTheme);
 
     // Update theme icons
     const iconDark = document.getElementById('theme-icon-dark');
     const iconLight = document.getElementById('theme-icon-light');
     if (iconDark) iconDark.hidden = effectiveTheme === 'light';
     if (iconLight) iconLight.hidden = effectiveTheme === 'dark';
-
-    // Cache for session persistence
-    localStorage.setItem('edatime-theme', effectiveTheme);
 }
 
 /** Apply layout density to the document. */

@@ -7,6 +7,7 @@
  */
 import { appStateComposite as appState } from '../../store/index.js';
 import { setSelectedColorColumn } from '../../store/index.js';
+import { ColorBySelect } from '../../ui/composites/ColorBySelect.js';
 
 export interface ColorByControlOptions {
     /** Called when the user changes the color-by column. */
@@ -16,7 +17,7 @@ export interface ColorByControlOptions {
 }
 
 /**
- * Build and insert the "Color by" <select> control into the column-toggles area.
+ * Build and insert the "Color by" dropdown into the column-toggles area.
  * Clears any previous contents of the target slot before rendering.
  */
 export function renderColorByControl(options: ColorByControlOptions): void {
@@ -25,37 +26,16 @@ export function renderColorByControl(options: ColorByControlOptions): void {
     if (!slot) return;
     slot.innerHTML = '';
 
-    const control = document.createElement('div');
-    control.className = 'series-color-selector';
-    control.innerHTML = `
-    <label>
-      <span>Color by</span>
-      <select id="color-column-select" name="color-column-select" aria-label="Color-by column"></select>
-    </label>
-  `;
-    slot.appendChild(control);
+    const metadataCols = (appState.metadata?.columns ?? [])
+        .map((column) => String(column?.name ?? '').trim())
+        .filter(Boolean);
 
-    const select = control.querySelector('#color-column-select') as HTMLSelectElement | null;
-    if (!select) return;
-
-    select.innerHTML = '<option value="">None</option>';
-    const metadataCols = (appState.metadata?.columns ?? []).map((c) => ({
-        name: c?.name,
-        dtype: c?.dtype,
+    slot.appendChild(ColorBySelect({
+        columns: metadataCols,
+        value: appState.selectedColorColumn,
+        onChange: (value) => {
+            setSelectedColorColumn(value || null);
+            onColorColumnChange();
+        },
     }));
-
-    for (const col of metadataCols) {
-        const name = String(col.name ?? '').trim();
-        if (!name) continue;
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        if (name === appState.selectedColorColumn) opt.selected = true;
-        select.appendChild(opt);
-    }
-
-    select.addEventListener('change', () => {
-        setSelectedColorColumn(select.value || null);
-        onColorColumnChange();
-    });
 }

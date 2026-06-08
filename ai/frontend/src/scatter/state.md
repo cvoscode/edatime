@@ -28,8 +28,8 @@ interface ScatterQueryContext {
 - `MatrixCellData = { totalPoints: number; points: [number, number][]; colorValues: number[] | null; colorLabels: string[] | null }`
 
 ## Functions
-- `currentControls(): ScatterControls` [deps: [getEl][3]]
-  - Reads current values from all scatter control DOM elements.
+- `currentControls(): ScatterControls` [deps: [getDropdownValue][3], [getScatterPlotMetrics][4]]
+  - Reads current values from all scatter control dropdowns. Uses `getDropdownValue` for all select controls.
 - `isLinkedBrushEnabled(): boolean`
   - Returns whether the linked brush from the main chart is active.
 - `buildScatterQueryContext(columns?: { x?: string; y?: string; colorColumn?: string }): ScatterQueryContext`
@@ -42,6 +42,10 @@ interface ScatterQueryContext {
   - Builds a cache key for the scatter matrix overview context.
 - `clampView(view: ScatterView): ScatterView`
   - Clamps view bounds to safe numeric ranges.
+- `getPlotMetrics(container: HTMLElement | null): { width, height, grid, plotLeft, plotRight, plotTop, plotBottom, plotWidth, plotHeight } | null`
+  - Delegates to `getScatterPlotMetrics` from [layout.js](./layout.md).
+- `ensureOptions(selectEl: HTMLElement | null, values: string[], preferredValue?: string): string | null`
+  - Sets dropdown options by ID using `setDropdownOptions`. Falls back to preferred value.
 
 ---
 [1]: ../../store/index.md#scatterState

@@ -21,6 +21,7 @@ import {
 import { SERIES_COLORS } from '../utils/seriesColors.js';
 import { appState } from '../store/appStateCompat.js';
 import { createModalController } from './shell/createModalController';
+import { getDropdownValue, setDropdownValue } from './primitives/Dropdown.js';
 
 let currentSettings: AppSettings | null = null;
 let activeTab = 'appearance';
@@ -152,13 +153,11 @@ function renderPalettePreview(paletteName: string): void {
 // ─── Helper functions ──────────────────────────────────────────────────────
 
 function setSelectValue(id: string, value: string): void {
-    const el = document.getElementById(id) as HTMLSelectElement | null;
-    if (el) el.value = value;
+    setDropdownValue(id, value);
 }
 
 function getSelectValue(id: string): string {
-    const el = document.getElementById(id) as HTMLSelectElement | null;
-    return el?.value || '';
+    return getDropdownValue(id);
 }
 
 function setInputValue(id: string, value: string): void {
@@ -200,21 +199,18 @@ export function initSettingsPanel(): void {
     });
 
     // Palette preview update
-    document.getElementById('settings-palette')?.addEventListener('change', (e) => {
-        const value = (e.target as HTMLSelectElement).value;
-        renderPalettePreview(value);
+    document.getElementById('settings-palette')?.addEventListener('change', () => {
+        renderPalettePreview(getDropdownValue('settings-palette'));
     });
 
     // Theme preview (live update as user changes)
-    document.getElementById('settings-theme')?.addEventListener('change', (e) => {
-        const value = (e.target as HTMLSelectElement).value as ThemeMode;
-        applyTheme(value);
+    document.getElementById('settings-theme')?.addEventListener('change', () => {
+        applyTheme(getDropdownValue('settings-theme') as ThemeMode);
     });
 
     // Layout density preview
-    document.getElementById('settings-layout')?.addEventListener('change', (e) => {
-        const value = (e.target as HTMLSelectElement).value as LayoutDensity;
-        applyLayoutDensity(value);
+    document.getElementById('settings-layout')?.addEventListener('change', () => {
+        applyLayoutDensity(getDropdownValue('settings-layout') as LayoutDensity);
     });
 
     // Settings button in header

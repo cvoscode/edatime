@@ -439,7 +439,7 @@
 }
 
 .drift-col-picker-item:hover {
-  background: rgba(0, 168, 255, 0.10);
+  background: var(--accent-dim);
   color: var(--text, #d2daf0);
 }
 

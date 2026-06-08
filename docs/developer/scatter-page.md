@@ -9,7 +9,7 @@
 
 ## Purpose
 
-Detailed pairwise scatter/density plot with matrix view. Inspect X/Y correlation, color-by a third column, view marginal distributions, and access FFT of the current time range inline in the matrix view.
+Detailed pairwise scatter/density plot with matrix view. Inspect X/Y correlation, color-by a third column, view marginal distributions in both scatter and density modes, and access FFT of the current time range inline in the matrix view.
 
 ---
 
@@ -237,8 +237,8 @@ From `frontend/css/modules/scatter.css`:
 | `.scatter-suggestions-bar` | Correlation suggestions row |
 | `.scatter-suggestions` | Chip list of suggested pairs |
 | `.scatter-view` | View container (plot or matrix), toggled via `hidden` |
-| `.scatter-marginal-x` | Top marginal histogram canvas |
-| `.scatter-marginal-y-right` | Right marginal histogram canvas |
+| `.scatter-marginal-x` | Top marginal canvas (histogram / KDE / boxplot); shown in both scatter and density render modes |
+| `.scatter-marginal-y-right` | Right marginal canvas (histogram / KDE / boxplot); shown in both scatter and density render modes |
 | `.scatter-colorbar-vertical` | Vertical colorbar when color-by is active |
 | `.scatter-colorbar-vtick` | Min/max labels on vertical colorbar |
 | `.scatter-correlation-overlay` | Pearson/Spearman overlay text |

@@ -6,6 +6,7 @@
  */
 
 import { toast } from '../utils/toast.js';
+import { getDropdownValue, setDropdownOptions } from '../ui/primitives/Dropdown.js';
 
 export interface CausalLink {
     source: string;
@@ -147,18 +148,23 @@ function renderRunSelector(
     selectedId: string | null,
     onSelect: (id: string) => void,
 ): void {
-    const el = document.getElementById(containerId);
+    const el = document.getElementById(containerId) as HTMLElement | null;
     if (!el) return;
     if (runs.length === 0) {
-        el.innerHTML = '<option value="">No saved runs</option>';
+        setDropdownOptions(containerId, [{ value: '', label: 'No saved runs' }], { preferredValue: '' });
         return;
     }
-    el.innerHTML = '<option value="">-- select run --</option>' +
-        runs.map((r) => `<option value="${escHtml(r.id)}" ${r.id === selectedId ? 'selected' : ''}>${escHtml(r.label)} (${new Date(r.timestamp).toLocaleString()})</option>`).join('');
-    el.addEventListener('change', () => {
-        const val = (el as HTMLSelectElement).value;
+    setDropdownOptions(containerId, [
+        { value: '', label: '-- select run --' },
+        ...runs.map((run) => ({
+            value: run.id,
+            label: `${run.label} (${new Date(run.timestamp).toLocaleString()})`,
+        })),
+    ], { preferredValue: selectedId || '' });
+    el.onchange = () => {
+        const val = getDropdownValue(containerId);
         if (val) onSelect(val);
-    });
+    };
 }
 
 function renderDiff(runA: SavedCausalRun, runB: SavedCausalRun): string {
@@ -200,8 +206,8 @@ export function initCausalComparison(): void {
     // Save button handler (called after a successful Compute)
     document.getElementById('causal-save-run-btn')?.addEventListener('click', () => {
         // Gather parameters from the toolbar
-        const method = (document.getElementById('causal-method-select') as HTMLSelectElement)?.value || 'pcmci';
-        const test = (document.getElementById('causal-test-select') as HTMLSelectElement)?.value || 'par_corr';
+        const method = getDropdownValue('causal-method-select') || 'pcmci';
+        const test = getDropdownValue('causal-test-select') || 'par_corr';
         const tauMax = parseInt((document.getElementById('causal-tau-max') as HTMLInputElement)?.value || '3', 10);
         const alpha = parseFloat((document.getElementById('causal-alpha') as HTMLInputElement)?.value || '0.05');
 

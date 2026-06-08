@@ -26,6 +26,7 @@ import type { PairEdgeGroup } from './selectionState.js';
 import type { CausalLink } from './causalComparison.js';
 import { setStatus } from './statusView.js';
 import { showCtxMenu, openEditPanel, type EditTarget } from './editPanel.js';
+import { getPaletteColor, getChartPalette } from '../utils/theme.js';
 
 export let _eChart: any = null;
 export let _chartEl: HTMLDivElement | null = null;
@@ -212,11 +213,12 @@ function edgeLabelText(group: PairEdgeGroup, compact: boolean): string {
 }
 
 function buildLegendGraphic(): any[] {
+    const palette = getChartPalette();
     const items = [
-        { color: 'hsla(200,80%,60%,0.85)', dash: false, label: 'Mostly positive effect' },
-        { color: 'hsla(10,80%,60%,0.85)', dash: false, label: 'Mostly negative effect' },
-        { color: 'rgba(120,139,174,0.58)', dash: false, label: 'Mixed directions' },
-        { color: 'rgba(180,160,80,0.62)', dash: true, label: 'Undirected / uncertain' },
+        { color: palette.cyan, dash: false, label: 'Mostly positive effect' },
+        { color: palette.danger, dash: false, label: 'Mostly negative effect' },
+        { color: palette.borderHi, dash: false, label: 'Mixed directions' },
+        { color: palette.warning, dash: true, label: 'Undirected / uncertain' },
     ];
     return items.map((item, idx) => ({
         type: 'group',
@@ -224,17 +226,19 @@ function buildLegendGraphic(): any[] {
         left: 14,
         children: [
             { type: 'line', shape: { x1: 0, y1: 0, x2: 22, y2: 0 }, style: { stroke: item.color, lineWidth: 2, lineDash: item.dash ? [5, 3] : undefined } },
-            { type: 'text', left: 28, top: -6, style: { text: item.label, fill: '#788BAE', fontSize: 10 } },
+            { type: 'text', left: 28, top: -6, style: { text: item.label, fill: palette.textDim, fontSize: 10 } },
         ],
     }));
 }
 
 function buildPairEdge(group: PairEdgeGroup): any {
+    const palette = getChartPalette();
     const absVal = Math.min(1, Math.abs(group.meanValue || 0));
-    let color = group.meanValue >= 0 ? `hsla(200,80%,60%,${0.34 + absVal * 0.46})` : `hsla(10,80%,60%,${0.34 + absVal * 0.46})`;
+    const baseColor = group.meanValue >= 0 ? palette.cyan : palette.danger;
+    let color = baseColor;
     let lineType: 'solid' | 'dashed' = 'solid';
-    if (group.direction === 'mixed') color = 'rgba(120,139,174,0.58)';
-    if (group.hasUndirected || group.hasAmbiguous) { color = 'rgba(180,160,80,0.62)'; lineType = 'dashed'; }
+    if (group.direction === 'mixed') color = palette.borderHi;
+    if (group.hasUndirected || group.hasAmbiguous) { color = palette.warning; lineType = 'dashed'; }
     const countWeight = Math.sqrt(Math.max(group.connections.length, 1));
     const width = Math.max(2, 1.25 + countWeight * 1.25 + absVal * 1.1);
     const compactLabels = listPairGroups().length > 8;
@@ -268,21 +272,23 @@ function nodeTooltip(col: string, selfLoops: Map<string, number>): string {
     const outgoing = _currentLinks.filter((link) => link.source === col && link.target !== col).length;
     const self = selfLoops.get(col) || 0;
     const dtype = typeof attrs.dtype === 'string' ? attrs.dtype : 'unknown';
+    const palette = getChartPalette();
     return `<b>${escH(label)}</b><br/>` +
         `Column: ${escH(col)}<br/>` +
         `dtype: ${escH(dtype)}<br/>` +
         `Incoming raw links: ${incoming} · Outgoing raw links: ${outgoing}` +
         (self ? ` · Self-links: ${self}` : '') +
         `<br/>Attributes: ${attrKeys.length}` +
-        `<br/><span style="font-size:10px;color:#788bae;">Drag moves only this node. Double-click rename. Right-click edit/delete.</span>`;
+        `<br/><span style="font-size:10px;color:${palette.textDim};">Drag moves only this node. Double-click rename. Right-click edit/delete.</span>`;
 }
 
 function edgeTooltip(group: PairEdgeGroup): string {
-    const pill = (label: string, kind: 'summary' | 'tau' | 'raw' | 'pmin' | 'type' | 'value' | 'pvalue', tone = 'rgba(255,255,255,0.05)') =>
+    const palette = getChartPalette();
+    const pill = (label: string, kind: 'summary' | 'tau' | 'raw' | 'pmin' | 'type' | 'value' | 'pvalue', tone = palette.border) =>
         `<span class="causal-metric-pill" title="${escH(edgeMetricTip(kind))}" style="background:${tone};">${label}</span>`;
     const rows = group.connections.slice(0, 6).map((link) => {
         const direction = resolveLinkDirection(link);
-        const valueTone = Number(link.value) >= 0 ? 'rgba(74,195,232,0.18)' : 'rgba(249,115,22,0.18)';
+        const valueTone = Number(link.value) >= 0 ? palette.marginalFill : palette.dangerFill;
         return `<div class="causal-edge-tip-row">
                     <div class="causal-edge-tip-row-title"><span>${escH(direction.source)}</span><span class="causal-connection-arrow">→</span><span>${escH(direction.target)}</span></div>
                     <div class="causal-edge-tip-pill-row">${pill(`τ=${link.lag}`, 'tau')} ${pill(escH(link.type), 'type')} ${pill(`val=${Number(link.value).toFixed(3)}`, 'value', valueTone)} ${pill(`p=${Number(link.pvalue).toFixed(4)}`, 'pvalue')}</div>
@@ -308,30 +314,32 @@ export function renderEChartsGraph(): void {
     const nodes = _currentColumns.map((col) => {
         const pos = _nodePositions.get(col) ?? { x: 80, y: 80 };
         const label = _nodeLabels.get(col) || col;
-        const borderColor = _chipColors.get(col) || 'rgba(0,168,255,0.6)';
+        const palette = getChartPalette();
+        const borderColor = _chipColors.get(col) || palette.accent;
         return {
             id: col, name: label,
             x: pos.x, y: pos.y, fixed: true, draggable: true, symbolSize: 48,
             label: {
-                show: true, position: 'inside' as const, color: '#e0e6f0',
+                show: true, position: 'inside' as const, color: palette.text,
                 fontSize: 10, fontWeight: 'bold' as const,
                 formatter: (params: any) => {
                     const value = String(params.data.name || '');
                     return value.length > 8 ? `${value.slice(0, 7)}…` : value;
                 },
             },
-            itemStyle: { color: 'rgba(14,18,32,0.92)', borderColor, borderWidth: 2 },
-            emphasis: { itemStyle: { borderColor: '#00d4ff', borderWidth: 3, shadowBlur: 14, shadowColor: 'rgba(0,212,255,0.45)' } },
+            itemStyle: { color: palette.surfaceElevated, borderColor, borderWidth: 2 },
+            emphasis: { itemStyle: { borderColor: palette.cyan, borderWidth: 3, shadowBlur: 14, shadowColor: palette.pendingPoint } },
         };
     });
 
+    const chartPalette = getChartPalette();
     _eChart.setOption({
         backgroundColor: 'transparent',
         animation: false,
         tooltip: {
             trigger: 'item', enterable: true, confine: true,
-            backgroundColor: 'rgba(14,18,32,0.95)', borderColor: 'rgba(255,255,255,0.12)', borderWidth: 1,
-            padding: [8, 12], textStyle: { color: '#e0e6f0', fontSize: 12 },
+            backgroundColor: chartPalette.surfaceElevated, borderColor: chartPalette.borderHi, borderWidth: 1,
+            padding: [8, 12], textStyle: { color: chartPalette.text, fontSize: 12 },
             formatter: (params: any) => {
                 if (params.dataType === 'node') return nodeTooltip(String(params.data.id), selfLoops);
                 if (params.dataType === 'edge') { const group = getPairGroup(String(params.data._key)); if (group) return edgeTooltip(group); }
@@ -346,9 +354,9 @@ export function renderEChartsGraph(): void {
             roam: true, draggable: true, symbol: 'circle',
             edgeLabel: {
                 show: true, position: 'middle', distance: 14, rotate: false,
-                color: '#dfe7f5', fontSize: groups.length > 8 ? 9 : 10,
+                color: chartPalette.text, fontSize: groups.length > 8 ? 9 : 10,
                 lineHeight: groups.length > 8 ? 11 : 12, fontWeight: 600,
-                backgroundColor: 'rgba(7, 10, 18, 0.96)', borderColor: 'rgba(255,255,255,0.12)',
+                backgroundColor: chartPalette.background, borderColor: chartPalette.borderHi,
                 borderWidth: 1, borderRadius: 14, padding: [6, 10],
                 shadowBlur: 16, shadowColor: 'rgba(0,0,0,0.32)',
                 formatter: (params: any) => String(params.data?._labelText || ''),

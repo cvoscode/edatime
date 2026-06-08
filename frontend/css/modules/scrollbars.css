@@ -14,12 +14,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--shell-border-strong);
 }
 
 /* Containers that need a visible scrollbar */
@@ -38,7 +38,7 @@
 .profile-grid-viewport::-webkit-scrollbar-track,
 .upload-inner::-webkit-scrollbar-track,
 .page-upload::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--scrollbar-track);
   border-radius: 4px;
 }
 
@@ -65,5 +65,5 @@
 .profile-grid-viewport,
 .upload-inner {
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 168, 255, 0.28) rgba(255, 255, 255, 0.03);
+  scrollbar-color: rgba(0, 168, 255, 0.28) var(--scrollbar-track);
 }

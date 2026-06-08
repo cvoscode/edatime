@@ -17,8 +17,10 @@ import {
     appState,
     currentControls,
     type ScatterControls,
+    buildScatterQueryContext,
 } from './state.js';
 import { exportScatterParquet as exportScatterParquetBlob } from '../services/api/index.js';
+import { scaleScatterPlotGrid } from './layout.js';
 
 /* ── Linear tick helper ───────────────────────────────── */
 
@@ -129,7 +131,7 @@ export function renderScatterExportToCanvas(canvas: HTMLCanvasElement): boolean 
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, viewport.width, viewport.height);
 
-    const grid = { left: 72 * scale, right: 200 * scale, top: 24 * scale, bottom: 50 * scale };
+    const grid = scaleScatterPlotGrid(scale);
     const plotLeft = grid.left;
     const plotTop = grid.top;
     const plotRight = Math.max(plotLeft + 1, viewport.width - grid.right);
@@ -349,7 +351,7 @@ export async function exportScatterParquet(): Promise<boolean> {
     const controls = currentControls();
     if (!controls.x || !controls.y) return false;
     const payload: any = { x: String(controls.x), y: String(controls.y), color: controls.selectedColorColumn || undefined, limit: 1_000_000 };
-    const context = (await import('./state.js')).buildScatterQueryContext({
+    const context = buildScatterQueryContext({
         x: controls.x,
         y: controls.y,
         colorColumn: controls.selectedColorColumn,

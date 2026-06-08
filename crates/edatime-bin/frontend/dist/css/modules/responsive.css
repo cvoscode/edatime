@@ -289,6 +289,10 @@
     height: calc(100% - 56px);
   }
 
+  #scatter-chart.with-x-marginal ~ #scatter-right-panel {
+    top: 56px;
+  }
+
   .toolbar--series .toolbar-group {
     flex: 1 1 100%;
     min-width: 0;

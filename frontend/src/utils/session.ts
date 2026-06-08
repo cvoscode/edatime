@@ -23,6 +23,7 @@ import {
 } from '../store/index.js';
 import { toast } from './toast.js';
 import { getHashPage } from './router.js';
+import { getDropdownValue, setDropdownValue } from '../ui/primitives/Dropdown.js';
 
 const STORAGE_KEY = 'edatime-session';
 
@@ -75,7 +76,7 @@ function currentPage(): string {
 }
 
 function readSelect(id: string): string {
-    return (document.getElementById(id) as HTMLSelectElement | null)?.value || '';
+    return getDropdownValue(id);
 }
 
 /** Capture the current analysis state as a serialisable snapshot. */
@@ -101,6 +102,9 @@ export function captureSession(): SessionSnapshot {
         scatterY: readSelect('scatter-y-col'),
         scatterColorColumn: readSelect('scatter-color-column'),
         scatterRenderMode: readSelect('scatter-render-mode'),
+        // Theme is owned by AppSettings; we keep a snapshot of the resolved
+        // value for diagnostic / back-compat purposes only. It is no longer
+        // applied to the document by `applySession()`.
         theme: document.documentElement.getAttribute('data-theme') || 'dark',
         datasetRevision: Number.isFinite(Number(appState.datasetRevision)) ? Number(appState.datasetRevision) : 0,
     };
@@ -201,19 +205,16 @@ export function applySession(
 
     // Restore scatter dropdowns
     const setSelect = (id: string, val: string) => {
-        const el = document.getElementById(id) as HTMLSelectElement | null;
-        if (el && val) el.value = val;
+        if (val) setDropdownValue(id, val);
     };
     setSelect('scatter-x-col', snap.scatterX);
     setSelect('scatter-y-col', snap.scatterY);
     setSelect('scatter-color-column', snap.scatterColorColumn);
     setSelect('scatter-render-mode', snap.scatterRenderMode);
 
-    // Restore theme
-    if (snap.theme === 'light' || snap.theme === 'dark') {
-        document.documentElement.setAttribute('data-theme', snap.theme);
-        localStorage.setItem('edatime-theme', snap.theme);
-    }
+    // Theme is owned by AppSettings; legacy snapshots that recorded a `theme`
+    // value are intentionally not applied here. This keeps session restore
+    // from clobbering the user's active theme preference.
 
     if (revisionMismatch && announceAdjustments) {
         toast('Session belongs to another dataset revision; stale filters were cleared.', 'warning');

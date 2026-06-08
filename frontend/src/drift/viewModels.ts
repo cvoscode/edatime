@@ -6,17 +6,42 @@
  */
 
 import type { EChartLike } from './types.js';
+import { getChartPalette, getPaletteColor } from '../utils/theme.js';
 
 // ── Color constants (mirrored from driftPage for co-location) ─────────────────────
 
 export const COLOR_GREEN = '#00C896';
 export const COLOR_YELLOW = '#FFC041';
 export const COLOR_RED = '#FF6B6B';
-export const COLOR_DIM = 'rgba(120,139,174,0.35)';
-export const COLOR_REF = 'rgba(0,168,255,0.85)';
-export const COLOR_TEXT = '#D2DAF0';
-export const COLOR_TEXT_DIM = '#788BAE';
 export const COLUMN_PALETTE = ['#00D4FF', '#7CFFB2', '#FF9E7A', '#E190FF', '#FDD663', '#58D8FF', '#58C8A6'];
+
+// Theme-resolved color helpers. These read the active palette so drift charts
+// stay in sync with the current data-theme. Backwards-compatible fallbacks are
+// kept for any consumer that imports the constants directly.
+export const COLOR_REF_FALLBACK = 'rgba(0,168,255,0.85)';
+export const COLOR_TEXT_FALLBACK = '#D2DAF0';
+export const COLOR_TEXT_DIM_FALLBACK = '#788BAE';
+export const COLOR_DIM_FALLBACK = 'rgba(120,139,174,0.35)';
+
+export function COLOR_REF(): string {
+    return getPaletteColor('referenceStroke') ?? COLOR_REF_FALLBACK;
+}
+
+export function TOOLTIP_BG(): string {
+    return getPaletteColor('surfaceElevated') ?? 'rgba(9,14,24,0.95)';
+}
+
+export function DRIFT_TEXT(): string {
+    return getPaletteColor('text') ?? COLOR_TEXT_FALLBACK;
+}
+
+export function DRIFT_TEXT_DIM(): string {
+    return getPaletteColor('textDim') ?? COLOR_TEXT_DIM_FALLBACK;
+}
+
+export function DRIFT_DIM(): string {
+    return getPaletteColor('borderHi') ?? COLOR_DIM_FALLBACK;
+}
 
 // ── Interfaces (duplicated from driftPage for module cohesion) ────────────────────
 
@@ -225,7 +250,7 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
     if (!first) {
         return {
             backgroundColor: 'transparent',
-            title: { text: 'No drift data', left: 'center', top: 'center', textStyle: { color: COLOR_TEXT_DIM, fontSize: 12 } },
+            title: { text: 'No drift data', left: 'center', top: 'center', textStyle: { color: DRIFT_TEXT_DIM(), fontSize: 12 } },
         };
     }
 
@@ -242,7 +267,7 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
                 value: [refQuant[0], refQuant[1], refQuant[2], refQuant[3], refQuant[4]],
                 itemStyle: {
                     color: 'rgba(0,168,255,0.18)',
-                    borderColor: COLOR_REF,
+                    borderColor: COLOR_REF(),
                     borderWidth: refSelected ? 2.5 : 1.3,
                 },
                 meta: { column: col, ref: true, count: ref.count },
@@ -250,7 +275,7 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
         ];
 
         response.windows.forEach((w, wIdx) => {
-            const colr = w.count < 5 ? COLOR_DIM : driftColor(w.drift_level);
+            const colr = w.count < 5 ? DRIFT_DIM() : driftColor(w.drift_level);
             const isSelected = activeDetailColumn === col && selectedWindowIdx === wIdx;
             data.push({
                 value: [w.quantiles[0], w.quantiles[1], w.quantiles[2], w.quantiles[3], w.quantiles[4]],
@@ -291,15 +316,15 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
         legend: {
             top: 2,
             right: 6,
-            textStyle: { color: COLOR_TEXT_DIM, fontSize: 11 },
+            textStyle: { color: DRIFT_TEXT_DIM(), fontSize: 11 },
             type: 'scroll',
         },
         tooltip: {
             trigger: 'item',
             confine: true,
             borderColor: 'rgba(255,255,255,0.08)',
-            backgroundColor: 'rgba(9,14,24,0.95)',
-            textStyle: { color: COLOR_TEXT },
+            backgroundColor: TOOLTIP_BG(),
+            textStyle: { color: DRIFT_TEXT() },
             formatter: timelineTooltipFormatter,
         },
         grid: {
@@ -312,7 +337,7 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
             right: 8,
             top: 2,
             itemSize: 12,
-            iconStyle: { borderColor: COLOR_TEXT_DIM },
+            iconStyle: { borderColor: DRIFT_TEXT_DIM() },
             feature: {
                 dataZoom: { yAxisIndex: 'none', title: { zoom: 'Box zoom', back: 'Undo zoom' } },
                 restore: { title: 'Reset zoom' },
@@ -325,13 +350,13 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
         xAxis: {
             type: 'category',
             data: categories,
-            axisLabel: { color: COLOR_TEXT_DIM, rotate: 32, fontSize: 10 },
+            axisLabel: { color: DRIFT_TEXT_DIM(), rotate: 32, fontSize: 10 },
             axisLine: { lineStyle: { color: 'rgba(255,255,255,0.16)' } },
         },
         yAxis: {
             type: 'value',
             scale: true,
-            axisLabel: { color: COLOR_TEXT_DIM },
+            axisLabel: { color: DRIFT_TEXT_DIM() },
             splitLine: { lineStyle: { color: 'rgba(255,255,255,0.07)' } },
         },
         series,
@@ -351,7 +376,7 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
     if (!response) {
         return {
             backgroundColor: 'transparent',
-            title: { text: 'No detail data', left: 'center', top: 'center', textStyle: { color: COLOR_TEXT_DIM, fontSize: 12 } },
+            title: { text: 'No detail data', left: 'center', top: 'center', textStyle: { color: DRIFT_TEXT_DIM(), fontSize: 12 } },
         };
     }
     const win = selectedWindowIdx !== null ? response.windows[selectedWindowIdx] : null;
@@ -364,14 +389,14 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
             trigger: 'axis',
             confine: true,
             borderColor: 'rgba(255,255,255,0.08)',
-            backgroundColor: 'rgba(9,14,24,0.95)',
-            textStyle: { color: COLOR_TEXT },
+            backgroundColor: TOOLTIP_BG(),
+            textStyle: { color: DRIFT_TEXT() },
         },
         toolbox: {
             right: 8,
             top: 2,
             itemSize: 12,
-            iconStyle: { borderColor: COLOR_TEXT_DIM },
+            iconStyle: { borderColor: DRIFT_TEXT_DIM() },
             feature: {
                 dataZoom: { yAxisIndex: 'none', title: { zoom: 'Box zoom', back: 'Undo zoom' } },
                 restore: { title: 'Reset zoom' },
@@ -380,7 +405,7 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
         legend: {
             top: 2,
             right: 70,
-            textStyle: { color: COLOR_TEXT_DIM, fontSize: 10 },
+            textStyle: { color: DRIFT_TEXT_DIM(), fontSize: 10 },
         },
         grid: {
             left: 46,
@@ -395,7 +420,7 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
         const mids = bins.length > 1
             ? bins.slice(0, -1).map((v, i) => formatValue((v + bins[i + 1]) / 2))
             : [];
-        const windowColor = win && win.count >= 5 ? driftColor(win.drift_level) : COLOR_DIM;
+        const windowColor = win && win.count >= 5 ? driftColor(win.drift_level) : DRIFT_DIM();
         return {
             ...common,
             dataZoom: [
@@ -405,12 +430,12 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
             xAxis: {
                 type: 'category',
                 data: mids,
-                axisLabel: { color: COLOR_TEXT_DIM, fontSize: 10 },
+                axisLabel: { color: DRIFT_TEXT_DIM(), fontSize: 10 },
                 axisLine: { lineStyle: { color: 'rgba(255,255,255,0.16)' } },
             },
             yAxis: {
                 type: 'value',
-                axisLabel: { color: COLOR_TEXT_DIM },
+                axisLabel: { color: DRIFT_TEXT_DIM() },
                 splitLine: { lineStyle: { color: 'rgba(255,255,255,0.07)' } },
             },
             series: [
@@ -419,7 +444,7 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
                     type: 'bar',
                     barGap: '-35%',
                     data: ref.hist_counts,
-                    itemStyle: { color: 'rgba(0,168,255,0.38)', borderColor: COLOR_REF, borderWidth: 1 },
+                    itemStyle: { color: 'rgba(0,168,255,0.38)', borderColor: COLOR_REF(), borderWidth: 1 },
                 },
                 {
                     name: win ? win.label : 'Selected',
@@ -432,7 +457,7 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
     }
 
     if (plotType === 'ecdf') {
-        const windowColor = win && win.count >= 5 ? driftColor(win.drift_level) : COLOR_DIM;
+        const windowColor = win && win.count >= 5 ? driftColor(win.drift_level) : DRIFT_DIM();
         return {
             ...common,
             dataZoom: [
@@ -442,14 +467,14 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
             xAxis: {
                 type: 'value',
                 scale: true,
-                axisLabel: { color: COLOR_TEXT_DIM, formatter: (v: number) => formatValue(v) },
+                axisLabel: { color: DRIFT_TEXT_DIM(), formatter: (v: number) => formatValue(v) },
                 axisLine: { lineStyle: { color: 'rgba(255,255,255,0.16)' } },
             },
             yAxis: {
                 type: 'value',
                 min: 0,
                 max: 1,
-                axisLabel: { color: COLOR_TEXT_DIM },
+                axisLabel: { color: DRIFT_TEXT_DIM() },
                 splitLine: { lineStyle: { color: 'rgba(255,255,255,0.07)' } },
             },
             series: [
@@ -458,7 +483,7 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
                     type: 'line',
                     step: 'end',
                     symbol: 'none',
-                    lineStyle: { color: COLOR_REF, width: 2 },
+                    lineStyle: { color: COLOR_REF(), width: 2 },
                     data: ref.ecdf_x.map((x, i) => [x, ref.ecdf_y[i] ?? 0]),
                 },
                 {
@@ -476,7 +501,7 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
     if (plotType === 'violin') {
         const densityRef = normalizeDensity(ref);
         const densityWin = win ? normalizeDensity(win) : [];
-        const windowColor = win && win.count >= 5 ? driftColor(win.drift_level) : COLOR_DIM;
+        const windowColor = win && win.count >= 5 ? driftColor(win.drift_level) : DRIFT_DIM();
         return {
             ...common,
             dataZoom: [
@@ -486,14 +511,14 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
             xAxis: {
                 type: 'value',
                 scale: true,
-                axisLabel: { color: COLOR_TEXT_DIM, formatter: (v: number) => formatValue(v) },
+                axisLabel: { color: DRIFT_TEXT_DIM(), formatter: (v: number) => formatValue(v) },
                 axisLine: { lineStyle: { color: 'rgba(255,255,255,0.16)' } },
             },
             yAxis: {
                 type: 'value',
                 min: 0,
                 max: 1,
-                axisLabel: { color: COLOR_TEXT_DIM },
+                axisLabel: { color: DRIFT_TEXT_DIM() },
                 splitLine: { lineStyle: { color: 'rgba(255,255,255,0.07)' } },
             },
             series: [
@@ -502,7 +527,7 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
                     type: 'line',
                     smooth: true,
                     symbol: 'none',
-                    lineStyle: { color: COLOR_REF, width: 2 },
+                    lineStyle: { color: COLOR_REF(), width: 2 },
                     areaStyle: { color: 'rgba(0,168,255,0.16)' },
                     data: densityRef,
                 },
@@ -519,7 +544,7 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
         };
     }
 
-    const winColor = win && win.count >= 5 ? driftColor(win.drift_level) : COLOR_DIM;
+    const winColor = win && win.count >= 5 ? driftColor(win.drift_level) : DRIFT_DIM();
     const refQ = ref.quantiles;
     const winQ = win?.quantiles ?? [NaN, NaN, NaN, NaN, NaN];
 
@@ -528,13 +553,13 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
         xAxis: {
             type: 'category',
             data: ['Reference', win?.label || 'Selected'],
-            axisLabel: { color: COLOR_TEXT_DIM, fontSize: 10 },
+            axisLabel: { color: DRIFT_TEXT_DIM(), fontSize: 10 },
             axisLine: { lineStyle: { color: 'rgba(255,255,255,0.16)' } },
         },
         yAxis: {
             type: 'value',
             scale: true,
-            axisLabel: { color: COLOR_TEXT_DIM },
+            axisLabel: { color: DRIFT_TEXT_DIM() },
             splitLine: { lineStyle: { color: 'rgba(255,255,255,0.07)' } },
         },
         series: [
@@ -546,7 +571,7 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
                         value: [refQ[0], refQ[1], refQ[2], refQ[3], refQ[4]],
                         itemStyle: {
                             color: 'rgba(0,168,255,0.18)',
-                            borderColor: COLOR_REF,
+                            borderColor: COLOR_REF(),
                             borderWidth: 1.5,
                         },
                     },

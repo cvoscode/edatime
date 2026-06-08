@@ -13,6 +13,8 @@
  * All drift chart functions and state are passed as callbacks.
  */
 
+import { getDropdownValue } from '../ui/primitives/Dropdown.js';
+
 export interface DriftControlCallbacks {
     getSelectedColumns: () => string[];
     runCompute: () => Promise<void>;
@@ -36,19 +38,19 @@ export interface DriftControlOptions {
     colSelectSingleBtn: HTMLButtonElement | null;
     colSelectNoneBtn: HTMLButtonElement | null;
     colSelect: HTMLSelectElement | null;
-    windowSelect: HTMLSelectElement | null;
-    plotTypeSelect: HTMLSelectElement | null;
-    refPresetSelect: HTMLSelectElement | null;
+    windowSelect: HTMLElement | null;
+    plotTypeSelect: HTMLElement | null;
+    refPresetSelect: HTMLElement | null;
     refStartInput: HTMLInputElement | null;
     refEndInput: HTMLInputElement | null;
     computeBtn: HTMLButtonElement | null;
     zoomResetBtn: HTMLButtonElement | null;
     statusEl: HTMLElement | null;
-    detailColumnSelect: HTMLSelectElement | null;
+    detailColumnSelect: HTMLElement | null;
     loadingOverlay: HTMLElement | null;
     emptyState: HTMLElement | null;
     driftLayoutEl: HTMLElement | null;
-    sortSelect: HTMLSelectElement | null;
+    sortSelect: HTMLElement | null;
     onDetailColumnChange: (column: string | null, windowIdx: number | null) => void;
     timelineChartDispatch: (action: { type: string; dataZoomIndex?: number; start?: number; end?: number }) => void;
     detailChartDispatch: (action: { type: string; dataZoomIndex?: number; start?: number; end?: number }) => void;
@@ -235,7 +237,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         if (refStartInput) refStartInput.value = toDatetimeLocal(timeRange.min);
         if (refEndInput) refEndInput.value = toDatetimeLocal(end);
     }
-    applyReferencePreset(refPresetSelect?.value || '50');
+    applyReferencePreset(getDropdownValue('drift-ref-preset') || '50');
 
     // ── Compute button ─────────────────────────────────────────────────────
     computeBtn?.addEventListener('click', () => {
@@ -249,7 +251,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
 
     // ── Detail column select ─────────────────────────────────────────────────
     detailColumnSelect?.addEventListener('change', () => {
-        const column = detailColumnSelect.value || null;
+        const column = getDropdownValue('drift-detail-col-select') || null;
         onDetailColumnChange(column, null);
     });
 
@@ -265,7 +267,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
 
     // ── Reference preset select ─────────────────────────────────────────────
     refPresetSelect?.addEventListener('change', () => {
-        applyReferencePreset(refPresetSelect.value || 'custom');
+        applyReferencePreset(getDropdownValue('drift-ref-preset') || 'custom');
     });
 
     // ── Column picker bulk actions ─────────────────────────────────────────

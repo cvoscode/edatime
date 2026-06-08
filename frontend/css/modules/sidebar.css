@@ -1,6 +1,6 @@
 /* ─── Sidebar & Nav ───────────────────────────────────────────── */
 .sidebar {
-  background: rgba(11, 15, 24, 0.94);
+  background: var(--shell-bg);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-right: 1px solid var(--border);
@@ -34,7 +34,7 @@
 .sidebar-section-label--spaced {
   margin-top: 8px;
   padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--shell-border);
 }
 
 .nav-item {
@@ -60,7 +60,7 @@
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--shell-hover);
   color: var(--text);
 }
 
@@ -88,7 +88,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--shell-hover);
   border: 1px solid var(--border);
   color: var(--text-dim);
   flex-shrink: 0;
@@ -131,8 +131,8 @@
   min-width: 22px;
   height: 18px;
   border-radius: 5px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--kbd-bg);
+  border: 1px solid var(--kbd-border);
   border-bottom-width: 2px;
   font-size: 0.625rem;
   font-weight: 600;

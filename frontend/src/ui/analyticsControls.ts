@@ -6,12 +6,13 @@ import {
     setRollingEnabled,
     setRollingWindow,
 } from '../store/index.js';
+import { getDropdownValue } from './primitives/Dropdown.js';
 
 export function initAnalyticsControls(): void {
     const rollingCheck = document.getElementById('rolling-enabled') as HTMLInputElement | null;
     const rollingWindowInput = document.getElementById('rolling-window') as HTMLInputElement | null;
     const anomalyCheck = document.getElementById('anomaly-enabled') as HTMLInputElement | null;
-    const anomalyMethodSelect = document.getElementById('anomaly-method') as HTMLSelectElement | null;
+    const anomalyMethodSelect = document.getElementById('anomaly-method') as HTMLElement | null;
     const anomalyThresholdInput = document.getElementById('anomaly-threshold') as HTMLInputElement | null;
     const transformOpenBtn = document.getElementById('transform-open-btn') as HTMLElement | null;
 
@@ -47,7 +48,7 @@ export function initAnalyticsControls(): void {
     }
     if (anomalyMethodSelect && !anomalyMethodSelect.dataset.bound) {
         anomalyMethodSelect.addEventListener('change', () => {
-            setAnomalyMethod(anomalyMethodSelect.value);
+            setAnomalyMethod(getDropdownValue('anomaly-method'));
             if (appState.anomalyEnabled) dispatchAnalyticsChange();
         });
         anomalyMethodSelect.dataset.bound = '1';

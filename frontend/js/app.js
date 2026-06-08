@@ -1,7 +1,7 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/scatter-CsYwdhXn.js","assets/chartgpu-CqrjGxnD.js","assets/echarts-Dsc0OV0i.js","assets/entrypoint-C_xGS_b7.js","assets/frequency-BQcd2xMr.js","assets/entrypoint-D9BFtxJ3.js","assets/entrypoint-CyhHUuz3.js","assets/causal-BzB-yJOn.js","assets/drift-aJ9h0213.js","assets/DataChart-CWFFV98V.js","assets/settings-DaJhIv9J.js"])))=>i.map(i=>d[i]);
-import { b as appStateComposite, l as setProfileGridBound, n as normalizeDtypeLabel, m as formatCount, o as formatProfileValue, p as setProfileGridSort, q as setProfileGridHeaderBound, r as setPreviewSelectedColumns, u as setColumnProfiles, v as toFiniteNumberOrNull, w as applyColumnRanges, x as setRollingBands, y as setAnomalyRegions, _ as __vitePreload, z as formatToDatetimeLocal, A as formatAnalysisTime, B as previewUpload, C as setMetadata, E as setPreviewTimeColumn, t as toast, F as connectDatabase, G as loadDatabaseTable, H as deleteDatabaseConnection, I as fetchDatabaseTables, J as fetchDatabaseStatus, K as uploadDataset, L as setDatasetRevision, M as formatAnalysisNumber, N as setPendingYMode, O as setPendingRestoreY, P as dbgGroup, Q as dbg, R as setZoomHistory, S as setViewport, T as setFetchDebounceId, U as buildAdaptiveLineFiltersForQuery, V as exportParquet, d as downloadBlob, W as setAdaptiveLineFilters, X as setPendingAdaptivePoint, Y as setChartText, Z as setRollingEnabled, $ as setRollingWindow, a0 as setAnomalyEnabled, a1 as setAnomalyMethod, a2 as setAnomalyThreshold, D as DEBUG, a3 as setAnalysisBound, a4 as SERIES_COLORS, a5 as postRemoveOutliers, a6 as postTransform, a7 as isRangeOutsideDataset, a8 as sanitizeSelectedColumns$1, a9 as setLastFetchedData, aa as ensureRangeStateFromData, ab as createEmptyStateController, k as createRequestTask, ac as setSelectedCols, ad as setAdaptiveFilterColumn, ae as getSeriesColor, af as setSeriesColor, ag as computeBounds, ah as debounce, ai as setColumnRanges, aj as setFilterText, ak as setProfileFilterText, al as createPageRuntime, am as invalidateDatasetRequestScope, an as assertDatasetRequestScopeActive, ao as captureDatasetRequestScope, ap as requestGpuAdapter, aq as installWindowsWebGpuRequestAdapterWorkaround, ar as appendAdaptiveLineFilter, as as buildAdaptiveLineY, at as setSeriesColors, au as setSelectedColorColumn, av as setChartInstance, aw as setInitialView, ax as setNumericCols, ay as initScatterPage } from './assets/scatter-CsYwdhXn.js';
-import { R as RangeControls, C as ColumnFilterModal, r as renderSeriesChipList, g as getDefaultTimeseriesColumns, a as getNumericColumns, b as getAnalyticsChipColor } from './assets/frequency-BQcd2xMr.js';
-import { a as applyTheme, b as applyLayoutDensity, s as saveSettings, C as CHART_PALETTES, D as DEFAULT_SETTINGS, l as loadSettings, g as getSetting, u as updateSetting, i as initSettings } from './assets/settings-DaJhIv9J.js';
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/scatter-O3bU0fte.js","assets/chartgpu-CqrjGxnD.js","assets/echarts-Dsc0OV0i.js","assets/entrypoint-DACzS_zs.js","assets/frequency-DNl_Y30x.js","assets/entrypoint-Cxcbh6LV.js","assets/entrypoint-D8ufsv5w.js","assets/causal-DnsmCw11.js","assets/drift-DvO4Mo51.js","assets/DataChart-S1v-FjRy.js","assets/settings-IpQ7Lnwl.js"])))=>i.map(i=>d[i]);
+import { b as appStateComposite, x as setProfileGridBound, y as normalizeDtypeLabel, z as formatCount, A as formatProfileValue, B as setProfileGridSort, C as setProfileGridHeaderBound, E as setPreviewSelectedColumns, F as setColumnProfiles, G as toFiniteNumberOrNull, H as applyColumnRanges, I as setRollingBands, J as setAnomalyRegions, _ as __vitePreload, K as formatToDatetimeLocal, L as formatAnalysisTime, M as previewUpload, N as setMetadata, O as setPreviewTimeColumn, t as toast, k as setDropdownOptions, i as setDropdownValue, g as getDropdownValue, P as connectDatabase, Q as loadDatabaseTable, R as deleteDatabaseConnection, S as fetchDatabaseTables, T as fetchDatabaseStatus, U as uploadDataset, V as setDatasetRevision, W as formatAnalysisNumber, X as setPendingYMode, Y as setPendingRestoreY, Z as dbgGroup, $ as dbg, a0 as setZoomHistory, a1 as setViewport, a2 as setFetchDebounceId, a3 as buildAdaptiveLineFiltersForQuery, a4 as exportParquet, d as downloadBlob, a5 as setAdaptiveLineFilters, a6 as setPendingAdaptivePoint, a7 as setChartText, a8 as setRollingEnabled, a9 as setRollingWindow, aa as setAnomalyEnabled, ab as setAnomalyMethod, ac as setAnomalyThreshold, ad as SERIES_COLORS, D as DEBUG, ae as setAnalysisBound, af as postRemoveOutliers, ag as postTransform, ah as setSelectedCols, ai as setSeriesColors, aj as setColumnRanges, ak as setSelectedColorColumn, al as isRangeOutsideDataset, am as sanitizeSelectedColumns$1, an as setLastFetchedData, ao as ensureRangeStateFromData, ap as createEmptyStateController, v as createRequestTask, aq as setAdaptiveFilterColumn, ar as getSeriesColor, as as setSeriesColor, at as computeBounds, au as debounce, av as setFilterText, aw as setProfileFilterText, ax as createPageRuntime, ay as invalidateDatasetRequestScope, az as assertDatasetRequestScopeActive, aA as captureDatasetRequestScope, aB as requestGpuAdapter, aC as installWindowsWebGpuRequestAdapterWorkaround, aD as appendAdaptiveLineFilter, aE as buildAdaptiveLineY, aF as setChartInstance, aG as setInitialView, u as upgradeSelects, aH as setNumericCols, aI as initScatterPage } from './assets/scatter-O3bU0fte.js';
+import { R as RangeControls, C as ColumnFilterModal, r as renderSeriesChipList, g as getDefaultTimeseriesColumns, a as getNumericColumns, b as getAnalyticsChipColor } from './assets/frequency-DNl_Y30x.js';
+import { l as loadSettings, s as saveSettings, a as applyTheme, b as applyLayoutDensity, C as CHART_PALETTES, D as DEFAULT_SETTINGS, g as getSetting, u as updateSetting, i as initSettings } from './assets/settings-IpQ7Lnwl.js';
 import './assets/chartgpu-CqrjGxnD.js';
 import './assets/echarts-Dsc0OV0i.js';
 
@@ -428,29 +428,21 @@ async function fetchAndRenderAnalytics$1(fetchAnomalies) {
   await fetchAnomalyRegions(fetchAnomalies ?? null);
 }
 
+function nextTheme(current) {
+  return current === "light" ? "dark" : "light";
+}
 function initThemeToggle() {
   const btn = document.getElementById("theme-toggle-btn");
-  const iconDark = document.getElementById("theme-icon-dark");
-  const iconLight = document.getElementById("theme-icon-light");
   if (!btn) return;
-  const savedTheme = localStorage.getItem("edatime-theme");
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const apply = (theme) => {
-    if (theme === "light") document.documentElement.setAttribute("data-theme", "light");
-    else document.documentElement.removeAttribute("data-theme");
-    if (iconDark) iconDark.hidden = theme === "light";
-    if (iconLight) iconLight.hidden = theme !== "light";
-  };
-  apply(savedTheme === "light" ? "light" : prefersDark ? "dark" : "dark");
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
-    const manualPreference = localStorage.getItem("edatime-theme");
-    if (manualPreference) return;
-    apply(e.matches ? "dark" : "light");
-  });
+  if (btn.dataset.edatimeThemeToggle === "1") return;
+  btn.dataset.edatimeThemeToggle = "1";
   btn.addEventListener("click", () => {
-    const isLight = document.documentElement.getAttribute("data-theme") === "light";
-    apply(isLight ? "dark" : "light");
-    localStorage.setItem("edatime-theme", isLight ? "dark" : "light");
+    const settings = loadSettings();
+    const current = settings.theme === "light" ? "light" : "dark";
+    const target = nextTheme(current);
+    settings.theme = target;
+    saveSettings(settings);
+    applyTheme(target);
   });
 }
 
@@ -458,16 +450,18 @@ function humanizeControlId(id) {
   return String(id || "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().replace(/\b\w/g, (match) => match.toUpperCase());
 }
 function normalizeFormControlAccessibility() {
-  const controls = document.querySelectorAll("input, select, textarea");
+  const controls = document.querySelectorAll("input, select, textarea, .dropdown__trigger");
   controls.forEach((control) => {
-    if (!control.name && control.id) {
-      control.name = control.id;
+    if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement) {
+      if (!control.name && control.id) {
+        control.name = control.id;
+      }
     }
     if (control.getAttribute("aria-label")) return;
-    const labelledByText = Array.from(control.labels || []).map((label) => label.textContent?.replace(/\s+/g, " ").trim() || "").filter(Boolean).join(" ");
+    const labelledByText = control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement ? Array.from(control.labels || []).map((label) => label.textContent?.replace(/\s+/g, " ").trim() || "").filter(Boolean).join(" ") : "";
     const placeholder = control.getAttribute("placeholder") || "";
     const title = control.getAttribute("title") || "";
-    const fallback = humanizeControlId(control.id) || (control.type === "file" ? "Upload file" : "Form field");
+    const fallback = humanizeControlId(control.id) || (control instanceof HTMLInputElement && control.type === "file" ? "Upload file" : "Form field");
     const derived = labelledByText || placeholder || title || fallback;
     {
       control.setAttribute("aria-label", derived);
@@ -495,8 +489,8 @@ function wireSampleDatasetCards(showPage, refreshDatasetAfterMutation) {
   });
 }
 async function loadSampleDataset(datasetId, showPage, refreshDatasetAfterMutation) {
-  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/scatter-CsYwdhXn.js').then(n => n.aF);return { toast }},true              ?__vite__mapDeps([0,1,2]):void 0);
-  const { fetchSampleDataset, uploadDataset } = await __vitePreload(async () => { const { fetchSampleDataset, uploadDataset } = await import('./assets/scatter-CsYwdhXn.js').then(n => n.aE);return { fetchSampleDataset, uploadDataset }},true              ?__vite__mapDeps([0,1,2]):void 0);
+  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/scatter-O3bU0fte.js').then(n => n.aQ);return { toast }},true              ?__vite__mapDeps([0,1,2]):void 0);
+  const { fetchSampleDataset, uploadDataset } = await __vitePreload(async () => { const { fetchSampleDataset, uploadDataset } = await import('./assets/scatter-O3bU0fte.js').then(n => n.aP);return { fetchSampleDataset, uploadDataset }},true              ?__vite__mapDeps([0,1,2]):void 0);
   const labels = {
     ettm2: "ETTm2",
     sinusoidal: "Sinusoidal Waves",
@@ -701,28 +695,23 @@ function applyPreviewColumnSelection(metadata, callbacks) {
   const timeColumnExists = appStateComposite.previewTimeColumn && columns.some((col) => String(col?.name || "").trim() === appStateComposite.previewTimeColumn);
   const calledTimeColumn = metadataTimeCol || detectedTimeCol || (timeColumnExists ? appStateComposite.previewTimeColumn : null);
   setPreviewTimeColumn(calledTimeColumn);
-  const timeColumnSelect = document.getElementById("time-column-select");
-  if (timeColumnSelect) {
-    timeColumnSelect.innerHTML = "";
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = "Auto-detect";
-    timeColumnSelect.appendChild(opt);
-    for (const col of columns) {
-      const name = String(col?.name || "").trim();
-      if (!name) continue;
-      const colOpt = document.createElement("option");
-      colOpt.value = name;
-      colOpt.textContent = `${name} (${col?.dtype || "unknown"})`;
-      timeColumnSelect.appendChild(colOpt);
-    }
+  const timeColumnControl = document.getElementById("time-column-select");
+  if (timeColumnControl) {
+    setDropdownOptions("time-column-select", [
+      { value: "", label: "Auto-detect" },
+      ...columns.map((col) => {
+        const name = String(col?.name || "").trim();
+        if (!name) return null;
+        return { value: name, label: `${name} (${col?.dtype || "unknown"})` };
+      }).filter((option) => option !== null)
+    ], { preferredValue: calledTimeColumn || "" });
     if (calledTimeColumn) {
-      timeColumnSelect.value = calledTimeColumn;
+      setDropdownValue("time-column-select", calledTimeColumn);
     } else {
-      timeColumnSelect.value = "";
+      setDropdownValue("time-column-select", "");
     }
-    timeColumnSelect.onchange = () => {
-      setPreviewTimeColumn(timeColumnSelect.value || null);
+    timeColumnControl.onchange = () => {
+      setPreviewTimeColumn(getDropdownValue("time-column-select") || null);
       const fileInput = document.getElementById("file-upload");
       const file = fileInput?.files?.[0] || null;
       if (file) callbacks.onTimeColumnChanged(file);
@@ -762,21 +751,17 @@ function loadedRowCountFromResponse(response) {
 }
 
 async function refreshDbTables() {
-  const dbTableSelect = document.getElementById("db-table-select");
-  if (!dbTableSelect) return;
+  if (!document.getElementById("db-table-select")) return;
   try {
     const data = await fetchDatabaseTables();
     const tables = data.tables ?? [];
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = "— select table —";
-    dbTableSelect.replaceChildren(placeholder);
-    for (const t of tables) {
-      const opt = document.createElement("option");
-      opt.value = t.name;
-      opt.textContent = t.kind === "hypertable" ? `⏱ ${t.schema}.${t.name}` : `${t.schema}.${t.name}`;
-      dbTableSelect.appendChild(opt);
-    }
+    setDropdownOptions("db-table-select", [
+      { value: "", label: "— select table —" },
+      ...tables.map((table) => ({
+        value: table.name,
+        label: table.kind === "hypertable" ? `⏱ ${table.schema}.${table.name}` : `${table.schema}.${table.name}`
+      }))
+    ], { preferredValue: "" });
   } catch {
   }
 }
@@ -898,22 +883,11 @@ async function handleDatabaseDisconnect(params) {
   if (dbLoadBtn) dbLoadBtn.disabled = true;
   if (dbDisconnectBtn) dbDisconnectBtn.hidden = true;
   if (dbTableSelect) {
-    dbTableSelect.replaceChildren();
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = "— connect first —";
-    dbTableSelect.appendChild(placeholder);
+    setDropdownOptions("db-table-select", [
+      { value: "", label: "— connect first —" }
+    ], { preferredValue: "" });
   }
 }
-
-const databaseSource = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-    __proto__: null,
-    handleDatabaseConnect,
-    handleDatabaseDisconnect,
-    handleDatabaseLoad,
-    refreshDbTables,
-    syncDatabaseStatus
-}, Symbol.toStringTag, { value: 'Module' }));
 
 function animateProgress(bar, wrap) {
   let w = 0;
@@ -1041,7 +1015,7 @@ async function submitFileUpload(params) {
         if (deps.refreshDatasetAfterMutation) {
           await deps.refreshDatasetAfterMutation();
         } else {
-          const { fetchMetadata } = await __vitePreload(async () => { const { fetchMetadata } = await import('./assets/scatter-CsYwdhXn.js').then(n => n.aE);return { fetchMetadata }},true              ?__vite__mapDeps([0,1,2]):void 0);
+          const { fetchMetadata } = await __vitePreload(async () => { const { fetchMetadata } = await import('./assets/scatter-O3bU0fte.js').then(n => n.aP);return { fetchMetadata }},true              ?__vite__mapDeps([0,1,2]):void 0);
           const freshMetadata = await fetchMetadata();
           setMetadata(freshMetadata);
           const revision = freshMetadata?.revision;
@@ -1190,7 +1164,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
   }
   applyTimeRangeFromMetadata(appStateComposite.metadata, false);
   if (!appStateComposite.metadata) {
-    void __vitePreload(() => import('./assets/scatter-CsYwdhXn.js').then(n => n.aE),true              ?__vite__mapDeps([0,1,2]):void 0).then(async ({ fetchMetadata }) => {
+    void __vitePreload(() => import('./assets/scatter-O3bU0fte.js').then(n => n.aP),true              ?__vite__mapDeps([0,1,2]):void 0).then(async ({ fetchMetadata }) => {
       try {
         const freshMetadata = await fetchMetadata();
         if (freshMetadata) {
@@ -1257,7 +1231,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
       dbTabBtn?.classList.add("btn-primary");
       if (filePanel) filePanel.hidden = true;
       if (dbPanel) dbPanel.hidden = false;
-      void syncDatabaseStatus();
+      void syncDatabaseStatus$1();
     } else {
       dbTabBtn?.setAttribute("aria-selected", "false");
       fileTabBtn?.setAttribute("aria-selected", "true");
@@ -1278,7 +1252,8 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
   const dbTableSelect = document.getElementById("db-table-select");
   dbTableSelect?.addEventListener("change", () => {
     const tableInput = document.getElementById("db-table-input");
-    if (tableInput && dbTableSelect.value) tableInput.value = dbTableSelect.value;
+    const table = getDropdownValue("db-table-select");
+    if (tableInput && table) tableInput.value = table;
   });
   if (dbConnectBtn) {
     dbConnectBtn.addEventListener("click", () => {
@@ -1297,7 +1272,7 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
   if (dbLoadBtn) {
     dbLoadBtn.addEventListener("click", () => {
       const schema = document.getElementById("db-schema-input")?.value.trim() || "public";
-      const table = document.getElementById("db-table-input")?.value.trim() ?? dbTableSelect?.value ?? "";
+      const table = document.getElementById("db-table-input")?.value.trim() ?? getDropdownValue("db-table-select") ?? "";
       const timeColumn = document.getElementById("db-time-col-input")?.value.trim();
       void handleDatabaseLoad({
         schema,
@@ -1319,11 +1294,10 @@ function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) 
     });
   }
   let dbStatusLoaded = false;
-  async function syncDatabaseStatus() {
+  async function syncDatabaseStatus$1() {
     if (dbStatusLoaded) return;
     dbStatusLoaded = true;
-    const { syncDatabaseStatus: doSync } = await __vitePreload(async () => { const { syncDatabaseStatus: doSync } = await Promise.resolve().then(() => databaseSource);return { syncDatabaseStatus: doSync }},true              ?void 0:void 0);
-    await doSync();
+    await syncDatabaseStatus();
   }
 }
 
@@ -1630,7 +1604,7 @@ function initDrawControls(fetchAndRender) {
   const adaptiveClearBtn = document.getElementById("adaptive-clear-btn");
   const updateDrawMode = () => {
     if (appStateComposite.chart && appStateComposite.chart.setDrawMode) {
-      appStateComposite.chart.setDrawMode(drawTool.value, drawColor.value, parseInt(drawWidth.value, 10));
+      appStateComposite.chart.setDrawMode(getDropdownValue("draw-tool"), drawColor.value, parseInt(drawWidth.value, 10));
     }
   };
   if (drawTool) drawTool.addEventListener("change", updateDrawMode);
@@ -1720,7 +1694,7 @@ function initAnalyticsControls() {
   }
   if (anomalyMethodSelect && !anomalyMethodSelect.dataset.bound) {
     anomalyMethodSelect.addEventListener("change", () => {
-      setAnomalyMethod(anomalyMethodSelect.value);
+      setAnomalyMethod(getDropdownValue("anomaly-method"));
       if (appStateComposite.anomalyEnabled) dispatchAnalyticsChange();
     });
     anomalyMethodSelect.dataset.bound = "1";
@@ -1855,6 +1829,155 @@ function initHashRouting() {
   }
 }
 
+function createModalController(opts) {
+  const modal = document.getElementById(opts.modalId);
+  const open = () => {
+    if (modal) modal.hidden = false;
+    opts.onOpen?.();
+  };
+  const close = () => {
+    if (modal) modal.hidden = true;
+    opts.onClose?.();
+  };
+  for (const id of opts.closeButtonIds) {
+    document.getElementById(id)?.addEventListener("click", close);
+  }
+  modal?.addEventListener("click", (event) => {
+    if (event.target === modal) close();
+  });
+  return { open, close };
+}
+
+let currentSettings = null;
+const controller$1 = createModalController({
+  modalId: "settings-modal",
+  closeButtonIds: ["settings-close-btn", "settings-cancel-btn"],
+  onOpen: () => {
+    currentSettings = loadSettings();
+    populateSettingsForm(currentSettings);
+    setActiveTab("appearance");
+  },
+  onClose: () => {
+    currentSettings = null;
+  }
+});
+function openSettingsModal() {
+  controller$1.open();
+}
+function closeSettingsModal() {
+  controller$1.close();
+}
+function setActiveTab(tab) {
+  document.querySelectorAll(".settings-tab-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tab === tab);
+  });
+  document.querySelectorAll(".settings-tab-panel").forEach((panel) => {
+    panel.hidden = panel.dataset.tab !== tab;
+  });
+}
+function populateSettingsForm(settings) {
+  setSelectValue("settings-theme", settings.theme);
+  setSelectValue("settings-layout", settings.layoutDensity);
+  setSelectValue("settings-palette", settings.defaultPalette);
+  setSelectValue("settings-export-format", settings.defaultExportFormat);
+  setCheckboxValue("settings-white-bg", settings.whiteBackgroundExport);
+  setSelectValue("settings-correlation", settings.defaultCorrelationMetric);
+  setSelectValue("settings-causal-method", settings.defaultCausalMethod);
+  setInputValue("settings-tau-max", settings.defaultTauMax.toString());
+  setSelectValue("settings-fft-preset", settings.defaultFftPreset);
+  setCheckboxValue("settings-draw-auto-reset", settings.drawAutoReset);
+  setSelectValue("settings-color-scale", settings.colorScale);
+  setCheckboxValue("settings-sidebar-collapsed", settings.sidebarCollapsed);
+  renderPalettePreview(settings.defaultPalette);
+}
+function collectSettingsFromForm() {
+  return {
+    theme: getSelectValue("settings-theme") || DEFAULT_SETTINGS.theme,
+    layoutDensity: getSelectValue("settings-layout") || DEFAULT_SETTINGS.layoutDensity,
+    defaultPalette: getSelectValue("settings-palette") || DEFAULT_SETTINGS.defaultPalette,
+    defaultExportFormat: getSelectValue("settings-export-format") || DEFAULT_SETTINGS.defaultExportFormat,
+    whiteBackgroundExport: getCheckboxValue("settings-white-bg"),
+    defaultCorrelationMetric: getSelectValue("settings-correlation") || DEFAULT_SETTINGS.defaultCorrelationMetric,
+    defaultCausalMethod: getSelectValue("settings-causal-method") || DEFAULT_SETTINGS.defaultCausalMethod,
+    defaultTauMax: parseInt(getInputValue("settings-tau-max"), 10) || DEFAULT_SETTINGS.defaultTauMax,
+    defaultFftPreset: getSelectValue("settings-fft-preset") || DEFAULT_SETTINGS.defaultFftPreset,
+    drawAutoReset: getCheckboxValue("settings-draw-auto-reset"),
+    colorScale: getSelectValue("settings-color-scale") || DEFAULT_SETTINGS.colorScale,
+    sidebarCollapsed: getCheckboxValue("settings-sidebar-collapsed"),
+    analyticsDrawerOpen: false
+  };
+}
+function applySettings() {
+  const settings = collectSettingsFromForm();
+  saveSettings(settings);
+  applyTheme(settings.theme);
+  applyLayoutDensity(settings.layoutDensity);
+  if (CHART_PALETTES[settings.defaultPalette]) {
+    const palette = CHART_PALETTES[settings.defaultPalette];
+    SERIES_COLORS.length = 0;
+    SERIES_COLORS.push(...palette);
+  }
+  closeSettingsModal();
+}
+function resetSettings() {
+  currentSettings = { ...DEFAULT_SETTINGS };
+  populateSettingsForm(currentSettings);
+}
+function renderPalettePreview(paletteName) {
+  const container = document.getElementById("settings-palette-preview");
+  if (!container) return;
+  const colors = CHART_PALETTES[paletteName] || CHART_PALETTES.default;
+  container.innerHTML = colors.map((color) => `<span class="palette-swatch" style="background:${color}" title="${color}"></span>`).join("");
+}
+function setSelectValue(id, value) {
+  setDropdownValue(id, value);
+}
+function getSelectValue(id) {
+  return getDropdownValue(id);
+}
+function setInputValue(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value;
+}
+function getInputValue(id) {
+  const el = document.getElementById(id);
+  return el?.value || "";
+}
+function setCheckboxValue(id, checked) {
+  const el = document.getElementById(id);
+  if (el) el.checked = checked;
+}
+function getCheckboxValue(id) {
+  const el = document.getElementById(id);
+  return el?.checked || false;
+}
+function initSettingsPanel() {
+  document.getElementById("settings-apply-btn")?.addEventListener("click", applySettings);
+  document.getElementById("settings-reset-btn")?.addEventListener("click", resetSettings);
+  document.querySelectorAll(".settings-tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = btn.dataset.tab;
+      if (tab) setActiveTab(tab);
+    });
+  });
+  document.getElementById("settings-palette")?.addEventListener("change", () => {
+    renderPalettePreview(getDropdownValue("settings-palette"));
+  });
+  document.getElementById("settings-theme")?.addEventListener("change", () => {
+    applyTheme(getDropdownValue("settings-theme"));
+  });
+  document.getElementById("settings-layout")?.addEventListener("change", () => {
+    applyLayoutDensity(getDropdownValue("settings-layout"));
+  });
+  document.getElementById("settings-btn")?.addEventListener("click", openSettingsModal);
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+      e.preventDefault();
+      openSettingsModal();
+    }
+  });
+}
+
 function initPageNavigation() {
   const navButtons = Array.from(document.querySelectorAll(".sidebar .nav-item[data-page]"));
   const pages = Array.from(document.querySelectorAll(".page[data-page-name]"));
@@ -1875,7 +1998,6 @@ function initPageNavigation() {
   async function showPage(pageName) {
     preloadPageStyles(pageName);
     if (pageName === "settings") {
-      const { openSettingsModal } = await __vitePreload(async () => { const { openSettingsModal } = await Promise.resolve().then(() => settingsPanel);return { openSettingsModal }},true              ?void 0:void 0);
       openSettingsModal();
       return;
     }
@@ -2123,13 +2245,6 @@ function initCommandPalette() {
   });
 }
 
-const palette = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-    __proto__: null,
-    initCommandPalette,
-    openPalette,
-    registerCommands
-}, Symbol.toStringTag, { value: 'Module' }));
-
 let _panel = null;
 let _content = null;
 function escapeText(s) {
@@ -2268,13 +2383,6 @@ function initProvenance() {
   window.addEventListener("edatime:column-filters-change", () => refreshProvenance());
   window.addEventListener("edatime:adaptive-filters-change", () => refreshProvenance());
 }
-
-const provenance = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-    __proto__: null,
-    initProvenance,
-    refreshProvenance,
-    toggleProvenance
-}, Symbol.toStringTag, { value: 'Module' }));
 
 const LIVE_REGION_ID = "aria-live-region";
 function getLiveRegion() {
@@ -2419,167 +2527,6 @@ function initAccessibilityShortcuts() {
   };
   window.addEventListener("keydown", handleKey);
 }
-
-function createModalController(opts) {
-  const modal = document.getElementById(opts.modalId);
-  const open = () => {
-    if (modal) modal.hidden = false;
-    opts.onOpen?.();
-  };
-  const close = () => {
-    if (modal) modal.hidden = true;
-    opts.onClose?.();
-  };
-  for (const id of opts.closeButtonIds) {
-    document.getElementById(id)?.addEventListener("click", close);
-  }
-  modal?.addEventListener("click", (event) => {
-    if (event.target === modal) close();
-  });
-  return { open, close };
-}
-
-let currentSettings = null;
-const controller$1 = createModalController({
-  modalId: "settings-modal",
-  closeButtonIds: ["settings-close-btn", "settings-cancel-btn"],
-  onOpen: () => {
-    currentSettings = loadSettings();
-    populateSettingsForm(currentSettings);
-    setActiveTab("appearance");
-  },
-  onClose: () => {
-    currentSettings = null;
-  }
-});
-function openSettingsModal() {
-  controller$1.open();
-}
-function closeSettingsModal() {
-  controller$1.close();
-}
-function setActiveTab(tab) {
-  document.querySelectorAll(".settings-tab-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.tab === tab);
-  });
-  document.querySelectorAll(".settings-tab-panel").forEach((panel) => {
-    panel.hidden = panel.dataset.tab !== tab;
-  });
-}
-function populateSettingsForm(settings) {
-  setSelectValue("settings-theme", settings.theme);
-  setSelectValue("settings-layout", settings.layoutDensity);
-  setSelectValue("settings-palette", settings.defaultPalette);
-  setSelectValue("settings-export-format", settings.defaultExportFormat);
-  setCheckboxValue("settings-white-bg", settings.whiteBackgroundExport);
-  setSelectValue("settings-correlation", settings.defaultCorrelationMetric);
-  setSelectValue("settings-causal-method", settings.defaultCausalMethod);
-  setInputValue("settings-tau-max", settings.defaultTauMax.toString());
-  setSelectValue("settings-fft-preset", settings.defaultFftPreset);
-  setCheckboxValue("settings-draw-auto-reset", settings.drawAutoReset);
-  setSelectValue("settings-color-scale", settings.colorScale);
-  setCheckboxValue("settings-sidebar-collapsed", settings.sidebarCollapsed);
-  renderPalettePreview(settings.defaultPalette);
-}
-function collectSettingsFromForm() {
-  return {
-    theme: getSelectValue("settings-theme") || DEFAULT_SETTINGS.theme,
-    layoutDensity: getSelectValue("settings-layout") || DEFAULT_SETTINGS.layoutDensity,
-    defaultPalette: getSelectValue("settings-palette") || DEFAULT_SETTINGS.defaultPalette,
-    defaultExportFormat: getSelectValue("settings-export-format") || DEFAULT_SETTINGS.defaultExportFormat,
-    whiteBackgroundExport: getCheckboxValue("settings-white-bg"),
-    defaultCorrelationMetric: getSelectValue("settings-correlation") || DEFAULT_SETTINGS.defaultCorrelationMetric,
-    defaultCausalMethod: getSelectValue("settings-causal-method") || DEFAULT_SETTINGS.defaultCausalMethod,
-    defaultTauMax: parseInt(getInputValue("settings-tau-max"), 10) || DEFAULT_SETTINGS.defaultTauMax,
-    defaultFftPreset: getSelectValue("settings-fft-preset") || DEFAULT_SETTINGS.defaultFftPreset,
-    drawAutoReset: getCheckboxValue("settings-draw-auto-reset"),
-    colorScale: getSelectValue("settings-color-scale") || DEFAULT_SETTINGS.colorScale,
-    sidebarCollapsed: getCheckboxValue("settings-sidebar-collapsed"),
-    analyticsDrawerOpen: false
-  };
-}
-function applySettings() {
-  const settings = collectSettingsFromForm();
-  saveSettings(settings);
-  applyTheme(settings.theme);
-  applyLayoutDensity(settings.layoutDensity);
-  if (CHART_PALETTES[settings.defaultPalette]) {
-    const palette = CHART_PALETTES[settings.defaultPalette];
-    SERIES_COLORS.length = 0;
-    SERIES_COLORS.push(...palette);
-  }
-  closeSettingsModal();
-}
-function resetSettings() {
-  currentSettings = { ...DEFAULT_SETTINGS };
-  populateSettingsForm(currentSettings);
-}
-function renderPalettePreview(paletteName) {
-  const container = document.getElementById("settings-palette-preview");
-  if (!container) return;
-  const colors = CHART_PALETTES[paletteName] || CHART_PALETTES.default;
-  container.innerHTML = colors.map((color) => `<span class="palette-swatch" style="background:${color}" title="${color}"></span>`).join("");
-}
-function setSelectValue(id, value) {
-  const el = document.getElementById(id);
-  if (el) el.value = value;
-}
-function getSelectValue(id) {
-  const el = document.getElementById(id);
-  return el?.value || "";
-}
-function setInputValue(id, value) {
-  const el = document.getElementById(id);
-  if (el) el.value = value;
-}
-function getInputValue(id) {
-  const el = document.getElementById(id);
-  return el?.value || "";
-}
-function setCheckboxValue(id, checked) {
-  const el = document.getElementById(id);
-  if (el) el.checked = checked;
-}
-function getCheckboxValue(id) {
-  const el = document.getElementById(id);
-  return el?.checked || false;
-}
-function initSettingsPanel() {
-  document.getElementById("settings-apply-btn")?.addEventListener("click", applySettings);
-  document.getElementById("settings-reset-btn")?.addEventListener("click", resetSettings);
-  document.querySelectorAll(".settings-tab-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const tab = btn.dataset.tab;
-      if (tab) setActiveTab(tab);
-    });
-  });
-  document.getElementById("settings-palette")?.addEventListener("change", (e) => {
-    const value = e.target.value;
-    renderPalettePreview(value);
-  });
-  document.getElementById("settings-theme")?.addEventListener("change", (e) => {
-    const value = e.target.value;
-    applyTheme(value);
-  });
-  document.getElementById("settings-layout")?.addEventListener("change", (e) => {
-    const value = e.target.value;
-    applyLayoutDensity(value);
-  });
-  document.getElementById("settings-btn")?.addEventListener("click", openSettingsModal);
-  document.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === ",") {
-      e.preventDefault();
-      openSettingsModal();
-    }
-  });
-}
-
-const settingsPanel = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-    __proto__: null,
-    closeSettingsModal,
-    initSettingsPanel,
-    openSettingsModal
-}, Symbol.toStringTag, { value: 'Module' }));
 
 function createDrawerController(opts) {
   const drawer = document.getElementById(opts.drawerId);
@@ -2945,7 +2892,7 @@ function currentPage$1() {
   return active?.dataset.page || _currentNavPage || "home";
 }
 function readSelectValue(id) {
-  return document.getElementById(id)?.value || "";
+  return getDropdownValue(id);
 }
 function collectSnapshot() {
   const graph = window.__edatimeCausalGraph;
@@ -3299,17 +3246,6 @@ function initGuidedWorkflow() {
   };
 }
 
-const guidedWorkflow = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-    __proto__: null,
-    buildWorkflowSuggestion,
-    computeWorkflowProgress,
-    disableGuidedWorkflow,
-    enableGuidedWorkflow,
-    goToNextGuidedStep,
-    initGuidedWorkflow,
-    renderGuidedWorkflow
-}, Symbol.toStringTag, { value: 'Module' }));
-
 async function runTransform(expression, outputName) {
   await postTransform(expression, outputName);
 }
@@ -3392,13 +3328,13 @@ function initOutlierModal(deps) {
   });
   methodSelect?.addEventListener("change", () => {
     if (thresholdInput) {
-      thresholdInput.value = methodSelect.value === "iqr" ? "1.5" : "3";
+      thresholdInput.value = getDropdownValue("outlier-method") === "iqr" ? "1.5" : "3";
     }
   });
   applyBtn?.addEventListener("click", async () => {
     if (errorEl) errorEl.textContent = "";
     if (resultEl) resultEl.textContent = "";
-    const method = methodSelect?.value || "zscore";
+    const method = getDropdownValue("outlier-method") || "zscore";
     const threshold = Number.parseFloat(thresholdInput?.value || "3");
     const windowSize = Number.parseInt(windowInput?.value || "0", 10);
     try {
@@ -3427,6 +3363,205 @@ function initOutlierModal(deps) {
   });
 }
 
+const STORAGE_KEY = "edatime-session";
+function currentPage() {
+  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
+}
+function readSelect(id) {
+  return getDropdownValue(id);
+}
+function captureSession() {
+  return {
+    version: 1,
+    timestamp: Date.now(),
+    page: currentPage(),
+    selectedCols: [...appStateComposite.selectedCols],
+    seriesColors: { ...appStateComposite.seriesColors },
+    columnRanges: { ...appStateComposite.columnRanges },
+    adaptiveLineFilters: appStateComposite.adaptiveLineFilters.map((f) => ({ ...f })),
+    currentStart: appStateComposite.currentStart,
+    currentEnd: appStateComposite.currentEnd,
+    selectedColorColumn: appStateComposite.selectedColorColumn,
+    chartText: { ...appStateComposite.chartText },
+    rollingEnabled: appStateComposite.rollingEnabled,
+    rollingWindow: appStateComposite.rollingWindow,
+    anomalyEnabled: appStateComposite.anomalyEnabled,
+    anomalyMethod: appStateComposite.anomalyMethod,
+    anomalyThreshold: appStateComposite.anomalyThreshold,
+    scatterX: readSelect("scatter-x-col"),
+    scatterY: readSelect("scatter-y-col"),
+    scatterColorColumn: readSelect("scatter-color-column"),
+    scatterRenderMode: readSelect("scatter-render-mode"),
+    // Theme is owned by AppSettings; we keep a snapshot of the resolved
+    // value for diagnostic / back-compat purposes only. It is no longer
+    // applied to the document by `applySession()`.
+    theme: document.documentElement.getAttribute("data-theme") || "dark",
+    datasetRevision: Number.isFinite(Number(appStateComposite.datasetRevision)) ? Number(appStateComposite.datasetRevision) : 0
+  };
+}
+function applySession(snap, options = {}) {
+  const result = {
+    revisionMismatch: false,
+    rangeAdjusted: false,
+    usedMetadataRange: false,
+    droppedFilterCount: 0,
+    navigatedToPage: false
+  };
+  if (!snap || snap.version !== 1) return result;
+  const announceAdjustments = options.announceAdjustments !== false;
+  const metadataTimeRange = options.metadataTimeRange || (appStateComposite.metadata?.time_range ?? null);
+  const currentRevision = Number(
+    options.currentDatasetRevision ?? appStateComposite.datasetRevision ?? appStateComposite.metadata?.revision ?? 0
+  );
+  const snapshotRevision = Number(snap.datasetRevision ?? 0);
+  const hasRevisions = Number.isFinite(currentRevision) && currentRevision > 0 && Number.isFinite(snapshotRevision) && snapshotRevision > 0;
+  const revisionMismatch = hasRevisions && currentRevision !== snapshotRevision;
+  result.revisionMismatch = revisionMismatch;
+  setSelectedCols(Array.isArray(snap.selectedCols) ? snap.selectedCols : []);
+  if (snap.seriesColors) setSeriesColors({ ...snap.seriesColors });
+  if (revisionMismatch) {
+    const staleRanges = Object.keys(snap.columnRanges || {}).length;
+    const staleLines = Array.isArray(snap.adaptiveLineFilters) ? snap.adaptiveLineFilters.length : 0;
+    result.droppedFilterCount = staleRanges + staleLines;
+    setColumnRanges({});
+    setAdaptiveLineFilters([]);
+  } else {
+    if (snap.columnRanges) setColumnRanges({ ...snap.columnRanges });
+    if (Array.isArray(snap.adaptiveLineFilters)) {
+      setAdaptiveLineFilters(snap.adaptiveLineFilters.map((f) => ({ ...f, id: f.id ?? `restored-${Date.now()}` })));
+    }
+  }
+  if (!revisionMismatch) {
+    const hasStart = Number.isFinite(snap.currentStart);
+    const hasEnd = Number.isFinite(snap.currentEnd);
+    if (hasStart && hasEnd) {
+      let nextStart = Number(snap.currentStart);
+      let nextEnd = Number(snap.currentEnd);
+      const minMs = Number(metadataTimeRange?.min);
+      const maxMs = Number(metadataTimeRange?.max);
+      const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
+      if (hasMetadataBounds) {
+        const noOverlap = nextEnd <= minMs || nextStart >= maxMs;
+        if (noOverlap) {
+          nextStart = minMs;
+          nextEnd = maxMs;
+          result.rangeAdjusted = true;
+          result.usedMetadataRange = true;
+        } else {
+          const clampedStart = Math.max(nextStart, minMs);
+          const clampedEnd = Math.min(nextEnd, maxMs);
+          if (clampedStart !== nextStart || clampedEnd !== nextEnd) {
+            result.rangeAdjusted = true;
+          }
+          nextStart = clampedStart;
+          nextEnd = clampedEnd;
+          if (nextStart >= nextEnd) {
+            nextStart = minMs;
+            nextEnd = maxMs;
+            result.usedMetadataRange = true;
+          }
+        }
+      }
+      setViewport(nextStart, nextEnd);
+    }
+  }
+  if (snap.selectedColorColumn !== void 0) setSelectedColorColumn(snap.selectedColorColumn);
+  if (snap.chartText) setChartText({ ...snap.chartText });
+  if (snap.rollingEnabled !== void 0) setRollingEnabled(snap.rollingEnabled);
+  if (Number.isFinite(snap.rollingWindow)) setRollingWindow(snap.rollingWindow);
+  if (snap.anomalyEnabled !== void 0) setAnomalyEnabled(snap.anomalyEnabled);
+  if (snap.anomalyMethod) setAnomalyMethod(snap.anomalyMethod);
+  if (Number.isFinite(snap.anomalyThreshold)) setAnomalyThreshold(snap.anomalyThreshold);
+  const setSelect = (id, val) => {
+    if (val) setDropdownValue(id, val);
+  };
+  setSelect("scatter-x-col", snap.scatterX);
+  setSelect("scatter-y-col", snap.scatterY);
+  setSelect("scatter-color-column", snap.scatterColorColumn);
+  setSelect("scatter-render-mode", snap.scatterRenderMode);
+  if (revisionMismatch && announceAdjustments) {
+    toast("Session belongs to another dataset revision; stale filters were cleared.", "warning");
+  } else if (result.usedMetadataRange && announceAdjustments) {
+    toast("Saved chart range did not match this dataset and was reset to dataset bounds.", "warning");
+  } else if (result.rangeAdjusted && announceAdjustments) {
+    toast("Saved chart range was clamped to the current dataset time range.", "warning");
+  }
+  const hashPage = getHashPage();
+  const shouldPreferHash = !!options.preferHashPage && !!hashPage;
+  const shouldNavigate = options.navigate !== false && !shouldPreferHash;
+  if (shouldNavigate && snap.page) {
+    const btn = document.querySelector(`.sidebar .nav-item[data-page="${snap.page}"]`);
+    if (btn) {
+      btn.click();
+      result.navigatedToPage = true;
+    }
+  }
+  return result;
+}
+function autoSaveSession() {
+  try {
+    const snap = captureSession();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+  } catch {
+  }
+}
+function autoRestoreSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const snap = JSON.parse(raw);
+    if (snap?.version !== 1) return null;
+    return snap;
+  } catch {
+    return null;
+  }
+}
+function exportSessionToFile() {
+  const snap = captureSession();
+  const blob = new Blob([JSON.stringify(snap, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `edatime-session-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace(/:/g, "-")}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast("Session exported", "success");
+}
+function importSessionFromFile() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json,application/json";
+  input.addEventListener("change", () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const snap = JSON.parse(reader.result);
+        if (snap?.version !== 1) throw new Error("Invalid session file");
+        applySession(snap);
+        toast("Session restored from file", "success");
+        window.dispatchEvent(new CustomEvent("edatime:session-restored"));
+      } catch (e) {
+        toast(`Failed to import session: ${e.message}`, "error");
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+let _autoSaveTimer = null;
+function initAutoSave() {
+  const debouncedSave = () => {
+    if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = setTimeout(autoSaveSession, 2e3);
+  };
+  window.addEventListener("edatime:page-change", debouncedSave);
+  window.addEventListener("edatime:column-filters-change", debouncedSave);
+  window.addEventListener("edatime:adaptive-filters-change", debouncedSave);
+  window.addEventListener("beforeunload", autoSaveSession);
+}
+
 function exportChartFilteredData(format) {
   window.__edatime?.exportChartFilteredData?.(format);
 }
@@ -3450,14 +3585,30 @@ const APP_COMMAND_DEFINITIONS = [
   { id: "export-json", label: "Export chart data as JSON", category: "Export", action: () => exportChartFilteredData("json") },
   { id: "export-png", label: "Export chart as PNG", category: "Export", action: () => window.__edatime?.chart?.exportPNG?.() },
   { id: "export-parquet", label: "Export filtered data as Parquet", category: "Export", action: () => document.getElementById("export-parquet-btn")?.click?.() },
-  { id: "session-save", label: "Export session to file", category: "Session", action: () => __vitePreload(async () => { const {exportSessionToFile} = await Promise.resolve().then(() => session);return { exportSessionToFile }},true              ?void 0:void 0).then(({ exportSessionToFile }) => exportSessionToFile()) },
-  { id: "session-load", label: "Import session from file", category: "Session", action: () => __vitePreload(async () => { const {importSessionFromFile} = await Promise.resolve().then(() => session);return { importSessionFromFile }},true              ?void 0:void 0).then(({ importSessionFromFile }) => importSessionFromFile()) },
-  { id: "provenance", label: "Show analysis context panel", shortcut: "Ctrl+I", category: "Analysis", action: () => __vitePreload(async () => { const {toggleProvenance} = await Promise.resolve().then(() => provenance);return { toggleProvenance }},true              ?void 0:void 0).then(({ toggleProvenance }) => toggleProvenance()) },
-  { id: "cmd-palette", label: "Open command palette", shortcut: "Ctrl+K", category: "Analysis", action: () => __vitePreload(async () => { const {openPalette} = await Promise.resolve().then(() => palette);return { openPalette }},true              ?void 0:void 0).then(({ openPalette }) => openPalette()) },
-  { id: "settings", label: "Open settings", shortcut: "Ctrl+,", category: "Analysis", action: () => __vitePreload(async () => { const {openSettingsModal} = await Promise.resolve().then(() => settingsPanel);return { openSettingsModal }},true              ?void 0:void 0).then(({ openSettingsModal }) => openSettingsModal()) },
-  { id: "workflow-enable", label: "Enable guided workflow", category: "Analysis", action: () => __vitePreload(async () => { const {enableGuidedWorkflow} = await Promise.resolve().then(() => guidedWorkflow);return { enableGuidedWorkflow }},true              ?void 0:void 0).then(({ enableGuidedWorkflow }) => enableGuidedWorkflow()) },
-  { id: "workflow-disable", label: "Hide guided workflow", category: "Analysis", action: () => __vitePreload(async () => { const {disableGuidedWorkflow} = await Promise.resolve().then(() => guidedWorkflow);return { disableGuidedWorkflow }},true              ?void 0:void 0).then(({ disableGuidedWorkflow }) => disableGuidedWorkflow()) },
-  { id: "workflow-next", label: "Go to next guided step", category: "Analysis", action: () => __vitePreload(async () => { const {goToNextGuidedStep} = await Promise.resolve().then(() => guidedWorkflow);return { goToNextGuidedStep }},true              ?void 0:void 0).then(({ goToNextGuidedStep }) => goToNextGuidedStep()) }
+  { id: "session-save", label: "Export session to file", category: "Session", action: () => {
+    exportSessionToFile();
+  } },
+  { id: "session-load", label: "Import session from file", category: "Session", action: () => {
+    importSessionFromFile();
+  } },
+  { id: "provenance", label: "Show analysis context panel", shortcut: "Ctrl+I", category: "Analysis", action: () => {
+    toggleProvenance();
+  } },
+  { id: "cmd-palette", label: "Open command palette", shortcut: "Ctrl+K", category: "Analysis", action: () => {
+    openPalette();
+  } },
+  { id: "settings", label: "Open settings", shortcut: "Ctrl+,", category: "Analysis", action: () => {
+    openSettingsModal();
+  } },
+  { id: "workflow-enable", label: "Enable guided workflow", category: "Analysis", action: () => {
+    enableGuidedWorkflow();
+  } },
+  { id: "workflow-disable", label: "Hide guided workflow", category: "Analysis", action: () => {
+    disableGuidedWorkflow();
+  } },
+  { id: "workflow-next", label: "Go to next guided step", category: "Analysis", action: () => {
+    goToNextGuidedStep();
+  } }
 ];
 function buildPaletteCommands(deps) {
   return APP_COMMAND_DEFINITIONS.map((definition) => ({
@@ -3739,12 +3890,12 @@ async function loadEntrypoints(deps) {
     { createCausalEntrypoint },
     { createDriftEntrypoint }
   ] = await Promise.all([
-    __vitePreload(() => import('./assets/entrypoint-C_xGS_b7.js'),true              ?__vite__mapDeps([3,4,0,1,2]):void 0),
-    __vitePreload(() => import('./assets/entrypoint-D9BFtxJ3.js'),true              ?__vite__mapDeps([5,4,0,1,2]):void 0),
-    __vitePreload(() => import('./assets/scatter-CsYwdhXn.js').then(n => n.aG),true              ?__vite__mapDeps([0,1,2]):void 0),
-    __vitePreload(() => import('./assets/entrypoint-CyhHUuz3.js'),true              ?__vite__mapDeps([6,4,0,1,2]):void 0),
-    __vitePreload(() => import('./assets/causal-BzB-yJOn.js'),true              ?__vite__mapDeps([7,0,1,2,4]):void 0),
-    __vitePreload(() => import('./assets/drift-aJ9h0213.js').then(n => n.e),true              ?__vite__mapDeps([8,0,1,2,4]):void 0)
+    __vitePreload(() => import('./assets/entrypoint-DACzS_zs.js'),true              ?__vite__mapDeps([3,4,0,1,2]):void 0),
+    __vitePreload(() => import('./assets/entrypoint-Cxcbh6LV.js'),true              ?__vite__mapDeps([5,4,0,1,2]):void 0),
+    __vitePreload(() => import('./assets/scatter-O3bU0fte.js').then(n => n.aR),true              ?__vite__mapDeps([0,1,2]):void 0),
+    __vitePreload(() => import('./assets/entrypoint-D8ufsv5w.js'),true              ?__vite__mapDeps([6,4,0,1,2]):void 0),
+    __vitePreload(() => import('./assets/causal-DnsmCw11.js'),true              ?__vite__mapDeps([7,0,1,2,4]):void 0),
+    __vitePreload(() => import('./assets/drift-DvO4Mo51.js').then(n => n.e),true              ?__vite__mapDeps([8,0,1,2,4]):void 0)
   ]);
   register("fft", {
     requiresMetadata: true,
@@ -3934,8 +4085,8 @@ async function ensureChartModules$1() {
   if (pending) return pending;
   pending = (async () => {
     const [dataClient, chartModule] = await Promise.all([
-      __vitePreload(() => import('./assets/scatter-CsYwdhXn.js').then(n => n.aE),true              ?__vite__mapDeps([0,1,2]):void 0),
-      __vitePreload(() => import('./assets/DataChart-CWFFV98V.js'),true              ?__vite__mapDeps([9,1,0,2,10,4]):void 0)
+      __vitePreload(() => import('./assets/scatter-O3bU0fte.js').then(n => n.aP),true              ?__vite__mapDeps([0,1,2]):void 0),
+      __vitePreload(() => import('./assets/DataChart-S1v-FjRy.js'),true              ?__vite__mapDeps([9,1,0,2,10,4]):void 0)
     ]);
     const result = {
       fetchMetadata: dataClient.fetchMetadata,
@@ -4583,23 +4734,15 @@ function initFilterModalController(deps) {
   }
   function populateColumns(selectedCol = null) {
     const cols = appStateComposite.selectedCols || [];
-    columnSelect.innerHTML = "";
     if (cols.length === 0) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "No series selected";
-      columnSelect.appendChild(opt);
-      columnSelect.value = "";
+      setDropdownOptions("column-filter-col", [
+        { value: "", label: "No series selected" }
+      ], { preferredValue: "" });
       return;
     }
-    for (const col of cols) {
-      const opt = document.createElement("option");
-      opt.value = col;
-      opt.textContent = col;
-      columnSelect.appendChild(opt);
-    }
-    if (selectedCol && cols.includes(selectedCol)) columnSelect.value = selectedCol;
-    else columnSelect.value = cols[0];
+    setDropdownOptions("column-filter-col", cols.map((col) => ({ value: col, label: col })), {
+      preferredValue: selectedCol && cols.includes(selectedCol) ? selectedCol : cols[0] || ""
+    });
   }
   function refreshInputsForCol(col) {
     if (!col) {
@@ -4634,8 +4777,8 @@ function initFilterModalController(deps) {
     setHint(`Available range: ${formatAnalysisNumber(full.min)} → ${formatAnalysisNumber(full.max)}`);
   }
   function openModalForCol(col) {
-    populateColumns(col || columnSelect.value || appStateComposite.selectedCols?.[0] || null);
-    refreshInputsForCol(columnSelect.value);
+    populateColumns(col || getDropdownValue("column-filter-col") || appStateComposite.selectedCols?.[0] || null);
+    refreshInputsForCol(getDropdownValue("column-filter-col"));
     modalEl.hidden = false;
     try {
       minTextInput.focus();
@@ -4663,7 +4806,7 @@ function initFilterModalController(deps) {
       maxRangeInput: maxSliderInput
     },
     onApply: (from, to) => {
-      const col = columnSelect.value;
+      const col = getDropdownValue("column-filter-col");
       if (!col) return;
       let fromNum = Number.parseFloat(from);
       let toNum = Number.parseFloat(to);
@@ -4690,13 +4833,13 @@ function initFilterModalController(deps) {
     },
     onCancel: closeModal
   });
-  columnSelect.addEventListener("change", () => refreshInputsForCol(columnSelect.value));
+  columnSelect.addEventListener("change", () => refreshInputsForCol(getDropdownValue("column-filter-col")));
   minTextInput.addEventListener("input", syncFromNumericInputs);
   maxTextInput.addEventListener("input", syncFromNumericInputs);
   minSliderInput.addEventListener("input", () => syncFromRangeInputs("min"));
   maxSliderInput.addEventListener("input", () => syncFromRangeInputs("max"));
   clearButton.addEventListener("click", () => {
-    const col = columnSelect.value;
+    const col = getDropdownValue("column-filter-col");
     const full = getFullBoundsForCol(col);
     if (!col || !full) return;
     appStateComposite.columnRanges[col] = { from: full.min, to: full.max };
@@ -5117,218 +5260,6 @@ function initAdaptiveFilterGesture(deps) {
   };
 }
 
-const STORAGE_KEY = "edatime-session";
-function currentPage() {
-  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
-}
-function readSelect(id) {
-  return document.getElementById(id)?.value || "";
-}
-function captureSession() {
-  return {
-    version: 1,
-    timestamp: Date.now(),
-    page: currentPage(),
-    selectedCols: [...appStateComposite.selectedCols],
-    seriesColors: { ...appStateComposite.seriesColors },
-    columnRanges: { ...appStateComposite.columnRanges },
-    adaptiveLineFilters: appStateComposite.adaptiveLineFilters.map((f) => ({ ...f })),
-    currentStart: appStateComposite.currentStart,
-    currentEnd: appStateComposite.currentEnd,
-    selectedColorColumn: appStateComposite.selectedColorColumn,
-    chartText: { ...appStateComposite.chartText },
-    rollingEnabled: appStateComposite.rollingEnabled,
-    rollingWindow: appStateComposite.rollingWindow,
-    anomalyEnabled: appStateComposite.anomalyEnabled,
-    anomalyMethod: appStateComposite.anomalyMethod,
-    anomalyThreshold: appStateComposite.anomalyThreshold,
-    scatterX: readSelect("scatter-x-col"),
-    scatterY: readSelect("scatter-y-col"),
-    scatterColorColumn: readSelect("scatter-color-column"),
-    scatterRenderMode: readSelect("scatter-render-mode"),
-    theme: document.documentElement.getAttribute("data-theme") || "dark",
-    datasetRevision: Number.isFinite(Number(appStateComposite.datasetRevision)) ? Number(appStateComposite.datasetRevision) : 0
-  };
-}
-function applySession(snap, options = {}) {
-  const result = {
-    revisionMismatch: false,
-    rangeAdjusted: false,
-    usedMetadataRange: false,
-    droppedFilterCount: 0,
-    navigatedToPage: false
-  };
-  if (!snap || snap.version !== 1) return result;
-  const announceAdjustments = options.announceAdjustments !== false;
-  const metadataTimeRange = options.metadataTimeRange || (appStateComposite.metadata?.time_range ?? null);
-  const currentRevision = Number(
-    options.currentDatasetRevision ?? appStateComposite.datasetRevision ?? appStateComposite.metadata?.revision ?? 0
-  );
-  const snapshotRevision = Number(snap.datasetRevision ?? 0);
-  const hasRevisions = Number.isFinite(currentRevision) && currentRevision > 0 && Number.isFinite(snapshotRevision) && snapshotRevision > 0;
-  const revisionMismatch = hasRevisions && currentRevision !== snapshotRevision;
-  result.revisionMismatch = revisionMismatch;
-  setSelectedCols(Array.isArray(snap.selectedCols) ? snap.selectedCols : []);
-  if (snap.seriesColors) setSeriesColors({ ...snap.seriesColors });
-  if (revisionMismatch) {
-    const staleRanges = Object.keys(snap.columnRanges || {}).length;
-    const staleLines = Array.isArray(snap.adaptiveLineFilters) ? snap.adaptiveLineFilters.length : 0;
-    result.droppedFilterCount = staleRanges + staleLines;
-    setColumnRanges({});
-    setAdaptiveLineFilters([]);
-  } else {
-    if (snap.columnRanges) setColumnRanges({ ...snap.columnRanges });
-    if (Array.isArray(snap.adaptiveLineFilters)) {
-      setAdaptiveLineFilters(snap.adaptiveLineFilters.map((f) => ({ ...f, id: f.id ?? `restored-${Date.now()}` })));
-    }
-  }
-  if (!revisionMismatch) {
-    const hasStart = Number.isFinite(snap.currentStart);
-    const hasEnd = Number.isFinite(snap.currentEnd);
-    if (hasStart && hasEnd) {
-      let nextStart = Number(snap.currentStart);
-      let nextEnd = Number(snap.currentEnd);
-      const minMs = Number(metadataTimeRange?.min);
-      const maxMs = Number(metadataTimeRange?.max);
-      const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
-      if (hasMetadataBounds) {
-        const noOverlap = nextEnd <= minMs || nextStart >= maxMs;
-        if (noOverlap) {
-          nextStart = minMs;
-          nextEnd = maxMs;
-          result.rangeAdjusted = true;
-          result.usedMetadataRange = true;
-        } else {
-          const clampedStart = Math.max(nextStart, minMs);
-          const clampedEnd = Math.min(nextEnd, maxMs);
-          if (clampedStart !== nextStart || clampedEnd !== nextEnd) {
-            result.rangeAdjusted = true;
-          }
-          nextStart = clampedStart;
-          nextEnd = clampedEnd;
-          if (nextStart >= nextEnd) {
-            nextStart = minMs;
-            nextEnd = maxMs;
-            result.usedMetadataRange = true;
-          }
-        }
-      }
-      setViewport(nextStart, nextEnd);
-    }
-  }
-  if (snap.selectedColorColumn !== void 0) setSelectedColorColumn(snap.selectedColorColumn);
-  if (snap.chartText) setChartText({ ...snap.chartText });
-  if (snap.rollingEnabled !== void 0) setRollingEnabled(snap.rollingEnabled);
-  if (Number.isFinite(snap.rollingWindow)) setRollingWindow(snap.rollingWindow);
-  if (snap.anomalyEnabled !== void 0) setAnomalyEnabled(snap.anomalyEnabled);
-  if (snap.anomalyMethod) setAnomalyMethod(snap.anomalyMethod);
-  if (Number.isFinite(snap.anomalyThreshold)) setAnomalyThreshold(snap.anomalyThreshold);
-  const setSelect = (id, val) => {
-    const el = document.getElementById(id);
-    if (el && val) el.value = val;
-  };
-  setSelect("scatter-x-col", snap.scatterX);
-  setSelect("scatter-y-col", snap.scatterY);
-  setSelect("scatter-color-column", snap.scatterColorColumn);
-  setSelect("scatter-render-mode", snap.scatterRenderMode);
-  if (snap.theme === "light" || snap.theme === "dark") {
-    document.documentElement.setAttribute("data-theme", snap.theme);
-    localStorage.setItem("edatime-theme", snap.theme);
-  }
-  if (revisionMismatch && announceAdjustments) {
-    toast("Session belongs to another dataset revision; stale filters were cleared.", "warning");
-  } else if (result.usedMetadataRange && announceAdjustments) {
-    toast("Saved chart range did not match this dataset and was reset to dataset bounds.", "warning");
-  } else if (result.rangeAdjusted && announceAdjustments) {
-    toast("Saved chart range was clamped to the current dataset time range.", "warning");
-  }
-  const hashPage = getHashPage();
-  const shouldPreferHash = !!options.preferHashPage && !!hashPage;
-  const shouldNavigate = options.navigate !== false && !shouldPreferHash;
-  if (shouldNavigate && snap.page) {
-    const btn = document.querySelector(`.sidebar .nav-item[data-page="${snap.page}"]`);
-    if (btn) {
-      btn.click();
-      result.navigatedToPage = true;
-    }
-  }
-  return result;
-}
-function autoSaveSession() {
-  try {
-    const snap = captureSession();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
-  } catch {
-  }
-}
-function autoRestoreSession() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const snap = JSON.parse(raw);
-    if (snap?.version !== 1) return null;
-    return snap;
-  } catch {
-    return null;
-  }
-}
-function exportSessionToFile() {
-  const snap = captureSession();
-  const blob = new Blob([JSON.stringify(snap, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `edatime-session-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace(/:/g, "-")}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast("Session exported", "success");
-}
-function importSessionFromFile() {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".json,application/json";
-  input.addEventListener("change", () => {
-    const file = input.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const snap = JSON.parse(reader.result);
-        if (snap?.version !== 1) throw new Error("Invalid session file");
-        applySession(snap);
-        toast("Session restored from file", "success");
-        window.dispatchEvent(new CustomEvent("edatime:session-restored"));
-      } catch (e) {
-        toast(`Failed to import session: ${e.message}`, "error");
-      }
-    };
-    reader.readAsText(file);
-  });
-  input.click();
-}
-let _autoSaveTimer = null;
-function initAutoSave() {
-  const debouncedSave = () => {
-    if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
-    _autoSaveTimer = setTimeout(autoSaveSession, 2e3);
-  };
-  window.addEventListener("edatime:page-change", debouncedSave);
-  window.addEventListener("edatime:column-filters-change", debouncedSave);
-  window.addEventListener("edatime:adaptive-filters-change", debouncedSave);
-  window.addEventListener("beforeunload", autoSaveSession);
-}
-
-const session = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-    __proto__: null,
-    applySession,
-    autoRestoreSession,
-    autoSaveSession,
-    captureSession,
-    exportSessionToFile,
-    importSessionFromFile,
-    initAutoSave
-}, Symbol.toStringTag, { value: 'Module' }));
-
 async function restoreSessionAfterChartReady(deps) {
   const savedSession = autoRestoreSession();
   if (!savedSession) return;
@@ -5361,15 +5292,13 @@ function createTimeseriesBootstrap(deps) {
           ready = true;
           return;
         }
-        const container = document.getElementById("main-chart");
-        if (container) container.replaceChildren();
         const gpuError = await checkWebGPU();
         try {
           dbg("initial X range (ms)", { start: appStateComposite.currentStart, end: appStateComposite.currentEnd });
           const lineType = getChartType("line");
           if (lineType) {
             setChartInstance(lineType.create("main-chart", {
-              onZoom: (view, sourceKind) => deps.onZoom(view, sourceKind),
+              onZoom: (start, end, sourceKind) => deps.onZoom(start, end, sourceKind),
               onYRange: deps.onYRange,
               onZoomOut: deps.onZoomOut
             }));
@@ -5589,6 +5518,7 @@ function ensureSessionPersistenceStarted() {
   _sessionPersistenceStarted = true;
 }
 async function init() {
+  upgradeSelects(document);
   installWindowsWebGpuRequestAdapterWorkaround();
   await ensureChartModules();
   timeseriesModule = createTimeseriesModule({
@@ -5637,7 +5567,7 @@ async function init() {
     numericColumns: () => getNumericColumns(appStateComposite.metadata),
     setLoading: setComputeLoading,
     initDriftPage: (metadata) => {
-      void __vitePreload(() => import('./assets/drift-aJ9h0213.js').then(n => n.d),true              ?__vite__mapDeps([8,0,1,2,4]):void 0).then((m) => m.initDriftPage(metadata));
+      void __vitePreload(() => import('./assets/drift-DvO4Mo51.js').then(n => n.d),true              ?__vite__mapDeps([8,0,1,2,4]):void 0).then((m) => m.initDriftPage(metadata));
     }
   });
   window.__edatime = window.__edatime || {};

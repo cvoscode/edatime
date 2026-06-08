@@ -24,6 +24,7 @@ import {
 import { setStatus, setProgress, hideProgress } from './statusView.js';
 import { initChart, renderEChartsGraph } from './graphView.js';
 import type { CausalDeps } from './selectionState.js';
+import { getDropdownValueFromElement, setDropdownDisabledForElement } from '../ui/primitives/Dropdown.js';
 
 export const METHOD_PC_STAGE = new Set(['pcmci', 'pcmciplus', 'lpcmci']);
 
@@ -39,9 +40,10 @@ function controlDecorators(control: HTMLElement | null): HTMLElement[] {
     return out;
 }
 
-export function setControlEnabled(control: HTMLInputElement | HTMLSelectElement | null, enabled: boolean, title: string): void {
+export function setControlEnabled(control: HTMLElement | null, enabled: boolean, title: string): void {
     if (!control) return;
-    control.disabled = !enabled;
+    if (control instanceof HTMLInputElement) control.disabled = !enabled;
+    else setDropdownDisabledForElement(control, !enabled);
     control.title = enabled ? '' : title;
     for (const el of controlDecorators(control)) {
         el.classList.toggle('causal-setting-disabled', !enabled);
@@ -86,12 +88,12 @@ export function cancelAddEdgeMode(addEdgeBtn: HTMLButtonElement | null): void {
 
 export async function handleComputeClick(
     deps: CausalDeps,
-    methodSelect: HTMLSelectElement | null,
+    methodSelect: HTMLElement | null,
     tauInput: HTMLInputElement | null,
     alphaInput: HTMLInputElement | null,
     maxCondsInput: HTMLInputElement | null,
-    testSelect: HTMLSelectElement | null,
-    fdrSelect: HTMLSelectElement | null,
+    testSelect: HTMLElement | null,
+    fdrSelect: HTMLElement | null,
     onComplete?: () => void,
 ): Promise<void> {
     const meta = deps.getMetadata();
@@ -102,12 +104,12 @@ export async function handleComputeClick(
         setStatus('Select at least 2 numeric columns for computation. Non-numeric selections are allowed as manual/export nodes only.');
         return;
     }
-    const method = methodSelect?.value || 'pcmci';
+    const method = getDropdownValueFromElement(methodSelect) || 'pcmci';
     const tauMax = parseInt(tauInput?.value || '3', 10);
     const alpha = parseFloat(alphaInput?.value || '0.05');
-    const test = testSelect?.value || 'par_corr';
+    const test = getDropdownValueFromElement(testSelect) || 'par_corr';
     const maxCondsDim = maxCondsInput?.value ? parseInt(maxCondsInput.value, 10) : undefined;
-    const fdrMethod = fdrSelect?.value || 'none';
+    const fdrMethod = getDropdownValueFromElement(fdrSelect) || 'none';
     const methodLabel = method.toUpperCase().replace('PCMCIPLUS', 'PCMCI+');
     const usesPcStage = METHOD_PC_STAGE.has(method);
     let ticks = 0;

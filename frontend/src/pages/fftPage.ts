@@ -7,6 +7,7 @@ import { toast } from '../utils/toast.js';
 import { getAnalyticsChipColor, getNumericColumns } from './analyticsPageUtils.js';
 import { setSpectralFilterPreview } from '../store/index.js';
 import { renderSeriesChipList } from '../ui/index.js';
+import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 
 interface FftPageDeps {
@@ -189,7 +190,7 @@ function renderChips(): void {
 export async function initFftPage(deps: FftPageDeps): Promise<void> {
     resetFftPageState();
 
-    const modeSelect = document.getElementById('fft-mode-select') as HTMLSelectElement | null;
+    const modeSelect = document.getElementById('fft-mode-select') as HTMLElement | null;
     const logCheck = document.getElementById('fft-log-scale') as HTMLInputElement | null;
     const zoomResetBtn = document.getElementById('fft-zoom-reset-btn') as HTMLButtonElement | null;
 
@@ -221,7 +222,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
             void ensureFftChartReady();
 
             modeSelect?.addEventListener('change', () => {
-                fftMode = modeSelect.value;
+                fftMode = getDropdownValue('fft-mode-select') || 'magnitude';
                 rerenderOrClear();
             });
             logCheck?.addEventListener('change', () => {
@@ -231,7 +232,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
             zoomResetBtn?.addEventListener('click', () => fftChart?.resetView());
 
             document.getElementById('fft-filter-apply-btn')?.addEventListener('click', async () => {
-                const filterType = (document.getElementById('fft-filter-type') as HTMLSelectElement)?.value;
+                const filterType = getDropdownValue('fft-filter-type');
                 if (!filterType || filterType === 'none') {
                     if (appState.spectralFilterPreview) {
                         setSpectralFilterPreview(null);
@@ -284,9 +285,9 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
                 }
             });
 
-            const filterTypeSelect = document.getElementById('fft-filter-type') as HTMLSelectElement | null;
+            const filterTypeSelect = document.getElementById('fft-filter-type') as HTMLElement | null;
             filterTypeSelect?.addEventListener('change', () => {
-                const filterType = filterTypeSelect.value;
+                const filterType = getDropdownValue('fft-filter-type');
                 const lowEl = document.getElementById('fft-filter-low-hz') as HTMLInputElement | null;
                 const highEl = document.getElementById('fft-filter-high-hz') as HTMLInputElement | null;
                 if (lowEl) lowEl.disabled = filterType === 'none' || filterType === 'lowpass';

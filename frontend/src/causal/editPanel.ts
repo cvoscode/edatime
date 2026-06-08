@@ -25,6 +25,7 @@ import {
     type PairEdgeGroup,
 } from './selectionState.js';
 import { setStatus } from './statusView.js';
+import { getDropdownValueFromElement, upgradeSelects } from '../ui/primitives/Dropdown.js';
 
 export type EditTarget = { kind: 'node'; col: string } | { kind: 'edge'; key: string };
 
@@ -154,18 +155,18 @@ function syncEdgeDraftFromDom(): void {
     });
 
     _edgeEditDraft.connections = Array.from(bodyEl.querySelectorAll<HTMLElement>('[data-conn-row]')).map((row) => {
-        const sourceInput = row.querySelector<HTMLSelectElement>('[data-role="source"]');
-        const targetInput = row.querySelector<HTMLSelectElement>('[data-role="target"]');
+        const sourceInput = row.querySelector<HTMLElement>('[data-role="source"]');
+        const targetInput = row.querySelector<HTMLElement>('[data-role="target"]');
         const lagInput = row.querySelector<HTMLInputElement>('[data-role="lag"]');
-        const typeInput = row.querySelector<HTMLSelectElement>('[data-role="type"]');
+        const typeInput = row.querySelector<HTMLElement>('[data-role="type"]');
         const valueInput = row.querySelector<HTMLInputElement>('[data-role="value"]');
         const pvalueInput = row.querySelector<HTMLInputElement>('[data-role="pvalue"]');
         return {
             draftId: row.dataset.id || nextDraftId('conn'),
-            source: sourceInput?.value || _edgeEditDraft!.nodeA,
-            target: targetInput?.value || _edgeEditDraft!.nodeB,
+            source: getDropdownValueFromElement(sourceInput) || _edgeEditDraft!.nodeA,
+            target: getDropdownValueFromElement(targetInput) || _edgeEditDraft!.nodeB,
             lag: Number(lagInput?.value ?? 0),
-            type: typeInput?.value || '-->',
+            type: getDropdownValueFromElement(typeInput) || '-->',
             value: Number(valueInput?.value ?? 0),
             pvalue: Number(pvalueInput?.value ?? 0),
         };
@@ -277,6 +278,7 @@ function renderEdgeDraftEditor(): void {
             <div class="causal-field-hint">Attribute values are saved as strings, numbers, booleans, null, or JSON.</div>
         </section>
     `;
+    upgradeSelects(bodyEl);
     bindEdgeDraftControls();
 }
 

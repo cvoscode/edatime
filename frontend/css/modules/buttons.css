@@ -19,9 +19,9 @@
   font-weight: 500;
   letter-spacing: 0.01em;
   white-space: nowrap;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--shell-hover);
   color: var(--text);
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: var(--shell-border-strong);
   transition:
     background var(--transition),
     border-color var(--transition),
@@ -35,8 +35,8 @@
 }
 
 .btn:hover {
-  background: rgba(255, 255, 255, 0.10);
-  border-color: rgba(255, 255, 255, 0.20);
+  background: var(--shell-active);
+  border-color: var(--shell-border-strong);
   transform: translateY(-1px);
 }
 
@@ -47,7 +47,7 @@
 /* Primary button - vibrant accent */
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--text-strong-on-brand);
   border-color: transparent;
   font-weight: 600;
 }
@@ -61,12 +61,12 @@
 .btn-ghost {
   background: transparent;
   color: var(--text-dim);
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--shell-border-strong);
 }
 
 .btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: var(--shell-hover);
+  border-color: var(--shell-border-strong);
   color: var(--text);
 }
 
@@ -82,19 +82,19 @@
 }
 
 .btn-select:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: var(--shell-hover);
+  border-color: var(--shell-border-strong);
   color: var(--text);
 }
 
 .btn-select:active {
-  background: rgba(255, 255, 255, 0.10);
+  background: var(--shell-active);
 }
 
 .btn-select.active {
-  background: rgba(255, 255, 255, 0.10);
+  background: var(--shell-active);
   color: var(--text);
-  border-color: rgba(255, 255, 255, 0.30);
+  border-color: var(--shell-border-strong);
 }
 
 /* Pill-shaped tag - like "Inspecting X vs Y" */
@@ -115,7 +115,7 @@
 
 .btn-pill.active {
   background: var(--accent);
-  color: #fff;
+  color: var(--text-strong-on-brand);
   border-color: transparent;
 }
 
@@ -127,12 +127,12 @@
   font-weight: 500;
   background: transparent;
   color: var(--text-dim);
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--shell-border-strong);
 }
 
 .btn-pill-ghost:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: var(--shell-hover);
+  border-color: var(--shell-border-strong);
   color: var(--text);
 }
 
@@ -165,7 +165,7 @@
 /* Accent — electric blue variant */
 .btn-accent {
   background: var(--accent);
-  color: #fff;
+  color: var(--text-strong-on-brand);
   border-color: transparent;
   font-weight: 600;
 }
@@ -180,7 +180,7 @@
 .btn-toggle-group {
   display: inline-flex;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--shell-border-strong);
   overflow: hidden;
   gap: 0;
 }
@@ -188,7 +188,7 @@
 .btn-toggle-group .btn {
   border-radius: 0;
   border: none;
-  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  border-right: 1px solid var(--shell-border-strong);
   background: transparent;
   color: var(--text-dim);
   padding: 6px 12px;
@@ -200,7 +200,7 @@
 }
 
 .btn-toggle-group .btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--shell-hover);
   color: var(--text);
 }
 

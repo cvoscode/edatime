@@ -14,6 +14,8 @@ import {
     formatValueForColumn,
     isTemporalColumn,
     buildHistogramForDomain,
+    buildKdeCurve,
+    computeBoxStats,
     getCanvasFrame,
     lowerBoundByX,
     upperBoundByX,
@@ -28,13 +30,13 @@ import {
     type ScatterControls,
     type DensityTooltipCache,
 } from './state.js';
-
-/* ── Grid constants (must match buildOption) ──────────── */
-
-const SCATTER_GRID_LEFT = 72;
-const SCATTER_GRID_RIGHT = 72;
-const SCATTER_GRID_TOP = 24;
-const SCATTER_GRID_BOTTOM = 50;
+import {
+    SCATTER_PLOT_GRID,
+    getScatterMarginalXMetrics,
+    getScatterMarginalYMetrics,
+} from './layout.js';
+import { getDropdownValue } from '../ui/primitives/Dropdown.js';
+import { getChartPalette } from '../utils/theme.js';
 
 /* ── Series builders ──────────────────────────────────── */
 
@@ -50,12 +52,12 @@ export function buildNormalScatterSeries(points: [number, number][], controls: S
                 if (normalizeCategoryLabel(appState.scatter.colorLabels?.[i]) !== label) continue;
                 data.push(points[i]);
             }
-            return { type: 'scatter', name: label, data, symbolSize: 3, color: categoricalGroups.colorByLabel.get(label) || '#4a9eff', sampling: 'none' };
+            return { type: 'scatter', name: label, data, symbolSize: 3, color: categoricalGroups.colorByLabel.get(label) || getChartPalette().scatterPoint, sampling: 'none' };
         }).filter((s: any) => s.data.length > 0);
     }
 
     if (!colorColumn || !Array.isArray(values) || values.length === 0) {
-        return [{ type: 'scatter', name: `${controls.x || 'x'} vs ${controls.y || 'y'}`, data: points, symbolSize: 3, color: '#4a9eff', sampling: 'none' }];
+        return [{ type: 'scatter', name: `${controls.x || 'x'} vs ${controls.y || 'y'}`, data: points, symbolSize: 3, color: getChartPalette().scatterPoint, sampling: 'none' }];
     }
 
     // Derive min/max only from finite values so the scale is stable even when
@@ -63,7 +65,7 @@ export function buildNormalScatterSeries(points: [number, number][], controls: S
     const min = Number.isFinite(appState.scatter.colorMin) ? appState.scatter.colorMin! : null;
     const max = Number.isFinite(appState.scatter.colorMax) ? appState.scatter.colorMax! : null;
     if (min === null || max === null || !(max > min)) {
-        return [{ type: 'scatter', name: `${controls.x || 'x'} vs ${controls.y || 'y'}`, data: points, symbolSize: 3, color: '#4a9eff', sampling: 'none' }];
+        return [{ type: 'scatter', name: `${controls.x || 'x'} vs ${controls.y || 'y'}`, data: points, symbolSize: 3, color: getChartPalette().scatterPoint, sampling: 'none' }];
     }
 
     // Use valueCount based on the original allColorValues array length
@@ -99,15 +101,34 @@ export function buildNormalScatterSeries(points: [number, number][], controls: S
 }
 
 export function buildDensitySeries(points: [number, number][], controls: ScatterControls): any[] {
+    const view = appState.scatter.view;
+    const filtered = points.filter((p) => {
+        const x = Number(p[0]);
+        const y = Number(p[1]);
+        return (
+            Number.isFinite(x) &&
+            Number.isFinite(y) &&
+            x >= view.xMin &&
+            x <= view.xMax &&
+            y >= view.yMin &&
+            y <= view.yMax
+        );
+    });
     return [{
         type: 'scatter',
         name: 'density',
-        data: points,
+        data: filtered,
         mode: 'density',
         binSize: controls.binSize,
         densityColormap: paletteForScale(controls.colormap),
         densityNormalization: controls.normalization,
         sampling: 'none',
+        rawBounds: {
+            xMin: view.xMin,
+            xMax: view.xMax,
+            yMin: view.yMin,
+            yMax: view.yMax,
+        },
     }];
 }
 
@@ -289,20 +310,76 @@ export function setCorrelationOverlayText(pearson?: number | null, spearman?: nu
 
 /* ── Marginal histograms ──────────────────────────────── */
 
-function drawMarginalX(canvas: HTMLCanvasElement, values: number[], viewMin: number, viewMax: number): void {
+function drawMarginalX(canvas: HTMLCanvasElement, values: number[], viewMin: number, viewMax: number, mode: string): void {
     const frame = getCanvasFrame(canvas, 600, 64);
     if (!frame) return;
     const { ctx, width, height } = frame;
+    const { plotLeft, plotWidth: plotW } = getScatterMarginalXMetrics(width);
+    const span = Math.max(1e-9, viewMax - viewMin);
+    const projectX = (value: number) => plotLeft + ((value - viewMin) / span) * plotW;
+
+    if (mode === 'boxplot') {
+        const stats = computeBoxStats(values);
+        if (!stats) return;
+        const centerY = Math.round(height / 2);
+        const boxH = Math.max(16, Math.round(height * 0.45));
+        const boxTop = centerY - Math.round(boxH / 2);
+        const q1 = projectX(stats.q1 ?? stats.min);
+        const q3 = projectX(stats.q3 ?? stats.max);
+        const median = projectX(stats.median ?? stats.min);
+        const palette = getChartPalette();
+        ctx.strokeStyle = palette.marginalStroke;
+        ctx.fillStyle = palette.marginalFill;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(projectX(stats.min), centerY);
+        ctx.lineTo(q1, centerY);
+        ctx.moveTo(q3, centerY);
+        ctx.lineTo(projectX(stats.max), centerY);
+        ctx.stroke();
+        ctx.fillRect(q1, boxTop, Math.max(2, q3 - q1), boxH);
+        ctx.strokeRect(q1, boxTop, Math.max(2, q3 - q1), boxH);
+        ctx.beginPath();
+        ctx.moveTo(median, boxTop);
+        ctx.lineTo(median, boxTop + boxH);
+        ctx.stroke();
+        return;
+    }
+
+    if (mode === 'kde') {
+        const curve = buildKdeCurve(values, viewMin, viewMax, 64);
+        if (curve.length === 0) return;
+        const maxDensity = Math.max(1e-9, ...curve.map((point) => point.y));
+        const projectY = (value: number) => height - 2 - ((value / maxDensity) * Math.max(1, height - 4));
+        const palette = getChartPalette();
+        ctx.fillStyle = palette.marginalFill;
+        ctx.strokeStyle = palette.marginalStroke;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(projectX(curve[0].x), height - 2);
+        for (const point of curve) ctx.lineTo(projectX(point.x), projectY(point.y));
+        ctx.lineTo(projectX(curve[curve.length - 1].x), height - 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        curve.forEach((point, index) => {
+            const x = projectX(point.x);
+            const y = projectY(point.y);
+            if (index === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        return;
+    }
+
     const histogram = buildHistogramForDomain(values, viewMin, viewMax, 40);
     if (!histogram) return;
-    const plotLeft = SCATTER_GRID_LEFT;
-    const plotRight = Math.max(plotLeft + 1, width - SCATTER_GRID_RIGHT);
-    const plotW = plotRight - plotLeft;
     const { counts } = histogram;
     const maxCount = Math.max(1, ...counts);
     const barW = plotW / counts.length;
     const drawH = height - 4;
-    ctx.fillStyle = 'rgba(74, 158, 255, 0.45)';
+    const palette = getChartPalette();
+    ctx.fillStyle = palette.marginalFill;
     for (let i = 0; i < counts.length; i++) {
         if (counts[i] === 0) continue;
         const barH = Math.max(2, (counts[i] / maxCount) * drawH);
@@ -310,20 +387,76 @@ function drawMarginalX(canvas: HTMLCanvasElement, values: number[], viewMin: num
     }
 }
 
-function drawMarginalY(canvas: HTMLCanvasElement, values: number[], viewMin: number, viewMax: number): void {
+function drawMarginalY(canvas: HTMLCanvasElement, values: number[], viewMin: number, viewMax: number, mode: string): void {
     const frame = getCanvasFrame(canvas, 40, 400);
     if (!frame) return;
     const { ctx, width, height } = frame;
+    const { plotTop, plotBottom, plotHeight: plotH } = getScatterMarginalYMetrics(height);
+    const span = Math.max(1e-9, viewMax - viewMin);
+    const projectY = (value: number) => plotBottom - ((value - viewMin) / span) * plotH;
+
+    if (mode === 'boxplot') {
+        const stats = computeBoxStats(values);
+        if (!stats) return;
+        const centerX = Math.round(width / 2);
+        const boxW = Math.max(12, Math.round(width * 0.45));
+        const boxLeft = centerX - Math.round(boxW / 2);
+        const q1 = projectY(stats.q1 ?? stats.min);
+        const q3 = projectY(stats.q3 ?? stats.max);
+        const median = projectY(stats.median ?? stats.min);
+        const palette = getChartPalette();
+        ctx.strokeStyle = palette.marginalStroke;
+        ctx.fillStyle = palette.marginalFill;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(centerX, projectY(stats.min));
+        ctx.lineTo(centerX, q1);
+        ctx.moveTo(centerX, q3);
+        ctx.lineTo(centerX, projectY(stats.max));
+        ctx.stroke();
+        ctx.fillRect(boxLeft, q3, boxW, Math.max(2, q1 - q3));
+        ctx.strokeRect(boxLeft, q3, boxW, Math.max(2, q1 - q3));
+        ctx.beginPath();
+        ctx.moveTo(boxLeft, median);
+        ctx.lineTo(boxLeft + boxW, median);
+        ctx.stroke();
+        return;
+    }
+
+    if (mode === 'kde') {
+        const curve = buildKdeCurve(values, viewMin, viewMax, 64);
+        if (curve.length === 0) return;
+        const maxDensity = Math.max(1e-9, ...curve.map((point) => point.y));
+        const projectX = (value: number) => (value / maxDensity) * Math.max(1, width - 4);
+        const palette = getChartPalette();
+        ctx.fillStyle = palette.marginalFill;
+        ctx.strokeStyle = palette.marginalStroke;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, projectY(curve[0].x));
+        for (const point of curve) ctx.lineTo(projectX(point.y), projectY(point.x));
+        ctx.lineTo(0, projectY(curve[curve.length - 1].x));
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        curve.forEach((point, index) => {
+            const x = projectX(point.y);
+            const y = projectY(point.x);
+            if (index === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        return;
+    }
+
     const histogram = buildHistogramForDomain(values, viewMin, viewMax, 32);
     if (!histogram) return;
-    const plotTop = SCATTER_GRID_TOP;
-    const plotBottom = Math.max(plotTop + 1, height - SCATTER_GRID_BOTTOM);
-    const plotH = plotBottom - plotTop;
     const { counts } = histogram;
     const maxCount = Math.max(1, ...counts);
     const binH = plotH / counts.length;
     const maxBarW = width - 4;
-    ctx.fillStyle = 'rgba(74, 158, 255, 0.35)';
+    const palette = getChartPalette();
+    ctx.fillStyle = palette.marginalFill;
     for (let i = 0; i < counts.length; i++) {
         if (counts[i] === 0) continue;
         const barW = Math.max(2, (counts[i] / maxCount) * maxBarW);
@@ -335,9 +468,10 @@ function drawMarginalY(canvas: HTMLCanvasElement, values: number[], viewMin: num
 export function updateMarginalPlots(): void {
     const isPlot = appState.scatter.activeView === 'plot';
     const ctl = currentControls();
-    const isDensity = ctl.renderMode === 'density';
     const hasPoints = appState.scatter.points.length > 0;
-    const showMarginals = isPlot && !isDensity && hasPoints;
+    // Marginals are shown in both scatter and density modes; in density the
+    // right panel hosts the y-marginal and the colorbar side-by-side via flex.
+    const showMarginals = isPlot && hasPoints;
 
     const rightPanel = getEl('scatter-right-panel');
     const chartEl = getEl('scatter-chart');
@@ -359,9 +493,10 @@ export function updateMarginalPlots(): void {
 
     const xValues = appState.scatter.points.map((p) => Number(p[0])).filter((v) => Number.isFinite(v));
     const yValues = appState.scatter.points.map((p) => Number(p[1])).filter((v) => Number.isFinite(v));
+    const mode = ctl.diagonalMode || 'histogram';
 
-    if (marginalX) requestAnimationFrame(() => drawMarginalX(marginalX, xValues, appState.scatter.view.xMin, appState.scatter.view.xMax));
-    if (marginalY) requestAnimationFrame(() => drawMarginalY(marginalY, yValues, appState.scatter.view.yMin, appState.scatter.view.yMax));
+    if (marginalX) requestAnimationFrame(() => drawMarginalX(marginalX, xValues, appState.scatter.view.xMin, appState.scatter.view.xMax, mode));
+    if (marginalY) requestAnimationFrame(() => drawMarginalY(marginalY, yValues, appState.scatter.view.yMin, appState.scatter.view.yMax, mode));
 }
 
 /* ── Option builder ───────────────────────────────────── */
@@ -383,7 +518,7 @@ export function buildOption(points: [number, number][], container: HTMLElement |
 
     const option: any = {
         theme: 'dark',
-        grid: { left: 72, right: 200, top: 24, bottom: 50 },
+        grid: { ...SCATTER_PLOT_GRID },
         xAxis: { type: 'value', name: ctl.x || 'x', min: appState.scatter.view.xMin, max: appState.scatter.view.xMax, tickFormatter: xTickFormatter },
         yAxis: { type: 'value', name: ctl.y || 'y', min: appState.scatter.view.yMin, max: appState.scatter.view.yMax, tickFormatter: yTickFormatter },
         legend: { show: false },
@@ -431,13 +566,13 @@ export function updateBinnedReadout(): void {
 }
 
 export function updateCorrelationStats(): void {
-    const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
-    const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
     const openCausalBtn = getEl('scatter-open-causal-btn') as HTMLButtonElement | null;
-    const corr = appState.scatter.correlationsByColumn.get(ySelect?.value || '');
+    const xValue = getDropdownValue('scatter-x-col');
+    const yValue = getDropdownValue('scatter-y-col');
+    const corr = appState.scatter.correlationsByColumn.get(yValue || '');
     const pearson = Number.isFinite(corr?.pearson) ? corr!.pearson!.toFixed(3) : '—';
     const spearman = Number.isFinite(corr?.spearman) ? corr!.spearman!.toFixed(3) : '—';
-    if (openCausalBtn) openCausalBtn.disabled = !(xSelect?.value && ySelect?.value);
+    if (openCausalBtn) openCausalBtn.disabled = !(xValue && yValue);
     setStats({ pearson, spearman });
     setCorrelationOverlayText(corr?.pearson, corr?.spearman);
 }
@@ -449,9 +584,10 @@ export function initSelectionZoom(container: HTMLElement): void {
     if (window.getComputedStyle(container).position === 'static') container.style.position = 'relative';
 
     const box = document.createElement('div');
+    const palette = getChartPalette();
     Object.assign(box.style, {
         position: 'absolute', left: '0', top: '0', width: '0', height: '0',
-        border: '1px solid rgba(0, 212, 255, 0.9)', background: 'rgba(0, 212, 255, 0.15)',
+        border: `1px solid ${palette.pendingPointBorder}`, background: palette.pendingPoint,
         pointerEvents: 'none', display: 'none', zIndex: '8',
     });
     container.appendChild(box);
@@ -558,4 +694,3 @@ export {
     exportScatterHTML,
     exportScatterParquet,
 } from './export.js';
-

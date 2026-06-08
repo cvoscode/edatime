@@ -1,6 +1,7 @@
 import { appState } from '../store/appStateCompat.js';
 import { createModalController } from './shell/createModalController';
 import { createDataMutationFeature } from '../features/dataMutation/entrypoint.js';
+import { getDropdownValue } from './primitives/Dropdown.js';
 
 const dataMutationFeature = createDataMutationFeature();
 
@@ -61,7 +62,7 @@ export function initTransformModal(deps: DataMutationModalDeps): void {
 export function initOutlierModal(deps: DataMutationModalDeps): void {
     const openBtn = document.getElementById('outlier-open-btn');
     const applyBtn = document.getElementById('outlier-apply-btn') as HTMLButtonElement | null;
-    const methodSelect = document.getElementById('outlier-method') as HTMLSelectElement | null;
+    const methodSelect = document.getElementById('outlier-method') as HTMLElement | null;
     const thresholdInput = document.getElementById('outlier-threshold') as HTMLInputElement | null;
     const windowInput = document.getElementById('outlier-window') as HTMLInputElement | null;
     const errorEl = document.getElementById('outlier-error') as HTMLElement | null;
@@ -82,7 +83,7 @@ export function initOutlierModal(deps: DataMutationModalDeps): void {
 
     methodSelect?.addEventListener('change', () => {
         if (thresholdInput) {
-            thresholdInput.value = methodSelect.value === 'iqr' ? '1.5' : '3';
+            thresholdInput.value = getDropdownValue('outlier-method') === 'iqr' ? '1.5' : '3';
         }
     });
 
@@ -90,7 +91,7 @@ export function initOutlierModal(deps: DataMutationModalDeps): void {
         if (errorEl) errorEl.textContent = '';
         if (resultEl) resultEl.textContent = '';
 
-        const method = methodSelect?.value || 'zscore';
+        const method = getDropdownValue('outlier-method') || 'zscore';
         const threshold = Number.parseFloat(thresholdInput?.value || '3');
         const windowSize = Number.parseInt(windowInput?.value || '0', 10);
 

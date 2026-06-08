@@ -33,9 +33,10 @@ describe('DOM component factories (canonical surface)', () => {
         root.querySelector<HTMLButtonElement>('.chip-menu-btn')!.click();
         expect(onOpenRange).toHaveBeenCalledWith('value');
 
-        const select = root.querySelector<HTMLSelectElement>('select')!;
-        select.value = 'value';
-        select.dispatchEvent(new Event('change'));
+        const dropdown = root.querySelector<HTMLElement>('#color-column-select')!;
+        const trigger = dropdown.querySelector<HTMLButtonElement>('.dropdown__trigger')!;
+        trigger.click();
+        dropdown.querySelector<HTMLButtonElement>('.dropdown__option[data-value="value"]')!.click();
         expect(onColorByChange).toHaveBeenCalledWith('value');
     });
 

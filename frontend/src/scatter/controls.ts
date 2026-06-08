@@ -14,6 +14,7 @@
  */
 import { appState } from '../store/appStateCompat.js';
 import { getEl, normalizeScatterSuggestionThreshold } from './helpers.js';
+import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 import {
     currentControls,
     isLinkedBrushEnabled,
@@ -24,6 +25,7 @@ import {
     updateColorbarUI,
     updateBinnedReadout,
     updateCorrelationStats,
+    updateMarginalPlots,
     syncModeUI,
 } from './rendering.js';
 import {
@@ -47,16 +49,16 @@ export interface ScatterRenderCallbacks {
 
 /** Bind all scatter control event listeners. Call once after DOM is ready. */
 export function bindScatterControls(cb: ScatterRenderCallbacks): void {
-    const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
-    const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
+    const xSelect = getEl('scatter-x-col') as HTMLElement | null;
+    const ySelect = getEl('scatter-y-col') as HTMLElement | null;
     const binSizeInput = getEl('scatter-bin-size') as HTMLInputElement | null;
     const binSizeValue = getEl('scatter-bin-size-value');
-    const colormapSelect = getEl('scatter-colormap') as HTMLSelectElement | null;
-    const normalizationSelect = getEl('scatter-normalization') as HTMLSelectElement | null;
-    const renderModeSelect = getEl('scatter-render-mode') as HTMLSelectElement | null;
-    const diagonalModeSelect = getEl('scatter-diagonal-mode') as HTMLSelectElement | null;
-    const colorColumnSelect = getEl('scatter-color-column') as HTMLSelectElement | null;
-    const colorScaleSelect = getEl('scatter-color-scale') as HTMLSelectElement | null;
+    const colormapSelect = getEl('scatter-colormap') as HTMLElement | null;
+    const normalizationSelect = getEl('scatter-normalization') as HTMLElement | null;
+    const renderModeSelect = getEl('scatter-render-mode') as HTMLElement | null;
+    const diagonalModeSelect = getEl('scatter-diagonal-mode') as HTMLElement | null;
+    const colorColumnSelect = getEl('scatter-color-column') as HTMLElement | null;
+    const colorScaleSelect = getEl('scatter-color-scale') as HTMLElement | null;
     const linkBrushInput = getEl('scatter-link-brush') as HTMLInputElement | null;
     const suggestionThresholdInput = getEl('scatter-suggestion-threshold') as HTMLInputElement | null;
     const suggestionThresholdValue = getEl('scatter-suggestion-threshold-value');
@@ -92,13 +94,20 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
         appState.scatter.chart.setOption(buildOption(appState.scatter.points, container));
         updateColorbarUI();
         updateBinnedReadout();
+        updateMarginalPlots();
     };
 
     binSizeInput.addEventListener('input', () => { binSizeValue!.textContent = binSizeInput.value; rerender(); });
     colormapSelect.addEventListener('change', rerender);
     normalizationSelect.addEventListener('change', rerender);
     renderModeSelect.addEventListener('change', () => { syncModeUI(); rerender(); });
-    diagonalModeSelect?.addEventListener('change', () => { void cb.refreshActiveScatterView(); });
+    diagonalModeSelect?.addEventListener('change', () => {
+        if (appState.scatter.activeView === 'matrix') {
+            void cb.refreshActiveScatterView();
+            return;
+        }
+        rerender();
+    });
     colorColumnSelect?.addEventListener('change', () => { void cb.renderScatter(); });
     colorScaleSelect?.addEventListener('change', () => { rerender(); updateColorbarUI(); });
     suggestionThresholdInput?.addEventListener('input', () => {
@@ -120,8 +129,8 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
         try { await cb.renderScatter(); } catch (err: any) { cb.handleErr(err); }
     });
     openCausalBtn?.addEventListener('click', () => {
-        const xCol = (getEl('scatter-x-col') as HTMLSelectElement | null)?.value;
-        const yCol = (getEl('scatter-y-col') as HTMLSelectElement | null)?.value;
+        const xCol = getDropdownValue('scatter-x-col');
+        const yCol = getDropdownValue('scatter-y-col');
         if (!xCol || !yCol) return;
         window.dispatchEvent(new CustomEvent('edatime:causal-preselect', {
             detail: { columns: [xCol, yCol] },

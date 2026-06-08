@@ -6,6 +6,7 @@
 import { preloadPageStyles } from '../utils/pageStyles.js';
 import { pageNeedsDatasetBootstrap } from '../utils/pageBootstrap.js';
 import { getHashPage } from '../utils/router.js';
+import { openSettingsModal } from './settingsPanel.js';
 
 export function initPageNavigation(): void {
     const navButtons = Array.from(document.querySelectorAll('.sidebar .nav-item[data-page]')) as HTMLElement[];
@@ -30,7 +31,6 @@ export function initPageNavigation(): void {
         preloadPageStyles(pageName);
 
         if (pageName === 'settings') {
-            const { openSettingsModal } = await import('./settingsPanel.js');
             openSettingsModal();
             return;
         }

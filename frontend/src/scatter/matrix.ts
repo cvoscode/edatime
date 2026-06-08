@@ -26,6 +26,7 @@ import {
     type MatrixCellData,
     type ScatterControls,
 } from './state.js';
+import { setDropdownValue } from '../ui/primitives/Dropdown.js';
 
 let draggingMatrixColumn: string | null = null;
 const MATRIX_FETCH_CONCURRENCY = 4;
@@ -164,12 +165,10 @@ export async function selectMatrixPair(
     renderScatter: () => Promise<void>,
     setScatterView: (view: string, opts?: { render?: boolean }) => Promise<void>,
 ): Promise<void> {
-    const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
-    const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
-    if (!xSelect || !ySelect) return;
-    xSelect.value = x;
+    if (!getEl('scatter-x-col') || !getEl('scatter-y-col')) return;
+    setDropdownValue('scatter-x-col', x);
     await refreshCorrelations();
-    ySelect.value = y;
+    setDropdownValue('scatter-y-col', y);
     await setScatterView('plot', { render: false });
     await renderScatter();
 }

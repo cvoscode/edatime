@@ -5,6 +5,7 @@
 
 import { appState } from '../store/appStateCompat.js';
 import { setAdaptiveLineFilters, setPendingAdaptivePoint } from '../store/index.js';
+import { getDropdownValue } from './primitives/Dropdown.js';
 
 export function initDrawControls(fetchAndRender: () => void): void {
     const zoomResetBtn = document.getElementById('zoom-reset-btn') as HTMLElement | null;
@@ -15,7 +16,7 @@ export function initDrawControls(fetchAndRender: () => void): void {
         zoomResetBtn.dataset.bound = '1';
     }
 
-    const drawTool = document.getElementById('draw-tool') as HTMLSelectElement | null;
+    const drawTool = document.getElementById('draw-tool') as HTMLElement | null;
     const drawColor = document.getElementById('draw-color') as HTMLInputElement | null;
     const drawWidth = document.getElementById('draw-width') as HTMLInputElement | null;
     const drawClearBtn = document.getElementById('draw-clear-btn');
@@ -23,7 +24,7 @@ export function initDrawControls(fetchAndRender: () => void): void {
 
     const updateDrawMode = () => {
         if (appState.chart && appState.chart.setDrawMode) {
-            appState.chart.setDrawMode(drawTool!.value, drawColor!.value, parseInt(drawWidth!.value, 10));
+            appState.chart.setDrawMode(getDropdownValue('draw-tool'), drawColor!.value, parseInt(drawWidth!.value, 10));
         }
     };
 

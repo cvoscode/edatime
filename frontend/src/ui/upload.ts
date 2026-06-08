@@ -25,6 +25,7 @@ import {
     handleDatabaseLoad,
     refreshDbTables,
     resetDatabaseStatusLoaded,
+    syncDatabaseStatus as doSyncDatabaseStatus,
 } from '../features/upload/databaseSource.js';
 import {
     validateFileSize,
@@ -41,6 +42,7 @@ import {
     setPreviewTimeColumn,
 } from '../store/index.js';
 import { toast } from '../utils/toast.js';
+import { getDropdownValue } from './primitives/Dropdown.js';
 import type { DatasetMetadata } from '../types.js';
 
 interface UploadPanelDeps {
@@ -310,12 +312,13 @@ export function initUploadPanel(
     const dbLoadBtn = document.getElementById('db-load-btn') as HTMLButtonElement | null;
     const dbDisconnectBtn = document.getElementById('db-disconnect-btn') as HTMLButtonElement | null;
     const dbStatus = document.getElementById('db-status');
-    const dbTableSelect = document.getElementById('db-table-select') as HTMLSelectElement | null;
+    const dbTableSelect = document.getElementById('db-table-select') as HTMLElement | null;
 
     /** Sync table select → text input. */
     dbTableSelect?.addEventListener('change', () => {
         const tableInput = document.getElementById('db-table-input') as HTMLInputElement | null;
-        if (tableInput && dbTableSelect.value) tableInput.value = dbTableSelect.value;
+        const table = getDropdownValue('db-table-select');
+        if (tableInput && table) tableInput.value = table;
     });
 
     /** Connect button — delegates to databaseSource handler. */
@@ -339,7 +342,8 @@ export function initUploadPanel(
         dbLoadBtn.addEventListener('click', () => {
             const schema = (document.getElementById('db-schema-input') as HTMLInputElement | null)?.value.trim() || 'public';
             const table = (document.getElementById('db-table-input') as HTMLInputElement | null)?.value.trim()
-                ?? dbTableSelect?.value ?? '';
+                ?? getDropdownValue('db-table-select')
+                ?? '';
             const timeColumn = (document.getElementById('db-time-col-input') as HTMLInputElement | null)?.value.trim();
             void handleDatabaseLoad({
                 schema,
@@ -368,8 +372,7 @@ export function initUploadPanel(
     async function syncDatabaseStatus(): Promise<void> {
         if (dbStatusLoaded) return;
         dbStatusLoaded = true;
-        const { syncDatabaseStatus: doSync } = await import('../features/upload/databaseSource.js');
-        await doSync();
+        await doSyncDatabaseStatus();
     }
 
 }

@@ -20,6 +20,8 @@ import { getEl } from './helpers.js';
 import { appState } from '../store/appStateCompat.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
 import { isLinkedBrushEnabled, currentControls, getActiveScatterFilterColumns } from './state.js';
+import { defaultGpuPowerPreference, requestGpuAdapter } from '../utils/platform.js';
+import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 
 /** Module-level runtime handle for the scatter page lifecycle. */
 let scatterRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
@@ -46,7 +48,6 @@ export function getScatterEmptyStateController() {
 let _gpuUnavailable: boolean | null = null;
 
 export async function isGPUAvailable(): Promise<boolean> {
-    const { defaultGpuPowerPreference, requestGpuAdapter } = await import('../utils/platform.js');
     if (_gpuUnavailable !== null) return !_gpuUnavailable;
     if (!navigator.gpu) { _gpuUnavailable = true; return false; }
     try {
@@ -74,9 +75,7 @@ export function setGpuUnavailable(val: boolean): void {
  */
 export function syncScatterEmptyState(message?: string): void {
     const emptyState = getScatterEmptyStateController();
-    const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
-    const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
-    const hasAxes = !!xSelect?.value && !!ySelect?.value;
+    const hasAxes = !!getDropdownValue('scatter-x-col') && !!getDropdownValue('scatter-y-col');
     const isLoading = appState.scatter.loading && hasAxes && !(_gpuUnavailable && !appState.scatter.chart);
     syncScatterFilterBadge();
 
@@ -138,7 +137,23 @@ export function syncScatterEmptyState(message?: string): void {
 }
 
 export function syncScatterFilterBadge(): void {
-    // Badge element removed — filter tracking no longer shown in stats bar.
+    const badge = document.getElementById('scatter-active-filter-badge');
+    if (!badge) return;
+    const controls = currentControls();
+    const columns = Array.from(new Set(getActiveScatterFilterColumns({
+        x: controls.x,
+        y: controls.y,
+        colorColumn: controls.selectedColorColumn,
+    })));
+    if (columns.length === 0) {
+        badge.hidden = true;
+        badge.textContent = '';
+        badge.removeAttribute('title');
+        return;
+    }
+    badge.hidden = false;
+    badge.textContent = `${columns.length} filter${columns.length === 1 ? '' : 's'} active`;
+    badge.setAttribute('title', `Active scatter filters: ${columns.join(', ')}`);
 }
 
 /**

@@ -17,7 +17,7 @@ interface ScatterRenderCallbacks {
 
 ## Functions
 - `bindScatterControls(cb: ScatterRenderCallbacks): void`
-  - Binds all scatter control event listeners: X/Y column selects, bin size, colormap, normalization, render mode, diagonal mode, color column/scale, linked brush, suggestion threshold, matrix mode toggle, export buttons (PNG/SVG/HTML/CSV/Parquet), view-change buttons, and page-change/filter event listeners.
+  - Binds all scatter control event listeners: X/Y column selects, bin size, colormap, normalization, render mode, diagonal mode (routes to `rerender()` in single-plot or `refreshActiveScatterView()` in matrix), color column/scale, linked brush, suggestion threshold, matrix mode toggle, export buttons (PNG/SVG/HTML/CSV/Parquet), view-change buttons, and page-change/filter event listeners. All select elements are typed as `HTMLElement` and use `getDropdownValue` for value reading.
 
 ---
 [1]: ./scatterPage.md

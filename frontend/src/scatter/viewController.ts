@@ -11,6 +11,7 @@ import { syncModeUI } from './rendering.js';
 import { renderScatterMatrixView, selectMatrixPair } from './matrix.js';
 import { getEl } from './helpers.js';
 import { normalizeAnalyticsView } from './state.js';
+import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 
 export function setSidebarAnalyticsSelection(viewName: string): void {
     const navPage = viewName === 'matrix' ? 'scattermatrix' : 'scatter';
@@ -82,8 +83,8 @@ export async function onMatrixCellClick(
 }
 
 export function openScatterPairInCausal(): void {
-    const xCol = (getEl('scatter-x-col') as HTMLSelectElement | null)?.value;
-    const yCol = (getEl('scatter-y-col') as HTMLSelectElement | null)?.value;
+    const xCol = getDropdownValue('scatter-x-col');
+    const yCol = getDropdownValue('scatter-y-col');
     if (!xCol || !yCol) return;
     window.dispatchEvent(new CustomEvent('edatime:causal-preselect', {
         detail: { columns: [xCol, yCol] },

@@ -10,6 +10,7 @@
 
 import { createChart } from '../../libs/chartgpu/dist/index.js';
 import { defaultGpuPowerPreference } from '../utils/platform.js';
+import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 import { EchartsScatterChart } from '../chart/EchartsScatterChart.js';
 import { fetchScatterPoints } from '../services/api/index.js';
 import { appState } from '../store/appStateCompat.js';
@@ -141,11 +142,13 @@ export function renderScatterDebounced(): void {
 }
 
 async function renderScatter(): Promise<void> {
-    const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
-    const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
+    const xSelect = getEl('scatter-x-col');
+    const ySelect = getEl('scatter-y-col');
     let container = getEl('scatter-chart');
+    const xValue = getDropdownValue('scatter-x-col');
+    const yValue = getDropdownValue('scatter-y-col');
 
-    if (!container || !xSelect || !ySelect || !xSelect.value || !ySelect.value) {
+    if (!container || !xSelect || !ySelect || !xValue || !yValue) {
         appState.scatter.loading = false;
         appState.scatter.totalPoints = 0;
         syncScatterEmptyState();
@@ -162,9 +165,9 @@ async function renderScatter(): Promise<void> {
         const colorColumn = ctl.selectedColorColumn || null;
 
         const response = await fetchScatterPoints(
-            xSelect.value, ySelect.value, 1_000_000,
+            xValue, yValue, 1_000_000,
             colorColumn,
-            buildScatterQueryContext({ x: xSelect.value, y: ySelect.value, colorColumn: colorColumn || undefined }),
+            buildScatterQueryContext({ x: xValue, y: yValue, colorColumn: colorColumn || undefined }),
             signal,
         );
         if (requestId !== appState.scatter.scatterRequestId) return;
@@ -199,10 +202,12 @@ async function renderScatter(): Promise<void> {
                 if (powerPreference) chartOptions.powerPreference = powerPreference;
                 appState.scatter.chart = await createChart(container!, chartOptions as any);
             }
+            const chart = appState.scatter.chart;
+            if (!chart) return;
             appState.scatter.lastRenderSignature = renderSignature;
-            appState.scatter.chart.setOption(nextOption);
+            chart.setOption(nextOption);
             initSelectionZoom(container!);
-            appState.scatter.chart.onPerformanceUpdate?.(() => {
+            chart.onPerformanceUpdate?.(() => {
                 const now = performance.now();
                 if (now - appState.scatter.lastUpdateMs < 100) return;
                 appState.scatter.lastUpdateMs = now;
@@ -272,8 +277,8 @@ function bindControls(): Promise<void> {
 
 export async function initScatterPage(metadata: DatasetMetadata): Promise<void> {
     const page = getEl('page-scatter');
-    const xSelect = getEl('scatter-x-col') as HTMLSelectElement | null;
-    const ySelect = getEl('scatter-y-col') as HTMLSelectElement | null;
+    const xSelect = getEl('scatter-x-col');
+    const ySelect = getEl('scatter-y-col');
     if (!page || !xSelect || !ySelect) return;
 
     const numeric: string[] = ((metadata as any)?.numeric_columns || []).filter((c: any) => c);
@@ -286,11 +291,14 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
     );
 
     if (numeric.length > 0) {
-        ensureOptions(xSelect, numeric, xSelect.value || numeric[0]);
-        ensureOptions(ySelect, numeric.filter((c) => c !== xSelect.value), ySelect.value || numeric[1] || numeric[0]);
+        const selectedX = ensureOptions(xSelect, numeric, getDropdownValue('scatter-x-col') || numeric[0]);
+        ensureOptions(ySelect, numeric.filter((c) => c !== selectedX), getDropdownValue('scatter-y-col') || numeric[1] || numeric[0]);
     }
 
-    appState.scatter.loading = !appState.scatter.pageInitialized && !page.hidden && !!xSelect.value && !!ySelect.value;
+    appState.scatter.loading = !appState.scatter.pageInitialized
+        && !page.hidden
+        && !!getDropdownValue('scatter-x-col')
+        && !!getDropdownValue('scatter-y-col');
     syncScatterEmptyState();
     syncScatterFilterBadge();
 

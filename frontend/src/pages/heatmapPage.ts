@@ -1,6 +1,7 @@
 import { fetchCorrelationMatrix } from '../services/api/index.js';
 import { exportElementPNG, exportElementSVG, exportElementHTML, exportMatrixCSV } from '../utils/chartExport.js';
 import { toast } from '../utils/toast.js';
+import { getDropdownValue, setDropdownValue } from '../ui/primitives/Dropdown.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 
 interface HeatmapPageDeps {
@@ -125,10 +126,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             const rowIndex = Number.parseInt(cell.dataset.row || '', 10);
             const colIndex = Number.parseInt(cell.dataset.col || '', 10);
             if (!Number.isFinite(rowIndex) || !Number.isFinite(colIndex) || rowIndex === colIndex) return;
-            const xSelect = document.getElementById('scatter-x-col') as HTMLSelectElement | null;
-            const ySelect = document.getElementById('scatter-y-col') as HTMLSelectElement | null;
-            if (xSelect) xSelect.value = columns[rowIndex];
-            if (ySelect) ySelect.value = columns[colIndex];
+            setDropdownValue('scatter-x-col', columns[rowIndex]!);
+            setDropdownValue('scatter-y-col', columns[colIndex]!);
             deps.showPage('scatter');
         };
     }
@@ -152,13 +151,13 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         },
         init() {
             const container = document.getElementById('heatmap-container');
-            const metricSelect = document.getElementById('heatmap-metric') as HTMLSelectElement | null;
+            const metricSelect = document.getElementById('heatmap-metric') as HTMLElement | null;
             const sizeInput = document.getElementById('heatmap-cell-size') as HTMLInputElement | null;
             const sizeValue = document.getElementById('heatmap-cell-size-value') as HTMLElement | null;
             if (!container) return;
 
             metricSelect?.addEventListener('change', () => {
-                metric = metricSelect.value;
+                metric = getDropdownValue('heatmap-metric') || 'pearson';
                 renderHeatmap();
             });
             sizeInput?.addEventListener('input', () => {

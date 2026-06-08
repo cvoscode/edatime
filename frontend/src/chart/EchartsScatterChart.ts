@@ -1,4 +1,5 @@
 import * as echarts from 'echarts';
+import { SCATTER_PLOT_GRID } from '../scatter/layout.js';
 
 export class EchartsScatterChart {
     private _containerId: string;
@@ -39,7 +40,7 @@ export class EchartsScatterChart {
 
         this._chart.setOption({
             animation: false,
-            grid: option?.grid || { left: 72, right: 32, top: 24, bottom: 48 },
+            grid: option?.grid || { ...SCATTER_PLOT_GRID },
             tooltip: option?.tooltip || { show: true, trigger: 'item' },
             legend: { show: false },
             xAxis: {

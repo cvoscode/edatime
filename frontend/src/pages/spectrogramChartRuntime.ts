@@ -10,6 +10,7 @@
 import { fetchSpectrogram, type SpectrogramResult } from '../services/api/index.js';
 import { appState } from '../store/appStateCompat.js';
 import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../utils/chartExport.js';
+import { getDropdownOptions, getDropdownValue, setDropdownOptions } from '../ui/primitives/Dropdown.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 
 interface SpectrogramPageDeps {
@@ -62,8 +63,8 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             html: { fn: exportEChartsHTML, filename: 'edatime_spectrogram.html' },
         },
         init() {
-            const colSelect = document.getElementById('spectrogram-col-select') as HTMLSelectElement | null;
-            const winSelect = document.getElementById('spectrogram-win-size') as HTMLSelectElement | null;
+            const colSelect = document.getElementById('spectrogram-col-select') as HTMLElement | null;
+            const winSelect = document.getElementById('spectrogram-win-size') as HTMLElement | null;
             const logCheck = document.getElementById('spectrogram-log-scale') as HTMLInputElement | null;
             const resetZoomBtn = document.getElementById('spectrogram-zoom-reset-btn') as HTMLButtonElement | null;
             const chartEl = document.getElementById('spectrogram-chart') as HTMLDivElement | null;
@@ -328,18 +329,18 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
 
             // ── Column select population ───────────────────────────────────────
             if (appState.metadata) {
-                for (const column of appState.metadata.numeric_columns) {
-                    const option = document.createElement('option');
-                    option.value = column;
-                    option.textContent = column;
-                    colSelect.appendChild(option);
-                }
+                setDropdownOptions('spectrogram-col-select', appState.metadata.numeric_columns.map((column) => ({
+                    value: column,
+                    label: column,
+                })), {
+                    preferredValue: getDropdownValue('spectrogram-col-select'),
+                });
             }
             syncSpectrogramEmptyState();
 
             // ── Compute button ─────────────────────────────────────────────────
             document.getElementById('spectrogram-compute-btn')?.addEventListener('click', async () => {
-                const column = colSelect.value;
+                const column = getDropdownValue('spectrogram-col-select');
                 if (!column) {
                     spectrogramRuntime?.updateStatus('Select a column.');
                     syncSpectrogramEmptyState('Pick a numeric column and click Compute to generate the spectrogram.');
@@ -350,7 +351,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     return;
                 }
 
-                const winSize = Number.parseInt(winSelect?.value || '256', 10);
+                const winSize = Number.parseInt(getDropdownValue('spectrogram-win-size') || '256', 10);
                 try {
                     deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', true);
                     spectrogramRuntime?.updateStatus('Fetching spectrogram…');
@@ -386,17 +387,18 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             });
         },
         onVisible() {
-            const colSelect = document.getElementById('spectrogram-col-select') as HTMLSelectElement | null;
+            const colSelect = document.getElementById('spectrogram-col-select');
             if (appState.metadata && colSelect) {
-                const currentOptions = new Set(Array.from(colSelect.options).map((option) => option.value));
+                const currentOptions = new Set(getDropdownOptions('spectrogram-col-select').map((option) => option.value));
                 for (const column of appState.metadata.numeric_columns) {
-                    if (!currentOptions.has(column)) {
-                        const option = document.createElement('option');
-                        option.value = column;
-                        option.textContent = column;
-                        colSelect.appendChild(option);
-                    }
+                    currentOptions.add(column);
                 }
+                setDropdownOptions('spectrogram-col-select', Array.from(currentOptions).map((column) => ({
+                    value: column,
+                    label: column,
+                })), {
+                    preferredValue: getDropdownValue('spectrogram-col-select'),
+                });
                 const chartElLocal = document.getElementById('spectrogram-chart') as HTMLDivElement | null;
                 const isReady = chartElLocal && chartElLocal.clientWidth > 0 && chartElLocal.clientHeight > 0;
                 if (isReady) {

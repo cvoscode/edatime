@@ -11,26 +11,22 @@ import {
 import { formatCount } from '../../utils/format.js';
 import { toast } from '../../utils/toast.js';
 import { loadedRowCountFromResponse } from './preview.js';
+import { setDropdownOptions } from '../../ui/primitives/Dropdown.js';
 
 // ── Table select population ─────────────────────────────────────────────────--
 
 export async function refreshDbTables(): Promise<void> {
-    const dbTableSelect = document.getElementById('db-table-select') as HTMLSelectElement | null;
-    if (!dbTableSelect) return;
+    if (!document.getElementById('db-table-select')) return;
     try {
         const data = await fetchDatabaseTables() as { tables?: Array<{ schema: string; name: string; kind: string }> };
         const tables: Array<{ schema: string; name: string; kind: string }> = data.tables ?? [];
-        // Use textContent for options to avoid innerHTML XSS; clear with empty string first
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = '— select table —';
-        dbTableSelect.replaceChildren(placeholder);
-        for (const t of tables) {
-            const opt = document.createElement('option');
-            opt.value = t.name;
-            opt.textContent = t.kind === 'hypertable' ? `⏱ ${t.schema}.${t.name}` : `${t.schema}.${t.name}`;
-            dbTableSelect.appendChild(opt);
-        }
+        setDropdownOptions('db-table-select', [
+            { value: '', label: '— select table —' },
+            ...tables.map((table) => ({
+                value: table.name,
+                label: table.kind === 'hypertable' ? `⏱ ${table.schema}.${table.name}` : `${table.schema}.${table.name}`,
+            })),
+        ], { preferredValue: '' });
     } catch {
         // ignore; user can still type the name manually
     }
@@ -160,7 +156,7 @@ export interface DbDisconnectParams {
     dbDisconnectBtn: HTMLButtonElement;
     dbLoadBtn: HTMLButtonElement | null;
     dbStatus: HTMLElement;
-    dbTableSelect: HTMLSelectElement | null;
+    dbTableSelect: HTMLElement | null;
 }
 
 export async function handleDatabaseDisconnect(params: DbDisconnectParams): Promise<void> {
@@ -174,10 +170,8 @@ export async function handleDatabaseDisconnect(params: DbDisconnectParams): Prom
     if (dbLoadBtn) dbLoadBtn.disabled = true;
     if (dbDisconnectBtn) dbDisconnectBtn.hidden = true;
     if (dbTableSelect) {
-        dbTableSelect.replaceChildren();
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = '— connect first —';
-        dbTableSelect.appendChild(placeholder);
+        setDropdownOptions('db-table-select', [
+            { value: '', label: '— connect first —' },
+        ], { preferredValue: '' });
     }
 }

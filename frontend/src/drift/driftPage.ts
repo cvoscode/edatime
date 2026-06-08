@@ -51,6 +51,12 @@ import {
     renderWindowList as renderWindowListFromDetail,
     updateDetailStats as updateDetailStatsFromDetail,
 } from './detailView.js';
+import {
+    getDropdownValue,
+    setDropdownDisabled,
+    setDropdownOptions,
+    setDropdownValue,
+} from '../ui/primitives/Dropdown.js';
 
 // Re-export for test isolation
 export { _setEchartsModule };
@@ -71,9 +77,9 @@ export async function initDriftPage(metadata: any): Promise<void> {
     // Hidden backing <select> kept for compatibility; updated in sync with checkboxes.
     const colSelect = document.getElementById('drift-col-select') as HTMLSelectElement | null;
 
-    const windowSelect = document.getElementById('drift-window-select') as HTMLSelectElement | null;
-    const plotTypeSelect = document.getElementById('drift-plot-type') as HTMLSelectElement | null;
-    const refPresetSelect = document.getElementById('drift-ref-preset') as HTMLSelectElement | null;
+    const windowSelect = document.getElementById('drift-window-select') as HTMLElement | null;
+    const plotTypeSelect = document.getElementById('drift-plot-type') as HTMLElement | null;
+    const refPresetSelect = document.getElementById('drift-ref-preset') as HTMLElement | null;
     const refStartInput = document.getElementById('drift-ref-start') as HTMLInputElement | null;
     const refEndInput = document.getElementById('drift-ref-end') as HTMLInputElement | null;
     const computeBtn = document.getElementById('drift-compute-btn') as HTMLButtonElement | null;
@@ -81,14 +87,14 @@ export async function initDriftPage(metadata: any): Promise<void> {
     const statusEl = document.getElementById('drift-status') as HTMLElement | null;
     const timelineEl = document.getElementById('drift-timeline-chart') as HTMLDivElement | null;
     const detailEl = document.getElementById('drift-detail-chart') as HTMLDivElement | null;
-    const detailColumnSelect = document.getElementById('drift-detail-col-select') as HTMLSelectElement | null;
+    const detailColumnSelect = document.getElementById('drift-detail-col-select') as HTMLElement | null;
     const loadingOverlay = document.getElementById('drift-loading') as HTMLElement | null;
     const emptyState = document.getElementById('drift-empty') as HTMLElement | null;
     const detailHeader = document.getElementById('drift-detail-header') as HTMLElement | null;
     const detailStatsEl = document.getElementById('drift-detail-stats') as HTMLElement | null;
     const windowListEl = document.getElementById('drift-window-list') as HTMLElement | null;
     const driftLayoutEl = document.querySelector('#page-drift .drift-layout') as HTMLElement | null;
-    const sortSelect = document.getElementById('drift-sort-select') as HTMLSelectElement | null;
+    const sortSelect = document.getElementById('drift-sort-select') as HTMLElement | null;
 
     // ── Chart and data state ────────────────────────────────────────────────────
     let resizeObserver: ResizeObserver | null = null;
@@ -106,7 +112,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
     }
 
     function onTimelineClick(col: string, windowIdx: number): void {
-        if (detailColumnSelectEl.value !== col) detailColumnSelectEl.value = col;
+        if (getDropdownValue('drift-detail-col-select') !== col) setDropdownValue('drift-detail-col-select', col);
         selectWindow(windowIdx);
         renderTimeline();
         renderDetail();
@@ -182,23 +188,15 @@ export async function initDriftPage(metadata: any): Promise<void> {
     function updateDetailColumnSelect(): void {
         const cols = Array.from(getResponsesByColumn().keys());
         const current = getActiveDetailColumn();
-        detailColumnSelectEl.innerHTML = '';
-        cols.forEach((col) => {
-            const opt = document.createElement('option');
-            opt.value = col;
-            opt.textContent = col;
-            detailColumnSelectEl.appendChild(opt);
+        setDropdownOptions('drift-detail-col-select', cols.map((col) => ({ value: col, label: col })), {
+            preferredValue: current || cols[0] || '',
         });
         if (cols.length === 0) {
-            detailColumnSelectEl.disabled = true;
+            setDropdownDisabled('drift-detail-col-select', true);
             return;
         }
-        detailColumnSelectEl.disabled = false;
-        if (current && getResponsesByColumn().has(current)) {
-            detailColumnSelectEl.value = current;
-        } else {
-            detailColumnSelectEl.value = cols[0]!;
-        }
+        setDropdownDisabled('drift-detail-col-select', false);
+        setDropdownValue('drift-detail-col-select', current && getResponsesByColumn().has(current) ? current : cols[0]!);
     }
 
     // detailOption and timelineOption live in timelineView.ts / detailView.ts / viewModels.ts
@@ -270,7 +268,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
 
         await driftComputeTask.run(async (signal) => {
             const basePayload: Record<string, unknown> = {
-                window: windowSelect?.value || 'daily',
+                window: getDropdownValue('drift-window-select') || 'daily',
                 reference_start: new Date(refStart).toISOString(),
                 reference_end: new Date(refEnd).toISOString(),
             };
@@ -380,7 +378,6 @@ export async function initDriftPage(metadata: any): Promise<void> {
     if (!timelineEl || !detailEl || !computeBtn || !detailColumnSelect) return;
 
     // Aliases for closures that need narrowed non-null references
-    const detailColumnSelectEl = detailColumnSelect as HTMLSelectElement;
     const computeBtnEl = computeBtn as HTMLButtonElement;
     const timelineElNN = timelineEl;
     const detailElNN = detailEl;
@@ -390,7 +387,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
     }
 
     function renderDetailLocal(): void {
-        const plotType = plotTypeSelect?.value || 'boxplot';
+        const plotType = getDropdownValue('drift-plot-type') || 'boxplot';
         renderDetailFull(plotType);
     }
 
