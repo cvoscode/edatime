@@ -6,7 +6,15 @@
 import { preloadPageStyles } from '../utils/pageStyles.js';
 import { pageNeedsDatasetBootstrap } from '../utils/pageBootstrap.js';
 import { getHashPage } from '../utils/router.js';
-import { openSettingsModal } from './settingsPanel.js';
+
+type AppWindow = Window & typeof globalThis & {
+    __edatime?: {
+        ensureDatasetReady?: (pageName?: string) => Promise<void>;
+        ensurePageModuleLoaded?: (pageName: string) => Promise<void>;
+        ensureSubsystem?: (name: string) => Promise<void>;
+        openSettingsModal?: () => void;
+    };
+};
 
 export function initPageNavigation(): void {
     const navButtons = Array.from(document.querySelectorAll('.sidebar .nav-item[data-page]')) as HTMLElement[];
@@ -28,19 +36,29 @@ export function initPageNavigation(): void {
     }
 
     async function showPage(pageName: string) {
+        const win = window as AppWindow;
         preloadPageStyles(pageName);
 
         if (pageName === 'settings') {
-            openSettingsModal();
+            await win.__edatime?.ensureSubsystem?.('settings');
+            win.__edatime?.openSettingsModal?.();
             return;
         }
 
-        if (pageNeedsDatasetBootstrap(pageName)) {
-            await (window as any).__edatime?.ensureDatasetReady?.(pageName);
+        if (pageName === 'home') {
+            await win.__edatime?.ensureSubsystem?.('home');
+        } else if (pageName === 'upload') {
+            await win.__edatime?.ensureSubsystem?.('upload');
+        } else if (pageName === 'timeseries') {
+            await win.__edatime?.ensureSubsystem?.('timeseries-shell');
         }
 
-        if ((window as any).__edatime?.ensurePageModuleLoaded) {
-            await (window as any).__edatime.ensurePageModuleLoaded(pageName);
+        if (pageNeedsDatasetBootstrap(pageName)) {
+            await win.__edatime?.ensureDatasetReady?.(pageName);
+        }
+
+        if (win.__edatime?.ensurePageModuleLoaded) {
+            await win.__edatime.ensurePageModuleLoaded(pageName);
         }
 
         const analyticsView = analyticsViews[pageName] || null;

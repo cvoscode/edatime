@@ -29,6 +29,25 @@ function currentPageName(): string {
     return (document.querySelector('.page[data-page-name]:not([hidden])') as HTMLElement | null)?.dataset?.pageName || 'upload';
 }
 
+/**
+ * Wait for a property to appear on `window.__edatime` before returning.
+ * `initGlobalShortcuts` is normally bound right after `initAppShell`,
+ * but tests and other consumers may rebind the shell after shortcuts.
+ * We yield a few times (max ~250ms) before giving up.
+ */
+async function waitForEdatimeKey<K extends string>(
+    key: K,
+    options: { timeoutMs?: number } = {},
+): Promise<void> {
+    const win = window as Window & typeof globalThis & { __edatime?: Record<string, unknown> };
+    const timeoutMs = options.timeoutMs ?? 250;
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (win.__edatime && key in win.__edatime) return;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+}
+
 function matchesShortcut(
     key: string,
     options: { alt?: boolean; shift?: boolean },
@@ -45,16 +64,50 @@ export function initGlobalShortcuts(
     deps: GlobalShortcutsDeps,
     commandDefs: ReadonlyArray<CommandDefinition>,
 ): void {
-    const win = window as Window & typeof globalThis;
+    const win = window as Window & typeof globalThis & {
+        __edatime?: {
+            globalShortcutsBound?: boolean;
+            ensureSubsystem?: (name: string) => Promise<void>;
+            openPalette?: () => void;
+            openSettingsModal?: () => void;
+        };
+    };
     if (win.__edatime?.globalShortcutsBound) return;
     if (!win.__edatime) win.__edatime = {};
+    // Note: ensureSubsystem may not be wired yet if initGlobalShortcuts
+    // runs before initAppShell. The handler itself guards against that
+    // case below by yielding once before invoking the deferred helper,
+    // so the listener is safe to register immediately.
 
     const handler = (event: KeyboardEvent) => {
         if (event.defaultPrevented || isTypingTarget(event.target)) return;
-        if (event.ctrlKey || event.metaKey) return; // don't interfere with browser shortcuts
 
         const key = String(event.key || '').toLowerCase();
         const pageName = currentPageName();
+
+        if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey) {
+            if (key === 'k') {
+                event.preventDefault();
+                void (async () => {
+                    await waitForEdatimeKey('ensureSubsystem');
+                    await win.__edatime?.ensureSubsystem?.('commands');
+                    win.__edatime?.openPalette?.();
+                })();
+                return;
+            }
+
+            if (key === ',') {
+                event.preventDefault();
+                void (async () => {
+                    await waitForEdatimeKey('ensureSubsystem');
+                    await win.__edatime?.ensureSubsystem?.('settings');
+                    win.__edatime?.openSettingsModal?.();
+                })();
+                return;
+            }
+
+            return;
+        }
 
         // Alt+[0-9] navigation shortcuts from command definitions
         if (event.altKey && !event.ctrlKey && !event.metaKey) {

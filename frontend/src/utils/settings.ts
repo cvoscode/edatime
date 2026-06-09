@@ -5,6 +5,8 @@
  * Settings are persisted to localStorage and survive across sessions.
  */
 
+import { setResolvedTheme } from './theme.js';
+
 export type ThemeMode = 'dark' | 'light' | 'auto';
 export type LayoutDensity = 'compact' | 'spacious';
 export type ExportFormat = 'png' | 'svg' | 'csv' | 'json' | 'parquet';
@@ -161,7 +163,7 @@ export function applyTheme(theme: ThemeMode): void {
         effectiveTheme = theme;
     }
 
-    document.documentElement.setAttribute('data-theme', effectiveTheme);
+    setResolvedTheme(effectiveTheme);
 
     // Update theme icons
     const iconDark = document.getElementById('theme-icon-dark');

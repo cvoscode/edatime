@@ -1,331 +1,1007 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/scatter-O3bU0fte.js","assets/chartgpu-CqrjGxnD.js","assets/echarts-Dsc0OV0i.js","assets/entrypoint-DACzS_zs.js","assets/frequency-DNl_Y30x.js","assets/entrypoint-Cxcbh6LV.js","assets/entrypoint-D8ufsv5w.js","assets/causal-DnsmCw11.js","assets/drift-DvO4Mo51.js","assets/DataChart-S1v-FjRy.js","assets/settings-IpQ7Lnwl.js"])))=>i.map(i=>d[i]);
-import { b as appStateComposite, x as setProfileGridBound, y as normalizeDtypeLabel, z as formatCount, A as formatProfileValue, B as setProfileGridSort, C as setProfileGridHeaderBound, E as setPreviewSelectedColumns, F as setColumnProfiles, G as toFiniteNumberOrNull, H as applyColumnRanges, I as setRollingBands, J as setAnomalyRegions, _ as __vitePreload, K as formatToDatetimeLocal, L as formatAnalysisTime, M as previewUpload, N as setMetadata, O as setPreviewTimeColumn, t as toast, k as setDropdownOptions, i as setDropdownValue, g as getDropdownValue, P as connectDatabase, Q as loadDatabaseTable, R as deleteDatabaseConnection, S as fetchDatabaseTables, T as fetchDatabaseStatus, U as uploadDataset, V as setDatasetRevision, W as formatAnalysisNumber, X as setPendingYMode, Y as setPendingRestoreY, Z as dbgGroup, $ as dbg, a0 as setZoomHistory, a1 as setViewport, a2 as setFetchDebounceId, a3 as buildAdaptiveLineFiltersForQuery, a4 as exportParquet, d as downloadBlob, a5 as setAdaptiveLineFilters, a6 as setPendingAdaptivePoint, a7 as setChartText, a8 as setRollingEnabled, a9 as setRollingWindow, aa as setAnomalyEnabled, ab as setAnomalyMethod, ac as setAnomalyThreshold, ad as SERIES_COLORS, D as DEBUG, ae as setAnalysisBound, af as postRemoveOutliers, ag as postTransform, ah as setSelectedCols, ai as setSeriesColors, aj as setColumnRanges, ak as setSelectedColorColumn, al as isRangeOutsideDataset, am as sanitizeSelectedColumns$1, an as setLastFetchedData, ao as ensureRangeStateFromData, ap as createEmptyStateController, v as createRequestTask, aq as setAdaptiveFilterColumn, ar as getSeriesColor, as as setSeriesColor, at as computeBounds, au as debounce, av as setFilterText, aw as setProfileFilterText, ax as createPageRuntime, ay as invalidateDatasetRequestScope, az as assertDatasetRequestScopeActive, aA as captureDatasetRequestScope, aB as requestGpuAdapter, aC as installWindowsWebGpuRequestAdapterWorkaround, aD as appendAdaptiveLineFilter, aE as buildAdaptiveLineY, aF as setChartInstance, aG as setInitialView, u as upgradeSelects, aH as setNumericCols, aI as initScatterPage } from './assets/scatter-O3bU0fte.js';
-import { R as RangeControls, C as ColumnFilterModal, r as renderSeriesChipList, g as getDefaultTimeseriesColumns, a as getNumericColumns, b as getAnalyticsChipColor } from './assets/frequency-DNl_Y30x.js';
-import { l as loadSettings, s as saveSettings, a as applyTheme, b as applyLayoutDensity, C as CHART_PALETTES, D as DEFAULT_SETTINGS, g as getSetting, u as updateSetting, i as initSettings } from './assets/settings-IpQ7Lnwl.js';
-import './assets/chartgpu-CqrjGxnD.js';
-import './assets/echarts-Dsc0OV0i.js';
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/profile-DCQ6F-wu.js","assets/settings-bZFrh4Yc.js","assets/upload-DVzysbOx.js","assets/preview-DVb4QK3F.js","assets/upload-DubIOrfx.js","assets/http-Cr2DDpIr.js","assets/partialLoadControls-B0pCom6w.js","assets/analyticsDrawer-D8FXIXKQ.js","assets/guidedWorkflow-DrvIK14h.js","assets/dataMutationModals-CQewcIsT.js","assets/createModalController-Bq7uHRqj.js","assets/analytics-BTVc_2do.js","assets/provenance-DqeiL9fi.js","assets/settingsPanel-C6DDXf9Z.js","assets/sampleDatasets-BSStG2nr.js","assets/entrypoint-BYRIrjmw.js","assets/entrypoint-dTMnAKT3.js","assets/entrypoint-BwJvGCgY.js","assets/entrypoint-DTDRo2pI.js","assets/entrypoint-B56bGrdp.js","assets/entrypoint-DGW9Cq96.js","assets/index-BEKhL0N1.js","assets/scatter-BNRJS9zg.js","assets/scatter-matrix-B8i1sUy6.js","assets/DataChart-CkLj_s8t.js","assets/chartgpu-CqrjGxnD.js","assets/chartInteractions-rEfgrEza.js","assets/driftPage-BXbtIdR5.js","assets/analysisPageRuntime-DhMMQ7M5.js","assets/chartExport-DVMhwsTL.js"])))=>i.map(i=>d[i]);
+import { l as loadSettings, s as saveSettings, a as applyTheme, i as initSettings, g as getSetting } from './assets/settings-bZFrh4Yc.js';
+
+const scriptRel = 'modulepreload';const assetsURL = function(dep) { return "/js/"+dep };const seen = {};const __vitePreload = function preload(baseModule, deps, importerUrl) {
+  let promise = Promise.resolve();
+  if (true               && deps && deps.length > 0) {
+    let allSettled2 = function(promises) {
+      return Promise.all(
+        promises.map(
+          (p) => Promise.resolve(p).then(
+            (value) => ({ status: "fulfilled", value }),
+            (reason) => ({ status: "rejected", reason })
+          )
+        )
+      );
+    };
+    document.getElementsByTagName("link");
+    const cspNonceMeta = document.querySelector(
+      "meta[property=csp-nonce]"
+    );
+    const cspNonce = cspNonceMeta?.nonce || cspNonceMeta?.getAttribute("nonce");
+    promise = allSettled2(
+      deps.map((dep) => {
+        dep = assetsURL(dep);
+        if (dep in seen) return;
+        seen[dep] = true;
+        const isCss = dep.endsWith(".css");
+        const cssSelector = isCss ? '[rel="stylesheet"]' : "";
+        if (document.querySelector(`link[href="${dep}"]${cssSelector}`)) {
+          return;
+        }
+        const link = document.createElement("link");
+        link.rel = isCss ? "stylesheet" : scriptRel;
+        if (!isCss) {
+          link.as = "script";
+        }
+        link.crossOrigin = "";
+        link.href = dep;
+        if (cspNonce) {
+          link.setAttribute("nonce", cspNonce);
+        }
+        document.head.appendChild(link);
+        if (isCss) {
+          return new Promise((res, rej) => {
+            link.addEventListener("load", res);
+            link.addEventListener(
+              "error",
+              () => rej(new Error(`Unable to preload CSS for ${dep}`))
+            );
+          });
+        }
+      })
+    );
+  }
+  function handlePreloadError(err) {
+    const e = new Event("vite:preloadError", {
+      cancelable: true
+    });
+    e.payload = err;
+    window.dispatchEvent(e);
+    if (!e.defaultPrevented) {
+      throw err;
+    }
+  }
+  return promise.then((res) => {
+    for (const item of res || []) {
+      if (item.status !== "rejected") continue;
+      handlePreloadError(item.reason);
+    }
+    return baseModule().catch(handlePreloadError);
+  });
+};
+
+const subscribers = /* @__PURE__ */ new Map();
+function emitStoreEvent(eventName, payload) {
+  const handlers = subscribers.get(eventName);
+  if (!handlers) return;
+  for (const handler of Array.from(handlers)) {
+    handler(payload);
+  }
+}
+
+const datasetState = {
+  metadata: null,
+  numericCols: [],
+  columnProfiles: [],
+  datasetRevision: 0
+};
+function setMetadata(metadata) {
+  const previousMetadata = datasetState.metadata;
+  const previousNumericCols = datasetState.numericCols;
+  datasetState.metadata = metadata;
+  if (metadata) {
+    const timeCol = String(metadata.time_column || "").toLowerCase();
+    datasetState.numericCols = (metadata.numeric_columns || []).filter(
+      (col) => col.toLowerCase() !== timeCol
+    );
+  } else {
+    datasetState.numericCols = [];
+  }
+  emitStoreEvent("dataset:metadata", { previous: previousMetadata, next: metadata });
+  emitStoreEvent("dataset:numericCols", { previous: previousNumericCols, next: datasetState.numericCols });
+}
+function setNumericCols(cols) {
+  const previous = datasetState.numericCols;
+  datasetState.numericCols = [...cols];
+  emitStoreEvent("dataset:numericCols", { previous, next: datasetState.numericCols });
+}
+function setColumnProfiles(profiles) {
+  const previous = datasetState.columnProfiles;
+  datasetState.columnProfiles = profiles.map((profile) => ({ ...profile }));
+  emitStoreEvent("dataset:columnProfiles", { previous, next: datasetState.columnProfiles });
+}
+function setDatasetRevision(rev) {
+  const previous = datasetState.datasetRevision;
+  datasetState.datasetRevision = rev;
+  emitStoreEvent("dataset:datasetRevision", { previous, next: rev });
+}
+
+const SERIES_COLORS = [
+  "#00d4ff",
+  "#6c63ff",
+  "#00c896",
+  "#f5a623",
+  "#ff4a6e",
+  "#c77dff"
+];
+function normalizeSeriesColor$1(value) {
+  const text = String(value || "").trim();
+  return /^#[0-9a-fA-F]{6}$/.test(text) ? text.toLowerCase() : null;
+}
+function getSeriesColor$1(column, fallbackIndex = 0) {
+  const name = String(column || "").trim();
+  const custom = normalizeSeriesColor$1(appStateComposite.seriesColors?.[name]);
+  if (custom) return custom;
+  return SERIES_COLORS[Math.abs(fallbackIndex) % SERIES_COLORS.length];
+}
+
+const uiState = {
+  filterText: "",
+  selectedCols: [],
+  adaptiveFilterColumn: null,
+  columnRanges: {},
+  adaptiveLineFilters: [],
+  pendingAdaptivePoint: null,
+  seriesColors: {},
+  selectedColorColumn: null,
+  profileFilterText: "",
+  previewSelectedColumns: [],
+  previewTimeColumn: null,
+  profileGridBound: false,
+  profileGridHeaderBound: false,
+  profileGridSort: { key: "name", dir: "asc" },
+  profileGridColWidths: [56, 220, 120, 140, 100, 130, 130, 260]
+};
+function normalizeSeriesColor(value) {
+  const text = String(value || "").trim();
+  return /^#[0-9a-fA-F]{6}$/.test(text) ? text.toLowerCase() : null;
+}
+function getSeriesColor(column, fallbackIndex = 0) {
+  const name = String(column || "").trim();
+  const custom = normalizeSeriesColor(uiState.seriesColors?.[name]);
+  if (custom) return custom;
+  return SERIES_COLORS[Math.abs(fallbackIndex) % SERIES_COLORS.length];
+}
+function setSeriesColor(column, value) {
+  const name = String(column || "").trim();
+  const normalized = normalizeSeriesColor(value);
+  if (!name || !normalized) return null;
+  setSeriesColors({ ...uiState.seriesColors, [name]: normalized });
+  return normalized;
+}
+function setSelectedCols(cols) {
+  const previous = uiState.selectedCols;
+  uiState.selectedCols = [...cols];
+  emitStoreEvent("ui:selectedCols", { previous, next: uiState.selectedCols });
+}
+function setAdaptiveFilterColumn(col) {
+  const previous = uiState.adaptiveFilterColumn;
+  uiState.adaptiveFilterColumn = col;
+  emitStoreEvent("ui:adaptiveFilterColumn", { previous, next: col });
+}
+function setColumnRanges(ranges) {
+  const previous = uiState.columnRanges;
+  uiState.columnRanges = { ...ranges };
+  emitStoreEvent("ui:columnRanges", { previous, next: uiState.columnRanges });
+}
+function setAdaptiveLineFilters(filters) {
+  const previous = uiState.adaptiveLineFilters;
+  uiState.adaptiveLineFilters = filters.map((filter) => ({ ...filter }));
+  emitStoreEvent("ui:adaptiveLineFilters", { previous, next: uiState.adaptiveLineFilters });
+}
+function appendAdaptiveLineFilter(filter) {
+  setAdaptiveLineFilters([...uiState.adaptiveLineFilters, filter]);
+}
+function setPendingAdaptivePoint(point) {
+  const previous = uiState.pendingAdaptivePoint;
+  uiState.pendingAdaptivePoint = point ? { ...point } : null;
+  emitStoreEvent("ui:pendingAdaptivePoint", { previous, next: uiState.pendingAdaptivePoint });
+}
+function setSelectedColorColumn(col) {
+  const previous = uiState.selectedColorColumn;
+  uiState.selectedColorColumn = col;
+  emitStoreEvent("ui:selectedColorColumn", { previous, next: col });
+}
+function setSeriesColors(colors) {
+  const previous = uiState.seriesColors;
+  uiState.seriesColors = { ...colors };
+  emitStoreEvent("ui:seriesColors", { previous, next: uiState.seriesColors });
+}
+function setFilterText(text) {
+  const previous = uiState.filterText;
+  uiState.filterText = text;
+  emitStoreEvent("ui:filterText", { previous, next: text });
+}
+function setProfileFilterText(text) {
+  const previous = uiState.profileFilterText;
+  uiState.profileFilterText = text;
+  emitStoreEvent("ui:profileFilterText", { previous, next: text });
+}
+function setPreviewSelectedColumns(cols) {
+  const previous = uiState.previewSelectedColumns;
+  uiState.previewSelectedColumns = [...cols];
+  emitStoreEvent("ui:previewSelectedColumns", { previous, next: uiState.previewSelectedColumns });
+}
+function setPreviewTimeColumn(col) {
+  const previous = uiState.previewTimeColumn;
+  uiState.previewTimeColumn = col;
+  emitStoreEvent("ui:previewTimeColumn", { previous, next: col });
+}
+function setProfileGridSort(sort) {
+  const previous = uiState.profileGridSort;
+  uiState.profileGridSort = { ...sort };
+  emitStoreEvent("ui:profileGridSort", { previous, next: uiState.profileGridSort });
+}
+function setProfileGridColWidths(widths) {
+  const previous = uiState.profileGridColWidths;
+  uiState.profileGridColWidths = [...widths];
+  emitStoreEvent("ui:profileGridColWidths", { previous, next: uiState.profileGridColWidths });
+}
+function setProfileGridBound(bound) {
+  const previous = uiState.profileGridBound;
+  uiState.profileGridBound = bound;
+  emitStoreEvent("ui:profileGridBound", { previous, next: bound });
+}
+function setProfileGridHeaderBound(bound) {
+  const previous = uiState.profileGridHeaderBound;
+  uiState.profileGridHeaderBound = bound;
+  emitStoreEvent("ui:profileGridHeaderBound", { previous, next: bound });
+}
+
+const analyticsState = {
+  rollingEnabled: false,
+  rollingWindow: 50,
+  rollingBands: null,
+  anomalyEnabled: false,
+  anomalyMethod: "zscore",
+  anomalyThreshold: 3,
+  anomalyRegions: null,
+  spectralFilterPreview: null
+};
+function setRollingEnabled(v) {
+  const previous = analyticsState.rollingEnabled;
+  analyticsState.rollingEnabled = v;
+  emitStoreEvent("analytics:rollingEnabled", { previous, next: v });
+}
+function setRollingWindow(n) {
+  const previous = analyticsState.rollingWindow;
+  analyticsState.rollingWindow = n;
+  emitStoreEvent("analytics:rollingWindow", { previous, next: n });
+}
+function setRollingBands(bands) {
+  const previous = analyticsState.rollingBands;
+  analyticsState.rollingBands = bands ? bands.map((band) => ({ ...band })) : null;
+  emitStoreEvent("analytics:rollingBands", { previous, next: analyticsState.rollingBands });
+}
+function setAnomalyEnabled(v) {
+  const previous = analyticsState.anomalyEnabled;
+  analyticsState.anomalyEnabled = v;
+  emitStoreEvent("analytics:anomalyEnabled", { previous, next: v });
+}
+function setAnomalyMethod(m) {
+  const previous = analyticsState.anomalyMethod;
+  analyticsState.anomalyMethod = m;
+  emitStoreEvent("analytics:anomalyMethod", { previous, next: m });
+}
+function setAnomalyThreshold(t) {
+  const previous = analyticsState.anomalyThreshold;
+  analyticsState.anomalyThreshold = t;
+  emitStoreEvent("analytics:anomalyThreshold", { previous, next: t });
+}
+function setAnomalyRegions(regions) {
+  const previous = analyticsState.anomalyRegions;
+  analyticsState.anomalyRegions = regions ? regions.map((region) => ({ ...region })) : null;
+  emitStoreEvent("analytics:anomalyRegions", { previous, next: analyticsState.anomalyRegions });
+}
+function setSpectralFilterPreview(preview) {
+  const previous = analyticsState.spectralFilterPreview;
+  analyticsState.spectralFilterPreview = preview ? { ...preview } : null;
+  emitStoreEvent("analytics:spectralFilterPreview", { previous, next: analyticsState.spectralFilterPreview });
+}
+
+const chartState = {
+  chart: null,
+  currentStart: null,
+  currentEnd: null,
+  initialView: null,
+  zoomHistory: [],
+  chartText: { title: "", xLabel: "", yLabel: "" }
+};
+function disposeChartInstance(chart) {
+  const disposable = chart;
+  try {
+    if (typeof disposable.deepDispose === "function") {
+      disposable.deepDispose();
+    } else if (typeof disposable.destroy === "function") {
+      disposable.destroy();
+    } else if (typeof disposable.dispose === "function") {
+      disposable.dispose();
+    }
+  } catch (err) {
+    console.warn("[edatime:chart] failed to dispose previous chart instance:", err);
+  }
+}
+function setChartInstance(chart) {
+  const previous = chartState.chart;
+  if (previous && previous !== chart) {
+    disposeChartInstance(previous);
+  }
+  chartState.chart = chart;
+  emitStoreEvent("chart:chart", { previous, next: chart });
+}
+function setViewport(start, end) {
+  const previousViewport = { start: chartState.currentStart, end: chartState.currentEnd };
+  const previousStart = chartState.currentStart;
+  const previousEnd = chartState.currentEnd;
+  chartState.currentStart = start;
+  chartState.currentEnd = end;
+  emitStoreEvent("chart:currentStart", { previous: previousStart, next: start });
+  emitStoreEvent("chart:currentEnd", { previous: previousEnd, next: end });
+  emitStoreEvent("chart:viewport", {
+    previous: previousViewport,
+    next: { start, end }
+  });
+}
+function setInitialView(view) {
+  const previous = chartState.initialView;
+  chartState.initialView = view ? { ...view } : null;
+  emitStoreEvent("chart:initialView", { previous, next: chartState.initialView });
+}
+function setZoomHistory(history) {
+  const previous = chartState.zoomHistory;
+  chartState.zoomHistory = history.map((entry) => ({ ...entry }));
+  emitStoreEvent("chart:zoomHistory", { previous, next: chartState.zoomHistory });
+}
+function setChartText(text) {
+  const previous = chartState.chartText;
+  chartState.chartText = { ...text };
+  emitStoreEvent("chart:chartText", { previous, next: chartState.chartText });
+}
+
+const scatterState = {
+  chart: null,
+  initialized: false,
+  pageInitialized: false,
+  activeView: "plot",
+  loading: false,
+  metadata: null,
+  totalPoints: 0,
+  allPoints: [],
+  points: [],
+  allColorValues: null,
+  allColorLabels: null,
+  full: { xMin: 0, xMax: 1, yMin: 0, yMax: 1 },
+  view: { xMin: 0, xMax: 1, yMin: 0, yMax: 1 },
+  zoomHistory: [],
+  drag: null,
+  selectionBox: null,
+  colorColumn: "",
+  colorValues: null,
+  colorLabels: null,
+  colorMin: null,
+  colorMax: null,
+  correlationsByColumn: /* @__PURE__ */ new Map(),
+  suggestionThreshold: 0.7,
+  lastBinnedText: "",
+  lastUpdateMs: 0,
+  densityTooltipCache: null,
+  lastOptionSeries: null,
+  columnTypes: /* @__PURE__ */ new Map(),
+  lastSuggestions: [],
+  lastRenderSignature: "",
+  matrixCache: /* @__PURE__ */ new Map(),
+  matrixColumnOrder: [],
+  overviewRequestId: 0,
+  scatterRequestId: 0
+};
+function replaceScatterState(next) {
+  const previous = { ...scatterState };
+  Object.assign(scatterState, next);
+  emitStoreEvent("scatter:state", { previous, next: scatterState });
+}
+
+const runtimeState = {
+  lastFetchedData: null,
+  fetchDebounceId: null,
+  pendingYMode: "fit",
+  pendingRestoreY: null,
+  analysisBound: false,
+  refetchOnZoom: true
+};
+function setLastFetchedData(data) {
+  const previous = runtimeState.lastFetchedData;
+  runtimeState.lastFetchedData = data;
+  emitStoreEvent("runtime:lastFetchedData", { previous, next: data });
+}
+function setFetchDebounceId(id) {
+  const previous = runtimeState.fetchDebounceId;
+  runtimeState.fetchDebounceId = id;
+  emitStoreEvent("runtime:fetchDebounceId", { previous, next: id });
+}
+function setPendingYMode(mode) {
+  const previous = runtimeState.pendingYMode;
+  runtimeState.pendingYMode = mode;
+  emitStoreEvent("runtime:pendingYMode", { previous, next: mode });
+}
+function setPendingRestoreY(range) {
+  const previous = runtimeState.pendingRestoreY;
+  runtimeState.pendingRestoreY = range ? { ...range } : null;
+  emitStoreEvent("runtime:pendingRestoreY", { previous, next: runtimeState.pendingRestoreY });
+}
+function setAnalysisBound(bound) {
+  const previous = runtimeState.analysisBound;
+  runtimeState.analysisBound = bound;
+  emitStoreEvent("runtime:analysisBound", { previous, next: bound });
+}
+function setRefetchOnZoom(refetch) {
+  const previous = runtimeState.refetchOnZoom;
+  runtimeState.refetchOnZoom = refetch;
+  emitStoreEvent("runtime:refetchOnZoom", { previous, next: refetch });
+}
+
+function warnLegacyAppStateWrite(property) {
+  const meta = import.meta;
+  const env = meta.env;
+  if (!env?.DEV || env.MODE === "test") return;
+  console.warn(`[EdaTime] Direct appState.${String(property)} writes are deprecated. Import the matching store setter from ./store/index.js instead.`);
+}
+const appStateCompositeTarget = {
+  // ── Delegated properties ─────────────────────────────────────────────────
+  // These delegate to sub-states so that imports from '../state.js'
+  // stay in sync with the authoritative sub-state values.
+  get metadata() {
+    return datasetState.metadata;
+  },
+  set metadata(v) {
+    setMetadata(v);
+  },
+  get numericCols() {
+    return datasetState.numericCols;
+  },
+  set numericCols(v) {
+    setNumericCols(v);
+  },
+  get columnProfiles() {
+    return datasetState.columnProfiles;
+  },
+  set columnProfiles(v) {
+    setColumnProfiles(v);
+  },
+  get datasetRevision() {
+    return datasetState.datasetRevision;
+  },
+  set datasetRevision(v) {
+    setDatasetRevision(v);
+  },
+  get selectedCols() {
+    return uiState.selectedCols;
+  },
+  set selectedCols(v) {
+    setSelectedCols(v);
+  },
+  get adaptiveFilterColumn() {
+    return uiState.adaptiveFilterColumn;
+  },
+  set adaptiveFilterColumn(v) {
+    setAdaptiveFilterColumn(v);
+  },
+  get columnRanges() {
+    return uiState.columnRanges;
+  },
+  set columnRanges(v) {
+    setColumnRanges(v);
+  },
+  get adaptiveLineFilters() {
+    return uiState.adaptiveLineFilters;
+  },
+  set adaptiveLineFilters(v) {
+    setAdaptiveLineFilters(v);
+  },
+  get pendingAdaptivePoint() {
+    return uiState.pendingAdaptivePoint;
+  },
+  set pendingAdaptivePoint(v) {
+    setPendingAdaptivePoint(v);
+  },
+  get seriesColors() {
+    return uiState.seriesColors;
+  },
+  set seriesColors(v) {
+    setSeriesColors(v);
+  },
+  get selectedColorColumn() {
+    return uiState.selectedColorColumn;
+  },
+  set selectedColorColumn(v) {
+    setSelectedColorColumn(v);
+  },
+  get filterText() {
+    return uiState.filterText;
+  },
+  set filterText(v) {
+    setFilterText(v);
+  },
+  get profileFilterText() {
+    return uiState.profileFilterText;
+  },
+  set profileFilterText(v) {
+    setProfileFilterText(v);
+  },
+  get previewSelectedColumns() {
+    return uiState.previewSelectedColumns;
+  },
+  set previewSelectedColumns(v) {
+    setPreviewSelectedColumns(v);
+  },
+  get previewTimeColumn() {
+    return uiState.previewTimeColumn;
+  },
+  set previewTimeColumn(v) {
+    setPreviewTimeColumn(v);
+  },
+  get profileGridBound() {
+    return uiState.profileGridBound;
+  },
+  set profileGridBound(v) {
+    setProfileGridBound(v);
+  },
+  get profileGridHeaderBound() {
+    return uiState.profileGridHeaderBound;
+  },
+  set profileGridHeaderBound(v) {
+    setProfileGridHeaderBound(v);
+  },
+  get profileGridSort() {
+    return uiState.profileGridSort;
+  },
+  set profileGridSort(v) {
+    setProfileGridSort(v);
+  },
+  get profileGridColWidths() {
+    return uiState.profileGridColWidths;
+  },
+  set profileGridColWidths(v) {
+    setProfileGridColWidths(v);
+  },
+  get rollingEnabled() {
+    return analyticsState.rollingEnabled;
+  },
+  set rollingEnabled(v) {
+    setRollingEnabled(v);
+  },
+  get rollingWindow() {
+    return analyticsState.rollingWindow;
+  },
+  set rollingWindow(v) {
+    setRollingWindow(v);
+  },
+  get rollingBands() {
+    return analyticsState.rollingBands;
+  },
+  set rollingBands(v) {
+    setRollingBands(v);
+  },
+  get anomalyEnabled() {
+    return analyticsState.anomalyEnabled;
+  },
+  set anomalyEnabled(v) {
+    setAnomalyEnabled(v);
+  },
+  get anomalyMethod() {
+    return analyticsState.anomalyMethod;
+  },
+  set anomalyMethod(v) {
+    setAnomalyMethod(v);
+  },
+  get anomalyThreshold() {
+    return analyticsState.anomalyThreshold;
+  },
+  set anomalyThreshold(v) {
+    setAnomalyThreshold(v);
+  },
+  get anomalyRegions() {
+    return analyticsState.anomalyRegions;
+  },
+  set anomalyRegions(v) {
+    setAnomalyRegions(v);
+  },
+  get spectralFilterPreview() {
+    return analyticsState.spectralFilterPreview;
+  },
+  set spectralFilterPreview(v) {
+    setSpectralFilterPreview(v);
+  },
+  // ── Delegated viewport properties ─────────────────────────────────────────
+  // These delegate to chartState so the store index stays in sync.
+  get currentStart() {
+    return chartState.currentStart;
+  },
+  set currentStart(v) {
+    setViewport(v, chartState.currentEnd);
+  },
+  get currentEnd() {
+    return chartState.currentEnd;
+  },
+  set currentEnd(v) {
+    setViewport(chartState.currentStart, v);
+  },
+  get initialView() {
+    return chartState.initialView;
+  },
+  set initialView(v) {
+    setInitialView(v);
+  },
+  get zoomHistory() {
+    return chartState.zoomHistory;
+  },
+  set zoomHistory(v) {
+    setZoomHistory(v);
+  },
+  get chartText() {
+    return chartState.chartText;
+  },
+  set chartText(v) {
+    setChartText(v);
+  },
+  get chart() {
+    return chartState.chart;
+  },
+  set chart(v) {
+    setChartInstance(v);
+  },
+  get scatter() {
+    return scatterState;
+  },
+  set scatter(v) {
+    replaceScatterState(v);
+  },
+  get fetchDebounceId() {
+    return runtimeState.fetchDebounceId;
+  },
+  set fetchDebounceId(v) {
+    setFetchDebounceId(v);
+  },
+  get lastFetchedData() {
+    return runtimeState.lastFetchedData;
+  },
+  set lastFetchedData(v) {
+    setLastFetchedData(v);
+  },
+  get analysisBound() {
+    return runtimeState.analysisBound;
+  },
+  set analysisBound(v) {
+    setAnalysisBound(v);
+  },
+  get refetchOnZoom() {
+    return runtimeState.refetchOnZoom;
+  },
+  set refetchOnZoom(v) {
+    setRefetchOnZoom(v);
+  },
+  get pendingYMode() {
+    return runtimeState.pendingYMode;
+  },
+  set pendingYMode(v) {
+    setPendingYMode(v);
+  },
+  get pendingRestoreY() {
+    return runtimeState.pendingRestoreY;
+  },
+  set pendingRestoreY(v) {
+    setPendingRestoreY(v);
+  }
+};
+const appStateComposite = new Proxy(appStateCompositeTarget, {
+  set(target, property, value, receiver) {
+    warnLegacyAppStateWrite(property);
+    return Reflect.set(target, property, value, receiver);
+  }
+});
+
+function ensureRangeStateFromData(dataObj) {
+  const next = ensureRangeStateFromDataState(
+    dataObj,
+    appStateComposite.selectedCols || [],
+    appStateComposite.columnRanges || {}
+  );
+  if (next !== appStateComposite.columnRanges) setColumnRanges(next);
+}
+function computeBounds(values) {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < values.length; i++) {
+    const value = values[i];
+    if (!Number.isFinite(value)) continue;
+    if (value < min) min = value;
+    if (value > max) max = value;
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  return { min, max };
+}
+function ensureRangeStateFromDataState(dataObj, selectedCols, columnRanges) {
+  let next = columnRanges;
+  for (const col of selectedCols) {
+    const values = dataObj.values?.[col];
+    if (!values || values.length === 0 || next[col]) continue;
+    const bounds = computeBounds(values);
+    if (!bounds) continue;
+    next = { ...next, [col]: { from: bounds.min, to: bounds.max } };
+  }
+  return next;
+}
+function buildAdaptiveLineY(filter, tsMs) {
+  const x1 = Number(filter?.x1);
+  const x2 = Number(filter?.x2);
+  const y1 = Number(filter?.y1);
+  const y2 = Number(filter?.y2);
+  const x = Number(tsMs);
+  if (!Number.isFinite(x1) || !Number.isFinite(x2) || !Number.isFinite(y1) || !Number.isFinite(y2) || !Number.isFinite(x) || x1 === x2) {
+    return null;
+  }
+  const minX = Math.min(x1, x2);
+  const maxX = Math.max(x1, x2);
+  if (x < minX || x > maxX) return null;
+  const slope = (y2 - y1) / (x2 - x1);
+  return y1 + (x - x1) * slope;
+}
+function passesAdaptiveLineFilters(tsMs, valuesByColumn, filters) {
+  for (const filter of filters) {
+    const column = String(filter?.column || "");
+    if (!column) continue;
+    const y = Number(valuesByColumn?.[column]);
+    if (!Number.isFinite(y)) return false;
+    const lineY = buildAdaptiveLineY(filter, tsMs);
+    if (!Number.isFinite(lineY)) continue;
+    if (filter.keepAbove) {
+      if (y < lineY) return false;
+    } else if (y > lineY) {
+      return false;
+    }
+  }
+  return true;
+}
+function buildAdaptiveLineFiltersForQueryState(filters) {
+  return (filters || []).map((filter) => ({
+    id: filter.id,
+    column: filter.column,
+    x1: Number(filter.x1),
+    y1: Number(filter.y1),
+    x2: Number(filter.x2),
+    y2: Number(filter.y2),
+    keepAbove: !!filter.keepAbove
+  })).filter(
+    (filter) => !!filter.column && Number.isFinite(filter.x1) && Number.isFinite(filter.y1) && Number.isFinite(filter.x2) && Number.isFinite(filter.y2) && filter.x1 !== filter.x2
+  );
+}
+function applyColumnRangesToData(dataObj, selectedCols, columnRanges, adaptiveLineFilters) {
+  const filtered = { ...dataObj, series: {}, colorByColumn: {} };
+  const lineFilters = Array.isArray(adaptiveLineFilters) ? adaptiveLineFilters : [];
+  const neededColumns = lineFilters.length > 0 ? [.../* @__PURE__ */ new Set([...selectedCols || [], ...lineFilters.map((filter) => filter.column)])] : [];
+  for (const col of selectedCols) {
+    const yValues = dataObj.values?.[col];
+    if (!yValues) continue;
+    const range = columnRanges[col];
+    const xs = [];
+    const ys = [];
+    const colorValues = [];
+    for (let i = 0; i < yValues.length; i++) {
+      const y = yValues[i];
+      const ts = dataObj.ts?.[i];
+      if (!Number.isFinite(y)) continue;
+      if (!Number.isFinite(ts)) continue;
+      if (range && (y < range.from || y > range.to)) continue;
+      if (lineFilters.length > 0) {
+        const valuesByColumn = {};
+        for (const name of neededColumns) {
+          valuesByColumn[name] = dataObj.values?.[name]?.[i];
+        }
+        if (!passesAdaptiveLineFilters(ts, valuesByColumn, lineFilters)) continue;
+      }
+      xs.push(ts);
+      ys.push(y);
+      if (Array.isArray(dataObj.color)) {
+        colorValues.push(dataObj.color[i]);
+      }
+    }
+    filtered.series[col] = {
+      x: Float64Array.from(xs),
+      y: Float64Array.from(ys)
+    };
+    if (Array.isArray(dataObj.color)) {
+      filtered.colorByColumn[col] = colorValues;
+    }
+  }
+  return filtered;
+}
+function buildAdaptiveLineFiltersForQuery() {
+  return buildAdaptiveLineFiltersForQueryState(appStateComposite.adaptiveLineFilters || []);
+}
+function applyColumnRanges(dataObj) {
+  return applyColumnRangesToData(
+    dataObj,
+    appStateComposite.selectedCols || [],
+    appStateComposite.columnRanges || {},
+    appStateComposite.adaptiveLineFilters || []
+  );
+}
+function sanitizeSelectedColumns$1() {
+  const blockedNames = /* @__PURE__ */ new Set(["ts", "timestamp", "time"]);
+  const datetimeCols = new Set(
+    (appStateComposite.metadata?.columns || []).filter((col) => /date|time/i.test(String(col?.dtype || ""))).map((col) => String(col?.name || "").toLowerCase())
+  );
+  const validColNames = new Set(
+    (appStateComposite.metadata?.columns || []).map((c) => String(c?.name || "").trim())
+  );
+  const filtered = (appStateComposite.selectedCols || []).filter((col) => {
+    const name = String(col || "").trim();
+    if (!name) return false;
+    const lower = name.toLowerCase();
+    if (blockedNames.has(lower)) return false;
+    if (datetimeCols.has(lower)) return false;
+    if (!validColNames.has(name)) return false;
+    return true;
+  });
+  setSelectedCols(filtered);
+}
+
+const EURO_DATE_ONLY = new Intl.DateTimeFormat("de-DE", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric"
+});
+const EURO_DATE_TIME = new Intl.DateTimeFormat("de-DE", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit"
+});
+const EURO_DATE_TIME_SECONDS = new Intl.DateTimeFormat("de-DE", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit"
+});
+function formatTwoDecimals(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return n.toLocaleString(void 0, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function formatTimestamp(ms, spanMs) {
+  const n = Number(ms);
+  if (!Number.isFinite(n)) return "—";
+  try {
+    const d = new Date(n);
+    if (!Number.isFinite(d.getTime())) return "—";
+    if (spanMs <= 2 * 6e4) return EURO_DATE_TIME_SECONDS.format(d);
+    if (spanMs <= 2 * 24 * 60 * 6e4) return EURO_DATE_TIME.format(d);
+    return EURO_DATE_ONLY.format(d);
+  } catch {
+    return String(ms);
+  }
+}
+function formatTimeTooltip(ms, spanMs) {
+  try {
+    const d = new Date(ms);
+    if (!Number.isFinite(d.getTime())) return String(ms);
+    if (spanMs <= 2 * 6e4) return EURO_DATE_TIME_SECONDS.format(d);
+    return EURO_DATE_TIME.format(d);
+  } catch {
+    return String(ms);
+  }
+}
+
+function formatAnalysisTime(tsMs) {
+  if (!Number.isFinite(tsMs)) return "—";
+  return new Date(tsMs).toLocaleString();
+}
+const formatAnalysisNumber = formatTwoDecimals;
+function formatCount(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return "0";
+  return Math.round(n).toLocaleString();
+}
+function isTemporalDtype(dtype) {
+  const dt = String(dtype || "").toLowerCase();
+  return dt.includes("datetime") || dt === "date" || dt.startsWith("date[");
+}
+function normalizeDtypeLabel(dtype) {
+  if (isTemporalDtype(dtype)) return "datetime[ns]";
+  return String(dtype || "");
+}
+function formatProfileValue(value, dtype) {
+  if (value == null || !Number.isFinite(Number(value))) return "—";
+  const numeric = Number(value);
+  if (isTemporalDtype(dtype)) {
+    const d = new Date(numeric);
+    if (!Number.isFinite(d.getTime())) return "—";
+    return d.toLocaleString();
+  }
+  return formatAnalysisNumber(numeric);
+}
+function formatToDatetimeLocal(ms) {
+  const value = Number(ms);
+  if (!Number.isFinite(value)) return "";
+  const d = new Date(value);
+  if (!Number.isFinite(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const mm = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const min = pad(d.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+}
+function toFiniteNumberOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+window.__edatime = window.__edatime || {};
+try {
+  Object.defineProperty(window.__edatime, "state", { get: () => appStateComposite });
+} catch (_) {
+}
+window.__edatime.DEBUG = true;
 
 function showBootstrapError({ message }) {
   console.error("Bootstrap error:", message);
 }
 
-const PROFILE_ROW_HEIGHT = 38;
-const PROFILE_OVERSCAN = 8;
-const PROFILE_COLUMNS = [
-  { key: "selected", label: "", minWidth: 56, defaultWidth: 56, sortable: false },
-  { key: "name", label: "Name", minWidth: 160, defaultWidth: 220, sortable: true },
-  { key: "dtype", label: "Type", minWidth: 110, defaultWidth: 120, sortable: true },
-  { key: "nonNullCount", label: "Non-Null", minWidth: 130, defaultWidth: 140, sortable: true },
-  { key: "nullCount", label: "Null", minWidth: 90, defaultWidth: 100, sortable: true },
-  { key: "min", label: "Min", minWidth: 120, defaultWidth: 130, sortable: true },
-  { key: "max", label: "Max", minWidth: 120, defaultWidth: 130, sortable: true },
-  { key: "histCounts", label: "Distribution", minWidth: 220, defaultWidth: 260, sortable: false }
-];
-function getDefaultProfileColumnWidths() {
-  return PROFILE_COLUMNS.map((col) => col.defaultWidth);
+function isWindowsPlatform() {
+  return typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
+}
+let requestAdapterShimInstalled = false;
+function getRequestAdapterGpu() {
+  if (typeof navigator === "undefined" || !("gpu" in navigator) || !navigator.gpu) return null;
+  return navigator.gpu;
+}
+function stripIgnoredPowerPreference(options) {
+  if (!options || typeof options !== "object" || !Object.prototype.hasOwnProperty.call(options, "powerPreference")) {
+    return options;
+  }
+  const { powerPreference: _ignored, ...rest } = options;
+  return Object.keys(rest).length > 0 ? rest : void 0;
+}
+function installWindowsWebGpuRequestAdapterWorkaround() {
+  if (requestAdapterShimInstalled || !isWindowsPlatform()) return;
+  const gpu = getRequestAdapterGpu();
+  if (!gpu) return;
+  const originalRequestAdapter = gpu.requestAdapter?.bind(gpu);
+  if (typeof originalRequestAdapter !== "function") return;
+  const requestAdapter = (options) => {
+    const sanitizedOptions = stripIgnoredPowerPreference(options);
+    return sanitizedOptions ? originalRequestAdapter(sanitizedOptions) : originalRequestAdapter();
+  };
+  Object.defineProperty(gpu, "requestAdapter", {
+    configurable: true,
+    value: requestAdapter
+  });
+  requestAdapterShimInstalled = true;
+}
+async function requestGpuAdapter() {
+  const gpu = getRequestAdapterGpu();
+  if (!gpu) return null;
+  return gpu.requestAdapter();
 }
 
-function createProfileRow(raw) {
-  const name = String(raw?.name || "").trim();
-  if (!name) return null;
-  const counts = Array.isArray(raw?.histogram?.counts) ? raw.histogram.counts.map((count) => Math.max(0, Number(count) || 0)) : [];
-  return {
-    name,
-    dtype: String(raw?.dtype || ""),
-    nonNullCount: Math.max(0, Number(raw?.non_null_count) || 0),
-    nullCount: Math.max(0, Number(raw?.null_count) || 0),
-    min: toFiniteNumberOrNull(raw?.min),
-    max: toFiniteNumberOrNull(raw?.max),
-    histCounts: counts
-  };
-}
-function createProfileStub(column) {
-  const name = String(column?.name || "").trim();
-  if (!name) return null;
-  return {
-    name,
-    dtype: String(column?.dtype || ""),
-    nonNullCount: 0,
-    nullCount: 0,
-    min: null,
-    max: null,
-    histCounts: []
-  };
-}
-function compareProfileValues(left, right, direction) {
-  const leftValue = String(left || "").toLowerCase();
-  const rightValue = String(right || "").toLowerCase();
-  if (leftValue < rightValue) return -1 * direction;
-  if (leftValue > rightValue) return 1 * direction;
-  return 0;
-}
-function sortProfileRows(profiles, sortKey, sortDir) {
-  const sortable = new Set(PROFILE_COLUMNS.filter((column) => column.sortable).map((column) => column.key));
-  if (!sortKey || !sortable.has(sortKey)) return profiles;
-  const direction = sortDir === "desc" ? -1 : 1;
-  return profiles.sort((leftRow, rightRow) => {
-    const leftValue = leftRow[sortKey];
-    const rightValue = rightRow[sortKey];
-    if (sortKey === "name" || sortKey === "dtype") {
-      return compareProfileValues(leftValue, rightValue, direction);
-    }
-    const leftNumber = Number(leftValue);
-    const rightNumber = Number(rightValue);
-    const leftFinite = Number.isFinite(leftNumber);
-    const rightFinite = Number.isFinite(rightNumber);
-    if (!leftFinite && !rightFinite) return 0;
-    if (!leftFinite) return 1;
-    if (!rightFinite) return -1;
-    return (leftNumber - rightNumber) * direction;
+const ANALYTICS_CHIP_COLORS = ["#7ad151", "#4ac3e8", "#f97316", "#e879f9", "#facc15", "#60a5fa", "#f43f5e"];
+function getNumericColumns(metadata) {
+  const timeCol = String(metadata?.time_column || "").trim().toLowerCase();
+  return (metadata?.numeric_columns || []).filter((column) => {
+    const lower = String(column || "").trim().toLowerCase();
+    return lower && lower !== "ts" && lower !== timeCol;
   });
 }
-function hydrateColumnProfiles(metadata) {
-  const incoming = Array.isArray(metadata?.column_profiles) ? metadata.column_profiles : [];
-  const cols = Array.isArray(metadata?.columns) ? metadata.columns : [];
-  const profileByName = /* @__PURE__ */ new Map();
-  for (const raw of incoming) {
-    const profile = createProfileRow(raw);
-    if (!profile) continue;
-    profileByName.set(profile.name, profile);
-  }
-  for (const col of cols) {
-    const profile = createProfileStub(col);
-    if (!profile || profileByName.has(profile.name)) continue;
-    profileByName.set(profile.name, profile);
-  }
-  setColumnProfiles(Array.from(profileByName.values()));
+function getDefaultTimeseriesColumns(metadata) {
+  return getNumericColumns(metadata).slice(0, 3);
 }
-function getFilteredColumnProfiles() {
-  const profiles = appStateComposite.columnProfiles || [];
-  const q = (appStateComposite.profileFilterText || "").trim().toLowerCase();
-  const filtered = !q ? [...profiles] : profiles.filter((p) => p.name.toLowerCase().includes(q) || p.dtype.toLowerCase().includes(q));
-  const { key, dir } = appStateComposite.profileGridSort || {};
-  return sortProfileRows(filtered, key, dir);
-}
-function applyProfileGridColumnsTemplate() {
-  const grid = document.getElementById("profile-grid");
-  if (!grid) return;
-  const widths = appStateComposite.profileGridColWidths || getDefaultProfileColumnWidths();
-  const template = widths.map((w, idx) => `${Math.max(PROFILE_COLUMNS[idx]?.minWidth ?? 40, Math.round((Number(w) || PROFILE_COLUMNS[idx]?.defaultWidth) ?? 100))}px`).join(" ");
-  grid.style.setProperty("--profile-grid-cols", template);
-}
-function getSelectablePreviewColumns(profiles = appStateComposite.columnProfiles || []) {
-  return profiles.map((profile) => profile.name).filter((name) => name && name !== appStateComposite.previewTimeColumn);
-}
-function syncUploadSelectionUI(profiles = appStateComposite.columnProfiles || []) {
-  const allCheckbox = document.getElementById("profile-select-all-checkbox");
-  const selectable = getSelectablePreviewColumns(profiles);
-  const selected = new Set(appStateComposite.previewSelectedColumns || []);
-  const selectedCount = selectable.filter((name) => selected.has(name)).length;
-  if (allCheckbox) {
-    allCheckbox.checked = selectable.length > 0 && selectedCount === selectable.length;
-    allCheckbox.indeterminate = selectedCount > 0 && selectedCount < selectable.length;
-  }
-}
-function updateProfileGridHeaderState() {
-  const header = document.querySelector(".profile-grid-header");
-  if (!header) return;
-  const sortKey = appStateComposite.profileGridSort?.key;
-  const sortDir = appStateComposite.profileGridSort?.dir;
-  const cells = Array.from(header.children);
-  for (const cell of cells) {
-    const key = cell.dataset.sortKey;
-    const sortable = cell.dataset.sortable === "1";
-    cell.classList.toggle("sortable", sortable);
-    cell.classList.remove("sorted-asc", "sorted-desc");
-    cell.removeAttribute("aria-sort");
-    if (!sortable || !key) continue;
-    if (key === sortKey) {
-      const cls = sortDir === "desc" ? "sorted-desc" : "sorted-asc";
-      const aria = sortDir === "desc" ? "descending" : "ascending";
-      cell.classList.add(cls);
-      cell.setAttribute("aria-sort", aria);
-    } else {
-      cell.setAttribute("aria-sort", "none");
-    }
-  }
-}
-function initProfileGridHeaderControls() {
-  if (appStateComposite.profileGridHeaderBound) return;
-  const header = document.querySelector(".profile-grid-header");
-  if (!header) return;
-  const cells = Array.from(header.children);
-  cells.forEach((cell, idx) => {
-    const def = PROFILE_COLUMNS[idx];
-    if (!def) return;
-    cell.dataset.sortKey = def.key;
-    cell.dataset.sortable = def.sortable ? "1" : "0";
-    if (def.sortable) {
-      cell.tabIndex = 0;
-      cell.addEventListener("click", () => {
-        const current = appStateComposite.profileGridSort || { key: def.key, dir: "asc" };
-        if (current.key === def.key) {
-          setProfileGridSort({ key: def.key, dir: current.dir === "asc" ? "desc" : "asc" });
-        } else {
-          setProfileGridSort({ key: def.key, dir: "asc" });
-        }
-        updateProfileGridHeaderState();
-        renderColumnProfilesGrid(true);
-      });
-      cell.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter" && e.key !== " ") return;
-        e.preventDefault();
-        cell.click();
-      });
-    }
-    if (idx < cells.length - 1) {
-      const resizer = document.createElement("span");
-      resizer.className = "profile-col-resizer";
-      resizer.setAttribute("role", "separator");
-      resizer.setAttribute("aria-orientation", "vertical");
-      resizer.addEventListener("pointerdown", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const startX = event.clientX;
-        const startW = Number(appStateComposite.profileGridColWidths[idx]) || def.defaultWidth;
-        const onMove = (moveEvent) => {
-          const dx = moveEvent.clientX - startX;
-          const next = Math.max(def.minWidth, startW + dx);
-          appStateComposite.profileGridColWidths[idx] = next;
-          applyProfileGridColumnsTemplate();
-        };
-        const onUp = () => {
-          window.removeEventListener("pointermove", onMove);
-          window.removeEventListener("pointerup", onUp);
-        };
-        window.addEventListener("pointermove", onMove);
-        window.addEventListener("pointerup", onUp);
-      });
-      cell.appendChild(resizer);
-    }
-  });
-  updateProfileGridHeaderState();
-  setProfileGridHeaderBound(true);
-}
-function createProfileCell(text, extraClass = "") {
-  const cell = document.createElement("div");
-  cell.className = `profile-cell ${extraClass}`.trim();
-  cell.textContent = text;
-  return cell;
-}
-function createSelectionCell(profile) {
-  const cell = document.createElement("div");
-  cell.className = "profile-cell profile-cell-check";
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.checked = (appStateComposite.previewSelectedColumns || []).includes(profile.name);
-  checkbox.setAttribute("aria-label", `Select ${profile.name} for upload`);
-  if (profile.name === appStateComposite.previewTimeColumn) {
-    checkbox.disabled = true;
-    checkbox.checked = true;
-    checkbox.title = "Time column is required";
-  }
-  checkbox.addEventListener("change", () => {
-    const selected = new Set(appStateComposite.previewSelectedColumns || []);
-    if (checkbox.checked) selected.add(profile.name);
-    else selected.delete(profile.name);
-    if (appStateComposite.previewTimeColumn) selected.add(appStateComposite.previewTimeColumn);
-    setPreviewSelectedColumns(Array.from(selected));
-    syncUploadSelectionUI();
-  });
-  cell.appendChild(checkbox);
-  return cell;
-}
-function createHistogramCell(profile) {
-  const cell = document.createElement("div");
-  cell.className = "profile-cell";
-  const counts = Array.isArray(profile.histCounts) ? profile.histCounts : [];
-  if (counts.length === 0) {
-    const empty = document.createElement("span");
-    empty.className = "profile-hist-empty";
-    empty.textContent = "—";
-    cell.appendChild(empty);
-    return cell;
-  }
-  const maxCount = Math.max(...counts);
-  if (!Number.isFinite(maxCount) || maxCount <= 0) {
-    const empty = document.createElement("span");
-    empty.className = "profile-hist-empty";
-    empty.textContent = "—";
-    cell.appendChild(empty);
-    return cell;
-  }
-  const hist = document.createElement("div");
-  hist.className = "profile-hist";
-  for (const count of counts) {
-    const bar = document.createElement("span");
-    bar.className = "profile-hist-bar";
-    const height = Math.max(1, Math.round(count / maxCount * 22));
-    bar.style.height = `${height}px`;
-    bar.title = formatCount(count);
-    hist.appendChild(bar);
-  }
-  cell.appendChild(hist);
-  return cell;
-}
-function renderColumnProfilesGrid(resetScroll = false) {
-  const viewport = document.getElementById("profile-grid-viewport");
-  const spacer = document.getElementById("profile-grid-spacer");
-  const rows = document.getElementById("profile-grid-rows");
-  if (!viewport || !spacer || !rows) return;
-  if (resetScroll) viewport.scrollTop = 0;
-  const profiles = getFilteredColumnProfiles();
-  const total = profiles.length;
-  const viewportHeight = Math.max(1, viewport.clientHeight || 1);
-  spacer.style.height = `${Math.max(total * PROFILE_ROW_HEIGHT, viewportHeight)}px`;
-  if (total === 0) {
-    rows.style.transform = "translateY(0px)";
-    rows.innerHTML = "";
-    const row = document.createElement("div");
-    row.className = "profile-grid-row";
-    for (let i = 0; i < PROFILE_COLUMNS.length; i++) {
-      row.appendChild(createProfileCell(i === 1 ? "No columns match this filter" : "", "muted"));
-    }
-    rows.appendChild(row);
-    syncUploadSelectionUI(profiles);
-    return;
-  }
-  const scrollTop = Math.max(0, viewport.scrollTop);
-  const visibleRows = Math.ceil(viewportHeight / PROFILE_ROW_HEIGHT);
-  const start = Math.max(0, Math.floor(scrollTop / PROFILE_ROW_HEIGHT) - PROFILE_OVERSCAN);
-  const end = Math.min(total, start + visibleRows + PROFILE_OVERSCAN * 2);
-  rows.style.transform = `translateY(${start * PROFILE_ROW_HEIGHT}px)`;
-  rows.innerHTML = "";
-  for (let idx = start; idx < end; idx++) {
-    const profile = profiles[idx];
-    const totalCount = profile.nonNullCount + profile.nullCount;
-    const nonNullPct = totalCount > 0 ? profile.nonNullCount / totalCount * 100 : 0;
-    const row = document.createElement("div");
-    row.className = "profile-grid-row";
-    row.setAttribute("role", "row");
-    row.appendChild(createSelectionCell(profile));
-    row.appendChild(createProfileCell(profile.name));
-    row.appendChild(createProfileCell(normalizeDtypeLabel(profile.dtype), "muted"));
-    row.appendChild(createProfileCell(`${formatCount(profile.nonNullCount)} (${nonNullPct.toFixed(1)}%)`, "num"));
-    row.appendChild(createProfileCell(formatCount(profile.nullCount), "num"));
-    row.appendChild(createProfileCell(formatProfileValue(profile.min, profile.dtype), "num"));
-    row.appendChild(createProfileCell(formatProfileValue(profile.max, profile.dtype), "num"));
-    row.appendChild(createHistogramCell(profile));
-    rows.appendChild(row);
-  }
-  syncUploadSelectionUI(profiles);
-}
-function initColumnProfilesGrid() {
-  if (appStateComposite.profileGridBound) return;
-  const viewport = document.getElementById("profile-grid-viewport");
-  const header = document.querySelector(".profile-grid-header");
-  if (!viewport) return;
-  viewport.addEventListener("scroll", () => {
-    renderColumnProfilesGrid(false);
-    if (header) {
-      header.style.transform = `translateX(${-viewport.scrollLeft}px)`;
-    }
-  });
-  const resizeObserver = new ResizeObserver(() => renderColumnProfilesGrid(false));
-  resizeObserver.observe(viewport);
-  initProfileGridHeaderControls();
-  applyProfileGridColumnsTemplate();
-  setProfileGridBound(true);
+function getAnalyticsChipColor(column, fallbackIndex, overrides) {
+  return overrides?.[column] || ANALYTICS_CHIP_COLORS[Math.max(0, fallbackIndex) % ANALYTICS_CHIP_COLORS.length];
 }
 
 function computeFrontendRollingBands(data, cols, windowSize) {
@@ -428,23 +1104,14 @@ async function fetchAndRenderAnalytics$1(fetchAnomalies) {
   await fetchAnomalyRegions(fetchAnomalies ?? null);
 }
 
-function nextTheme(current) {
-  return current === "light" ? "dark" : "light";
-}
-function initThemeToggle() {
-  const btn = document.getElementById("theme-toggle-btn");
-  if (!btn) return;
-  if (btn.dataset.edatimeThemeToggle === "1") return;
-  btn.dataset.edatimeThemeToggle = "1";
-  btn.addEventListener("click", () => {
-    const settings = loadSettings();
-    const current = settings.theme === "light" ? "light" : "dark";
-    const target = nextTheme(current);
-    settings.theme = target;
-    saveSettings(settings);
-    applyTheme(target);
-  });
-}
+const analyticsOverlay = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  computeFrontendRollingBands,
+  fetchAndRenderAnalytics: fetchAndRenderAnalytics$1,
+  fetchAnomalyRegions,
+  initAnalyticsListeners,
+  setAnomalyOverlayCallback
+}, Symbol.toStringTag, { value: 'Module' }));
 
 function humanizeControlId(id) {
   return String(id || "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().replace(/\b\w/g, (match) => match.toUpperCase());
@@ -469,836 +1136,266 @@ function normalizeFormControlAccessibility() {
   });
 }
 
-function wireHomeNavigationCards(showPage) {
-  document.querySelectorAll("[data-home-nav]").forEach((element) => {
-    element.addEventListener("click", () => {
-      const target = element.dataset.homeNav;
-      if (target) showPage(target);
-    });
+function nextTheme(current) {
+  return current === "light" ? "dark" : "light";
+}
+function initThemeToggle() {
+  const btn = document.getElementById("theme-toggle-btn");
+  if (!btn) return;
+  if (btn.dataset.edatimeThemeToggle === "1") return;
+  btn.dataset.edatimeThemeToggle = "1";
+  btn.addEventListener("click", () => {
+    const settings = loadSettings();
+    const current = settings.theme === "light" ? "light" : "dark";
+    const target = nextTheme(current);
+    settings.theme = target;
+    saveSettings(settings);
+    applyTheme(target);
   });
 }
 
-function wireSampleDatasetCards(showPage, refreshDatasetAfterMutation) {
-  document.querySelectorAll("[data-sample-dataset]").forEach((element) => {
-    element.addEventListener("click", () => {
-      const dataset = element.dataset.sampleDataset;
-      if (dataset) {
-        void loadSampleDataset(dataset, showPage, refreshDatasetAfterMutation);
-      }
-    });
+const LIVE_REGION_ID = "aria-live-region";
+function getLiveRegion() {
+  return document.getElementById(LIVE_REGION_ID);
+}
+function announce(message, priority = "polite") {
+  const region = getLiveRegion();
+  if (!region) return;
+  region.setAttribute("aria-live", priority);
+  region.textContent = message;
+  setTimeout(() => {
+    if (region.textContent === message) {
+      region.textContent = "";
+    }
+  }, 1e3);
+}
+function announceChartLoading(columns) {
+  const count = columns.length;
+  const msg = count === 1 ? `Loading chart for ${columns[0]}.` : `Loading chart for ${count} columns: ${columns.join(", ")}.`;
+  announce(msg, "polite");
+}
+function announceDataUpdate(pageName) {
+  announce(`Data updated on ${pageName} page.`, "polite");
+}
+const SHORTCUTS = [
+  // Navigation
+  { keys: "Alt+1", description: "Upload page", category: "Navigation" },
+  { keys: "Alt+2", description: "Timeseries page", category: "Navigation" },
+  { keys: "Alt+3", description: "Scatter page", category: "Navigation" },
+  { keys: "Alt+4", description: "Scatter matrix view", category: "Navigation" },
+  { keys: "Alt+6", description: "FFT page", category: "Navigation" },
+  { keys: "Alt+7", description: "Heatmap page", category: "Navigation" },
+  { keys: "Alt+8", description: "Spectrogram page", category: "Navigation" },
+  { keys: "Alt+9", description: "Causal page", category: "Navigation" },
+  { keys: "Alt+0", description: "Drift page", category: "Navigation" },
+  { keys: "Ctrl+K", description: "Command palette", category: "Navigation" },
+  { keys: "Ctrl+I", description: "Analysis context panel", category: "Navigation" },
+  // Chart
+  { keys: "Double-click", description: "Reset zoom", category: "Chart" },
+  { keys: "Ctrl+click", description: "Set adaptive filter", category: "Chart" },
+  { keys: "Drag", description: "Pan / draw", category: "Chart" },
+  { keys: "Shift+C", description: "Clear adaptive filters", category: "Chart" },
+  // Session
+  { keys: "Ctrl+S", description: "Save session", category: "Session" },
+  { keys: "Ctrl+Shift+S", description: "Export session file", category: "Session" },
+  { keys: "Ctrl+O", description: "Import session file", category: "Session" },
+  // Export
+  { keys: "Ctrl+E", description: "Export data", category: "Export" }
+];
+let _shortcutsModal = null;
+function showKeyboardShortcutsHelp() {
+  const existing = document.getElementById("keyboard-help-modal");
+  if (existing) existing.remove();
+  const categories = [...new Set(SHORTCUTS.map((s) => s.category))];
+  const modal = document.createElement("div");
+  modal.id = "keyboard-help-modal";
+  modal.className = "modal-backdrop keyboard-help-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-labelledby", "keyboard-help-title");
+  const content = categories.map((cat) => {
+    const shortcuts = SHORTCUTS.filter((s) => s.category === cat);
+    return `
+            <div class="keyboard-help-section">
+                <h4>${cat}</h4>
+                ${shortcuts.map((s) => `
+                    <div class="keyboard-shortcut-row">
+                        <kbd>${s.keys}</kbd>
+                        <span>${s.description}</span>
+                    </div>
+                `).join("")}
+            </div>
+        `;
+  }).join("");
+  modal.innerHTML = `
+        <div class="modal">
+            <div class="keyboard-help-header">
+                <h3 class="keyboard-help-title" id="keyboard-help-title">Keyboard Shortcuts</h3>
+                <button class="keyboard-help-close" id="keyboard-help-close" aria-label="Close">
+                    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="4" y1="4" x2="12" y2="12"/>
+                        <line x1="12" y1="4" x2="4" y2="12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="keyboard-help-content">
+                ${content}
+            </div>
+            <div class="keyboard-help-hint">
+                Press <kbd>?</kbd> to toggle this help, or <kbd>Esc</kbd> to close.
+            </div>
+        </div>
+    `;
+  document.body.appendChild(modal);
+  const closeBtn = document.getElementById("keyboard-help-close");
+  closeBtn?.addEventListener("click", hideKeyboardShortcutsHelp);
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) hideKeyboardShortcutsHelp();
   });
-}
-async function loadSampleDataset(datasetId, showPage, refreshDatasetAfterMutation) {
-  const { toast } = await __vitePreload(async () => { const { toast } = await import('./assets/scatter-O3bU0fte.js').then(n => n.aQ);return { toast }},true              ?__vite__mapDeps([0,1,2]):void 0);
-  const { fetchSampleDataset, uploadDataset } = await __vitePreload(async () => { const { fetchSampleDataset, uploadDataset } = await import('./assets/scatter-O3bU0fte.js').then(n => n.aP);return { fetchSampleDataset, uploadDataset }},true              ?__vite__mapDeps([0,1,2]):void 0);
-  const labels = {
-    ettm2: "ETTm2",
-    sinusoidal: "Sinusoidal Waves",
-    weather: "Weather Patterns"
-  };
-  const label = labels[datasetId] || "Sample";
-  const loadingToast = toast(`Loading ${label} sample dataset…`, "info", 0);
-  const dismissLoading = typeof loadingToast === "function" ? loadingToast : () => {
-  };
-  try {
-    let file;
-    if (datasetId === "ettm2") {
-      const blob = await fetchSampleDataset("ETTm2.csv");
-      file = new File([blob], "ETTm2.csv", { type: "text/csv" });
-    } else if (datasetId === "sinusoidal") {
-      file = new File([generateSinusoidalCsv()], "sinusoidal.csv", { type: "text/csv" });
-    } else if (datasetId === "weather") {
-      file = new File([generateWeatherCsv()], "weather.csv", { type: "text/csv" });
-    } else {
-      dismissLoading();
-      toast(`Unknown sample dataset: ${datasetId}`, "error");
-      return;
-    }
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await uploadDataset(formData);
-    if (!response.ok) {
-      const text = await response.text();
-      let message = text;
-      try {
-        const parsed = JSON.parse(text);
-        if (parsed && typeof parsed.error === "string" && parsed.error.trim().length > 0) {
-          message = parsed.error;
-        }
-      } catch {
-      }
-      dismissLoading();
-      toast(`Could not load ${label}: ${message}`, "error");
-      return;
-    }
-    const result = await response.json().catch(() => ({}));
-    if (refreshDatasetAfterMutation) {
-      await refreshDatasetAfterMutation();
-    }
-    dismissLoading();
-    const rows = Number(result?.rows || 0);
-    toast(rows > 0 ? `${rows.toLocaleString()} rows loaded. Dataset ready.` : `${label} sample dataset loaded.`, "success", {});
-    showPage("timeseries");
-  } catch (err) {
-    dismissLoading();
-    toast(`Could not load ${label}: ${err}`, "error");
-  }
-}
-function generateSinusoidalCsv() {
-  const rows = ["timestamp,temperature,humidity,pressure"];
-  const start = (/* @__PURE__ */ new Date("2024-01-01T00:00:00Z")).getTime();
-  const end = (/* @__PURE__ */ new Date("2024-01-08T00:00:00Z")).getTime();
-  const interval = 15 * 60 * 1e3;
-  for (let t = start; t < end; t += interval) {
-    const temp = 20 + 5 * Math.sin((t - start) / (3600 * 1e3)) + (Math.random() - 0.5) * 0.5;
-    const hum = 50 + 20 * Math.sin((t - start) / (7200 * 1e3)) + (Math.random() - 0.5) * 2;
-    const pres = 1013 + 5 * Math.sin((t - start) / (5400 * 1e3)) + (Math.random() - 0.5) * 0.3;
-    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)}`);
-  }
-  return rows.join("\n");
-}
-function generateWeatherCsv() {
-  const rows = ["timestamp,temperature,humidity,pressure,wind_speed"];
-  const start = (/* @__PURE__ */ new Date("2024-03-01T00:00:00Z")).getTime();
-  const end = (/* @__PURE__ */ new Date("2024-03-08T00:00:00Z")).getTime();
-  const interval = 10 * 60 * 1e3;
-  for (let t = start; t < end; t += interval) {
-    const hour = new Date(t).getUTCHours();
-    const dayFactor = Math.sin((t - start) / (86400 * 1e3));
-    const temp = 15 + 8 * dayFactor + 3 * Math.sin(hour * Math.PI / 12) + (Math.random() - 0.5) * 0.5;
-    const hum = 60 + 15 * Math.cos((t - start) / (43200 * 1e3)) + (Math.random() - 0.5) * 3;
-    const pres = 1010 + 8 * dayFactor + (Math.random() - 0.5) * 0.5;
-    const wind = 5 + 3 * Math.abs(Math.sin((t - start) / (21600 * 1e3))) + (Math.random() - 0.5) * 1;
-    rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)},${wind.toFixed(3)}`);
-  }
-  return rows.join("\n");
-}
-
-const UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
-function getPartialTimeRangeInputs() {
-  const startInput = document.getElementById("time-start-input");
-  const endInput = document.getElementById("time-end-input");
-  if (!startInput || !endInput) return null;
-  return {
-    startInput,
-    endInput,
-    hint: document.getElementById("time-range-hint")
-  };
-}
-function clearPartialTimeRangeInputs(inputs) {
-  if (inputs.hint) inputs.hint.textContent = "Time range not detected in this file.";
-  inputs.startInput.min = "";
-  inputs.startInput.max = "";
-  inputs.endInput.min = "";
-  inputs.endInput.max = "";
-}
-function setPartialTimeRangeInputs(inputs, minLocal, maxLocal, overwriteInputs) {
-  inputs.startInput.min = minLocal;
-  inputs.startInput.max = maxLocal;
-  inputs.endInput.min = minLocal;
-  inputs.endInput.max = maxLocal;
-  if (overwriteInputs || !inputs.startInput.value) inputs.startInput.value = minLocal;
-  if (overwriteInputs || !inputs.endInput.value) inputs.endInput.value = maxLocal;
-}
-function applyPartialTimeRangeFromMetadata(metadata, overwriteInputs = true) {
-  const inputs = getPartialTimeRangeInputs();
-  if (!inputs) return;
-  const minMs = Number(metadata?.time_range?.min);
-  const maxMs = Number(metadata?.time_range?.max);
-  if (!Number.isFinite(minMs) || !Number.isFinite(maxMs)) {
-    clearPartialTimeRangeInputs(inputs);
-    return;
-  }
-  const minLocal = formatToDatetimeLocal(minMs);
-  const maxLocal = formatToDatetimeLocal(maxMs);
-  setPartialTimeRangeInputs(inputs, minLocal, maxLocal, overwriteInputs);
-  if (inputs.hint) {
-    inputs.hint.textContent = `Detected: ${formatAnalysisTime(minMs)} → ${formatAnalysisTime(maxMs)}`;
-  }
-}
-function validateFileSize(file) {
-  if (!file) return "Please select a file first.";
-  const name = String(file.name || "").toLowerCase();
-  if (!(name.endsWith(".csv") || name.endsWith(".parquet"))) {
-    return "Only CSV and Parquet files are supported.";
-  }
-  if (Number(file.size) > UI_MAX_UPLOAD_BYTES) {
-    const maxMb = Math.round(UI_MAX_UPLOAD_BYTES / (1024 * 1024));
-    return `File exceeds ${maxMb} MB upload limit.`;
-  }
-  return null;
-}
-
-function setUploadPreviewStatus(text, kind = "") {
-  const el = document.getElementById("upload-preview-status");
-  if (!el) return;
-  el.textContent = text;
-  el.className = `upload-preview-status ${kind}`.trim();
-}
-function setProfileMode(mode) {
-  const badge = document.getElementById("profile-mode-badge");
-  if (!badge) return;
-  badge.setAttribute("data-mode", mode);
-  badge.textContent = mode === "preview" ? "Upload preview" : "Current dataset";
-}
-let _previewController = null;
-async function runFilePreview(file, callbacks) {
-  if (!file) {
-    setUploadPreviewStatus("Select a file to preview columns");
-    return;
-  }
-  if (_previewController) _previewController.abort();
-  _previewController = new AbortController();
-  setUploadPreviewStatus("Profiling file…", "loading");
-  try {
-    const formData = new FormData();
-    formData.append("file", file);
-    const timeColumn = String(appStateComposite.previewTimeColumn || "").trim();
-    if (timeColumn) formData.append("time_column", timeColumn);
-    const res = await previewUpload(formData, _previewController.signal);
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "Preview failed");
-      throw new Error(txt || "Preview failed");
-    }
-    const result = await res.json();
-    const previewMetadata = result?.metadata;
-    if (!previewMetadata || !Array.isArray(previewMetadata.columns)) {
-      throw new Error("Preview response missing metadata");
-    }
-    setMetadata(previewMetadata);
-    callbacks.hydrateColumnProfiles(previewMetadata);
-    applyPreviewColumnSelection(previewMetadata, callbacks);
-    callbacks.renderColumnProfilesGrid(true);
-    applyTimeRangeFromMetadata(previewMetadata, true);
-    const previewRows = Number(previewMetadata.total_rows || result?.preview_rows || 0);
-    if (!appStateComposite.previewTimeColumn && !previewMetadata.time_range) {
-      setUploadPreviewStatus("No time column detected in preview. Please select one from the dropdown before upload.", "warning");
-    } else {
-      setUploadPreviewStatus(`Preview ready (${formatCount(previewRows)} rows)`, "success");
-    }
-    setProfileMode("preview");
-  } catch (e) {
-    if (e?.name === "AbortError") return;
-    if (String(e?.message || "").includes("Specified time column not found")) {
-      setPreviewTimeColumn(null);
-    }
-    setUploadPreviewStatus(`Preview failed: ${e instanceof Error ? e.message : String(e)}`, "error");
-    toast(`Upload preview failed: ${e instanceof Error ? e.message : String(e)}`, "error", {});
-    applyTimeRangeFromMetadata(null, false);
-  }
-}
-function applyPreviewColumnSelection(metadata, callbacks) {
-  const columns = Array.isArray(metadata?.columns) ? metadata.columns : [];
-  const metadataTimeCol = String(metadata?.time_column || "").trim() || null;
-  const detectedTimeCol = columns.find((col) => /date|time|ts|timestamp/i.test(String(col?.name || "")))?.name || null;
-  setPreviewSelectedColumns(columns.map((col) => String(col?.name || "").trim()).filter(Boolean));
-  const timeColumnExists = appStateComposite.previewTimeColumn && columns.some((col) => String(col?.name || "").trim() === appStateComposite.previewTimeColumn);
-  const calledTimeColumn = metadataTimeCol || detectedTimeCol || (timeColumnExists ? appStateComposite.previewTimeColumn : null);
-  setPreviewTimeColumn(calledTimeColumn);
-  const timeColumnControl = document.getElementById("time-column-select");
-  if (timeColumnControl) {
-    setDropdownOptions("time-column-select", [
-      { value: "", label: "Auto-detect" },
-      ...columns.map((col) => {
-        const name = String(col?.name || "").trim();
-        if (!name) return null;
-        return { value: name, label: `${name} (${col?.dtype || "unknown"})` };
-      }).filter((option) => option !== null)
-    ], { preferredValue: calledTimeColumn || "" });
-    if (calledTimeColumn) {
-      setDropdownValue("time-column-select", calledTimeColumn);
-    } else {
-      setDropdownValue("time-column-select", "");
-    }
-    timeColumnControl.onchange = () => {
-      setPreviewTimeColumn(getDropdownValue("time-column-select") || null);
-      const fileInput = document.getElementById("file-upload");
-      const file = fileInput?.files?.[0] || null;
-      if (file) callbacks.onTimeColumnChanged(file);
-    };
-  }
-}
-function applyTimeRangeFromMetadata(metadata, overwriteInputs) {
-  const inputs = getPartialTimeRangeInputs();
-  if (!inputs) return;
-  const minMs = Number(metadata?.time_range?.min);
-  const maxMs = Number(metadata?.time_range?.max);
-  if (!Number.isFinite(minMs) || !Number.isFinite(maxMs)) {
-    if (inputs.hint) inputs.hint.textContent = "Time range not detected in this file.";
-    inputs.startInput.min = "";
-    inputs.startInput.max = "";
-    inputs.endInput.min = "";
-    inputs.endInput.max = "";
-    return;
-  }
-  const minLocal = formatToDatetimeLocal(minMs);
-  const maxLocal = formatToDatetimeLocal(maxMs);
-  inputs.startInput.min = minLocal;
-  inputs.startInput.max = maxLocal;
-  inputs.endInput.min = minLocal;
-  inputs.endInput.max = maxLocal;
-  if (overwriteInputs || !inputs.startInput.value) inputs.startInput.value = minLocal;
-  if (overwriteInputs || !inputs.endInput.value) inputs.endInput.value = maxLocal;
-  if (inputs.hint) {
-    inputs.hint.textContent = `Detected: ${formatAnalysisTime(minMs)} → ${formatAnalysisTime(maxMs)}`;
-  }
-}
-function loadedRowCountFromResponse(response) {
-  if (!response || typeof response !== "object") return 0;
-  const record = response;
-  const count = Number(record.rows ?? record.rows_loaded);
-  return Number.isFinite(count) && count >= 0 ? count : 0;
-}
-
-async function refreshDbTables() {
-  if (!document.getElementById("db-table-select")) return;
-  try {
-    const data = await fetchDatabaseTables();
-    const tables = data.tables ?? [];
-    setDropdownOptions("db-table-select", [
-      { value: "", label: "— select table —" },
-      ...tables.map((table) => ({
-        value: table.name,
-        label: table.kind === "hypertable" ? `⏱ ${table.schema}.${table.name}` : `${table.schema}.${table.name}`
-      }))
-    ], { preferredValue: "" });
-  } catch {
-  }
-}
-let _dbStatusLoaded = false;
-async function syncDatabaseStatus() {
-  if (_dbStatusLoaded) return;
-  _dbStatusLoaded = true;
-  try {
-    const s = await fetchDatabaseStatus();
-    if (s.connected) {
-      const dbLoadBtn = document.getElementById("db-load-btn");
-      const dbDisconnectBtn = document.getElementById("db-disconnect-btn");
-      const dbStatus = document.getElementById("db-status");
-      if (dbLoadBtn) dbLoadBtn.disabled = false;
-      if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
-      if (dbStatus) {
-        dbStatus.textContent = `Connected to ${s.table || "(no table loaded)"}`;
-        dbStatus.className = "upload-status success";
-      }
-      void refreshDbTables();
-    }
-  } catch {
-    _dbStatusLoaded = false;
-  }
-}
-async function handleDatabaseConnect(params) {
-  const { connectionString, schema, dbConnectBtn, dbStatus, dbLoadBtn, dbDisconnectBtn } = params;
-  if (!connectionString.trim()) {
-    if (dbStatus) {
-      dbStatus.textContent = "Connection string is required.";
-      dbStatus.className = "upload-status error";
-    }
-    toast("Connection string is required.", "error", {});
-    return;
-  }
-  dbConnectBtn.disabled = true;
-  if (dbStatus) {
-    dbStatus.textContent = "Connecting…";
-    dbStatus.className = "upload-status loading";
-  }
-  try {
-    const result = await connectDatabase({
-      connection_string: connectionString.trim(),
-      schema,
-      load_snapshot: false
-    });
-    if (result) {
-      if (dbStatus) {
-        dbStatus.textContent = "Connected. Choose a table and click Load data.";
-        dbStatus.className = "upload-status success";
-      }
-      toast("Database connected. Choose a table and click Load data.", "success", {});
-      if (dbLoadBtn) dbLoadBtn.disabled = false;
-      if (dbDisconnectBtn) dbDisconnectBtn.hidden = false;
-      await refreshDbTables();
-    }
-  } catch (e) {
-    if (dbStatus) {
-      dbStatus.textContent = "Error: " + (e instanceof Error ? e.message : String(e));
-      dbStatus.className = "upload-status error";
-    }
-    toast(`Database connection failed: ${e instanceof Error ? e.message : String(e)}`, "error", {});
-  } finally {
-    dbConnectBtn.disabled = false;
-  }
-}
-async function handleDatabaseLoad(params) {
-  const { schema, table, timeColumn, dbLoadBtn, dbStatus } = params;
-  if (!table) {
-    if (dbStatus) {
-      dbStatus.textContent = "Select or enter a table name.";
-      dbStatus.className = "upload-status error";
-    }
-    toast("Select or enter a table name.", "error", {});
-    return;
-  }
-  dbLoadBtn.disabled = true;
-  if (dbStatus) {
-    dbStatus.textContent = "Loading data…";
-    dbStatus.className = "upload-status loading";
-  }
-  try {
-    const result = await loadDatabaseTable({
-      schema,
-      table,
-      time_column: timeColumn || null,
-      limit: 1e6
-    });
-    if (result) {
-      const loadedRows = loadedRowCountFromResponse(result);
-      if (dbStatus) {
-        dbStatus.textContent = `Loaded ${loadedRows.toLocaleString()} rows from ${table}.`;
-        dbStatus.className = "upload-status success";
-      }
-      toast(`${formatCount(loadedRows)} rows loaded from ${table}.`, "success", {});
-      window.dispatchEvent(new CustomEvent("edatime:dataset-changed", { detail: { source: "database", table } }));
-    }
-  } catch (e) {
-    if (dbStatus) {
-      dbStatus.textContent = "Error: " + (e instanceof Error ? e.message : String(e));
-      dbStatus.className = "upload-status error";
-    }
-    toast(`Database load failed: ${e instanceof Error ? e.message : String(e)}`, "error", {});
-  } finally {
-    dbLoadBtn.disabled = false;
-  }
-}
-async function handleDatabaseDisconnect(params) {
-  const { dbDisconnectBtn, dbLoadBtn, dbStatus, dbTableSelect } = params;
-  try {
-    await deleteDatabaseConnection();
-  } catch {
-  }
-  if (dbStatus) {
-    dbStatus.textContent = "Disconnected.";
-    dbStatus.className = "upload-status";
-  }
-  toast("Database disconnected.", "info", {});
-  if (dbLoadBtn) dbLoadBtn.disabled = true;
-  if (dbDisconnectBtn) dbDisconnectBtn.hidden = true;
-  if (dbTableSelect) {
-    setDropdownOptions("db-table-select", [
-      { value: "", label: "— connect first —" }
-    ], { preferredValue: "" });
-  }
-}
-
-function animateProgress(bar, wrap) {
-  let w = 0;
-  if (wrap) wrap.setAttribute("aria-valuenow", "0");
-  const t = setInterval(() => {
-    w = Math.min(w + Math.random() * 8, 85);
-    bar.style.width = w + "%";
-    if (wrap) wrap.setAttribute("aria-valuenow", String(Math.round(w)));
-    if (w >= 85) clearInterval(t);
-  }, 120);
-  return () => {
-    clearInterval(t);
-    if (wrap) {
-      const current = Number(wrap.getAttribute("aria-valuenow") || "0");
-      wrap.setAttribute("aria-valuenow", String(Math.max(current, 100)));
+  const escHandler = (e) => {
+    if (e.key === "Escape") {
+      hideKeyboardShortcutsHelp();
+      window.removeEventListener("keydown", escHandler);
     }
   };
+  window.addEventListener("keydown", escHandler);
+  const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  if (focusable.length > 0) {
+    focusable[0].focus();
+  }
+  _shortcutsModal = modal;
 }
-async function submitFileUpload(params) {
-  const {
-    selectedFile,
-    partialEnabled,
-    nRowsInput,
-    skipInput,
-    timeStartInput,
-    timeEndInput,
-    uploadBtn,
-    statusEl,
-    progressWrap,
-    progressBar,
-    fileInput,
-    fileDisplay,
-    deps,
-    hydrateColumnProfiles,
-    renderColumnProfilesGrid
-  } = params;
-  const invalidFileMsg = validateFileSize(selectedFile);
-  if (invalidFileMsg) {
-    statusEl.textContent = invalidFileMsg;
-    statusEl.className = "upload-status error";
-    toast(invalidFileMsg, "error", {});
-    return;
+function hideKeyboardShortcutsHelp() {
+  const modal = document.getElementById("keyboard-help-modal");
+  if (modal) {
+    modal.remove();
+    _shortcutsModal = null;
   }
-  if (!appStateComposite.previewTimeColumn && !(appStateComposite.metadata && appStateComposite.metadata.time_range)) {
-    statusEl.textContent = "No time column selected. Please choose a time column in the upload panel before ingest.";
-    statusEl.className = "upload-status error";
-    toast("No time column selected. Please choose a time column in the upload panel before ingest.", "error", {});
-    return;
-  }
-  const formData = new FormData();
-  formData.append("file", selectedFile);
-  if (partialEnabled) {
-    const nRows = parseInt(nRowsInput.value, 10);
-    const skipRows = parseInt(skipInput.value, 10) || 0;
-    if (!isNaN(nRows) && nRows > 0) {
-      formData.append("n_rows", String(nRows));
-    } else {
-      statusEl.textContent = "Enter a valid Max rows value for partial load.";
-      statusEl.className = "upload-status error";
-      toast("Enter a valid Max rows value for partial load.", "error", {});
-      uploadBtn.disabled = false;
-      progressWrap.style.display = "none";
-      progressBar.style.width = "0";
+}
+function initAccessibilityShortcuts() {
+  const handleKey = (e) => {
+    const target = e.target;
+    const isInput = ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable;
+    if (isInput) return;
+    if (e.key === "?" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      if (_shortcutsModal) {
+        hideKeyboardShortcutsHelp();
+      } else {
+        showKeyboardShortcutsHelp();
+      }
       return;
     }
-    if (skipRows > 0) formData.append("skip_rows", String(skipRows));
-    const toIsoOrNull = (v) => {
-      const s = (v || "").trim();
-      if (!s) return null;
-      const ms = Date.parse(s);
-      if (!Number.isFinite(ms)) return null;
-      return new Date(ms).toISOString();
-    };
-    const tStartIso = toIsoOrNull(timeStartInput?.value || "");
-    const tEndIso = toIsoOrNull(timeEndInput?.value || "");
-    if (tStartIso && tEndIso && Date.parse(tStartIso) > Date.parse(tEndIso)) {
-      statusEl.textContent = "Start time must be before end time.";
-      statusEl.className = "upload-status error";
-      toast("Start time must be before end time.", "error", {});
-      return;
-    }
-    if (tStartIso) formData.append("time_start", tStartIso);
-    if (tEndIso) formData.append("time_end", tEndIso);
-  }
-  const selectedColumns = Array.isArray(appStateComposite.previewSelectedColumns) ? appStateComposite.previewSelectedColumns.filter(Boolean) : [];
-  if (selectedColumns.length > 0) {
-    formData.append("columns", JSON.stringify(selectedColumns));
-  }
-  const timeColumn = String(appStateComposite.previewTimeColumn || "").trim();
-  if (timeColumn) formData.append("time_column", timeColumn);
-  uploadBtn.disabled = true;
-  if (statusEl) {
-    statusEl.textContent = "Uploading…";
-    statusEl.className = "upload-status loading";
-  }
-  progressWrap.style.display = "block";
-  const stopProgress = animateProgress(progressBar, progressWrap);
-  try {
-    const res = await uploadDataset(formData);
-    progressBar.style.width = "100%";
-    if (!res.ok) {
-      const txt = await res.text();
-      let message = txt;
-      try {
-        const parsed = JSON.parse(txt);
-        if (parsed && typeof parsed.error === "string" && parsed.error.trim().length > 0) {
-          message = parsed.error;
-        }
-      } catch {
-      }
-      if (statusEl) {
-        statusEl.textContent = "Error: " + message;
-        statusEl.className = "upload-status error";
-      }
-      toast(`Upload failed: ${message}`, "error", {});
-    } else {
-      const result = await res.json();
-      if (statusEl) {
-        statusEl.className = "upload-status";
-      }
-      toast(`${formatCount(Number(result.rows || 0))} rows loaded. Dataset ready.`, "success", {});
-      fileInput.value = "";
-      fileDisplay.textContent = "";
-      try {
-        if (deps.refreshDatasetAfterMutation) {
-          await deps.refreshDatasetAfterMutation();
-        } else {
-          const { fetchMetadata } = await __vitePreload(async () => { const { fetchMetadata } = await import('./assets/scatter-O3bU0fte.js').then(n => n.aP);return { fetchMetadata }},true              ?__vite__mapDeps([0,1,2]):void 0);
-          const freshMetadata = await fetchMetadata();
-          setMetadata(freshMetadata);
-          const revision = freshMetadata?.revision;
-          setDatasetRevision(typeof revision === "number" ? revision : 0);
-          hydrateColumnProfiles(freshMetadata);
-          renderColumnProfilesGrid(true);
-          deps.buildColumnToggles();
-          deps.buildRangeControls();
-          setProfileMode("dataset");
-        }
-      } catch {
-        setTimeout(() => window.location.reload(), 1200);
+    if ((e.key === "/" || e.key === "?") && e.ctrlKey) {
+      e.preventDefault();
+      if (_shortcutsModal) {
+        hideKeyboardShortcutsHelp();
+      } else {
+        showKeyboardShortcutsHelp();
       }
     }
-  } catch (e) {
-    if (statusEl) {
-      statusEl.textContent = "Error: " + (e instanceof Error ? e.message : String(e));
-      statusEl.className = "upload-status error";
-    }
-    toast(`Upload failed: ${e instanceof Error ? e.message : String(e)}`, "error", {});
-  } finally {
-    stopProgress();
-    uploadBtn.disabled = false;
-    setTimeout(() => {
-      progressWrap.style.display = "none";
-      progressBar.style.width = "0";
-    }, 1500);
-  }
+  };
+  window.addEventListener("keydown", handleKey);
 }
 
-function notify(message, kind) {
-  toast(message, kind, {});
+const VALID_PAGES = /* @__PURE__ */ new Set([
+  "home",
+  "upload",
+  "timeseries",
+  "correlations",
+  "scatter",
+  "fft",
+  "heatmap",
+  "spectrogram",
+  "causal",
+  "drift",
+  "settings"
+]);
+const PAGE_ALIASES = {
+  scattermatrix: "scatter"
+  // "Scatter Matrix" is now the matrix sub-view
+};
+let _bound = false;
+function getHashPage() {
+  const hash = location.hash.replace(/^#/, "");
+  const params = new URLSearchParams(hash);
+  const page = params.get("page");
+  if (!page) return null;
+  const resolved = PAGE_ALIASES[page] ?? page;
+  return VALID_PAGES.has(resolved) ? resolved : null;
 }
-function initUploadPanel(hydrateColumnProfiles, renderColumnProfilesGrid, deps) {
-  const toggleBtn = document.getElementById("upload-toggle-btn");
-  const panel = document.getElementById("upload-panel");
-  const browseBtn = document.getElementById("browse-btn");
-  const fileInput = document.getElementById("file-upload");
-  const dropZone = document.getElementById("drop-zone");
-  const fileDisplay = document.getElementById("file-name-display");
-  const partialChk = document.getElementById("partial-enabled");
-  const partialFlds = document.getElementById("partial-fields");
-  const nRowsInput = document.getElementById("n-rows-input");
-  const nRowsRange = document.getElementById("n-rows-range");
-  const nRowsDisp = document.getElementById("n-rows-display");
-  const skipInput = document.getElementById("skip-rows-input");
-  const timeStartInput = document.getElementById("time-start-input");
-  const timeEndInput = document.getElementById("time-end-input");
-  const uploadBtn = document.getElementById("upload-btn");
-  const uploadStatus = document.getElementById("upload-status");
-  const progressWrap = document.getElementById("progress-wrap");
-  const progressBar = document.getElementById("progress-bar");
-  const selectAllBtn = document.getElementById("profile-select-all-btn");
-  const selectNoneBtn = document.getElementById("profile-select-none-btn");
-  const selectAllCheckbox = document.getElementById("profile-select-all-checkbox");
-  if (!panel || !browseBtn || !fileInput || !dropZone || !fileDisplay || !partialChk || !partialFlds || !nRowsInput || !nRowsRange || !nRowsDisp || !skipInput || !uploadBtn || !progressWrap || !progressBar) {
-    console.error("Upload panel is missing required elements.");
-    return;
+function setHashPage(page) {
+  const hash = location.hash.replace(/^#/, "");
+  const params = new URLSearchParams(hash);
+  params.set("page", page);
+  const newHash = "#" + params.toString();
+  if (location.hash !== newHash) {
+    history.pushState(null, "", newHash);
   }
-  let selectedFile = null;
-  function formatUploadRowCountLocal(rowCount) {
-    return rowCount >= 1e6 ? (rowCount / 1e6).toFixed(1) + "M" : rowCount >= 1e3 ? (rowCount / 1e3).toFixed(0) + "K" : String(rowCount);
-  }
-  if (toggleBtn) {
-    toggleBtn.addEventListener("click", () => {
-      panel.classList.toggle("open");
-      toggleBtn.classList.toggle("btn-primary");
-      toggleBtn.classList.toggle("btn-ghost");
+}
+function replaceHashPage(page) {
+  const hash = location.hash.replace(/^#/, "");
+  const params = new URLSearchParams(hash);
+  params.set("page", page);
+  history.replaceState(null, "", "#" + params.toString());
+}
+function initHashRouting() {
+  if (_bound) return;
+  _bound = true;
+  window.addEventListener("edatime:page-change", ((e) => {
+    const page = e.detail?.navPage || e.detail?.page;
+    if (page && VALID_PAGES.has(page)) {
+      setHashPage(page);
+    }
+  }));
+  window.addEventListener("popstate", () => {
+    const page = getHashPage();
+    if (page) {
+      const btn = document.querySelector(`.sidebar .nav-item[data-page="${page}"]`);
+      btn?.click();
+    }
+  });
+  const initialPage = getHashPage();
+  if (initialPage) {
+    requestAnimationFrame(() => {
+      const btn = document.querySelector(`.sidebar .nav-item[data-page="${initialPage}"]`);
+      btn?.click();
     });
   } else {
-    panel.classList.add("open");
+    replaceHashPage("home");
   }
-  async function runPreviewWithCurrentFile(file) {
-    await runFilePreview(file, {
-      hydrateColumnProfiles,
-      renderColumnProfilesGrid,
-      onTimeColumnChanged: runPreviewWithCurrentFile
-    });
+}
+
+const DEBUG = (() => {
+  try {
+    const qs = new URLSearchParams(window.location.search);
+    if (qs.get("debug") === "1") return true;
+    if (qs.get("debug") === "true") return true;
+    return window.localStorage?.getItem("edatimeDebug") === "1";
+  } catch {
+    return false;
   }
-  dropZone.addEventListener("click", (e) => {
-    if (e.target.closest("#browse-btn")) return;
-    fileInput.click();
-  });
-  dropZone.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" && e.key !== " ") return;
-    e.preventDefault();
-    fileInput.click();
-  });
-  browseBtn.addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", () => {
-    selectedFile = fileInput.files?.[0] || null;
-    const invalidFileMsg = validateFileSize(selectedFile);
-    if (invalidFileMsg) {
-      selectedFile = null;
-      fileInput.value = "";
-      fileDisplay.textContent = "";
-      setUploadPreviewStatus(invalidFileMsg, "error");
-      notify(invalidFileMsg, "error");
-      return;
-    }
-    fileDisplay.textContent = selectedFile ? selectedFile.name : "";
-    setPreviewTimeColumn(null);
-    if (selectedFile) void runPreviewWithCurrentFile(selectedFile);
-  });
-  dropZone.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    dropZone.classList.add("dragover");
-  });
-  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-  dropZone.addEventListener("drop", (e) => {
-    e.preventDefault();
-    dropZone.classList.remove("dragover");
-    selectedFile = e.dataTransfer?.files[0] || null;
-    const invalidFileMsg = validateFileSize(selectedFile);
-    if (invalidFileMsg) {
-      selectedFile = null;
-      fileDisplay.textContent = "";
-      setUploadPreviewStatus(invalidFileMsg, "error");
-      notify(invalidFileMsg, "error");
-      return;
-    }
-    fileDisplay.textContent = selectedFile ? selectedFile.name : "";
-    setPreviewTimeColumn(null);
-    if (selectedFile) void runPreviewWithCurrentFile(selectedFile);
-  });
-  partialChk.addEventListener("change", () => {
-    partialFlds.classList.toggle("visible", partialChk.checked);
-  });
-  partialFlds.classList.toggle("visible", partialChk.checked);
-  nRowsRange.addEventListener("input", () => {
-    const v = parseInt(nRowsRange.value, 10);
-    nRowsInput.value = String(v);
-    nRowsDisp.textContent = formatUploadRowCountLocal(v);
-  });
-  nRowsInput.addEventListener("input", () => {
-    const v = parseInt(nRowsInput.value, 10);
-    if (!isNaN(v)) {
-      nRowsRange.value = String(Math.min(v, parseInt(nRowsRange.max, 10)));
-      nRowsDisp.textContent = formatUploadRowCountLocal(v);
-    }
-  });
-  const defaultRows = parseInt(nRowsRange.value, 10);
-  if (!isNaN(defaultRows) && defaultRows > 0) {
-    nRowsInput.value = String(defaultRows);
-    nRowsDisp.textContent = formatUploadRowCountLocal(defaultRows);
+})();
+function dbg(...args) {
+  if (!DEBUG) return;
+  console.log("[edatime]", ...args);
+}
+function dbgGroup(label, fn) {
+  if (!DEBUG) return fn?.();
+  console.groupCollapsed(`[edatime] ${label}`);
+  try {
+    return fn?.();
+  } finally {
+    console.groupEnd();
   }
-  applyTimeRangeFromMetadata(appStateComposite.metadata, false);
-  if (!appStateComposite.metadata) {
-    void __vitePreload(() => import('./assets/scatter-O3bU0fte.js').then(n => n.aP),true              ?__vite__mapDeps([0,1,2]):void 0).then(async ({ fetchMetadata }) => {
-      try {
-        const freshMetadata = await fetchMetadata();
-        if (freshMetadata) {
-          setMetadata(freshMetadata);
-          const revision = freshMetadata?.revision;
-          setDatasetRevision(typeof revision === "number" ? revision : 0);
-          hydrateColumnProfiles(freshMetadata);
-          renderColumnProfilesGrid(true);
-        }
-      } catch (err) {
-        console.error("[upload] metadata fetch error:", err);
-      }
-    });
-  }
-  selectAllBtn?.addEventListener("click", () => setSelectionMode("all"));
-  selectNoneBtn?.addEventListener("click", () => setSelectionMode("none"));
-  selectAllCheckbox?.addEventListener("change", () => {
-    setSelectionMode(selectAllCheckbox.checked ? "all" : "none");
+}
+if (DEBUG) {
+  window.addEventListener("error", (e) => {
+    console.error("[edatime] window.error", e?.message, e?.error);
   });
-  function setSelectionMode(mode) {
-    const columns = Array.isArray(appStateComposite.columnProfiles) ? appStateComposite.columnProfiles.map((profile) => profile.name) : [];
-    const next = /* @__PURE__ */ new Set();
-    if (appStateComposite.previewTimeColumn) next.add(appStateComposite.previewTimeColumn);
-    if (mode === "all") {
-      for (const name of columns) next.add(name);
-    }
-    setPreviewSelectedColumns(Array.from(next));
-    renderColumnProfilesGrid(false);
-  }
-  uploadBtn.addEventListener("click", () => {
-    if (!selectedFile) {
-      notify("Please select a file first.", "error");
-      return;
-    }
-    void submitFileUpload({
-      selectedFile,
-      partialEnabled: partialChk.checked,
-      nRowsInput,
-      skipInput,
-      timeStartInput,
-      timeEndInput,
-      uploadBtn,
-      statusEl: uploadStatus,
-      progressWrap,
-      progressBar,
-      fileInput,
-      fileDisplay,
-      deps,
-      hydrateColumnProfiles,
-      renderColumnProfilesGrid
-    });
+  window.addEventListener("unhandledrejection", (e) => {
+    console.error("[edatime] unhandledrejection", e?.reason);
   });
-  const fileTabBtn = document.getElementById("upload-source-file-btn");
-  const dbTabBtn = document.getElementById("upload-source-database-btn");
-  const filePanel = document.querySelector('[data-upload-source-panel="file"]');
-  const dbPanel = document.querySelector('[data-upload-source-panel="database"]');
-  function switchUploadSource(source) {
-    if (source === "database") {
-      fileTabBtn?.setAttribute("aria-selected", "false");
-      dbTabBtn?.setAttribute("aria-selected", "true");
-      fileTabBtn?.classList.remove("btn-primary");
-      fileTabBtn?.classList.add("btn-ghost");
-      dbTabBtn?.classList.remove("btn-ghost");
-      dbTabBtn?.classList.add("btn-primary");
-      if (filePanel) filePanel.hidden = true;
-      if (dbPanel) dbPanel.hidden = false;
-      void syncDatabaseStatus$1();
-    } else {
-      dbTabBtn?.setAttribute("aria-selected", "false");
-      fileTabBtn?.setAttribute("aria-selected", "true");
-      dbTabBtn?.classList.remove("btn-primary");
-      dbTabBtn?.classList.add("btn-ghost");
-      fileTabBtn?.classList.remove("btn-ghost");
-      fileTabBtn?.classList.add("btn-primary");
-      if (dbPanel) dbPanel.hidden = true;
-      if (filePanel) filePanel.hidden = false;
-    }
-  }
-  fileTabBtn?.addEventListener("click", () => switchUploadSource("file"));
-  dbTabBtn?.addEventListener("click", () => switchUploadSource("database"));
-  const dbConnectBtn = document.getElementById("db-connect-btn");
-  const dbLoadBtn = document.getElementById("db-load-btn");
-  const dbDisconnectBtn = document.getElementById("db-disconnect-btn");
-  const dbStatus = document.getElementById("db-status");
-  const dbTableSelect = document.getElementById("db-table-select");
-  dbTableSelect?.addEventListener("change", () => {
-    const tableInput = document.getElementById("db-table-input");
-    const table = getDropdownValue("db-table-select");
-    if (tableInput && table) tableInput.value = table;
-  });
-  if (dbConnectBtn) {
-    dbConnectBtn.addEventListener("click", () => {
-      const connectionString = document.getElementById("db-connection-input")?.value ?? "";
-      const schema = document.getElementById("db-schema-input")?.value.trim() || "public";
-      void handleDatabaseConnect({
-        connectionString,
-        schema,
-        dbConnectBtn,
-        dbStatus,
-        dbLoadBtn,
-        dbDisconnectBtn
-      });
-    });
-  }
-  if (dbLoadBtn) {
-    dbLoadBtn.addEventListener("click", () => {
-      const schema = document.getElementById("db-schema-input")?.value.trim() || "public";
-      const table = document.getElementById("db-table-input")?.value.trim() ?? getDropdownValue("db-table-select") ?? "";
-      const timeColumn = document.getElementById("db-time-col-input")?.value.trim();
-      void handleDatabaseLoad({
-        schema,
-        table,
-        timeColumn: timeColumn || null,
-        dbLoadBtn,
-        dbStatus
-      });
-    });
-  }
-  if (dbDisconnectBtn) {
-    dbDisconnectBtn.addEventListener("click", () => {
-      void handleDatabaseDisconnect({
-        dbDisconnectBtn,
-        dbLoadBtn,
-        dbStatus,
-        dbTableSelect
-      });
-    });
-  }
-  let dbStatusLoaded = false;
-  async function syncDatabaseStatus$1() {
-    if (dbStatusLoaded) return;
-    dbStatusLoaded = true;
-    await syncDatabaseStatus();
-  }
 }
 
 function setText(id, text) {
@@ -1447,6 +1544,85 @@ function initResetZoomListener(fetchAndRender) {
   });
 }
 
+let datasetRequestScope = 0;
+const inflight = /* @__PURE__ */ new Map();
+function createStaleDatasetError() {
+  const error = new Error("Stale response ignored after dataset change");
+  error.name = "AbortError";
+  return error;
+}
+function captureDatasetRequestScope() {
+  return datasetRequestScope;
+}
+function assertDatasetRequestScopeActive(scope) {
+  if (scope !== datasetRequestScope) {
+    throw createStaleDatasetError();
+  }
+}
+function invalidateDatasetRequestScope() {
+  datasetRequestScope += 1;
+  inflight.clear();
+  return datasetRequestScope;
+}
+function dedupeInflight(key, factory) {
+  const existing = inflight.get(key);
+  if (existing !== void 0) return existing;
+  const promise = factory().finally(() => inflight.delete(key));
+  inflight.set(key, promise);
+  return promise;
+}
+
+async function exportParquet(params) {
+  const res = await globalThis.fetch(`/api/export/parquet?${params.toString()}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Parquet export failed (${res.status}) ${text}`);
+  }
+  return res.blob();
+}
+async function exportScatterParquet(payload) {
+  const res = await globalThis.fetch("/api/scatter/export/parquet", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Scatter parquet export failed (${res.status}) ${text}`);
+  }
+  return res.blob();
+}
+
+function escapeHtml$1(text) {
+  return String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+}
+function downloadUrl(url, filename) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  downloadUrl(url, filename);
+  setTimeout(() => URL.revokeObjectURL(url), 1e3);
+}
+function getEl(id) {
+  return document.getElementById(id);
+}
+function debounce(fn, ms) {
+  let timer = null;
+  return ((...args) => {
+    if (timer !== null) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      fn(...args);
+    }, ms);
+  });
+}
+
 function buildFilteredSeriesRows() {
   if (!appStateComposite.lastFetchedData || !Array.isArray(appStateComposite.selectedCols) || appStateComposite.selectedCols.length === 0) {
     return [];
@@ -1589,6 +1765,381 @@ function initToolbarModals() {
   }));
 }
 
+const dropdownRegistry = /* @__PURE__ */ new Map();
+let instanceCounter = 0;
+function normalizeOptions$1(options) {
+  return options.map((option) => ({
+    value: String(option.value ?? ""),
+    label: String(option.label ?? option.value ?? ""),
+    disabled: !!option.disabled
+  }));
+}
+function findFirstEnabledOption(options) {
+  return options.find((option) => !option.disabled) ?? null;
+}
+function findSelectedOption(options, value) {
+  return options.find((option) => option.value === value) ?? null;
+}
+function isHtmlSelectElement(element) {
+  return !!element && element instanceof HTMLSelectElement;
+}
+function dropdownRootForElement(element) {
+  if (!element) return null;
+  if (element instanceof HTMLElement && element.classList.contains("dropdown")) return element;
+  return element instanceof HTMLElement ? element.closest(".dropdown") : null;
+}
+function dispatchDropdownChange(root, value) {
+  root.dispatchEvent(new CustomEvent("dropdown:change", {
+    bubbles: true,
+    detail: { value }
+  }));
+  root.dispatchEvent(new Event("change", { bubbles: true }));
+  root.dispatchEvent(new Event("input", { bubbles: true }));
+}
+function createDropdown(props) {
+  const instanceId = props.id || `dropdown-${++instanceCounter}`;
+  const listboxId = `${instanceId}__listbox`;
+  const root = document.createElement("div");
+  root.className = `dropdown dropdown--${props.variant ?? "default"}${props.className ? ` ${props.className}` : ""}`;
+  root.id = instanceId;
+  root.tabIndex = -1;
+  root.dataset.dropdownId = instanceId;
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "dropdown__trigger";
+  trigger.setAttribute("role", "combobox");
+  trigger.setAttribute("aria-haspopup", "listbox");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.setAttribute("aria-controls", listboxId);
+  trigger.setAttribute("aria-label", props.label);
+  const label = document.createElement("span");
+  label.className = "dropdown__label";
+  const chevron = document.createElement("span");
+  chevron.className = "dropdown__chevron";
+  chevron.setAttribute("aria-hidden", "true");
+  chevron.innerHTML = '<svg viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l4 4 4-4"/></svg>';
+  trigger.append(label, chevron);
+  const menu = document.createElement("div");
+  menu.className = "dropdown__menu";
+  menu.id = listboxId;
+  menu.setAttribute("role", "listbox");
+  menu.hidden = true;
+  root.append(trigger, menu);
+  let options = normalizeOptions$1(props.options);
+  let value = props.value ?? "";
+  let open = false;
+  let destroyed = false;
+  let activeIndex = -1;
+  let typeaheadBuffer = "";
+  let typeaheadTimer = null;
+  const syncTriggerLabel = () => {
+    const selected = findSelectedOption(options, value) ?? findFirstEnabledOption(options);
+    label.textContent = selected?.label ?? "";
+  };
+  const syncActiveState = () => {
+    const optionEls = menu.querySelectorAll(".dropdown__option");
+    optionEls.forEach((optionEl, index) => {
+      const option = options[index];
+      const isSelected = option?.value === value;
+      const isActive = index === activeIndex;
+      optionEl.setAttribute("aria-selected", String(isSelected));
+      optionEl.classList.toggle("is-selected", isSelected);
+      optionEl.classList.toggle("is-active", isActive);
+    });
+  };
+  const renderOptions = () => {
+    menu.innerHTML = "";
+    options.forEach((option, index) => {
+      const optionEl = document.createElement("button");
+      optionEl.type = "button";
+      optionEl.className = "dropdown__option";
+      optionEl.dataset.value = option.value;
+      optionEl.setAttribute("role", "option");
+      optionEl.disabled = option.disabled;
+      optionEl.textContent = option.label;
+      optionEl.addEventListener("click", () => {
+        controller.setValue(option.value, { emitChange: true });
+        controller.close();
+        trigger.focus();
+      });
+      menu.appendChild(optionEl);
+      if (option.value === value && activeIndex < 0) activeIndex = index;
+    });
+    syncActiveState();
+  };
+  const focusIndex = (nextIndex) => {
+    if (options.length === 0) {
+      activeIndex = -1;
+      syncActiveState();
+      return;
+    }
+    let candidate = nextIndex;
+    for (let attempts = 0; attempts < options.length; attempts += 1) {
+      const wrapped = (candidate + options.length) % options.length;
+      if (!options[wrapped]?.disabled) {
+        activeIndex = wrapped;
+        syncActiveState();
+        return;
+      }
+      candidate += 1;
+    }
+  };
+  const openMenu = () => {
+    if (open || trigger.disabled) return;
+    open = true;
+    root.classList.add("dropdown--open");
+    trigger.setAttribute("aria-expanded", "true");
+    menu.hidden = false;
+    const selectedIndex = options.findIndex((option) => option.value === value && !option.disabled);
+    focusIndex(selectedIndex >= 0 ? selectedIndex : 0);
+  };
+  const closeMenu = () => {
+    if (!open) return;
+    open = false;
+    root.classList.remove("dropdown--open");
+    trigger.setAttribute("aria-expanded", "false");
+    menu.hidden = true;
+    activeIndex = -1;
+    syncActiveState();
+  };
+  const chooseActiveOption = () => {
+    const option = options[activeIndex];
+    if (!option || option.disabled) return;
+    controller.setValue(option.value, { emitChange: true });
+    closeMenu();
+    trigger.focus();
+  };
+  const handleTypeahead = (key) => {
+    if (key.length !== 1 || key.trim().length === 0) return false;
+    typeaheadBuffer += key.toLowerCase();
+    if (typeaheadTimer !== null) clearTimeout(typeaheadTimer);
+    typeaheadTimer = setTimeout(() => {
+      typeaheadBuffer = "";
+      typeaheadTimer = null;
+    }, 250);
+    const matchIndex = options.findIndex((option) => !option.disabled && option.label.toLowerCase().startsWith(typeaheadBuffer));
+    if (matchIndex >= 0) {
+      if (!open) openMenu();
+      focusIndex(matchIndex);
+      return true;
+    }
+    return false;
+  };
+  const handleKeydown = (event) => {
+    if (trigger.disabled) return;
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        if (!open) openMenu();
+        else focusIndex(activeIndex + 1);
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        if (!open) openMenu();
+        else focusIndex(activeIndex - 1);
+        break;
+      case "Home":
+        if (!open) return;
+        event.preventDefault();
+        focusIndex(0);
+        break;
+      case "End":
+        if (!open) return;
+        event.preventDefault();
+        focusIndex(options.length - 1);
+        break;
+      case "Enter":
+      case " ":
+        event.preventDefault();
+        if (!open) openMenu();
+        else chooseActiveOption();
+        break;
+      case "Escape":
+        if (!open) return;
+        event.preventDefault();
+        closeMenu();
+        trigger.focus();
+        break;
+      default:
+        handleTypeahead(event.key);
+        break;
+    }
+  };
+  const handleDocumentPointerDown = (event) => {
+    if (!open) return;
+    const target = event.target;
+    if (target && root.contains(target)) return;
+    closeMenu();
+  };
+  trigger.addEventListener("click", () => {
+    if (open) closeMenu();
+    else openMenu();
+  });
+  trigger.addEventListener("keydown", (event) => {
+    handleKeydown(event);
+    event.stopPropagation();
+  });
+  root.addEventListener("keydown", handleKeydown);
+  document.addEventListener("mousedown", handleDocumentPointerDown);
+  const controller = {
+    root,
+    trigger,
+    menu,
+    getValue: () => value,
+    setValue: (nextValue, optionsConfig = {}) => {
+      const selected = findSelectedOption(options, String(nextValue));
+      const next = selected?.disabled ? null : selected;
+      if (!next) return;
+      const changed = value !== next.value;
+      value = next.value;
+      syncTriggerLabel();
+      syncActiveState();
+      if (changed && optionsConfig.emitChange) {
+        props.onChange?.(value);
+        dispatchDropdownChange(root, value);
+      }
+    },
+    getOptions: () => [...options],
+    setOptions: (nextOptions, config = {}) => {
+      options = normalizeOptions$1(nextOptions);
+      const preferred = config.preferredValue ?? value;
+      const selected = findSelectedOption(options, preferred || "") ?? findFirstEnabledOption(options);
+      const previous = value;
+      value = selected?.value ?? "";
+      activeIndex = options.findIndex((option) => option.value === value);
+      renderOptions();
+      syncTriggerLabel();
+      if (config.emitChange && previous !== value) {
+        props.onChange?.(value);
+        dispatchDropdownChange(root, value);
+      }
+      return value;
+    },
+    setDisabled: (disabled) => {
+      trigger.disabled = !!disabled;
+      root.classList.toggle("dropdown--disabled", !!disabled);
+      if (disabled) closeMenu();
+    },
+    focus: () => trigger.focus(),
+    open: openMenu,
+    close: closeMenu,
+    destroy: () => {
+      if (destroyed) return;
+      destroyed = true;
+      document.removeEventListener("mousedown", handleDocumentPointerDown);
+      if (dropdownRegistry.get(instanceId) === controller) {
+        dropdownRegistry.delete(instanceId);
+      }
+    }
+  };
+  controller.setOptions(options);
+  controller.setDisabled(!!props.disabled);
+  if (props.id) dropdownRegistry.set(props.id, controller);
+  return controller;
+}
+function getDropdownController(id) {
+  return dropdownRegistry.get(id) ?? null;
+}
+function upgradeSelectElement(selectEl) {
+  const style = selectEl.getAttribute("style");
+  const options = Array.from(selectEl.options).map((option) => ({
+    value: option.value,
+    label: option.textContent || option.label || option.value,
+    disabled: option.disabled
+  }));
+  const controller = createDropdown({
+    id: selectEl.id || void 0,
+    name: selectEl.name || void 0,
+    label: selectEl.getAttribute("aria-label") || selectEl.name || selectEl.id || "Dropdown",
+    value: selectEl.value,
+    options,
+    className: selectEl.className || void 0,
+    disabled: selectEl.disabled,
+    variant: selectEl.classList.contains("ctrl-sm") || selectEl.closest(".toolbar, .scatter-toolbar") ? "compact" : selectEl.id === "color-column-select" ? "chip" : "default"
+  });
+  for (const attribute of Array.from(selectEl.attributes)) {
+    if (["id", "class", "style", "aria-label", "disabled"].includes(attribute.name)) continue;
+    controller.root.setAttribute(attribute.name, attribute.value);
+  }
+  if (style) controller.root.setAttribute("style", style);
+  selectEl.replaceWith(controller.root);
+  return controller;
+}
+function upgradeSelects(root = document) {
+  const selectEls = Array.from(root.querySelectorAll("select")).filter((selectEl) => !selectEl.multiple && !selectEl.hasAttribute("data-dropdown-skip"));
+  return selectEls.map((selectEl) => upgradeSelectElement(selectEl));
+}
+function getDropdownValue(id) {
+  const controller = getDropdownController(id);
+  if (controller) return controller.getValue();
+  const element = document.getElementById(id);
+  return isHtmlSelectElement(element) ? element.value : "";
+}
+function getDropdownValueFromElement(element) {
+  if (isHtmlSelectElement(element)) return element.value;
+  const root = dropdownRootForElement(element);
+  if (!root?.id) return "";
+  return getDropdownValue(root.id);
+}
+function getDropdownOptions(id) {
+  const controller = getDropdownController(id);
+  if (controller) return controller.getOptions();
+  const element = document.getElementById(id);
+  if (!isHtmlSelectElement(element)) return [];
+  return Array.from(element.options).map((option) => ({
+    value: option.value,
+    label: option.textContent || option.label || option.value,
+    disabled: option.disabled
+  }));
+}
+function setDropdownValue(id, value, options) {
+  const controller = getDropdownController(id);
+  if (controller) {
+    controller.setValue(value, options);
+    return;
+  }
+  const element = document.getElementById(id);
+  if (!isHtmlSelectElement(element)) return;
+  element.value !== value;
+  element.value = value;
+}
+function setDropdownOptions(id, options, config) {
+  const controller = getDropdownController(id);
+  if (controller) return controller.setOptions(options, config);
+  const element = document.getElementById(id);
+  if (!isHtmlSelectElement(element)) return "";
+  element.innerHTML = "";
+  normalizeOptions$1(options).forEach((option) => {
+    const optionEl = document.createElement("option");
+    optionEl.value = option.value;
+    optionEl.textContent = option.label;
+    optionEl.disabled = option.disabled;
+    element.appendChild(optionEl);
+  });
+  const preferred = config?.preferredValue ?? element.value;
+  if (preferred) element.value = preferred;
+  if (!element.value && element.options.length > 0) element.value = element.options[0].value;
+  if (config?.emitChange) element.dispatchEvent(new Event("change", { bubbles: true }));
+  return element.value;
+}
+function setDropdownDisabled(id, disabled) {
+  const controller = getDropdownController(id);
+  if (controller) {
+    controller.setDisabled(disabled);
+    return;
+  }
+  const element = document.getElementById(id);
+  if (isHtmlSelectElement(element)) element.disabled = disabled;
+}
+function setDropdownDisabledForElement(element, disabled) {
+  if (isHtmlSelectElement(element)) {
+    element.disabled = disabled;
+    return;
+  }
+  const root = dropdownRootForElement(element);
+  if (root?.id) setDropdownDisabled(root.id, disabled);
+}
+
 function initDrawControls(fetchAndRender) {
   const zoomResetBtn = document.getElementById("zoom-reset-btn");
   if (zoomResetBtn && !zoomResetBtn.dataset.bound) {
@@ -1724,11 +2275,13 @@ function initAnalyticsControls() {
 
 const STYLE_MODULES = {
   drift: "css/modules/drift.css?v=4",
-  home: "css/modules/home.css?v=1"
+  home: "css/modules/home.css?v=1",
+  scatter: "css/modules/scatter.css?v=1"
 };
 function pageStyleModulesFor(pageName) {
   if (pageName === "drift") return ["drift"];
   if (pageName === "home") return ["home"];
+  if (pageName === "scatter") return ["scatter"];
   return [];
 }
 function ensureStyleModule(name) {
@@ -1748,6 +2301,13 @@ function preloadPageStyles(pageName) {
   }
 }
 
+const pageStyles = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  ensureStyleModule,
+  pageStyleModulesFor,
+  preloadPageStyles
+}, Symbol.toStringTag, { value: 'Module' }));
+
 const DATASET_BOOTSTRAP_PAGES = /* @__PURE__ */ new Set([
   "timeseries",
   "scatter",
@@ -1759,223 +2319,6 @@ const DATASET_BOOTSTRAP_PAGES = /* @__PURE__ */ new Set([
 ]);
 function pageNeedsDatasetBootstrap(pageName) {
   return Boolean(pageName && DATASET_BOOTSTRAP_PAGES.has(pageName));
-}
-
-const VALID_PAGES = /* @__PURE__ */ new Set([
-  "home",
-  "upload",
-  "timeseries",
-  "correlations",
-  "scatter",
-  "fft",
-  "heatmap",
-  "spectrogram",
-  "causal",
-  "drift",
-  "settings"
-]);
-const PAGE_ALIASES = {
-  scattermatrix: "scatter"
-  // "Scatter Matrix" is now the matrix sub-view
-};
-let _bound$1 = false;
-function getHashPage() {
-  const hash = location.hash.replace(/^#/, "");
-  const params = new URLSearchParams(hash);
-  const page = params.get("page");
-  if (!page) return null;
-  const resolved = PAGE_ALIASES[page] ?? page;
-  return VALID_PAGES.has(resolved) ? resolved : null;
-}
-function setHashPage(page) {
-  const hash = location.hash.replace(/^#/, "");
-  const params = new URLSearchParams(hash);
-  params.set("page", page);
-  const newHash = "#" + params.toString();
-  if (location.hash !== newHash) {
-    history.pushState(null, "", newHash);
-  }
-}
-function replaceHashPage(page) {
-  const hash = location.hash.replace(/^#/, "");
-  const params = new URLSearchParams(hash);
-  params.set("page", page);
-  history.replaceState(null, "", "#" + params.toString());
-}
-function initHashRouting() {
-  if (_bound$1) return;
-  _bound$1 = true;
-  window.addEventListener("edatime:page-change", ((e) => {
-    const page = e.detail?.navPage || e.detail?.page;
-    if (page && VALID_PAGES.has(page)) {
-      setHashPage(page);
-    }
-  }));
-  window.addEventListener("popstate", () => {
-    const page = getHashPage();
-    if (page) {
-      const btn = document.querySelector(`.sidebar .nav-item[data-page="${page}"]`);
-      btn?.click();
-    }
-  });
-  const initialPage = getHashPage();
-  if (initialPage) {
-    requestAnimationFrame(() => {
-      const btn = document.querySelector(`.sidebar .nav-item[data-page="${initialPage}"]`);
-      btn?.click();
-    });
-  } else {
-    replaceHashPage("home");
-  }
-}
-
-function createModalController(opts) {
-  const modal = document.getElementById(opts.modalId);
-  const open = () => {
-    if (modal) modal.hidden = false;
-    opts.onOpen?.();
-  };
-  const close = () => {
-    if (modal) modal.hidden = true;
-    opts.onClose?.();
-  };
-  for (const id of opts.closeButtonIds) {
-    document.getElementById(id)?.addEventListener("click", close);
-  }
-  modal?.addEventListener("click", (event) => {
-    if (event.target === modal) close();
-  });
-  return { open, close };
-}
-
-let currentSettings = null;
-const controller$1 = createModalController({
-  modalId: "settings-modal",
-  closeButtonIds: ["settings-close-btn", "settings-cancel-btn"],
-  onOpen: () => {
-    currentSettings = loadSettings();
-    populateSettingsForm(currentSettings);
-    setActiveTab("appearance");
-  },
-  onClose: () => {
-    currentSettings = null;
-  }
-});
-function openSettingsModal() {
-  controller$1.open();
-}
-function closeSettingsModal() {
-  controller$1.close();
-}
-function setActiveTab(tab) {
-  document.querySelectorAll(".settings-tab-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.tab === tab);
-  });
-  document.querySelectorAll(".settings-tab-panel").forEach((panel) => {
-    panel.hidden = panel.dataset.tab !== tab;
-  });
-}
-function populateSettingsForm(settings) {
-  setSelectValue("settings-theme", settings.theme);
-  setSelectValue("settings-layout", settings.layoutDensity);
-  setSelectValue("settings-palette", settings.defaultPalette);
-  setSelectValue("settings-export-format", settings.defaultExportFormat);
-  setCheckboxValue("settings-white-bg", settings.whiteBackgroundExport);
-  setSelectValue("settings-correlation", settings.defaultCorrelationMetric);
-  setSelectValue("settings-causal-method", settings.defaultCausalMethod);
-  setInputValue("settings-tau-max", settings.defaultTauMax.toString());
-  setSelectValue("settings-fft-preset", settings.defaultFftPreset);
-  setCheckboxValue("settings-draw-auto-reset", settings.drawAutoReset);
-  setSelectValue("settings-color-scale", settings.colorScale);
-  setCheckboxValue("settings-sidebar-collapsed", settings.sidebarCollapsed);
-  renderPalettePreview(settings.defaultPalette);
-}
-function collectSettingsFromForm() {
-  return {
-    theme: getSelectValue("settings-theme") || DEFAULT_SETTINGS.theme,
-    layoutDensity: getSelectValue("settings-layout") || DEFAULT_SETTINGS.layoutDensity,
-    defaultPalette: getSelectValue("settings-palette") || DEFAULT_SETTINGS.defaultPalette,
-    defaultExportFormat: getSelectValue("settings-export-format") || DEFAULT_SETTINGS.defaultExportFormat,
-    whiteBackgroundExport: getCheckboxValue("settings-white-bg"),
-    defaultCorrelationMetric: getSelectValue("settings-correlation") || DEFAULT_SETTINGS.defaultCorrelationMetric,
-    defaultCausalMethod: getSelectValue("settings-causal-method") || DEFAULT_SETTINGS.defaultCausalMethod,
-    defaultTauMax: parseInt(getInputValue("settings-tau-max"), 10) || DEFAULT_SETTINGS.defaultTauMax,
-    defaultFftPreset: getSelectValue("settings-fft-preset") || DEFAULT_SETTINGS.defaultFftPreset,
-    drawAutoReset: getCheckboxValue("settings-draw-auto-reset"),
-    colorScale: getSelectValue("settings-color-scale") || DEFAULT_SETTINGS.colorScale,
-    sidebarCollapsed: getCheckboxValue("settings-sidebar-collapsed"),
-    analyticsDrawerOpen: false
-  };
-}
-function applySettings() {
-  const settings = collectSettingsFromForm();
-  saveSettings(settings);
-  applyTheme(settings.theme);
-  applyLayoutDensity(settings.layoutDensity);
-  if (CHART_PALETTES[settings.defaultPalette]) {
-    const palette = CHART_PALETTES[settings.defaultPalette];
-    SERIES_COLORS.length = 0;
-    SERIES_COLORS.push(...palette);
-  }
-  closeSettingsModal();
-}
-function resetSettings() {
-  currentSettings = { ...DEFAULT_SETTINGS };
-  populateSettingsForm(currentSettings);
-}
-function renderPalettePreview(paletteName) {
-  const container = document.getElementById("settings-palette-preview");
-  if (!container) return;
-  const colors = CHART_PALETTES[paletteName] || CHART_PALETTES.default;
-  container.innerHTML = colors.map((color) => `<span class="palette-swatch" style="background:${color}" title="${color}"></span>`).join("");
-}
-function setSelectValue(id, value) {
-  setDropdownValue(id, value);
-}
-function getSelectValue(id) {
-  return getDropdownValue(id);
-}
-function setInputValue(id, value) {
-  const el = document.getElementById(id);
-  if (el) el.value = value;
-}
-function getInputValue(id) {
-  const el = document.getElementById(id);
-  return el?.value || "";
-}
-function setCheckboxValue(id, checked) {
-  const el = document.getElementById(id);
-  if (el) el.checked = checked;
-}
-function getCheckboxValue(id) {
-  const el = document.getElementById(id);
-  return el?.checked || false;
-}
-function initSettingsPanel() {
-  document.getElementById("settings-apply-btn")?.addEventListener("click", applySettings);
-  document.getElementById("settings-reset-btn")?.addEventListener("click", resetSettings);
-  document.querySelectorAll(".settings-tab-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const tab = btn.dataset.tab;
-      if (tab) setActiveTab(tab);
-    });
-  });
-  document.getElementById("settings-palette")?.addEventListener("change", () => {
-    renderPalettePreview(getDropdownValue("settings-palette"));
-  });
-  document.getElementById("settings-theme")?.addEventListener("change", () => {
-    applyTheme(getDropdownValue("settings-theme"));
-  });
-  document.getElementById("settings-layout")?.addEventListener("change", () => {
-    applyLayoutDensity(getDropdownValue("settings-layout"));
-  });
-  document.getElementById("settings-btn")?.addEventListener("click", openSettingsModal);
-  document.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === ",") {
-      e.preventDefault();
-      openSettingsModal();
-    }
-  });
 }
 
 function initPageNavigation() {
@@ -1996,16 +2339,25 @@ function initPageNavigation() {
     collapseBtn.dataset.bound = "1";
   }
   async function showPage(pageName) {
+    const win = window;
     preloadPageStyles(pageName);
     if (pageName === "settings") {
-      openSettingsModal();
+      await win.__edatime?.ensureSubsystem?.("settings");
+      win.__edatime?.openSettingsModal?.();
       return;
     }
-    if (pageNeedsDatasetBootstrap(pageName)) {
-      await window.__edatime?.ensureDatasetReady?.(pageName);
+    if (pageName === "home") {
+      await win.__edatime?.ensureSubsystem?.("home");
+    } else if (pageName === "upload") {
+      await win.__edatime?.ensureSubsystem?.("upload");
+    } else if (pageName === "timeseries") {
+      await win.__edatime?.ensureSubsystem?.("timeseries-shell");
     }
-    if (window.__edatime?.ensurePageModuleLoaded) {
-      await window.__edatime.ensurePageModuleLoaded(pageName);
+    if (pageNeedsDatasetBootstrap(pageName)) {
+      await win.__edatime?.ensureDatasetReady?.(pageName);
+    }
+    if (win.__edatime?.ensurePageModuleLoaded) {
+      await win.__edatime.ensurePageModuleLoaded(pageName);
     }
     const analyticsView = analyticsViews[pageName] || null;
     const resolvedPageName = analyticsView ? "scatter" : pageName;
@@ -2093,1639 +2445,199 @@ function initPages() {
   initPageNavigation();
 }
 
-let _overlay = null;
-let _input = null;
-let _list = null;
-let _commands = [];
-let _filtered = [];
-let _selectedIdx = 0;
-function buildDOM() {
-  if (_overlay) return;
-  _overlay = document.createElement("div");
-  _overlay.className = "palette-overlay";
-  _overlay.hidden = true;
-  const panel = document.createElement("div");
-  panel.className = "palette-panel";
-  _input = document.createElement("input");
-  _input.className = "palette-input";
-  _input.id = "command-palette-input";
-  _input.name = "command-palette-input";
-  _input.type = "text";
-  _input.placeholder = "Type a command…";
-  _input.setAttribute("aria-label", "Command search");
-  _list = document.createElement("div");
-  _list.className = "palette-list";
-  _list.setAttribute("role", "listbox");
-  panel.appendChild(_input);
-  panel.appendChild(_list);
-  _overlay.appendChild(panel);
-  document.body.appendChild(_overlay);
-  _overlay.addEventListener("click", (e) => {
-    if (e.target === _overlay) close();
-  });
-  _input.addEventListener("input", () => {
-    filterAndRender(_input.value);
-  });
-  _input.addEventListener("keydown", onInputKeydown);
-}
-function onInputKeydown(e) {
-  if (e.key === "Escape") {
-    e.preventDefault();
-    close();
-    return;
-  }
-  if (e.key === "ArrowDown") {
-    e.preventDefault();
-    moveSelection(1);
-    return;
-  }
-  if (e.key === "ArrowUp") {
-    e.preventDefault();
-    moveSelection(-1);
-    return;
-  }
-  if (e.key === "Enter") {
-    e.preventDefault();
-    const cmd = _filtered[_selectedIdx];
-    if (cmd) {
-      close();
-      cmd.action();
-    }
-  }
-}
-function moveSelection(delta) {
-  _selectedIdx = Math.max(0, Math.min(_filtered.length - 1, _selectedIdx + delta));
-  renderList();
-  const el = _list?.children[_selectedIdx];
-  el?.scrollIntoView({ block: "nearest" });
-}
-function filterAndRender(query) {
-  const q = query.trim().toLowerCase();
-  _filtered = q ? _commands.filter((c) => c.label.toLowerCase().includes(q) || (c.hint || "").toLowerCase().includes(q) || c.category.toLowerCase().includes(q)) : [..._commands];
-  _selectedIdx = 0;
-  renderList();
-}
-function renderList() {
-  if (!_list) return;
-  _list.innerHTML = "";
-  if (_filtered.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "palette-empty";
-    empty.textContent = "No matching commands";
-    _list.appendChild(empty);
-    return;
-  }
-  let lastCategory = "";
-  for (let i = 0; i < _filtered.length; i++) {
-    const cmd = _filtered[i];
-    if (cmd.category !== lastCategory) {
-      lastCategory = cmd.category;
-      const header = document.createElement("div");
-      header.className = "palette-category";
-      header.textContent = cmd.category;
-      _list.appendChild(header);
-    }
-    const row = document.createElement("div");
-    row.className = "palette-item" + (i === _selectedIdx ? " palette-item--selected" : "");
-    row.setAttribute("role", "option");
-    row.setAttribute("aria-selected", String(i === _selectedIdx));
-    const label = document.createElement("span");
-    label.className = "palette-item-label";
-    label.textContent = cmd.label;
-    row.appendChild(label);
-    if (cmd.hint) {
-      const hint = document.createElement("span");
-      hint.className = "palette-item-hint";
-      hint.textContent = cmd.hint;
-      row.appendChild(hint);
-    }
-    if (cmd.shortcut) {
-      const kbd = document.createElement("kbd");
-      kbd.className = "palette-item-kbd";
-      kbd.textContent = cmd.shortcut;
-      row.appendChild(kbd);
-    }
-    row.addEventListener("click", () => {
-      close();
-      cmd.action();
-    });
-    row.addEventListener("mouseenter", () => {
-      _selectedIdx = i;
-      renderList();
-    });
-    _list.appendChild(row);
-  }
-}
-function close() {
-  if (_overlay) _overlay.hidden = true;
-}
-function open() {
-  buildDOM();
-  if (_input) {
-    _input.value = "";
-  }
-  filterAndRender("");
-  if (_overlay) _overlay.hidden = false;
-  requestAnimationFrame(() => _input?.focus());
-}
-function registerCommands(commands) {
-  _commands = commands;
-}
-function openPalette() {
-  open();
-}
-function initCommandPalette() {
-  buildDOM();
-  window.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-      e.preventDefault();
-      if (_overlay?.hidden === false) close();
-      else open();
-    }
-  });
-}
+const toolbar = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  applyViewport,
+  bindAnalysisChartEvents,
+  getCurrentView,
+  initAnalysisControls,
+  initChartPageFilterGesture,
+  initPages,
+  refreshZoomControlsState,
+  resetZoom,
+  setComputeLoading,
+  updateAnalysisClick,
+  updateAnalysisCursor,
+  updateAnalysisYRange,
+  updateAnalysisZoom,
+  zoomOut
+}, Symbol.toStringTag, { value: 'Module' }));
 
-let _panel = null;
-let _content = null;
-function escapeText(s) {
-  const d = document.createElement("div");
-  d.textContent = s;
-  return d.innerHTML;
-}
-function buildPanel() {
-  if (_panel) return;
-  _panel = document.createElement("div");
-  _panel.className = "provenance-panel";
-  _panel.hidden = true;
-  _panel.id = "provenance-panel";
-  const header = document.createElement("div");
-  header.className = "provenance-header";
-  header.innerHTML = '<span class="provenance-title">Analysis Context</span>';
-  const closeBtn = document.createElement("button");
-  closeBtn.className = "provenance-close";
-  closeBtn.textContent = "×";
-  closeBtn.setAttribute("aria-label", "Close provenance panel");
-  closeBtn.addEventListener("click", toggleProvenance);
-  header.appendChild(closeBtn);
-  _content = document.createElement("div");
-  _content.className = "provenance-content";
-  _panel.appendChild(header);
-  _panel.appendChild(_content);
-  const appContent = document.querySelector(".app-content");
-  if (appContent) {
-    appContent.appendChild(_panel);
-  } else {
-    document.body.appendChild(_panel);
-  }
-}
-function renderContent() {
-  if (!_content) return;
-  const sections = [];
-  if (appStateComposite.metadata) {
-    const m = appStateComposite.metadata;
-    const rows = m.total_rows?.toLocaleString() ?? "—";
-    const cols = m.columns?.length ?? 0;
-    const timeCol = m.time_column ?? "—";
-    sections.push(`
-            <div class="provenance-section">
-                <div class="provenance-section-title">Dataset</div>
-                <div class="provenance-row"><span class="provenance-key">Rows</span><span class="provenance-val">${rows}</span></div>
-                <div class="provenance-row"><span class="provenance-key">Columns</span><span class="provenance-val">${cols}</span></div>
-                <div class="provenance-row"><span class="provenance-key">Time column</span><span class="provenance-val">${escapeText(timeCol)}</span></div>
-            </div>
-        `);
-  }
-  if (Number.isFinite(appStateComposite.currentStart) && Number.isFinite(appStateComposite.currentEnd)) {
-    sections.push(`
-            <div class="provenance-section">
-                <div class="provenance-section-title">Time Range</div>
-                <div class="provenance-row"><span class="provenance-key">Start</span><span class="provenance-val">${formatAnalysisTime(appStateComposite.currentStart)}</span></div>
-                <div class="provenance-row"><span class="provenance-key">End</span><span class="provenance-val">${formatAnalysisTime(appStateComposite.currentEnd)}</span></div>
-            </div>
-        `);
-  }
-  if (appStateComposite.selectedCols.length > 0) {
-    const chips = appStateComposite.selectedCols.map((c) => `<span class="provenance-chip">${escapeText(c)}</span>`).join("");
-    sections.push(`
-            <div class="provenance-section">
-                <div class="provenance-section-title">Selected Series (${appStateComposite.selectedCols.length})</div>
-                <div class="provenance-chips">${chips}</div>
-            </div>
-        `);
-  }
-  if (appStateComposite.selectedColorColumn) {
-    sections.push(`
-            <div class="provenance-section">
-                <div class="provenance-section-title">Color Encoding</div>
-                <div class="provenance-row"><span class="provenance-key">Column</span><span class="provenance-val">${escapeText(appStateComposite.selectedColorColumn)}</span></div>
-            </div>
-        `);
-  }
-  const rangeEntries = Object.entries(appStateComposite.columnRanges || {});
-  if (rangeEntries.length > 0) {
-    const rows = rangeEntries.map(
-      ([col, r]) => `<div class="provenance-row"><span class="provenance-key">${escapeText(col)}</span><span class="provenance-val">${formatAnalysisNumber(r.from)} → ${formatAnalysisNumber(r.to)}</span></div>`
-    ).join("");
-    sections.push(`
-            <div class="provenance-section">
-                <div class="provenance-section-title">Numeric Filters (${rangeEntries.length})</div>
-                ${rows}
-            </div>
-        `);
-  }
-  if (appStateComposite.adaptiveLineFilters.length > 0) {
-    const rows = appStateComposite.adaptiveLineFilters.map(
-      (f) => `<div class="provenance-row"><span class="provenance-key">${escapeText(f.column)}</span><span class="provenance-val">${f.keepAbove ? "above" : "below"} line</span></div>`
-    ).join("");
-    sections.push(`
-            <div class="provenance-section">
-                <div class="provenance-section-title">Adaptive Filters (${appStateComposite.adaptiveLineFilters.length})</div>
-                ${rows}
-            </div>
-        `);
-  }
-  const overlays = [];
-  if (appStateComposite.rollingEnabled) overlays.push(`Rolling mean (window ${appStateComposite.rollingWindow})`);
-  if (appStateComposite.anomalyEnabled) overlays.push(`Anomaly detection (${appStateComposite.anomalyMethod}, σ=${appStateComposite.anomalyThreshold})`);
-  if (overlays.length > 0) {
-    sections.push(`
-            <div class="provenance-section">
-                <div class="provenance-section-title">Analytics Overlays</div>
-                ${overlays.map((o) => `<div class="provenance-row"><span class="provenance-val">${escapeText(o)}</span></div>`).join("")}
-            </div>
-        `);
-  }
-  if (sections.length === 0) {
-    _content.innerHTML = '<div class="provenance-empty">No analysis context yet. Load a dataset and start exploring.</div>';
-  } else {
-    _content.innerHTML = sections.join("");
-  }
-}
-function toggleProvenance() {
-  buildPanel();
-  _panel.hidden = !_panel.hidden;
-  if (!_panel.hidden) renderContent();
-}
-function refreshProvenance() {
-  if (_panel && !_panel.hidden) renderContent();
-}
-function initProvenance() {
-  buildPanel();
-  const btn = document.getElementById("provenance-toggle-btn");
-  if (btn) btn.addEventListener("click", toggleProvenance);
-  window.addEventListener("keydown", (e) => {
-    if (e.ctrlKey && e.key === "i") {
-      e.preventDefault();
-      toggleProvenance();
-    }
-  });
-  window.addEventListener("edatime:page-change", () => refreshProvenance());
-  window.addEventListener("edatime:column-filters-change", () => refreshProvenance());
-  window.addEventListener("edatime:adaptive-filters-change", () => refreshProvenance());
-}
-
-const LIVE_REGION_ID = "aria-live-region";
-function getLiveRegion() {
-  return document.getElementById(LIVE_REGION_ID);
-}
-function announce(message, priority = "polite") {
-  const region = getLiveRegion();
-  if (!region) return;
-  region.setAttribute("aria-live", priority);
-  region.textContent = message;
-  setTimeout(() => {
-    if (region.textContent === message) {
-      region.textContent = "";
-    }
-  }, 1e3);
-}
-function announceChartLoading(columns) {
-  const count = columns.length;
-  const msg = count === 1 ? `Loading chart for ${columns[0]}.` : `Loading chart for ${count} columns: ${columns.join(", ")}.`;
-  announce(msg, "polite");
-}
-function announceDataUpdate(pageName) {
-  announce(`Data updated on ${pageName} page.`, "polite");
-}
-const SHORTCUTS = [
-  // Navigation
-  { keys: "Alt+1", description: "Upload page", category: "Navigation" },
-  { keys: "Alt+2", description: "Timeseries page", category: "Navigation" },
-  { keys: "Alt+3", description: "Scatter page", category: "Navigation" },
-  { keys: "Alt+4", description: "Scatter matrix view", category: "Navigation" },
-  { keys: "Alt+6", description: "FFT page", category: "Navigation" },
-  { keys: "Alt+7", description: "Heatmap page", category: "Navigation" },
-  { keys: "Alt+8", description: "Spectrogram page", category: "Navigation" },
-  { keys: "Alt+9", description: "Causal page", category: "Navigation" },
-  { keys: "Alt+0", description: "Drift page", category: "Navigation" },
-  { keys: "Ctrl+K", description: "Command palette", category: "Navigation" },
-  { keys: "Ctrl+I", description: "Analysis context panel", category: "Navigation" },
-  // Chart
-  { keys: "Double-click", description: "Reset zoom", category: "Chart" },
-  { keys: "Ctrl+click", description: "Set adaptive filter", category: "Chart" },
-  { keys: "Drag", description: "Pan / draw", category: "Chart" },
-  { keys: "Shift+C", description: "Clear adaptive filters", category: "Chart" },
-  // Session
-  { keys: "Ctrl+S", description: "Save session", category: "Session" },
-  { keys: "Ctrl+Shift+S", description: "Export session file", category: "Session" },
-  { keys: "Ctrl+O", description: "Import session file", category: "Session" },
-  // Export
-  { keys: "Ctrl+E", description: "Export data", category: "Export" }
-];
-let _shortcutsModal = null;
-function showKeyboardShortcutsHelp() {
-  const existing = document.getElementById("keyboard-help-modal");
-  if (existing) existing.remove();
-  const categories = [...new Set(SHORTCUTS.map((s) => s.category))];
-  const modal = document.createElement("div");
-  modal.id = "keyboard-help-modal";
-  modal.className = "modal-backdrop keyboard-help-modal";
-  modal.setAttribute("role", "dialog");
-  modal.setAttribute("aria-modal", "true");
-  modal.setAttribute("aria-labelledby", "keyboard-help-title");
-  const content = categories.map((cat) => {
-    const shortcuts = SHORTCUTS.filter((s) => s.category === cat);
-    return `
-            <div class="keyboard-help-section">
-                <h4>${cat}</h4>
-                ${shortcuts.map((s) => `
-                    <div class="keyboard-shortcut-row">
-                        <kbd>${s.keys}</kbd>
-                        <span>${s.description}</span>
-                    </div>
-                `).join("")}
-            </div>
-        `;
-  }).join("");
-  modal.innerHTML = `
-        <div class="modal">
-            <div class="keyboard-help-header">
-                <h3 class="keyboard-help-title" id="keyboard-help-title">Keyboard Shortcuts</h3>
-                <button class="keyboard-help-close" id="keyboard-help-close" aria-label="Close">
-                    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="4" y1="4" x2="12" y2="12"/>
-                        <line x1="12" y1="4" x2="4" y2="12"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="keyboard-help-content">
-                ${content}
-            </div>
-            <div class="keyboard-help-hint">
-                Press <kbd>?</kbd> to toggle this help, or <kbd>Esc</kbd> to close.
-            </div>
-        </div>
-    `;
-  document.body.appendChild(modal);
-  const closeBtn = document.getElementById("keyboard-help-close");
-  closeBtn?.addEventListener("click", hideKeyboardShortcutsHelp);
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) hideKeyboardShortcutsHelp();
-  });
-  const escHandler = (e) => {
-    if (e.key === "Escape") {
-      hideKeyboardShortcutsHelp();
-      window.removeEventListener("keydown", escHandler);
-    }
-  };
-  window.addEventListener("keydown", escHandler);
-  const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-  if (focusable.length > 0) {
-    focusable[0].focus();
-  }
-  _shortcutsModal = modal;
-}
-function hideKeyboardShortcutsHelp() {
-  const modal = document.getElementById("keyboard-help-modal");
-  if (modal) {
-    modal.remove();
-    _shortcutsModal = null;
-  }
-}
-function initAccessibilityShortcuts() {
-  const handleKey = (e) => {
-    const target = e.target;
-    const isInput = ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable;
-    if (isInput) return;
-    if (e.key === "?" && !e.ctrlKey && !e.altKey && !e.metaKey) {
-      e.preventDefault();
-      if (_shortcutsModal) {
-        hideKeyboardShortcutsHelp();
-      } else {
-        showKeyboardShortcutsHelp();
-      }
-      return;
-    }
-    if ((e.key === "/" || e.key === "?") && e.ctrlKey) {
-      e.preventDefault();
-      if (_shortcutsModal) {
-        hideKeyboardShortcutsHelp();
-      } else {
-        showKeyboardShortcutsHelp();
-      }
-    }
-  };
-  window.addEventListener("keydown", handleKey);
-}
-
-function createDrawerController(opts) {
-  const drawer = document.getElementById(opts.drawerId);
-  let _isOpen = false;
-  const isOpen = () => _isOpen;
-  const open = () => {
-    if (drawer) drawer.hidden = false;
-    document.body.classList.add("drawer-open");
-    _isOpen = true;
-    opts.onOpen?.();
-  };
-  const close = () => {
-    if (drawer) drawer.hidden = true;
-    document.body.classList.remove("drawer-open");
-    _isOpen = false;
-    opts.onClose?.();
-  };
-  const toggle = () => {
-    if (_isOpen) close();
-    else open();
-  };
-  for (const id of opts.toggleButtonIds) {
-    document.getElementById(id)?.addEventListener("click", toggle);
-  }
-  drawer?.addEventListener("click", (event) => {
-    if (event.target === drawer) close();
-  });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && _isOpen) close();
-  });
-  return { open, close, toggle, isOpen };
-}
-
-const controller = createDrawerController({
-  drawerId: "analytics-drawer",
-  toggleButtonIds: ["open-analytics-panel-btn"],
-  onOpen: () => {
-    updateSetting("analyticsDrawerOpen", true);
-  },
-  onClose: () => {
-    updateSetting("analyticsDrawerOpen", false);
-  }
-});
-function initAnalyticsDrawer() {
-  document.getElementById("analytics-close-btn")?.addEventListener("click", controller.close);
-  const saved = getSetting("analyticsDrawerOpen");
-  if (saved) controller.open();
-}
-
-const STORAGE_KEY$2 = "edatime-annotations";
-let annotations = [];
-function generateId() {
-  return `ann_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
-function loadAnnotations() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY$2);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    annotations = parsed.filter((a) => a && typeof a.id === "string");
-    return annotations;
-  } catch {
-    return [];
-  }
-}
-function saveAnnotations() {
-  try {
-    localStorage.setItem(STORAGE_KEY$2, JSON.stringify(annotations));
-  } catch {
-  }
-}
-function getAnnotations() {
-  return [...annotations];
-}
-function getAnnotationsForPage(page) {
-  return annotations.filter((a) => a.page === page);
-}
-function getAnnotationsInRange(start, end) {
-  return annotations.filter((a) => {
-    if (!a.timeRange) return false;
-    return a.timeRange.start <= end && a.timeRange.end >= start;
-  });
-}
-function createAnnotation(type, title, options = {}) {
-  const now = Date.now();
-  const annotation = {
-    id: generateId(),
-    type,
-    title,
-    color: options.color || "#ffc041",
-    createdAt: now,
-    updatedAt: now,
-    page: options.page || "timeseries",
-    ...options
-  };
-  annotations.push(annotation);
-  saveAnnotations();
-  return annotation;
-}
-function deleteAnnotation(id) {
-  const idx = annotations.findIndex((a) => a.id === id);
-  if (idx < 0) return false;
-  annotations.splice(idx, 1);
-  saveAnnotations();
-  return true;
-}
-function clearAllAnnotations() {
-  annotations = [];
-  saveAnnotations();
-}
-function exportAnnotations() {
-  return JSON.stringify(annotations, null, 2);
-}
-function createTimeRangeNote(title, start, end, content, columns, color, datasetRevision) {
-  return createAnnotation("note", title, {
-    content,
-    timeRange: { start, end },
-    columns,
-    color,
-    datasetRevision,
-    page: "timeseries"
-  });
-}
-function createBookmark(title, time, datasetRevision) {
-  return createAnnotation("bookmark", title, {
-    timeRange: { start: time, end: time },
-    datasetRevision,
-    page: "timeseries"
-  });
-}
-function initAnnotations() {
-  loadAnnotations();
-  window.__edatimeAnnotations = {
-    getAnnotationsForPage,
-    getAnnotationsInRange,
-    getAnnotations
-  };
-}
-
-let _requestOverlayRender = null;
-function setAnnotationOverlayCallback(cb) {
-  _requestOverlayRender = cb;
-}
-function refreshOverlay() {
-  _requestOverlayRender?.();
-}
-function openAnnotationsModal() {
-  const modal = document.getElementById("annotations-modal");
-  if (!modal) return;
-  renderAnnotationsList();
-  modal.hidden = false;
-}
-function closeAnnotationsModal() {
-  const modal = document.getElementById("annotations-modal");
-  if (modal) modal.hidden = true;
-}
-function renderAnnotationsList() {
-  const container = document.getElementById("annotations-list");
-  if (!container) return;
-  const anns = getAnnotations();
-  if (anns.length === 0) {
-    container.innerHTML = '<p style="color:var(--text-muted, #888);padding:8px 0;">No annotations yet. Use "+ Note" or "+ Bookmark" to add.</p>';
-    return;
-  }
-  container.innerHTML = anns.map((ann) => {
-    const date = new Date(ann.createdAt).toLocaleString();
-    const timeInfo = ann.timeRange ? `<span style="font-size:11px;color:var(--text-muted,#888)">${new Date(ann.timeRange.start).toISOString().slice(0, 16).replace("T", " ")}${ann.timeRange.end !== ann.timeRange.start ? " – " + new Date(ann.timeRange.end).toISOString().slice(0, 16).replace("T", " ") : ""}</span>` : "";
-    return `
-            <div class="annotation-item" data-ann-id="${escapeAttr(ann.id)}" style="border-left:3px solid ${escapeAttr(ann.color)};padding:8px 12px;margin-bottom:8px;background:var(--surface2,#1e1e2e);border-radius:4px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
-                    <strong>${escapeHtml$1(ann.title)}</strong>
-                    <div style="display:flex;gap:6px;">
-                        <span style="font-size:11px;color:var(--text-muted,#888)">${ann.type} · ${ann.page}</span>
-                        <button class="btn btn-ghost btn-xs ann-delete-btn" data-ann-id="${escapeAttr(ann.id)}" type="button" title="Delete">✕</button>
-                    </div>
-                </div>
-                ${timeInfo}
-                ${ann.content ? `<p style="margin:4px 0 0;font-size:12px;color:var(--text-secondary,#ccc)">${escapeHtml$1(ann.content)}</p>` : ""}
-                <div style="font-size:11px;color:var(--text-muted,#888);margin-top:2px">${date}</div>
-            </div>
-        `;
-  }).join("");
-  container.querySelectorAll(".ann-delete-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.annId;
-      if (id && confirm("Delete this annotation?")) {
-        deleteAnnotation(id);
-        renderAnnotationsList();
-        refreshOverlay();
-      }
+function wireHomeNavigationCards(showPage) {
+  document.querySelectorAll("[data-home-nav]").forEach((element) => {
+    element.addEventListener("click", () => {
+      const target = element.dataset.homeNav;
+      if (target) showPage(target);
     });
   });
 }
-function openAddNoteModal() {
-  const modal = document.getElementById("add-note-modal");
-  if (!modal) return;
-  document.getElementById("note-title-input").value = "";
-  document.getElementById("note-content-input").value = "";
-  document.getElementById("note-color-input").value = "#ffc041";
-  modal.hidden = false;
-  document.getElementById("note-title-input").focus();
-}
-function closeAddNoteModal() {
-  const modal = document.getElementById("add-note-modal");
-  if (modal) modal.hidden = true;
-}
-function saveNote() {
-  const title = document.getElementById("note-title-input").value.trim();
-  if (!title) {
-    toast("Please enter a title for the note.", "error");
-    return;
-  }
-  const content = document.getElementById("note-content-input").value.trim();
-  const color = document.getElementById("note-color-input").value;
-  const start = appStateComposite.currentStart ?? Date.now() - 36e5;
-  const end = appStateComposite.currentEnd ?? Date.now();
-  createTimeRangeNote(
-    title,
-    start,
-    end,
-    content || void 0,
-    void 0,
-    color,
-    appStateComposite.datasetRevision
-  );
-  toast(`Note "${title}" saved.`, "success");
-  closeAddNoteModal();
-  refreshOverlay();
-}
-function addBookmarkAtCurrentView() {
-  const time = appStateComposite.currentStart ?? Date.now();
-  const title = `Bookmark ${new Date(time).toLocaleTimeString()}`;
-  createBookmark(title, time, appStateComposite.datasetRevision);
-  toast(`Bookmark added at ${new Date(time).toLocaleString()}`, "success");
-  refreshOverlay();
-}
-function escapeHtml$1(str) {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-function escapeAttr(str) {
-  return str.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-function initAnnotationPanel() {
-  document.getElementById("open-notes-panel-btn")?.addEventListener("click", openAnnotationsModal);
-  document.getElementById("annotations-modal-close")?.addEventListener("click", closeAnnotationsModal);
-  document.getElementById("annotations-modal")?.addEventListener("click", (e) => {
-    if (e.target.id === "annotations-modal") closeAnnotationsModal();
-  });
-  document.getElementById("annotations-modal-add-note-btn")?.addEventListener("click", openAddNoteModal);
-  document.getElementById("annotations-modal-bookmark-btn")?.addEventListener("click", addBookmarkAtCurrentView);
-  document.getElementById("annotations-export-btn")?.addEventListener("click", () => {
-    const json = exportAnnotations();
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `edatime-annotations-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-  document.getElementById("annotations-clear-btn")?.addEventListener("click", () => {
-    if (confirm("Clear all annotations? This cannot be undone.")) {
-      clearAllAnnotations();
-      renderAnnotationsList();
-      refreshOverlay();
-      toast("All annotations cleared.", "success");
-    }
-  });
-  document.getElementById("add-note-modal-close")?.addEventListener("click", closeAddNoteModal);
-  document.getElementById("add-note-cancel-btn")?.addEventListener("click", closeAddNoteModal);
-  document.getElementById("add-note-save-btn")?.addEventListener("click", saveNote);
-  document.getElementById("add-note-modal")?.addEventListener("click", (e) => {
-    if (e.target.id === "add-note-modal") closeAddNoteModal();
-  });
-  document.addEventListener("keydown", (e) => {
-    if (e.ctrlKey && e.shiftKey && e.key === "N") {
-      e.preventDefault();
-      openAddNoteModal();
-    }
-  });
-}
 
-const STORAGE_KEY$1 = "edatime-guided-workflow";
-const WORKFLOW_STEPS = [
-  { id: "upload", label: "Upload", page: "upload" },
-  { id: "timeseries", label: "Timeseries", page: "timeseries" },
-  { id: "correlations", label: "Correlations", page: "heatmap" },
-  { id: "scatter", label: "Scatter", page: "scatter" },
-  { id: "causal", label: "Causal", page: "causal" }
-];
-let _initialized = false;
-let _currentNavPage = "home";
-function sanitizeVisitedPages(value) {
-  if (!Array.isArray(value)) return [];
-  return value.map((page) => String(page || "").trim()).filter((page, index, all) => !!page && all.indexOf(page) === index);
-}
-function sanitizeVisitedPagesByDataset(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  const entries = Object.entries(value).map(([datasetKey, pages]) => [String(datasetKey || "").trim(), sanitizeVisitedPages(pages)]).filter(([datasetKey, pages]) => !!datasetKey && pages.length > 0);
-  return Object.fromEntries(entries);
-}
-function currentDatasetKey() {
-  const metadata = appStateComposite.metadata;
-  const rows = Number(metadata?.total_rows || 0);
-  const rangeStart = Number(metadata?.time_range?.min);
-  const rangeEnd = Number(metadata?.time_range?.max);
-  if (!rows || !Number.isFinite(rangeStart) || !Number.isFinite(rangeEnd)) return "no-dataset";
-  const revision = Number(appStateComposite.datasetRevision ?? metadata?.revision ?? 0);
-  const numericColumns = Array.isArray(metadata?.numeric_columns) ? metadata.numeric_columns.join("|") : "";
-  return [
-    Number.isFinite(revision) ? revision : 0,
-    rows,
-    metadata?.time_column || "",
-    rangeStart,
-    rangeEnd,
-    numericColumns
-  ].join(":");
-}
-function getVisitedPagesForCurrentDataset(prefs) {
-  const datasetKey = currentDatasetKey();
-  if (datasetKey === "no-dataset") return sanitizeVisitedPages(prefs.visitedPages);
-  return sanitizeVisitedPages(prefs.visitedPagesByDataset?.[datasetKey]);
-}
-function setVisitedPagesForCurrentDataset(prefs, pages) {
-  const nextPages = sanitizeVisitedPages(pages);
-  prefs.visitedPages = nextPages;
-  const datasetKey = currentDatasetKey();
-  if (datasetKey === "no-dataset") return;
-  prefs.visitedPagesByDataset = {
-    ...prefs.visitedPagesByDataset || {},
-    [datasetKey]: nextPages
-  };
-}
-function readPrefs() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY$1);
-    if (!raw) return { enabled: true, visitedPages: [] };
-    const parsed = JSON.parse(raw);
-    const visitedPagesByDataset = sanitizeVisitedPagesByDataset(parsed.visitedPagesByDataset);
-    const legacyVisitedPages = sanitizeVisitedPages(parsed.visitedPages);
-    const datasetKey = currentDatasetKey();
-    if (legacyVisitedPages.length > 0 && datasetKey !== "no-dataset" && !visitedPagesByDataset[datasetKey]?.length) {
-      visitedPagesByDataset[datasetKey] = legacyVisitedPages;
-    }
-    return {
-      enabled: parsed.enabled !== false,
-      visitedPages: datasetKey === "no-dataset" ? legacyVisitedPages : sanitizeVisitedPages(visitedPagesByDataset[datasetKey]),
-      visitedPagesByDataset
-    };
-  } catch {
-    return { enabled: true, visitedPages: [] };
-  }
-}
-function savePrefs(prefs) {
-  try {
-    localStorage.setItem(STORAGE_KEY$1, JSON.stringify(prefs));
-  } catch {
-  }
-}
-function currentPage$1() {
-  const active = document.querySelector(".sidebar .nav-item.active[data-page]");
-  return active?.dataset.page || _currentNavPage || "home";
-}
-function readSelectValue(id) {
-  return getDropdownValue(id);
-}
-function collectSnapshot() {
-  const graph = window.__edatimeCausalGraph;
-  const prefs = readPrefs();
-  const visited = getVisitedPagesForCurrentDataset(prefs);
-  return {
-    currentPage: currentPage$1(),
-    hasDataset: !!appStateComposite.metadata?.time_range && Number(appStateComposite.metadata?.total_rows || 0) > 0,
-    selectedSeriesCount: Array.isArray(appStateComposite.selectedCols) ? appStateComposite.selectedCols.length : 0,
-    visitedPages: visited,
-    scatterX: readSelectValue("scatter-x-col"),
-    scatterY: readSelectValue("scatter-y-col"),
-    causalLinkCount: Array.isArray(graph?.links) ? graph.links.length : 0
-  };
-}
-function isRepeatVisitor(snapshot) {
-  return snapshot.visitedPages.length >= 3;
-}
-function mapPageToStep(page, nextStepId) {
-  if (page === "upload") return "upload";
-  if (page === "timeseries") return "timeseries";
-  if (page === "heatmap" || page === "scattermatrix") return "correlations";
-  if (page === "scatter") return "scatter";
-  if (page === "causal") return "causal";
-  if (page === "fft" || page === "spectrogram") return nextStepId;
-  return nextStepId;
-}
-function computeWorkflowProgress(snapshot) {
-  const visited = new Set((snapshot.visitedPages || []).map(String));
-  const completedStepIds = [];
-  if (snapshot.hasDataset) completedStepIds.push("upload");
-  if (snapshot.selectedSeriesCount > 0) completedStepIds.push("timeseries");
-  if (visited.has("heatmap") || visited.has("scattermatrix")) completedStepIds.push("correlations");
-  if (snapshot.scatterX && snapshot.scatterY) completedStepIds.push("scatter");
-  if (snapshot.causalLinkCount > 0) completedStepIds.push("causal");
-  const nextStepId = WORKFLOW_STEPS.find((step) => !completedStepIds.includes(step.id))?.id || null;
-  const activeStepId = mapPageToStep(snapshot.currentPage, nextStepId);
-  const steps = WORKFLOW_STEPS.map((step) => {
-    const status = activeStepId === step.id ? "current" : completedStepIds.includes(step.id) ? "done" : nextStepId === step.id ? "next" : "pending";
-    return {
-      id: step.id,
-      label: step.label,
-      page: step.page,
-      status
-    };
-  });
-  return { steps, completedStepIds, activeStepId, nextStepId };
-}
-function defaultSuggestionForStep(stepId) {
-  if (stepId === "timeseries") {
-    return {
-      title: "Open Timeseries next",
-      body: "Start with 2 to 4 important numeric series so the first chart remains readable.",
-      actionLabel: "Open Timeseries",
-      actionPage: "timeseries"
-    };
-  }
-  if (stepId === "correlations") {
-    return {
-      title: "Screen correlations next",
-      body: "Use Heatmap or Matrix to separate strong candidates from weak relationships before a deeper scatter drill-down.",
-      actionLabel: "Open Heatmap",
-      actionPage: "heatmap",
-      hint: "Scatter Matrix cells already open the detailed scatter view when clicked."
-    };
-  }
-  if (stepId === "scatter") {
-    return {
-      title: "Deep dive in Scatter",
-      body: "Pick a candidate pair and inspect its shape, outliers, and filter sensitivity in the detailed scatter view.",
-      actionLabel: "Open Scatter",
-      actionPage: "scatter"
-    };
-  }
-  if (stepId === "causal") {
-    return {
-      title: "Use Causal as the late-stage check",
-      body: "After narrowing the candidate variables, test a small plausible set with lag-aware causal discovery.",
-      actionLabel: "Open Causal",
-      actionPage: "causal"
-    };
-  }
-  return {
-    title: "Workflow complete",
-    body: "You have touched each guided step. Revisit any page as needed and save or export the context you want to keep.",
-    actionLabel: "Open Timeseries",
-    actionPage: "timeseries"
-  };
-}
-function buildWorkflowSuggestion(snapshot) {
-  const progress = computeWorkflowProgress(snapshot);
-  if (snapshot.currentPage === "home") {
-    if (!snapshot.hasDataset) {
-      return {
-        title: "Start on Upload",
-        body: "Load a CSV or Parquet file, verify the detected time column, and inspect the profile grid before plotting anything.",
-        actionLabel: "Open Upload",
-        actionPage: "upload"
-      };
-    }
-    return defaultSuggestionForStep(progress.nextStepId);
-  }
-  if (snapshot.currentPage === "upload") {
-    if (!snapshot.hasDataset) {
-      return {
-        title: "Validate the dataset first",
-        body: "Use Upload to confirm row count, time range, numeric columns, and any obvious profile issues before moving on.",
-        actionLabel: null,
-        actionPage: null
-      };
-    }
-    return {
-      title: "Move to Timeseries",
-      body: "Choose a small set of important series first so you can establish baseline trend, co-movement, and suspicious windows.",
-      actionLabel: "Open Timeseries",
-      actionPage: "timeseries"
-    };
-  }
-  if (snapshot.currentPage === "timeseries") {
-    if (snapshot.hasDataset && snapshot.selectedSeriesCount === 0) {
-      return {
-        title: "Choose a starting set",
-        body: "Start with 2 to 4 important numeric series so the first chart remains readable.",
-        actionLabel: null,
-        actionPage: null
-      };
-    }
-    return { title: "", body: "", actionLabel: null, actionPage: null };
-  }
-  if (snapshot.currentPage === "heatmap") {
-    return {
-      title: "Choose the strongest pair",
-      body: "Use the heatmap to pick a promising relationship, then inspect it in Scatter where filter context and color-by are easier to read.",
-      actionLabel: "Open Scatter",
-      actionPage: "scatter"
-    };
-  }
-  if (snapshot.currentPage === "scattermatrix") {
-    return {
-      title: "Use matrix cells as a drill-down",
-      body: "Click any off-diagonal matrix cell to open the full scatter detail view for that exact pair.",
-      actionLabel: "Open Scatter",
-      actionPage: "scatter",
-      hint: "Matrix click-through is already wired into the detailed scatter view."
-    };
-  }
-  if (snapshot.currentPage === "scatter") {
-    if (!snapshot.scatterX || !snapshot.scatterY) {
-      return {
-        title: "Set X and Y for the deep dive",
-        body: "Pick two numeric columns so this step can validate the shape, spread, and filter sensitivity of the relationship.",
-        actionLabel: null,
-        actionPage: null
-      };
-    }
-    return {
-      title: "Use Causal as the final check",
-      body: "After narrowing the variables, move to Causal with a small plausible set instead of starting broad.",
-      actionLabel: "Open Causal",
-      actionPage: "causal"
-    };
-  }
-  if (snapshot.currentPage === "causal") {
-    if (snapshot.causalLinkCount === 0) {
-      return {
-        title: "Run Causal on a focused subset",
-        body: "Keep the variable list tight so the resulting graph stays interpretable and easier to compare across runs.",
-        actionLabel: null,
-        actionPage: null
-      };
-    }
-    return {
-      title: "Compare causal runs for stability",
-      body: "Save multiple runs and compare them so stable edges stand out from parameter-sensitive ones.",
-      actionLabel: null,
-      actionPage: null
-    };
-  }
-  if (snapshot.currentPage === "fft" || snapshot.currentPage === "spectrogram") {
-    const fallback = defaultSuggestionForStep(progress.nextStepId);
-    return {
-      title: "Use spectral pages as side analysis",
-      body: "These pages work best after you already know the interesting column or interval from the main workflow.",
-      actionLabel: fallback.actionLabel,
-      actionPage: fallback.actionPage,
-      hint: fallback.title
-    };
-  }
-  return defaultSuggestionForStep(progress.nextStepId);
-}
-function escapeHtml(value) {
-  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-}
-function navigateToPage(page) {
-  if (!page) return;
-  document.querySelector(`.sidebar .nav-item[data-page="${page}"]`)?.click?.();
-}
-function setEnabled(enabled, emitToast = true) {
-  const prefs = readPrefs();
-  prefs.enabled = enabled;
-  savePrefs(prefs);
-  renderGuidedWorkflow();
-  if (emitToast) {
-    toast(enabled ? "Guided workflow enabled." : "Guided workflow hidden.", "info");
-  }
-}
-function markVisited(page) {
-  const prefs = readPrefs();
-  const visitedPages = getVisitedPagesForCurrentDataset(prefs);
-  if (!page || visitedPages.includes(page)) return;
-  setVisitedPagesForCurrentDataset(prefs, [...visitedPages, page]);
-  savePrefs(prefs);
-}
-function bindStaticEvents() {
-  document.getElementById("workflow-toggle-btn")?.addEventListener("click", () => {
-    const prefs = readPrefs();
-    setEnabled(!prefs.enabled);
-  });
-  const panel = document.getElementById("workflow-panel");
-  panel?.addEventListener("click", (event) => {
-    const target = event.target;
-    const action = target?.closest("[data-workflow-action]")?.dataset.workflowAction;
-    const page = target?.closest("[data-workflow-page]")?.dataset.workflowPage || null;
-    if (!action) return;
-    if (action === "goto") {
-      navigateToPage(page);
-      return;
-    }
-    if (action === "skip") {
-      setEnabled(false, false);
-      toast("Guided workflow hidden. Use the Guide button or command palette to restore it.", "info");
-      return;
-    }
-    if (action === "next") {
-      goToNextGuidedStep();
-    }
-  });
-  document.addEventListener("change", (event) => {
-    const target = event.target;
-    const id = target?.id || "";
-    if (id === "scatter-x-col" || id === "scatter-y-col") renderGuidedWorkflow();
-  });
-  window.addEventListener("edatime:page-change", (event) => {
-    const nextPage = event?.detail?.navPage || event?.detail?.page || currentPage$1();
-    _currentNavPage = nextPage;
-    markVisited(nextPage);
-    renderGuidedWorkflow();
-  });
-  window.addEventListener("edatime:session-restored", renderGuidedWorkflow);
-  window.addEventListener("edatime:workflow-refresh", renderGuidedWorkflow);
-}
-function renderGuidedWorkflow() {
-  const panel = document.getElementById("workflow-panel");
-  const toggleBtn = document.getElementById("workflow-toggle-btn");
-  if (!panel) return;
-  const prefs = readPrefs();
-  panel.hidden = !prefs.enabled;
-  if (toggleBtn) {
-    toggleBtn.classList.toggle("btn-accent", prefs.enabled);
-    toggleBtn.classList.toggle("btn-ghost", !prefs.enabled);
-    toggleBtn.setAttribute("aria-pressed", prefs.enabled ? "true" : "false");
-  }
-  if (!prefs.enabled) return;
-  const snapshot = collectSnapshot();
-  const progress = computeWorkflowProgress(snapshot);
-  const suggestion = buildWorkflowSuggestion(snapshot);
-  if (!suggestion.actionLabel && !suggestion.body) {
-    panel.hidden = true;
-    return;
-  }
-  const isRepeat = isRepeatVisitor(snapshot);
-  if (isRepeat && snapshot.hasDataset) {
-    renderCompactAssistant(panel, suggestion, progress);
-    return;
-  }
-  renderFullWorkflowPanel(panel, progress, suggestion);
-}
-function renderCompactAssistant(panel, suggestion, progress) {
-  const activeStep = progress.steps.find((s) => s.status === "current");
-  const completedCount = progress.completedStepIds.length;
-  panel.innerHTML = `
-        <div class="workflow-panel--compact">
-            <div class="workflow-panel__summary">
-                <div class="workflow-panel__eyebrow">Guided Workflow</div>
-                <span class="workflow-panel__hint-text">${completedCount > 0 ? `✓ ${completedCount} completed` : "Start"}</span>
-                ${activeStep ? `<span class="workflow-panel__current-step">→ ${escapeHtml(activeStep.label)}</span>` : ""}
-            </div>
-            <div class="workflow-panel__actions">
-                ${suggestion.actionLabel && suggestion.actionPage ? `
-                    <button class="btn btn-accent btn-sm" type="button" data-workflow-action="next">${escapeHtml(suggestion.actionLabel)}</button>
-                ` : ""}
-                <button class="btn btn-ghost btn-sm" type="button" data-workflow-action="skip" title="Hide guide">✕</button>
-            </div>
-        </div>
-    `;
-}
-function renderFullWorkflowPanel(panel, progress, suggestion) {
-  const crumbs = progress.steps.map((step) => `
-        <button
-            class="workflow_step workflow_step--${step.status}"
-            type="button"
-            data-workflow-action="goto"
-            data-workflow-page="${escapeHtml(step.page)}"
-            title="Open ${escapeHtml(step.label)}"
-        >
-            <span class="workflow-step__dot"></span>
-            <span class="workflow-step__label">${escapeHtml(step.label)}</span>
-        </button>
-    `).join("");
-  panel.innerHTML = `
-        <div class="workflow-panel__header workflow-panel__header--compact">
-            <div class="workflow-panel__summary">
-                <div class="workflow-panel__eyebrow">Guided Workflow</div>
-                <div class="workflow-panel__title">${escapeHtml(suggestion.title)}</div>
-                <p class="workflow-panel__copy workflow-panel__copy--compact">${escapeHtml(suggestion.body)}</p>
-            </div>
-            <div class="workflow-panel__actions">
-                ${suggestion.actionLabel && suggestion.actionPage ? `
-                    <button class="btn btn-accent btn-sm" type="button" data-workflow-action="next">${escapeHtml(suggestion.actionLabel)}</button>
-                ` : ""}
-                <button class="btn btn-ghost btn-sm" type="button" data-workflow-action="skip">Hide Guide</button>
-            </div>
-        </div>
-        <div class="workflow-panel__crumbs">${crumbs}</div>
-        ${suggestion.hint ? `<div class="workflow-panel__hint">${escapeHtml(suggestion.hint)}</div>` : ""}
-    `;
-}
-function enableGuidedWorkflow() {
-  setEnabled(true);
-}
-function disableGuidedWorkflow() {
-  setEnabled(false);
-}
-function goToNextGuidedStep() {
-  const suggestion = buildWorkflowSuggestion(collectSnapshot());
-  navigateToPage(suggestion.actionPage);
-}
-function initGuidedWorkflow() {
-  if (_initialized) return;
-  _initialized = true;
-  _currentNavPage = currentPage$1();
-  markVisited(_currentNavPage);
-  bindStaticEvents();
-  renderGuidedWorkflow();
-  window.__edatime = window.__edatime || {};
-  window.__edatime.guidedWorkflow = {
-    enable: enableGuidedWorkflow,
-    disable: disableGuidedWorkflow,
-    next: goToNextGuidedStep,
-    render: renderGuidedWorkflow
-  };
-}
-
-async function runTransform(expression, outputName) {
-  await postTransform(expression, outputName);
-}
-async function removeOutliers(input) {
-  return postRemoveOutliers(
-    input.columns,
-    input.method,
-    input.threshold,
-    input.window
-  );
-}
-function createDataMutationFeature() {
-  return {
-    runTransform,
-    removeOutliers
-  };
-}
-
-const dataMutationFeature = createDataMutationFeature();
-function initTransformModal(deps) {
-  const applyBtn = document.getElementById("transform-apply-btn");
-  const exprInput = document.getElementById("transform-expression");
-  const nameInput = document.getElementById("transform-output-name");
-  const errorEl = document.getElementById("transform-error");
-  const controller = createModalController({
-    modalId: "transform-modal",
-    closeButtonIds: ["transform-close-btn", "transform-cancel-btn"],
-    onOpen: () => {
-      if (errorEl) errorEl.textContent = "";
-    }
-  });
-  applyBtn?.addEventListener("click", async () => {
-    const expr = exprInput?.value?.trim();
-    const name = nameInput?.value?.trim();
-    if (!expr) {
-      if (errorEl) errorEl.textContent = "Expression is required.";
-      return;
-    }
-    if (!name) {
-      if (errorEl) errorEl.textContent = "Output column name is required.";
-      return;
-    }
-    if (errorEl) errorEl.textContent = "";
-    try {
-      if (applyBtn) {
-        applyBtn.textContent = "Applying…";
-        applyBtn.disabled = true;
-      }
-      await dataMutationFeature.runTransform(expr, name);
-      controller.close();
-      await deps.refreshDataset({ selectedColumn: name });
-    } catch (error) {
-      if (errorEl) errorEl.textContent = error?.message || "Transform failed.";
-    } finally {
-      if (applyBtn) {
-        applyBtn.textContent = "Apply";
-        applyBtn.disabled = false;
-      }
-    }
-  });
-}
-function initOutlierModal(deps) {
-  const openBtn = document.getElementById("outlier-open-btn");
-  const applyBtn = document.getElementById("outlier-apply-btn");
-  const methodSelect = document.getElementById("outlier-method");
-  const thresholdInput = document.getElementById("outlier-threshold");
-  const windowInput = document.getElementById("outlier-window");
-  const errorEl = document.getElementById("outlier-error");
-  const resultEl = document.getElementById("outlier-result");
-  const controller = createModalController({
-    modalId: "outlier-modal",
-    closeButtonIds: ["outlier-close-btn", "outlier-cancel-btn"],
-    onOpen: () => {
-      if (errorEl) errorEl.textContent = "";
-      if (resultEl) resultEl.textContent = "";
-    }
-  });
-  openBtn?.addEventListener("click", () => {
-    controller.open();
-  });
-  methodSelect?.addEventListener("change", () => {
-    if (thresholdInput) {
-      thresholdInput.value = getDropdownValue("outlier-method") === "iqr" ? "1.5" : "3";
-    }
-  });
-  applyBtn?.addEventListener("click", async () => {
-    if (errorEl) errorEl.textContent = "";
-    if (resultEl) resultEl.textContent = "";
-    const method = getDropdownValue("outlier-method") || "zscore";
-    const threshold = Number.parseFloat(thresholdInput?.value || "3");
-    const windowSize = Number.parseInt(windowInput?.value || "0", 10);
-    try {
-      if (applyBtn) {
-        applyBtn.disabled = true;
-        applyBtn.textContent = "Removing…";
-      }
-      const result = await dataMutationFeature.removeOutliers({
-        columns: appStateComposite.selectedCols.length > 0 ? appStateComposite.selectedCols : null,
-        method,
-        threshold,
-        window: windowSize > 0 ? windowSize : void 0
-      });
-      if (resultEl) {
-        resultEl.textContent = `Removed ${result.rows_removed} rows (${result.rows_before} → ${result.rows_after})`;
-      }
-      await deps.refreshDataset();
-    } catch (error) {
-      if (errorEl) errorEl.textContent = error?.message || "Outlier removal failed.";
-    } finally {
-      if (applyBtn) {
-        applyBtn.disabled = false;
-        applyBtn.textContent = "Remove Outliers";
-      }
-    }
-  });
-}
-
-const STORAGE_KEY = "edatime-session";
-function currentPage() {
-  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
-}
-function readSelect(id) {
-  return getDropdownValue(id);
-}
-function captureSession() {
-  return {
-    version: 1,
-    timestamp: Date.now(),
-    page: currentPage(),
-    selectedCols: [...appStateComposite.selectedCols],
-    seriesColors: { ...appStateComposite.seriesColors },
-    columnRanges: { ...appStateComposite.columnRanges },
-    adaptiveLineFilters: appStateComposite.adaptiveLineFilters.map((f) => ({ ...f })),
-    currentStart: appStateComposite.currentStart,
-    currentEnd: appStateComposite.currentEnd,
-    selectedColorColumn: appStateComposite.selectedColorColumn,
-    chartText: { ...appStateComposite.chartText },
-    rollingEnabled: appStateComposite.rollingEnabled,
-    rollingWindow: appStateComposite.rollingWindow,
-    anomalyEnabled: appStateComposite.anomalyEnabled,
-    anomalyMethod: appStateComposite.anomalyMethod,
-    anomalyThreshold: appStateComposite.anomalyThreshold,
-    scatterX: readSelect("scatter-x-col"),
-    scatterY: readSelect("scatter-y-col"),
-    scatterColorColumn: readSelect("scatter-color-column"),
-    scatterRenderMode: readSelect("scatter-render-mode"),
-    // Theme is owned by AppSettings; we keep a snapshot of the resolved
-    // value for diagnostic / back-compat purposes only. It is no longer
-    // applied to the document by `applySession()`.
-    theme: document.documentElement.getAttribute("data-theme") || "dark",
-    datasetRevision: Number.isFinite(Number(appStateComposite.datasetRevision)) ? Number(appStateComposite.datasetRevision) : 0
-  };
-}
-function applySession(snap, options = {}) {
-  const result = {
-    revisionMismatch: false,
-    rangeAdjusted: false,
-    usedMetadataRange: false,
-    droppedFilterCount: 0,
-    navigatedToPage: false
-  };
-  if (!snap || snap.version !== 1) return result;
-  const announceAdjustments = options.announceAdjustments !== false;
-  const metadataTimeRange = options.metadataTimeRange || (appStateComposite.metadata?.time_range ?? null);
-  const currentRevision = Number(
-    options.currentDatasetRevision ?? appStateComposite.datasetRevision ?? appStateComposite.metadata?.revision ?? 0
-  );
-  const snapshotRevision = Number(snap.datasetRevision ?? 0);
-  const hasRevisions = Number.isFinite(currentRevision) && currentRevision > 0 && Number.isFinite(snapshotRevision) && snapshotRevision > 0;
-  const revisionMismatch = hasRevisions && currentRevision !== snapshotRevision;
-  result.revisionMismatch = revisionMismatch;
-  setSelectedCols(Array.isArray(snap.selectedCols) ? snap.selectedCols : []);
-  if (snap.seriesColors) setSeriesColors({ ...snap.seriesColors });
-  if (revisionMismatch) {
-    const staleRanges = Object.keys(snap.columnRanges || {}).length;
-    const staleLines = Array.isArray(snap.adaptiveLineFilters) ? snap.adaptiveLineFilters.length : 0;
-    result.droppedFilterCount = staleRanges + staleLines;
-    setColumnRanges({});
-    setAdaptiveLineFilters([]);
-  } else {
-    if (snap.columnRanges) setColumnRanges({ ...snap.columnRanges });
-    if (Array.isArray(snap.adaptiveLineFilters)) {
-      setAdaptiveLineFilters(snap.adaptiveLineFilters.map((f) => ({ ...f, id: f.id ?? `restored-${Date.now()}` })));
-    }
-  }
-  if (!revisionMismatch) {
-    const hasStart = Number.isFinite(snap.currentStart);
-    const hasEnd = Number.isFinite(snap.currentEnd);
-    if (hasStart && hasEnd) {
-      let nextStart = Number(snap.currentStart);
-      let nextEnd = Number(snap.currentEnd);
-      const minMs = Number(metadataTimeRange?.min);
-      const maxMs = Number(metadataTimeRange?.max);
-      const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
-      if (hasMetadataBounds) {
-        const noOverlap = nextEnd <= minMs || nextStart >= maxMs;
-        if (noOverlap) {
-          nextStart = minMs;
-          nextEnd = maxMs;
-          result.rangeAdjusted = true;
-          result.usedMetadataRange = true;
-        } else {
-          const clampedStart = Math.max(nextStart, minMs);
-          const clampedEnd = Math.min(nextEnd, maxMs);
-          if (clampedStart !== nextStart || clampedEnd !== nextEnd) {
-            result.rangeAdjusted = true;
-          }
-          nextStart = clampedStart;
-          nextEnd = clampedEnd;
-          if (nextStart >= nextEnd) {
-            nextStart = minMs;
-            nextEnd = maxMs;
-            result.usedMetadataRange = true;
-          }
-        }
-      }
-      setViewport(nextStart, nextEnd);
-    }
-  }
-  if (snap.selectedColorColumn !== void 0) setSelectedColorColumn(snap.selectedColorColumn);
-  if (snap.chartText) setChartText({ ...snap.chartText });
-  if (snap.rollingEnabled !== void 0) setRollingEnabled(snap.rollingEnabled);
-  if (Number.isFinite(snap.rollingWindow)) setRollingWindow(snap.rollingWindow);
-  if (snap.anomalyEnabled !== void 0) setAnomalyEnabled(snap.anomalyEnabled);
-  if (snap.anomalyMethod) setAnomalyMethod(snap.anomalyMethod);
-  if (Number.isFinite(snap.anomalyThreshold)) setAnomalyThreshold(snap.anomalyThreshold);
-  const setSelect = (id, val) => {
-    if (val) setDropdownValue(id, val);
-  };
-  setSelect("scatter-x-col", snap.scatterX);
-  setSelect("scatter-y-col", snap.scatterY);
-  setSelect("scatter-color-column", snap.scatterColorColumn);
-  setSelect("scatter-render-mode", snap.scatterRenderMode);
-  if (revisionMismatch && announceAdjustments) {
-    toast("Session belongs to another dataset revision; stale filters were cleared.", "warning");
-  } else if (result.usedMetadataRange && announceAdjustments) {
-    toast("Saved chart range did not match this dataset and was reset to dataset bounds.", "warning");
-  } else if (result.rangeAdjusted && announceAdjustments) {
-    toast("Saved chart range was clamped to the current dataset time range.", "warning");
-  }
-  const hashPage = getHashPage();
-  const shouldPreferHash = !!options.preferHashPage && !!hashPage;
-  const shouldNavigate = options.navigate !== false && !shouldPreferHash;
-  if (shouldNavigate && snap.page) {
-    const btn = document.querySelector(`.sidebar .nav-item[data-page="${snap.page}"]`);
-    if (btn) {
-      btn.click();
-      result.navigatedToPage = true;
-    }
-  }
-  return result;
-}
-function autoSaveSession() {
-  try {
-    const snap = captureSession();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
-  } catch {
-  }
-}
-function autoRestoreSession() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const snap = JSON.parse(raw);
-    if (snap?.version !== 1) return null;
-    return snap;
-  } catch {
-    return null;
-  }
-}
-function exportSessionToFile() {
-  const snap = captureSession();
-  const blob = new Blob([JSON.stringify(snap, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `edatime-session-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace(/:/g, "-")}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast("Session exported", "success");
-}
-function importSessionFromFile() {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".json,application/json";
-  input.addEventListener("change", () => {
-    const file = input.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const snap = JSON.parse(reader.result);
-        if (snap?.version !== 1) throw new Error("Invalid session file");
-        applySession(snap);
-        toast("Session restored from file", "success");
-        window.dispatchEvent(new CustomEvent("edatime:session-restored"));
-      } catch (e) {
-        toast(`Failed to import session: ${e.message}`, "error");
-      }
-    };
-    reader.readAsText(file);
-  });
-  input.click();
-}
-let _autoSaveTimer = null;
-function initAutoSave() {
-  const debouncedSave = () => {
-    if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
-    _autoSaveTimer = setTimeout(autoSaveSession, 2e3);
-  };
-  window.addEventListener("edatime:page-change", debouncedSave);
-  window.addEventListener("edatime:column-filters-change", debouncedSave);
-  window.addEventListener("edatime:adaptive-filters-change", debouncedSave);
-  window.addEventListener("beforeunload", autoSaveSession);
-}
-
-function exportChartFilteredData(format) {
-  window.__edatime?.exportChartFilteredData?.(format);
-}
-function triggerAdaptiveFilterClear() {
-  document.getElementById("adaptive-clear-btn")?.click?.();
-}
-const APP_COMMAND_DEFINITIONS = [
-  { id: "nav-upload", label: "Go to Upload", shortcut: "Alt+1", category: "Navigation", action: (deps) => deps.showPage("upload"), keyboard: { key: "1", alt: true } },
-  { id: "nav-timeseries", label: "Go to Timeseries", shortcut: "Alt+2", category: "Navigation", action: (deps) => deps.showPage("timeseries"), keyboard: { key: "2", alt: true } },
-  { id: "nav-scatter", label: "Go to Scatter", shortcut: "Alt+3", category: "Navigation", action: (deps) => deps.showPage("scatter"), keyboard: { key: "3", alt: true } },
-  { id: "nav-matrix", label: "Go to Scatter Matrix", shortcut: "Alt+4", category: "Navigation", action: (deps) => deps.showPage("scattermatrix"), keyboard: { key: "4", alt: true } },
-  { id: "nav-fft", label: "Go to FFT / PSD", shortcut: "Alt+6", category: "Navigation", action: (deps) => deps.showPage("fft"), keyboard: { key: "6", alt: true } },
-  { id: "nav-heatmap", label: "Go to Heatmap", shortcut: "Alt+7", category: "Navigation", action: (deps) => deps.showPage("heatmap"), keyboard: { key: "7", alt: true } },
-  { id: "nav-spectrogram", label: "Go to Spectrogram", shortcut: "Alt+8", category: "Navigation", action: (deps) => deps.showPage("spectrogram"), keyboard: { key: "8", alt: true } },
-  { id: "nav-causal", label: "Go to Causal", shortcut: "Alt+9", category: "Navigation", action: (deps) => deps.showPage("causal"), keyboard: { key: "9", alt: true } },
-  { id: "nav-drift", label: "Go to Drift Analysis", shortcut: "Alt+0", category: "Navigation", action: (deps) => deps.showPage("drift"), keyboard: { key: "0", alt: true } },
-  { id: "chart-reset", label: "Reset zoom", shortcut: "Shift+R", category: "Chart", action: (deps) => deps.resetZoom(), keyboard: { key: "r", shift: true, page: "timeseries" } },
-  { id: "chart-zoomout", label: "Zoom out one level", shortcut: "Shift+Z", category: "Chart", action: (deps) => deps.zoomOut(), keyboard: { key: "z", shift: true, page: "timeseries" } },
-  { id: "chart-clear-af", label: "Clear adaptive filters", shortcut: "Shift+C", category: "Chart", action: () => triggerAdaptiveFilterClear(), keyboard: { key: "c", shift: true, page: "timeseries" } },
-  { id: "export-csv", label: "Export chart data as CSV", shortcut: "Shift+E", category: "Export", action: () => exportChartFilteredData("csv") },
-  { id: "export-json", label: "Export chart data as JSON", category: "Export", action: () => exportChartFilteredData("json") },
-  { id: "export-png", label: "Export chart as PNG", category: "Export", action: () => window.__edatime?.chart?.exportPNG?.() },
-  { id: "export-parquet", label: "Export filtered data as Parquet", category: "Export", action: () => document.getElementById("export-parquet-btn")?.click?.() },
-  { id: "session-save", label: "Export session to file", category: "Session", action: () => {
-    exportSessionToFile();
-  } },
-  { id: "session-load", label: "Import session from file", category: "Session", action: () => {
-    importSessionFromFile();
-  } },
-  { id: "provenance", label: "Show analysis context panel", shortcut: "Ctrl+I", category: "Analysis", action: () => {
-    toggleProvenance();
-  } },
-  { id: "cmd-palette", label: "Open command palette", shortcut: "Ctrl+K", category: "Analysis", action: () => {
-    openPalette();
-  } },
-  { id: "settings", label: "Open settings", shortcut: "Ctrl+,", category: "Analysis", action: () => {
-    openSettingsModal();
-  } },
-  { id: "workflow-enable", label: "Enable guided workflow", category: "Analysis", action: () => {
-    enableGuidedWorkflow();
-  } },
-  { id: "workflow-disable", label: "Hide guided workflow", category: "Analysis", action: () => {
-    disableGuidedWorkflow();
-  } },
-  { id: "workflow-next", label: "Go to next guided step", category: "Analysis", action: () => {
-    goToNextGuidedStep();
-  } }
-];
-function buildPaletteCommands(deps) {
-  return APP_COMMAND_DEFINITIONS.map((definition) => ({
-    id: definition.id,
-    label: definition.label,
-    shortcut: definition.shortcut,
-    category: definition.category,
-    action: () => definition.action(deps)
-  }));
-}
-function registerAppCommands(deps) {
-  registerCommands(buildPaletteCommands(deps));
-}
-
-const KEYBOARD_ONLY_SHORTCUTS = [
-  { key: "e", shift: true, action: () => triggerActivePageCsvExport() }
-];
-function triggerActivePageCsvExport() {
-  if (currentPageName$2() === "scatter") {
-    document.getElementById("scatter-export-csv-btn")?.click?.();
-    return;
-  }
-  window.__edatime?.exportChartFilteredData?.("csv");
-}
-function isTypingTarget$2(target) {
-  if (target.isContentEditable) return true;
-  const tag = String(target.tagName || "").toLowerCase();
-  return tag === "input" || tag === "textarea" || tag === "select";
-}
-function currentPageName$2() {
-  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
-}
-function matchesKeyboardShortcut(shortcut, key, pageName, options) {
-  return shortcut.key.toLowerCase() === key.toLowerCase() && Boolean(shortcut.alt) === Boolean(options.alt) && Boolean(shortcut.shift) === Boolean(options.shift);
-}
-function findMatchingShortcut(key, pageName, options, commandDefs, deps) {
-  const commandShortcut = commandDefs.find((definition) => {
-    const keyboard = definition.keyboard;
-    return keyboard && matchesKeyboardShortcut(keyboard, key, pageName, options);
-  });
-  if (commandShortcut) {
-    const keyboard = commandShortcut.keyboard;
-    return {
-      key: keyboard.key,
-      alt: keyboard.alt,
-      shift: keyboard.shift,
-      page: keyboard.page,
-      action: () => commandShortcut.action(deps)
-    };
-  }
-  return KEYBOARD_ONLY_SHORTCUTS.find((shortcut) => matchesKeyboardShortcut(shortcut, key, pageName, options));
-}
-let _bound = false;
-function initKeyboardShortcuts(deps, commandDefs) {
-  if (_bound) return;
-  _bound = true;
-  window.__edatime = window.__edatime || {};
-  const onKeydown = (event) => {
-    if (event.defaultPrevented || isTypingTarget$2(event.target)) return;
-    const key = String(event.key || "").toLowerCase();
-    const pageName = currentPageName$2();
-    if (event.altKey && !event.ctrlKey && !event.metaKey) {
-      const shortcut2 = findMatchingShortcut(key, pageName, { alt: true, shift: false }, commandDefs, deps);
-      if (shortcut2) {
-        event.preventDefault();
-        shortcut2.action();
-        return;
-      }
-    }
-    if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
-    const shortcut = findMatchingShortcut(key, pageName, { alt: false, shift: true }, commandDefs, deps);
-    if (shortcut) {
-      event.preventDefault();
-      shortcut.action();
-    }
-  };
-  window.addEventListener("keydown", onKeydown);
-  deps.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
-  window.__edatime.keyboardShortcutsBound = true;
-}
-
-function initAppShell(deps) {
-  window.__edatime = window.__edatime || {};
-  window.__edatime.ensurePageModuleLoaded = deps.ensurePageModuleLoaded;
+function initShellCore(deps) {
   normalizeFormControlAccessibility();
   initPages();
   initHashRouting();
   initSettings();
-  initAnnotations();
-  initAnnotationPanel();
-  initGuidedWorkflow();
-  initAnalyticsDrawer();
   initThemeToggle();
-  initSettingsPanel();
   initAccessibilityShortcuts();
-  document.getElementById("keyboard-help-btn")?.addEventListener("click", showKeyboardShortcutsHelp);
+  initKeyboardHelpButton();
   const layout = document.querySelector(".app-layout");
   if (layout && getSetting("sidebarCollapsed")) {
     layout.classList.add("sidebar-collapsed");
   }
   wireHomeNavigationCards(deps.showPage);
-  wireSampleDatasetCards(deps.showPage, () => deps.refreshDatasetAfterMutation());
-  initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid, {
+}
+function initKeyboardHelpButton() {
+  document.getElementById("keyboard-help-btn")?.addEventListener("click", showKeyboardShortcutsHelp);
+}
+
+const SUBSYSTEMS = {};
+function registerSubsystem(name, init) {
+  if (!SUBSYSTEMS[name]) {
+    SUBSYSTEMS[name] = { init, loaded: false, pending: null };
+  }
+}
+async function ensureSubsystem$1(name, deps) {
+  const entry = SUBSYSTEMS[name];
+  if (!entry) {
+    throw new Error(`Unknown deferred subsystem: ${name}`);
+  }
+  if (entry.loaded) return;
+  if (entry.pending) return entry.pending;
+  entry.pending = Promise.resolve(entry.init(deps)).then(() => {
+    entry.loaded = true;
+  }).finally(() => {
+    entry.pending = null;
+  });
+  return entry.pending;
+}
+registerSubsystem("upload-panel", async (deps) => {
+  const profileModule = await __vitePreload(() => import('./assets/profile-DCQ6F-wu.js'),true              ?__vite__mapDeps([0,1]):void 0);
+  const { initUploadPanel } = await __vitePreload(async () => { const { initUploadPanel } = await import('./assets/upload-DVzysbOx.js');return { initUploadPanel }},true              ?__vite__mapDeps([2,3,4,5,6,1]):void 0);
+  initUploadPanel(profileModule.hydrateColumnProfiles, profileModule.renderColumnProfilesGrid, {
     buildColumnToggles: deps.buildTimeseriesColumns,
     buildRangeControls: deps.buildTimeseriesRanges,
     refreshDatasetAfterMutation: () => deps.refreshDatasetAfterMutation()
   });
+});
+registerSubsystem("column-profiles", async () => {
+  const { initColumnProfilesGrid } = await __vitePreload(async () => { const { initColumnProfilesGrid } = await import('./assets/profile-DCQ6F-wu.js');return { initColumnProfilesGrid }},true              ?__vite__mapDeps([0,1]):void 0);
   initColumnProfilesGrid();
-  initAnalysisControls(deps.fetchAndRender);
-  initChartPageFilterGesture();
-  initKeyboardShortcuts(deps, APP_COMMAND_DEFINITIONS);
-  initCommandPalette();
-  initProvenance();
-  registerAppCommands(deps);
+});
+registerSubsystem("analytics-overlay", async () => {
+  const { initAnalyticsDrawer } = await __vitePreload(async () => { const { initAnalyticsDrawer } = await import('./assets/analyticsDrawer-D8FXIXKQ.js');return { initAnalyticsDrawer }},true              ?__vite__mapDeps([7,1]):void 0);
+  initAnalyticsDrawer();
+});
+registerSubsystem("analytics-listeners", async () => {
+  const { initAnalyticsListeners } = await __vitePreload(async () => { const { initAnalyticsListeners } = await Promise.resolve().then(() => analyticsOverlay);return { initAnalyticsListeners }},true              ?void 0:void 0);
+  initAnalyticsListeners(() => Promise.resolve(
+    window.__edatime?.runAnalytics?.()
+  ));
+});
+registerSubsystem("annotation-subsystems", async () => {
+  const { initAnnotations } = await __vitePreload(async () => { const { initAnnotations } = await Promise.resolve().then(() => annotations$1);return { initAnnotations }},true              ?void 0:void 0);
+  const { initAnnotationPanel } = await __vitePreload(async () => { const { initAnnotationPanel } = await Promise.resolve().then(() => annotationPanel);return { initAnnotationPanel }},true              ?void 0:void 0);
+  initAnnotations();
+  initAnnotationPanel();
+});
+registerSubsystem("guided-workflow", async () => {
+  const { initGuidedWorkflow } = await __vitePreload(async () => { const { initGuidedWorkflow } = await import('./assets/guidedWorkflow-DrvIK14h.js');return { initGuidedWorkflow }},true              ?__vite__mapDeps([8,1]):void 0);
+  initGuidedWorkflow();
+});
+registerSubsystem("workflow-modals", async (deps) => {
+  const { initOutlierModal, initTransformModal } = await __vitePreload(async () => { const { initOutlierModal, initTransformModal } = await import('./assets/dataMutationModals-CQewcIsT.js');return { initOutlierModal, initTransformModal }},true              ?__vite__mapDeps([9,10,11,5,1]):void 0);
   initTransformModal({ refreshDataset: deps.refreshDatasetAfterMutation });
   initOutlierModal({ refreshDataset: deps.refreshDatasetAfterMutation });
-  deps.initAnalyticsListeners();
+});
+registerSubsystem("provenance", async () => {
+  const { initProvenance } = await __vitePreload(async () => { const { initProvenance } = await import('./assets/provenance-DqeiL9fi.js');return { initProvenance }},true              ?__vite__mapDeps([12,1]):void 0);
+  initProvenance();
+});
+registerSubsystem("settings-panel", async () => {
+  const { initSettingsPanel, openSettingsModal } = await __vitePreload(async () => { const { initSettingsPanel, openSettingsModal } = await import('./assets/settingsPanel-C6DDXf9Z.js');return { initSettingsPanel, openSettingsModal }},true              ?__vite__mapDeps([13,1,10]):void 0);
+  initSettingsPanel();
+  window.__edatime = window.__edatime || {};
+  window.__edatime.openSettingsModal = openSettingsModal;
+});
+registerSubsystem("analysis-controls", async (deps) => {
+  const { initAnalysisControls, initChartPageFilterGesture } = await __vitePreload(async () => { const { initAnalysisControls, initChartPageFilterGesture } = await Promise.resolve().then(() => toolbar);return { initAnalysisControls, initChartPageFilterGesture }},true              ?void 0:void 0);
+  initAnalysisControls(deps.fetchAndRender);
+  initChartPageFilterGesture();
+});
+registerSubsystem("command-palette", async () => {
+  const { initCommandPalette, openPalette } = await __vitePreload(async () => { const { initCommandPalette, openPalette } = await import('./assets/palette-DWW2h0SW.js');return { initCommandPalette, openPalette }},true              ?[]:void 0);
+  initCommandPalette();
+  window.__edatime = window.__edatime || {};
+  window.__edatime.openPalette = openPalette;
+});
+registerSubsystem("sample-datasets", async (deps) => {
+  const { wireSampleDatasetCards } = await __vitePreload(async () => { const { wireSampleDatasetCards } = await import('./assets/sampleDatasets-BSStG2nr.js');return { wireSampleDatasetCards }},true              ?__vite__mapDeps([14,1]):void 0);
+  wireSampleDatasetCards(deps.showPage, () => deps.refreshDatasetAfterMutation());
+});
+registerSubsystem("app-commands", async (deps) => {
+  const { registerAppCommands } = await __vitePreload(async () => { const { registerAppCommands } = await Promise.resolve().then(() => commands);return { registerAppCommands }},true              ?void 0:void 0);
+  const commandDeps = {
+    showPage: deps.showPage,
+    zoomOut: deps.zoomOut,
+    resetZoom: deps.resetZoom
+  };
+  await registerAppCommands(commandDeps);
+});
+async function ensureUploadSubsystems(deps) {
+  await ensureSubsystem$1("upload-panel", deps);
+  await ensureSubsystem$1("column-profiles", deps);
+}
+async function ensureTimeseriesShell(deps) {
+  await ensureSubsystem$1("analysis-controls", deps);
+  await ensureSubsystem$1("analytics-overlay", deps);
+  await ensureSubsystem$1("analytics-listeners", deps);
+  await ensureSubsystem$1("annotation-subsystems", deps);
+  await ensureSubsystem$1("guided-workflow", deps);
+  await ensureSubsystem$1("workflow-modals", deps);
+  await ensureSubsystem$1("provenance", deps);
+}
+async function ensureSettingsPanel(deps) {
+  await ensureSubsystem$1("settings-panel", deps);
+}
+async function ensureCommands(deps) {
+  await ensureSubsystem$1("command-palette", deps);
+  await ensureSubsystem$1("app-commands", deps);
+}
+async function ensureHomeSubsystems(deps) {
+  await ensureSubsystem$1("sample-datasets", deps);
+}
+
+function initAppShell(deps) {
+  initShellCore({ showPage: deps.showPage });
+  window.__edatime = window.__edatime || {};
+  window.__edatime.ensurePageModuleLoaded = deps.ensurePageModuleLoaded;
+  const deferred = {
+    showPage: deps.showPage,
+    ensurePageModuleLoaded: deps.ensurePageModuleLoaded,
+    fetchAndRender: deps.fetchAndRender,
+    refreshDatasetAfterMutation: deps.refreshDatasetAfterMutation,
+    buildTimeseriesColumns: deps.buildTimeseriesColumns,
+    buildTimeseriesRanges: deps.buildTimeseriesRanges,
+    zoomOut: deps.zoomOut,
+    resetZoom: deps.resetZoom,
+    updateAnalysisYRange: deps.updateAnalysisYRange,
+    registerCleanup: deps.registerCleanup
+  };
+  window.__edatime.ensureSubsystem = async (name) => {
+    switch (name) {
+      case "upload":
+        return ensureUploadSubsystems(deferred);
+      case "home":
+        return ensureHomeSubsystems(deferred);
+      case "timeseries-shell":
+        return ensureTimeseriesShell(deferred);
+      case "settings":
+        return ensureSettingsPanel(deferred);
+      case "commands":
+        return ensureCommands(deferred);
+      default:
+        throw new Error(`Unknown deferred subsystem: ${name}`);
+    }
+  };
 }
 
 function showPage(pageName) {
@@ -3741,6 +2653,15 @@ function isTypingTarget$1(target) {
 function currentPageName$1() {
   return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
 }
+async function waitForEdatimeKey(key, options = {}) {
+  const win = window;
+  const timeoutMs = options.timeoutMs ?? 250;
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (win.__edatime && key in win.__edatime) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
 function matchesShortcut(key, options, def, pageName) {
   return def.key.toLowerCase() === key.toLowerCase() && Boolean(def.alt) === Boolean(options.alt) && Boolean(def.shift) === Boolean(options.shift) && (!def.page || def.page === pageName);
 }
@@ -3750,9 +2671,29 @@ function initGlobalShortcuts(deps, commandDefs) {
   if (!win.__edatime) win.__edatime = {};
   const handler = (event) => {
     if (event.defaultPrevented || isTypingTarget$1(event.target)) return;
-    if (event.ctrlKey || event.metaKey) return;
     const key = String(event.key || "").toLowerCase();
     const pageName = currentPageName$1();
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey) {
+      if (key === "k") {
+        event.preventDefault();
+        void (async () => {
+          await waitForEdatimeKey("ensureSubsystem");
+          await win.__edatime?.ensureSubsystem?.("commands");
+          win.__edatime?.openPalette?.();
+        })();
+        return;
+      }
+      if (key === ",") {
+        event.preventDefault();
+        void (async () => {
+          await waitForEdatimeKey("ensureSubsystem");
+          await win.__edatime?.ensureSubsystem?.("settings");
+          win.__edatime?.openSettingsModal?.();
+        })();
+        return;
+      }
+      return;
+    }
     if (event.altKey && !event.ctrlKey && !event.metaKey) {
       const match = commandDefs.find(
         (def) => def.keyboard && matchesShortcut(key, { alt: true, shift: false }, def.keyboard, pageName)
@@ -3852,6 +2793,133 @@ function createAppRuntime() {
   };
 }
 
+function exportChartFilteredData(format) {
+  window.__edatime?.exportChartFilteredData?.(format);
+}
+function triggerAdaptiveFilterClear() {
+  document.getElementById("adaptive-clear-btn")?.click?.();
+}
+async function ensureSubsystem(name) {
+  await window.__edatime?.ensureSubsystem?.(name);
+}
+const APP_COMMAND_DEFINITIONS = [
+  { id: "nav-upload", label: "Go to Upload", shortcut: "Alt+1", category: "Navigation", action: (deps) => deps.showPage("upload"), keyboard: { key: "1", alt: true } },
+  { id: "nav-timeseries", label: "Go to Timeseries", shortcut: "Alt+2", category: "Navigation", action: (deps) => deps.showPage("timeseries"), keyboard: { key: "2", alt: true } },
+  { id: "nav-scatter", label: "Go to Scatter", shortcut: "Alt+3", category: "Navigation", action: (deps) => deps.showPage("scatter"), keyboard: { key: "3", alt: true } },
+  { id: "nav-matrix", label: "Go to Scatter Matrix", shortcut: "Alt+4", category: "Navigation", action: (deps) => deps.showPage("scattermatrix"), keyboard: { key: "4", alt: true } },
+  { id: "nav-fft", label: "Go to FFT / PSD", shortcut: "Alt+6", category: "Navigation", action: (deps) => deps.showPage("fft"), keyboard: { key: "6", alt: true } },
+  { id: "nav-heatmap", label: "Go to Heatmap", shortcut: "Alt+7", category: "Navigation", action: (deps) => deps.showPage("heatmap"), keyboard: { key: "7", alt: true } },
+  { id: "nav-spectrogram", label: "Go to Spectrogram", shortcut: "Alt+8", category: "Navigation", action: (deps) => deps.showPage("spectrogram"), keyboard: { key: "8", alt: true } },
+  { id: "nav-causal", label: "Go to Causal", shortcut: "Alt+9", category: "Navigation", action: (deps) => deps.showPage("causal"), keyboard: { key: "9", alt: true } },
+  { id: "nav-drift", label: "Go to Drift Analysis", shortcut: "Alt+0", category: "Navigation", action: (deps) => deps.showPage("drift"), keyboard: { key: "0", alt: true } },
+  { id: "chart-reset", label: "Reset zoom", shortcut: "Shift+R", category: "Chart", action: (deps) => deps.resetZoom(), keyboard: { key: "r", shift: true, page: "timeseries" } },
+  { id: "chart-zoomout", label: "Zoom out one level", shortcut: "Shift+Z", category: "Chart", action: (deps) => deps.zoomOut(), keyboard: { key: "z", shift: true, page: "timeseries" } },
+  { id: "chart-clear-af", label: "Clear adaptive filters", shortcut: "Shift+C", category: "Chart", action: () => triggerAdaptiveFilterClear(), keyboard: { key: "c", shift: true, page: "timeseries" } },
+  { id: "export-csv", label: "Export chart data as CSV", shortcut: "Shift+E", category: "Export", action: () => exportChartFilteredData("csv") },
+  { id: "export-json", label: "Export chart data as JSON", category: "Export", action: () => exportChartFilteredData("json") },
+  { id: "export-png", label: "Export chart as PNG", category: "Export", action: () => window.__edatime?.chart?.exportPNG?.() },
+  { id: "export-parquet", label: "Export filtered data as Parquet", category: "Export", action: () => document.getElementById("export-parquet-btn")?.click?.() },
+  {
+    id: "session-save",
+    label: "Export session to file",
+    category: "Session",
+    action: async () => {
+      const { exportSessionToFile } = await __vitePreload(async () => { const { exportSessionToFile } = await Promise.resolve().then(() => session);return { exportSessionToFile }},true              ?void 0:void 0);
+      exportSessionToFile();
+    }
+  },
+  {
+    id: "session-load",
+    label: "Import session from file",
+    category: "Session",
+    action: async () => {
+      const { importSessionFromFile } = await __vitePreload(async () => { const { importSessionFromFile } = await Promise.resolve().then(() => session);return { importSessionFromFile }},true              ?void 0:void 0);
+      importSessionFromFile();
+    }
+  },
+  {
+    id: "provenance",
+    label: "Show analysis context panel",
+    shortcut: "Ctrl+I",
+    category: "Analysis",
+    action: async () => {
+      await ensureSubsystem("timeseries-shell");
+      const { toggleProvenance } = await __vitePreload(async () => { const { toggleProvenance } = await import('./assets/provenance-DqeiL9fi.js');return { toggleProvenance }},true              ?__vite__mapDeps([12,1]):void 0);
+      toggleProvenance();
+    }
+  },
+  {
+    id: "cmd-palette",
+    label: "Open command palette",
+    shortcut: "Ctrl+K",
+    category: "Analysis",
+    action: async () => {
+      await ensureSubsystem("commands");
+      window.__edatime?.openPalette?.();
+    }
+  },
+  {
+    id: "settings",
+    label: "Open settings",
+    shortcut: "Ctrl+,",
+    category: "Analysis",
+    action: async () => {
+      await ensureSubsystem("settings");
+      window.__edatime?.openSettingsModal?.();
+    }
+  },
+  {
+    id: "workflow-enable",
+    label: "Enable guided workflow",
+    category: "Analysis",
+    action: async () => {
+      await ensureSubsystem("timeseries-shell");
+      const { enableGuidedWorkflow } = await __vitePreload(async () => { const { enableGuidedWorkflow } = await import('./assets/guidedWorkflow-DrvIK14h.js');return { enableGuidedWorkflow }},true              ?__vite__mapDeps([8,1]):void 0);
+      enableGuidedWorkflow();
+    }
+  },
+  {
+    id: "workflow-disable",
+    label: "Hide guided workflow",
+    category: "Analysis",
+    action: async () => {
+      await ensureSubsystem("timeseries-shell");
+      const { disableGuidedWorkflow } = await __vitePreload(async () => { const { disableGuidedWorkflow } = await import('./assets/guidedWorkflow-DrvIK14h.js');return { disableGuidedWorkflow }},true              ?__vite__mapDeps([8,1]):void 0);
+      disableGuidedWorkflow();
+    }
+  },
+  {
+    id: "workflow-next",
+    label: "Go to next guided step",
+    category: "Analysis",
+    action: async () => {
+      await ensureSubsystem("timeseries-shell");
+      const { goToNextGuidedStep } = await __vitePreload(async () => { const { goToNextGuidedStep } = await import('./assets/guidedWorkflow-DrvIK14h.js');return { goToNextGuidedStep }},true              ?__vite__mapDeps([8,1]):void 0);
+      goToNextGuidedStep();
+    }
+  }
+];
+function buildPaletteCommands(deps) {
+  return APP_COMMAND_DEFINITIONS.map((definition) => ({
+    id: definition.id,
+    label: definition.label,
+    shortcut: definition.shortcut,
+    category: definition.category,
+    action: () => definition.action(deps)
+  }));
+}
+async function registerAppCommands(deps) {
+  const { registerCommands } = await __vitePreload(async () => { const { registerCommands } = await import('./assets/palette-DWW2h0SW.js');return { registerCommands }},true              ?[]:void 0);
+  registerCommands(buildPaletteCommands(deps));
+}
+
+const commands = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  APP_COMMAND_DEFINITIONS,
+  buildPaletteCommands,
+  registerAppCommands
+}, Symbol.toStringTag, { value: 'Module' }));
+
 const loaded = /* @__PURE__ */ new Set();
 const pages = /* @__PURE__ */ new Map();
 let metadataReady = false;
@@ -3867,7 +2935,12 @@ async function ensurePageModuleLoaded(name) {
   const page = pages.get(name);
   if (!page) return;
   if (page.requiresMetadata && !metadataReady) await metadataPromise;
-  await page.init();
+  try {
+    await page.init();
+  } catch (error) {
+    console.error(`[EdaTime] Failed to initialize page "${name}":`, error);
+    throw error;
+  }
   loaded.add(name);
 }
 function markMetadataReady() {
@@ -3881,54 +2954,86 @@ function clearLoadedPageModules() {
   loaded.clear();
 }
 
-async function loadEntrypoints(deps) {
-  const [
-    { createFftEntrypoint },
-    { createHeatmapEntrypoint },
-    { createScatterEntrypoint },
-    { createSpectrogramEntrypoint },
-    { createCausalEntrypoint },
-    { createDriftEntrypoint }
-  ] = await Promise.all([
-    __vitePreload(() => import('./assets/entrypoint-DACzS_zs.js'),true              ?__vite__mapDeps([3,4,0,1,2]):void 0),
-    __vitePreload(() => import('./assets/entrypoint-Cxcbh6LV.js'),true              ?__vite__mapDeps([5,4,0,1,2]):void 0),
-    __vitePreload(() => import('./assets/scatter-O3bU0fte.js').then(n => n.aR),true              ?__vite__mapDeps([0,1,2]):void 0),
-    __vitePreload(() => import('./assets/entrypoint-D8ufsv5w.js'),true              ?__vite__mapDeps([6,4,0,1,2]):void 0),
-    __vitePreload(() => import('./assets/causal-DnsmCw11.js'),true              ?__vite__mapDeps([7,0,1,2,4]):void 0),
-    __vitePreload(() => import('./assets/drift-DvO4Mo51.js').then(n => n.e),true              ?__vite__mapDeps([8,0,1,2,4]):void 0)
-  ]);
-  register("fft", {
+const PAGE_DESCRIPTORS = [
+  {
+    name: "fft",
     requiresMetadata: true,
-    init: createFftEntrypoint({ getRenderTimeseries: deps.getRenderTimeseries }).init
-  });
-  register("heatmap", {
+    async load(deps) {
+      const { createFftEntrypoint } = await __vitePreload(async () => { const { createFftEntrypoint } = await import('./assets/entrypoint-BYRIrjmw.js');return { createFftEntrypoint }},true              ?__vite__mapDeps([15,1]):void 0);
+      return createFftEntrypoint({ getRenderTimeseries: deps.getRenderTimeseries });
+    }
+  },
+  {
+    name: "heatmap",
     requiresMetadata: true,
-    init: createHeatmapEntrypoint({ showPage: deps.showPage }).init
-  });
-  register("scatter", {
+    async load(deps) {
+      const { createHeatmapEntrypoint } = await __vitePreload(async () => { const { createHeatmapEntrypoint } = await import('./assets/entrypoint-dTMnAKT3.js');return { createHeatmapEntrypoint }},true              ?__vite__mapDeps([16,1]):void 0);
+      return createHeatmapEntrypoint({ showPage: deps.showPage });
+    }
+  },
+  {
+    name: "scatter",
     requiresMetadata: true,
-    init: createScatterEntrypoint({
-      initScatterPage: deps.initScatterPage,
-      getMetadata: () => deps.getMetadata()
-    }).init
-  });
-  register("spectrogram", {
+    // Page-owned stylesheet is preloaded alongside the descriptor to avoid
+    // an unsightly flash of unstyled content on first navigation.
+    cssModules: ["scatter"],
+    async load(deps) {
+      const { createScatterEntrypoint } = await __vitePreload(async () => { const { createScatterEntrypoint } = await import('./assets/entrypoint-BwJvGCgY.js');return { createScatterEntrypoint }},true              ?__vite__mapDeps([17,1]):void 0);
+      return createScatterEntrypoint({
+        getMetadata: () => deps.getMetadata()
+      });
+    }
+  },
+  {
+    name: "spectrogram",
     requiresMetadata: true,
-    init: createSpectrogramEntrypoint({ setLoading: deps.setLoading }).init
-  });
-  register("causal", {
+    async load(deps) {
+      const { createSpectrogramEntrypoint } = await __vitePreload(async () => { const { createSpectrogramEntrypoint } = await import('./assets/entrypoint-DTDRo2pI.js');return { createSpectrogramEntrypoint }},true              ?__vite__mapDeps([18,1]):void 0);
+      return createSpectrogramEntrypoint({ setLoading: deps.setLoading });
+    }
+  },
+  {
+    name: "causal",
     requiresMetadata: true,
-    init: createCausalEntrypoint({
-      getMetadata: deps.getMetadata,
-      chipColor: deps.chipColor,
-      numericColumns: deps.numericColumns,
-      setLoading: deps.setLoading
-    }).init
-  });
-  register("drift", {
+    async load(deps) {
+      const { createCausalEntrypoint } = await __vitePreload(async () => { const { createCausalEntrypoint } = await import('./assets/entrypoint-B56bGrdp.js');return { createCausalEntrypoint }},true              ?__vite__mapDeps([19,1]):void 0);
+      return createCausalEntrypoint({
+        getMetadata: deps.getMetadata,
+        chipColor: deps.chipColor,
+        numericColumns: deps.numericColumns,
+        setLoading: deps.setLoading
+      });
+    }
+  },
+  {
+    name: "drift",
     requiresMetadata: true,
-    init: createDriftEntrypoint({ initDriftPage: deps.initDriftPage, getMetadata: () => deps.getMetadata() }).init
-  });
+    cssModules: ["drift"],
+    async load(deps) {
+      const { createDriftEntrypoint } = await __vitePreload(async () => { const { createDriftEntrypoint } = await import('./assets/entrypoint-DGW9Cq96.js');return { createDriftEntrypoint }},true              ?__vite__mapDeps([20,1]):void 0);
+      return createDriftEntrypoint({
+        initDriftPage: deps.initDriftPage,
+        getMetadata: () => deps.getMetadata()
+      });
+    }
+  }
+];
+async function loadPageDescriptors(deps) {
+  for (const descriptor of PAGE_DESCRIPTORS) {
+    register(descriptor.name, {
+      requiresMetadata: descriptor.requiresMetadata,
+      init: async () => {
+        if (descriptor.cssModules?.length) {
+          const { ensureStyleModule } = await __vitePreload(async () => { const { ensureStyleModule } = await Promise.resolve().then(() => pageStyles);return { ensureStyleModule }},true              ?void 0:void 0);
+          for (const moduleName of descriptor.cssModules) {
+            ensureStyleModule(moduleName);
+          }
+        }
+        const entry = await descriptor.load(deps);
+        await entry.init();
+      }
+    });
+  }
 }
 
 const _registry = /* @__PURE__ */ new Map();
@@ -4085,8 +3190,8 @@ async function ensureChartModules$1() {
   if (pending) return pending;
   pending = (async () => {
     const [dataClient, chartModule] = await Promise.all([
-      __vitePreload(() => import('./assets/scatter-O3bU0fte.js').then(n => n.aP),true              ?__vite__mapDeps([0,1,2]):void 0),
-      __vitePreload(() => import('./assets/DataChart-S1v-FjRy.js'),true              ?__vite__mapDeps([9,1,0,2,10,4]):void 0)
+      __vitePreload(() => import('./assets/index-BEKhL0N1.js'),true              ?__vite__mapDeps([21,5,22,23,11,4,1]):void 0),
+      __vitePreload(() => import('./assets/DataChart-CkLj_s8t.js'),true              ?__vite__mapDeps([24,25,1,26]):void 0)
     ]);
     const result = {
       fetchMetadata: dataClient.fetchMetadata,
@@ -4117,6 +3222,98 @@ async function ensureChartModules$1() {
     return result;
   })();
   return pending;
+}
+
+function dispatchEmptyStateEvent(eventName, source) {
+  window.dispatchEvent(new CustomEvent(eventName, {
+    detail: source ? { source } : void 0
+  }));
+}
+function createEmptyStateController(options) {
+  const elements = {
+    root: document.getElementById(options.rootId),
+    title: options.titleId ? document.getElementById(options.titleId) : null,
+    message: options.messageId ? document.getElementById(options.messageId) : null,
+    resetButton: options.resetButtonId ? document.getElementById(options.resetButtonId) : null,
+    clearButton: options.clearButtonId ? document.getElementById(options.clearButtonId) : null
+  };
+  if (elements.resetButton && options.resetEventName) {
+    elements.resetButton.addEventListener("click", () => {
+      dispatchEmptyStateEvent(options.resetEventName, options.eventSource);
+    });
+  }
+  if (elements.clearButton && options.clearEventName) {
+    elements.clearButton.addEventListener("click", () => {
+      dispatchEmptyStateEvent(options.clearEventName, options.eventSource);
+    });
+  }
+  return {
+    update(model) {
+      if (!elements.root) return;
+      elements.root.hidden = !model.visible;
+      elements.root.setAttribute("data-empty-reason", model.visible ? model.reason : "");
+      if (elements.title) elements.title.textContent = model.title;
+      if (elements.message) elements.message.textContent = model.message;
+      if (elements.resetButton) elements.resetButton.hidden = !model.showResetAction;
+      if (elements.clearButton) elements.clearButton.hidden = !model.showClearAction;
+      if ((!elements.title || !elements.message) && typeof model.fallbackText === "string") {
+        elements.root.textContent = model.fallbackText;
+      }
+    }
+  };
+}
+function isRangeOutsideDataset(timeRange, start, end) {
+  const min = Number(timeRange?.min);
+  const max = Number(timeRange?.max);
+  const rangeStart = Number(start);
+  const rangeEnd = Number(end);
+  return Number.isFinite(min) && Number.isFinite(max) && min < max && Number.isFinite(rangeStart) && Number.isFinite(rangeEnd) && (rangeEnd <= min || rangeStart >= max);
+}
+
+function createRequestTask(options) {
+  let controller = null;
+  return {
+    /**
+     * Returns the AbortSignal for the current (or latest) request.
+     * Returns a never-aborted signal if no request has been started yet.
+     */
+    getSignal() {
+      if (!controller) {
+        const alwaysPass = new AbortController();
+        return alwaysPass.signal;
+      }
+      return controller.signal;
+    },
+    /**
+     * Starts a new request, aborting any previous one first.
+     *
+     * @param fn - async function that receives the AbortSignal and performs the work.
+     *   The function should throw AbortError (or any error whose `name === 'AbortError'`)
+     *   when the signal is aborted, so that the helper can distinguish deliberate
+     *   cancellation from genuine failures.
+     */
+    async run(fn) {
+      if (controller) controller.abort();
+      controller = new AbortController();
+      const signal = controller.signal;
+      options.setLoading(true);
+      try {
+        await fn(signal);
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
+        const message = err instanceof Error ? err.message : String(err);
+        options.onError(message);
+      } finally {
+        options.setLoading(false);
+      }
+    },
+    /**
+     * Aborts the current in-flight request, if any.
+     */
+    cancel() {
+      if (controller) controller.abort();
+    }
+  };
 }
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} };
@@ -4343,6 +3540,314 @@ function createTimeseriesPageController(deps) {
     onZoomRangeChange,
     renderCurrentData
   };
+}
+
+function Button(props) {
+  const button = document.createElement("button");
+  button.type = props.type ?? "button";
+  button.textContent = props.label;
+  if (props.className) button.className = props.className;
+  if (props.disabled != null) button.disabled = props.disabled;
+  if (props.onClick) button.addEventListener("click", props.onClick);
+  return button;
+}
+
+function ColorInput(props) {
+  const input = document.createElement("input");
+  input.type = "color";
+  if (props.id) input.id = props.id;
+  input.setAttribute("aria-label", props.label);
+  input.title = props.label;
+  input.value = props.value;
+  if (props.className) input.className = props.className;
+  if (props.onInput) input.addEventListener("input", (event) => props.onInput?.(input.value, event));
+  return input;
+}
+
+function TextInput(props) {
+  const input = document.createElement("input");
+  input.type = "text";
+  if (props.id) input.id = props.id;
+  input.setAttribute("aria-label", props.label);
+  input.value = props.value ?? "";
+  if (props.placeholder) input.placeholder = props.placeholder;
+  if (props.className) input.className = props.className;
+  if (props.onInput) input.addEventListener("input", (event) => props.onInput?.(input.value, event));
+  return input;
+}
+
+function ModalFrame(props) {
+  const modal = document.createElement("div");
+  if (props.id) modal.id = props.id;
+  modal.className = "modal-frame";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  const header = document.createElement("header");
+  const title = document.createElement("h2");
+  title.textContent = props.title;
+  const close = document.createElement("button");
+  close.type = "button";
+  close.setAttribute("aria-label", "Close");
+  close.textContent = "×";
+  close.addEventListener("click", () => props.onClose?.());
+  header.append(title, close);
+  const body = document.createElement("div");
+  body.className = "modal-frame__body";
+  modal.append(header, body);
+  return modal;
+}
+
+function ColumnFilterModal(props) {
+  if (props.bind) {
+    return bindColumnFilterModal(props.bind, props);
+  }
+  return createColumnFilterModal(props);
+}
+function createColumnFilterModal(props) {
+  const modal = ModalFrame({ title: `Filter ${props.column}`, onClose: props.onCancel });
+  const body = modal.querySelector(".modal-frame__body");
+  const from = TextInput({ label: `${props.column} minimum`, value: props.from });
+  const to = TextInput({ label: `${props.column} maximum`, value: props.to });
+  const apply = Button({
+    label: "Apply",
+    className: "primary",
+    onClick: () => props.onApply(from.value, to.value)
+  });
+  const cancel = Button({ label: "Cancel", onClick: () => props.onCancel?.() });
+  body.append(from, to, apply, cancel);
+  return modal;
+}
+function bindColumnFilterModal(b, props) {
+  const { root, applyBtn, cancelBtn, closeBtn, minInput, maxInput } = b;
+  applyBtn.addEventListener("click", () => {
+    props.onApply(minInput.value, maxInput.value);
+  });
+  cancelBtn.addEventListener("click", () => props.onCancel?.());
+  closeBtn.addEventListener("click", () => props.onCancel?.());
+  root.addEventListener("click", (event) => {
+    if (event.target === root) props.onCancel?.();
+  });
+  const escapeHandler = (e) => {
+    if (!root.hidden && e.key === "Escape") props.onCancel?.();
+  };
+  document.addEventListener("keydown", escapeHandler);
+  return root;
+}
+
+function createDotsSvg() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("fill", "currentColor");
+  svg.setAttribute("aria-hidden", "true");
+  const circles = [
+    { cx: "8", cy: "3", r: "1.5" },
+    { cx: "8", cy: "8", r: "1.5" },
+    { cx: "8", cy: "13", r: "1.5" }
+  ];
+  for (const c of circles) {
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", c.cx);
+    circle.setAttribute("cy", c.cy);
+    circle.setAttribute("r", c.r);
+    svg.appendChild(circle);
+  }
+  return svg;
+}
+function SeriesChip(props) {
+  const chip = document.createElement("label");
+  chip.className = `series-chip${props.checked ? " active" : ""}${props.adaptiveTarget ? " adaptive-target" : ""}${props.disabled ? " disabled" : ""}`;
+  chip.style.setProperty("--chip-accent", props.color);
+  chip.dataset.col = props.column;
+  if (props.title) chip.title = props.title;
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = props.checked;
+  checkbox.value = props.column;
+  checkbox.disabled = props.disabled ?? false;
+  checkbox.setAttribute("aria-label", `Toggle ${props.column} series`);
+  checkbox.addEventListener("change", () => {
+    props.onToggle?.(checkbox.checked);
+    chip.classList.toggle("active", checkbox.checked);
+  });
+  const displayLabel = props.label ?? props.column;
+  const colorInput = ColorInput({
+    label: `Set ${displayLabel} color`,
+    value: props.color,
+    className: "chip-color-picker",
+    onInput: props.onColorInput
+  });
+  const labelSpan = document.createElement("span");
+  labelSpan.className = "chip-label";
+  labelSpan.textContent = displayLabel;
+  chip.append(checkbox, colorInput, labelSpan);
+  if (props.onMenuClick) {
+    const menu = document.createElement("button");
+    menu.type = "button";
+    menu.className = "chip-menu-btn";
+    menu.setAttribute("aria-label", props.menuLabel ?? `Menu for ${displayLabel}`);
+    menu.title = props.menuLabel ?? `Menu for ${displayLabel}`;
+    menu.appendChild(createDotsSvg());
+    menu.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      props.onMenuClick?.();
+    });
+    chip.append(menu);
+  }
+  return chip;
+}
+
+function ensureChipKeyboardBinding(container) {
+  const existingCleanup = container.__chipKeyboardCleanup;
+  if (typeof existingCleanup === "function") return;
+  container.__chipKeyboardCleanup = bindSeriesChipKeyboard(container);
+}
+function applyChipExtras(chip, item, extras) {
+  if (extras.postChipAttributes) {
+    for (const [attr, val] of Object.entries(extras.postChipAttributes)) {
+      chip.setAttribute(attr, val);
+    }
+  }
+  if (extras.postChipClass) {
+    const cls = extras.postChipClass(item);
+    if (cls) chip.classList.add(cls);
+  }
+}
+function renderSeriesChipList(options) {
+  const { container, items, chipClass, onColorUpdate, postChipAttributes, postChipClass, preserveExisting } = options;
+  if (preserveExisting) {
+    ensureChipKeyboardBinding(container);
+    updateSeriesChipList({ container, items, chipClass, onColorUpdate, postChipAttributes, postChipClass });
+    return;
+  }
+  container.innerHTML = "";
+  const prevCleanup = container.__chipKeyboardCleanup;
+  if (typeof prevCleanup === "function") prevCleanup();
+  delete container.__chipKeyboardCleanup;
+  ensureChipKeyboardBinding(container);
+  const fragment = document.createDocumentFragment();
+  for (const item of items) {
+    const chip = SeriesChip({
+      column: item.column,
+      label: item.label,
+      checked: item.checked,
+      color: item.color,
+      disabled: item.disabled,
+      adaptiveTarget: item.adaptiveTarget,
+      title: item.title,
+      onToggle: (checked) => item.onToggle(checked, item.column),
+      onColorInput: (color) => {
+        item.onColorInput?.(color, item.column);
+        onColorUpdate?.(item.column, color);
+      },
+      onMenuClick: item.onMenuClick ? () => item.onMenuClick(item.column) : void 0,
+      menuLabel: item.menuLabel
+    });
+    chip.classList.add(chipClass ?? "");
+    applyChipExtras(chip, item, { postChipAttributes, postChipClass });
+    fragment.appendChild(chip);
+  }
+  container.appendChild(fragment);
+}
+function updateSeriesChipList(options) {
+  const { container, items, chipClass, onColorUpdate, postChipAttributes, postChipClass } = options;
+  const existing = /* @__PURE__ */ new Map();
+  for (const el of container.querySelectorAll("[data-col]")) {
+    const col = el.dataset.col;
+    if (col !== void 0) existing.set(col, el);
+  }
+  const newCols = new Set(items.map((i) => i.column));
+  for (const [col, el] of existing.entries()) {
+    if (!newCols.has(col)) el.remove();
+  }
+  for (const item of items) {
+    let chip = existing.get(item.column);
+    if (!chip) {
+      chip = SeriesChip({
+        column: item.column,
+        label: item.label,
+        checked: item.checked,
+        color: item.color,
+        disabled: item.disabled,
+        adaptiveTarget: item.adaptiveTarget,
+        title: item.title,
+        onToggle: (checked) => item.onToggle(checked, item.column),
+        onColorInput: (color) => {
+          item.onColorInput?.(color, item.column);
+          onColorUpdate?.(item.column, color);
+        },
+        onMenuClick: item.onMenuClick ? () => item.onMenuClick(item.column) : void 0,
+        menuLabel: item.menuLabel
+      });
+      chip.classList.add(chipClass ?? "");
+      applyChipExtras(chip, item, { postChipAttributes, postChipClass });
+      container.appendChild(chip);
+    } else {
+      const checkbox = chip.querySelector('input[type="checkbox"]');
+      if (checkbox) checkbox.checked = item.checked;
+      chip.classList.toggle("active", item.checked);
+      chip.style.setProperty("--chip-accent", item.color);
+    }
+  }
+}
+function bindSeriesChipKeyboard(container) {
+  const handler = (event) => {
+    const chip = event.target?.closest?.(".series-chip");
+    if (!chip) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    const checkbox = chip.querySelector('input[type="checkbox"]');
+    if (!checkbox) return;
+    checkbox.checked = !checkbox.checked;
+    checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  container.addEventListener("keydown", handler);
+  return () => container.removeEventListener("keydown", handler);
+}
+
+function RangeChip(props) {
+  const chip = document.createElement("div");
+  chip.className = props.className ?? "range-chip";
+  if (props.onActivate) {
+    chip.classList.add("range-chip--clickable");
+    chip.setAttribute("role", "button");
+    chip.tabIndex = 0;
+    chip.addEventListener("click", () => props.onActivate?.(props.key));
+    chip.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        props.onActivate?.(props.key);
+      }
+    });
+  }
+  if (props.ariaLabel) chip.setAttribute("aria-label", props.ariaLabel);
+  const name = document.createElement("span");
+  name.className = "name";
+  name.textContent = props.name;
+  const range = document.createElement("span");
+  range.className = "range";
+  range.textContent = props.range;
+  chip.append(name, range);
+  return chip;
+}
+
+function RangeControls(props) {
+  const root = document.createElement("div");
+  root.className = "range-controls";
+  for (const item of props.items) {
+    const hasPerItemCallback = item.onActivate !== void 0;
+    const isStatic = item.kind === "static";
+    const activate = hasPerItemCallback ? (key) => item.onActivate(key) : !isStatic && props.onActivate ? () => props.onActivate(item) : void 0;
+    root.appendChild(RangeChip({
+      key: item.key,
+      name: item.name,
+      range: item.range,
+      className: item.className,
+      ariaLabel: item.ariaLabel,
+      onActivate: activate
+    }));
+  }
+  return root;
 }
 
 function sanitizeSelectedColumns() {
@@ -4985,6 +4490,78 @@ function createTimeseriesEntrypoint(deps) {
   };
 }
 
+function createPageLifecycle(options) {
+  let initialized = false;
+  let cleanup;
+  const handler = (event) => {
+    const detail = event.detail;
+    const isTargetPage = detail?.page === options.page;
+    if (!initialized) {
+      if (isTargetPage) {
+        initialized = true;
+        cleanup = options.init();
+        options.onVisible?.();
+      }
+      options.onEveryPageChange?.();
+      return;
+    }
+    if (isTargetPage) {
+      options.onVisible?.();
+    }
+    options.onEveryPageChange?.();
+  };
+  window.addEventListener("edatime:page-change", handler);
+  return () => {
+    window.removeEventListener("edatime:page-change", handler);
+    if (typeof cleanup === "function") cleanup();
+  };
+}
+
+function createPageRuntime(options) {
+  let emptyStateController = null;
+  let cleanup;
+  let mounted = false;
+  const getEmptyState = () => {
+    if (!emptyStateController && options.emptyStateRootId) {
+      emptyStateController = createEmptyStateController({ rootId: options.emptyStateRootId });
+    }
+    return emptyStateController;
+  };
+  return {
+    mount() {
+      if (mounted) return () => {
+      };
+      mounted = true;
+      const unregister = createPageLifecycle({
+        page: options.page,
+        init: () => {
+          cleanup = options.init?.();
+        },
+        onVisible: options.onVisible,
+        onEveryPageChange: options.onEveryPageChange
+      });
+      return () => {
+        unregister();
+        if (typeof cleanup === "function") cleanup();
+      };
+    },
+    updateEmptyState(model) {
+      if (!options.emptyStateRootId) return;
+      getEmptyState().update(model);
+    },
+    updateStatus(text) {
+      if (!options.statusElId) return;
+      const el = document.getElementById(options.statusElId);
+      if (el) el.textContent = text;
+    },
+    setLoading(loading) {
+      if (!options.loadingElId) return;
+      const el = document.getElementById(options.loadingElId);
+      if (el) el.hidden = loading;
+    }
+  };
+}
+
 function createTimeseriesRuntime(deps) {
   return createPageRuntime({
     page: "timeseries",
@@ -5032,7 +4609,7 @@ function createDatasetBootstrap(deps) {
         return;
       }
       syncDatasetSelection(metadata);
-      deps.initializeDatasetUi(metadata);
+      await deps.initializeDatasetUi(metadata);
     })().catch((error) => {
       if (_datasetReadyPromise === pending) {
         _datasetReadyPromise = null;
@@ -5053,8 +4630,9 @@ function createDatasetBootstrap(deps) {
     const metadata = await deps.fetchMetadata();
     deps.storeFetchedMetadata(metadata);
     deps.markMetadataReady();
+    window.dispatchEvent(new Event("edatime:metadata-ready"));
     syncDatasetSelection(metadata, options?.selectedColumn);
-    deps.initializeDatasetUi(metadata);
+    await deps.initializeDatasetUi(metadata);
     deps.rebuildTimeseriesColumns();
     await deps.refreshVisibleData();
   }
@@ -5080,6 +4658,401 @@ async function checkWebGPU() {
     return `WebGPU adapter request failed: ${message}`;
   }
 }
+
+const STORAGE_KEY$1 = "edatime-annotations";
+let annotations = [];
+function generateId() {
+  return `ann_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+function loadAnnotations() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY$1);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    annotations = parsed.filter((a) => a && typeof a.id === "string");
+    return annotations;
+  } catch {
+    return [];
+  }
+}
+function saveAnnotations() {
+  try {
+    localStorage.setItem(STORAGE_KEY$1, JSON.stringify(annotations));
+  } catch {
+  }
+}
+function getAnnotations() {
+  return [...annotations];
+}
+function getAnnotationsForPage(page) {
+  return annotations.filter((a) => a.page === page);
+}
+function getAnnotationsInRange(start, end) {
+  return annotations.filter((a) => {
+    if (!a.timeRange) return false;
+    return a.timeRange.start <= end && a.timeRange.end >= start;
+  });
+}
+function createAnnotation(type, title, options = {}) {
+  const now = Date.now();
+  const annotation = {
+    id: generateId(),
+    type,
+    title,
+    color: options.color || "#ffc041",
+    createdAt: now,
+    updatedAt: now,
+    page: options.page || "timeseries",
+    ...options
+  };
+  annotations.push(annotation);
+  saveAnnotations();
+  return annotation;
+}
+function deleteAnnotation(id) {
+  const idx = annotations.findIndex((a) => a.id === id);
+  if (idx < 0) return false;
+  annotations.splice(idx, 1);
+  saveAnnotations();
+  return true;
+}
+function clearAllAnnotations() {
+  annotations = [];
+  saveAnnotations();
+}
+function exportAnnotations() {
+  return JSON.stringify(annotations, null, 2);
+}
+function createTimeRangeNote(title, start, end, content, columns, color, datasetRevision) {
+  return createAnnotation("note", title, {
+    content,
+    timeRange: { start, end },
+    columns,
+    color,
+    datasetRevision,
+    page: "timeseries"
+  });
+}
+function createBookmark(title, time, datasetRevision) {
+  return createAnnotation("bookmark", title, {
+    timeRange: { start: time, end: time },
+    datasetRevision,
+    page: "timeseries"
+  });
+}
+function initAnnotations() {
+  loadAnnotations();
+  window.__edatimeAnnotations = {
+    getAnnotationsForPage,
+    getAnnotationsInRange,
+    getAnnotations
+  };
+}
+
+const annotations$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  clearAllAnnotations,
+  createAnnotation,
+  createBookmark,
+  createTimeRangeNote,
+  deleteAnnotation,
+  exportAnnotations,
+  getAnnotations,
+  getAnnotationsForPage,
+  getAnnotationsInRange,
+  initAnnotations,
+  loadAnnotations,
+  saveAnnotations
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const DEFAULT_DURATIONS = {
+  success: 3200,
+  info: 3800,
+  warning: 5200,
+  error: 0
+};
+const TOAST_ICONS = {
+  success: "✔",
+  error: "✕",
+  warning: "⚠",
+  info: "ℹ"
+};
+let container = null;
+const activeToasts = /* @__PURE__ */ new Map();
+function ensureContainer() {
+  if (container && container.isConnected) return container;
+  container = document.createElement("div");
+  container.className = "toast-container";
+  container.setAttribute("role", "region");
+  container.setAttribute("aria-live", "polite");
+  container.setAttribute("aria-label", "Notifications");
+  container.setAttribute("data-position", "top-right");
+  document.body.appendChild(container);
+  return container;
+}
+function normalizeOptions(durationOrOpts) {
+  if (typeof durationOrOpts === "number") return { duration: durationOrOpts };
+  return durationOrOpts ?? {};
+}
+function resolveDuration(kind, opts) {
+  if (typeof opts.duration === "number") return opts.duration;
+  return DEFAULT_DURATIONS[kind];
+}
+function clearToastTimer(toastState) {
+  if (toastState.timer) {
+    clearTimeout(toastState.timer);
+    toastState.timer = null;
+  }
+}
+function applyActionButton(toastState, opts) {
+  if (toastState.actionBtn) {
+    toastState.actionBtn.remove();
+    toastState.actionBtn = null;
+  }
+  if (!opts.action) return;
+  const btn = document.createElement("button");
+  btn.className = "toast-action";
+  btn.textContent = opts.action.label;
+  btn.addEventListener("click", () => {
+    opts.action?.onClick();
+    toastState.dismiss();
+  });
+  toastState.el.insertBefore(btn, toastState.closeBtn);
+  toastState.actionBtn = btn;
+}
+function scheduleDismiss(toastState, kind, opts) {
+  clearToastTimer(toastState);
+  const duration = resolveDuration(kind, opts);
+  if (duration <= 0) return;
+  toastState.timer = setTimeout(() => toastState.dismiss(), duration);
+}
+function updateToastVisuals(toastState, message, kind, opts) {
+  toastState.el.className = `toast toast--${kind}`;
+  toastState.el.classList.remove("toast--exit");
+  toastState.messageEl.textContent = message;
+  toastState.iconEl.textContent = TOAST_ICONS[kind];
+  toastState.el.dataset.kind = kind;
+  applyActionButton(toastState, opts);
+  scheduleDismiss(toastState, kind, opts);
+}
+function createToast(key, message, kind, opts) {
+  const root = document.createElement("div");
+  root.className = `toast toast--${kind}`;
+  root.dataset.kind = kind;
+  root.setAttribute("role", "alert");
+  const icon = document.createElement("span");
+  icon.className = "toast-icon";
+  icon.textContent = TOAST_ICONS[kind];
+  root.appendChild(icon);
+  const text = document.createElement("span");
+  text.className = "toast-text";
+  text.textContent = message;
+  root.appendChild(text);
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "toast-close";
+  closeBtn.textContent = "×";
+  closeBtn.setAttribute("aria-label", "Dismiss notification");
+  root.appendChild(closeBtn);
+  const toastState = {
+    key,
+    el: root,
+    messageEl: text,
+    iconEl: icon,
+    actionBtn: null,
+    closeBtn,
+    timer: null,
+    dismiss: () => {
+      clearToastTimer(toastState);
+      const active = activeToasts.get(key);
+      if (active === toastState) activeToasts.delete(key);
+      toastState.el.classList.remove("toast--visible");
+      toastState.el.classList.add("toast--exit");
+      toastState.el.addEventListener("transitionend", () => toastState.el.remove(), { once: true });
+      setTimeout(() => {
+        if (toastState.el.parentNode) toastState.el.remove();
+      }, 260);
+    },
+    refresh: (nextMessage, nextKind, nextOpts) => {
+      updateToastVisuals(toastState, nextMessage, nextKind, nextOpts);
+      requestAnimationFrame(() => toastState.el.classList.add("toast--visible"));
+    }
+  };
+  closeBtn.addEventListener("click", toastState.dismiss);
+  root.addEventListener("mouseenter", () => clearToastTimer(toastState));
+  root.addEventListener("mouseleave", () => scheduleDismiss(toastState, kind, opts));
+  updateToastVisuals(toastState, message, kind, opts);
+  return toastState;
+}
+function toast(message, kind = "info", durationOrOpts) {
+  const opts = normalizeOptions(durationOrOpts);
+  const key = opts.dedupeKey ?? `${kind}:${message}`;
+  const existing = activeToasts.get(key);
+  if (existing && existing.el.isConnected) {
+    existing.refresh(message, kind, opts);
+    return existing.dismiss;
+  }
+  const next = createToast(key, message, kind, opts);
+  activeToasts.set(key, next);
+  const host = ensureContainer();
+  host.prepend(next.el);
+  requestAnimationFrame(() => next.el.classList.add("toast--visible"));
+  return next.dismiss;
+}
+
+const toast$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  toast
+}, Symbol.toStringTag, { value: 'Module' }));
+
+let _requestOverlayRender = null;
+function setAnnotationOverlayCallback(cb) {
+  _requestOverlayRender = cb;
+}
+function refreshOverlay() {
+  _requestOverlayRender?.();
+}
+function openAnnotationsModal() {
+  const modal = document.getElementById("annotations-modal");
+  if (!modal) return;
+  renderAnnotationsList();
+  modal.hidden = false;
+}
+function closeAnnotationsModal() {
+  const modal = document.getElementById("annotations-modal");
+  if (modal) modal.hidden = true;
+}
+function renderAnnotationsList() {
+  const container = document.getElementById("annotations-list");
+  if (!container) return;
+  const anns = getAnnotations();
+  if (anns.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-muted, #888);padding:8px 0;">No annotations yet. Use "+ Note" or "+ Bookmark" to add.</p>';
+    return;
+  }
+  container.innerHTML = anns.map((ann) => {
+    const date = new Date(ann.createdAt).toLocaleString();
+    const timeInfo = ann.timeRange ? `<span style="font-size:11px;color:var(--text-muted,#888)">${new Date(ann.timeRange.start).toISOString().slice(0, 16).replace("T", " ")}${ann.timeRange.end !== ann.timeRange.start ? " – " + new Date(ann.timeRange.end).toISOString().slice(0, 16).replace("T", " ") : ""}</span>` : "";
+    return `
+            <div class="annotation-item" data-ann-id="${escapeAttr(ann.id)}" style="border-left:3px solid ${escapeAttr(ann.color)};padding:8px 12px;margin-bottom:8px;background:var(--surface2,#1e1e2e);border-radius:4px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                    <strong>${escapeHtml(ann.title)}</strong>
+                    <div style="display:flex;gap:6px;">
+                        <span style="font-size:11px;color:var(--text-muted,#888)">${ann.type} · ${ann.page}</span>
+                        <button class="btn btn-ghost btn-xs ann-delete-btn" data-ann-id="${escapeAttr(ann.id)}" type="button" title="Delete">✕</button>
+                    </div>
+                </div>
+                ${timeInfo}
+                ${ann.content ? `<p style="margin:4px 0 0;font-size:12px;color:var(--text-secondary,#ccc)">${escapeHtml(ann.content)}</p>` : ""}
+                <div style="font-size:11px;color:var(--text-muted,#888);margin-top:2px">${date}</div>
+            </div>
+        `;
+  }).join("");
+  container.querySelectorAll(".ann-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.annId;
+      if (id && confirm("Delete this annotation?")) {
+        deleteAnnotation(id);
+        renderAnnotationsList();
+        refreshOverlay();
+      }
+    });
+  });
+}
+function openAddNoteModal() {
+  const modal = document.getElementById("add-note-modal");
+  if (!modal) return;
+  document.getElementById("note-title-input").value = "";
+  document.getElementById("note-content-input").value = "";
+  document.getElementById("note-color-input").value = "#ffc041";
+  modal.hidden = false;
+  document.getElementById("note-title-input").focus();
+}
+function closeAddNoteModal() {
+  const modal = document.getElementById("add-note-modal");
+  if (modal) modal.hidden = true;
+}
+function saveNote() {
+  const title = document.getElementById("note-title-input").value.trim();
+  if (!title) {
+    toast("Please enter a title for the note.", "error");
+    return;
+  }
+  const content = document.getElementById("note-content-input").value.trim();
+  const color = document.getElementById("note-color-input").value;
+  const start = appStateComposite.currentStart ?? Date.now() - 36e5;
+  const end = appStateComposite.currentEnd ?? Date.now();
+  createTimeRangeNote(
+    title,
+    start,
+    end,
+    content || void 0,
+    void 0,
+    color,
+    appStateComposite.datasetRevision
+  );
+  toast(`Note "${title}" saved.`, "success");
+  closeAddNoteModal();
+  refreshOverlay();
+}
+function addBookmarkAtCurrentView() {
+  const time = appStateComposite.currentStart ?? Date.now();
+  const title = `Bookmark ${new Date(time).toLocaleTimeString()}`;
+  createBookmark(title, time, appStateComposite.datasetRevision);
+  toast(`Bookmark added at ${new Date(time).toLocaleString()}`, "success");
+  refreshOverlay();
+}
+function escapeHtml(str) {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function escapeAttr(str) {
+  return str.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function initAnnotationPanel() {
+  document.getElementById("open-notes-panel-btn")?.addEventListener("click", openAnnotationsModal);
+  document.getElementById("annotations-modal-close")?.addEventListener("click", closeAnnotationsModal);
+  document.getElementById("annotations-modal")?.addEventListener("click", (e) => {
+    if (e.target.id === "annotations-modal") closeAnnotationsModal();
+  });
+  document.getElementById("annotations-modal-add-note-btn")?.addEventListener("click", openAddNoteModal);
+  document.getElementById("annotations-modal-bookmark-btn")?.addEventListener("click", addBookmarkAtCurrentView);
+  document.getElementById("annotations-export-btn")?.addEventListener("click", () => {
+    const json = exportAnnotations();
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `edatime-annotations-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+  document.getElementById("annotations-clear-btn")?.addEventListener("click", () => {
+    if (confirm("Clear all annotations? This cannot be undone.")) {
+      clearAllAnnotations();
+      renderAnnotationsList();
+      refreshOverlay();
+      toast("All annotations cleared.", "success");
+    }
+  });
+  document.getElementById("add-note-modal-close")?.addEventListener("click", closeAddNoteModal);
+  document.getElementById("add-note-cancel-btn")?.addEventListener("click", closeAddNoteModal);
+  document.getElementById("add-note-save-btn")?.addEventListener("click", saveNote);
+  document.getElementById("add-note-modal")?.addEventListener("click", (e) => {
+    if (e.target.id === "add-note-modal") closeAddNoteModal();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey && e.shiftKey && e.key === "N") {
+      e.preventDefault();
+      openAddNoteModal();
+    }
+  });
+}
+
+const annotationPanel = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  initAnnotationPanel,
+  setAnnotationOverlayCallback
+}, Symbol.toStringTag, { value: 'Module' }));
 
 function buildAdaptiveFilterFromPoints(column, firstPoint, secondPoint) {
   if (!column || !firstPoint || !secondPoint) return null;
@@ -5260,6 +5233,216 @@ function initAdaptiveFilterGesture(deps) {
   };
 }
 
+const STORAGE_KEY = "edatime-session";
+function currentPage() {
+  return document.querySelector(".page[data-page-name]:not([hidden])")?.dataset?.pageName || "upload";
+}
+function readSelect(id) {
+  return getDropdownValue(id);
+}
+function captureSession() {
+  return {
+    version: 1,
+    timestamp: Date.now(),
+    page: currentPage(),
+    selectedCols: [...appStateComposite.selectedCols],
+    seriesColors: { ...appStateComposite.seriesColors },
+    columnRanges: { ...appStateComposite.columnRanges },
+    adaptiveLineFilters: appStateComposite.adaptiveLineFilters.map((f) => ({ ...f })),
+    currentStart: appStateComposite.currentStart,
+    currentEnd: appStateComposite.currentEnd,
+    selectedColorColumn: appStateComposite.selectedColorColumn,
+    chartText: { ...appStateComposite.chartText },
+    rollingEnabled: appStateComposite.rollingEnabled,
+    rollingWindow: appStateComposite.rollingWindow,
+    anomalyEnabled: appStateComposite.anomalyEnabled,
+    anomalyMethod: appStateComposite.anomalyMethod,
+    anomalyThreshold: appStateComposite.anomalyThreshold,
+    scatterX: readSelect("scatter-x-col"),
+    scatterY: readSelect("scatter-y-col"),
+    scatterColorColumn: readSelect("scatter-color-column"),
+    scatterRenderMode: readSelect("scatter-render-mode"),
+    // Theme is owned by AppSettings; we keep a snapshot of the resolved
+    // value for diagnostic / back-compat purposes only. It is no longer
+    // applied to the document by `applySession()`.
+    theme: document.documentElement.getAttribute("data-theme") || "dark",
+    datasetRevision: Number.isFinite(Number(appStateComposite.datasetRevision)) ? Number(appStateComposite.datasetRevision) : 0
+  };
+}
+function applySession(snap, options = {}) {
+  const result = {
+    revisionMismatch: false,
+    rangeAdjusted: false,
+    usedMetadataRange: false,
+    droppedFilterCount: 0,
+    navigatedToPage: false
+  };
+  if (!snap || snap.version !== 1) return result;
+  const announceAdjustments = options.announceAdjustments !== false;
+  const metadataTimeRange = options.metadataTimeRange || (appStateComposite.metadata?.time_range ?? null);
+  const currentRevision = Number(
+    options.currentDatasetRevision ?? appStateComposite.datasetRevision ?? appStateComposite.metadata?.revision ?? 0
+  );
+  const snapshotRevision = Number(snap.datasetRevision ?? 0);
+  const hasRevisions = Number.isFinite(currentRevision) && currentRevision > 0 && Number.isFinite(snapshotRevision) && snapshotRevision > 0;
+  const revisionMismatch = hasRevisions && currentRevision !== snapshotRevision;
+  result.revisionMismatch = revisionMismatch;
+  setSelectedCols(Array.isArray(snap.selectedCols) ? snap.selectedCols : []);
+  if (snap.seriesColors) setSeriesColors({ ...snap.seriesColors });
+  if (revisionMismatch) {
+    const staleRanges = Object.keys(snap.columnRanges || {}).length;
+    const staleLines = Array.isArray(snap.adaptiveLineFilters) ? snap.adaptiveLineFilters.length : 0;
+    result.droppedFilterCount = staleRanges + staleLines;
+    setColumnRanges({});
+    setAdaptiveLineFilters([]);
+  } else {
+    if (snap.columnRanges) setColumnRanges({ ...snap.columnRanges });
+    if (Array.isArray(snap.adaptiveLineFilters)) {
+      setAdaptiveLineFilters(snap.adaptiveLineFilters.map((f) => ({ ...f, id: f.id ?? `restored-${Date.now()}` })));
+    }
+  }
+  if (!revisionMismatch) {
+    const hasStart = Number.isFinite(snap.currentStart);
+    const hasEnd = Number.isFinite(snap.currentEnd);
+    if (hasStart && hasEnd) {
+      let nextStart = Number(snap.currentStart);
+      let nextEnd = Number(snap.currentEnd);
+      const minMs = Number(metadataTimeRange?.min);
+      const maxMs = Number(metadataTimeRange?.max);
+      const hasMetadataBounds = Number.isFinite(minMs) && Number.isFinite(maxMs) && minMs < maxMs;
+      if (hasMetadataBounds) {
+        const noOverlap = nextEnd <= minMs || nextStart >= maxMs;
+        if (noOverlap) {
+          nextStart = minMs;
+          nextEnd = maxMs;
+          result.rangeAdjusted = true;
+          result.usedMetadataRange = true;
+        } else {
+          const clampedStart = Math.max(nextStart, minMs);
+          const clampedEnd = Math.min(nextEnd, maxMs);
+          if (clampedStart !== nextStart || clampedEnd !== nextEnd) {
+            result.rangeAdjusted = true;
+          }
+          nextStart = clampedStart;
+          nextEnd = clampedEnd;
+          if (nextStart >= nextEnd) {
+            nextStart = minMs;
+            nextEnd = maxMs;
+            result.usedMetadataRange = true;
+          }
+        }
+      }
+      setViewport(nextStart, nextEnd);
+    }
+  }
+  if (snap.selectedColorColumn !== void 0) setSelectedColorColumn(snap.selectedColorColumn);
+  if (snap.chartText) setChartText({ ...snap.chartText });
+  if (snap.rollingEnabled !== void 0) setRollingEnabled(snap.rollingEnabled);
+  if (Number.isFinite(snap.rollingWindow)) setRollingWindow(snap.rollingWindow);
+  if (snap.anomalyEnabled !== void 0) setAnomalyEnabled(snap.anomalyEnabled);
+  if (snap.anomalyMethod) setAnomalyMethod(snap.anomalyMethod);
+  if (Number.isFinite(snap.anomalyThreshold)) setAnomalyThreshold(snap.anomalyThreshold);
+  const setSelect = (id, val) => {
+    if (val) setDropdownValue(id, val);
+  };
+  setSelect("scatter-x-col", snap.scatterX);
+  setSelect("scatter-y-col", snap.scatterY);
+  setSelect("scatter-color-column", snap.scatterColorColumn);
+  setSelect("scatter-render-mode", snap.scatterRenderMode);
+  if (revisionMismatch && announceAdjustments) {
+    toast("Session belongs to another dataset revision; stale filters were cleared.", "warning");
+  } else if (result.usedMetadataRange && announceAdjustments) {
+    toast("Saved chart range did not match this dataset and was reset to dataset bounds.", "warning");
+  } else if (result.rangeAdjusted && announceAdjustments) {
+    toast("Saved chart range was clamped to the current dataset time range.", "warning");
+  }
+  const hashPage = getHashPage();
+  const shouldPreferHash = !!options.preferHashPage && !!hashPage;
+  const shouldNavigate = options.navigate !== false && !shouldPreferHash;
+  if (shouldNavigate && snap.page) {
+    const btn = document.querySelector(`.sidebar .nav-item[data-page="${snap.page}"]`);
+    if (btn) {
+      btn.click();
+      result.navigatedToPage = true;
+    }
+  }
+  return result;
+}
+function autoSaveSession() {
+  try {
+    const snap = captureSession();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+  } catch {
+  }
+}
+function autoRestoreSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const snap = JSON.parse(raw);
+    if (snap?.version !== 1) return null;
+    return snap;
+  } catch {
+    return null;
+  }
+}
+function exportSessionToFile() {
+  const snap = captureSession();
+  const blob = new Blob([JSON.stringify(snap, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `edatime-session-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace(/:/g, "-")}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast("Session exported", "success");
+}
+function importSessionFromFile() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json,application/json";
+  input.addEventListener("change", () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const snap = JSON.parse(reader.result);
+        if (snap?.version !== 1) throw new Error("Invalid session file");
+        applySession(snap);
+        toast("Session restored from file", "success");
+        window.dispatchEvent(new CustomEvent("edatime:session-restored"));
+      } catch (e) {
+        toast(`Failed to import session: ${e.message}`, "error");
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+let _autoSaveTimer = null;
+function initAutoSave() {
+  const debouncedSave = () => {
+    if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = setTimeout(autoSaveSession, 2e3);
+  };
+  window.addEventListener("edatime:page-change", debouncedSave);
+  window.addEventListener("edatime:column-filters-change", debouncedSave);
+  window.addEventListener("edatime:adaptive-filters-change", debouncedSave);
+  window.addEventListener("beforeunload", autoSaveSession);
+}
+
+const session = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  applySession,
+  autoRestoreSession,
+  autoSaveSession,
+  captureSession,
+  exportSessionToFile,
+  importSessionFromFile,
+  initAutoSave
+}, Symbol.toStringTag, { value: 'Module' }));
+
 async function restoreSessionAfterChartReady(deps) {
   const savedSession = autoRestoreSession();
   if (!savedSession) return;
@@ -5298,7 +5481,7 @@ function createTimeseriesBootstrap(deps) {
           const lineType = getChartType("line");
           if (lineType) {
             setChartInstance(lineType.create("main-chart", {
-              onZoom: (start, end, sourceKind) => deps.onZoom(start, end, sourceKind),
+              onZoom: (start, end, sourceKind) => deps.onZoom({ xMin: start, xMax: end, yMin: null, yMax: null }, sourceKind),
               onYRange: deps.onYRange,
               onZoomOut: deps.onZoomOut
             }));
@@ -5372,6 +5555,23 @@ function createTimeseriesBootstrap(deps) {
 function createTimeseriesModule(deps) {
   let datasetUiReady = false;
   let feature;
+  let datasetUiModulesPromise = null;
+  function ensureDatasetUiModules() {
+    if (!datasetUiModulesPromise) {
+      datasetUiModulesPromise = Promise.all([
+        __vitePreload(() => import('./assets/profile-DCQ6F-wu.js'),true              ?__vite__mapDeps([0,1]):void 0),
+        __vitePreload(() => import('./assets/preview-DVb4QK3F.js'),true              ?__vite__mapDeps([3,4,5,6,1]):void 0),
+        __vitePreload(() => import('./assets/partialLoadControls-B0pCom6w.js'),true              ?__vite__mapDeps([6,1]):void 0)
+      ]).then(([profileModule, previewModule, partialLoadModule]) => ({
+        hydrateColumnProfiles: profileModule.hydrateColumnProfiles,
+        renderColumnProfilesGrid: profileModule.renderColumnProfilesGrid,
+        applyPartialTimeRangeFromMetadata: partialLoadModule.applyPartialTimeRangeFromMetadata,
+        setProfileMode: previewModule.setProfileMode,
+        setUploadPreviewStatus: previewModule.setUploadPreviewStatus
+      }));
+    }
+    return datasetUiModulesPromise;
+  }
   const pageController = createTimeseriesPageController({
     fetchData: deps.fetchData,
     buildRangeControls: () => feature.buildRangeControls(),
@@ -5395,17 +5595,18 @@ function createTimeseriesModule(deps) {
     const revision = metadata?.revision;
     setDatasetRevision(typeof revision === "number" ? revision : 0);
   };
-  const initializeDatasetUi = (metadata) => {
+  const initializeDatasetUi = async (metadata) => {
+    const datasetUi = await ensureDatasetUiModules();
     if (!datasetUiReady) {
       feature.init();
       deps.ensureSessionPersistenceStarted();
       datasetUiReady = true;
     }
-    hydrateColumnProfiles(metadata);
-    renderColumnProfilesGrid(true);
-    applyPartialTimeRangeFromMetadata(metadata, false);
-    setUploadPreviewStatus("Showing current dataset profile. Drop/select a file to preview before loading.");
-    setProfileMode("dataset");
+    datasetUi.hydrateColumnProfiles(metadata);
+    datasetUi.renderColumnProfilesGrid(true);
+    datasetUi.applyPartialTimeRangeFromMetadata(metadata, false);
+    datasetUi.setUploadPreviewStatus("Showing current dataset profile. Drop/select a file to preview before loading.");
+    datasetUi.setProfileMode("dataset");
     feature.rebuildColumns();
     feature.buildRangeControls();
     window.dispatchEvent(new CustomEvent("edatime:workflow-refresh"));
@@ -5546,32 +5747,28 @@ async function init() {
     ensurePageModuleLoaded,
     showPage,
     fetchAndRender: () => timeseriesModule.fetchAndRender(),
-    renderCurrentData: () => timeseriesModule.renderCurrentData(),
     updateAnalysisYRange,
     buildTimeseriesColumns: () => timeseriesModule.buildColumnToggles(),
     buildTimeseriesRanges: () => timeseriesModule.buildRangeControls(),
     zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
     resetZoom: () => resetZoom(() => timeseriesModule.fetchAndRender()),
-    initAnalyticsListeners: () => initAnalyticsListeners(fetchAndRenderAnalytics),
     refreshDatasetAfterMutation: (opts) => timeseriesModule.refreshAfterMutation(opts),
-    hydrateColumnProfiles,
-    renderColumnProfilesGrid,
     registerCleanup: runtime.registerCleanup
   });
-  await loadEntrypoints({
+  await loadPageDescriptors({
     getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
     showPage,
-    initScatterPage,
     getMetadata: () => appStateComposite.metadata ?? null,
     chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
     numericColumns: () => getNumericColumns(appStateComposite.metadata),
     setLoading: setComputeLoading,
     initDriftPage: (metadata) => {
-      void __vitePreload(() => import('./assets/drift-DvO4Mo51.js').then(n => n.d),true              ?__vite__mapDeps([8,0,1,2,4]):void 0).then((m) => m.initDriftPage(metadata));
+      void __vitePreload(() => import('./assets/driftPage-BXbtIdR5.js'),true              ?__vite__mapDeps([27,4,5,28,29,1]):void 0).then((m) => m.initDriftPage(metadata));
     }
   });
   window.__edatime = window.__edatime || {};
   window.__edatime.ensureDatasetReady = () => timeseriesModule.ensureDatasetReady();
+  window.__edatime.runAnalytics = () => fetchAndRenderAnalytics();
   initGlobalShortcuts({
     showPage,
     zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
@@ -5602,4 +5799,6 @@ async function init() {
   }
 }
 init();
+
+export { upgradeSelects as $, formatProfileValue as A, toFiniteNumberOrNull as B, setProfileGridSort as C, DEBUG as D, setProfileGridHeaderBound as E, setPreviewSelectedColumns as F, setMetadata as G, setDatasetRevision as H, setPreviewTimeColumn as I, formatToDatetimeLocal as J, setSpectralFilterPreview as K, renderSeriesChipList as L, getNumericColumns as M, getAnalyticsChipColor as N, createPageRuntime as O, dedupeInflight as P, getEl as Q, isTemporalDtype as R, SERIES_COLORS as S, buildAdaptiveLineFiltersForQuery as T, scatterState as U, isRangeOutsideDataset as V, createEmptyStateController as W, requestGpuAdapter as X, getDropdownOptions as Y, getDropdownValueFromElement as Z, __vitePreload as _, setDropdownOptions as a, setDropdownDisabledForElement as a0, toast$1 as a1, setDropdownDisabled as b, createRequestTask as c, appStateComposite as d, formatAnalysisNumber as e, formatAnalysisTime as f, getDropdownValue as g, dbg as h, assertDatasetRequestScopeActive as i, captureDatasetRequestScope as j, exportParquet as k, exportScatterParquet as l, getSeriesColor$1 as m, buildAdaptiveLineY as n, formatTwoDecimals as o, downloadUrl as p, downloadBlob as q, formatTimestamp as r, setDropdownValue as s, toast as t, formatTimeTooltip as u, escapeHtml$1 as v, setColumnProfiles as w, setProfileGridBound as x, normalizeDtypeLabel as y, formatCount as z };
 //# sourceMappingURL=app.js.map

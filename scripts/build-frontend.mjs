@@ -178,5 +178,16 @@ if (isWatch) {
     }
   }
 
+  if (isProd) {
+    const budgetCheck = spawnSync('node', ['scripts/check-frontend-budgets.mjs'], {
+      stdio: 'inherit',
+      shell: true,
+      cwd: ROOT,
+    });
+    if (budgetCheck.status !== 0) {
+      process.exit(budgetCheck.status ?? 1);
+    }
+  }
+
   process.exit(result.status ?? 0);
 }

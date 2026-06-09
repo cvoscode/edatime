@@ -1,45 +1,20 @@
 import { DEBUG, dbg } from '../../debug.js';
 import type { DatasetMetadata, ScatterPointsResponse, ScatterCorrelationsResponse } from '../../types.js';
+import {
+    assertDatasetRequestScopeActive,
+    captureDatasetRequestScope,
+    dedupeInflight as dedupe,
+} from './datasetRequestScope.js';
 
-// ── Inflight request deduplication ─────────────────────────────────────────
-
-const inflight = new Map<string, Promise<unknown>>();
-let datasetRequestScope = 0;
-
-function createStaleDatasetError(): Error {
-    const error = new Error('Stale response ignored after dataset change');
-    error.name = 'AbortError';
-    return error;
-}
-
-function dedupe<T>(key: string, factory: () => Promise<T>): Promise<T> {
-    const existing = inflight.get(key);
-    if (existing !== undefined) return existing as Promise<T>;
-    const promise = factory().finally(() => inflight.delete(key));
-    inflight.set(key, promise);
-    return promise;
-}
-
-export function captureDatasetRequestScope(): number {
-    return datasetRequestScope;
-}
-
-export function assertDatasetRequestScopeActive(scope: number): void {
-    if (scope !== datasetRequestScope) {
-        throw createStaleDatasetError();
-    }
-}
-
-export function invalidateDatasetRequestScope(): number {
-    datasetRequestScope += 1;
-    inflight.clear();
-    return datasetRequestScope;
-}
-
-export function __resetApiRequestStateForTests(): void {
-    inflight.clear();
-    datasetRequestScope = 0;
-}
+// Re-export the dataset request-scope surface so existing imports from
+// `./http.js` keep working. New consumers should import directly from
+// `./datasetRequestScope.js`.
+export {
+    captureDatasetRequestScope,
+    assertDatasetRequestScopeActive,
+    invalidateDatasetRequestScope,
+    __resetDatasetRequestScopeForTests as __resetApiRequestStateForTests,
+} from './datasetRequestScope.js';
 
 // ── Arrow helpers (shared between timeseries and scatter) ──────────────────
 

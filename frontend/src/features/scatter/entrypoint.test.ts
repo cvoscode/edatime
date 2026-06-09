@@ -1,34 +1,53 @@
-import { describe, expect, it, vi } from 'vitest';
-import { createScatterEntrypoint } from './entrypoint.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { initScatterPageMock, scatterPageImported } = vi.hoisted(() => ({
+    initScatterPageMock: vi.fn(),
+    scatterPageImported: { value: false },
+}));
+vi.mock('../../scatter/scatterPage.js', () => ({
+    ...(() => {
+        scatterPageImported.value = true;
+        return {};
+    })(),
+    initScatterPage: initScatterPageMock,
+}));
 
 describe('createScatterEntrypoint', () => {
-    it('returns an explicit init surface', () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+        scatterPageImported.value = false;
+    });
+
+    it('returns an explicit init surface', async () => {
+        const { createScatterEntrypoint } = await import('./entrypoint.js');
         const deps = {
-            initScatterPage: vi.fn().mockResolvedValue(undefined),
             getMetadata: vi.fn().mockReturnValue({} as any),
         };
         const entrypoint = createScatterEntrypoint(deps);
         expect(entrypoint.init).toBeTypeOf('function');
+        expect(scatterPageImported.value).toBe(false);
     });
 
-    it('does not call initScatterPage before init', () => {
+    it('does not import scatterPage before init', async () => {
+        const { createScatterEntrypoint } = await import('./entrypoint.js');
         const deps = {
-            initScatterPage: vi.fn().mockResolvedValue(undefined),
             getMetadata: vi.fn().mockReturnValue({} as any),
         };
         createScatterEntrypoint(deps);
-        expect(deps.initScatterPage).not.toHaveBeenCalled();
+        expect(scatterPageImported.value).toBe(false);
     });
 
-    it('init calls initScatterPage with metadata from getMetadata', async () => {
+    it('init reads metadata from getMetadata and forwards it to scatterPage', async () => {
+        const { createScatterEntrypoint } = await import('./entrypoint.js');
         const metadata = { columns: [], timeRange: [0, 100] } as any;
         const deps = {
-            initScatterPage: vi.fn().mockResolvedValue(undefined),
             getMetadata: vi.fn().mockReturnValue(metadata),
         };
         const entrypoint = createScatterEntrypoint(deps);
         await entrypoint.init();
+        expect(scatterPageImported.value).toBe(true);
         expect(deps.getMetadata).toHaveBeenCalled();
-        expect(deps.initScatterPage).toHaveBeenCalledWith(metadata);
+        expect(initScatterPageMock).toHaveBeenCalledWith(metadata);
     });
 });

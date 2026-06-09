@@ -1,14 +1,14 @@
 # ai/frontend/src/utils/pageStyles.md
 
-> Dynamic CSS module loader for per-page stylesheets (drift, home).
-
-## Constants
-- `STYLE_MODULES: Record<StyleModuleName, string>` — maps page names to stylesheet URLs.
+> Dynamic CSS module loader for per-page stylesheets (drift, home, scatter). Used by the page descriptor registry to preload page-owned stylesheets before page init.
 
 ## Types
 ```typescript
-type StyleModuleName = 'drift' | 'home';
+type StyleModuleName = 'drift' | 'home' | 'scatter';
 ```
+
+## Constants
+- `STYLE_MODULES: Record<StyleModuleName, string>` — maps page names to stylesheet URLs.
 
 ## Functions
 - `pageStyleModulesFor(pageName: string): StyleModuleName[]`

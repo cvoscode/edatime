@@ -1,29 +1,30 @@
-import { initThemeToggle } from './shell/themeToggle.js';
-import { normalizeFormControlAccessibility } from './shell/a11yNormalization.js';
-import { wireHomeNavigationCards } from './shell/homeNavigation.js';
-import { wireSampleDatasetCards } from './shell/sampleDatasets.js';
+/**
+ * Application shell orchestrator.
+ *
+ * The shell is split into two layers:
+ *   - `shell/core.ts` — always-on setup: theme, settings, a11y, hash routing,
+ *     navigation cards, keyboard help button. Cheap, no chart / arrow / scatter
+ *     dependencies.
+ *   - `shell/deferredSubsystems.ts` — heavier UI subsystems loaded lazily the
+ *     first time they are needed (upload panel, analytics, annotations,
+ *     guided workflow, transform / outlier modals, provenance, command
+ *     palette, keyboard shortcuts, sample dataset cards, etc.).
+ *
+ * `initAppShell` only wires the always-on layer plus a `window.__edatime`
+ * bridge. All deferred subsystems are pulled in via the small `ensure*`
+ * helpers from `deferredSubsystems.ts`. The shell never imports the
+ * underlying heavy modules directly; it only knows their contracts.
+ */
 
-import { initUploadPanel } from '../ui/upload.js';
-import { initColumnProfilesGrid } from '../ui/profile.js';
+import { initShellCore } from './shell/core.js';
 import {
-    initAnalysisControls,
-    initChartPageFilterGesture,
-    initPages,
-} from '../ui/toolbar.js';
-import { initHashRouting } from '../utils/router.js';
-import { initCommandPalette } from '../utils/palette.js';
-import { initProvenance } from '../utils/provenance.js';
-import { initSettings, getSetting } from '../utils/settings.js';
-import { initAccessibilityShortcuts, showKeyboardShortcutsHelp } from '../utils/a11y.js';
-import { initSettingsPanel } from '../ui/settingsPanel.js';
-import { initAnalyticsDrawer } from '../ui/analyticsDrawer.js';
-import { initAnnotations } from '../chart/annotations.js';
-import { initAnnotationPanel } from '../ui/annotationPanel.js';
-import { initGuidedWorkflow } from '../ui/guidedWorkflow.js';
-import { initOutlierModal, initTransformModal } from '../ui/dataMutationModals.js';
-
-import { APP_COMMAND_DEFINITIONS, registerAppCommands } from '../bootstrap/commands.js';
-import { initKeyboardShortcuts } from '../bootstrap/shortcuts.js';
+    ensureHomeSubsystems,
+    ensureUploadSubsystems,
+    ensureTimeseriesShell,
+    ensureSettingsPanel,
+    ensureCommands,
+    type DeferredShellDeps,
+} from './shell/deferredSubsystems.js';
 
 interface RefreshDatasetOptions {
     selectedColumn?: string;
@@ -39,50 +40,53 @@ export interface AppShellDeps {
     buildTimeseriesRanges: () => void;
     zoomOut: () => void;
     resetZoom: () => void;
-    initAnalyticsListeners: () => void;
     refreshDatasetAfterMutation: (options?: RefreshDatasetOptions) => Promise<void>;
-    hydrateColumnProfiles: (...args: any[]) => void;
-    renderColumnProfilesGrid: (...args: any[]) => void;
     registerCleanup: (cleanup: () => void) => void;
 }
 
 export function initAppShell(deps: AppShellDeps): void {
-    (window as any).__edatime = (window as any).__edatime || {};
-    (window as any).__edatime.ensurePageModuleLoaded = deps.ensurePageModuleLoaded;
-    normalizeFormControlAccessibility();
+    // Always-on bridge. Keep this cheap — see `shell/core.ts` for details.
+    initShellCore({ showPage: deps.showPage });
 
-    initPages();
-    initHashRouting();
-    initSettings();
-    initAnnotations();
-    initAnnotationPanel();
-    initGuidedWorkflow();
-    initAnalyticsDrawer();
-    initThemeToggle();
-    initSettingsPanel();
-    initAccessibilityShortcuts();
+    // Lightweight global bridge used by command palette, tests, and
+    // utility hooks. We intentionally do not import the heavy
+    // subsystems here; they remain behind deferred loaders.
+    (window as unknown as { __edatime: Record<string, unknown> }).__edatime = (window as unknown as { __edatime: Record<string, unknown> }).__edatime || {};
+    (window as unknown as { __edatime: { ensurePageModuleLoaded?: typeof deps.ensurePageModuleLoaded } }).__edatime.ensurePageModuleLoaded = deps.ensurePageModuleLoaded;
 
-    document.getElementById('keyboard-help-btn')?.addEventListener('click', showKeyboardShortcutsHelp);
+    // Build the deferred-shell contract once and let callers request
+    // subsystems on demand. The shell does not eagerly load any of
+    // them at startup; pages and user actions trigger the loads.
+    const deferred: DeferredShellDeps = {
+        showPage: deps.showPage,
+        ensurePageModuleLoaded: deps.ensurePageModuleLoaded,
+        fetchAndRender: deps.fetchAndRender,
+        refreshDatasetAfterMutation: deps.refreshDatasetAfterMutation,
+        buildTimeseriesColumns: deps.buildTimeseriesColumns,
+        buildTimeseriesRanges: deps.buildTimeseriesRanges,
+        zoomOut: deps.zoomOut,
+        resetZoom: deps.resetZoom,
+        updateAnalysisYRange: deps.updateAnalysisYRange,
+        registerCleanup: deps.registerCleanup,
+    };
 
-    const layout = document.querySelector('.app-layout') as HTMLElement | null;
-    if (layout && getSetting('sidebarCollapsed')) {
-        layout.classList.add('sidebar-collapsed');
-    }
-    wireHomeNavigationCards(deps.showPage);
-    wireSampleDatasetCards(deps.showPage, () => deps.refreshDatasetAfterMutation());
-    initUploadPanel(deps.hydrateColumnProfiles, deps.renderColumnProfilesGrid, {
-        buildColumnToggles: deps.buildTimeseriesColumns,
-        buildRangeControls: deps.buildTimeseriesRanges,
-        refreshDatasetAfterMutation: () => deps.refreshDatasetAfterMutation(),
-    });
-    initColumnProfilesGrid();
-    initAnalysisControls(deps.fetchAndRender);
-    initChartPageFilterGesture();
-    initKeyboardShortcuts(deps, APP_COMMAND_DEFINITIONS);
-    initCommandPalette();
-    initProvenance();
-    registerAppCommands(deps);
-    initTransformModal({ refreshDataset: deps.refreshDatasetAfterMutation });
-    initOutlierModal({ refreshDataset: deps.refreshDatasetAfterMutation });
-    deps.initAnalyticsListeners();
+    // Expose the deferred loaders on the global so pages and other
+    // entrypoints can opt-in to specific subsystems without importing
+    // the shell directly.
+    (window as unknown as { __edatime: { ensureSubsystem?: (name: string) => Promise<void> } }).__edatime.ensureSubsystem = async (name: string) => {
+        switch (name) {
+            case 'upload':
+                return ensureUploadSubsystems(deferred);
+            case 'home':
+                return ensureHomeSubsystems(deferred);
+            case 'timeseries-shell':
+                return ensureTimeseriesShell(deferred);
+            case 'settings':
+                return ensureSettingsPanel(deferred);
+            case 'commands':
+                return ensureCommands(deferred);
+            default:
+                throw new Error(`Unknown deferred subsystem: ${name}`);
+        }
+    };
 }

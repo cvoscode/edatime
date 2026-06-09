@@ -7,7 +7,7 @@ const fetchScatterCorrelationsMock = vi.fn();
 const fetchScatterPointsMock = vi.fn();
 const renderScatterMatrixViewMock = vi.fn();
 const emptyStateUpdateMock = vi.fn();
-const requestGpuAdapterMock = vi.hoisted(() => vi.fn(async () => ({ name: 'mock-adapter' })));
+const requestGpuAdapterMock = vi.hoisted(() => vi.fn(async (..._args: unknown[]): Promise<{ name: string } | null> => ({ name: 'mock-adapter' })));
 
 const freshScatterState = vi.hoisted(() => ({
     chart: null,

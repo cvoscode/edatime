@@ -1,5 +1,5 @@
 # ai/frontend/src/services/api/http.md
-> Core HTTP fetch helpers with in-flight request deduplication, Arrow IPC parsing utilities, timestamp resolution, and response-shape assertion helpers.
+> Core HTTP fetch helpers with request-dedupe, Arrow IPC parsing utilities, timestamp resolution, and response-shape assertion helpers. Dataset request-scope state and `dedupeInflight` are owned by `datasetRequestScope.ts` and re-exported here for the public contract.
 
 ## Types
 - `ArrowTable { schema?: { fields?: Array<{ name?: string; type?: unknown }> }; numRows: number; getChild(name: string): ArrowColumn | null }`
@@ -7,7 +7,7 @@
 
 ## Functions
 - `dedupe<T>(key: string, factory: () => Promise<T>): Promise<T>`
-  - Deduplicates in-flight requests by URL+body key; ensures only one outstanding request per key.
+  - Deduplicates in-flight requests by URL+body key; ensures only one outstanding request per key. Delegates to `dedupeInflight` from [datasetRequestScope][2].
 - `ensureArrowParser(): Promise<TableFromIPCFn>`
   - Lazily loads and caches the Apache Arrow `tableFromIPC` parser.
 - `resolveTimestampColumnName(table: ArrowTable, requestedCols: string[], colorColumn: string | null, headerName: string | null): string | null`
@@ -28,8 +28,15 @@
   - Performs a POST request with JSON serialization and deduplication; throws on non-OK status.
 - `getJsonForApi`, `postJsonForApi`
   - Aliases of `getJson` / `postJson` for backward-compatible facade file imports.
+- `captureDatasetRequestScope(): number`
+  - Re-exported from [datasetRequestScope][2]. Returns the current scope value.
+- `assertDatasetRequestScopeActive(scope: number): void`
+  - Re-exported from [datasetRequestScope][2]. Throws if the scope is no longer current.
+- `invalidateDatasetRequestScope(): number`
+  - Re-exported from [datasetRequestScope][2]. Increments scope and clears in-flight dedupe.
 - `dbg`, `DEBUG`
   - Debug logging utilities re-exported for route-family modules. [deps: [debug][1]]
 
 ---
 [1]: ../../../debug.md
+[2]: ./datasetRequestScope.md

@@ -106,7 +106,7 @@ vi.mock('../app/pageRegistry.js', () => ({
 }));
 
 vi.mock('../app/pageModules.js', () => ({
-    loadEntrypoints: vi.fn().mockResolvedValue(undefined),
+    loadPageDescriptors: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../app/bootstrap/chartBootstrap.js', () => ({

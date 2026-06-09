@@ -1,27 +1,13 @@
-# bootstrap/appShell.md
+# bootstrap/appShell.test.md
 
-> Bootstrap module that registers global keyboard shortcuts, command palette entries, and session import/export handlers for the app shell.
+> Tests for the legacy appShell bootstrap. The current shell has been split into `app/shell/core` (eager) and `app/shell/deferredSubsystems` (lazy), so the tests focus on `registerAppCommands` and the subsystems registry.
 
-## Functions
+## Test Suite: appShell bootstrap
 
-- `registerAppCommands(deps: AppCommandDeps): void`
-  - Registers command palette entries for navigation (heatmap, scatter, upload, settings), chart controls (zoom-out, reset-zoom), export (CSV filtered data), and session save/load.
-- `initKeyboardShortcuts(deps: AppCommandDeps, definitions: CommandDefinition[]): void`
-  - Attaches keyboard event listeners for each command definition; handles global shortcuts and per-page shortcuts.
+### it registers app commands
+- `registerAppCommands(deps: CommandDeps): Promise<void>`
+  - Verifies that `registerAppCommands` dynamically imports the palette module and calls `registerCommands(buildPaletteCommands(deps))`.
 
-## AppCommandDeps Interface
-
-- `showPage(pageName: string): void`
-- `zoomOut(): void`
-- `resetZoom(): void`
-
-## CommandDefinition Structure
-
-- `id: string` — unique command identifier
-- `keys?: string[]` — keyboard accelerator(s)
-- `action: () => void` — command handler
-
----
-[1]: ../app/shell.md
-[2]: ../ui/palette.md
-[3]: ../utils/session.md
+### it triggers deferred subsystem loaders
+- `ensureSubsystem('commands' | 'settings' | 'timeseries-shell' | ...)`
+  - Verifies that the `app-commands` subsystem wires `registerAppCommands` to the `registerCommands` palette API.

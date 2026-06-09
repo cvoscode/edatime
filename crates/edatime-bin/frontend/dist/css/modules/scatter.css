@@ -48,7 +48,7 @@
 /* When the chart reserves the 64px top strip for the x-marginal, shift the
    right panel (which hosts the y-marginal + colorbar) down by the same amount
    so the y-marginal canvas aligns vertically with the chart's plot region. */
-#scatter-chart.with-x-marginal ~ #scatter-right-panel {
+#scatter-chart.with-x-marginal~#scatter-right-panel {
   top: 64px;
 }
 
@@ -195,8 +195,7 @@
   white-space: nowrap;
 }
 
-.scatter-stats-bar #scatter-pearson {
-}
+.scatter-stats-bar #scatter-pearson {}
 
 .scatter-filter-badge {
   font-size: 0.625rem;

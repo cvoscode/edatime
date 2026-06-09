@@ -1,5 +1,5 @@
 # frontend/src/app/pageRegistry.ts
-> Centralized page registration and lazy-loading with metadata readiness gating. Pages declaring `requiresMetadata: true` block their init until metadata is marked ready.
+> Centralized page registration and lazy-loading with metadata readiness gating. Pages declaring `requiresMetadata: true` block their init until metadata is marked ready. Page-init failures are logged and re-thrown so the next navigation can retry.
 
 ## Module-Level State
 
@@ -19,7 +19,7 @@ const metadataPromise: Promise<void>
 
 ### ensurePageModuleLoaded
 - `ensurePageModuleLoaded(name: string): Promise<void>`
-  - Loads and initializes a page module once. Idempotent (checks `loaded` set first).
+  - Loads and initializes a page module once. Idempotent (checks `loaded` set first). On `page.init()` rejection, logs `[EdaTime] Failed to initialize page "${name}":` and rethrows so callers can show a friendly error; the page is NOT marked as loaded so the next navigation retries.
 
 ### markMetadataReady
 - `markMetadataReady(): void`
@@ -35,12 +35,4 @@ const metadataPromise: Promise<void>
 
 ### createPageRegistry
 - `createPageRegistry(): { register, ensurePageModuleLoaded, markMetadataReady, isMetadataReady, clearLoadedPageModules }`
-  - Factory for isolated registry instances used in tests.
-
-### clearLoadedPageModules
-- `clearLoadedPageModules(): void`
-  - Clears the loaded set to allow re-initialization on revisit.
-
-### createPageRegistry
-- `createPageRegistry(): { register, ensurePageModuleLoaded, markMetadataReady, isMetadataReady, clearLoadedPageModules }`
-  - Factory for isolated registry instances used in tests.
+  - Factory for isolated registry instances used in tests. The instance-scoped `ensurePageModuleLoaded` mirrors the module-level one: it logs page-init failures and rethrows.

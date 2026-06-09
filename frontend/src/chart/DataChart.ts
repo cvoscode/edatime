@@ -48,9 +48,9 @@ import {
     analyzeColorValues, baseSeriesName,
     buildColorizedSeries, categoryColorFor, colorForScaleValue,
 } from './colorScale.js';
-import { getSetting } from '../utils/settings.js';
+import { CHART_PALETTES, getSetting } from '../utils/settings.js';
 import type { ColorScaleName } from '../utils/settings.js';
-import { getChartPalette, getPaletteColor, onThemeChange, type ResolvedTheme } from '../utils/theme.js';
+import { getChartPalette, getPaletteColor, getResolvedTheme, onThemeChange, type ResolvedTheme } from '../utils/theme.js';
 import {
     niceLinearTicks, niceTimeTicks, formatTimeTick, formatTimeTooltip,
 } from './ticks.js';
@@ -103,6 +103,8 @@ export class DataChart {
     _drawWidth = 2;
     _drawingRafId: number | null = null;
     _overlays: ChartOverlays | null = null;
+    _lastChartOptions: ChartGPUOptions | null = null;
+    _lastAppliedTheme: ResolvedTheme | null = null;
     _themeUnsub: (() => void) | null = null;
 
     constructor(
@@ -189,6 +191,8 @@ export class DataChart {
         this._lastSeriesList = null;
         this._lastXDomainMin = null;
         this._lastXDomainMax = null;
+        this._lastChartOptions = null;
+        this._lastAppliedTheme = null;
 
         this._themeUnsub?.();
         this._themeUnsub = null;
@@ -246,9 +250,11 @@ export class DataChart {
         if (!container) throw new Error(`Chart container not found: ${this.containerId}`);
         container.replaceChildren();
         this._container = container;
-        const chartOptions: Record<string, unknown> = {
+        const chartOptions: ChartGPUOptions & Record<string, unknown> = {
             animation: false,
             grid: CHART_GRID,
+            theme: this._buildChartGpuTheme(),
+            palette: this._getChartColorPalette(),
             xAxis: { type: 'time' },
             yAxis: { type: 'value' },
             legend: { show: true, position: 'right' },
@@ -256,6 +262,8 @@ export class DataChart {
         };
         const powerPreference = defaultGpuPowerPreference();
         if (powerPreference) chartOptions.powerPreference = powerPreference;
+        this._lastChartOptions = chartOptions as ChartGPUOptions;
+        this._lastAppliedTheme = getResolvedTheme();
         try {
             this.chartInstance = await createChart(container, chartOptions as unknown as ChartGPUOptions);
         } catch (e) {
@@ -276,9 +284,24 @@ export class DataChart {
         requestAnimationFrame(() => this.resize());
     }
 
-    private _onThemeChanged(_theme: ResolvedTheme): void {
-        // Re-render the drawing overlay so annotations/pending markers
-        // reflect the active palette. CSS handles the rest of the page.
+    private _onThemeChanged(theme: ResolvedTheme): void {
+        if (this.chartInstance && this._lastChartOptions && theme !== this._lastAppliedTheme) {
+            const nextOption = {
+                ...this._lastChartOptions,
+                theme: this._buildChartGpuTheme(),
+                palette: this._getChartColorPalette(),
+            };
+            this._lastChartOptions = nextOption as ChartGPUOptions;
+            this._lastAppliedTheme = theme;
+            try {
+                this.chartInstance.setOption(nextOption as ChartGPUOptions);
+            } catch (e) {
+                console.error('[edatime:chart] theme setOption failed', e);
+            }
+        } else {
+            this._lastAppliedTheme = theme;
+        }
+
         this._renderDrawings();
         this._syncTextOverlays();
     }
@@ -518,6 +541,8 @@ export class DataChart {
             const nextOption = {
                 animation: false,
                 grid: CHART_GRID,
+                theme: this._buildChartGpuTheme(),
+                palette: this._getChartColorPalette(),
                 xAxis: {
                     type: 'time' as const,
                     min: Number.isFinite(xDomainMin) ? xDomainMin : undefined,
@@ -534,6 +559,8 @@ export class DataChart {
                 annotations: seriesAnnotations,
             };
             try {
+                this._lastChartOptions = nextOption as ChartGPUOptions;
+                this._lastAppliedTheme = getResolvedTheme();
                 this.chartInstance.setOption(nextOption as unknown as ChartGPUOptions);
                 this.chartInstance.setZoomRange(0, 100, 'api');
             } catch (e) {
@@ -613,6 +640,26 @@ export class DataChart {
 
     private _buildYAxisOption() {
         return { type: 'value', tickFormatter: (value: number) => formatTwoDecimals(value) };
+    }
+
+    private _getChartColorPalette(): string[] {
+        const paletteName = String(getSetting('defaultPalette') ?? 'default');
+        const colors = CHART_PALETTES[paletteName] ?? CHART_PALETTES.default;
+        return Array.isArray(colors) ? [...colors] : [...CHART_PALETTES.default];
+    }
+
+    private _buildChartGpuTheme() {
+        const palette = getChartPalette();
+        return {
+            backgroundColor: palette.background,
+            textColor: palette.text,
+            axisLineColor: palette.borderHi,
+            axisTickColor: palette.textDim,
+            gridLineColor: palette.border,
+            colorPalette: this._getChartColorPalette(),
+            fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+            fontSize: 12,
+        };
     }
 
     private _getVisibilityByBaseNameFromChart(): Map<string, boolean> {
@@ -1068,7 +1115,7 @@ export class DataChart {
             grid: CHART_GRID,
             getXRange: () => ({ min: this._xMin ?? 0, max: this._xMax ?? 0 }),
             getYRange: () => this.getYRange?.() ?? { min: 0, max: 0 },
-            onZoom: (view) => this.onZoomCallback?.(view, 'user'),
+            onZoom: (view: ViewSnapshot) => this.onZoomCallback?.(view, 'user'),
             shouldIgnore: (e) => this._drawMode !== 'none' || e.ctrlKey,
             onDblClick: () => this.onZoomOutCallback?.(),
         });

@@ -43,6 +43,7 @@
 
   /* Shape */
   --radius: 8px;
+  --radius-sm: 6px;
   --radius-lg: 14px;
   --radius-pill: 999px;
 
@@ -63,7 +64,7 @@
   --shell-active: rgba(0, 168, 255, 0.16);
 
   /* Keyboard / chip backgrounds */
-  --kbd-bg: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%);
+  --kbd-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
   --kbd-border: rgba(255, 255, 255, 0.15);
 
   /* Overlays / modals */
@@ -77,6 +78,7 @@
 
   /* Brand-on contrast */
   --text-strong-on-brand: #FFFFFF;
+  --brand-name-start: #ffffff;
 
   font-size: 16px;
 
@@ -122,7 +124,7 @@
   --shell-hover: rgba(15, 23, 42, 0.05);
   --shell-active: rgba(0, 120, 212, 0.14);
 
-  --kbd-bg: linear-gradient(180deg, rgba(15,23,42,0.06) 0%, rgba(15,23,42,0.02) 100%);
+  --kbd-bg: linear-gradient(180deg, rgba(15, 23, 42, 0.06) 0%, rgba(15, 23, 42, 0.02) 100%);
   --kbd-border: rgba(15, 23, 42, 0.18);
 
   --overlay-backdrop: rgba(15, 23, 42, 0.45);
@@ -133,6 +135,7 @@
   --scrollbar-thumb: rgba(15, 23, 42, 0.22);
 
   --text-strong-on-brand: #FFFFFF;
+  --brand-name-start: var(--text);
 
   color-scheme: light;
 }

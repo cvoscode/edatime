@@ -1,17 +1,16 @@
-# ai/frontend/src/features/scatter/entrypoint.md
-> Normalized entrypoint for scatter analytics page — uses getter-based deps injection.
+# features/scatter/entrypoint.ts
+> Normalized entrypoint for scatter analytics page — uses getter-based deps injection. Lazy-loads the page implementation (`initScatterPage`) via dynamic import.
 
 ## Interface: ScatterEntrypointDeps
 ```ts
 interface ScatterEntrypointDeps {
-    initScatterPage: (metadata: DatasetMetadata) => Promise<void>;
     getMetadata: () => DatasetMetadata;
 }
 ```
 
 ## Function: createScatterEntrypoint
 - `createScatterEntrypoint(deps: ScatterEntrypointDeps): { init: () => Promise<void> }` [deps: [initScatterPage][1]]
-  - `init()` — calls `deps.initScatterPage(deps.getMetadata())` (async).
+  - `init()` — dynamically imports `'../../scatter/scatterPage.js'`, captures `metadata = deps.getMetadata()`, then `await initScatterPage(metadata)`.
 
 ---
 [1]: ../../scatter/scatterPage.md#initScatterPage

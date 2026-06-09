@@ -13,7 +13,7 @@ export interface PaletteCommand {
     shortcut?: string;
     /** Category for grouping. */
     category: 'Navigation' | 'Export' | 'Session' | 'Chart' | 'Analysis';
-    action: () => void;
+    action: () => void | Promise<void>;
 }
 
 let _overlay: HTMLElement | null = null;
@@ -168,6 +168,7 @@ export function initCommandPalette(): void {
     buildDOM();
 
     window.addEventListener('keydown', (e) => {
+        if (e.defaultPrevented) return;
         if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
             e.preventDefault();
             if (_overlay?.hidden === false) close();

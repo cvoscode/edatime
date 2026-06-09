@@ -1,13 +1,15 @@
 const STYLE_MODULES = {
     drift: 'css/modules/drift.css?v=4',
     home: 'css/modules/home.css?v=1',
+    scatter: 'css/modules/scatter.css?v=1',
 } as const;
 
-type StyleModuleName = keyof typeof STYLE_MODULES;
+export type StyleModuleName = keyof typeof STYLE_MODULES;
 
 export function pageStyleModulesFor(pageName: string): StyleModuleName[] {
     if (pageName === 'drift') return ['drift'];
     if (pageName === 'home') return ['home'];
+    if (pageName === 'scatter') return ['scatter'];
     return [];
 }
 

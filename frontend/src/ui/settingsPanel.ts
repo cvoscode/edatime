@@ -218,6 +218,7 @@ export function initSettingsPanel(): void {
 
     // Keyboard shortcut: Ctrl+,
     document.addEventListener('keydown', (e) => {
+        if (e.defaultPrevented) return;
         if ((e.ctrlKey || e.metaKey) && e.key === ',') {
             e.preventDefault();
             openSettingsModal();

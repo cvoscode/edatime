@@ -1,29 +1,46 @@
-import { describe, expect, it, vi } from 'vitest';
-import { createFftEntrypoint } from './entrypoint.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { initFftPageMock } = vi.hoisted(() => ({ initFftPageMock: vi.fn() }));
+const { initFftPageMock, fftPageImported } = vi.hoisted(() => ({
+    initFftPageMock: vi.fn(),
+    fftPageImported: { value: false },
+}));
 vi.mock('../../pages/fftPage.js', () => ({
+    ...(() => {
+        fftPageImported.value = true;
+        return {};
+    })(),
     initFftPage: initFftPageMock,
 }));
 
 describe('createFftEntrypoint', () => {
-    it('returns an explicit init surface', () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+        fftPageImported.value = false;
+    });
+
+    it('returns an explicit init surface', async () => {
+        const { createFftEntrypoint } = await import('./entrypoint.js');
         const deps = { getRenderTimeseries: vi.fn() };
         const entrypoint = createFftEntrypoint(deps);
         expect(entrypoint.init).toBeTypeOf('function');
+        expect(fftPageImported.value).toBe(false);
     });
 
-    it('does not call renderTimeseries before init', () => {
+    it('does not call renderTimeseries before init', async () => {
+        const { createFftEntrypoint } = await import('./entrypoint.js');
         const deps = { getRenderTimeseries: vi.fn() };
         createFftEntrypoint(deps);
         expect(deps.getRenderTimeseries).not.toHaveBeenCalled();
+        expect(fftPageImported.value).toBe(false);
     });
 
-    it('init calls initFftPage with the provided deps', () => {
+    it('init loads the fft page only when first invoked', async () => {
+        const { createFftEntrypoint } = await import('./entrypoint.js');
         const deps = { getRenderTimeseries: vi.fn() };
         const entrypoint = createFftEntrypoint(deps);
-        entrypoint.init();
+        await entrypoint.init();
+        expect(fftPageImported.value).toBe(true);
         expect(initFftPageMock).toHaveBeenCalledWith({ renderTimeseries: deps.getRenderTimeseries });
     });
 });
-

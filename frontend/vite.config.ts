@@ -41,15 +41,6 @@ export default defineConfig({
           if (id.includes('chartgpu')) return 'chartgpu';
           if (id.includes('apache-arrow') || id.includes('apache_arrow')) return 'arrow';
           if (id.includes('echarts')) return 'echarts';
-          if (id.includes('/scatter/')) return 'scatter';
-          if (id.includes('/causal/')) return 'causal';
-          if (id.includes('/drift/')) return 'drift';
-          if (
-            id.includes('/pages/fft') ||
-            id.includes('/pages/heatmap') ||
-            id.includes('/pages/spectrogram')
-          )
-            return 'frequency';
           return undefined;
         },
       },

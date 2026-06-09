@@ -1,47 +1,45 @@
 # app/bootstrap/datasetBootstrap.md
-> Manages dataset readiness: fetching metadata, populating store, initializing UI, and refreshing after mutations.
+> Manages dataset readiness: fetching metadata, populating store, initializing UI, and refreshing after mutations. Coordinates: chart modules → metadata fetch → store → mark ready → column setup → UI hydration. Dispatches the `edatime:metadata-ready` event on BOTH the initial bootstrap path AND the post-mutation refresh path so scatter / controls listeners always re-read metadata.
 
 ## Interface: `DatasetBootstrapDeps`
 ```typescript
 interface DatasetBootstrapDeps {
     ensureChartModules: () => Promise<void>;
     fetchMetadata: () => Promise<DatasetMetadata>;
-    storeFetchedMetadata: (metadata: DatasetMetadata) => void; // [NEW]
-    markMetadataReady: () => void; // [NEW]
-    initializeDatasetUi: (metadata: DatasetMetadata) => void; // [NEW]
+    markMetadataReady: () => void;
+    clearLoadedPageModules: () => void;
+    storeFetchedMetadata: (metadata: DatasetMetadata) => void;
+    initializeDatasetUi: (metadata: DatasetMetadata) => Promise<void>;
     setNumericCols: (cols: string[]) => void;
     setDefaultSelectedColumns: (cols: string[]) => void;
     sanitizeSelectedColumns: () => void;
     refreshVisibleData: () => Promise<void>;
-    clearLoadedPageModules: () => void;
     getNumericColumns: (metadata: DatasetMetadata) => string[];
     getDefaultTimeseriesColumns: (metadata: DatasetMetadata) => string[];
     rebuildTimeseriesColumns: () => void;
-    buildMetaBar: (metadata: DatasetMetadata) => void;
-    timeseriesFeatureInit: () => void;
-    ensureSessionPersistenceStarted: () => void;
-    setViewport: (start: number, end: number) => void;
-    updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
-    setMetaText: (text: string) => void; // [NEW]
-    emitWorkflowRefresh: () => void;
-    emitChartRangeChange: (sourceKind?: string) => void;
+    onMetadataReady?: () => void;
+    emitWorkflowRefresh?: () => void;
     setAdaptiveFilterColumn: (col: string | null) => void;
     getSelectedCols: () => string[];
     setSelectedCols: (cols: string[]) => void;
+    timeseriesFeatureInit?: () => void;
+    ensureSessionPersistenceStarted?: () => void;
+    setViewport: (start: number, end: number) => void;
+    updateAnalysisZoom: (start: number, end: number, sourceKind: string) => void;
+    emitChartRangeChange: (sourceKind?: string) => void;
 }
 ```
 
 ## BootstrapResult
 ```typescript
 interface BootstrapResult {
-    ensureDatasetReady: () => Promise<void>;
-    refreshAfterMutation: (options?: { selectedColumn?: string }) => Promise<void>;
+    ensureDatasetReady(): Promise<void>;
+    refreshAfterMutation(options?: { selectedColumn?: string }): Promise<void>;
 }
 ```
 
 ## State
-- `_datasetReadyPromise: Promise<void> | null` [MOVED from app.ts]
-- `_datasetUiReady: boolean` [MOVED from app.ts, now local to bootstrap]
+- `_datasetReadyPromise: Promise<void> | null` — module-level deduplication of in-flight readiness.
 
 ## Functions
 
@@ -51,15 +49,24 @@ interface BootstrapResult {
 
 ### ensureDatasetReady
 - `(): Promise<void>`
-  - Fetches metadata once, stores it, marks metadata ready, derives numeric columns, sanitizes selections, initializes dataset UI, and sets initial viewport/zoom.
+  - Idempotent. Captures the dataset request scope, awaits `ensureChartModules`, fetches metadata, asserts scope is still active, calls `storeFetchedMetadata` and `markMetadataReady`, dispatches `edatime:metadata-ready`, and (if `metadata.time_range` is set) calls `syncDatasetSelection` and `await initializeDatasetUi`. Concurrent callers share the same promise. On error, the in-flight promise is cleared so the next caller retries.
 
 ### refreshAfterMutation
 - `(options?: { selectedColumn?: string }): Promise<void>`
-  - Clears page modules, re-fetches metadata, re-derives numeric columns, optionally selects a specific column, and triggers visible data refresh.
+  - Invalidates the dataset request scope and clears `_datasetReadyPromise`. If metadata is not yet ready, delegates to `ensureDatasetReady`. Otherwise clears loaded page modules, re-fetches metadata, stores it, calls `markMetadataReady`, **dispatches `edatime:metadata-ready`** (mirrors the initial-bootstrap event so subscribers such as the scatter page re-read metadata after a partial upload), then runs `syncDatasetSelection`, `await initializeDatasetUi`, `rebuildTimeseriesColumns`, and `await refreshVisibleData`.
+
+### syncDatasetSelection
+- `(metadata: DatasetMetadata, selectedColumn?: string): void`
+  - Sets numeric columns, ensures a default selected column set is present, optionally adds a specific column, sanitizes, falls back to defaults if empty, and sets the adaptive filter target.
+
+## Notes
+- The dataset request-scope helpers (`captureDatasetRequestScope`, `assertDatasetRequestScopeActive`, `invalidateDatasetRequestScope`) live in [services/api/datasetRequestScope][1] and are re-exported from [services/api/http][2].
+- `initializeDatasetUi` returns `Promise<void>` (tightened from the prior `void | Promise<void>`) so the bootstrap pipeline can `await` it.
 
 ---
-[1]: ../../pages/timeseriesModule.md#createTimeseriesModule
-[2]: ../pageRegistry.md#isMetadataReady
-[3]: ../../store/index.md#setMetadata
-[4]: ../../ui/profile.md#hydrateColumnProfiles
-[5]: ../../ui/metaBar.md#buildMetaBar
+[1]: ../../services/api/datasetRequestScope.md
+[2]: ../../services/api/http.md
+[3]: ../../pages/timeseriesModule.md#createTimeseriesModule
+[4]: ../pageRegistry.md#isMetadataReady
+[5]: ../../store/index.md#setMetadata
+[6]: ../../ui/profile.md#hydrateColumnProfiles

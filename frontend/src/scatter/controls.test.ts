@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const buildOptionMock = vi.fn(() => ({}));
+const buildOptionMock = vi.fn((..._args: unknown[]) => ({}));
 const updateColorbarUIMock = vi.fn();
 const updateBinnedReadoutMock = vi.fn();
 const updateCorrelationStatsMock = vi.fn();

@@ -4,6 +4,7 @@
   "scripts": {
     "check:frontend": "tsc --noEmit -p tsconfig.json",
     "validate": "npm run check:frontend && node scripts/check-frontend-architecture.mjs",
+    "check:frontend:budgets": "node scripts/check-frontend-budgets.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "dev": "vite --config frontend/vite.config.ts",
     "build": "node scripts/build-frontend.mjs",

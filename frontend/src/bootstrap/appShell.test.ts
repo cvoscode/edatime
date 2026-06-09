@@ -87,7 +87,7 @@ describe('appShell helpers', () => {
         const exportChartFilteredData = vi.fn();
         (window as any).__edatime.exportChartFilteredData = exportChartFilteredData;
 
-        registerAppCommands({ showPage, zoomOut, resetZoom });
+        await registerAppCommands({ showPage, zoomOut, resetZoom });
 
         expect(mocks.registerCommands).toHaveBeenCalledTimes(1);
         const commands = mocks.registerCommands.mock.calls[0][0] as Array<{ id: string; action: () => void }>;

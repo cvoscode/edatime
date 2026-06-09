@@ -1,5 +1,5 @@
 # ai/frontend/src/app/shell.md
-> Wires the shared app shell, page routing, sample datasets, upload/bootstrap surfaces, and shell-level keyboard tooling.
+> Composes the shared app shell by delegating to `core` (eager init) and `deferredSubsystems` (lazy registry). Exposes `window.__edatime.ensureSubsystem(name)` for cross-module lazy loading.
 
 ## Interface: RefreshDatasetOptions
 - `selectedColumn?: string`
@@ -14,34 +14,22 @@
 - `buildTimeseriesRanges: () => void`
 - `zoomOut: () => void`
 - `resetZoom: () => void`
-- `initAnalyticsListeners: () => void`
 - `refreshDatasetAfterMutation: (options?: RefreshDatasetOptions) => Promise<void>`
-- `hydrateColumnProfiles: (...args: any[]) => void`
-- `renderColumnProfilesGrid: (...args: any[]) => void`
 - `registerCleanup: (cleanup: () => void) => void`
 
 ## Functions
-- `initThemeToggle(): void`
-  - Syncs theme state with localStorage, system preference, and the theme toggle button.
-- `humanizeControlId(id: string): string`
-  - Converts a control id into readable Title Case fallback text.
-- `normalizeFormControlAccessibility(): void`
-  - Ensures form controls have `name` and `aria-label` values.
-- `wireHomeNavigationCards(showPage: (pageName: string) => void): void`
-  - Connects home navigation cards to page changes.
-- `wireSampleDatasetCards(showPage: (pageName: string) => void): void`
-  - Connects sample dataset cards to the sample-loader flow.
-- `generateSinusoidalCsv(): string`
-  - Builds a synthetic sinusoidal CSV sample.
-- `generateWeatherCsv(): string`
-  - Builds a synthetic weather CSV sample.
-- `loadSampleDataset(datasetId: string, showPage: (pageName: string) => void): Promise<void>` [deps: [fetchSampleDataset][1]]
-  - Loads a built-in sample dataset or generated CSV into the upload flow.
-- `initAppShell(deps: AppShellDeps): void` [deps: [initUploadPanel][2], [initAnalysisControls][3], [initKeyboardShortcuts][4]]
-  - Initializes the shared shell, shared panels, upload bootstrap, command surfaces, and analytics listeners.
+
+### initAppShell
+- `initAppShell(deps: AppShellDeps): void` [deps: [initShellCore][1], [ensureUploadSubsystems/ensureHomeSubsystems/...][2]]
+  - Calls `initShellCore({ showPage })` for eager init. Installs `window.__edatime.ensurePageModuleLoaded` and `window.__edatime.ensureSubsystem` as global bridges for cross-module lazy loading. The `ensureSubsystem` switch handles `'upload'`, `'home'`, `'timeseries-shell'`, `'settings'`, and `'commands'` (each maps to the matching helper in [deferredSubsystems][2]) and throws `Unknown deferred subsystem: ${name}` for anything else.
+
+## Layout
+- `app.ts` calls `initAppShell` once at startup.
+- The `core` module handles form-control accessibility, page routing, settings, theme, accessibility shortcuts, and home navigation cards.
+- The `deferredSubsystems` module exposes `ensureSubsystem(name)` (via the global bridge) plus named helpers like `ensureUploadSubsystems`, `ensureTimeseriesShell`, `ensureSettingsPanel`, `ensureCommands`, `ensureHomeSubsystems`, `ensureAll`.
+- `globalShortcuts` and the command palette's `Ctrl+K` / `Ctrl+,` handlers call `ensureSubsystem` on demand (after a small `waitForEdatimeKey` race-guard).
 
 ---
-[1]: ../services/api/metadata.md#fetchSampleDataset
-[2]: ../ui/upload.md#initUploadPanel
-[3]: ../ui/toolbar.md#initAnalysisControls
-[4]: ../bootstrap/shortcuts.md#initKeyboardShortcuts
+[1]: ./shell/core.md
+[2]: ./shell/deferredSubsystems.md
+[3]: ./bootstrap/globalShortcuts.md

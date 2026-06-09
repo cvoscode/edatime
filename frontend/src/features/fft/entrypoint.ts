@@ -1,11 +1,12 @@
-import { initFftPage } from '../../pages/fftPage.js';
-
 export interface FftEntrypointDeps {
     getRenderTimeseries: () => void;
 }
 
 export function createFftEntrypoint(deps: FftEntrypointDeps) {
     return {
-        init: () => initFftPage({ renderTimeseries: deps.getRenderTimeseries }),
+        init: async () => {
+            const { initFftPage } = await import('../../pages/fftPage.js');
+            initFftPage({ renderTimeseries: deps.getRenderTimeseries });
+        },
     };
 }

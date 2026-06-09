@@ -5,7 +5,7 @@
  * The `ensureReady()` call is idempotent: safe to call multiple times.
  */
 
-import type { ChartInstance } from '../../types.js';
+import type { ChartInstance, ViewSnapshot } from '../../types.js';
 import { appState } from '../../store/appStateCompat.js';
 import { checkWebGPU } from '../webgpuGuard.js';
 import { getChartType } from '../../charts/registry.js';
@@ -18,7 +18,7 @@ import { initAdaptiveFilterGesture } from '../adaptiveGesture.js';
 import { restoreSessionAfterChartReady } from '../../bootstrap/sessionBootstrap.js';
 import { dbg, dbgGroup } from '../../debug.js';
 export interface TimeseriesBootstrapCallbacks {
-    onZoom: (start: number, end: number, sourceKind: string) => void;
+    onZoom: (view: ViewSnapshot, sourceKind: string) => void;
     onYRange: (min: number, max: number, sourceKind: string) => void;
     onZoomOut: () => void;
 }
@@ -26,11 +26,11 @@ export interface TimeseriesBootstrapCallbacks {
 export interface TimeseriesBootstrapDeps {
     DataChartCtor: new (
         containerId: string,
-        onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null,
+        onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
         onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null,
         onZoomOutCb: (() => void) | null,
     ) => ChartInstance;
-    onZoom: (start: number, end: number, sourceKind: string) => void;
+    onZoom: (view: ViewSnapshot, sourceKind: string) => void;
     onYRange: (min: number, max: number, sourceKind: string) => void;
     onZoomOut: () => void;
     buildColumnToggles: () => void;
@@ -63,7 +63,8 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     const lineType = getChartType('line');
                     if (lineType) {
                         setChartInstance(lineType.create('main-chart', {
-                            onZoom: (start: number, end: number, sourceKind: string) => deps.onZoom(start, end, sourceKind),
+                            onZoom: (start: number, end: number, sourceKind: string) =>
+                                deps.onZoom({ xMin: start, xMax: end, yMin: null, yMax: null }, sourceKind),
                             onYRange: deps.onYRange,
                             onZoomOut: deps.onZoomOut,
                         }));

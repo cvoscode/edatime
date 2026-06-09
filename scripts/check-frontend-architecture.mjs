@@ -43,6 +43,37 @@ function isServicesApiPath(resolvedPath) {
   return resolvedPath.startsWith('frontend/src/services/api/');
 }
 
+function isPageImplementationPath(resolvedPath) {
+  return (
+    /^frontend\/src\/pages\/[^/]+Page\.js$/.test(resolvedPath)
+    || resolvedPath === 'frontend/src/scatter/scatterPage.js'
+    || resolvedPath === 'frontend/src/causal/causalPage.js'
+    || resolvedPath === 'frontend/src/drift/driftPage.js'
+  );
+}
+
+function isHeavyStartupImport(src, resolvedPath) {
+  return (
+    src === 'echarts'
+    || src === 'apache-arrow'
+    || src.includes('chartgpu')
+    || resolvedPath.endsWith('/chart/DataChart.js')
+    || isPageImplementationPath(resolvedPath)
+  );
+}
+
+function isStartupShellOrSharedUiFile(rel) {
+  return [
+    'frontend/src/app.ts',
+    'frontend/src/app/pageModules.ts',
+    'frontend/src/app/shell.ts',
+    'frontend/src/app/shell/core.ts',
+    'frontend/src/ui/pageNavigation.ts',
+    'frontend/src/app/bootstrap/globalShortcuts.ts',
+    'frontend/src/bootstrap/commands.ts',
+  ].includes(rel);
+}
+
 const files = await listTsFiles(srcRoot);
 
 for (const file of files) {
@@ -51,6 +82,7 @@ for (const file of files) {
   const isTest = /\.test\.ts$/.test(file);
   const isLegacyState = rel === 'frontend/src/state.ts' || rel === 'frontend/src/store/index.ts';
   const isLegacy = rel.startsWith('frontend/src/legacy/');
+  const staticImportRe = /(^|\n)\s*import\s+(type\s+)?[^'"\n]+from\s+['"]([^'"]+)['"]/g;
 
   // Skip files in the legacy archive tree.
   if (isLegacy) continue;
@@ -86,7 +118,13 @@ for (const file of files) {
       if (rel !== 'frontend/src/scatter/state.ts' && /(^|\/)state\.ts$/.test(src)) {
         add(file, 'import from state.ts is deprecated — use store/ sub-states or store/appStateCompat.js', lineOf(text, match.index ?? 0));
       } else if (src !== './state.js' && /(^|\/)state\.js$/.test(src) && rel !== 'frontend/src/store/index.ts') {
-        add(file, 'import from state.ts is deprecated — use store/ sub-states or store/appStateCompat.js', lineOf(text, match.index ?? 0));
+        // appStateCompat.ts is the documented migration target and is allowed
+        // to re-export appState from state.js so the legacy and compat import
+        // paths resolve to the same module (avoids duplicate chunks).
+        const isAppStateCompat = rel === 'frontend/src/store/appStateCompat.ts';
+        if (!isAppStateCompat) {
+          add(file, 'import from state.ts is deprecated — use store/ sub-states or store/appStateCompat.js', lineOf(text, match.index ?? 0));
+        }
       } else if (/ui\/columns(\.js)?$/.test(src)) {
         add(file, 'import from ui/columns.ts is deprecated — use features/timeseries/columnsController.js', lineOf(text, match.index ?? 0));
       } else if (/bootstrap\/appShell(\.js)?$/.test(src)) {
@@ -114,12 +152,40 @@ for (const file of files) {
     }
   }
 
+  // Rule 12: startup/shell/shared UI boundaries must not statically import
+  // heavy vendor deps or page implementation modules.
+  if (!isTest && isStartupShellOrSharedUiFile(rel)) {
+    for (const match of text.matchAll(staticImportRe)) {
+      const isTypeOnly = Boolean(match[2]);
+      if (isTypeOnly) continue;
+      const src = match[3];
+      const resolved = resolveImportPath(src, rel);
+      if (isHeavyStartupImport(src, resolved)) {
+        add(file, 'startup/shell/shared UI must not statically import heavy deps or page implementations', lineOf(text, match.index ?? 0));
+      }
+    }
+  }
+
+  // Rule 13: feature entrypoints must lazy-load page implementations.
+  if (!isTest && /^frontend\/src\/features\/[^/]+\/entrypoint\.ts$/.test(rel)) {
+    for (const match of text.matchAll(staticImportRe)) {
+      const isTypeOnly = Boolean(match[2]);
+      if (isTypeOnly) continue;
+      const src = match[3];
+      const resolved = resolveImportPath(src, rel);
+      if (isPageImplementationPath(resolved)) {
+        add(file, 'feature entrypoints must load page implementations via dynamic import inside init()', lineOf(text, match.index ?? 0));
+      }
+    }
+  }
+
   // Rule 10: app/* must not import from services/api/* except for approved bootstrap helpers.
   // app/* is the composition root — it should not own transport.
   // Approved bootstrap helpers legitimately use services/api for lazy loading and init coordination.
   if (/^frontend\/src\/app\//.test(rel) && !isTest) {
     const approvedBootstrapHelpers = [
       'frontend/src/app/bootstrap/chartBootstrap.ts',
+      'frontend/src/app/bootstrap/datasetBootstrap.ts',
       'frontend/src/app/bootstrap/ensureTimeseriesReady.ts',
     ];
     const isApproved = approvedBootstrapHelpers.some((h) => rel.endsWith(h));

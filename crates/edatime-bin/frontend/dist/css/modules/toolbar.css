@@ -234,8 +234,8 @@
 }
 
 .toolbar-group--sep {
-  padding-left: 12px;
-  margin-left: 4px;
+  padding-left: 10px;
+  margin-left: 2px;
   border-left: 1px solid var(--border);
 }
 
@@ -290,10 +290,193 @@
 }
 
 .timeseries-zoom-cluster {
-  padding: 4px;
+  padding: 2px;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.02);
+}
+
+.timeseries-zoom-cluster .btn {
+  border: 0;
+  background: transparent;
+  border-radius: 4px;
+  height: 24px;
+  padding: 0 8px;
+}
+
+.timeseries-zoom-cluster .btn:hover {
+  background: var(--shell-hover);
+  border-color: transparent;
+}
+
+/* ─── Timeseries utility shelf — unified widget spec ─────────── */
+/*
+   Every control in the timeseries utility shelf shares one visual
+   treatment so the row reads as a single, cohesive toolbar:
+     • 28 px height (matches --ctrl-h-sm)
+     • 6 px corner radius
+     • 1 px --border outline
+     • 0.75 rem font, 0 10 px padding
+     • Subtle background hover state
+
+   This block is scoped to .timeseries-utility-shelf descendants
+   only — it does not affect other toolbars (scatter, upload, etc.).
+*/
+.timeseries-utility-shelf .btn,
+.timeseries-utility-shelf .dropdown__trigger,
+.timeseries-utility-shelf #draw-color,
+.timeseries-utility-shelf #draw-width,
+.timeseries-utility-shelf .toolbar-panel-open,
+.timeseries-utility-shelf .zoom-range-badge {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  box-sizing: border-box;
+  line-height: 1;
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    color var(--transition);
+}
+
+.timeseries-utility-shelf .btn {
+  padding: 0 10px;
+}
+
+.timeseries-utility-shelf .btn.btn-sm {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+}
+
+.timeseries-utility-shelf .dropdown__trigger {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.timeseries-utility-shelf .dropdown__trigger:focus,
+.timeseries-utility-shelf .dropdown--open .dropdown__trigger {
+  border-color: var(--accent);
+  background: rgba(0, 168, 255, 0.05);
+  outline: none;
+}
+
+.timeseries-utility-shelf .toolbar-panel-open {
+  gap: 6px;
+  cursor: pointer;
+  min-height: 28px;
+}
+
+.timeseries-utility-shelf .toolbar-panel-open:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Disclosure button: two spans (label + value) on a shared baseline
+   with a small chevron on the right, matching dropdown triggers. */
+.timeseries-utility-shelf .toolbar-panel-open > span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.timeseries-utility-shelf .toolbar-panel-open .toolbar-disclosure__value {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.timeseries-utility-shelf .toolbar-panel-open::after {
+  content: '';
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  margin-left: 2px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6' fill='none' stroke='%23788BAE' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 10px 6px;
+  opacity: 0.7;
+  transition: opacity var(--transition), transform var(--transition);
+}
+
+.timeseries-utility-shelf .toolbar-panel-open:hover::after {
+  opacity: 1;
+}
+
+/* Color swatch — keep the swatch visible while the input itself
+   participates in the shared outlined-widget spec. */
+.timeseries-utility-shelf #draw-color {
+  width: 28px;
+  padding: 2px;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.timeseries-utility-shelf #draw-color::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.timeseries-utility-shelf #draw-color::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
+.timeseries-utility-shelf #draw-color::-moz-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
+/* Number input — remove native spinners, center the value. */
+.timeseries-utility-shelf #draw-width {
+  width: 44px;
+  padding: 0 6px;
+  text-align: center;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.timeseries-utility-shelf #draw-width::-webkit-outer-spin-button,
+.timeseries-utility-shelf #draw-width::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.timeseries-utility-shelf #draw-width:focus {
+  border-color: var(--accent);
+  background: rgba(0, 168, 255, 0.05);
+  outline: none;
+}
+
+/* Zoom range badge — bare text, no border, sits between zoom buttons. */
+.timeseries-utility-shelf .zoom-range-badge {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 64px;
+  padding: 0 6px;
+}
+
+/* Action buttons (PNG, CSV, Clear Drawings, Clear Column Filter) — keep
+   the same widget spec but make the hover state more obvious. */
+.timeseries-utility-shelf .btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--shell-border-strong);
+  color: var(--text);
+  transform: none;
 }
 
 /* Hide toolbar labels in the tools row — icons have title attributes for hover */
@@ -412,6 +595,7 @@ body.drawer-open::after {
   background: rgba(0, 0, 0, 0.35);
   z-index: 199;
 }
+
 .toolbar-group-divider {
   display: inline-block;
   width: 1px;

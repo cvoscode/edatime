@@ -5,11 +5,6 @@
  */
 
 import type { PaletteCommand } from '../utils/palette.js';
-import { registerCommands, openPalette } from '../utils/palette.js';
-import { exportSessionToFile, importSessionFromFile } from '../utils/session.js';
-import { toggleProvenance } from '../utils/provenance.js';
-import { openSettingsModal } from '../ui/settingsPanel.js';
-import { enableGuidedWorkflow, disableGuidedWorkflow, goToNextGuidedStep } from '../ui/guidedWorkflow.js';
 
 export type CommandDeps = {
     showPage: (pageName: string) => void;
@@ -22,7 +17,7 @@ export interface CommandDefinition {
     label: string;
     shortcut?: string;
     category: PaletteCommand['category'];
-    action: (deps: CommandDeps) => void;
+    action: (deps: CommandDeps) => void | Promise<void>;
     keyboard?: { key: string; alt?: boolean; shift?: boolean; page?: string };
 }
 
@@ -32,6 +27,10 @@ function exportChartFilteredData(format: 'csv' | 'json'): void {
 
 function triggerAdaptiveFilterClear(): void {
     document.getElementById('adaptive-clear-btn')?.click?.();
+}
+
+async function ensureSubsystem(name: string): Promise<void> {
+    await (window as unknown as { __edatime?: { ensureSubsystem?: (subsystem: string) => Promise<void> } }).__edatime?.ensureSubsystem?.(name);
 }
 
 export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
@@ -51,14 +50,85 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
     { id: 'export-json', label: 'Export chart data as JSON', category: 'Export', action: () => exportChartFilteredData('json') },
     { id: 'export-png', label: 'Export chart as PNG', category: 'Export', action: () => (window as any).__edatime?.chart?.exportPNG?.() },
     { id: 'export-parquet', label: 'Export filtered data as Parquet', category: 'Export', action: () => document.getElementById('export-parquet-btn')?.click?.() },
-    { id: 'session-save', label: 'Export session to file', category: 'Session', action: () => { exportSessionToFile(); } },
-    { id: 'session-load', label: 'Import session from file', category: 'Session', action: () => { importSessionFromFile(); } },
-    { id: 'provenance', label: 'Show analysis context panel', shortcut: 'Ctrl+I', category: 'Analysis', action: () => { toggleProvenance(); } },
-    { id: 'cmd-palette', label: 'Open command palette', shortcut: 'Ctrl+K', category: 'Analysis', action: () => { openPalette(); } },
-    { id: 'settings', label: 'Open settings', shortcut: 'Ctrl+,', category: 'Analysis', action: () => { openSettingsModal(); } },
-    { id: 'workflow-enable', label: 'Enable guided workflow', category: 'Analysis', action: () => { enableGuidedWorkflow(); } },
-    { id: 'workflow-disable', label: 'Hide guided workflow', category: 'Analysis', action: () => { disableGuidedWorkflow(); } },
-    { id: 'workflow-next', label: 'Go to next guided step', category: 'Analysis', action: () => { goToNextGuidedStep(); } },
+    {
+        id: 'session-save',
+        label: 'Export session to file',
+        category: 'Session',
+        action: async () => {
+            const { exportSessionToFile } = await import('../utils/session.js');
+            exportSessionToFile();
+        },
+    },
+    {
+        id: 'session-load',
+        label: 'Import session from file',
+        category: 'Session',
+        action: async () => {
+            const { importSessionFromFile } = await import('../utils/session.js');
+            importSessionFromFile();
+        },
+    },
+    {
+        id: 'provenance',
+        label: 'Show analysis context panel',
+        shortcut: 'Ctrl+I',
+        category: 'Analysis',
+        action: async () => {
+            await ensureSubsystem('timeseries-shell');
+            const { toggleProvenance } = await import('../utils/provenance.js');
+            toggleProvenance();
+        },
+    },
+    {
+        id: 'cmd-palette',
+        label: 'Open command palette',
+        shortcut: 'Ctrl+K',
+        category: 'Analysis',
+        action: async () => {
+            await ensureSubsystem('commands');
+            (window as unknown as { __edatime?: { openPalette?: () => void } }).__edatime?.openPalette?.();
+        },
+    },
+    {
+        id: 'settings',
+        label: 'Open settings',
+        shortcut: 'Ctrl+,',
+        category: 'Analysis',
+        action: async () => {
+            await ensureSubsystem('settings');
+            (window as unknown as { __edatime?: { openSettingsModal?: () => void } }).__edatime?.openSettingsModal?.();
+        },
+    },
+    {
+        id: 'workflow-enable',
+        label: 'Enable guided workflow',
+        category: 'Analysis',
+        action: async () => {
+            await ensureSubsystem('timeseries-shell');
+            const { enableGuidedWorkflow } = await import('../ui/guidedWorkflow.js');
+            enableGuidedWorkflow();
+        },
+    },
+    {
+        id: 'workflow-disable',
+        label: 'Hide guided workflow',
+        category: 'Analysis',
+        action: async () => {
+            await ensureSubsystem('timeseries-shell');
+            const { disableGuidedWorkflow } = await import('../ui/guidedWorkflow.js');
+            disableGuidedWorkflow();
+        },
+    },
+    {
+        id: 'workflow-next',
+        label: 'Go to next guided step',
+        category: 'Analysis',
+        action: async () => {
+            await ensureSubsystem('timeseries-shell');
+            const { goToNextGuidedStep } = await import('../ui/guidedWorkflow.js');
+            goToNextGuidedStep();
+        },
+    },
 ];
 
 export function buildPaletteCommands(deps: CommandDeps): PaletteCommand[] {
@@ -71,6 +141,7 @@ export function buildPaletteCommands(deps: CommandDeps): PaletteCommand[] {
     }));
 }
 
-export function registerAppCommands(deps: CommandDeps): void {
+export async function registerAppCommands(deps: CommandDeps): Promise<void> {
+    const { registerCommands } = await import('../utils/palette.js');
     registerCommands(buildPaletteCommands(deps));
 }

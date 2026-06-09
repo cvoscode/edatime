@@ -18,12 +18,14 @@
 import { DEBUG, dbg, dbgGroup } from './debug.js';
 import { appState } from './store/appStateCompat.js';
 import { showBootstrapError } from './ui/errorUI.js';
-import { hydrateColumnProfiles, renderColumnProfilesGrid } from './ui/profile.js';
 import { installWindowsWebGpuRequestAdapterWorkaround } from './utils/platform.js';
 import { getAnalyticsChipColor, getNumericColumns } from './pages/analyticsPageUtils.js';
 import { sanitizeSelectedColumns } from './services/timeseries/filtering.js';
-import { initScatterPage } from './scatter/scatterPage.js';
-import { initAnalyticsListeners, fetchAndRenderAnalytics as doFetchAndRenderAnalytics } from './bootstrap/analyticsOverlay.js';
+// `initScatterPage` lives behind the scatter feature entrypoint and is
+// dynamically imported on first navigation. Keeping the import out of
+// app.ts ensures scatter's heavy chunks (echarts, chartgpu, apache-arrow)
+// never enter the initial app bundle.
+import { fetchAndRenderAnalytics as doFetchAndRenderAnalytics } from './bootstrap/analyticsOverlay.js';
 import { initAppShell } from './app/shell.js';
 import { showPage } from './app/navigation/showPage.js';
 import { initGlobalShortcuts } from './app/bootstrap/globalShortcuts.js';
@@ -32,7 +34,7 @@ import { createAppRuntime } from './app/runtime.js';
 import { APP_COMMAND_DEFINITIONS } from './bootstrap/commands.js';
 import { upgradeSelects } from './ui/primitives/Dropdown.js';
 import { ensurePageModuleLoaded, clearLoadedPageModules, markMetadataReady } from './app/pageRegistry.js';
-import { loadEntrypoints } from './app/pageModules.js';
+import { loadPageDescriptors } from './app/pageModules.js';
 import { ensureChartModules as ensureChartBootstrapModules } from './app/bootstrap/chartBootstrap.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
@@ -153,18 +155,16 @@ async function init(): Promise<void> {
         buildTimeseriesRanges: () => timeseriesModule.buildRangeControls(),
         zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
         resetZoom: () => resetZoom(() => timeseriesModule.fetchAndRender()),
-        initAnalyticsListeners: () => initAnalyticsListeners(fetchAndRenderAnalytics),
         refreshDatasetAfterMutation: (opts) => timeseriesModule.refreshAfterMutation(opts),
-        hydrateColumnProfiles,
-        renderColumnProfilesGrid,
         registerCleanup: runtime.registerCleanup,
     });
 
-    // Register lazy-loaded page modules.
-    await loadEntrypoints({
+    // Register lazy-loaded page modules. Each descriptor resolves its own
+    // heavy dependencies via dynamic import; app.ts only passes the small
+    // runtime helpers each page needs.
+    await loadPageDescriptors({
         getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
         showPage,
-        initScatterPage,
         getMetadata: () => appState.metadata ?? null,
         chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
         numericColumns: () => getNumericColumns(appState.metadata),
@@ -174,6 +174,7 @@ async function init(): Promise<void> {
 
     (window).__edatime = (window).__edatime || {};
     (window).__edatime.ensureDatasetReady = () => timeseriesModule.ensureDatasetReady();
+    (window).__edatime.runAnalytics = () => fetchAndRenderAnalytics();
 
     initGlobalShortcuts({
         showPage,

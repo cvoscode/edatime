@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const preloadPageStylesMock = vi.fn<(page: string) => void>();
 const pageNeedsDatasetBootstrapMock = vi.fn<(page: string) => boolean>(() => false);
+const ensureSubsystemMock = vi.fn<(name: string) => Promise<void>>().mockResolvedValue(undefined);
 const openSettingsModalMock = vi.fn();
 
 vi.mock('../utils/pageStyles.js', () => ({
@@ -10,10 +11,6 @@ vi.mock('../utils/pageStyles.js', () => ({
 
 vi.mock('../utils/pageBootstrap.js', () => ({
     pageNeedsDatasetBootstrap: (page: string) => pageNeedsDatasetBootstrapMock(page),
-}));
-
-vi.mock('./settingsPanel.js', () => ({
-    openSettingsModal: () => openSettingsModalMock(),
 }));
 
 function buildDom(): void {
@@ -37,10 +34,13 @@ describe('initPageNavigation', () => {
         vi.resetModules();
         vi.clearAllMocks();
         buildDom();
-        (window as any).__edatime = {};
+        (window as any).__edatime = {
+            ensureSubsystem: ensureSubsystemMock,
+            openSettingsModal: openSettingsModalMock,
+        };
     });
 
-    it('opens the settings modal instead of switching to a blank settings page', async () => {
+    it('loads the deferred settings subsystem before opening the settings modal', async () => {
         const { initPageNavigation } = await import('./pageNavigation.js');
         initPageNavigation();
 
@@ -53,6 +53,7 @@ describe('initPageNavigation', () => {
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
+        expect(ensureSubsystemMock).toHaveBeenCalledWith('settings');
         expect(openSettingsModalMock).toHaveBeenCalledTimes(1);
         expect(homePage.hidden).toBe(false);
     });

@@ -11,7 +11,7 @@ import {
     assertDatasetRequestScopeActive,
     captureDatasetRequestScope,
     invalidateDatasetRequestScope,
-} from '../../services/api/http.js';
+} from '../../services/api/datasetRequestScope.js';
 
 export interface DatasetBootstrapDeps {
     ensureChartModules: () => Promise<void>;
@@ -19,7 +19,7 @@ export interface DatasetBootstrapDeps {
     markMetadataReady: () => void;
     clearLoadedPageModules: () => void;
     storeFetchedMetadata: (metadata: DatasetMetadata) => void;
-    initializeDatasetUi: (metadata: DatasetMetadata) => void;
+    initializeDatasetUi: (metadata: DatasetMetadata) => Promise<void>;
     setNumericCols: (cols: string[]) => void;
     setDefaultSelectedColumns: (cols: string[]) => void;
     sanitizeSelectedColumns: () => void;
@@ -99,7 +99,7 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
 
             syncDatasetSelection(metadata);
 
-            deps.initializeDatasetUi(metadata);
+            await deps.initializeDatasetUi(metadata);
         })().catch((error) => {
             if (_datasetReadyPromise === pending) {
                 _datasetReadyPromise = null;
@@ -126,8 +126,11 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
         const metadata = await deps.fetchMetadata();
         deps.storeFetchedMetadata(metadata);
         deps.markMetadataReady();
+        // Mirror the initial-bootstrap event so subscribers (e.g. the scatter
+        // page) can re-read metadata after a dataset mutation such as upload.
+        window.dispatchEvent(new Event('edatime:metadata-ready'));
         syncDatasetSelection(metadata, options?.selectedColumn);
-        deps.initializeDatasetUi(metadata);
+        await deps.initializeDatasetUi(metadata);
         deps.rebuildTimeseriesColumns();
         await deps.refreshVisibleData();
     }

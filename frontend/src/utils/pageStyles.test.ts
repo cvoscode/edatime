@@ -13,7 +13,7 @@ describe('pageStyles', () => {
     it('maps only route-specific page styles', () => {
         expect(pageStyleModulesFor('home')).toEqual(['home']);
         expect(pageStyleModulesFor('drift')).toEqual(['drift']);
-        expect(pageStyleModulesFor('scatter')).toEqual([]);
+        expect(pageStyleModulesFor('scatter')).toEqual(['scatter']);
     });
 
     it('deduplicates stylesheet links', () => {
@@ -29,6 +29,7 @@ describe('pageStyles', () => {
 
         expect(document.head.querySelector('link[data-edatime-style="drift"]')).toBeNull();
         expect(document.head.querySelector('link[data-edatime-style="home"]')).not.toBeNull();
+        expect(document.head.querySelector('link[data-edatime-style="scatter"]')).not.toBeNull();
     });
 
 });

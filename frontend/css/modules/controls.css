@@ -35,7 +35,7 @@ input[type="number"]:focus,
 input[type="datetime-local"]:focus,
 select:focus,
 .dropdown__trigger:focus,
-.dropdown--open > .dropdown__trigger {
+.dropdown--open>.dropdown__trigger {
   border-color: var(--accent);
   background: rgba(0, 168, 255, 0.05);
   box-shadow: 0 0 0 3px rgba(0, 168, 255, 0.12);

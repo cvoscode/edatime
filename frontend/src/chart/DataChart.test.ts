@@ -459,6 +459,10 @@ describe('updateDataMulti', () => {
         expect(setOption).toHaveBeenCalledOnce();
         expect(setOption.mock.calls[0][0]).toEqual(expect.objectContaining({
             animation: false,
+            theme: expect.objectContaining({
+                backgroundColor: '#0B0F18',
+                textColor: '#D2DAF0',
+            }),
         }));
     });
 });

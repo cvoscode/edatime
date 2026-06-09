@@ -1,22 +1,22 @@
 # pages/timeseriesModule.md
-> Owns the Timeseries page lifecycle: controller, feature entrypoint, dataset bootstrap, and runtime.
+> Owns the Timeseries page lifecycle: controller, feature entrypoint, dataset bootstrap, and runtime. `initializeDatasetUi` is now async and dynamically imports its UI helpers via `ensureDatasetUiModules`.
 
 ## Interface: `TimeseriesModuleDeps`
 ```typescript
 interface TimeseriesModuleDeps {
     fetchData: (start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<DataObject>;
-    fetchMetadata: () => Promise<DatasetMetadata>; // [NEW]
+    fetchMetadata: () => Promise<DatasetMetadata>;
     buildColumnToggles: () => void;
     buildRangeControls: () => void;
-    markMetadataReady: () => void; // [NEW]
-    sanitizeSelectedColumns: () => void; // [NEW]
-    clearLoadedPageModules: () => void; // [NEW]
-    ensureSessionPersistenceStarted: () => void; // [NEW]
-    getSelectedCols: () => string[]; // [NEW]
-    setSelectedCols: (cols: string[]) => void; // [NEW]
-    setNumericCols: (cols: string[]) => void; // [NEW]
-    setAdaptiveFilterColumn: (col: string | null) => void; // [NEW]
-    setViewport: (start: number, end: number) => void; // [NEW]
+    markMetadataReady: () => void;
+    sanitizeSelectedColumns: () => void;
+    clearLoadedPageModules: () => void;
+    ensureSessionPersistenceStarted: () => void;
+    getSelectedCols: () => string[];
+    setSelectedCols: (cols: string[]) => void;
+    setNumericCols: (cols: string[]) => void;
+    setAdaptiveFilterColumn: (col: string | null) => void;
+    setViewport: (start: number, end: number) => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
     getCurrentView: () => { start: number; end: number };
@@ -55,18 +55,23 @@ interface TimeseriesModule {
 ### createDatasetBootstrap (local factory)
 - `storeFetchedMetadata(metadata: DatasetMetadata): void`
   - Stores metadata and revision via `setMetadata` / `setDatasetRevision`.
-- `initializeDatasetUi(metadata: DatasetMetadata): void`
-  - Initializes feature, column profiles, viewport, and zoom from metadata. Called exactly once.
+- `initializeDatasetUi(metadata: DatasetMetadata): Promise<void>`
+  - Async. Calls `ensureDatasetUiModules()` to dynamically import `ui/profile.js`, `features/upload/preview.js`, and `features/upload/partialLoadControls.js`. Then dispatches `edatime:workflow-refresh`, sets viewport/zoom via `setViewport` / `updateAnalysisZoom`, and emits `edatime:chart-range-change` with source `initial`. Hydrates column profiles, applies the time range, and builds the chip/range controls.
 - Creates the dataset bootstrap with injected deps from `TimeseriesModuleDeps`.
 
 ## State
 - `datasetUiReady: boolean` [LOCAL - guards initializeDatasetUi]
+- `datasetUiModules: { hydrateColumnProfiles, renderColumnProfilesGrid, setProfileMode, setUploadPreviewStatus, formatUploadRowCount, formatUploadRowCountValue, formatCount, loadedRowCountFromResponse } | null` [memoized after first `ensureDatasetUiModules` call]
 
 ## Functions
 
 ### createTimeseriesModule
 - `createTimeseriesModule(deps: TimeseriesModuleDeps): TimeseriesModule`
   - Creates controller, feature, runtime, and bootstrap. Returns public interface for column/range controls, render, and lifecycle.
+
+### ensureDatasetUiModules (internal)
+- `ensureDatasetUiModules(): Promise<DatasetUiModules>`
+  - Lazily loads the dataset UI module bundle. Caches the resolved reference in `datasetUiModules` so subsequent calls are synchronous.
 
 ---
 [1]: ./timeseriesPage.md#createTimeseriesPageController

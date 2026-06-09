@@ -9,8 +9,6 @@ import { createTimeseriesEntrypoint } from '../features/timeseries/entrypoint.js
 import { createTimeseriesRuntime } from './timeseriesRuntime.js';
 import { createDatasetBootstrap } from '../app/bootstrap/datasetBootstrap.js';
 import { createTimeseriesBootstrap } from '../app/bootstrap/ensureTimeseriesReady.js';
-import { hydrateColumnProfiles, renderColumnProfilesGrid } from '../ui/profile.js';
-import { applyPartialTimeRangeFromMetadata, setProfileMode, setUploadPreviewStatus } from '../ui/upload.js';
 import { setDatasetRevision, setMetadata } from '../store/index.js';
 import { getNumericColumns, getDefaultTimeseriesColumns } from './analyticsPageUtils.js';
 import type { DatasetMetadata, ViewSnapshot } from '../types.js';
@@ -44,6 +42,30 @@ export interface TimeseriesModuleDeps {
 export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     let datasetUiReady = false;
     let feature!: ReturnType<typeof createTimeseriesEntrypoint>;
+    let datasetUiModulesPromise: Promise<{
+        hydrateColumnProfiles: typeof import('../ui/profile.js').hydrateColumnProfiles;
+        renderColumnProfilesGrid: typeof import('../ui/profile.js').renderColumnProfilesGrid;
+        applyPartialTimeRangeFromMetadata: typeof import('../features/upload/partialLoadControls.js').applyPartialTimeRangeFromMetadata;
+        setProfileMode: typeof import('../features/upload/preview.js').setProfileMode;
+        setUploadPreviewStatus: typeof import('../features/upload/preview.js').setUploadPreviewStatus;
+    }> | null = null;
+
+    function ensureDatasetUiModules() {
+        if (!datasetUiModulesPromise) {
+            datasetUiModulesPromise = Promise.all([
+                import('../ui/profile.js'),
+                import('../features/upload/preview.js'),
+                import('../features/upload/partialLoadControls.js'),
+            ]).then(([profileModule, previewModule, partialLoadModule]) => ({
+                hydrateColumnProfiles: profileModule.hydrateColumnProfiles,
+                renderColumnProfilesGrid: profileModule.renderColumnProfilesGrid,
+                applyPartialTimeRangeFromMetadata: partialLoadModule.applyPartialTimeRangeFromMetadata,
+                setProfileMode: previewModule.setProfileMode,
+                setUploadPreviewStatus: previewModule.setUploadPreviewStatus,
+            }));
+        }
+        return datasetUiModulesPromise;
+    }
 
     // 1. Create the page controller (holds fetch/render/chart state)
     const pageController = createTimeseriesPageController({
@@ -72,18 +94,20 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         setDatasetRevision(typeof revision === 'number' ? revision : 0);
     };
 
-    const initializeDatasetUi = (metadata: DatasetMetadata) => {
+    const initializeDatasetUi = async (metadata: DatasetMetadata) => {
+        const datasetUi = await ensureDatasetUiModules();
+
         if (!datasetUiReady) {
             feature.init();
             deps.ensureSessionPersistenceStarted();
             datasetUiReady = true;
         }
 
-        hydrateColumnProfiles(metadata);
-        renderColumnProfilesGrid(true);
-        applyPartialTimeRangeFromMetadata(metadata, false);
-        setUploadPreviewStatus('Showing current dataset profile. Drop/select a file to preview before loading.');
-        setProfileMode('dataset');
+        datasetUi.hydrateColumnProfiles(metadata);
+        datasetUi.renderColumnProfilesGrid(true);
+        datasetUi.applyPartialTimeRangeFromMetadata(metadata, false);
+        datasetUi.setUploadPreviewStatus('Showing current dataset profile. Drop/select a file to preview before loading.');
+        datasetUi.setProfileMode('dataset');
         feature.rebuildColumns();
         feature.buildRangeControls();
         window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
