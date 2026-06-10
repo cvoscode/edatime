@@ -25,6 +25,7 @@ interface TimeseriesControllerDeps {
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
     getCurrentView: () => ViewSnapshot;
     fetchAndRenderAnalytics: () => Promise<void>;
+    recoverFromColumnMismatch?: () => Promise<boolean>;
 }
 
 let timeseriesEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
@@ -44,6 +45,11 @@ function getTimeseriesEmptyStateController() {
 }
 
 // computeFrontendRollingBands is now imported from ../bootstrap/analyticsOverlay.ts
+
+function isColumnMismatchError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error ?? '');
+    return message.includes('column_not_found') || message.includes('Unknown column');
+}
 
 function computeRenderedYDebugSnapshot() {
     if (!appState.lastFetchedData) return null;
@@ -198,17 +204,37 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             const startIso = new Date(currentStart).toISOString();
             const endIso = new Date(currentEnd).toISOString();
             const width = document.getElementById('main-chart')?.clientWidth || 1200;
-            const cols = appState.selectedCols.join(',');
-            const colorCol = appState.selectedColorColumn || null;
 
-            announceChartLoading(appState.selectedCols || []);
-            dbgGroup('fetchAndRender', () => {
-                dbg('request', { startIso, endIso, width, cols, colorCol });
-                dbg('selectedCols', appState.selectedCols);
-                dbg('selectedColorColumn', appState.selectedColorColumn);
-            });
+            const requestData = async () => {
+                const cols = appState.selectedCols.join(',');
+                const colorCol = appState.selectedColorColumn || null;
 
-            const data = await deps.fetchData(startIso, endIso, width, cols, colorCol, signal);
+                announceChartLoading(appState.selectedCols || []);
+                dbgGroup('fetchAndRender', () => {
+                    dbg('request', { startIso, endIso, width, cols, colorCol });
+                    dbg('selectedCols', appState.selectedCols);
+                    dbg('selectedColorColumn', appState.selectedColorColumn);
+                });
+
+                return deps.fetchData(startIso, endIso, width, cols, colorCol, signal);
+            };
+
+            let data: any;
+            try {
+                data = await requestData();
+            } catch (error) {
+                const recovered = isColumnMismatchError(error)
+                    && deps.recoverFromColumnMismatch
+                    && await deps.recoverFromColumnMismatch();
+                if (!recovered) throw error;
+                if (!Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
+                    deps.buildRangeControls();
+                    renderCurrentData();
+                    return;
+                }
+                data = await requestData();
+            }
+
             setLastFetchedData(data);
 
             if (DEBUG) {
@@ -221,7 +247,12 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 }
                 dbg('response points', n, 'tsMin/tsMax', tsMin, tsMax);
                 if (!data?.ts || data.ts.length === 0) {
-                    console.warn('[edatime] fetchAndRender: empty result for range', { startIso, endIso, width, cols });
+                    console.warn('[edatime] fetchAndRender: empty result for range', {
+                        startIso,
+                        endIso,
+                        width,
+                        cols: appState.selectedCols.join(','),
+                    });
                 }
             }
 

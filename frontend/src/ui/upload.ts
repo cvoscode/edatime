@@ -11,7 +11,7 @@ export { setProfileMode } from '../features/upload/preview.js';
 export { applyPartialTimeRangeFromMetadata } from '../features/upload/partialLoadControls.js';
 export { formatUploadRowCountValue as formatUploadRowCount, loadedRowCountFromResponse } from '../features/upload/preview.js';
 
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import {
     setUploadPreviewStatus,
     setProfileMode,

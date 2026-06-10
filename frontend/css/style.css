@@ -10,8 +10,7 @@
                     upload, provenance
      feature/page — scatter (lazy: drift, home; static: scatter)
 
-   Page-owned modules (lazy-loaded via pageStyles.ts):
-     drift.css, home.css
+   Page modules are bundled by Vite into the hashed stylesheet.
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── Foundation ──────────────────────────────────────────── */
@@ -96,3 +95,9 @@
 
 /* 14. Scatter & density page */
 @import "modules/scatter.css";
+
+/* 16. Drift analysis page */
+@import "modules/drift.css";
+
+/* 27. Home page */
+@import "modules/home.css";

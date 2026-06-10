@@ -1,0 +1,10 @@
+Total messages: 11 (Errors: 7, Warnings: 4)
+Returning 7 messages for level "error"
+
+[ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://127.0.0.1:3000/api/drift/stats:0
+[ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://127.0.0.1:3000/api/drift/stats:0
+[ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://127.0.0.1:3000/api/drift/stats:0
+[ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://127.0.0.1:3000/api/drift/stats:0
+[ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://127.0.0.1:3000/api/drift/stats:0
+[ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://127.0.0.1:3000/api/drift/stats:0
+[ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://127.0.0.1:3000/api/drift/stats:0

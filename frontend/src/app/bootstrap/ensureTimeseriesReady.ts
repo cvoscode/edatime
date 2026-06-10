@@ -121,14 +121,26 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     console.warn('Primary chart failed, switching to fallback:', e);
                     try {
                         const fallbackType = getChartType('fallback');
+                        const fallbackCallbacks = {
+                            onZoom: deps.onZoom,
+                            onYRange: deps.onYRange,
+                            onZoomOut: deps.onZoomOut,
+                        };
                         setChartInstance(fallbackType
-                            ? fallbackType.create('main-chart', {})
-                            : new FallbackChart('main-chart'));
+                            ? fallbackType.create('main-chart', fallbackCallbacks)
+                            : new FallbackChart('main-chart', deps.onZoom, deps.onYRange, deps.onZoomOut));
 
                         await appState.chart!.init();
                         setAnalysisBound(false);
                         bindAnalysisChartEvents();
                         deps.refreshZoomControlsState();
+                        const fallbackChart = appState.chart as ChartInstance | null;
+                        fallbackChart?.setXRange?.(appState.currentStart!, appState.currentEnd!);
+                        fallbackChart?.setChartText?.(
+                            appState.chartText?.title || '',
+                            appState.chartText?.xLabel || '',
+                            appState.chartText?.yLabel || '',
+                        );
                         await deps.fetchAndRender();
                         ready = true;
                     } catch (fallbackErr: unknown) {

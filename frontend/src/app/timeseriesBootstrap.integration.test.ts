@@ -115,7 +115,7 @@ vi.mock('../app/bootstrap/chartBootstrap.js', () => ({
         fetchData: vi.fn(),
         fetchAnomalies: vi.fn(),
         postTransform: vi.fn(),
-        DataChartCtor: class {},
+        DataChartCtor: class { },
     }),
 }));
 

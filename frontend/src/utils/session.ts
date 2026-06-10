@@ -141,7 +141,29 @@ export function applySession(
     const revisionMismatch = hasRevisions && currentRevision !== snapshotRevision;
     result.revisionMismatch = revisionMismatch;
 
-    setSelectedCols(Array.isArray(snap.selectedCols) ? snap.selectedCols : []);
+    const metadataColumns = Array.isArray((appState.metadata as any)?.columns)
+        ? (appState.metadata as any).columns
+        : [];
+    const validMetadataNames = new Set(
+        metadataColumns.map((col: any) => String(col?.name ?? '').trim()).filter(Boolean),
+    );
+    const metadataNumericNames = new Set(
+        Array.isArray((appState.metadata as any)?.numeric_columns)
+            ? (appState.metadata as any).numeric_columns.map((col: any) => String(col ?? '').trim()).filter(Boolean)
+            : [],
+    );
+
+    const restoredSelectedCols = Array.isArray(snap.selectedCols) ? snap.selectedCols : [];
+    const nextSelectedCols = validMetadataNames.size === 0
+        ? restoredSelectedCols
+        : restoredSelectedCols.filter((col) => {
+            const name = String(col ?? '').trim();
+            if (!name || !validMetadataNames.has(name)) return false;
+            if (metadataNumericNames.size > 0 && !metadataNumericNames.has(name)) return false;
+            return true;
+        });
+
+    setSelectedCols(nextSelectedCols.length > 0 ? nextSelectedCols : [...appState.selectedCols]);
     if (snap.seriesColors) setSeriesColors({ ...snap.seriesColors });
 
     if (revisionMismatch) {
@@ -195,7 +217,11 @@ export function applySession(
         }
     }
 
-    if (snap.selectedColorColumn !== undefined) setSelectedColorColumn(snap.selectedColorColumn);
+    if (snap.selectedColorColumn !== undefined) {
+        const colorColumn = String(snap.selectedColorColumn ?? '').trim();
+        const validColorColumn = !colorColumn || validMetadataNames.size === 0 || validMetadataNames.has(colorColumn);
+        setSelectedColorColumn(validColorColumn ? snap.selectedColorColumn : null);
+    }
     if (snap.chartText) setChartText({ ...snap.chartText });
     if (snap.rollingEnabled !== undefined) setRollingEnabled(snap.rollingEnabled);
     if (Number.isFinite(snap.rollingWindow)) setRollingWindow(snap.rollingWindow);

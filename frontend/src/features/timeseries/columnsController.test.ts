@@ -65,4 +65,22 @@ describe('buildColumnToggles', () => {
         expect(rebuiltHullChip?.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked).toBe(false);
         expect(fetchAndRender).toHaveBeenCalledTimes(1);
     });
+
+    it('clears the rebuild guard after rendering the empty state so later rebuilds can recover', () => {
+        const fetchAndRender = vi.fn();
+        const buildRangeControls = vi.fn();
+
+        setFilterText('zzz');
+        buildColumnToggles(fetchAndRender, buildRangeControls);
+
+        const container = document.getElementById('column-toggles') as HTMLElement;
+        expect(container.dataset.rebuilding).toBe('');
+        expect(container.textContent).toContain('No matching columns');
+
+        setFilterText('');
+        buildColumnToggles(fetchAndRender, buildRangeControls);
+
+        expect(container.querySelectorAll('.series-chip').length).toBe(3);
+        expect(container.textContent).not.toContain('No matching columns');
+    });
 });

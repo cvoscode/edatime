@@ -4,7 +4,7 @@
 import {
     uploadDataset,
 } from '../../services/api/index.js';
-import { appState } from '../../store/appStateCompat.js';
+import { appState } from '../../store/index.js';
 import {
     setMetadata,
     setDatasetRevision,

@@ -8,7 +8,7 @@
  * exposes the same interface as other analysis page runtimes.
  */
 import { fetchSpectrogram, type SpectrogramResult } from '../services/api/index.js';
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../utils/chartExport.js';
 import { getDropdownOptions, getDropdownValue, setDropdownOptions } from '../ui/primitives/Dropdown.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';

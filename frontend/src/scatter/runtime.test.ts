@@ -31,20 +31,24 @@ vi.mock('./rendering.js', () => ({
     exportScatterData: vi.fn(),
 }));
 
-vi.mock('../store/appStateCompat.js', () => ({
-    appState: {
-        scatter: {
-            loading: false,
-            chart: null,
-            totalPoints: 0,
+vi.mock('../store/index.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../store/index.js')>();
+    return {
+        ...actual,
+        appState: {
+            scatter: {
+                loading: false,
+                chart: null,
+                totalPoints: 0,
+            },
+            metadata: null,
+            currentStart: 0,
+            currentEnd: 1_000,
+            columnRanges: {},
+            adaptiveLineFilters: [],
         },
-        metadata: null,
-        currentStart: 0,
-        currentEnd: 1_000,
-        columnRanges: {},
-        adaptiveLineFilters: [],
-    },
-}));
+    };
+});
 
 vi.mock('./state.js', async (importOriginal) => {
     const actual = await importOriginal<typeof import('./state.js')>();
@@ -190,7 +194,7 @@ describe('syncScatterEmptyState', () => {
     it('hides empty state when axes are selected and points exist', async () => {
         // Ensure GPU unavailable is reset so this test runs in a clean state
         setGpuUnavailable(false);
-        const { appState } = await import('../store/appStateCompat.js');
+        const { appState } = await import('../store/index.js');
         appState.scatter.totalPoints = 100;
         appState.scatter.loading = false;
         appState.scatter.chart = {} as any; // chart exists to satisfy the gpu-unavailable guard

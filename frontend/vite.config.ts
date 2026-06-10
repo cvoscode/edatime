@@ -2,40 +2,23 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 /**
- * Vite config for EdaTime frontend migration (esbuild → Vite 6).
+ * Vite owns the production asset graph.
  *
- * Design decisions:
- * - root: 'frontend' (where package.json, tsconfig.json, and src/ live)
- * - outDir: 'js' (matches the static path the Rust backend serves)
- * - Entry: src/app.ts (TypeScript entry, no HTML input needed)
- * - entryFileNames: '[name].js' → output is always js/app.js (no hash)
- * - index HTML: the existing frontend/index.html is served as-is by the
- *   Rust backend; it references js/app.js which is the Vite output
- * - Service worker: existing frontend/sw.js is kept as-is (not managed by Vite)
- * - PWA plugin: disabled (existing sw.js handles all caching)
+ * Source files live under frontend/. Production builds emit hashed HTML/CSS/JS
+ * directly into the Rust binary's packaged static directory:
+ * crates/edatime-bin/frontend/dist.
  */
 export default defineConfig({
   root: 'frontend',
-  // The packaged frontend is served from / with the JS bundle under /js/.
-  // Setting the base keeps Vite's modulepreload helper aligned with that
-  // layout so lazy chunks resolve to /js/assets/* instead of /assets/*.
-  base: '/js/',
-  // Don't emit index.html — the Rust backend serves frontend/index.html.
-  // Vite still processes the root to find index.html for dev server, but
-  // build output goes to js/ only.
+  base: '/',
   publicDir: 'public',
   build: {
-    outDir: 'js',
-    // Wipe js/ before each build so stale esbuild/PWA artifacts are removed
+    outDir: '../crates/edatime-bin/frontend/dist',
     emptyOutDir: true,
+    manifest: true,
     rollupOptions: {
-      input: {
-        app: resolve(__dirname, 'src/app.ts'),
-      },
+      input: resolve(__dirname, 'index.html'),
       output: {
-        // Flat naming: entry is always 'app.js' (no hash)
-        entryFileNames: '[name].js',
-        // Vendor + page-level code splitting
         manualChunks(id) {
           if (id.includes('/utils/settings.')) return 'settings';
           if (id.includes('chartgpu')) return 'chartgpu';

@@ -1,4 +1,10 @@
-use axum::{Router, extract::DefaultBodyLimit, http::Method, middleware::from_fn};
+use axum::{
+    Router,
+    extract::{DefaultBodyLimit, Request},
+    http::{Method, header},
+    middleware::{Next, from_fn},
+    response::Response,
+};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::{
@@ -63,6 +69,7 @@ async fn main() {
         .nest("/api", routes::api_router())
         .nest("/api/v1", routes::api_router())
         .fallback_service(ServeDir::new(frontend_dir))
+        .layer(from_fn(frontend_cache_control_middleware))
         .layer(DefaultBodyLimit::max(max_upload_bytes))
         .layer(CompressionLayer::new().gzip(true))
         .layer(TraceLayer::new_for_http())
@@ -123,4 +130,28 @@ async fn shutdown_signal() {
         () = ctrl_c => tracing::info!("received Ctrl+C, shutting down"),
         () = terminate => tracing::info!("received SIGTERM, shutting down"),
     }
+}
+
+async fn frontend_cache_control_middleware(req: Request, next: Next) -> Response {
+    let path = req.uri().path().to_owned();
+    let is_frontend_request =
+        matches!(*req.method(), Method::GET | Method::HEAD) && !path.starts_with("/api");
+    let mut response = next.run(req).await;
+
+    if is_frontend_request && response.status().is_success() {
+        response.headers_mut().insert(
+            header::CACHE_CONTROL,
+            header::HeaderValue::from_static("no-store, no-cache, must-revalidate"),
+        );
+        response.headers_mut().insert(
+            header::PRAGMA,
+            header::HeaderValue::from_static("no-cache"),
+        );
+        response.headers_mut().insert(
+            header::EXPIRES,
+            header::HeaderValue::from_static("0"),
+        );
+    }
+
+    response
 }

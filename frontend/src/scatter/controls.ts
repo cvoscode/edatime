@@ -12,7 +12,7 @@
  * This module does NOT import from scatterPage.ts to avoid circular deps.
  * All scatter rendering functions are passed as callbacks.
  */
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import { getEl, normalizeScatterSuggestionThreshold } from './helpers.js';
 import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 import {

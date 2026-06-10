@@ -260,6 +260,8 @@
 }
 
 .timeseries-utility-shelf {
+  position: relative;
+  z-index: 30;
   height: auto;
   min-height: 58px;
   padding-top: 10px;

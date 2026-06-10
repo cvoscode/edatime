@@ -3,7 +3,7 @@
  * Toggles open/closed via toolbar button; saves state to preferences.
  */
 
-import { getSetting, updateSetting } from '../utils/settings.js';
+import { updateSetting } from '../utils/settings.js';
 import { createDrawerController } from './shell/createDrawerController';
 
 const controller = createDrawerController({
@@ -18,10 +18,17 @@ const controller = createDrawerController({
 });
 
 export function initAnalyticsDrawer(): void {
-    document.getElementById('analytics-close-btn')?.addEventListener('click', controller.close);
+    const closeButton = document.getElementById('analytics-close-btn') as HTMLButtonElement | null;
+    if (closeButton && !closeButton.dataset.bound) {
+        closeButton.addEventListener('click', controller.close);
+        closeButton.dataset.bound = '1';
+    }
 
-    const saved = getSetting('analyticsDrawerOpen');
-    if (saved) controller.open();
+    // Always normalize the runtime state on page load so a persisted
+    // preference cannot leave the document in a stale interaction-blocking
+    // state before the user explicitly opens the drawer again.
+    controller.close();
+    updateSetting('analyticsDrawerOpen', false);
 }
 
 export const openDrawer = controller.open;

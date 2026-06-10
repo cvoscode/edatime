@@ -13,7 +13,7 @@ import { defaultGpuPowerPreference } from '../utils/platform.js';
 import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 import { EchartsScatterChart } from '../chart/EchartsScatterChart.js';
 import { fetchScatterPoints } from '../services/api/index.js';
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import {
     getEl,
     fmt,

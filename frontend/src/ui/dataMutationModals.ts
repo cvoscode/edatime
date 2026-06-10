@@ -1,4 +1,4 @@
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import { createModalController } from './shell/createModalController';
 import { createDataMutationFeature } from '../features/dataMutation/entrypoint.js';
 import { getDropdownValue } from './primitives/Dropdown.js';

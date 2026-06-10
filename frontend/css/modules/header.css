@@ -84,6 +84,3 @@ header {
   background: var(--shell-hover);
   border-color: var(--shell-border-strong);
 }
-
-  animation: pulse 2s infinite;
-}

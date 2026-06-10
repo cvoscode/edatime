@@ -69,6 +69,8 @@ function toDatetimeLocal(ms: number): string {
 // ── Column picker state (module-level to survive across page visits) ─────────
 let selectedCols = new Set<string>();
 let numericCols: string[] = [];
+let pickerLabelEl: HTMLElement | null = null;
+let hiddenColSelectEl: HTMLSelectElement | null = null;
 
 export function getSelectedColumns(): string[] {
     return [...selectedCols];
@@ -77,23 +79,25 @@ export function getSelectedColumns(): string[] {
 export function resetDriftControlsState(): void {
     selectedCols = new Set<string>();
     numericCols = [];
+    pickerLabelEl = null;
+    hiddenColSelectEl = null;
 }
 
-function syncPickerLabel(colPickerLabel: HTMLElement | null): void {
-    if (!colPickerLabel) return;
+function syncPickerLabel(): void {
+    if (!pickerLabelEl) return;
     const n = selectedCols.size;
-    colPickerLabel.textContent = n === 0 ? 'Select columns' : n === 1 ? `${[...selectedCols][0]}` : `${n} columns`;
+    pickerLabelEl.textContent = n === 0 ? 'Select columns' : n === 1 ? `${[...selectedCols][0]}` : `${n} columns`;
 }
 
-function syncHiddenSelect(colSelect: HTMLSelectElement | null, allCols: string[]): void {
-    if (!colSelect) return;
-    colSelect.innerHTML = '';
+function syncHiddenSelect(allCols: string[]): void {
+    if (!hiddenColSelectEl) return;
+    hiddenColSelectEl.innerHTML = '';
     allCols.forEach((col) => {
         const opt = document.createElement('option');
         opt.value = col;
         opt.textContent = col;
         opt.selected = selectedCols.has(col);
-        colSelect.appendChild(opt);
+        hiddenColSelectEl?.appendChild(opt);
     });
 }
 
@@ -105,7 +109,7 @@ function syncCheckboxes(colPickerList: HTMLElement | null): void {
     getCheckboxes(colPickerList).forEach((cb) => {
         cb.checked = selectedCols.has(cb.value);
     });
-    syncPickerLabel(colPickerList as HTMLElement | null);
+    syncPickerLabel();
 }
 
 function openPicker(colPickerPanel: HTMLElement | null, colPickerBtn: HTMLButtonElement | null): void {
@@ -155,8 +159,8 @@ function repopulateColumnSelect(
                 if (selectedCols.size === 0 && allCols.length > 0) selectedCols.add(allCols[0]!);
                 syncCheckboxes(colPickerList);
             }
-            syncPickerLabel(colPickerList);
-            syncHiddenSelect(colPickerList?.querySelector('#drift-col-select') as HTMLSelectElement | null, allCols);
+            syncPickerLabel();
+            syncHiddenSelect(allCols);
         });
         const span = document.createElement('span');
         span.textContent = col;
@@ -164,8 +168,8 @@ function repopulateColumnSelect(
         label.appendChild(span);
         colPickerList.appendChild(label);
     });
-    syncPickerLabel(colPickerList);
-    syncHiddenSelect(colPickerList?.querySelector('#drift-col-select') as HTMLSelectElement | null, allCols);
+    syncPickerLabel();
+    syncHiddenSelect(allCols);
 }
 
 // ── Main bind function ───────────────────────────────────────────────────────
@@ -201,6 +205,8 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         : [];
 
     selectedCols = new Set(numericCols.length > 0 ? [numericCols[0]!] : []);
+    pickerLabelEl = colPickerLabel;
+    hiddenColSelectEl = colSelect;
 
     // ── Picker event listeners ──────────────────────────────────────────────
     colPickerBtn?.addEventListener('click', (e) => {
@@ -274,7 +280,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
     colSelectAllBtn?.addEventListener('click', () => {
         numericCols.forEach((c) => selectedCols.add(c));
         syncCheckboxes(colPickerList);
-        syncHiddenSelect(colSelect, numericCols);
+        syncHiddenSelect(numericCols);
         closePicker(colPickerPanel, colPickerBtn);
     });
 
@@ -283,7 +289,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         if (keep) {
             selectedCols = new Set([keep]);
             syncCheckboxes(colPickerList);
-            syncHiddenSelect(colSelect, numericCols);
+            syncHiddenSelect(numericCols);
         }
         closePicker(colPickerPanel, colPickerBtn);
     });
@@ -291,7 +297,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
     colSelectNoneBtn?.addEventListener('click', () => {
         selectedCols = new Set(numericCols.length > 0 ? [numericCols[0]!] : []);
         syncCheckboxes(colPickerList);
-        syncHiddenSelect(colSelect, numericCols);
+        syncHiddenSelect(numericCols);
     });
 
     // ── Zoom reset ──────────────────────────────────────────────────────────

@@ -4,7 +4,7 @@
  * Extracted from DataChart.ts to reduce its size and improve maintainability.
  */
 
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 import { getChartPalette } from '../utils/theme.js';
 

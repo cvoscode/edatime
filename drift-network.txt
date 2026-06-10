@@ -1,0 +1,9 @@
+5. [POST] http://127.0.0.1:3000/api/drift/stats => [422] Unprocessable Entity
+6. [POST] http://127.0.0.1:3000/api/drift/stats => [422] Unprocessable Entity
+7. [POST] http://127.0.0.1:3000/api/drift/stats => [422] Unprocessable Entity
+8. [POST] http://127.0.0.1:3000/api/drift/stats => [422] Unprocessable Entity
+9. [POST] http://127.0.0.1:3000/api/drift/stats => [422] Unprocessable Entity
+10. [POST] http://127.0.0.1:3000/api/drift/stats => [422] Unprocessable Entity
+11. [POST] http://127.0.0.1:3000/api/drift/stats => [422] Unprocessable Entity
+
+Note: 4 static requests not shown, run with "static" option to see them.

@@ -6,11 +6,11 @@ The editable frontend source lives under `frontend/src/`.
 
 The browser loads:
 
-- `frontend/index.html`
-- bundled JavaScript from the frontend build step
-- static CSS from `frontend/css/`
+- `crates/edatime-bin/frontend/dist/index.html`
+- hashed JavaScript and CSS assets from `crates/edatime-bin/frontend/dist/assets/`
+- runtime-only static files copied into `crates/edatime-bin/frontend/dist/`, such as `sw.js` and `libs/`
 
-The Node/Vite build compiles TypeScript from `frontend/src/` into the browser bundle consumed by the app shell.
+The Node/Vite build uses `frontend/index.html` as its source HTML entry and compiles TypeScript from `frontend/src/` into the packaged browser bundle consumed by the app shell.
 
 ## Current Architecture
 

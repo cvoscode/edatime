@@ -21,6 +21,7 @@
 
 import { register } from './pageRegistry.js';
 import type { DatasetMetadata } from '../types.js';
+import { ensureStyleModule } from '../utils/pageStyles.js';
 
 export interface PageDescriptorInitDeps {
     getRenderTimeseries: () => void;
@@ -119,7 +120,6 @@ export async function loadPageDescriptors(deps: PageDescriptorInitDeps): Promise
             init: async () => {
                 // Preload any page-owned CSS modules before initializing the page.
                 if (descriptor.cssModules?.length) {
-                    const { ensureStyleModule } = await import('../utils/pageStyles.js');
                     for (const moduleName of descriptor.cssModules) {
                         // Cast: descriptor authors are responsible for keeping
                         // the cssModules list in sync with STYLE_MODULES keys.

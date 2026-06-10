@@ -1,4 +1,4 @@
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
 import { toast } from '../utils/toast.js';
 

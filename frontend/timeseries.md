@@ -966,15 +966,17 @@ API requests (data):
 ### Frontend Build Assets
 
 ```
-frontend/dist/
+crates/edatime-bin/frontend/dist/
   ├─ index.html
   ├─ sw.js                       (service worker)
   ├─ assets/
+  │    ├─ index-*.js              (main app bundle)
+  │    ├─ index-*.css             (bundled CSS)
   │    ├─ chartgpu-*.js           (WebGPU chart lib)
   │    ├─ echarts-*.js            (fallback chart)
   │    ├─ apache-arrow-*.js       (Arrow IPC parser)
   │    └─ DataChart-*.js          (bundled DataChart)
-  └─ js/app-*.js                  (main app bundle)
+  └─ libs/                        (runtime library files copied after Vite)
 ```
 
 ---

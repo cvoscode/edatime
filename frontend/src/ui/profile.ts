@@ -8,7 +8,7 @@
  *  - uses appState.profileGridSort { key, dir } for sort state
  */
 
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import { PROFILE_ROW_HEIGHT, PROFILE_OVERSCAN, PROFILE_COLUMNS, getDefaultProfileColumnWidths } from '../services/profile/profile.js';
 import { formatCount, formatProfileValue, normalizeDtypeLabel, toFiniteNumberOrNull } from '../utils/format.js';
 import {

@@ -2,7 +2,7 @@ import { readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const root = path.resolve('frontend/js');
+const root = path.resolve('crates/edatime-bin/frontend/dist/assets');
 
 function collectJavaScriptFiles(dirPath) {
     const entries = readdirSync(dirPath, { withFileTypes: true });
@@ -11,8 +11,6 @@ function collectJavaScriptFiles(dirPath) {
     for (const entry of entries) {
         const fullPath = path.join(dirPath, entry.name);
         if (entry.isDirectory()) {
-            // Skip the assets/ directory — those are hashed Vite chunks
-            if (entry.name === 'assets') continue;
             files.push(...collectJavaScriptFiles(fullPath));
             continue;
         }

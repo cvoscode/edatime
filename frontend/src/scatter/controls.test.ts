@@ -24,7 +24,7 @@ const appStateMock = {
     metadata: null,
 };
 
-vi.mock('../store/appStateCompat.js', () => ({
+vi.mock('../store/index.js', () => ({
     appState: appStateMock,
 }));
 

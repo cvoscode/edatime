@@ -379,21 +379,9 @@ This endpoint should serve the static file `ETTm2.csv` from the server's static 
 
 ## Page Visibility & Styling
 
-### CSS Module Loading
+### CSS Loading
 
-The home page style module is registered in `pageStyles.ts`:
-
-```typescript
-export const PAGE_STYLE_MODULES: Record<string, string> = {
-    home: 'css/modules/home.css?v=1',
-    // ...
-};
-
-export function pageStyleModulesFor(pageName: string): string[] {
-    if (pageName === 'home') return ['home'];
-    // ...
-}
-```
+Home page styles are imported by `frontend/css/style.css` and bundled into the hashed Vite stylesheet emitted under `crates/edatime-bin/frontend/dist/assets/`.
 
 ### Responsive Behavior
 

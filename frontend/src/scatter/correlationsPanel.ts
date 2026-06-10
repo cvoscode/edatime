@@ -8,7 +8,7 @@
  */
 
 import { fetchScatterCorrelations } from '../services/api/index.js';
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import { getDropdownValue, setDropdownOptions, setDropdownValue } from '../ui/primitives/Dropdown.js';
 import { getEl } from './helpers.js';
 import { ensureOptions } from './state.js';

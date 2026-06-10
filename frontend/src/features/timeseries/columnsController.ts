@@ -43,6 +43,7 @@ export function buildColumnToggles(
         empty.className = 'series-empty';
         empty.textContent = 'No matching columns';
         container.appendChild(empty);
+        finish();
         return;
     }
 

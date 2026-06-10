@@ -13,7 +13,7 @@ import {
     setPreviewTimeColumn,
 } from '../../store/index.js';
 import { formatCount, formatAnalysisTime, formatToDatetimeLocal } from '../../utils/format.js';
-import { appState } from '../../store/appStateCompat.js';
+import { appState } from '../../store/index.js';
 import { getPartialTimeRangeInputs } from './partialLoadControls.js';
 import { toast } from '../../utils/toast.js';
 import { getDropdownValue, setDropdownOptions, setDropdownValue } from '../../ui/primitives/Dropdown.js';

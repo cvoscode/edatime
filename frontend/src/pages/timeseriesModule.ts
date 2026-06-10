@@ -9,7 +9,8 @@ import { createTimeseriesEntrypoint } from '../features/timeseries/entrypoint.js
 import { createTimeseriesRuntime } from './timeseriesRuntime.js';
 import { createDatasetBootstrap } from '../app/bootstrap/datasetBootstrap.js';
 import { createTimeseriesBootstrap } from '../app/bootstrap/ensureTimeseriesReady.js';
-import { setDatasetRevision, setMetadata } from '../store/index.js';
+import { appState } from '../store/appStateCompat.js';
+import { setDatasetRevision, setMetadata, setSelectedColorColumn } from '../store/index.js';
 import { getNumericColumns, getDefaultTimeseriesColumns } from './analyticsPageUtils.js';
 import type { DatasetMetadata, ViewSnapshot } from '../types.js';
 
@@ -75,6 +76,31 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         updateAnalysisZoom: deps.updateAnalysisZoom,
         getCurrentView: deps.getCurrentView,
         fetchAndRenderAnalytics: deps.fetchAndRenderAnalytics,
+        recoverFromColumnMismatch: async () => {
+            const metadata = await deps.fetchMetadata();
+            storeFetchedMetadata(metadata);
+
+            const numericColumns = getNumericColumns(metadata);
+            deps.setNumericCols(numericColumns);
+
+            const validNames = new Set(numericColumns);
+            const recoveredSelection = deps.getSelectedCols().filter((col) => validNames.has(col));
+            const nextSelectedCols = recoveredSelection.length > 0
+                ? recoveredSelection
+                : getDefaultTimeseriesColumns(metadata);
+
+            deps.setSelectedCols(nextSelectedCols);
+            deps.sanitizeSelectedColumns();
+            deps.setAdaptiveFilterColumn(nextSelectedCols[0] || null);
+
+            if (appState.selectedColorColumn && !validNames.has(appState.selectedColorColumn)) {
+                setSelectedColorColumn(null);
+            }
+
+            feature.rebuildColumns();
+            feature.buildRangeControls();
+            return deps.getSelectedCols().length > 0;
+        },
     });
 
     // 2. Create the feature entrypoint (wires column toggles, range controls, actions)

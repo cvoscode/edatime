@@ -64,7 +64,15 @@ export async function ensureChartModules(): Promise<ChartModules> {
         });
         registerChartType('fallback', {
             label: 'Fallback (Canvas 2D)',
-            create: (containerId: string) => new FallbackChart(containerId),
+            create: (containerId: string, callbacks: Record<string, unknown> = {}) => {
+                const cb = callbacks as unknown as BootstrapChartCallbacks;
+                return new FallbackChart(
+                    containerId,
+                    cb.onZoom ?? null,
+                    cb.onYRange ?? null,
+                    cb.onZoomOut ?? null,
+                );
+            },
         });
 
         modules = result;

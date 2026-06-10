@@ -10,7 +10,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Load critical CSS via main stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=mq6b34h8">
   <script>
     // Register service worker for caching in deployed environments only.
     // Local development should avoid cached HTML/JS so rebuilt bundles are
@@ -37,6 +36,9 @@
       });
     }
   </script>
+  <script type="module" crossorigin src="/assets/index-CCxQ2k5U.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/settings-bZFrh4Yc.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-1Wvl8bcg.css">
 </head>
 
 <body>
@@ -304,7 +306,7 @@
             <div class="toolbar-group draw-toolbar" role="group" aria-label="Drawing tools">
               <span class="toolbar-label">Draw</span>
               <select id="draw-tool" name="draw-tool" class="draw-select" aria-label="Draw tool">
-                <option value="none">None (Pan)</option>
+                <option value="none">Zoom / inspect</option>
                 <option value="arrow">Arrow</option>
                 <option value="box">Box</option>
               </select>
@@ -1770,7 +1772,7 @@
             <label class="toolbar-field toolbar-field--toggle" for="rolling-enabled-modal">
               <span class="toolbar-field__label">Rolling bands</span>
               <span class="toolbar-field__control scatter-link-toggle" title="Show rolling mean ± σ bands">
-                <input id="rolling-enabled-modal" type="checkbox" aria-label="Show rolling mean ± σ bands">
+                <input id="rolling-enabled-modal" type="checkbox" aria-label="Show rolling mean ± σ bands in analytics modal">
                 <span>Show mean ± σ bands</span>
               </span>
             </label>
@@ -1782,7 +1784,7 @@
             <label class="toolbar-field toolbar-field--toggle" for="anomaly-enabled-modal">
               <span class="toolbar-field__label">Anomalies</span>
               <span class="toolbar-field__control scatter-link-toggle" title="Show anomaly detection regions">
-                <input id="anomaly-enabled-modal" type="checkbox" aria-label="Enable anomaly detection regions">
+                <input id="anomaly-enabled-modal" type="checkbox" aria-label="Enable anomaly detection regions in analytics modal">
                 <span>Enable regions</span>
               </span>
             </label>
@@ -2056,7 +2058,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=mq6b34h8"></script>
 </body>
 
 </html>

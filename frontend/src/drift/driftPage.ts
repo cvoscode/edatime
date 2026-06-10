@@ -269,8 +269,8 @@ export async function initDriftPage(metadata: any): Promise<void> {
         await driftComputeTask.run(async (signal) => {
             const basePayload: Record<string, unknown> = {
                 window: getDropdownValue('drift-window-select') || 'daily',
-                reference_start: new Date(refStart).toISOString(),
-                reference_end: new Date(refEnd).toISOString(),
+                referenceStart: new Date(refStart).toISOString(),
+                referenceEnd: new Date(refEnd).toISOString(),
             };
 
             const settled = await Promise.allSettled(columns.map(async (column) => {

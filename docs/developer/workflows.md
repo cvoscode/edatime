@@ -48,7 +48,7 @@ make docs
 
 ## When To Rebuild The Frontend Bundle
 
-Rebuild `frontend/js/` whenever you change:
+Rebuild `crates/edatime-bin/frontend/dist/` with `npm run build:frontend` whenever you change:
 
 - anything under `frontend/src/`
 - bundle entry wiring

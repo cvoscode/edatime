@@ -5,6 +5,7 @@
  */
 
 import type { PaletteCommand } from '../utils/palette.js';
+import { exportSessionToFile, importSessionFromFile } from '../utils/session.js';
 
 export type CommandDeps = {
     showPage: (pageName: string) => void;
@@ -54,8 +55,7 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         id: 'session-save',
         label: 'Export session to file',
         category: 'Session',
-        action: async () => {
-            const { exportSessionToFile } = await import('../utils/session.js');
+        action: () => {
             exportSessionToFile();
         },
     },
@@ -63,8 +63,7 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         id: 'session-load',
         label: 'Import session from file',
         category: 'Session',
-        action: async () => {
-            const { importSessionFromFile } = await import('../utils/session.js');
+        action: () => {
             importSessionFromFile();
         },
     },

@@ -234,6 +234,8 @@ export const appStateComposite = new Proxy(appStateCompositeTarget, {
     },
 }) as AppStateType;
 
+export const appState = appStateComposite;
+
 /* ── Store ────────────────────────────────────────────────────────────────── */
 
 export const store = {

@@ -4,16 +4,40 @@
  */
 
 import { SERIES_COLORS } from '../utils/seriesColors.js';
-import type { ChartInstance, FilteredDataObject, CrosshairData, ClickData } from '../types.js';
+import type { ChartInstance, FilteredDataObject, CrosshairData, ClickData, ViewSnapshot } from '../types.js';
+
+const FALLBACK_GRID = { left: 28, right: 28, top: 28, bottom: 28 };
 
 export class FallbackChart implements ChartInstance {
     private containerId: string;
     private canvas: HTMLCanvasElement | null = null;
     private ctx: CanvasRenderingContext2D | null = null;
     private resizeObserver: ResizeObserver | null = null;
+    private selectionBox: HTMLElement | null = null;
+    private onZoomCallback: ((view: ViewSnapshot, sourceKind: string) => void) | null;
+    private onYRangeCallback: ((min: number, max: number, sourceKind: string) => void) | null;
+    private onZoomOutCallback: (() => void) | null;
+    private xMin: number | null = null;
+    private xMax: number | null = null;
+    private yMin: number | null = null;
+    private yMax: number | null = null;
+    private dataXMin: number | null = null;
+    private dataXMax: number | null = null;
+    private dataYMin: number | null = null;
+    private dataYMax: number | null = null;
+    private lastData: FilteredDataObject | null = null;
+    private lastColumns: string[] = [];
 
-    constructor(containerId: string) {
+    constructor(
+        containerId: string,
+        onZoomCallback: ((view: ViewSnapshot, sourceKind: string) => void) | null = null,
+        onYRangeCallback: ((min: number, max: number, sourceKind: string) => void) | null = null,
+        onZoomOutCallback: (() => void) | null = null,
+    ) {
         this.containerId = containerId;
+        this.onZoomCallback = onZoomCallback;
+        this.onYRangeCallback = onYRangeCallback;
+        this.onZoomOutCallback = onZoomOutCallback;
     }
 
     async init(): Promise<void> {
@@ -40,34 +64,90 @@ export class FallbackChart implements ChartInstance {
 
         this.resizeObserver = new ResizeObserver(() => resize());
         this.resizeObserver.observe(container);
+        const { initBoxZoom } = await import('../chart/chartInteractions.js');
+        this.selectionBox = initBoxZoom({
+            container,
+            grid: FALLBACK_GRID,
+            getXRange: () => this.getXDomain() ?? { min: 0, max: 1 },
+            getYRange: () => this.getYRange() ?? { min: 0, max: 1 },
+            onZoom: (view: ViewSnapshot) => this.onZoomCallback?.(view, 'user'),
+            onDblClick: () => this.onZoomOutCallback?.(),
+        });
     }
 
-    setXRange(): void { }
-    setYRange(): void { }
-    supportsZoomControls(): boolean { return false; }
+    setXRange(min?: number, max?: number): void {
+        if (typeof min !== 'number' || typeof max !== 'number') return;
+        if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return;
+        this.xMin = min;
+        this.xMax = max;
+        this.redraw();
+    }
+
+    setYRange(min?: number, max?: number): void {
+        if (typeof min !== 'number' || typeof max !== 'number') return;
+        if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return;
+        this.yMin = min;
+        this.yMax = max;
+        this.onYRangeCallback?.(min, max, 'api');
+        this.redraw();
+    }
+
+    supportsZoomControls(): boolean { return !!this.canvas; }
     onCrosshairMove(): void { }
     onClick(): void { }
     setChartText(): void { }
     setDrawMode(): void { }
     clearDrawings(): void { }
     fitYToData(): void { }
-    getXDomain(): { min: number; max: number } | null { return null; }
-    getYRange(): { min: number; max: number } | null { return null; }
+    getXDomain(): { min: number; max: number } | null {
+        if (this.xMin != null && this.xMax != null && this.xMax > this.xMin) {
+            return { min: this.xMin, max: this.xMax };
+        }
+        if (this.dataXMin != null && this.dataXMax != null && this.dataXMax > this.dataXMin) {
+            return { min: this.dataXMin, max: this.dataXMax };
+        }
+        return null;
+    }
+
+    getYRange(): { min: number; max: number } | null {
+        if (this.yMin != null && this.yMax != null && this.yMax > this.yMin) {
+            return { min: this.yMin, max: this.yMax };
+        }
+        if (this.dataYMin != null && this.dataYMax != null && this.dataYMax > this.dataYMin) {
+            return { min: this.dataYMin, max: this.dataYMax };
+        }
+        return null;
+    }
     exportPNG(): void { }
     exportSVG(): void { }
     exportHTML(): void { }
 
     updateDataMulti(dataObj: FilteredDataObject, columns: string[]): void {
+        this.lastData = dataObj;
+        this.lastColumns = columns;
+        this.redraw();
+    }
+
+    private redraw(): void {
+        const dataObj = this.lastData;
+        const columns = this.lastColumns;
         if (!this.ctx || !this.canvas) return;
 
         const ctx = this.ctx;
         const width = this.canvas.width;
         const height = this.canvas.height;
-        const pad = 28;
+        const pad = FALLBACK_GRID.left;
 
         ctx.clearRect(0, 0, width, height);
         ctx.fillStyle = '#080a10';
         ctx.fillRect(0, 0, width, height);
+
+        if (!dataObj) {
+            ctx.fillStyle = '#7a86a4';
+            ctx.font = '12px sans-serif';
+            ctx.fillText('No data to display', pad, pad + 2);
+            return;
+        }
 
         let xMin = Number.POSITIVE_INFINITY;
         let xMax = Number.NEGATIVE_INFINITY;
@@ -100,19 +180,27 @@ export class FallbackChart implements ChartInstance {
             }
         }
 
-        if (
-            seriesToDraw.length === 0 ||
-            !Number.isFinite(xMin) || !Number.isFinite(xMax) ||
-            !Number.isFinite(yMin) || !Number.isFinite(yMax)
-        ) {
+        const hasFiniteDomain = Number.isFinite(xMin) && Number.isFinite(xMax) && Number.isFinite(yMin) && Number.isFinite(yMax);
+        if (hasFiniteDomain) {
+            if (xMax === xMin) xMax = xMin + 1;
+            if (yMax === yMin) yMax = yMin + 1;
+            this.dataXMin = xMin;
+            this.dataXMax = xMax;
+            this.dataYMin = yMin;
+            this.dataYMax = yMax;
+        }
+
+        if (seriesToDraw.length === 0 || !hasFiniteDomain) {
             ctx.fillStyle = '#7a86a4';
             ctx.font = '12px sans-serif';
             ctx.fillText('No data to display', pad, pad + 2);
             return;
         }
 
-        if (xMax === xMin) xMax = xMin + 1;
-        if (yMax === yMin) yMax = yMin + 1;
+        const viewXMin = this.xMin ?? xMin;
+        const viewXMax = this.xMax ?? xMax;
+        const viewYMin = this.yMin ?? yMin;
+        const viewYMax = this.yMax ?? yMax;
 
         ctx.strokeStyle = '#272d45';
         ctx.lineWidth = 1;
@@ -134,9 +222,10 @@ export class FallbackChart implements ChartInstance {
                 const x = Number(xs[i]);
                 const y = Number(ys[i]);
                 if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+                if (x < viewXMin || x > viewXMax || y < viewYMin || y > viewYMax) continue;
 
-                const px = pad + ((x - xMin) / (xMax - xMin)) * (width - 2 * pad);
-                const py = height - pad - ((y - yMin) / (yMax - yMin)) * (height - 2 * pad);
+                const px = pad + ((x - viewXMin) / (viewXMax - viewXMin)) * (width - 2 * pad);
+                const py = height - pad - ((y - viewYMin) / (viewYMax - viewYMin)) * (height - 2 * pad);
 
                 if (!started) {
                     ctx.moveTo(px, py);
@@ -152,6 +241,8 @@ export class FallbackChart implements ChartInstance {
     destroy(): void {
         this.resizeObserver?.disconnect();
         this.resizeObserver = null;
+        this.selectionBox?.remove();
+        this.selectionBox = null;
         this.ctx = null;
         this.canvas = null;
     }

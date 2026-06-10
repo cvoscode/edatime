@@ -5,15 +5,19 @@
  * chunk: upload panel, analytics drawer / listeners, annotations, guided
  * workflow, transform & outlier modals, provenance, the column profile
  * grid, command palette, sample dataset cards, analysis controls, and
- * keyboard shortcuts. Each subsystem is loaded via a dynamic import
- * the first time something requests it, and the resulting initializer
- * is cached so subsequent calls are effectively idempotent.
+ * keyboard shortcuts. Subsystems are loaded on demand where that creates a
+ * real chunk boundary; modules already owned by startup are imported normally
+ * so Rollup does not warn about fake-lazy imports.
  *
  * The contract is intentionally small: every initializer receives only
  * the dependencies it actually needs (see `DeferredShellDeps`).
  */
 
-import type { CommandDeps } from '../../bootstrap/commands.js';
+import { initAnalyticsListeners } from '../../bootstrap/analyticsOverlay.js';
+import { registerAppCommands, type CommandDeps } from '../../bootstrap/commands.js';
+import { initAnnotations } from '../../chart/annotations.js';
+import { initAnnotationPanel } from '../../ui/annotationPanel.js';
+import { initAnalysisControls, initChartPageFilterGesture } from '../../ui/toolbar.js';
 
 export interface RefreshDatasetOptions {
     selectedColumn?: string;
@@ -88,15 +92,12 @@ registerSubsystem('analytics-overlay', async () => {
 });
 
 registerSubsystem('analytics-listeners', async () => {
-    const { initAnalyticsListeners } = await import('../../bootstrap/analyticsOverlay.js');
     initAnalyticsListeners(() => Promise.resolve(
         (window as unknown as { __edatime?: { runAnalytics?: () => Promise<void> } }).__edatime?.runAnalytics?.(),
     ));
 });
 
 registerSubsystem('annotation-subsystems', async () => {
-    const { initAnnotations } = await import('../../chart/annotations.js');
-    const { initAnnotationPanel } = await import('../../ui/annotationPanel.js');
     initAnnotations();
     initAnnotationPanel();
 });
@@ -125,7 +126,6 @@ registerSubsystem('settings-panel', async () => {
 });
 
 registerSubsystem('analysis-controls', async (deps) => {
-    const { initAnalysisControls, initChartPageFilterGesture } = await import('../../ui/toolbar.js');
     initAnalysisControls(deps.fetchAndRender);
     initChartPageFilterGesture();
 });
@@ -143,7 +143,6 @@ registerSubsystem('sample-datasets', async (deps) => {
 });
 
 registerSubsystem('app-commands', async (deps) => {
-    const { registerAppCommands } = await import('../../bootstrap/commands.js');
     const commandDeps: CommandDeps = {
         showPage: deps.showPage,
         zoomOut: deps.zoomOut,

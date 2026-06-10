@@ -20,7 +20,7 @@ import {
     lowerBoundByX,
     upperBoundByX,
 } from './helpers.js';
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import {
     currentControls,
     clampView,

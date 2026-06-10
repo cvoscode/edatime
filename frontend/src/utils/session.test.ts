@@ -44,6 +44,7 @@ describe('session restore safeguards', () => {
         appState.adaptiveLineFilters = [];
         appState.datasetRevision = 0;
         appState.metadata = null;
+        appState.selectedCols = ['value'];
     });
 
     it('clears stale filters when dataset revisions mismatch', () => {
@@ -86,5 +87,29 @@ describe('session restore safeguards', () => {
 
         expect(result.navigatedToPage).toBe(false);
         expect(clickSpy).not.toHaveBeenCalled();
+    });
+
+    it('drops saved selected columns that are not valid in the current metadata', () => {
+        appState.metadata = {
+            columns: [
+                { name: 'ts', dtype: 'datetime[ms]' },
+                { name: 'HUFL', dtype: 'f64' },
+                { name: 'HULL', dtype: 'f64' },
+            ],
+            numeric_columns: ['HUFL', 'HULL'],
+            revision: 0,
+        } as any;
+        appState.selectedCols = ['HUFL', 'HULL'];
+
+        const snap = buildSnapshot({
+            selectedCols: ['temperature', 'humidity'],
+            selectedColorColumn: 'temperature',
+            datasetRevision: 0,
+        });
+
+        applySession(snap, { announceAdjustments: false });
+
+        expect(appState.selectedCols).toEqual(['HUFL', 'HULL']);
+        expect(appState.selectedColorColumn).toBeNull();
     });
 });

@@ -10,26 +10,26 @@ describe('pageStyles', () => {
         vi.resetModules();
     });
 
-    it('maps only route-specific page styles', () => {
-        expect(pageStyleModulesFor('home')).toEqual(['home']);
-        expect(pageStyleModulesFor('drift')).toEqual(['drift']);
-        expect(pageStyleModulesFor('scatter')).toEqual(['scatter']);
+    it('does not request raw page stylesheet files', () => {
+        expect(pageStyleModulesFor('home')).toEqual([]);
+        expect(pageStyleModulesFor('drift')).toEqual([]);
+        expect(pageStyleModulesFor('scatter')).toEqual([]);
     });
 
-    it('deduplicates stylesheet links', () => {
-        ensureStyleModule('home');
-        ensureStyleModule('home');
+    it('does not inject stylesheet links', () => {
+        expect(ensureStyleModule('home')).toBeNull();
+        expect(ensureStyleModule('home')).toBeNull();
 
-        expect(document.head.querySelectorAll('link[data-edatime-style="home"]')).toHaveLength(1);
+        expect(document.head.querySelectorAll('link[data-edatime-style="home"]')).toHaveLength(0);
     });
 
-    it('preloads only the styles for the requested page', () => {
+    it('keeps preloading as a no-op compatibility hook', () => {
         preloadPageStyles('scatter');
         preloadPageStyles('home');
 
         expect(document.head.querySelector('link[data-edatime-style="drift"]')).toBeNull();
-        expect(document.head.querySelector('link[data-edatime-style="home"]')).not.toBeNull();
-        expect(document.head.querySelector('link[data-edatime-style="scatter"]')).not.toBeNull();
+        expect(document.head.querySelector('link[data-edatime-style="home"]')).toBeNull();
+        expect(document.head.querySelector('link[data-edatime-style="scatter"]')).toBeNull();
     });
 
 });

@@ -17,7 +17,7 @@ import {
     exportScatterData,
 } from './rendering.js';
 import { getEl } from './helpers.js';
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
 import { isLinkedBrushEnabled, currentControls, getActiveScatterFilterColumns } from './state.js';
 import { defaultGpuPowerPreference, requestGpuAdapter } from '../utils/platform.js';
