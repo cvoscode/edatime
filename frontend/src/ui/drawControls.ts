@@ -3,7 +3,7 @@
  * Extracted from toolbar.ts to reduce its size and improve maintainability.
  */
 
-import { appState } from '../store/appStateCompat.js';
+import { chartState } from '../store/chartState.js';
 import { setAdaptiveLineFilters, setPendingAdaptivePoint } from '../store/index.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
 
@@ -23,8 +23,8 @@ export function initDrawControls(fetchAndRender: () => void): void {
     const adaptiveClearBtn = document.getElementById('adaptive-clear-btn') as HTMLElement | null;
 
     const updateDrawMode = () => {
-        if (appState.chart && appState.chart.setDrawMode) {
-            appState.chart.setDrawMode(getDropdownValue('draw-tool'), drawColor!.value, parseInt(drawWidth!.value, 10));
+        if (chartState.chart && chartState.chart.setDrawMode) {
+            chartState.chart.setDrawMode(getDropdownValue('draw-tool'), drawColor!.value, parseInt(drawWidth!.value, 10));
         }
     };
 
@@ -33,14 +33,14 @@ export function initDrawControls(fetchAndRender: () => void): void {
     if (drawWidth) drawWidth.addEventListener('input', updateDrawMode);
     if (drawClearBtn) {
         drawClearBtn.addEventListener('click', () => {
-            if (appState.chart && appState.chart.clearDrawings) appState.chart.clearDrawings();
+            if (chartState.chart && chartState.chart.clearDrawings) chartState.chart.clearDrawings();
         });
     }
     if (adaptiveClearBtn && !adaptiveClearBtn.dataset.bound) {
         adaptiveClearBtn.addEventListener('click', () => {
             setAdaptiveLineFilters([]);
             setPendingAdaptivePoint(null);
-            (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
+            (chartState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
             window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
         });
         adaptiveClearBtn.dataset.bound = '1';

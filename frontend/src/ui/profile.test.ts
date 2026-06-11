@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { formatUploadSelectionStatus, hydrateColumnProfiles, sortProfileRows } from './profile';
-import { appState } from '../state';
+import { appState } from '../store/appStateCompat';
 import type { DatasetMetadata } from '../types';
 
 function makeMeta(overrides: Partial<DatasetMetadata> = {}): DatasetMetadata {

@@ -13,6 +13,7 @@
  * All scatter rendering functions are passed as callbacks.
  */
 import { appState } from '../store/index.js';
+import type { DatasetMetadata } from '../types.js';
 import { getEl, normalizeScatterSuggestionThreshold } from './helpers.js';
 import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 import {
@@ -37,6 +38,7 @@ import {
 } from './rendering.js';
 
 export interface ScatterRenderCallbacks {
+    initScatterPage: (metadata: DatasetMetadata) => Promise<void>;
     renderScatter: () => Promise<void>;
     refreshCorrelationsAndSuggestions: () => Promise<void>;
     refreshActiveScatterView: () => Promise<void>;
@@ -188,26 +190,15 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     window.addEventListener('edatime:page-change', async (ev: any) => {
         if (ev?.detail?.page !== 'scatter') return;
 
-        if (!appState.scatter.metadata) {
-            await new Promise<void>((resolve) => {
-                const handler = () => {
-                    if (appState.scatter.metadata) {
-                        window.removeEventListener('edatime:metadata-ready', handler);
-                        resolve();
-                    }
-                };
-                window.addEventListener('edatime:metadata-ready', handler);
-                if (appState.scatter.metadata) {
-                    window.removeEventListener('edatime:metadata-ready', handler);
-                    resolve();
-                }
-            });
-        }
-
-        if (!appState.scatter.metadata || !(appState.scatter.metadata as any)?.columns?.length) {
-            if (appState.metadata) {
-                appState.scatter.metadata = appState.metadata;
-            }
+        // The scatter page now treats itself as the authoritative owner of
+        // `appState.scatter.metadata`: initScatterPage is the single place
+        // where it gets written. If a page-change fires before init ran (for
+        // example when the user navigates to scatter on a cold dataset), we
+        // bounce via a single dedicated init call rather than reading from
+        // `appState.metadata` here. That keeps the page-change handler
+        // strictly an effect, not a side-channel metadata source.
+        if (!appState.scatter.metadata && appState.metadata) {
+            await cb.initScatterPage(appState.metadata as DatasetMetadata);
         }
 
         appState.scatter.activeView = normalizeAnalyticsView(ev?.detail?.analyticsView);

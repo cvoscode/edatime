@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { appState } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
 import { applySession, type SessionSnapshot } from './session.js';
 
 vi.mock('./toast.js', () => ({

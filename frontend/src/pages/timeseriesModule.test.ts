@@ -260,6 +260,50 @@ describe('createTimeseriesModule', () => {
         expect(chartBootstrap.ensureReady).toHaveBeenCalledTimes(1);
     });
 
+    it('exposes the same ensureReady on the public surface, calling dataset + chart bootstrap in order', async () => {
+        const datasetBootstrap = mockBootstrap();
+        const chartBootstrap = mockChartBootstrap();
+        const order: string[] = [];
+        datasetBootstrap.ensureDatasetReady.mockImplementation(async () => { order.push('dataset'); });
+        chartBootstrap.ensureReady.mockImplementation(async () => { order.push('chart'); });
+        mockCreateDatasetBootstrap.mockReturnValue(datasetBootstrap);
+        mockCreateTimeseriesBootstrap.mockReturnValue(chartBootstrap);
+
+        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+
+        const mod = createTimeseriesModule(defaultDeps());
+
+        // The public surface must expose ensureReady, and it must invoke both
+        // bootstraps — the regression being guarded is the case where the
+        // public method degraded to a dataset-only call.
+        expect(typeof mod.ensureReady).toBe('function');
+        await mod.ensureReady();
+        expect(datasetBootstrap.ensureDatasetReady).toHaveBeenCalledTimes(1);
+        expect(chartBootstrap.ensureReady).toHaveBeenCalledTimes(1);
+        // Order matters: dataset must be hydrated before the chart is mounted.
+        expect(order).toEqual(['dataset', 'chart']);
+    });
+
+    it('public ensureReady is idempotent and stable across repeated calls', async () => {
+        const datasetBootstrap = mockBootstrap();
+        const chartBootstrap = mockChartBootstrap();
+        mockCreateDatasetBootstrap.mockReturnValue(datasetBootstrap);
+        mockCreateTimeseriesBootstrap.mockReturnValue(chartBootstrap);
+
+        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+
+        const mod = createTimeseriesModule(defaultDeps());
+
+        await mod.ensureReady();
+        await mod.ensureReady();
+        await mod.ensureReady();
+
+        // Each call exercises the full pipeline; idempotency is the
+        // responsibility of the underlying bootstrap, not the module.
+        expect(datasetBootstrap.ensureDatasetReady).toHaveBeenCalledTimes(3);
+        expect(chartBootstrap.ensureReady).toHaveBeenCalledTimes(3);
+    });
+
     it('refreshAfterMutation() returns a Promise and accepts optional { selectedColumn }', async () => {
         const bootstrap = mockBootstrap();
         mockCreateDatasetBootstrap.mockReturnValue(bootstrap);

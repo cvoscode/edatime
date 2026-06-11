@@ -3,8 +3,10 @@
   "type": "module",
   "scripts": {
     "check:frontend": "tsc --noEmit -p tsconfig.json",
-    "validate": "npm run check:frontend && node scripts/check-frontend-architecture.mjs",
+    "check:frontend:arch": "node scripts/check-frontend-architecture.mjs",
     "check:frontend:budgets": "node scripts/check-frontend-budgets.mjs",
+    "check:frontend:all": "npm run check:frontend && npm run check:frontend:arch && npm run check:frontend:budgets",
+    "validate": "npm run check:frontend:all",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "dev": "vite --config frontend/vite.config.ts",
     "build": "node scripts/build-frontend.mjs",

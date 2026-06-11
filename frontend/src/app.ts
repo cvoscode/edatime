@@ -174,6 +174,7 @@ async function init(): Promise<void> {
 
     (window).__edatime = (window).__edatime || {};
     (window).__edatime.ensureDatasetReady = () => timeseriesModule.ensureDatasetReady();
+    (window).__edatime.ensureReady = () => timeseriesModule.ensureReady();
     (window).__edatime.runAnalytics = () => fetchAndRenderAnalytics();
 
     initGlobalShortcuts({

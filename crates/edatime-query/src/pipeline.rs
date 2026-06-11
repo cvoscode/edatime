@@ -36,6 +36,7 @@ pub fn filter_time_range(
 // ── Stage 2: Reduction strategies ──────────────────────────────────────────
 
 /// Reduction strategy to apply after filtering.
+#[derive(Clone, Copy)]
 pub enum Reduction {
     /// LTTB downsampling for line charts. `target_points = width * 2`.
     Lttb { target_points: usize },

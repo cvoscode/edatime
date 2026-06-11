@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { appState } from '../state.js';
+import { appState } from '../store/appStateCompat.js';
 import { buildScatterQueryContext, getActiveScatterFilterColumns } from './state.js';
 
 describe('scatter query context builders', () => {

@@ -39,29 +39,30 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
   - supports partial ingestion, column subset selection, and optional time slicing
 - `POST /api/upload/preview`
   - returns preview metadata used to populate the profile grid before ingest
-- All API routes are also available under `/api/v1/*` for versioned clients
+- All API routes are also available under `/api/v1/*` as a compatibility alias for legacy clients. The canonical mount is `/api/*`; do not target `/api/v1/*` from new frontend code.
 
 ### Frontend runtime structure
 
-- Main app bootstrap in `frontend/js/app.js`
+- Main app bootstrap in `frontend/src/app.ts`
   - loads metadata
   - initializes upload/profile, chart, scatter page, and analysis controls
   - coordinates refetches and local re-rendering
-- Shared state in `frontend/js/state.js`
+- Shared state in `frontend/src/store/index.ts` (composite `appState` Proxy over sub-states)
   - selected series
   - per-series custom colors
   - numeric range filters
   - adaptive line filters
   - current chart viewport
   - chart text overlays
-- Main chart adapter in `frontend/js/chart.js`
+  - backward-compat re-exports in `frontend/src/store/appStateCompat.ts` (kept as a thin shim over `store/index.ts`; new code imports from `store/index.ts`)
+- Main chart adapter in `frontend/src/chart/DataChart.ts`
   - ChartGPU-backed time-series rendering
   - overlay rendering for adaptive filters and drawings
   - zoom handling
   - export helpers
-- Chart registry in `frontend/js/charts/registry.js`
+- Chart registry in `frontend/src/charts/registry.ts`
   - registers the primary ChartGPU line chart and Canvas fallback chart
-- Scatter analytics in `frontend/js/scatterPage.js`
+- Scatter analytics in `frontend/src/scatter/scatterPage.ts`
   - correlation suggestions
   - scatter/density rendering
   - linked filter propagation
@@ -70,23 +71,40 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
 ### Frontend modules
 
 #### Main chart page
-- `frontend/js/app.js`
-- `frontend/js/chart.js`
-- `frontend/js/ui/columns.js`
-- `frontend/js/ui/toolbar.js`
-- `frontend/js/charts/registry.js`
-- `frontend/js/charts/fallback.js`
+- `frontend/src/app.ts`
+- `frontend/src/pages/timeseriesModule.ts` (composition seam for the timeseries page)
+- `frontend/src/pages/timeseriesPage.ts` (page controller: fetch, render, zoom)
+- `frontend/src/pages/timeseriesRuntime.ts` (page lifecycle owner)
+- `frontend/src/chart/DataChart.ts`
+- `frontend/src/ui/columns.ts` (legacy — see `frontend/src/features/timeseries/entrypoint.ts`)
+- `frontend/src/ui/toolbar.ts`
+- `frontend/src/charts/registry.ts`
+- `frontend/src/charts/fallback.ts`
 
 #### Scatter / density analytics page
-- `frontend/js/scatterPage.js`
+- `frontend/src/scatter/scatterPage.ts` (init)
+- `frontend/src/scatter/controls.ts` (event listeners)
+- `frontend/src/scatter/rendering.ts` (echarts option builder, export)
+- `frontend/src/scatter/matrix.ts` (matrix mode)
+- `frontend/src/scatter/correlationsPanel.ts` (suggestions)
+- `frontend/src/scatter/state.ts` (page-local state helpers)
+- `frontend/src/scatter/runtime.ts` (page runtime, empty state, GPU probe)
+- `frontend/src/scatter/helpers.ts` (small DOM/fmt helpers)
+- `frontend/src/features/scatter/entrypoint.ts` (feature entrypoint — loads the page on demand)
 
 #### Upload and dataset profiling
-- `frontend/js/ui/upload.js`
-- `frontend/js/ui/profile.js`
+- `frontend/src/ui/upload.ts`
+- `frontend/src/ui/profile.ts`
+- `frontend/src/features/upload/entrypoint.ts` (feature entrypoint)
+- `frontend/src/features/upload/preview.ts` (preview helpers)
+- `frontend/src/features/upload/partialLoadControls.ts` (partial-load controls)
 
 #### Shared state and transport helpers
-- `frontend/js/state.js`
-- `frontend/js/dataClient.js`
+- `frontend/src/store/index.ts` (sub-states: `chartState`, `uiState`, `datasetState`, `analyticsState`, `scatterState`, `runtimeState`; composite `appState`)
+- `frontend/src/store/appStateCompat.ts` (compat re-export — thin shim over `frontend/src/store/index.ts`; the previous `frontend/src/state.ts` shim has been archived to `frontend/src/legacy/state.ts`)
+- `frontend/src/scatter/state.ts` (a separate, page-local scatter state module — not a state re-export)
+- `frontend/src/store/compatContract.test.ts` pins the read/write contract that legacy importers still rely on; new code must not write to `appState` and should import focused setters/getters from the matching sub-state module (e.g. `uiState`, `chartState`, `datasetState`, `analyticsState`, `runtimeState`, `scatterState`).
+- `frontend/src/services/api/index.ts` (transport barrel — the only place `fetch()` lives)
 
 ## Current feature set
 
@@ -196,7 +214,7 @@ Execution order: fix scatter color-by-column first, then deliver the requested f
 
 - Keep Arrow IPC as the default transport for large tabular series payloads.
 - JSON is acceptable for nested metadata, upload preview responses, correlation suggestions, and scatter payloads where the current frontend shape is convenient.
-- If you move another endpoint to Arrow IPC, update both the backend route contract and `frontend/js/dataClient.js`.
+- If you move another endpoint to Arrow IPC, update both the backend route contract and `frontend/src/services/api/timeseries.ts`.
 
 ## Coding guidance
 
@@ -221,9 +239,9 @@ Execution order: fix scatter color-by-column first, then deliver the requested f
 - `src/downsample.rs`: reuse existing downsampling helpers; do not reimplement LTTB.
 - `src/arrow_export.rs`: keep Arrow export logic centralized here.
 - `src/routes/*.rs`: document route changes in `src/main.rs`, `src/routes/mod.rs`, README, and this instructions file.
-- `frontend/js/chart.js`: preserve external zoom/refetch behavior and overlay rendering.
-- `frontend/js/scatterPage.js`: keep scatter/density rendering, color legend behavior, and linked filtering in sync.
-- `frontend/js/ui/columns.js`: series chips, per-series color pickers, adaptive filter targeting, and range/filter controls live here.
+- `frontend/src/chart/DataChart.ts`: preserve external zoom/refetch behavior and overlay rendering.
+- `frontend/src/scatter/scatterPage.ts`: keep scatter/density rendering, color legend behavior, and linked filtering in sync.
+- `frontend/src/ui/columns.ts` (legacy) → `frontend/src/features/timeseries/entrypoint.ts`: series chips, per-series color pickers, adaptive filter targeting, and range/filter controls live here.
 
 ## Implementation preferences
 

@@ -14,7 +14,8 @@ cargo run --bin edatime
 cargo fmt --check
 cargo check --all-targets
 cargo test
-cargo run --bin validate_frontend
+npm run check:frontend:all
+npm run check:frontend:budgets
 ```
 
 ### Optional Node-Based Frontend Workflow

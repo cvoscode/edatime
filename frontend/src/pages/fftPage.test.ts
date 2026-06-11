@@ -86,7 +86,7 @@ describe('initFftPage', () => {
     });
 
     it('renders FFT chips and starts with the empty state visible', async () => {
-        const { appState } = await import('../state');
+        const { appState } = await import('../store/appStateCompat.js');
         appState.metadata = {
             total_rows: 10,
             columns: [],
@@ -124,7 +124,7 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { appState } = await import('../state');
+        const { appState } = await import('../store/appStateCompat.js');
         appState.metadata = {
             total_rows: 10,
             columns: [],
@@ -165,7 +165,7 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { appState } = await import('../state');
+        const { appState } = await import('../store/appStateCompat.js');
         appState.metadata = {
             total_rows: 10,
             columns: [],
@@ -213,7 +213,7 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { appState } = await import('../state');
+        const { appState } = await import('../store/appStateCompat.js');
         appState.metadata = {
             total_rows: 10,
             columns: [],
@@ -257,7 +257,7 @@ describe('initFftPage', () => {
     it('falls back to ECharts when the WebGPU FFT chart cannot initialize', async () => {
         fftChartInstance.init.mockRejectedValueOnce(new Error('No WebGPU adapter found'));
 
-        const { appState } = await import('../state');
+        const { appState } = await import('../store/appStateCompat.js');
         appState.metadata = {
             total_rows: 10,
             columns: [],

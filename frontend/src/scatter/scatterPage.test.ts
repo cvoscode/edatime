@@ -64,8 +64,8 @@ vi.mock('../services/api/index.js', () => ({
     fetchScatterPoints: (...args: unknown[]) => fetchScatterPointsMock(...args),
 }));
 
-vi.mock('../state.js', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../state.js')>();
+vi.mock('../store/appStateCompat.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../store/appStateCompat.js')>();
     return {
         ...actual,
         appState: {
@@ -78,6 +78,26 @@ vi.mock('../state.js', async (importOriginal) => {
             scatter: freshScatterState,
         },
         buildAdaptiveLineFiltersForQuery: () => [],
+    };
+});
+
+// scatterPage imports the canonical store; mirror the legacy `../state.js`
+// mock so property assignments on `appState.scatter` are visible to the
+// test. Without this, the real ScatterState singleton is used and the
+// assertions in the "records scatter.metadata" test would fail.
+vi.mock('../store/index.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../store/index.js')>();
+    return {
+        ...actual,
+        appState: {
+            ...actual.appState,
+            metadata: null,
+            currentStart: 0,
+            currentEnd: 1_000,
+            columnRanges: {},
+            adaptiveLineFilters: [],
+            scatter: freshScatterState,
+        },
     };
 });
 
@@ -313,5 +333,85 @@ describe('initScatterPage view toggles', () => {
 
         expect(echartsInitMock).toHaveBeenCalledTimes(1);
         expect(createChartMock).not.toHaveBeenCalled();
+    });
+
+    it('populates X/Y dropdowns deterministically when numeric columns are present', async () => {
+        const { initScatterPage } = await import('./scatterPage.js');
+
+        await initScatterPage({
+            total_rows: 3,
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+                { name: 'OT', dtype: 'Float64' },
+            ],
+            numeric_columns: ['HUFL', 'HULL', 'OT'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1_000 },
+            column_profiles: [],
+        } as any);
+
+        const xSelect = document.getElementById('scatter-x-col') as HTMLSelectElement;
+        const ySelect = document.getElementById('scatter-y-col') as HTMLSelectElement;
+
+        // First numeric column is the default X; the second numeric is the
+        // default Y so that the page never boots into a state where the
+        // selects are empty.
+        expect(xSelect.value).toBe('HUFL');
+        expect(ySelect.value).toBe('HULL');
+        // Y must never equal X — the init path must exclude the chosen X
+        // from Y's option list.
+        expect(ySelect.querySelector(`option[value="${xSelect.value}"]`)).toBeNull();
+    });
+
+    it('keeps the dropdowns empty but does not fetch when no numeric columns exist', async () => {
+        const { initScatterPage } = await import('./scatterPage.js');
+
+        await initScatterPage({
+            total_rows: 0,
+            columns: [
+                { name: 'date', dtype: 'Date' },
+                { name: 'label', dtype: 'String' },
+            ],
+            numeric_columns: [],
+            time_column: 'date',
+            time_range: { min: 0, max: 1_000 },
+            column_profiles: [],
+        } as any);
+
+        const xSelect = document.getElementById('scatter-x-col') as HTMLSelectElement;
+        const ySelect = document.getElementById('scatter-y-col') as HTMLSelectElement;
+
+        expect(xSelect.children).toHaveLength(0);
+        expect(ySelect.children).toHaveLength(0);
+        // Critical contract: with no numeric columns we must NOT issue the
+        // scatter points fetch — that would have wasted a round trip and
+        // produced an empty plot.
+        expect(fetchScatterPointsMock).not.toHaveBeenCalled();
+        expect(fetchScatterCorrelationsMock).not.toHaveBeenCalled();
+    });
+
+    it('records scatter.metadata on every init call so a later page-change can read it', async () => {
+        const { initScatterPage } = await import('./scatterPage.js');
+
+        const metadata = {
+            total_rows: 2,
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+            ],
+            numeric_columns: ['HUFL', 'HULL'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1_000 },
+            column_profiles: [],
+        } as any;
+
+        await initScatterPage(metadata);
+        expect(freshScatterState.metadata).toBe(metadata);
+
+        // Second call with a different metadata must overwrite, not merge.
+        const next = { ...metadata, time_range: { min: 5, max: 50 } };
+        await initScatterPage(next);
+        expect(freshScatterState.metadata).toBe(next);
     });
 });

@@ -6,16 +6,16 @@ use axum::{
 };
 use chrono::Utc;
 
-use edatime_core::pipeline::{Pipeline, ProjectStage, TimeFilterStage};
+use edatime_core::types;
 
 use crate::error::AppError;
 use edatime_query::pipeline::{self, Reduction};
 use edatime_query::query::{self, AggregateQuery, AggregateWindowMode, QueryEntry, ReductionSpec, AggFn};
-use edatime_store::cache::CachedResponse;
-use edatime_store::state::AppState;
 use edatime_query::validation::{
     validate_bucket_count, validate_numeric_columns_lazy, validate_time_window, validate_window_ms,
 };
+use edatime_store::cache::CachedResponse;
+use edatime_store::state::AppState;
 
 #[tracing::instrument(skip(state))]
 pub async fn get_aggregate(
@@ -72,21 +72,38 @@ pub async fn get_aggregate(
         }
     };
 
-    // ── Lazy pipeline: time filter + column projection ───────────────────────
-    let time_filter =
-        TimeFilterStage::optional(ts_col.clone(), Some(start_ts), Some(end_ts))
-            .expect("both start and end are Some");
-    let project = ProjectStage { columns: value_cols.clone() };
-
-    let pipeline = Pipeline::new().then(time_filter).then(project);
+    // ── Lazy pipeline: time filter + column projection (with ts_col) ────────
+    // Reuse `filter_time_range` so the time column is always projected alongside
+    // the requested value columns. `apply_reduction` / `bucket_aggregate` need
+    // the ts column to be present, and `filter_time_range` is the single
+    // source of truth for the column-projection shape used by the line/scatter
+    // paths (see shared::filter_preamble).
+    let filtered_lf = pipeline::filter_time_range(lf, start_ts, end_ts, &value_cols, &ts_col)?;
 
     // Collect via QueryExecutor — runs on Rayon thread pool via spawn_blocking
-    let filtered: edatime_core::types::DataFrame = state
+    let filtered: types::DataFrame = state
         .query_executor
-        .execute_async(pipeline.apply(lf))
+        .execute_async(filtered_lf)
         .await?;
 
-    let (aggregated, _) = pipeline::apply_reduction(&filtered, &value_cols, &[], &reduction, &ts_col)?;
+    // BucketAgg and WindowAgg use polars' streaming engine internally, which
+    // starts its own tokio runtime. Running that on a tokio worker thread
+    // raises `Cannot start a runtime from within a runtime`, so we offload the
+    // reduction step to a blocking thread (similar to `execute_async`).
+    let filtered_for_reduction = filtered.clone();
+    let value_cols_for_reduction = value_cols.clone();
+    let ts_col_for_reduction = ts_col.clone();
+    let (aggregated, _) = tokio::task::spawn_blocking(move || {
+        pipeline::apply_reduction(
+            &filtered_for_reduction,
+            &value_cols_for_reduction,
+            &[],
+            &reduction,
+            &ts_col_for_reduction,
+        )
+    })
+    .await
+    .map_err(|e| AppError::internal(format!("Reduction join error: {e}")))??;
     let returned_rows = aggregated.height();
 
     // Log query

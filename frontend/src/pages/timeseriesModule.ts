@@ -185,19 +185,23 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     });
 
     // 4. Create the runtime (owns page lifecycle via createPageRuntime)
+    const ensureReady = async (): Promise<void> => {
+        await bootstrap.ensureDatasetReady();
+        await chartBootstrap.ensureReady();
+    };
     const runtime = createTimeseriesRuntime({
         initFeature: () => feature.init(),
-        ensureReady: async () => {
-            await bootstrap.ensureDatasetReady();
-            await chartBootstrap.ensureReady();
-        },
+        ensureReady,
     });
 
-    // 5. Return the stable module surface
+    // 5. Return the stable module surface. The public `ensureReady` matches
+    // the runtime contract: the dataset is hydrated first, then the chart
+    // is mounted against it. Anything that drives the timeseries page
+    // (e.g. page-change handlers) must await this exact sequence.
     return {
         mount: () => runtime.mount(),
         ensureDatasetReady: () => bootstrap.ensureDatasetReady(),
-        ensureReady: () => bootstrap.ensureDatasetReady(), // same as ensureDatasetReady for now
+        ensureReady,
         fetchAndRender: () => pageController.fetchAndRender(),
         renderCurrentData: () => pageController.renderCurrentData(),
         buildColumnToggles: () => feature.rebuildColumns(),

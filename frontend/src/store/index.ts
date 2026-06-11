@@ -8,8 +8,9 @@
  *   import { store, chartState, uiState, datasetState } from './store/index.js';
  *   store.subscribe('chart:viewport', ({ start, end }) => { ... });
  *
- * For backward compatibility, modules may still import from '../state.js' which
- * re-exports these sub-states. New code should prefer importing from here directly.
+ * For backward compatibility, modules may still import `appState` from
+ * '../store/appStateCompat.js', which re-exports the composite `appState`
+ * object below. New code should prefer importing from here directly.
  */
 
 import type { AppStateType, RollingBandData, AnomalyRegionData, AdaptiveLineFilter, ColumnRange, PendingAdaptivePoint, ProfileRow, DatasetMetadata, SpectralFilterPreview, ViewSnapshot, ChartInstance, YMode } from '../types.js';
@@ -75,7 +76,7 @@ export * from './uiState.js';
 // automatically — call sites that mutate it (e.g. `appState.metadata = x`)
 // must switch to the proper sub-state setters over time.
 //
-// Modules that import `appState` from '../state.js' get this object.
+// Modules that import `appState` from '../store/appStateCompat.js' get this object.
 // New code should import sub-states directly for all state operations.
 //
 // Standalone properties (lived on this composite only):
@@ -100,7 +101,7 @@ function warnLegacyAppStateWrite(property: PropertyKey): void {
 
 const appStateCompositeTarget = {
     // ── Delegated properties ─────────────────────────────────────────────────
-    // These delegate to sub-states so that imports from '../state.js'
+    // These delegate to sub-states so that imports from '../store/appStateCompat.js'
     // stay in sync with the authoritative sub-state values.
 
     get metadata(): DatasetMetadata | null { return datasetState.metadata; },

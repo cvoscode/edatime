@@ -134,6 +134,38 @@ async fn metadata_includes_column_profiles() {
     assert!(first["non_null_count"].as_u64().is_some());
 }
 
+/// The /api/v1/* compatibility alias must return the same response body
+/// as /api/* for any GET endpoint that does not have query-string
+/// nondeterminism. This catches future drift where someone adds a route
+/// under /api/* but forgets to also expose it under /api/v1/*.
+#[tokio::test(flavor = "multi_thread")]
+async fn metadata_v1_alias_returns_byte_equal_body() {
+    let app = test_app();
+    let canonical = Request::builder()
+        .method(Method::GET)
+        .uri("/api/metadata")
+        .body(Body::empty())
+        .unwrap();
+    let v1 = Request::builder()
+        .method(Method::GET)
+        .uri("/api/v1/metadata")
+        .body(Body::empty())
+        .unwrap();
+
+    let canonical_resp = app.clone().oneshot(canonical).await.unwrap();
+    let v1_resp = app.oneshot(v1).await.unwrap();
+
+    assert_eq!(canonical_resp.status(), StatusCode::OK);
+    assert_eq!(v1_resp.status(), StatusCode::OK);
+
+    let canonical_bytes = canonical_resp.into_body().collect().await.unwrap().to_bytes();
+    let v1_bytes = v1_resp.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(
+        canonical_bytes, v1_bytes,
+        "/api/metadata and /api/v1/metadata must return byte-equal bodies"
+    );
+}
+
 // ─── Data endpoint ────────────────────────────────────────────────────────────
 
 #[tokio::test(flavor = "multi_thread")]

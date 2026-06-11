@@ -15,7 +15,8 @@ import {
     exportAnnotations,
     Annotation,
 } from '../chart/annotations.js';
-import { appState } from '../store/appStateCompat.js';
+import { chartState } from '../store/chartState.js';
+import { datasetState } from '../store/datasetState.js';
 import { toast } from '../utils/toast.js';
 
 // Called by DataChart to request an overlay re-render when annotations change
@@ -111,8 +112,8 @@ function saveNote(): void {
     const content = (document.getElementById('note-content-input') as HTMLTextAreaElement).value.trim();
     const color = (document.getElementById('note-color-input') as HTMLInputElement).value;
 
-    const start = appState.currentStart ?? Date.now() - 3600_000;
-    const end = appState.currentEnd ?? Date.now();
+    const start = chartState.currentStart ?? Date.now() - 3600_000;
+    const end = chartState.currentEnd ?? Date.now();
 
     createTimeRangeNote(
         title,
@@ -121,7 +122,7 @@ function saveNote(): void {
         content || undefined,
         undefined,
         color,
-        appState.datasetRevision,
+        datasetState.datasetRevision,
     );
     toast(`Note "${title}" saved.`, 'success');
     closeAddNoteModal();
@@ -131,9 +132,9 @@ function saveNote(): void {
 /* ── Bookmark ──────────────────────────────────────── */
 
 function addBookmarkAtCurrentView(): void {
-    const time = appState.currentStart ?? Date.now();
+    const time = chartState.currentStart ?? Date.now();
     const title = `Bookmark ${new Date(time).toLocaleTimeString()}`;
-    createBookmark(title, time, appState.datasetRevision);
+    createBookmark(title, time, datasetState.datasetRevision);
     toast(`Bookmark added at ${new Date(time).toLocaleString()}`, 'success');
     refreshOverlay();
 }

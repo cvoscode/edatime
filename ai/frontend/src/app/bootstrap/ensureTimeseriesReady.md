@@ -42,8 +42,8 @@ interface TimeseriesBootstrapDeps {
   - `isReady()` returns whether bootstrap has completed.
 
 ## Notes
-- The zoom callback contract changed: it now receives a `ViewSnapshot` (`{ xMin, xMax, yMin, yMax }`) instead of two numeric `start`/`end` arguments. The chart-side zoom handler wraps `(start, end, sourceKind)` into `{ xMin: start, xMax: end, yMin: null, yMax: null }` and forwards to `deps.onZoom`.
-- `onYRange` and `onZoomOut` retain their original numeric / void signatures.
+- The zoom callback contract is `(view: ViewSnapshot, sourceKind: string)`. `DataChart` invokes the chart-side handler as `onZoomCallback(view, 'user')` (with a real `ViewSnapshot`), and the bootstrap forwards the args unchanged to `deps.onZoom`. A previous wrapper declared `(start, end, sourceKind)` and reconstructed the view, which silently corrupted the view (the snapshot object was bound to `start`, the source-kind string to `end`) and tripped the page controller's `Number.isFinite` guard. The wrapper now matches the contract from the `DataChartCtor` fallback branch and from `timeseriesModule.ts`.
+- `onYRange` and `onZoomOut` retain their numeric / void signatures.
 
 ---
 [1]: ../../../store/index.md#setChartInstance

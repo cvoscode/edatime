@@ -214,4 +214,33 @@ describe('app -> timeseries bootstrap wiring', () => {
         await (window as any).__edatime.ensureDatasetReady();
         expect(ensureDatasetReadyMock).toHaveBeenCalledTimes(1);
     });
+
+    it('exposes an ensureReady window alias that is distinct from ensureDatasetReady', async () => {
+        const ensureReadyMock = vi.fn().mockResolvedValue(undefined);
+        createTimeseriesModuleMock.mockReturnValueOnce({
+            mount: vi.fn(() => vi.fn()),
+            ensureDatasetReady: ensureDatasetReadyMock,
+            ensureReady: ensureReadyMock,
+            fetchAndRender: vi.fn().mockResolvedValue(undefined),
+            renderCurrentData: vi.fn(),
+            buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(),
+            emitChartRangeChange: vi.fn(),
+            onZoomRangeChange: vi.fn(),
+            refreshAfterMutation: vi.fn().mockResolvedValue(undefined),
+        });
+
+        await import('../app.js');
+
+        // ensureReady must be its own alias, not a passthrough to
+        // ensureDatasetReady. This guards the regression where the public
+        // ensureReady silently degraded to dataset-only readiness.
+        expect((window as any).__edatime.ensureReady).toBeTypeOf('function');
+        expect((window as any).__edatime.ensureReady)
+            .not.toBe((window as any).__edatime.ensureDatasetReady);
+
+        await (window as any).__edatime.ensureReady();
+        expect(ensureReadyMock).toHaveBeenCalledTimes(1);
+        expect(ensureDatasetReadyMock).not.toHaveBeenCalled();
+    });
 });

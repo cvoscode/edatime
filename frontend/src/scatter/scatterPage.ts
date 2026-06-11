@@ -261,6 +261,7 @@ async function onMatrixCellClick(x: string, y: string): Promise<void> {
 function bindControls(): Promise<void> {
     return import('./controls.js').then(({ bindScatterControls }) =>
         bindScatterControls({
+            initScatterPage,
             renderScatter,
             refreshCorrelationsAndSuggestions,
             refreshActiveScatterView,
@@ -290,9 +291,21 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
         ]),
     );
 
+    // Always populate the dropdowns, even when no numeric columns are available
+    // yet: the controls layer relies on the selects being initialized so
+    // later metadata refreshes can deterministically pick a default. With zero
+    // numeric columns, the selects are simply empty and the page stays in
+    // the empty state until columns arrive.
     if (numeric.length > 0) {
         const selectedX = ensureOptions(xSelect, numeric, getDropdownValue('scatter-x-col') || numeric[0]);
-        ensureOptions(ySelect, numeric.filter((c) => c !== selectedX), getDropdownValue('scatter-y-col') || numeric[1] || numeric[0]);
+        ensureOptions(
+            ySelect,
+            numeric.filter((c) => c !== selectedX),
+            getDropdownValue('scatter-y-col') || numeric[1] || numeric[0],
+        );
+    } else {
+        xSelect.innerHTML = '';
+        ySelect.innerHTML = '';
     }
 
     appState.scatter.loading = !appState.scatter.pageInitialized
@@ -307,6 +320,10 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
 
     const isVisible = !page.hidden;
     if (!isVisible) return;
+
+    // No usable columns: skip the fetch path entirely. Subsequent metadata
+    // refreshes will rerun initScatterPage and pick up the work then.
+    if (numeric.length === 0) return;
 
     try {
         await refreshCorrelationsAndSuggestions();

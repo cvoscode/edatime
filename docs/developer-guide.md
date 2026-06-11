@@ -25,10 +25,11 @@ cargo check --all-targets
 cargo test
 ```
 
-Frontend syntax validation (pure Rust):
+Frontend architecture and syntax validation (requires Node.js for the TypeScript tooling):
 
 ```bash
-cargo run --bin validate_frontend
+npm run check:frontend:all   # type-check + architecture checker
+npm run check:frontend:budgets # production bundle budget check
 ```
 
 Optional development workflow with Node.js:
@@ -41,13 +42,13 @@ npm run build:frontend:prod # minified production build
 npm run watch:frontend     # watch mode for dev
 ```
 
-Combined local validation sequence (pure Rust):
+Combined local validation sequence:
 
 ```bash
 cargo fmt --check
 cargo check --all-targets
 cargo test
-cargo run --bin validate_frontend
+npm run check:frontend:all
 ```
 
 ## Documentation

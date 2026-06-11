@@ -111,12 +111,12 @@ Current status (2026-06-02): ✅ All rules green — architecture check passes, 
 - [x] UI modules migrated (toolbar, profile, upload, settingsPanel, analysisStatus, dataMutationModals, exportControls, viewport, annotationPanel)
 - [x] Chart/scatter modules migrated (DataChart, chartOverlays, colorScale, scatterPage, scatter/state, scatter/rendering, utils/session, utils/provenance, analyticsOverlay)
 - [x] Pages migrated (timeseriesPage, fftPage, spectrogramPage, app.ts)
-- [x] `state.ts` archived to `legacy/state.ts`
+- [x] `state.ts` archived to `legacy/state.ts` and live `state.ts` removed (zero live runtime imports)
+- [x] `state.test.ts` removed (test coverage moved to canonical homes in `utils/format.test.ts`, `services/timeseries/filtering.test.ts`, and `store/compatContract.test.ts`)
 - [x] `bootstrap/timeseriesBootstrap.ts` — state.js import migrated to appStateCompat.js
 - [x] `services/timeseries/filtering.ts` — extended with sanitizeSelectedColumns, applyColumnRanges, buildAdaptiveLineFiltersForQuery, ensureRangeStateFromData
-- [ ] `services/timeseries/filtering.ts:208` — sanitizeSelectedColumns uses direct appState write (must use setSelectedCols setter — Wave 3 fix)
-- [x] Validation: zero live imports from state.ts (2026-06-02), npm run typecheck passes (remaining errors are pre-existing heatmap test / vite config issues)
-- [x] Remaining architecture violations are Wave 3 scope (ui/columns.ts, bootstrap/* deprecations in app.ts/app/shell.ts, features/timeseries/entrypoint.ts)
+- [x] `services/timeseries/filtering.ts:208` — sanitizeSelectedColumns now uses `setSelectedCols()` setter
+- [x] Validation: zero live imports from state.ts (2026-06-10), tsc clean, vitest 86 files / 560 tests passing, arch check passes, prod build succeeds with BUILD_ID injection
 
 ### Wave 3 — Timeseries entrypoint consolidation
 - [x] `features/timeseries/actions.ts` created (initDatasetSearchInputs, initTimeseriesActions)
@@ -138,4 +138,28 @@ Current status (2026-06-02): ✅ All rules green — architecture check passes, 
 The detailed execution plan for this architecture lives in:
 
 - `docs/superpowers/plans/2026-05-30-broad-frontend-consolidation-and-legacy-archive.md`
+
+## Final Status (2026-06-10)
+
+The broad frontend consolidation is **fully complete**. The live frontend
+import graph is on canonical surfaces only:
+
+- **Canonical homes in use:** `app/`, `features/`, `pages/`, `store/`, `services/`, `ui/`, `utils/`.
+- **Compatibility surface:** `store/appStateCompat.ts` re-exports the composite `appState` for legacy importers and serves as the explicit migration target. It is a thin re-export from `store/index.js`, not a parallel state layer.
+- **New canonical owner:** `ui/metaBar.ts` owns `setMetaText` / `buildMetaBar` for the timeseries page header counters.
+- **Live runtime imports from `state.ts`:** 0
+- **Live runtime imports from `components/`:** 0
+- **Live runtime imports from `bootstrap/appShell.ts`:** 0
+- **Live runtime imports from `bootstrap/pageLoaders.ts`:** 0
+- **Live runtime imports from `bootstrap/timeseriesBootstrap.ts`:** 0
+- **Live runtime imports from `ui/columns.ts`:** 0
+- **Live runtime imports from `legacy/`:** 0
+
+Validation (last verified 2026-06-10):
+
+- `npx tsc --noEmit` — PASS
+- `npx vitest run` — 86 test files / 560 tests pass (4 skipped)
+- `node scripts/check-frontend-architecture.mjs` — PASS
+- `node scripts/build-frontend.mjs --prod` — PASS (with BUILD_ID injection)
+- `cargo test --test api_integration` — 24 pass (1 pre-existing failure `aggregate_returns_json_by_default` unrelated to consolidation)
 

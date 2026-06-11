@@ -44,5 +44,8 @@ jobs:
       - name: Check frontend syntax
         run: npm run check:frontend
 
+      - name: Check frontend architecture
+        run: npm run check:frontend:arch
+
       - name: Compile benchmark harness
         run: cargo bench --bench pipeline_bench --no-run

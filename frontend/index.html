@@ -29,8 +29,31 @@
           return;
         }
 
-        navigator.serviceWorker.register('/sw.js').then(function () {
+        navigator.serviceWorker.register('/sw.js').then(function (registration) {
           console.log('ServiceWorker registration successful');
+          // Ask the browser to re-check the SW script in the background.
+          // The new worker will move to waiting.state when BUILD_ID changes;
+          // controllerchange fires once it activates and the page reloads to
+          // pick up the new chunk graph. The sessionStorage guard prevents
+          // a reload loop if the new worker is identical (no skipWaiting).
+          try {
+            registration.update();
+          } catch (err) {
+            console.log('ServiceWorker update() threw: ', err);
+          }
+          navigator.serviceWorker.addEventListener('controllerchange', function () {
+            if (window.sessionStorage && sessionStorage.getItem('edatime-sw-reload') === '1') {
+              return;
+            }
+            try {
+              if (window.sessionStorage) {
+                sessionStorage.setItem('edatime-sw-reload', '1');
+              }
+              window.location.reload();
+            } catch (err) {
+              console.log('ServiceWorker controllerchange reload failed: ', err);
+            }
+          });
         }, function (err) {
           console.log('ServiceWorker registration failed: ', err);
         });

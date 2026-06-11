@@ -2,7 +2,7 @@ export const SERIES_COLORS: string[] = [
     '#00d4ff', '#6c63ff', '#00c896', '#f5a623', '#ff4a6e', '#c77dff',
 ];
 
-import { appState } from '../store/appStateCompat.js';
+import { uiState } from '../store/uiState.js';
 import { setSeriesColors } from '../store/uiState.js';
 
 /**
@@ -19,7 +19,7 @@ export function normalizeSeriesColor(value: unknown): string | null {
  */
 export function getSeriesColor(column: string, fallbackIndex = 0): string {
     const name = String(column || '').trim();
-    const custom = normalizeSeriesColor(appState.seriesColors?.[name]);
+    const custom = normalizeSeriesColor(uiState.seriesColors?.[name]);
     if (custom) return custom;
     return SERIES_COLORS[Math.abs(fallbackIndex) % SERIES_COLORS.length];
 }
@@ -32,6 +32,6 @@ export function setSeriesColor(column: string, value: string): string | null {
     const name = String(column || '').trim();
     const normalized = normalizeSeriesColor(value);
     if (!name || !normalized) return null;
-    setSeriesColors({ ...(appState.seriesColors || {}), [name]: normalized });
+    setSeriesColors({ ...(uiState.seriesColors || {}), [name]: normalized });
     return normalized;
 }

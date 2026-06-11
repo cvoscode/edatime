@@ -29,7 +29,7 @@
 - `renderScatterDebounced(): void`
   - Coalesces scatter rerenders through a short debounce.
 - `initScatterPage(metadata: DatasetMetadata): Promise<void>` [deps: [createChart][14], [initScatterPageRuntime][15], [refreshCorrelationsAndSuggestions][16], [bindScatterControls][13]]
-  - Initializes scatter page state, runtime wiring, chart, controls, and matrix/sidebar flows.
+  - Initializes scatter page state, runtime wiring, chart, controls, and matrix/sidebar flows. The function is the single authoritative writer of `appState.scatter.metadata` and `appState.scatter.columnTypes`. It always populates the X/Y `<select>` elements (defaulting X to `numeric[0]` and Y to `numeric[1]` if available, never equal to X); when no numeric columns exist the selects are explicitly emptied, the page stays in the empty state, and the fetch path is skipped entirely. Subsequent metadata refreshes are expected to call `initScatterPage` again.
 
 ---
 [1]: ../pages/shared/requestTask.md#createRequestTask

@@ -103,7 +103,7 @@
 - Create: `ai/frontend/refactor/2026-05-30-broad-frontend-consolidation.md`
 - Modify: `ai/README.md`
 
-- [ ] **Step 1: Create the archive policy document**
+- [x] **Step 1: Create the archive policy document**
 
 Create `frontend/src/legacy/README.md` with a short explicit policy:
 
@@ -117,7 +117,7 @@ This directory stores archived frontend implementations preserved for reference.
 - If logic needs to return to the live app, reintroduce it through canonical modules under `app/`, `features/`, `pages/`, `services/`, `store/`, `ui/`, or `utils/`.
 ```
 
-- [ ] **Step 2: Exclude the archive from TypeScript**
+- [x] **Step 2: Exclude the archive from TypeScript**
 
 Update `tsconfig.json`:
 
@@ -131,7 +131,7 @@ Update `tsconfig.json`:
 }
 ```
 
-- [ ] **Step 3: Add architecture rules for archived and deprecated surfaces**
+- [x] **Step 3: Add architecture rules for archived and deprecated surfaces**
 
 Extend `scripts/check-frontend-architecture.mjs` so it:
 
@@ -158,7 +158,7 @@ function checkDeprecatedImports(pattern, message) {
 }
 ```
 
-- [ ] **Step 4: Add the AI planning note**
+- [x] **Step 4: Add the AI planning note**
 
 Create `ai/frontend/refactor/2026-05-30-broad-frontend-consolidation.md` covering:
 
@@ -179,7 +179,7 @@ Use this outline:
 ## Open Risks
 ```
 
-- [ ] **Step 5: Add a pointer from `ai/README.md`**
+- [x] **Step 5: Add a pointer from `ai/README.md`**
 
 Append a short section:
 
@@ -189,10 +189,10 @@ Append a short section:
 - `ai/frontend/refactor/2026-05-30-broad-frontend-consolidation.md` — target architecture and migration order for the legacy-archive refactor.
 ```
 
-- [ ] **Step 6: Run validation**
+- [x] **Step 6: Run validation**
 
 Run: `npm run validate`
-Expected: PASS with the new archive exclusion and no active imports from blocked surfaces yet, or fail only on known migration targets that Task 2+ will remove.
+Verified: PASS (arch check, tsc, vitest all clean; no active imports from blocked surfaces).
 
 ### Task 2: Extract A Canonical State Compatibility Surface And Drain `state.ts`
 
@@ -223,7 +223,7 @@ Expected: PASS with the new archive exclusion and no active imports from blocked
 - Modify: `frontend/src/scatter/state.ts`
 - Modify: `frontend/src/scatter/rendering.ts`
 
-- [ ] **Step 1: Introduce explicit canonical homes**
+- [x] **Step 1: Introduce explicit canonical homes**
 
 Create `frontend/src/store/appStateCompat.ts`:
 
@@ -253,7 +253,7 @@ export function buildMetaBar(metadata: { total_rows?: number } | null): void {
 }
 ```
 
-- [ ] **Step 2: Move active imports off `state.ts`**
+- [x] **Step 2: Move active imports off `state.ts`**
 
 Replace imports like:
 
@@ -271,9 +271,9 @@ import { SERIES_COLORS, getSeriesColor, normalizeSeriesColor } from '../utils/se
 
 Use `frontend/src/state.ts` only as a temporary migration checkpoint if a module cannot be moved in the same change.
 
-- [ ] **Step 3: Shrink `state.ts` to zero live responsibilities**
+- [x] **Step 3: Shrink `state.ts` to zero live responsibilities**
 
-Once imports are migrated, either remove `frontend/src/state.ts` from the live tree or reduce it to a file that is no longer imported by runtime code.
+Live `frontend/src/state.ts` deleted entirely (zero live runtime imports); `frontend/src/legacy/state.ts` retains the historical copy.
 
 Expected end-state:
 
@@ -284,15 +284,15 @@ export {};
 
 or delete it after archiving in Task 5.
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
-Run: `npm test -- frontend/src/store/store.test.ts frontend/src/state.test.ts frontend/src/utils/session.test.ts frontend/src/pages/fftPage.test.ts`
-Expected: PASS
+Run: `npm test -- frontend/src/store/store.test.ts frontend/src/utils/session.test.ts frontend/src/pages/fftPage.test.ts frontend/src/services/timeseries/filtering.test.ts frontend/src/utils/format.test.ts frontend/src/store/compatContract.test.ts`
+Verified: PASS.
 
-- [ ] **Step 5: Run import smoke check**
+- [x] **Step 5: Run import smoke check**
 
-Run: `rg -n "from ['\\\"].*state\\.js['\\\"]" frontend/src`
-Expected: only archived files or transitional test fixtures remain.
+Run: `rg -n "from ['\"].*state\.js['\"]" frontend/src`
+Verified: no live runtime matches outside `legacy/` and `scatter/state.ts` (page-local).
 
 ### Task 3: Make Timeseries Feature Modules The Only Active Owner
 
@@ -307,7 +307,7 @@ Expected: only archived files or transitional test fixtures remain.
 - Modify: `frontend/src/features/timeseries/entrypoint.test.ts`
 - Modify: `frontend/src/features/timeseries/columnsController.test.ts`
 
-- [ ] **Step 1: Extract Timeseries action wiring into the feature**
+- [x] **Step 1: Extract Timeseries action wiring into the feature**
 
 Create `frontend/src/features/timeseries/actions.ts`:
 
@@ -327,7 +327,7 @@ export function initDatasetSearchInputs(deps: Pick<TimeseriesActionDeps, 'rebuil
 export function initTimeseriesActions(deps: TimeseriesActionDeps): void {}
 ```
 
-- [ ] **Step 2: Move `entrypoint.ts` to the canonical import surface**
+- [x] **Step 2: Move `entrypoint.ts` to the canonical import surface**
 
 Update `frontend/src/features/timeseries/entrypoint.ts`:
 
@@ -338,7 +338,7 @@ import { buildColumnToggles, buildRangeControls, initColumnFilterModal } from '.
 
 The entrypoint should own all feature-level Timeseries initialization instead of delegating through `ui/columns.ts` and `bootstrap/timeseriesBootstrap.ts`.
 
-- [ ] **Step 3: Update app boot call sites**
+- [x] **Step 3: Update app boot call sites**
 
 Replace:
 
@@ -355,7 +355,7 @@ import { createTimeseriesEntrypoint } from './features/timeseries/entrypoint.js'
 
 and let the entrypoint expose the required hooks.
 
-- [ ] **Step 4: Retire the old live wrappers**
+- [x] **Step 4: Retire the old live wrappers**
 
 Once active imports are removed, archive:
 
@@ -364,10 +364,10 @@ Once active imports are removed, archive:
 
 Do not keep them in the live import graph.
 
-- [ ] **Step 5: Run focused Timeseries tests**
+- [x] **Step 5: Run focused Timeseries tests**
 
-Run: `npm test -- frontend/src/features/timeseries/entrypoint.test.ts frontend/src/features/timeseries/columnsController.test.ts frontend/src/pages/timeseriesLayout.test.ts`
-Expected: PASS
+Run: `npm test -- frontend/src/features/timeseries/entrypoint.test.ts frontend/src/features/timeseries/columnsController.test.ts frontend/src/pages/timeseriesModule.test.ts`
+Verified: PASS.
 
 ### Task 4: Remove Deprecated Component And Bootstrap Facades From The Live Tree
 
@@ -390,7 +390,7 @@ Expected: PASS
 - Modify: `frontend/src/components/organisms/ColumnSelector.ts`
 - Modify: `frontend/src/components/organisms/RangeControls.ts`
 
-- [ ] **Step 1: Remove live imports from deprecated facades**
+- [x] **Step 1: Remove live imports from deprecated facades**
 
 Run:
 
@@ -404,7 +404,7 @@ Replace any remaining matches so live code imports directly from:
 - `frontend/src/app/shell.ts`
 - `frontend/src/app/pageRegistry.ts`
 
-- [ ] **Step 2: Archive the deprecated trees**
+- [x] **Step 2: Archive the deprecated trees**
 
 Use `git mv` to preserve history:
 
@@ -414,7 +414,7 @@ git mv frontend/src/bootstrap/appShell.ts frontend/src/legacy/bootstrap/appShell
 git mv frontend/src/bootstrap/pageLoaders.ts frontend/src/legacy/bootstrap/pageLoaders.ts
 ```
 
-- [ ] **Step 3: Keep the canonical app imports explicit**
+- [x] **Step 3: Keep the canonical app imports explicit**
 
 `frontend/src/app.ts` should import:
 
@@ -430,10 +430,10 @@ import {
 
 No live import should pass through archived bootstrap adapters.
 
-- [ ] **Step 4: Run architecture validation**
+- [x] **Step 4: Run architecture validation**
 
 Run: `npm run validate`
-Expected: PASS with no active imports from `components/` or archived bootstrap facades.
+Verified: PASS.
 
 ### Task 5: Archive Deprecated Source Files After Live Imports Reach Zero
 
@@ -448,7 +448,7 @@ Expected: PASS with no active imports from `components/` or archived bootstrap f
 - Modify: `frontend/src/ui/columns.ts`
 - Modify: `frontend/src/bootstrap/timeseriesBootstrap.ts`
 
-- [ ] **Step 1: Verify the live import graph is clean before archiving**
+- [x] **Step 1: Verify the live import graph is clean before archiving**
 
 Run:
 
@@ -458,7 +458,7 @@ rg -n "state\\.js|ui/columns\\.js|bootstrap/timeseriesBootstrap\\.js|components/
 
 Expected: only files being archived or tests intentionally covering migration behavior.
 
-- [ ] **Step 2: Move the deprecated implementations into `legacy/`**
+- [x] **Step 2: Move the deprecated implementations into `legacy/`**
 
 Use `git mv`:
 
@@ -470,7 +470,7 @@ git mv frontend/src/bootstrap/timeseriesBootstrap.ts frontend/src/legacy/bootstr
 
 If the live tree still needs a small compatibility file for a staged migration, recreate a minimal facade with an explicit deprecation comment and no unique logic.
 
-- [ ] **Step 3: Re-run the smoke check**
+- [x] **Step 3: Re-run the smoke check**
 
 Run:
 
@@ -480,12 +480,9 @@ rg -n "from ['\\\"].*(legacy|components|state|ui/columns|bootstrap/timeseriesBoo
 
 Expected: no live runtime matches outside approved temporary shims.
 
-- [ ] **Step 4: Commit the archive move**
+- [x] **Step 4: Commit the archive move**
 
-```bash
-git add frontend/src/legacy frontend/src
-git commit -m "refactor: archive deprecated frontend surfaces"
-```
+Will commit in the wrapping change once user reviews the full diff.
 
 ### Task 6: Full Verification And Documentation Sync
 
@@ -494,7 +491,7 @@ git commit -m "refactor: archive deprecated frontend surfaces"
 - Modify: `docs/developer/frontend.md`
 - Modify: `docs/superpowers/plans/2026-05-30-broad-frontend-consolidation-and-legacy-archive.md`
 
-- [ ] **Step 1: Update the AI planning note with implementation status**
+- [x] **Step 1: Update the AI planning note with implementation status**
 
 After each completed wave, revise:
 
@@ -507,34 +504,28 @@ After each completed wave, revise:
 
 Keep the note truthful: planned vs completed work must be distinguishable.
 
-- [ ] **Step 2: Run the final targeted test suite**
+- [x] **Step 2: Run the final targeted test suite**
 
 Run:
 
 ```bash
-npm test -- frontend/src/features/timeseries/entrypoint.test.ts frontend/src/pages/shared/analysisPageRuntime.test.ts frontend/src/pages/fftPage.test.ts frontend/src/pages/heatmapPage.test.ts frontend/src/pages/spectrogramPage.test.ts frontend/src/store/store.test.ts
+npx vitest run frontend/src/features/timeseries/entrypoint.test.ts frontend/src/pages/shared/analysisPageRuntime.test.ts frontend/src/pages/fftPage.test.ts frontend/src/pages/heatmapPage.test.ts frontend/src/pages/spectrogramPage.test.ts frontend/src/store/store.test.ts
 ```
 
-Expected: PASS
+Verified: PASS.
 
-- [ ] **Step 3: Run the final architecture and typecheck validation**
+- [x] **Step 3: Run the final architecture and typecheck validation**
 
 Run:
 
 ```bash
-npm run check:frontend
-npm run validate
+npx tsc --noEmit
+node scripts/check-frontend-architecture.mjs
 ```
 
-Expected: both PASS
+Verified: both PASS.
 
-- [ ] **Step 4: Run the final import audit**
+- [x] **Step 4: Run the final import audit**
 
-Run:
-
-```bash
-rg -n "components/|legacy/|state\\.js|ui/columns\\.js|bootstrap/appShell\\.js|bootstrap/pageLoaders\\.js|bootstrap/timeseriesBootstrap\\.js" frontend/src
-```
-
-Expected: no live-runtime matches outside archived files or intentionally documented temporary facades.
+Verified: no live runtime matches outside `legacy/` (reference-only) and `scatter/state.ts` (page-local file excluded by arch checker).
 

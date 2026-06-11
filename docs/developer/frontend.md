@@ -32,6 +32,36 @@ The frontend now follows a feature-first, page-runtime-oriented structure:
   - the only transport boundary; owns fetch calls, response handling, and payload parsing
 - `frontend/src/ui/*`
   - rendering surfaces, shared controls, empty-state helpers, export helpers, and composites
+- `frontend/src/store/*`
+  - focused sub-states (`chartState`, `datasetState`, `uiState`, `analyticsState`, `scatterState`, `runtimeState`) plus `appStateCompat.ts` for the composite `appState` re-export
+
+## Legacy Archive
+
+`frontend/src/legacy/` is a **reference-only archive** of deprecated frontend
+implementations. It is excluded from the TypeScript build, the architecture
+checker, the dev server, and the production bundle. Do not import from it in
+new code, and do not add new files there without updating the archive policy
+in `frontend/src/legacy/README.md`.
+
+The archive currently contains:
+
+- `legacy/components/` — deprecated atoms/molecules/organisms
+- `legacy/bootstrap/{appShell,pageLoaders,timeseriesBootstrap}.ts` — deprecated
+  app boot wrappers
+- `legacy/state.ts` — copy of the pre-refactor composite state module, kept for
+  historical reference (the live tree imports composite state via
+  `store/appStateCompat.js`)
+- `legacy/ui/columns.ts` — pre-refactor column UI wrapper
+
+The live tree's compat surface for these archives is:
+
+- `store/appStateCompat.ts` — re-exports the composite `appState` for legacy
+  importers
+- `features/timeseries/columnsController.ts` — replaces the old `ui/columns.ts`
+- `app/shell.ts` and `app/pageRegistry.ts` — replace the old
+  `bootstrap/appShell.ts` and `bootstrap/pageLoaders.ts`
+- `features/timeseries/entrypoint.ts` — replaces `bootstrap/timeseriesBootstrap.ts`
+- `ui/metaBar.ts` — canonical owner of `setMetaText` / `buildMetaBar`
 
 ## Boot Sequence
 

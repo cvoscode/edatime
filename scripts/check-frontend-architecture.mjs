@@ -80,7 +80,7 @@ for (const file of files) {
   const rel = relative(root, file);
   const text = await readFile(file, 'utf8');
   const isTest = /\.test\.ts$/.test(file);
-  const isLegacyState = rel === 'frontend/src/state.ts' || rel === 'frontend/src/store/index.ts';
+  const isLegacyState = rel === 'frontend/src/store/index.ts';
   const isLegacy = rel.startsWith('frontend/src/legacy/');
   const staticImportRe = /(^|\n)\s*import\s+(type\s+)?[^'"\n]+from\s+['"]([^'"]+)['"]/g;
 
@@ -117,14 +117,6 @@ for (const file of files) {
       // scatter/state.ts exports appState for the scatter module's internal use — skip it.
       if (rel !== 'frontend/src/scatter/state.ts' && /(^|\/)state\.ts$/.test(src)) {
         add(file, 'import from state.ts is deprecated — use store/ sub-states or store/appStateCompat.js', lineOf(text, match.index ?? 0));
-      } else if (src !== './state.js' && /(^|\/)state\.js$/.test(src) && rel !== 'frontend/src/store/index.ts') {
-        // appStateCompat.ts is the documented migration target and is allowed
-        // to re-export appState from state.js so the legacy and compat import
-        // paths resolve to the same module (avoids duplicate chunks).
-        const isAppStateCompat = rel === 'frontend/src/store/appStateCompat.ts';
-        if (!isAppStateCompat) {
-          add(file, 'import from state.ts is deprecated — use store/ sub-states or store/appStateCompat.js', lineOf(text, match.index ?? 0));
-        }
       } else if (/ui\/columns(\.js)?$/.test(src)) {
         add(file, 'import from ui/columns.ts is deprecated — use features/timeseries/columnsController.js', lineOf(text, match.index ?? 0));
       } else if (/bootstrap\/appShell(\.js)?$/.test(src)) {

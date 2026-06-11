@@ -27,16 +27,24 @@ interface TimeseriesModuleDeps {
 ## Returned Interface: `TimeseriesModule`
 ```typescript
 interface TimeseriesModule {
+    mount: () => () => void;
     buildColumnToggles: () => void;
     buildRangeControls: () => void;
     rebuildTimeseriesColumns: () => void;
     rebuildTimeseriesRanges: () => void;
     renderCurrentData: () => void;
     fetchAndRender: () => Promise<void>;
-    onZoomRangeChange: (newStart: number, newEnd: number, sourceKind?: string) => void;
+    onZoomRangeChange: (view: ViewSnapshot, sourceKind?: string) => void;
+    emitChartRangeChange: (sourceKind?: string) => void;
+    ensureDatasetReady: () => Promise<void>;
+    ensureReady: () => Promise<void>;
     refreshAfterMutation: (options?: { selectedColumn?: string }) => Promise<void>;
 }
 ```
+
+### `ensureReady` vs `ensureDatasetReady`
+- `ensureDatasetReady()` hydrates metadata and the dataset UI.
+- `ensureReady()` runs the full pipeline: it awaits `ensureDatasetReady()` first, then awaits the chart bootstrap. Anything driving the timeseries page (e.g. page-change handlers, the `__edatime.ensureReady` window alias exposed in `app.ts`) must await this exact dataset-then-chart sequence.
 
 ## Internal Sub-units (created in order)
 

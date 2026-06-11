@@ -43,8 +43,13 @@
 ### fetchAndRender / onZoomRangeChange
 - `fetchAndRender(): Promise<void>` [deps: [createTimeseriesPageController][1]]
   - Ensures timeseries bootstrap is ready, then delegates to `timeseriesPage.fetchAndRender()`.
-- `onZoomRangeChange(newStart: number, newEnd: number, sourceKind?: string): void` [deps: [createTimeseriesPageController][1]]
-  - Delegates zoom-range updates to the Timeseries page controller.
+- `onZoomRangeChange(view: ViewSnapshot, sourceKind?: string): void` [deps: [createTimeseriesPageController][1]]
+  - Delegates zoom-range updates to the Timeseries page controller. The `view` argument is a `ViewSnapshot` (`{ xMin, xMax, yMin, yMax }`).
+
+### __edatime window surface
+- `__edatime.ensureDatasetReady(): Promise<void>` — `timeseriesModule.ensureDatasetReady()`.
+- `__edatime.ensureReady(): Promise<void>` — `timeseriesModule.ensureReady()` (dataset + chart bootstrap in order). Distinct from `ensureDatasetReady`.
+- `__edatime.runAnalytics(): Promise<void>` — `fetchAndRenderAnalytics()`.
 
 ### ensureSessionPersistenceStarted
 - `ensureSessionPersistenceStarted(): void`

@@ -45,7 +45,7 @@ All pages share the same shell (`frontend/index.html`):
 | `drift.css` | Drift page specific layout and controls |
 
 ### State (appState)
-All pages read/write `appState` from `frontend/src/state.ts`. Key fields:
+All pages read `appState` (a composite Proxy) from `frontend/src/store/index.ts` via `frontend/src/store/appStateCompat.ts`. Mutations should go through the focused sub-state setters (e.g. `uiState`, `chartState`, `datasetState`, `analyticsState`, `runtimeState`, `scatterState`). Key fields:
 - `selectedCols` — active column selection
 - `currentStart` / `currentEnd` — time range
 - `metadata` — dataset metadata (columns, time range, row count)

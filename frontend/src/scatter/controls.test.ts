@@ -93,6 +93,7 @@ describe('bindScatterControls', () => {
         const { bindScatterControls } = await import('./controls.js');
 
         bindScatterControls({
+            initScatterPage: vi.fn(async () => {}),
             renderScatter: vi.fn(async () => {}),
             refreshCorrelationsAndSuggestions: vi.fn(async () => {}),
             refreshActiveScatterView: vi.fn(async () => {}),
@@ -115,6 +116,7 @@ describe('bindScatterControls', () => {
         const { bindScatterControls } = await import('./controls.js');
 
         bindScatterControls({
+            initScatterPage: vi.fn(async () => {}),
             renderScatter: vi.fn(async () => {}),
             refreshCorrelationsAndSuggestions: vi.fn(async () => {}),
             refreshActiveScatterView: vi.fn(async () => {}),

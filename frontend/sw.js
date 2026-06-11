@@ -4,9 +4,13 @@
  * Vite emits hashed production assets, so the worker must not pre-cache fixed
  * app, CSS, or HTML paths. Runtime caching is network-first to avoid serving an
  * older frontend after a rebuild.
+ *
+ * The cache name is interpolated at build time by `scripts/build-frontend.mjs`
+ * from a content hash of the Vite manifest. The literal token is `__BUILD_ID__`;
+ * if you see it in a deployed sw.js, the build pipeline did not run.
  */
 
-const CACHE_NAME = 'edatime-runtime-v1';
+const CACHE_NAME = `edatime-runtime-__BUILD_ID__`;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting());

@@ -152,4 +152,61 @@ describe('createTimeseriesBootstrap', () => {
         });
         expect(appStateMock.chart).toBe(fallbackChart);
     });
+
+    it('forwards a real ViewSnapshot from the line chart zoom callback to deps.onZoom', async () => {
+        // Regression: the bootstrap used to wrap the chart's onZoom callback
+        // as `(start, end, sourceKind) => ...`, but DataChart invokes it as
+        // `onZoomCallback(view, sourceKind)`. That mismatch corrupted the
+        // view and the page controller's Number.isFinite guard bailed out
+        // before any zoom state was applied. This test pins the contract
+        // that the line-type path forwards the view untouched.
+        checkWebGPUMock.mockResolvedValue(null);
+
+        let capturedOnZoom: ((view: any, sourceKind: string) => void) | undefined;
+        const lineCreate = vi.fn((_containerId: string, callbacks: any) => {
+            capturedOnZoom = callbacks.onZoom;
+            return createChartStub();
+        });
+
+        const { registerChartType } = await import('../../charts/registry.js');
+        registerChartType('line', {
+            label: 'Line',
+            create: lineCreate,
+        });
+
+        const onZoom = vi.fn();
+        const onYRange = vi.fn();
+        const onZoomOut = vi.fn();
+        const { createTimeseriesBootstrap } = await import('./ensureTimeseriesReady.js');
+
+        const bootstrap = createTimeseriesBootstrap({
+            DataChartCtor: class { } as any,
+            onZoom,
+            onYRange,
+            onZoomOut,
+            buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(),
+            renderCurrentData: vi.fn(),
+            fetchAndRender: vi.fn().mockResolvedValue(undefined),
+            refreshZoomControlsState: vi.fn(),
+        });
+
+        await bootstrap.ensureReady();
+
+        expect(lineCreate).toHaveBeenCalledTimes(1);
+        expect(typeof capturedOnZoom).toBe('function');
+
+        // Simulate the chart invoking its onZoom callback with a real
+        // ViewSnapshot. The deps.onZoom must receive the same view with
+        // finite xMin/xMax values.
+        const view = { xMin: 100, xMax: 800, yMin: 10, yMax: 90 };
+        capturedOnZoom!(view, 'user');
+
+        expect(onZoom).toHaveBeenCalledTimes(1);
+        const forwarded = onZoom.mock.calls[0];
+        expect(forwarded[0]).toEqual(view);
+        expect(Number.isFinite(forwarded[0].xMin)).toBe(true);
+        expect(Number.isFinite(forwarded[0].xMax)).toBe(true);
+        expect(forwarded[1]).toBe('user');
+    });
 });

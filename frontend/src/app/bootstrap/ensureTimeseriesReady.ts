@@ -62,9 +62,19 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
 
                     const lineType = getChartType('line');
                     if (lineType) {
+                        // DataChart invokes its onZoom callback as
+                        // `onZoomCallback(view, sourceKind)` where `view` is a
+                        // `ViewSnapshot`. Forward the args unchanged so the
+                        // page controller receives a real view with finite
+                        // xMin/xMax; the previous wrapper declared a
+                        // (start, end, sourceKind) signature, which corrupted
+                        // the view (treating the snapshot object as `start`
+                        // and the source kind as `end`) and caused the page
+                        // controller's Number.isFinite guard to bail out
+                        // silently.
                         setChartInstance(lineType.create('main-chart', {
-                            onZoom: (start: number, end: number, sourceKind: string) =>
-                                deps.onZoom({ xMin: start, xMax: end, yMin: null, yMax: null }, sourceKind),
+                            onZoom: (view: ViewSnapshot, sourceKind: string) =>
+                                deps.onZoom(view, sourceKind),
                             onYRange: deps.onYRange,
                             onZoomOut: deps.onZoomOut,
                         }));
