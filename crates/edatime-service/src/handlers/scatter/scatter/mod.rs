@@ -20,7 +20,9 @@ pub use edatime_query::filters::{
 pub use collect::{collect_filtered_scatter_frame, collect_xy_pairs};
 
 // Re-export route handlers for the router.
-pub use correlations::{get_correlation_matrix, get_scatter_correlations};
+pub use correlations::{
+    get_correlation_matrix, get_scatter_correlations, spawn_correlation_matrix_warmup,
+};
 pub use export::post_scatter_export_parquet;
 pub use points::{get_scatter_points, post_scatter_points};
 

@@ -8,7 +8,11 @@ const indexHtmlPath = join(distRoot, 'index.html');
 const manifestPath = join(distRoot, '.vite', 'manifest.json');
 
 const BUDGETS = {
-  appJsMaxBytes: 220_000,
+  // Bumped from 220_000 to 224_000 to accommodate the ChartGPU `dataZoom`
+  // inside-zoom code path that powers the wheel-zoom on the main timeseries
+  // chart. The bundle impact is ~2.3KB raw (~0.5KB gzipped) and is required
+  // for the cursor-anchored wheel zoom to work.
+  appJsMaxBytes: 224_000,
   initialCssMaxBytes: 170_000,
   heavyChunks: {
     echarts: 3_000_000,

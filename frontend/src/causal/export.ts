@@ -13,7 +13,6 @@ import {
     _chipColors, _nodeLabels, _nodeAttrs, _pairAttrs,
     _nodePositions, listPairGroups,
 } from './selectionState.js';
-import { setStatus } from './statusView.js';
 
 const METHOD_PC_STAGE = new Set(['pcmci', 'pcmciplus', 'lpcmci']);
 
@@ -100,7 +99,7 @@ export function exportTorchGeometric(): string {
 }
 
 export function handleExport(fmt: string): void {
-    if (_currentColumns.length === 0) { setStatus('Nothing to export. Compute a graph or add nodes first.'); return; }
+    if (_currentColumns.length === 0) { return; }
     let content = '';
     let filename = 'causal_graph.json';
     let mime = 'application/json';
@@ -113,5 +112,4 @@ export function handleExport(fmt: string): void {
     anchor.href = url; anchor.download = filename; anchor.style.display = 'none';
     document.body.appendChild(anchor);
     requestAnimationFrame(() => { anchor.click(); window.setTimeout(() => { anchor.remove(); URL.revokeObjectURL(url); }, 250); });
-    setStatus('Exported ' + filename);
 }

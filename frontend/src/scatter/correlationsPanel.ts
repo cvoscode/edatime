@@ -16,12 +16,17 @@ import { updateCorrelationStats, updateColorbarUI } from './rendering.js';
 
 /**
  * Renders the list of correlation suggestion buttons in the scatter panel.
+ *
+ * Each suggestion entry has the shape `{ x, y, correlation }` (see
+ * `CorrelationSuggestion` in `types.ts`). Buttons pair a base column with a
+ * suggested partner and let the user apply the pair to the X/Y dropdowns.
  */
 export function renderSuggestions(
-    suggestions: Array<{ column: string; pearson?: number | null; spearman?: number | null }>
+    suggestions: Array<{ x: string; y: string; correlation: number }>
 ): void {
     const box = getEl('scatter-suggestions');
     if (!box) return;
+    const xValue = getDropdownValue('scatter-x-col');
     const yValue = getDropdownValue('scatter-y-col');
 
     appState.scatter.lastSuggestions = Array.isArray(suggestions) ? suggestions.slice() : [];
@@ -36,16 +41,22 @@ export function renderSuggestions(
     }
 
     for (const item of suggestions) {
+        const x = typeof item?.x === 'string' ? item.x.trim() : '';
+        const y = typeof item?.y === 'string' ? item.y.trim() : '';
+        if (!x || !y) continue;
+        const corr = Number.isFinite(item.correlation) ? item.correlation.toFixed(2) : '--';
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'scatter-suggestion-btn';
-        if (yValue === item.column) btn.classList.add('active');
-        const r = Number.isFinite(item.pearson) ? item.pearson!.toFixed(2) : '--';
-        const rho = Number.isFinite(item.spearman) ? item.spearman!.toFixed(2) : '--';
-        btn.textContent = `${item.column}  Pearson ${r}  Spearman ${rho}`;
+        btn.dataset.xColumn = x;
+        btn.dataset.yColumn = y;
+        if (xValue === x && yValue === y) btn.classList.add('active');
+        btn.textContent = `${x} ↔ ${y}  |corr| ${corr}`;
+        btn.title = `Use ${x} (X) and ${y} (Y) — |corr| ${corr}`;
         btn.addEventListener('click', () => {
-            if (getDropdownValue('scatter-y-col') === item.column) return;
-            setDropdownValue('scatter-y-col', item.column);
+            if (getDropdownValue('scatter-x-col') === x && getDropdownValue('scatter-y-col') === y) return;
+            setDropdownValue('scatter-x-col', x);
+            setDropdownValue('scatter-y-col', y);
             updateCorrelationStats();
             renderSuggestions(appState.scatter.lastSuggestions);
         });

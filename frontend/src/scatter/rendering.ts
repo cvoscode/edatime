@@ -26,6 +26,8 @@ import {
     clampView,
     setStats,
     getPlotMetrics,
+    disposeScatterChart,
+    resetScatterContainer,
     type ScatterView,
     type ScatterControls,
     type DensityTooltipCache,
@@ -37,6 +39,7 @@ import {
 } from './layout.js';
 import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 import { getChartPalette } from '../utils/theme.js';
+import { dragToViewport, type DragState } from '../chart/chartInteractions.js';
 
 /* ── Series builders ──────────────────────────────────── */
 
@@ -101,23 +104,18 @@ export function buildNormalScatterSeries(points: [number, number][], controls: S
 }
 
 export function buildDensitySeries(points: [number, number][], controls: ScatterControls): any[] {
+    // The density binner inside ChartGPU reads `g.rawData ?? g.data` and uploads
+    // that array as the full point buffer used for binning. If we hand it only
+    // the in-viewport slice here, the heatmap is computed from a sparse subset
+    // and looks "cut off" on every box zoom. Pass the full unfiltered point set
+    // as both `rawData` and `data`, and let `rawBounds` (the current view) tell
+    // the binner to clip rendering to the visible region.
     const view = appState.scatter.view;
-    const filtered = points.filter((p) => {
-        const x = Number(p[0]);
-        const y = Number(p[1]);
-        return (
-            Number.isFinite(x) &&
-            Number.isFinite(y) &&
-            x >= view.xMin &&
-            x <= view.xMax &&
-            y >= view.yMin &&
-            y <= view.yMax
-        );
-    });
-    return [{
+    const series: any = {
         type: 'scatter',
         name: 'density',
-        data: filtered,
+        data: points,
+        rawData: points,
         mode: 'density',
         binSize: controls.binSize,
         densityColormap: paletteForScale(controls.colormap),
@@ -129,7 +127,34 @@ export function buildDensitySeries(points: [number, number][], controls: Scatter
             yMin: view.yMin,
             yMax: view.yMax,
         },
-    }];
+    };
+
+    const colorColumn = controls.selectedColorColumn || controls.colorColumn || '';
+    const values = appState.scatter.allColorValues ?? appState.scatter.colorValues;
+    if (colorColumn && Array.isArray(values) && values.length > 0) {
+        let sum = 0;
+        let count = 0;
+        let lo = Number.POSITIVE_INFINITY;
+        let hi = Number.NEGATIVE_INFINITY;
+        for (let idx = 0; idx < Math.min(points.length, values.length); idx++) {
+            const x = Number(points[idx]?.[0]);
+            const y = Number(points[idx]?.[1]);
+            const value = Number(values[idx]);
+            if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(value)) continue;
+            if (x < view.xMin || x > view.xMax || y < view.yMin || y > view.yMax) continue;
+            sum += value;
+            count += 1;
+            lo = Math.min(lo, value);
+            hi = Math.max(hi, value);
+        }
+        if (count > 0) {
+            series.__edatimeColorCenter = sum / count;
+            series.__edatimeColorLo = lo;
+            series.__edatimeColorHi = hi;
+        }
+    }
+
+    return [series];
 }
 
 /* ── Tooltip factories ────────────────────────────────── */
@@ -146,7 +171,7 @@ export function buildDensityTooltipCache(series: any[], controls: ScatterControl
     const key = [
         appState.scatter.view.xMin, appState.scatter.view.xMax, appState.scatter.view.yMin, appState.scatter.view.yMax,
         metrics.plotWidth, metrics.plotHeight,
-        binSize, controls.colorColumn || '', controls.renderMode || '',
+        binSize, controls.selectedColorColumn || controls.colorColumn || '', controls.renderMode || '',
     ].join('|');
 
     if (appState.scatter.densityTooltipCache?.key === key) return appState.scatter.densityTooltipCache;
@@ -210,8 +235,9 @@ export function densityTooltipFormatterFactory(controls: ScatterControls, contai
         parts.push(`<div><span style="opacity:0.85;">${escapeHtml(controls.x || 'X')}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatValueForColumn(controls.x, x, xSpanLabel, appState.scatter.columnTypes))}</span></div>`);
         parts.push(`<div><span style="opacity:0.85;">${escapeHtml(controls.y || 'Y')}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatValueForColumn(controls.y, y, ySpanLabel, appState.scatter.columnTypes))}</span></div>`);
         const meta = cache?.metaBySeriesIndex?.get(seriesIndex);
-        if (controls.colorColumn && meta && Number.isFinite(meta.colorCenter)) {
-            parts.push(`<div><span style="opacity:0.85;">${escapeHtml(controls.colorColumn)}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatTwoDecimals(meta.colorCenter))}</span></div>`);
+        const colorColumn = controls.selectedColorColumn || controls.colorColumn || '';
+        if (colorColumn && meta && Number.isFinite(meta.colorCenter)) {
+            parts.push(`<div><span style="opacity:0.85;">${escapeHtml(colorColumn)}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatTwoDecimals(meta.colorCenter))}</span></div>`);
         }
         parts.push(`<div><span style="opacity:0.85;">Density:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(density == null ? '—' : fmt.format(density))}</span></div>`);
         return parts.join('');
@@ -552,13 +578,63 @@ export function applyView(nextView: ScatterView, pushHistory = false): void {
     const next = clampView(nextView);
     if (pushHistory) appState.scatter.zoomHistory = [...appState.scatter.zoomHistory, current].slice(-30);
     appState.scatter.view = next;
-    renderCurrentOption();
+    refreshView();
 }
 
 export function resetView(clearHistory = true): void {
     if (clearHistory) appState.scatter.zoomHistory = [];
     appState.scatter.view = { ...appState.scatter.full };
+    refreshView();
+}
+
+/**
+ * Re-render the scatter chart for the current view.
+ *
+ * In density mode the ChartGPU library caches the binning from the first
+ * `prepare()` call and does not re-bin when only the view's `rawBounds`
+ * change (the library's dirty-state check ignores the view). The result is
+ * a heatmap that looks the same on every zoom. To get a fresh binning we
+ * dispose the chart so the next `renderScatter()` recreates it, then call
+ * the standard `setOption` path to update the axis labels and re-attach
+ * the zoom listeners.
+ *
+ * In non-density modes a plain `setOption` is enough.
+ */
+function refreshView(): void {
+    const isDensity = currentControls().renderMode === 'density';
+    if (isDensity && appState.scatter.chart) {
+        // Force the next renderScatter() to recreate the chart so the
+        // density binning is rebuilt against the new view bounds.
+        disposeScatterChart();
+        // Recreate the container so the new chart starts from a clean DOM
+        // (the old WebGL canvas is gone with the disposed chart).
+        resetScatterContainer();
+        // The actual re-create + re-render is driven by renderScatter().
+        // We trigger it through the debounced entry point exported by
+        // scatterPage.ts to avoid a tight import cycle. Pass
+        // `preserveView: true` so the upcoming renderScatter() does not
+        // clobber the new view back to the full extent (the default
+        // `applyScatterStateFromCache(true)` would otherwise reset the
+        // view and the user's zoom would not stick).
+        scheduleRenderScatter({ preserveView: true, immediate: true });
+        return;
+    }
     renderCurrentOption();
+}
+
+// Look up the page-owned scheduler at call time. This avoids a top-level cycle
+// with scatterPage.ts and avoids keeping a stale helper after hot reloads.
+function scheduleRenderScatter(opts: { preserveView?: boolean; immediate?: boolean } = {}): void {
+    type ScheduleHelper = { __scatterScheduleRender?: (opts?: { preserveView?: boolean; immediate?: boolean }) => void };
+    const helper = globalThis as ScheduleHelper;
+    const scheduleRender = helper.__scatterScheduleRender;
+    if (scheduleRender) {
+        scheduleRender(opts);
+    } else {
+        // Fallback: no helper registered (e.g. during unit tests). Just
+        // update the option in place so axis labels still refresh.
+        renderCurrentOption();
+    }
 }
 
 export function updateBinnedReadout(): void {
@@ -626,26 +702,30 @@ export function initSelectionZoom(container: HTMLElement): void {
 
     const finishDrag = (ev: PointerEvent) => {
         if (!appState.scatter.drag || ev.pointerId !== appState.scatter.drag.pointerId) return;
+        const drag: DragState = {
+            pointerId: appState.scatter.drag.pointerId,
+            startX: appState.scatter.drag.startX,
+            startY: appState.scatter.drag.startY,
+            endX: appState.scatter.drag.endX,
+            endY: appState.scatter.drag.endY,
+        };
         const rect = container.getBoundingClientRect();
         const width = Math.max(1, rect.width);
         const height = Math.max(1, rect.height);
-        const left = Math.max(0, Math.min(appState.scatter.drag.startX, appState.scatter.drag.endX));
-        const right = Math.min(width, Math.max(appState.scatter.drag.startX, appState.scatter.drag.endX));
-        const top = Math.max(0, Math.min(appState.scatter.drag.startY, appState.scatter.drag.endY));
-        const bottom = Math.min(height, Math.max(appState.scatter.drag.startY, appState.scatter.drag.endY));
+        const cur = appState.scatter.view;
+        const next = dragToViewport(
+            drag,
+            width,
+            height,
+            SCATTER_PLOT_GRID,
+            { min: cur.xMin, max: cur.xMax },
+            { min: cur.yMin, max: cur.yMax },
+        );
         appState.scatter.drag = null;
         hideSelectionBox();
-        if ((right - left) < 8 || (bottom - top) < 8) { try { container.releasePointerCapture(ev.pointerId); } catch { } return; }
-        const cur = appState.scatter.view;
-        const xSpan = cur.xMax - cur.xMin;
-        const ySpan = cur.yMax - cur.yMin;
-        applyView({
-            xMin: cur.xMin + (left / width) * xSpan,
-            xMax: cur.xMin + (right / width) * xSpan,
-            yMax: cur.yMax - (top / height) * ySpan,
-            yMin: cur.yMax - (bottom / height) * ySpan,
-        }, true);
         try { container.releasePointerCapture(ev.pointerId); } catch { }
+        if (!next) return;
+        applyView(next, true);
     };
 
     container.addEventListener('pointerup', finishDrag);
@@ -655,6 +735,7 @@ export function initSelectionZoom(container: HTMLElement): void {
         if (appState.scatter.zoomHistory.length > 0) { applyView(appState.scatter.zoomHistory.pop()!, false); return; }
         resetView(false);
     });
+
 }
 
 /* ── Sync mode UI ─────────────────────────────────────── */

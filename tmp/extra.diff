@@ -1,0 +1,13 @@
+diff --git a/frontend/src/bootstrap/commands.ts b/frontend/src/bootstrap/commands.ts
+index fb25489..a019a3b 100644
+--- a/frontend/src/bootstrap/commands.ts
++++ b/frontend/src/bootstrap/commands.ts
+@@ -50,7 +50,7 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
+     { id: 'export-csv', label: 'Export chart data as CSV', shortcut: 'Shift+E', category: 'Export', action: () => exportChartFilteredData('csv') },
+     { id: 'export-json', label: 'Export chart data as JSON', category: 'Export', action: () => exportChartFilteredData('json') },
+     { id: 'export-png', label: 'Export chart as PNG', category: 'Export', action: () => (window as any).__edatime?.chart?.exportPNG?.() },
+-    { id: 'export-parquet', label: 'Export filtered data as Parquet', category: 'Export', action: () => document.getElementById('export-parquet-btn')?.click?.() },
++    { id: 'export-parquet', label: 'Export filtered data as Parquet', category: 'Export', action: () => document.getElementById('export-data-parquet-btn')?.click?.() },
+     {
+         id: 'session-save',
+         label: 'Export session to file',

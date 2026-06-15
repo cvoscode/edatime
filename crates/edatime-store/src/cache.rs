@@ -12,6 +12,15 @@ use bytes::Bytes;
 /// The `Instant` field is used for TTL-based eviction of stale drift results.
 pub type DriftCache = Arc<std::sync::Mutex<HashMap<String, (u64, Instant, Vec<u8>)>>>;
 
+/// Revision-scoped cache payload for full Pearson/Spearman correlation matrices.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CorrelationMatrixCacheEntry {
+    pub columns: Vec<String>,
+    pub pearson: Vec<Vec<Option<f64>>>,
+    pub spearman: Vec<Vec<Option<f64>>>,
+    pub counts: Vec<Vec<usize>>,
+}
+
 use edatime_core::http::ResponseMeta;
 
 #[derive(Debug, Clone, Copy)]

@@ -46,6 +46,7 @@ import {
     zoomOut, resetZoom,
     setComputeLoading,
 } from './ui/toolbar.js';
+import { exportChartFilteredData, exportChartFilteredParquet } from './ui/exportControls.js';
 import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, ChartInstance, ViewSnapshot } from './types.js';
 
 import {
@@ -140,6 +141,11 @@ async function init(): Promise<void> {
         fetchAndRenderAnalytics,
         refreshZoomControlsState,
         zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
+        chartExportPng: () => appState.chart?.exportPNG?.(),
+        chartExportSvg: () => appState.chart?.exportSVG?.(),
+        exportFilteredCsv: () => exportChartFilteredData('csv'),
+        exportFilteredJson: () => exportChartFilteredData('json'),
+        exportFilteredParquet: () => exportChartFilteredParquet(),
     });
 
     // Mount registers page lifecycle (page-change listener, etc.)

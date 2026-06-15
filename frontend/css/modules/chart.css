@@ -31,6 +31,87 @@
   color: var(--text-dim);
 }
 
+/* ─── Timeseries legend overlay ──────────────────────────────── */
+.timeseries-legend-overlay {
+  position: absolute;
+  z-index: 9;
+  min-width: 72px;
+  max-width: min(180px, calc(100% - 16px));
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--border-hi) 68%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-2, #151b2c) 90%, transparent);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(8px);
+  cursor: default;
+  user-select: none;
+}
+
+/* Visual affordance: hold Ctrl/Cmd to grab the legend. */
+.timeseries-legend-overlay:has(:active),
+.timeseries-legend-overlay.is-ctrl-active {
+  cursor: grab;
+}
+
+.timeseries-legend-overlay.is-dragging {
+  cursor: grabbing;
+}
+
+.timeseries-legend-overlay__rows {
+  display: grid;
+  gap: 1px;
+}
+
+.timeseries-legend-overlay__row {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 16px;
+  padding: 0 3px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.66rem;
+  line-height: 1;
+  text-align: left;
+}
+
+.timeseries-legend-overlay__row:hover,
+.timeseries-legend-overlay__row:focus-visible {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  outline: none;
+}
+
+.timeseries-legend-overlay__row[aria-pressed="false"] {
+  color: var(--text-muted);
+  opacity: 0.48;
+}
+
+.timeseries-legend-overlay__swatch {
+  width: 12px;
+  height: 2px;
+  border-radius: 999px;
+}
+
+.timeseries-legend-overlay__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeseries-legend-overlay__state {
+  color: var(--text-muted);
+  font-size: 0.6rem;
+  text-align: right;
+  display: none;
+}
+
 /* ─── Chart container ─────────────────────────────────────────── */
 .main {
   flex: 1;

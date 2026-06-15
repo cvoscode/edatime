@@ -87,7 +87,6 @@ Causal graph discovery using Tigramite-style algorithms (PCMCI, PCMCI+, FullCI, 
       <button id="causal-save-run-btn" class="btn btn-ghost btn-sm" type="button"
         title="Save this causal run for comparison">Save Run</button>
       <button id="causal-compute-btn" class="btn btn-accent btn-sm" type="button">Compute</button>
-      <span class="toolbar-label" id="causal-status">Select columns and press Compute.</span>
     </div>
   </div>
 
@@ -287,7 +286,6 @@ Response: {
       </div>
       <button id="causal-save-run-btn" class="btn btn-ghost btn-sm" type="button" title="Save this causal run for comparison">Save Run</button>
       <button id="causal-compute-btn" class="btn btn-accent btn-sm" type="button">Compute</button>
-      <span class="toolbar-label" id="causal-status">Select columns and press Compute.</span>
     </div>
   </div>
 

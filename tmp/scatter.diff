@@ -1,0 +1,886 @@
+diff --git a/frontend/src/scatter/controls.test.ts b/frontend/src/scatter/controls.test.ts
+index 3bf6b64..1ffcb38 100644
+--- a/frontend/src/scatter/controls.test.ts
++++ b/frontend/src/scatter/controls.test.ts
+@@ -18,6 +18,9 @@ const appStateMock = {
+         metadata: { columns: [{ name: 'HUFL' }, { name: 'HULL' }] },
+         pageInitialized: false,
+         initialized: false,
++        full: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 } as any,
++        view: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 } as any,
++        zoomHistory: [] as any[],
+     },
+     columnRanges: {},
+     adaptiveLineFilters: [],
+@@ -78,6 +81,9 @@ function buildDom(): void {
+             <input id="scatter-matrix-mode" value="scatter">
+             <input id="scatter-matrix-cell-size" value="160">
+             <span id="scatter-matrix-cell-size-value"></span>
++            <button type="button" id="scatter-zoom-out-btn">−</button>
++            <button type="button" id="scatter-zoom-reset-btn">↺</button>
++            <span id="scatter-zoom-range-badge">100%</span>
+         </section>
+     `;
+ }
+@@ -93,13 +99,13 @@ describe('bindScatterControls', () => {
+         const { bindScatterControls } = await import('./controls.js');
+ 
+         bindScatterControls({
+-            initScatterPage: vi.fn(async () => {}),
+-            renderScatter: vi.fn(async () => {}),
+-            refreshCorrelationsAndSuggestions: vi.fn(async () => {}),
+-            refreshActiveScatterView: vi.fn(async () => {}),
+-            setScatterView: vi.fn(async () => {}),
++            initScatterPage: vi.fn(async () => { }),
++            renderScatter: vi.fn(async () => { }),
++            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
++            refreshActiveScatterView: vi.fn(async () => { }),
++            setScatterView: vi.fn(async () => { }),
+             handleErr: vi.fn(),
+-            rerenderScatterFromCache: vi.fn(async () => {}),
++            rerenderScatterFromCache: vi.fn(async () => { }),
+             renderScatterDebounced: vi.fn(),
+             syncScatterFilterBadge: vi.fn(),
+         });
+@@ -116,13 +122,13 @@ describe('bindScatterControls', () => {
+         const { bindScatterControls } = await import('./controls.js');
+ 
+         bindScatterControls({
+-            initScatterPage: vi.fn(async () => {}),
+-            renderScatter: vi.fn(async () => {}),
+-            refreshCorrelationsAndSuggestions: vi.fn(async () => {}),
+-            refreshActiveScatterView: vi.fn(async () => {}),
+-            setScatterView: vi.fn(async () => {}),
++            initScatterPage: vi.fn(async () => { }),
++            renderScatter: vi.fn(async () => { }),
++            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
++            refreshActiveScatterView: vi.fn(async () => { }),
++            setScatterView: vi.fn(async () => { }),
+             handleErr: vi.fn(),
+-            rerenderScatterFromCache: vi.fn(async () => {}),
++            rerenderScatterFromCache: vi.fn(async () => { }),
+             renderScatterDebounced: vi.fn(),
+             syncScatterFilterBadge: vi.fn(),
+         });
+@@ -134,4 +140,60 @@ describe('bindScatterControls', () => {
+         expect(appStateMock.scatter.chart.setOption).toHaveBeenCalledTimes(1);
+         expect(updateMarginalPlotsMock).toHaveBeenCalledTimes(1);
+     });
++
++    it('pops the zoom history when the zoom-out button is clicked', async () => {
++        const { bindScatterControls } = await import('./controls.js');
++
++        // Pretend the user has zoomed in once already.
++        appStateMock.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 100 } as any;
++        appStateMock.scatter.view = { xMin: 10, xMax: 50, yMin: 20, yMax: 60 } as any;
++        appStateMock.scatter.zoomHistory = [{ xMin: 0, xMax: 100, yMin: 0, yMax: 100 }] as any;
++
++        bindScatterControls({
++            initScatterPage: vi.fn(async () => { }),
++            renderScatter: vi.fn(async () => { }),
++            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
++            refreshActiveScatterView: vi.fn(async () => { }),
++            setScatterView: vi.fn(async () => { }),
++            handleErr: vi.fn(),
++            rerenderScatterFromCache: vi.fn(async () => { }),
++            renderScatterDebounced: vi.fn(),
++            syncScatterFilterBadge: vi.fn(),
++        });
++
++        (document.getElementById('scatter-zoom-out-btn') as HTMLButtonElement).click();
++
++        expect(appStateMock.scatter.view).toEqual({ xMin: 0, xMax: 100, yMin: 0, yMax: 100 });
++        expect(appStateMock.scatter.zoomHistory).toEqual([]);
++        expect(appStateMock.scatter.chart.setOption).toHaveBeenCalledTimes(1);
++    });
++
++    it('resets the scatter view to the full data range', async () => {
++        const { bindScatterControls } = await import('./controls.js');
++
++        appStateMock.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 100 } as any;
++        appStateMock.scatter.view = { xMin: 30, xMax: 70, yMin: 40, yMax: 80 } as any;
++        appStateMock.scatter.zoomHistory = [
++            { xMin: 0, xMax: 100, yMin: 0, yMax: 100 },
++            { xMin: 10, xMax: 80, yMin: 20, yMax: 90 },
++        ] as any;
++
++        bindScatterControls({
++            initScatterPage: vi.fn(async () => { }),
++            renderScatter: vi.fn(async () => { }),
++            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
++            refreshActiveScatterView: vi.fn(async () => { }),
++            setScatterView: vi.fn(async () => { }),
++            handleErr: vi.fn(),
++            rerenderScatterFromCache: vi.fn(async () => { }),
++            renderScatterDebounced: vi.fn(),
++            syncScatterFilterBadge: vi.fn(),
++        });
++
++        (document.getElementById('scatter-zoom-reset-btn') as HTMLButtonElement).click();
++
++        expect(appStateMock.scatter.view).toEqual({ xMin: 0, xMax: 100, yMin: 0, yMax: 100 });
++        expect(appStateMock.scatter.zoomHistory).toEqual([]);
++        expect(appStateMock.scatter.chart.setOption).toHaveBeenCalledTimes(1);
++    });
+ });
+diff --git a/frontend/src/scatter/controls.ts b/frontend/src/scatter/controls.ts
+index 2c0a5fd..aa8913a 100644
+--- a/frontend/src/scatter/controls.ts
++++ b/frontend/src/scatter/controls.ts
+@@ -170,6 +170,66 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
+         try { await exportScatterParquet(); } catch (error: any) { cb.handleErr(error); }
+     });
+ 
++    // Zoom controls: visible zoom-out / reset for the scatter view (the
++    // timeseries page already has its own zoom-out/reset buttons, but those
++    // are hidden when the scatter page is active, leaving users with no
++    // discoverable way to step back from a selection-zoom).
++    const zoomOutBtn = getEl('scatter-zoom-out-btn') as HTMLButtonElement | null;
++    const zoomResetBtn = getEl('scatter-zoom-reset-btn') as HTMLButtonElement | null;
++    const zoomBadge = getEl('scatter-zoom-range-badge');
++
++    const updateZoomBadge = () => {
++        if (!zoomBadge) return;
++        const view = appState.scatter.view;
++        const full = appState.scatter.full;
++        if (!view || !full) {
++            zoomBadge.textContent = '100%';
++            return;
++        }
++        const xSpan = Math.max(1e-9, full.xMax - full.xMin);
++        const ySpan = Math.max(1e-9, full.yMax - full.yMin);
++        const xZoom = xSpan / Math.max(1e-9, view.xMax - view.xMin);
++        const yZoom = ySpan / Math.max(1e-9, view.yMax - view.yMin);
++        const ratio = Math.max(xZoom, yZoom);
++        const pct = Math.round(ratio * 100);
++        zoomBadge.textContent = `${pct}%`;
++        const isZoomed = pct > 100;
++        if (zoomOutBtn) zoomOutBtn.disabled = !isZoomed && appState.scatter.zoomHistory.length === 0;
++        if (zoomResetBtn) zoomResetBtn.disabled = !isZoomed;
++    };
++
++    zoomOutBtn?.addEventListener('click', () => {
++        if (appState.scatter.zoomHistory.length > 0) {
++            const prev = appState.scatter.zoomHistory.pop()!;
++            appState.scatter.view = prev;
++            rerender();
++            updateZoomBadge();
++        }
++    });
++    zoomResetBtn?.addEventListener('click', () => {
++        appState.scatter.zoomHistory = [];
++        appState.scatter.view = { ...appState.scatter.full };
++        rerender();
++        updateZoomBadge();
++    });
++
++    // Keep the badge in sync with view changes. `applyView` mutates the view
++    // directly (no store event), so we listen to the data-cache `store:viewport`
++    // event as a cheap proxy and also re-check on every render call.
++    let lastViewSnapshot = '';
++    const refreshBadge = () => {
++        const view = appState.scatter.view;
++        const key = `${view.xMin}|${view.xMax}|${view.yMin}|${view.yMax}|${appState.scatter.zoomHistory.length}`;
++        if (key === lastViewSnapshot) return;
++        lastViewSnapshot = key;
++        updateZoomBadge();
++    };
++    refreshBadge();
++    // Defer hooking into the scatter store event to keep this module
++    // dependency-light. A periodic check at 4Hz is cheap and keeps the
++    // badge in sync with selection-zoom, double-click, and the new buttons.
++    window.setInterval(refreshBadge, 250);
++
+     ySelect.addEventListener('change', async () => { updateCorrelationStats(); await cb.renderScatter(); });
+     xSelect.addEventListener('change', async () => { await cb.refreshCorrelationsAndSuggestions(); await cb.renderScatter(); });
+     window.addEventListener('resize', () => { appState.scatter.chart?.resize?.(); });
+diff --git a/frontend/src/scatter/correlationsPanel.ts b/frontend/src/scatter/correlationsPanel.ts
+index 2af1fa6..cefa573 100644
+--- a/frontend/src/scatter/correlationsPanel.ts
++++ b/frontend/src/scatter/correlationsPanel.ts
+@@ -16,12 +16,17 @@ import { updateCorrelationStats, updateColorbarUI } from './rendering.js';
+ 
+ /**
+  * Renders the list of correlation suggestion buttons in the scatter panel.
++ *
++ * Each suggestion entry has the shape `{ x, y, correlation }` (see
++ * `CorrelationSuggestion` in `types.ts`). Buttons pair a base column with a
++ * suggested partner and let the user apply the pair to the X/Y dropdowns.
+  */
+ export function renderSuggestions(
+-    suggestions: Array<{ column: string; pearson?: number | null; spearman?: number | null }>
++    suggestions: Array<{ x: string; y: string; correlation: number }>
+ ): void {
+     const box = getEl('scatter-suggestions');
+     if (!box) return;
++    const xValue = getDropdownValue('scatter-x-col');
+     const yValue = getDropdownValue('scatter-y-col');
+ 
+     appState.scatter.lastSuggestions = Array.isArray(suggestions) ? suggestions.slice() : [];
+@@ -36,16 +41,22 @@ export function renderSuggestions(
+     }
+ 
+     for (const item of suggestions) {
++        const x = typeof item?.x === 'string' ? item.x.trim() : '';
++        const y = typeof item?.y === 'string' ? item.y.trim() : '';
++        if (!x || !y) continue;
++        const corr = Number.isFinite(item.correlation) ? item.correlation.toFixed(2) : '--';
+         const btn = document.createElement('button');
+         btn.type = 'button';
+         btn.className = 'scatter-suggestion-btn';
+-        if (yValue === item.column) btn.classList.add('active');
+-        const r = Number.isFinite(item.pearson) ? item.pearson!.toFixed(2) : '--';
+-        const rho = Number.isFinite(item.spearman) ? item.spearman!.toFixed(2) : '--';
+-        btn.textContent = `${item.column}  Pearson ${r}  Spearman ${rho}`;
++        btn.dataset.xColumn = x;
++        btn.dataset.yColumn = y;
++        if (xValue === x && yValue === y) btn.classList.add('active');
++        btn.textContent = `${x} ↔ ${y}  |corr| ${corr}`;
++        btn.title = `Use ${x} (X) and ${y} (Y) — |corr| ${corr}`;
+         btn.addEventListener('click', () => {
+-            if (getDropdownValue('scatter-y-col') === item.column) return;
+-            setDropdownValue('scatter-y-col', item.column);
++            if (getDropdownValue('scatter-x-col') === x && getDropdownValue('scatter-y-col') === y) return;
++            setDropdownValue('scatter-x-col', x);
++            setDropdownValue('scatter-y-col', y);
+             updateCorrelationStats();
+             renderSuggestions(appState.scatter.lastSuggestions);
+         });
+diff --git a/frontend/src/scatter/matrix.test.ts b/frontend/src/scatter/matrix.test.ts
+index 97814e4..e6c56f2 100644
+--- a/frontend/src/scatter/matrix.test.ts
++++ b/frontend/src/scatter/matrix.test.ts
+@@ -7,7 +7,7 @@ describe('buildMatrixFetchPairs', () => {
+         const pairs = buildMatrixFetchPairs(
+             ['HUFL', 'HULL', 'OT'],
+             { x: 'HUFL', y: 'HULL' },
+-            [{ column: 'OT' }],
++            [{ x: 'HUFL', y: 'OT' }],
+         );
+ 
+         expect(pairs[0]).toEqual(['HUFL', 'HULL']);
+@@ -18,7 +18,7 @@ describe('buildMatrixFetchPairs', () => {
+         const pairs = buildMatrixFetchPairs(
+             ['HUFL', 'HULL', 'OT', 'MUFL'],
+             { x: 'HUFL', y: 'HULL' },
+-            [{ column: 'OT' }],
++            [{ x: 'HUFL', y: 'OT' }],
+         );
+ 
+         const otWithCurrentAxis = pairs.findIndex(([column, row]) => (
+@@ -32,4 +32,18 @@ describe('buildMatrixFetchPairs', () => {
+         expect(otWithCurrentAxis).toBeGreaterThanOrEqual(0);
+         expect(unrelatedPair).toBeGreaterThan(otWithCurrentAxis);
+     });
++
++    it('ranks both x and y columns from a suggestion', () => {
++        const pairs = buildMatrixFetchPairs(
++            ['HUFL', 'HULL', 'OT', 'MUFL'],
++            { x: 'HUFL', y: 'HULL' },
++            [{ x: 'OT', y: 'MUFL' }],
++        );
++
++        const otPair = pairs.findIndex(([column, row]) => column === 'OT' || row === 'OT');
++        const muflPair = pairs.findIndex(([column, row]) => column === 'MUFL' || row === 'MUFL');
++
++        expect(otPair).toBeGreaterThanOrEqual(0);
++        expect(muflPair).toBeGreaterThanOrEqual(0);
++    });
+ });
+\ No newline at end of file
+diff --git a/frontend/src/scatter/matrix.ts b/frontend/src/scatter/matrix.ts
+index 940e4d0..e9318d6 100644
+--- a/frontend/src/scatter/matrix.ts
++++ b/frontend/src/scatter/matrix.ts
+@@ -40,7 +40,8 @@ function collectOverviewColumns(): string[] {
+     push(controls.x);
+     push(controls.y);
+     for (const item of appState.scatter.lastSuggestions || []) {
+-        push(item?.column);
++        push(item?.x);
++        push(item?.y);
+         if (columns.length >= MATRIX_MAX_COLUMNS) break;
+     }
+     for (const column of (appState.scatter.metadata as any)?.numeric_columns || []) {
+@@ -207,13 +208,15 @@ function matrixPairPriority(
+ export function buildMatrixFetchPairs(
+     columns: string[],
+     controls: Pick<ScatterControls, 'x' | 'y'>,
+-    suggestions: Array<{ column?: string | null }> = [],
++    suggestions: Array<{ x?: string | null; y?: string | null }> = [],
+ ): [string, string][] {
+     const suggestionRank = new Map<string, number>();
+     suggestions.forEach((item, index) => {
+-        const column = String(item?.column || '').trim();
+-        if (!column || suggestionRank.has(column)) return;
+-        suggestionRank.set(column, index);
++        for (const raw of [item?.x, item?.y]) {
++            const column = String(raw || '').trim();
++            if (!column || suggestionRank.has(column)) continue;
++            suggestionRank.set(column, index);
++        }
+     });
+ 
+     return columns
+diff --git a/frontend/src/scatter/rendering.test.ts b/frontend/src/scatter/rendering.test.ts
+index d49a316..08da5d9 100644
+--- a/frontend/src/scatter/rendering.test.ts
++++ b/frontend/src/scatter/rendering.test.ts
+@@ -1,7 +1,7 @@
+-import { beforeEach, describe, expect, it, vi } from 'vitest';
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+ 
+ import { appState } from '../store/appStateCompat.js';
+-import { updateMarginalPlots } from './rendering.js';
++import { applyView, buildDensitySeries, buildOption, updateMarginalPlots } from './rendering.js';
+ 
+ class MockCanvasContext2D {
+     ops: string[] = [];
+@@ -183,3 +183,262 @@ describe('scatter marginal rendering modes', () => {
+         expect(kdeY).not.toEqual(boxY);
+     });
+ });
++
++/* ── Density zoom regression ──────────────────────────── */
++
++describe('density series zoom', () => {
++    beforeEach(() => {
++        vi.restoreAllMocks();
++        vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
++            cb(0);
++            return 1;
++        });
++
++        Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
++            configurable: true,
++            value: function getContext() {
++                let ctx = contextByCanvas.get(this);
++                if (!ctx) {
++                    ctx = new MockCanvasContext2D();
++                    contextByCanvas.set(this, ctx);
++                }
++                ctx.ops = [];
++                return ctx;
++            },
++        });
++
++        document.body.innerHTML = `
++            <select id="scatter-x-col"><option value="HUFL" selected>HUFL</option></select>
++            <select id="scatter-y-col"><option value="HULL" selected>HULL</option></select>
++            <input id="scatter-bin-size" value="10">
++            <select id="scatter-colormap"><option value="viridis" selected>Viridis</option></select>
++            <select id="scatter-normalization"><option value="linear" selected>Linear</option></select>
++            <select id="scatter-render-mode">
++                <option value="scatter">Scatter</option>
++                <option value="density" selected>Density</option>
++            </select>
++            <select id="scatter-diagonal-mode">
++                <option value="histogram" selected>Histogram</option>
++            </select>
++            <select id="scatter-color-column"><option value="" selected>None</option></select>
++            <select id="scatter-color-scale"><option value="viridis" selected>Viridis</option></select>
++            <input id="scatter-matrix-mode" value="scatter">
++            <input id="scatter-matrix-cell-size" value="160">
++            <div id="scatter-chart"></div>
++            <canvas id="scatter-marginal-x"></canvas>
++            <div id="scatter-right-panel"><canvas id="scatter-marginal-y"></canvas><div id="scatter-colorbar-wrap" hidden></div></div>
++        `;
++
++        bindRect(document.getElementById('scatter-chart') as HTMLElement, 1308, 648);
++    });
++
++    it('passes the full unfiltered point set as rawData/data to ChartGPU when the view is zoomed in', () => {
++        // The full data domain spans [0, 100] in both x and y, but the active
++        // view has been zoomed in to a sub-region. buildDensitySeries must
++        // hand the binner the FULL point set, not just the in-view subset.
++        const fullPoints: [number, number][] = [
++            [0, 0], [5, 10], [10, 5], [15, 20],
++            [25, 25], [35, 30], [45, 35], [55, 40],
++            [65, 45], [75, 50], [85, 55], [95, 60],
++        ];
++        appState.scatter.points = fullPoints;
++        appState.scatter.allPoints = fullPoints;
++        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
++        appState.scatter.view = { xMin: 20, xMax: 60, yMin: 20, yMax: 50 };
++
++        const container = document.getElementById('scatter-chart') as HTMLElement;
++        const series = buildDensitySeries(appState.scatter.points, {
++            x: 'HUFL',
++            y: 'HULL',
++            binSize: 10,
++            colormap: 'viridis',
++            normalization: 'linear',
++            renderMode: 'density',
++            diagonalMode: 'histogram',
++            colorColumn: '',
++            selectedColorColumn: '',
++            colorScale: 'viridis',
++            matrixMode: 'scatter',
++            matrixCellSize: 160,
++        });
++
++        expect(series).toHaveLength(1);
++        expect(series[0].mode).toBe('density');
++        // The binner must see the full set, not the in-view subset.
++        expect(series[0].rawData).toEqual(fullPoints);
++        expect(series[0].data).toEqual(fullPoints);
++        // rawBounds tracks the current view so the binner clips to the visible region.
++        expect(series[0].rawBounds).toEqual({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 });
++
++        // buildOption composes a full ECharts option around the density series.
++        const option = buildOption(appState.scatter.points, container);
++        expect(option.series).toHaveLength(1);
++        expect(option.series[0].mode).toBe('density');
++        expect(option.series[0].rawData).toEqual(fullPoints);
++        expect(option.series[0].data).toEqual(fullPoints);
++    });
++
++    it('keeps the full point set across a second box-zoom in density mode', () => {
++        // After a successful box-zoom, the view narrows further. The second
++        // call must still hand the binner the full data set, so the heatmap
++        // does not appear "cut off" relative to the original.
++        const fullPoints: [number, number][] = [
++            [0, 0], [5, 10], [10, 5], [15, 20],
++            [25, 25], [35, 30], [45, 35], [55, 40],
++            [65, 45], [75, 50], [85, 55], [95, 60],
++        ];
++        appState.scatter.points = fullPoints;
++        appState.scatter.allPoints = fullPoints;
++        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
++
++        // First zoom: narrow to half the data range.
++        appState.scatter.view = { xMin: 25, xMax: 75, yMin: 10, yMax: 60 };
++        const first = buildDensitySeries(appState.scatter.points, {
++            x: 'HUFL',
++            y: 'HULL',
++            binSize: 10,
++            colormap: 'viridis',
++            normalization: 'linear',
++            renderMode: 'density',
++            diagonalMode: 'histogram',
++            colorColumn: '',
++            selectedColorColumn: '',
++            colorScale: 'viridis',
++            matrixMode: 'scatter',
++            matrixCellSize: 160,
++        });
++        expect(first[0].rawData).toEqual(fullPoints);
++        expect(first[0].rawBounds).toEqual({ xMin: 25, xMax: 75, yMin: 10, yMax: 60 });
++
++        // Second zoom: zoom in further on a sub-region.
++        appState.scatter.view = { xMin: 40, xMax: 60, yMin: 25, yMax: 45 };
++        const second = buildDensitySeries(appState.scatter.points, {
++            x: 'HUFL',
++            y: 'HULL',
++            binSize: 10,
++            colormap: 'viridis',
++            normalization: 'linear',
++            renderMode: 'density',
++            diagonalMode: 'histogram',
++            colorColumn: '',
++            selectedColorColumn: '',
++            colorScale: 'viridis',
++            matrixMode: 'scatter',
++            matrixCellSize: 160,
++        });
++        expect(second[0].rawData).toEqual(fullPoints);
++        expect(second[0].rawBounds).toEqual({ xMin: 40, xMax: 60, yMin: 25, yMax: 45 });
++    });
++});
++
++/* ── Density re-bin on zoom ──────────────────────────── */
++
++describe('density chart re-bin on view change', () => {
++    let schedulers: number[] = [];
++    let scheduledOpts: Array<{ preserveView?: boolean } | undefined> = [];
++
++    beforeEach(() => {
++        schedulers = [];
++        scheduledOpts = [];
++        vi.restoreAllMocks();
++        vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
++            cb(0);
++            return 1;
++        });
++
++        Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
++            configurable: true,
++            value: function getContext() {
++                let ctx = contextByCanvas.get(this);
++                if (!ctx) {
++                    ctx = new MockCanvasContext2D();
++                    contextByCanvas.set(this, ctx);
++                }
++                ctx.ops = [];
++                return ctx;
++            },
++        });
++
++        document.body.innerHTML = `
++            <select id="scatter-x-col"><option value="HUFL" selected>HUFL</option></select>
++            <select id="scatter-y-col"><option value="HULL" selected>HULL</option></select>
++            <input id="scatter-bin-size" value="10">
++            <select id="scatter-colormap"><option value="viridis" selected>Viridis</option></select>
++            <select id="scatter-normalization"><option value="linear" selected>Linear</option></select>
++            <select id="scatter-render-mode">
++                <option value="scatter">Scatter</option>
++                <option value="density" selected>Density</option>
++            </select>
++            <select id="scatter-diagonal-mode">
++                <option value="histogram" selected>Histogram</option>
++            </select>
++            <select id="scatter-color-column"><option value="" selected>None</option></select>
++            <select id="scatter-color-scale"><option value="viridis" selected>Viridis</option></select>
++            <input id="scatter-matrix-mode" value="scatter">
++            <input id="scatter-matrix-cell-size" value="160">
++            <div id="scatter-chart"></div>
++            <canvas id="scatter-marginal-x"></canvas>
++            <div id="scatter-right-panel"><canvas id="scatter-marginal-y"></canvas><div id="scatter-colorbar-wrap" hidden></div></div>
++        `;
++
++        bindRect(document.getElementById('scatter-chart') as HTMLElement, 1308, 648);
++
++        // Register a fake render-scheduler that the density-mode zoom path
++        // pokes via `globalThis.__scatterScheduleRender`.
++        (globalThis as { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void }).__scatterScheduleRender = (opts) => {
++            schedulers.push(1);
++            scheduledOpts.push(opts);
++        };
++    });
++
++    afterEach(() => {
++        delete (globalThis as { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void }).__scatterScheduleRender;
++    });
++
++    it('disposes the density chart and schedules a re-render on applyView', () => {
++        // Simulate an existing density chart and pretend a view zoom happened.
++        const setOptionSpy = vi.fn();
++        const resizeSpy = vi.fn();
++        appState.scatter.chart = { setOption: setOptionSpy, resize: resizeSpy } as any;
++        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
++        appState.scatter.view = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
++
++        applyView({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 }, true);
++
++        // The chart must be disposed so the next renderScatter() recreates
++        // it against the new view (the ChartGPU density renderer does not
++        // re-bin when only rawBounds change otherwise).
++        expect(appState.scatter.chart).toBeNull();
++        // The view itself was updated.
++        expect(appState.scatter.view).toEqual({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 });
++        // The previous view was pushed onto the zoom history.
++        expect(appState.scatter.zoomHistory).toHaveLength(1);
++        expect(appState.scatter.zoomHistory[0]).toEqual({ xMin: 0, xMax: 100, yMin: 0, yMax: 70 });
++        // The density-mode zoom path must signal `preserveView: true` to
++        // the scheduled renderScatter(), otherwise the default
++        // `applyScatterStateFromCache(true)` call inside renderScatter
++        // would clobber the new view back to the full extent and the
++        // user's zoom would visually disappear.
++        expect(scheduledOpts).toHaveLength(1);
++        expect(scheduledOpts[0]).toEqual({ preserveView: true });
++    });
++
++    it('does not dispose the chart on applyView when not in density mode', () => {
++        // Switch to scatter mode.
++        const renderModeSelect = document.getElementById('scatter-render-mode') as HTMLSelectElement;
++        renderModeSelect.value = 'scatter';
++
++        const setOptionSpy = vi.fn();
++        appState.scatter.chart = { setOption: setOptionSpy, resize: vi.fn() } as any;
++        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
++        appState.scatter.view = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
++
++        applyView({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 }, true);
++
++        // In scatter mode the regular setOption path is enough — the chart
++        // must stay alive (and we should have called setOption to update
++        // the axis labels).
++        expect(appState.scatter.chart).not.toBeNull();
++        expect(setOptionSpy).toHaveBeenCalled();
++    });
++});
+diff --git a/frontend/src/scatter/rendering.ts b/frontend/src/scatter/rendering.ts
+index da13240..92d3abe 100644
+--- a/frontend/src/scatter/rendering.ts
++++ b/frontend/src/scatter/rendering.ts
+@@ -26,6 +26,8 @@ import {
+     clampView,
+     setStats,
+     getPlotMetrics,
++    disposeScatterChart,
++    resetScatterContainer,
+     type ScatterView,
+     type ScatterControls,
+     type DensityTooltipCache,
+@@ -37,6 +39,7 @@ import {
+ } from './layout.js';
+ import { getDropdownValue } from '../ui/primitives/Dropdown.js';
+ import { getChartPalette } from '../utils/theme.js';
++import { dragToViewport, type DragState } from '../chart/chartInteractions.js';
+ 
+ /* ── Series builders ──────────────────────────────────── */
+ 
+@@ -101,23 +104,18 @@ export function buildNormalScatterSeries(points: [number, number][], controls: S
+ }
+ 
+ export function buildDensitySeries(points: [number, number][], controls: ScatterControls): any[] {
++    // The density binner inside ChartGPU reads `g.rawData ?? g.data` and uploads
++    // that array as the full point buffer used for binning. If we hand it only
++    // the in-viewport slice here, the heatmap is computed from a sparse subset
++    // and looks "cut off" on every box zoom. Pass the full unfiltered point set
++    // as both `rawData` and `data`, and let `rawBounds` (the current view) tell
++    // the binner to clip rendering to the visible region.
+     const view = appState.scatter.view;
+-    const filtered = points.filter((p) => {
+-        const x = Number(p[0]);
+-        const y = Number(p[1]);
+-        return (
+-            Number.isFinite(x) &&
+-            Number.isFinite(y) &&
+-            x >= view.xMin &&
+-            x <= view.xMax &&
+-            y >= view.yMin &&
+-            y <= view.yMax
+-        );
+-    });
+     return [{
+         type: 'scatter',
+         name: 'density',
+-        data: filtered,
++        data: points,
++        rawData: points,
+         mode: 'density',
+         binSize: controls.binSize,
+         densityColormap: paletteForScale(controls.colormap),
+@@ -552,15 +550,69 @@ export function applyView(nextView: ScatterView, pushHistory = false): void {
+     const next = clampView(nextView);
+     if (pushHistory) appState.scatter.zoomHistory = [...appState.scatter.zoomHistory, current].slice(-30);
+     appState.scatter.view = next;
+-    renderCurrentOption();
++    refreshView();
+ }
+ 
+ export function resetView(clearHistory = true): void {
+     if (clearHistory) appState.scatter.zoomHistory = [];
+     appState.scatter.view = { ...appState.scatter.full };
++    refreshView();
++}
++
++/**
++ * Re-render the scatter chart for the current view.
++ *
++ * In density mode the ChartGPU library caches the binning from the first
++ * `prepare()` call and does not re-bin when only the view's `rawBounds`
++ * change (the library's dirty-state check ignores the view). The result is
++ * a heatmap that looks the same on every zoom. To get a fresh binning we
++ * dispose the chart so the next `renderScatter()` recreates it, then call
++ * the standard `setOption` path to update the axis labels and re-attach
++ * the zoom listeners.
++ *
++ * In non-density modes a plain `setOption` is enough.
++ */
++function refreshView(): void {
++    const isDensity = currentControls().renderMode === 'density';
++    if (isDensity && appState.scatter.chart) {
++        // Force the next renderScatter() to recreate the chart so the
++        // density binning is rebuilt against the new view bounds.
++        disposeScatterChart();
++        // Recreate the container so the new chart starts from a clean DOM
++        // (the old WebGL canvas is gone with the disposed chart).
++        resetScatterContainer();
++        // The actual re-create + re-render is driven by renderScatter().
++        // We trigger it through the debounced entry point exported by
++        // scatterPage.ts to avoid a tight import cycle. Pass
++        // `preserveView: true` so the upcoming renderScatter() does not
++        // clobber the new view back to the full extent (the default
++        // `applyScatterStateFromCache(true)` would otherwise reset the
++        // view and the user's zoom would not stick).
++        scheduleRenderScatter({ preserveView: true });
++        return;
++    }
+     renderCurrentOption();
+ }
+ 
++// Imported lazily to avoid a top-level cycle between rendering.ts and
++// scatterPage.ts (scatterPage already imports applyView/resetView).
++let _scheduleRender: ((opts?: { preserveView?: boolean }) => void) | null = null;
++function scheduleRenderScatter(opts: { preserveView?: boolean } = {}): void {
++    if (!_scheduleRender) {
++        // Use a global helper attached by scatterPage.ts at module load.
++        type ScheduleHelper = { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void };
++        const helper = globalThis as ScheduleHelper;
++        _scheduleRender = helper.__scatterScheduleRender ?? null;
++    }
++    if (_scheduleRender) {
++        _scheduleRender(opts);
++    } else {
++        // Fallback: no helper registered (e.g. during unit tests). Just
++        // update the option in place so axis labels still refresh.
++        renderCurrentOption();
++    }
++}
++
+ export function updateBinnedReadout(): void {
+     // No longer updates a dedicated element — visible point count is shown via chart performance callbacks.
+ }
+@@ -626,26 +678,30 @@ export function initSelectionZoom(container: HTMLElement): void {
+ 
+     const finishDrag = (ev: PointerEvent) => {
+         if (!appState.scatter.drag || ev.pointerId !== appState.scatter.drag.pointerId) return;
++        const drag: DragState = {
++            pointerId: appState.scatter.drag.pointerId,
++            startX: appState.scatter.drag.startX,
++            startY: appState.scatter.drag.startY,
++            endX: appState.scatter.drag.endX,
++            endY: appState.scatter.drag.endY,
++        };
+         const rect = container.getBoundingClientRect();
+         const width = Math.max(1, rect.width);
+         const height = Math.max(1, rect.height);
+-        const left = Math.max(0, Math.min(appState.scatter.drag.startX, appState.scatter.drag.endX));
+-        const right = Math.min(width, Math.max(appState.scatter.drag.startX, appState.scatter.drag.endX));
+-        const top = Math.max(0, Math.min(appState.scatter.drag.startY, appState.scatter.drag.endY));
+-        const bottom = Math.min(height, Math.max(appState.scatter.drag.startY, appState.scatter.drag.endY));
++        const cur = appState.scatter.view;
++        const next = dragToViewport(
++            drag,
++            width,
++            height,
++            SCATTER_PLOT_GRID,
++            { min: cur.xMin, max: cur.xMax },
++            { min: cur.yMin, max: cur.yMax },
++        );
+         appState.scatter.drag = null;
+         hideSelectionBox();
+-        if ((right - left) < 8 || (bottom - top) < 8) { try { container.releasePointerCapture(ev.pointerId); } catch { } return; }
+-        const cur = appState.scatter.view;
+-        const xSpan = cur.xMax - cur.xMin;
+-        const ySpan = cur.yMax - cur.yMin;
+-        applyView({
+-            xMin: cur.xMin + (left / width) * xSpan,
+-            xMax: cur.xMin + (right / width) * xSpan,
+-            yMax: cur.yMax - (top / height) * ySpan,
+-            yMin: cur.yMax - (bottom / height) * ySpan,
+-        }, true);
+         try { container.releasePointerCapture(ev.pointerId); } catch { }
++        if (!next) return;
++        applyView(next, true);
+     };
+ 
+     container.addEventListener('pointerup', finishDrag);
+@@ -655,6 +711,7 @@ export function initSelectionZoom(container: HTMLElement): void {
+         if (appState.scatter.zoomHistory.length > 0) { applyView(appState.scatter.zoomHistory.pop()!, false); return; }
+         resetView(false);
+     });
++
+ }
+ 
+ /* ── Sync mode UI ─────────────────────────────────────── */
+diff --git a/frontend/src/scatter/scatterPage.test.ts b/frontend/src/scatter/scatterPage.test.ts
+index 607ec74..57c7c5c 100644
+--- a/frontend/src/scatter/scatterPage.test.ts
++++ b/frontend/src/scatter/scatterPage.test.ts
+@@ -137,6 +137,9 @@ function buildDom(): void {
+                 <button type="button" id="scatter-view-plot-btn" data-scatter-view="plot" aria-pressed="true">Plot</button>
+                 <button type="button" id="scatter-view-matrix-btn" data-scatter-view="matrix" aria-pressed="false">Matrix</button>
+             </div>
++            <button type="button" id="scatter-zoom-out-btn">−</button>
++            <button type="button" id="scatter-zoom-reset-btn">↺</button>
++            <span id="scatter-zoom-range-badge">100%</span>
+             <select id="scatter-x-col"></select>
+             <select id="scatter-y-col"></select>
+             <input id="scatter-bin-size" type="range" value="10">
+diff --git a/frontend/src/scatter/scatterPage.ts b/frontend/src/scatter/scatterPage.ts
+index 9fbfcc7..6a29d1f 100644
+--- a/frontend/src/scatter/scatterPage.ts
++++ b/frontend/src/scatter/scatterPage.ts
+@@ -136,11 +136,33 @@ function refreshActiveScatterView(): Promise<void> {
+ 
+ let _scatterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+ 
++/**
++ * When set, the next `renderScatter()` invocation will preserve the current
++ * `appState.scatter.view` instead of resetting it to the full extent.
++ *
++ * The density-mode zoom path in `rendering.ts` triggers a re-render through
++ * `globalThis.__scatterScheduleRender` after `applyView` has already updated
++ * the view. The default render would clobber that view back to the full
++ * extent via `applyScatterStateFromCache(true)`, so the zoom would not stick.
++ * Setting this flag tells the next render to keep the view as-is.
++ */
++let _preserveViewOnNextRender = false;
++
+ export function renderScatterDebounced(): void {
+     if (_scatterDebounceTimer) clearTimeout(_scatterDebounceTimer);
+     _scatterDebounceTimer = setTimeout(() => { _scatterDebounceTimer = null; renderScatter(); }, 32);
+ }
+ 
++// Expose a re-render trigger for the density-mode zoom path in
++// `rendering.ts`. Rendering can't import `renderScatter` directly without
++// creating a cycle (scatterPage already imports applyView/resetView), so
++// it pokes this global helper instead.
++type ScheduleHelper = { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void };
++(globalThis as ScheduleHelper).__scatterScheduleRender = (opts) => {
++    if (opts?.preserveView) _preserveViewOnNextRender = true;
++    renderScatterDebounced();
++};
++
+ async function renderScatter(): Promise<void> {
+     const xSelect = getEl('scatter-x-col');
+     const ySelect = getEl('scatter-y-col');
+@@ -164,6 +186,13 @@ async function renderScatter(): Promise<void> {
+         const renderSignature = buildRenderSignature(ctl);
+         const colorColumn = ctl.selectedColorColumn || null;
+ 
++        // Consume the one-shot preserveView flag the density-zoom path set
++        // before scheduling this render. We must read it BEFORE awaiting
++        // `fetchScatterPoints` so a slow request doesn't get its flag stolen
++        // by a subsequent render.
++        const preserveView = _preserveViewOnNextRender;
++        _preserveViewOnNextRender = false;
++
+         const response = await fetchScatterPoints(
+             xValue, yValue, 1_000_000,
+             colorColumn,
+@@ -179,7 +208,14 @@ async function renderScatter(): Promise<void> {
+         appState.scatter.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
+         appState.scatter.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
+         appState.scatter.colorColumn = response.color || '';
+-        applyScatterStateFromCache(true);
++        // When this render was triggered by a density-mode zoom, the caller
++        // has already updated `appState.scatter.view` to the new bounds.
++        // Resetting the view here would clobber the zoom and the user would
++        // see the heatmap snap back to the full extent. In every other case
++        // (initial load, column change, color change, …) we keep the
++        // default "reset to full extent" semantics so the chart always
++        // starts in a sane state.
++        applyScatterStateFromCache(!preserveView);
+ 
+         if (appState.scatter.chart && appState.scatter.lastRenderSignature !== renderSignature) {
+             disposeScatterChart();
+diff --git a/frontend/src/scatter/state.ts b/frontend/src/scatter/state.ts
+index c9994c6..270954d 100644
+--- a/frontend/src/scatter/state.ts
++++ b/frontend/src/scatter/state.ts
+@@ -145,6 +145,13 @@ export function getActiveScatterFilterColumns(
+ /* ── Render-signature helpers ─────────────────────────── */
+ 
+ export function buildRenderSignature(controls: ScatterControls): string {
++    // The signature must also reflect the current view bounds. The ChartGPU
++    // density renderer does not re-bin when only `rawBounds` change (its
++    // dirty-state check ignores the view), so we have to force a chart
++    // re-create on zoom in density mode. Including the view in the signature
++    // makes the scatter page's `renderScatter` flow detect the change and
++    // dispose/recreate the chart.
++    const view = state.view;
+     return [
+         controls.x || '',
+         controls.y || '',
+@@ -154,6 +161,7 @@ export function buildRenderSignature(controls: ScatterControls): string {
+         controls.colormap || '',
+         controls.normalization || '',
+         controls.diagonalMode || '',
++        view.xMin, view.xMax, view.yMin, view.yMax,
+     ].join('|');
+ }
+ 

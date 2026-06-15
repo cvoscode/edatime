@@ -34,7 +34,6 @@ export function initCausalPageRuntime(): void {
     causalRuntime = createAnalysisPageRuntime({
         page: 'causal',
         emptyStateRootId: 'causal-empty-state',
-        statusElId: 'causal-status',
         bindExportsOnInit: false,
         init() {
             _syncCausalEmptyState(_currentColumns.length);

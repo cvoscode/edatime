@@ -92,9 +92,9 @@
   --chip-surface: color-mix(in srgb, var(--surface-2, #151b2c) 82%, transparent);
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 30px;
-  padding: 3px 4px 3px 8px;
+  gap: 6px;
+  min-height: 16px;
+  padding: 0 4px 0 6px;
   border-radius: var(--radius-pill);
   border: 1px solid color-mix(in srgb, var(--chip-accent) 16%, var(--border));
   background:
@@ -132,8 +132,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 24px;
+  width: 22px;
+  height: 18px;
   border-radius: 50%;
   border: none;
   background: rgba(255, 255, 255, 0.05);
@@ -154,8 +154,8 @@
 }
 
 .chip-menu-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
 /* Chip dropdown menu */
@@ -223,8 +223,8 @@
 }
 
 .series-chip .chip-color-picker {
-  width: 15px;
-  height: 15px;
+  width: 12px;
+  height: 12px;
   padding: 0;
   flex: 0 0 auto;
   border: 1px solid color-mix(in srgb, var(--chip-accent) 68%, rgba(255, 255, 255, 0.28));
@@ -375,12 +375,12 @@
   position: fixed;
   z-index: 400;
   min-width: 160px;
-  background: rgba(18, 23, 38, 0.97);
+  background: var(--shell-surface-elevated, rgba(18, 23, 38, 0.97));
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--shell-border-strong, rgba(255, 255, 255, 0.12));
   border-radius: var(--radius-lg, 10px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow, 0 8px 32px rgba(0, 0, 0, 0.55));
   padding: 6px;
   display: flex;
   flex-direction: column;
@@ -426,7 +426,7 @@
 }
 
 .adaptive-trace-picker__option:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--shell-hover, rgba(255, 255, 255, 0.07));
   color: var(--text, #eef4ff);
 }
 

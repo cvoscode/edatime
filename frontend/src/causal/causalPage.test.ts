@@ -75,10 +75,10 @@ describe('causal page chart bootstrap', () => {
               <div id="causal-progress" hidden></div>
               <div id="causal-progress-fill"></div>
               <div id="causal-progress-label"></div>
+              <div id="causal-status"></div>
               <div id="causal-chart"></div>
               <div id="causal-empty-state"></div>
               <div id="causal-loading" hidden></div>
-              <span id="causal-status"></span>
             </section>
         `;
 
@@ -120,6 +120,30 @@ describe('causal page chart bootstrap', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
 
         expect(echarts.getInstanceByDom(chartEl)).toBeTruthy();
+    });
+
+    it('shows status text when compute is blocked by too few numeric columns', async () => {
+        const { handleComputeClick } = await import('./workflow.js');
+        const { resetSelectionState, _selectedColumns } = await import('./selectionState.js');
+        resetSelectionState();
+        _selectedColumns.add('a');
+
+        await handleComputeClick(
+            {
+                getMetadata: () => ({ numeric_columns: ['a', 'b'], columns: [{ name: 'a', dtype: 'Float64' }, { name: 'b', dtype: 'Float64' }] }),
+                chipColor: () => '#00d4ff',
+                numericColumns: () => ['a', 'b'],
+                setLoading: vi.fn(),
+            },
+            document.getElementById('causal-method-select'),
+            document.getElementById('causal-tau-max') as HTMLInputElement,
+            document.getElementById('causal-alpha') as HTMLInputElement,
+            document.getElementById('causal-max-conds') as HTMLInputElement,
+            document.getElementById('causal-test-select'),
+            document.getElementById('causal-fdr-select'),
+        );
+
+        expect(document.getElementById('causal-status')?.textContent).toContain('Select at least 2 numeric columns');
     });
 
 });

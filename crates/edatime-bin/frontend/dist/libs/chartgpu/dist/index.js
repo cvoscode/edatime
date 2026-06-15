@@ -8788,7 +8788,7 @@ function ya(e = {}) {
         };
       }
       case "scatter": {
-        const J = zt(w.data) ?? void 0, re = Jf(w.mode) ?? Ki.mode, W = ed(w.binSize) ?? Ki.binSize, de = td(w.densityColormap) ?? Ki.densityColormap, L = Qf(
+        const J = w.rawBounds ?? zt(w.data) ?? void 0, re = Jf(w.mode) ?? Ki.mode, W = ed(w.binSize) ?? Ki.binSize, de = td(w.densityColormap) ?? Ki.densityColormap, L = Qf(
           w.densityNormalization
         ) ?? Ki.densityNormalization;
         return {

@@ -11,7 +11,7 @@ import {
     initColumnFilterModal,
     initSeriesCollapse,
 } from './columnsController.js';
-import { initDatasetSearchInputs, initTimeseriesActions } from './actions.js';
+import { initDatasetSearchInputs, initTimeseriesActions, initTimeseriesExportButtons } from './actions.js';
 
 export interface TimeseriesFeatureDeps {
     fetchAndRender: () => Promise<void>;
@@ -21,6 +21,11 @@ export interface TimeseriesFeatureDeps {
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
     emitChartRangeChange: (sourceKind?: string) => void;
     registerCleanup: (cleanup: () => void) => void;
+    chartExportPng?: () => void;
+    chartExportSvg?: () => void;
+    exportFilteredCsv?: () => void;
+    exportFilteredJson?: () => void;
+    exportFilteredParquet?: () => void;
 }
 
 /**
@@ -46,6 +51,16 @@ export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
                 buildRangeControls,
                 renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => { }),
             });
+            if (deps.chartExportPng && deps.chartExportSvg && deps.exportFilteredCsv
+                && deps.exportFilteredJson && deps.exportFilteredParquet) {
+                initTimeseriesExportButtons({
+                    chartExportPng: deps.chartExportPng,
+                    chartExportSvg: deps.chartExportSvg,
+                    exportFilteredCsv: deps.exportFilteredCsv,
+                    exportFilteredJson: deps.exportFilteredJson,
+                    exportFilteredParquet: deps.exportFilteredParquet,
+                });
+            }
         },
         rebuildColumns,
         buildRangeControls,

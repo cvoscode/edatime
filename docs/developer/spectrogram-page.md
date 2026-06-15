@@ -51,7 +51,6 @@ Time-frequency heatmap (spectrogram) for a single numeric column. Shows how the 
       </details>
       <button id="spectrogram-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button">Reset zoom</button>
       <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">Compute</button>
-      <span class="toolbar-label" id="spectrogram-status">Select a column and press Compute.</span>
     </div>
   </div>
 
@@ -161,7 +160,6 @@ Response: {
       </details>
       <button id="spectrogram-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button">Reset zoom</button>
       <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">Compute</button>
-      <span class="toolbar-label" id="spectrogram-status">Select a column and press Compute.</span>
     </div>
   </div>
 

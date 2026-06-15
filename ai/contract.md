@@ -80,7 +80,9 @@ All frontend transport calls stay in `frontend/src/services/api/*`. All route ha
 ### `GET /api/scatter/correlations`
 - **TS caller:** `fetchScatterCorrelations(base: string | null, threshold?: number): Promise<ScatterCorrelationsResponse>` [deps: [fetchScatterCorrelations][7]]
 - **Rust query:** `ScatterCorrelationsQuery { base?: String, threshold?: f64 }` [deps: [ScatterCorrelationsQuery][8]]
-- **Response `200 OK`:** `ScatterCorrelationsResponse { base_column: string; threshold: number; numeric_columns: string[]; correlations: CorrelationItem[]; suggestions: SuggestionItem[] }`
+- **Response `200 OK`:** `ScatterCorrelationsResponse { base_column: string; threshold: number; numeric_columns: string[]; correlations: CorrelationItem[]; suggestions: CorrelationSuggestion[] }`
+- **Suggestion shape (TS):** `CorrelationSuggestion { x: string; y: string; correlation: number }` — explicit base/partner column pair with absolute correlation (mirrors the Rust `SuggestionItem` struct). [deps: [CorrelationSuggestion][10]]
+- **Caching:** responses are now backed by a revision-scoped `CorrelationMatrixCacheEntry` on `AppState` (warmup via `spawn_correlation_matrix_warmup`); the cache is invalidated by `replace_dataset` / `clear_correlation_matrix_cache`.
 
 ### `POST /api/scatter/export/parquet`
 - **TS caller:** `exportScatterToParquet(...)` [deps: [scatterExport][9]]
@@ -164,3 +166,4 @@ All frontend transport calls stay in `frontend/src/services/api/*`. All route ha
 [12]: ./crates/edatime-service/src/handlers/routes/database.md
 [13]: ./crates/edatime-service/src/analytics/drift.md#compute_temporal_drift
 [14]: ./crates/edatime-service/src/analytics/drift.md#DriftResponse
+[15]: ./frontend/src/types.md#CorrelationSuggestion

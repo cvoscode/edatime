@@ -11,7 +11,7 @@ import { defaultGpuPowerPreference } from '../utils/platform.js';
 import {
     type GridLayout,
     createCanvasOverlay, ensureRelativePosition,
-    initBoxZoom, initWheelZoom, tooltipRow, tooltipWrap,
+    initBoxZoom, tooltipRow, tooltipWrap,
 } from './chartInteractions.js';
 import {
     type FrequencyPeak,
@@ -365,14 +365,6 @@ export class FftChart {
                 this._annotations = [];
                 this.resetView();
             },
-        });
-
-        initWheelZoom({
-            container,
-            grid: FFT_GRID,
-            getXRange: () => ({ min: this._getXMin(), max: this._getXMax() }),
-            onZoom: (min, max) => this.setView(min, max),
-            clamp: { min: 0, max: this._fullXMax },
         });
     }
 

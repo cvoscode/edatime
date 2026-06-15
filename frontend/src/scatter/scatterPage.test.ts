@@ -137,6 +137,9 @@ function buildDom(): void {
                 <button type="button" id="scatter-view-plot-btn" data-scatter-view="plot" aria-pressed="true">Plot</button>
                 <button type="button" id="scatter-view-matrix-btn" data-scatter-view="matrix" aria-pressed="false">Matrix</button>
             </div>
+            <button type="button" id="scatter-zoom-out-btn">−</button>
+            <button type="button" id="scatter-zoom-reset-btn">↺</button>
+            <span id="scatter-zoom-range-badge">100%</span>
             <select id="scatter-x-col"></select>
             <select id="scatter-y-col"></select>
             <input id="scatter-bin-size" type="range" value="10">
@@ -333,6 +336,26 @@ describe('initScatterPage view toggles', () => {
 
         expect(echartsInitMock).toHaveBeenCalledTimes(1);
         expect(createChartMock).not.toHaveBeenCalled();
+    });
+
+    it('stores the render signature after cache application resets the view', async () => {
+        fetchScatterPointsMock.mockResolvedValueOnce({
+            points: [[1, 2], [2, 3]],
+            total_points: 2,
+            color_values: null,
+            color_labels: null,
+            color: '',
+        });
+        freshScatterState.view = { xMin: 20, xMax: 60, yMin: 20, yMax: 50 };
+        (document.getElementById('scatter-x-col') as HTMLSelectElement).innerHTML = '<option value="HUFL" selected>HUFL</option>';
+        (document.getElementById('scatter-y-col') as HTMLSelectElement).innerHTML = '<option value="HULL" selected>HULL</option>';
+
+        const { renderScatter } = await import('./scatterPage.js');
+
+        await renderScatter();
+
+        expect(freshScatterState.view).toEqual({ xMin: 0.98, xMax: 2.02, yMin: 1.98, yMax: 3.02 });
+        expect(freshScatterState.lastRenderSignature).toBe('HUFL|HULL|density||viridis|viridis|linear|histogram|0.98|2.02|1.98|3.02');
     });
 
     it('populates X/Y dropdowns deterministically when numeric columns are present', async () => {

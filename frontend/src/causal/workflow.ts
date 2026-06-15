@@ -19,9 +19,8 @@ import {
     setCurrentTauMax,
     isNumericColumn,
     ensureNodeMetadata,
-    listPairGroups,
 } from './selectionState.js';
-import { setStatus, setProgress, hideProgress } from './statusView.js';
+import { setProgress, hideProgress, setStatus } from './statusView.js';
 import { initChart, renderEChartsGraph } from './graphView.js';
 import type { CausalDeps } from './selectionState.js';
 import { getDropdownValueFromElement, setDropdownDisabledForElement } from '../ui/primitives/Dropdown.js';
@@ -65,23 +64,21 @@ export function applyMethodControlState(method: string): void {
 export function toggleAddEdgeMode(addEdgeBtn: HTMLButtonElement | null): void {
     setAddEdgeMode(!_addEdgeMode);
     setAddEdgeFirst(null);
+    setStatus(_addEdgeMode ? 'Add-edge mode enabled. Click two nodes to connect them.' : 'Add-edge mode canceled.');
     if (addEdgeBtn) {
         addEdgeBtn.classList.toggle('btn-accent', !_addEdgeMode);
         addEdgeBtn.classList.toggle('btn-ghost', _addEdgeMode);
     }
-    setStatus(!_addEdgeMode
-        ? 'Add-edge mode enabled. Click two nodes to create one pair edge with a default connection.'
-        : 'Add-edge mode cancelled.');
 }
 
 export function cancelAddEdgeMode(addEdgeBtn: HTMLButtonElement | null): void {
     setAddEdgeMode(false);
     setAddEdgeFirst(null);
+    setStatus('Add-edge mode canceled.');
     if (addEdgeBtn) {
         addEdgeBtn.classList.remove('btn-accent');
         addEdgeBtn.classList.add('btn-ghost');
     }
-    setStatus('Add-edge mode cancelled.');
 }
 
 // ─── Compute button ───────────────────────────────────────────────────────────
@@ -101,7 +98,7 @@ export async function handleComputeClick(
     const numericSelected = allSelected.filter((col) => isNumericColumn(col, meta));
     const manualOnly = allSelected.filter((col) => !isNumericColumn(col, meta));
     if (numericSelected.length < 2) {
-        setStatus('Select at least 2 numeric columns for computation. Non-numeric selections are allowed as manual/export nodes only.');
+        setStatus('Select at least 2 numeric columns before computing a causal graph.', 'error');
         return;
     }
     const method = getDropdownValueFromElement(methodSelect) || 'pcmci';
@@ -115,6 +112,7 @@ export async function handleComputeClick(
     let ticks = 0;
     try {
         deps.setLoading('causal-compute-btn', 'causal-loading', true, 'Compute');
+        setStatus(`${methodLabel}: running causal discovery...`);
         setProgress(0, methodLabel + ': preparing');
         const progressId = window.setInterval(() => {
             ticks += 1;
@@ -128,6 +126,7 @@ export async function handleComputeClick(
         setProgress(100, methodLabel + ': complete');
         window.setTimeout(hideProgress, 800);
         const cols = [...resp.columns, ...manualOnly.filter((col) => !resp.columns.includes(col))];
+        setStatus(`${methodLabel}: graph updated with ${cols.length} nodes and ${resp.links.length} links.`, 'success');
         setCurrentColumns(cols);
         setCurrentLinks(resp.links);
         setCurrentTauMax(resp.tau_max);
@@ -136,13 +135,10 @@ export async function handleComputeClick(
         for (const col of cols) ensureNodeMetadata(col, meta, deps);
         await initChart();
         renderEChartsGraph();
-        const groups = listPairGroups();
-        const manualText = manualOnly.length > 0 ? ' · ' + manualOnly.length + ' manual/meta nodes' : '';
-        setStatus('' + cols.length + ' nodes · ' + groups.length + ' pair edges · ' + resp.links.length + ' raw connections' + manualText);
         onComplete?.();
     } catch (error) {
         hideProgress();
-        setStatus('Error: ' + ((error as Error).message || 'failed'));
+        setStatus(error instanceof Error ? error.message : 'Causal discovery failed.', 'error');
         onComplete?.();
     } finally {
         deps.setLoading('causal-compute-btn', 'causal-loading', false, 'Compute');

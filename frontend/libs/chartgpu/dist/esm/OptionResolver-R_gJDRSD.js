@@ -7034,7 +7034,7 @@ function Ys(t = {}) {
         };
       }
       case "scatter": {
-        const lt = Yn(m.data), Y = du(m.mode) ?? Hn.mode, nt = hu(m.binSize) ?? Hn.binSize, St = bu(m.densityColormap) ?? Hn.densityColormap, Ct = pu(
+        const lt = m.rawBounds ?? Yn(m.data), Y = du(m.mode) ?? Hn.mode, nt = hu(m.binSize) ?? Hn.binSize, St = bu(m.densityColormap) ?? Hn.densityColormap, Ct = pu(
           m.densityNormalization
         ) ?? Hn.densityNormalization;
         return {

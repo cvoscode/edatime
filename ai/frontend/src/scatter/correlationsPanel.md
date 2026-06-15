@@ -1,13 +1,16 @@
 # ai/frontend/src/scatter/correlationsPanel.md
-> Scatter suggestion and correlation panel owner for sidebar suggestion rendering, correlation refresh, and causal handoff.
+> Renders the list of correlation suggestion buttons in the scatter panel and triggers correlation refreshes.
+
+## Imports
+- `fetchScatterCorrelations` from [../services/api/index.js](../services/api/index.md)
+- `appState` from [../store/index.js](../store/index.md)
+- `updateCorrelationStats`, `updateColorbarUI` from [./rendering.js](./rendering.md)
 
 ## Functions
-- `renderSuggestions(suggestions: Array<{ column: string; pearson?: number | null; spearman?: number | null }>): void`
-  - Renders the scatter sidebar suggestion buttons and active pair label.
-- `refreshCorrelationsAndSuggestions(): Promise<void>` [deps: [fetchScatterCorrelations][1]]
-  - Refreshes scatter correlation metadata, select options, and suggestion UI.
-- `openScatterPairInCausal(): void`
-  - Dispatches the causal preselect event and navigates to the causal page.
+- `renderSuggestions(suggestions: CorrelationSuggestion[]): void`
+  - Renders suggestion buttons with shape `{ x, y, correlation }`. Sets `.active` on the button whose `(x, y)` matches the current X/Y dropdowns. Clicking a button applies the pair to both `scatter-x-col` and `scatter-y-col`, then refreshes the correlation stats and re-renders the suggestion list.
+- `refreshCorrelationsAndSuggestions(): Promise<void>`
+  - Fetches correlations for the current X column, populates `appState.scatter.correlationsByColumn` and `lastSuggestions`, then calls `renderSuggestions`. Returns gracefully when the page is not visible.
 
 ---
-[1]: ../services/api/scatter.md#fetchScatterCorrelations
+[1]: ../types.md#CorrelationSuggestion

@@ -22,6 +22,8 @@ All API routes are mounted under both `/api` and `/api/v1`.
 | `GET` | `/scatter/correlations/matrix` | Full Pearson and Spearman correlation matrix |
 | `GET` or `POST` | `/scatter/distributions` | Distribution summaries for scatter-related columns |
 
+`/scatter/correlations` returns `suggestions` as an array of objects with `x`, `y`, and `correlation` fields. Older clients that expected suggestion entries to use the full correlation-item shape should migrate to the pair-oriented shape before rendering suggestion chips.
+
 ## Upload And Database Routes
 
 | Method | Path | Purpose |

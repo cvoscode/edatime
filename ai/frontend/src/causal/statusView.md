@@ -1,11 +1,7 @@
 # causal/statusView.md
-> Status line and progress overlay helpers. Does not own any chart state.
+> Progress overlay and empty state helpers. Does not own any chart state.
 
 ## Functions
-
-### Status
-- `setStatus(text: string): void`
-  - Sets text content of `#causal-status` element.
 
 ### Progress
 - `setProgress(percent: number, label?: string): void`

@@ -96,12 +96,23 @@ export interface CorrelationItem {
     spearman: number | null;
 }
 
+/**
+ * Suggestion entry for a high-correlation pair. Pairs a base column (`x`) with
+ * a suggested partner (`y`) and the absolute correlation value. This is the
+ * shape returned by the backend `/api/scatter/correlations` endpoint.
+ */
+export interface CorrelationSuggestion {
+    x: string;
+    y: string;
+    correlation: number;
+}
+
 export interface ScatterCorrelationsResponse {
     base_column: string;
     threshold: number;
     numeric_columns: string[];
     correlations: CorrelationItem[];
-    suggestions: CorrelationItem[];
+    suggestions: CorrelationSuggestion[];
 }
 
 // ── State types ────────────────────────────────────────────────────────────
@@ -368,7 +379,7 @@ export interface ScatterState {
     densityTooltipCache: DensityTooltipCache | null;
     lastOptionSeries: SeriesConfig[] | null;
     columnTypes: Map<string, string>;
-    lastSuggestions: Array<{ column: string; pearson?: number | null; spearman?: number | null }>;
+    lastSuggestions: Array<{ x: string; y: string; correlation: number }>;
     lastRenderSignature: string;
     matrixCache: Map<string, Promise<MatrixCellData>>;
     matrixColumnOrder: string[];

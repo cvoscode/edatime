@@ -130,27 +130,27 @@ describe('createAnalysisPageRuntime', () => {
     });
 
     it('updateStatus writes text to the configured status element', () => {
-        document.body.innerHTML = `<div id="fft-status"></div>`;
+        document.body.innerHTML = `<div id="test-status"></div>`;
         const runtime = createAnalysisPageRuntime({
             page: 'fft',
             emptyStateRootId: 'fft-empty-state',
-            statusElId: 'fft-status',
+            statusElId: 'test-status',
         });
         runtime.mount();
         runtime.updateStatus('3 columns selected');
-        expect(document.getElementById('fft-status')?.textContent).toBe('3 columns selected');
+        expect(document.getElementById('test-status')?.textContent).toBe('3 columns selected');
     });
 
     it('updateStatus clears the element when given an empty string', () => {
-        document.body.innerHTML = `<div id="fft-status">previous text</div>`;
+        document.body.innerHTML = `<div id="test-status">previous text</div>`;
         const runtime = createAnalysisPageRuntime({
             page: 'fft',
             emptyStateRootId: 'fft-empty-state',
-            statusElId: 'fft-status',
+            statusElId: 'test-status',
         });
         runtime.mount();
         runtime.updateStatus('');
-        expect(document.getElementById('fft-status')?.textContent).toBe('');
+        expect(document.getElementById('test-status')?.textContent).toBe('');
     });
 
     it('updateStatus is a no-op when no statusElId is configured', () => {

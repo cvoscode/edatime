@@ -11,12 +11,28 @@ import {
     setPendingYMode,
     setViewport,
     setZoomHistory,
+    store,
 } from '../store/index.js';
 import { dbg, dbgGroup } from '../debug.js';
 import { updateAnalysisZoom, updateAnalysisYRange } from './analysisStatus.js';
 import type { ViewSnapshot } from '../types.js';
 
+// Keep the zoom-range badge in sync with the store regardless of which
+// path mutates `appState.currentStart/currentEnd` or `appState.initialView`.
+// Without this, the badge only refreshed when the legacy `applyViewport()`
+// path ran; zoom-in interactions (chart callbacks, range controls, dataset
+// reloads) bypassed that path and the badge would stay stuck on its
+// previous percentage.
+let zoomBadgeSubscriptionsInstalled = false;
+function installZoomBadgeSubscriptions(): void {
+    if (zoomBadgeSubscriptionsInstalled) return;
+    zoomBadgeSubscriptionsInstalled = true;
+    store.subscribe('chart:viewport', () => updateZoomRangeBadge());
+    store.subscribe('chart:initialView', () => updateZoomRangeBadge());
+}
+
 export function refreshZoomControlsState(): void {
+    installZoomBadgeSubscriptions();
     const supportsZoom = !!appState.chart?.supportsZoomControls?.();
     const resetBtn = document.getElementById('zoom-reset-btn') as HTMLButtonElement | null;
     if (resetBtn) resetBtn.disabled = !supportsZoom;

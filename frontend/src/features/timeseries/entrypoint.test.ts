@@ -7,6 +7,7 @@ const {
     initSeriesCollapseMock,
     initDatasetSearchInputsMock,
     initTimeseriesActionsMock,
+    initTimeseriesExportButtonsMock,
 } = vi.hoisted(() => ({
     buildColumnTogglesMock: vi.fn(),
     buildRangeControlsMock: vi.fn(),
@@ -14,6 +15,7 @@ const {
     initSeriesCollapseMock: vi.fn(),
     initDatasetSearchInputsMock: vi.fn(),
     initTimeseriesActionsMock: vi.fn(),
+    initTimeseriesExportButtonsMock: vi.fn(),
 }));
 
 vi.mock('./columnsController.js', () => ({
@@ -26,6 +28,7 @@ vi.mock('./columnsController.js', () => ({
 vi.mock('./actions.js', () => ({
     initDatasetSearchInputs: initDatasetSearchInputsMock,
     initTimeseriesActions: initTimeseriesActionsMock,
+    initTimeseriesExportButtons: initTimeseriesExportButtonsMock,
 }));
 
 import { createTimeseriesEntrypoint } from './entrypoint.js';
@@ -96,5 +99,49 @@ describe('createTimeseriesEntrypoint', () => {
             rebuildColumnToggles: expect.any(Function),
             renderColumnProfilesGrid: deps.renderColumnProfilesGrid,
         }));
+    });
+
+    it('wires the export buttons when all five handlers are provided', () => {
+        const feature = createTimeseriesEntrypoint({
+            fetchAndRender: vi.fn(),
+            renderCurrentData: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+            updateAnalysisZoom: vi.fn(),
+            emitChartRangeChange: vi.fn(),
+            registerCleanup: vi.fn(),
+            chartExportPng: vi.fn(),
+            chartExportSvg: vi.fn(),
+            exportFilteredCsv: vi.fn(),
+            exportFilteredJson: vi.fn(),
+            exportFilteredParquet: vi.fn(),
+        });
+
+        feature.init();
+
+        expect(initTimeseriesExportButtonsMock).toHaveBeenCalledTimes(1);
+        expect(initTimeseriesExportButtonsMock).toHaveBeenCalledWith(expect.objectContaining({
+            chartExportPng: expect.any(Function),
+            chartExportSvg: expect.any(Function),
+            exportFilteredCsv: expect.any(Function),
+            exportFilteredJson: expect.any(Function),
+            exportFilteredParquet: expect.any(Function),
+        }));
+    });
+
+    it('skips wiring the export buttons when any handler is missing', () => {
+        const feature = createTimeseriesEntrypoint({
+            fetchAndRender: vi.fn(),
+            renderCurrentData: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+            updateAnalysisZoom: vi.fn(),
+            emitChartRangeChange: vi.fn(),
+            registerCleanup: vi.fn(),
+            chartExportPng: vi.fn(),
+            // missing the rest
+        });
+
+        feature.init();
+
+        expect(initTimeseriesExportButtonsMock).not.toHaveBeenCalled();
     });
 });

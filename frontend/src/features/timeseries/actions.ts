@@ -29,6 +29,63 @@ export interface TimeseriesActionDeps {
     registerCleanup: (cleanup: () => void) => void;
 }
 
+export interface TimeseriesExportDeps {
+    chartExportPng: () => void;
+    chartExportSvg: () => void;
+    exportFilteredCsv: () => void;
+    exportFilteredJson: () => void;
+    exportFilteredParquet: () => void;
+}
+
+/**
+ * Wire the timeseries page export buttons:
+ *   - top-level toolbar: #export-png-btn, #export-csv-btn
+ *   - export-options modal: #export-svg-btn, #export-data-csv-btn,
+ *     #export-data-json-btn, #export-data-parquet-btn
+ *
+ * The keyboard shortcuts (Shift+P / Shift+E) and the in-modal
+ * `#open-export-options-btn` open/close behavior are wired elsewhere; this
+ * function is only responsible for the actual click handlers on the
+ * action buttons.
+ */
+export function initTimeseriesExportButtons(deps: TimeseriesExportDeps): void {
+    const png = document.getElementById('export-png-btn');
+    if (png && !png.dataset.bound) {
+        png.addEventListener('click', () => deps.chartExportPng());
+        png.dataset.bound = '1';
+    }
+
+    const csv = document.getElementById('export-csv-btn');
+    if (csv && !csv.dataset.bound) {
+        csv.addEventListener('click', () => deps.exportFilteredCsv());
+        csv.dataset.bound = '1';
+    }
+
+    const svg = document.getElementById('export-svg-btn');
+    if (svg && !svg.dataset.bound) {
+        svg.addEventListener('click', () => deps.chartExportSvg());
+        svg.dataset.bound = '1';
+    }
+
+    const dataCsv = document.getElementById('export-data-csv-btn');
+    if (dataCsv && !dataCsv.dataset.bound) {
+        dataCsv.addEventListener('click', () => deps.exportFilteredCsv());
+        dataCsv.dataset.bound = '1';
+    }
+
+    const dataJson = document.getElementById('export-data-json-btn');
+    if (dataJson && !dataJson.dataset.bound) {
+        dataJson.addEventListener('click', () => deps.exportFilteredJson());
+        dataJson.dataset.bound = '1';
+    }
+
+    const dataParquet = document.getElementById('export-data-parquet-btn');
+    if (dataParquet && !dataParquet.dataset.bound) {
+        dataParquet.addEventListener('click', () => deps.exportFilteredParquet());
+        dataParquet.dataset.bound = '1';
+    }
+}
+
 export function initDatasetSearchInputs(
     deps: Pick<TimeseriesActionDeps, 'rebuildColumnToggles' | 'renderColumnProfilesGrid'>,
 ): void {

@@ -24,8 +24,8 @@ import {
     resolveLinkDirection,
     type PairEdgeGroup,
 } from './selectionState.js';
-import { setStatus } from './statusView.js';
 import { getDropdownValueFromElement, upgradeSelects } from '../ui/primitives/Dropdown.js';
+import { setStatus } from './statusView.js';
 
 export type EditTarget = { kind: 'node'; col: string } | { kind: 'edge'; key: string };
 
@@ -329,9 +329,15 @@ export function openEditPanel(target: EditTarget): void {
 function parseAttrsJson(raw: string, kind: string): Record<string, unknown> | null {
     try {
         const parsed = raw.trim() ? JSON.parse(raw) : {};
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) { setStatus(`${kind} attributes must be a JSON object.`); return null; }
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            setStatus(`${kind} attributes must be a JSON object.`, 'error');
+            return null;
+        }
         return parsed as Record<string, unknown>;
-    } catch (error) { setStatus(`${kind} attributes JSON is invalid: ${(error as Error).message}`); return null; }
+    } catch {
+        setStatus(`${kind} attributes must be valid JSON.`, 'error');
+        return null;
+    }
 }
 
 function replacePairConnections(oldKey: string, nextConnections: CausalLink[]): void {
@@ -352,6 +358,7 @@ export function applyEditPanel(): void {
         if (colorInput?.value) _chipColors.set(col, colorInput.value);
         _nodeAttrs.set(col, attrs);
         closeEditPanel();
+        setStatus(`Node ${col} updated.`, 'success');
         return;
     }
 
@@ -372,10 +379,22 @@ export function applyEditPanel(): void {
         const lag = Number(link.lag);
         const value = Number(link.value);
         const pvalue = Number(link.pvalue);
-        if (!source || !target || source === target) { setStatus('Each connection needs two different endpoints.'); return; }
-        if (!_currentColumns.includes(source) || !_currentColumns.includes(target)) { setStatus('Connection endpoints must exist in the current graph.'); return; }
-        if (pairKey(source, target) !== _edgeEditDraft.key) { setStatus('Connections in this editor must stay inside the same node pair.'); return; }
-        if (!Number.isFinite(lag) || lag < 0 || !Number.isFinite(value) || !Number.isFinite(pvalue)) { setStatus('Each connection needs a valid lag, value, and p-value.'); return; }
+        if (!source || !target || source === target) {
+            setStatus('Each edge connection needs two different nodes.', 'error');
+            return;
+        }
+        if (!_currentColumns.includes(source) || !_currentColumns.includes(target)) {
+            setStatus('Edge connections must reference nodes in the current graph.', 'error');
+            return;
+        }
+        if (pairKey(source, target) !== _edgeEditDraft.key) {
+            setStatus('Edit connections only between this pair of nodes.', 'error');
+            return;
+        }
+        if (!Number.isFinite(lag) || lag < 0 || !Number.isFinite(value) || !Number.isFinite(pvalue)) {
+            setStatus('Lag, value, and p-value must be finite numeric values.', 'error');
+            return;
+        }
         connections.push({ source, target, lag: Math.trunc(Math.max(0, lag)), type: String(link.type || '-->'), value, pvalue });
     }
 
@@ -383,6 +402,7 @@ export function applyEditPanel(): void {
     clearPairAttrsKey(_editTarget.key);
     if (Object.keys(attrs).length > 0) setPairAttrsKey(_edgeEditDraft.key, attrs);
     closeEditPanel();
+    setStatus('Pair edge updated.', 'success');
 }
 
 export function closeEditPanel(): void {
@@ -407,8 +427,7 @@ export function deleteTarget(target: EditTarget): void {
         clearPairAttrsKey(target.key);
     }
     closeEditPanel();
-    const groups = listPairGroups();
-    setStatus(`${_currentColumns.length} nodes · ${groups.length} pair edges · ${_currentLinks.length} raw connections`);
+    setStatus(target.kind === 'node' ? `Node ${target.col} deleted.` : 'Pair edge deleted.', 'success');
 }
 
 // ─── Context menu ────────────────────────────────────────────────────────────

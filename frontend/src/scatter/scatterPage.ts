@@ -136,10 +136,36 @@ function refreshActiveScatterView(): Promise<void> {
 
 let _scatterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+/**
+ * When set, the next `renderScatter()` invocation will preserve the current
+ * `appState.scatter.view` instead of resetting it to the full extent.
+ *
+ * The density-mode zoom path in `rendering.ts` triggers a re-render through
+ * `globalThis.__scatterScheduleRender` after `applyView` has already updated
+ * the view. The default render would clobber that view back to the full
+ * extent via `applyScatterStateFromCache(true)`, so the zoom would not stick.
+ * Setting this flag tells the next render to keep the view as-is.
+ */
+let _preserveViewOnNextRender = false;
+
 export function renderScatterDebounced(): void {
     if (_scatterDebounceTimer) clearTimeout(_scatterDebounceTimer);
     _scatterDebounceTimer = setTimeout(() => { _scatterDebounceTimer = null; renderScatter(); }, 32);
 }
+
+// Expose a re-render trigger for the density-mode zoom path in
+// `rendering.ts`. Rendering can't import `renderScatter` directly without
+// creating a cycle (scatterPage already imports applyView/resetView), so
+// it pokes this global helper instead.
+type ScheduleHelper = { __scatterScheduleRender?: (opts?: { preserveView?: boolean; immediate?: boolean }) => void };
+(globalThis as ScheduleHelper).__scatterScheduleRender = (opts) => {
+    if (opts?.preserveView) _preserveViewOnNextRender = true;
+    if (opts?.immediate) {
+        void renderScatter();
+        return;
+    }
+    renderScatterDebounced();
+};
 
 async function renderScatter(): Promise<void> {
     const xSelect = getEl('scatter-x-col');
@@ -161,8 +187,14 @@ async function renderScatter(): Promise<void> {
 
     await scatterTask.run(async (signal) => {
         const ctl = currentControls();
-        const renderSignature = buildRenderSignature(ctl);
         const colorColumn = ctl.selectedColorColumn || null;
+
+        // Consume the one-shot preserveView flag the density-zoom path set
+        // before scheduling this render. We must read it BEFORE awaiting
+        // `fetchScatterPoints` so a slow request doesn't get its flag stolen
+        // by a subsequent render.
+        const preserveView = _preserveViewOnNextRender;
+        _preserveViewOnNextRender = false;
 
         const response = await fetchScatterPoints(
             xValue, yValue, 1_000_000,
@@ -179,7 +211,15 @@ async function renderScatter(): Promise<void> {
         appState.scatter.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
         appState.scatter.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
         appState.scatter.colorColumn = response.color || '';
-        applyScatterStateFromCache(true);
+        // When this render was triggered by a density-mode zoom, the caller
+        // has already updated `appState.scatter.view` to the new bounds.
+        // Resetting the view here would clobber the zoom and the user would
+        // see the heatmap snap back to the full extent. In every other case
+        // (initial load, column change, color change, …) we keep the
+        // default "reset to full extent" semantics so the chart always
+        // starts in a sane state.
+        applyScatterStateFromCache(!preserveView);
+        const renderSignature = buildRenderSignature(ctl);
 
         if (appState.scatter.chart && appState.scatter.lastRenderSignature !== renderSignature) {
             disposeScatterChart();

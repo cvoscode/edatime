@@ -7,7 +7,7 @@ describe('buildMatrixFetchPairs', () => {
         const pairs = buildMatrixFetchPairs(
             ['HUFL', 'HULL', 'OT'],
             { x: 'HUFL', y: 'HULL' },
-            [{ column: 'OT' }],
+            [{ x: 'HUFL', y: 'OT' }],
         );
 
         expect(pairs[0]).toEqual(['HUFL', 'HULL']);
@@ -18,7 +18,7 @@ describe('buildMatrixFetchPairs', () => {
         const pairs = buildMatrixFetchPairs(
             ['HUFL', 'HULL', 'OT', 'MUFL'],
             { x: 'HUFL', y: 'HULL' },
-            [{ column: 'OT' }],
+            [{ x: 'HUFL', y: 'OT' }],
         );
 
         const otWithCurrentAxis = pairs.findIndex(([column, row]) => (
@@ -31,5 +31,19 @@ describe('buildMatrixFetchPairs', () => {
 
         expect(otWithCurrentAxis).toBeGreaterThanOrEqual(0);
         expect(unrelatedPair).toBeGreaterThan(otWithCurrentAxis);
+    });
+
+    it('ranks both x and y columns from a suggestion', () => {
+        const pairs = buildMatrixFetchPairs(
+            ['HUFL', 'HULL', 'OT', 'MUFL'],
+            { x: 'HUFL', y: 'HULL' },
+            [{ x: 'OT', y: 'MUFL' }],
+        );
+
+        const otPair = pairs.findIndex(([column, row]) => column === 'OT' || row === 'OT');
+        const muflPair = pairs.findIndex(([column, row]) => column === 'MUFL' || row === 'MUFL');
+
+        expect(otPair).toBeGreaterThanOrEqual(0);
+        expect(muflPair).toBeGreaterThanOrEqual(0);
     });
 });

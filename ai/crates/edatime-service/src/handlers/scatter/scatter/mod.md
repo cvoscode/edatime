@@ -8,7 +8,7 @@
 - `apply_scatter_filters`, `parse_scatter_line_filters`, `parse_scatter_filters`
 - `collect_filtered_scatter_frame`, `collect_xy_pairs`
 - `get_scatter_points`, `post_scatter_points`
-- `get_scatter_correlations`, `get_correlation_matrix`
+- `get_scatter_correlations`, `get_correlation_matrix`, `spawn_correlation_matrix_warmup`
 - `post_scatter_export_parquet`
 - `numeric_columns(lf: I) -> Vec<String>`
 

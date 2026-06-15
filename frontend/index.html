@@ -439,40 +439,74 @@
 
       <section class="page" id="page-scatter" data-page-name="scatter" hidden>
         <div class="toolbar scatter-toolbar">
-          <div class="toolbar-group">
-            <span class="toolbar-label">View</span>
-            <div class="btn-toggle-group scatter-view-toggle" role="group" aria-label="Scatter page view">
-              <button type="button" class="btn active" id="scatter-view-plot-btn" aria-pressed="true"
-                data-scatter-view="plot">Plot</button>
-              <button type="button" class="btn" id="scatter-view-matrix-btn" aria-pressed="false"
-                data-scatter-view="matrix">Matrix</button>
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
+            <span class="scatter-toolbar__eyebrow">View</span>
+            <div class="scatter-toolbar__controls">
+              <div class="btn-toggle-group scatter-view-toggle" role="group" aria-label="Scatter page view">
+                <button type="button" class="btn active" id="scatter-view-plot-btn" aria-pressed="true"
+                  data-scatter-view="plot">Plot</button>
+                <button type="button" class="btn" id="scatter-view-matrix-btn" aria-pressed="false"
+                  data-scatter-view="matrix">Matrix</button>
+              </div>
+              <div class="scatter-zoom-cluster" role="group" aria-label="Scatter zoom controls">
+                <button class="btn btn-ghost btn-sm" id="scatter-zoom-out-btn" type="button"
+                  title="Zoom out (or double-click chart)">−</button>
+                <span class="zoom-range-badge" id="scatter-zoom-range-badge">100%</span>
+                <button class="btn btn-ghost btn-sm" id="scatter-zoom-reset-btn" type="button"
+                  title="Reset zoom to full data range">↺</button>
+              </div>
             </div>
           </div>
-          <div class="toolbar-group" id="scatter-analytics-group">
-            <span class="toolbar-label">Analytics</span>
-            <label class="scatter-inline-label" for="scatter-x-col">X</label>
-            <select id="scatter-x-col" class="modal-select" aria-label="Scatter X column"></select>
-            <label class="scatter-inline-label" for="scatter-y-col">Y</label>
-            <select id="scatter-y-col" class="modal-select" aria-label="Scatter Y column"></select>
-            <span id="scatter-mode-label" class="toolbar-label">Mode</span>
-            <select id="scatter-render-mode" class="modal-select" aria-label="Scatter render mode">
-              <option value="density" selected>Density</option>
-              <option value="scatter">Scatter</option>
-            </select>
-            <label class="scatter-inline-label" for="scatter-diagonal-mode">Distribution</label>
-            <select id="scatter-diagonal-mode" class="modal-select" aria-label="Distribution plot mode">
-              <option value="histogram" selected>Histogram</option>
-              <option value="kde">KDE</option>
-              <option value="boxplot">Box Plot</option>
-            </select>
-            <label class="scatter-link-toggle" for="scatter-link-brush">
-              <input id="scatter-link-brush" type="checkbox" checked>
-              <span>Link chart range</span>
-            </label>
+
+          <div id="scatter-analytics-group" class="scatter-toolbar__cluster">
+            <div class="scatter-toolbar__segment scatter-toolbar__segment--axes">
+              <span class="scatter-toolbar__eyebrow">Axes</span>
+              <div class="scatter-toolbar__fields">
+                <label class="toolbar-field scatter-toolbar__field" for="scatter-x-col">
+                  <span class="toolbar-field__label">X axis</span>
+                  <select id="scatter-x-col" class="modal-select" aria-label="Scatter X column"></select>
+                </label>
+                <label class="toolbar-field scatter-toolbar__field" for="scatter-y-col">
+                  <span class="toolbar-field__label">Y axis</span>
+                  <select id="scatter-y-col" class="modal-select" aria-label="Scatter Y column"></select>
+                </label>
+              </div>
+            </div>
+
+            <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
+              <span class="scatter-toolbar__eyebrow">Display</span>
+              <div class="scatter-toolbar__fields">
+                <label id="scatter-mode-label" class="toolbar-field scatter-toolbar__field" for="scatter-render-mode">
+                  <span class="toolbar-field__label">Mode</span>
+                  <select id="scatter-render-mode" class="modal-select" aria-label="Scatter render mode">
+                    <option value="density" selected>Density</option>
+                    <option value="scatter">Scatter</option>
+                  </select>
+                </label>
+                <label class="toolbar-field scatter-toolbar__field" for="scatter-diagonal-mode">
+                  <span class="toolbar-field__label">Distribution</span>
+                  <select id="scatter-diagonal-mode" class="modal-select" aria-label="Distribution plot mode">
+                    <option value="histogram" selected>Histogram</option>
+                    <option value="kde">KDE</option>
+                    <option value="boxplot">Box Plot</option>
+                  </select>
+                </label>
+                <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
+                  for="scatter-link-brush">
+                  <span class="toolbar-field__label">Selection</span>
+                  <span class="toolbar-field__control scatter-link-toggle">
+                    <input id="scatter-link-brush" type="checkbox" checked>
+                    <span>Link chart range</span>
+                  </span>
+                </label>
+              </div>
+            </div>
           </div>
 
-          <div class="toolbar-group toolbar-group--push">
-            <details id="scatter-color-controls" class="toolbar-disclosure toolbar-disclosure--end">
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
+            <span class="scatter-toolbar__eyebrow">Refine</span>
+            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <details id="scatter-color-controls" class="toolbar-disclosure toolbar-disclosure--end">
               <summary class="toolbar-disclosure__summary">
                 <span class="toolbar-label">Color</span>
                 <span class="toolbar-disclosure__value">By column</span>
@@ -487,53 +521,67 @@
                   <option value="inferno">Inferno</option>
                 </select>
               </div>
-            </details>
+              </details>
 
-            <div id="scatter-density-controls" class="scatter-toolbar-group-inline">
-              <span class="toolbar-label">Density</span>
-              <label class="scatter-inline-label" for="scatter-bin-size">Bins</label>
-              <input id="scatter-bin-size" type="range" min="2" max="64" step="1" value="10" style="width:110px;"
-                aria-label="Scatter bin size">
-              <span id="scatter-bin-size-value" class="range-value">10</span>
-              <select id="scatter-colormap" class="modal-select" aria-label="Density colormap">
-                <option value="viridis">Viridis</option>
-                <option value="inferno">Inferno</option>
-                <option value="plasma">Plasma</option>
-              </select>
-              <select id="scatter-normalization" class="modal-select" aria-label="Density normalization">
-                <option value="linear">Linear</option>
-                <option value="log">Log</option>
-              </select>
-            </div>
-
-            <details class="toolbar-disclosure toolbar-disclosure--end scatter-export-group">
-              <summary class="toolbar-disclosure__summary">
-                <span class="toolbar-label">Export</span>
-                <span class="toolbar-disclosure__value">PNG, CSV, JSON</span>
-              </summary>
-              <div class="toolbar-disclosure__menu">
-                <button class="btn btn-ghost btn-sm" id="scatter-export-png-btn" type="button">PNG</button>
-                <button class="btn btn-ghost btn-sm" id="scatter-export-svg-btn" type="button">SVG</button>
-                <button class="btn btn-ghost btn-sm" id="scatter-export-html-btn" type="button">HTML</button>
-                <button class="btn btn-ghost btn-sm" id="scatter-export-csv-btn" type="button">CSV</button>
-                <button class="btn btn-ghost btn-sm" id="scatter-export-json-btn" type="button">JSON</button>
-                <button class="btn btn-ghost btn-sm" id="scatter-export-parquet-btn" type="button">Parquet</button>
+              <div id="scatter-density-controls" class="scatter-toolbar-group-inline scatter-toolbar__density">
+                <label class="toolbar-field scatter-toolbar__field scatter-toolbar__field--range" for="scatter-bin-size">
+                  <span class="toolbar-field__label">Bins</span>
+                  <span class="toolbar-field__control">
+                    <input id="scatter-bin-size" type="range" min="2" max="64" step="1" value="10"
+                      aria-label="Scatter bin size">
+                    <span id="scatter-bin-size-value" class="range-value">10</span>
+                  </span>
+                </label>
+                <label class="toolbar-field scatter-toolbar__field" for="scatter-colormap">
+                  <span class="toolbar-field__label">Colormap</span>
+                  <select id="scatter-colormap" class="modal-select" aria-label="Density colormap">
+                    <option value="viridis">Viridis</option>
+                    <option value="inferno">Inferno</option>
+                    <option value="plasma">Plasma</option>
+                  </select>
+                </label>
+                <label class="toolbar-field scatter-toolbar__field" for="scatter-normalization">
+                  <span class="toolbar-field__label">Scale</span>
+                  <select id="scatter-normalization" class="modal-select" aria-label="Density normalization">
+                    <option value="linear">Linear</option>
+                    <option value="log">Log</option>
+                  </select>
+                </label>
               </div>
-            </details>
+
+              <details class="toolbar-disclosure toolbar-disclosure--end scatter-export-group">
+                <summary class="toolbar-disclosure__summary">
+                  <span class="toolbar-label">Export</span>
+                  <span class="toolbar-disclosure__value">PNG, CSV, JSON</span>
+                </summary>
+                <div class="toolbar-disclosure__menu">
+                  <button class="btn btn-ghost btn-sm" id="scatter-export-png-btn" type="button">PNG</button>
+                  <button class="btn btn-ghost btn-sm" id="scatter-export-svg-btn" type="button">SVG</button>
+                  <button class="btn btn-ghost btn-sm" id="scatter-export-html-btn" type="button">HTML</button>
+                  <button class="btn btn-ghost btn-sm" id="scatter-export-csv-btn" type="button">CSV</button>
+                  <button class="btn btn-ghost btn-sm" id="scatter-export-json-btn" type="button">JSON</button>
+                  <button class="btn btn-ghost btn-sm" id="scatter-export-parquet-btn" type="button">Parquet</button>
+                </div>
+              </details>
+            </div>
           </div>
         </div>
 
         <div class="analysis-toolbar scatter-stats-bar">
-          <span id="scatter-pearson">Pearson: —</span>
-          <span id="scatter-spearman">Spearman: —</span>
-          <span id="scatter-suggestions-label" class="toolbar-label">Suggestions (|corr| ≥ 0.70)</span>
-          <div class="scatter-suggestions-controls">
-            <label class="scatter-inline-label" for="scatter-suggestion-threshold">Threshold</label>
-            <input id="scatter-suggestion-threshold" type="range" min="0.30" max="0.95" step="0.05" value="0.70"
-              aria-label="Correlation suggestion threshold">
-            <span id="scatter-suggestion-threshold-value" class="range-value">0.70</span>
+          <div class="scatter-stats-bar__metrics" aria-label="Correlation metrics">
+            <span id="scatter-pearson" class="scatter-stat-chip">Pearson: —</span>
+            <span id="scatter-spearman" class="scatter-stat-chip">Spearman: —</span>
           </div>
-          <div id="scatter-suggestions" class="scatter-suggestions"></div>
+          <div class="scatter-stats-bar__suggestions scatter-suggestions-bar">
+            <span id="scatter-suggestions-label" class="toolbar-label">Suggestions (|corr| ≥ 0.70)</span>
+            <div class="scatter-suggestions-controls">
+              <label class="scatter-inline-label" for="scatter-suggestion-threshold">Threshold</label>
+              <input id="scatter-suggestion-threshold" type="range" min="0.30" max="0.95" step="0.05" value="0.70"
+                aria-label="Correlation suggestion threshold">
+              <span id="scatter-suggestion-threshold-value" class="range-value">0.70</span>
+            </div>
+            <div id="scatter-suggestions" class="scatter-suggestions"></div>
+          </div>
           <button class="btn btn-ghost btn-sm" id="scatter-open-causal-btn" type="button">Open in Causal</button>
         </div>
 
@@ -660,7 +708,6 @@
               </div>
             </details>
             <button id="fft-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button" hidden>↩ Zoom out</button>
-            <span class="toolbar-label" id="fft-status">Select a column chip below.</span>
           </div>
         </div>
         <div class="page-guidance page-guidance--advanced">
@@ -755,7 +802,6 @@
             </details>
             <button id="spectrogram-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button">Reset zoom</button>
             <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">Compute</button>
-            <span class="toolbar-label" id="spectrogram-status">Select a column and press Compute.</span>
           </div>
         </div>
         <div class="page-guidance page-guidance--advanced">
@@ -850,7 +896,6 @@
             <button id="causal-save-run-btn" class="btn btn-ghost btn-sm" type="button"
               title="Save this causal run for comparison">Save Run</button>
             <button id="causal-compute-btn" class="btn btn-accent btn-sm" type="button">Compute</button>
-            <span class="toolbar-label" id="causal-status">Select columns and press Compute.</span>
           </div>
         </div>
         <div class="page-guidance page-guidance--advanced">
@@ -861,6 +906,7 @@
           <span class="page-guidance__item"><strong>Cost</strong> Slowest page in the app. Reduce the column set first,
             then increase lags or nonlinear tests only when the first pass is interpretable.</span>
         </div>
+        <div id="causal-status" class="analysis-status" role="status" aria-live="polite"></div>
         <!-- Progress bar -->
         <div id="causal-progress" class="causal-progress-wrap" hidden>
           <div class="causal-progress-track">
@@ -1793,7 +1839,8 @@
             <label class="toolbar-field toolbar-field--toggle" for="rolling-enabled-modal">
               <span class="toolbar-field__label">Rolling bands</span>
               <span class="toolbar-field__control scatter-link-toggle" title="Show rolling mean ± σ bands">
-                <input id="rolling-enabled-modal" type="checkbox" aria-label="Show rolling mean ± σ bands in analytics modal">
+                <input id="rolling-enabled-modal" type="checkbox"
+                  aria-label="Show rolling mean ± σ bands in analytics modal">
                 <span>Show mean ± σ bands</span>
               </span>
             </label>
@@ -1805,7 +1852,8 @@
             <label class="toolbar-field toolbar-field--toggle" for="anomaly-enabled-modal">
               <span class="toolbar-field__label">Anomalies</span>
               <span class="toolbar-field__control scatter-link-toggle" title="Show anomaly detection regions">
-                <input id="anomaly-enabled-modal" type="checkbox" aria-label="Enable anomaly detection regions in analytics modal">
+                <input id="anomaly-enabled-modal" type="checkbox"
+                  aria-label="Enable anomaly detection regions in analytics modal">
                 <span>Enable regions</span>
               </span>
             </label>

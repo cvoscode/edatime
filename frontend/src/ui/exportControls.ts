@@ -38,7 +38,7 @@ interface ToolbarPanel {
 export function initToolbarModals(): void {
     const panels: ToolbarPanel[] = [
         { openBtn: 'open-labels-panel-btn', modalId: 'chart-labels-modal', closeBtn: 'chart-labels-close-btn', doneBtn: 'chart-labels-done-btn' },
-        { openBtn: 'open-export-options-btn', modalId: 'export-options-modal', closeBtn: 'export-options-close-btn', doneBtn: 'chart-labels-done-btn' },
+        { openBtn: 'open-export-options-btn', modalId: 'export-options-modal', closeBtn: 'export-options-close-btn', doneBtn: 'export-options-done-btn' },
         { openBtn: 'open-analytics-panel-btn', modalId: 'analytics-drawer', closeBtn: 'analytics-close-btn', doneBtn: null, isDrawer: true },
     ];
 

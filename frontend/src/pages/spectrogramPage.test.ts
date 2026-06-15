@@ -44,7 +44,6 @@ describe('spectrogramPage', () => {
             <div id="spectrogram-win-size"></div>
             <div id="spectrogram-log-scale"></div>
             <div id="spectrogram-zoom-reset-btn"></div>
-            <div id="spectrogram-status"></div>
         `;
     });
 

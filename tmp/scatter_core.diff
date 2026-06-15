@@ -1,0 +1,274 @@
+diff --git a/frontend/src/scatter/controls.ts b/frontend/src/scatter/controls.ts
+index 2c0a5fd..aa8913a 100644
+--- a/frontend/src/scatter/controls.ts
++++ b/frontend/src/scatter/controls.ts
+@@ -170,6 +170,66 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
+         try { await exportScatterParquet(); } catch (error: any) { cb.handleErr(error); }
+     });
+ 
++    // Zoom controls: visible zoom-out / reset for the scatter view (the
++    // timeseries page already has its own zoom-out/reset buttons, but those
++    // are hidden when the scatter page is active, leaving users with no
++    // discoverable way to step back from a selection-zoom).
++    const zoomOutBtn = getEl('scatter-zoom-out-btn') as HTMLButtonElement | null;
++    const zoomResetBtn = getEl('scatter-zoom-reset-btn') as HTMLButtonElement | null;
++    const zoomBadge = getEl('scatter-zoom-range-badge');
++
++    const updateZoomBadge = () => {
++        if (!zoomBadge) return;
++        const view = appState.scatter.view;
++        const full = appState.scatter.full;
++        if (!view || !full) {
++            zoomBadge.textContent = '100%';
++            return;
++        }
++        const xSpan = Math.max(1e-9, full.xMax - full.xMin);
++        const ySpan = Math.max(1e-9, full.yMax - full.yMin);
++        const xZoom = xSpan / Math.max(1e-9, view.xMax - view.xMin);
++        const yZoom = ySpan / Math.max(1e-9, view.yMax - view.yMin);
++        const ratio = Math.max(xZoom, yZoom);
++        const pct = Math.round(ratio * 100);
++        zoomBadge.textContent = `${pct}%`;
++        const isZoomed = pct > 100;
++        if (zoomOutBtn) zoomOutBtn.disabled = !isZoomed && appState.scatter.zoomHistory.length === 0;
++        if (zoomResetBtn) zoomResetBtn.disabled = !isZoomed;
++    };
++
++    zoomOutBtn?.addEventListener('click', () => {
++        if (appState.scatter.zoomHistory.length > 0) {
++            const prev = appState.scatter.zoomHistory.pop()!;
++            appState.scatter.view = prev;
++            rerender();
++            updateZoomBadge();
++        }
++    });
++    zoomResetBtn?.addEventListener('click', () => {
++        appState.scatter.zoomHistory = [];
++        appState.scatter.view = { ...appState.scatter.full };
++        rerender();
++        updateZoomBadge();
++    });
++
++    // Keep the badge in sync with view changes. `applyView` mutates the view
++    // directly (no store event), so we listen to the data-cache `store:viewport`
++    // event as a cheap proxy and also re-check on every render call.
++    let lastViewSnapshot = '';
++    const refreshBadge = () => {
++        const view = appState.scatter.view;
++        const key = `${view.xMin}|${view.xMax}|${view.yMin}|${view.yMax}|${appState.scatter.zoomHistory.length}`;
++        if (key === lastViewSnapshot) return;
++        lastViewSnapshot = key;
++        updateZoomBadge();
++    };
++    refreshBadge();
++    // Defer hooking into the scatter store event to keep this module
++    // dependency-light. A periodic check at 4Hz is cheap and keeps the
++    // badge in sync with selection-zoom, double-click, and the new buttons.
++    window.setInterval(refreshBadge, 250);
++
+     ySelect.addEventListener('change', async () => { updateCorrelationStats(); await cb.renderScatter(); });
+     xSelect.addEventListener('change', async () => { await cb.refreshCorrelationsAndSuggestions(); await cb.renderScatter(); });
+     window.addEventListener('resize', () => { appState.scatter.chart?.resize?.(); });
+diff --git a/frontend/src/scatter/rendering.ts b/frontend/src/scatter/rendering.ts
+index da13240..92d3abe 100644
+--- a/frontend/src/scatter/rendering.ts
++++ b/frontend/src/scatter/rendering.ts
+@@ -26,6 +26,8 @@ import {
+     clampView,
+     setStats,
+     getPlotMetrics,
++    disposeScatterChart,
++    resetScatterContainer,
+     type ScatterView,
+     type ScatterControls,
+     type DensityTooltipCache,
+@@ -37,6 +39,7 @@ import {
+ } from './layout.js';
+ import { getDropdownValue } from '../ui/primitives/Dropdown.js';
+ import { getChartPalette } from '../utils/theme.js';
++import { dragToViewport, type DragState } from '../chart/chartInteractions.js';
+ 
+ /* ── Series builders ──────────────────────────────────── */
+ 
+@@ -101,23 +104,18 @@ export function buildNormalScatterSeries(points: [number, number][], controls: S
+ }
+ 
+ export function buildDensitySeries(points: [number, number][], controls: ScatterControls): any[] {
++    // The density binner inside ChartGPU reads `g.rawData ?? g.data` and uploads
++    // that array as the full point buffer used for binning. If we hand it only
++    // the in-viewport slice here, the heatmap is computed from a sparse subset
++    // and looks "cut off" on every box zoom. Pass the full unfiltered point set
++    // as both `rawData` and `data`, and let `rawBounds` (the current view) tell
++    // the binner to clip rendering to the visible region.
+     const view = appState.scatter.view;
+-    const filtered = points.filter((p) => {
+-        const x = Number(p[0]);
+-        const y = Number(p[1]);
+-        return (
+-            Number.isFinite(x) &&
+-            Number.isFinite(y) &&
+-            x >= view.xMin &&
+-            x <= view.xMax &&
+-            y >= view.yMin &&
+-            y <= view.yMax
+-        );
+-    });
+     return [{
+         type: 'scatter',
+         name: 'density',
+-        data: filtered,
++        data: points,
++        rawData: points,
+         mode: 'density',
+         binSize: controls.binSize,
+         densityColormap: paletteForScale(controls.colormap),
+@@ -552,15 +550,69 @@ export function applyView(nextView: ScatterView, pushHistory = false): void {
+     const next = clampView(nextView);
+     if (pushHistory) appState.scatter.zoomHistory = [...appState.scatter.zoomHistory, current].slice(-30);
+     appState.scatter.view = next;
+-    renderCurrentOption();
++    refreshView();
+ }
+ 
+ export function resetView(clearHistory = true): void {
+     if (clearHistory) appState.scatter.zoomHistory = [];
+     appState.scatter.view = { ...appState.scatter.full };
++    refreshView();
++}
++
++/**
++ * Re-render the scatter chart for the current view.
++ *
++ * In density mode the ChartGPU library caches the binning from the first
++ * `prepare()` call and does not re-bin when only the view's `rawBounds`
++ * change (the library's dirty-state check ignores the view). The result is
++ * a heatmap that looks the same on every zoom. To get a fresh binning we
++ * dispose the chart so the next `renderScatter()` recreates it, then call
++ * the standard `setOption` path to update the axis labels and re-attach
++ * the zoom listeners.
++ *
++ * In non-density modes a plain `setOption` is enough.
++ */
++function refreshView(): void {
++    const isDensity = currentControls().renderMode === 'density';
++    if (isDensity && appState.scatter.chart) {
++        // Force the next renderScatter() to recreate the chart so the
++        // density binning is rebuilt against the new view bounds.
++        disposeScatterChart();
++        // Recreate the container so the new chart starts from a clean DOM
++        // (the old WebGL canvas is gone with the disposed chart).
++        resetScatterContainer();
++        // The actual re-create + re-render is driven by renderScatter().
++        // We trigger it through the debounced entry point exported by
++        // scatterPage.ts to avoid a tight import cycle. Pass
++        // `preserveView: true` so the upcoming renderScatter() does not
++        // clobber the new view back to the full extent (the default
++        // `applyScatterStateFromCache(true)` would otherwise reset the
++        // view and the user's zoom would not stick).
++        scheduleRenderScatter({ preserveView: true });
++        return;
++    }
+     renderCurrentOption();
+ }
+ 
++// Imported lazily to avoid a top-level cycle between rendering.ts and
++// scatterPage.ts (scatterPage already imports applyView/resetView).
++let _scheduleRender: ((opts?: { preserveView?: boolean }) => void) | null = null;
++function scheduleRenderScatter(opts: { preserveView?: boolean } = {}): void {
++    if (!_scheduleRender) {
++        // Use a global helper attached by scatterPage.ts at module load.
++        type ScheduleHelper = { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void };
++        const helper = globalThis as ScheduleHelper;
++        _scheduleRender = helper.__scatterScheduleRender ?? null;
++    }
++    if (_scheduleRender) {
++        _scheduleRender(opts);
++    } else {
++        // Fallback: no helper registered (e.g. during unit tests). Just
++        // update the option in place so axis labels still refresh.
++        renderCurrentOption();
++    }
++}
++
+ export function updateBinnedReadout(): void {
+     // No longer updates a dedicated element — visible point count is shown via chart performance callbacks.
+ }
+@@ -626,26 +678,30 @@ export function initSelectionZoom(container: HTMLElement): void {
+ 
+     const finishDrag = (ev: PointerEvent) => {
+         if (!appState.scatter.drag || ev.pointerId !== appState.scatter.drag.pointerId) return;
++        const drag: DragState = {
++            pointerId: appState.scatter.drag.pointerId,
++            startX: appState.scatter.drag.startX,
++            startY: appState.scatter.drag.startY,
++            endX: appState.scatter.drag.endX,
++            endY: appState.scatter.drag.endY,
++        };
+         const rect = container.getBoundingClientRect();
+         const width = Math.max(1, rect.width);
+         const height = Math.max(1, rect.height);
+-        const left = Math.max(0, Math.min(appState.scatter.drag.startX, appState.scatter.drag.endX));
+-        const right = Math.min(width, Math.max(appState.scatter.drag.startX, appState.scatter.drag.endX));
+-        const top = Math.max(0, Math.min(appState.scatter.drag.startY, appState.scatter.drag.endY));
+-        const bottom = Math.min(height, Math.max(appState.scatter.drag.startY, appState.scatter.drag.endY));
++        const cur = appState.scatter.view;
++        const next = dragToViewport(
++            drag,
++            width,
++            height,
++            SCATTER_PLOT_GRID,
++            { min: cur.xMin, max: cur.xMax },
++            { min: cur.yMin, max: cur.yMax },
++        );
+         appState.scatter.drag = null;
+         hideSelectionBox();
+-        if ((right - left) < 8 || (bottom - top) < 8) { try { container.releasePointerCapture(ev.pointerId); } catch { } return; }
+-        const cur = appState.scatter.view;
+-        const xSpan = cur.xMax - cur.xMin;
+-        const ySpan = cur.yMax - cur.yMin;
+-        applyView({
+-            xMin: cur.xMin + (left / width) * xSpan,
+-            xMax: cur.xMin + (right / width) * xSpan,
+-            yMax: cur.yMax - (top / height) * ySpan,
+-            yMin: cur.yMax - (bottom / height) * ySpan,
+-        }, true);
+         try { container.releasePointerCapture(ev.pointerId); } catch { }
++        if (!next) return;
++        applyView(next, true);
+     };
+ 
+     container.addEventListener('pointerup', finishDrag);
+@@ -655,6 +711,7 @@ export function initSelectionZoom(container: HTMLElement): void {
+         if (appState.scatter.zoomHistory.length > 0) { applyView(appState.scatter.zoomHistory.pop()!, false); return; }
+         resetView(false);
+     });
++
+ }
+ 
+ /* ── Sync mode UI ─────────────────────────────────────── */
+diff --git a/frontend/src/scatter/state.ts b/frontend/src/scatter/state.ts
+index c9994c6..270954d 100644
+--- a/frontend/src/scatter/state.ts
++++ b/frontend/src/scatter/state.ts
+@@ -145,6 +145,13 @@ export function getActiveScatterFilterColumns(
+ /* ── Render-signature helpers ─────────────────────────── */
+ 
+ export function buildRenderSignature(controls: ScatterControls): string {
++    // The signature must also reflect the current view bounds. The ChartGPU
++    // density renderer does not re-bin when only `rawBounds` change (its
++    // dirty-state check ignores the view), so we have to force a chart
++    // re-create on zoom in density mode. Including the view in the signature
++    // makes the scatter page's `renderScatter` flow detect the change and
++    // dispose/recreate the chart.
++    const view = state.view;
+     return [
+         controls.x || '',
+         controls.y || '',
+@@ -154,6 +161,7 @@ export function buildRenderSignature(controls: ScatterControls): string {
+         controls.colormap || '',
+         controls.normalization || '',
+         controls.diagonalMode || '',
++        view.xMin, view.xMax, view.yMin, view.yMax,
+     ].join('|');
+ }
+ 

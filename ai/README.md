@@ -164,7 +164,6 @@ Spectrogram page — STFT heatmap visualization using ECharts. Refactored to use
 let spectrogramChart: any;
 let spectrogramResizeObserver: ResizeObserver;
 let spectrogramResult: SpectrogramResult | null;
-let spectrogramSampleCount: number;
 let spectrogramRuntime: ReturnType<typeof createAnalysisPageRuntime>;
 ```
 
@@ -181,7 +180,7 @@ let spectrogramRuntime: ReturnType<typeof createAnalysisPageRuntime>;
 - `isSpectrogramChartReadyForInit()` — Guards chart init until `clientWidth/clientHeight > 0` AND page is not hidden.
 - `waitForSpectrogramChartReady(attempts?: number): Promise<boolean>` — Polls up to `attempts` ticks.
 - `ensureSpectrogramChart(): Promise<any>` — Lazily initializes ECharts instance with ResizeObserver, drag-selection box, and pointer event handlers for drag-to-zoom.
-- `renderSpectrogramChart(): Promise<void>` — Builds heatmap points array, configures ECharts `xAxis`/`yAxis`/`visualMap`/`dataZoom`, dispatches status text.
+- `renderSpectrogramChart(): Promise<void>` — Builds heatmap points array, configures ECharts `xAxis`/`yAxis`/`visualMap`/`dataZoom`. No longer writes status text (status UI removed).
 
 <!-- internal deps -->
 [fetchSpectrogram]: ../frontend/src/services/api/index.md

@@ -8,7 +8,6 @@
 - `spectrogramChart: any` — ECharts chart instance
 - `spectrogramResizeObserver: ResizeObserver | null`
 - `spectrogramResult: SpectrogramResult | null`
-- `spectrogramSampleCount: number`
 - `spectrogramRuntime: ReturnType<typeof createAnalysisPageRuntime> | null`
 
 ## Functions

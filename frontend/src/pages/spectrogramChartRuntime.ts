@@ -21,7 +21,6 @@ interface SpectrogramPageDeps {
 let spectrogramChart: any = null;
 let spectrogramResizeObserver: ResizeObserver | null = null;
 let spectrogramResult: SpectrogramResult | null = null;
-let spectrogramSampleCount = 0;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatSpectrogramTime(timestampMs: number): string {
@@ -55,7 +54,6 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
     spectrogramRuntime = createAnalysisPageRuntime({
         page: 'spectrogram',
         emptyStateRootId: 'spectrogram-empty-state',
-        statusElId: 'spectrogram-status',
         exportConfig: {
             key: 'spectrogram',
             png: { fn: exportEChartsPNG, filename: 'edatime_spectrogram.png' },
@@ -321,9 +319,6 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     }],
                 });
 
-                spectrogramRuntime?.updateStatus(
-                    `${spectrogramResult.column} · ${spectrogramResult.times_ms.length} windows × ${spectrogramResult.frequencies.length} bins · ${spectrogramSampleCount} samples`,
-                );
                 syncSpectrogramEmptyState();
             };
 
@@ -342,19 +337,16 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             document.getElementById('spectrogram-compute-btn')?.addEventListener('click', async () => {
                 const column = getDropdownValue('spectrogram-col-select');
                 if (!column) {
-                    spectrogramRuntime?.updateStatus('Select a column.');
                     syncSpectrogramEmptyState('Pick a numeric column and click Compute to generate the spectrogram.');
                     return;
                 }
                 if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) {
-                    spectrogramRuntime?.updateStatus('No time range available.');
                     return;
                 }
 
                 const winSize = Number.parseInt(getDropdownValue('spectrogram-win-size') || '256', 10);
                 try {
                     deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', true);
-                    spectrogramRuntime?.updateStatus('Fetching spectrogram…');
 
                     const startMs = appState.currentStart;
                     const endMs = appState.currentEnd;
@@ -366,12 +358,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     const response = await fetchSpectrogram(startIso, endIso, column, winSize);
 
                     spectrogramResult = response.result;
-                    spectrogramSampleCount = response.sample_count;
                     await renderSpectrogramChart();
                 } catch (error: any) {
                     spectrogramResult = null;
                     syncSpectrogramEmptyState('Spectrogram generation failed. Choose a column and try again.');
-                    spectrogramRuntime?.updateStatus(`Error: ${error?.message || 'failed'}`);
                 } finally {
                     deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', false);
                 }

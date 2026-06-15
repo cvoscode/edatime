@@ -51,6 +51,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
 
             pending = (async () => {
                 if (appState.chart) {
+                    deps.refreshZoomControlsState();
                     ready = true;
                     return;
                 }
@@ -115,6 +116,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     await deps.fetchAndRender();
 
                     setInitialView(getCurrentView());
+                    deps.refreshZoomControlsState();
                     dbgGroup('initialView snapshot', () => dbg(appState.initialView));
 
                     await restoreSessionAfterChartReady({
@@ -143,7 +145,6 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                         await appState.chart!.init();
                         setAnalysisBound(false);
                         bindAnalysisChartEvents();
-                        deps.refreshZoomControlsState();
                         const fallbackChart = appState.chart as ChartInstance | null;
                         fallbackChart?.setXRange?.(appState.currentStart!, appState.currentEnd!);
                         fallbackChart?.setChartText?.(
@@ -152,6 +153,9 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                             appState.chartText?.yLabel || '',
                         );
                         await deps.fetchAndRender();
+
+                        setInitialView(getCurrentView());
+                        deps.refreshZoomControlsState();
                         ready = true;
                     } catch (fallbackErr: unknown) {
                         const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);

@@ -18,6 +18,20 @@ const appStateMock = {
         metadata: { columns: [{ name: 'HUFL' }, { name: 'HULL' }] },
         pageInitialized: false,
         initialized: false,
+        full: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 } as any,
+        view: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 } as any,
+        zoomHistory: [] as any[],
+        densityTooltipCache: null,
+        lastOptionSeries: null,
+        columnTypes: new Map<string, string>(),
+        colorColumn: '',
+        colorValues: null,
+        colorLabels: null,
+        colorMin: null,
+        colorMax: null,
+        allColorValues: null,
+        allColorLabels: null,
+        points: [] as [number, number][],
     },
     columnRanges: {},
     adaptiveLineFilters: [],
@@ -78,6 +92,9 @@ function buildDom(): void {
             <input id="scatter-matrix-mode" value="scatter">
             <input id="scatter-matrix-cell-size" value="160">
             <span id="scatter-matrix-cell-size-value"></span>
+            <button type="button" id="scatter-zoom-out-btn">−</button>
+            <button type="button" id="scatter-zoom-reset-btn">↺</button>
+            <span id="scatter-zoom-range-badge">100%</span>
         </section>
     `;
 }
@@ -93,13 +110,13 @@ describe('bindScatterControls', () => {
         const { bindScatterControls } = await import('./controls.js');
 
         bindScatterControls({
-            initScatterPage: vi.fn(async () => {}),
-            renderScatter: vi.fn(async () => {}),
-            refreshCorrelationsAndSuggestions: vi.fn(async () => {}),
-            refreshActiveScatterView: vi.fn(async () => {}),
-            setScatterView: vi.fn(async () => {}),
+            initScatterPage: vi.fn(async () => { }),
+            renderScatter: vi.fn(async () => { }),
+            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
+            refreshActiveScatterView: vi.fn(async () => { }),
+            setScatterView: vi.fn(async () => { }),
             handleErr: vi.fn(),
-            rerenderScatterFromCache: vi.fn(async () => {}),
+            rerenderScatterFromCache: vi.fn(async () => { }),
             renderScatterDebounced: vi.fn(),
             syncScatterFilterBadge: vi.fn(),
         });
@@ -116,13 +133,13 @@ describe('bindScatterControls', () => {
         const { bindScatterControls } = await import('./controls.js');
 
         bindScatterControls({
-            initScatterPage: vi.fn(async () => {}),
-            renderScatter: vi.fn(async () => {}),
-            refreshCorrelationsAndSuggestions: vi.fn(async () => {}),
-            refreshActiveScatterView: vi.fn(async () => {}),
-            setScatterView: vi.fn(async () => {}),
+            initScatterPage: vi.fn(async () => { }),
+            renderScatter: vi.fn(async () => { }),
+            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
+            refreshActiveScatterView: vi.fn(async () => { }),
+            setScatterView: vi.fn(async () => { }),
             handleErr: vi.fn(),
-            rerenderScatterFromCache: vi.fn(async () => {}),
+            rerenderScatterFromCache: vi.fn(async () => { }),
             renderScatterDebounced: vi.fn(),
             syncScatterFilterBadge: vi.fn(),
         });
@@ -133,5 +150,61 @@ describe('bindScatterControls', () => {
 
         expect(appStateMock.scatter.chart.setOption).toHaveBeenCalledTimes(1);
         expect(updateMarginalPlotsMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('pops the zoom history when the zoom-out button is clicked', async () => {
+        const { bindScatterControls } = await import('./controls.js');
+
+        // Pretend the user has zoomed in once already.
+        appStateMock.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 100 } as any;
+        appStateMock.scatter.view = { xMin: 10, xMax: 50, yMin: 20, yMax: 60 } as any;
+        appStateMock.scatter.zoomHistory = [{ xMin: 0, xMax: 100, yMin: 0, yMax: 100 }] as any;
+
+        bindScatterControls({
+            initScatterPage: vi.fn(async () => { }),
+            renderScatter: vi.fn(async () => { }),
+            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
+            refreshActiveScatterView: vi.fn(async () => { }),
+            setScatterView: vi.fn(async () => { }),
+            handleErr: vi.fn(),
+            rerenderScatterFromCache: vi.fn(async () => { }),
+            renderScatterDebounced: vi.fn(),
+            syncScatterFilterBadge: vi.fn(),
+        });
+
+        (document.getElementById('scatter-zoom-out-btn') as HTMLButtonElement).click();
+
+        expect(appStateMock.scatter.view).toEqual({ xMin: 0, xMax: 100, yMin: 0, yMax: 100 });
+        expect(appStateMock.scatter.zoomHistory).toEqual([]);
+        expect(appStateMock.scatter.chart.setOption).toHaveBeenCalledTimes(1);
+    });
+
+    it('resets the scatter view to the full data range', async () => {
+        const { bindScatterControls } = await import('./controls.js');
+
+        appStateMock.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 100 } as any;
+        appStateMock.scatter.view = { xMin: 30, xMax: 70, yMin: 40, yMax: 80 } as any;
+        appStateMock.scatter.zoomHistory = [
+            { xMin: 0, xMax: 100, yMin: 0, yMax: 100 },
+            { xMin: 10, xMax: 80, yMin: 20, yMax: 90 },
+        ] as any;
+
+        bindScatterControls({
+            initScatterPage: vi.fn(async () => { }),
+            renderScatter: vi.fn(async () => { }),
+            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
+            refreshActiveScatterView: vi.fn(async () => { }),
+            setScatterView: vi.fn(async () => { }),
+            handleErr: vi.fn(),
+            rerenderScatterFromCache: vi.fn(async () => { }),
+            renderScatterDebounced: vi.fn(),
+            syncScatterFilterBadge: vi.fn(),
+        });
+
+        (document.getElementById('scatter-zoom-reset-btn') as HTMLButtonElement).click();
+
+        expect(appStateMock.scatter.view).toEqual({ xMin: 0, xMax: 100, yMin: 0, yMax: 100 });
+        expect(appStateMock.scatter.zoomHistory).toEqual([]);
+        expect(appStateMock.scatter.chart.setOption).toHaveBeenCalledTimes(1);
     });
 });

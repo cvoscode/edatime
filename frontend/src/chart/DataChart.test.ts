@@ -459,10 +459,120 @@ describe('updateDataMulti', () => {
         expect(setOption).toHaveBeenCalledOnce();
         expect(setOption.mock.calls[0][0]).toEqual(expect.objectContaining({
             animation: false,
+            legend: { show: false },
             theme: expect.objectContaining({
                 backgroundColor: '#0B0F18',
                 textColor: '#D2DAF0',
             }),
         }));
+    });
+
+    it('renders a compact legend row that toggles all segments for a trace', () => {
+        const chart = makeChart();
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        (chart as any)._container = container;
+
+        const series = [
+            { type: 'line', name: '__color_segment__temperature::low', color: '#00aaff', visible: true, data: [] },
+            { type: 'line', name: '__color_segment__temperature::high', color: '#00aaff', visible: true, data: [] },
+            { type: 'line', name: 'humidity', color: '#aa66ff', visible: true, data: [] },
+        ];
+        const setOption = vi.fn((next) => {
+            (chart as any).chartInstance.options = next;
+        });
+        (chart as any).chartInstance = {
+            options: { animation: false, legend: { show: false }, series },
+            setOption,
+        };
+        (chart as any)._lastChartOptions = { animation: false, legend: { show: false }, series };
+        (chart as any)._lastSeriesList = series;
+
+        (chart as any)._syncLegendOverlay();
+
+        const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>('.timeseries-legend-overlay__row'));
+        expect(buttons.map((button) => button.querySelector('.timeseries-legend-overlay__label')?.textContent)).toEqual(['temperature', 'humidity']);
+
+        buttons[0].click();
+
+        expect(setOption).toHaveBeenCalledOnce();
+        const nextSeries = setOption.mock.calls[0][0].series;
+        expect(nextSeries.map((s: any) => [s.name, s.visible])).toEqual([
+            ['__color_segment__temperature::low', false],
+            ['__color_segment__temperature::high', false],
+            ['humidity', true],
+        ]);
+        const updatedButton = container.querySelector<HTMLButtonElement>('.timeseries-legend-overlay__row');
+        expect(updatedButton?.getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('clamps dragged legend position inside the chart container', () => {
+        const chart = makeChart();
+        const container = document.createElement('div');
+        Object.defineProperty(container, 'clientWidth', { configurable: true, value: 300 });
+        Object.defineProperty(container, 'clientHeight', { configurable: true, value: 180 });
+        const legend = document.createElement('div');
+        Object.defineProperty(legend, 'offsetWidth', { configurable: true, value: 120 });
+        Object.defineProperty(legend, 'offsetHeight', { configurable: true, value: 60 });
+        container.appendChild(legend);
+        (chart as any)._container = container;
+        (chart as any)._legendEl = legend;
+
+        expect((chart as any)._clampLegendPosition({ left: 290, top: 170 })).toEqual({ left: 172, top: 112 });
+        expect((chart as any)._clampLegendPosition({ left: -20, top: -10 })).toEqual({ left: 8, top: 8 });
+    });
+});
+
+// ── Export with drawings ─────────────────────────────────────────────────────
+
+describe('image exports', () => {
+    /** Build a minimal canvas stub that downloadUrl() can serialize. */
+    function makeExportCanvasStub(): { canvas: HTMLCanvasElement; toDataURL: ReturnType<typeof vi.fn> } {
+        const toDataURL = vi.fn(() => 'data:image/png;base64,AAAA');
+        const canvas = { width: 600, height: 400, toDataURL } as unknown as HTMLCanvasElement;
+        return { canvas, toDataURL };
+    }
+
+    it('exportPNG bakes drawings into the exported canvas (includeDrawings=true)', async () => {
+        const chart = makeChart();
+        const { canvas, toDataURL } = makeExportCanvasStub();
+        const helper = vi.fn().mockResolvedValue(canvas);
+        (chart as any)._getCombinedExportCanvas = helper;
+        // Stub out downloadUrl so we don't actually try to click an anchor.
+        (chart as any).downloadUrl = vi.fn();
+
+        await chart.exportPNG();
+
+        expect(helper).toHaveBeenCalledTimes(1);
+        expect(helper).toHaveBeenCalledWith(true);
+        expect(toDataURL).toHaveBeenCalledWith('image/png');
+    });
+
+    it('exportSVG bakes drawings into the exported canvas (includeDrawings=true)', async () => {
+        const chart = makeChart();
+        const { canvas, toDataURL } = makeExportCanvasStub();
+        const helper = vi.fn().mockResolvedValue(canvas);
+        (chart as any)._getCombinedExportCanvas = helper;
+        (chart as any).downloadBlob = vi.fn();
+
+        await chart.exportSVG();
+
+        expect(helper).toHaveBeenCalledTimes(1);
+        expect(helper).toHaveBeenCalledWith(true);
+        expect(toDataURL).toHaveBeenCalledWith('image/png');
+    });
+
+    it('exportHTML bakes drawings into the exported canvas (includeDrawings=true)', async () => {
+        const chart = makeChart();
+        const { canvas, toDataURL } = makeExportCanvasStub();
+        const helper = vi.fn().mockResolvedValue(canvas);
+        (chart as any)._getCombinedExportCanvas = helper;
+        (chart as any).downloadBlob = vi.fn();
+
+        await chart.exportHTML();
+
+        expect(helper).toHaveBeenCalledTimes(1);
+        expect(helper).toHaveBeenCalledWith(true);
+        expect(toDataURL).toHaveBeenCalledWith('image/png');
     });
 });

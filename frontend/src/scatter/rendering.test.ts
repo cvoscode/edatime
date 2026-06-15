@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { appState } from '../store/appStateCompat.js';
-import { updateMarginalPlots } from './rendering.js';
+import { applyView, buildDensitySeries, buildOption, densityTooltipFormatterFactory, updateMarginalPlots } from './rendering.js';
 
 class MockCanvasContext2D {
     ops: string[] = [];
@@ -181,5 +181,317 @@ describe('scatter marginal rendering modes', () => {
         expect(histY).not.toEqual(kdeY);
         expect(histY).not.toEqual(boxY);
         expect(kdeY).not.toEqual(boxY);
+    });
+});
+
+/* ── Density zoom regression ──────────────────────────── */
+
+describe('density series zoom', () => {
+    beforeEach(() => {
+        vi.restoreAllMocks();
+        vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+            cb(0);
+            return 1;
+        });
+
+        Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+            configurable: true,
+            value: function getContext() {
+                let ctx = contextByCanvas.get(this);
+                if (!ctx) {
+                    ctx = new MockCanvasContext2D();
+                    contextByCanvas.set(this, ctx);
+                }
+                ctx.ops = [];
+                return ctx;
+            },
+        });
+
+        document.body.innerHTML = `
+            <select id="scatter-x-col"><option value="HUFL" selected>HUFL</option></select>
+            <select id="scatter-y-col"><option value="HULL" selected>HULL</option></select>
+            <input id="scatter-bin-size" value="10">
+            <select id="scatter-colormap"><option value="viridis" selected>Viridis</option></select>
+            <select id="scatter-normalization"><option value="linear" selected>Linear</option></select>
+            <select id="scatter-render-mode">
+                <option value="scatter">Scatter</option>
+                <option value="density" selected>Density</option>
+            </select>
+            <select id="scatter-diagonal-mode">
+                <option value="histogram" selected>Histogram</option>
+            </select>
+            <select id="scatter-color-column"><option value="" selected>None</option></select>
+            <select id="scatter-color-scale"><option value="viridis" selected>Viridis</option></select>
+            <input id="scatter-matrix-mode" value="scatter">
+            <input id="scatter-matrix-cell-size" value="160">
+            <div id="scatter-chart"></div>
+            <canvas id="scatter-marginal-x"></canvas>
+            <div id="scatter-right-panel"><canvas id="scatter-marginal-y"></canvas><div id="scatter-colorbar-wrap" hidden></div></div>
+        `;
+
+        bindRect(document.getElementById('scatter-chart') as HTMLElement, 1308, 648);
+    });
+
+    it('passes the full unfiltered point set as rawData/data to ChartGPU when the view is zoomed in', () => {
+        // The full data domain spans [0, 100] in both x and y, but the active
+        // view has been zoomed in to a sub-region. buildDensitySeries must
+        // hand the binner the FULL point set, not just the in-view subset.
+        const fullPoints: [number, number][] = [
+            [0, 0], [5, 10], [10, 5], [15, 20],
+            [25, 25], [35, 30], [45, 35], [55, 40],
+            [65, 45], [75, 50], [85, 55], [95, 60],
+        ];
+        appState.scatter.points = fullPoints;
+        appState.scatter.allPoints = fullPoints;
+        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+        appState.scatter.view = { xMin: 20, xMax: 60, yMin: 20, yMax: 50 };
+
+        const container = document.getElementById('scatter-chart') as HTMLElement;
+        const series = buildDensitySeries(appState.scatter.points, {
+            x: 'HUFL',
+            y: 'HULL',
+            binSize: 10,
+            colormap: 'viridis',
+            normalization: 'linear',
+            renderMode: 'density',
+            diagonalMode: 'histogram',
+            colorColumn: '',
+            selectedColorColumn: '',
+            colorScale: 'viridis',
+            matrixMode: 'scatter',
+            matrixCellSize: 160,
+        });
+
+        expect(series).toHaveLength(1);
+        expect(series[0].mode).toBe('density');
+        // The binner must see the full set, not the in-view subset.
+        expect(series[0].rawData).toEqual(fullPoints);
+        expect(series[0].data).toEqual(fullPoints);
+        // rawBounds tracks the current view so the binner clips to the visible region.
+        expect(series[0].rawBounds).toEqual({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 });
+
+        // buildOption composes a full ECharts option around the density series.
+        const option = buildOption(appState.scatter.points, container);
+        expect(option.series).toHaveLength(1);
+        expect(option.series[0].mode).toBe('density');
+        expect(option.series[0].rawData).toEqual(fullPoints);
+        expect(option.series[0].data).toEqual(fullPoints);
+    });
+
+    it('attaches color metadata to density series so density tooltips can show color values', () => {
+        const fullPoints: [number, number][] = [
+            [0, 0], [10, 10], [20, 20],
+        ];
+        appState.scatter.points = fullPoints;
+        appState.scatter.allPoints = fullPoints;
+        appState.scatter.allColorValues = [2, 4, 6];
+        appState.scatter.colorValues = [2, 4, 6];
+        appState.scatter.colorMin = 2;
+        appState.scatter.colorMax = 6;
+        appState.scatter.view = { xMin: 0, xMax: 20, yMin: 0, yMax: 20 };
+        const colorSelect = document.getElementById('scatter-color-column') as HTMLSelectElement;
+        colorSelect.innerHTML = '<option value="temperature" selected>temperature</option>';
+
+        const container = document.getElementById('scatter-chart') as HTMLElement;
+        const option = buildOption(fullPoints, container);
+        const tooltip = densityTooltipFormatterFactory({
+            x: 'HUFL',
+            y: 'HULL',
+            binSize: 10,
+            colormap: 'viridis',
+            normalization: 'linear',
+            renderMode: 'density',
+            diagonalMode: 'histogram',
+            colorColumn: '',
+            selectedColorColumn: 'temperature',
+            colorScale: 'viridis',
+            matrixMode: 'scatter',
+            matrixCellSize: 160,
+        }, container);
+
+        expect(option.series[0].__edatimeColorCenter).toBe(4);
+        expect(tooltip({ value: [10, 10], seriesIndex: 0 })).toContain('temperature');
+        expect(tooltip({ value: [10, 10], seriesIndex: 0 })).toContain('4.00');
+    });
+
+    it('keeps the full point set across a second box-zoom in density mode', () => {
+        // After a successful box-zoom, the view narrows further. The second
+        // call must still hand the binner the full data set, so the heatmap
+        // does not appear "cut off" relative to the original.
+        const fullPoints: [number, number][] = [
+            [0, 0], [5, 10], [10, 5], [15, 20],
+            [25, 25], [35, 30], [45, 35], [55, 40],
+            [65, 45], [75, 50], [85, 55], [95, 60],
+        ];
+        appState.scatter.points = fullPoints;
+        appState.scatter.allPoints = fullPoints;
+        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+
+        // First zoom: narrow to half the data range.
+        appState.scatter.view = { xMin: 25, xMax: 75, yMin: 10, yMax: 60 };
+        const first = buildDensitySeries(appState.scatter.points, {
+            x: 'HUFL',
+            y: 'HULL',
+            binSize: 10,
+            colormap: 'viridis',
+            normalization: 'linear',
+            renderMode: 'density',
+            diagonalMode: 'histogram',
+            colorColumn: '',
+            selectedColorColumn: '',
+            colorScale: 'viridis',
+            matrixMode: 'scatter',
+            matrixCellSize: 160,
+        });
+        expect(first[0].rawData).toEqual(fullPoints);
+        expect(first[0].rawBounds).toEqual({ xMin: 25, xMax: 75, yMin: 10, yMax: 60 });
+
+        // Second zoom: zoom in further on a sub-region.
+        appState.scatter.view = { xMin: 40, xMax: 60, yMin: 25, yMax: 45 };
+        const second = buildDensitySeries(appState.scatter.points, {
+            x: 'HUFL',
+            y: 'HULL',
+            binSize: 10,
+            colormap: 'viridis',
+            normalization: 'linear',
+            renderMode: 'density',
+            diagonalMode: 'histogram',
+            colorColumn: '',
+            selectedColorColumn: '',
+            colorScale: 'viridis',
+            matrixMode: 'scatter',
+            matrixCellSize: 160,
+        });
+        expect(second[0].rawData).toEqual(fullPoints);
+        expect(second[0].rawBounds).toEqual({ xMin: 40, xMax: 60, yMin: 25, yMax: 45 });
+    });
+});
+
+/* ── Density re-bin on zoom ──────────────────────────── */
+
+describe('density chart re-bin on view change', () => {
+    let schedulers: number[] = [];
+    let scheduledOpts: Array<{ preserveView?: boolean } | undefined> = [];
+
+    beforeEach(() => {
+        schedulers = [];
+        scheduledOpts = [];
+        vi.restoreAllMocks();
+        vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+            cb(0);
+            return 1;
+        });
+
+        Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+            configurable: true,
+            value: function getContext() {
+                let ctx = contextByCanvas.get(this);
+                if (!ctx) {
+                    ctx = new MockCanvasContext2D();
+                    contextByCanvas.set(this, ctx);
+                }
+                ctx.ops = [];
+                return ctx;
+            },
+        });
+
+        document.body.innerHTML = `
+            <select id="scatter-x-col"><option value="HUFL" selected>HUFL</option></select>
+            <select id="scatter-y-col"><option value="HULL" selected>HULL</option></select>
+            <input id="scatter-bin-size" value="10">
+            <select id="scatter-colormap"><option value="viridis" selected>Viridis</option></select>
+            <select id="scatter-normalization"><option value="linear" selected>Linear</option></select>
+            <select id="scatter-render-mode">
+                <option value="scatter">Scatter</option>
+                <option value="density" selected>Density</option>
+            </select>
+            <select id="scatter-diagonal-mode">
+                <option value="histogram" selected>Histogram</option>
+            </select>
+            <select id="scatter-color-column"><option value="" selected>None</option></select>
+            <select id="scatter-color-scale"><option value="viridis" selected>Viridis</option></select>
+            <input id="scatter-matrix-mode" value="scatter">
+            <input id="scatter-matrix-cell-size" value="160">
+            <div id="scatter-chart"></div>
+            <canvas id="scatter-marginal-x"></canvas>
+            <div id="scatter-right-panel"><canvas id="scatter-marginal-y"></canvas><div id="scatter-colorbar-wrap" hidden></div></div>
+        `;
+
+        bindRect(document.getElementById('scatter-chart') as HTMLElement, 1308, 648);
+
+        // Register a fake render-scheduler that the density-mode zoom path
+        // pokes via `globalThis.__scatterScheduleRender`.
+        (globalThis as { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void }).__scatterScheduleRender = (opts) => {
+            schedulers.push(1);
+            scheduledOpts.push(opts);
+        };
+    });
+
+    afterEach(() => {
+        delete (globalThis as { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void }).__scatterScheduleRender;
+    });
+
+    it('disposes the density chart and schedules a re-render on applyView', () => {
+        // Simulate an existing density chart and pretend a view zoom happened.
+        const setOptionSpy = vi.fn();
+        const resizeSpy = vi.fn();
+        appState.scatter.chart = { setOption: setOptionSpy, resize: resizeSpy } as any;
+        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+        appState.scatter.view = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+
+        applyView({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 }, true);
+
+        // The chart must be disposed so the next renderScatter() recreates
+        // it against the new view (the ChartGPU density renderer does not
+        // re-bin when only rawBounds change otherwise).
+        expect(appState.scatter.chart).toBeNull();
+        // The view itself was updated.
+        expect(appState.scatter.view).toEqual({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 });
+        // The previous view was pushed onto the zoom history.
+        expect(appState.scatter.zoomHistory).toHaveLength(1);
+        expect(appState.scatter.zoomHistory[0]).toEqual({ xMin: 0, xMax: 100, yMin: 0, yMax: 70 });
+        // The density-mode zoom path must signal `preserveView: true` to
+        // the scheduled renderScatter(), otherwise the default
+        // `applyScatterStateFromCache(true)` call inside renderScatter
+        // would clobber the new view back to the full extent and the
+        // user's zoom would visually disappear.
+        expect(scheduledOpts).toHaveLength(1);
+        expect(scheduledOpts[0]).toEqual({ preserveView: true, immediate: true });
+    });
+
+    it('looks up the registered density re-render scheduler on every zoom', () => {
+        const firstScheduler = vi.fn();
+        const secondScheduler = vi.fn();
+        (globalThis as { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void }).__scatterScheduleRender = firstScheduler;
+
+        appState.scatter.chart = { setOption: vi.fn(), resize: vi.fn() } as any;
+        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+        appState.scatter.view = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+        applyView({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 }, true);
+        expect(firstScheduler).toHaveBeenCalledWith({ preserveView: true, immediate: true });
+
+        (globalThis as { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void }).__scatterScheduleRender = secondScheduler;
+        appState.scatter.chart = { setOption: vi.fn(), resize: vi.fn() } as any;
+        applyView({ xMin: 30, xMax: 50, yMin: 25, yMax: 45 }, true);
+        expect(secondScheduler).toHaveBeenCalledWith({ preserveView: true, immediate: true });
+    });
+
+    it('does not dispose the chart on applyView when not in density mode', () => {
+        // Switch to scatter mode.
+        const renderModeSelect = document.getElementById('scatter-render-mode') as HTMLSelectElement;
+        renderModeSelect.value = 'scatter';
+
+        const setOptionSpy = vi.fn();
+        appState.scatter.chart = { setOption: setOptionSpy, resize: vi.fn() } as any;
+        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+        appState.scatter.view = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+
+        applyView({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 }, true);
+
+        // In scatter mode the regular setOption path is enough — the chart
+        // must stay alive (and we should have called setOption to update
+        // the axis labels).
+        expect(appState.scatter.chart).not.toBeNull();
+        expect(setOptionSpy).toHaveBeenCalled();
     });
 });

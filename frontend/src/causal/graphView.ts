@@ -24,8 +24,8 @@ import {
 } from './selectionState.js';
 import type { PairEdgeGroup } from './selectionState.js';
 import type { CausalLink } from './causalComparison.js';
-import { setStatus } from './statusView.js';
 import { showCtxMenu, openEditPanel, type EditTarget } from './editPanel.js';
+import { setStatus } from './statusView.js';
 import { getPaletteColor, getChartPalette } from '../utils/theme.js';
 
 export let _eChart: any = null;
@@ -130,11 +130,11 @@ export function attachChartEvents(): void {
         if (!col) return;
         if (!_addEdgeFirst) {
             setAddEdgeFirst(col);
-            setStatus(`Add-edge mode: first node = ${col}. Click the second node.`);
+            setStatus(`Selected ${col}. Click another node to add an edge.`);
             return;
         }
         if (_addEdgeFirst === col) {
-            setStatus('Select a different second node. Self-loops are not rendered in the pair graph.');
+            setStatus('Choose a different second node to add an edge.', 'error');
             return;
         }
         _currentLinks.push({ source: _addEdgeFirst, target: col, lag: 1, type: '-->', value: 0, pvalue: 0 });
@@ -143,7 +143,7 @@ export function attachChartEvents(): void {
         const addEdgeBtn = document.getElementById('causal-add-edge-btn') as HTMLButtonElement | null;
         if (addEdgeBtn) { addEdgeBtn.classList.remove('btn-accent'); addEdgeBtn.classList.add('btn-ghost'); }
         renderEChartsGraph();
-        setStatus('Pair connection added. Right-click the edge to edit its connection list and attributes.');
+        setStatus('Pair connection added. Right-click the edge to edit its lag, type, and metadata.', 'success');
     });
 
     _eChart.on('mouseup', (params: any) => {

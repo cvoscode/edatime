@@ -38,6 +38,11 @@ export interface TimeseriesModuleDeps {
     fetchAndRenderAnalytics: () => Promise<void>;
     refreshZoomControlsState: () => void;
     zoomOut: () => void;
+    chartExportPng?: () => void;
+    chartExportSvg?: () => void;
+    exportFilteredCsv?: () => void;
+    exportFilteredJson?: () => void;
+    exportFilteredParquet?: () => void;
 }
 
 export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
@@ -111,6 +116,11 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         updateAnalysisZoom: deps.updateAnalysisZoom,
         emitChartRangeChange: (sourceKind) => pageController.emitChartRangeChange(sourceKind),
         registerCleanup: () => {}, // owned by runtime via createPageLifecycle
+        chartExportPng: deps.chartExportPng,
+        chartExportSvg: deps.chartExportSvg,
+        exportFilteredCsv: deps.exportFilteredCsv,
+        exportFilteredJson: deps.exportFilteredJson,
+        exportFilteredParquet: deps.exportFilteredParquet,
     });
 
     // 3. Create the bootstrap (owns dataset readiness)

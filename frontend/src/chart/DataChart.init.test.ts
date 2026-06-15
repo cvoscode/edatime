@@ -76,6 +76,26 @@ describe('DataChart.init', () => {
         }));
     });
 
+    it('does not enable ChartGPU wheel zoom at creation time', async () => {
+        createChartMock.mockResolvedValue(makeChartInstance());
+
+        const chart = new DataChart('main-chart', null, null, null);
+        await chart.init();
+
+        expect(createChartMock).toHaveBeenCalledTimes(1);
+        expect(createChartMock.mock.calls[0][1]).not.toHaveProperty('dataZoom');
+    });
+
+    it('does not subscribe to ChartGPU wheel zoom events', async () => {
+        const chartInstance = makeChartInstance();
+        createChartMock.mockResolvedValue(chartInstance);
+
+        const chart = new DataChart('main-chart', null, null, null);
+        await chart.init();
+
+        expect(chartInstance.on).not.toHaveBeenCalledWith('zoomRangeChange', expect.any(Function));
+    });
+
     it('reapplies ChartGPU theme when the resolved theme changes after init', async () => {
         const chartInstance = makeChartInstance();
         createChartMock.mockResolvedValue(chartInstance);

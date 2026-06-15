@@ -153,14 +153,16 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .scatter-link-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   color: var(--text-dim);
-  font-size: 0.6875rem;
+  font-size: 0.72rem;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -171,8 +173,7 @@
 }
 
 .scatter-export-group {
-  padding-left: 10px;
-  border-left: 1px solid var(--border);
+  padding-left: 6px;
 }
 
 .scatter-inline-label {
@@ -186,7 +187,12 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 10px;
+  gap: 12px 14px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  background:
+    linear-gradient(180deg, rgba(12, 17, 28, 0.98), rgba(11, 16, 26, 0.94)),
+    radial-gradient(circle at right center, rgba(32, 226, 215, 0.08), transparent 28%);
 }
 
 .scatter-stats-bar span {
@@ -195,7 +201,47 @@
   white-space: nowrap;
 }
 
-.scatter-stats-bar #scatter-pearson {}
+.scatter-stats-bar__metrics,
+.scatter-stats-bar__suggestions {
+  display: flex;
+  align-items: center;
+  gap: 10px 12px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.scatter-stats-bar__metrics {
+  flex: 0 1 auto;
+}
+
+.scatter-stats-bar__suggestions {
+  flex: 1 1 440px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.scatter-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.scatter-suggestions-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 
 .scatter-filter-badge {
   font-size: 0.625rem;
@@ -284,6 +330,8 @@
   gap: 8px;
   overflow-x: auto;
   min-height: 28px;
+  min-width: min(320px, 100%);
+  flex: 1 1 260px;
 }
 
 .scatter-suggestion-btn {
@@ -311,7 +359,7 @@
 }
 
 .scatter-suggestion-empty {
-  font-size: 0.6875rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
 }
 

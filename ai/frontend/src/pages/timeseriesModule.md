@@ -21,6 +21,11 @@ interface TimeseriesModuleDeps {
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
     getCurrentView: () => { start: number; end: number };
     emitChartRangeChange: (sourceKind?: string) => void;
+    chartExportPng?: () => void;
+    chartExportSvg?: () => void;
+    exportFilteredCsv?: () => void;
+    exportFilteredJson?: () => void;
+    exportFilteredParquet?: () => void;
 }
 ```
 

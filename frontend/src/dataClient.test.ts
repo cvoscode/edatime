@@ -405,7 +405,7 @@ describe('dataClient fetch helpers', () => {
                     correlations: [
                         { column: 'col_b', count: 12, pearson: 0.95, spearman: 0.92 },
                     ],
-                    suggestions: [{ column: 'col_b', count: 12, pearson: 0.95, spearman: 0.92 }],
+                    suggestions: [{ x: 'col_a', y: 'col_b', correlation: 0.95 }],
                 }),
             });
 

@@ -71,7 +71,6 @@ Frequency-domain analysis of selected time-series traces. Compute FFT magnitude 
         </div>
       </details>
       <button id="fft-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button" hidden>↩ Zoom out</button>
-      <span class="toolbar-label" id="fft-status">Select a column chip below.</span>
     </div>
   </div>
 
@@ -214,7 +213,6 @@ Response: { "ts": [...], "values": [...], "column": "colA" }
         </div>
       </details>
       <button id="fft-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button" hidden>↩ Zoom out</button>
-      <span class="toolbar-label" id="fft-status">Select a column chip below.</span>
     </div>
   </div>
 

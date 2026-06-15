@@ -91,9 +91,15 @@
     max-width: 55%;
   }
 
-  .scatter-toolbar .toolbar-group:last-child {
-    flex-wrap: wrap;
-    row-gap: 4px;
+  .scatter-toolbar__cluster,
+  .scatter-toolbar__segment--actions {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+
+  .scatter-toolbar__segment--axes,
+  .scatter-toolbar__segment--display {
+    flex: 1 1 calc(50% - 6px);
   }
 }
 
@@ -130,8 +136,8 @@
 
 @media (max-width: 760px) {
   .timeseries-command-bar {
-    padding-top: 10px;
-    padding-bottom: 10px;
+    padding-top: 1px;
+    padding-bottom: 1px;
   }
 
   .timeseries-filter-shell {
@@ -182,19 +188,36 @@
     min-width: 0;
   }
 
-  .scatter-toolbar #scatter-analytics-group,
-  .scatter-toolbar .toolbar-group--push {
+  .scatter-toolbar__segment,
+  .scatter-toolbar__cluster {
     flex: 1 1 100%;
-    flex-wrap: wrap;
-    row-gap: 6px;
   }
 
-  .scatter-toolbar .toolbar-group--push {
-    margin-left: 0;
+  .scatter-toolbar__fields,
+  .scatter-toolbar__controls,
+  .scatter-toolbar__controls--actions,
+  .scatter-toolbar__density {
+    width: 100%;
+  }
+
+  .scatter-toolbar__field,
+  .scatter-toolbar .toolbar-disclosure,
+  .scatter-toolbar .scatter-export-group {
+    flex: 1 1 100%;
   }
 
   .scatter-toolbar .scatter-link-toggle {
     flex: 1 1 100%;
+  }
+
+  .scatter-stats-bar__metrics,
+  .scatter-stats-bar__suggestions {
+    flex: 1 1 100%;
+  }
+
+  .scatter-suggestions-controls,
+  .scatter-suggestions {
+    width: 100%;
   }
 
   .upload-inner,
@@ -435,6 +458,15 @@
 
   .scatter-stats-bar span {
     white-space: normal;
+  }
+
+  .scatter-toolbar__segment {
+    padding: 10px 12px;
+  }
+
+  .scatter-stat-chip {
+    width: 100%;
+    justify-content: center;
   }
 
   .upload-source-tabs {

@@ -145,6 +145,13 @@ export function getActiveScatterFilterColumns(
 /* ── Render-signature helpers ─────────────────────────── */
 
 export function buildRenderSignature(controls: ScatterControls): string {
+    // The signature must also reflect the current view bounds. The ChartGPU
+    // density renderer does not re-bin when only `rawBounds` change (its
+    // dirty-state check ignores the view), so we have to force a chart
+    // re-create on zoom in density mode. Including the view in the signature
+    // makes the scatter page's `renderScatter` flow detect the change and
+    // dispose/recreate the chart.
+    const view = appState.scatter.view;
     return [
         controls.x || '',
         controls.y || '',
@@ -154,6 +161,7 @@ export function buildRenderSignature(controls: ScatterControls): string {
         controls.colormap || '',
         controls.normalization || '',
         controls.diagonalMode || '',
+        view.xMin, view.xMax, view.yMin, view.yMax,
     ].join('|');
 }
 
@@ -169,7 +177,7 @@ export function buildOverviewContextKey(context: Partial<ScatterQueryContext>): 
 /* ── View / zoom helpers ──────────────────────────────── */
 
 export function clampView(view: ScatterView): ScatterView {
-    const f = state.full;
+    const f = appState.scatter.full;
     let xMin = Math.max(f.xMin, Math.min(f.xMax, Number(view.xMin)));
     let xMax = Math.max(f.xMin, Math.min(f.xMax, Number(view.xMax)));
     let yMin = Math.max(f.yMin, Math.min(f.yMax, Number(view.yMin)));

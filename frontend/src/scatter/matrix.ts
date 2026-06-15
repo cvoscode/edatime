@@ -40,7 +40,8 @@ function collectOverviewColumns(): string[] {
     push(controls.x);
     push(controls.y);
     for (const item of appState.scatter.lastSuggestions || []) {
-        push(item?.column);
+        push(item?.x);
+        push(item?.y);
         if (columns.length >= MATRIX_MAX_COLUMNS) break;
     }
     for (const column of (appState.scatter.metadata as any)?.numeric_columns || []) {
@@ -207,13 +208,15 @@ function matrixPairPriority(
 export function buildMatrixFetchPairs(
     columns: string[],
     controls: Pick<ScatterControls, 'x' | 'y'>,
-    suggestions: Array<{ column?: string | null }> = [],
+    suggestions: Array<{ x?: string | null; y?: string | null }> = [],
 ): [string, string][] {
     const suggestionRank = new Map<string, number>();
     suggestions.forEach((item, index) => {
-        const column = String(item?.column || '').trim();
-        if (!column || suggestionRank.has(column)) return;
-        suggestionRank.set(column, index);
+        for (const raw of [item?.x, item?.y]) {
+            const column = String(raw || '').trim();
+            if (!column || suggestionRank.has(column)) continue;
+            suggestionRank.set(column, index);
+        }
     });
 
     return columns

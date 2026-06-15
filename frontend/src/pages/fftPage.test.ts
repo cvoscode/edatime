@@ -48,7 +48,6 @@ function buildDom(): void {
         <select id="fft-mode-select"><option value="magnitude" selected>Magnitude</option><option value="psd">PSD</option></select>
         <input id="fft-log-scale" type="checkbox" checked>
         <button id="fft-zoom-reset-btn" type="button" hidden>Zoom</button>
-        <span id="fft-status"></span>
         <div id="fft-traces-bar"></div>
         <div id="fft-chart"></div>
         <div id="fft-empty-state" data-empty-reason=""></div>
@@ -151,7 +150,6 @@ describe('initFftPage', () => {
         expect(chip.querySelector('.fft-chip-remove')).toBeNull();
         expect(chip.querySelector('.chip-menu-btn')).toBeNull(); // menu removed, toggle removes trace
         expect((document.getElementById('fft-empty-state') as HTMLElement).hidden).toBe(true);
-        expect(document.getElementById('fft-status')?.textContent).toContain('3 bins');
     });
 
     it('reconciles chip checkbox state from the active FFT traces on rerender', async () => {

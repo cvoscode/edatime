@@ -9,10 +9,11 @@ use chrono::{DateTime, Utc};
 use tempfile::{Builder, TempPath};
 
 use crate::error::AppError;
-use edatime_ingest::ingest::IngestParams;
 use crate::handlers::routes::metadata::build_dataset_metadata_from_path_with_time_column;
-use edatime_store::state::AppState;
+use crate::handlers::scatter::scatter::spawn_correlation_matrix_warmup;
+use edatime_ingest::ingest::IngestParams;
 use edatime_query::validation::validate_upload_size_with_limit;
+use edatime_store::state::AppState;
 
 #[tracing::instrument(skip(state, multipart))]
 pub async fn upload_data(
@@ -21,7 +22,7 @@ pub async fn upload_data(
 ) -> Result<impl IntoResponse, AppError> {
     tracing::info!("Received file upload request");
 
-let (path, ingest_params, file_name) = extract_upload_parts(&state, multipart).await?;
+    let (path, ingest_params, file_name) = extract_upload_parts(&state, multipart).await?;
 
     let df = tokio::task::spawn_blocking(move || {
         edatime_ingest::ingest::load_dataframe_partial(&path, &ingest_params)
@@ -30,11 +31,14 @@ let (path, ingest_params, file_name) = extract_upload_parts(&state, multipart).a
     .map_err(|error| AppError::internal(format!("Failed to join upload task: {error:?}")))?
     .map_err(|error| AppError::bad_request(format!("Failed to parse uploaded file: {error}")))?;
 
-let time_column_name = df.time_column_name.clone();
+    let time_column_name = df.time_column_name.clone();
     let row_count = df.df.height();
-    state.replace_dataset(df.df.clone()).await
+    state
+        .replace_dataset(df.df.clone())
+        .await
         .map_err(|e| AppError::internal(format!("Failed to store dataset: {e}")))?;
     state.set_time_column_display_name(time_column_name.clone());
+    let _warmup = spawn_correlation_matrix_warmup(state.clone());
 
     Ok(Json(serde_json::json!({
         "status": "success",

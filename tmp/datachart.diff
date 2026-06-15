@@ -1,0 +1,352 @@
+diff --git a/frontend/src/chart/DataChart.ts b/frontend/src/chart/DataChart.ts
+index be66726..62026cf 100644
+--- a/frontend/src/chart/DataChart.ts
++++ b/frontend/src/chart/DataChart.ts
+@@ -44,13 +44,26 @@ interface DrawItem {
+     endY: number;
+ }
+ 
++interface LegendPosition {
++    left: number;
++    top: number;
++}
++
++interface LegendDragState {
++    pointerId: number;
++    startClientX: number;
++    startClientY: number;
++    startLeft: number;
++    startTop: number;
++}
++
+ import {
+     analyzeColorValues, baseSeriesName,
+     buildColorizedSeries, categoryColorFor, colorForScaleValue,
+ } from './colorScale.js';
+ import { CHART_PALETTES, getSetting } from '../utils/settings.js';
+ import type { ColorScaleName } from '../utils/settings.js';
+-import { getChartPalette, getPaletteColor, getResolvedTheme, onThemeChange, type ResolvedTheme } from '../utils/theme.js';
++import { getChartPalette, getResolvedTheme, onThemeChange, type ResolvedTheme } from '../utils/theme.js';
+ import {
+     niceLinearTicks, niceTimeTicks, formatTimeTick, formatTimeTooltip,
+ } from './ticks.js';
+@@ -106,6 +119,9 @@ export class DataChart {
+     _lastChartOptions: ChartGPUOptions | null = null;
+     _lastAppliedTheme: ResolvedTheme | null = null;
+     _themeUnsub: (() => void) | null = null;
++    _legendEl: HTMLElement | null = null;
++    _legendPosition: LegendPosition | null = null;
++    _legendDragState: LegendDragState | null = null;
+ 
+     constructor(
+         containerId: string,
+@@ -134,6 +150,10 @@ export class DataChart {
+         this._themeUnsub?.();
+         this._themeUnsub = null;
+         this._overlays = null;
++        this._legendEl?.remove();
++        this._legendEl = null;
++        this._legendPosition = null;
++        this._legendDragState = null;
+         this.chartInstance = null;
+     }
+ 
+@@ -165,6 +185,10 @@ export class DataChart {
+         this._titleEl = null;
+         this._xLabelEl = null;
+         this._yLabelEl = null;
++        this._legendEl?.remove();
++        this._legendEl = null;
++        this._legendPosition = null;
++        this._legendDragState = null;
+ 
+         // Release ChartGPU instance (guards against device-lost scenarios).
+         try {
+@@ -226,6 +250,7 @@ export class DataChart {
+ 
+     resize(): void {
+         this.chartInstance?.resize?.();
++        if (this._legendEl && this._legendPosition) this._applyLegendPosition(this._legendPosition);
+         this._renderDrawings();
+     }
+ 
+@@ -257,7 +282,7 @@ export class DataChart {
+             palette: this._getChartColorPalette(),
+             xAxis: { type: 'time' },
+             yAxis: { type: 'value' },
+-            legend: { show: true, position: 'right' },
++            legend: { show: false },
+             series: [],
+         };
+         const powerPreference = defaultGpuPowerPreference();
+@@ -276,6 +301,7 @@ export class DataChart {
+         this._chartResizeObserver.observe(container);
+         this._initDrawingOverlay();
+         this._initTextOverlays();
++        this._syncLegendOverlay();
+         this._initMouseSelectionZoom();
+         this._themeUnsub?.();
+         this._themeUnsub = onThemeChange((next: ResolvedTheme) => {
+@@ -554,6 +580,7 @@ export class DataChart {
+                     ),
+                 },
+                 yAxis: this._buildYAxisOption(),
++                legend: { show: false },
+                 tooltip: { show: true, trigger: 'axis', formatter: tooltipFormatter },
+                 series: flattenedSeriesList,
+                 annotations: seriesAnnotations,
+@@ -568,6 +595,7 @@ export class DataChart {
+             }
+         }
+ 
++        this._syncLegendOverlay();
+         this._renderDrawings();
+     }
+ 
+@@ -580,15 +608,19 @@ export class DataChart {
+     }
+ 
+     async exportSVG(): Promise<void> {
+-        const canvas = await this._getCombinedExportCanvas(false);
++        // Bake the drawings into the canvas so they are guaranteed to
++        // appear in the export. The wrapper SVG still embeds a PNG of
++        // the chart (the chart visuals themselves are not vector), so
++        // duplicating the drawings as separate SVG primitives was the
++        // only difference between this path and the PNG path. Routing
++        // through the canvas-baked path keeps the two exports visually
++        // identical and avoids a fragile overlay-coordinate conversion.
++        const canvas = await this._getCombinedExportCanvas(true);
+         if (!canvas) return;
+         const pngData = canvas.toDataURL('image/png');
+         const w = canvas.width || 1;
+         const h = canvas.height || 1;
+-        let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">\n`;
+-        svg += `  <image href="${pngData}" x="0" y="0" width="${w}" height="${h}" />\n`;
+-        svg += this.exportSVGDrawings(w, h);
+-        svg += '</svg>';
++        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">\n  <image href="${pngData}" x="0" y="0" width="${w}" height="${h}" />\n</svg>`;
+         const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+         downloadBlob(blob, 'edatime_chart.svg');
+     }
+@@ -675,6 +707,202 @@ export class DataChart {
+         return vis;
+     }
+ 
++    private _syncLegendOverlay(): void {
++        if (!this._container) return;
++        const entries = this._getLegendEntries();
++        if (entries.length === 0) {
++            this._legendEl?.remove();
++            this._legendEl = null;
++            this._legendDragState = null;
++            return;
++        }
++
++        const legend = this._ensureLegendOverlay();
++        legend.replaceChildren();
++        legend.title = 'Legend (Ctrl+click + drag to move)';
++
++        const rows = document.createElement('div');
++        rows.className = 'timeseries-legend-overlay__rows';
++        for (const entry of entries) {
++            const button = document.createElement('button');
++            button.type = 'button';
++            button.className = 'timeseries-legend-overlay__row';
++            button.dataset.seriesName = entry.name;
++            button.setAttribute('aria-pressed', entry.visible ? 'true' : 'false');
++            button.title = `${entry.visible ? 'Hide' : 'Show'} ${entry.name}`;
++
++            const swatch = document.createElement('span');
++            swatch.className = 'timeseries-legend-overlay__swatch';
++            swatch.style.backgroundColor = entry.color;
++
++            const label = document.createElement('span');
++            label.className = 'timeseries-legend-overlay__label';
++            label.textContent = entry.name;
++
++            button.append(swatch, label);
++            button.addEventListener('click', () => this._toggleLegendTrace(entry.name));
++            rows.appendChild(button);
++        }
++        legend.appendChild(rows);
++
++        this._applyLegendPosition(this._legendPosition ?? this._getDefaultLegendPosition());
++    }
++
++    private _ensureLegendOverlay(): HTMLElement {
++        if (this._legendEl) return this._legendEl;
++        if (!this._container) throw new Error('Cannot create legend overlay without chart container.');
++
++        const legend = document.createElement('div');
++        legend.className = 'timeseries-legend-overlay';
++        legend.setAttribute('role', 'group');
++        legend.setAttribute('aria-label', 'Timeseries trace legend');
++        legend.addEventListener('pointerdown', (event) => this._startLegendDrag(event));
++        legend.addEventListener('pointermove', (event) => this._moveLegendDrag(event));
++        legend.addEventListener('pointerup', (event) => this._finishLegendDrag(event));
++        legend.addEventListener('pointercancel', (event) => this._finishLegendDrag(event));
++        legend.addEventListener('pointerenter', (event) => this._syncLegendCtrlHint(event));
++        window.addEventListener('keydown', (event) => this._syncLegendCtrlHint(event, legend));
++        window.addEventListener('keyup', (event) => this._syncLegendCtrlHint(event, legend));
++        window.addEventListener('blur', () => legend.classList.remove('is-ctrl-active'));
++        this._container.appendChild(legend);
++        this._legendEl = legend;
++        return legend;
++    }
++
++    private _syncLegendCtrlHint(event: Event, legend?: HTMLElement | null): void {
++        const el = legend ?? this._legendEl;
++        if (!el) return;
++        const ke = event as KeyboardEvent;
++        const pe = event as PointerEvent;
++        const ctrl = (typeof ke.ctrlKey === 'boolean' && ke.ctrlKey)
++            || (typeof ke.metaKey === 'boolean' && ke.metaKey)
++            || (typeof pe.ctrlKey === 'boolean' && pe.ctrlKey)
++            || (typeof pe.metaKey === 'boolean' && pe.metaKey);
++        el.classList.toggle('is-ctrl-active', ctrl);
++    }
++
++    private _getLegendEntries(): { name: string; color: string; visible: boolean }[] {
++        const seriesList = Array.isArray(this._lastSeriesList) ? this._lastSeriesList : [];
++        const byName = new Map<string, { name: string; color: string; visible: boolean; anyVisible: boolean }>();
++        for (const series of seriesList) {
++            if (!series || series.type !== 'line') continue;
++            const rawName = typeof series.name === 'string' ? series.name : '';
++            if (!rawName || rawName.endsWith('__markers')) continue;
++            const name = baseSeriesName(rawName);
++            if (!name) continue;
++            const visible = series.visible !== false;
++            const existing = byName.get(name);
++            if (existing) {
++                existing.anyVisible = existing.anyVisible || visible;
++                existing.visible = existing.anyVisible;
++                continue;
++            }
++            const fallbackPalette = this._getChartColorPalette();
++            byName.set(name, {
++                name,
++                color: series.color || fallbackPalette[byName.size % fallbackPalette.length],
++                visible,
++                anyVisible: visible,
++            });
++        }
++        return Array.from(byName.values()).map(({ name, color, visible }) => ({ name, color, visible }));
++    }
++
++    private _toggleLegendTrace(name: string): void {
++        if (!this.chartInstance) return;
++        const options = this._lastChartOptions ?? this.chartInstance.options;
++        const series = Array.isArray(options.series) ? options.series : [];
++        const currentEntry = this._getLegendEntries().find((entry) => entry.name === name);
++        const nextVisible = !(currentEntry?.visible ?? true);
++        const nextSeries = series.map((item) => {
++            const rawName = typeof item?.name === 'string' ? item.name : '';
++            if (baseSeriesName(rawName) !== name) return item;
++            return { ...item, visible: nextVisible };
++        });
++        const nextOption = {
++            ...options,
++            animation: false,
++            legend: { show: false },
++            series: nextSeries,
++        } as ChartGPUOptions;
++
++        try {
++            this.chartInstance.setOption(nextOption);
++        } catch (e) {
++            console.error('[edatime:chart] legend toggle failed', e);
++            return;
++        }
++        this._lastChartOptions = nextOption;
++        this._lastSeriesList = nextSeries as SeriesConfig[];
++        this._syncLegendOverlay();
++        this._renderDrawings();
++    }
++
++    private _getDefaultLegendPosition(): LegendPosition {
++        const legend = this._legendEl;
++        const container = this._container;
++        if (!legend || !container) return { left: 8, top: 8 };
++        return this._clampLegendPosition({
++            left: container.clientWidth - legend.offsetWidth - 10,
++            top: 12,
++        });
++    }
++
++    private _applyLegendPosition(position: LegendPosition): void {
++        if (!this._legendEl) return;
++        const next = this._clampLegendPosition(position);
++        this._legendPosition = next;
++        this._legendEl.style.left = `${next.left}px`;
++        this._legendEl.style.top = `${next.top}px`;
++    }
++
++    private _clampLegendPosition(position: LegendPosition): LegendPosition {
++        const container = this._container;
++        const legend = this._legendEl;
++        if (!container || !legend) return { left: 8, top: 8 };
++        const margin = 8;
++        const maxLeft = Math.max(margin, container.clientWidth - legend.offsetWidth - margin);
++        const maxTop = Math.max(margin, container.clientHeight - legend.offsetHeight - margin);
++        return {
++            left: Math.min(maxLeft, Math.max(margin, Math.round(position.left))),
++            top: Math.min(maxTop, Math.max(margin, Math.round(position.top))),
++        };
++    }
++
++    private _startLegendDrag(event: PointerEvent): void {
++        if (event.button !== 0 || !this._legendEl) return;
++        if (!(event.ctrlKey || event.metaKey)) return;
++        const target = event.target as HTMLElement | null;
++        if (target?.closest?.('.timeseries-legend-overlay__row')) return;
++        event.preventDefault();
++        this._legendDragState = {
++            pointerId: event.pointerId,
++            startClientX: event.clientX,
++            startClientY: event.clientY,
++            startLeft: this._legendPosition?.left ?? this._legendEl.offsetLeft,
++            startTop: this._legendPosition?.top ?? this._legendEl.offsetTop,
++        };
++        this._legendEl.classList.add('is-dragging');
++        try { this._legendEl.setPointerCapture(event.pointerId); } catch { /* ignored */ }
++    }
++
++    private _moveLegendDrag(event: PointerEvent): void {
++        const drag = this._legendDragState;
++        if (!drag || drag.pointerId !== event.pointerId) return;
++        this._applyLegendPosition({
++            left: drag.startLeft + event.clientX - drag.startClientX,
++            top: drag.startTop + event.clientY - drag.startClientY,
++        });
++    }
++
++    private _finishLegendDrag(event: PointerEvent): void {
++        const drag = this._legendDragState;
++        if (!drag || drag.pointerId !== event.pointerId) return;
++        this._legendDragState = null;
++        this._legendEl?.classList.remove('is-dragging');
++        try { this._legendEl?.releasePointerCapture(event.pointerId); } catch { /* ignored */ }
++    }
++
+     /* ── Text overlays ──────────────────────────────────── */
+ 
+     private _initTextOverlays(): void {
+@@ -1196,6 +1424,7 @@ export class DataChart {
+         const seriesList = Array.isArray(this._lastSeriesList) ? this._lastSeriesList : [];
+         for (const s of seriesList) {
+             if (!s || s.type !== 'line') continue;
++            if (s.visible === false) continue;
+             const pts = Array.isArray(s.data) ? s.data : [];
+             if (pts.length === 0) continue;
+             ctx.beginPath();
+@@ -1279,9 +1508,7 @@ export class DataChart {
+         }
+ 
+         // Legend
+-        const legendEntries = seriesList
+-            .filter((s) => s && s.type === 'line' && typeof s.name === 'string' && !s.name.endsWith('__markers'))
+-            .map((s) => ({ name: s.name as string, color: s.color || accentStroke }));
++        const legendEntries = this._getLegendEntries().filter((entry) => entry.visible);
+         if (legendEntries.length > 0) {
+             const pad2 = 8 * scale;
+             const gap = 6 * scale;

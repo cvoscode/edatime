@@ -1,0 +1,134 @@
+diff --git a/crates/edatime-service/src/handlers/scatter/scatter/mod.rs b/crates/edatime-service/src/handlers/scatter/scatter/mod.rs
+index 5686d51..64ad407 100644
+--- a/crates/edatime-service/src/handlers/scatter/scatter/mod.rs
++++ b/crates/edatime-service/src/handlers/scatter/scatter/mod.rs
+@@ -20,7 +20,9 @@ pub use edatime_query::filters::{
+ pub use collect::{collect_filtered_scatter_frame, collect_xy_pairs};
+ 
+ // Re-export route handlers for the router.
+-pub use correlations::{get_correlation_matrix, get_scatter_correlations};
++pub use correlations::{
++    get_correlation_matrix, get_scatter_correlations, spawn_correlation_matrix_warmup,
++};
+ pub use export::post_scatter_export_parquet;
+ pub use points::{get_scatter_points, post_scatter_points};
+ 
+diff --git a/crates/edatime-store/src/cache.rs b/crates/edatime-store/src/cache.rs
+index 191cbd4..7af5e94 100644
+--- a/crates/edatime-store/src/cache.rs
++++ b/crates/edatime-store/src/cache.rs
+@@ -12,6 +12,15 @@ use bytes::Bytes;
+ /// The `Instant` field is used for TTL-based eviction of stale drift results.
+ pub type DriftCache = Arc<std::sync::Mutex<HashMap<String, (u64, Instant, Vec<u8>)>>>;
+ 
++/// Revision-scoped cache payload for full Pearson/Spearman correlation matrices.
++#[derive(Debug, Clone, PartialEq)]
++pub struct CorrelationMatrixCacheEntry {
++    pub columns: Vec<String>,
++    pub pearson: Vec<Vec<Option<f64>>>,
++    pub spearman: Vec<Vec<Option<f64>>>,
++    pub counts: Vec<Vec<usize>>,
++}
++
+ use edatime_core::http::ResponseMeta;
+ 
+ #[derive(Debug, Clone, Copy)]
+diff --git a/crates/edatime-store/src/state.rs b/crates/edatime-store/src/state.rs
+index 54e4d1a..d638b66 100644
+--- a/crates/edatime-store/src/state.rs
++++ b/crates/edatime-store/src/state.rs
+@@ -5,7 +5,7 @@ use std::sync::Mutex;
+ use polars::prelude::{DataFrame, LazyFrame, SchemaExt};
+ use tokio::sync::RwLock;
+ 
+-use crate::cache::{DriftCache, ResponseCache};
++use crate::cache::{CorrelationMatrixCacheEntry, DriftCache, ResponseCache};
+ use crate::db::DbPool;
+ use crate::repository::{DataRepository, InMemoryDataRepository};
+ use edatime_core::config::AppConfig;
+@@ -33,6 +33,7 @@ pub struct AppState {
+     pub db_pool: Arc<RwLock<Option<Arc<DbPool>>>>,
+     pub db_info: Arc<RwLock<Option<DbConnectionInfo>>>,
+     pub drift_cache: DriftCache,
++    pub correlation_matrix_cache: Arc<Mutex<Option<(u64, CorrelationMatrixCacheEntry)>>>,
+     pub query_log: Arc<Mutex<VecDeque<QueryEntry>>>,
+     pub query_counter: Arc<std::sync::atomic::AtomicU64>,
+ }
+@@ -48,6 +49,7 @@ impl Clone for AppState {
+             db_pool: Arc::clone(&self.db_pool),
+             db_info: Arc::clone(&self.db_info),
+             drift_cache: Arc::clone(&self.drift_cache),
++            correlation_matrix_cache: Arc::clone(&self.correlation_matrix_cache),
+             query_log: Arc::clone(&self.query_log),
+             query_counter: Arc::clone(&self.query_counter),
+         }
+@@ -75,6 +77,7 @@ impl AppState {
+             db_pool: Arc::new(RwLock::new(None)),
+             db_info: Arc::new(RwLock::new(None)),
+             drift_cache: Arc::new(std::sync::Mutex::new(HashMap::new())),
++            correlation_matrix_cache: Arc::new(Mutex::new(None)),
+             query_log: Arc::new(Mutex::new(VecDeque::with_capacity(max_stored))),
+             query_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+         }
+@@ -120,13 +123,59 @@ impl AppState {
+     }
+ 
+     pub async fn replace_dataset(&self, df: DataFrame) -> Result<u64, std::io::Error> {
+-        let rev = self.repository.replace_from_dataframe(df)
+-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::WouldBlock, "failed to acquire write lock"))?;
++        let rev = self.repository.replace_from_dataframe(df).map_err(|_| {
++            std::io::Error::new(
++                std::io::ErrorKind::WouldBlock,
++                "failed to acquire write lock",
++            )
++        })?;
+         // Invalidate cached responses so stale data is never served after upload.
+         self.cache.invalidate_all().await;
++        self.clear_correlation_matrix_cache();
+         Ok(rev)
+     }
+ 
++    pub fn cached_correlation_matrix(&self, revision: u64) -> Option<CorrelationMatrixCacheEntry> {
++        let guard = self
++            .correlation_matrix_cache
++            .lock()
++            .map_err(|error| error.into_inner())
++            .ok()?;
++        guard
++            .as_ref()
++            .filter(|(cached_revision, _)| *cached_revision == revision)
++            .map(|(_, entry)| entry.clone())
++    }
++
++    pub fn store_correlation_matrix_if_current(
++        &self,
++        revision: u64,
++        entry: CorrelationMatrixCacheEntry,
++    ) -> bool {
++        if self.dataset_revision() != revision {
++            return false;
++        }
++        let Ok(mut guard) = self
++            .correlation_matrix_cache
++            .lock()
++            .map_err(|error| error.into_inner())
++        else {
++            return false;
++        };
++        *guard = Some((revision, entry));
++        true
++    }
++
++    pub fn clear_correlation_matrix_cache(&self) {
++        if let Ok(mut guard) = self
++            .correlation_matrix_cache
++            .lock()
++            .map_err(|error| error.into_inner())
++        {
++            *guard = None;
++        }
++    }
++
+     pub fn set_time_column_display_name(&self, name: Option<String>) {
+         self.repository.set_time_column_display_name(name);
+     }

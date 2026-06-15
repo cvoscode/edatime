@@ -29,7 +29,7 @@ interface CommandDefinition {
   - All command definitions including:
     - Navigation (Alt+1-9,0) → showPage
     - Chart controls (Shift+R/Z/C) → resetZoom, zoomOut, triggerAdaptiveFilterClear
-    - Exports (CSV/JSON/PNG/Parquet) → window.__edatime.exportChartFilteredData, chart.exportPNG, `#export-parquet-btn` click
+    - Exports (CSV/JSON/PNG/Parquet) → window.__edatime.exportChartFilteredData, chart.exportPNG, `#export-data-parquet-btn` click
     - Session (save/load) → dynamic `import('../utils/session.js')` of `exportSessionToFile` / `importSessionFromFile`
     - Analysis: provenance, command palette, settings (each triggers `ensureSubsystem(...)` via `window.__edatime.ensureSubsystem`)
     - Workflow: `enableGuidedWorkflow`, `disableGuidedWorkflow`, `goToNextGuidedStep` (each ensures the timeseries-shell subsystem and dynamically imports `'../ui/guidedWorkflow.js'`)

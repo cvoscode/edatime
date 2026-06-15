@@ -10,7 +10,9 @@ use edatime_core::types;
 
 use crate::error::AppError;
 use edatime_query::pipeline::{self, Reduction};
-use edatime_query::query::{self, AggregateQuery, AggregateWindowMode, QueryEntry, ReductionSpec, AggFn};
+use edatime_query::query::{
+    self, AggFn, AggregateQuery, AggregateWindowMode, QueryEntry, ReductionSpec,
+};
 use edatime_query::validation::{
     validate_bucket_count, validate_numeric_columns_lazy, validate_time_window, validate_window_ms,
 };
@@ -81,10 +83,7 @@ pub async fn get_aggregate(
     let filtered_lf = pipeline::filter_time_range(lf, start_ts, end_ts, &value_cols, &ts_col)?;
 
     // Collect via QueryExecutor — runs on Rayon thread pool via spawn_blocking
-    let filtered: types::DataFrame = state
-        .query_executor
-        .execute_async(filtered_lf)
-        .await?;
+    let filtered: types::DataFrame = state.query_executor.execute_async(filtered_lf).await?;
 
     // BucketAgg and WindowAgg use polars' streaming engine internally, which
     // starts its own tokio runtime. Running that on a tokio worker thread

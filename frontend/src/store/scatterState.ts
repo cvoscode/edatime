@@ -71,7 +71,7 @@ export interface ScatterState {
     densityTooltipCache: DensityTooltipCache | null;
     lastOptionSeries: SeriesConfig[] | null;
     columnTypes: Map<string, string>;
-    lastSuggestions: Array<{ column: string; pearson?: number | null; spearman?: number | null }>;
+    lastSuggestions: Array<{ x: string; y: string; correlation: number }>;
     lastRenderSignature: string;
     matrixCache: Map<string, Promise<MatrixCellData>>;
     matrixColumnOrder: string[];

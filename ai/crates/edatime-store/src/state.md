@@ -1,5 +1,5 @@
 # crates/edatime-store/src/state.rs
-> Live application state — repository, query executor, cache, metrics, config, DB pool.
+> Live application state — repository, query executor, cache, metrics, config, DB pool, correlation matrix cache.
 
 ## Struct
 
@@ -17,6 +17,7 @@
 - `db_pool: Arc<RwLock<Option<Arc<DbPool>>>>` [deps: [db][6]]
 - `db_info: Arc<RwLock<Option<DbConnectionInfo>>>`
 - `drift_cache: DriftCache`
+- `correlation_matrix_cache: Arc<Mutex<Option<(u64, CorrelationMatrixCacheEntry)>>>` [deps: [CorrelationMatrixCacheEntry][3]]
 - `query_log: Arc<Mutex<VecDeque<QueryEntry>>>`
 - `query_counter: Arc<AtomicU64>`
 
@@ -26,6 +27,13 @@
 - `dataset_snapshot(&self) -> LazyFrame` [deps: [repository][1]]
 - `dataset_snapshot_for_columns(&self, columns: &[&str]) -> Result<LazyFrame, AppError>` [deps: [edatime-core/error][7]]
 - `replace_dataset(&self, df: DataFrame) -> Result<u64, std::io::Error>`
+  - Replaces the dataset, invalidates the response cache, and clears the correlation matrix cache.
+- `cached_correlation_matrix(&self, revision: u64) -> Option<CorrelationMatrixCacheEntry>`
+  - Returns the cached NxN matrix if it matches the given dataset revision; otherwise None.
+- `store_correlation_matrix_if_current(&self, revision: u64, entry: CorrelationMatrixCacheEntry) -> bool`
+  - Stores the matrix only if the dataset revision has not changed since `revision` was read.
+- `clear_correlation_matrix_cache(&self)`
+  - Drops the cached matrix (used by `replace_dataset` and warmup reset paths).
 - `set_time_column_display_name(&self, name: Option<String>)`
 - `time_column_display_name_sync(&self) -> Option<String>`
 - `ts_context(&self, lf: &LazyFrame) -> Result<TsContext, AppError>` [deps: [edatime-core/temporal][8]]

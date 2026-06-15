@@ -1,0 +1,522 @@
+diff --git a/frontend/src/causal/causalPage.test.ts b/frontend/src/causal/causalPage.test.ts
+index 9941677..212b356 100644
+--- a/frontend/src/causal/causalPage.test.ts
++++ b/frontend/src/causal/causalPage.test.ts
+@@ -78,7 +78,6 @@ describe('causal page chart bootstrap', () => {
+               <div id="causal-chart"></div>
+               <div id="causal-empty-state"></div>
+               <div id="causal-loading" hidden></div>
+-              <span id="causal-status"></span>
+             </section>
+         `;
+ 
+diff --git a/frontend/src/causal/editPanel.ts b/frontend/src/causal/editPanel.ts
+index 0bd76da..057e790 100644
+--- a/frontend/src/causal/editPanel.ts
++++ b/frontend/src/causal/editPanel.ts
+@@ -24,7 +24,6 @@ import {
+     resolveLinkDirection,
+     type PairEdgeGroup,
+ } from './selectionState.js';
+-import { setStatus } from './statusView.js';
+ import { getDropdownValueFromElement, upgradeSelects } from '../ui/primitives/Dropdown.js';
+ 
+ export type EditTarget = { kind: 'node'; col: string } | { kind: 'edge'; key: string };
+@@ -329,9 +328,9 @@ export function openEditPanel(target: EditTarget): void {
+ function parseAttrsJson(raw: string, kind: string): Record<string, unknown> | null {
+     try {
+         const parsed = raw.trim() ? JSON.parse(raw) : {};
+-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) { setStatus(`${kind} attributes must be a JSON object.`); return null; }
++        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) { return null; }
+         return parsed as Record<string, unknown>;
+-    } catch (error) { setStatus(`${kind} attributes JSON is invalid: ${(error as Error).message}`); return null; }
++    } catch { return null; }
+ }
+ 
+ function replacePairConnections(oldKey: string, nextConnections: CausalLink[]): void {
+@@ -372,10 +371,10 @@ export function applyEditPanel(): void {
+         const lag = Number(link.lag);
+         const value = Number(link.value);
+         const pvalue = Number(link.pvalue);
+-        if (!source || !target || source === target) { setStatus('Each connection needs two different endpoints.'); return; }
+-        if (!_currentColumns.includes(source) || !_currentColumns.includes(target)) { setStatus('Connection endpoints must exist in the current graph.'); return; }
+-        if (pairKey(source, target) !== _edgeEditDraft.key) { setStatus('Connections in this editor must stay inside the same node pair.'); return; }
+-        if (!Number.isFinite(lag) || lag < 0 || !Number.isFinite(value) || !Number.isFinite(pvalue)) { setStatus('Each connection needs a valid lag, value, and p-value.'); return; }
++        if (!source || !target || source === target) { return; }
++        if (!_currentColumns.includes(source) || !_currentColumns.includes(target)) { return; }
++        if (pairKey(source, target) !== _edgeEditDraft.key) { return; }
++        if (!Number.isFinite(lag) || lag < 0 || !Number.isFinite(value) || !Number.isFinite(pvalue)) { return; }
+         connections.push({ source, target, lag: Math.trunc(Math.max(0, lag)), type: String(link.type || '-->'), value, pvalue });
+     }
+ 
+@@ -407,8 +406,6 @@ export function deleteTarget(target: EditTarget): void {
+         clearPairAttrsKey(target.key);
+     }
+     closeEditPanel();
+-    const groups = listPairGroups();
+-    setStatus(`${_currentColumns.length} nodes · ${groups.length} pair edges · ${_currentLinks.length} raw connections`);
+ }
+ 
+ // ─── Context menu ────────────────────────────────────────────────────────────
+diff --git a/frontend/src/causal/export.ts b/frontend/src/causal/export.ts
+index c4d558a..d1034a1 100644
+--- a/frontend/src/causal/export.ts
++++ b/frontend/src/causal/export.ts
+@@ -13,7 +13,6 @@ import {
+     _chipColors, _nodeLabels, _nodeAttrs, _pairAttrs,
+     _nodePositions, listPairGroups,
+ } from './selectionState.js';
+-import { setStatus } from './statusView.js';
+ 
+ const METHOD_PC_STAGE = new Set(['pcmci', 'pcmciplus', 'lpcmci']);
+ 
+@@ -100,7 +99,7 @@ export function exportTorchGeometric(): string {
+ }
+ 
+ export function handleExport(fmt: string): void {
+-    if (_currentColumns.length === 0) { setStatus('Nothing to export. Compute a graph or add nodes first.'); return; }
++    if (_currentColumns.length === 0) { return; }
+     let content = '';
+     let filename = 'causal_graph.json';
+     let mime = 'application/json';
+@@ -113,5 +112,4 @@ export function handleExport(fmt: string): void {
+     anchor.href = url; anchor.download = filename; anchor.style.display = 'none';
+     document.body.appendChild(anchor);
+     requestAnimationFrame(() => { anchor.click(); window.setTimeout(() => { anchor.remove(); URL.revokeObjectURL(url); }, 250); });
+-    setStatus('Exported ' + filename);
+ }
+\ No newline at end of file
+diff --git a/frontend/src/causal/graphView.ts b/frontend/src/causal/graphView.ts
+index a76ecc7..08b89ae 100644
+--- a/frontend/src/causal/graphView.ts
++++ b/frontend/src/causal/graphView.ts
+@@ -24,7 +24,6 @@ import {
+ } from './selectionState.js';
+ import type { PairEdgeGroup } from './selectionState.js';
+ import type { CausalLink } from './causalComparison.js';
+-import { setStatus } from './statusView.js';
+ import { showCtxMenu, openEditPanel, type EditTarget } from './editPanel.js';
+ import { getPaletteColor, getChartPalette } from '../utils/theme.js';
+ 
+@@ -130,11 +129,9 @@ export function attachChartEvents(): void {
+         if (!col) return;
+         if (!_addEdgeFirst) {
+             setAddEdgeFirst(col);
+-            setStatus(`Add-edge mode: first node = ${col}. Click the second node.`);
+             return;
+         }
+         if (_addEdgeFirst === col) {
+-            setStatus('Select a different second node. Self-loops are not rendered in the pair graph.');
+             return;
+         }
+         _currentLinks.push({ source: _addEdgeFirst, target: col, lag: 1, type: '-->', value: 0, pvalue: 0 });
+@@ -143,7 +140,6 @@ export function attachChartEvents(): void {
+         const addEdgeBtn = document.getElementById('causal-add-edge-btn') as HTMLButtonElement | null;
+         if (addEdgeBtn) { addEdgeBtn.classList.remove('btn-accent'); addEdgeBtn.classList.add('btn-ghost'); }
+         renderEChartsGraph();
+-        setStatus('Pair connection added. Right-click the edge to edit its connection list and attributes.');
+     });
+ 
+     _eChart.on('mouseup', (params: any) => {
+diff --git a/frontend/src/causal/runtime.ts b/frontend/src/causal/runtime.ts
+index 48bb7ab..7240a44 100644
+--- a/frontend/src/causal/runtime.ts
++++ b/frontend/src/causal/runtime.ts
+@@ -34,7 +34,6 @@ export function initCausalPageRuntime(): void {
+     causalRuntime = createAnalysisPageRuntime({
+         page: 'causal',
+         emptyStateRootId: 'causal-empty-state',
+-        statusElId: 'causal-status',
+         bindExportsOnInit: false,
+         init() {
+             _syncCausalEmptyState(_currentColumns.length);
+diff --git a/frontend/src/causal/statusView.ts b/frontend/src/causal/statusView.ts
+index d36f5b8..46fe362 100644
+--- a/frontend/src/causal/statusView.ts
++++ b/frontend/src/causal/statusView.ts
+@@ -1,13 +1,8 @@
+ /**
+- * causal/statusView — status line and progress overlay helpers.
++ * causal/statusView — progress overlay and empty state helpers.
+  * Does not own any chart state.
+  */
+ 
+-export function setStatus(text: string): void {
+-    const statusEl = document.getElementById('causal-status') as HTMLElement | null;
+-    if (statusEl) statusEl.textContent = text;
+-}
+-
+ export function setProgress(percent: number, label?: string): void {
+     const overlay = document.getElementById('causal-progress-overlay') as HTMLElement | null;
+     const fill = document.getElementById('causal-progress-fill') as HTMLElement | null;
+diff --git a/frontend/src/causal/workflow.ts b/frontend/src/causal/workflow.ts
+index 0c28517..0d58fcd 100644
+--- a/frontend/src/causal/workflow.ts
++++ b/frontend/src/causal/workflow.ts
+@@ -19,9 +19,8 @@ import {
+     setCurrentTauMax,
+     isNumericColumn,
+     ensureNodeMetadata,
+-    listPairGroups,
+ } from './selectionState.js';
+-import { setStatus, setProgress, hideProgress } from './statusView.js';
++import { setProgress, hideProgress } from './statusView.js';
+ import { initChart, renderEChartsGraph } from './graphView.js';
+ import type { CausalDeps } from './selectionState.js';
+ import { getDropdownValueFromElement, setDropdownDisabledForElement } from '../ui/primitives/Dropdown.js';
+@@ -69,9 +68,6 @@ export function toggleAddEdgeMode(addEdgeBtn: HTMLButtonElement | null): void {
+         addEdgeBtn.classList.toggle('btn-accent', !_addEdgeMode);
+         addEdgeBtn.classList.toggle('btn-ghost', _addEdgeMode);
+     }
+-    setStatus(!_addEdgeMode
+-        ? 'Add-edge mode enabled. Click two nodes to create one pair edge with a default connection.'
+-        : 'Add-edge mode cancelled.');
+ }
+ 
+ export function cancelAddEdgeMode(addEdgeBtn: HTMLButtonElement | null): void {
+@@ -81,7 +77,6 @@ export function cancelAddEdgeMode(addEdgeBtn: HTMLButtonElement | null): void {
+         addEdgeBtn.classList.remove('btn-accent');
+         addEdgeBtn.classList.add('btn-ghost');
+     }
+-    setStatus('Add-edge mode cancelled.');
+ }
+ 
+ // ─── Compute button ───────────────────────────────────────────────────────────
+@@ -101,7 +96,6 @@ export async function handleComputeClick(
+     const numericSelected = allSelected.filter((col) => isNumericColumn(col, meta));
+     const manualOnly = allSelected.filter((col) => !isNumericColumn(col, meta));
+     if (numericSelected.length < 2) {
+-        setStatus('Select at least 2 numeric columns for computation. Non-numeric selections are allowed as manual/export nodes only.');
+         return;
+     }
+     const method = getDropdownValueFromElement(methodSelect) || 'pcmci';
+@@ -136,13 +130,9 @@ export async function handleComputeClick(
+         for (const col of cols) ensureNodeMetadata(col, meta, deps);
+         await initChart();
+         renderEChartsGraph();
+-        const groups = listPairGroups();
+-        const manualText = manualOnly.length > 0 ? ' · ' + manualOnly.length + ' manual/meta nodes' : '';
+-        setStatus('' + cols.length + ' nodes · ' + groups.length + ' pair edges · ' + resp.links.length + ' raw connections' + manualText);
+         onComplete?.();
+     } catch (error) {
+         hideProgress();
+-        setStatus('Error: ' + ((error as Error).message || 'failed'));
+         onComplete?.();
+     } finally {
+         deps.setLoading('causal-compute-btn', 'causal-loading', false, 'Compute');
+diff --git a/frontend/src/features/timeseries/actions.ts b/frontend/src/features/timeseries/actions.ts
+index 1e85c8d..907a743 100644
+--- a/frontend/src/features/timeseries/actions.ts
++++ b/frontend/src/features/timeseries/actions.ts
+@@ -29,6 +29,63 @@ export interface TimeseriesActionDeps {
+     registerCleanup: (cleanup: () => void) => void;
+ }
+ 
++export interface TimeseriesExportDeps {
++    chartExportPng: () => void;
++    chartExportSvg: () => void;
++    exportFilteredCsv: () => void;
++    exportFilteredJson: () => void;
++    exportFilteredParquet: () => void;
++}
++
++/**
++ * Wire the timeseries page export buttons:
++ *   - top-level toolbar: #export-png-btn, #export-csv-btn
++ *   - export-options modal: #export-svg-btn, #export-data-csv-btn,
++ *     #export-data-json-btn, #export-data-parquet-btn
++ *
++ * The keyboard shortcuts (Shift+P / Shift+E) and the in-modal
++ * `#open-export-options-btn` open/close behavior are wired elsewhere; this
++ * function is only responsible for the actual click handlers on the
++ * action buttons.
++ */
++export function initTimeseriesExportButtons(deps: TimeseriesExportDeps): void {
++    const png = document.getElementById('export-png-btn');
++    if (png && !png.dataset.bound) {
++        png.addEventListener('click', () => deps.chartExportPng());
++        png.dataset.bound = '1';
++    }
++
++    const csv = document.getElementById('export-csv-btn');
++    if (csv && !csv.dataset.bound) {
++        csv.addEventListener('click', () => deps.exportFilteredCsv());
++        csv.dataset.bound = '1';
++    }
++
++    const svg = document.getElementById('export-svg-btn');
++    if (svg && !svg.dataset.bound) {
++        svg.addEventListener('click', () => deps.chartExportSvg());
++        svg.dataset.bound = '1';
++    }
++
++    const dataCsv = document.getElementById('export-data-csv-btn');
++    if (dataCsv && !dataCsv.dataset.bound) {
++        dataCsv.addEventListener('click', () => deps.exportFilteredCsv());
++        dataCsv.dataset.bound = '1';
++    }
++
++    const dataJson = document.getElementById('export-data-json-btn');
++    if (dataJson && !dataJson.dataset.bound) {
++        dataJson.addEventListener('click', () => deps.exportFilteredJson());
++        dataJson.dataset.bound = '1';
++    }
++
++    const dataParquet = document.getElementById('export-data-parquet-btn');
++    if (dataParquet && !dataParquet.dataset.bound) {
++        dataParquet.addEventListener('click', () => deps.exportFilteredParquet());
++        dataParquet.dataset.bound = '1';
++    }
++}
++
+ export function initDatasetSearchInputs(
+     deps: Pick<TimeseriesActionDeps, 'rebuildColumnToggles' | 'renderColumnProfilesGrid'>,
+ ): void {
+diff --git a/frontend/src/features/timeseries/entrypoint.test.ts b/frontend/src/features/timeseries/entrypoint.test.ts
+index edb2e6d..1e5b829 100644
+--- a/frontend/src/features/timeseries/entrypoint.test.ts
++++ b/frontend/src/features/timeseries/entrypoint.test.ts
+@@ -7,6 +7,7 @@ const {
+     initSeriesCollapseMock,
+     initDatasetSearchInputsMock,
+     initTimeseriesActionsMock,
++    initTimeseriesExportButtonsMock,
+ } = vi.hoisted(() => ({
+     buildColumnTogglesMock: vi.fn(),
+     buildRangeControlsMock: vi.fn(),
+@@ -14,6 +15,7 @@ const {
+     initSeriesCollapseMock: vi.fn(),
+     initDatasetSearchInputsMock: vi.fn(),
+     initTimeseriesActionsMock: vi.fn(),
++    initTimeseriesExportButtonsMock: vi.fn(),
+ }));
+ 
+ vi.mock('./columnsController.js', () => ({
+@@ -26,6 +28,7 @@ vi.mock('./columnsController.js', () => ({
+ vi.mock('./actions.js', () => ({
+     initDatasetSearchInputs: initDatasetSearchInputsMock,
+     initTimeseriesActions: initTimeseriesActionsMock,
++    initTimeseriesExportButtons: initTimeseriesExportButtonsMock,
+ }));
+ 
+ import { createTimeseriesEntrypoint } from './entrypoint.js';
+@@ -97,4 +100,48 @@ describe('createTimeseriesEntrypoint', () => {
+             renderColumnProfilesGrid: deps.renderColumnProfilesGrid,
+         }));
+     });
++
++    it('wires the export buttons when all five handlers are provided', () => {
++        const feature = createTimeseriesEntrypoint({
++            fetchAndRender: vi.fn(),
++            renderCurrentData: vi.fn(),
++            updateAnalysisYRange: vi.fn(),
++            updateAnalysisZoom: vi.fn(),
++            emitChartRangeChange: vi.fn(),
++            registerCleanup: vi.fn(),
++            chartExportPng: vi.fn(),
++            chartExportSvg: vi.fn(),
++            exportFilteredCsv: vi.fn(),
++            exportFilteredJson: vi.fn(),
++            exportFilteredParquet: vi.fn(),
++        });
++
++        feature.init();
++
++        expect(initTimeseriesExportButtonsMock).toHaveBeenCalledTimes(1);
++        expect(initTimeseriesExportButtonsMock).toHaveBeenCalledWith(expect.objectContaining({
++            chartExportPng: expect.any(Function),
++            chartExportSvg: expect.any(Function),
++            exportFilteredCsv: expect.any(Function),
++            exportFilteredJson: expect.any(Function),
++            exportFilteredParquet: expect.any(Function),
++        }));
++    });
++
++    it('skips wiring the export buttons when any handler is missing', () => {
++        const feature = createTimeseriesEntrypoint({
++            fetchAndRender: vi.fn(),
++            renderCurrentData: vi.fn(),
++            updateAnalysisYRange: vi.fn(),
++            updateAnalysisZoom: vi.fn(),
++            emitChartRangeChange: vi.fn(),
++            registerCleanup: vi.fn(),
++            chartExportPng: vi.fn(),
++            // missing the rest
++        });
++
++        feature.init();
++
++        expect(initTimeseriesExportButtonsMock).not.toHaveBeenCalled();
++    });
+ });
+diff --git a/frontend/src/features/timeseries/entrypoint.ts b/frontend/src/features/timeseries/entrypoint.ts
+index ba90ccc..60de0b3 100644
+--- a/frontend/src/features/timeseries/entrypoint.ts
++++ b/frontend/src/features/timeseries/entrypoint.ts
+@@ -11,7 +11,7 @@ import {
+     initColumnFilterModal,
+     initSeriesCollapse,
+ } from './columnsController.js';
+-import { initDatasetSearchInputs, initTimeseriesActions } from './actions.js';
++import { initDatasetSearchInputs, initTimeseriesActions, initTimeseriesExportButtons } from './actions.js';
+ 
+ export interface TimeseriesFeatureDeps {
+     fetchAndRender: () => Promise<void>;
+@@ -21,6 +21,11 @@ export interface TimeseriesFeatureDeps {
+     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
+     emitChartRangeChange: (sourceKind?: string) => void;
+     registerCleanup: (cleanup: () => void) => void;
++    chartExportPng?: () => void;
++    chartExportSvg?: () => void;
++    exportFilteredCsv?: () => void;
++    exportFilteredJson?: () => void;
++    exportFilteredParquet?: () => void;
+ }
+ 
+ /**
+@@ -46,6 +51,16 @@ export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
+                 buildRangeControls,
+                 renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => { }),
+             });
++            if (deps.chartExportPng && deps.chartExportSvg && deps.exportFilteredCsv
++                && deps.exportFilteredJson && deps.exportFilteredParquet) {
++                initTimeseriesExportButtons({
++                    chartExportPng: deps.chartExportPng,
++                    chartExportSvg: deps.chartExportSvg,
++                    exportFilteredCsv: deps.exportFilteredCsv,
++                    exportFilteredJson: deps.exportFilteredJson,
++                    exportFilteredParquet: deps.exportFilteredParquet,
++                });
++            }
+         },
+         rebuildColumns,
+         buildRangeControls,
+diff --git a/frontend/src/pages/fftPage.ts b/frontend/src/pages/fftPage.ts
+index 67915c9..63bc82a 100644
+--- a/frontend/src/pages/fftPage.ts
++++ b/frontend/src/pages/fftPage.ts
+@@ -89,7 +89,6 @@ async function ensureFftChartReady(): Promise<void> {
+                 await fallbackChart.init();
+                 fallbackChart.onZoomChange = (isZoomed: boolean) => updateZoomButton(isZoomed);
+                 fftChart = fallbackChart;
+-                fftRuntime?.updateStatus('Fallback renderer active. FFT remains available without WebGPU.');
+             }
+         })();
+     }
+@@ -141,16 +140,13 @@ function renderChips(): void {
+                         activeChip.setAttribute('aria-disabled', 'true');
+                         const loadingEl = document.getElementById('fft-chart-loading');
+                         if (loadingEl) loadingEl.hidden = false;
+-                        fftRuntime?.updateStatus(`Computing FFT for ${column}…`);
+                         try {
+                             await fetchAndAddTrace(column);
+                             await ensureFftChartReady();
+                             renderChips();
+                             rerenderOrClear();
+-                            const bins = fftTraces.find((trace) => trace.column === column)?.frequencies.length ?? 0;
+-                            fftRuntime?.updateStatus(`${fftTraces.map((trace) => trace.column).join(', ')} · ${bins} bins`);
+                         } catch (error: any) {
+-                            fftRuntime?.updateStatus(`FFT failed for ${column}: ${error?.message || 'error'}`);
++                            console.warn(`FFT failed for ${column}: ${error?.message || 'error'}`);
+                         } finally {
+                             activeChip.classList.remove('loading');
+                             activeChip.removeAttribute('aria-disabled');
+@@ -160,11 +156,6 @@ function renderChips(): void {
+                         fftTraces = fftTraces.filter((trace) => trace.column !== column);
+                         renderChips();
+                         rerenderOrClear();
+-                        fftRuntime?.updateStatus(
+-                            fftTraces.length
+-                                ? fftTraces.map((trace) => trace.column).join(', ')
+-                                : 'Select a column chip to compute its FFT.',
+-                        );
+                     }
+                 },
+                 onColorInput: (nextColor) => {
+@@ -197,7 +188,6 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
+     fftRuntime = createAnalysisPageRuntime({
+         page: 'fft',
+         emptyStateRootId: 'fft-empty-state',
+-        statusElId: 'fft-status',
+         bindExportsOnInit: false,
+         exportConfig: {
+             key: 'fft',
+diff --git a/frontend/src/pages/shared/analysisPageRuntime.test.ts b/frontend/src/pages/shared/analysisPageRuntime.test.ts
+index d394657..cbc6497 100644
+--- a/frontend/src/pages/shared/analysisPageRuntime.test.ts
++++ b/frontend/src/pages/shared/analysisPageRuntime.test.ts
+@@ -130,27 +130,27 @@ describe('createAnalysisPageRuntime', () => {
+     });
+ 
+     it('updateStatus writes text to the configured status element', () => {
+-        document.body.innerHTML = `<div id="fft-status"></div>`;
++        document.body.innerHTML = `<div id="test-status"></div>`;
+         const runtime = createAnalysisPageRuntime({
+             page: 'fft',
+             emptyStateRootId: 'fft-empty-state',
+-            statusElId: 'fft-status',
++            statusElId: 'test-status',
+         });
+         runtime.mount();
+         runtime.updateStatus('3 columns selected');
+-        expect(document.getElementById('fft-status')?.textContent).toBe('3 columns selected');
++        expect(document.getElementById('test-status')?.textContent).toBe('3 columns selected');
+     });
+ 
+     it('updateStatus clears the element when given an empty string', () => {
+-        document.body.innerHTML = `<div id="fft-status">previous text</div>`;
++        document.body.innerHTML = `<div id="test-status">previous text</div>`;
+         const runtime = createAnalysisPageRuntime({
+             page: 'fft',
+             emptyStateRootId: 'fft-empty-state',
+-            statusElId: 'fft-status',
++            statusElId: 'test-status',
+         });
+         runtime.mount();
+         runtime.updateStatus('');
+-        expect(document.getElementById('fft-status')?.textContent).toBe('');
++        expect(document.getElementById('test-status')?.textContent).toBe('');
+     });
+ 
+     it('updateStatus is a no-op when no statusElId is configured', () => {
+diff --git a/frontend/src/pages/timeseriesModule.ts b/frontend/src/pages/timeseriesModule.ts
+index 2772404..183eb94 100644
+--- a/frontend/src/pages/timeseriesModule.ts
++++ b/frontend/src/pages/timeseriesModule.ts
+@@ -38,6 +38,11 @@ export interface TimeseriesModuleDeps {
+     fetchAndRenderAnalytics: () => Promise<void>;
+     refreshZoomControlsState: () => void;
+     zoomOut: () => void;
++    chartExportPng?: () => void;
++    chartExportSvg?: () => void;
++    exportFilteredCsv?: () => void;
++    exportFilteredJson?: () => void;
++    exportFilteredParquet?: () => void;
+ }
+ 
+ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
+@@ -111,6 +116,11 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
+         updateAnalysisZoom: deps.updateAnalysisZoom,
+         emitChartRangeChange: (sourceKind) => pageController.emitChartRangeChange(sourceKind),
+         registerCleanup: () => {}, // owned by runtime via createPageLifecycle
++        chartExportPng: deps.chartExportPng,
++        chartExportSvg: deps.chartExportSvg,
++        exportFilteredCsv: deps.exportFilteredCsv,
++        exportFilteredJson: deps.exportFilteredJson,
++        exportFilteredParquet: deps.exportFilteredParquet,
+     });
+ 
+     // 3. Create the bootstrap (owns dataset readiness)
+diff --git a/frontend/src/store/scatterState.ts b/frontend/src/store/scatterState.ts
+index 3125661..fbb2a9c 100644
+--- a/frontend/src/store/scatterState.ts
++++ b/frontend/src/store/scatterState.ts
+@@ -71,7 +71,7 @@ export interface ScatterState {
+     densityTooltipCache: DensityTooltipCache | null;
+     lastOptionSeries: SeriesConfig[] | null;
+     columnTypes: Map<string, string>;
+-    lastSuggestions: Array<{ column: string; pearson?: number | null; spearman?: number | null }>;
++    lastSuggestions: Array<{ x: string; y: string; correlation: number }>;
+     lastRenderSignature: string;
+     matrixCache: Map<string, Promise<MatrixCellData>>;
+     matrixColumnOrder: string[];

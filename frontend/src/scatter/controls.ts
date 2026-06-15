@@ -170,6 +170,66 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
         try { await exportScatterParquet(); } catch (error: any) { cb.handleErr(error); }
     });
 
+    // Zoom controls: visible zoom-out / reset for the scatter view (the
+    // timeseries page already has its own zoom-out/reset buttons, but those
+    // are hidden when the scatter page is active, leaving users with no
+    // discoverable way to step back from a selection-zoom).
+    const zoomOutBtn = getEl('scatter-zoom-out-btn') as HTMLButtonElement | null;
+    const zoomResetBtn = getEl('scatter-zoom-reset-btn') as HTMLButtonElement | null;
+    const zoomBadge = getEl('scatter-zoom-range-badge');
+
+    const updateZoomBadge = () => {
+        if (!zoomBadge) return;
+        const view = appState.scatter.view;
+        const full = appState.scatter.full;
+        if (!view || !full) {
+            zoomBadge.textContent = '100%';
+            return;
+        }
+        const xSpan = Math.max(1e-9, full.xMax - full.xMin);
+        const ySpan = Math.max(1e-9, full.yMax - full.yMin);
+        const xZoom = xSpan / Math.max(1e-9, view.xMax - view.xMin);
+        const yZoom = ySpan / Math.max(1e-9, view.yMax - view.yMin);
+        const ratio = Math.max(xZoom, yZoom);
+        const pct = Math.round(ratio * 100);
+        zoomBadge.textContent = `${pct}%`;
+        const isZoomed = pct > 100;
+        if (zoomOutBtn) zoomOutBtn.disabled = !isZoomed && appState.scatter.zoomHistory.length === 0;
+        if (zoomResetBtn) zoomResetBtn.disabled = !isZoomed;
+    };
+
+    zoomOutBtn?.addEventListener('click', () => {
+        if (appState.scatter.zoomHistory.length > 0) {
+            const prev = appState.scatter.zoomHistory.pop()!;
+            appState.scatter.view = prev;
+            rerender();
+            updateZoomBadge();
+        }
+    });
+    zoomResetBtn?.addEventListener('click', () => {
+        appState.scatter.zoomHistory = [];
+        appState.scatter.view = { ...appState.scatter.full };
+        rerender();
+        updateZoomBadge();
+    });
+
+    // Keep the badge in sync with view changes. `applyView` mutates the view
+    // directly (no store event), so we listen to the data-cache `store:viewport`
+    // event as a cheap proxy and also re-check on every render call.
+    let lastViewSnapshot = '';
+    const refreshBadge = () => {
+        const view = appState.scatter.view;
+        const key = `${view.xMin}|${view.xMax}|${view.yMin}|${view.yMax}|${appState.scatter.zoomHistory.length}`;
+        if (key === lastViewSnapshot) return;
+        lastViewSnapshot = key;
+        updateZoomBadge();
+    };
+    refreshBadge();
+    // Defer hooking into the scatter store event to keep this module
+    // dependency-light. A periodic check at 4Hz is cheap and keeps the
+    // badge in sync with selection-zoom, double-click, and the new buttons.
+    window.setInterval(refreshBadge, 250);
+
     ySelect.addEventListener('change', async () => { updateCorrelationStats(); await cb.renderScatter(); });
     xSelect.addEventListener('change', async () => { await cb.refreshCorrelationsAndSuggestions(); await cb.renderScatter(); });
     window.addEventListener('resize', () => { appState.scatter.chart?.resize?.(); });
