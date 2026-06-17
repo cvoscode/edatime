@@ -91,19 +91,81 @@
     max-width: 55%;
   }
 
-  .scatter-toolbar__cluster,
-  .scatter-toolbar__segment--actions {
-    flex: 1 1 100%;
-    margin-left: 0;
+  /* The scatter toolbar is a flex row that wraps naturally; no
+     template changes are needed at this breakpoint. */
+}
+
+/* When the viewport is between 1200 and ~1400px wide, the scatter
+   toolbar becomes too cramped. Hide the lower-priority density
+   sub-controls (Bins, Scale) — they are still reachable by widening
+   the viewport. The threshold slider in the stats bar also retreats
+   to save room. The colormap used to live here too; it is now
+   configured globally on the settings page. */
+@media (max-width: 1380px) {
+
+  /* On narrower viewports the density sub-group (Bins / Scale
+     Linear-Log) is hidden so the other Refine controls have room.
+     The user can still widen the viewport to bring the density
+     controls back. */
+  .scatter-toolbar__density,
+  .scatter-toolbar-group-inline.scatter-toolbar__density {
+    display: none;
+  }
+}
+
+@media (max-width: 1280px) {
+
+  /* Hide the Selection toggle to keep the row breathable. The
+     checkbox state is preserved so it does not need re-toggling
+     when the user widens the viewport again. */
+  .scatter-toolbar__field--toggle {
+    display: none;
+  }
+}
+
+@media (max-width: 1200px) {
+  .scatter-stats-bar__suggestions .scatter-suggestions-controls {
+    display: none;
   }
 
-  .scatter-toolbar__segment--axes,
-  .scatter-toolbar__segment--display {
-    flex: 1 1 calc(50% - 6px);
+  .scatter-toolbar__eyebrow {
+    font-size: 0.6rem;
+  }
+}
+
+@media (max-width: 1080px) {
+
+  /* Below this width the Display segment gets too cramped when
+     fitting Mode and Distribution. Hide the Distribution (diagonal)
+     select and let Mode own the segment. The diagonal option is
+     still available via the analytics panel entry. */
+  .scatter-toolbar__segment--display .toolbar-field:nth-of-type(2) {
+    display: none;
+  }
+
+  /* Constrain the Refine segment so the Color / Color-scale selects
+     do not push the Export disclosure off-screen as the row shrinks. */
+  .scatter-toolbar__segment--refine {
+    flex-basis: 240px;
+  }
+}
+
+@media (max-width: 940px) {
+
+  /* Collapse all eyebrows; the controls speak for themselves.
+     This frees ~50px of horizontal space per segment. */
+  .scatter-toolbar__eyebrow {
+    display: none;
+  }
+
+  /* Tighten segment padding now that eyebrows are gone. */
+  .scatter-toolbar__segment {
+    padding: 6px 10px;
   }
 }
 
 @media (max-width: 900px) {
+
   .timeseries-command-bar__left,
   .timeseries-command-bar__center,
   .timeseries-command-bar__right {
@@ -114,7 +176,7 @@
     width: 100%;
   }
 
-.timeseries-color-slot {
+  .timeseries-color-slot {
     justify-content: flex-start;
   }
 
@@ -188,9 +250,24 @@
     min-width: 0;
   }
 
-  .scatter-toolbar__segment,
-  .scatter-toolbar__cluster {
+  /* At narrow widths the scatter toolbar becomes a single column.
+     Every segment takes the full row, the cluster is unrolled into
+     stacked segments, and every field is forced to a new line. */
+  .scatter-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
+  }
+
+  /* At narrow widths the scatter toolbar's segments stack into a
+     single column so each segment can use the full width. The flex
+     basis is forced to 100% which causes the parent flex container
+     to wrap each segment onto its own line. */
+  .scatter-toolbar__segment--view,
+  .scatter-toolbar__segment--refineons,
+  .scatter-toolbar__segment--axes,
+  .scatter-toolbar__segment--display {
     flex: 1 1 100%;
+    min-width: 0;
   }
 
   .scatter-toolbar__fields,
@@ -204,13 +281,14 @@
   .scatter-toolbar .toolbar-disclosure,
   .scatter-toolbar .scatter-export-group {
     flex: 1 1 100%;
+    min-width: 0;
   }
 
   .scatter-toolbar .scatter-link-toggle {
     flex: 1 1 100%;
   }
 
-  .scatter-stats-bar__metrics,
+  .scatter-stats-bar__correlations,
   .scatter-stats-bar__suggestions {
     flex: 1 1 100%;
   }
@@ -312,7 +390,7 @@
     height: calc(100% - 56px);
   }
 
-  #scatter-chart.with-x-marginal ~ #scatter-right-panel {
+  #scatter-chart.with-x-marginal~#scatter-right-panel {
     top: 56px;
   }
 
@@ -324,7 +402,7 @@
   .timeseries-command-bar__left,
   .timeseries-command-bar__center,
   .timeseries-command-bar__right,
-.timeseries-color-slot {
+  .timeseries-color-slot {
     width: 100%;
   }
 

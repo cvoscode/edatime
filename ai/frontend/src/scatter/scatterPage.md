@@ -13,6 +13,7 @@
 - Controls from [./controls.js](./controls.md)
 - State helpers from [./state.js](./state.md)
 - Render / option helpers from [./rendering.js](./rendering.md)
+- Toolbar overflow popout from [./toolbarOverflow.js](./toolbarOverflow.md)
 
 ## Module-Scoped State
 - `scatterTask: RequestTask` — single in-flight request with abort-before-new semantics. Toggles `#scatter-chart-loading` and reports errors via `showError`.
@@ -29,13 +30,13 @@
 - `renderScatterDebounced(): void`
   - Debounced (~32ms) wrapper around `renderScatter`.
 - `renderScatter(): Promise<void>`
-  - Main render pipeline. Reads X/Y, fetches points via `fetchScatterPoints`, populates `allPoints` / `allColorValues` / `allColorLabels`, then either reuses the chart or creates a new ChartGPU instance (or `EchartsScatterChart` fallback when WebGPU is unavailable). Re-binds selection zoom on a new chart and refreshes the colorbar, marginals, and correlations. Honors `_preserveViewOnNextRender` so the density-mode zoom path keeps the new view bounds.
+  - Main render pipeline. Reads X/Y, fetches points via `fetchScatterPoints`, populates `allPoints` / `allColorValues` / `allColorLabels`, then either reuses the chart or creates a new ChartGPU instance (or `EchartsScatterChart` fallback when WebGPU is unavailable). Re-binds selection zoom on a new chart and refreshes the colorbar, marginals, and correlations. Honors `_preserveViewOnNextRender` so the density-mode zoom path keeps the new view bounds. Records `appState.scatter.lastQueryContextKey` after the request resolves so the page-change handler in [controls.ts][4] can short-circuit identical re-entries.
 - `rerenderScatterFromCache(resetViewFlag?: boolean): Promise<void>`
   - Re-applies the cached `allPoints` to the chart without a network round trip.
 - `initScatterPage(metadata: DatasetMetadata): Promise<void>`
-  - Records metadata on `appState.scatter`, populates the X/Y dropdowns (excluding the chosen X from the Y list), runs the first correlation refresh + render, and skips the fetch entirely when no numeric columns are present.
+  - Records metadata on `appState.scatter`, populates the X/Y dropdowns (excluding the chosen X from the Y list), runs the first correlation refresh + render, and skips the fetch entirely when no numeric columns are present. On first init, also calls [initScatterToolbarOverflow][8] against the rendered `.scatter-toolbar` (wrapped in try/catch so a presentation failure cannot block the page).
 - `bindControls(): Promise<void>`
-  - Dynamic-import wrapper for `bindScatterControls` to keep the static dep graph cycle-free.
+  - Dynamic-import wrapper for `bindScatterControls` to keep the static dep graph cycle-free. After the dynamic import resolves, registers the suggestion-apply handler via [correlationsPanel.setSuggestionApplyHandler][7] so clicking a correlation pill re-runs `refreshCorrelationsAndSuggestions` + `renderScatter` for the freshly selected X/Y pair.
 
 ## Module Bootstrap
 - `initScatterPageRuntime()` is called at module load so the runtime's listeners register before any `edatime:page-change 'scatter'` event can fire.
@@ -47,3 +48,5 @@
 [4]: ./controls.md
 [5]: ./state.md
 [6]: ./rendering.md
+[7]: ./correlationsPanel.md#setSuggestionApplyHandler
+[8]: ./toolbarOverflow.md#initScatterToolbarOverflow

@@ -9,6 +9,7 @@
     "validate": "npm run check:frontend:all",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "dev": "vite --config frontend/vite.config.ts",
+    "dev:full": "node scripts/dev.mjs",
     "build": "node scripts/build-frontend.mjs",
     "build:prod": "node scripts/build-frontend.mjs --prod",
     "build:frontend": "node scripts/build-frontend.mjs",

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createScatterEntrypoint } from '../features/scatter/entrypoint.js';
 
 const createChartMock = vi.fn();
@@ -13,7 +13,7 @@ const freshScatterState = vi.hoisted(() => ({
     chart: null,
     initialized: false,
     pageInitialized: false,
-    activeView: 'plot' as const,
+    activeView: 'plot' as 'plot' | 'matrix',
     loading: false,
     metadata: null as any,
     totalPoints: 0,
@@ -40,6 +40,7 @@ const freshScatterState = vi.hoisted(() => ({
     columnTypes: new Map<string, string>(),
     lastSuggestions: [] as any[],
     lastRenderSignature: '' as any,
+    lastQueryContextKey: '',
     matrixCache: new Map(),
     matrixColumnOrder: [] as string[],
     overviewRequestId: 0,
@@ -144,7 +145,6 @@ function buildDom(): void {
             <select id="scatter-y-col"></select>
             <input id="scatter-bin-size" type="range" value="10">
             <span id="scatter-bin-size-value"></span>
-            <select id="scatter-colormap"><option value="viridis" selected>Viridis</option></select>
             <select id="scatter-normalization"><option value="linear" selected>Linear</option></select>
             <select id="scatter-render-mode">
                 <option value="density" selected>Density</option>
@@ -182,9 +182,22 @@ function buildDom(): void {
 }
 
 describe('initScatterPage view toggles', () => {
+    const windowListeners: Array<{
+        type: string;
+        listener: EventListenerOrEventListenerObject;
+        options?: boolean | AddEventListenerOptions;
+    }> = [];
+    let originalAddEventListener: typeof window.addEventListener;
+
     beforeEach(() => {
         vi.resetModules();
         vi.clearAllMocks();
+        windowListeners.length = 0;
+        originalAddEventListener = window.addEventListener.bind(window);
+        vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
+            windowListeners.push({ type, listener, options });
+            return originalAddEventListener(type, listener, options);
+        });
         buildDom();
         requestGpuAdapterMock.mockReset();
         requestGpuAdapterMock.mockResolvedValue({ name: 'mock-adapter' });
@@ -214,6 +227,7 @@ describe('initScatterPage view toggles', () => {
         freshScatterState.columnTypes = new Map();
         freshScatterState.lastSuggestions = [];
         freshScatterState.lastRenderSignature = '';
+        freshScatterState.lastQueryContextKey = '';
         freshScatterState.matrixCache = new Map();
         freshScatterState.matrixColumnOrder = [];
         freshScatterState.overviewRequestId = 0;
@@ -246,6 +260,14 @@ describe('initScatterPage view toggles', () => {
             on: vi.fn(),
             off: vi.fn(),
         });
+    });
+
+    afterEach(() => {
+        for (const { type, listener, options } of windowListeners) {
+            window.removeEventListener(type, listener, options);
+        }
+        windowListeners.length = 0;
+        vi.restoreAllMocks();
     });
 
     it('switches into matrix mode when the matrix toggle is clicked', async () => {
@@ -358,6 +380,92 @@ describe('initScatterPage view toggles', () => {
         expect(freshScatterState.lastRenderSignature).toBe('HUFL|HULL|density||viridis|viridis|linear|histogram|0.98|2.02|1.98|3.02');
     });
 
+    it('does not refresh the active matrix view from the renderScatter tail', async () => {
+        fetchScatterPointsMock.mockResolvedValueOnce({
+            points: [[1, 2], [2, 3]],
+            total_points: 2,
+            color_values: null,
+            color_labels: null,
+            color: '',
+        });
+        freshScatterState.activeView = 'matrix';
+        (document.getElementById('scatter-x-col') as HTMLSelectElement).innerHTML = '<option value="HUFL" selected>HUFL</option>';
+        (document.getElementById('scatter-y-col') as HTMLSelectElement).innerHTML = '<option value="HULL" selected>HULL</option>';
+
+        const { renderScatter } = await import('./scatterPage.js');
+
+        await renderScatter();
+
+        expect(renderScatterMatrixViewMock).not.toHaveBeenCalled();
+    });
+
+    it('does not render twice on first scatter navigation when linked brush is checked but unchanged', async () => {
+        const { initScatterPage } = await import('./scatterPage.js');
+
+        await initScatterPage({
+            total_rows: 2,
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+            ],
+            numeric_columns: ['HUFL', 'HULL'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1_000 },
+            column_profiles: [],
+        } as any);
+
+        expect(fetchScatterPointsMock).toHaveBeenCalledTimes(1);
+
+        window.dispatchEvent(new CustomEvent('edatime:page-change', {
+            detail: { page: 'scatter', analyticsView: 'plot' },
+        }));
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(fetchScatterPointsMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders on scatter page-change when the linked brush range changed since the last scatter render', async () => {
+        const { initScatterPage } = await import('./scatterPage.js');
+        const { appState } = await import('../store/index.js');
+
+        const metadata = {
+            total_rows: 2,
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+            ],
+            numeric_columns: ['HUFL', 'HULL'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1_000 },
+            column_profiles: [],
+        } as any;
+        appState.metadata = metadata;
+
+        await initScatterPage(metadata);
+
+        expect(fetchScatterPointsMock).toHaveBeenCalledTimes(1);
+
+        appState.currentStart = 100;
+        appState.currentEnd = 500;
+
+        window.dispatchEvent(new CustomEvent('edatime:page-change', {
+            detail: { page: 'scatter', analyticsView: 'plot' },
+        }));
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(fetchScatterPointsMock).toHaveBeenCalledTimes(2);
+        expect(fetchScatterPointsMock).toHaveBeenLastCalledWith(
+            'HUFL',
+            'HULL',
+            1_000_000,
+            null,
+            expect.objectContaining({ start: 100, end: 500 }),
+            expect.any(AbortSignal),
+        );
+    });
+
     it('populates X/Y dropdowns deterministically when numeric columns are present', async () => {
         const { initScatterPage } = await import('./scatterPage.js');
 
@@ -436,5 +544,146 @@ describe('initScatterPage view toggles', () => {
         const next = { ...metadata, time_range: { min: 5, max: 50 } };
         await initScatterPage(next);
         expect(freshScatterState.metadata).toBe(next);
+    });
+});
+
+/**
+ * Cross-cutting tests for the schedule-render / debounce machinery in
+ * scatterPage.ts. These tests must NOT call initScatterPage, since that
+ * path also schedules renders. They exercise the global scheduleRender
+ * helper and the production setScatterView / renderScatterDebounced
+ * directly so the assertions can observe the exact timer state.
+ */
+describe('scatter render scheduling', () => {
+    let scheduleHelper: { __scatterScheduleRender?: (opts?: { preserveView?: boolean; immediate?: boolean }) => void } | undefined;
+
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+        buildDom();
+        scheduleHelper = globalThis as any;
+        scheduleHelper.__scatterScheduleRender = undefined;
+
+        fetchScatterPointsMock.mockResolvedValue({
+            points: [[1, 2], [2, 3]],
+            total_points: 2,
+            color_values: null,
+            color_labels: null,
+            color: '',
+        });
+        createChartMock.mockResolvedValue({
+            setOption: vi.fn(),
+            resize: vi.fn(),
+            onPerformanceUpdate: vi.fn(),
+            dispose: vi.fn(),
+        });
+        echartsInitMock.mockReturnValue({
+            setOption: vi.fn(),
+            resize: vi.fn(),
+            dispose: vi.fn(),
+            on: vi.fn(),
+            off: vi.fn(),
+        });
+        (document.getElementById('scatter-x-col') as HTMLSelectElement).innerHTML = '<option value="HUFL" selected>HUFL</option>';
+        (document.getElementById('scatter-y-col') as HTMLSelectElement).innerHTML = '<option value="HULL" selected>HULL</option>';
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+    });
+
+    it('consumes the preserveView flag exactly once across consecutive scheduleRender calls', async () => {
+        // The density-mode zoom path in rendering.ts sets
+        // `_preserveViewOnNextRender = true` before scheduling a re-render
+        // so the new view bounds are not clobbered by
+        // `applyScatterStateFromCache(true)`. The contract is "one-shot":
+        // a second scheduleRender without the flag must NOT inherit the
+        // previous preserveView. If it did, every subsequent render
+        // would freeze the zoom history and stop resetting the view to
+        // the full extent for column changes.
+        const stateModule = await import('./state.js');
+        const applySpy = vi.spyOn(stateModule, 'applyScatterStateFromCache');
+
+        // Make sure the helpers we use exist on the module under test.
+        const scatterPage = await import('./scatterPage.js');
+        expect(typeof scatterPage.renderScatterDebounced).toBe('function');
+        expect(typeof (scheduleHelper as any).__scatterScheduleRender).toBe('function');
+
+        // 1) Schedule a preserving render. resolve immediately via `immediate: true`
+        //    so we don't depend on fake timers for the first call.
+        (scheduleHelper as any).__scatterScheduleRender!({ preserveView: true, immediate: true });
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await Promise.resolve();
+
+        const callsAfterFirst = applySpy.mock.calls.length;
+        expect(callsAfterFirst).toBeGreaterThan(0);
+        const firstArg = applySpy.mock.calls[callsAfterFirst - 1]?.[0];
+        // `applyScatterStateFromCache(!preserveView)` → preserveView=true ⇒ arg=false
+        expect(firstArg).toBe(false);
+
+        // 2) Schedule a second render WITHOUT the flag. The flag must have been
+        //    consumed by the first call, so this one must use the default
+        //    `applyScatterStateFromCache(true)` behaviour.
+        (scheduleHelper as any).__scatterScheduleRender!({ immediate: true });
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await Promise.resolve();
+
+        const callsAfterSecond = applySpy.mock.calls.length;
+        expect(callsAfterSecond).toBeGreaterThan(callsAfterFirst);
+        const secondArg = applySpy.mock.calls[callsAfterSecond - 1]?.[0];
+        // preserveView=false (default) ⇒ applyScatterStateFromCache(true) ⇒ arg=true
+        expect(secondArg).toBe(true);
+    });
+
+    it('does not leave a stale debounce timer after setScatterView(matrix, { render: false })', async () => {
+        // Regression: the page-change fast path skips `setScatterView` when
+        // the view is unchanged, but the real production path also still
+        // calls `setScatterView` from view-toggle buttons. In both cases a
+        // pending debounced render from a previous filter change could
+        // leak through and clobber the new view with stale points.
+        //
+        // We assert the bug is fixed: calling setScatterView MUST clear
+        // the pending debounced render. We detect the timer via the
+        // setTimeout/clearTimeout pair that scatterPage uses for its
+        // 32 ms debounce.
+        const scatterPage = await import('./scatterPage.js');
+        const { setScatterView, renderScatterDebounced } = scatterPage;
+
+        // Spy on setTimeout/clearTimeout so we can capture the timer handle
+        // the debounce installs and assert setScatterView cleared it.
+        const pendingHandles = new Set<unknown>();
+        const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((
+            handler: TimerHandler,
+            timeout?: number,
+            ...args: unknown[]
+        ) => {
+            const handle = { __scatterDebounce: true, handler, timeout, args } as any;
+            pendingHandles.add(handle);
+            // Return a numeric handle that maps back to our wrapper.
+            (handle as any).id = pendingHandles.size;
+            return handle as any;
+        }) as any);
+        const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout').mockImplementation(((handle: any) => {
+            pendingHandles.delete(handle);
+        }) as any);
+
+        // Kick off a debounced render.
+        renderScatterDebounced();
+        expect(pendingHandles.size).toBe(1);
+
+        // The user immediately toggles to matrix mode without waiting for
+        // the debounce to fire. setScatterView must clear the pending handle.
+        await setScatterView('matrix', { render: false });
+
+        expect(clearTimeoutSpy).toHaveBeenCalled();
+        // The debounce timer specifically should have been cleared.
+        expect(pendingHandles.size).toBe(0);
+
+        // Sanity: setTimeout was actually used to install the debounce,
+        // and the clear call targeted one of the handles we tracked.
+        expect(setTimeoutSpy).toHaveBeenCalled();
     });
 });

@@ -10,7 +10,6 @@ function buildDom(): HTMLDivElement {
         <select id="scatter-x-col"><option value="feature_x" selected>feature_x</option></select>
         <select id="scatter-y-col"><option value="feature_y" selected>feature_y</option></select>
         <input id="scatter-bin-size" value="10">
-        <select id="scatter-colormap"><option value="viridis" selected>Viridis</option></select>
         <select id="scatter-normalization"><option value="linear" selected>Linear</option></select>
         <select id="scatter-render-mode"><option value="scatter" selected>Scatter</option></select>
         <select id="scatter-diagonal-mode"><option value="histogram" selected>Histogram</option></select>

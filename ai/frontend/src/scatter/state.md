@@ -24,12 +24,12 @@ interface ScatterQueryContext {
 - `ScatterView = { xMin: number; xMax: number; yMin: number; yMax: number }`
 - `ScatterDrag = { pointerId: number; startX: number; endX: number; startY: number; endY: number }`
 - `DensityTooltipMeta = { colorCenter: number; colorLo: number; colorHi: number }`
-- `DensityTooltipCache = { key: string; binSize: number; metrics: any; binsBySeriesIndex: Map<number, Map<string, number>>; metaBySeriesIndex: Map<number, any> }`
+- `DensityTooltipCache = { key: string; binSize: number; metrics: { plotWidth, plotHeight, devicePixelRatio, plotLeftPx, plotTopPx, plotRightPx, plotBottomPx, exactLeftPx, exactTopPx, exactRightPx, exactBottomPx, binSizePx, binSizeCss, binCountX, binCountY }; binsBySeriesIndex: Map<number, Map<string, number>>; metaBySeriesIndex: Map<number, DensityTooltipMeta> }` [deps: [scatterState metrics shape][5]]
 - `MatrixCellData = { totalPoints: number; points: [number, number][]; colorValues: number[] | null; colorLabels: string[] | null }`
 
 ## Functions
 - `currentControls(): ScatterControls` [deps: [getDropdownValue][3], [getScatterPlotMetrics][4]]
-  - Reads current values from all scatter control dropdowns. Uses `getDropdownValue` for all select controls.
+  - Reads current values from all scatter control dropdowns. Uses `getDropdownValue` for all select controls. `colormap` is hardcoded to `'viridis'` (must stay aligned with `COLOR_SCALES` in [utils/settings.ts][5]) because the per-page colormap select was removed from the toolbar.
 - `isLinkedBrushEnabled(): boolean`
   - Returns whether the linked brush from the main chart is active (either the `scatter-link-brush` checkbox or the matrix `scatter-matrix-link-range` checkbox).
 - `buildScatterQueryContext(columns?: { x?: string; y?: string; colorColumn?: string }): ScatterQueryContext`
@@ -68,3 +68,4 @@ interface ScatterQueryContext {
 [2]: ../../store/appStateCompat.md#appState
 [3]: ./helpers.md#getEl
 [4]: ../../services/timeseries/filtering.md#buildAdaptiveLineFiltersForQuery
+[5]: ../../store/scatterState.md

@@ -345,7 +345,8 @@ Common targets are available via the included Makefile:
 make build          # cargo build (debug)
 make build-release  # cargo build --release
 make run            # cargo run --release --bin edatime
-make dev            # build frontend + cargo run --bin edatime
+make dev            # run Rust API + Vite frontend with live CSS/HMR
+make dev-dist       # rebuild packaged frontend + cargo run --bin edatime
 make check          # cargo check + clippy + tsc
 make test           # cargo test + frontend syntax check
 make frontend-prod  # minified frontend build (requires Node)

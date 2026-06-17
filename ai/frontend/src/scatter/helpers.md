@@ -90,6 +90,7 @@ function formatValueForColumn(columnName: string, value: number, spanMs: number,
 function isDistributionCompatibleColumn(column: string, columnTypes: Map<string, string>): boolean
 function buildHistogramFromValues(values: unknown[], binCount?: number): Histogram | null
 function buildHistogramForDomain(values: number[], min: number, max: number, binCount?: number): Histogram | null
+    // Drops values outside [min, max] rather than clamping into edge bins.
 function estimateBandwidth(values: number[]): number
 function buildKdeCurve(values: number[], min: number, max: number, sampleCount?: number): { x: number; y: number }[]
 function computeBoxStats(values: number[]): { min: number; q1: number | null; median: number | null; q3: number | null; max: number } | null

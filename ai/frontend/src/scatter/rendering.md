@@ -6,11 +6,12 @@
 - `getDropdownValue` from [../ui/primitives/Dropdown.js](../ui/primitives/Dropdown.md)
 - `dragToViewport`, `DragState` from [../chart/chartInteractions.js](../chart/chartInteractions.md)
 - `disposeScatterChart`, `resetScatterContainer` from [state.js](./state.md)
-- `buildKdeCurve`, `computeBoxStats` from [helpers.js](./helpers.md)
+- `buildKdeCurve`, `computeBoxStats`, `getCanvasFrame`, `getDevicePixelRatio` from [helpers.js](./helpers.md)
+- `refreshScatterToolbarOverflow` from [./toolbarOverflow.js](./toolbarOverflow.md)
 
 ## Interfaces
 - `ScatterView = { xMin: number; xMax: number; yMin: number; yMax: number }`
-- `DensityTooltipCache = { key: string; binSize: number; metrics: any; binsBySeriesIndex: Map<number, Map<string, number>>; metaBySeriesIndex: Map<number, any> }`
+- `DensityTooltipCache = { key: string; binSize: number; metrics: { plotWidth, plotHeight, devicePixelRatio, plotLeftPx, plotTopPx, plotRightPx, plotBottomPx, exactLeftPx, exactTopPx, exactRightPx, exactBottomPx, binSizePx, binSizeCss, binCountX, binCountY }; binsBySeriesIndex: Map<number, Map<string, number>>; metaBySeriesIndex: Map<number, DensityTooltipMeta> }`
 
 ## Functions
 - `buildNormalScatterSeries(points: [number, number][], controls: ScatterControls): any[]` [deps: [buildCategoricalColorGroups][1], [paletteForScale][2]]
@@ -18,7 +19,7 @@
 - `buildDensitySeries(points: [number, number][], controls: ScatterControls): any[]` [deps: [paletteForScale][2], [appState][3]]
   - Builds density-mode scatter series. Passes the full point set as both `rawData` and `data` so ChartGPU's binner uses the unfiltered buffer; `rawBounds` is set to the current `appState.scatter.view` so the binner clips to the visible region.
 - `buildDensityTooltipCache(series: any[], controls: ScatterControls, container: HTMLElement | null): DensityTooltipCache | null`
-  - Pre-computes density grid bins for tooltip lookup; cached by view signature.
+  - Pre-computes density grid bins for tooltip lookup. Iterates `series[i].rawData ?? series[i].data` (so density mode uses the full point set), and bins each point through `projectDensityPointToBin`. Cache key now includes `metrics.binSizePx` and `metrics.devicePixelRatio` so any DPR change forces a rebuild.
 - `densityTooltipFormatterFactory(controls: ScatterControls, container: HTMLElement | null): (params: any) => string`
   - Returns tooltip formatter for density mode with cursor tracking.
 - `scatterTooltipFormatterFactory(controls: ScatterControls): (params: any) => string`
@@ -35,8 +36,18 @@
   - Draws marginal on X axis; mode `'histogram'` | `'kde'` | `'boxplot'`. Uses `getScatterMarginalXMetrics` from layout.
 - `drawMarginalY(canvas: HTMLCanvasElement, values: number[], viewMin: number, viewMax: number, mode: string): void`
   - Draws marginal on Y axis; mode `'histogram'` | `'kde'` | `'boxplot'`. Uses `getScatterMarginalYMetrics` from layout.
+- `drawDensityMarginalX(canvas: HTMLCanvasElement, counts: number[], binSize: number): void` (private)
+  - Draws the density-mode X marginal as bars aligned to the DPR-scaled bin grid.
+- `drawDensityMarginalY(canvas: HTMLCanvasElement, counts: number[], binSize: number): void` (private)
+  - Draws the density-mode Y marginal as horizontal bars aligned to the DPR-scaled bin grid.
+- `buildDensityMarginalCounts(axis: 'x' | 'y', cache: DensityTooltipCache | null, seriesIndex?: number): number[] | null` (private)
+  - Aggregates the cached 2D bin counts onto a 1D axis projection.
+- `getDensityTooltipMetrics(controls: ScatterControls, container: HTMLElement | null): DensityTooltipCache['metrics']` (private)
+  - Computes DPR-aware pixel metrics: `exact*Px` for the unrounded grid and `plot*Px` for the floor/ceil-clamped inset. Pre-computes `binCountX` and `binCountY`.
+- `projectDensityPointToBin(x: number, y: number, metrics: NonNullable<DensityTooltipCache['metrics']>): { bx, by } | null` (private)
+  - Maps a data-space point to a 2D bin index using the cached metrics. Returns null for out-of-viewport or non-finite points.
 - `updateMarginalPlots(): void`
-  - Syncs marginal canvas visibility and triggers `drawMarginalX`/`drawMarginalY` with current `diagonalMode`. Also toggles the `.with-x-marginal` class on `#scatter-chart`.
+  - Syncs marginal canvas visibility and triggers `drawMarginalX`/`drawMarginalY` with current `diagonalMode`. Also toggles the `.with-x-marginal` class on `#scatter-chart`. Filters visible points to the current view bounds. In `renderMode === 'density'` with `diagonalMode === 'histogram'`, switches to `drawDensityMarginalX/Y` driven by the cached density bin counts.
 - `buildOption(points: [number, number][], container: HTMLElement | null): any`
   - Constructs the full ECharts option object from controls, points, and series.
 - `renderCurrentOption(): void`
@@ -55,8 +66,8 @@
   - Reads current X/Y from the dropdowns, looks up Pearson/Spearman in `appState.scatter.correlationsByColumn`, and updates the stats bar.
 - `initSelectionZoom(container: HTMLElement): void` [deps: [dragToViewport][7], [SCATTER_PLOT_GRID][8], [applyView][4], [resetView][4]]
   - Wires pointerdown/move/up/cancel for box-selection zoom and dblclick for view pop/reset. Uses `dragToViewport` to honor `SCATTER_PLOT_GRID` padding; ignores drags smaller than 8px in either axis and ignores wheel events on density mode.
-- `syncModeUI(): void`
-  - Toggles visibility of analytics / density / color-scale / export / stats / suggestions groups based on `appState.scatter.activeView` and `renderMode`. Also calls `updateColorbarUI()`.
+- `syncModeUI(): void` [deps: [refreshScatterToolbarOverflow][9]]
+  - Toggles visibility of analytics / density / color-scale / export / stats / suggestions groups based on `appState.scatter.activeView` and `renderMode`. The Refine segment hosts the density sub-group and color scale inline; both are toggled together to avoid orphan labels. Also calls `refreshScatterToolbarOverflow()` so the new field set is rebalanced through the overflow popout.
 
 ## Re-exports from `./export.js`
 - `buildLinearTicks`, `getScatterExportViewport`, `drawScatterSeriesToCanvas`, `renderScatterExportToCanvas`, `buildVisibleScatterRows`
@@ -71,3 +82,4 @@
 [6]: ./state.md#disposeScatterChart
 [7]: ../chart/chartInteractions.md#dragToViewport
 [8]: ./layout.md#SCATTER_PLOT_GRID
+[9]: ./toolbarOverflow.md#refreshScatterToolbarOverflow

@@ -23,6 +23,7 @@ import {
 import {
     currentControls,
     buildScatterQueryContext,
+    buildOverviewContextKey,
     buildRenderSignature,
     applyScatterStateFromCache,
     disposeScatterChart,
@@ -55,6 +56,10 @@ import {
 } from './matrix.js';
 import { createRequestTask } from '../pages/shared/requestTask.js';
 import {
+    initScatterToolbarOverflow,
+    refreshScatterToolbarOverflow,
+} from './toolbarOverflow.js';
+import {
     initScatterPageRuntime,
     syncScatterEmptyState,
     syncScatterFilterBadge,
@@ -65,6 +70,7 @@ import {
 import {
     renderSuggestions,
     refreshCorrelationsAndSuggestions,
+    setSuggestionApplyHandler,
 } from './correlationsPanel.js';
 
 import type { DatasetMetadata } from '../types.js';
@@ -188,6 +194,8 @@ async function renderScatter(): Promise<void> {
     await scatterTask.run(async (signal) => {
         const ctl = currentControls();
         const colorColumn = ctl.selectedColorColumn || null;
+        const queryContext = buildScatterQueryContext({ x: xValue, y: yValue, colorColumn: colorColumn || undefined });
+        const queryContextKey = buildOverviewContextKey(queryContext);
 
         // Consume the one-shot preserveView flag the density-zoom path set
         // before scheduling this render. We must read it BEFORE awaiting
@@ -199,11 +207,12 @@ async function renderScatter(): Promise<void> {
         const response = await fetchScatterPoints(
             xValue, yValue, 1_000_000,
             colorColumn,
-            buildScatterQueryContext({ x: xValue, y: yValue, colorColumn: colorColumn || undefined }),
+            queryContext,
             signal,
         );
         if (requestId !== appState.scatter.scatterRequestId) return;
 
+        appState.scatter.lastQueryContextKey = queryContextKey;
         const points: [number, number][] = Array.isArray(response.points) ? response.points : [];
 
         appState.scatter.totalPoints = Number(response.total_points ?? points.length);
@@ -264,7 +273,6 @@ async function renderScatter(): Promise<void> {
         updateCorrelationStats();
         renderSuggestions(appState.scatter.lastSuggestions);
         updateMarginalPlots();
-        await refreshActiveScatterView();
     });
 }
 
@@ -311,7 +319,21 @@ function bindControls(): Promise<void> {
             renderScatterDebounced,
             syncScatterFilterBadge,
         }),
-    );
+    ).then(() => {
+        // Register the click handler for correlation pills. After a pill
+        // is clicked the X and Y dropdowns are already updated, so we only
+        // need to refresh the correlation list for the new X and re-render
+        // the scatter. This reuses the same plumbing as a manual X change
+        // and keeps the scatter chart in sync with the chosen pair.
+        setSuggestionApplyHandler(async () => {
+            try {
+                await refreshCorrelationsAndSuggestions();
+                await renderScatter();
+            } catch (err) {
+                handleErr(err);
+            }
+        });
+    });
 }
 
 /* ── Public init ──────────────────────────────────────── */
@@ -355,7 +377,18 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
     syncScatterEmptyState();
     syncScatterFilterBadge();
 
-    if (!appState.scatter.initialized) { await bindControls(); appState.scatter.initialized = true; }
+    if (!appState.scatter.initialized) {
+        await bindControls();
+        // Wire the per-segment overflow popout now that the toolbar
+        // segments exist in their final shape. The overflow logic
+        // is purely presentational, so a failure here must not
+        // prevent the scatter page from rendering.
+        const toolbar = getEl('page-scatter')?.querySelector<HTMLElement>('.scatter-toolbar');
+        if (toolbar) {
+            try { initScatterToolbarOverflow(toolbar); } catch { /* noop */ }
+        }
+        appState.scatter.initialized = true;
+    }
     if (appState.scatter.pageInitialized) return;
 
     const isVisible = !page.hidden;

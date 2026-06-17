@@ -6,6 +6,7 @@ export class EchartsScatterChart {
     private _container: HTMLElement | null = null;
     private _chart: any = null;
     private _resizeObserver: ResizeObserver | null = null;
+    private _lastObservedSize: { width: number; height: number } | null = null;
 
     constructor(containerId: string) {
         this._containerId = containerId;
@@ -18,7 +19,19 @@ export class EchartsScatterChart {
         this._container = container;
         this._chart = echarts.init(container, undefined, { renderer: 'canvas' });
         this._resizeObserver?.disconnect();
-        this._resizeObserver = new ResizeObserver(() => this.resize());
+        this._resizeObserver = new ResizeObserver((entries) => {
+            const rect = entries[0]?.contentRect;
+            if (!rect) {
+                this.resize();
+                return;
+            }
+            const width = Math.round(rect.width);
+            const height = Math.round(rect.height);
+            const previous = this._lastObservedSize;
+            if (previous && previous.width === width && previous.height === height) return;
+            this._lastObservedSize = { width, height };
+            this.resize();
+        });
         this._resizeObserver.observe(container);
     }
 
@@ -85,6 +98,7 @@ export class EchartsScatterChart {
     dispose(): void {
         this._resizeObserver?.disconnect();
         this._resizeObserver = null;
+        this._lastObservedSize = null;
         this._chart?.dispose?.();
         this._chart = null;
         this._container = null;

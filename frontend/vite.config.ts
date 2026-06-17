@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
+const apiOrigin = process.env.EDATIME_API_ORIGIN
+  || `http://127.0.0.1:${process.env.EDATIME_PORT || '3000'}`;
+
 /**
  * Vite owns the production asset graph.
  *
@@ -35,7 +38,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: 'http://localhost:3000', changeOrigin: true },
+      '/api': { target: apiOrigin, changeOrigin: true },
     },
   },
   css: {

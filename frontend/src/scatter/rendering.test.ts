@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { appState } from '../store/appStateCompat.js';
-import { applyView, buildDensitySeries, buildOption, densityTooltipFormatterFactory, updateMarginalPlots } from './rendering.js';
+import { applyView, buildDensitySeries, buildDensityTooltipCache, buildOption, densityTooltipFormatterFactory, updateMarginalPlots } from './rendering.js';
 
 class MockCanvasContext2D {
     ops: string[] = [];
@@ -15,7 +15,7 @@ class MockCanvasContext2D {
 
     setTransform() { this.ops.push('setTransform'); }
     clearRect() { this.ops.push('clearRect'); }
-    fillRect(_x: number, _y: number, w: number, h: number) { this.ops.push(`fillRect:${Math.round(w)}x${Math.round(h)}`); }
+    fillRect(x: number, y: number, w: number, h: number) { this.ops.push(`fillRect:${Math.round(x)},${Math.round(y)},${Math.round(w)},${Math.round(h)}`); }
     strokeRect(_x: number, _y: number, w: number, h: number) { this.ops.push(`strokeRect:${Math.round(w)}x${Math.round(h)}`); }
     fillText(text: string) { this.ops.push(`fillText:${text}`); }
     beginPath() { this.ops.push('beginPath'); }
@@ -51,6 +51,16 @@ function signature(canvasId: string): string {
     return (contextByCanvas.get(canvas)?.ops || []).join('|');
 }
 
+function fillRects(canvasId: string): Array<{ x: number; y: number; w: number; h: number }> {
+    const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
+    return (contextByCanvas.get(canvas)?.ops || [])
+        .filter((op) => op.startsWith('fillRect:'))
+        .map((op) => {
+            const [x, y, w, h] = op.slice('fillRect:'.length).split(',').map(Number);
+            return { x, y, w, h };
+        });
+}
+
 describe('scatter marginal rendering modes', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
@@ -76,7 +86,6 @@ describe('scatter marginal rendering modes', () => {
             <select id="scatter-x-col"><option value="HUFL" selected>HUFL</option></select>
             <select id="scatter-y-col"><option value="HULL" selected>HULL</option></select>
             <input id="scatter-bin-size" value="10">
-            <select id="scatter-colormap"><option value="viridis" selected>Viridis</option></select>
             <select id="scatter-normalization"><option value="linear" selected>Linear</option></select>
             <select id="scatter-render-mode">
                 <option value="scatter" selected>Scatter</option>
@@ -88,7 +97,7 @@ describe('scatter marginal rendering modes', () => {
                 <option value="boxplot">Box Plot</option>
             </select>
             <select id="scatter-color-column"><option value="" selected>None</option></select>
-            <select id="scatter-color-scale"><option value="viridis" selected>Viridis</option></select>
+            <div id="scatter-color-scale-field"><select id="scatter-color-scale"><option value="viridis" selected>Viridis</option></select></div>
             <input id="scatter-matrix-mode" value="scatter">
             <input id="scatter-matrix-cell-size" value="160">
             <div id="scatter-chart"></div>
@@ -182,6 +191,80 @@ describe('scatter marginal rendering modes', () => {
         expect(histY).not.toEqual(boxY);
         expect(kdeY).not.toEqual(boxY);
     });
+
+    it('uses density bin geometry for histogram marginals in density mode', () => {
+        const renderMode = document.getElementById('scatter-render-mode') as HTMLSelectElement;
+        const binSize = document.getElementById('scatter-bin-size') as HTMLInputElement;
+        renderMode.value = 'density';
+        binSize.value = '10';
+
+        appState.scatter.points = Array.from({ length: 120 }, (_, i) => [10 + i * 0.25, 2 + (i % 6)] as [number, number]);
+        appState.scatter.view = { xMin: 10, xMax: 40, yMin: 0, yMax: 12 };
+
+        const container = document.getElementById('scatter-chart') as HTMLElement;
+        buildOption(appState.scatter.points, container);
+        updateMarginalPlots();
+
+        const xBars = fillRects('scatter-marginal-x');
+        expect(xBars.length).toBeGreaterThan(20);
+        expect(Math.max(...xBars.map((bar) => bar.w))).toBeLessThanOrEqual(10);
+    });
+
+    it('excludes points on the density view right edge from cached bins', () => {
+        const renderMode = document.getElementById('scatter-render-mode') as HTMLSelectElement;
+        renderMode.value = 'density';
+
+        appState.scatter.points = [
+            [5, 5],
+            [10, 5],
+        ] as [number, number][];
+        appState.scatter.view = { xMin: 0, xMax: 10, yMin: 0, yMax: 10 };
+
+        const container = document.getElementById('scatter-chart') as HTMLElement;
+        const controls = {
+            x: 'HUFL',
+            y: 'HULL',
+            binSize: 10,
+            colormap: 'viridis',
+            normalization: 'linear',
+            renderMode: 'density',
+            diagonalMode: 'histogram',
+            colorColumn: '',
+            selectedColorColumn: '',
+            colorScale: 'viridis',
+            matrixMode: 'scatter',
+            matrixCellSize: 160,
+        };
+        const series = buildDensitySeries(appState.scatter.points, controls);
+        const cache = buildDensityTooltipCache(series, controls, container);
+        const total = Array.from(cache?.binsBySeriesIndex.get(0)?.values() || []).reduce((sum, count) => sum + count, 0);
+
+        expect(total).toBe(1);
+    });
+
+    it('builds marginal histograms from points inside both visible axes', () => {
+        appState.scatter.points = [
+            [1, 1],
+            [9, 9],
+            [1, 99],
+            [1, 99],
+            [1, 99],
+            [99, 1],
+            [99, 1],
+            [99, 1],
+        ] as [number, number][];
+        appState.scatter.view = { xMin: 0, xMax: 10, yMin: 0, yMax: 10 };
+
+        updateMarginalPlots();
+
+        const xBars = fillRects('scatter-marginal-x');
+        const yBars = fillRects('scatter-marginal-y');
+
+        expect(xBars).toHaveLength(2);
+        expect(yBars).toHaveLength(2);
+        expect(xBars[0].h).toBe(xBars[1].h);
+        expect(yBars[0].w).toBe(yBars[1].w);
+    });
 });
 
 /* ── Density zoom regression ──────────────────────────── */
@@ -211,7 +294,6 @@ describe('density series zoom', () => {
             <select id="scatter-x-col"><option value="HUFL" selected>HUFL</option></select>
             <select id="scatter-y-col"><option value="HULL" selected>HULL</option></select>
             <input id="scatter-bin-size" value="10">
-            <select id="scatter-colormap"><option value="viridis" selected>Viridis</option></select>
             <select id="scatter-normalization"><option value="linear" selected>Linear</option></select>
             <select id="scatter-render-mode">
                 <option value="scatter">Scatter</option>
@@ -221,7 +303,7 @@ describe('density series zoom', () => {
                 <option value="histogram" selected>Histogram</option>
             </select>
             <select id="scatter-color-column"><option value="" selected>None</option></select>
-            <select id="scatter-color-scale"><option value="viridis" selected>Viridis</option></select>
+            <div id="scatter-color-scale-field"><select id="scatter-color-scale"><option value="viridis" selected>Viridis</option></select></div>
             <input id="scatter-matrix-mode" value="scatter">
             <input id="scatter-matrix-cell-size" value="160">
             <div id="scatter-chart"></div>
@@ -399,7 +481,6 @@ describe('density chart re-bin on view change', () => {
             <select id="scatter-x-col"><option value="HUFL" selected>HUFL</option></select>
             <select id="scatter-y-col"><option value="HULL" selected>HULL</option></select>
             <input id="scatter-bin-size" value="10">
-            <select id="scatter-colormap"><option value="viridis" selected>Viridis</option></select>
             <select id="scatter-normalization"><option value="linear" selected>Linear</option></select>
             <select id="scatter-render-mode">
                 <option value="scatter">Scatter</option>
@@ -409,7 +490,7 @@ describe('density chart re-bin on view change', () => {
                 <option value="histogram" selected>Histogram</option>
             </select>
             <select id="scatter-color-column"><option value="" selected>None</option></select>
-            <select id="scatter-color-scale"><option value="viridis" selected>Viridis</option></select>
+            <div id="scatter-color-scale-field"><select id="scatter-color-scale"><option value="viridis" selected>Viridis</option></select></div>
             <input id="scatter-matrix-mode" value="scatter">
             <input id="scatter-matrix-cell-size" value="160">
             <div id="scatter-chart"></div>

@@ -65,6 +65,18 @@ describe('frontend build contract', () => {
         expect(pkg).toMatch(/"check:frontend:all"\s*:\s*"npm run check:frontend && npm run check:frontend:arch && npm run check:frontend:budgets"/);
     });
 
+    it('uses Vite for the default dev workflow so CSS updates are served live', () => {
+        const makefile = readRepoFile('Makefile');
+        const pkg = readRepoFile('package.json');
+        const viteConfig = readRepoFile('frontend/vite.config.ts');
+
+        expect(pkg).toMatch(/"dev:full"\s*:\s*"node scripts\/dev\.mjs"/);
+        expect(makefile).toMatch(/dev:\n\t@if command -v node .* npm run dev:full/s);
+        expect(makefile).not.toMatch(/dev:[\s\S]{0,160}build-frontend\.mjs/);
+        expect(viteConfig).toContain('EDATIME_API_ORIGIN');
+        expect(viteConfig).toContain('EDATIME_PORT');
+    });
+
     it('updates the service worker and reloads on controllerchange in deployed builds', () => {
         const sourceHtml = readRepoFile('frontend/index.html');
         // registration.update() must be called after a successful register()

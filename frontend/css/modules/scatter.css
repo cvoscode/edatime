@@ -187,9 +187,9 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px 14px;
-  padding-top: 10px;
-  padding-bottom: 10px;
+  gap: 10px 12px;
+  padding-top: 8px;
+  padding-bottom: 8px;
   background:
     linear-gradient(180deg, rgba(12, 17, 28, 0.98), rgba(11, 16, 26, 0.94)),
     radial-gradient(circle at right center, rgba(32, 226, 215, 0.08), transparent 28%);
@@ -215,11 +215,49 @@
 }
 
 .scatter-stats-bar__suggestions {
-  flex: 1 1 440px;
-  padding: 10px 12px;
+  flex: 1 1 360px;
+  min-width: 0;
+  padding: 6px 10px;
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.025);
+  overflow: hidden;
+}
+
+/* Right-side correlation chips: live Pearson/Spearman readouts.
+   Mirrors the styling of __suggestions but stays compact and
+   right-aligned, so it acts as a quick "current correlation" glance
+   without crowding the suggestions bar. */
+.scatter-stats-bar__correlations {
+  display: flex;
+  align-items: center;
+  gap: 8px 10px;
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.scatter-stats-bar__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text-muted) 84%, white 16%);
+  white-space: nowrap;
+  padding-right: 8px;
+  border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.scatter-stats-bar__chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .scatter-stat-chip {
@@ -662,4 +700,10 @@
 .heatmap-cell:hover {
   opacity: 0.8;
   outline: 1px solid var(--accent);
+}
+
+/* Neutral spacer cells/rows inserted between clusters. */
+.heatmap-cluster-separator {
+  background: transparent;
+  pointer-events: none;
 }

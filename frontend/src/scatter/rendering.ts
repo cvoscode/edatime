@@ -3,6 +3,7 @@
  */
 
 import { formatTwoDecimals, formatTimestamp } from '../formatUtils.js';
+import { refreshScatterToolbarOverflow } from './toolbarOverflow.js';
 import {
     getEl,
     fmt,
@@ -17,6 +18,7 @@ import {
     buildKdeCurve,
     computeBoxStats,
     getCanvasFrame,
+    getDevicePixelRatio,
     lowerBoundByX,
     upperBoundByX,
 } from './helpers.js';
@@ -160,18 +162,18 @@ export function buildDensitySeries(points: [number, number][], controls: Scatter
 /* ── Tooltip factories ────────────────────────────────── */
 
 export function buildDensityTooltipCache(series: any[], controls: ScatterControls, container: HTMLElement | null): DensityTooltipCache | null {
-    const metrics = getPlotMetrics(container);
+    const metrics = getDensityTooltipMetrics(controls, container);
     if (!metrics) return null;
 
     const xSpan = appState.scatter.view.xMax - appState.scatter.view.xMin;
     const ySpan = appState.scatter.view.yMax - appState.scatter.view.yMin;
     if (!(xSpan > 0) || !(ySpan > 0)) return null;
 
-    const binSize = Math.max(1, Number(controls.binSize) || 10);
     const key = [
         appState.scatter.view.xMin, appState.scatter.view.xMax, appState.scatter.view.yMin, appState.scatter.view.yMax,
         metrics.plotWidth, metrics.plotHeight,
-        binSize, controls.selectedColorColumn || controls.colorColumn || '', controls.renderMode || '',
+        metrics.binSizePx, metrics.devicePixelRatio,
+        controls.selectedColorColumn || controls.colorColumn || '', controls.renderMode || '',
     ].join('|');
 
     if (appState.scatter.densityTooltipCache?.key === key) return appState.scatter.densityTooltipCache;
@@ -181,30 +183,26 @@ export function buildDensityTooltipCache(series: any[], controls: ScatterControl
 
     for (let si = 0; si < series.length; si++) {
         const s = series[si];
-        if (!s || !Array.isArray(s.data)) continue;
+        const points = s?.rawData ?? s?.data;
+        if (!s || !Array.isArray(points)) continue;
         const map = new Map<string, number>();
 
         if (Object.prototype.hasOwnProperty.call(s, '__edatimeColorCenter')) {
             metaBySeriesIndex.set(si, { colorCenter: s.__edatimeColorCenter, colorLo: s.__edatimeColorLo, colorHi: s.__edatimeColorHi });
         }
 
-        for (const p of s.data) {
+        for (const p of points) {
             const x = Number(p?.[0]);
             const y = Number(p?.[1]);
-            if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-            if (x < appState.scatter.view.xMin || x > appState.scatter.view.xMax || y < appState.scatter.view.yMin || y > appState.scatter.view.yMax) continue;
-            const nx = (x - appState.scatter.view.xMin) / xSpan;
-            const ny = (y - appState.scatter.view.yMin) / ySpan;
-            if (nx < 0 || nx > 1 || ny < 0 || ny > 1) continue;
-            const bx = Math.floor((nx * metrics.plotWidth) / binSize);
-            const by = Math.floor(((1 - ny) * metrics.plotHeight) / binSize);
-            const k = `${bx},${by}`;
+            const bucket = projectDensityPointToBin(x, y, metrics);
+            if (!bucket) continue;
+            const k = `${bucket.bx},${bucket.by}`;
             map.set(k, (map.get(k) || 0) + 1);
         }
         binsBySeriesIndex.set(si, map);
     }
 
-    appState.scatter.densityTooltipCache = { key, binSize, metrics, binsBySeriesIndex, metaBySeriesIndex };
+    appState.scatter.densityTooltipCache = { key, binSize: metrics.binSizeCss, metrics, binsBySeriesIndex, metaBySeriesIndex };
     return appState.scatter.densityTooltipCache;
 }
 
@@ -219,15 +217,9 @@ export function densityTooltipFormatterFactory(controls: ScatterControls, contai
         let density: number | null = null;
         const bins = cache?.binsBySeriesIndex?.get(seriesIndex);
         const m = cache?.metrics;
-        const xSpan = appState.scatter.view.xMax - appState.scatter.view.xMin;
-        const ySpan = appState.scatter.view.yMax - appState.scatter.view.yMin;
-        const binSize = cache?.binSize;
-        if (bins && m && Number.isFinite(x) && Number.isFinite(y) && (xSpan > 0) && (ySpan > 0) && Number.isFinite(binSize) && binSize! > 0) {
-            const nx = (x - appState.scatter.view.xMin) / xSpan;
-            const ny = (y - appState.scatter.view.yMin) / ySpan;
-            const bx = Math.floor((nx * m.plotWidth) / binSize!);
-            const by = Math.floor(((1 - ny) * m.plotHeight) / binSize!);
-            density = bins.get(`${bx},${by}`) ?? null;
+        if (bins && m && Number.isFinite(x) && Number.isFinite(y)) {
+            const bucket = projectDensityPointToBin(x, y, m);
+            if (bucket) density = bins.get(`${bucket.bx},${bucket.by}`) ?? null;
         }
         const parts: string[] = [];
         const xSpanLabel = Math.max(1, appState.scatter.view.xMax - appState.scatter.view.xMin);
@@ -242,6 +234,66 @@ export function densityTooltipFormatterFactory(controls: ScatterControls, contai
         parts.push(`<div><span style="opacity:0.85;">Density:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(density == null ? '—' : fmt.format(density))}</span></div>`);
         return parts.join('');
     };
+}
+
+function buildDensityMarginalCounts(axis: 'x' | 'y', cache: DensityTooltipCache | null, seriesIndex = 0): number[] | null {
+    const bins = cache?.binsBySeriesIndex?.get(seriesIndex);
+    const metrics = cache?.metrics;
+    if (!bins || !metrics) return null;
+
+    const binCount = axis === 'x' ? metrics.binCountX : metrics.binCountY;
+    const counts = Array.from({ length: binCount }, () => 0);
+
+    for (const [key, count] of bins.entries()) {
+        const [bxRaw, byRaw] = key.split(',');
+        const bx = Number(bxRaw);
+        const by = Number(byRaw);
+        const index = axis === 'x' ? bx : by;
+        if (!Number.isInteger(index) || index < 0 || index >= counts.length) continue;
+        counts[index] += Number(count) || 0;
+    }
+
+    return counts;
+}
+
+function drawDensityMarginalX(canvas: HTMLCanvasElement, counts: number[], binSize: number): void {
+    const frame = getCanvasFrame(canvas, 600, 64);
+    if (!frame) return;
+    const { ctx, width, height } = frame;
+    const { plotLeft, plotWidth: plotW } = getScatterMarginalXMetrics(width);
+    const maxCount = Math.max(1, ...counts);
+    const drawH = height - 4;
+    const palette = getChartPalette();
+    ctx.fillStyle = palette.marginalFill;
+
+    for (let i = 0; i < counts.length; i++) {
+        if (counts[i] === 0) continue;
+        const x = plotLeft + i * binSize;
+        if (x >= plotLeft + plotW) break;
+        const widthPx = Math.max(1, Math.min(binSize, plotLeft + plotW - x) - 1);
+        const barH = Math.max(2, (counts[i] / maxCount) * drawH);
+        ctx.fillRect(x, height - barH - 2, widthPx, barH);
+    }
+}
+
+function drawDensityMarginalY(canvas: HTMLCanvasElement, counts: number[], binSize: number): void {
+    const frame = getCanvasFrame(canvas, 40, 400);
+    if (!frame) return;
+    const { ctx, width, height } = frame;
+    const { plotTop, plotBottom, plotHeight: plotH } = getScatterMarginalYMetrics(height);
+    const maxCount = Math.max(1, ...counts);
+    const maxBarW = width - 4;
+    const palette = getChartPalette();
+    ctx.fillStyle = palette.marginalFill;
+
+    for (let i = 0; i < counts.length; i++) {
+        if (counts[i] === 0) continue;
+        const y = plotTop + i * binSize;
+        if (y >= plotBottom) break;
+        const heightPx = Math.max(1, Math.min(binSize, plotBottom - y) - 1);
+        const barW = Math.max(2, (counts[i] / maxCount) * maxBarW);
+        ctx.fillRect(0, y, barW, heightPx);
+    }
 }
 
 export function scatterTooltipFormatterFactory(controls: ScatterControls) {
@@ -517,12 +569,101 @@ export function updateMarginalPlots(): void {
     }
     if (marginalY) marginalY.hidden = false;
 
-    const xValues = appState.scatter.points.map((p) => Number(p[0])).filter((v) => Number.isFinite(v));
-    const yValues = appState.scatter.points.map((p) => Number(p[1])).filter((v) => Number.isFinite(v));
+    const view = appState.scatter.view;
+    const visiblePoints = appState.scatter.points.filter((p) => {
+        const x = Number(p?.[0]);
+        const y = Number(p?.[1]);
+        return Number.isFinite(x) && Number.isFinite(y)
+            && x >= view.xMin && x <= view.xMax
+            && y >= view.yMin && y <= view.yMax;
+    });
+    const xValues = visiblePoints.map((p) => Number(p[0]));
+    const yValues = visiblePoints.map((p) => Number(p[1]));
     const mode = ctl.diagonalMode || 'histogram';
 
-    if (marginalX) requestAnimationFrame(() => drawMarginalX(marginalX, xValues, appState.scatter.view.xMin, appState.scatter.view.xMax, mode));
-    if (marginalY) requestAnimationFrame(() => drawMarginalY(marginalY, yValues, appState.scatter.view.yMin, appState.scatter.view.yMax, mode));
+    if (ctl.renderMode === 'density' && mode === 'histogram') {
+        const chartEl = getEl('scatter-chart');
+        const densitySeries = appState.scatter.lastOptionSeries || buildDensitySeries(appState.scatter.points, ctl);
+        const cache = appState.scatter.densityTooltipCache || buildDensityTooltipCache(densitySeries, ctl, chartEl);
+        const xCounts = buildDensityMarginalCounts('x', cache);
+        const yCounts = buildDensityMarginalCounts('y', cache);
+        const binSize = Number(cache?.metrics?.binSizeCss ?? cache?.binSize);
+        if (marginalX && xCounts && Number.isFinite(binSize) && binSize > 0) {
+            requestAnimationFrame(() => drawDensityMarginalX(marginalX, xCounts, binSize));
+        }
+        if (marginalY && yCounts && Number.isFinite(binSize) && binSize > 0) {
+            requestAnimationFrame(() => drawDensityMarginalY(marginalY, yCounts, binSize));
+        }
+        return;
+    }
+
+    if (marginalX) requestAnimationFrame(() => drawMarginalX(marginalX, xValues, view.xMin, view.xMax, mode));
+    if (marginalY) requestAnimationFrame(() => drawMarginalY(marginalY, yValues, view.yMin, view.yMax, mode));
+}
+
+function getDensityTooltipMetrics(controls: ScatterControls, container: HTMLElement | null): DensityTooltipCache['metrics'] {
+    const metrics = getPlotMetrics(container);
+    const rect = container?.getBoundingClientRect?.();
+    if (!metrics || !rect) return null;
+
+    const widthCss = Math.max(1, rect.width);
+    const heightCss = Math.max(1, rect.height);
+    const dpr = getDevicePixelRatio();
+    const canvasWidth = Math.max(1, Math.round(widthCss * dpr));
+    const canvasHeight = Math.max(1, Math.round(heightCss * dpr));
+    const exactLeftPx = SCATTER_PLOT_GRID.left * dpr;
+    const exactRightPx = canvasWidth - SCATTER_PLOT_GRID.right * dpr;
+    const exactTopPx = SCATTER_PLOT_GRID.top * dpr;
+    const exactBottomPx = canvasHeight - SCATTER_PLOT_GRID.bottom * dpr;
+    const plotLeftPx = Math.min(canvasWidth, Math.max(0, Math.floor(exactLeftPx)));
+    const plotTopPx = Math.min(canvasHeight, Math.max(0, Math.floor(exactTopPx)));
+    const plotRightPx = Math.min(canvasWidth, Math.max(0, Math.ceil(exactRightPx)));
+    const plotBottomPx = Math.min(canvasHeight, Math.max(0, Math.ceil(exactBottomPx)));
+    const plotWidthPx = Math.max(1, plotRightPx - plotLeftPx);
+    const plotHeightPx = Math.max(1, plotBottomPx - plotTopPx);
+    const binSizePx = Math.max(1, Math.round((Number(controls.binSize) || 10) * dpr));
+
+    return {
+        plotWidth: metrics.plotWidth,
+        plotHeight: metrics.plotHeight,
+        devicePixelRatio: dpr,
+        plotLeftPx,
+        plotTopPx,
+        plotRightPx,
+        plotBottomPx,
+        exactLeftPx,
+        exactTopPx,
+        exactRightPx,
+        exactBottomPx,
+        binSizePx,
+        binSizeCss: binSizePx / dpr,
+        binCountX: Math.max(1, Math.ceil(plotWidthPx / binSizePx)),
+        binCountY: Math.max(1, Math.ceil(plotHeightPx / binSizePx)),
+    };
+}
+
+function projectDensityPointToBin(
+    x: number,
+    y: number,
+    metrics: NonNullable<DensityTooltipCache['metrics']>,
+): { bx: number; by: number } | null {
+    const view = appState.scatter.view;
+    const xSpan = view.xMax - view.xMin;
+    const ySpan = view.yMax - view.yMin;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !(xSpan > 0) || !(ySpan > 0)) return null;
+
+    const nx = (x - view.xMin) / xSpan;
+    const ny = (y - view.yMin) / ySpan;
+    if (!Number.isFinite(nx) || !Number.isFinite(ny)) return null;
+
+    const px = metrics.exactLeftPx + nx * (metrics.exactRightPx - metrics.exactLeftPx);
+    const py = metrics.exactBottomPx - ny * (metrics.exactBottomPx - metrics.exactTopPx);
+    if (px < metrics.plotLeftPx || px >= metrics.plotRightPx || py < metrics.plotTopPx || py >= metrics.plotBottomPx) return null;
+
+    const bx = Math.floor((px - metrics.plotLeftPx) / metrics.binSizePx);
+    const by = Math.floor((py - metrics.plotTopPx) / metrics.binSizePx);
+    if (bx < 0 || bx >= metrics.binCountX || by < 0 || by >= metrics.binCountY) return null;
+    return { bx, by };
 }
 
 /* ── Option builder ───────────────────────────────────── */
@@ -751,14 +892,24 @@ export function syncModeUI(): void {
     toggle(getEl('scatter-analytics-group'), !isMatrix);
     toggle(getEl('scatter-mode-label'), isPlot);
     toggle(getEl('scatter-render-mode'), isPlot);
+    // The Refine segment hosts the density sub-group (Bins + Scale
+    // Linear/Log) inline. Show it only in density mode and hide it
+    // for scatter/matrix views to avoid leaving orphan labels.
     toggle(getEl('scatter-density-controls'), isDensity);
-    toggle(getEl('scatter-color-controls'), true);
-    toggle(getEl('scatter-color-scale'), isPlot && !isDensity);
+    // The color scale only applies in scatter render mode (density
+    // mode has no color-by-column), so the whole field is toggled
+    // together to avoid leaving an orphan "Scale" label visible.
+    toggle(getEl('scatter-color-scale-field'), isPlot && !isDensity);
     toggle(document.querySelector('.scatter-export-group'), isPlot);
     toggle(document.querySelector('.scatter-stats-bar'), isPlot);
     toggle(document.querySelector('.scatter-suggestions-bar'), !isMatrix);
-    toggle(document.querySelector('.scatter-suggestions-bar'), !isMatrix);
+    toggle(document.querySelector('.scatter-stats-bar__correlations'), !isMatrix);
     updateColorbarUI();
+    // Sync mode flips the density sub-group and color-scale field
+    // visibility, which changes which fields wrap inside the Refine
+    // segment. Ask the overflow logic to rebalance so the popout
+    // stays in sync with the new field set.
+    try { refreshScatterToolbarOverflow(); } catch { /* noop */ }
 }
 
 /* ── Re-export from scatter/export.ts ─────────────────── */

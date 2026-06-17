@@ -342,9 +342,21 @@ export interface DensityTooltipCache {
     key: string;
     binSize: number;
     metrics: {
-        width: number; height: number; grid: { left: number; right: number; top: number; bottom: number };
-        plotLeft: number; plotRight: number; plotTop: number; plotBottom: number;
-        plotWidth: number; plotHeight: number;
+        plotWidth: number;
+        plotHeight: number;
+        devicePixelRatio: number;
+        plotLeftPx: number;
+        plotTopPx: number;
+        plotRightPx: number;
+        plotBottomPx: number;
+        exactLeftPx: number;
+        exactTopPx: number;
+        exactRightPx: number;
+        exactBottomPx: number;
+        binSizePx: number;
+        binSizeCss: number;
+        binCountX: number;
+        binCountY: number;
     };
     binsBySeriesIndex: Map<number, Map<string, number>>;
     metaBySeriesIndex: Map<number, DensityTooltipMeta>;
@@ -381,6 +393,7 @@ export interface ScatterState {
     columnTypes: Map<string, string>;
     lastSuggestions: Array<{ x: string; y: string; correlation: number }>;
     lastRenderSignature: string;
+    lastQueryContextKey: string;
     matrixCache: Map<string, Promise<MatrixCellData>>;
     matrixColumnOrder: string[];
     overviewRequestId: number;

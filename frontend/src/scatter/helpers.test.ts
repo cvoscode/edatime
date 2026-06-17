@@ -17,6 +17,7 @@ import {
     HISTOGRAM_BINS,
     LOW_CARDINALITY_LIMIT,
     normalizeScatterSuggestionThreshold,
+    buildHistogramForDomain,
 } from './helpers';
 
 describe('scatter constants', () => {
@@ -141,5 +142,18 @@ describe('normalizeScatterSuggestionThreshold', () => {
 
     it('rounds to 0.05 increments for UI consistency', () => {
         expect(normalizeScatterSuggestionThreshold(0.73)).toBe(0.75);
+    });
+});
+
+describe('buildHistogramForDomain', () => {
+    it('ignores values outside the requested domain instead of clamping them into edge bins', () => {
+        const histogram = buildHistogramForDomain(
+            [-100, -50, 1, 2, 8, 9, 50, 100],
+            0,
+            10,
+            5,
+        );
+
+        expect(histogram?.counts).toEqual([1, 1, 0, 0, 2]);
     });
 });

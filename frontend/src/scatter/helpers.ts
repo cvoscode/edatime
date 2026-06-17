@@ -291,6 +291,7 @@ export function buildHistogramForDomain(values: number[], min: number, max: numb
     const span = max - min;
     const edges = Array.from({ length: binCount + 1 }, (_, i) => min + (span * i) / binCount);
     for (const v of finite) {
+        if (v < min || v > max) continue;
         let bucket = Math.floor(((v - min) / span) * binCount);
         if (bucket < 0) bucket = 0;
         if (bucket >= binCount) bucket = binCount - 1;

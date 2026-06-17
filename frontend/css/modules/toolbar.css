@@ -20,17 +20,30 @@
   overflow-y: visible;
 }
 
-/* Scatter disclosure menus are absolutely positioned and must not be clipped
-   by the toolbar's horizontal scrolling container. */
+/* The scatter toolbar is a single horizontal flex row of segment cards.
+   Each segment is self-sized and the row wraps onto multiple lines
+   when the viewport is too narrow for everything to fit. This is far
+   simpler and more robust than the previous CSS grid, which produced
+   zero-width columns and stretched segment boxes that overlapped.
+
+   • View      — Plot/Matrix toggle + zoom controls
+   • Axes      — X / Y column selects
+   • Display   — Mode / Distribution / Selection
+   • Refine    — Color, Bins/Colormap/Scale, Export
+
+   Disclosure menus (Color, Export) are absolutely positioned and need
+   overflow:visible + a higher z-index to paint above the chart. */
 .scatter-toolbar {
   position: relative;
+  z-index: 20;
   overflow: visible;
   height: auto;
-  min-height: 66px;
-  align-items: flex-start;
-  gap: 12px;
-  padding-top: 12px;
-  padding-bottom: 12px;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 16px 10px;
   background:
     radial-gradient(circle at top left, rgba(0, 168, 255, 0.09), transparent 24%),
     linear-gradient(180deg, rgba(17, 24, 38, 0.98), rgba(13, 18, 30, 0.96));
@@ -215,6 +228,7 @@
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
+  z-index: 50;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -240,6 +254,96 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   min-width: min(560px, calc(100vw - 48px));
+}
+
+/* Segments that contain open disclosure menus must allow the menu to
+   escape the segment box; without this, the menu gets clipped at the
+   bottom of the segment border. */
+.scatter-toolbar__segment {
+  overflow: visible;
+}
+
+/* ─── Per-segment overflow popout ─────────────────────────────── */
+/*
+   When a scatter toolbar segment is too narrow to fit all of its
+   fields on a single row, the JS moves the overflowing fields
+   into the segment's overflow popout and toggles
+   `data-overflow="true"` on the segment. The popout is hidden
+   (and takes no space) when the segment fits everything inline.
+
+   The popout summary is a small "⋯" button anchored to the right
+   edge of the segment body. Clicking it reveals the moved fields
+   in a popout that mirrors the toolbar-disclosure visual style.
+*/
+.scatter-toolbar__overflow {
+  position: relative;
+  display: none;
+  flex: 0 0 auto;
+  align-self: stretch;
+}
+
+.scatter-toolbar__segment[data-overflow="true"] .scatter-toolbar__overflow {
+  display: inline-flex;
+}
+
+.scatter-toolbar__overflow-btn {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+
+.scatter-toolbar__overflow-btn::-webkit-details-marker {
+  display: none;
+}
+
+.scatter-toolbar__overflow-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.scatter-toolbar__overflow[open] {
+  z-index: 30;
+}
+
+.scatter-toolbar__overflow-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--shell-surface-elevated);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.35);
+}
+
+/* The popout hosts full field components (label + control) so the
+   moved fields look identical to their inline counterparts. */
+.scatter-toolbar__overflow-menu > .scatter-toolbar__field {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.scatter-toolbar__overflow-menu .scatter-toolbar__field--range {
+  flex-basis: auto;
 }
 
 .toolbar-group--sep {
@@ -363,83 +467,123 @@
   justify-content: center;
 }
 
-.scatter-toolbar__cluster {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  flex: 1 1 auto;
-  min-width: 0;
-  flex-wrap: wrap;
+/* Each segment is a self-contained card with a small eyebrow label
+   on the left and a content body on the right. The content body
+   uses a flex layout that wraps when the segment is narrow.
+
+   The segment height is uniform across all segments (--scatter-tb-h)
+   so neighbouring segments align nicely without large empty boxes. */
+:root {
+  --scatter-tb-h: 44px;
 }
 
 .scatter-toolbar__segment {
-  display: grid;
-  align-content: start;
+  display: flex;
+  align-items: stretch;
   gap: 10px;
   min-width: 0;
-  padding: 12px 14px;
+  min-height: var(--scatter-tb-h);
+  padding: 6px 10px 6px 8px;
   border: 1px solid color-mix(in srgb, var(--border) 78%, rgba(255, 255, 255, 0.08));
-  border-radius: 16px;
+  border-radius: 12px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02)),
     rgba(9, 14, 24, 0.76);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 10px 24px rgba(0, 0, 0, 0.22);
+    0 6px 18px rgba(0, 0, 0, 0.18);
 }
 
-.scatter-toolbar__segment--view {
-  flex: 0 1 auto;
-}
-
-.scatter-toolbar__segment--axes,
-.scatter-toolbar__segment--display {
-  flex: 1 1 280px;
-}
-
-.scatter-toolbar__segment--actions {
-  flex: 1 1 420px;
-  margin-left: auto;
-}
-
+/* Eyebrow is a small label on the left of the segment, separated
+   from the content by a thin vertical divider. The widest label
+   ("DISPLAY", 7 chars) needs about 56px at this font size. */
 .scatter-toolbar__eyebrow {
-  font-size: 0.66rem;
+  display: flex;
+  align-items: center;
+  font-size: 0.62rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--text-muted) 84%, white 16%);
   white-space: nowrap;
+  flex: 0 0 auto;
+  width: 56px;
+  padding-right: 10px;
+  border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 
-.scatter-toolbar__controls,
-.scatter-toolbar__controls--actions,
-.scatter-toolbar__fields {
-  display: flex;
-  align-items: end;
-  gap: 10px 12px;
+/* The content body is everything to the right of the eyebrow. It
+   uses a flex layout that wraps to additional lines as needed. */
+.scatter-toolbar__segment>.scatter-toolbar__controls,
+.scatter-toolbar__segment>.scatter-toolbar__fields {
+  flex: 1 1 auto;
   min-width: 0;
-  flex-wrap: wrap;
-}
-
-.scatter-toolbar__controls {
+  display: flex;
   align-items: center;
+  gap: 8px 10px;
+  flex-wrap: wrap;
+  align-content: center;
 }
 
-.scatter-toolbar__controls--actions {
-  width: 100%;
+/* The cluster wrapper exists in the HTML to give the JS a single
+   element to toggle (hide/show in matrix view). `display: contents`
+   makes the wrapper transparent to the flex layout — its child
+   segments participate in the parent toolbar's flex row directly. */
+.scatter-toolbar__cluster {
+  display: contents;
+}
+
+/* Per-segment sizing. The flex-basis values are ideal widths; the
+   segments are allowed to grow and shrink so they share the row
+   nicely. flex-wrap on the parent toolbar handles overflow.
+
+   Layout (left → right):
+     View     — Plot/Matrix toggle, X axis, Y axis, zoom cluster
+     Display  — Mode, Distribution, Link toggle
+     Refine   — Color column, Color scale, density sub-group (Bins, Scale)
+     [push]   — Export disclosure
+
+   The cluster wrapper (.scatter-toolbar__cluster) uses
+   `display: contents` so its child segments participate in the
+   parent toolbar's flex row directly, while still giving JS a
+   single element to toggle in matrix view. */
+.scatter-toolbar__segment--view {
+  flex: 1 1 320px;
+}
+
+.scatter-toolbar__segment--display {
+  flex: 1 1 320px;
+}
+
+.scatter-toolbar__segment--refine {
+  flex: 1 1 360px;
+}
+
+.scatter-toolbar__segment--actions {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  row-gap: 6px;
+  min-width: 0;
 }
 
 .scatter-toolbar__field {
-  flex: 1 1 132px;
+  flex: 1 1 110px;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .scatter-toolbar__field--toggle {
-  min-width: 160px;
+  min-width: 0;
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
 }
 
 .scatter-toolbar__field--range {
-  flex-basis: 172px;
+  flex-basis: 160px;
 }
 
 .scatter-toolbar__field .toolbar-field__control {
@@ -455,23 +599,38 @@
   width: 100%;
 }
 
+/* Density sub-controls (Bins, Scale) live inside the Refine segment
+   next to the color column / color scale selects. They are only shown
+   in density mode (toggled by syncModeUI) and the row is allowed to
+   wrap when the segment is narrow. */
 .scatter-toolbar__density {
   display: flex;
-  align-items: end;
-  gap: 10px 12px;
+  align-items: center;
+  gap: 6px 8px;
   min-width: 0;
   flex: 1 1 320px;
   flex-wrap: wrap;
 }
 
 .scatter-toolbar .toolbar-disclosure {
-  align-self: end;
+  align-self: center;
+  position: relative;
+  z-index: 25;
+}
+
+.scatter-toolbar .toolbar-disclosure[open] {
+  /* When the disclosure menu is open, raise its z-index so the menu
+     paints above sibling fields (Bins/Colormap/Scale) that would
+     otherwise overlap it visually. The toolbar already uses z-index: 20
+     and overflow: visible, so this is the last layer on top. */
+  z-index: 35;
+  isolation: isolate;
 }
 
 .scatter-toolbar .toolbar-disclosure__summary {
-  min-height: 32px;
+  min-height: 30px;
   padding: 0 12px;
-  border-radius: 12px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.035);
 }
 

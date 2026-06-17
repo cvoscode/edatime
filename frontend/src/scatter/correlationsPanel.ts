@@ -15,11 +15,44 @@ import { ensureOptions } from './state.js';
 import { updateCorrelationStats, updateColorbarUI } from './rendering.js';
 
 /**
+ * Callback invoked when a correlation pill is clicked. The scatter page
+ * supplies a closure that updates the X/Y dropdowns, re-fetches the
+ * correlation list for the new X, and re-renders the scatter points. The
+ * callback is only invoked when the clicked pair differs from the current
+ * X/Y selection, so re-clicking the active pill is a no-op.
+ */
+export type SuggestionApplyHandler = (x: string, y: string) => void | Promise<void>;
+
+/**
+ * Module-scoped handler that the scatter page registers on init. We hold
+ * the most recently supplied callback so `renderSuggestions` can re-attach
+ * it to freshly built buttons after a refresh, and `refreshCorrelationsAnd
+ * Suggestions` can pass it through automatically.
+ */
+let activeApplyHandler: SuggestionApplyHandler | null = null;
+
+/**
+ * Register the apply handler for correlation pills. The scatter page calls
+ * this once during init so subsequent `renderSuggestions` invocations (from
+ * threshold changes, page re-entry, etc.) keep the click → re-render
+ * wiring intact without forcing every caller to pass the handler.
+ */
+export function setSuggestionApplyHandler(handler: SuggestionApplyHandler | null): void {
+    activeApplyHandler = handler;
+}
+
+/**
  * Renders the list of correlation suggestion buttons in the scatter panel.
  *
  * Each suggestion entry has the shape `{ x, y, correlation }` (see
  * `CorrelationSuggestion` in `types.ts`). Buttons pair a base column with a
  * suggested partner and let the user apply the pair to the X/Y dropdowns.
+ *
+ * The handler registered via `setSuggestionApplyHandler` is fired after a
+ * pill is clicked and the dropdowns have been updated. The scatter page
+ * uses it to re-fetch the correlation list for the new X and re-render the
+ * scatter points so the chart reflects the chosen pair without requiring
+ * the user to manually tweak the X or Y selects afterwards.
  */
 export function renderSuggestions(
     suggestions: Array<{ x: string; y: string; correlation: number }>
@@ -59,6 +92,12 @@ export function renderSuggestions(
             setDropdownValue('scatter-y-col', y);
             updateCorrelationStats();
             renderSuggestions(appState.scatter.lastSuggestions);
+            const handler = activeApplyHandler;
+            if (handler) {
+                void Promise.resolve(handler(x, y)).catch((err) => {
+                    console.error('scatter: suggestion apply handler failed', err);
+                });
+            }
         });
         box.appendChild(btn);
     }

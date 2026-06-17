@@ -25,7 +25,23 @@ export interface DensityTooltipMeta {
 export interface DensityTooltipCache {
     key: string;
     binSize: number;
-    metrics: { plotWidth: number; plotHeight: number } | null;
+    metrics: {
+        plotWidth: number;
+        plotHeight: number;
+        devicePixelRatio: number;
+        plotLeftPx: number;
+        plotTopPx: number;
+        plotRightPx: number;
+        plotBottomPx: number;
+        exactLeftPx: number;
+        exactTopPx: number;
+        exactRightPx: number;
+        exactBottomPx: number;
+        binSizePx: number;
+        binSizeCss: number;
+        binCountX: number;
+        binCountY: number;
+    } | null;
     binsBySeriesIndex: Map<number, Map<string, number>>;
     metaBySeriesIndex: Map<number, DensityTooltipMeta>;
 }
@@ -73,6 +89,7 @@ export interface ScatterState {
     columnTypes: Map<string, string>;
     lastSuggestions: Array<{ x: string; y: string; correlation: number }>;
     lastRenderSignature: string;
+    lastQueryContextKey: string;
     matrixCache: Map<string, Promise<MatrixCellData>>;
     matrixColumnOrder: string[];
     overviewRequestId: number;
@@ -110,6 +127,7 @@ export const scatterState: ScatterState = {
     columnTypes: new Map(),
     lastSuggestions: [],
     lastRenderSignature: '',
+    lastQueryContextKey: '',
     matrixCache: new Map(),
     matrixColumnOrder: [],
     overviewRequestId: 0,

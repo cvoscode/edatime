@@ -8,6 +8,23 @@
 cargo run --bin edatime
 ```
 
+### Live Frontend Development
+
+```bash
+make dev
+```
+
+This starts the Rust API on port `3000` and the Vite frontend on port `5173`.
+Open <http://127.0.0.1:5173> while editing frontend CSS or TypeScript so Vite
+serves source assets directly and applies CSS/HMR updates without rebuilding
+`crates/edatime-bin/frontend/dist/`.
+
+To test the packaged frontend bundle that the Rust server serves directly, use:
+
+```bash
+make dev-dist
+```
+
 ### Validate Backend And Frontend
 
 ```bash
@@ -55,6 +72,9 @@ Rebuild `crates/edatime-bin/frontend/dist/` with `npm run build:frontend` whenev
 - bundle entry wiring
 - runtime import paths
 - generated app behavior that the browser consumes directly
+
+During normal local UI iteration, prefer `make dev` and the Vite URL instead of
+rebuilding the bundle after every CSS or TypeScript edit.
 
 ## Suggested Change Checklist
 

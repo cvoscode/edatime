@@ -1,4 +1,4 @@
-.PHONY: build build-release run dev check test docs docs-clean clean docker
+.PHONY: build build-release run dev dev-dist check test docs docs-clean clean docker
 
 # Default target
 build:
@@ -10,8 +10,12 @@ build-release:
 run:
 	cargo run --release -p edatime-bin
 
-# Development: wipe packaged dist, rebuild frontend, then run in debug mode
+# Development: run Rust API + Vite frontend so CSS/JS update live.
 dev:
+	@if command -v node >/dev/null 2>&1; then npm run dev:full; else echo "Node.js is required for live frontend development."; exit 1; fi
+
+# Development against the packaged dist output.
+dev-dist:
 	rm -rf crates/edatime-bin/frontend/dist
 	@if command -v node >/dev/null 2>&1; then node scripts/build-frontend.mjs; fi
 	EDATIME_FRONTEND_DIR=$(PWD)/crates/edatime-bin/frontend/dist cargo run -p edatime-bin

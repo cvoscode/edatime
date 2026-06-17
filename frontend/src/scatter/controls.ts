@@ -2,12 +2,16 @@
  * Scatter control wiring — all event listeners bound to scatter page controls.
  *
  * Responsibilities:
- * - X/Y column selects, bin size, colormap, normalization, render mode
+ * - X/Y column selects, bin size, normalization, render mode
  * - Density/scatter toggle, diagonal mode, color column/scale
  * - Suggestion threshold, linked brush
  * - Matrix mode toggle and cell size
  * - Export buttons
  * - Page-change and filter event listeners
+ *
+ * The density colormap is no longer a per-page toolbar control — it is
+ * configured globally on the settings page and consumed via the
+ * shared `COLOR_SCALES` helper in `utils/settings.ts`.
  *
  * This module does NOT import from scatterPage.ts to avoid circular deps.
  * All scatter rendering functions are passed as callbacks.
@@ -15,9 +19,10 @@
 import { appState } from '../store/index.js';
 import type { DatasetMetadata } from '../types.js';
 import { getEl, normalizeScatterSuggestionThreshold } from './helpers.js';
-import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 import {
     currentControls,
+    buildScatterQueryContext,
+    buildOverviewContextKey,
     isLinkedBrushEnabled,
     normalizeAnalyticsView,
 } from './state.js';
@@ -49,13 +54,15 @@ export interface ScatterRenderCallbacks {
     syncScatterFilterBadge: () => void;
 }
 
+let zoomBadgeInterval: number | null = null;
+let refreshLatestZoomBadge = () => { };
+
 /** Bind all scatter control event listeners. Call once after DOM is ready. */
 export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     const xSelect = getEl('scatter-x-col') as HTMLElement | null;
     const ySelect = getEl('scatter-y-col') as HTMLElement | null;
     const binSizeInput = getEl('scatter-bin-size') as HTMLInputElement | null;
     const binSizeValue = getEl('scatter-bin-size-value');
-    const colormapSelect = getEl('scatter-colormap') as HTMLElement | null;
     const normalizationSelect = getEl('scatter-normalization') as HTMLElement | null;
     const renderModeSelect = getEl('scatter-render-mode') as HTMLElement | null;
     const diagonalModeSelect = getEl('scatter-diagonal-mode') as HTMLElement | null;
@@ -65,9 +72,8 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     const suggestionThresholdInput = getEl('scatter-suggestion-threshold') as HTMLInputElement | null;
     const suggestionThresholdValue = getEl('scatter-suggestion-threshold-value');
     const suggestionThresholdLabel = getEl('scatter-suggestions-label');
-    const openCausalBtn = getEl('scatter-open-causal-btn') as HTMLButtonElement | null;
 
-    if (!xSelect || !ySelect || !binSizeInput || !binSizeValue || !colormapSelect || !normalizationSelect || !renderModeSelect) return;
+    if (!xSelect || !ySelect || !binSizeInput || !binSizeValue || !normalizationSelect || !renderModeSelect) return;
 
     (window as any).__edatime = (window as any).__edatime || {};
     (window as any).__edatime.exportScatterData = exportScatterData;
@@ -100,7 +106,6 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     };
 
     binSizeInput.addEventListener('input', () => { binSizeValue!.textContent = binSizeInput.value; rerender(); });
-    colormapSelect.addEventListener('change', rerender);
     normalizationSelect.addEventListener('change', rerender);
     renderModeSelect.addEventListener('change', () => { syncModeUI(); rerender(); });
     diagonalModeSelect?.addEventListener('change', () => {
@@ -129,15 +134,6 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     });
     linkBrushInput?.addEventListener('change', async () => {
         try { await cb.renderScatter(); } catch (err: any) { cb.handleErr(err); }
-    });
-    openCausalBtn?.addEventListener('click', () => {
-        const xCol = getDropdownValue('scatter-x-col');
-        const yCol = getDropdownValue('scatter-y-col');
-        if (!xCol || !yCol) return;
-        window.dispatchEvent(new CustomEvent('edatime:causal-preselect', {
-            detail: { columns: [xCol, yCol] },
-        }));
-        document.querySelector<HTMLElement>('.sidebar .nav-item[data-page="causal"]')?.click?.();
     });
 
     // Matrix mode toggle buttons (replaces <select>)
@@ -225,10 +221,13 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
         updateZoomBadge();
     };
     refreshBadge();
+    refreshLatestZoomBadge = refreshBadge;
     // Defer hooking into the scatter store event to keep this module
     // dependency-light. A periodic check at 4Hz is cheap and keeps the
     // badge in sync with selection-zoom, double-click, and the new buttons.
-    window.setInterval(refreshBadge, 250);
+    if (!zoomBadgeInterval) {
+        zoomBadgeInterval = window.setInterval(() => refreshLatestZoomBadge(), 250);
+    }
 
     ySelect.addEventListener('change', async () => { updateCorrelationStats(); await cb.renderScatter(); });
     xSelect.addEventListener('change', async () => { await cb.refreshCorrelationsAndSuggestions(); await cb.renderScatter(); });
@@ -261,7 +260,22 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
             await cb.initScatterPage(appState.metadata as DatasetMetadata);
         }
 
-        appState.scatter.activeView = normalizeAnalyticsView(ev?.detail?.analyticsView);
+        const nextView = normalizeAnalyticsView(ev?.detail?.analyticsView);
+        const ctl = currentControls();
+        const queryContextKey = buildOverviewContextKey(buildScatterQueryContext({
+            x: ctl.x,
+            y: ctl.y,
+            colorColumn: ctl.selectedColorColumn || undefined,
+        }));
+        if (
+            appState.scatter.pageInitialized
+            && appState.scatter.activeView === nextView
+            && appState.scatter.lastQueryContextKey === queryContextKey
+        ) {
+            return;
+        }
+
+        appState.scatter.activeView = nextView;
         await cb.setScatterView(appState.scatter.activeView, { render: false });
         if (!appState.scatter.pageInitialized) {
             cb.refreshCorrelationsAndSuggestions()
@@ -277,6 +291,5 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
                 }
             } catch (err: any) { cb.handleErr(err); }
         }
-        void cb.refreshActiveScatterView();
     });
 }

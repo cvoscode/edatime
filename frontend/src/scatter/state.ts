@@ -66,7 +66,12 @@ export function currentControls(): ScatterControls {
         x: getDropdownValue('scatter-x-col') || '',
         y: getDropdownValue('scatter-y-col') || '',
         binSize: Number(binSizeInput?.value ?? 10),
-        colormap: getDropdownValue('scatter-colormap') || 'viridis',
+        // Density colormap is no longer a per-page toolbar control;
+        // it is configured globally on the settings page. The default
+        // below MUST stay aligned with `COLOR_SCALES` in
+        // `utils/settings.ts` so density mode and the color-by-column
+        // scale start in sync.
+        colormap: 'viridis',
         normalization: getDropdownValue('scatter-normalization') || 'linear',
         renderMode,
         diagonalMode: getDropdownValue('scatter-diagonal-mode') || 'histogram',
