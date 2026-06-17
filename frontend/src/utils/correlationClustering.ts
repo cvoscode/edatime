@@ -2,11 +2,11 @@
  * Client-side clustering of correlation matrix columns.
  *
  * Reorders columns so highly correlated metrics sit next to each other.
- * Uses agglomerative single-linkage over `1 - |r|` distance and stops
- * merging when no remaining pair has `|r| >= threshold`.
+ * Uses agglomerative average-linkage over `1 - |r|` distance, then cuts
+ * the resulting hierarchy at the requested threshold to report clusters.
  *
- * The function is pure and deterministic: ties are broken by the
- * lexicographic order of column names, then by cluster id.
+ * The function is pure and deterministic: ties are broken by input order,
+ * then by cluster id.
  */
 
 export interface Cluster {
@@ -34,7 +34,9 @@ export interface ClusterResult {
 interface InternalCluster {
     id: number;
     members: string[];
-    active: boolean;
+    height: number;
+    left: InternalCluster | null;
+    right: InternalCluster | null;
 }
 
 function distanceFromCorrelation(value: number | null | undefined): number {
@@ -43,13 +45,14 @@ function distanceFromCorrelation(value: number | null | undefined): number {
     return 1 - Math.min(1, Math.abs(value));
 }
 
-function singleLinkageDistance(
+function averageLinkageDistance(
     a: InternalCluster,
     b: InternalCluster,
     originalIndex: Map<string, number>,
     matrix: (number | null)[][],
 ): number {
-    let best = 1;
+    let sum = 0;
+    let count = 0;
     for (const ma of a.members) {
         const ia = originalIndex.get(ma);
         if (ia === undefined) continue;
@@ -57,10 +60,20 @@ function singleLinkageDistance(
             const ib = originalIndex.get(mb);
             if (ib === undefined) continue;
             const d = distanceFromCorrelation(matrix[ia]?.[ib]);
-            if (d < best) best = d;
+            sum += d;
+            count += 1;
         }
     }
-    return best;
+    return count > 0 ? sum / count : 1;
+}
+
+function firstOriginalIndex(cluster: InternalCluster, originalIndex: Map<string, number>): number {
+    let first = Number.POSITIVE_INFINITY;
+    for (const member of cluster.members) {
+        const index = originalIndex.get(member);
+        if (index !== undefined && index < first) first = index;
+    }
+    return first;
 }
 
 export function clusterColumns(
@@ -94,111 +107,92 @@ export function clusterColumns(
     const clampedThreshold = Math.max(0, Math.min(1, threshold));
     const stopDistance = 1 - clampedThreshold;
 
-    const clusters: InternalCluster[] = columns.map((name, i) => ({
+    const initialClusters: InternalCluster[] = columns.map((name, i) => ({
         id: i,
         members: [name],
-        active: true,
+        height: 0,
+        left: null,
+        right: null,
     }));
+    let active: InternalCluster[] = [...initialClusters];
     let nextClusterId = n;
 
-    function activeIds(): number[] {
-        const ids: number[] = [];
-        for (const c of clusters) {
-            if (c.active) ids.push(c.id);
-        }
-        // Sort by first member name (lex), then by cluster id, for stable
-        // tie-breaking in the search loop below.
-        ids.sort((aId, bId) => {
-            const a = clusters[aId]!;
-            const b = clusters[bId]!;
-            const aName = a.members[0]!;
-            const bName = b.members[0]!;
-            if (aName < bName) return -1;
-            if (aName > bName) return 1;
-            return aId - bId;
+    function sortActive(): void {
+        active.sort((a, b) => {
+            const aFirst = firstOriginalIndex(a, originalIndex);
+            const bFirst = firstOriginalIndex(b, originalIndex);
+            if (aFirst !== bFirst) return aFirst - bFirst;
+            return a.id - b.id;
         });
-        return ids;
     }
 
-    function findBestPair(): { aId: number; bId: number; dist: number } | null {
-        const ids = activeIds();
-        let best: { aId: number; bId: number; dist: number } | null = null;
-        for (let i = 0; i < ids.length; i++) {
-            for (let j = i + 1; j < ids.length; j++) {
-                const aId = ids[i]!;
-                const bId = ids[j]!;
-                const a = clusters[aId]!;
-                const b = clusters[bId]!;
-                const dist = singleLinkageDistance(a, b, originalIndex, matrix);
+    function findBestPair(): { aIndex: number; bIndex: number; dist: number } | null {
+        sortActive();
+        let best: { aIndex: number; bIndex: number; dist: number } | null = null;
+        for (let i = 0; i < active.length; i++) {
+            for (let j = i + 1; j < active.length; j++) {
+                const a = active[i]!;
+                const b = active[j]!;
+                const dist = averageLinkageDistance(a, b, originalIndex, matrix);
                 if (best === null || dist < best.dist) {
-                    best = { aId, bId, dist };
+                    best = { aIndex: i, bIndex: j, dist };
                 }
             }
         }
         return best;
     }
 
-    while (true) {
+    while (active.length > 1) {
         const best = findBestPair();
         if (!best) break;
-        if (best.dist >= stopDistance) break;
+        const a = active[best.aIndex]!;
+        const b = active[best.bIndex]!;
 
-        const a = clusters[best.aId]!;
-        const b = clusters[best.bId]!;
-
-        a.active = false;
-        b.active = false;
-
-        const mergedMembers = [...a.members, ...b.members].sort((x, y) => {
-            if (x < y) return -1;
-            if (x > y) return 1;
-            return 0;
-        });
         const merged: InternalCluster = {
             id: nextClusterId++,
-            members: mergedMembers,
-            active: true,
+            members: [...a.members, ...b.members],
+            height: best.dist,
+            left: a,
+            right: b,
         };
-        clusters[merged.id] = merged;
+        active = active.filter((_, index) => index !== best.aIndex && index !== best.bIndex);
+        active.push(merged);
     }
 
-    // Build the final order. Walk active clusters in the order their
-    // first member appears in the original column list. Within a cluster,
-    // members are sorted lexicographically (above).
-    const firstSeen = new Map<number, number>();
-    for (let i = 0; i < n; i++) {
-        const name = columns[i]!;
-        for (const c of clusters) {
-            if (!c.active) continue;
-            if (c.members.includes(name)) {
-                if (!firstSeen.has(c.id)) {
-                    firstSeen.set(c.id, firstSeen.size);
-                }
-                break;
-            }
+    const root = active[0]!;
+    const order = [...root.members];
+
+    function cutClusters(node: InternalCluster): InternalCluster[] {
+        if (!node.left || !node.right) return [node];
+        if (node.height < stopDistance) return [node];
+        return [...cutClusters(node.left), ...cutClusters(node.right)];
+    }
+
+    const cut = cutClusters(root);
+    const clusterByMember = new Map<string, InternalCluster>();
+    for (const cluster of cut) {
+        for (const member of cluster.members) {
+            clusterByMember.set(member, cluster);
         }
     }
 
-    const orderedActiveIds = [...firstSeen.entries()]
-        .sort((a, b) => a[1] - b[1])
-        .map(([id]) => id);
-
-    const order: string[] = [];
     const finalClusters: Cluster[] = [];
     const assignment = new Map<string, number>();
+    const emitted = new Set<number>();
 
-    for (const id of orderedActiveIds) {
-        const c = clusters[id]!;
-        const start = order.length;
-        for (const m of c.members) {
-            order.push(m);
-            assignment.set(m, finalClusters.length);
-        }
+    for (let i = 0; i < order.length; i++) {
+        const name = order[i]!;
+        const c = clusterByMember.get(name);
+        if (!c || emitted.has(c.id)) continue;
+        emitted.add(c.id);
+        const start = i;
+        const members = [...c.members];
+        for (const member of members) assignment.set(member, finalClusters.length);
         finalClusters.push({
             id: finalClusters.length,
-            members: [...c.members],
+            members,
             startIndex: start,
-            endIndex: order.length,
+            endIndex: start + members.length,
         });
     }
 

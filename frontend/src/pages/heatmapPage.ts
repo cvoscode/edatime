@@ -17,6 +17,24 @@ let metric = 'pearson';
 let matrixLoadInFlight: Promise<void> | null = null;
 let heatmapRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 
+/**
+ * Update the `--range-fill` custom property on a range input so the
+ * accent-filled portion of the track reflects the current value.
+ * The CSS in `frontend/css/modules/toolbar.css` uses this to draw a
+ * filled progress on the slider track. The heatmap toolbar hosts two
+ * such sliders (cell size + cluster threshold) — keeping this helper
+ * local to the page avoids a cross-module dependency on scatter/controls.
+ */
+function updateRangeFill(input: HTMLInputElement | null): void {
+    if (!input) return;
+    const min = Number(input.min || '0');
+    const max = Number(input.max || '100');
+    const value = Number(input.value || '0');
+    const span = Math.max(max - min, 1);
+    const pct = Math.min(100, Math.max(0, ((value - min) / span) * 100));
+    input.style.setProperty('--range-fill', `${pct.toFixed(2)}%`);
+}
+
 function syncHeatmapEmptyState(message: string, visible: boolean, reason = ''): void {
     heatmapRuntime?.updateEmptyState({
         visible,
@@ -31,16 +49,28 @@ function correlationColor(value: number): string {
     const clamped = Math.max(-1, Math.min(1, value));
     if (clamped >= 0) {
         const t = clamped;
-        const r = Math.round(247 - t * (247 - 178));
-        const g = Math.round(247 - t * (247 - 24));
-        const b = Math.round(247 - t * (247 - 43));
+        const r = Math.round(245 - t * (245 - 190));
+        const g = Math.round(245 - t * (245 - 18));
+        const b = Math.round(245 - t * (245 - 46));
         return `rgb(${r},${g},${b})`;
     }
     const t = -clamped;
-    const r = Math.round(247 - t * (247 - 33));
-    const g = Math.round(247 - t * (247 - 102));
-    const b = Math.round(247 - t * (247 - 172));
+    const r = Math.round(245 - t * (245 - 35));
+    const g = Math.round(245 - t * (245 - 112));
+    const b = Math.round(245 - t * (245 - 180));
     return `rgb(${r},${g},${b})`;
+}
+
+function correlationToneClass(value: number | null): string {
+    if (value === null || !Number.isFinite(value)) return 'heatmap-cell--missing';
+    if (value > 0.08) return 'heatmap-cell--positive';
+    if (value < -0.08) return 'heatmap-cell--negative';
+    return 'heatmap-cell--neutral';
+}
+
+function correlationTextColor(value: number | null): string {
+    if (value === null || !Number.isFinite(value)) return 'var(--text-dim)';
+    return Math.abs(value) >= 0.5 ? '#fff' : '#b8cef8';
 }
 
 function escapeAttr(value: string): string {
@@ -182,15 +212,15 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         // every cell so the layout is independent of the emit order.
         const cells: string[] = [];
         // Top-left corner (label row + label column).
-        cells.push('<div></div>');
+        cells.push('<div class="heatmap-corner" style="grid-column:1;grid-row:1;"></div>');
         // Column headers in render order.
         for (let c = 0; c < size; c++) {
             const colName = renderOrder[c]!;
             const colOriginal = orderToOriginal.get(c) ?? c;
             const isFirstInCluster = c > 0 && clusters.some((cl) => cl.startIndex === c);
-            const sep = isFirstInCluster ? 'border-left:1px solid rgba(255,255,255,0.18);' : '';
+            const sep = isFirstInCluster ? ' heatmap-header--cluster-start' : '';
             cells.push(
-                `<div class="heatmap-header" style="grid-column:${colGridFor(c)};grid-row:1;writing-mode:vertical-rl;text-orientation:mixed;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;color:var(--text-dim);padding:4px 2px;${sep}" title="${escapeAttr(colName)}" data-cluster-col="${colOriginal}">${escapeAttr(colName)}</div>`,
+                `<div class="heatmap-header heatmap-header--vertical${sep}" style="grid-column:${colGridFor(c)};grid-row:1;" title="${escapeAttr(colName)}" data-cluster-col="${colOriginal}">${escapeAttr(colName)}</div>`,
             );
         }
 
@@ -198,10 +228,10 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             const rowName = renderOrder[r]!;
             const rowOriginal = orderToOriginal.get(r) ?? r;
             const isFirstInCluster = r > 0 && clusters.some((cl) => cl.startIndex === r);
-            const labelBorder = isFirstInCluster ? 'border-top:1px solid rgba(255,255,255,0.18);' : '';
+            const labelClass = isFirstInCluster ? ' heatmap-row-label--cluster-start' : '';
             // Row label sits in column 1 of this row.
             cells.push(
-                `<div class="heatmap-row-label" style="grid-column:1;grid-row:${rowGridFor(r)};display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${labelBorder}" title="${escapeAttr(rowName)}" data-cluster-row="${rowOriginal}">${escapeAttr(rowName)}</div>`,
+                `<div class="heatmap-row-label${labelClass}" style="grid-column:1;grid-row:${rowGridFor(r)};" title="${escapeAttr(rowName)}" data-cluster-row="${rowOriginal}">${escapeAttr(rowName)}</div>`,
             );
             for (let c = 0; c < size; c++) {
                 const colName = renderOrder[c]!;
@@ -209,10 +239,11 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                 const value = data[rowOriginal]?.[colOriginal] ?? null;
                 const displayValue = value !== null ? value.toFixed(2) : '—';
                 const background = value !== null ? correlationColor(value) : 'transparent';
-                const textColor = value !== null && Math.abs(value) > 0.5 ? '#fff' : 'var(--text)';
+                const textColor = correlationTextColor(value);
+                const toneClass = correlationToneClass(value);
                 const tooltip = `${rowName} × ${colName}: ${displayValue}${rowOriginal !== colOriginal ? ' — click to explore in Scatter' : ''}`;
                 cells.push(
-                    `<div class="heatmap-cell" data-row="${rowOriginal}" data-col="${colOriginal}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};display:flex;align-items:center;justify-content:center;background:${background};color:${textColor};border-radius:2px;cursor:${rowOriginal !== colOriginal ? 'pointer' : 'default'};font-variant-numeric:tabular-nums;" title="${escapeAttr(tooltip)}">${displayValue}</div>`,
+                    `<div class="heatmap-cell ${toneClass}" data-row="${rowOriginal}" data-col="${colOriginal}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};--heatmap-cell-bg:${background};color:${textColor};cursor:${rowOriginal !== colOriginal ? 'pointer' : 'default'};" title="${escapeAttr(tooltip)}">${displayValue}</div>`,
                 );
             }
         }
@@ -239,16 +270,14 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             }
         }
 
-        let html = '<div style="display:flex;align-items:flex-end;gap:0;">';
-        html += `<div class="heatmap-grid" style="display:inline-grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};gap:1px;font-size:0.65rem;">`;
+        let html = '<div class="heatmap-shell">';
+        html += `<div class="heatmap-grid" style="display:inline-grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};">`;
         html += cells.join('');
         html += '</div>';
-        html += '<div style="display:flex;align-items:flex-end;gap:10px;margin-left:10px;">';
-        html += '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;font-size:0.7rem;color:var(--text-dim);">';
-        html += '<span>-1.0</span>';
-        html += '<div style="width:12px;flex:0 0 120px;border-radius:4px;background:linear-gradient(180deg,#B2182B,#EF8A62,#F7F7F7,#67A9CF,#2166AC);"></div>';
-        html += '<span>+1.0</span>';
-        html += '</div>';
+        html += '<div class="heatmap-scale" aria-label="Correlation color scale">';
+        html += '<span class="heatmap-scale__tick heatmap-scale__tick--positive">+1.0</span>';
+        html += '<div class="heatmap-scale__bar" aria-hidden="true"></div>';
+        html += '<span class="heatmap-scale__tick heatmap-scale__tick--negative">-1.0</span>';
         html += '</div>';
         html += '</div>';
 
@@ -299,6 +328,11 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             if (clusterToggle) clusterToggle.checked = heatmapClusterEnabled;
             if (clusterThreshold) clusterThreshold.value = String(heatmapClusterThreshold);
             if (clusterThresholdValue) clusterThresholdValue.textContent = heatmapClusterThreshold.toFixed(2);
+            // Sync the custom `--range-fill` property so the slider
+            // track's accent fill matches the current value on first
+            // render (CSS uses this to draw a filled progress portion).
+            updateRangeFill(sizeInput);
+            updateRangeFill(clusterThreshold);
 
             metricSelect?.addEventListener('change', () => {
                 metric = getDropdownValue('heatmap-metric') || 'pearson';
@@ -307,6 +341,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             sizeInput?.addEventListener('input', () => {
                 heatmapCellSize = Math.max(24, Math.min(72, Number(sizeInput.value || 36)));
                 if (sizeValue) sizeValue.textContent = String(heatmapCellSize);
+                updateRangeFill(sizeInput);
                 renderHeatmap();
             });
             clusterToggle?.addEventListener('change', () => {
@@ -321,6 +356,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                 if (clusterThresholdValue) {
                     clusterThresholdValue.textContent = heatmapClusterThreshold.toFixed(2);
                 }
+                updateRangeFill(clusterThreshold);
                 renderHeatmap();
             });
         },

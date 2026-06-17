@@ -48,8 +48,11 @@ function fftColorFor(column: string, fallbackIndex: number): string {
 }
 
 function updateZoomButton(isZoomed?: boolean): void {
+    const zoomed = isZoomed ?? fftChart?.getIsZoomed() ?? false;
     const button = document.getElementById('fft-zoom-reset-btn') as HTMLButtonElement | null;
-    if (button) button.hidden = !(isZoomed ?? fftChart?.getIsZoomed() ?? false);
+    if (button) button.hidden = !zoomed;
+    const segment = document.getElementById('fft-zoom-segment') as HTMLElement | null;
+    if (segment) segment.hidden = !zoomed;
 }
 
 function syncFftEmptyState(): void {

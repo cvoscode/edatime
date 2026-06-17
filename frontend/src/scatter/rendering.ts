@@ -887,6 +887,7 @@ export function syncModeUI(): void {
     const isPlot = view === 'plot';
     const isMatrix = view === 'matrix';
     const isDensity = isPlot && ctl.renderMode === 'density';
+    const isScatter = isPlot && ctl.renderMode === 'scatter';
     const toggle = (el: HTMLElement | null, visible: boolean) => { if (el) el.style.display = visible ? '' : 'none'; };
 
     toggle(getEl('scatter-analytics-group'), !isMatrix);
@@ -896,10 +897,13 @@ export function syncModeUI(): void {
     // Linear/Log) inline. Show it only in density mode and hide it
     // for scatter/matrix views to avoid leaving orphan labels.
     toggle(getEl('scatter-density-controls'), isDensity);
-    // The color scale only applies in scatter render mode (density
-    // mode has no color-by-column), so the whole field is toggled
-    // together to avoid leaving an orphan "Scale" label visible.
-    toggle(getEl('scatter-color-scale-field'), isPlot && !isDensity);
+    // The color-by-column dropdown + scale only apply in scatter
+    // render mode (density mode uses the colormap for the heatmap,
+    // not a per-row color encoding). Hide both fields together in
+    // density mode to avoid orphan labels and free toolbar space
+    // for the density sub-group (Bins / Scale Linear-Log).
+    toggle(getEl('scatter-color-column-field'), isScatter);
+    toggle(getEl('scatter-color-scale-field'), isScatter);
     toggle(document.querySelector('.scatter-export-group'), isPlot);
     toggle(document.querySelector('.scatter-stats-bar'), isPlot);
     toggle(document.querySelector('.scatter-suggestions-bar'), !isMatrix);

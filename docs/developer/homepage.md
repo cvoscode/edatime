@@ -21,21 +21,29 @@ The page is divided into 6 main sections:
       <polyline points="2,18 7,10 12,22 17,6 22,16 27,12 30,12" />
     </svg>
   </div>
-  <h1 class="home-title">EdaTime</h1>
-  <p class="home-tagline">Interactive time-series analytics — upload a CSV or Parquet, explore, and export.</p>
-  <button class="btn btn-primary" type="button" data-home-nav="upload">
-    Upload a file to get started
-  </button>
+  <div class="home-hero-body">
+    <h1 class="home-title">EdaTime</h1>
+    <p class="home-tagline">Interactive time-series analytics — upload a CSV or Parquet, explore, and export.</p>
+  </div>
+  <div class="home-hero-cta">
+    <button class="btn btn-primary" type="button" data-home-nav="upload">
+      Upload a file to get started
+    </button>
+  </div>
 </div>
 ```
 
-**Purpose:** Hero section with branding, tagline, and primary call-to-action.
+**Purpose:** Compact hero section with branding, tagline, and primary call-to-action on a single row.
 
 **Key elements:**
-- `.home-hero-icon` — 56×56px gradient icon container with timeseries SVG
-- `.home-title` — "EdaTime" heading
-- `.home-tagline` — Single-line description
+- `.home-hero-icon` — 44×44px gradient icon container with timeseries SVG
+- `.home-hero-body` — flex column wrapping `.home-title` and `.home-tagline`
+- `.home-hero-cta` — primary CTA wrapper; the button carries `data-home-nav="upload"`
+- `.home-title` — "EdaTime" heading (1.5rem)
+- `.home-tagline` — Single-line description (0.8125rem)
 - `data-home-nav="upload"` — Clickable button that navigates to Upload page
+
+Below 900px viewport the hero collapses to a stacked column layout (icon centered, text centered, CTA centered).
 
 ---
 
@@ -385,19 +393,33 @@ Home page styles are imported by `frontend/css/style.css` and bundled into the h
 
 ### Responsive Behavior
 
-The CSS includes a mobile breakpoint at 640px:
+The homepage uses a fluid `.home-content` container capped at `max-width: 1480px` so it fills available space without leaving the page awkwardly narrow on wide monitors. The hero is laid out horizontally (icon → title/tagline → CTA) on wide viewports and stacks vertically below the `900px` breakpoint.
+
+The CSS ships three breakpoints that tune the grid and copy:
 
 ```css
-@media (max-width: 640px) {
-    .home-grid {
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 8px;
-        padding: 12px;
-    }
+/* Tablet (<=1100px) — drop the max-width cap, tighten padding, smaller grid min */
+@media (max-width: 1100px) {
+    .home-content { max-width: none; }
+    .home-hero    { padding: 20px 20px; gap: 16px; }
+    .home-section { padding: 18px 20px 0; }
+    .home-grid    { padding: 14px 20px 6px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+}
 
-    .home-title {
-        font-size: 1.375rem;
-    }
+/* Phone (<=900px) — hero stacks vertically, section copy hides, smaller cards */
+@media (max-width: 900px) {
+    .home-hero        { flex-direction: column; text-align: center; gap: 12px; }
+    .home-hero-body   { flex: 0 0 auto; max-width: none; align-items: center; }
+    .home-section-copy { display: none; }
+    .home-grid        { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+    .home-card        { padding: 10px 12px; min-height: 72px; }
+}
+
+/* Very narrow phones (<=480px) — 2-column grid, hide card descriptions */
+@media (max-width: 480px) {
+    .home-grid      { grid-template-columns: 1fr 1fr; }
+    .home-card-desc { display: none; }
+    .home-title     { font-size: 1.25rem; }
 }
 ```
 

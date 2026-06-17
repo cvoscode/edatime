@@ -243,6 +243,69 @@
   background: rgba(255, 255, 255, 0.07);
 }
 
+/* ─── Causal toolbar (segment-card layout) ───────────────────
+   Wraps each field's label/control/info-icon triple in a flex
+   row that sits inside a scatter-toolbar__field wrapper. The
+   JS in causal/workflow.ts still decorates the control's
+   previous/next siblings, so the field-label and the info-icon
+   are kept as flat siblings of the actual control. */
+.scatter-toolbar .scatter-toolbar__field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.scatter-toolbar__field-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--text-dim, #a0a8c0);
+  white-space: nowrap;
+  line-height: 1;
+  flex: 0 0 auto;
+  margin-right: 2px;
+}
+
+.scatter-toolbar__field .causal-info-icon {
+  margin: 0;
+  width: 14px;
+  height: 14px;
+  font-size: 0.625rem;
+  flex: 0 0 auto;
+}
+
+.scatter-toolbar__field .modal-select,
+.scatter-toolbar__field .modal-input,
+.scatter-toolbar__field .dropdown {
+  flex: 1 1 auto;
+  min-height: 28px;
+  min-width: 0;
+  width: auto;
+  max-width: 100%;
+}
+
+.scatter-toolbar__field .modal-input {
+  flex: 0 0 auto;
+  width: 60px;
+}
+
+.scatter-toolbar__field .modal-select,
+.scatter-toolbar__field .dropdown {
+  min-width: 96px;
+}
+
+.causal-export-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+#causal-export-btn {
+  position: relative;
+}
+
 /* ─── Causal edit panel (slides in from right) ─────────────────── */
 .causal-edit-panel {
   position: absolute;

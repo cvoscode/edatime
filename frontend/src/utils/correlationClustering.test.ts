@@ -82,6 +82,20 @@ describe('clusterColumns', () => {
         expect(clusterB?.members.sort()).toEqual(['b1', 'b2', 'b3']);
     });
 
+    it('does not absorb a weakly related column through a single strong bridge', () => {
+        const cols = ['a', 'b', 'c'];
+        const matrix: (number | null)[][] = [
+            [1, 0.9, 0.1],
+            [0.9, 1, 0.9],
+            [0.1, 0.9, 1],
+        ];
+
+        const result = clusterColumns(cols, matrix, 0.85);
+
+        expect(result.clusters).toHaveLength(2);
+        expect(result.clusters.map((c) => c.members)).toEqual([['a', 'b'], ['c']]);
+    });
+
     it('treats null cells as the maximum distance (no clustering across nulls)', () => {
         const matrix: (number | null)[][] = [
             [1, 0.99, null],

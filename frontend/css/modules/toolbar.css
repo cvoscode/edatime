@@ -20,6 +20,19 @@
   overflow-y: visible;
 }
 
+/* Shared shell / surface tokens for toolbars (kept here so they live next
+   to the toolbar surface itself). Soft inset surface for segmented controls. */
+:root {
+  --tb-surface: rgba(11, 15, 24, 0.55);
+  --tb-surface-strong: rgba(11, 15, 24, 0.78);
+  --tb-border: rgba(255, 255, 255, 0.08);
+  --tb-border-strong: rgba(255, 255, 255, 0.14);
+  --tb-hover: rgba(255, 255, 255, 0.05);
+  --tb-active: rgba(0, 168, 255, 0.14);
+  --tb-divider: rgba(255, 255, 255, 0.07);
+  --tb-eyebrow: rgba(170, 184, 217, 0.85);
+}
+
 /* The scatter toolbar is a single horizontal flex row of segment cards.
    Each segment is self-sized and the row wraps onto multiple lines
    when the viewport is too narrow for everything to fit. This is far
@@ -32,7 +45,13 @@
    • Refine    — Color, Bins/Colormap/Scale, Export
 
    Disclosure menus (Color, Export) are absolutely positioned and need
-   overflow:visible + a higher z-index to paint above the chart. */
+   overflow:visible + a higher z-index to paint above the chart.
+
+   Redesign notes:
+   - Vertical padding is reduced from 8/10px to 6/8px so the row rarely
+     wraps onto two lines on standard desktop widths.
+   - The gradient backdrop is subtler so the segment cards float on top
+     instead of competing with the page background. */
 .scatter-toolbar {
   position: relative;
   z-index: 20;
@@ -43,10 +62,12 @@
   align-items: stretch;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 8px 16px 10px;
+  row-gap: 8px;
+  padding: 8px 14px 10px;
   background:
-    radial-gradient(circle at top left, rgba(0, 168, 255, 0.09), transparent 24%),
-    linear-gradient(180deg, rgba(17, 24, 38, 0.98), rgba(13, 18, 30, 0.96));
+    radial-gradient(circle at top left, rgba(0, 168, 255, 0.06), transparent 26%),
+    linear-gradient(180deg, rgba(16, 21, 32, 0.96), rgba(13, 18, 30, 0.92));
+  border-bottom: 1px solid var(--shell-border);
 }
 
 .range-toolbar {
@@ -274,6 +295,12 @@
    The popout summary is a small "⋯" button anchored to the right
    edge of the segment body. Clicking it reveals the moved fields
    in a popout that mirrors the toolbar-disclosure visual style.
+
+   Visual refresh:
+   - The summary is now an inline-flex pill that matches the
+     segment field chips; when 1+ fields are hidden the button
+     shows a small numeric badge so the user knows how many
+     options are tucked away.
 */
 .scatter-toolbar__overflow {
   position: relative;
@@ -291,18 +318,33 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   min-width: 28px;
-  height: 28px;
+  min-height: 0;
+  height: 26px;
   padding: 0 8px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  border: 1px solid var(--tb-border);
+  background: rgba(255, 255, 255, 0.035);
   color: var(--text-dim);
   cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  user-select: none;
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+
+/* Center the "⋯" glyph inside the overflow summary button so it
+   doesn't sit at the baseline edge. */
+.scatter-toolbar__overflow-btn .scatter-toolbar__overflow-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 0.95rem;
   line-height: 1;
-  letter-spacing: 0.05em;
-  user-select: none;
+  letter-spacing: 0;
 }
 
 .scatter-toolbar__overflow-btn::-webkit-details-marker {
@@ -312,7 +354,29 @@
 .scatter-toolbar__overflow-btn:hover {
   border-color: var(--accent);
   color: var(--text);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(0, 168, 255, 0.08);
+}
+
+.scatter-toolbar__overflow[open] .scatter-toolbar__overflow-btn {
+  border-color: var(--accent);
+  background: rgba(0, 168, 255, 0.10);
+  color: var(--text);
+}
+
+/* Compact count badge — sits inline with the "⋯" glyph. */
+.scatter-toolbar__overflow-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 168, 255, 0.18);
+  color: #B6DDFF;
+  font-size: 0.625rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .scatter-toolbar__overflow[open] {
@@ -327,17 +391,17 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 200px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  min-width: 220px;
+  padding: 10px;
+  border: 1px solid var(--tb-border-strong);
+  border-radius: 8px;
   background: var(--shell-surface-elevated);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.45);
 }
 
 /* The popout hosts full field components (label + control) so the
    moved fields look identical to their inline counterparts. */
-.scatter-toolbar__overflow-menu > .scatter-toolbar__field {
+.scatter-toolbar__overflow-menu>.scatter-toolbar__field {
   flex: 0 0 auto;
   min-width: 0;
 }
@@ -424,103 +488,146 @@
   border-color: transparent;
 }
 
-/* ─── Scatter zoom cluster ───────────────────────────────────── */
-/* Reuses the timeseries-zoom-cluster visual treatment so the two
-   pages stay consistent. The scatter view's zoom-out / reset is
-   otherwise hidden (it lives inside the timeseries toolbar cluster,
-   which is invisible when the scatter page is active). */
-.scatter-zoom-cluster {
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.02);
-  margin-left: 0;
+/* ─── Plot/Matrix segmented control ─────────────────────────── */
+/* Plot/Matrix segmented control matches the toolbar field height
+   (28px) so it lines up with the dropdowns. */
+.scatter-toolbar .scatter-view-toggle {
+  height: 28px;
+  border-radius: 6px;
+  border-color: var(--tb-border);
+  background: rgba(255, 255, 255, 0.025);
+  flex-shrink: 0;
 }
 
-.scatter-zoom-cluster .btn {
-  border: 0;
-  background: transparent;
-  border-radius: 4px;
+.scatter-toolbar .scatter-view-toggle .btn {
   height: 24px;
-  padding: 0 8px;
+  min-height: 0;
+  min-width: 0;
+  padding: 0 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-right: 1px solid var(--tb-border);
+  white-space: nowrap;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
-.scatter-zoom-cluster .btn:hover:not(:disabled) {
-  background: var(--shell-hover);
-  border-color: transparent;
+.scatter-toolbar .scatter-view-toggle .btn:last-child {
+  border-right: 0;
 }
 
-.scatter-zoom-cluster .btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.scatter-toolbar .scatter-view-toggle .btn.active,
+.scatter-toolbar .scatter-view-toggle .btn[aria-pressed="true"] {
+  background: rgba(0, 168, 255, 0.18);
+  color: #B6DDFF;
+  text-shadow: 0 0 6px rgba(0, 168, 255, 0.35);
 }
 
+.scatter-toolbar .scatter-view-toggle .btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 168, 255, 0.55);
+}
+
+/* ─── Zoom range badge (used in timeseries utility shelf) ────── */
+/* Base style for the small percentage badge that sits inside the
+   timeseries zoom cluster. The scatter page no longer hosts a
+   zoom cluster — that surface was removed; users rely on the
+   timeseries page or the chart's own zoom reset. */
 .zoom-range-badge {
   display: inline-flex;
   align-items: center;
-  min-width: 44px;
+  min-width: 42px;
   height: 24px;
-  padding: 0 8px;
-  font-size: 0.7rem;
-  color: var(--text-muted);
+  padding: 0 6px;
+  font-size: 0.72rem;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
   justify-content: center;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-shadow: 0 0 4px rgba(0, 168, 255, 0.12);
 }
 
 /* Each segment is a self-contained card with a small eyebrow label
    on the left and a content body on the right. The content body
    uses a flex layout that wraps when the segment is narrow.
 
-   The segment height is uniform across all segments (--scatter-tb-h)
-   so neighbouring segments align nicely without large empty boxes. */
+   Visual refresh:
+   - Flatter, more subtle background that reads as a translucent
+     surface rather than a heavy bordered box.
+   - Slightly smaller corner radius (10px) so the cards feel
+     lighter.
+   - Inner highlight removed in favour of a 1px top border that
+     catches the segment surface cleanly. */
 :root {
-  --scatter-tb-h: 44px;
+  --scatter-tb-h: 38px;
 }
 
 .scatter-toolbar__segment {
   display: flex;
   align-items: stretch;
-  gap: 10px;
+  gap: 0;
   min-width: 0;
   min-height: var(--scatter-tb-h);
-  padding: 6px 10px 6px 8px;
-  border: 1px solid color-mix(in srgb, var(--border) 78%, rgba(255, 255, 255, 0.08));
-  border-radius: 12px;
+  padding: 4px;
+  border: 1px solid var(--tb-border);
+  border-top-color: rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02)),
-    rgba(9, 14, 24, 0.76);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.005)),
+    var(--tb-surface-strong);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 6px 18px rgba(0, 0, 0, 0.18);
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 1px 0 rgba(0, 0, 0, 0.18);
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.scatter-toolbar__segment[hidden] {
+  display: none;
+}
+
+.scatter-toolbar__segment:hover {
+  border-color: var(--tb-border-strong);
 }
 
 /* Eyebrow is a small label on the left of the segment, separated
-   from the content by a thin vertical divider. The widest label
-   ("DISPLAY", 7 chars) needs about 56px at this font size. */
+   from the content by a thin vertical divider. The eyebrow
+   stretches to the full segment height so the label sits vertically
+   centered with the controls, regardless of how many rows the
+   body wraps onto. */
 .scatter-toolbar__eyebrow {
   display: flex;
   align-items: center;
-  font-size: 0.62rem;
+  justify-content: flex-start;
+  font-size: 0.5625rem;
   font-weight: 700;
   letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--text-muted) 84%, white 16%);
+  color: var(--tb-eyebrow);
   white-space: nowrap;
   flex: 0 0 auto;
-  width: 56px;
-  padding-right: 10px;
-  border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  align-self: stretch;
+  width: 50px;
+  padding: 0 10px 0 2px;
+  border-right: 1px solid var(--tb-divider);
+  line-height: 1;
 }
 
 /* The content body is everything to the right of the eyebrow. It
-   uses a flex layout that wraps to additional lines as needed. */
+   uses a flex layout that wraps to additional lines as needed.
+   `align-self: stretch` makes the body match the segment's
+   height, so vertically centering the children keeps every
+   control on the same baseline as the eyebrow text. */
 .scatter-toolbar__segment>.scatter-toolbar__controls,
 .scatter-toolbar__segment>.scatter-toolbar__fields {
+  padding: 0 6px 0 10px;
   flex: 1 1 auto;
   min-width: 0;
+  align-self: stretch;
   display: flex;
   align-items: center;
-  gap: 8px 10px;
+  gap: 6px 8px;
   flex-wrap: wrap;
   align-content: center;
 }
@@ -538,7 +645,8 @@
    nicely. flex-wrap on the parent toolbar handles overflow.
 
    Layout (left → right):
-     View     — Plot/Matrix toggle, X axis, Y axis, zoom cluster
+     View     — Plot/Matrix toggle + zoom cluster
+     Axes     — X axis, Y axis
      Display  — Mode, Distribution, Link toggle
      Refine   — Color column, Color scale, density sub-group (Bins, Scale)
      [push]   — Export disclosure
@@ -548,15 +656,20 @@
    parent toolbar's flex row directly, while still giving JS a
    single element to toggle in matrix view. */
 .scatter-toolbar__segment--view {
-  flex: 1 1 320px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.scatter-toolbar__segment--axes {
+  flex: 0 1 auto;
 }
 
 .scatter-toolbar__segment--display {
-  flex: 1 1 320px;
+  flex: 0 1 auto;
 }
 
 .scatter-toolbar__segment--refine {
-  flex: 1 1 360px;
+  flex: 0 1 auto;
 }
 
 .scatter-toolbar__segment--actions {
@@ -564,14 +677,61 @@
   flex-wrap: wrap;
   row-gap: 6px;
   min-width: 0;
+  /* The Export segment uses the toolbar-label/eyebrow distinction
+     differently: the eyebrow acts as a quiet prefix while the
+     disclosure value reads as the actual action. We pull the
+     eyebrow in tight so the disclosure stays the visual anchor. */
 }
 
-.scatter-toolbar__field {
-  flex: 1 1 110px;
+.scatter-toolbar__segment--actions .scatter-toolbar__eyebrow {
+  width: auto;
+  padding-right: 8px;
+}
+
+/* Field = a single labelled control. Visual refresh:
+   - Default layout is single-row (label inline before the control)
+     so segment height matches the dropdown height and the toolbar
+     doesn't waste vertical space stacking labels above values.
+   - The label is a tiny uppercase chip so it can sit beside the
+     control without taking its own row.
+
+   Note: we use a slightly more specific selector chain
+   (`scatter-toolbar .scatter-toolbar__field`) to win against the
+   generic `.toolbar-field {display: grid}` rule further down the
+   file. The HTML markup has both classes on the same element so we
+   rely on parent-context specificity to override. */
+.scatter-toolbar .scatter-toolbar__field {
+  flex: 0 1 auto;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  min-width: 0;
+  max-width: 240px;
+  white-space: nowrap;
+}
+
+.scatter-toolbar .scatter-toolbar__field.toolbar-field {
+  display: flex;
+}
+
+.scatter-toolbar__field .toolbar-field__label {
+  flex: 0 0 auto;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tb-eyebrow);
+  white-space: nowrap;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+.scatter-toolbar__field .toolbar-field__control {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .scatter-toolbar__field--toggle {
@@ -583,11 +743,9 @@
 }
 
 .scatter-toolbar__field--range {
-  flex-basis: 160px;
-}
-
-.scatter-toolbar__field .toolbar-field__control {
-  min-width: 0;
+  flex-basis: 168px;
+  flex-grow: 1;
+  max-width: 240px;
 }
 
 .scatter-toolbar__field .toolbar-field__control .range-value {
@@ -595,8 +753,200 @@
   text-align: right;
 }
 
-.scatter-toolbar__field .modal-select {
+/* Field controls (selects, dropdowns, range inputs) get a unified
+   compact height so all segments share a single baseline. */
+.scatter-toolbar .scatter-toolbar__field .modal-select,
+.scatter-toolbar .scatter-toolbar__field .dropdown,
+.scatter-toolbar .scatter-toolbar__field .dropdown__trigger {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 28px;
+  min-height: 28px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+}
+
+.scatter-toolbar .scatter-toolbar__field .dropdown {
+  min-width: 96px;
+}
+
+.scatter-toolbar .scatter-toolbar__field .dropdown__trigger {
+  padding: 0 28px 0 10px;
+  border-color: var(--tb-border);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    box-shadow var(--transition);
+}
+
+.scatter-toolbar .scatter-toolbar__field .dropdown__trigger:hover {
+  border-color: var(--tb-border-strong);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.scatter-toolbar .scatter-toolbar__field .dropdown--open .dropdown__trigger,
+.scatter-toolbar .scatter-toolbar__field .dropdown__trigger:focus-visible {
+  border-color: var(--accent);
+  background: rgba(0, 168, 255, 0.06);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 168, 255, 0.18);
+}
+
+.scatter-toolbar .scatter-toolbar__field .modal-select {
+  padding: 0 22px 0 10px;
+  min-height: 0;
+  min-width: 0;
+  border-color: var(--tb-border);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+}
+
+.scatter-toolbar .scatter-toolbar__field .modal-select:hover {
+  border-color: var(--tb-border-strong);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.scatter-toolbar .scatter-toolbar__field .modal-select:focus-visible {
+  border-color: var(--accent);
+  background: rgba(0, 168, 255, 0.06);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 168, 255, 0.18);
+}
+
+.scatter-toolbar .scatter-toolbar__field .dropdown__label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Chevron sits flush right inside the trigger. */
+.scatter-toolbar .scatter-toolbar__field .dropdown__chevron {
+  right: 8px;
+  opacity: 0.7;
+}
+
+/* Range slider inside the field should match the 28px control height
+   so the row stays uniform. */
+.scatter-toolbar .scatter-toolbar__field--range input[type="range"] {
+  height: 28px;
+  min-height: 28px;
+  max-height: 28px;
+  background: transparent;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+/* Custom track: dim trough with a subtle inner shadow for depth.
+   The filled portion is drawn with a layered background (size set
+   inline via --range-fill) so it always matches the current value. */
+.scatter-toolbar .scatter-toolbar__field--range input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background:
+    linear-gradient(90deg,
+      rgba(0, 168, 255, 0.55) 0%,
+      rgba(0, 168, 255, 0.55) var(--range-fill, 50%),
+      rgba(255, 255, 255, 0.08) var(--range-fill, 50%),
+      rgba(255, 255, 255, 0.08) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.25);
+}
+
+.scatter-toolbar .scatter-toolbar__field--range input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background:
+    linear-gradient(90deg,
+      rgba(0, 168, 255, 0.55) 0%,
+      rgba(0, 168, 255, 0.55) var(--range-fill, 50%),
+      rgba(255, 255, 255, 0.08) var(--range-fill, 50%),
+      rgba(255, 255, 255, 0.08) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.25);
+}
+
+.scatter-toolbar .scatter-toolbar__field--range input[type="range"]::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 168, 255, 0.55);
+}
+
+.scatter-toolbar .scatter-toolbar__field--range input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border-radius: 50%;
+  border: 2px solid #0E1622;
+  box-shadow:
+    0 0 0 1px rgba(0, 168, 255, 0.45),
+    0 1px 3px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  margin-top: -5px;
+  transition:
+    transform var(--transition),
+    box-shadow var(--transition);
+}
+
+.scatter-toolbar .scatter-toolbar__field--range input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.08);
+  box-shadow:
+    0 0 0 1px rgba(0, 168, 255, 0.6),
+    0 0 0 6px rgba(0, 168, 255, 0.15),
+    0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.scatter-toolbar .scatter-toolbar__field--range input[type="range"]::-webkit-slider-thumb:active {
+  transform: scale(1.12);
+  box-shadow:
+    0 0 0 1px rgba(0, 168, 255, 0.7),
+    0 0 0 8px rgba(0, 168, 255, 0.20),
+    0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.scatter-toolbar .scatter-toolbar__field--range input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border-radius: 50%;
+  border: 2px solid #0E1622;
+  box-shadow:
+    0 0 0 1px rgba(0, 168, 255, 0.45),
+    0 1px 3px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition:
+    transform var(--transition),
+    box-shadow var(--transition);
+}
+
+.scatter-toolbar .scatter-toolbar__field--range input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.08);
+  box-shadow:
+    0 0 0 1px rgba(0, 168, 255, 0.6),
+    0 0 0 6px rgba(0, 168, 255, 0.15),
+    0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.scatter-toolbar .scatter-toolbar__field--range .range-value {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+  min-width: 28px;
+  padding: 0 4px;
+  background: rgba(0, 168, 255, 0.08);
+  border: 1px solid rgba(0, 168, 255, 0.18);
+  border-radius: 4px;
+  height: 18px;
+  line-height: 16px;
 }
 
 /* Density sub-controls (Bins, Scale) live inside the Refine segment
@@ -606,10 +956,31 @@
 .scatter-toolbar__density {
   display: flex;
   align-items: center;
-  gap: 6px 8px;
+  gap: 6px 10px;
   min-width: 0;
-  flex: 1 1 320px;
+  flex: 0 1 auto;
   flex-wrap: wrap;
+  padding-left: 10px;
+  margin-left: 4px;
+  border-left: 1px solid var(--tb-divider);
+}
+
+/* When density sub-controls are tucked away into the Refine overflow
+   popout, render them stacked and full-width so the menu doesn't
+   try to lay them out horizontally. */
+.scatter-toolbar__overflow-menu .scatter-toolbar__density {
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding-left: 0;
+  margin-left: 0;
+  border-left: 0;
+}
+
+.scatter-toolbar__overflow-menu .scatter-toolbar__density .scatter-toolbar__field {
+  flex-basis: auto;
+  width: 100%;
 }
 
 .scatter-toolbar .toolbar-disclosure {
@@ -628,18 +999,105 @@
 }
 
 .scatter-toolbar .toolbar-disclosure__summary {
-  min-height: 30px;
-  padding: 0 12px;
-  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  height: 28px;
+  min-width: 0;
+  padding: 0 10px;
+  gap: 8px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--tb-border);
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    color var(--transition);
 }
 
 .scatter-toolbar .toolbar-disclosure__summary:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(0, 168, 255, 0.06);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.scatter-toolbar .toolbar-disclosure__summary:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 168, 255, 0.18);
+}
+
+.scatter-toolbar .toolbar-disclosure[open] .toolbar-disclosure__summary {
+  background: rgba(0, 168, 255, 0.10);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* The disclosure label (e.g. "Refine" / "Export") uses a smaller
+   uppercase chip so the actual value carries the visual weight. */
+.scatter-toolbar .toolbar-disclosure__summary .toolbar-label {
+  color: var(--tb-eyebrow);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.scatter-toolbar .toolbar-disclosure__summary::after {
+  content: '';
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  margin-left: 2px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6' fill='none' stroke='%23788BAE' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 10px 6px;
+  opacity: 0.75;
+  transition: opacity var(--transition), transform var(--transition);
+}
+
+.scatter-toolbar .toolbar-disclosure[open] .toolbar-disclosure__summary::after {
+  transform: rotate(180deg);
+  opacity: 1;
+}
+
+.scatter-toolbar .toolbar-disclosure__summary:hover::after {
+  opacity: 1;
+}
+
+.scatter-toolbar .toolbar-disclosure__value {
+  font-size: 0.75rem;
+  color: var(--text);
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .scatter-toolbar .toolbar-label {
-  color: var(--text-muted);
+  color: var(--tb-eyebrow);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* The action segment (Export / Refine) is a tighter, single-line chip
+   so it doesn't dominate the right side of the toolbar. */
+.scatter-toolbar__segment--actions .toolbar-disclosure__summary {
+  padding: 0 10px;
+  gap: 6px;
+}
+
+.scatter-toolbar__segment--actions .toolbar-disclosure__summary .toolbar-disclosure__value {
+  color: var(--text);
+  font-weight: 500;
 }
 
 /* ─── Timeseries utility shelf — unified widget spec ─────────── */
@@ -827,7 +1285,7 @@
 .draw-select,
 .draw-select.dropdown .dropdown__trigger {
   height: 28px;
-  padding: 2px 6px;
+  padding: 0 12px;
   font-size: 0.75rem;
   border-radius: var(--radius-sm);
 }

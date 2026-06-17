@@ -46,12 +46,27 @@ fn test_dataframe() -> DataFrame {
     DataFrame::new(n as usize, columns).unwrap()
 }
 
+fn non_numeric_dataframe() -> DataFrame {
+    DataFrame::new(
+        3,
+        vec![
+            Column::new("label".into(), ["a", "b", "c"]),
+            Column::new("category".into(), ["x", "y", "z"]),
+        ],
+    )
+    .unwrap()
+}
+
 /// Build a test router identical to production but without middleware layers
 /// that would interfere with testing (rate limiting, compression, etc.).
 fn test_app() -> Router {
+    test_app_with_dataframe(test_dataframe())
+}
+
+fn test_app_with_dataframe(df: DataFrame) -> Router {
     let config = AppConfig::default();
     let max_upload = config.upload.max_upload_bytes;
-    let state = AppState::new(test_dataframe(), config);
+    let state = AppState::new(df, config);
 
     Router::new()
         .nest("/api", routes::api_router())
@@ -335,6 +350,24 @@ async fn scatter_correlations_returns_suggestions() {
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert!(json["correlations"].as_array().is_some());
     assert!(json["numeric_columns"].as_array().is_some());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn correlation_matrix_returns_ok_with_empty_payload_when_no_numeric_columns_exist() {
+    let app = test_app_with_dataframe(non_numeric_dataframe());
+    let req = Request::builder()
+        .uri("/api/scatter/correlations/matrix")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["columns"], serde_json::json!([]));
+    assert_eq!(json["pearson"], serde_json::json!([]));
+    assert_eq!(json["spearman"], serde_json::json!([]));
 }
 
 #[tokio::test(flavor = "multi_thread")]

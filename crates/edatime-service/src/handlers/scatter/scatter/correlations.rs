@@ -200,10 +200,13 @@ fn compute_correlation_matrix(lf: LazyFrame) -> Result<CorrelationMatrixData, Ap
     let mut numeric = numeric_columns(lf.clone());
     numeric.sort();
 
-    if numeric.len() < 2 {
-        return Err(AppError::bad_request(
-            "Need at least two numeric columns for correlation matrix",
-        ));
+    if numeric.is_empty() {
+        return Ok(CorrelationMatrixData {
+            columns: vec![],
+            pearson: vec![],
+            spearman: vec![],
+            counts: vec![],
+        });
     }
 
     let n = numeric.len();
@@ -382,6 +385,7 @@ pub async fn get_correlation_matrix(
 mod tests {
     use super::*;
     use edatime_core::config::AppConfig;
+    use edatime_core::IntoLazy;
     use polars::prelude::{DataFrame, NamedFrom, Series};
 
     #[test]
@@ -449,5 +453,66 @@ mod tests {
         assert_eq!(cached.pearson[0][2], Some(-1.0));
         assert_eq!(cached.spearman[0][1], Some(1.0));
         assert_eq!(cached.counts[0][1], 3);
+    }
+
+    #[test]
+    fn correlation_matrix_returns_empty_payload_when_no_numeric_columns_exist() {
+        let df = DataFrame::new(
+            3,
+            vec![
+                Series::new("label".into(), ["a", "b", "c"]).into(),
+                Series::new("group".into(), ["x", "y", "z"]).into(),
+            ],
+        )
+        .expect("dataframe should build");
+
+        let result = compute_correlation_matrix(df.lazy()).expect("matrix should not error");
+
+        assert!(result.columns.is_empty());
+        assert!(result.pearson.is_empty());
+        assert!(result.spearman.is_empty());
+        assert!(result.counts.is_empty());
+    }
+
+    #[test]
+    fn correlation_matrix_returns_singleton_diagonal_when_one_numeric_column_exists() {
+        let df = DataFrame::new(
+            3,
+            vec![
+                Series::new("only".into(), [1.0_f64, 2.0, 3.0]).into(),
+                Series::new("label".into(), ["x", "y", "z"]).into(),
+            ],
+        )
+        .expect("dataframe should build");
+
+        let result = compute_correlation_matrix(df.lazy()).expect("matrix should not error");
+
+        assert_eq!(result.columns, vec!["only"]);
+        assert_eq!(result.pearson, vec![vec![Some(1.0)]]);
+        assert_eq!(result.spearman, vec![vec![Some(1.0)]]);
+        assert_eq!(result.counts, vec![vec![3]]);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn warm_correlation_matrix_cache_stores_empty_payload_for_insufficient_numeric_columns() {
+        let df = DataFrame::new(
+            3,
+            vec![Series::new("label".into(), ["x", "y", "z"]).into()],
+        )
+        .expect("dataframe should build");
+        let state = AppState::new(df, AppConfig::default());
+        let revision = state.dataset_revision();
+
+        spawn_correlation_matrix_warmup(state.clone())
+            .await
+            .expect("warmup task should join");
+
+        let cached = state
+            .cached_correlation_matrix(revision)
+            .expect("warmup should cache empty matrix payload");
+        assert!(cached.columns.is_empty());
+        assert!(cached.pearson.is_empty());
+        assert!(cached.spearman.is_empty());
+        assert!(cached.counts.is_empty());
     }
 }

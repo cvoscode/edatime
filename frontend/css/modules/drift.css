@@ -8,31 +8,30 @@
   overflow: visible;
   z-index: 10;
   position: relative;
+  align-items: center;
 }
 
-.drift-toolbar .toolbar-group {
-  flex-wrap: wrap;
+.drift-toolbar .scatter-toolbar__field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
   min-width: 0;
 }
 
-.drift-multi-select {
-  min-width: 210px;
-  width: 210px;
-  height: 66px;
-  padding-top: 4px;
-  padding-bottom: 4px;
+.drift-toolbar .scatter-toolbar__field .modal-select {
+  flex: 1 1 auto;
+  min-width: 96px;
+  max-width: 140px;
 }
 
-.drift-toolbar .toolbar-group--push {
-  min-width: min(100%, 460px);
+.drift-toolbar .scatter-toolbar__field .modal-input {
+  flex: 0 0 auto;
+  width: 150px;
 }
 
-.drift-toolbar #drift-status {
-  min-width: 0;
-  max-width: 48ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.drift-toolbar .drift-col-picker {
+  flex: 0 0 auto;
 }
 
 #page-drift .plot-empty-state {

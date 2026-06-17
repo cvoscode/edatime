@@ -322,66 +322,104 @@
           </div>
         </div>
 
-        <div class="toolbar toolbar--tools timeseries-utility-shelf">
+        <div class="toolbar toolbar--tools scatter-toolbar timeseries-utility-shelf">
           <div class="timeseries-utility-shelf__primary">
-            <div class="toolbar-group draw-toolbar" role="group" aria-label="Drawing tools">
-              <span class="toolbar-label">Draw</span>
-              <select id="draw-tool" name="draw-tool" class="draw-select" aria-label="Draw tool">
-                <option value="none">Zoom / inspect</option>
-                <option value="arrow">Arrow</option>
-                <option value="box">Box</option>
-              </select>
-              <input type="color" id="draw-color" name="draw-color" value="#ff0055" title="Color"
-                aria-label="Draw color">
-              <input type="number" id="draw-width" name="draw-width" value="2" min="1" max="10" title="Thickness"
-                aria-label="Draw thickness">
-              <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings">Clear
-                Drawings</button>
-              <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button"
-                title="Clear adaptive line filters (Shift+C)">Clear Column Filter</button>
+            <div class="scatter-toolbar__segment scatter-toolbar__segment--view draw-toolbar" role="group"
+              aria-label="Drawing tools">
+              <span class="scatter-toolbar__eyebrow">Draw</span>
+              <div class="scatter-toolbar__fields">
+                <label class="toolbar-field scatter-toolbar__field" for="draw-tool">
+                  <span class="toolbar-field__label">Tool</span>
+                  <select id="draw-tool" name="draw-tool" class="draw-select" aria-label="Draw tool">
+                    <option value="none">Zoom / inspect</option>
+                    <option value="arrow">Arrow</option>
+                    <option value="box">Box</option>
+                  </select>
+                </label>
+                <label class="toolbar-field scatter-toolbar__field" for="draw-color" title="Color"
+                  aria-label="Draw color">
+                  <span class="toolbar-field__label">Color</span>
+                  <input type="color" id="draw-color" name="draw-color" value="#ff0055" class="draw-color-swatch">
+                </label>
+                <label class="toolbar-field scatter-toolbar__field" for="draw-width" title="Thickness"
+                  aria-label="Draw thickness">
+                  <span class="toolbar-field__label">Width</span>
+                  <input type="number" id="draw-width" name="draw-width" value="2" min="1" max="10"
+                    class="draw-width-input">
+                </label>
+                <div class="scatter-toolbar__actions">
+                  <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings">
+                    Clear
+                  </button>
+                  <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button"
+                    title="Clear adaptive line filters (Shift+C)">Clear Filter</button>
+                </div>
+              </div>
             </div>
-            <div class="toolbar-group labels-toolbar toolbar-group--sep" role="group" aria-label="Chart label controls">
-              <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-labels-panel-btn" type="button"
-                title="Edit chart title and axis labels">
-                <span class="toolbar-label">Labels</span>
-                <span class="toolbar-disclosure__value">Title + axes</span>
-              </button>
+
+            <div class="scatter-toolbar__segment scatter-toolbar__segment--display labels-toolbar" role="group"
+              aria-label="Chart label controls">
+              <span class="scatter-toolbar__eyebrow">Labels</span>
+              <div class="scatter-toolbar__controls">
+                <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-labels-panel-btn" type="button"
+                  title="Edit chart title and axis labels">
+                  <span class="toolbar-label">Edit</span>
+                  <span class="toolbar-disclosure__value">Title + axes</span>
+                </button>
+              </div>
             </div>
-            <div class="toolbar-group annotations-toolbar toolbar-group--sep" role="group"
+
+            <div class="scatter-toolbar__segment scatter-toolbar__segment--display annotations-toolbar" role="group"
               aria-label="Note and annotation tools">
-              <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-notes-panel-btn" type="button"
-                title="Open annotation tools">
-                <span class="toolbar-label">Notes</span>
-                <span class="toolbar-disclosure__value">Annotations</span>
-              </button>
+              <span class="scatter-toolbar__eyebrow">Notes</span>
+              <div class="scatter-toolbar__controls">
+                <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-notes-panel-btn" type="button"
+                  title="Open annotation tools">
+                  <span class="toolbar-label">Open</span>
+                  <span class="toolbar-disclosure__value">Annotations</span>
+                </button>
+              </div>
             </div>
           </div>
+
           <div class="timeseries-utility-shelf__secondary">
-            <div class="toolbar-group export-toolbar" role="group" aria-label="Export chart and data options">
-              <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button" title="Export chart as PNG (P)"
-                aria-label="Export chart as PNG">PNG <kbd class="toolbar-kbd">P</kbd></button>
-              <button class="btn btn-ghost btn-sm" id="export-csv-btn" type="button"
-                title="Export filtered data as CSV (E)" aria-label="Export filtered data as CSV">CSV <kbd
-                  class="toolbar-kbd">E</kbd></button>
-              <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-export-options-btn" type="button"
-                title="More export options">
-                <span class="toolbar-label">More</span>
-                <span class="toolbar-disclosure__value">SVG, JSON, Parquet</span>
-              </button>
+            <div class="scatter-toolbar__segment scatter-toolbar__segment--display export-toolbar" role="group"
+              aria-label="Export chart and data options">
+              <span class="scatter-toolbar__eyebrow">Export</span>
+              <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+                <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button" title="Export chart as PNG (P)"
+                  aria-label="Export chart as PNG">PNG</button>
+                <button class="btn btn-ghost btn-sm" id="export-csv-btn" type="button"
+                  title="Export filtered data as CSV (E)" aria-label="Export filtered data as CSV">CSV</button>
+                <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-export-options-btn" type="button"
+                  title="More export options">
+                  <span class="toolbar-label">More</span>
+                  <span class="toolbar-disclosure__value">SVG, JSON, Parquet</span>
+                </button>
+              </div>
             </div>
-            <div class="toolbar-group analytics-toolbar toolbar-group--sep" role="group"
+
+            <div class="scatter-toolbar__segment scatter-toolbar__segment--display analytics-toolbar" role="group"
               aria-label="Analytics controls">
-              <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-analytics-panel-btn" type="button"
-                title="Open analytics controls">
-                <span class="toolbar-label">Analytics</span>
-                <span class="toolbar-disclosure__value">Bands, anomalies, cleanup</span>
-              </button>
+              <span class="scatter-toolbar__eyebrow">Analytics</span>
+              <div class="scatter-toolbar__controls">
+                <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-analytics-panel-btn" type="button"
+                  title="Open analytics controls">
+                  <span class="toolbar-label">Open</span>
+                  <span class="toolbar-disclosure__value">Bands, anomalies, cleanup</span>
+                </button>
+              </div>
             </div>
-            <div class="toolbar-group zoom-toolbar timeseries-zoom-cluster" role="group" aria-label="Zoom controls">
-              <button class="btn btn-ghost btn-sm" id="zoom-out-btn" type="button" title="Zoom out">−</button>
-              <span class="zoom-range-badge" id="zoom-range-badge">—</span>
-              <button class="btn btn-ghost btn-sm" id="zoom-reset-btn" type="button"
-                title="Reset zoom to initial view">↺</button>
+
+            <div class="scatter-toolbar__segment scatter-toolbar__segment--actions zoom-toolbar timeseries-zoom-cluster"
+              role="group" aria-label="Zoom controls">
+              <span class="scatter-toolbar__eyebrow">Zoom</span>
+              <div class="scatter-toolbar__controls">
+                <button class="btn btn-ghost btn-sm" id="zoom-out-btn" type="button" title="Zoom out">−</button>
+                <span class="zoom-range-badge" id="zoom-range-badge">Viewing 100%</span>
+                <button class="btn btn-ghost btn-sm" id="zoom-reset-btn" type="button"
+                  title="Reset zoom to initial view">↺</button>
+              </div>
             </div>
           </div>
         </div>
@@ -457,13 +495,6 @@
                   <span class="toolbar-field__label">Y axis</span>
                   <select id="scatter-y-col" class="modal-select" aria-label="Scatter Y column"></select>
                 </label>
-                <div class="scatter-zoom-cluster" role="group" aria-label="Scatter zoom controls">
-                  <button class="btn btn-ghost btn-sm" id="scatter-zoom-out-btn" type="button"
-                    title="Zoom out (or double-click chart)">−</button>
-                  <span class="zoom-range-badge" id="scatter-zoom-range-badge">100%</span>
-                  <button class="btn btn-ghost btn-sm" id="scatter-zoom-reset-btn" type="button"
-                    title="Reset zoom to full data range">↺</button>
-                </div>
                 <details class="scatter-toolbar__overflow" hidden>
                   <summary class="scatter-toolbar__overflow-btn" aria-label="More options">
                     <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
@@ -511,7 +542,8 @@
             <div class="scatter-toolbar__segment scatter-toolbar__segment--refine">
               <span class="scatter-toolbar__eyebrow">Refine</span>
               <div class="scatter-toolbar__fields">
-                <label class="toolbar-field scatter-toolbar__field" for="scatter-color-column">
+                <label id="scatter-color-column-field" class="toolbar-field scatter-toolbar__field"
+                  for="scatter-color-column">
                   <span class="toolbar-field__label">Color column</span>
                   <select id="scatter-color-column" class="modal-select" aria-label="Scatter color-by column">
                     <option value="">None</option>
@@ -525,8 +557,7 @@
                     <option value="inferno">Inferno</option>
                   </select>
                 </div>
-                <div id="scatter-density-controls" class="scatter-toolbar-group-inline scatter-toolbar__density"
-                  hidden>
+                <div id="scatter-density-controls" class="scatter-toolbar-group-inline scatter-toolbar__density" hidden>
                   <label class="toolbar-field scatter-toolbar__field scatter-toolbar__field--range"
                     for="scatter-bin-size">
                     <span class="toolbar-field__label">Bins</span>
@@ -671,53 +702,89 @@
       </section>
 
       <section class="page page--analysis-scroll" id="page-fft" data-page-name="fft" hidden>
-        <div class="toolbar">
-          <div class="toolbar-group">
-            <span class="toolbar-label">FFT / Power Spectral Density</span>
-            <label class="scatter-inline-label" for="fft-mode-select">Mode</label>
-            <select id="fft-mode-select" class="modal-select" aria-label="FFT display mode">
-              <option value="magnitude">Magnitude</option>
-              <option value="psd">PSD</option>
-            </select>
-            <label class="scatter-link-toggle" for="fft-log-scale">
-              <input id="fft-log-scale" type="checkbox" checked>
-              <span>Log scale</span>
-            </label>
+        <div class="toolbar scatter-toolbar">
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
+            <span class="scatter-toolbar__eyebrow">Display</span>
+            <div class="scatter-toolbar__fields">
+              <label class="toolbar-field scatter-toolbar__field" for="fft-mode-select">
+                <span class="toolbar-field__label">Mode</span>
+                <select id="fft-mode-select" class="modal-select" aria-label="FFT display mode">
+                  <option value="magnitude">Magnitude</option>
+                  <option value="psd">PSD</option>
+                </select>
+              </label>
+              <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
+                for="fft-log-scale">
+                <span class="toolbar-field__label">Scale</span>
+                <span class="toolbar-field__control scatter-link-toggle">
+                  <input id="fft-log-scale" type="checkbox" checked name="fft-log-scale"
+                    aria-label="Log scale">
+                  <span>Log</span>
+                </span>
+              </label>
+            </div>
           </div>
-          <div class="toolbar-group toolbar-group--sep">
-            <span class="toolbar-label">Filter</span>
-            <select id="fft-filter-type" class="modal-select" aria-label="Spectral filter type"
-              title="Apply frequency-domain filter to preview on timeseries">
-              <option value="none">Off</option>
-              <option value="lowpass">Low-pass</option>
-              <option value="highpass">High-pass</option>
-              <option value="bandpass">Band-pass</option>
-              <option value="bandstop">Band-stop</option>
-            </select>
-            <label class="scatter-inline-label" for="fft-filter-low-hz" title="Low cutoff (Hz)">Low Hz</label>
-            <input id="fft-filter-low-hz" type="number" class="modal-input" min="0" step="0.001" placeholder="0"
-              style="width:68px;" title="Low frequency cutoff (Hz)">
-            <label class="scatter-inline-label" for="fft-filter-high-hz" title="High cutoff (Hz)">High Hz</label>
-            <input id="fft-filter-high-hz" type="number" class="modal-input" min="0" step="0.001" placeholder="auto"
-              style="width:68px;" title="High frequency cutoff (Hz)">
-            <button id="fft-filter-apply-btn" class="btn btn-ghost btn-sm" type="button"
-              title="Preview filtered signal on timeseries page">Preview</button>
-            <span id="fft-filter-status" class="scatter-panel-status" style="font-size:11px;"></span>
-          </div>
-          <div class="toolbar-group toolbar-group--push">
-            <details class="toolbar-disclosure toolbar-disclosure--end">
-              <summary class="toolbar-disclosure__summary">
-                <span class="toolbar-label">Export</span>
-                <span class="toolbar-disclosure__value">Image + CSV</span>
-              </summary>
-              <div class="toolbar-disclosure__menu">
-                <button id="fft-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
-                <button id="fft-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
-                <button id="fft-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
-                <button id="fft-export-csv-btn" class="btn btn-ghost btn-sm" type="button">CSV</button>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--refine">
+            <span class="scatter-toolbar__eyebrow">Filter</span>
+            <div class="scatter-toolbar__fields">
+              <label class="toolbar-field scatter-toolbar__field" for="fft-filter-type">
+                <span class="toolbar-field__label">Type</span>
+                <select id="fft-filter-type" class="modal-select" aria-label="Spectral filter type"
+                  title="Apply frequency-domain filter to preview on timeseries">
+                  <option value="none">Off</option>
+                  <option value="lowpass">Low-pass</option>
+                  <option value="highpass">High-pass</option>
+                  <option value="bandpass">Band-pass</option>
+                  <option value="bandstop">Band-stop</option>
+                </select>
+              </label>
+              <label class="toolbar-field scatter-toolbar__field" for="fft-filter-low-hz"
+                title="Low frequency cutoff (Hz)">
+                <span class="toolbar-field__label">Low Hz</span>
+                <input id="fft-filter-low-hz" type="number" class="modal-input" min="0" step="0.001"
+                  placeholder="0" title="Low frequency cutoff (Hz)" name="fft-filter-low-hz" aria-label="Low Hz">
+              </label>
+              <label class="toolbar-field scatter-toolbar__field" for="fft-filter-high-hz"
+                title="High frequency cutoff (Hz)">
+                <span class="toolbar-field__label">High Hz</span>
+                <input id="fft-filter-high-hz" type="number" class="modal-input" min="0" step="0.001"
+                  placeholder="auto" title="High frequency cutoff (Hz)" name="fft-filter-high-hz"
+                  aria-label="High Hz">
+              </label>
+              <div class="scatter-toolbar__actions">
+                <button id="fft-filter-apply-btn" class="btn btn-ghost btn-sm" type="button"
+                  title="Preview filtered signal on timeseries page">Preview</button>
+                <span id="fft-filter-status" class="scatter-panel-status"></span>
               </div>
-            </details>
-            <button id="fft-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button" hidden>↩ Zoom out</button>
+            </div>
+          </div>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push"
+            id="fft-zoom-segment" hidden>
+            <span class="scatter-toolbar__eyebrow">Zoom</span>
+            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <button id="fft-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button">↩ Zoom
+                out</button>
+            </div>
+          </div>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
+            <span class="scatter-toolbar__eyebrow">Export</span>
+            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <details class="toolbar-disclosure toolbar-disclosure--end">
+                <summary class="toolbar-disclosure__summary">
+                  <span class="toolbar-label">Format</span>
+                  <span class="toolbar-disclosure__value">Image + CSV</span>
+                </summary>
+                <div class="toolbar-disclosure__menu">
+                  <button id="fft-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
+                  <button id="fft-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
+                  <button id="fft-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
+                  <button id="fft-export-csv-btn" class="btn btn-ghost btn-sm" type="button">CSV</button>
+                </div>
+              </details>
+            </div>
           </div>
         </div>
         <div class="page-guidance page-guidance--advanced">
@@ -743,38 +810,73 @@
       </section>
 
       <section class="page" id="page-heatmap" data-page-name="heatmap" hidden>
-        <div class="toolbar">
-          <div class="toolbar-group">
-            <span class="toolbar-label">Correlation Heatmap</span>
-            <label class="scatter-inline-label" for="heatmap-metric">Metric</label>
-            <select id="heatmap-metric" class="modal-select" aria-label="Correlation metric">
-              <option value="pearson" selected>Pearson</option>
-              <option value="spearman">Spearman</option>
-            </select>
-            <label class="scatter-inline-label" for="heatmap-cell-size">Size</label>
-            <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36"
-              aria-label="Heatmap cell size">
-            <span id="heatmap-cell-size-value" class="range-value">36</span>
-            <label class="scatter-inline-label" for="heatmap-cluster-toggle">Cluster</label>
-            <input id="heatmap-cluster-toggle" type="checkbox" checked aria-label="Enable clustering">
-            <label class="scatter-inline-label" for="heatmap-cluster-threshold">Threshold</label>
-            <input id="heatmap-cluster-threshold" type="range" min="0" max="1" step="0.01" value="0.85"
-              aria-label="Clustering threshold">
-            <span id="heatmap-cluster-threshold-value" class="range-value">0.85</span>
+        <div class="toolbar scatter-toolbar">
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
+            <span class="scatter-toolbar__eyebrow">Metric</span>
+            <div class="scatter-toolbar__fields">
+              <label class="toolbar-field scatter-toolbar__field" for="heatmap-metric">
+                <span class="toolbar-field__label">Type</span>
+                <select id="heatmap-metric" class="modal-select" aria-label="Correlation metric">
+                  <option value="pearson" selected>Pearson</option>
+                  <option value="spearman">Spearman</option>
+                </select>
+              </label>
+            </div>
           </div>
-          <div class="toolbar-group toolbar-group--push">
-            <details class="toolbar-disclosure toolbar-disclosure--end">
-              <summary class="toolbar-disclosure__summary">
-                <span class="toolbar-label">Export</span>
-                <span class="toolbar-disclosure__value">Image + CSV</span>
-              </summary>
-              <div class="toolbar-disclosure__menu">
-                <button id="heatmap-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
-                <button id="heatmap-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
-                <button id="heatmap-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
-                <button id="heatmap-export-csv-btn" class="btn btn-ghost btn-sm" type="button">CSV</button>
-              </div>
-            </details>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
+            <span class="scatter-toolbar__eyebrow">Display</span>
+            <div class="scatter-toolbar__fields">
+              <label class="toolbar-field scatter-toolbar__field scatter-toolbar__field--range" for="heatmap-cell-size">
+                <span class="toolbar-field__label">Cell size</span>
+                <span class="toolbar-field__control">
+                  <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36"
+                    aria-label="Heatmap cell size">
+                  <span id="heatmap-cell-size-value" class="range-value">36</span>
+                </span>
+              </label>
+              <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
+                for="heatmap-cluster-toggle">
+                <span class="toolbar-field__label">Cluster</span>
+                <span class="toolbar-field__control scatter-link-toggle">
+                  <input id="heatmap-cluster-toggle" type="checkbox" checked aria-label="Enable clustering">
+                  <span>Group similar</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--refine">
+            <span class="scatter-toolbar__eyebrow">Threshold</span>
+            <div class="scatter-toolbar__fields">
+              <label class="toolbar-field scatter-toolbar__field scatter-toolbar__field--range"
+                for="heatmap-cluster-threshold">
+                <span class="toolbar-field__label">Cutoff</span>
+                <span class="toolbar-field__control">
+                  <input id="heatmap-cluster-threshold" type="range" min="0" max="1" step="0.01" value="0.85"
+                    aria-label="Clustering threshold">
+                  <span id="heatmap-cluster-threshold-value" class="range-value">0.85</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
+            <span class="scatter-toolbar__eyebrow">Export</span>
+            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <details class="toolbar-disclosure toolbar-disclosure--end">
+                <summary class="toolbar-disclosure__summary">
+                  <span class="toolbar-label">Format</span>
+                  <span class="toolbar-disclosure__value">Image + CSV</span>
+                </summary>
+                <div class="toolbar-disclosure__menu">
+                  <button id="heatmap-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
+                  <button id="heatmap-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
+                  <button id="heatmap-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
+                  <button id="heatmap-export-csv-btn" class="btn btn-ghost btn-sm" type="button">CSV</button>
+                </div>
+              </details>
+            </div>
           </div>
         </div>
         <main class="main main--padded">
@@ -786,38 +888,68 @@
       </section>
 
       <section class="page page--analysis-scroll" id="page-spectrogram" data-page-name="spectrogram" hidden>
-        <div class="toolbar">
-          <div class="toolbar-group">
-            <span class="toolbar-label">Spectrogram</span>
-            <label class="scatter-inline-label" for="spectrogram-col-select">Column</label>
-            <select id="spectrogram-col-select" class="modal-select" aria-label="Column"></select>
-            <label class="scatter-inline-label" for="spectrogram-win-size">Window</label>
-            <select id="spectrogram-win-size" class="modal-select" aria-label="FFT window size">
-              <option value="64">64</option>
-              <option value="128">128</option>
-              <option value="256" selected>256</option>
-              <option value="512">512</option>
-              <option value="1024">1024</option>
-            </select>
-            <label class="scatter-link-toggle" for="spectrogram-log-scale">
-              <input id="spectrogram-log-scale" type="checkbox" checked>
-              <span>Log scale</span>
-            </label>
+        <div class="toolbar scatter-toolbar">
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
+            <span class="scatter-toolbar__eyebrow">Display</span>
+            <div class="scatter-toolbar__fields">
+              <label class="toolbar-field scatter-toolbar__field" for="spectrogram-col-select">
+                <span class="toolbar-field__label">Column</span>
+                <select id="spectrogram-col-select" class="modal-select" aria-label="Column"></select>
+              </label>
+              <label class="toolbar-field scatter-toolbar__field" for="spectrogram-win-size">
+                <span class="toolbar-field__label">Window</span>
+                <select id="spectrogram-win-size" class="modal-select" aria-label="FFT window size">
+                  <option value="64">64</option>
+                  <option value="128">128</option>
+                  <option value="256" selected>256</option>
+                  <option value="512">512</option>
+                  <option value="1024">1024</option>
+                </select>
+              </label>
+              <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
+                for="spectrogram-log-scale">
+                <span class="toolbar-field__label">Scale</span>
+                <span class="toolbar-field__control scatter-link-toggle">
+                  <input id="spectrogram-log-scale" type="checkbox" checked name="spectrogram-log-scale"
+                    aria-label="Log scale">
+                  <span>Log</span>
+                </span>
+              </label>
+            </div>
           </div>
-          <div class="toolbar-group toolbar-group--push">
-            <details class="toolbar-disclosure toolbar-disclosure--end">
-              <summary class="toolbar-disclosure__summary">
-                <span class="toolbar-label">Export</span>
-                <span class="toolbar-disclosure__value">Image + HTML</span>
-              </summary>
-              <div class="toolbar-disclosure__menu">
-                <button id="spectrogram-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
-                <button id="spectrogram-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
-                <button id="spectrogram-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
-              </div>
-            </details>
-            <button id="spectrogram-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button">Reset zoom</button>
-            <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">Compute</button>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
+            <span class="scatter-toolbar__eyebrow">Export</span>
+            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <details class="toolbar-disclosure toolbar-disclosure--end">
+                <summary class="toolbar-disclosure__summary">
+                  <span class="toolbar-label">Format</span>
+                  <span class="toolbar-disclosure__value">Image + HTML</span>
+                </summary>
+                <div class="toolbar-disclosure__menu">
+                  <button id="spectrogram-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
+                  <button id="spectrogram-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
+                  <button id="spectrogram-export-html-btn" class="btn btn-ghost btn-sm"
+                    type="button">HTML</button>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
+            <span class="scatter-toolbar__eyebrow">Zoom</span>
+            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <button id="spectrogram-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button">↩ Reset
+                zoom</button>
+            </div>
+          </div>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
+            <span class="scatter-toolbar__eyebrow">Run</span>
+            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">▶
+                Compute</button>
+            </div>
           </div>
         </div>
         <div class="page-guidance page-guidance--advanced">
@@ -842,76 +974,100 @@
       </section>
 
       <section class="page" id="page-causal" data-page-name="causal" hidden>
-        <div class="toolbar">
-          <div class="toolbar-group">
-            <span class="toolbar-label"
-              title="Causal discovery using tigramite algorithms. Select columns, configure parameters, and press Compute.">Causal
-              Discovery (Tigramite)</span>
-            <span class="causal-info-icon" tabindex="0"
-              data-causal-tip="Tigramite references used by this page.&#10;• Package: Tigramite, causal inference for time series datasets.&#10;• Overview: Runge, Gerhardus, Varando et al. Causal inference for time series. Nat Rev Earth Environ (2023).&#10;• PCMCI: Runge et al. Detecting and quantifying causal associations in large nonlinear time series datasets. Sci Adv (2019).&#10;• PCMCI+: Runge. Discovering contemporaneous and lagged causal relations in autocorrelated nonlinear time series datasets. UAI (2020).&#10;• LPCMCI: Gerhardus and Runge. High-recall causal discovery for autocorrelated time series with latent confounders. NeurIPS (2020).">ⓘ</span>
-            <label class="scatter-inline-label" for="causal-method-select">Method</label>
-            <select id="causal-method-select" class="modal-select" aria-label="PCMCI method">
-              <option value="pcmci" selected>PCMCI</option>
-              <option value="pcmciplus">PCMCI+</option>
-              <option value="fullci">FullCI</option>
-              <option value="bivci">BivCI</option>
-              <option value="lpcmci">LPCMCI</option>
-            </select>
-            <span class="causal-info-icon" tabindex="0"
-              data-causal-tip="Causal discovery algorithm.&#10;• PCMCI: Two-step PC parent selection plus MCI testing. Reference: Runge et al., Sci Adv (2019).&#10;• PCMCI+: Adds contemporaneous link orientation. Reference: Runge, UAI (2020).&#10;• FullCI: Conditions on all lagged variables directly; no PC pre-selection.&#10;• BivCI: Bivariate screening against the target's own past; fastest but weakest adjustment.&#10;• LPCMCI: Extends PCMCI to latent confounding. Reference: Gerhardus and Runge, NeurIPS (2020).&#10;Controls disabled in the toolbar are ignored by the selected method.">ⓘ</span>
-            <label class="scatter-inline-label" for="causal-test-select">Test</label>
-            <select id="causal-test-select" class="modal-select" aria-label="Independence test">
-              <option value="par_corr" selected>ParCorr</option>
-              <option value="robust_parcorr">RobustParCorr</option>
-              <option value="cmi_knn">CMI-KNN</option>
-              <option value="gsquared">G-squared</option>
-              <option value="cmi_symb">CMI-Symb</option>
-            </select>
-            <span class="causal-info-icon" tabindex="0"
-              data-causal-tip="Conditional independence test used inside the Tigramite-style causal engine.&#10;• ParCorr: Linear partial correlation; best when relations are near-Gaussian and linear.&#10;• RobustParCorr: Rank/non-paranormal style preprocessing plus ParCorr.&#10;• CMI-KNN: Nonlinear conditional mutual information. Reference: Runge, AISTATS (2018).&#10;• G-squared: Discrete/categorical likelihood-ratio test.&#10;• CMI-Symb: Symbolic/discretized mutual information test.&#10;Backend causal discovery is still numeric-data oriented even if non-numeric columns are shown as manual graph nodes.">ⓘ</span>
-            <label class="scatter-inline-label" for="causal-tau-max">τ max</label>
-            <input id="causal-tau-max" type="number" min="1" max="10" value="3" class="modal-input" style="width:50px;"
-              aria-label="Maximum time lag (tau max)">
-            <span class="causal-info-icon" tabindex="0"
-              data-causal-tip="Maximum time lag τ to test (1–10). Higher means more lagged relationships are evaluated, but runtime grows quickly.">ⓘ</span>
-            <label class="scatter-inline-label" for="causal-alpha">α</label>
-            <input id="causal-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.05" class="modal-input"
-              style="width:60px;" aria-label="Significance level (alpha)">
-            <span class="causal-info-icon" tabindex="0"
-              data-causal-tip="Final significance threshold α. Links with p-values above α are removed from the final result.">ⓘ</span>
-            <label class="scatter-inline-label" for="causal-pc-alpha">PC α</label>
-            <input id="causal-pc-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.2" class="modal-input"
-              style="width:60px;" aria-label="PC stage significance level">
-            <span class="causal-info-icon" tabindex="0"
-              data-causal-tip="Significance threshold for the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI. Disabled for FullCI and BivCI because those methods do not run the PC step.">ⓘ</span>
-            <label class="scatter-inline-label" for="causal-max-conds">Max conds</label>
-            <input id="causal-max-conds" type="number" min="1" max="20" value="" placeholder="auto" class="modal-input"
-              style="width:60px;" aria-label="Maximum conditioning set size">
-            <span class="causal-info-icon" tabindex="0"
-              data-causal-tip="Maximum conditioning-set size used in the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI only. &quot;auto&quot; lets the backend decide.">ⓘ</span>
-            <label class="scatter-inline-label" for="causal-fdr-select">FDR</label>
-            <select id="causal-fdr-select" class="modal-select" aria-label="FDR correction">
-              <option value="none" selected>None</option>
-              <option value="fdr_bh">Benjamini-Hochberg</option>
-            </select>
-            <span class="causal-info-icon" tabindex="0"
-              data-causal-tip="False Discovery Rate correction.&#10;• None: Raw p-values.&#10;• Benjamini-Hochberg: Controls FDR across all tested links.">ⓘ</span>
-          </div>
-          <div class="toolbar-group toolbar-group--push">
-            <button id="causal-add-edge-btn" class="btn btn-ghost btn-sm" type="button"
-              title="Click two nodes to add an edge between them">+ Edge</button>
-            <div style="position:relative;display:inline-flex;">
-              <button id="causal-export-btn" class="btn btn-ghost btn-sm" type="button" title="Export graph">Export
-                ▾</button>
-              <div id="causal-export-menu" class="causal-export-menu" hidden>
-                <button class="causal-export-item" data-fmt="json" type="button">JSON (full graph)</button>
-                <button class="causal-export-item" data-fmt="glm" type="button">GLM formula (.txt)</button>
-                <button class="causal-export-item" data-fmt="torch" type="button">torch_geometric (.json)</button>
+        <div class="toolbar scatter-toolbar">
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
+            <span class="scatter-toolbar__eyebrow"
+              title="Causal discovery using tigramite algorithms. Select columns, configure parameters, and press Compute.">Algorithm</span>
+            <div class="scatter-toolbar__fields">
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">Method</span>
+                <select id="causal-method-select" class="modal-select" aria-label="PCMCI method">
+                  <option value="pcmci" selected>PCMCI</option>
+                  <option value="pcmciplus">PCMCI+</option>
+                  <option value="fullci">FullCI</option>
+                  <option value="bivci">BivCI</option>
+                  <option value="lpcmci">LPCMCI</option>
+                </select>
+                <span class="causal-info-icon" tabindex="0"
+                  data-causal-tip="Causal discovery algorithm.&#10;• PCMCI: Two-step PC parent selection plus MCI testing. Reference: Runge et al., Sci Adv (2019).&#10;• PCMCI+: Adds contemporaneous link orientation. Reference: Runge, UAI (2020).&#10;• FullCI: Conditions on all lagged variables directly; no PC pre-selection.&#10;• BivCI: Bivariate screening against the target's own past; fastest but weakest adjustment.&#10;• LPCMCI: Extends PCMCI to latent confounding. Reference: Gerhardus and Runge, NeurIPS (2020).&#10;Controls disabled in the toolbar are ignored by the selected method.">ⓘ</span>
+              </div>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">Test</span>
+                <select id="causal-test-select" class="modal-select" aria-label="Independence test">
+                  <option value="par_corr" selected>ParCorr</option>
+                  <option value="robust_parcorr">RobustParCorr</option>
+                  <option value="cmi_knn">CMI-KNN</option>
+                  <option value="gsquared">G-squared</option>
+                  <option value="cmi_symb">CMI-Symb</option>
+                </select>
+                <span class="causal-info-icon" tabindex="0"
+                  data-causal-tip="Conditional independence test used inside the Tigramite-style causal engine.&#10;• ParCorr: Linear partial correlation; best when relations are near-Gaussian and linear.&#10;• RobustParCorr: Rank/non-paranormal style preprocessing plus ParCorr.&#10;• CMI-KNN: Nonlinear conditional mutual information. Reference: Runge, AISTATS (2018).&#10;• G-squared: Discrete/categorical likelihood-ratio test.&#10;• CMI-Symb: Symbolic/discretized mutual information test.&#10;Backend causal discovery is still numeric-data oriented even if non-numeric columns are shown as manual graph nodes.">ⓘ</span>
               </div>
             </div>
-            <button id="causal-save-run-btn" class="btn btn-ghost btn-sm" type="button"
-              title="Save this causal run for comparison">Save Run</button>
-            <button id="causal-compute-btn" class="btn btn-accent btn-sm" type="button">Compute</button>
+          </div>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--refine">
+            <span class="scatter-toolbar__eyebrow">Parameters</span>
+            <div class="scatter-toolbar__fields">
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">τ max</span>
+                <input id="causal-tau-max" type="number" min="1" max="10" value="3" class="modal-input"
+                  aria-label="Maximum time lag (tau max)" name="causal-tau-max">
+                <span class="causal-info-icon" tabindex="0"
+                  data-causal-tip="Maximum time lag τ to test (1–10). Higher means more lagged relationships are evaluated, but runtime grows quickly.">ⓘ</span>
+              </div>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">α</span>
+                <input id="causal-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.05"
+                  class="modal-input" aria-label="Significance level (alpha)" name="causal-alpha">
+                <span class="causal-info-icon" tabindex="0"
+                  data-causal-tip="Final significance threshold α. Links with p-values above α are removed from the final result.">ⓘ</span>
+              </div>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">PC α</span>
+                <input id="causal-pc-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.2"
+                  class="modal-input" aria-label="PC stage significance level" name="causal-pc-alpha">
+                <span class="causal-info-icon" tabindex="0"
+                  data-causal-tip="Significance threshold for the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI. Disabled for FullCI and BivCI because those methods do not run the PC step.">ⓘ</span>
+              </div>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">Max conds</span>
+                <input id="causal-max-conds" type="number" min="1" max="20" value="" placeholder="auto"
+                  class="modal-input" aria-label="Maximum conditioning set size" name="causal-max-conds">
+                <span class="causal-info-icon" tabindex="0"
+                  data-causal-tip="Maximum conditioning-set size used in the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI only. &quot;auto&quot; lets the backend decide.">ⓘ</span>
+              </div>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">FDR</span>
+                <select id="causal-fdr-select" class="modal-select" aria-label="FDR correction">
+                  <option value="none" selected>None</option>
+                  <option value="fdr_bh">Benjamini-Hochberg</option>
+                </select>
+                <span class="causal-info-icon" tabindex="0"
+                  data-causal-tip="False Discovery Rate correction.&#10;• None: Raw p-values.&#10;• Benjamini-Hochberg: Controls FDR across all tested links.">ⓘ</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
+            <span class="scatter-toolbar__eyebrow">Graph</span>
+            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <button id="causal-add-edge-btn" class="btn btn-ghost btn-sm" type="button"
+                title="Click two nodes to add an edge between them">+ Edge</button>
+              <div class="causal-export-wrap">
+                <button id="causal-export-btn" class="btn btn-ghost btn-sm" type="button"
+                  title="Export graph">Export ▾</button>
+                <div id="causal-export-menu" class="causal-export-menu" hidden>
+                  <button class="causal-export-item" data-fmt="json" type="button">JSON (full graph)</button>
+                  <button class="causal-export-item" data-fmt="glm" type="button">GLM formula (.txt)</button>
+                  <button class="causal-export-item" data-fmt="torch" type="button">torch_geometric (.json)</button>
+                </div>
+              </div>
+              <button id="causal-save-run-btn" class="btn btn-ghost btn-sm" type="button"
+                title="Save this causal run for comparison">Save Run</button>
+              <button id="causal-compute-btn" class="btn btn-accent btn-sm" type="button">▶
+                Compute</button>
+            </div>
           </div>
         </div>
         <div class="page-guidance page-guidance--advanced">
@@ -979,110 +1135,139 @@
 
       <!-- ── Drift Analysis page ───────────────────────── -->
       <section class="page" id="page-drift" data-page-name="drift" hidden>
-        <div class="toolbar drift-toolbar">
-          <div class="toolbar-group">
-            <span class="toolbar-label">Drift Analysis</span>
-            <span class="scatter-inline-label">Columns</span>
-            <!-- custom column picker: JS populates checkboxes inside the panel -->
-            <div class="drift-col-picker" id="drift-col-picker-wrap">
-              <button type="button" id="drift-col-picker-btn" class="btn btn-sm drift-col-picker-trigger"
-                aria-haspopup="true" aria-expanded="false" aria-controls="drift-col-picker-panel">
-                <span id="drift-col-picker-label">–</span>
-                <svg viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
-                  stroke-linejoin="round" width="10" height="6" aria-hidden="true">
-                  <polyline points="1 1 5 5 9 1" />
-                </svg>
-              </button>
-              <div id="drift-col-picker-panel" class="drift-col-picker-panel" hidden role="dialog"
-                aria-label="Select columns"
-                style="position:absolute;top:calc(100% + 4px);left:0;z-index:300;background:var(--surface-2,#141c2e);border:1px solid var(--border,rgba(255,255,255,.1));border-radius:10px;padding:8px;min-width:180px;max-height:300px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.55);">
-                <div class="drift-col-picker-actions"
-                  style="display:flex;gap:5px;padding-bottom:7px;margin-bottom:7px;border-bottom:1px solid var(--border,rgba(255,255,255,.1));">
-                  <button id="drift-cols-all" type="button" class="btn btn-xs">All</button>
-                  <button id="drift-cols-single" type="button" class="btn btn-xs">Single</button>
-                  <button id="drift-cols-none" type="button" class="btn btn-xs">None</button>
+        <div class="toolbar scatter-toolbar drift-toolbar">
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
+            <span class="scatter-toolbar__eyebrow">Data</span>
+            <div class="scatter-toolbar__fields">
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">Columns</span>
+                <!-- custom column picker: JS populates checkboxes inside the panel -->
+                <div class="drift-col-picker" id="drift-col-picker-wrap">
+                  <button type="button" id="drift-col-picker-btn" class="btn btn-sm drift-col-picker-trigger"
+                    aria-haspopup="true" aria-expanded="false" aria-controls="drift-col-picker-panel">
+                    <span id="drift-col-picker-label">–</span>
+                    <svg viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
+                      stroke-linejoin="round" width="10" height="6" aria-hidden="true">
+                      <polyline points="1 1 5 5 9 1" />
+                    </svg>
+                  </button>
+                  <div id="drift-col-picker-panel" class="drift-col-picker-panel" hidden role="dialog"
+                    aria-label="Select columns"
+                    style="position:absolute;top:calc(100% + 4px);left:0;z-index:300;background:var(--surface-2,#141c2e);border:1px solid var(--border,rgba(255,255,255,.1));border-radius:10px;padding:8px;min-width:180px;max-height:300px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.55);">
+                    <div class="drift-col-picker-actions"
+                      style="display:flex;gap:5px;padding-bottom:7px;margin-bottom:7px;border-bottom:1px solid var(--border,rgba(255,255,255,.1));">
+                      <button id="drift-cols-all" type="button" class="btn btn-xs">All</button>
+                      <button id="drift-cols-single" type="button" class="btn btn-xs">Single</button>
+                      <button id="drift-cols-none" type="button" class="btn btn-xs">None</button>
+                    </div>
+                    <div id="drift-col-picker-list" class="drift-col-picker-list" role="group"
+                      aria-label="Numeric columns"
+                      style="display:flex;flex-direction:column;gap:2px;">
+                      <!-- populated by driftPage.ts -->
+                    </div>
+                  </div>
                 </div>
-                <div id="drift-col-picker-list" class="drift-col-picker-list" role="group" aria-label="Numeric columns"
-                  style="display:flex;flex-direction:column;gap:2px;">
+                <!-- hidden select kept for backward-compat JS reads via selectedOptions -->
+                <select id="drift-col-select" style="display:none;" multiple aria-hidden="true" tabindex="-1">
                   <!-- populated by driftPage.ts -->
-                </div>
+                </select>
+              </div>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">Window</span>
+                <select id="drift-window-select" class="modal-select" aria-label="Temporal window size">
+                  <option value="hourly">Hourly</option>
+                  <option value="daily" selected>Daily</option>
+                  <option value="weekly">Weekly</option>
+                </select>
+              </div>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">Detail View</span>
+                <select id="drift-plot-type" class="modal-select" aria-label="Plot style">
+                  <option value="box">Box plot</option>
+                  <option value="violin">Violin</option>
+                  <option value="ecdf">ECDF overlay</option>
+                  <option value="histogram">Histogram overlay</option>
+                </select>
               </div>
             </div>
-            <!-- hidden select kept for backward-compat JS reads via selectedOptions -->
-            <select id="drift-col-select" style="display:none;" multiple aria-hidden="true" tabindex="-1">
-              <!-- populated by driftPage.ts -->
-            </select>
-            <label class="scatter-inline-label" for="drift-window-select">Window</label>
-            <select id="drift-window-select" class="modal-select" style="width:82px;" aria-label="Temporal window size">
-              <option value="hourly">Hourly</option>
-              <option value="daily" selected>Daily</option>
-              <option value="weekly">Weekly</option>
-            </select>
-            <label class="scatter-inline-label" for="drift-plot-type">Detail View</label>
-            <select id="drift-plot-type" class="modal-select" style="width:130px;" aria-label="Plot style">
-              <option value="box">Box plot</option>
-              <option value="violin">Violin</option>
-              <option value="ecdf">ECDF overlay</option>
-              <option value="histogram">Histogram overlay</option>
-            </select>
           </div>
-          <div class="toolbar-group toolbar-group--sep">
-            <span class="toolbar-label">Reference</span>
-            <label class="scatter-inline-label" for="drift-ref-preset">Preset</label>
-            <select id="drift-ref-preset" class="modal-select" style="width:140px;"
-              aria-label="Reference window preset">
-              <option value="30">First 30%</option>
-              <option value="50" selected>First 50%</option>
-              <option value="70">First 70%</option>
-              <option value="custom">Custom</option>
-            </select>
-            <label class="scatter-inline-label" for="drift-ref-start">Start</label>
-            <input id="drift-ref-start" type="datetime-local" class="modal-input" style="width:168px;" />
-            <label class="scatter-inline-label" for="drift-ref-end">End</label>
-            <input id="drift-ref-end" type="datetime-local" class="modal-input" style="width:168px;" />
-          </div>
-          <div class="toolbar-group toolbar-group--sep">
-            <span class="toolbar-label">Zoom</span>
-            <span class="toolbar-label">Drag in chart to box-zoom</span>
-            <button id="drift-zoom-reset-btn" class="btn btn-sm" type="button" title="Reset chart zoom">Reset</button>
-          </div>
-          <div class="toolbar-group toolbar-group--push">
-            <button id="drift-compute-btn" class="btn btn-accent btn-sm" type="button">Compute</button>
-            <details class="toolbar-disclosure toolbar-disclosure--end">
-              <summary class="toolbar-disclosure__summary">
-                <span class="toolbar-label">Export</span>
-                <span class="toolbar-disclosure__value">Timeline, detail, stats</span>
-              </summary>
-              <div class="toolbar-disclosure__menu">
-                <button id="drift-export-png" class="btn btn-sm" type="button" title="Export timeline as PNG (P)"
-                  disabled>
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
-                    stroke-linejoin="round" width="12" height="12">
-                    <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3" />
-                    <polyline points="11 5 8 2 5 5" />
-                    <line x1="8" y1="2" x2="8" y2="11" />
-                  </svg>
-                  PNG
-                </button>
-                <button id="drift-export-detail-png" class="btn btn-sm" type="button" title="Export detail panel as PNG"
-                  disabled>
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
-                    stroke-linejoin="round" width="12" height="12">
-                    <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3" />
-                    <polyline points="11 5 8 2 5 5" />
-                    <line x1="8" y1="2" x2="8" y2="11" />
-                  </svg>
-                  Detail
-                </button>
-                <button id="drift-export-csv" class="btn btn-sm" type="button" title="Export stats as CSV (E)"
-                  disabled>CSV</button>
-                <button id="drift-export-json" class="btn btn-sm" type="button" title="Export full response as JSON (J)"
-                  disabled>JSON</button>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--refine">
+            <span class="scatter-toolbar__eyebrow">Reference</span>
+            <div class="scatter-toolbar__fields">
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">Preset</span>
+                <select id="drift-ref-preset" class="modal-select" aria-label="Reference window preset">
+                  <option value="30">First 30%</option>
+                  <option value="50" selected>First 50%</option>
+                  <option value="70">First 70%</option>
+                  <option value="custom">Custom</option>
+                </select>
               </div>
-            </details>
-            <span class="toolbar-label" id="drift-status" role="status" aria-live="polite">Select one or more columns
-              and reference window, then press
-              Compute.</span>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">Start</span>
+                <input id="drift-ref-start" type="datetime-local" class="modal-input" name="drift-ref-start"
+                  aria-label="Start">
+              </div>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">End</span>
+                <input id="drift-ref-end" type="datetime-local" class="modal-input" name="drift-ref-end"
+                  aria-label="End">
+              </div>
+            </div>
+          </div>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
+            <span class="scatter-toolbar__eyebrow">Zoom</span>
+            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <button id="drift-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button" title="Reset chart zoom">↩
+                Reset</button>
+            </div>
+          </div>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
+            <span class="scatter-toolbar__eyebrow">Export</span>
+            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <details class="toolbar-disclosure toolbar-disclosure--end">
+                <summary class="toolbar-disclosure__summary">
+                  <span class="toolbar-label">Format</span>
+                  <span class="toolbar-disclosure__value">Timeline + detail + stats</span>
+                </summary>
+                <div class="toolbar-disclosure__menu">
+                  <button id="drift-export-png" class="btn btn-ghost btn-sm" type="button"
+                    title="Export timeline as PNG (P)" disabled>
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                      stroke-linejoin="round" width="12" height="12">
+                      <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3" />
+                      <polyline points="11 5 8 2 5 5" />
+                      <line x1="8" y1="2" x2="8" y2="11" />
+                    </svg>
+                    PNG
+                  </button>
+                  <button id="drift-export-detail-png" class="btn btn-ghost btn-sm" type="button"
+                    title="Export detail panel as PNG" disabled>
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                      stroke-linejoin="round" width="12" height="12">
+                      <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3" />
+                      <polyline points="11 5 8 2 5 5" />
+                      <line x1="8" y1="2" x2="8" y2="11" />
+                    </svg>
+                    Detail
+                  </button>
+                  <button id="drift-export-csv" class="btn btn-ghost btn-sm" type="button"
+                    title="Export stats as CSV (E)" disabled>CSV</button>
+                  <button id="drift-export-json" class="btn btn-ghost btn-sm" type="button"
+                    title="Export full response as JSON (J)" disabled>JSON</button>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
+            <span class="scatter-toolbar__eyebrow">Run</span>
+            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <button id="drift-compute-btn" class="btn btn-accent btn-sm" type="button">▶ Compute</button>
+            </div>
           </div>
         </div>
         <div class="page-guidance page-guidance--advanced">
@@ -2097,9 +2282,9 @@
 
   <!-- Annotations modal -->
   <div id="annotations-modal" class="modal-backdrop" hidden>
-    <div class="modal-dialog" style="max-width:560px">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="annotations-modal-title" style="max-width:560px">
       <div class="modal-header">
-        <h3 class="modal-title">Annotations &amp; Notes</h3>
+        <h3 class="modal-title" id="annotations-modal-title">Annotations &amp; Notes</h3>
         <button class="modal-close" id="annotations-modal-close" type="button" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body" style="padding: 0;">
@@ -2119,9 +2304,9 @@
 
   <!-- Add Note modal -->
   <div id="add-note-modal" class="modal-backdrop" hidden>
-    <div class="modal-dialog" style="max-width:420px">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="add-note-modal-title" style="max-width:420px">
       <div class="modal-header">
-        <h3 class="modal-title">Add Note</h3>
+        <h3 class="modal-title" id="add-note-modal-title">Add Note</h3>
         <button class="modal-close" id="add-note-modal-close" type="button" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body">

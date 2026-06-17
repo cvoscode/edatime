@@ -138,9 +138,6 @@ function buildDom(): void {
                 <button type="button" id="scatter-view-plot-btn" data-scatter-view="plot" aria-pressed="true">Plot</button>
                 <button type="button" id="scatter-view-matrix-btn" data-scatter-view="matrix" aria-pressed="false">Matrix</button>
             </div>
-            <button type="button" id="scatter-zoom-out-btn">−</button>
-            <button type="button" id="scatter-zoom-reset-btn">↺</button>
-            <span id="scatter-zoom-range-badge">100%</span>
             <select id="scatter-x-col"></select>
             <select id="scatter-y-col"></select>
             <input id="scatter-bin-size" type="range" value="10">

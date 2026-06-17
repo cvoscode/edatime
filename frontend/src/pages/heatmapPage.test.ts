@@ -7,17 +7,17 @@ vi.mock('../services/api/index.js', () => ({
         pearson: [
             [1, 0.95, 0.95, 0, 0, 0],
             [0.95, 1, 0.95, 0, 0, 0],
-            [0.95, 0.95, 1, 0, 0, 0],
+            [0.95, 0.95, 1, 0, -0.6, 0],
             [0, 0, 0, 1, 0.95, 0.95],
-            [0, 0, 0, 0.95, 1, 0.95],
+            [0, 0, -0.6, 0.95, 1, 0.95],
             [0, 0, 0, 0.95, 0.95, 1],
         ],
         spearman: [
             [1, 0.95, 0.95, 0, 0, 0],
             [0.95, 1, 0.95, 0, 0, 0],
-            [0.95, 0.95, 1, 0, 0, 0],
+            [0.95, 0.95, 1, 0, -0.6, 0],
             [0, 0, 0, 1, 0.95, 0.95],
-            [0, 0, 0, 0.95, 1, 0.95],
+            [0, 0, -0.6, 0.95, 1, 0.95],
             [0, 0, 0, 0.95, 0.95, 1],
         ],
     }),
@@ -116,6 +116,28 @@ describe('heatmapPage with clustering', () => {
         await activateHeatmap();
         const cells = document.querySelectorAll('.heatmap-cell');
         expect(cells.length).toBe(36);
+    });
+
+    it('renders the compact seaborn-style heatmap frame and color scale', async () => {
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const shell = document.querySelector('.heatmap-shell');
+        const scale = document.querySelector('.heatmap-scale');
+        const positiveTick = document.querySelector('.heatmap-scale__tick--positive');
+        const negativeTick = document.querySelector('.heatmap-scale__tick--negative');
+        const headers = Array.from(document.querySelectorAll('.heatmap-header'));
+        const strongPositiveCell = document.querySelector('.heatmap-cell.heatmap-cell--positive[data-row="0"][data-col="0"]') as HTMLElement | null;
+        const negativeCell = document.querySelector('.heatmap-cell.heatmap-cell--negative') as HTMLElement | null;
+
+        expect(shell).not.toBeNull();
+        expect(scale).not.toBeNull();
+        expect(positiveTick?.textContent).toBe('+1.0');
+        expect(negativeTick?.textContent).toBe('-1.0');
+        expect(headers.every((header) => header.classList.contains('heatmap-header--vertical'))).toBe(true);
+        expect(strongPositiveCell?.style.getPropertyValue('--heatmap-cell-bg')).toBeTruthy();
+        expect(negativeCell?.style.getPropertyValue('--heatmap-cell-bg')).toBeTruthy();
     });
 
     it('reorders columns by cluster when enabled', async () => {

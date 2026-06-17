@@ -54,8 +54,21 @@ export interface ScatterRenderCallbacks {
     syncScatterFilterBadge: () => void;
 }
 
-let zoomBadgeInterval: number | null = null;
-let refreshLatestZoomBadge = () => { };
+/**
+ * Update the `--range-fill` custom property on a range input so the
+ * accent-filled portion of the track reflects the current value.
+ * The CSS in `frontend/css/modules/toolbar.css` uses this to draw a
+ * filled progress on the slider track.
+ */
+function updateRangeFill(input: HTMLInputElement | null): void {
+    if (!input) return;
+    const min = Number(input.min || '0');
+    const max = Number(input.max || '100');
+    const value = Number(input.value || '0');
+    const span = Math.max(max - min, 1);
+    const pct = Math.min(100, Math.max(0, ((value - min) / span) * 100));
+    input.style.setProperty('--range-fill', `${pct.toFixed(2)}%`);
+}
 
 /** Bind all scatter control event listeners. Call once after DOM is ready. */
 export function bindScatterControls(cb: ScatterRenderCallbacks): void {
@@ -79,6 +92,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     (window as any).__edatime.exportScatterData = exportScatterData;
 
     binSizeValue.textContent = binSizeInput.value;
+    updateRangeFill(binSizeInput);
     if (suggestionThresholdInput) {
         appState.scatter.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
         suggestionThresholdInput.value = appState.scatter.suggestionThreshold.toFixed(2);
@@ -105,7 +119,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
         updateMarginalPlots();
     };
 
-    binSizeInput.addEventListener('input', () => { binSizeValue!.textContent = binSizeInput.value; rerender(); });
+    binSizeInput.addEventListener('input', () => { binSizeValue!.textContent = binSizeInput.value; updateRangeFill(binSizeInput); rerender(); });
     normalizationSelect.addEventListener('change', rerender);
     renderModeSelect.addEventListener('change', () => { syncModeUI(); rerender(); });
     diagonalModeSelect?.addEventListener('change', () => {
@@ -153,6 +167,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     });
     matrixSizeInput?.addEventListener('input', () => {
         if (matrixSizeValue) matrixSizeValue.textContent = matrixSizeInput.value;
+        updateRangeFill(matrixSizeInput);
         if (appState.scatter.activeView === 'matrix') void cb.refreshActiveScatterView();
     });
 
@@ -165,69 +180,6 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     getEl('scatter-export-parquet-btn')?.addEventListener('click', async () => {
         try { await exportScatterParquet(); } catch (error: any) { cb.handleErr(error); }
     });
-
-    // Zoom controls: visible zoom-out / reset for the scatter view (the
-    // timeseries page already has its own zoom-out/reset buttons, but those
-    // are hidden when the scatter page is active, leaving users with no
-    // discoverable way to step back from a selection-zoom).
-    const zoomOutBtn = getEl('scatter-zoom-out-btn') as HTMLButtonElement | null;
-    const zoomResetBtn = getEl('scatter-zoom-reset-btn') as HTMLButtonElement | null;
-    const zoomBadge = getEl('scatter-zoom-range-badge');
-
-    const updateZoomBadge = () => {
-        if (!zoomBadge) return;
-        const view = appState.scatter.view;
-        const full = appState.scatter.full;
-        if (!view || !full) {
-            zoomBadge.textContent = '100%';
-            return;
-        }
-        const xSpan = Math.max(1e-9, full.xMax - full.xMin);
-        const ySpan = Math.max(1e-9, full.yMax - full.yMin);
-        const xZoom = xSpan / Math.max(1e-9, view.xMax - view.xMin);
-        const yZoom = ySpan / Math.max(1e-9, view.yMax - view.yMin);
-        const ratio = Math.max(xZoom, yZoom);
-        const pct = Math.round(ratio * 100);
-        zoomBadge.textContent = `${pct}%`;
-        const isZoomed = pct > 100;
-        if (zoomOutBtn) zoomOutBtn.disabled = !isZoomed && appState.scatter.zoomHistory.length === 0;
-        if (zoomResetBtn) zoomResetBtn.disabled = !isZoomed;
-    };
-
-    zoomOutBtn?.addEventListener('click', () => {
-        if (appState.scatter.zoomHistory.length > 0) {
-            const prev = appState.scatter.zoomHistory.pop()!;
-            appState.scatter.view = prev;
-            rerender();
-            updateZoomBadge();
-        }
-    });
-    zoomResetBtn?.addEventListener('click', () => {
-        appState.scatter.zoomHistory = [];
-        appState.scatter.view = { ...appState.scatter.full };
-        rerender();
-        updateZoomBadge();
-    });
-
-    // Keep the badge in sync with view changes. `applyView` mutates the view
-    // directly (no store event), so we listen to the data-cache `store:viewport`
-    // event as a cheap proxy and also re-check on every render call.
-    let lastViewSnapshot = '';
-    const refreshBadge = () => {
-        const view = appState.scatter.view;
-        const key = `${view.xMin}|${view.xMax}|${view.yMin}|${view.yMax}|${appState.scatter.zoomHistory.length}`;
-        if (key === lastViewSnapshot) return;
-        lastViewSnapshot = key;
-        updateZoomBadge();
-    };
-    refreshBadge();
-    refreshLatestZoomBadge = refreshBadge;
-    // Defer hooking into the scatter store event to keep this module
-    // dependency-light. A periodic check at 4Hz is cheap and keeps the
-    // badge in sync with selection-zoom, double-click, and the new buttons.
-    if (!zoomBadgeInterval) {
-        zoomBadgeInterval = window.setInterval(() => refreshLatestZoomBadge(), 250);
-    }
 
     ySelect.addEventListener('change', async () => { updateCorrelationStats(); await cb.renderScatter(); });
     xSelect.addEventListener('change', async () => { await cb.refreshCorrelationsAndSuggestions(); await cb.renderScatter(); });

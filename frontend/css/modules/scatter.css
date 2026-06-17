@@ -65,13 +65,13 @@
 /* Vertical colorbar */
 .scatter-colorbar-vertical {
   flex-shrink: 0;
-  width: 52px;
+  width: 56px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: stretch;
-  padding: 12px 0 8px;
-  gap: 4px;
+  padding: 10px 0 8px;
+  gap: 2px;
   pointer-events: auto;
 }
 
@@ -81,35 +81,39 @@
 
 .scatter-colorbar-vbar {
   flex: 1 1 auto;
-  width: 14px;
+  width: 12px;
   min-height: 60px;
   border-radius: 4px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--tb-border-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   display: block;
 }
 
 .scatter-colorbar-vtick {
-  font-size: 0.625rem;
+  font-size: 0.6rem;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   text-align: center;
   line-height: 1;
+  letter-spacing: 0.01em;
 }
 
 .scatter-colorbar-vname {
-  font-size: 0.5625rem;
+  font-size: 0.55rem;
   font-weight: 700;
-  color: var(--text-muted);
+  color: var(--text);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   writing-mode: vertical-lr;
   transform: rotate(180deg);
   max-height: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-top: 4px;
+  margin-top: 6px;
+  padding: 4px 0;
+  opacity: 0.85;
 }
 
 /* Timeseries colorbar overlay stack */
@@ -165,11 +169,39 @@
   font-size: 0.72rem;
   white-space: nowrap;
   cursor: pointer;
+  padding: 0 10px 0 8px;
+  height: 28px;
+  min-height: 0;
+  border-radius: 6px;
+  border: 1px solid var(--tb-border);
+  background: rgba(255, 255, 255, 0.025);
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+
+.scatter-link-toggle:hover {
+  border-color: var(--tb-border-strong);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+.scatter-link-toggle:has(input:checked) {
+  border-color: rgba(0, 168, 255, 0.45);
+  background: rgba(0, 168, 255, 0.10);
+  color: var(--text);
+}
+
+.scatter-link-toggle:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 168, 255, 0.18);
+  outline: none;
 }
 
 .scatter-link-toggle input[type="checkbox"] {
   margin: 0;
   flex-shrink: 0;
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
 }
 
 .scatter-export-group {
@@ -187,12 +219,12 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px 12px;
-  padding-top: 8px;
-  padding-bottom: 8px;
+  gap: 8px 10px;
+  padding: 6px 14px;
   background:
-    linear-gradient(180deg, rgba(12, 17, 28, 0.98), rgba(11, 16, 26, 0.94)),
-    radial-gradient(circle at right center, rgba(32, 226, 215, 0.08), transparent 28%);
+    linear-gradient(180deg, rgba(12, 17, 28, 0.92), rgba(11, 16, 26, 0.88)),
+    radial-gradient(circle at right center, rgba(32, 226, 215, 0.06), transparent 32%);
+  border-bottom: 1px solid var(--shell-border);
 }
 
 .scatter-stats-bar span {
@@ -205,7 +237,7 @@
 .scatter-stats-bar__suggestions {
   display: flex;
   align-items: center;
-  gap: 10px 12px;
+  gap: 8px 10px;
   min-width: 0;
   flex-wrap: wrap;
 }
@@ -217,10 +249,14 @@
 .scatter-stats-bar__suggestions {
   flex: 1 1 360px;
   min-width: 0;
-  padding: 6px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.025);
+  padding: 4px 10px;
+  border: 1px solid var(--tb-border);
+  border-top-color: rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
+    var(--tb-surface-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   overflow: hidden;
 }
 
@@ -231,26 +267,31 @@
 .scatter-stats-bar__correlations {
   display: flex;
   align-items: center;
-  gap: 8px 10px;
+  gap: 6px 10px;
   flex: 0 0 auto;
   min-width: 0;
-  padding: 6px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.025);
+  padding: 4px 10px;
+  border: 1px solid var(--tb-border);
+  border-top-color: rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
+    var(--tb-surface-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .scatter-stats-bar__eyebrow {
   display: inline-flex;
   align-items: center;
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 700;
   letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--text-muted) 84%, white 16%);
+  color: var(--tb-eyebrow);
   white-space: nowrap;
   padding-right: 8px;
-  border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-right: 1px solid var(--tb-divider);
+  height: 22px;
 }
 
 .scatter-stats-bar__chips {
@@ -263,15 +304,22 @@
 .scatter-stat-chip {
   display: inline-flex;
   align-items: center;
-  min-height: 30px;
-  padding: 0 12px;
+  min-height: 24px;
+  height: 24px;
+  padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--tb-border);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.scatter-stat-chip:hover {
+  border-color: var(--tb-border-strong);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .scatter-suggestions-controls {
@@ -444,12 +492,15 @@
 .scatter-panel {
   position: relative;
   min-width: 0;
-  border: 1px solid var(--border);
+  border: 1px solid var(--tb-border);
+  border-top-color: rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-lg);
-  background: rgba(13, 17, 28, 0.72);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
+    rgba(13, 17, 28, 0.78);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .scatter-panel-single {
@@ -465,8 +516,8 @@
   justify-content: space-between;
   gap: 12px;
   min-height: 40px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--tb-border);
   flex-wrap: wrap;
 }
 
@@ -650,6 +701,7 @@
 /* Bin-size range */
 .scatter-toolbar #scatter-bin-size {
   width: 110px;
+  margin: 0;
 }
 
 /* Matrix FFT panel */
@@ -689,21 +741,116 @@
   gap: 8px;
 }
 
+.heatmap-shell {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 18px;
+  padding: 10px 8px;
+  background: transparent;
+}
+
 .heatmap-grid {
   line-height: 1;
+  gap: 2px;
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.heatmap-corner {
+  min-width: 0;
+  min-height: 0;
+}
+
+.heatmap-header,
+.heatmap-row-label {
+  color: #88aef2;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.heatmap-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  padding: 4px 2px 8px;
+  text-overflow: ellipsis;
+}
+
+.heatmap-header--vertical {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+.heatmap-row-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  overflow: hidden;
+  padding-right: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heatmap-header--cluster-start,
+.heatmap-row-label--cluster-start {
+  color: #a4c1f6;
 }
 
 .heatmap-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--heatmap-cell-bg);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1;
   transition: opacity 0.12s ease;
 }
 
 .heatmap-cell:hover {
-  opacity: 0.8;
-  outline: 1px solid var(--accent);
+  opacity: 0.88;
+  outline: 1px solid color-mix(in srgb, #88aef2 80%, transparent);
+  outline-offset: 1px;
 }
 
 /* Neutral spacer cells/rows inserted between clusters. */
 .heatmap-cluster-separator {
   background: transparent;
   pointer-events: none;
+}
+
+.heatmap-scale {
+  display: grid;
+  grid-template-columns: auto 18px;
+  grid-template-rows: auto 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  height: 206px;
+  color: #88aef2;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.heatmap-scale__bar {
+  grid-column: 2;
+  grid-row: 1 / 4;
+  width: 18px;
+  height: 148px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #be122e 0%, #e99898 32%, #f5f5f2 50%, #89bfdf 68%, #2370b4 100%);
+}
+
+.heatmap-scale__tick {
+  grid-column: 1;
+}
+
+.heatmap-scale__tick--positive {
+  grid-row: 1;
+}
+
+.heatmap-scale__tick--negative {
+  grid-row: 3;
 }

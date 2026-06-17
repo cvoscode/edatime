@@ -100,7 +100,11 @@
    sub-controls (Bins, Scale) — they are still reachable by widening
    the viewport. The threshold slider in the stats bar also retreats
    to save room. The colormap used to live here too; it is now
-   configured globally on the settings page. */
+   configured globally on the settings page.
+
+   The threshold is pushed out to 1380px because the redesigned
+   segment cards and inline field labels fit comfortably on
+   1440px-class viewports. */
 @media (max-width: 1380px) {
 
   /* On narrower viewports the density sub-group (Bins / Scale
@@ -113,7 +117,7 @@
   }
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1380px) {
 
   /* Hide the Selection toggle to keep the row breathable. The
      checkbox state is preserved so it does not need re-toggling
@@ -123,17 +127,13 @@
   }
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1240px) {
   .scatter-stats-bar__suggestions .scatter-suggestions-controls {
     display: none;
   }
-
-  .scatter-toolbar__eyebrow {
-    font-size: 0.6rem;
-  }
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1140px) {
 
   /* Below this width the Display segment gets too cramped when
      fitting Mode and Distribution. Hide the Distribution (diagonal)
@@ -150,7 +150,7 @@
   }
 }
 
-@media (max-width: 940px) {
+@media (max-width: 1000px) {
 
   /* Collapse all eyebrows; the controls speak for themselves.
      This frees ~50px of horizontal space per segment. */
@@ -160,7 +160,13 @@
 
   /* Tighten segment padding now that eyebrows are gone. */
   .scatter-toolbar__segment {
-    padding: 6px 10px;
+    padding: 4px 8px;
+  }
+
+  /* When eyebrows are gone, remove the divider too. */
+  .scatter-toolbar__eyebrow+.scatter-toolbar__fields,
+  .scatter-toolbar__eyebrow+.scatter-toolbar__controls {
+    padding-left: 0;
   }
 }
 
