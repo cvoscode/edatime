@@ -13,12 +13,6 @@
  * the dependencies it actually needs (see `DeferredShellDeps`).
  */
 
-import { initAnalyticsListeners } from '../../bootstrap/analyticsOverlay.js';
-import { registerAppCommands, type CommandDeps } from '../../bootstrap/commands.js';
-import { initAnnotations } from '../../chart/annotations.js';
-import { initAnnotationPanel } from '../../ui/annotationPanel.js';
-import { initAnalysisControls, initChartPageFilterGesture } from '../../ui/toolbar.js';
-
 export interface RefreshDatasetOptions {
     selectedColumn?: string;
 }
@@ -43,6 +37,12 @@ interface SubsystemEntry {
     loaded: boolean;
     pending: Promise<void> | null;
 }
+
+type CommandDeps = {
+    showPage: (pageName: string) => void;
+    zoomOut: () => void;
+    resetZoom: () => void;
+};
 
 const SUBSYSTEMS: Record<string, SubsystemEntry> = {};
 
@@ -92,12 +92,15 @@ registerSubsystem('analytics-overlay', async () => {
 });
 
 registerSubsystem('analytics-listeners', async () => {
+    const { initAnalyticsListeners } = await import('../../bootstrap/analyticsOverlay.js');
     initAnalyticsListeners(() => Promise.resolve(
         (window as unknown as { __edatime?: { runAnalytics?: () => Promise<void> } }).__edatime?.runAnalytics?.(),
     ));
 });
 
 registerSubsystem('annotation-subsystems', async () => {
+    const { initAnnotations } = await import('../../chart/annotations.js');
+    const { initAnnotationPanel } = await import('../../ui/annotationPanel.js');
     initAnnotations();
     initAnnotationPanel();
 });
@@ -126,6 +129,7 @@ registerSubsystem('settings-panel', async () => {
 });
 
 registerSubsystem('analysis-controls', async (deps) => {
+    const { initAnalysisControls, initChartPageFilterGesture } = await import('../../ui/toolbar.js');
     initAnalysisControls(deps.fetchAndRender);
     initChartPageFilterGesture();
 });
@@ -143,6 +147,7 @@ registerSubsystem('sample-datasets', async (deps) => {
 });
 
 registerSubsystem('app-commands', async (deps) => {
+    const { registerAppCommands } = await import('../../bootstrap/commands.js');
     const commandDeps: CommandDeps = {
         showPage: deps.showPage,
         zoomOut: deps.zoomOut,

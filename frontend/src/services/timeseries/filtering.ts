@@ -3,9 +3,10 @@ import type {
     ColumnRange,
     DataObject,
     FilteredDataObject,
-    ColumnMetadata,
+    ScatterLineFilterSpec,
 } from '../../types.js';
-import { appState } from '../../store/appStateCompat.js';
+import { datasetState } from '../../store/datasetState.js';
+import { uiState } from '../../store/uiState.js';
 import { setColumnRanges, setSelectedCols } from '../../store/uiState.js';
 
 /**
@@ -15,10 +16,10 @@ import { setColumnRanges, setSelectedCols } from '../../store/uiState.js';
 export function ensureRangeStateFromData(dataObj: DataObject): void {
     const next = ensureRangeStateFromDataState(
         dataObj,
-        appState.selectedCols || [],
-        appState.columnRanges || {},
+        uiState.selectedCols || [],
+        uiState.columnRanges || {},
     );
-    if (next !== appState.columnRanges) setColumnRanges(next);
+    if (next !== uiState.columnRanges) setColumnRanges(next);
 }
 
 export function computeBounds(values: ArrayLike<number>): { min: number; max: number } | null {
@@ -93,10 +94,9 @@ function passesAdaptiveLineFilters(
     return true;
 }
 
-export function buildAdaptiveLineFiltersForQueryState(filters: AdaptiveLineFilter[]): AdaptiveLineFilter[] {
+export function buildAdaptiveLineFiltersForQueryState(filters: AdaptiveLineFilter[]): ScatterLineFilterSpec[] {
     return (filters || [])
         .map((filter) => ({
-            id: filter.id,
             column: filter.column,
             x1: Number(filter.x1),
             y1: Number(filter.y1),
@@ -105,7 +105,7 @@ export function buildAdaptiveLineFiltersForQueryState(filters: AdaptiveLineFilte
             keepAbove: !!filter.keepAbove,
         }))
         .filter(
-            (filter): filter is AdaptiveLineFilter =>
+            (filter): filter is ScatterLineFilterSpec =>
                 !!filter.column &&
                 Number.isFinite(filter.x1) &&
                 Number.isFinite(filter.y1) &&
@@ -171,10 +171,10 @@ export function applyColumnRangesToData(
 
 /**
  * Returns adaptive line filters with non-finite values stripped.
- * Reads from appState.adaptiveLineFilters.
+ * Reads from uiState.adaptiveLineFilters.
  */
-export function buildAdaptiveLineFiltersForQuery(): AdaptiveLineFilter[] {
-    return buildAdaptiveLineFiltersForQueryState(appState.adaptiveLineFilters || []);
+export function buildAdaptiveLineFiltersForQuery(): ScatterLineFilterSpec[] {
+    return buildAdaptiveLineFiltersForQueryState(uiState.adaptiveLineFilters || []);
 }
 
 /**
@@ -184,29 +184,29 @@ export function buildAdaptiveLineFiltersForQuery(): AdaptiveLineFilter[] {
 export function applyColumnRanges(dataObj: DataObject): FilteredDataObject {
     return applyColumnRangesToData(
         dataObj,
-        appState.selectedCols || [],
-        appState.columnRanges || {},
-        appState.adaptiveLineFilters || [],
+        uiState.selectedCols || [],
+        uiState.columnRanges || {},
+        uiState.adaptiveLineFilters || [],
     );
 }
 
 /**
  * Remove selected columns that are time/dataset columns or don't exist
- * in the current metadata. Mutates appState.selectedCols in place.
+ * in the current metadata.
  */
 export function sanitizeSelectedColumns(): void {
     const blockedNames = new Set(['ts', 'timestamp', 'time']);
     const datetimeCols = new Set(
-        (appState.metadata?.columns || [])
+        (datasetState.metadata?.columns || [])
             .filter((col) => /date|time/i.test(String(col?.dtype || '')))
             .map((col) => String(col?.name || '').toLowerCase()),
     );
 
     const validColNames = new Set(
-        (appState.metadata?.columns || []).map((c) => String(c?.name || '').trim()),
+        (datasetState.metadata?.columns || []).map((c) => String(c?.name || '').trim()),
     );
 
-    const filtered = (appState.selectedCols || []).filter((col) => {
+    const filtered = (uiState.selectedCols || []).filter((col) => {
         const name = String(col || '').trim();
         if (!name) return false;
         const lower = name.toLowerCase();

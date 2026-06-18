@@ -23,7 +23,7 @@ describe('frontend build contract', () => {
         expect(viteConfig).not.toContain("entryFileNames: '[name].js'");
         expect(sourceHtml).not.toMatch(/\?v=/);
         expect(pageStyles).not.toMatch(/\?v=/);
-        expect(pageStyles).not.toContain('css/modules/');
+        expect(pageStyles).toContain('?url');
         expect(serviceWorker).not.toContain('/js/');
         expect(serviceWorker).not.toContain('/css/style.css');
         expect(serviceWorker).not.toContain('/index.html');
@@ -32,22 +32,34 @@ describe('frontend build contract', () => {
         expect(makefile).toContain('crates/edatime-bin/frontend/dist');
     });
 
-    it('does not fake-lazy-load modules that are already startup dependencies', () => {
+    it('keeps heavy shell wiring behind deferred subsystem loaders', () => {
         const deferredSubsystems = readRepoFile('frontend/src/app/shell/deferredSubsystems.ts');
-        const pageModules = readRepoFile('frontend/src/app/pageModules.ts');
+        const appTs = readRepoFile('frontend/src/app.ts');
         const commands = readRepoFile('frontend/src/bootstrap/commands.ts');
+        const ensureTimeseriesReady = readRepoFile('frontend/src/app/bootstrap/ensureTimeseriesReady.ts');
+        const analyticsOverlay = readRepoFile('frontend/src/bootstrap/analyticsOverlay.ts');
+        const filtering = readRepoFile('frontend/src/services/timeseries/filtering.ts');
+        const session = readRepoFile('frontend/src/utils/session.ts');
+        const architectureCheck = readRepoFile('scripts/check-frontend-architecture.mjs');
 
-        expect(deferredSubsystems).not.toMatch(/import\(['"][^'"]*analyticsOverlay\.js['"]\)/);
-        expect(deferredSubsystems).not.toMatch(/import\(['"][^'"]*toolbar\.js['"]\)/);
-        expect(deferredSubsystems).not.toMatch(/import\(['"][^'"]*commands\.js['"]\)/);
-        expect(deferredSubsystems).not.toMatch(/import\(['"][^'"]*annotations\.js['"]\)/);
-        expect(deferredSubsystems).not.toMatch(/import\(['"][^'"]*annotationPanel\.js['"]\)/);
-        expect(pageModules).not.toMatch(/import\(['"][^'"]*pageStyles\.js['"]\)/);
-        expect(commands).not.toMatch(/import\(['"][^'"]*session\.js['"]\)/);
+        expect(deferredSubsystems).toMatch(/import\(['"][^'"]*analyticsOverlay\.js['"]\)/);
+        expect(deferredSubsystems).toMatch(/import\(['"][^'"]*toolbar\.js['"]\)/);
+        expect(deferredSubsystems).toMatch(/import\(['"][^'"]*commands\.js['"]\)/);
+        expect(deferredSubsystems).toMatch(/import\(['"][^'"]*annotations\.js['"]\)/);
+        expect(deferredSubsystems).toMatch(/import\(['"][^'"]*annotationPanel\.js['"]\)/);
+        expect(appTs).not.toContain('APP_COMMAND_DEFINITIONS');
+        expect(appTs).not.toContain('appStateCompat');
+        expect(commands).not.toMatch(/from ['"][^'"]*session\.js['"]/);
+        expect(ensureTimeseriesReady).not.toContain('appStateCompat');
+        expect(analyticsOverlay).not.toContain('appStateCompat');
+        expect(filtering).not.toContain('appStateCompat');
+        expect(session).not.toContain('appStateCompat');
+        expect(architectureCheck).toContain('ALLOWED_APP_STATE_COMPAT_IMPORTS');
     });
 
     it('runs architecture + budget checks in order for --prod builds', () => {
         const buildScript = readRepoFile('scripts/build-frontend.mjs');
+        const budgetScript = readRepoFile('scripts/check-frontend-budgets.mjs');
         const archIdx = buildScript.indexOf('check-frontend-architecture.mjs');
         const budgetIdx = buildScript.indexOf('check-frontend-budgets.mjs');
         const prodGuard = buildScript.match(/if\s*\(\s*isProd\s*\)/g) ?? [];
@@ -58,6 +70,7 @@ describe('frontend build contract', () => {
         expect(budgetIdx).toBeGreaterThan(archIdx);
         // The budget block must be guarded by isProd
         expect(prodGuard.length).toBeGreaterThanOrEqual(2);
+        expect(budgetScript).toContain('Packaged frontend dist is stale or incomplete');
     });
 
     it('keeps check:frontend:budgets wired into check:frontend:all', () => {

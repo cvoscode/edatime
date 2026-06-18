@@ -23,6 +23,9 @@ pub struct RangeFilter {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct LineFilter {
+    #[allow(dead_code)]
+    #[serde(default)]
+    pub id: Option<String>,
     pub column: String,
     pub x1: f64,
     pub y1: f64,
@@ -194,4 +197,44 @@ pub fn apply_filters<I: Into<LazyFrame>>(
     }
 
     Ok(lf)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::parse_line_filters;
+
+    #[test]
+    fn parse_line_filters_accepts_canonical_payload() {
+        let filters = parse_line_filters(Some(
+            r#"[{"column":"HUFL","x1":1.0,"y1":2.0,"x2":3.0,"y2":4.0,"keepAbove":true}]"#,
+        ))
+        .expect("canonical line filters should parse");
+
+        assert_eq!(filters.len(), 1);
+        assert_eq!(filters[0].column, "HUFL");
+        assert!(filters[0].keep_above);
+    }
+
+    #[test]
+    fn parse_line_filters_accepts_compatibility_id_field() {
+        let filters = parse_line_filters(Some(
+            r#"[{"id":"adaptive-1","column":"HUFL","x1":1.0,"y1":2.0,"x2":3.0,"y2":4.0,"keepAbove":false}]"#,
+        ))
+        .expect("compatibility line filters should parse");
+
+        assert_eq!(filters.len(), 1);
+        assert_eq!(filters[0].column, "HUFL");
+        assert!(!filters[0].keep_above);
+    }
+
+    #[test]
+    fn parse_line_filters_rejects_other_unknown_fields() {
+        let error = parse_line_filters(Some(
+            r#"[{"column":"HUFL","x1":1.0,"y1":2.0,"x2":3.0,"y2":4.0,"keepAbove":true,"extra":"nope"}]"#,
+        ))
+        .expect_err("unexpected fields should still fail");
+
+        assert!(error.to_string().contains("Invalid line filters payload"));
+    }
 }

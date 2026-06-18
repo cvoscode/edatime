@@ -9,20 +9,19 @@ import { createTimeseriesEntrypoint } from '../features/timeseries/entrypoint.js
 import { createTimeseriesRuntime } from './timeseriesRuntime.js';
 import { createDatasetBootstrap } from '../app/bootstrap/datasetBootstrap.js';
 import { createTimeseriesBootstrap } from '../app/bootstrap/ensureTimeseriesReady.js';
-import { appState } from '../store/appStateCompat.js';
-import { setDatasetRevision, setMetadata, setSelectedColorColumn } from '../store/index.js';
+import { setDatasetRevision, setMetadata, setSelectedColorColumn, uiState } from '../store/index.js';
 import { getNumericColumns, getDefaultTimeseriesColumns } from './analyticsPageUtils.js';
 import type { DatasetMetadata, ViewSnapshot } from '../types.js';
 
 export interface TimeseriesModuleDeps {
     fetchData: (start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<import('../types.js').DataObject>;
     fetchMetadata: () => Promise<DatasetMetadata>;
-    DataChartCtor: new (
+    ensurePrimaryChartCtor: () => Promise<new (
         containerId: string,
         onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
         onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null,
         onZoomOutCb: (() => void) | null,
-    ) => import('../types.js').ChartInstance;
+    ) => import('../types.js').ChartInstance>;
     markMetadataReady: () => void;
     sanitizeSelectedColumns: () => void;
     clearLoadedPageModules: () => void;
@@ -98,7 +97,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
             deps.sanitizeSelectedColumns();
             deps.setAdaptiveFilterColumn(nextSelectedCols[0] || null);
 
-            if (appState.selectedColorColumn && !validNames.has(appState.selectedColorColumn)) {
+            if (uiState.selectedColorColumn && !validNames.has(uiState.selectedColorColumn)) {
                 setSelectedColorColumn(null);
             }
 
@@ -183,7 +182,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     });
 
     const chartBootstrap = createTimeseriesBootstrap({
-        DataChartCtor: deps.DataChartCtor,
+        ensurePrimaryChartCtor: deps.ensurePrimaryChartCtor,
         onZoom: (view, sourceKind) => pageController.onZoomRangeChange(view, sourceKind),
         onYRange: deps.updateAnalysisYRange,
         onZoomOut: deps.zoomOut,

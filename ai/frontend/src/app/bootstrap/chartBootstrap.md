@@ -1,28 +1,40 @@
 # ai/frontend/src/app/bootstrap/chartBootstrap.md
-> Lazy chart/data module bootstrapper that hydrates shared chart constructors and registers line/fallback chart types once.
+> Lazy bootstrap for API transport and chart constructors. Loads the shared API client on demand and registers the line/fallback chart adapters when the chart chunk is needed.
 
-## Interface: ChartModules
+## Interface: DataModules
 - `fetchMetadata: (signal?: AbortSignal) => Promise<DatasetMetadata>`
 - `fetchData: (start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<DataObject>`
 - `fetchAnomalies: (start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>`
 - `postTransform: (expression: string, outputName: string) => Promise<TransformResponse>`
-- `DataChartCtor: (new (containerId: string, onZoomCb: ((start: number, end: number, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null`
+
+## Interface: ChartModules
+- `fetchMetadata: (signal?: AbortSignal) => Promise<DatasetMetadata>` [deps: [DataModules][1]]
+- `fetchData: (start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<DataObject>` [deps: [DataModules][1]]
+- `fetchAnomalies: (start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>` [deps: [DataModules][1]]
+- `postTransform: (expression: string, outputName: string) => Promise<TransformResponse>` [deps: [DataModules][1]]
+- `DataChartCtor: (new (containerId: string, onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null`
 
 ## Interface: BootstrapChartCallbacks
-- `onZoom: ((start: number, end: number, sourceKind: string) => void) | null`
+- `onZoom: ((view: ViewSnapshot, sourceKind: string) => void) | null`
 - `onYRange: ((min: number, max: number, sourceKind: string) => void) | null`
 - `onZoomOut: (() => void) | null`
 
 ## State
+- `dataModules: DataModules | null`
+- `dataPending: Promise<DataModules> | null`
 - `modules: ChartModules | null`
 - `pending: Promise<ChartModules> | null`
 
 ## Functions
-- `ensureChartModules(): Promise<ChartModules>` [deps: [registerChartType][1], [FallbackChart][2]]
-  - Lazy-loads API/chart modules, caches them, and registers the line/fallback chart types.
+- `ensureDataModules(): Promise<DataModules>`
+  - Lazy-loads the shared API transport once and caches the result.
+- `ensureChartModules(): Promise<ChartModules>` [deps: [registerChartType][2], [FallbackChart][3], [ensureDataModules][4]]
+  - Lazy-loads API/chart modules, reuses the cached data transport, and registers the line/fallback chart types.
 - `getChartModules(): ChartModules | null`
   - Returns the cached chart module set when already loaded.
 
 ---
-[1]: ../../charts/registry.md#registerChartType
-[2]: ../../charts/fallback.md#FallbackChart
+[1]: ../../services/api/index.md
+[2]: ../../charts/registry.md#registerChartType
+[3]: ../../charts/fallback.md#FallbackChart
+[4]: #ensureDataModules

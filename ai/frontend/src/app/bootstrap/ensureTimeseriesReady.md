@@ -1,50 +1,30 @@
 # ai/frontend/src/app/bootstrap/ensureTimeseriesReady.md
-> Coordinate chart bootstrap and timeseries page init. Extracted from app.ts so the orchestrator stays thin. Wires the chart with `ViewSnapshot`-shaped zoom callbacks.
-
-## Interface: ViewSnapshot (re-used from types)
-- `{ xMin: number; xMax: number; yMin: number | null; yMax: number | null }`
+> Coordinates chart bootstrap and timeseries page init. The chart constructor is fetched lazily via `ensurePrimaryChartCtor`, so the timeseries page can boot without eagerly importing `DataChart`.
 
 ## Interface: TimeseriesBootstrapCallbacks
-```ts
-interface TimeseriesBootstrapCallbacks {
-    onZoom: (view: ViewSnapshot, sourceKind: string) => void;
-    onYRange: (min: number, max: number, sourceKind: string) => void;
-    onZoomOut: () => void;
-}
-```
+- `onZoom: (view: ViewSnapshot, sourceKind: string) => void`
+- `onYRange: (min: number, max: number, sourceKind: string) => void`
+- `onZoomOut: () => void`
 
 ## Interface: TimeseriesBootstrapDeps
-```ts
-interface TimeseriesBootstrapDeps {
-    DataChartCtor: new (
-        containerId: string,
-        onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
-        onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null,
-        onZoomOutCb: (() => void) | null,
-    ) => ChartInstance;
-    onZoom: (view: ViewSnapshot, sourceKind: string) => void;
-    onYRange: (min: number, max: number, sourceKind: string) => void;
-    onZoomOut: () => void;
-    buildColumnToggles: () => void;
-    buildRangeControls: () => void;
-    renderCurrentData: () => void;
-    fetchAndRender: () => Promise<void>;
-    refreshZoomControlsState: () => void;
-}
-```
+- `ensurePrimaryChartCtor: () => Promise<new (containerId: string, onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance>`
+- `onZoom: (view: ViewSnapshot, sourceKind: string) => void`
+- `onYRange: (min: number, max: number, sourceKind: string) => void`
+- `onZoomOut: () => void`
+- `buildColumnToggles: () => void`
+- `buildRangeControls: () => void`
+- `renderCurrentData: () => void`
+- `fetchAndRender: () => Promise<void>`
+- `refreshZoomControlsState: () => void`
 
 ## Functions
-
-### createTimeseriesBootstrap
-- `createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps)` [deps: [setChartInstance][1], [checkWebGPU][2]]
+- `createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps)` [deps: [setChartInstance][1], [checkWebGPU][2], [getChartType][3], [FallbackChart][4]]
   - Returns `{ ensureReady(): Promise<void>, isReady(): boolean }`.
-  - `ensureReady()` is idempotent: creates primary or fallback chart, binds events, inits adaptive filter gesture, wires annotation/anomaly overlay callbacks, sets X range, renders data, fetches analytics, and restores session — called exactly once.
-  - `isReady()` returns whether bootstrap has completed.
-
-## Notes
-- The zoom callback contract is `(view: ViewSnapshot, sourceKind: string)`. `DataChart` invokes the chart-side handler as `onZoomCallback(view, 'user')` (with a real `ViewSnapshot`), and the bootstrap forwards the args unchanged to `deps.onZoom`. A previous wrapper declared `(start, end, sourceKind)` and reconstructed the view, which silently corrupted the view (the snapshot object was bound to `start`, the source-kind string to `end`) and tripped the page controller's `Number.isFinite` guard. The wrapper now matches the contract from the `DataChartCtor` fallback branch and from `timeseriesModule.ts`.
-- `onYRange` and `onZoomOut` retain their numeric / void signatures.
+  - `ensureReady()` is idempotent: it reuses an existing chart, prefers a registered `line` chart adapter when available, otherwise awaits `ensurePrimaryChartCtor()` and instantiates `DataChart` directly. On GPU failure it falls back to the registered `fallback` chart adapter or `FallbackChart`, binds events, wires adaptive gestures and overlays, restores the session, and marks the bootstrap complete.
+  - `isReady()` reports whether the bootstrap has completed.
 
 ---
 [1]: ../../../store/index.md#setChartInstance
 [2]: ../../webgpuGuard.md#checkWebGPU
+[3]: ../../../charts/registry.md#getChartType
+[4]: ../../../charts/fallback.md#FallbackChart

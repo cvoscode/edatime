@@ -33,7 +33,7 @@ export default defineConfig({
     },
     target: 'esnext',
     sourcemap: true,
-    minify: false,
+    minify: true,
   },
   server: {
     port: 5173,

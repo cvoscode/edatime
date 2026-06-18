@@ -237,13 +237,13 @@ export async function initDriftPage(metadata: any): Promise<void> {
 
     // Module-level request task for drift compute — cancel-before-new semantics
     const driftComputeTask = createRequestTask({
-      setLoading: (loading: boolean) => {
-        if (loadingOverlay) loadingOverlay.hidden = loading;
-      },
-      onError: (message: string) => {
-        if (statusEl) statusEl.textContent = `Error: ${message}`;
-        syncEmptyState(true, message || 'Computation failed. Check column and date ranges.');
-      },
+        setLoading: (loading: boolean) => {
+            if (loadingOverlay) loadingOverlay.hidden = loading;
+        },
+        onError: (message: string) => {
+            if (statusEl) statusEl.textContent = `Error: ${message}`;
+            syncEmptyState(true, message || 'Computation failed. Check column and date ranges.');
+        },
     });
 
     async function runCompute(): Promise<void> {

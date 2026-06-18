@@ -1,5 +1,5 @@
 # frontend/src/features/timeseries/actions.ts
-> Canonical home for Timeseries action wiring — chart-range reset, filter clear, dataset-search inputs, and export button bindings.
+> Canonical home for Timeseries action wiring — chart-range reset, filter clear, dataset-search inputs, and export button bindings. Reads dataset state from `datasetState` and chart range from `chartState`.
 
 ## Interface: TimeseriesActionDeps
 - `rebuildColumnToggles: () => void`
@@ -27,8 +27,9 @@
   - Wires the top-level toolbar buttons (`#export-png-btn`, `#export-csv-btn`) and the export-options modal buttons (`#export-svg-btn`, `#export-data-csv-btn`, `#export-data-json-btn`, `#export-data-parquet-btn`). Each button is bound at most once via a `dataset.bound` flag to survive re-init.
 
 ---
-[1]: ../../store/appStateCompat.md
-[2]: ../../store/index.md#setViewport
-[3]: ../../store/index.md#setColumnRanges
-[4]: ../../store/index.md#setAdaptiveLineFilters
-[5]: ../../utils/dom.md#debounce
+[1]: ../../store/datasetState.md
+[2]: ../../store/chartState.md
+[3]: ../../store/index.md#setViewport
+[4]: ../../store/index.md#setColumnRanges
+[5]: ../../store/index.md#setAdaptiveLineFilters
+[6]: ../../utils/dom.md#debounce

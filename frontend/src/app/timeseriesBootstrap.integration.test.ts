@@ -110,6 +110,12 @@ vi.mock('../app/pageModules.js', () => ({
 }));
 
 vi.mock('../app/bootstrap/chartBootstrap.js', () => ({
+    ensureDataModules: vi.fn().mockResolvedValue({
+        fetchMetadata: fetchMetadataMock,
+        fetchData: vi.fn(),
+        fetchAnomalies: vi.fn(),
+        postTransform: vi.fn(),
+    }),
     ensureChartModules: vi.fn().mockResolvedValue({
         fetchMetadata: fetchMetadataMock,
         fetchData: vi.fn(),
@@ -150,6 +156,9 @@ vi.mock('../store/appStateCompat.js', () => ({
 }));
 
 vi.mock('../store/index.js', () => ({
+    appStateComposite: { metadata: null, chart: null, selectedCols: [] },
+    chartState: { chart: null },
+    datasetState: { metadata: null },
     setAdaptiveFilterColumn: setAdaptiveFilterColumnMock,
     setChartInstance: vi.fn(),
     setDatasetRevision: vi.fn(),
@@ -157,6 +166,7 @@ vi.mock('../store/index.js', () => ({
     setNumericCols: setNumericColsMock,
     setSelectedCols: setSelectedColsMock,
     setViewport: setViewportMock,
+    uiState: { selectedCols: [] },
 }));
 
 describe('app -> timeseries bootstrap wiring', () => {

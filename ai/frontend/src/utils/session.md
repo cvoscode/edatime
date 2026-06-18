@@ -1,6 +1,5 @@
 # ai/frontend/src/utils/session.md
-
-> Session save/restore for analysis state: localStorage auto-save, manual JSON export/import, and `SessionSnapshot` schema.
+> Session save/restore for analysis state. Reads and writes the split chart, analytics, dataset, runtime, and UI stores instead of the legacy composite `appState`.
 
 ## Interface: SessionSnapshot
 ```typescript
@@ -54,9 +53,9 @@ interface ApplySessionResult {
 
 ## Functions
 - `captureSession(): SessionSnapshot`
-  - Captures the current analysis state as a serializable snapshot.
+  - Captures the current analysis state from `uiState`, `chartState`, `analyticsState`, `datasetState`, and `runtimeState`.
 - `applySession(snap: SessionSnapshot, options?: ApplySessionOptions): ApplySessionResult`
-  - Restores appState from a snapshot, handling revision mismatches and range clamping.
+  - Restores state through store setters, handling revision mismatches and range clamping.
 - `autoSaveSession(): void`
   - Saves the current session to localStorage.
 - `autoRestoreSession(): SessionSnapshot | null`

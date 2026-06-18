@@ -425,6 +425,7 @@ describe('initScatterPage view toggles', () => {
     it('renders on scatter page-change when the linked brush range changed since the last scatter render', async () => {
         const { initScatterPage } = await import('./scatterPage.js');
         const { appState } = await import('../store/index.js');
+        const { computeInteractiveScatterLimit } = await import('./renderLimit.js');
 
         const metadata = {
             total_rows: 2,
@@ -438,6 +439,10 @@ describe('initScatterPage view toggles', () => {
             column_profiles: [],
         } as any;
         appState.metadata = metadata;
+        const scatterChart = document.getElementById('scatter-chart') as HTMLElement;
+        Object.defineProperty(scatterChart, 'getBoundingClientRect', {
+            value: () => ({ width: 600, height: 300 }),
+        });
 
         await initScatterPage(metadata);
 
@@ -456,7 +461,7 @@ describe('initScatterPage view toggles', () => {
         expect(fetchScatterPointsMock).toHaveBeenLastCalledWith(
             'HUFL',
             'HULL',
-            1_000_000,
+            computeInteractiveScatterLimit(scatterChart, { devicePixelRatio: 1 }),
             null,
             expect.objectContaining({ start: 100, end: 500 }),
             expect.any(AbortSignal),
@@ -559,7 +564,7 @@ describe('scatter render scheduling', () => {
         vi.clearAllMocks();
         buildDom();
         scheduleHelper = globalThis as any;
-        scheduleHelper.__scatterScheduleRender = undefined;
+        scheduleHelper!.__scatterScheduleRender = undefined;
 
         fetchScatterPointsMock.mockResolvedValue({
             points: [[1, 2], [2, 3]],

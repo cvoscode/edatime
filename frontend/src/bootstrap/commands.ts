@@ -5,7 +5,6 @@
  */
 
 import type { PaletteCommand } from '../utils/palette.js';
-import { exportSessionToFile, importSessionFromFile } from '../utils/session.js';
 
 export type CommandDeps = {
     showPage: (pageName: string) => void;
@@ -34,6 +33,16 @@ async function ensureSubsystem(name: string): Promise<void> {
     await (window as unknown as { __edatime?: { ensureSubsystem?: (subsystem: string) => Promise<void> } }).__edatime?.ensureSubsystem?.(name);
 }
 
+async function exportSession(): Promise<void> {
+    const { exportSessionToFile } = await import('../utils/session.js');
+    exportSessionToFile();
+}
+
+async function importSession(): Promise<void> {
+    const { importSessionFromFile } = await import('../utils/session.js');
+    importSessionFromFile();
+}
+
 export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
     { id: 'nav-upload', label: 'Go to Upload', shortcut: 'Alt+1', category: 'Navigation', action: (deps) => deps.showPage('upload'), keyboard: { key: '1', alt: true } },
     { id: 'nav-timeseries', label: 'Go to Timeseries', shortcut: 'Alt+2', category: 'Navigation', action: (deps) => deps.showPage('timeseries'), keyboard: { key: '2', alt: true } },
@@ -55,17 +64,13 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         id: 'session-save',
         label: 'Export session to file',
         category: 'Session',
-        action: () => {
-            exportSessionToFile();
-        },
+        action: () => exportSession(),
     },
     {
         id: 'session-load',
         label: 'Import session from file',
         category: 'Session',
-        action: () => {
-            importSessionFromFile();
-        },
+        action: () => importSession(),
     },
     {
         id: 'provenance',

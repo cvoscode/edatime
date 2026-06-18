@@ -16,7 +16,7 @@ interface ScatterControls {
 interface ScatterQueryContext {
     start?: number; end?: number;
     filters: Array<{ column: string; from: number; to: number }>;
-    lineFilters: ReturnType<typeof buildAdaptiveLineFiltersForQuery>;
+    lineFilters: ScatterLineFilterSpec[];
 }
 ```
 
@@ -33,13 +33,13 @@ interface ScatterQueryContext {
 - `isLinkedBrushEnabled(): boolean`
   - Returns whether the linked brush from the main chart is active (either the `scatter-link-brush` checkbox or the matrix `scatter-matrix-link-range` checkbox).
 - `buildScatterQueryContext(columns?: { x?: string; y?: string; colorColumn?: string }): ScatterQueryContext`
-  - Builds query context filtering linked time range only when metadata time_column is present and the linked brush is on.
+  - Builds query context filtering linked time range only when metadata time_column is present and the linked brush is on. The line-filter payload is the canonical `ScatterLineFilterSpec[]` returned by [buildAdaptiveLineFiltersForQuery][4].
 - `getActiveScatterFilterColumns(columns?: { x?: string; y?: string; colorColumn?: string }): string[]`
   - Returns list of columns that have active range filters, scoped to the supplied column names.
 - `buildRenderSignature(controls: ScatterControls): string`
   - Builds a cache key from the current view and controls state. **Includes view bounds** so density-mode zoom changes the signature and forces a chart re-create.
 - `buildOverviewContextKey(context: Partial<ScatterQueryContext>): string`
-  - Builds a cache key for the scatter matrix overview context.
+  - Builds a cache key for the scatter matrix overview context, including the canonical line-filter payload.
 - `clampView(view: ScatterView): ScatterView`
   - Clamps view bounds to safe numeric ranges inside the full extent.
 - `applyScatterStateFromCache(resetView?: boolean): void`

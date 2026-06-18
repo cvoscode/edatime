@@ -49,6 +49,7 @@ pub struct CachedResponse {
     pub returned_rows: usize,
     pub target_points: usize,
     pub time_column: Option<String>,
+    pub extra_headers: Vec<(String, String)>,
 }
 
 impl CachedResponse {
@@ -67,6 +68,7 @@ impl CachedResponse {
             returned_rows,
             target_points,
             time_column,
+            extra_headers: Vec::new(),
         }
     }
 
@@ -85,7 +87,13 @@ impl CachedResponse {
             returned_rows,
             target_points,
             time_column,
+            extra_headers: Vec::new(),
         }
+    }
+
+    pub fn with_extra_headers(mut self, headers: Vec<(String, String)>) -> Self {
+        self.extra_headers = headers;
+        self
     }
 
     pub fn body_len(&self) -> usize {
@@ -128,6 +136,13 @@ impl CachedResponse {
             && let Ok(v) = HeaderValue::from_str(time_column)
         {
             headers.insert("x-edatime-time-column", v);
+        }
+        for (key, value) in &self.extra_headers {
+            if let Ok(header_name) = header::HeaderName::from_bytes(key.as_bytes())
+                && let Ok(header_value) = HeaderValue::from_str(value)
+            {
+                headers.insert(header_name, header_value);
+            }
         }
         response
     }

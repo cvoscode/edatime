@@ -6,11 +6,10 @@
  */
 
 import type { ChartInstance, ViewSnapshot } from '../../types.js';
-import { appState } from '../../store/appStateCompat.js';
 import { checkWebGPU } from '../webgpuGuard.js';
 import { getChartType } from '../../charts/registry.js';
 import { FallbackChart } from '../../charts/fallback.js';
-import { setAnalysisBound, setChartInstance, setInitialView } from '../../store/index.js';
+import { chartState, datasetState, setAnalysisBound, setChartInstance, setInitialView } from '../../store/index.js';
 import { bindAnalysisChartEvents, getCurrentView } from '../../ui/toolbar.js';
 import { setAnnotationOverlayCallback } from '../../ui/annotationPanel.js';
 import { setAnomalyOverlayCallback } from '../../bootstrap/analyticsOverlay.js';
@@ -24,12 +23,12 @@ export interface TimeseriesBootstrapCallbacks {
 }
 
 export interface TimeseriesBootstrapDeps {
-    DataChartCtor: new (
+    ensurePrimaryChartCtor: () => Promise<new (
         containerId: string,
         onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
         onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null,
         onZoomOutCb: (() => void) | null,
-    ) => ChartInstance;
+    ) => ChartInstance>;
     onZoom: (view: ViewSnapshot, sourceKind: string) => void;
     onYRange: (min: number, max: number, sourceKind: string) => void;
     onZoomOut: () => void;
@@ -50,7 +49,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
             if (pending) return pending;
 
             pending = (async () => {
-                if (appState.chart) {
+                if (chartState.chart) {
                     deps.refreshZoomControlsState();
                     ready = true;
                     return;
@@ -59,7 +58,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                 const gpuError = await checkWebGPU();
 
                 try {
-                    dbg('initial X range (ms)', { start: appState.currentStart, end: appState.currentEnd });
+                    dbg('initial X range (ms)', { start: chartState.currentStart, end: chartState.currentEnd });
 
                     const lineType = getChartType('line');
                     if (lineType) {
@@ -80,14 +79,14 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                             onZoomOut: deps.onZoomOut,
                         }));
                     } else {
-                        if (!deps.DataChartCtor) throw new Error('DataChart module not loaded');
-                        setChartInstance(new deps.DataChartCtor('main-chart', deps.onZoom, deps.onYRange, deps.onZoomOut));
+                        const DataChartCtor = await deps.ensurePrimaryChartCtor();
+                        setChartInstance(new DataChartCtor('main-chart', deps.onZoom, deps.onYRange, deps.onZoomOut));
                     }
 
                     if (gpuError) throw new Error(gpuError);
 
                     await Promise.race([
-                        appState.chart!.init(),
+                        chartState.chart!.init(),
                         new Promise((_, reject) => setTimeout(() => reject(new Error('ChartGPU init timed out')), 6000)),
                     ]);
 
@@ -101,15 +100,15 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     });
                     deps.refreshZoomControlsState();
 
-                    setAnnotationOverlayCallback(() => appState.chart?.requestOverlayRender?.());
-                    setAnomalyOverlayCallback(() => appState.chart?.requestOverlayRender?.());
+                    setAnnotationOverlayCallback(() => chartState.chart?.requestOverlayRender?.());
+                    setAnomalyOverlayCallback(() => chartState.chart?.requestOverlayRender?.());
 
-                    const chart = appState.chart as ChartInstance | null;
-                    chart?.setXRange?.(appState.currentStart!, appState.currentEnd!);
+                    const chart = chartState.chart as ChartInstance | null;
+                    chart?.setXRange?.(chartState.currentStart!, chartState.currentEnd!);
                     chart?.setChartText?.(
-                        appState.chartText?.title || '',
-                        appState.chartText?.xLabel || '',
-                        appState.chartText?.yLabel || '',
+                        chartState.chartText?.title || '',
+                        chartState.chartText?.xLabel || '',
+                        chartState.chartText?.yLabel || '',
                     );
 
                     deps.renderCurrentData();
@@ -117,11 +116,11 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
 
                     setInitialView(getCurrentView());
                     deps.refreshZoomControlsState();
-                    dbgGroup('initialView snapshot', () => dbg(appState.initialView));
+                    dbgGroup('initialView snapshot', () => dbg(chartState.initialView));
 
                     await restoreSessionAfterChartReady({
-                        metadataTimeRange: appState.metadata?.time_range ?? null,
-                        currentDatasetRevision: Number(appState.datasetRevision ?? 0),
+                        metadataTimeRange: datasetState.metadata?.time_range ?? null,
+                        currentDatasetRevision: Number(datasetState.datasetRevision ?? 0),
                         buildColumnToggles: deps.buildColumnToggles,
                         buildRangeControls: deps.buildRangeControls,
                         renderCurrentData: deps.renderCurrentData,
@@ -142,15 +141,15 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                             ? fallbackType.create('main-chart', fallbackCallbacks)
                             : new FallbackChart('main-chart', deps.onZoom, deps.onYRange, deps.onZoomOut));
 
-                        await appState.chart!.init();
+                        await chartState.chart!.init();
                         setAnalysisBound(false);
                         bindAnalysisChartEvents();
-                        const fallbackChart = appState.chart as ChartInstance | null;
-                        fallbackChart?.setXRange?.(appState.currentStart!, appState.currentEnd!);
+                        const fallbackChart = chartState.chart as ChartInstance | null;
+                        fallbackChart?.setXRange?.(chartState.currentStart!, chartState.currentEnd!);
                         fallbackChart?.setChartText?.(
-                            appState.chartText?.title || '',
-                            appState.chartText?.xLabel || '',
-                            appState.chartText?.yLabel || '',
+                            chartState.chartText?.title || '',
+                            chartState.chartText?.xLabel || '',
+                            chartState.chartText?.yLabel || '',
                         );
                         await deps.fetchAndRender();
 

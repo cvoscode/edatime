@@ -8,8 +8,9 @@
  * dependency hooks rather than importing from appState directly.
  */
 
-import { appState } from '../../store/appStateCompat.js';
 import {
+    chartState,
+    datasetState,
     setAdaptiveLineFilters,
     setColumnRanges,
     setFilterText,
@@ -110,11 +111,11 @@ export function initDatasetSearchInputs(
 
 export function initTimeseriesActions(deps: TimeseriesActionDeps): void {
     const resetChartRangeToDataset = async (source = 'reset') => {
-        const minMs = Number((appState.metadata as any)?.time_range?.min);
-        const maxMs = Number((appState.metadata as any)?.time_range?.max);
+        const minMs = Number((datasetState.metadata as any)?.time_range?.min);
+        const maxMs = Number((datasetState.metadata as any)?.time_range?.max);
         if (!Number.isFinite(minMs) || !Number.isFinite(maxMs) || minMs >= maxMs) return;
         setViewport(minMs, maxMs);
-        appState.chart?.setXRange?.(minMs, maxMs);
+        chartState.chart?.setXRange?.(minMs, maxMs);
         deps.updateAnalysisZoom(minMs, maxMs, source);
         deps.emitChartRangeChange(source);
         await deps.fetchAndRender();

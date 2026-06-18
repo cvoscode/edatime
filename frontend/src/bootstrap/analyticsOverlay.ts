@@ -11,9 +11,8 @@
  *   setAnomalyOverlayCallback     — for ChartGPU wiring
  */
 
-import { appState } from '../store/appStateCompat.js';
 import { applyColumnRanges } from '../services/timeseries/filtering.js';
-import { setAnomalyRegions, setRollingBands } from '../store/index.js';
+import { analyticsState, chartState, runtimeState, setAnomalyRegions, setRollingBands, uiState } from '../store/index.js';
 import type { AnomalyResponse, AdaptiveLineFilter } from '../types.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -104,19 +103,26 @@ export async function fetchAnomalyRegions(
     fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null,
     signal?: AbortSignal,
 ): Promise<void> {
-    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
+    if (!Number.isFinite(chartState.currentStart) || !Number.isFinite(chartState.currentEnd)) return;
 
     if (_anomalyController) _anomalyController.abort();
     _anomalyController = new AbortController();
     const controllerSignal = _anomalyController.signal;
 
-    const startIso = new Date(appState.currentStart!).toISOString();
-    const endIso = new Date(appState.currentEnd!).toISOString();
-    const cols = appState.selectedCols.join(',');
+    const startIso = new Date(chartState.currentStart!).toISOString();
+    const endIso = new Date(chartState.currentEnd!).toISOString();
+    const cols = uiState.selectedCols.join(',');
 
     try {
-        if (appState.anomalyEnabled && fetchAnomalies) {
-            const resp = await fetchAnomalies(startIso, endIso, cols, appState.anomalyMethod, appState.anomalyThreshold, controllerSignal);
+        if (analyticsState.anomalyEnabled && fetchAnomalies) {
+            const resp = await fetchAnomalies(
+                startIso,
+                endIso,
+                cols,
+                analyticsState.anomalyMethod,
+                analyticsState.anomalyThreshold,
+                controllerSignal,
+            );
             setAnomalyRegions(resp?.regions ?? null);
         } else {
             setAnomalyRegions(null);
@@ -133,12 +139,12 @@ export async function fetchAnomalyRegions(
 
 /** Compute rolling bands from lastFetchedData + column ranges; update appState. */
 export function computeAndSetRollingBands(windowSize: number): void {
-    if (!appState.rollingEnabled) {
+    if (!analyticsState.rollingEnabled) {
         setRollingBands(null);
         return;
     }
-    const filtered = applyColumnRanges(appState.lastFetchedData!);
-    setRollingBands(computeFrontendRollingBands(filtered, appState.selectedCols, windowSize));
+    const filtered = applyColumnRanges(runtimeState.lastFetchedData!);
+    setRollingBands(computeFrontendRollingBands(filtered, uiState.selectedCols, windowSize));
 }
 
 /** Stop any in-flight anomaly request. */
@@ -162,18 +168,18 @@ export const isAnalyticsControllerActive = (): boolean =>
  */
 export function initAnalyticsListeners(fetchAndRenderAnalytics: () => Promise<void>): () => void {
     const handler = () => {
-        if (appState.lastFetchedData) {
-            if (appState.rollingEnabled) {
-                const filtered = applyColumnRanges(appState.lastFetchedData);
+        if (runtimeState.lastFetchedData) {
+            if (analyticsState.rollingEnabled) {
+                const filtered = applyColumnRanges(runtimeState.lastFetchedData);
                 setRollingBands(computeFrontendRollingBands(
                     filtered as any,
-                    appState.selectedCols,
-                    (appState.rollingWindow as number | undefined) || 50,
+                    uiState.selectedCols,
+                    analyticsState.rollingWindow || 50,
                 ));
             } else {
                 setRollingBands(null);
             }
-            appState.chart?.requestOverlayRender?.();
+            chartState.chart?.requestOverlayRender?.();
         }
         fetchAndRenderAnalytics().catch((err: unknown) => { console.warn('Analytics fetch failed:', err); });
     };

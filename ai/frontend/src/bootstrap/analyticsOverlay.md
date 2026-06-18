@@ -1,5 +1,5 @@
 # ai/frontend/src/bootstrap/analyticsOverlay.md
-> Rolling-band computation, anomaly region fetching, and overlay render coordination.
+> Rolling-band computation, anomaly region fetching, and overlay render coordination. Reads the split chart/runtime/ui sub-states instead of the legacy composite appState.
 
 ## Interface: RollingBandData
 ```typescript
@@ -26,11 +26,11 @@ interface RollingBandData {
 
 ### fetchAnomalyRegions
 - `fetchAnomalyRegions(fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null, signal?: AbortSignal): Promise<void>`
-  - Fetches anomaly regions from backend and updates `appState.anomalyRegions`. Returns early if current time range is not finite.
+  - Fetches anomaly regions from backend using `chartState.currentStart/currentEnd` and `uiState.selectedCols`, then updates `analyticsState.anomalyRegions`. Returns early if the current time range is not finite.
 
 ### computeAndSetRollingBands
 - `computeAndSetRollingBands(windowSize: number): void`
-  - Applies column filters to `lastFetchedData`, computes rolling bands, and updates `appState.rollingBands`.
+  - Applies column filters to `runtimeState.lastFetchedData`, computes rolling bands, and updates `analyticsState.rollingBands`.
 
 ### cancelAnalyticsFetch
 - `cancelAnalyticsFetch(): void`
@@ -42,14 +42,14 @@ interface RollingBandData {
 
 ### initAnalyticsListeners
 - `initAnalyticsListeners(fetchAndRenderAnalytics: () => Promise<void>): () => void`
-  - Wires `edatime:analytics-change` event to recompute rolling bands, trigger chart overlay render, and fetch fresh anomaly regions. Returns a cleanup function to remove the listener.
+  - Wires `edatime:analytics-change` event to recompute rolling bands, trigger `chartState.chart?.requestOverlayRender?.()`, and fetch fresh anomaly regions. Returns a cleanup function to remove the listener.
 
 ### fetchAndRenderAnalytics
 - `fetchAndRenderAnalytics(fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null): Promise<void>`
-  - Standalone analytics fetch that calls `fetchAnomalyRegions`. Used by app.ts and shell init.
+  - Standalone analytics fetch that calls `fetchAnomalyRegions`. Used by `app.ts` and shell init.
 
 ---
 [1]: ../store/index.md
 [2]: ../services/timeseries/filtering.md
 [3]: ../types.md
-[4]: ../store/appStateCompat.md
+[4]: ../store/runtimeState.md

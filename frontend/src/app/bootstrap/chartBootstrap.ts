@@ -9,11 +9,14 @@ import { registerChartType } from '../../charts/registry.js';
 import { FallbackChart } from '../../charts/fallback.js';
 import type { ChartInstance, ViewSnapshot } from '../../types.js';
 
-export interface ChartModules {
+export interface DataModules {
     fetchMetadata: (signal?: AbortSignal) => Promise<import('../../types.js').DatasetMetadata>;
     fetchData: (start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<import('../../types.js').DataObject>;
     fetchAnomalies: (start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<import('../../types.js').AnomalyResponse>;
     postTransform: (expression: string, outputName: string) => Promise<import('../../types.js').TransformResponse>;
+}
+
+export interface ChartModules extends DataModules {
     DataChartCtor: (new (
         containerId: string,
         onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
@@ -22,6 +25,8 @@ export interface ChartModules {
     ) => ChartInstance) | null;
 }
 
+let dataModules: DataModules | null = null;
+let dataPending: Promise<DataModules> | null = null;
 let modules: ChartModules | null = null;
 let pending: Promise<ChartModules> | null = null;
 
@@ -31,20 +36,36 @@ export interface BootstrapChartCallbacks {
     onZoomOut: (() => void) | null;
 }
 
+export async function ensureDataModules(): Promise<DataModules> {
+    if (dataModules) return dataModules;
+    if (dataPending) return dataPending;
+
+    dataPending = (async () => {
+        const dataClient = await import('../../services/api/index.js');
+        const result: DataModules = {
+            fetchMetadata: dataClient.fetchMetadata,
+            fetchData: dataClient.fetchData,
+            fetchAnomalies: dataClient.fetchAnomalies,
+            postTransform: dataClient.postTransform,
+        };
+        dataModules = result;
+        return result;
+    })();
+
+    return dataPending;
+}
+
 export async function ensureChartModules(): Promise<ChartModules> {
     if (modules) return modules;
     if (pending) return pending;
 
     pending = (async () => {
-        const [dataClient, chartModule] = await Promise.all([
-            import('../../services/api/index.js'),
+        const [baseModules, chartModule] = await Promise.all([
+            ensureDataModules(),
             import('../../chart/DataChart.js'),
         ]);
         const result: ChartModules = {
-            fetchMetadata: dataClient.fetchMetadata,
-            fetchData: dataClient.fetchData,
-            fetchAnomalies: dataClient.fetchAnomalies,
-            postTransform: dataClient.postTransform,
+            ...baseModules,
             DataChartCtor: chartModule.DataChart,
         };
 

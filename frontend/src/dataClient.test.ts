@@ -473,6 +473,39 @@ describe('dataClient fetch helpers', () => {
             );
         });
 
+        it('omits adaptive filter ids from scatter line filter payloads', async () => {
+            const { fetchScatterPoints } = await import('./dataClient');
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([['Content-Type', 'application/json']]),
+                json: () => Promise.resolve({
+                    x: 'col_a',
+                    y: 'col_b',
+                    color: null,
+                    total_points: 1,
+                    returned_points: 1,
+                    points: [[1, 2]],
+                    color_values: null,
+                    color_labels: null,
+                    color_min: null,
+                    color_max: null,
+                }),
+            });
+
+            await fetchScatterPoints('col_a', 'col_b', 5000, null, {
+                lineFilters: [
+                    { id: 'adaptive-1', column: 'col_a', x1: 1, y1: 2, x2: 3, y2: 4, keepAbove: true } as any,
+                ],
+            });
+
+            const request = mockFetch.mock.calls.at(-1)?.[1] as RequestInit | undefined;
+            const payload = JSON.parse(String(request?.body ?? '{}'));
+            expect(JSON.parse(String(payload.line_filters))).toEqual([
+                { column: 'col_a', x1: 1, y1: 2, x2: 3, y2: 4, keepAbove: true },
+            ]);
+        });
+
         it('reads scatter Arrow responses using the declared axis columns', async () => {
             const { fetchScatterPoints } = await import('./dataClient');
 

@@ -6,8 +6,10 @@
  * Provides localStorage auto-save and manual JSON export/import.
  */
 
-import { appState } from '../store/appStateCompat.js';
 import {
+    analyticsState,
+    chartState,
+    datasetState,
     setAdaptiveLineFilters,
     setAnomalyEnabled,
     setAnomalyMethod,
@@ -20,6 +22,7 @@ import {
     setSelectedCols,
     setSeriesColors,
     setViewport,
+    uiState,
 } from '../store/index.js';
 import { toast } from './toast.js';
 import { getHashPage } from './router.js';
@@ -85,19 +88,19 @@ export function captureSession(): SessionSnapshot {
         version: 1,
         timestamp: Date.now(),
         page: currentPage(),
-        selectedCols: [...appState.selectedCols],
-        seriesColors: { ...appState.seriesColors },
-        columnRanges: { ...appState.columnRanges },
-        adaptiveLineFilters: appState.adaptiveLineFilters.map((f) => ({ ...f })),
-        currentStart: appState.currentStart,
-        currentEnd: appState.currentEnd,
-        selectedColorColumn: appState.selectedColorColumn,
-        chartText: { ...appState.chartText },
-        rollingEnabled: appState.rollingEnabled,
-        rollingWindow: appState.rollingWindow,
-        anomalyEnabled: appState.anomalyEnabled,
-        anomalyMethod: appState.anomalyMethod,
-        anomalyThreshold: appState.anomalyThreshold,
+        selectedCols: [...uiState.selectedCols],
+        seriesColors: { ...uiState.seriesColors },
+        columnRanges: { ...uiState.columnRanges },
+        adaptiveLineFilters: uiState.adaptiveLineFilters.map((f) => ({ ...f })),
+        currentStart: chartState.currentStart,
+        currentEnd: chartState.currentEnd,
+        selectedColorColumn: uiState.selectedColorColumn,
+        chartText: { ...chartState.chartText },
+        rollingEnabled: analyticsState.rollingEnabled,
+        rollingWindow: analyticsState.rollingWindow,
+        anomalyEnabled: analyticsState.anomalyEnabled,
+        anomalyMethod: analyticsState.anomalyMethod,
+        anomalyThreshold: analyticsState.anomalyThreshold,
         scatterX: readSelect('scatter-x-col'),
         scatterY: readSelect('scatter-y-col'),
         scatterColorColumn: readSelect('scatter-color-column'),
@@ -106,7 +109,7 @@ export function captureSession(): SessionSnapshot {
         // value for diagnostic / back-compat purposes only. It is no longer
         // applied to the document by `applySession()`.
         theme: document.documentElement.getAttribute('data-theme') || 'dark',
-        datasetRevision: Number.isFinite(Number(appState.datasetRevision)) ? Number(appState.datasetRevision) : 0,
+        datasetRevision: Number.isFinite(Number(datasetState.datasetRevision)) ? Number(datasetState.datasetRevision) : 0,
     };
 }
 
@@ -127,12 +130,12 @@ export function applySession(
 
     const announceAdjustments = options.announceAdjustments !== false;
     const metadataTimeRange = options.metadataTimeRange
-        || ((appState.metadata as any)?.time_range ?? null);
+        || ((datasetState.metadata as any)?.time_range ?? null);
 
     const currentRevision = Number(
         options.currentDatasetRevision
-        ?? appState.datasetRevision
-        ?? (appState.metadata as any)?.revision
+        ?? datasetState.datasetRevision
+        ?? (datasetState.metadata as any)?.revision
         ?? 0,
     );
     const snapshotRevision = Number(snap.datasetRevision ?? 0);
@@ -141,15 +144,15 @@ export function applySession(
     const revisionMismatch = hasRevisions && currentRevision !== snapshotRevision;
     result.revisionMismatch = revisionMismatch;
 
-    const metadataColumns = Array.isArray((appState.metadata as any)?.columns)
-        ? (appState.metadata as any).columns
+    const metadataColumns = Array.isArray((datasetState.metadata as any)?.columns)
+        ? (datasetState.metadata as any).columns
         : [];
     const validMetadataNames = new Set(
         metadataColumns.map((col: any) => String(col?.name ?? '').trim()).filter(Boolean),
     );
     const metadataNumericNames = new Set(
-        Array.isArray((appState.metadata as any)?.numeric_columns)
-            ? (appState.metadata as any).numeric_columns.map((col: any) => String(col ?? '').trim()).filter(Boolean)
+        Array.isArray((datasetState.metadata as any)?.numeric_columns)
+            ? (datasetState.metadata as any).numeric_columns.map((col: any) => String(col ?? '').trim()).filter(Boolean)
             : [],
     );
 
@@ -163,7 +166,7 @@ export function applySession(
             return true;
         });
 
-    setSelectedCols(nextSelectedCols.length > 0 ? nextSelectedCols : [...appState.selectedCols]);
+    setSelectedCols(nextSelectedCols.length > 0 ? nextSelectedCols : [...uiState.selectedCols]);
     if (snap.seriesColors) setSeriesColors({ ...snap.seriesColors });
 
     if (revisionMismatch) {

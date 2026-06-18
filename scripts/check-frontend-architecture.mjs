@@ -4,6 +4,21 @@ import { join, relative } from 'node:path';
 const root = process.cwd();
 const srcRoot = join(root, 'frontend/src');
 const violations = [];
+const ALLOWED_APP_STATE_COMPAT_IMPORTS = new Set([
+  'frontend/src/app/adaptiveGesture.ts',
+  'frontend/src/features/dataMutation/entrypoint.ts',
+  'frontend/src/features/export/entrypoint.ts',
+  'frontend/src/pages/timeseriesPage.ts',
+  'frontend/src/scatter/viewController.ts',
+  'frontend/src/store/index.ts',
+  'frontend/src/ui/analysisStatus.ts',
+  'frontend/src/ui/chartTextControls.ts',
+  'frontend/src/ui/eventHelpers.ts',
+  'frontend/src/ui/metaBar.ts',
+  'frontend/src/ui/settingsPanel.ts',
+  'frontend/src/ui/toolbar.ts',
+  'frontend/src/ui/viewport.ts',
+]);
 
 async function listTsFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -127,6 +142,8 @@ for (const file of files) {
         add(file, 'import from bootstrap/timeseriesBootstrap.ts is deprecated — use features/timeseries/entrypoint.js', lineOf(text, match.index ?? 0));
       } else if ((/^(\.\.\/)+components\//.test(src) || src.startsWith('components/')) && !/^frontend\/src\/components\//.test(rel)) {
         add(file, 'import from components/ is deprecated — use ui/ instead', lineOf(text, match.index ?? 0));
+      } else if (/store\/appStateCompat(\.js)?$/.test(src) && !ALLOWED_APP_STATE_COMPAT_IMPORTS.has(rel)) {
+        add(file, 'import from store/appStateCompat.ts requires an explicit architecture-check allowlist entry', lineOf(text, match.index ?? 0));
       }
     }
   }

@@ -35,15 +35,13 @@ const {
     restoreSessionAfterChartReadyMock: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../store/appStateCompat.js', () => ({
-    appState: appStateMock,
-}));
-
 vi.mock('../webgpuGuard.js', () => ({
     checkWebGPU: checkWebGPUMock,
 }));
 
 vi.mock('../../store/index.js', () => ({
+    chartState: appStateMock,
+    datasetState: appStateMock,
     setAnalysisBound: setAnalysisBoundMock,
     setChartInstance: setChartInstanceMock,
     setInitialView: setInitialViewMock,
@@ -132,7 +130,7 @@ describe('createTimeseriesBootstrap', () => {
         const { createTimeseriesBootstrap } = await import('./ensureTimeseriesReady.js');
 
         const bootstrap = createTimeseriesBootstrap({
-            DataChartCtor: class { } as any,
+            ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class { }),
             onZoom,
             onYRange,
             onZoomOut,
@@ -180,7 +178,7 @@ describe('createTimeseriesBootstrap', () => {
         const { createTimeseriesBootstrap } = await import('./ensureTimeseriesReady.js');
 
         const bootstrap = createTimeseriesBootstrap({
-            DataChartCtor: class { } as any,
+            ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class { }),
             onZoom,
             onYRange,
             onZoomOut,

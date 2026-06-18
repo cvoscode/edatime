@@ -30,27 +30,6 @@ pub struct ScatterCorrelationsResponse {
     pub suggestions: Vec<SuggestionItem>,
 }
 
-fn build_correlation_item(
-    lf: LazyFrame,
-    base: &str,
-    other: &str,
-) -> Result<CorrelationItem, AppError> {
-    let df = lf
-        .with_new_streaming(true)
-        .collect()
-        .map_err(|e| AppError::internal(format!("correlation collect: {}", e)))?;
-    let pairs = collect_xy_pairs(&df, base, other)?;
-    let pearson = stats::pearson(&pairs);
-    let spearman = stats::spearman(&pairs);
-
-    Ok(CorrelationItem {
-        column: other.to_string(),
-        count: pairs.len(),
-        pearson,
-        spearman,
-    })
-}
-
 #[tracing::instrument(skip(state))]
 pub async fn get_scatter_correlations(
     State(state): State<AppState>,
@@ -76,79 +55,15 @@ pub async fn get_scatter_correlations(
         )?));
     }
 
-    tokio::task::spawn_blocking(move || {
-        let mut numeric = numeric_columns(lf.clone());
-        numeric.sort();
-
-        // If dataset is empty or has fewer than 2 numeric columns, return an empty but valid response
-        if numeric.len() < 2 {
-            return Ok(Json(ScatterCorrelationsResponse {
-                base_column: numeric.first().cloned().unwrap_or_default(),
-                threshold,
-                numeric_columns: numeric,
-                correlations: vec![],
-                suggestions: vec![],
-            }));
-        }
-
-        let base_column = if let Some(base) = requested_base {
-            if !numeric.iter().any(|c| c == &base) {
-                return Err(AppError::bad_request(format!(
-                    "Base column '{}' is not numeric/temporal",
-                    base
-                )));
-            }
-            base
-        } else {
-            numeric
-                .iter()
-                .find(|c| c.as_str() != "ts")
-                .cloned()
-                .unwrap_or_else(|| numeric[0].clone())
-        };
-
-        let mut correlations = Vec::new();
-        for col in numeric.iter().filter(|c| *c != &base_column) {
-            correlations.push(build_correlation_item(lf.clone(), &base_column, col)?);
-        }
-
-        correlations.sort_by(|a, b| {
-            let a_score = a
-                .pearson
-                .map(|v| v.abs())
-                .unwrap_or(0.0)
-                .max(a.spearman.map(|v| v.abs()).unwrap_or(0.0));
-            let b_score = b
-                .pearson
-                .map(|v| v.abs())
-                .unwrap_or(0.0)
-                .max(b.spearman.map(|v| v.abs()).unwrap_or(0.0));
-            b_score.total_cmp(&a_score)
-        });
-
-        let suggestions: Vec<SuggestionItem> = correlations
-            .iter()
-            .filter(|item| {
-                item.pearson.map(|v| v.abs()).unwrap_or(0.0) >= threshold
-                    || item.spearman.map(|v| v.abs()).unwrap_or(0.0) >= threshold
-            })
-            .map(|item| SuggestionItem {
-                x: base_column.clone(),
-                y: item.column.clone(),
-                correlation: item.pearson.unwrap_or(item.spearman.unwrap_or(0.0)),
-            })
-            .collect();
-
-        Ok(Json(ScatterCorrelationsResponse {
-            base_column,
-            threshold,
-            numeric_columns: numeric,
-            correlations,
-            suggestions,
-        }))
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("Failed to join scatter correlation task: {:?}", e)))?
+    let data = tokio::task::spawn_blocking(move || compute_correlation_matrix(lf))
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to join scatter correlation task: {:?}", e)))??;
+    state.store_correlation_matrix_if_current(revision, data.clone().into_cache());
+    Ok(Json(build_scatter_correlations_from_matrix_data(
+        &data,
+        requested_base.as_deref(),
+        threshold,
+    )?))
 }
 
 // ── Full NxN Correlation Matrix ────────────────────────────────────────────
@@ -387,6 +302,7 @@ mod tests {
     use edatime_core::config::AppConfig;
     use edatime_core::IntoLazy;
     use polars::prelude::{DataFrame, NamedFrom, Series};
+    use axum::extract::{Query, State};
 
     #[test]
     fn cached_matrix_builds_sorted_correlations_for_requested_base() {
@@ -514,5 +430,36 @@ mod tests {
         assert!(cached.pearson.is_empty());
         assert!(cached.spearman.is_empty());
         assert!(cached.counts.is_empty());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn scatter_correlations_miss_populates_matrix_cache() {
+        let df = DataFrame::new(
+            3,
+            vec![
+                Series::new("a".into(), [1.0_f64, 2.0, 3.0]).into(),
+                Series::new("b".into(), [2.0_f64, 4.0, 6.0]).into(),
+                Series::new("c".into(), [3.0_f64, 2.0, 1.0]).into(),
+            ],
+        )
+        .expect("test dataframe should build");
+        let state = AppState::new(df, AppConfig::default());
+        let revision = state.dataset_revision();
+
+        let response = get_scatter_correlations(
+            State(state.clone()),
+            Query(ScatterCorrelationsQuery {
+                base: Some("a".to_string()),
+                threshold: Some(0.7),
+            }),
+        )
+        .await
+        .expect("scatter correlations request should succeed");
+
+        assert_eq!(response.0.base_column, "a");
+        let cached = state
+            .cached_correlation_matrix(revision)
+            .expect("cold miss should populate the shared matrix cache");
+        assert_eq!(cached.columns, vec!["a", "b", "c"]);
     }
 }

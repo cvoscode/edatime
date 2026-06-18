@@ -1,13 +1,17 @@
 # pages/timeseriesModule.md
-> Owns the Timeseries page lifecycle: controller, feature entrypoint, dataset bootstrap, and runtime. `initializeDatasetUi` is now async and dynamically imports its UI helpers via `ensureDatasetUiModules`.
+> Owns the Timeseries page lifecycle: controller, feature entrypoint, dataset bootstrap, and runtime. Chart constructor loading is now lazy via `ensurePrimaryChartCtor`.
 
 ## Interface: `TimeseriesModuleDeps`
 ```typescript
 interface TimeseriesModuleDeps {
     fetchData: (start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<DataObject>;
     fetchMetadata: () => Promise<DatasetMetadata>;
-    buildColumnToggles: () => void;
-    buildRangeControls: () => void;
+    ensurePrimaryChartCtor: () => Promise<new (
+        containerId: string,
+        onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
+        onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null,
+        onZoomOutCb: (() => void) | null,
+    ) => ChartInstance>;
     markMetadataReady: () => void;
     sanitizeSelectedColumns: () => void;
     clearLoadedPageModules: () => void;
@@ -19,8 +23,10 @@ interface TimeseriesModuleDeps {
     setViewport: (start: number, end: number) => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
-    getCurrentView: () => { start: number; end: number };
-    emitChartRangeChange: (sourceKind?: string) => void;
+    getCurrentView: () => ViewSnapshot;
+    fetchAndRenderAnalytics: () => Promise<void>;
+    refreshZoomControlsState: () => void;
+    zoomOut: () => void;
     chartExportPng?: () => void;
     chartExportSvg?: () => void;
     exportFilteredCsv?: () => void;
@@ -70,6 +76,7 @@ interface TimeseriesModule {
   - Stores metadata and revision via `setMetadata` / `setDatasetRevision`.
 - `initializeDatasetUi(metadata: DatasetMetadata): Promise<void>`
   - Async. Calls `ensureDatasetUiModules()` to dynamically import `ui/profile.js`, `features/upload/preview.js`, and `features/upload/partialLoadControls.js`. Then dispatches `edatime:workflow-refresh`, sets viewport/zoom via `setViewport` / `updateAnalysisZoom`, and emits `edatime:chart-range-change` with source `initial`. Hydrates column profiles, applies the time range, and builds the chip/range controls.
+- The dataset bootstrap is given a no-op `ensureChartModules` because the chart constructor now loads lazily in `createTimeseriesBootstrap`.
 - Creates the dataset bootstrap with injected deps from `TimeseriesModuleDeps`.
 
 ## State
@@ -80,7 +87,7 @@ interface TimeseriesModule {
 
 ### createTimeseriesModule
 - `createTimeseriesModule(deps: TimeseriesModuleDeps): TimeseriesModule`
-  - Creates controller, feature, runtime, and bootstrap. Returns public interface for column/range controls, render, and lifecycle.
+  - Creates controller, feature, runtime, and bootstrap. Returns the public interface for column/range controls, render, and lifecycle.
 
 ### ensureDatasetUiModules (internal)
 - `ensureDatasetUiModules(): Promise<DatasetUiModules>`

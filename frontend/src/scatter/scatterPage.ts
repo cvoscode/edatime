@@ -72,6 +72,7 @@ import {
     refreshCorrelationsAndSuggestions,
     setSuggestionApplyHandler,
 } from './correlationsPanel.js';
+import { computeInteractiveScatterLimit } from './renderLimit.js';
 
 import type { DatasetMetadata } from '../types.js';
 
@@ -120,6 +121,10 @@ function syncScatterViewButtons(viewName: string): void {
 async function setScatterView(viewName: string, options: { render?: boolean } = {}): Promise<void> {
     const nextView = viewName || 'plot';
     const shouldRender = options.render !== false;
+    if (_scatterDebounceTimer) {
+        clearTimeout(_scatterDebounceTimer);
+        _scatterDebounceTimer = null;
+    }
     appState.scatter.activeView = nextView;
     setSidebarAnalyticsSelection(nextView);
     syncScatterViewButtons(nextView);
@@ -205,7 +210,7 @@ async function renderScatter(): Promise<void> {
         _preserveViewOnNextRender = false;
 
         const response = await fetchScatterPoints(
-            xValue, yValue, 1_000_000,
+            xValue, yValue, computeInteractiveScatterLimit(container),
             colorColumn,
             queryContext,
             signal,

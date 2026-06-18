@@ -86,6 +86,7 @@ const defaultDeps = () => ({
     fetchData: vi.fn(),
     fetchMetadata: vi.fn(),
     DataChartCtor: class {} as any,
+    ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class {}),
     markMetadataReady: vi.fn(),
     sanitizeSelectedColumns: vi.fn(),
     clearLoadedPageModules: vi.fn(),

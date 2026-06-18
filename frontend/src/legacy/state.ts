@@ -20,6 +20,7 @@ import type {
     DataObject,
     FilteredDataObject,
     PendingAdaptivePoint,
+    ScatterLineFilterSpec,
     SeriesData,
     YMode,
     ZoomEntry,
@@ -163,7 +164,7 @@ export function ensureRangeStateFromData(dataObj: DataObject): void {
     if (next !== appState.columnRanges) setColumnRanges(next);
 }
 
-export function buildAdaptiveLineFiltersForQuery(): AdaptiveLineFilter[] {
+export function buildAdaptiveLineFiltersForQuery(): ScatterLineFilterSpec[] {
     return buildAdaptiveLineFiltersForQueryState(appState.adaptiveLineFilters || []);
 }
 

@@ -21,7 +21,7 @@
 
 ## Handlers
 - `pub async fn get_scatter_correlations(State(state): State<AppState>, Query(params): Query<ScatterCorrelationsQuery>) -> Result<Json<ScatterCorrelationsResponse>, AppError>`
-  - First checks `state.cached_correlation_matrix(revision)` and returns the cached result on hit. Otherwise computes via `tokio::task::spawn_blocking`, stores the matrix in the cache, and projects it into the response.
+  - First checks `state.cached_correlation_matrix(revision)` and returns the cached result on hit. Otherwise computes via `tokio::task::spawn_blocking`, stores the matrix in the cache via `state.store_correlation_matrix_if_current(...)`, and projects it into the response.
 - `pub async fn get_correlation_matrix(State(state): State<AppState>) -> Result<Json<CorrelationMatrixResponse>, AppError>`
   - Same cache-first path; falls back to a fresh `compute_correlation_matrix` and stores the result.
 

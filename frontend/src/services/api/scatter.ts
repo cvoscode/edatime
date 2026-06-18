@@ -10,6 +10,33 @@ import {
     type ArrowColumn,
 } from './http.js';
 
+function normalizeScatterLineFilters(lineFilters: unknown[]): Array<{
+    column: string;
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    keepAbove: boolean;
+}> {
+    return lineFilters
+        .map((filter) => ({
+            column: String((filter as Record<string, unknown>)?.column ?? ''),
+            x1: Number((filter as Record<string, unknown>)?.x1),
+            y1: Number((filter as Record<string, unknown>)?.y1),
+            x2: Number((filter as Record<string, unknown>)?.x2),
+            y2: Number((filter as Record<string, unknown>)?.y2),
+            keepAbove: !!(filter as Record<string, unknown>)?.keepAbove,
+        }))
+        .filter((filter) =>
+            !!filter.column
+            && Number.isFinite(filter.x1)
+            && Number.isFinite(filter.y1)
+            && Number.isFinite(filter.x2)
+            && Number.isFinite(filter.y2)
+            && filter.x1 !== filter.x2,
+        );
+}
+
 export async function fetchScatterPoints(
     x: string,
     y: string,
@@ -37,7 +64,7 @@ export async function fetchScatterPoints(
         payload.filters = JSON.stringify(options!.filters);
     }
     if (Array.isArray(options?.lineFilters) && options!.lineFilters!.length > 0) {
-        payload.line_filters = JSON.stringify(options!.lineFilters);
+        payload.line_filters = JSON.stringify(normalizeScatterLineFilters(options!.lineFilters));
     }
 
     const url = '/api/scatter/points';

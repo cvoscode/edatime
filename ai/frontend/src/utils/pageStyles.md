@@ -1,19 +1,17 @@
 # ai/frontend/src/utils/pageStyles.md
-
-> Dynamic CSS module loader for per-page stylesheets (drift, home, scatter). Used by the page descriptor registry to preload page-owned stylesheets before page init.
+> Dynamic CSS module loader for page-owned stylesheets. `pageStyleModulesFor` maps page names to CSS modules, and `ensureStyleModule` injects a single `<link data-edatime-style>` per module.
 
 ## Types
-```typescript
-type StyleModuleName = 'drift' | 'home' | 'scatter';
-```
+- `StyleModuleName = 'drift' | 'home' | 'scatter'`
 
 ## Constants
-- `STYLE_MODULES: Record<StyleModuleName, string>` — maps page names to stylesheet URLs.
+- `PAGE_STYLE_MODULES: Record<string, StyleModuleName[]>` - maps `drift`, `home`, `scatter`, and `scattermatrix` to page-owned style modules.
+- `STYLE_HREFS: Record<string, string>` - eager `import.meta.glob('../../css/modules/*.css', { query: '?url' })` URL map.
 
 ## Functions
 - `pageStyleModulesFor(pageName: string): StyleModuleName[]`
-  - Returns the list of style module names required for a given page.
+  - Returns the list of style modules required for a page.
 - `ensureStyleModule(name: StyleModuleName): HTMLLinkElement | null`
-  - Ensures a stylesheet link is present in `<head>`, deduplicating if already loaded.
+  - Returns the existing `<link>` if present, otherwise appends a stylesheet link for the resolved module URL.
 - `preloadPageStyles(pageName: string): void`
-  - Preloads all style modules for a page by calling `ensureStyleModule` for each.
+  - Preloads every style module mapped to `pageName`.

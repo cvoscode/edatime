@@ -27,11 +27,13 @@
 - `returned_rows: usize`
 - `target_points: Option<usize>`
 - `time_column: Option<String>`  [deps: [data handler][1]]
+- `extra_headers: Vec<(String, String)>`
 - `created_at: std::time::Instant`
 
 ### `CachedResponse`
 - `arrow(data: Vec<u8>, is_downsampled: bool, returned_rows: usize, target_points: Option<usize>, time_column: Option<String>) -> Self`
 - `json(data: Vec<u8>, is_downsampled: bool, returned_rows: usize, target_points: Option<usize>, time_column: Option<String>) -> Self`
+- `with_extra_headers(headers: Vec<(String, String)>) -> Self`
 - `into_response(self, hit: &str) -> Response`
 - `is_expired(&self) -> bool`
 ---

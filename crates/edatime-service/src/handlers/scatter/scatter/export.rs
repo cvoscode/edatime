@@ -60,3 +60,53 @@ pub async fn post_scatter_export_parquet(
     );
     Ok(response)
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
+mod tests {
+    use super::post_scatter_export_parquet;
+    use crate::handlers::scatter::scatter::ScatterPointsQuery;
+    use axum::{Json, extract::State};
+    use axum::http::header;
+    use edatime_core::config::AppConfig;
+    use edatime_store::state::AppState;
+    use polars::prelude::{DataFrame, NamedFrom, Series};
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn scatter_export_accepts_line_filters_with_compatibility_id_field() {
+        let df = DataFrame::new(
+            3,
+            vec![
+                Series::new("ts".into(), [1_467_331_200_000_i64, 1_491_469_996_429_i64, 1_530_042_300_000_i64]).into(),
+                Series::new("HUFL".into(), [70.0_f64, 80.0, 90.0]).into(),
+                Series::new("HULL".into(), [10.0_f64, 20.0, 30.0]).into(),
+            ],
+        )
+        .expect("test dataframe should build");
+        let state = AppState::new(df, AppConfig::default());
+        let params = ScatterPointsQuery {
+            x: "HUFL".to_string(),
+            y: "HULL".to_string(),
+            color: None,
+            size: None,
+            start: Some(1_467_331_200_000.0),
+            end: Some(1_530_042_300_000.0),
+            filters: None,
+            line_filters: Some(
+                r#"[{"id":"adaptive-1781794868781-c3v0r8","column":"HUFL","x1":1491469996428.5715,"y1":76.32572064536755,"x2":1497229179081.6326,"y2":77.28037623208502,"keepAbove":false}]"#
+                    .to_string(),
+            ),
+            limit: 10,
+            format: None,
+        };
+
+        let response = post_scatter_export_parquet(State(state), Json(params))
+            .await
+            .expect("scatter export should accept compatibility ids");
+
+        assert_eq!(
+            response.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()),
+            Some("application/x-parquet")
+        );
+    }
+}

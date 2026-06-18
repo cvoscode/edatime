@@ -16,7 +16,6 @@
  */
 
 import { DEBUG, dbg, dbgGroup } from './debug.js';
-import { appState } from './store/appStateCompat.js';
 import { showBootstrapError } from './ui/errorUI.js';
 import { installWindowsWebGpuRequestAdapterWorkaround } from './utils/platform.js';
 import { getAnalyticsChipColor, getNumericColumns } from './pages/analyticsPageUtils.js';
@@ -31,12 +30,14 @@ import { showPage } from './app/navigation/showPage.js';
 import { initGlobalShortcuts } from './app/bootstrap/globalShortcuts.js';
 import { initTimeseriesShortcuts } from './app/bootstrap/timeseriesShortcuts.js';
 import { createAppRuntime } from './app/runtime.js';
-import { APP_COMMAND_DEFINITIONS } from './bootstrap/commands.js';
 import { upgradeSelects } from './ui/primitives/Dropdown.js';
 import { upgradeFlexibleNumberInputs } from './ui/primitives/FlexibleNumberInput.js';
 import { ensurePageModuleLoaded, clearLoadedPageModules, markMetadataReady } from './app/pageRegistry.js';
 import { loadPageDescriptors } from './app/pageModules.js';
-import { ensureChartModules as ensureChartBootstrapModules } from './app/bootstrap/chartBootstrap.js';
+import {
+    ensureChartModules as ensureChartBootstrapModules,
+    ensureDataModules as ensureBootstrapDataModules,
+} from './app/bootstrap/chartBootstrap.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
 import { createTimeseriesModule } from './pages/timeseriesModule.js';
@@ -51,6 +52,9 @@ import { exportChartFilteredData, exportChartFilteredParquet } from './ui/export
 import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, ChartInstance, ViewSnapshot } from './types.js';
 
 import {
+    appStateComposite,
+    chartState,
+    datasetState,
     setAdaptiveFilterColumn,
     setChartInstance,
     setDatasetRevision,
@@ -58,13 +62,14 @@ import {
     setNumericCols,
     setSelectedCols,
     setViewport,
+    uiState,
 } from './store/index.js';
 
 // ── Debugging hook ──────────────────────────────────────────────────────────
 // Expose appState on window.__edatime for interactive debugging from DevTools.
 // Using direct property assignment (not a getter) to avoid closure issues with
 // variable renaming across Vite's chunk bundling.
-const __edatime_state = appState;
+const __edatime_state = appStateComposite;
 window.__edatime = window.__edatime || {};
 try {
     Object.defineProperty(window.__edatime, 'state', {
@@ -91,14 +96,27 @@ let postTransform: ((expression: string, outputName: string) => Promise<Transfor
 let DataChartCtor: (new (containerId: string, onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null = null;
 let _sessionPersistenceStarted = false;
 
-async function ensureChartModules(): Promise<void> {
-    if (fetchMetadata && fetchData && DataChartCtor) return;
-    const modules = await ensureChartBootstrapModules();
+type DataChartCtorType = new (
+    containerId: string,
+    onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
+    onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null,
+    onZoomOutCb: (() => void) | null,
+) => ChartInstance;
+
+async function ensureDataModules(): Promise<void> {
+    if (fetchMetadata && fetchData && fetchAnomalies && postTransform) return;
+    const modules = await ensureBootstrapDataModules();
     fetchMetadata = modules.fetchMetadata;
     fetchData = modules.fetchData;
     fetchAnomalies = modules.fetchAnomalies;
     postTransform = modules.postTransform;
+}
+
+async function ensurePrimaryChartCtor(): Promise<DataChartCtorType> {
+    if (DataChartCtor) return DataChartCtor;
+    const modules = await ensureChartBootstrapModules();
     DataChartCtor = modules.DataChartCtor;
+    return DataChartCtor!;
 }
 
 /* ── Analytics overlay fetch ──────────────────────────── */
@@ -121,18 +139,18 @@ async function init(): Promise<void> {
     upgradeSelects(document);
     upgradeFlexibleNumberInputs(document);
     installWindowsWebGpuRequestAdapterWorkaround();
-    // Load chart modules first, then create the timeseries module once
-    await ensureChartModules();
+    // Load data transport first; chart rendering stays behind timeseries readiness.
+    await ensureDataModules();
 
     timeseriesModule = createTimeseriesModule({
         fetchData: (start, end, width, columns, colorColumn, signal) => fetchData!(start, end, width, columns, colorColumn, signal),
         fetchMetadata: () => fetchMetadata!(),
-        DataChartCtor: DataChartCtor!,
+        ensurePrimaryChartCtor,
         markMetadataReady,
         sanitizeSelectedColumns,
         clearLoadedPageModules,
         ensureSessionPersistenceStarted,
-        getSelectedCols: () => appState.selectedCols,
+        getSelectedCols: () => uiState.selectedCols,
         setSelectedCols,
         setNumericCols,
         setAdaptiveFilterColumn,
@@ -143,8 +161,8 @@ async function init(): Promise<void> {
         fetchAndRenderAnalytics,
         refreshZoomControlsState,
         zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
-        chartExportPng: () => appState.chart?.exportPNG?.(),
-        chartExportSvg: () => appState.chart?.exportSVG?.(),
+        chartExportPng: () => chartState.chart?.exportPNG?.(),
+        chartExportSvg: () => chartState.chart?.exportSVG?.(),
         exportFilteredCsv: () => exportChartFilteredData('csv'),
         exportFilteredJson: () => exportChartFilteredData('json'),
         exportFilteredParquet: () => exportChartFilteredParquet(),
@@ -173,9 +191,9 @@ async function init(): Promise<void> {
     await loadPageDescriptors({
         getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
         showPage,
-        getMetadata: () => appState.metadata ?? null,
+        getMetadata: () => datasetState.metadata ?? null,
         chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
-        numericColumns: () => getNumericColumns(appState.metadata),
+        numericColumns: () => getNumericColumns(datasetState.metadata),
         setLoading: setComputeLoading,
         initDriftPage: (metadata: unknown) => { void import('./drift/driftPage.js').then(m => m.initDriftPage(metadata)); },
     });
@@ -187,19 +205,14 @@ async function init(): Promise<void> {
 
     initGlobalShortcuts({
         showPage,
-        zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
-        resetZoom: () => resetZoom(() => timeseriesModule.fetchAndRender()),
         registerCleanup: runtime.registerCleanup,
-        chartExportPng: () => appState.chart?.exportPNG?.(),
-        exportFilteredCsv: () => (window as any).__edatime?.exportChartFilteredData?.('csv'),
-        exportFilteredJson: () => (window as any).__edatime?.exportChartFilteredData?.('json'),
-    }, APP_COMMAND_DEFINITIONS);
+    });
 
     initTimeseriesShortcuts({
         fetchAndRender: () => timeseriesModule.fetchAndRender(),
         zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
         resetZoom: () => resetZoom(() => timeseriesModule.fetchAndRender()),
-        chartExportPng: () => appState.chart?.exportPNG?.(),
+        chartExportPng: () => chartState.chart?.exportPNG?.(),
         exportFilteredCsv: () => (window as any).__edatime?.exportChartFilteredData?.('csv'),
         exportFilteredJson: () => (window as any).__edatime?.exportChartFilteredData?.('json'),
         registerCleanup: runtime.registerCleanup,

@@ -18,7 +18,7 @@ describe('timeseries filtering helpers', () => {
         ]);
 
         expect(filters).toEqual([
-            { id: 'f1', column: 'value', x1: 0, y1: 1, x2: 10, y2: 5, keepAbove: true },
+            { column: 'value', x1: 0, y1: 1, x2: 10, y2: 5, keepAbove: true },
         ]);
     });
 

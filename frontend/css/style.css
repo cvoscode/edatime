@@ -93,11 +93,4 @@
 
 /* ── Feature / Page (static — always loaded) ─────────────── */
 
-/* 14. Scatter & density page */
-@import "modules/scatter.css";
-
-/* 16. Drift analysis page */
-@import "modules/drift.css";
-
-/* 27. Home page */
-@import "modules/home.css";
+/* Page-owned CSS is loaded lazily via frontend/src/utils/pageStyles.ts */

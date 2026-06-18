@@ -10,26 +10,32 @@ describe('pageStyles', () => {
         vi.resetModules();
     });
 
-    it('does not request raw page stylesheet files', () => {
-        expect(pageStyleModulesFor('home')).toEqual([]);
-        expect(pageStyleModulesFor('drift')).toEqual([]);
-        expect(pageStyleModulesFor('scatter')).toEqual([]);
+    it('maps page names to page-owned style modules', () => {
+        expect(pageStyleModulesFor('home')).toEqual(['home']);
+        expect(pageStyleModulesFor('drift')).toEqual(['drift']);
+        expect(pageStyleModulesFor('scatter')).toEqual(['scatter']);
+        expect(pageStyleModulesFor('scattermatrix')).toEqual(['scatter']);
+        expect(pageStyleModulesFor('timeseries')).toEqual([]);
     });
 
-    it('does not inject stylesheet links', () => {
-        expect(ensureStyleModule('home')).toBeNull();
-        expect(ensureStyleModule('home')).toBeNull();
+    it('injects one stylesheet link per page-owned module', () => {
+        const first = ensureStyleModule('home');
+        const second = ensureStyleModule('home');
 
-        expect(document.head.querySelectorAll('link[data-edatime-style="home"]')).toHaveLength(0);
+        expect(first).toBeInstanceOf(HTMLLinkElement);
+        expect(second).toBe(first);
+        expect(first?.getAttribute('rel')).toBe('stylesheet');
+        expect(first?.getAttribute('data-edatime-style')).toBe('home');
+        expect(document.head.querySelectorAll('link[data-edatime-style="home"]')).toHaveLength(1);
     });
 
-    it('keeps preloading as a no-op compatibility hook', () => {
+    it('preloads every style needed by a page before it is shown', () => {
         preloadPageStyles('scatter');
         preloadPageStyles('home');
 
+        expect(document.head.querySelector('link[data-edatime-style="scatter"]')).toBeInstanceOf(HTMLLinkElement);
+        expect(document.head.querySelector('link[data-edatime-style="home"]')).toBeInstanceOf(HTMLLinkElement);
         expect(document.head.querySelector('link[data-edatime-style="drift"]')).toBeNull();
-        expect(document.head.querySelector('link[data-edatime-style="home"]')).toBeNull();
-        expect(document.head.querySelector('link[data-edatime-style="scatter"]')).toBeNull();
     });
 
 });

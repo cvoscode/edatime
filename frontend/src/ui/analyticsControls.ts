@@ -1,5 +1,5 @@
-import { appState } from '../store/appStateCompat.js';
 import {
+    analyticsState,
     setAnomalyEnabled,
     setAnomalyMethod,
     setAnomalyThreshold,
@@ -31,7 +31,7 @@ export function initAnalyticsControls(): void {
             const v = parseInt(rollingWindowInput.value, 10);
             if (Number.isFinite(v) && v >= 3) {
                 setRollingWindow(v);
-                if (appState.rollingEnabled) {
+                if (analyticsState.rollingEnabled) {
                     if (rollingDebounce) clearTimeout(rollingDebounce);
                     rollingDebounce = setTimeout(dispatchAnalyticsChange, 300);
                 }
@@ -49,7 +49,7 @@ export function initAnalyticsControls(): void {
     if (anomalyMethodSelect && !anomalyMethodSelect.dataset.bound) {
         anomalyMethodSelect.addEventListener('change', () => {
             setAnomalyMethod(getDropdownValue('anomaly-method'));
-            if (appState.anomalyEnabled) dispatchAnalyticsChange();
+            if (analyticsState.anomalyEnabled) dispatchAnalyticsChange();
         });
         anomalyMethodSelect.dataset.bound = '1';
     }
@@ -59,7 +59,7 @@ export function initAnalyticsControls(): void {
             const v = parseFloat(anomalyThresholdInput.value);
             if (Number.isFinite(v) && v > 0) {
                 setAnomalyThreshold(v);
-                if (appState.anomalyEnabled) {
+                if (analyticsState.anomalyEnabled) {
                     if (threshDebounce) clearTimeout(threshDebounce);
                     threshDebounce = setTimeout(dispatchAnalyticsChange, 300);
                 }

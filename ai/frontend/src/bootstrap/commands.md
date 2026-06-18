@@ -1,5 +1,5 @@
 # frontend/src/bootstrap/commands.md
-> Command palette definitions — all navigation, chart, export, session, and analysis commands. Action callbacks are async; heavy module imports are deferred to invocation time.
+> Command palette definitions for navigation, chart, export, session, and analysis commands. Session actions now lazy-import `utils/session` when invoked.
 
 ## Interface: CommandDeps
 ```typescript
@@ -30,7 +30,7 @@ interface CommandDefinition {
     - Navigation (Alt+1-9,0) → showPage
     - Chart controls (Shift+R/Z/C) → resetZoom, zoomOut, triggerAdaptiveFilterClear
     - Exports (CSV/JSON/PNG/Parquet) → window.__edatime.exportChartFilteredData, chart.exportPNG, `#export-data-parquet-btn` click
-    - Session (save/load) → dynamic `import('../utils/session.js')` of `exportSessionToFile` / `importSessionFromFile`
+    - Session (save/load) → async helpers `exportSession()` / `importSession()` dynamically import `../utils/session.js` before calling `exportSessionToFile` / `importSessionFromFile`
     - Analysis: provenance, command palette, settings (each triggers `ensureSubsystem(...)` via `window.__edatime.ensureSubsystem`)
     - Workflow: `enableGuidedWorkflow`, `disableGuidedWorkflow`, `goToNextGuidedStep` (each ensures the timeseries-shell subsystem and dynamically imports `'../ui/guidedWorkflow.js'`)
 
@@ -47,6 +47,14 @@ interface CommandDefinition {
 ### ensureSubsystem
 - `ensureSubsystem(name: string): Promise<void>`
   - Internal helper. Delegates to `window.__edatime.ensureSubsystem` for cross-module lazy loading.
+
+### exportSession
+- `exportSession(): Promise<void>`
+  - Dynamically imports `../utils/session.js` and calls `exportSessionToFile()`.
+
+### importSession
+- `importSession(): Promise<void>`
+  - Dynamically imports `../utils/session.js` and calls `importSessionFromFile()`.
 
 ### buildPaletteCommands
 - `buildPaletteCommands(deps: CommandDeps): PaletteCommand[]`

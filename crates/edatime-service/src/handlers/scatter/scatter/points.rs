@@ -7,7 +7,6 @@
 use axum::{
     Json,
     extract::{Query, State},
-    http::{HeaderValue, header},
     response::Response,
 };
 use polars::prelude::*;
@@ -15,6 +14,7 @@ use std::sync::Arc;
 
 use edatime_query::arrow_export::dataframe_to_arrow_ipc;
 use crate::error::AppError;
+use edatime_store::cache::CachedResponse;
 use edatime_store::state::AppState;
 use edatime_query::validation::{validate_scatter_limit, validate_time_window};
 
@@ -77,6 +77,20 @@ async fn scatter_points_response(
     };
     let limit = clamp_limit(params.limit, &state.config.validation);
     validate_scatter_limit(limit, &state.config.validation)?;
+    let cache_key = format!(
+        "scatter:v{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
+        state.dataset_revision(),
+        x_col,
+        y_col,
+        color_col.as_deref().unwrap_or(""),
+        size_col.as_deref().unwrap_or(""),
+        start.map(|value| value.to_string()).unwrap_or_default(),
+        end.map(|value| value.to_string()).unwrap_or_default(),
+        params.filters.as_deref().unwrap_or(""),
+        params.line_filters.as_deref().unwrap_or(""),
+        limit,
+        params.format.as_deref().unwrap_or("arrow"),
+    );
     if let (Some(start_ms), Some(end_ms)) = (start, end) {
         let start_dt = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(start_ms as i64)
             .ok_or_else(|| {
@@ -89,6 +103,12 @@ async fn scatter_points_response(
         validate_time_window(start_dt, end_dt)?;
     }
     let metrics = Arc::clone(&state.metrics);
+
+    if let Some(cached) = state.cache.get(&cache_key).await {
+        state.metrics.record_cache_hit();
+        return Ok(cached.into_response("hit"));
+    }
+    state.metrics.record_cache_miss();
 
     let lazy_frame = collect_filtered_scatter_frame(
         lf,
@@ -217,69 +237,51 @@ async fn scatter_points_response(
 
     metrics.record_scatter_sampling(total_points, returned_points);
 
-    let mut response = Response::new(arrow_bytes.into());
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/vnd.apache.arrow.stream"),
-    );
-    response.headers_mut().insert(
-        "x-edatime-scatter-total",
-        HeaderValue::from_str(&total_points.to_string())
-            .unwrap_or_else(|_| HeaderValue::from_static("0")),
-    );
-    response.headers_mut().insert(
-        "x-edatime-scatter-returned",
-        HeaderValue::from_str(&returned_points.to_string())
-            .unwrap_or_else(|_| HeaderValue::from_static("0")),
-    );
-    if let (Some(cm), Some(cx)) = (color_min, color_max)
-        && let (Ok(cmv), Ok(cxv)) = (
-            HeaderValue::from_str(&cm.to_string()),
-            HeaderValue::from_str(&cx.to_string()),
-        )
-    {
-        response.headers_mut().insert("x-edatime-color-min", cmv);
-        response.headers_mut().insert("x-edatime-color-max", cxv);
+    let mut extra_headers = vec![
+        ("x-edatime-scatter-total".to_string(), total_points.to_string()),
+        (
+            "x-edatime-scatter-returned".to_string(),
+            returned_points.to_string(),
+        ),
+        ("x-edatime-scatter-x".to_string(), x_col_for_headers),
+        ("x-edatime-scatter-y".to_string(), y_col_for_headers),
+    ];
+    if let Some(cm) = color_min {
+        extra_headers.push(("x-edatime-color-min".to_string(), cm.to_string()));
     }
-    if let (Some(sm), Some(sx)) = (size_min, size_max)
-        && let (Ok(smv), Ok(sxv)) = (
-            HeaderValue::from_str(&sm.to_string()),
-            HeaderValue::from_str(&sx.to_string()),
-        )
-    {
-        response.headers_mut().insert("x-edatime-size-min", smv);
-        response.headers_mut().insert("x-edatime-size-max", sxv);
+    if let Some(cx) = color_max {
+        extra_headers.push(("x-edatime-color-max".to_string(), cx.to_string()));
     }
-    response.headers_mut().insert(
-        "x-edatime-scatter-x",
-        HeaderValue::from_str(&x_col_for_headers).unwrap_or_else(|_| HeaderValue::from_static("")),
-    );
-    response.headers_mut().insert(
-        "x-edatime-scatter-y",
-        HeaderValue::from_str(&y_col_for_headers).unwrap_or_else(|_| HeaderValue::from_static("")),
-    );
-    if let Some(ref cc) = color_col_for_headers
-        && let Ok(cv) = HeaderValue::from_str(cc)
-    {
-        response.headers_mut().insert("x-edatime-scatter-color", cv);
+    if let Some(sm) = size_min {
+        extra_headers.push(("x-edatime-size-min".to_string(), sm.to_string()));
     }
-    // Send color kind (continuous vs categorical) so frontend can handle both correctly
+    if let Some(sx) = size_max {
+        extra_headers.push(("x-edatime-size-max".to_string(), sx.to_string()));
+    }
+    if let Some(cc) = color_col_for_headers {
+        extra_headers.push(("x-edatime-scatter-color".to_string(), cc));
+    }
     if let Some(kind) = color_kind {
         let kind_str = match kind {
             ScatterColorKind::Continuous => "continuous",
             ScatterColorKind::Categorical => "categorical",
         };
-        response.headers_mut().insert(
-            "x-edatime-scatter-color-kind",
-            HeaderValue::from_str(kind_str).unwrap_or_else(|_| HeaderValue::from_static("")),
-        );
+        extra_headers.push(("x-edatime-scatter-color-kind".to_string(), kind_str.to_string()));
     }
-    if let Some(ref sc) = size_col_for_headers
-        && let Ok(sv) = HeaderValue::from_str(sc)
-    {
-        response.headers_mut().insert("x-edatime-scatter-size", sv);
+    if let Some(sc) = size_col_for_headers {
+        extra_headers.push(("x-edatime-scatter-size".to_string(), sc));
     }
-    Ok(response)
+
+    let cached = CachedResponse::arrow(
+        arrow_bytes,
+        false,
+        returned_points,
+        limit,
+        None,
+    )
+    .with_extra_headers(extra_headers);
+    state.cache.insert(cache_key, cached.clone()).await;
+    Ok(cached.into_response("miss"))
 }
 
 #[cfg(test)]
@@ -319,5 +321,79 @@ mod tests {
         let result = post_scatter_points(State(state), Json(params)).await;
 
         assert!(result.is_ok(), "scatter points request should succeed: {result:?}");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn scatter_points_cache_reuses_identical_requests() {
+        let df = DataFrame::new(
+            3,
+            vec![
+                Series::new("LULL".into(), [1.0_f64, 2.0, 3.0]).into(),
+                Series::new("HULL".into(), [10.0_f64, 20.0, 30.0]).into(),
+            ],
+        )
+        .expect("test dataframe should build");
+        let state = AppState::new(df, AppConfig::default());
+        let params = ScatterPointsQuery {
+            x: "LULL".to_string(),
+            y: "HULL".to_string(),
+            color: None,
+            size: None,
+            start: None,
+            end: None,
+            filters: None,
+            line_filters: None,
+            limit: 10,
+            format: Some("arrow".to_string()),
+        };
+
+        let first = post_scatter_points(State(state.clone()), Json(params.clone()))
+            .await
+            .expect("first scatter points request should succeed");
+        let second = post_scatter_points(State(state), Json(params))
+            .await
+            .expect("second scatter points request should succeed");
+
+        assert_eq!(
+            first.headers().get("x-edatime-cache").and_then(|v| v.to_str().ok()),
+            Some("miss")
+        );
+        assert_eq!(
+            second.headers().get("x-edatime-cache").and_then(|v| v.to_str().ok()),
+            Some("hit")
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn scatter_points_accept_line_filters_with_compatibility_id_field() {
+        let df = DataFrame::new(
+            3,
+            vec![
+                Series::new("ts".into(), [1_467_331_200_000_i64, 1_491_469_996_429_i64, 1_530_042_300_000_i64]).into(),
+                Series::new("HUFL".into(), [70.0_f64, 80.0, 90.0]).into(),
+                Series::new("HULL".into(), [10.0_f64, 20.0, 30.0]).into(),
+            ],
+        )
+        .expect("test dataframe should build");
+        let state = AppState::new(df, AppConfig::default());
+        let params = ScatterPointsQuery {
+            x: "HUFL".to_string(),
+            y: "HULL".to_string(),
+            color: None,
+            size: None,
+            start: Some(1_467_331_200_000.0),
+            end: Some(1_530_042_300_000.0),
+            filters: None,
+            line_filters: Some(
+                r#"[{"id":"adaptive-1781794868781-c3v0r8","column":"HUFL","x1":1491469996428.5715,"y1":76.32572064536755,"x2":1497229179081.6326,"y2":77.28037623208502,"keepAbove":false}]"#
+                    .to_string(),
+            ),
+            limit: 10,
+            format: Some("arrow".to_string()),
+        };
+
+        let result = post_scatter_points(State(state), Json(params)).await;
+
+        assert!(result.is_ok(), "scatter points request should accept compatibility ids: {result:?}");
     }
 }
