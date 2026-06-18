@@ -278,8 +278,7 @@
 }
 
 .scatter-toolbar__field .modal-select,
-.scatter-toolbar__field .modal-input,
-.scatter-toolbar__field .dropdown {
+.scatter-toolbar__field .modal-input {
   flex: 1 1 auto;
   min-height: 28px;
   min-width: 0;
@@ -287,13 +286,46 @@
   max-width: 100%;
 }
 
-.scatter-toolbar__field .modal-input {
-  flex: 0 0 auto;
-  width: 60px;
+/* Custom dropdowns should hug their label rather than stretch the field. */
+.scatter-toolbar__field .dropdown {
+  flex: 0 1 auto;
+  min-height: 28px;
+  min-width: 0;
+  width: fit-content;
+  max-width: 100%;
 }
 
-.scatter-toolbar__field .modal-select,
-.scatter-toolbar__field .dropdown {
+.scatter-toolbar__field input.modal-input {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--tb-border);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+  font-size: 0.75rem;
+  line-height: 1;
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    box-shadow var(--transition);
+}
+
+.scatter-toolbar__field input.modal-input:hover {
+  border-color: var(--tb-border-strong);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.scatter-toolbar__field input.modal-input:focus-visible {
+  border-color: var(--accent);
+  background: rgba(0, 168, 255, 0.06);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 168, 255, 0.18);
+}
+
+.scatter-toolbar__field .modal-select {
   min-width: 96px;
 }
 

@@ -608,8 +608,8 @@
   white-space: nowrap;
   flex: 0 0 auto;
   align-self: stretch;
-  width: 50px;
-  padding: 0 10px 0 2px;
+  width: 64px;
+  padding: 0 10px 0 6px;
   border-right: 1px solid var(--tb-divider);
   line-height: 1;
 }
@@ -630,6 +630,26 @@
   gap: 6px 8px;
   flex-wrap: wrap;
   align-content: center;
+}
+
+/* When the filter (or any) segment hosts a trailing action cluster,
+   push it to the end of the row so the Preview button no longer
+   floats to the right edge of the page. */
+.scatter-toolbar__fields>.scatter-toolbar__actions {
+  margin-left: auto;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+/* Pin the trailing action button (e.g. Preview) to the 28px control
+   height so it does not stretch to match the row height. The .btn-sm
+   modifier only sets padding, so the inherited line-height + padding
+   can drift when the parent row stretches its children. */
+.scatter-toolbar__fields>.scatter-toolbar__actions .btn {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 12px;
+  align-self: center;
 }
 
 /* The cluster wrapper exists in the HTML to give the JS a single
@@ -758,9 +778,6 @@
 .scatter-toolbar .scatter-toolbar__field .modal-select,
 .scatter-toolbar .scatter-toolbar__field .dropdown,
 .scatter-toolbar .scatter-toolbar__field .dropdown__trigger {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
   height: 28px;
   min-height: 28px;
   border-radius: 6px;
@@ -768,8 +785,24 @@
   letter-spacing: 0.01em;
 }
 
+/* Native <select> styled as .modal-select still stretches to fill the
+   field; the custom dropdown should hug its label instead. */
+.scatter-toolbar .scatter-toolbar__field .modal-select,
+.scatter-toolbar .scatter-toolbar__field .dropdown__trigger {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .scatter-toolbar .scatter-toolbar__field .dropdown {
-  min-width: 96px;
+  width: fit-content;
+  min-width: 0;
+  max-width: 100%;
+  /* The dropdown root itself should be transparent — only the trigger
+     carries the visual surface. The .modal-select rules further down
+     would otherwise paint the dropdown root as well. */
+  background: transparent;
+  padding: 0;
 }
 
 .scatter-toolbar .scatter-toolbar__field .dropdown__trigger {
@@ -796,7 +829,12 @@
   box-shadow: 0 0 0 2px rgba(0, 168, 255, 0.18);
 }
 
-.scatter-toolbar .scatter-toolbar__field .modal-select {
+/* The .modal-select rules below are for native <select> elements only.
+   The custom dropdown primitive reuses the class on its root for
+   semantic / styling parity but must NOT receive the select-specific
+   visual treatment (padding + surface background). */
+.scatter-toolbar .scatter-toolbar__field select.modal-select,
+.scatter-toolbar .scatter-toolbar__field .modal-select:not(.dropdown) {
   padding: 0 22px 0 10px;
   min-height: 0;
   min-width: 0;
@@ -805,12 +843,14 @@
   color: var(--text);
 }
 
-.scatter-toolbar .scatter-toolbar__field .modal-select:hover {
+.scatter-toolbar .scatter-toolbar__field select.modal-select:hover,
+.scatter-toolbar .scatter-toolbar__field .modal-select:not(.dropdown):hover {
   border-color: var(--tb-border-strong);
   background: rgba(255, 255, 255, 0.06);
 }
 
-.scatter-toolbar .scatter-toolbar__field .modal-select:focus-visible {
+.scatter-toolbar .scatter-toolbar__field select.modal-select:focus-visible,
+.scatter-toolbar .scatter-toolbar__field .modal-select:not(.dropdown):focus-visible {
   border-color: var(--accent);
   background: rgba(0, 168, 255, 0.06);
   outline: none;
@@ -1455,36 +1495,6 @@ body.drawer-open::after {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.page-guidance {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--shell-bg), var(--shell-surface));
-}
-
-.page-guidance__item {
-  flex: 1 1 220px;
-  min-width: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  color: var(--text-dim);
-  font-size: 0.8rem;
-  line-height: 1.45;
-}
-
-.page-guidance__item strong {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--text);
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .analysis-status {

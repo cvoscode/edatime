@@ -816,12 +816,6 @@
   outline-offset: 1px;
 }
 
-/* Neutral spacer cells/rows inserted between clusters. */
-.heatmap-cluster-separator {
-  background: transparent;
-  pointer-events: none;
-}
-
 .heatmap-scale {
   display: grid;
   grid-template-columns: auto 18px;

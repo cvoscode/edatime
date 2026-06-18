@@ -297,9 +297,19 @@ export function resetScatterContainer(): HTMLElement | null {
     return replacement;
 }
 
-export function ensureOptions(selectEl: HTMLElement | null, values: string[], preferredValue?: string): string | null {
+export function ensureOptions(
+    selectEl: HTMLElement | null,
+    values: string[],
+    preferredValue?: string,
+    config?: { searchable?: boolean },
+): string | null {
     if (!selectEl?.id) return null;
-    return setDropdownOptions(selectEl.id, values.map((value) => ({ value, label: value })), {
-        preferredValue: preferredValue || getDropdownValue(selectEl.id),
-    }) || null;
+    return setDropdownOptions(
+        selectEl.id,
+        values.map((value) => ({ value, label: value })),
+        {
+            preferredValue: preferredValue || getDropdownValue(selectEl.id),
+            ...(config?.searchable ? { searchable: true } : {}),
+        },
+    ) || null;
 }

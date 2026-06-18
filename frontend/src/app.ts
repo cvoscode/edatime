@@ -33,6 +33,7 @@ import { initTimeseriesShortcuts } from './app/bootstrap/timeseriesShortcuts.js'
 import { createAppRuntime } from './app/runtime.js';
 import { APP_COMMAND_DEFINITIONS } from './bootstrap/commands.js';
 import { upgradeSelects } from './ui/primitives/Dropdown.js';
+import { upgradeFlexibleNumberInputs } from './ui/primitives/FlexibleNumberInput.js';
 import { ensurePageModuleLoaded, clearLoadedPageModules, markMetadataReady } from './app/pageRegistry.js';
 import { loadPageDescriptors } from './app/pageModules.js';
 import { ensureChartModules as ensureChartBootstrapModules } from './app/bootstrap/chartBootstrap.js';
@@ -118,6 +119,7 @@ function ensureSessionPersistenceStarted(): void {
 
 async function init(): Promise<void> {
     upgradeSelects(document);
+    upgradeFlexibleNumberInputs(document);
     installWindowsWebGpuRequestAdapterWorkaround();
     // Load chart modules first, then create the timeseries module once
     await ensureChartModules();

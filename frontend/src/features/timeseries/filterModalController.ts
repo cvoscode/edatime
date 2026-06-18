@@ -202,6 +202,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
         }
         setDropdownOptions('column-filter-col', cols.map((col) => ({ value: col, label: col })), {
             preferredValue: selectedCol && cols.includes(selectedCol) ? selectedCol : cols[0] || '',
+            searchable: true,
         });
     }
 

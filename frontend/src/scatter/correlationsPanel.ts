@@ -123,9 +123,9 @@ export async function refreshCorrelationsAndSuggestions(): Promise<void> {
     const numeric = Array.isArray(response.numeric_columns) ? response.numeric_columns : [];
     if (numeric.length < 2) throw new Error('Need at least two numeric columns for scatter plotting.');
 
-    const selectedX = ensureOptions(xSelect, numeric, currentX || response.base_column || numeric[0]);
+    const selectedX = ensureOptions(xSelect, numeric, currentX || response.base_column || numeric[0], { searchable: true });
     const yCandidates = numeric.filter((c: string) => c !== selectedX);
-    const selectedY = ensureOptions(ySelect, yCandidates, currentY);
+    const selectedY = ensureOptions(ySelect, yCandidates, currentY, { searchable: true });
 
     if (getEl('scatter-color-column')) {
         const colorOptions = [''].concat(
@@ -139,6 +139,7 @@ export async function refreshCorrelationsAndSuggestions(): Promise<void> {
             label: col || 'None',
         })), {
             preferredValue: colorOptions.includes(preferredColor) ? preferredColor : '',
+            searchable: true,
         });
     }
 

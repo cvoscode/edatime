@@ -7,6 +7,13 @@ export interface DropdownOption {
 export interface DropdownSetOptionsConfig {
     preferredValue?: string | null;
     emitChange?: boolean;
+    /**
+     * When set, overrides the dropdown's current search state for this call.
+     * Truthy values lazily enable the search row (if it was disabled),
+     * falsy values disable it. Leaving the field undefined preserves the
+     * existing setting.
+     */
+    searchable?: boolean;
 }
 
 export interface DropdownChangeDetail {
@@ -22,6 +29,14 @@ export interface DropdownProps {
     className?: string;
     disabled?: boolean;
     variant?: 'default' | 'compact' | 'chip';
+    /**
+     * When true, render a text input at the top of the menu that filters the
+     * visible options as the user types. Filtering is case-insensitive and
+     * matches anywhere in the option label.
+     */
+    searchable?: boolean;
+    /** Optional placeholder text for the search input. */
+    searchPlaceholder?: string;
     onChange?: (value: string) => void;
 }
 
@@ -34,6 +49,8 @@ export interface DropdownController {
     getOptions(): Array<Required<DropdownOption>>;
     setOptions(options: DropdownOption[], config?: DropdownSetOptionsConfig): string;
     setDisabled(disabled: boolean): void;
+    setSearchable(enabled: boolean): void;
+    isSearchable(): boolean;
     focus(): void;
     open(): void;
     close(): void;
@@ -110,6 +127,62 @@ export function createDropdown(props: DropdownProps): DropdownController {
     menu.setAttribute('role', 'listbox');
     menu.hidden = true;
 
+    let searchInput: HTMLInputElement | null = null;
+    let searchEmptyEl: HTMLDivElement | null = null;
+    let searchable = !!props.searchable;
+
+    const ensureSearchInput = (): HTMLInputElement | null => {
+        if (searchInput || !searchable) return searchInput;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'dropdown__search';
+        input.setAttribute('role', 'searchbox');
+        input.setAttribute('aria-label', `Search ${props.label}`);
+        input.setAttribute('autocomplete', 'off');
+        input.setAttribute('spellcheck', 'false');
+        input.placeholder = props.searchPlaceholder || 'Search…';
+        input.addEventListener('input', () => {
+            searchQuery = input.value;
+            renderOptions();
+        });
+        // Allow typing letters without them being intercepted as typeahead
+        // against the (now filtered) option list — keep the input focused.
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                focusIndex(activeIndex + 1);
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                focusIndex(activeIndex - 1);
+            } else if (event.key === 'Enter') {
+                event.preventDefault();
+                chooseActiveOption();
+            } else if (event.key === 'Escape') {
+                if (searchQuery) {
+                    event.preventDefault();
+                    searchQuery = '';
+                    input.value = '';
+                    renderOptions();
+                } else {
+                    event.preventDefault();
+                    closeMenu();
+                    trigger.focus();
+                }
+            }
+            // Stop propagation so the global keydown handler on the root
+            // doesn't double-process keystrokes from the search field.
+            event.stopPropagation();
+        });
+        input.addEventListener('mousedown', (event) => event.stopPropagation());
+        searchInput = input;
+        return input;
+    };
+
+    if (searchable) {
+        ensureSearchInput();
+        menu.appendChild(searchInput!);
+    }
+
     root.append(trigger, menu);
 
     let options = normalizeOptions(props.options);
@@ -119,6 +192,7 @@ export function createDropdown(props: DropdownProps): DropdownController {
     let activeIndex = -1;
     let typeaheadBuffer = '';
     let typeaheadTimer: ReturnType<typeof setTimeout> | null = null;
+    let searchQuery = '';
 
     const syncTriggerLabel = () => {
         const selected = findSelectedOption(options, value) ?? findFirstEnabledOption(options);
@@ -127,19 +201,35 @@ export function createDropdown(props: DropdownProps): DropdownController {
 
     const syncActiveState = () => {
         const optionEls = menu.querySelectorAll<HTMLButtonElement>('.dropdown__option');
-        optionEls.forEach((optionEl, index) => {
-            const option = options[index];
+        optionEls.forEach((optionEl) => {
+            const optionValue = optionEl.dataset.value ?? '';
+            const option = options.find((o) => o.value === optionValue);
             const isSelected = option?.value === value;
-            const isActive = index === activeIndex;
+            const isActive = optionValue === options[activeIndex]?.value;
             optionEl.setAttribute('aria-selected', String(isSelected));
             optionEl.classList.toggle('is-selected', isSelected);
             optionEl.classList.toggle('is-active', isActive);
         });
     };
 
+    const matchesSearch = (option: Required<DropdownOption>, query: string): boolean => {
+        if (!query) return true;
+        return option.label.toLowerCase().includes(query);
+    };
+
     const renderOptions = () => {
-        menu.innerHTML = '';
-        options.forEach((option, index) => {
+        // Preserve the search input row across re-renders.
+        if (searchInput) {
+            menu.innerHTML = '';
+            menu.appendChild(searchInput);
+            searchInput.value = searchQuery;
+        } else {
+            menu.innerHTML = '';
+        }
+        const query = searchQuery.trim().toLowerCase();
+        const visibleOptions = options.filter((option) => matchesSearch(option, query));
+
+        visibleOptions.forEach((option) => {
             const optionEl = document.createElement('button');
             optionEl.type = 'button';
             optionEl.className = 'dropdown__option';
@@ -153,8 +243,30 @@ export function createDropdown(props: DropdownProps): DropdownController {
                 trigger.focus();
             });
             menu.appendChild(optionEl);
-            if (option.value === value && activeIndex < 0) activeIndex = index;
         });
+
+        if (visibleOptions.length === 0) {
+            if (!searchEmptyEl) {
+                searchEmptyEl = document.createElement('div');
+                searchEmptyEl.className = 'dropdown__empty';
+                searchEmptyEl.setAttribute('role', 'presentation');
+            }
+            searchEmptyEl.textContent = options.length === 0
+                ? 'No options'
+                : `No matches for “${searchQuery.trim()}”`;
+            menu.appendChild(searchEmptyEl);
+        } else if (searchEmptyEl && searchEmptyEl.parentElement === menu) {
+            searchEmptyEl.remove();
+        }
+
+        // Keep activeIndex in sync with filtered list.
+        const stillVisible = activeIndex >= 0 && visibleOptions.some((o) => o.value === options[activeIndex]?.value);
+        if (!stillVisible) {
+            const selectedIndex = visibleOptions.findIndex((o) => o.value === value);
+            activeIndex = selectedIndex >= 0
+                ? options.findIndex((o) => o.value === value)
+                : (visibleOptions.length > 0 ? options.indexOf(visibleOptions[0]!) : -1);
+        }
         syncActiveState();
     };
 
@@ -184,6 +296,15 @@ export function createDropdown(props: DropdownProps): DropdownController {
         menu.hidden = false;
         const selectedIndex = options.findIndex((option) => option.value === value && !option.disabled);
         focusIndex(selectedIndex >= 0 ? selectedIndex : 0);
+        if (searchInput) {
+            searchQuery = '';
+            searchInput.value = '';
+            // Render unfiltered, then move focus into the search box so the
+            // user can immediately start typing.
+            renderOptions();
+            // Defer to next frame so the menu is visible before focusing.
+            requestAnimationFrame(() => searchInput?.focus());
+        }
     };
 
     const closeMenu = () => {
@@ -223,6 +344,12 @@ export function createDropdown(props: DropdownProps): DropdownController {
 
     const handleKeydown = (event: KeyboardEvent) => {
         if (trigger.disabled) return;
+        // When focus is inside the search field, let that input own keyboard
+        // events — otherwise the root handler would interpret typed letters
+        // as typeahead navigation against the option list.
+        if (searchInput && event.target instanceof Node && searchInput.contains(event.target)) {
+            return;
+        }
         switch (event.key) {
             case 'ArrowDown':
                 event.preventDefault();
@@ -301,6 +428,12 @@ export function createDropdown(props: DropdownProps): DropdownController {
         getOptions: () => [...options],
         setOptions: (nextOptions, config = {}) => {
             options = normalizeOptions(nextOptions);
+            if (config.searchable !== undefined && config.searchable !== searchable) {
+                controller.setSearchable(config.searchable);
+            }
+            // Reset any active filter so a new option set is fully visible.
+            searchQuery = '';
+            if (searchInput) searchInput.value = '';
             const preferred = config.preferredValue ?? value;
             const selected = findSelectedOption(options, preferred || '')
                 ?? findFirstEnabledOption(options);
@@ -315,6 +448,32 @@ export function createDropdown(props: DropdownProps): DropdownController {
             }
             return value;
         },
+        setSearchable: (enabled) => {
+            const next = !!enabled;
+            if (next === searchable) return;
+            searchable = next;
+            searchQuery = '';
+            if (searchable) {
+                const input = ensureSearchInput();
+                if (input && input.parentElement !== menu) {
+                    // Re-append at the top of the menu so it precedes options.
+                    menu.insertBefore(input, menu.firstChild);
+                }
+            } else {
+                if (searchInput && searchInput.parentElement === menu) {
+                    searchInput.remove();
+                }
+                // Drop the cached reference so renderOptions() does not
+                // re-attach a stale element when the menu re-opens.
+                searchInput = null;
+            }
+            if (searchEmptyEl && searchEmptyEl.parentElement === menu) {
+                searchEmptyEl.remove();
+            }
+            // Re-render so any previously filtered list state is cleared.
+            renderOptions();
+        },
+        isSearchable: () => searchable,
         setDisabled: (disabled) => {
             trigger.disabled = !!disabled;
             root.classList.toggle('dropdown--disabled', !!disabled);
@@ -467,4 +626,10 @@ export function setDropdownDisabledForElement(element: Element | null, disabled:
     }
     const root = dropdownRootForElement(element);
     if (root?.id) setDropdownDisabled(root.id, disabled);
+}
+
+export function setDropdownSearchable(id: string, enabled: boolean): void {
+    const controller = getDropdownController(id);
+    if (!controller) return;
+    controller.setSearchable(enabled);
 }

@@ -308,6 +308,11 @@
   flex-shrink: 0;
 }
 
+.fft-traces-bar .series-chip {
+  min-height: 26px;
+  padding: 3px 6px 3px 8px;
+}
+
 .fft-trace-chip {
   gap: 6px;
 }

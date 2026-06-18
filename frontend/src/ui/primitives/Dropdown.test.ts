@@ -103,4 +103,156 @@ describe('Dropdown primitive', () => {
         setDropdownDisabled('scatter-render-mode', true);
         expect(dropdown.trigger.disabled).toBe(true);
     });
+
+    it('renders a search row when searchable=true and filters options as the user types', () => {
+        const onChange = vi.fn();
+        const dropdown = createDropdown({
+            id: 'column-picker',
+            label: 'Columns',
+            options: [
+                { value: 'temperature', label: 'temperature' },
+                { value: 'humidity', label: 'humidity' },
+                { value: 'pressure', label: 'pressure' },
+                { value: 'wind_speed', label: 'wind_speed' },
+            ],
+            searchable: true,
+            onChange,
+        });
+        document.body.appendChild(dropdown.root);
+
+        dropdown.trigger.click();
+        const search = dropdown.menu.querySelector<HTMLInputElement>('input.dropdown__search');
+        expect(search).not.toBeNull();
+        expect(dropdown.menu.querySelectorAll('.dropdown__option')).toHaveLength(4);
+
+        // Simulate the user typing into the search box.
+        search!.value = 'hum';
+        search!.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(dropdown.menu.querySelectorAll('.dropdown__option')).toHaveLength(1);
+        expect(dropdown.menu.querySelector('.dropdown__option')?.textContent).toContain('humidity');
+
+        // Case-insensitive substring match.
+        search!.value = 'PRESS';
+        search!.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(dropdown.menu.querySelectorAll('.dropdown__option')).toHaveLength(1);
+
+        // No matches → empty state.
+        search!.value = 'zzz';
+        search!.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(dropdown.menu.querySelectorAll('.dropdown__option')).toHaveLength(0);
+        expect(dropdown.menu.querySelector('.dropdown__empty')).not.toBeNull();
+
+        // Clearing the search restores the full list.
+        search!.value = '';
+        search!.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(dropdown.menu.querySelectorAll('.dropdown__option')).toHaveLength(4);
+    });
+
+    it('lets the user select a filtered option from a searchable dropdown', () => {
+        const onChange = vi.fn();
+        const dropdown = createDropdown({
+            id: 'pair-picker',
+            label: 'Pairs',
+            options: [
+                { value: 'a_b', label: 'A → B' },
+                { value: 'a_c', label: 'A → C' },
+                { value: 'b_c', label: 'B → C' },
+            ],
+            searchable: true,
+            onChange,
+        });
+        document.body.appendChild(dropdown.root);
+
+        dropdown.trigger.click();
+        const search = dropdown.menu.querySelector<HTMLInputElement>('input.dropdown__search')!;
+        // The arrow glyph differs from a space, so we filter on a substring
+        // that only one label contains.
+        search.value = 'a →';
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(dropdown.menu.querySelectorAll('.dropdown__option')).toHaveLength(2);
+
+        // Now narrow to a single label.
+        search.value = 'a → c';
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+
+        const option = dropdown.menu.querySelector<HTMLButtonElement>('[data-value="a_c"]');
+        expect(option).not.toBeNull();
+        option!.click();
+
+        expect(dropdown.getValue()).toBe('a_c');
+        expect(onChange).toHaveBeenCalledWith('a_c');
+    });
+
+    it('resets the active search query when options change', () => {
+        const dropdown = createDropdown({
+            id: 'reset-test',
+            label: 'Reset',
+            options: [
+                { value: 'one', label: 'one' },
+                { value: 'two', label: 'two' },
+            ],
+            searchable: true,
+        });
+        document.body.appendChild(dropdown.root);
+
+        dropdown.trigger.click();
+        const search = dropdown.menu.querySelector<HTMLInputElement>('input.dropdown__search')!;
+        search.value = 'two';
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(dropdown.menu.querySelectorAll('.dropdown__option')).toHaveLength(1);
+
+        dropdown.close();
+        setDropdownOptions('reset-test', [
+            { value: 'alpha', label: 'alpha' },
+            { value: 'beta', label: 'beta' },
+        ]);
+
+        dropdown.trigger.click();
+        const refreshedSearch = dropdown.menu.querySelector<HTMLInputElement>('input.dropdown__search')!;
+        expect(refreshedSearch.value).toBe('');
+        expect(dropdown.menu.querySelectorAll('.dropdown__option')).toHaveLength(2);
+    });
+
+    it('lazily enables and disables the search row via setSearchable / setOptions', () => {
+        const dropdown = createDropdown({
+            id: 'lazy-search',
+            label: 'Lazy',
+            options: [
+                { value: 'one', label: 'one' },
+                { value: 'two', label: 'two' },
+            ],
+        });
+        document.body.appendChild(dropdown.root);
+
+        expect(dropdown.isSearchable()).toBe(false);
+        expect(dropdown.menu.querySelector('input.dropdown__search')).toBeNull();
+
+        // Enable via controller and re-open.
+        dropdown.setSearchable(true);
+        expect(dropdown.isSearchable()).toBe(true);
+
+        dropdown.trigger.click();
+        const search = dropdown.menu.querySelector<HTMLInputElement>('input.dropdown__search');
+        expect(search).not.toBeNull();
+        search!.value = 'tw';
+        search!.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(dropdown.menu.querySelectorAll('.dropdown__option')).toHaveLength(1);
+        dropdown.close();
+
+        // Disable again; the search row is removed and the filter clears.
+        dropdown.setSearchable(false);
+        expect(dropdown.isSearchable()).toBe(false);
+        dropdown.trigger.click();
+        expect(dropdown.menu.querySelector('input.dropdown__search')).toBeNull();
+        expect(dropdown.menu.querySelectorAll('.dropdown__option')).toHaveLength(2);
+        dropdown.close();
+
+        // Toggling via setOptions config also works.
+        setDropdownOptions('lazy-search', [
+            { value: 'a', label: 'a' },
+            { value: 'b', label: 'b' },
+        ], { searchable: true });
+        dropdown.trigger.click();
+        expect(dropdown.menu.querySelector('input.dropdown__search')).not.toBeNull();
+    });
 });

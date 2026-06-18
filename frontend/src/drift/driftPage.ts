@@ -190,6 +190,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
         const current = getActiveDetailColumn();
         setDropdownOptions('drift-detail-col-select', cols.map((col) => ({ value: col, label: col })), {
             preferredValue: current || cols[0] || '',
+            searchable: true,
         });
         if (cols.length === 0) {
             setDropdownDisabled('drift-detail-col-select', true);

@@ -350,3 +350,63 @@ input[type="checkbox"].checkbox-lg:checked::before,
   width: 5.5px;
   height: 9px;
 }
+
+/* ─── Searchable dropdown — input row + empty state ────────────── */
+.dropdown__search {
+  width: 100%;
+  height: 30px;
+  margin: 2px 0 6px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.75rem;
+  outline: none;
+  transition: border-color var(--transition), background var(--transition), box-shadow var(--transition);
+}
+
+.dropdown__search::placeholder {
+  color: var(--text-muted);
+}
+
+.dropdown__search:hover {
+  border-color: var(--tb-border-strong);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.dropdown__search:focus,
+.dropdown__search:focus-visible {
+  border-color: var(--accent);
+  background: rgba(0, 168, 255, 0.07);
+  box-shadow: 0 0 0 3px rgba(0, 168, 255, 0.14);
+}
+
+.dropdown__empty {
+  padding: 10px 12px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: left;
+  font-style: italic;
+}
+
+/* ─── Flexible number input — clamped / invalid value warning ──── */
+input[type="number"].flexible-number,
+input.flexible-number {
+  /* Inputs are no longer constrained by the browser; styling stays the
+     same as standard numeric controls so the upgrade is visually seamless. */
+}
+
+input[type="number"].is-clamped,
+input.is-clamped {
+  border-color: #f5a524;
+  background: rgba(245, 165, 36, 0.07);
+  box-shadow: 0 0 0 2px rgba(245, 165, 36, 0.16);
+}
+
+input[type="number"].is-clamped:focus,
+input.is-clamped:focus {
+  border-color: #f5a524;
+  box-shadow: 0 0 0 3px rgba(245, 165, 36, 0.22);
+}

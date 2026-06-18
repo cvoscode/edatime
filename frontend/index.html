@@ -717,8 +717,7 @@
                 for="fft-log-scale">
                 <span class="toolbar-field__label">Scale</span>
                 <span class="toolbar-field__control scatter-link-toggle">
-                  <input id="fft-log-scale" type="checkbox" checked name="fft-log-scale"
-                    aria-label="Log scale">
+                  <input id="fft-log-scale" type="checkbox" checked name="fft-log-scale" aria-label="Log scale">
                   <span>Log</span>
                 </span>
               </label>
@@ -742,15 +741,14 @@
               <label class="toolbar-field scatter-toolbar__field" for="fft-filter-low-hz"
                 title="Low frequency cutoff (Hz)">
                 <span class="toolbar-field__label">Low Hz</span>
-                <input id="fft-filter-low-hz" type="number" class="modal-input" min="0" step="0.001"
-                  placeholder="0" title="Low frequency cutoff (Hz)" name="fft-filter-low-hz" aria-label="Low Hz">
+                <input id="fft-filter-low-hz" type="number" class="modal-input" min="0" step="0.001" placeholder="0"
+                  title="Low frequency cutoff (Hz)" name="fft-filter-low-hz" aria-label="Low Hz">
               </label>
               <label class="toolbar-field scatter-toolbar__field" for="fft-filter-high-hz"
                 title="High frequency cutoff (Hz)">
                 <span class="toolbar-field__label">High Hz</span>
-                <input id="fft-filter-high-hz" type="number" class="modal-input" min="0" step="0.001"
-                  placeholder="auto" title="High frequency cutoff (Hz)" name="fft-filter-high-hz"
-                  aria-label="High Hz">
+                <input id="fft-filter-high-hz" type="number" class="modal-input" min="0" step="0.001" placeholder="auto"
+                  title="High frequency cutoff (Hz)" name="fft-filter-high-hz" aria-label="High Hz">
               </label>
               <div class="scatter-toolbar__actions">
                 <button id="fft-filter-apply-btn" class="btn btn-ghost btn-sm" type="button"
@@ -786,14 +784,6 @@
               </details>
             </div>
           </div>
-        </div>
-        <div class="page-guidance page-guidance--advanced">
-          <span class="page-guidance__item"><strong>Best for</strong> Stable periodic structure, dominant frequencies,
-            and quick filter previews after you narrow the trace list.</span>
-          <span class="page-guidance__item"><strong>Needs</strong> One to three numeric traces and a meaningful time
-            zoom from the Timeseries page.</span>
-          <span class="page-guidance__item"><strong>Cost</strong> Fast enough for iteration. Move to Spectrogram when
-            the frequency content changes over time.</span>
         </div>
         <div class="fft-traces-bar" id="fft-traces-bar" hidden></div>
         <main class="main main--analysis-chart">
@@ -841,21 +831,6 @@
                 <span class="toolbar-field__control scatter-link-toggle">
                   <input id="heatmap-cluster-toggle" type="checkbox" checked aria-label="Enable clustering">
                   <span>Group similar</span>
-                </span>
-              </label>
-            </div>
-          </div>
-
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--refine">
-            <span class="scatter-toolbar__eyebrow">Threshold</span>
-            <div class="scatter-toolbar__fields">
-              <label class="toolbar-field scatter-toolbar__field scatter-toolbar__field--range"
-                for="heatmap-cluster-threshold">
-                <span class="toolbar-field__label">Cutoff</span>
-                <span class="toolbar-field__control">
-                  <input id="heatmap-cluster-threshold" type="range" min="0" max="1" step="0.01" value="0.85"
-                    aria-label="Clustering threshold">
-                  <span id="heatmap-cluster-threshold-value" class="range-value">0.85</span>
                 </span>
               </label>
             </div>
@@ -929,8 +904,7 @@
                 <div class="toolbar-disclosure__menu">
                   <button id="spectrogram-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
                   <button id="spectrogram-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
-                  <button id="spectrogram-export-html-btn" class="btn btn-ghost btn-sm"
-                    type="button">HTML</button>
+                  <button id="spectrogram-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
                 </div>
               </details>
             </div>
@@ -951,14 +925,6 @@
                 Compute</button>
             </div>
           </div>
-        </div>
-        <div class="page-guidance page-guidance--advanced">
-          <span class="page-guidance__item"><strong>Best for</strong> Regime changes, non-stationary periodic behavior,
-            and seeing when energy shifts over time.</span>
-          <span class="page-guidance__item"><strong>Needs</strong> One numeric column, a focused time range, and a
-            window size matched to the pattern duration you care about.</span>
-          <span class="page-guidance__item"><strong>Cost</strong> Heavier than FFT because each compute rebuilds a
-            time-frequency grid. Start with a narrower range before scaling up.</span>
         </div>
         <main class="main main--chart main--analysis-chart">
           <div id="spectrogram-chart" style="width:100%;height:100%;display:block;"></div>
@@ -1055,8 +1021,8 @@
               <button id="causal-add-edge-btn" class="btn btn-ghost btn-sm" type="button"
                 title="Click two nodes to add an edge between them">+ Edge</button>
               <div class="causal-export-wrap">
-                <button id="causal-export-btn" class="btn btn-ghost btn-sm" type="button"
-                  title="Export graph">Export ▾</button>
+                <button id="causal-export-btn" class="btn btn-ghost btn-sm" type="button" title="Export graph">Export
+                  ▾</button>
                 <div id="causal-export-menu" class="causal-export-menu" hidden>
                   <button class="causal-export-item" data-fmt="json" type="button">JSON (full graph)</button>
                   <button class="causal-export-item" data-fmt="glm" type="button">GLM formula (.txt)</button>
@@ -1069,14 +1035,6 @@
                 Compute</button>
             </div>
           </div>
-        </div>
-        <div class="page-guidance page-guidance--advanced">
-          <span class="page-guidance__item"><strong>Best for</strong> A short candidate list after you already screened
-            variables in Timeseries, Scatter, or Heatmap.</span>
-          <span class="page-guidance__item"><strong>Needs</strong> At least two numeric columns, a defensible lag
-            horizon, and a clear hypothesis about which links are worth testing.</span>
-          <span class="page-guidance__item"><strong>Cost</strong> Slowest page in the app. Reduce the column set first,
-            then increase lags or nonlinear tests only when the first pass is interpretable.</span>
         </div>
         <div id="causal-status" class="analysis-status" role="status" aria-live="polite"></div>
         <!-- Progress bar -->
@@ -1161,8 +1119,7 @@
                       <button id="drift-cols-none" type="button" class="btn btn-xs">None</button>
                     </div>
                     <div id="drift-col-picker-list" class="drift-col-picker-list" role="group"
-                      aria-label="Numeric columns"
-                      style="display:flex;flex-direction:column;gap:2px;">
+                      aria-label="Numeric columns" style="display:flex;flex-direction:column;gap:2px;">
                       <!-- populated by driftPage.ts -->
                     </div>
                   </div>
@@ -1270,15 +1227,6 @@
             </div>
           </div>
         </div>
-        <div class="page-guidance page-guidance--advanced">
-          <span class="page-guidance__item"><strong>Best for</strong> Comparing a stable reference period against later
-            windows to spot baseline shifts and degraded operating ranges.</span>
-          <span class="page-guidance__item"><strong>Needs</strong> One or more numeric columns plus a trustworthy
-            reference window from the beginning of the dataset or a known baseline interval.</span>
-          <span class="page-guidance__item"><strong>Cost</strong> Moderate. Keep the column list short when iterating,
-            then widen it once the reference setup looks right.</span>
-        </div>
-
         <main class="main main--chart">
           <div class="drift-layout">
             <!-- Left: macro timeline + legend -->
@@ -2282,7 +2230,8 @@
 
   <!-- Annotations modal -->
   <div id="annotations-modal" class="modal-backdrop" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="annotations-modal-title" style="max-width:560px">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="annotations-modal-title"
+      style="max-width:560px">
       <div class="modal-header">
         <h3 class="modal-title" id="annotations-modal-title">Annotations &amp; Notes</h3>
         <button class="modal-close" id="annotations-modal-close" type="button" aria-label="Close">&times;</button>

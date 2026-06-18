@@ -90,8 +90,6 @@ describe('heatmapPage with clustering', () => {
             <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36">
             <span id="heatmap-cell-size-value" class="range-value">36</span>
             <input id="heatmap-cluster-toggle" type="checkbox" checked>
-            <input id="heatmap-cluster-threshold" type="range" min="0" max="1" step="0.01" value="0.85">
-            <span id="heatmap-cluster-threshold-value" class="range-value">0.85</span>
             <select id="scatter-x-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
             <select id="scatter-y-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
         `;
@@ -202,14 +200,24 @@ describe('heatmapPage with clustering', () => {
         expect(showPage).toHaveBeenCalledWith('scatter');
     });
 
-    it('renders cluster separator cells between clusters', async () => {
+    it('marks cluster boundaries on the first header/label of each cluster', async () => {
         const { initHeatmapPage } = await import('../pages/heatmapPage.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
+        // No physical separator cells: the grouped view shares the same
+        // uniform N x N grid layout as the ungrouped view. Cluster
+        // boundaries are conveyed via the cluster-start header/label
+        // classes (the first column header and row label of each cluster).
         const separators = document.querySelectorAll('.heatmap-cluster-separator');
-        // Two clusters => at least 2 separator cells.
-        expect(separators.length).toBeGreaterThanOrEqual(2);
+        expect(separators.length).toBe(0);
+
+        const clusterStartHeaders = document.querySelectorAll('.heatmap-header--cluster-start');
+        const clusterStartRowLabels = document.querySelectorAll('.heatmap-row-label--cluster-start');
+        // Two clusters => at least one cluster-start header and one
+        // cluster-start row label marking the second cluster.
+        expect(clusterStartHeaders.length).toBeGreaterThanOrEqual(1);
+        expect(clusterStartRowLabels.length).toBeGreaterThanOrEqual(1);
     });
 
     it('disables clustering when toggle is unchecked', async () => {
@@ -228,22 +236,4 @@ describe('heatmapPage with clustering', () => {
         expect(headers).toEqual(['a1', 'a2', 'a3', 'b1', 'b2', 'b3']);
     });
 
-    it('updates threshold on slider input and re-renders', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
-        await initHeatmapPage({ showPage: vi.fn() });
-        await activateHeatmap();
-
-        const slider = document.getElementById('heatmap-cluster-threshold') as HTMLInputElement;
-        const value = document.getElementById('heatmap-cluster-threshold-value') as HTMLElement;
-
-        slider.value = '0.5';
-        slider.dispatchEvent(new Event('input', { bubbles: true }));
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        expect(value.textContent).toBe('0.50');
-
-        slider.value = '1.0';
-        slider.dispatchEvent(new Event('input', { bubbles: true }));
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        expect(value.textContent).toBe('1.00');
-    });
 });

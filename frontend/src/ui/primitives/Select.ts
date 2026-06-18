@@ -8,6 +8,8 @@ export interface SelectProps {
     className?: string;
     variant?: 'default' | 'compact' | 'chip';
     disabled?: boolean;
+    searchable?: boolean;
+    searchPlaceholder?: string;
     onChange?: (value: string, event: Event) => void;
 }
 
@@ -23,6 +25,8 @@ export function Select(props: SelectProps): HTMLElement {
         className: props.className,
         variant: props.variant,
         disabled: props.disabled,
+        searchable: props.searchable,
+        searchPlaceholder: props.searchPlaceholder,
         onChange: (value) => props.onChange?.(value, new Event('change')),
     });
     return dropdown.root;

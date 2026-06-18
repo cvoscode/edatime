@@ -1,11 +1,12 @@
 # ai/frontend/src/ui/primitives/Select.md
-> Renders a labeled dropdown select element with options and a change handler.
+> Thin wrapper around the `createDropdown` primitive that re-emits change events as a native `Event` for backwards compatibility.
 
 ## Interfaces
 ```typescript
 interface SelectOption {
     value: string;
     label: string;
+    disabled?: boolean;
 }
 
 interface SelectProps {
@@ -14,23 +15,25 @@ interface SelectProps {
     value?: string;
     options: SelectOption[];
     className?: string;
+    variant?: 'default' | 'compact' | 'chip';
+    disabled?: boolean;
+    searchable?: boolean;
+    searchPlaceholder?: string;
     onChange?: (value: string, event: Event) => void;
 }
+
+type SelectController = DropdownController;
 ```
 
 ## Function: Select
 ```typescript
-function Select(props: SelectProps): HTMLSelectElement
+function Select(props: SelectProps): HTMLElement
 ```
-Creates a native `<select>` element populated with the given options and a change handler.
+Creates a `createDropdown` controller and returns its root element. `onChange` is invoked with a synthesized `Event('change')` so legacy handlers receive a real `Event` object.
+
+## Notes
+- `searchable: true` renders a filter input at the top of the menu (case-insensitive substring match) and is recommended for option lists with 50+ entries (e.g. column pickers). [deps: [Dropdown][1]]
+- The wrapped `DropdownController` exposes the same `open` / `close` / `setValue` / `setOptions` surface as the underlying primitive.
 
 ---
-[1]: index.md
-  - Creates a labeled select element.
-
-## SelectProps
-- `id?: string`
-- `label?: string`
-- `value?: string`
-- `options: Array<{ value: string; label: string }>`
-- `onChange?: (value: string) => void`
+[1]: Dropdown.md

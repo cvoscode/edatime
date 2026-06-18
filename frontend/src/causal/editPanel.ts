@@ -25,6 +25,7 @@ import {
     type PairEdgeGroup,
 } from './selectionState.js';
 import { getDropdownValueFromElement, upgradeSelects } from '../ui/primitives/Dropdown.js';
+import { upgradeFlexibleNumberInputs } from '../ui/primitives/FlexibleNumberInput.js';
 import { setStatus } from './statusView.js';
 
 export type EditTarget = { kind: 'node'; col: string } | { kind: 'edge'; key: string };
@@ -279,6 +280,7 @@ function renderEdgeDraftEditor(): void {
         </section>
     `;
     upgradeSelects(bodyEl);
+    upgradeFlexibleNumberInputs(bodyEl);
     bindEdgeDraftControls();
 }
 

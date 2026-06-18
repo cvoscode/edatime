@@ -11,7 +11,10 @@ interface HeatmapPageDeps {
 
 let heatmapCellSize = 36;
 let heatmapClusterEnabled = true;
-let heatmapClusterThreshold = 0.85;
+// Hardcoded clustering cutoff. Exposed as a constant (rather than a slider)
+// because the threshold is rarely useful to tune interactively and the
+// default 0.85 works well across the datasets we have seen.
+const HEATMAP_CLUSTER_THRESHOLD = 0.85;
 let matrixData: { columns: string[]; pearson: (number | null)[][]; spearman: (number | null)[][] } | null = null;
 let metric = 'pearson';
 let matrixLoadInFlight: Promise<void> | null = null;
@@ -21,9 +24,8 @@ let heatmapRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
  * Update the `--range-fill` custom property on a range input so the
  * accent-filled portion of the track reflects the current value.
  * The CSS in `frontend/css/modules/toolbar.css` uses this to draw a
- * filled progress on the slider track. The heatmap toolbar hosts two
- * such sliders (cell size + cluster threshold) — keeping this helper
- * local to the page avoids a cross-module dependency on scatter/controls.
+ * filled progress on the slider track. Keeping this helper local to
+ * the page avoids a cross-module dependency on scatter/controls.
  */
 function updateRangeFill(input: HTMLInputElement | null): void {
     if (!input) return;
@@ -149,7 +151,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         let clusters: Cluster[] = [];
         let renderOrder: string[] = columns;
         if (heatmapClusterEnabled && size > 1) {
-            const result = clusterColumns(columns, data, heatmapClusterThreshold);
+            const result = clusterColumns(columns, data, HEATMAP_CLUSTER_THRESHOLD);
             renderOrder = result.order;
             clusters = result.clusters;
         }
@@ -158,55 +160,18 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             orderToOriginal.set(renderIdx, originalIdx);
         });
 
-        // Build the grid template, inserting a 2px separator column and row
-        // between clusters. The number of separators is (clusters.length - 1)
-        // when clustering is active, otherwise 0.
-        const sepPx = 2;
-        const numSeparators = clusters.length > 1 ? clusters.length - 1 : 0;
-
-        const colTemplateParts: string[] = [`${labelWidth}px`];
-        for (let i = 0; i < size; i++) {
-            colTemplateParts.push(`${heatmapCellSize}px`);
-            const isLastInCluster = clusters.some((c) => c.endIndex - 1 === i);
-            if (isLastInCluster && i < size - 1) {
-                colTemplateParts.push(`${sepPx}px`);
-            }
-        }
-        const rowTemplateParts: string[] = [`${labelWidth}px`];
-        for (let i = 0; i < size; i++) {
-            rowTemplateParts.push(`${heatmapCellSize}px`);
-            const isLastInCluster = clusters.some((c) => c.endIndex - 1 === i);
-            if (isLastInCluster && i < size - 1) {
-                rowTemplateParts.push(`${sepPx}px`);
-            }
-        }
-        const colTemplate = colTemplateParts.join(' ');
-        const rowTemplate = rowTemplateParts.join(' ');
-
-        // Total columns / rows in the grid (1 label column/row + N data + separators).
-        const totalCols = 1 + size + numSeparators;
-        const totalRows = 1 + size + numSeparators;
-
-        // Per-render-row, compute the 1-based grid column (1..totalCols) so
-        // the cell at render position c lands in the right column, skipping
-        // separator columns.
-        function colGridFor(renderIdx: number): number {
-            // 1-based: column 1 is the row-label column. Then 1 column per
-            // data cell, plus 1 for each separator that comes before this
-            // render position.
-            let sepsBefore = 0;
-            for (let i = 0; i < renderIdx; i++) {
-                if (clusters.some((c) => c.endIndex - 1 === i)) sepsBefore += 1;
-            }
-            return 1 + renderIdx + sepsBefore + 1; // +1 for label column
-        }
-        function rowGridFor(renderIdx: number): number {
-            let sepsBefore = 0;
-            for (let i = 0; i < renderIdx; i++) {
-                if (clusters.some((c) => c.endIndex - 1 === i)) sepsBefore += 1;
-            }
-            return 1 + renderIdx + sepsBefore + 1; // +1 for label row
-        }
+        // Build a uniform N x N grid: 1 label column/row + size data cells.
+        // The grid is identical between grouped and ungrouped views so the
+        // layout stays predictable; cluster boundaries are conveyed through
+        // the heatmap-header--cluster-start / heatmap-row-label--cluster-start
+        // classes (a stronger text color on the first header/label of each
+        // cluster) rather than physical separator rows/columns.
+        const colTemplate = [`${labelWidth}px`, ...Array.from({ length: size }, () => `${heatmapCellSize}px`)].join(' ');
+        const rowTemplate = colTemplate;
+        // 1-based grid column/row for a render position. Column/row 1 is
+        // the label gutter; renderIdx 0 sits at column 2.
+        const colGridFor = (renderIdx: number): number => 2 + renderIdx;
+        const rowGridFor = (renderIdx: number): number => 2 + renderIdx;
 
         // Build the cell HTML. We use explicit grid-column / grid-row on
         // every cell so the layout is independent of the emit order.
@@ -244,28 +209,6 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                 const tooltip = `${rowName} × ${colName}: ${displayValue}${rowOriginal !== colOriginal ? ' — click to explore in Scatter' : ''}`;
                 cells.push(
                     `<div class="heatmap-cell ${toneClass}" data-row="${rowOriginal}" data-col="${colOriginal}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};--heatmap-cell-bg:${background};color:${textColor};cursor:${rowOriginal !== colOriginal ? 'pointer' : 'default'};" title="${escapeAttr(tooltip)}">${displayValue}</div>`,
-                );
-            }
-        }
-
-        // Cluster separator strips: one full-width column after each
-        // cluster's last data column, and one full-width row after each
-        // cluster's last data row. Both span only the data area (not the
-        // label gutter).
-        if (numSeparators > 0) {
-            // Find the grid column index for each separator (the column
-            // that comes right after the cluster's last data column).
-            for (let ci = 0; ci < clusters.length - 1; ci++) {
-                const cluster = clusters[ci]!;
-                const sepCol = colGridFor(cluster.endIndex - 1) + 1;
-                // Vertical separator strip: column sepCol, rows 1..totalRows
-                cells.push(
-                    `<div class="heatmap-cluster-separator" style="grid-column:${sepCol};grid-row:1 / span ${totalRows};width:${sepPx}px;" aria-hidden="true"></div>`,
-                );
-                const sepRow = rowGridFor(cluster.endIndex - 1) + 1;
-                // Horizontal separator strip: row sepRow, columns 1..totalCols
-                cells.push(
-                    `<div class="heatmap-cluster-separator" style="grid-row:${sepRow};grid-column:1 / span ${totalCols};height:${sepPx}px;" aria-hidden="true"></div>`,
                 );
             }
         }
@@ -320,19 +263,14 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             const sizeInput = document.getElementById('heatmap-cell-size') as HTMLInputElement | null;
             const sizeValue = document.getElementById('heatmap-cell-size-value') as HTMLElement | null;
             const clusterToggle = document.getElementById('heatmap-cluster-toggle') as HTMLInputElement | null;
-            const clusterThreshold = document.getElementById('heatmap-cluster-threshold') as HTMLInputElement | null;
-            const clusterThresholdValue = document.getElementById('heatmap-cluster-threshold-value') as HTMLElement | null;
             if (!container) return;
 
             // Sync initial control state with module-level defaults.
             if (clusterToggle) clusterToggle.checked = heatmapClusterEnabled;
-            if (clusterThreshold) clusterThreshold.value = String(heatmapClusterThreshold);
-            if (clusterThresholdValue) clusterThresholdValue.textContent = heatmapClusterThreshold.toFixed(2);
             // Sync the custom `--range-fill` property so the slider
             // track's accent fill matches the current value on first
             // render (CSS uses this to draw a filled progress portion).
             updateRangeFill(sizeInput);
-            updateRangeFill(clusterThreshold);
 
             metricSelect?.addEventListener('change', () => {
                 metric = getDropdownValue('heatmap-metric') || 'pearson';
@@ -346,17 +284,6 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             });
             clusterToggle?.addEventListener('change', () => {
                 heatmapClusterEnabled = !!clusterToggle.checked;
-                renderHeatmap();
-            });
-            clusterThreshold?.addEventListener('input', () => {
-                const raw = Number(clusterThreshold.value);
-                heatmapClusterThreshold = Number.isFinite(raw)
-                    ? Math.max(0, Math.min(1, raw))
-                    : 0.85;
-                if (clusterThresholdValue) {
-                    clusterThresholdValue.textContent = heatmapClusterThreshold.toFixed(2);
-                }
-                updateRangeFill(clusterThreshold);
                 renderHeatmap();
             });
         },

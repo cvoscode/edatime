@@ -359,11 +359,12 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
     // numeric columns, the selects are simply empty and the page stays in
     // the empty state until columns arrive.
     if (numeric.length > 0) {
-        const selectedX = ensureOptions(xSelect, numeric, getDropdownValue('scatter-x-col') || numeric[0]);
+        const selectedX = ensureOptions(xSelect, numeric, getDropdownValue('scatter-x-col') || numeric[0], { searchable: true });
         ensureOptions(
             ySelect,
             numeric.filter((c) => c !== selectedX),
             getDropdownValue('scatter-y-col') || numeric[1] || numeric[0],
+            { searchable: true },
         );
     } else {
         xSelect.innerHTML = '';
