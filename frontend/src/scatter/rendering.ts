@@ -23,6 +23,8 @@ import {
     upperBoundByX,
 } from './helpers.js';
 import { appState } from '../store/index.js';
+import { getCorrelationModeBasisLabel, getCorrelationModeShortLabel, normalizeCorrelationMetric } from '../utils/correlationModes.js';
+import { getSetting } from '../utils/settings.js';
 import {
     currentControls,
     clampView,
@@ -787,11 +789,16 @@ export function updateCorrelationStats(): void {
     const xValue = getDropdownValue('scatter-x-col');
     const yValue = getDropdownValue('scatter-y-col');
     const corr = appState.scatter.correlationsByColumn.get(yValue || '');
-    const pearson = Number.isFinite(corr?.pearson) ? corr!.pearson!.toFixed(3) : '—';
-    const spearman = Number.isFinite(corr?.spearman) ? corr!.spearman!.toFixed(3) : '—';
+    const mode = normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
+    const value = Number.isFinite(corr?.value) ? corr!.value!.toFixed(3) : '—';
+    const count = Number.isFinite(corr?.count) ? `${corr!.count} aligned pairs` : '';
     if (openCausalBtn) openCausalBtn.disabled = !(xValue && yValue);
-    setStats({ pearson, spearman });
-    setCorrelationOverlayText(corr?.pearson, corr?.spearman);
+    setStats({
+        correlationLabel: getCorrelationModeShortLabel(mode),
+        correlationValue: value,
+        correlationContext: count ? `${getCorrelationModeBasisLabel(mode)} · ${count}` : getCorrelationModeBasisLabel(mode),
+    });
+    setCorrelationOverlayText(corr?.value, null);
 }
 
 /* ── Selection zoom ───────────────────────────────────── */

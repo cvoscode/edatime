@@ -242,6 +242,38 @@ describe('scatter marginal rendering modes', () => {
         expect(total).toBe(1);
     });
 
+    it('stores density marginal counts on the shared tooltip cache', () => {
+        const renderMode = document.getElementById('scatter-render-mode') as HTMLSelectElement;
+        renderMode.value = 'density';
+
+        appState.scatter.points = Array.from({ length: 80 }, (_, i) => [10 + i * 0.2, 2 + (i % 8)] as [number, number]);
+        appState.scatter.view = { xMin: 10, xMax: 26, yMin: 0, yMax: 12 };
+
+        const container = document.getElementById('scatter-chart') as HTMLElement;
+        const controls = {
+            x: 'HUFL',
+            y: 'HULL',
+            binSize: 10,
+            colormap: 'viridis',
+            normalization: 'linear',
+            renderMode: 'density',
+            diagonalMode: 'histogram',
+            colorColumn: '',
+            selectedColorColumn: '',
+            colorScale: 'viridis',
+            matrixMode: 'scatter',
+            matrixCellSize: 160,
+        };
+
+        const series = buildDensitySeries(appState.scatter.points, controls);
+        const cache = buildDensityTooltipCache(series, controls, container) as any;
+
+        expect(cache.marginalCountsX).toBeDefined();
+        expect(cache.marginalCountsY).toBeDefined();
+        expect(cache.marginalCountsX.length).toBeGreaterThan(0);
+        expect(cache.marginalCountsY.length).toBeGreaterThan(0);
+    });
+
     it('builds marginal histograms from points inside both visible axes', () => {
         appState.scatter.points = [
             [1, 1],

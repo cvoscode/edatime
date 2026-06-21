@@ -80,7 +80,7 @@ export interface ScatterState {
     colorLabels: unknown[] | null;
     colorMin: number | null;
     colorMax: number | null;
-    correlationsByColumn: Map<string, { pearson?: number | null; spearman?: number | null; column?: string }>;
+    correlationsByColumn: Map<string, { value?: number | null; count?: number; column?: string }>;
     suggestionThreshold: number;
     lastBinnedText: string;
     lastUpdateMs: number;

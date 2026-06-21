@@ -14,15 +14,41 @@ use polars::prelude::LazyFrame;
 
 use super::{CorrelationItem, SuggestionItem, collect_xy_pairs, numeric_columns};
 
+#[derive(Debug, Clone, Copy, Deserialize, serde::Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CorrelationMode {
+    PearsonRaw,
+    SpearmanRaw,
+    KendallRaw,
+    PearsonDiff,
+    SpearmanDiff,
+    KendallDiff,
+}
+
+impl CorrelationMode {
+    fn matrix<'a>(self, data: &'a CorrelationMatrixData) -> &'a Vec<Vec<Option<f64>>> {
+        match self {
+            Self::PearsonRaw => &data.pearson_raw,
+            Self::SpearmanRaw => &data.spearman_raw,
+            Self::KendallRaw => &data.kendall_raw,
+            Self::PearsonDiff => &data.pearson_diff,
+            Self::SpearmanDiff => &data.spearman_diff,
+            Self::KendallDiff => &data.kendall_diff,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ScatterCorrelationsQuery {
     pub base: Option<String>,
     pub threshold: Option<f64>,
+    pub mode: Option<CorrelationMode>,
 }
 
 #[derive(Debug, serde::Serialize)]
 pub struct ScatterCorrelationsResponse {
+    pub mode: CorrelationMode,
     pub base_column: String,
     pub threshold: f64,
     pub numeric_columns: Vec<String>,
@@ -45,6 +71,7 @@ pub async fn get_scatter_correlations(
 
     let threshold = params.threshold.unwrap_or(0.7).clamp(0.0, 1.0);
     let requested_base = params.base.clone();
+    let mode = params.mode.unwrap_or(CorrelationMode::PearsonRaw);
     let revision = state.dataset_revision();
 
     if let Some(entry) = state.cached_correlation_matrix(revision) {
@@ -52,6 +79,7 @@ pub async fn get_scatter_correlations(
             entry,
             requested_base.as_deref(),
             threshold,
+            mode,
         )?));
     }
 
@@ -63,6 +91,7 @@ pub async fn get_scatter_correlations(
         &data,
         requested_base.as_deref(),
         threshold,
+        mode,
     )?))
 }
 
@@ -71,15 +100,35 @@ pub async fn get_scatter_correlations(
 #[derive(Debug, serde::Serialize)]
 pub struct CorrelationMatrixResponse {
     pub columns: Vec<String>,
-    pub pearson: Vec<Vec<Option<f64>>>,
-    pub spearman: Vec<Vec<Option<f64>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pearson_raw: Option<Vec<Vec<Option<f64>>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spearman_raw: Option<Vec<Vec<Option<f64>>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kendall_raw: Option<Vec<Vec<Option<f64>>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pearson_diff: Option<Vec<Vec<Option<f64>>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spearman_diff: Option<Vec<Vec<Option<f64>>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kendall_diff: Option<Vec<Vec<Option<f64>>>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CorrelationMatrixQuery {
+    pub mode: Option<CorrelationMode>,
 }
 
 #[derive(Debug, Clone)]
 struct CorrelationMatrixData {
     columns: Vec<String>,
-    pearson: Vec<Vec<Option<f64>>>,
-    spearman: Vec<Vec<Option<f64>>>,
+    pearson_raw: Vec<Vec<Option<f64>>>,
+    spearman_raw: Vec<Vec<Option<f64>>>,
+    kendall_raw: Vec<Vec<Option<f64>>>,
+    pearson_diff: Vec<Vec<Option<f64>>>,
+    spearman_diff: Vec<Vec<Option<f64>>>,
+    kendall_diff: Vec<Vec<Option<f64>>>,
     counts: Vec<Vec<usize>>,
 }
 
@@ -87,8 +136,12 @@ impl CorrelationMatrixData {
     fn from_cache(entry: CorrelationMatrixCacheEntry) -> Self {
         Self {
             columns: entry.columns,
-            pearson: entry.pearson,
-            spearman: entry.spearman,
+            pearson_raw: entry.pearson_raw,
+            spearman_raw: entry.spearman_raw,
+            kendall_raw: entry.kendall_raw,
+            pearson_diff: entry.pearson_diff,
+            spearman_diff: entry.spearman_diff,
+            kendall_diff: entry.kendall_diff,
             counts: entry.counts,
         }
     }
@@ -96,8 +149,12 @@ impl CorrelationMatrixData {
     fn into_cache(self) -> CorrelationMatrixCacheEntry {
         CorrelationMatrixCacheEntry {
             columns: self.columns,
-            pearson: self.pearson,
-            spearman: self.spearman,
+            pearson_raw: self.pearson_raw,
+            spearman_raw: self.spearman_raw,
+            kendall_raw: self.kendall_raw,
+            pearson_diff: self.pearson_diff,
+            spearman_diff: self.spearman_diff,
+            kendall_diff: self.kendall_diff,
             counts: self.counts,
         }
     }
@@ -105,10 +162,122 @@ impl CorrelationMatrixData {
     fn to_response(&self) -> CorrelationMatrixResponse {
         CorrelationMatrixResponse {
             columns: self.columns.clone(),
-            pearson: self.pearson.clone(),
-            spearman: self.spearman.clone(),
+            pearson_raw: Some(self.pearson_raw.clone()),
+            spearman_raw: Some(self.spearman_raw.clone()),
+            kendall_raw: Some(self.kendall_raw.clone()),
+            pearson_diff: Some(self.pearson_diff.clone()),
+            spearman_diff: Some(self.spearman_diff.clone()),
+            kendall_diff: Some(self.kendall_diff.clone()),
         }
     }
+
+    fn to_response_for_mode(&self, mode: CorrelationMode) -> CorrelationMatrixResponse {
+        let mut response = CorrelationMatrixResponse {
+            columns: self.columns.clone(),
+            pearson_raw: None,
+            spearman_raw: None,
+            kendall_raw: None,
+            pearson_diff: None,
+            spearman_diff: None,
+            kendall_diff: None,
+        };
+
+        match mode {
+            CorrelationMode::PearsonRaw => response.pearson_raw = Some(self.pearson_raw.clone()),
+            CorrelationMode::SpearmanRaw => response.spearman_raw = Some(self.spearman_raw.clone()),
+            CorrelationMode::KendallRaw => response.kendall_raw = Some(self.kendall_raw.clone()),
+            CorrelationMode::PearsonDiff => response.pearson_diff = Some(self.pearson_diff.clone()),
+            CorrelationMode::SpearmanDiff => response.spearman_diff = Some(self.spearman_diff.clone()),
+            CorrelationMode::KendallDiff => response.kendall_diff = Some(self.kendall_diff.clone()),
+        }
+
+        response
+    }
+}
+
+fn empty_matrix_response(columns: Vec<String>, mode: CorrelationMode) -> CorrelationMatrixResponse {
+    let mut response = CorrelationMatrixResponse {
+        columns,
+        pearson_raw: None,
+        spearman_raw: None,
+        kendall_raw: None,
+        pearson_diff: None,
+        spearman_diff: None,
+        kendall_diff: None,
+    };
+
+    match mode {
+        CorrelationMode::PearsonRaw => response.pearson_raw = Some(vec![]),
+        CorrelationMode::SpearmanRaw => response.spearman_raw = Some(vec![]),
+        CorrelationMode::KendallRaw => response.kendall_raw = Some(vec![]),
+        CorrelationMode::PearsonDiff => response.pearson_diff = Some(vec![]),
+        CorrelationMode::SpearmanDiff => response.spearman_diff = Some(vec![]),
+        CorrelationMode::KendallDiff => response.kendall_diff = Some(vec![]),
+    }
+
+    response
+}
+
+fn first_difference_pairs(pairs: &[[f64; 2]]) -> Vec<[f64; 2]> {
+    pairs.windows(2)
+        .map(|window| [window[1][0] - window[0][0], window[1][1] - window[0][1]])
+        .collect()
+}
+
+fn compute_pair_correlation(
+    mode: CorrelationMode,
+    pairs: &[[f64; 2]],
+    diff_pairs: &[[f64; 2]],
+) -> Option<f64> {
+    match mode {
+        CorrelationMode::PearsonRaw => stats::pearson(pairs),
+        CorrelationMode::SpearmanRaw => stats::spearman(pairs),
+        CorrelationMode::KendallRaw => stats::kendall_tau(pairs),
+        CorrelationMode::PearsonDiff => stats::pearson(diff_pairs),
+        CorrelationMode::SpearmanDiff => stats::spearman(diff_pairs),
+        CorrelationMode::KendallDiff => stats::kendall_tau(diff_pairs),
+    }
+}
+
+fn compute_correlation_matrix_for_mode(
+    lf: LazyFrame,
+    mode: CorrelationMode,
+) -> Result<CorrelationMatrixResponse, AppError> {
+    let mut numeric = numeric_columns(lf.clone());
+    numeric.sort();
+
+    if numeric.is_empty() {
+        return Ok(empty_matrix_response(vec![], mode));
+    }
+
+    let n = numeric.len();
+    let mut selected = vec![vec![None; n]; n];
+    let df = lf
+        .with_new_streaming(true)
+        .collect()
+        .map_err(|e| AppError::internal(format!("correlation matrix collect: {}", e)))?;
+
+    for i in 0..n {
+        selected[i][i] = Some(1.0);
+        for j in (i + 1)..n {
+            let pairs = collect_xy_pairs(&df, &numeric[i], &numeric[j])?;
+            let diff_pairs = first_difference_pairs(&pairs);
+            let value = compute_pair_correlation(mode, &pairs, &diff_pairs);
+            selected[i][j] = value;
+            selected[j][i] = value;
+        }
+    }
+
+    let mut response = empty_matrix_response(numeric, mode);
+    match mode {
+        CorrelationMode::PearsonRaw => response.pearson_raw = Some(selected),
+        CorrelationMode::SpearmanRaw => response.spearman_raw = Some(selected),
+        CorrelationMode::KendallRaw => response.kendall_raw = Some(selected),
+        CorrelationMode::PearsonDiff => response.pearson_diff = Some(selected),
+        CorrelationMode::SpearmanDiff => response.spearman_diff = Some(selected),
+        CorrelationMode::KendallDiff => response.kendall_diff = Some(selected),
+    }
+    Ok(response)
 }
 
 fn compute_correlation_matrix(lf: LazyFrame) -> Result<CorrelationMatrixData, AppError> {
@@ -118,15 +287,23 @@ fn compute_correlation_matrix(lf: LazyFrame) -> Result<CorrelationMatrixData, Ap
     if numeric.is_empty() {
         return Ok(CorrelationMatrixData {
             columns: vec![],
-            pearson: vec![],
-            spearman: vec![],
+            pearson_raw: vec![],
+            spearman_raw: vec![],
+            kendall_raw: vec![],
+            pearson_diff: vec![],
+            spearman_diff: vec![],
+            kendall_diff: vec![],
             counts: vec![],
         });
     }
 
     let n = numeric.len();
-    let mut pearson = vec![vec![None; n]; n];
-    let mut spearman = vec![vec![None; n]; n];
+    let mut pearson_raw = vec![vec![None; n]; n];
+    let mut spearman_raw = vec![vec![None; n]; n];
+    let mut kendall_raw = vec![vec![None; n]; n];
+    let mut pearson_diff = vec![vec![None; n]; n];
+    let mut spearman_diff = vec![vec![None; n]; n];
+    let mut kendall_diff = vec![vec![None; n]; n];
     let mut counts = vec![vec![0; n]; n];
 
     let df = lf
@@ -135,18 +312,35 @@ fn compute_correlation_matrix(lf: LazyFrame) -> Result<CorrelationMatrixData, Ap
         .map_err(|e| AppError::internal(format!("correlation matrix collect: {}", e)))?;
 
     for i in 0..n {
-        pearson[i][i] = Some(1.0);
-        spearman[i][i] = Some(1.0);
+        pearson_raw[i][i] = Some(1.0);
+        spearman_raw[i][i] = Some(1.0);
+        kendall_raw[i][i] = Some(1.0);
+        pearson_diff[i][i] = Some(1.0);
+        spearman_diff[i][i] = Some(1.0);
+        kendall_diff[i][i] = Some(1.0);
         counts[i][i] = df.height();
         for j in (i + 1)..n {
             let pairs = collect_xy_pairs(&df, &numeric[i], &numeric[j])?;
-            let p = stats::pearson(&pairs);
-            let s = stats::spearman(&pairs);
+            let diff_pairs = first_difference_pairs(&pairs);
+            let raw_pearson = stats::pearson(&pairs);
+            let raw_spearman = stats::spearman(&pairs);
+            let raw_kendall = stats::kendall_tau(&pairs);
+            let diff_pearson = stats::pearson(&diff_pairs);
+            let diff_spearman = stats::spearman(&diff_pairs);
+            let diff_kendall = stats::kendall_tau(&diff_pairs);
             let count = pairs.len();
-            pearson[i][j] = p;
-            pearson[j][i] = p;
-            spearman[i][j] = s;
-            spearman[j][i] = s;
+            pearson_raw[i][j] = raw_pearson;
+            pearson_raw[j][i] = raw_pearson;
+            spearman_raw[i][j] = raw_spearman;
+            spearman_raw[j][i] = raw_spearman;
+            kendall_raw[i][j] = raw_kendall;
+            kendall_raw[j][i] = raw_kendall;
+            pearson_diff[i][j] = diff_pearson;
+            pearson_diff[j][i] = diff_pearson;
+            spearman_diff[i][j] = diff_spearman;
+            spearman_diff[j][i] = diff_spearman;
+            kendall_diff[i][j] = diff_kendall;
+            kendall_diff[j][i] = diff_kendall;
             counts[i][j] = count;
             counts[j][i] = count;
         }
@@ -154,8 +348,12 @@ fn compute_correlation_matrix(lf: LazyFrame) -> Result<CorrelationMatrixData, Ap
 
     Ok(CorrelationMatrixData {
         columns: numeric,
-        pearson,
-        spearman,
+        pearson_raw,
+        spearman_raw,
+        kendall_raw,
+        pearson_diff,
+        spearman_diff,
+        kendall_diff,
         counts,
     })
 }
@@ -164,9 +362,11 @@ fn build_scatter_correlations_from_matrix_data(
     data: &CorrelationMatrixData,
     requested_base: Option<&str>,
     threshold: f64,
+    mode: CorrelationMode,
 ) -> Result<ScatterCorrelationsResponse, AppError> {
     if data.columns.len() < 2 {
         return Ok(ScatterCorrelationsResponse {
+            mode,
             base_column: data.columns.first().cloned().unwrap_or_default(),
             threshold,
             numeric_columns: data.columns.clone(),
@@ -196,6 +396,7 @@ fn build_scatter_correlations_from_matrix_data(
         .iter()
         .position(|column| column == &base_column)
         .ok_or_else(|| AppError::internal("Cached correlation base column missing"))?;
+    let selected = mode.matrix(data);
 
     let mut correlations = data
         .columns
@@ -205,39 +406,28 @@ fn build_scatter_correlations_from_matrix_data(
         .map(|(index, column)| CorrelationItem {
             column: column.clone(),
             count: data.counts[base_index][index],
-            pearson: data.pearson[base_index][index],
-            spearman: data.spearman[base_index][index],
+            value: selected[base_index][index],
         })
         .collect::<Vec<_>>();
 
     correlations.sort_by(|a, b| {
-        let a_score = a
-            .pearson
-            .map(|v| v.abs())
-            .unwrap_or(0.0)
-            .max(a.spearman.map(|v| v.abs()).unwrap_or(0.0));
-        let b_score = b
-            .pearson
-            .map(|v| v.abs())
-            .unwrap_or(0.0)
-            .max(b.spearman.map(|v| v.abs()).unwrap_or(0.0));
+        let a_score = a.value.map(|v| v.abs()).unwrap_or(0.0);
+        let b_score = b.value.map(|v| v.abs()).unwrap_or(0.0);
         b_score.total_cmp(&a_score)
     });
 
     let suggestions = correlations
         .iter()
-        .filter(|item| {
-            item.pearson.map(|v| v.abs()).unwrap_or(0.0) >= threshold
-                || item.spearman.map(|v| v.abs()).unwrap_or(0.0) >= threshold
-        })
+        .filter(|item| item.value.map(|v| v.abs()).unwrap_or(0.0) >= threshold)
         .map(|item| SuggestionItem {
             x: base_column.clone(),
             y: item.column.clone(),
-            correlation: item.pearson.unwrap_or(item.spearman.unwrap_or(0.0)),
+            correlation: item.value.unwrap_or(0.0),
         })
         .collect();
 
     Ok(ScatterCorrelationsResponse {
+        mode,
         base_column,
         threshold,
         numeric_columns: data.columns.clone(),
@@ -250,9 +440,10 @@ fn build_scatter_correlations_from_cached_matrix(
     entry: CorrelationMatrixCacheEntry,
     requested_base: Option<&str>,
     threshold: f64,
+    mode: CorrelationMode,
 ) -> Result<ScatterCorrelationsResponse, AppError> {
     let data = CorrelationMatrixData::from_cache(entry);
-    build_scatter_correlations_from_matrix_data(&data, requested_base, threshold)
+    build_scatter_correlations_from_matrix_data(&data, requested_base, threshold, mode)
 }
 
 pub fn spawn_correlation_matrix_warmup(state: AppState) -> tokio::task::JoinHandle<()> {
@@ -279,13 +470,28 @@ pub fn spawn_correlation_matrix_warmup(state: AppState) -> tokio::task::JoinHand
 #[tracing::instrument(skip(state))]
 pub async fn get_correlation_matrix(
     State(state): State<AppState>,
+    Query(params): Query<CorrelationMatrixQuery>,
 ) -> Result<Json<CorrelationMatrixResponse>, AppError> {
+    let mode = params.mode;
     let revision = state.dataset_revision();
     if let Some(entry) = state.cached_correlation_matrix(revision) {
-        return Ok(Json(CorrelationMatrixData::from_cache(entry).to_response()));
+        let data = CorrelationMatrixData::from_cache(entry);
+        return Ok(Json(match mode {
+            Some(mode) => data.to_response_for_mode(mode),
+            None => data.to_response(),
+        }));
     }
 
     let lf = state.dataset_snapshot();
+    if let Some(mode) = mode {
+        let response = tokio::task::spawn_blocking(move || compute_correlation_matrix_for_mode(lf, mode))
+            .await
+            .map_err(|e| {
+                AppError::internal(format!("Failed to join correlation matrix task: {:?}", e))
+            })??;
+        return Ok(Json(response));
+    }
+
     let data = tokio::task::spawn_blocking(move || compute_correlation_matrix(lf))
         .await
         .map_err(|e| {
@@ -308,23 +514,49 @@ mod tests {
     fn cached_matrix_builds_sorted_correlations_for_requested_base() {
         let cached = edatime_store::cache::CorrelationMatrixCacheEntry {
             columns: vec!["a".to_string(), "b".to_string(), "c".to_string()],
-            pearson: vec![
+            pearson_raw: vec![
                 vec![Some(1.0), Some(0.25), Some(0.9)],
                 vec![Some(0.25), Some(1.0), Some(-0.8)],
                 vec![Some(0.9), Some(-0.8), Some(1.0)],
             ],
-            spearman: vec![
+            spearman_raw: vec![
                 vec![Some(1.0), Some(0.3), Some(0.7)],
                 vec![Some(0.3), Some(1.0), Some(-0.6)],
                 vec![Some(0.7), Some(-0.6), Some(1.0)],
             ],
+            kendall_raw: vec![
+                vec![Some(1.0), Some(0.2), Some(0.6)],
+                vec![Some(0.2), Some(1.0), Some(-0.4)],
+                vec![Some(0.6), Some(-0.4), Some(1.0)],
+            ],
+            pearson_diff: vec![
+                vec![Some(1.0), Some(0.1), Some(-0.2)],
+                vec![Some(0.1), Some(1.0), Some(0.4)],
+                vec![Some(-0.2), Some(0.4), Some(1.0)],
+            ],
+            spearman_diff: vec![
+                vec![Some(1.0), Some(0.15), Some(-0.1)],
+                vec![Some(0.15), Some(1.0), Some(0.45)],
+                vec![Some(-0.1), Some(0.45), Some(1.0)],
+            ],
+            kendall_diff: vec![
+                vec![Some(1.0), Some(0.05), Some(-0.1)],
+                vec![Some(0.05), Some(1.0), Some(0.72)],
+                vec![Some(-0.1), Some(0.72), Some(1.0)],
+            ],
             counts: vec![vec![3, 3, 3], vec![3, 3, 3], vec![3, 3, 3]],
         };
 
-        let response = build_scatter_correlations_from_cached_matrix(cached, Some("b"), 0.7)
+        let response = build_scatter_correlations_from_cached_matrix(
+            cached,
+            Some("b"),
+            0.7,
+            CorrelationMode::KendallDiff,
+        )
             .expect("cached matrix should build response");
 
         assert_eq!(response.base_column, "b");
+        assert_eq!(response.mode, CorrelationMode::KendallDiff);
         assert_eq!(response.numeric_columns, vec!["a", "b", "c"]);
         assert_eq!(
             response
@@ -334,13 +566,12 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["c", "a"]
         );
-        assert_eq!(response.correlations[0].pearson, Some(-0.8));
-        assert_eq!(response.correlations[0].spearman, Some(-0.6));
+        assert_eq!(response.correlations[0].value, Some(0.72));
         assert_eq!(response.correlations[0].count, 3);
         assert_eq!(response.suggestions.len(), 1);
         assert_eq!(response.suggestions[0].x, "b");
         assert_eq!(response.suggestions[0].y, "c");
-        assert_eq!(response.suggestions[0].correlation, -0.8);
+        assert_eq!(response.suggestions[0].correlation, 0.72);
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -365,9 +596,10 @@ mod tests {
             .cached_correlation_matrix(revision)
             .expect("warmup should populate matrix cache");
         assert_eq!(cached.columns, vec!["a", "b", "c"]);
-        assert_eq!(cached.pearson[0][1], Some(1.0));
-        assert_eq!(cached.pearson[0][2], Some(-1.0));
-        assert_eq!(cached.spearman[0][1], Some(1.0));
+        assert_eq!(cached.pearson_raw[0][1], Some(1.0));
+        assert_eq!(cached.pearson_raw[0][2], Some(-1.0));
+        assert_eq!(cached.spearman_raw[0][1], Some(1.0));
+        assert_eq!(cached.kendall_raw[0][1], Some(1.0));
         assert_eq!(cached.counts[0][1], 3);
     }
 
@@ -385,8 +617,12 @@ mod tests {
         let result = compute_correlation_matrix(df.lazy()).expect("matrix should not error");
 
         assert!(result.columns.is_empty());
-        assert!(result.pearson.is_empty());
-        assert!(result.spearman.is_empty());
+        assert!(result.pearson_raw.is_empty());
+        assert!(result.spearman_raw.is_empty());
+        assert!(result.kendall_raw.is_empty());
+        assert!(result.pearson_diff.is_empty());
+        assert!(result.spearman_diff.is_empty());
+        assert!(result.kendall_diff.is_empty());
         assert!(result.counts.is_empty());
     }
 
@@ -404,9 +640,57 @@ mod tests {
         let result = compute_correlation_matrix(df.lazy()).expect("matrix should not error");
 
         assert_eq!(result.columns, vec!["only"]);
-        assert_eq!(result.pearson, vec![vec![Some(1.0)]]);
-        assert_eq!(result.spearman, vec![vec![Some(1.0)]]);
+        assert_eq!(result.pearson_raw, vec![vec![Some(1.0)]]);
+        assert_eq!(result.spearman_raw, vec![vec![Some(1.0)]]);
+        assert_eq!(result.kendall_raw, vec![vec![Some(1.0)]]);
+        assert_eq!(result.pearson_diff, vec![vec![Some(1.0)]]);
+        assert_eq!(result.spearman_diff, vec![vec![Some(1.0)]]);
+        assert_eq!(result.kendall_diff, vec![vec![Some(1.0)]]);
         assert_eq!(result.counts, vec![vec![3]]);
+    }
+
+    #[test]
+    fn correlation_matrix_computes_first_difference_modes_from_aligned_pairs() {
+        let df = DataFrame::new(
+            4,
+            vec![
+                Series::new("a".into(), [1.0_f64, 2.0, 3.0, 4.0]).into(),
+                Series::new("b".into(), [10.0_f64, 9.0, 8.0, 7.0]).into(),
+            ],
+        )
+        .expect("dataframe should build");
+
+        let result = compute_correlation_matrix(df.lazy()).expect("matrix should not error");
+
+        assert_eq!(result.pearson_raw[0][1], Some(-1.0));
+        assert_eq!(result.spearman_raw[0][1], Some(-1.0));
+        assert_eq!(result.kendall_raw[0][1], Some(-1.0));
+        assert_eq!(result.pearson_diff[0][1], None);
+        assert_eq!(result.spearman_diff[0][1], None);
+        assert_eq!(result.kendall_diff[0][1], None);
+    }
+
+    #[test]
+    fn correlation_matrix_for_selected_mode_only_populates_requested_matrix() {
+        let df = DataFrame::new(
+            3,
+            vec![
+                Series::new("a".into(), [1.0_f64, 2.0, 3.0]).into(),
+                Series::new("b".into(), [3.0_f64, 2.0, 1.0]).into(),
+            ],
+        )
+        .expect("dataframe should build");
+
+        let response = compute_correlation_matrix_for_mode(df.lazy(), CorrelationMode::KendallDiff)
+            .expect("selected-mode matrix should build");
+
+        assert_eq!(response.columns, vec!["a", "b"]);
+        assert!(response.pearson_raw.is_none());
+        assert!(response.spearman_raw.is_none());
+        assert!(response.kendall_raw.is_none());
+        assert!(response.pearson_diff.is_none());
+        assert!(response.spearman_diff.is_none());
+        assert_eq!(response.kendall_diff, Some(vec![vec![Some(1.0), None], vec![None, Some(1.0)]]));
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -427,8 +711,12 @@ mod tests {
             .cached_correlation_matrix(revision)
             .expect("warmup should cache empty matrix payload");
         assert!(cached.columns.is_empty());
-        assert!(cached.pearson.is_empty());
-        assert!(cached.spearman.is_empty());
+        assert!(cached.pearson_raw.is_empty());
+        assert!(cached.spearman_raw.is_empty());
+        assert!(cached.kendall_raw.is_empty());
+        assert!(cached.pearson_diff.is_empty());
+        assert!(cached.spearman_diff.is_empty());
+        assert!(cached.kendall_diff.is_empty());
         assert!(cached.counts.is_empty());
     }
 
@@ -451,12 +739,14 @@ mod tests {
             Query(ScatterCorrelationsQuery {
                 base: Some("a".to_string()),
                 threshold: Some(0.7),
+                mode: Some(CorrelationMode::SpearmanDiff),
             }),
         )
         .await
         .expect("scatter correlations request should succeed");
 
         assert_eq!(response.0.base_column, "a");
+        assert_eq!(response.0.mode, CorrelationMode::SpearmanDiff);
         let cached = state
             .cached_correlation_matrix(revision)
             .expect("cold miss should populate the shared matrix cache");

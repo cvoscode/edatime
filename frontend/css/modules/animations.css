@@ -98,56 +98,6 @@
   outline: none;
 }
 
-/* ─── Causal info-icon (ⓘ) ────────────────────────────────────── */
-.causal-info-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  font-size: 0.7rem;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--accent, #00d4ff);
-  opacity: 0.6;
-  cursor: help;
-  user-select: none;
-  flex-shrink: 0;
-  margin-right: 2px;
-  transition: opacity 0.15s;
-}
-
-.causal-info-icon:hover,
-.causal-info-icon:focus {
-  opacity: 1;
-  outline: none;
-}
-
-/* ─── Causal tooltip popover ───────────────────────────────────── */
-.causal-tip-popover {
-  position: fixed;
-  z-index: 500;
-  pointer-events: none;
-  max-width: 320px;
-  background: rgba(10, 14, 26, 0.97);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 212, 255, 0.22);
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-  padding: 10px 14px;
-}
-
-.causal-tip-popover pre {
-  margin: 0;
-  font-family: inherit;
-  font-size: 0.72rem;
-  line-height: 1.55;
-  color: #c8d4e8;
-  white-space: pre-wrap;
-}
-
 /* ─── Causal context menu ──────────────────────────────────────── */
 .causal-ctx-menu {
   position: fixed;
@@ -269,7 +219,7 @@
   margin-right: 2px;
 }
 
-.scatter-toolbar__field .causal-info-icon {
+.scatter-toolbar__field .toolbar-info-icon {
   margin: 0;
   width: 14px;
   height: 14px;

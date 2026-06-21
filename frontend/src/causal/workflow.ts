@@ -35,7 +35,7 @@ function controlDecorators(control: HTMLElement | null): HTMLElement[] {
     const prev = control.previousElementSibling as HTMLElement | null;
     const next = control.nextElementSibling as HTMLElement | null;
     if (prev) out.push(prev);
-    if (next?.classList.contains('causal-info-icon')) out.push(next);
+    if (next?.classList.contains('toolbar-info-icon')) out.push(next);
     return out;
 }
 

@@ -22,39 +22,9 @@ import { openEditPanel, bindEditPanelEvents } from './editPanel.js';
 import { handleExport } from './export.js';
 import { applyMethodControlState, toggleAddEdgeMode, cancelAddEdgeMode, handleComputeClick } from './workflow.js';
 import { getDropdownValue } from '../ui/primitives/Dropdown.js';
+import { bindInfoPopovers } from '../ui/infoPopovers.js';
 
 let _chartEl: HTMLDivElement | null = null;
-let _activePopover: HTMLElement | null = null;
-
-function initInfoIcons(): void {
-    document.querySelectorAll<HTMLElement>('.causal-info-icon').forEach((icon) => {
-        const tipText = (icon.getAttribute('data-causal-tip') || '').replace(/\\n/g, '\n');
-        const show = (anchorX: number, anchorY: number) => {
-            hidePopover();
-            const pop = document.createElement('div');
-            pop.className = 'causal-tip-popover';
-            const pre = document.createElement('pre');
-            pre.textContent = tipText;
-            pop.appendChild(pre);
-            pop.style.left = anchorX + 'px';
-            pop.style.top = anchorY + 'px';
-            document.body.appendChild(pop);
-            _activePopover = pop;
-            const rect = pop.getBoundingClientRect();
-            if (rect.bottom > window.innerHeight - 8) pop.style.top = (anchorY - rect.height - 4) + 'px';
-            if (rect.right > window.innerWidth - 8) pop.style.left = (anchorX - rect.width - 16) + 'px';
-        };
-        icon.addEventListener('mouseenter', (event) => show(event.clientX + 14, event.clientY + 22));
-        icon.addEventListener('mousemove', (event) => {
-            if (_activePopover) { _activePopover.style.left = (event.clientX + 14) + 'px'; _activePopover.style.top = (event.clientY + 22) + 'px'; }
-        });
-        icon.addEventListener('mouseleave', hidePopover);
-        icon.addEventListener('focus', () => { const rect = icon.getBoundingClientRect(); show(rect.right + 8, rect.top); });
-        icon.addEventListener('blur', hidePopover);
-    });
-}
-
-function hidePopover(): void { _activePopover?.remove(); _activePopover = null; }
 
 export function initCausalPage(deps: any): void {
     const methodSelect = document.getElementById('causal-method-select') as HTMLElement | null;
@@ -76,7 +46,7 @@ export function initCausalPage(deps: any): void {
     bindEditPanelEvents();
     renderColumnChips(deps, columnsBar, openEditPanel);
     syncCausalEmptyState(_currentColumns.length);
-    initInfoIcons();
+    bindInfoPopovers();
     applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci');
     scheduleCausalChartRefresh();
 

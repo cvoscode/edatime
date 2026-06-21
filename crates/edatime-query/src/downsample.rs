@@ -91,3 +91,29 @@ pub fn downsample_dataframe_multi(
 
     Ok(out_df)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::downsample_indices;
+
+    #[test]
+    fn downsample_indices_returns_all_rows_when_under_target() {
+        let y_vals = [1.0, 2.0, 3.0];
+
+        let indices = downsample_indices(&y_vals, 8).expect("indices should be returned");
+
+        assert_eq!(indices, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn downsample_indices_stays_sorted_and_unique() {
+        let y_vals = [0.0, 12.0, 1.0, 14.0, 2.0, 16.0, 3.0, 18.0, 4.0];
+
+        let indices = downsample_indices(&y_vals, 4).expect("indices should be returned");
+
+        assert!(indices.len() <= 4);
+        assert!(indices.windows(2).all(|window| window[0] < window[1]));
+        assert_eq!(indices.first().copied(), Some(0));
+        assert_eq!(indices.last().copied(), Some(y_vals.len() - 1));
+    }
+}

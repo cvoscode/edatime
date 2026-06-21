@@ -3,8 +3,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
-
 /// Simple in-memory cache with revision-based invalidation.
 ///
 /// Unlike a TTL-based cache, this one stores entries without eviction
@@ -14,8 +14,6 @@ pub struct ResponseCache {
     store: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     revision: Arc<AtomicU64>,
 }
-
-use std::sync::atomic::AtomicU64;
 
 impl ResponseCache {
     /// Create a new empty cache.

@@ -1,9 +1,17 @@
 import { fetchCorrelationMatrix } from '../services/api/index.js';
+import type { CorrelationMatrixResponse } from '../services/api/analytics.js';
 import { exportElementPNG, exportElementSVG, exportElementHTML, exportMatrixCSV } from '../utils/chartExport.js';
-import { toast } from '../utils/toast.js';
 import { getDropdownValue, setDropdownValue } from '../ui/primitives/Dropdown.js';
+import { bindInfoPopovers } from '../ui/infoPopovers.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 import { clusterColumns, type Cluster } from '../utils/correlationClustering.js';
+import {
+    getCorrelationModeGuide,
+    getCorrelationModeLabel,
+    normalizeCorrelationMetric,
+    type CorrelationMetric,
+} from '../utils/correlationModes.js';
+import { getSetting, updateSetting } from '../utils/settings.js';
 
 interface HeatmapPageDeps {
     showPage: (pageName: string) => void;
@@ -15,9 +23,9 @@ let heatmapClusterEnabled = true;
 // because the threshold is rarely useful to tune interactively and the
 // default 0.85 works well across the datasets we have seen.
 const HEATMAP_CLUSTER_THRESHOLD = 0.85;
-let matrixData: { columns: string[]; pearson: (number | null)[][]; spearman: (number | null)[][] } | null = null;
-let metric = 'pearson';
-let matrixLoadInFlight: Promise<void> | null = null;
+let matrixData: CorrelationMatrixResponse | null = null;
+let metric: CorrelationMetric = 'pearson_raw';
+let matrixLoadSequence = 0;
 let heatmapRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 
 /**
@@ -91,37 +99,57 @@ function buildHeatmapStatus(clusterCount: number | null): string {
         : `${cols} columns · ${heatmapCellSize}px cells`;
 }
 
-export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
-    async function loadMatrix(): Promise<void> {
-        if (matrixLoadInFlight) return matrixLoadInFlight;
-        matrixLoadInFlight = (async () => {
-            heatmapRuntime?.updateStatus('Loading correlation matrix…');
-            try {
-                matrixData = await fetchCorrelationMatrix();
-                heatmapRuntime?.updateStatus(buildHeatmapStatus(null));
-                if (typeof document !== 'undefined' && (document as any).fonts?.ready) {
-                    await (document as any).fonts.ready;
-                }
-                requestAnimationFrame(() => renderHeatmap());
-            } catch (error: any) {
-                const message = error?.message || '';
-                const isInsufficient = message.toLowerCase().includes('two')
-                    || message.toLowerCase().includes('numeric')
-                    || message.toLowerCase().includes('column');
-                syncHeatmapEmptyState(
-                    isInsufficient
-                        ? 'Need at least two numeric columns to compute correlations. Upload a dataset with multiple numeric columns.'
-                        : 'Correlation heatmap is unavailable for the current dataset.',
-                    true,
-                    isInsufficient ? 'no-columns-available' : 'render-failure',
-                );
-                heatmapRuntime?.updateStatus(isInsufficient ? 'Not enough numeric columns' : `Error: ${message || 'failed'}`);
-            }
-        })().finally(() => {
-            matrixLoadInFlight = null;
-        });
+function getUnsupportedMetricMessage(nextMetric: CorrelationMetric): string {
+    return `${getCorrelationModeLabel(nextMetric)} requires the updated server payload. Restart the server to use Kendall tau and first-difference correlation modes.`;
+}
 
-        return matrixLoadInFlight;
+function getSelectedMatrix(
+    data: CorrelationMatrixResponse,
+    nextMetric: CorrelationMetric,
+): (number | null)[][] | null {
+    const selected = data[nextMetric];
+    if (selected) return selected;
+    if (nextMetric === 'pearson_raw') return data.pearson ?? null;
+    if (nextMetric === 'spearman_raw') return data.spearman ?? null;
+    return null;
+}
+
+function syncMetricGuide(): void {
+    const infoIcon = document.getElementById('heatmap-metric-info');
+    if (!infoIcon) return;
+    infoIcon.setAttribute('data-info-tip', getCorrelationModeGuide(metric));
+}
+
+export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
+    async function loadMatrix(nextMetric: CorrelationMetric = metric): Promise<void> {
+        const loadSequence = ++matrixLoadSequence;
+        const container = document.getElementById('heatmap-container');
+        if (container) container.innerHTML = '';
+        heatmapRuntime?.updateStatus(`Loading ${getCorrelationModeLabel(nextMetric)}…`);
+        syncHeatmapEmptyState(`Loading ${getCorrelationModeLabel(nextMetric)}…`, true, 'loading');
+        try {
+            const response = await fetchCorrelationMatrix(nextMetric);
+            if (loadSequence !== matrixLoadSequence) return;
+            matrixData = response;
+            if (typeof document !== 'undefined' && (document as any).fonts?.ready) {
+                await (document as any).fonts.ready;
+            }
+            requestAnimationFrame(() => renderHeatmap());
+        } catch (error: any) {
+            if (loadSequence !== matrixLoadSequence) return;
+            const message = error?.message || '';
+            const isInsufficient = message.toLowerCase().includes('two')
+                || message.toLowerCase().includes('numeric')
+                || message.toLowerCase().includes('column');
+            syncHeatmapEmptyState(
+                isInsufficient
+                    ? 'Need at least two numeric columns to compute correlations. Upload a dataset with multiple numeric columns.'
+                    : 'Correlation heatmap is unavailable for the current dataset.',
+                true,
+                isInsufficient ? 'no-columns-available' : 'render-failure',
+            );
+            heatmapRuntime?.updateStatus(isInsufficient ? 'Not enough numeric columns' : `Error: ${message || 'failed'}`);
+        }
     }
 
     function renderHeatmap(): void {
@@ -133,11 +161,17 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         }
 
         const columns = matrixData.columns;
-        const data = metric === 'spearman' ? matrixData.spearman : matrixData.pearson;
+        const data = getSelectedMatrix(matrixData, metric);
         const size = columns.length;
         if (size === 0) {
             container.innerHTML = '';
             syncHeatmapEmptyState('No numeric columns are available for the correlation heatmap.', true, 'no-columns-available');
+            return;
+        }
+        if (!data) {
+            container.innerHTML = '';
+            syncHeatmapEmptyState(getUnsupportedMetricMessage(metric), true, 'legacy-correlation-payload');
+            heatmapRuntime?.updateStatus(`${getCorrelationModeLabel(metric)} unavailable on this server`);
             return;
         }
 
@@ -237,7 +271,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         };
 
         const clusterCount = heatmapClusterEnabled && clusters.length > 0 ? clusters.length : null;
-        heatmapRuntime?.updateStatus(buildHeatmapStatus(clusterCount));
+        heatmapRuntime?.updateStatus(`${getCorrelationModeLabel(metric)} · ${buildHeatmapStatus(clusterCount)}`);
     }
 
     heatmapRuntime = createAnalysisPageRuntime({
@@ -250,11 +284,12 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             html: { fn: (filename) => exportElementHTML('heatmap-container', filename), filename: 'edatime_heatmap.html' },
             csv: {
                 fn: (filename) => {
-                    const data = metric === 'spearman' ? matrixData!.spearman : matrixData!.pearson;
+                    const data = matrixData ? getSelectedMatrix(matrixData, metric) : null;
+                    if (!matrixData || !data) return;
                     exportMatrixCSV(matrixData!.columns, data, filename);
                 },
                 filename: `edatime_correlation_${metric}.csv`,
-                dataCheck: () => matrixData != null,
+                dataCheck: () => matrixData != null && getSelectedMatrix(matrixData, metric) != null,
             },
         },
         init() {
@@ -265,6 +300,11 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             const clusterToggle = document.getElementById('heatmap-cluster-toggle') as HTMLInputElement | null;
             if (!container) return;
 
+            metric = normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
+            setDropdownValue('heatmap-metric', metric);
+            syncMetricGuide();
+            bindInfoPopovers();
+
             // Sync initial control state with module-level defaults.
             if (clusterToggle) clusterToggle.checked = heatmapClusterEnabled;
             // Sync the custom `--range-fill` property so the slider
@@ -273,8 +313,10 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             updateRangeFill(sizeInput);
 
             metricSelect?.addEventListener('change', () => {
-                metric = getDropdownValue('heatmap-metric') || 'pearson';
-                renderHeatmap();
+                metric = normalizeCorrelationMetric(getDropdownValue('heatmap-metric'));
+                updateSetting('defaultCorrelationMetric', metric);
+                syncMetricGuide();
+                void loadMatrix(metric);
             });
             sizeInput?.addEventListener('input', () => {
                 heatmapCellSize = Math.max(24, Math.min(72, Number(sizeInput.value || 36)));
@@ -288,7 +330,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             });
         },
         onVisible() {
-            void loadMatrix();
+            void loadMatrix(metric);
         },
     });
 

@@ -399,27 +399,30 @@ describe('dataClient fetch helpers', () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
                 json: () => Promise.resolve({
+                    mode: 'kendall_diff',
                     base_column: 'col_a',
                     threshold: 0.7,
                     numeric_columns: ['col_a', 'col_b'],
                     correlations: [
-                        { column: 'col_b', count: 12, pearson: 0.95, spearman: 0.92 },
+                        { column: 'col_b', count: 12, value: 0.95 },
                     ],
                     suggestions: [{ x: 'col_a', y: 'col_b', correlation: 0.95 }],
                 }),
             });
 
-            const result = await fetchScatterCorrelations(null);
+            const result = await fetchScatterCorrelations(null, 0.7, 'kendall_diff');
             expect(result.correlations).toHaveLength(1);
-            expect(result.correlations[0].pearson).toBe(0.95);
+            expect(result.mode).toBe('kendall_diff');
+            expect(result.correlations[0].value).toBe(0.95);
         });
 
-        it('passes the configured threshold in the query string', async () => {
+        it('passes the configured threshold and mode in the query string', async () => {
             const { fetchScatterCorrelations } = await import('./dataClient');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
                 json: () => Promise.resolve({
+                    mode: 'pearson_diff',
                     base_column: 'col_a',
                     threshold: 0.75,
                     numeric_columns: ['col_a'],
@@ -428,8 +431,8 @@ describe('dataClient fetch helpers', () => {
                 }),
             });
 
-            await fetchScatterCorrelations('col_a', 0.75);
-            expect(mockFetch).toHaveBeenCalledWith('/api/scatter/correlations?threshold=0.75&base=col_a', { cache: 'no-store' });
+            await fetchScatterCorrelations('col_a', 0.75, 'pearson_diff');
+            expect(mockFetch).toHaveBeenCalledWith('/api/scatter/correlations?threshold=0.75&base=col_a&mode=pearson_diff', { cache: 'no-store' });
         });
 
         it('throws if correlations array is missing', async () => {

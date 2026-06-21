@@ -13,6 +13,7 @@ describe('pageStyles', () => {
     it('maps page names to page-owned style modules', () => {
         expect(pageStyleModulesFor('home')).toEqual(['home']);
         expect(pageStyleModulesFor('drift')).toEqual(['drift']);
+        expect(pageStyleModulesFor('heatmap')).toEqual(['scatter']);
         expect(pageStyleModulesFor('scatter')).toEqual(['scatter']);
         expect(pageStyleModulesFor('scattermatrix')).toEqual(['scatter']);
         expect(pageStyleModulesFor('timeseries')).toEqual([]);
@@ -30,6 +31,7 @@ describe('pageStyles', () => {
     });
 
     it('preloads every style needed by a page before it is shown', () => {
+        preloadPageStyles('heatmap');
         preloadPageStyles('scatter');
         preloadPageStyles('home');
 

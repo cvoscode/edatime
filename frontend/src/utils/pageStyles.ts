@@ -5,6 +5,7 @@ export type StyleModuleName = typeof STYLE_MODULE_NAMES[number];
 const PAGE_STYLE_MODULES: Record<string, StyleModuleName[]> = {
     drift: ['drift'],
     home: ['home'],
+    heatmap: ['scatter'],
     scatter: ['scatter'],
     scattermatrix: ['scatter'],
 };

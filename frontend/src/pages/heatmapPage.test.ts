@@ -1,26 +1,60 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+const DEFAULT_MATRIX_RESPONSE = {
+    columns: ['a1', 'a2', 'a3', 'b1', 'b2', 'b3'],
+    pearson_raw: [
+        [1, 0.95, 0.95, 0, 0, 0],
+        [0.95, 1, 0.95, 0, 0, 0],
+        [0.95, 0.95, 1, 0, -0.6, 0],
+        [0, 0, 0, 1, 0.95, 0.95],
+        [0, 0, -0.6, 0.95, 1, 0.95],
+        [0, 0, 0, 0.95, 0.95, 1],
+    ],
+    spearman_raw: [
+        [1, 0.95, 0.95, 0, 0, 0],
+        [0.95, 1, 0.95, 0, 0, 0],
+        [0.95, 0.95, 1, 0, -0.6, 0],
+        [0, 0, 0, 1, 0.95, 0.95],
+        [0, 0, -0.6, 0.95, 1, 0.95],
+        [0, 0, 0, 0.95, 0.95, 1],
+    ],
+    kendall_raw: [
+        [1, 0.8, 0.8, 0, 0, 0],
+        [0.8, 1, 0.8, 0, 0, 0],
+        [0.8, 0.8, 1, 0, -0.5, 0],
+        [0, 0, 0, 1, 0.8, 0.8],
+        [0, 0, -0.5, 0.8, 1, 0.8],
+        [0, 0, 0, 0.8, 0.8, 1],
+    ],
+    pearson_diff: [
+        [1, -0.1, 0.2, 0.4, 0, 0],
+        [-0.1, 1, 0.3, 0, 0, 0],
+        [0.2, 0.3, 1, 0, -0.2, 0],
+        [0.4, 0, 0, 1, 0.1, 0.1],
+        [0, 0, -0.2, 0.1, 1, 0.1],
+        [0, 0, 0, 0.1, 0.1, 1],
+    ],
+    spearman_diff: [
+        [1, -0.2, 0.1, 0.35, 0, 0],
+        [-0.2, 1, 0.25, 0, 0, 0],
+        [0.1, 0.25, 1, 0, -0.15, 0],
+        [0.35, 0, 0, 1, 0.05, 0.05],
+        [0, 0, -0.15, 0.05, 1, 0.05],
+        [0, 0, 0, 0.05, 0.05, 1],
+    ],
+    kendall_diff: [
+        [1, -0.33, 0.11, 0.55, 0, 0],
+        [-0.33, 1, 0.22, 0, 0, 0],
+        [0.11, 0.22, 1, 0, -0.44, 0],
+        [0.55, 0, 0, 1, 0.12, 0.12],
+        [0, 0, -0.44, 0.12, 1, 0.12],
+        [0, 0, 0, 0.12, 0.12, 1],
+    ],
+};
+
 // Mock shared dependencies
 vi.mock('../services/api/index.js', () => ({
-    fetchCorrelationMatrix: vi.fn().mockResolvedValue({
-        columns: ['a1', 'a2', 'a3', 'b1', 'b2', 'b3'],
-        pearson: [
-            [1, 0.95, 0.95, 0, 0, 0],
-            [0.95, 1, 0.95, 0, 0, 0],
-            [0.95, 0.95, 1, 0, -0.6, 0],
-            [0, 0, 0, 1, 0.95, 0.95],
-            [0, 0, -0.6, 0.95, 1, 0.95],
-            [0, 0, 0, 0.95, 0.95, 1],
-        ],
-        spearman: [
-            [1, 0.95, 0.95, 0, 0, 0],
-            [0.95, 1, 0.95, 0, 0, 0],
-            [0.95, 0.95, 1, 0, -0.6, 0],
-            [0, 0, 0, 1, 0.95, 0.95],
-            [0, 0, -0.6, 0.95, 1, 0.95],
-            [0, 0, 0, 0.95, 0.95, 1],
-        ],
-    }),
+    fetchCorrelationMatrix: vi.fn(),
 }));
 
 vi.mock('../utils/chartExport.js', () => ({
@@ -61,9 +95,22 @@ async function activateHeatmap(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+function deferredPromise<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((res) => {
+        resolve = res;
+    });
+    return { promise, resolve };
+}
+
 describe('heatmapPage with clustering', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         vi.restoreAllMocks();
+        vi.clearAllMocks();
+        window.localStorage.clear();
+        const { fetchCorrelationMatrix } = await import('../services/api/index.js');
+        vi.mocked(fetchCorrelationMatrix).mockReset();
+        vi.mocked(fetchCorrelationMatrix).mockResolvedValue(structuredClone(DEFAULT_MATRIX_RESPONSE) as any);
         // happy-dom does not always fire requestAnimationFrame in a
         // deterministic way, so stub it to run callbacks synchronously.
         vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
@@ -83,9 +130,15 @@ describe('heatmapPage with clustering', () => {
         document.body.innerHTML = `
             <div id="heatmap-container"></div>
             <div id="heatmap-empty-state"></div>
+            <div id="heatmap-loading" hidden></div>
+            <span id="heatmap-metric-info" class="toolbar-info-icon" data-info-tip=""></span>
             <select id="heatmap-metric">
-                <option value="pearson" selected>Pearson</option>
-                <option value="spearman">Spearman</option>
+                <option value="pearson_raw" selected>Pearson · Raw aligned values</option>
+                <option value="spearman_raw">Spearman · Raw aligned values</option>
+                <option value="kendall_raw">Kendall tau · Raw aligned values</option>
+                <option value="pearson_diff">Pearson · First differences</option>
+                <option value="spearman_diff">Spearman · First differences</option>
+                <option value="kendall_diff">Kendall tau · First differences</option>
             </select>
             <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36">
             <span id="heatmap-cell-size-value" class="range-value">36</span>
@@ -234,6 +287,117 @@ describe('heatmapPage with clustering', () => {
             .map((el) => el.textContent?.trim());
         // Without clustering, headers should be in the original column order.
         expect(headers).toEqual(['a1', 'a2', 'a3', 'b1', 'b2', 'b3']);
+    });
+
+    it('refetches the selected first-difference matrix mode on metric change', async () => {
+        const { fetchCorrelationMatrix } = await import('../services/api/index.js');
+        vi.mocked(fetchCorrelationMatrix)
+            .mockResolvedValueOnce({
+                columns: ['a1', 'a2'],
+                pearson_raw: [
+                    [1, 0.4],
+                    [0.4, 1],
+                ],
+            } as any)
+            .mockResolvedValueOnce({
+                columns: ['a1', 'a2'],
+                kendall_diff: [
+                    [1, -0.33],
+                    [-0.33, 1],
+                ],
+            } as any);
+
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        expect(fetchCorrelationMatrix).toHaveBeenCalledTimes(1);
+
+        const metric = document.getElementById('heatmap-metric') as HTMLSelectElement;
+        metric.value = 'kendall_diff';
+        metric.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        const cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="1"]') as HTMLElement | null;
+        expect(fetchCorrelationMatrix).toHaveBeenCalledTimes(2);
+        expect(cell?.textContent).toBe('-0.33');
+    });
+
+    it('stores the selected metric guide on the shared info icon', async () => {
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const infoIcon = document.getElementById('heatmap-metric-info') as HTMLElement | null;
+        expect(infoIcon?.getAttribute('data-info-tip')).toBe('Use for linear relationships on the original aligned values.');
+
+        const metric = document.getElementById('heatmap-metric') as HTMLSelectElement;
+        metric.value = 'kendall_diff';
+        metric.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(infoIcon?.getAttribute('data-info-tip')).toBe('Use when you want a conservative rank-based view of whether step-to-step changes agree in direction.');
+    });
+
+    it('shows a loading overlay while switching to a slow metric', async () => {
+        const { fetchCorrelationMatrix } = await import('../services/api/index.js');
+        const pending = deferredPromise<any>();
+        vi.mocked(fetchCorrelationMatrix)
+            .mockResolvedValueOnce(structuredClone(DEFAULT_MATRIX_RESPONSE) as any)
+            .mockReturnValueOnce(pending.promise);
+
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const metric = document.getElementById('heatmap-metric') as HTMLSelectElement;
+        metric.value = 'kendall_raw';
+        metric.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(document.getElementById('heatmap-loading')?.hidden).toBe(false);
+        expect(document.querySelectorAll('.heatmap-cell')).toHaveLength(0);
+
+        pending.resolve({
+            columns: ['a1', 'a2'],
+            kendall_raw: [
+                [1, 0.8],
+                [0.8, 1],
+            ],
+        });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(document.getElementById('heatmap-loading')?.hidden).toBe(true);
+    });
+
+    it('falls back to legacy raw payloads and shows a clear message for unsupported modes', async () => {
+        const { fetchCorrelationMatrix } = await import('../services/api/index.js');
+        vi.mocked(fetchCorrelationMatrix).mockResolvedValue({
+            columns: ['a1', 'a2'],
+            pearson: [
+                [1, 0.4],
+                [0.4, 1],
+            ],
+            spearman: [
+                [1, 0.5],
+                [0.5, 1],
+            ],
+        } as any);
+
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        let cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="1"]') as HTMLElement | null;
+        expect(cell?.textContent).toBe('0.40');
+
+        const metric = document.getElementById('heatmap-metric') as HTMLSelectElement;
+        metric.value = 'kendall_diff';
+        metric.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(document.querySelectorAll('.heatmap-cell')).toHaveLength(0);
+        expect(document.getElementById('heatmap-empty-state')?.textContent).toContain('Restart the server');
     });
 
 });

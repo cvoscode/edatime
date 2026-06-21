@@ -186,8 +186,14 @@ export async function postTransform(
 
 export interface CorrelationMatrixResponse {
     columns: string[];
-    pearson: (number | null)[][];
-    spearman: (number | null)[][];
+    pearson?: (number | null)[][];
+    spearman?: (number | null)[][];
+    pearson_raw?: (number | null)[][];
+    spearman_raw?: (number | null)[][];
+    kendall_raw?: (number | null)[][];
+    pearson_diff?: (number | null)[][];
+    spearman_diff?: (number | null)[][];
+    kendall_diff?: (number | null)[][];
 }
 
 export async function fetchCorrelationMatrix(): Promise<CorrelationMatrixResponse> {

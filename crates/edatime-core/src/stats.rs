@@ -187,6 +187,51 @@ pub fn spearman(pairs: &[[f64; 2]]) -> Option<f64> {
     pearson(&ranked_pairs)
 }
 
+/// Kendall tau-b rank correlation from x-y pairs.
+pub fn kendall_tau(pairs: &[[f64; 2]]) -> Option<f64> {
+    let n = pairs.len();
+    if n < 2 {
+        return None;
+    }
+
+    let mut concordant = 0.0f64;
+    let mut discordant = 0.0f64;
+    let mut ties_x = 0.0f64;
+    let mut ties_y = 0.0f64;
+
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let dx = pairs[j][0] - pairs[i][0];
+            let dy = pairs[j][1] - pairs[i][1];
+            if dx == 0.0 && dy == 0.0 {
+                continue;
+            }
+            if dx == 0.0 {
+                ties_x += 1.0;
+                continue;
+            }
+            if dy == 0.0 {
+                ties_y += 1.0;
+                continue;
+            }
+
+            let sign = dx * dy;
+            if sign > 0.0 {
+                concordant += 1.0;
+            } else if sign < 0.0 {
+                discordant += 1.0;
+            }
+        }
+    }
+
+    let denom = ((concordant + discordant + ties_x) * (concordant + discordant + ties_y)).sqrt();
+    if !denom.is_finite() || denom <= f64::EPSILON {
+        return None;
+    }
+
+    Some(((concordant - discordant) / denom).clamp(-1.0, 1.0))
+}
+
 fn rank_with_ties(values: &[f64]) -> Vec<f64> {
     let mut indexed: Vec<(usize, f64)> = values.iter().copied().enumerate().collect();
     indexed.sort_by(|a, b| a.1.total_cmp(&b.1));
@@ -208,6 +253,29 @@ fn rank_with_ties(values: &[f64]) -> Vec<f64> {
     }
 
     ranks
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod correlation_tests {
+    use super::{kendall_tau, pearson, spearman};
+
+    #[test]
+    fn kendall_tau_returns_one_for_strictly_increasing_pairs() {
+        let pairs = [[1.0, 2.0], [2.0, 4.0], [3.0, 6.0], [4.0, 8.0]];
+
+        assert_eq!(pearson(&pairs), Some(1.0));
+        assert_eq!(spearman(&pairs), Some(1.0));
+        assert_eq!(kendall_tau(&pairs), Some(1.0));
+    }
+
+    #[test]
+    fn kendall_tau_handles_ties_with_tau_b() {
+        let pairs = [[1.0, 1.0], [1.0, 2.0], [2.0, 2.0], [3.0, 3.0]];
+
+        let tau = kendall_tau(&pairs).unwrap();
+        assert!(tau > 0.79 && tau < 0.81, "expected tau-b around 0.8, got {tau}");
+    }
 }
 
 /// Two-sample Kolmogorov-Smirnov test statistic.

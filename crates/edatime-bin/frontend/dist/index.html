@@ -59,9 +59,9 @@
       });
     }
   </script>
-  <script type="module" crossorigin src="/assets/index-CKm6SVCt.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/settings-DSsWOyUw.js">
-  <link rel="stylesheet" crossorigin href="/assets/index-Ddb1v-fx.css">
+  <script type="module" crossorigin src="/assets/index-CrsJ-ywD.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/settings-Dtpfs5Fy.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-Ckdy8Ff_.css">
 </head>
 
 <body>
@@ -809,9 +809,14 @@
               <label class="toolbar-field scatter-toolbar__field" for="heatmap-metric">
                 <span class="toolbar-field__label">Type</span>
                 <select id="heatmap-metric" class="modal-select" aria-label="Correlation metric">
-                  <option value="pearson" selected>Pearson</option>
-                  <option value="spearman">Spearman</option>
+                  <option value="pearson_raw" selected>Pearson · Raw aligned values</option>
+                  <option value="spearman_raw">Spearman · Raw aligned values</option>
+                  <option value="kendall_raw">Kendall tau · Raw aligned values</option>
+                  <option value="pearson_diff">Pearson · First differences</option>
+                  <option value="spearman_diff">Spearman · First differences</option>
+                  <option value="kendall_diff">Kendall tau · First differences</option>
                 </select>
+                <div id="heatmap-metric-help" class="toolbar-field__help">Use for linear relationships on the original aligned values.</div>
               </label>
             </div>
           </div>
@@ -2124,13 +2129,17 @@
             <div class="settings-section">
               <div class="settings-section-title">Correlation</div>
               <div class="settings-row">
-                <label class="settings-label" for="settings-correlation">Default metric</label>
+                <label class="settings-label" for="settings-correlation">Default correlation mode</label>
                 <div class="settings-control">
                   <select id="settings-correlation" class="modal-select">
-                    <option value="pearson">Pearson</option>
-                    <option value="spearman">Spearman</option>
+                    <option value="pearson_raw">Pearson · Raw aligned values</option>
+                    <option value="spearman_raw">Spearman · Raw aligned values</option>
+                    <option value="kendall_raw">Kendall tau · Raw aligned values</option>
+                    <option value="pearson_diff">Pearson · First differences</option>
+                    <option value="spearman_diff">Spearman · First differences</option>
+                    <option value="kendall_diff">Kendall tau · First differences</option>
                   </select>
-                  <div class="settings-hint">Used for scatter suggestions and heatmap</div>
+                  <div class="settings-hint">Used for scatter suggestions, scatter readouts, and the heatmap.</div>
                 </div>
               </div>
             </div>

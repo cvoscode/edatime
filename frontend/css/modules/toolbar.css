@@ -735,6 +735,7 @@
 
 .scatter-toolbar .scatter-toolbar__field.toolbar-field {
   display: flex;
+  flex-wrap: wrap;
 }
 
 .scatter-toolbar__field .toolbar-field__label {
@@ -827,6 +828,53 @@
   background: rgba(0, 168, 255, 0.06);
   outline: none;
   box-shadow: 0 0 0 2px rgba(0, 168, 255, 0.18);
+}
+
+.toolbar-info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent, #00d4ff);
+  opacity: 0.6;
+  cursor: help;
+  user-select: none;
+  flex: 0 0 auto;
+  transition: opacity 0.15s;
+}
+
+.toolbar-info-icon:hover,
+.toolbar-info-icon:focus {
+  opacity: 1;
+  outline: none;
+}
+
+.toolbar-info-popover {
+  position: fixed;
+  z-index: 500;
+  pointer-events: none;
+  max-width: 320px;
+  background: rgba(10, 14, 26, 0.97);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 212, 255, 0.22);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  padding: 10px 14px;
+}
+
+.toolbar-info-popover pre {
+  margin: 0;
+  font-family: inherit;
+  font-size: 0.72rem;
+  line-height: 1.55;
+  color: #c8d4e8;
+  white-space: pre-wrap;
 }
 
 /* The .modal-select rules below are for native <select> elements only.

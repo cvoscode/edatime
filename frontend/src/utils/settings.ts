@@ -6,11 +6,15 @@
  */
 
 import { setResolvedTheme } from './theme.js';
+import {
+    normalizeCorrelationMetric,
+    type CorrelationMetric,
+} from './correlationModes.js';
 
 export type ThemeMode = 'dark' | 'light' | 'auto';
 export type LayoutDensity = 'compact' | 'spacious';
 export type ExportFormat = 'png' | 'svg' | 'csv' | 'json' | 'parquet';
-export type CorrelationMetric = 'pearson' | 'spearman';
+export type { CorrelationMetric } from './correlationModes.js';
 
 export interface AppSettings {
     // Appearance
@@ -91,7 +95,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     defaultPalette: 'default',
     defaultExportFormat: 'csv',
     whiteBackgroundExport: false,
-    defaultCorrelationMetric: 'pearson',
+    defaultCorrelationMetric: 'pearson_raw',
     defaultCausalMethod: 'pcmci',
     defaultTauMax: 5,
     defaultFftPreset: 'auto',
@@ -119,7 +123,11 @@ export function loadSettings(): AppSettings {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return { ...DEFAULT_SETTINGS };
         const parsed = JSON.parse(raw) as Partial<AppSettings>;
-        return { ...DEFAULT_SETTINGS, ...parsed };
+        return {
+            ...DEFAULT_SETTINGS,
+            ...parsed,
+            defaultCorrelationMetric: normalizeCorrelationMetric(parsed.defaultCorrelationMetric),
+        };
     } catch {
         return { ...DEFAULT_SETTINGS };
     }

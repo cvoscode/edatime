@@ -10,6 +10,8 @@
 import { fetchScatterCorrelations } from '../services/api/index.js';
 import { appState } from '../store/index.js';
 import { getDropdownValue, setDropdownOptions, setDropdownValue } from '../ui/primitives/Dropdown.js';
+import { normalizeCorrelationMetric } from '../utils/correlationModes.js';
+import { getSetting } from '../utils/settings.js';
 import { getEl } from './helpers.js';
 import { ensureOptions } from './state.js';
 import { updateCorrelationStats, updateColorbarUI } from './rendering.js';
@@ -118,7 +120,8 @@ export async function refreshCorrelationsAndSuggestions(): Promise<void> {
     const currentX = getDropdownValue('scatter-x-col');
     const currentY = getDropdownValue('scatter-y-col');
     const currentColor = getDropdownValue('scatter-color-column');
-    const response = await fetchScatterCorrelations(currentX || null, appState.scatter.suggestionThreshold);
+    const mode = normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
+    const response = await fetchScatterCorrelations(currentX || null, appState.scatter.suggestionThreshold, mode);
 
     const numeric = Array.isArray(response.numeric_columns) ? response.numeric_columns : [];
     if (numeric.length < 2) throw new Error('Need at least two numeric columns for scatter plotting.');

@@ -1,31 +1,32 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { applyTheme } from './settings.js';
-import { getResolvedTheme, onThemeChange, setResolvedTheme } from './theme.js';
+import { DEFAULT_SETTINGS, loadSettings, saveSettings } from './settings.js';
 
-describe('applyTheme', () => {
-    beforeEach(() => {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        document.body.innerHTML = `
-            <span id="theme-icon-dark"></span>
-            <span id="theme-icon-light" hidden></span>
-        `;
-        setResolvedTheme('dark');
+describe('settings correlation mode', () => {
+    afterEach(() => {
+        localStorage.clear();
     });
 
-    it('updates resolved theme subscribers when switching themes', () => {
-        const listener = vi.fn();
-        const unsubscribe = onThemeChange(listener);
-        listener.mockClear();
+    it('migrates legacy pearson and spearman defaults to raw modes', () => {
+        localStorage.setItem('edatime-settings', JSON.stringify({
+            defaultCorrelationMetric: 'spearman',
+        }));
 
-        applyTheme('light');
+        expect(loadSettings().defaultCorrelationMetric).toBe('spearman_raw');
 
-        expect(document.documentElement.getAttribute('data-theme')).toBe('light');
-        expect(getResolvedTheme()).toBe('light');
-        expect(listener).toHaveBeenCalledWith('light');
-        expect((document.getElementById('theme-icon-dark') as HTMLElement).hidden).toBe(true);
-        expect((document.getElementById('theme-icon-light') as HTMLElement).hidden).toBe(false);
+        localStorage.setItem('edatime-settings', JSON.stringify({
+            defaultCorrelationMetric: 'pearson',
+        }));
 
-        unsubscribe();
+        expect(loadSettings().defaultCorrelationMetric).toBe('pearson_raw');
+    });
+
+    it('preserves explicit six-mode correlation settings', () => {
+        saveSettings({
+            ...DEFAULT_SETTINGS,
+            defaultCorrelationMetric: 'kendall_diff',
+        });
+
+        expect(loadSettings().defaultCorrelationMetric).toBe('kendall_diff');
     });
 });

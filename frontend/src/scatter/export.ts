@@ -21,6 +21,8 @@ import {
 } from './state.js';
 import { exportScatterParquet as exportScatterParquetBlob } from '../services/api/index.js';
 import { scaleScatterPlotGrid } from './layout.js';
+import { getCorrelationModeBasisLabel, getCorrelationModeShortLabel, normalizeCorrelationMetric } from '../utils/correlationModes.js';
+import { getSetting } from '../utils/settings.js';
 
 /* ── Linear tick helper ───────────────────────────────── */
 
@@ -213,6 +215,7 @@ export function renderScatterExportToCanvas(canvas: HTMLCanvasElement): boolean 
 
     // Correlation box
     const corr = appState.scatter.correlationsByColumn.get(controls.y || '');
+    const mode = normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
     ctx.save();
     ctx.fillStyle = surface; ctx.strokeStyle = border; ctx.lineWidth = 1 * scale;
     const corrX = viewport.width - 190 * scale;
@@ -223,8 +226,8 @@ export function renderScatterExportToCanvas(canvas: HTMLCanvasElement): boolean 
     ctx.strokeRect(corrX, corrY, corrW, corrH);
     ctx.fillStyle = text; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.font = `${Math.max(10, Math.round(11 * scale))}px Inter, system-ui, -apple-system, sans-serif`;
-    ctx.fillText(`Pearson correlation: ${Number.isFinite(corr?.pearson) ? corr!.pearson!.toFixed(3) : '—'}`, corrX + 10 * scale, corrY + 8 * scale);
-    ctx.fillText(`Spearman correlation: ${Number.isFinite(corr?.spearman) ? corr!.spearman!.toFixed(3) : '—'}`, corrX + 10 * scale, corrY + 24 * scale);
+    ctx.fillText(`${getCorrelationModeShortLabel(mode)}: ${Number.isFinite(corr?.value) ? corr!.value!.toFixed(3) : '—'}`, corrX + 10 * scale, corrY + 8 * scale);
+    ctx.fillText(`${getCorrelationModeBasisLabel(mode)} · ${Number.isFinite(corr?.count) ? corr!.count! : '—'} pairs`, corrX + 10 * scale, corrY + 24 * scale);
     ctx.restore();
 
     // Continuous color legend

@@ -1,6 +1,7 @@
 /** Shared type definitions for the EdaTime frontend. */
 
 import type { ChartGPUInstance, SeriesConfig } from '../libs/chartgpu/dist/index.js';
+import type { CorrelationMetric } from './utils/correlationModes.js';
 
 // ── API response types ─────────────────────────────────────────────────────
 
@@ -92,8 +93,7 @@ export interface ScatterPointsResponse {
 export interface CorrelationItem {
     column: string;
     count: number;
-    pearson: number | null;
-    spearman: number | null;
+    value: number | null;
 }
 
 /**
@@ -108,6 +108,7 @@ export interface CorrelationSuggestion {
 }
 
 export interface ScatterCorrelationsResponse {
+    mode: CorrelationMetric;
     base_column: string;
     threshold: number;
     numeric_columns: string[];
@@ -384,7 +385,7 @@ export interface ScatterState {
     colorLabels: unknown[] | null;
     colorMin: number | null;
     colorMax: number | null;
-    correlationsByColumn: Map<string, { pearson?: number | null; spearman?: number | null; column?: string }>;
+    correlationsByColumn: Map<string, { value?: number | null; count?: number; column?: string }>;
     suggestionThreshold: number;
     lastBinnedText: string;
     lastUpdateMs: number;

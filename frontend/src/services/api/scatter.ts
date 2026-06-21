@@ -1,4 +1,5 @@
 import type { ScatterFetchOptions, ScatterPointsResponse, ScatterCorrelationsResponse } from '../../types.js';
+import type { CorrelationMetric } from '../../utils/correlationModes.js';
 import {
     assertDatasetRequestScopeActive,
     getJson,
@@ -138,11 +139,13 @@ export async function fetchScatterPoints(
 export async function fetchScatterCorrelations(
     base: string | null,
     threshold = 0.7,
+    mode: CorrelationMetric = 'pearson_raw',
 ): Promise<ScatterCorrelationsResponse> {
     const params = new URLSearchParams({ threshold: String(threshold) });
     if (base !== null && base !== undefined && String(base).trim() !== '') {
         params.set('base', String(base));
     }
+    params.set('mode', mode);
     const url = `/api/scatter/correlations?${params.toString()}`;
     const data = await getJson<unknown>(url, 'Scatter correlations');
     assertScatterCorrelations(data);

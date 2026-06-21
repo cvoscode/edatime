@@ -222,14 +222,16 @@ export function applyScatterStateFromCache(resetView = true): void {
 /* ── Stats display ────────────────────────────────────── */
 
 export function setStats(partial: Record<string, string | number | null | undefined>): void {
-    const pearsonEl = getEl('scatter-pearson');
-    const spearmanEl = getEl('scatter-spearman');
+    const primaryEl = getEl('scatter-pearson');
+    const secondaryEl = getEl('scatter-spearman');
 
-    if (Object.prototype.hasOwnProperty.call(partial, 'pearson') && pearsonEl) {
-        pearsonEl.textContent = `Pearson: ${partial.pearson ?? '—'}`;
+    if (Object.prototype.hasOwnProperty.call(partial, 'correlationLabel') && primaryEl) {
+        const label = partial.correlationLabel ?? 'Correlation';
+        const value = partial.correlationValue ?? '—';
+        primaryEl.textContent = `${label}: ${value}`;
     }
-    if (Object.prototype.hasOwnProperty.call(partial, 'spearman') && spearmanEl) {
-        spearmanEl.textContent = `Spearman: ${partial.spearman ?? '—'}`;
+    if (Object.prototype.hasOwnProperty.call(partial, 'correlationContext') && secondaryEl) {
+        secondaryEl.textContent = String(partial.correlationContext ?? '');
     }
 }
 

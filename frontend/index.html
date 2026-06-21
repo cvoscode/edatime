@@ -806,9 +806,15 @@
             <div class="scatter-toolbar__fields">
               <label class="toolbar-field scatter-toolbar__field" for="heatmap-metric">
                 <span class="toolbar-field__label">Type</span>
+                <span id="heatmap-metric-info" class="toolbar-info-icon" tabindex="0"
+                  aria-label="Explain correlation metric choices" data-info-tip="">?</span>
                 <select id="heatmap-metric" class="modal-select" aria-label="Correlation metric">
-                  <option value="pearson" selected>Pearson</option>
-                  <option value="spearman">Spearman</option>
+                  <option value="pearson_raw" selected>Pearson · Raw aligned values</option>
+                  <option value="spearman_raw">Spearman · Raw aligned values</option>
+                  <option value="kendall_raw">Kendall tau · Raw aligned values</option>
+                  <option value="pearson_diff">Pearson · First differences</option>
+                  <option value="spearman_diff">Spearman · First differences</option>
+                  <option value="kendall_diff">Kendall tau · First differences</option>
                 </select>
               </label>
             </div>
@@ -954,8 +960,8 @@
                   <option value="bivci">BivCI</option>
                   <option value="lpcmci">LPCMCI</option>
                 </select>
-                <span class="causal-info-icon" tabindex="0"
-                  data-causal-tip="Causal discovery algorithm.&#10;• PCMCI: Two-step PC parent selection plus MCI testing. Reference: Runge et al., Sci Adv (2019).&#10;• PCMCI+: Adds contemporaneous link orientation. Reference: Runge, UAI (2020).&#10;• FullCI: Conditions on all lagged variables directly; no PC pre-selection.&#10;• BivCI: Bivariate screening against the target's own past; fastest but weakest adjustment.&#10;• LPCMCI: Extends PCMCI to latent confounding. Reference: Gerhardus and Runge, NeurIPS (2020).&#10;Controls disabled in the toolbar are ignored by the selected method.">ⓘ</span>
+                <span class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="Causal discovery algorithm.&#10;• PCMCI: Two-step PC parent selection plus MCI testing. Reference: Runge et al., Sci Adv (2019).&#10;• PCMCI+: Adds contemporaneous link orientation. Reference: Runge, UAI (2020).&#10;• FullCI: Conditions on all lagged variables directly; no PC pre-selection.&#10;• BivCI: Bivariate screening against the target's own past; fastest but weakest adjustment.&#10;• LPCMCI: Extends PCMCI to latent confounding. Reference: Gerhardus and Runge, NeurIPS (2020).&#10;Controls disabled in the toolbar are ignored by the selected method.">ⓘ</span>
               </div>
               <div class="scatter-toolbar__field">
                 <span class="scatter-toolbar__field-label">Test</span>
@@ -966,8 +972,8 @@
                   <option value="gsquared">G-squared</option>
                   <option value="cmi_symb">CMI-Symb</option>
                 </select>
-                <span class="causal-info-icon" tabindex="0"
-                  data-causal-tip="Conditional independence test used inside the Tigramite-style causal engine.&#10;• ParCorr: Linear partial correlation; best when relations are near-Gaussian and linear.&#10;• RobustParCorr: Rank/non-paranormal style preprocessing plus ParCorr.&#10;• CMI-KNN: Nonlinear conditional mutual information. Reference: Runge, AISTATS (2018).&#10;• G-squared: Discrete/categorical likelihood-ratio test.&#10;• CMI-Symb: Symbolic/discretized mutual information test.&#10;Backend causal discovery is still numeric-data oriented even if non-numeric columns are shown as manual graph nodes.">ⓘ</span>
+                <span class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="Conditional independence test used inside the Tigramite-style causal engine.&#10;• ParCorr: Linear partial correlation; best when relations are near-Gaussian and linear.&#10;• RobustParCorr: Rank/non-paranormal style preprocessing plus ParCorr.&#10;• CMI-KNN: Nonlinear conditional mutual information. Reference: Runge, AISTATS (2018).&#10;• G-squared: Discrete/categorical likelihood-ratio test.&#10;• CMI-Symb: Symbolic/discretized mutual information test.&#10;Backend causal discovery is still numeric-data oriented even if non-numeric columns are shown as manual graph nodes.">ⓘ</span>
               </div>
             </div>
           </div>
@@ -979,29 +985,29 @@
                 <span class="scatter-toolbar__field-label">τ max</span>
                 <input id="causal-tau-max" type="number" min="1" max="10" value="3" class="modal-input"
                   aria-label="Maximum time lag (tau max)" name="causal-tau-max">
-                <span class="causal-info-icon" tabindex="0"
-                  data-causal-tip="Maximum time lag τ to test (1–10). Higher means more lagged relationships are evaluated, but runtime grows quickly.">ⓘ</span>
+                <span class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="Maximum time lag τ to test (1–10). Higher means more lagged relationships are evaluated, but runtime grows quickly.">ⓘ</span>
               </div>
               <div class="scatter-toolbar__field">
                 <span class="scatter-toolbar__field-label">α</span>
                 <input id="causal-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.05"
                   class="modal-input" aria-label="Significance level (alpha)" name="causal-alpha">
-                <span class="causal-info-icon" tabindex="0"
-                  data-causal-tip="Final significance threshold α. Links with p-values above α are removed from the final result.">ⓘ</span>
+                <span class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="Final significance threshold α. Links with p-values above α are removed from the final result.">ⓘ</span>
               </div>
               <div class="scatter-toolbar__field">
                 <span class="scatter-toolbar__field-label">PC α</span>
                 <input id="causal-pc-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.2"
                   class="modal-input" aria-label="PC stage significance level" name="causal-pc-alpha">
-                <span class="causal-info-icon" tabindex="0"
-                  data-causal-tip="Significance threshold for the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI. Disabled for FullCI and BivCI because those methods do not run the PC step.">ⓘ</span>
+                <span class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="Significance threshold for the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI. Disabled for FullCI and BivCI because those methods do not run the PC step.">ⓘ</span>
               </div>
               <div class="scatter-toolbar__field">
                 <span class="scatter-toolbar__field-label">Max conds</span>
                 <input id="causal-max-conds" type="number" min="1" max="20" value="" placeholder="auto"
                   class="modal-input" aria-label="Maximum conditioning set size" name="causal-max-conds">
-                <span class="causal-info-icon" tabindex="0"
-                  data-causal-tip="Maximum conditioning-set size used in the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI only. &quot;auto&quot; lets the backend decide.">ⓘ</span>
+                <span class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="Maximum conditioning-set size used in the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI only. &quot;auto&quot; lets the backend decide.">ⓘ</span>
               </div>
               <div class="scatter-toolbar__field">
                 <span class="scatter-toolbar__field-label">FDR</span>
@@ -1009,8 +1015,8 @@
                   <option value="none" selected>None</option>
                   <option value="fdr_bh">Benjamini-Hochberg</option>
                 </select>
-                <span class="causal-info-icon" tabindex="0"
-                  data-causal-tip="False Discovery Rate correction.&#10;• None: Raw p-values.&#10;• Benjamini-Hochberg: Controls FDR across all tested links.">ⓘ</span>
+                <span class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="False Discovery Rate correction.&#10;• None: Raw p-values.&#10;• Benjamini-Hochberg: Controls FDR across all tested links.">ⓘ</span>
               </div>
             </div>
           </div>
@@ -2122,13 +2128,17 @@
             <div class="settings-section">
               <div class="settings-section-title">Correlation</div>
               <div class="settings-row">
-                <label class="settings-label" for="settings-correlation">Default metric</label>
+                <label class="settings-label" for="settings-correlation">Default correlation mode</label>
                 <div class="settings-control">
                   <select id="settings-correlation" class="modal-select">
-                    <option value="pearson">Pearson</option>
-                    <option value="spearman">Spearman</option>
+                    <option value="pearson_raw">Pearson · Raw aligned values</option>
+                    <option value="spearman_raw">Spearman · Raw aligned values</option>
+                    <option value="kendall_raw">Kendall tau · Raw aligned values</option>
+                    <option value="pearson_diff">Pearson · First differences</option>
+                    <option value="spearman_diff">Spearman · First differences</option>
+                    <option value="kendall_diff">Kendall tau · First differences</option>
                   </select>
-                  <div class="settings-hint">Used for scatter suggestions and heatmap</div>
+                  <div class="settings-hint">Used for scatter suggestions, scatter readouts, and the heatmap.</div>
                 </div>
               </div>
             </div>

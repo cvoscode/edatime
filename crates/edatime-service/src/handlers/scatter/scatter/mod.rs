@@ -68,8 +68,7 @@ pub struct ScatterPointsResponse {
 pub struct CorrelationItem {
     pub column: String,
     pub count: usize,
-    pub pearson: Option<f64>,
-    pub spearman: Option<f64>,
+    pub value: Option<f64>,
 }
 
 /// Suggestion item with explicit x/y column names and correlation value.
