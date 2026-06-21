@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 use rayon::prelude::*;
 
-use super::data::{CausalDataFrame, VarLag};
+use super::data::{CausalDataFrame, VarLag, VarLagSeenSet};
 use super::graph::{CausalGraph, CausalResult, LinkType};
 use super::independence::CondIndTest;
 use super::pc;
@@ -164,12 +164,13 @@ impl<'a> Lpcmci<'a> {
                 let y = vec![(j, 0i32)];
 
                 let mut z: Vec<VarLag> = Vec::new();
+                let mut seen = VarLagSeenSet::new(self.df.n_vars, config.tau_max);
 
                 // Parents of j
                 if let Some(parents_j) = all_parents.get(&j) {
                     let limit = config.max_conds_py.unwrap_or(parents_j.len());
                     for &p in parents_j.iter().take(limit) {
-                        if p != (i, neg_tau) {
+                        if p != (i, neg_tau) && seen.insert(p) {
                             z.push(p);
                         }
                     }
@@ -183,8 +184,8 @@ impl<'a> Lpcmci<'a> {
                             let shifted = (k, tau_k + neg_tau);
                             let abs_lag = (-shifted.1) as usize;
                             if abs_lag <= 2 * config.tau_max
-                                && !z.contains(&shifted)
                                 && shifted != (i, neg_tau)
+                                && seen.insert(shifted)
                             {
                                 z.push(shifted);
                             }
@@ -257,11 +258,12 @@ impl<'a> Lpcmci<'a> {
 
             // Conditions: parents(j) + parents(i) + other contemporaneous neighbors
             let mut z: Vec<VarLag> = Vec::new();
+            let mut seen = VarLagSeenSet::new(self.df.n_vars, tau_max);
 
             // Lagged parents of j
             if let Some(parents_j) = all_parents.get(&j) {
                 for &p in parents_j {
-                    if p != (i, 0) && !z.contains(&p) {
+                    if p != (i, 0) && seen.insert(p) {
                         z.push(p);
                     }
                 }
@@ -270,7 +272,7 @@ impl<'a> Lpcmci<'a> {
             // Lagged parents of i
             if let Some(parents_i) = all_parents.get(&i) {
                 for &p in parents_i {
-                    if p != (j, 0) && !z.contains(&p) {
+                    if p != (j, 0) && seen.insert(p) {
                         z.push(p);
                     }
                 }
@@ -280,7 +282,7 @@ impl<'a> Lpcmci<'a> {
             for k in 0..n {
                 if k == i && k != j && graph.get_link(k, j, 0).is_active() {
                     let vl = (k, 0i32);
-                    if !z.contains(&vl) {
+                    if seen.insert(vl) {
                         z.push(vl);
                     }
                 }

@@ -11,7 +11,7 @@
 use rayon::prelude::*;
 use std::collections::HashMap;
 
-use super::data::{CausalDataFrame, VarLag};
+use super::data::{CausalDataFrame, VarLag, VarLagSeenSet};
 use super::graph::{CausalGraph, CausalResult};
 use super::independence::CondIndTest;
 use super::pc;
@@ -239,12 +239,13 @@ impl<'a> Pcmci<'a> {
 
         // Z = parents(j) excluding (i, -τ), plus shifted parents(i)
         let mut z: Vec<VarLag> = Vec::new();
+        let mut seen = VarLagSeenSet::new(self.df.n_vars, config.tau_max);
 
         // Add parents of j (up to max_conds_py), excluding (i, -τ)
         if let Some(parents_j) = all_parents.get(&j) {
             let limit = config.max_conds_py.unwrap_or(parents_j.len());
             for &p in parents_j.iter().take(limit) {
-                if p != (i, neg_tau) {
+                if p != (i, neg_tau) && seen.insert(p) {
                     z.push(p);
                 }
             }
@@ -257,7 +258,9 @@ impl<'a> Pcmci<'a> {
                 let shifted = (k, tau_k + neg_tau);
                 // Only include if the shifted lag is within bounds
                 let abs_lag = (-shifted.1) as usize;
-                if abs_lag <= 2 * config.tau_max && !z.contains(&shifted) && shifted != (i, neg_tau)
+                if abs_lag <= 2 * config.tau_max
+                    && shifted != (i, neg_tau)
+                    && seen.insert(shifted)
                 {
                     z.push(shifted);
                 }

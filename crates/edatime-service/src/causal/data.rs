@@ -21,6 +21,8 @@ pub enum XyzGroup {
 pub struct CausalDataFrame {
     /// Column-major data: `data[col][row]` — each inner vec is a column of length T.
     data: Vec<Vec<f64>>,
+    /// Precomputed finite-value mask for each column to speed causal extraction.
+    finite: Vec<Vec<bool>>,
     /// Variable names.
     pub var_names: Vec<String>,
     /// Number of variables (columns).
@@ -35,8 +37,13 @@ impl CausalDataFrame {
         let n_vars = columns.len();
         let t_len = columns.first().map(|c| c.len()).unwrap_or(0);
         debug_assert!(columns.iter().all(|c| c.len() == t_len));
+        let finite = columns
+            .iter()
+            .map(|column| column.iter().map(|value| value.is_finite()).collect())
+            .collect();
         Self {
             data: columns,
+            finite,
             var_names,
             n_vars,
             t_len,
@@ -77,16 +84,19 @@ impl CausalDataFrame {
         tau_max: usize,
     ) -> (Array2<f64>, Vec<XyzGroup>) {
         // Collect all (var, lag) with their group label
-        let mut entries: Vec<(VarLag, XyzGroup)> = Vec::new();
+        let mut entries: Vec<(VarLag, XyzGroup)> = Vec::with_capacity(x.len() + y.len() + z.len());
+        let mut seen = VarLagSeenSet::new(self.n_vars, tau_max);
         for &vl in x {
             entries.push((vl, XyzGroup::X));
+            let _ = seen.insert(vl);
         }
         for &vl in y {
             entries.push((vl, XyzGroup::Y));
+            let _ = seen.insert(vl);
         }
         for &vl in z {
-            // Deduplicate: skip Z entries that are already in X or Y
-            if !x.contains(&vl) && !y.contains(&vl) {
+            // Deduplicate: skip Z entries that are already in X or Y.
+            if seen.insert(vl) {
                 entries.push((vl, XyzGroup::Z));
             }
         }
@@ -97,33 +107,44 @@ impl CausalDataFrame {
         let start = max_lag;
         let n_samples = self.t_len.saturating_sub(start);
 
-        let mut array = Array2::<f64>::zeros((dim, n_samples));
         let mut xyz = Vec::with_capacity(dim);
+        let mut valid = vec![true; n_samples];
+        let mut valid_count = n_samples;
 
-        for (d, &((var, lag), group)) in entries.iter().enumerate() {
+        for &((var, lag), group) in &entries {
             xyz.push(group);
-            for s in 0..n_samples {
-                let t = (start as i32 + s as i32 + lag) as usize;
-                array[[d, s]] = self.data[var][t];
-            }
-        }
-
-        // Remove samples that contain NaN in any dimension
-        let valid: Vec<usize> = (0..n_samples)
-            .filter(|&s| (0..dim).all(|d| array[[d, s]].is_finite()))
-            .collect();
-
-        if valid.len() < n_samples {
-            let mut clean = Array2::<f64>::zeros((dim, valid.len()));
-            for (new_s, &old_s) in valid.iter().enumerate() {
-                for d in 0..dim {
-                    clean[[d, new_s]] = array[[d, old_s]];
+            let offset = (start as i32 + lag) as usize;
+            let finite = &self.finite[var];
+            for (sample_idx, is_valid) in valid.iter_mut().enumerate() {
+                if *is_valid && !finite[offset + sample_idx] {
+                    *is_valid = false;
+                    valid_count -= 1;
                 }
             }
-            (clean, xyz)
-        } else {
-            (array, xyz)
         }
+
+        let mut array = Array2::<f64>::zeros((dim, valid_count));
+        if valid_count == n_samples {
+            for (d, &((var, lag), _group)) in entries.iter().enumerate() {
+                let offset = (start as i32 + lag) as usize;
+                for sample_idx in 0..n_samples {
+                    array[[d, sample_idx]] = self.data[var][offset + sample_idx];
+                }
+            }
+        } else {
+            for (d, &((var, lag), _group)) in entries.iter().enumerate() {
+                let offset = (start as i32 + lag) as usize;
+                let mut out_idx = 0usize;
+                for (sample_idx, keep) in valid.iter().enumerate() {
+                    if *keep {
+                        array[[d, out_idx]] = self.data[var][offset + sample_idx];
+                        out_idx += 1;
+                    }
+                }
+            }
+        }
+
+        (array, xyz)
     }
 
     /// Standardize each row (variable) of an array to zero mean and unit std.
@@ -195,6 +216,48 @@ pub struct TestArray {
     pub xyz: Vec<XyzGroup>,
     /// Number of usable samples
     pub n_samples: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct VarLagSeenSet {
+    n_vars: usize,
+    lag_offset: i32,
+    slots_per_var: usize,
+    seen: Vec<bool>,
+}
+
+impl VarLagSeenSet {
+    pub fn new(n_vars: usize, tau_max: usize) -> Self {
+        let slots_per_var = 2 * tau_max + 1;
+        Self {
+            n_vars,
+            lag_offset: (2 * tau_max) as i32,
+            slots_per_var,
+            seen: vec![false; n_vars * slots_per_var],
+        }
+    }
+
+    pub fn insert(&mut self, value: VarLag) -> bool {
+        let Some(index) = self.index(value) else {
+            return false;
+        };
+        if self.seen[index] {
+            return false;
+        }
+        self.seen[index] = true;
+        true
+    }
+
+    fn index(&self, (var, lag): VarLag) -> Option<usize> {
+        if var >= self.n_vars {
+            return None;
+        }
+        let slot = lag + self.lag_offset;
+        if slot < 0 || (slot as usize) >= self.slots_per_var {
+            return None;
+        }
+        Some(var * self.slots_per_var + slot as usize)
+    }
 }
 
 impl TestArray {

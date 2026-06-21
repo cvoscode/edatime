@@ -421,6 +421,46 @@ pub struct CausalGraphRequest {
     pub sig_samples: Option<usize>,
 }
 
+const MAX_CAUSAL_TAU_MAX: usize = 128;
+const MAX_CAUSAL_WORK_UNITS: u128 = 25_000_000;
+
+fn parse_causal_tau_max(requested: Option<usize>) -> Result<usize, AppError> {
+    let tau_max = requested.unwrap_or(3);
+    if !(1..=MAX_CAUSAL_TAU_MAX).contains(&tau_max) {
+        return Err(AppError::bad_request(format!(
+            "tau_max must be between 1 and {MAX_CAUSAL_TAU_MAX}"
+        )));
+    }
+    Ok(tau_max)
+}
+
+fn estimate_causal_work_units(
+    n_cols: usize,
+    tau_max: usize,
+    max_points: usize,
+    method: &str,
+    test: crate::causal::IndependenceTestKind,
+) -> u128 {
+    let lag_terms = (tau_max as u128) + 1;
+    let base = (n_cols as u128) * (n_cols as u128) * lag_terms * (max_points as u128);
+
+    let method_factor = match method {
+        "bivci" => 6u128,
+        "pcmciplus" => 12u128,
+        "lpcmci" => 15u128,
+        _ => 10u128,
+    };
+    let test_factor = match test {
+        crate::causal::IndependenceTestKind::ParCorr => 10u128,
+        crate::causal::IndependenceTestKind::RobustParCorr => 12u128,
+        crate::causal::IndependenceTestKind::Gsquared => 18u128,
+        crate::causal::IndependenceTestKind::CmiSymb => 18u128,
+        crate::causal::IndependenceTestKind::CmiKnn => 60u128,
+    };
+
+    base.saturating_mul(method_factor).saturating_mul(test_factor) / 100
+}
+
 #[tracing::instrument(skip(state))]
 pub async fn post_causal_graph(
     State(state): State<AppState>,
@@ -439,7 +479,7 @@ pub async fn post_causal_graph(
     }
     let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::io(e.to_string()))?;
 
-    let tau_max = params.tau_max.unwrap_or(3).clamp(1, 10);
+    let tau_max = parse_causal_tau_max(params.tau_max)?;
     let pc_alpha = params.pc_alpha.unwrap_or(0.2).clamp(0.001, 0.5);
     let alpha = params.alpha.unwrap_or(0.05).clamp(0.001, 0.5);
     let method = params.method.as_deref().unwrap_or("pcmci").to_string();
@@ -457,6 +497,19 @@ pub async fn post_causal_graph(
         Some("cmi_symb") => crate::causal::IndependenceTestKind::CmiSymb,
         _ => crate::causal::IndependenceTestKind::ParCorr,
     };
+
+    let work_units = estimate_causal_work_units(
+        value_cols.len(),
+        tau_max,
+        max_pts.min(df.height()),
+        &method,
+        test_kind,
+    );
+    if work_units > MAX_CAUSAL_WORK_UNITS {
+        return Err(AppError::bad_request(format!(
+            "causal request is too large for stable runtime at tau_max={tau_max}; reduce columns, tau max, or max points"
+        )));
+    }
 
     let n_preliminary_iterations = params.n_preliminary_iterations.unwrap_or(1).clamp(0, 5);
     let knn = params.knn.unwrap_or(10).clamp(1, 100);
@@ -524,7 +577,7 @@ pub async fn post_causal_graph(
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::{CausalGraphRequest, post_causal_graph};
-    use axum::{Json, extract::State, response::IntoResponse};
+    use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
     use edatime_core::config::AppConfig;
     use edatime_store::state::AppState;
     use polars::prelude::{DataFrame, NamedFrom, Series};
@@ -574,5 +627,99 @@ mod tests {
         assert!(json.get("columns").is_some());
         assert!(json.get("tau_max").is_some());
         assert!(json.get("links").is_some());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn causal_route_accepts_tau_max_128_without_clamping() {
+        let df = DataFrame::new(
+            512,
+            vec![
+                Series::new("x".into(), (0..512).map(|i| i as f64).collect::<Vec<_>>()).into(),
+                Series::new("y".into(), (0..512).map(|i| (i as f64) * 0.5).collect::<Vec<_>>()).into(),
+            ],
+        )
+        .expect("test dataframe should build");
+        let state = AppState::new(df, AppConfig::default());
+
+        let response = post_causal_graph(
+            State(state),
+            Json(CausalGraphRequest {
+                columns: Some("x,y".to_string()),
+                tau_max: Some(128),
+                pc_alpha: Some(0.2),
+                alpha: Some(0.05),
+                method: Some("pcmci".to_string()),
+                test: Some("par_corr".to_string()),
+                max_points: Some(512),
+                max_conds_dim: Some(1),
+                fdr_method: Some("none".to_string()),
+                n_preliminary_iterations: Some(1),
+                knn: None,
+                sig_samples: None,
+            }),
+        )
+        .await
+        .expect("causal route should succeed")
+        .into_response();
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("response body should read");
+        let json: Value = serde_json::from_slice(&body).expect("response should be json");
+
+        assert_eq!(json.get("tau_max").and_then(Value::as_u64), Some(128));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn causal_route_rejects_excessive_high_lag_work() {
+        let row_count = 5_000usize;
+        let columns: Vec<_> = (0..8)
+            .map(|idx| {
+                Series::new(
+                    format!("c{idx}").into(),
+                    (0..row_count)
+                        .map(|row| row as f64 * (idx as f64 + 1.0))
+                        .collect::<Vec<_>>(),
+                )
+                .into()
+            })
+            .collect();
+        let df = DataFrame::new(row_count, columns).expect("test dataframe should build");
+        let state = AppState::new(df, AppConfig::default());
+
+        let err = post_causal_graph(
+            State(state),
+            Json(CausalGraphRequest {
+                columns: Some("c0,c1,c2,c3,c4,c5,c6,c7".to_string()),
+                tau_max: Some(128),
+                pc_alpha: Some(0.2),
+                alpha: Some(0.05),
+                method: Some("pcmci".to_string()),
+                test: Some("par_corr".to_string()),
+                max_points: Some(5_000),
+                max_conds_dim: Some(1),
+                fdr_method: Some("none".to_string()),
+                n_preliminary_iterations: Some(1),
+                knn: None,
+                sig_samples: None,
+            }),
+        )
+        .await
+        .err()
+        .expect("oversized causal request should be rejected");
+        let response = err.into_response();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("response body should read");
+        let json: Value = serde_json::from_slice(&body).expect("response should be json");
+        assert!(
+            json["message"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("causal request is too large"),
+            "unexpected error body: {json}"
+        );
     }
 }

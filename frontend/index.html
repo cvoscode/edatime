@@ -983,10 +983,10 @@
             <div class="scatter-toolbar__fields">
               <div class="scatter-toolbar__field">
                 <span class="scatter-toolbar__field-label">τ max</span>
-                <input id="causal-tau-max" type="number" min="1" max="10" value="3" class="modal-input"
+                <input id="causal-tau-max" type="number" min="1" max="128" value="3" class="modal-input"
                   aria-label="Maximum time lag (tau max)" name="causal-tau-max">
                 <span class="toolbar-info-icon" tabindex="0"
-                  data-info-tip="Maximum time lag τ to test (1–10). Higher means more lagged relationships are evaluated, but runtime grows quickly.">ⓘ</span>
+                  data-info-tip="Maximum time lag τ to test (1–128). Higher means more lagged relationships are evaluated, but runtime grows quickly and large requests may be rejected.">ⓘ</span>
               </div>
               <div class="scatter-toolbar__field">
                 <span class="scatter-toolbar__field-label">α</span>
@@ -2163,7 +2163,7 @@
               <div class="settings-row">
                 <label class="settings-label" for="settings-tau-max">Default tau max</label>
                 <div class="settings-control">
-                  <input id="settings-tau-max" type="number" class="modal-input" min="1" max="10" value="5"
+                  <input id="settings-tau-max" type="number" class="modal-input" min="1" max="128" value="5"
                     style="width:80px;">
                   <div class="settings-hint">Maximum time lag to consider</div>
                 </div>

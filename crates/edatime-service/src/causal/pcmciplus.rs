@@ -12,7 +12,7 @@
 use std::collections::HashMap;
 use rayon::prelude::*;
 
-use super::data::{CausalDataFrame, VarLag};
+use super::data::{CausalDataFrame, VarLag, VarLagSeenSet};
 use super::graph::{CausalGraph, CausalResult, LinkType};
 use super::independence::CondIndTest;
 use super::pc;
@@ -111,17 +111,16 @@ impl<'a> PcmciPlus<'a> {
             // adjacencies discovered so far (for iterative refinement we use
             // lagged parents only in this initial skeleton pass)
             let mut z: Vec<VarLag> = Vec::new();
+            let mut seen = VarLagSeenSet::new(self.df.n_vars, config.tau_max);
 
             // Parents of j
             if let Some(parents_j) = all_parents.get(&j) {
                 let limit = config.max_conds_py.unwrap_or(parents_j.len());
-                z.extend(
-                    parents_j
-                        .iter()
-                        .take(limit)
-                        .filter(|&&p| p != (i, neg_tau))
-                        .copied(),
-                );
+                for &parent in parents_j.iter().take(limit) {
+                    if parent != (i, neg_tau) && seen.insert(parent) {
+                        z.push(parent);
+                    }
+                }
             }
 
             // Shifted parents of i
@@ -130,7 +129,10 @@ impl<'a> PcmciPlus<'a> {
                 for &(k, tau_k) in parents_i.iter().take(limit) {
                     let shifted = (k, tau_k + neg_tau);
                     let abs_lag = (-shifted.1) as usize;
-                    if abs_lag <= 2 * config.tau_max && !z.contains(&shifted) && shifted != (i, neg_tau) {
+                    if abs_lag <= 2 * config.tau_max
+                        && shifted != (i, neg_tau)
+                        && seen.insert(shifted)
+                    {
                         z.push(shifted);
                     }
                 }

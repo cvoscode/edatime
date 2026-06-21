@@ -67,6 +67,27 @@ fn pcmci_bench(c: &mut Criterion) {
     group.finish();
 }
 
+fn pcmci_high_lag_bench(c: &mut Criterion) {
+    let mut group = c.benchmark_group("pcmci_parcorr_high_lag");
+    group.sample_size(10);
+    let df = lagged_chain_frame(5, 5_000);
+    let test = CondIndTest::new(IndependenceTestKind::ParCorr);
+    let engine = Pcmci::new(&df, &test);
+    let config = PcmciConfig {
+        tau_min: 1,
+        tau_max: 128,
+        pc_alpha: 0.2,
+        alpha_level: 0.05,
+        max_conds_dim: Some(2),
+        max_combinations: 1,
+        max_conds_py: Some(2),
+        max_conds_px: Some(2),
+        fdr_method: "none".to_string(),
+    };
+    group.bench_function("5v_5000s_tau128", |b| b.iter(|| engine.run(&config)));
+    group.finish();
+}
+
 fn pcmciplus_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("pcmciplus_parcorr");
     for &(n_vars, n_samples) in &[(5usize, 1_000usize), (10, 5_000), (20, 10_000)] {
@@ -141,5 +162,12 @@ fn lpcmci_smoke(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(causal_benches, pcmci_bench, pcmciplus_bench, cmi_knn_bench, lpcmci_smoke);
+criterion_group!(
+    causal_benches,
+    pcmci_bench,
+    pcmci_high_lag_bench,
+    pcmciplus_bench,
+    cmi_knn_bench,
+    lpcmci_smoke
+);
 criterion_main!(causal_benches);
