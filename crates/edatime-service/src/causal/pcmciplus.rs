@@ -320,3 +320,101 @@ impl<'a> PcmciPlus<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::independence::IndependenceTestKind;
+    use super::*;
+
+    #[test]
+    fn test_pcmciplus_orients_simple_contemporaneous_collider() {
+        let n = 1_200;
+        let mut x = vec![0.0f64; n];
+        let mut z = vec![0.0f64; n];
+        let mut y = vec![0.0f64; n];
+
+        let mut state = 11u64;
+        let mut next_rand = || -> f64 {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((state >> 33) as f64) / (u32::MAX as f64) - 0.5
+        };
+
+        for t in 0..n {
+            x[t] = next_rand();
+            z[t] = next_rand();
+            y[t] = 0.9 * x[t] - 0.8 * z[t] + 0.1 * next_rand();
+        }
+
+        let df = CausalDataFrame::new(vec![x, y, z], vec!["X".into(), "Y".into(), "Z".into()]);
+        let test = CondIndTest::new(IndependenceTestKind::ParCorr);
+        let engine = PcmciPlus::new(&df, &test);
+        let result = engine.run(&PcmciConfig {
+            tau_min: 0,
+            tau_max: 1,
+            pc_alpha: 0.05,
+            alpha_level: 0.01,
+            ..Default::default()
+        });
+
+        assert!(
+            result
+                .links
+                .iter()
+                .any(|l| l.source == "X" && l.target == "Y" && l.lag == 0 && l.link_type == "-->"),
+            "PCMCI+ should orient X --> Y: {:?}",
+            result.links
+        );
+        assert!(
+            result
+                .links
+                .iter()
+                .any(|l| l.source == "Z" && l.target == "Y" && l.lag == 0 && l.link_type == "-->"),
+            "PCMCI+ should orient Z --> Y: {:?}",
+            result.links
+        );
+    }
+
+    #[test]
+    fn test_pcmciplus_does_not_turn_chain_into_false_collider() {
+        let n = 1_200;
+        let mut x = vec![0.0f64; n];
+        let mut y = vec![0.0f64; n];
+        let mut z = vec![0.0f64; n];
+
+        let mut state = 23u64;
+        let mut next_rand = || -> f64 {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((state >> 33) as f64) / (u32::MAX as f64) - 0.5
+        };
+
+        for t in 0..n {
+            x[t] = next_rand();
+            y[t] = 0.9 * x[t] + 0.1 * next_rand();
+            z[t] = 0.9 * y[t] + 0.1 * next_rand();
+        }
+
+        let df = CausalDataFrame::new(vec![x, y, z], vec!["X".into(), "Y".into(), "Z".into()]);
+        let test = CondIndTest::new(IndependenceTestKind::ParCorr);
+        let engine = PcmciPlus::new(&df, &test);
+        let result = engine.run(&PcmciConfig {
+            tau_min: 0,
+            tau_max: 1,
+            pc_alpha: 0.05,
+            alpha_level: 0.01,
+            ..Default::default()
+        });
+
+        assert!(
+            !result
+                .links
+                .iter()
+                .any(|l| l.source == "Z" && l.target == "Y" && l.lag == 0 && l.link_type == "-->"),
+            "PCMCI+ should not orient Z --> Y for a contemporaneous chain: {:?}",
+            result.links
+        );
+    }
+}

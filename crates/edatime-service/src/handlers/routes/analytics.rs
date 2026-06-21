@@ -519,3 +519,60 @@ pub async fn post_causal_graph(
 
     Ok(Json(result))
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
+mod tests {
+    use super::{CausalGraphRequest, post_causal_graph};
+    use axum::{Json, extract::State, response::IntoResponse};
+    use edatime_core::config::AppConfig;
+    use edatime_store::state::AppState;
+    use polars::prelude::{DataFrame, NamedFrom, Series};
+    use serde_json::Value;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn causal_route_preserves_response_shape_for_pcmci() {
+        let df = DataFrame::new(
+            6,
+            vec![
+                Series::new("x".into(), [1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).into(),
+                Series::new("y".into(), [0.0_f64, 0.5, 1.0, 1.5, 2.0, 2.5]).into(),
+            ],
+        )
+        .expect("test dataframe should build");
+        let state = AppState::new(df, AppConfig::default());
+
+        let response = post_causal_graph(
+            State(state),
+            Json(CausalGraphRequest {
+                columns: Some("x,y".to_string()),
+                tau_max: Some(1),
+                pc_alpha: Some(0.2),
+                alpha: Some(0.05),
+                method: Some("pcmci".to_string()),
+                test: Some("par_corr".to_string()),
+                max_points: Some(100),
+                max_conds_dim: Some(1),
+                fdr_method: Some("none".to_string()),
+                n_preliminary_iterations: Some(1),
+                knn: None,
+                sig_samples: None,
+            }),
+        )
+        .await
+        .expect("causal route should succeed")
+        .into_response();
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("response body should read");
+        let json: Value = serde_json::from_slice(&body).expect("response should be json");
+
+        assert!(json.get("graph").is_some());
+        assert!(json.get("val_matrix").is_some());
+        assert!(json.get("p_matrix").is_some());
+        assert!(json.get("columns").is_some());
+        assert!(json.get("tau_max").is_some());
+        assert!(json.get("links").is_some());
+    }
+}

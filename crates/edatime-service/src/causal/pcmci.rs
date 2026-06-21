@@ -338,4 +338,60 @@ mod tests {
             result.links
         );
     }
+
+    #[test]
+    fn test_fullci_and_bivci_preserve_direct_chain_links() {
+        let n = 600;
+        let mut x = vec![0.0f64; n];
+        let mut y = vec![0.0f64; n];
+        let mut z = vec![0.0f64; n];
+
+        let mut state = 7u64;
+        let mut next_rand = || -> f64 {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((state >> 33) as f64) / (u32::MAX as f64) - 0.5
+        };
+
+        x[0] = next_rand();
+        y[0] = next_rand();
+        z[0] = next_rand();
+        for t in 1..n {
+            x[t] = 0.6 * x[t - 1] + 0.4 * next_rand();
+            y[t] = 0.5 * y[t - 1] + 0.7 * x[t - 1] + 0.3 * next_rand();
+            z[t] = 0.4 * z[t - 1] + 0.7 * y[t - 1] + 0.3 * next_rand();
+        }
+
+        let df = CausalDataFrame::new(vec![x, y, z], vec!["X".into(), "Y".into(), "Z".into()]);
+        let test = CondIndTest::new(IndependenceTestKind::ParCorr);
+        let pcmci = Pcmci::new(&df, &test);
+        let config = PcmciConfig {
+            tau_min: 1,
+            tau_max: 2,
+            pc_alpha: 0.2,
+            alpha_level: 0.05,
+            ..Default::default()
+        };
+
+        let fullci = pcmci.run_fullci(&config);
+        let bivci = pcmci.run_bivci(&config);
+
+        assert!(fullci
+            .links
+            .iter()
+            .any(|l| l.source == "X" && l.target == "Y" && l.lag == 1));
+        assert!(fullci
+            .links
+            .iter()
+            .any(|l| l.source == "Y" && l.target == "Z" && l.lag == 1));
+        assert!(bivci
+            .links
+            .iter()
+            .any(|l| l.source == "X" && l.target == "Y" && l.lag == 1));
+        assert!(bivci
+            .links
+            .iter()
+            .any(|l| l.source == "Y" && l.target == "Z" && l.lag == 1));
+    }
 }

@@ -26,3 +26,10 @@ ndarray = "0.16"
 statrs = "0.18"
 rand = { version = "0.8", features = ["std"] }
 rayon = "1.10"
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "causal"
+harness = false

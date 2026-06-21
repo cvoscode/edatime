@@ -125,6 +125,43 @@ pub fn extract_columns_f64_mean(
     Ok(result)
 }
 
+/// Extract multiple columns as `Vec<Vec<f64>>` with optional subsampling.
+/// Null/non-finite values are preserved as `NaN` so downstream callers can
+/// apply domain-specific filtering instead of implicit imputation.
+pub fn extract_columns_f64_preserve_missing(
+    df: &DataFrame,
+    col_names: &[String],
+    max_points: usize,
+) -> Result<Vec<Vec<f64>>, AppError> {
+    let height = df.height().min(max_points);
+    let step = if df.height() > max_points {
+        df.height() / max_points
+    } else {
+        1
+    };
+
+    let mut result: Vec<Vec<f64>> = Vec::with_capacity(col_names.len());
+    for col_name in col_names {
+        let series = df
+            .column(col_name)
+            .map(|c| c.as_materialized_series())
+            .map_err(|e| AppError::internal(format!("Missing '{}': {e}", col_name)))?;
+        let f64_series = series
+            .cast(&DataType::Float64)
+            .map_err(|e| AppError::internal(format!("Cast '{}': {e}", col_name)))?;
+        let raw: Vec<f64> = f64_series
+            .f64()
+            .map_err(|e| AppError::internal(format!("Read '{}': {e}", col_name)))?
+            .into_iter()
+            .step_by(step)
+            .take(height)
+            .map(|v| v.filter(|value| value.is_finite()).unwrap_or(f64::NAN))
+            .collect();
+        result.push(raw);
+    }
+    Ok(result)
+}
+
 /// Estimate sample rate in Hz from epoch-ms timestamps using median delta.
 pub fn estimate_sample_rate_hz(ts_ms: &[f64]) -> f64 {
     if ts_ms.len() < 2 {

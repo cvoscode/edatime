@@ -133,9 +133,8 @@ impl CondIndTest {
         let mut std_array = array.clone();
         standardize_array(&mut std_array);
 
-        // Get residuals after regressing out Z
-        let resid_x = get_residuals(&std_array, &x_idx, &z_idx);
-        let resid_y = get_residuals(&std_array, &y_idx, &z_idx);
+        // Reuse the same regression workspace for X and Y.
+        let (resid_x, resid_y) = get_residual_pair(&std_array, &x_idx, &y_idx, &z_idx);
 
         // Pearson correlation between residuals
         let val = pearson_1d(&resid_x, &resid_y);
@@ -190,6 +189,7 @@ impl CondIndTest {
     ) -> f64 {
         let n_samples = array.ncols();
         let is_y: Vec<bool> = xyz.iter().map(|g| *g == XyzGroup::Y).collect();
+        let dims = CmiKnnDims::new(array.nrows(), xyz);
 
         // Generate all permutations first (for deterministic seeds)
         let seeds: Vec<u64> = (0..self.sig_samples).map(|_| rng.next_u64()).collect();
@@ -204,7 +204,7 @@ impl CondIndTest {
                 let mut perm: Vec<usize> = (0..n_samples).collect();
                 perm.shuffle(&mut local_rng);
 
-                let null_val = cmi_knn_value_permuted(array, xyz, knn, Some(&perm), &is_y);
+                let null_val = cmi_knn_value_permuted(array, knn, Some(&perm), &is_y, &dims);
                 if null_val.abs() >= observed_val.abs() {
                     1
                 } else {
@@ -636,22 +636,24 @@ fn standardize_array(array: &mut Array2<f64>) {
     }
 }
 
-/// OLS regression residuals: regress `target_rows` on `cond_rows`, return residual vector.
-///
-/// If `cond_rows` is empty, returns the mean-centered target directly.
-/// For multiple target rows, returns the concatenated residual (for parcorr we use
-/// the first X and first Y only).
-fn get_residuals(array: &Array2<f64>, target_rows: &[usize], cond_rows: &[usize]) -> Array1<f64> {
+/// OLS regression residuals for the first X and Y rows, sharing one Z-factorization.
+fn get_residual_pair(
+    array: &Array2<f64>,
+    x_rows: &[usize],
+    y_rows: &[usize],
+    cond_rows: &[usize],
+) -> (Array1<f64>, Array1<f64>) {
     let n = array.ncols();
-    if target_rows.is_empty() {
-        return Array1::zeros(n);
+    if x_rows.is_empty() || y_rows.is_empty() {
+        return (Array1::zeros(n), Array1::zeros(n));
     }
 
+    let x = array.row(x_rows[0]).to_owned();
     // Use first target (parcorr tests one X vs one Y)
-    let y = array.row(target_rows[0]).to_owned();
+    let y = array.row(y_rows[0]).to_owned();
 
     if cond_rows.is_empty() {
-        return y;
+        return (x, y);
     }
 
     // Build Z matrix: (n_samples, n_conds)
@@ -663,64 +665,67 @@ fn get_residuals(array: &Array2<f64>, target_rows: &[usize], cond_rows: &[usize]
         }
     }
 
-    // OLS: β = (Z^T Z)^{-1} Z^T y
-    // Use normal equations with manual Cholesky-like solve for small dimensions
-    ols_residual(&z, &y)
+    match RegressionWorkspace::from_design(&z) {
+        Some(workspace) => (
+            workspace.residuals(&z, &x),
+            workspace.residuals(&z, &y),
+        ),
+        None => (x, y),
+    }
 }
 
-/// Solve OLS and return residuals: y - Z * (Z^T Z)^{-1} Z^T y.
-///
-/// Uses direct solve for small conditioning sets (typical: 0-20 variables).
-fn ols_residual(z: &Array2<f64>, y: &Array1<f64>) -> Array1<f64> {
-    let n = z.nrows();
-    let p = z.ncols();
+struct RegressionWorkspace {
+    chol: Array2<f64>,
+}
 
-    if p == 0 || n == 0 {
-        return y.clone();
-    }
-
-    // Z^T Z: (p, p)
-    let mut zt_z = Array2::<f64>::zeros((p, p));
-    for i in 0..p {
-        for j in i..p {
-            let sum: f64 = (0..n).map(|s| z[[s, i]] * z[[s, j]]).sum();
-            zt_z[[i, j]] = sum;
-            zt_z[[j, i]] = sum;
+impl RegressionWorkspace {
+    fn from_design(z: &Array2<f64>) -> Option<Self> {
+        let n = z.nrows();
+        let p = z.ncols();
+        if p == 0 || n == 0 {
+            return None;
         }
-    }
 
-    // Z^T y: (p,)
-    let mut zt_y = Array1::<f64>::zeros(p);
-    for i in 0..p {
-        zt_y[i] = (0..n).map(|s| z[[s, i]] * y[s]).sum();
-    }
-
-    // Solve (Z^T Z) β = Z^T y via Cholesky
-    match cholesky_solve(&zt_z, &zt_y) {
-        Some(beta) => {
-            // residual = y - Z β
-            let mut resid = y.clone();
-            for s in 0..n {
-                let mut pred = 0.0;
-                for j in 0..p {
-                    pred += z[[s, j]] * beta[j];
-                }
-                resid[s] -= pred;
+        let mut zt_z = Array2::<f64>::zeros((p, p));
+        for i in 0..p {
+            for j in i..p {
+                let sum: f64 = (0..n).map(|s| z[[s, i]] * z[[s, j]]).sum();
+                zt_z[[i, j]] = sum;
+                zt_z[[j, i]] = sum;
             }
-            resid
         }
-        None => {
-            // Singular — fall back to returning y
-            y.clone()
+
+        cholesky_decompose(&zt_z).map(|chol| Self { chol })
+    }
+
+    fn residuals(&self, z: &Array2<f64>, target: &Array1<f64>) -> Array1<f64> {
+        let n = z.nrows();
+        let p = z.ncols();
+        let mut zt_target = Array1::<f64>::zeros(p);
+        for i in 0..p {
+            zt_target[i] = (0..n).map(|s| z[[s, i]] * target[s]).sum();
+        }
+
+        match cholesky_solve_with_factor(&self.chol, &zt_target) {
+            Some(beta) => {
+                let mut resid = target.clone();
+                for s in 0..n {
+                    let mut pred = 0.0;
+                    for j in 0..p {
+                        pred += z[[s, j]] * beta[j];
+                    }
+                    resid[s] -= pred;
+                }
+                resid
+            }
+            None => target.clone(),
         }
     }
 }
 
-/// Cholesky decomposition and forward/back substitution for Ax = b.
-/// Returns None if not positive definite (singular conditioning set).
-fn cholesky_solve(a: &Array2<f64>, b: &Array1<f64>) -> Option<Array1<f64>> {
+/// Cholesky decomposition for a symmetric positive-definite matrix.
+fn cholesky_decompose(a: &Array2<f64>) -> Option<Array2<f64>> {
     let n = a.nrows();
-    // L: lower triangular
     let mut l = Array2::<f64>::zeros((n, n));
 
     for i in 0..n {
@@ -729,7 +734,7 @@ fn cholesky_solve(a: &Array2<f64>, b: &Array1<f64>) -> Option<Array1<f64>> {
             if i == j {
                 let diag = a[[i, i]] - sum;
                 if diag <= 1e-14 {
-                    return None; // Not positive definite
+                    return None;
                 }
                 l[[i, j]] = diag.sqrt();
             } else {
@@ -738,14 +743,18 @@ fn cholesky_solve(a: &Array2<f64>, b: &Array1<f64>) -> Option<Array1<f64>> {
         }
     }
 
-    // Forward substitution: L y = b
+    Some(l)
+}
+
+/// Forward/back substitution for `L L^T x = b`.
+fn cholesky_solve_with_factor(l: &Array2<f64>, b: &Array1<f64>) -> Option<Array1<f64>> {
+    let n = l.nrows();
     let mut y = Array1::<f64>::zeros(n);
     for i in 0..n {
         let sum: f64 = (0..i).map(|j| l[[i, j]] * y[j]).sum();
         y[i] = (b[i] - sum) / l[[i, i]];
     }
 
-    // Back substitution: L^T x = y
     let mut x = Array1::<f64>::zeros(n);
     for i in (0..n).rev() {
         let sum: f64 = ((i + 1)..n).map(|j| l[[j, i]] * x[j]).sum();
@@ -821,58 +830,76 @@ fn add_noise(array: &mut Array2<f64>, rng: &mut StdRng, scale: f64) {
 /// k-th neighbor distance in the joint space projected onto subspace S.
 fn cmi_knn_value(array: &Array2<f64>, xyz: &[XyzGroup], knn: usize) -> f64 {
     let is_y: Vec<bool> = xyz.iter().map(|g| *g == XyzGroup::Y).collect();
-    cmi_knn_value_permuted(array, xyz, knn, None, &is_y)
+    let dims = CmiKnnDims::new(array.nrows(), xyz);
+    cmi_knn_value_permuted(array, knn, None, &is_y, &dims)
+}
+
+struct CmiKnnDims {
+    xz_dims: Vec<usize>,
+    yz_dims: Vec<usize>,
+    z_idx: Vec<usize>,
+    all_dims: Vec<usize>,
+    has_z: bool,
+}
+
+impl CmiKnnDims {
+    fn new(n_rows: usize, xyz: &[XyzGroup]) -> Self {
+        let xz_dims: Vec<usize> = xyz
+            .iter()
+            .enumerate()
+            .filter(|(_, g)| **g == XyzGroup::X || **g == XyzGroup::Z)
+            .map(|(i, _)| i)
+            .collect();
+        let yz_dims: Vec<usize> = xyz
+            .iter()
+            .enumerate()
+            .filter(|(_, g)| **g == XyzGroup::Y || **g == XyzGroup::Z)
+            .map(|(i, _)| i)
+            .collect();
+        let z_idx: Vec<usize> = xyz
+            .iter()
+            .enumerate()
+            .filter(|(_, g)| **g == XyzGroup::Z)
+            .map(|(i, _)| i)
+            .collect();
+
+        Self {
+            xz_dims,
+            yz_dims,
+            has_z: !z_idx.is_empty(),
+            z_idx,
+            all_dims: (0..n_rows).collect(),
+        }
+    }
 }
 
 fn cmi_knn_value_permuted(
     array: &Array2<f64>,
-    xyz: &[XyzGroup],
     knn: usize,
     y_perm: Option<&[usize]>,
     is_y: &[bool],
+    dims: &CmiKnnDims,
 ) -> f64 {
     let n_samples = array.ncols();
     if n_samples <= knn {
         return 0.0;
     }
 
-    let xz_dims: Vec<usize> = xyz
-        .iter()
-        .enumerate()
-        .filter(|(_, g)| **g == XyzGroup::X || **g == XyzGroup::Z)
-        .map(|(i, _)| i)
-        .collect();
-    let yz_dims: Vec<usize> = xyz
-        .iter()
-        .enumerate()
-        .filter(|(_, g)| **g == XyzGroup::Y || **g == XyzGroup::Z)
-        .map(|(i, _)| i)
-        .collect();
-    let z_idx: Vec<usize> = xyz
-        .iter()
-        .enumerate()
-        .filter(|(_, g)| **g == XyzGroup::Z)
-        .map(|(i, _)| i)
-        .collect();
-
-    let has_z = !z_idx.is_empty();
-    let all_dims: Vec<usize> = (0..array.nrows()).collect();
-
     let eps_array: Vec<f64> = (0..n_samples)
         .into_par_iter()
-        .map(|s| kth_neighbor_distance(array, &all_dims, s, knn, n_samples, y_perm, is_y))
+        .map(|s| kth_neighbor_distance(array, &dims.all_dims, s, knn, n_samples, y_perm, is_y))
         .collect();
 
     let sums: (f64, f64, f64) = (0..n_samples)
         .into_par_iter()
         .map(|s| {
             let eps = eps_array[s];
-            let n_xz = count_neighbors(array, &xz_dims, s, eps, n_samples, y_perm, is_y);
-            let n_yz = count_neighbors(array, &yz_dims, s, eps, n_samples, y_perm, is_y);
-            let n_z = if has_z {
-                count_neighbors(array, &z_idx, s, eps, n_samples, y_perm, is_y)
+            let n_xz = count_neighbors(array, &dims.xz_dims, s, eps, n_samples, y_perm, is_y);
+            let n_yz = count_neighbors(array, &dims.yz_dims, s, eps, n_samples, y_perm, is_y);
+            let n_z = if dims.has_z {
+                count_neighbors(array, &dims.z_idx, s, eps, n_samples, y_perm, is_y)
             } else {
-                n_samples as f64 // If no Z, all samples are neighbors
+                n_samples as f64
             };
             (digamma(n_xz), digamma(n_yz), digamma(n_z))
         })

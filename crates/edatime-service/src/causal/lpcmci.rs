@@ -385,3 +385,57 @@ impl<'a> Lpcmci<'a> {
         false
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::independence::IndependenceTestKind;
+    use super::*;
+
+    #[test]
+    fn test_lpcmci_retains_link_for_hidden_common_driver() {
+        let n = 1_000;
+        let mut hidden = vec![0.0f64; n];
+        let mut x = vec![0.0f64; n];
+        let mut y = vec![0.0f64; n];
+
+        let mut state = 19u64;
+        let mut next_rand = || -> f64 {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((state >> 33) as f64) / (u32::MAX as f64) - 0.5
+        };
+
+        hidden[0] = next_rand();
+        x[0] = next_rand();
+        y[0] = next_rand();
+        for t in 1..n {
+            hidden[t] = 0.8 * hidden[t - 1] + 0.2 * next_rand();
+            x[t] = 0.8 * hidden[t - 1] + 0.2 * next_rand();
+            y[t] = -0.8 * hidden[t - 1] + 0.2 * next_rand();
+        }
+
+        let df = CausalDataFrame::new(vec![x, y], vec!["X".into(), "Y".into()]);
+        let test = CondIndTest::new(IndependenceTestKind::ParCorr);
+        let engine = Lpcmci::new(&df, &test);
+        let result = engine.run(
+            &PcmciConfig {
+                tau_min: 0,
+                tau_max: 1,
+                pc_alpha: 0.05,
+                alpha_level: 0.05,
+                ..Default::default()
+            },
+            1,
+        );
+
+        assert!(
+            result
+                .links
+                .iter()
+                .any(|l| l.lag == 0 && ((l.source == "X" && l.target == "Y") || (l.source == "Y" && l.target == "X"))),
+            "LPCMCI should retain a contemporaneous adjacency for the hidden-driver case: {:?}",
+            result.links
+        );
+    }
+}

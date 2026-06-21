@@ -28,6 +28,9 @@ pub use drift::{
 pub use fft::{compute_fft, FftResult, FrequencyPeak};
 pub use outlier::{remove_outliers_global, remove_outliers_windowed, OutlierRemovalResult};
 pub use rolling::{compute_rolling_bands, RollingBands};
-pub use shared::{extract_columns_f64_mean, extract_f64_column, extract_f64_column_opt, extract_ts_epoch_ms};
+pub use shared::{
+    extract_columns_f64_mean, extract_columns_f64_preserve_missing, extract_f64_column,
+    extract_f64_column_opt, extract_ts_epoch_ms,
+};
 pub use spectrogram::{apply_spectral_filter, compute_spectrogram, FilterType, SpectrogramResult};
 pub use transform::{apply_column_transform, apply_column_transform_lazy};

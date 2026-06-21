@@ -103,7 +103,6 @@ fn pc_stable_single(
 
     let mut val_min: HashMap<VarLag, f64> = HashMap::new();
     let mut pval_max: HashMap<VarLag, f64> = HashMap::new();
-    let mut val_dict: HashMap<VarLag, f64> = HashMap::new();
 
     // Initialize tracking
     for &p in &parents {
@@ -119,9 +118,9 @@ fn pc_stable_single(
             break; // Converged: not enough parents left
         }
 
-        let mut nonsig: Vec<VarLag> = Vec::new();
+        let mut nonsig_mask = vec![false; parents.len()];
 
-        for &parent in &parents {
+        for (parent_idx, &parent) in parents.iter().enumerate() {
             let (i, neg_tau) = parent;
 
             // Build condition subsets from other parents
@@ -132,21 +131,17 @@ fn pc_stable_single(
 
             if other_parents.len() < conds_dim { continue; }
 
-            // Test against condition subsets of size `conds_dim`
-            let combos = combinations(&other_parents, conds_dim);
-            let combos_to_test = combos.iter().take(max_combinations);
+            for_each_combination(&other_parents, conds_dim, max_combinations, |z_set| {
+                let x = [(i, neg_tau)];
+                let y = [(j, 0i32)];
 
-            for z_set in combos_to_test {
-                let x = vec![(i, neg_tau)];
-                let y = vec![(j, 0i32)];
-                let z: Vec<VarLag> = z_set.to_vec();
-
-                let (array, xyz) = df.construct_array(&x, &y, &z, tau_max);
-                if array.ncols() < 5 { continue; }
+                let (array, xyz) = df.construct_array(&x, &y, z_set, tau_max);
+                if array.ncols() < 5 {
+                    return false;
+                }
 
                 let result = test.run_test(&array, &xyz, pc_alpha);
 
-                // Update tracking
                 let cur_min = val_min.get(&parent).copied().unwrap_or(f64::INFINITY);
                 if result.val.abs() < cur_min {
                     val_min.insert(parent, result.val.abs());
@@ -154,18 +149,24 @@ fn pc_stable_single(
                 let cur_max = pval_max.get(&parent).copied().unwrap_or(0.0);
                 if result.pval > cur_max {
                     pval_max.insert(parent, result.pval);
-                    val_dict.insert(parent, result.val);
                 }
 
                 if !result.dependent {
-                    nonsig.push(parent);
-                    break;
+                    nonsig_mask[parent_idx] = true;
+                    return true;
                 }
-            }
+
+                false
+            });
         }
 
         // Remove non-significant parents (stable: batch removal)
-        parents.retain(|p| !nonsig.contains(p));
+        let mut keep_idx = 0usize;
+        parents.retain(|_| {
+            let keep = !nonsig_mask[keep_idx];
+            keep_idx += 1;
+            keep
+        });
 
         // Sort remaining parents by |val_min| descending (strongest first)
         parents.sort_by(|a, b| {
@@ -178,30 +179,49 @@ fn pc_stable_single(
     (parents, val_min, pval_max)
 }
 
-/// Generate all combinations of size k from a slice.
-fn combinations<T: Clone>(items: &[T], k: usize) -> Vec<Vec<T>> {
-    if k == 0 {
-        return vec![vec![]];
+/// Visit combinations of size `k` lazily and stop early when the visitor
+/// returns `true`.
+fn for_each_combination<T: Copy>(
+    items: &[T],
+    k: usize,
+    max_combinations: usize,
+    mut visitor: impl FnMut(&[T]) -> bool,
+) {
+    if items.len() < k || max_combinations == 0 {
+        return;
     }
-    if items.len() < k {
-        return vec![];
+    if k == 0 {
+        let empty: [T; 0] = [];
+        let _ = visitor(&empty);
+        return;
     }
 
-    let mut result = Vec::new();
     let mut indices: Vec<usize> = (0..k).collect();
+    let mut combo = vec![items[0]; k];
+    let mut produced = 0usize;
 
     loop {
-        result.push(indices.iter().map(|&i| items[i].clone()).collect());
+        for (slot, &item_idx) in indices.iter().enumerate() {
+            combo[slot] = items[item_idx];
+        }
 
-        // Find the rightmost index that can be incremented
+        produced += 1;
+        if visitor(&combo) || produced >= max_combinations {
+            return;
+        }
+
         let mut i = k;
         loop {
-            if i == 0 { return result; }
+            if i == 0 {
+                return;
+            }
             i -= 1;
             if indices[i] < items.len() - k + i {
                 break;
             }
-            if i == 0 { return result; }
+            if i == 0 {
+                return;
+            }
         }
 
         indices[i] += 1;
@@ -218,11 +238,23 @@ mod tests {
     #[test]
     fn test_combinations() {
         let items = vec![1, 2, 3, 4];
-        let c2 = combinations(&items, 2);
+        let mut c2 = Vec::new();
+        for_each_combination(&items, 2, usize::MAX, |combo| {
+            c2.push(combo.to_vec());
+            false
+        });
         assert_eq!(c2.len(), 6); // C(4,2) = 6
-        let c0 = combinations(&items, 0);
+        let mut c0 = Vec::new();
+        for_each_combination(&items, 0, usize::MAX, |combo| {
+            c0.push(combo.to_vec());
+            false
+        });
         assert_eq!(c0.len(), 1);
-        let c5 = combinations(&items, 5);
+        let mut c5 = Vec::new();
+        for_each_combination(&items, 5, usize::MAX, |combo| {
+            c5.push(combo.to_vec());
+            false
+        });
         assert_eq!(c5.len(), 0);
     }
 }

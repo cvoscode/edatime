@@ -1320,6 +1320,7 @@ dependencies = [
  "axum",
  "bytes",
  "chrono",
+ "criterion",
  "edatime-core",
  "edatime-ingest",
  "edatime-query",

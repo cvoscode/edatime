@@ -50,7 +50,7 @@ impl CausalDataFrame {
         col_names: &[String],
         max_points: usize,
     ) -> Result<Self, crate::error::AppError> {
-        let data = crate::analytics::extract_columns_f64_mean(df, col_names, max_points)?;
+        let data = crate::analytics::extract_columns_f64_preserve_missing(df, col_names, max_points)?;
         Ok(Self::new(data, col_names.to_vec()))
     }
 
@@ -200,5 +200,51 @@ pub struct TestArray {
 impl TestArray {
     pub fn dim(&self) -> usize {
         self.array.nrows()
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use polars::prelude::{DataFrame, NamedFrom, Series};
+
+    #[test]
+    fn from_polars_preserves_missing_values_for_causal_arrays() {
+        let df = DataFrame::new(
+            4,
+            vec![
+                Series::new("a".into(), [Some(1.0_f64), None, Some(3.0), Some(4.0)]).into(),
+                Series::new("b".into(), [Some(10.0_f64), Some(11.0), None, Some(13.0)]).into(),
+            ],
+        )
+        .expect("test dataframe should build");
+
+        let causal_df =
+            CausalDataFrame::from_polars(&df, &["a".to_string(), "b".to_string()], 16)
+                .expect("causal dataframe should build");
+
+        assert!(causal_df.value(1, 0).is_nan());
+        assert!(causal_df.value(2, 1).is_nan());
+    }
+
+    #[test]
+    fn construct_array_drops_samples_with_non_finite_values_after_cutoff() {
+        let df = CausalDataFrame::new(
+            vec![
+                vec![1.0, f64::NAN, 3.0, 4.0, 5.0, 6.0],
+                vec![10.0, 11.0, 12.0, f64::NAN, 14.0, 15.0],
+            ],
+            vec!["a".into(), "b".into()],
+        );
+
+        let (array, xyz) = df.construct_array(&[(0, -1)], &[(1, 0)], &[(1, -1)], 1);
+
+        assert_eq!(xyz, vec![XyzGroup::X, XyzGroup::Y, XyzGroup::Z]);
+        assert_eq!(array.nrows(), 3);
+        assert_eq!(array.ncols(), 1, "only the fully finite sample should remain");
+        assert_eq!(array[[0, 0]], 5.0);
+        assert_eq!(array[[1, 0]], 15.0);
+        assert_eq!(array[[2, 0]], 14.0);
     }
 }

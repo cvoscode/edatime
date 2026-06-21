@@ -145,14 +145,12 @@ impl CausalGraph {
         let n = self.n_vars;
         let tau_max = self.tau_max;
 
-        // Collect all testable p-values (skip self-links at tau=0)
+        // Match Tigramite's default behavior: only lagged links participate in
+        // the correction and mirrored contemporaneous entries are excluded.
         let mut pvals: Vec<(usize, f64)> = Vec::new();
         for i in 0..n {
             for j in 0..n {
-                for tau in 0..=tau_max {
-                    if tau == 0 && i == j {
-                        continue;
-                    }
+                for tau in 1..=tau_max {
                     let idx = self.idx(i, j, tau);
                     pvals.push((idx, self.p_matrix[idx]));
                 }
@@ -258,5 +256,40 @@ impl CausalResult {
             tau_max,
             links,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CausalGraph, LinkType};
+
+    #[test]
+    fn fdr_correction_excludes_contemporaneous_links_and_duplicates() {
+        let mut graph = CausalGraph::new(2, 1);
+        graph.set_pval(0, 1, 0, 0.01);
+        graph.set_pval(1, 0, 0, 0.01);
+        graph.set_pval(0, 1, 1, 0.02);
+        graph.set_pval(1, 0, 1, 0.5);
+
+        graph.fdr_correction();
+
+        assert_eq!(graph.get_pval(0, 1, 0), 0.01);
+        assert_eq!(graph.get_pval(1, 0, 0), 0.01);
+        assert_eq!(graph.get_pval(0, 1, 1), 0.08);
+        assert_eq!(graph.get_pval(1, 0, 1), 1.0);
+    }
+
+    #[test]
+    fn threshold_orients_only_significant_links() {
+        let mut graph = CausalGraph::new(2, 1);
+        graph.set_pval(0, 1, 1, 0.01);
+        graph.set_pval(0, 1, 0, 0.01);
+        graph.set_pval(1, 0, 0, 0.01);
+
+        graph.threshold(0.05);
+
+        assert_eq!(graph.get_link(0, 1, 1), LinkType::Directed);
+        assert_eq!(graph.get_link(0, 1, 0), LinkType::Undirected);
+        assert_eq!(graph.get_link(1, 0, 0), LinkType::Undirected);
     }
 }
