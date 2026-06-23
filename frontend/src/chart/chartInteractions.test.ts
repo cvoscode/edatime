@@ -65,7 +65,68 @@ describe('initBoxZoom', () => {
         });
     });
 
-    it('ignores a horizontal drag for viewport box zoom', () => {
+    it('treats a horizontal-only drag as a full x-zoom with the full y-range', () => {
+        const container = document.getElementById('chart') as HTMLElement & {
+            setPointerCapture?: (pointerId: number) => void;
+            releasePointerCapture?: (pointerId: number) => void;
+        };
+        container.style.position = 'relative';
+        container.setPointerCapture = vi.fn();
+        container.releasePointerCapture = vi.fn();
+        container.getBoundingClientRect = () => ({
+            x: 0,
+            y: 0,
+            top: 0,
+            left: 0,
+            right: 300,
+            bottom: 200,
+            width: 300,
+            height: 200,
+            toJSON: () => ({}),
+        } as DOMRect);
+
+        const onZoom = vi.fn();
+
+        initBoxZoom({
+            container,
+            grid: { left: 50, right: 50, top: 20, bottom: 20 },
+            getXRange: () => ({ min: 0, max: 100 }),
+            getYRange: () => ({ min: 10, max: 90 }),
+            onZoom,
+        } as any);
+
+        // Horizontal-only drag (dy = 2px, dx = 100px): the box zoom should
+        // still fire and report the full current y-range.
+        container.dispatchEvent(new PointerEvent('pointerdown', {
+            button: 0,
+            pointerId: 1,
+            clientX: 100,
+            clientY: 80,
+            bubbles: true,
+        }));
+        container.dispatchEvent(new PointerEvent('pointermove', {
+            pointerId: 1,
+            clientX: 200,
+            clientY: 82,
+            bubbles: true,
+        }));
+        container.dispatchEvent(new PointerEvent('pointerup', {
+            pointerId: 1,
+            clientX: 200,
+            clientY: 82,
+            bubbles: true,
+        }));
+
+        expect(onZoom).toHaveBeenCalledTimes(1);
+        expect(onZoom).toHaveBeenCalledWith({
+            xMin: 25,
+            xMax: 75,
+            yMin: 10,
+            yMax: 90,
+        });
+    });
+
+    it('ignores a drag that does not clear the minimum horizontal distance', () => {
         const container = document.getElementById('chart') as HTMLElement & {
             setPointerCapture?: (pointerId: number) => void;
             releasePointerCapture?: (pointerId: number) => void;
@@ -104,13 +165,13 @@ describe('initBoxZoom', () => {
         }));
         container.dispatchEvent(new PointerEvent('pointermove', {
             pointerId: 1,
-            clientX: 200,
+            clientX: 103,
             clientY: 82,
             bubbles: true,
         }));
         container.dispatchEvent(new PointerEvent('pointerup', {
             pointerId: 1,
-            clientX: 200,
+            clientX: 103,
             clientY: 82,
             bubbles: true,
         }));

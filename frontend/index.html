@@ -721,6 +721,35 @@
                   <span>Log</span>
                 </span>
               </label>
+              <label class="toolbar-field scatter-toolbar__field" for="fft-normalize">
+                <span class="toolbar-field__label">Normalize</span>
+                <select id="fft-normalize" class="modal-select" aria-label="Normalize y-axis">
+                  <option value="none" selected>None</option>
+                  <option value="minmax">Min–max [0,1]</option>
+                  <option value="zscore">Z-score</option>
+                  <option value="robust">Robust [Q1, Q3]</option>
+                </select>
+              </label>
+              <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
+                for="fft-clip-toggle">
+                <span class="toolbar-field__label">Clip</span>
+                <span class="toolbar-field__control scatter-link-toggle">
+                  <input id="fft-clip-toggle" type="checkbox" name="fft-clip-toggle" aria-label="Clip outliers">
+                  <span>Outliers</span>
+                </span>
+              </label>
+              <label class="toolbar-field scatter-toolbar__field" for="fft-clip-method">
+                <span class="toolbar-field__label">Clip&nbsp;method</span>
+                <select id="fft-clip-method" class="modal-select" aria-label="Clip method" disabled>
+                  <option value="percentile" selected>Percentile</option>
+                  <option value="iqr">IQR (k)</option>
+                </select>
+              </label>
+              <label class="toolbar-field scatter-toolbar__field" for="fft-clip-param">
+                <span class="toolbar-field__label" id="fft-clip-param-label">Clip&nbsp;%</span>
+                <input id="fft-clip-param" class="modal-input" type="number" min="0" step="0.1" value="0.5"
+                  aria-label="Clip threshold" disabled>
+              </label>
             </div>
           </div>
 
@@ -865,6 +894,10 @@
           <div id="heatmap-empty-state" class="plot-empty-state" data-empty-reason="no-data" hidden>
             Correlation heatmap will appear here once the dataset is available.
           </div>
+          <div id="heatmap-loading" class="chart-loading-overlay" hidden>
+            <div class="chart-loading-spinner"></div>
+            <span class="chart-loading-label" id="heatmap-loading-label">Loading correlation matrix…</span>
+          </div>
         </main>
       </section>
 
@@ -895,6 +928,37 @@
                     aria-label="Log scale">
                   <span>Log</span>
                 </span>
+              </label>
+              <label class="toolbar-field scatter-toolbar__field" for="spectrogram-normalize">
+                <span class="toolbar-field__label">Normalize</span>
+                <select id="spectrogram-normalize" class="modal-select" aria-label="Normalize color scale">
+                  <option value="none" selected>None</option>
+                  <option value="minmax">Min–max [0,1]</option>
+                  <option value="zscore">Z-score</option>
+                  <option value="robust">Robust [Q1, Q3]</option>
+                </select>
+              </label>
+              <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
+                for="spectrogram-clip-toggle">
+                <span class="toolbar-field__label">Clip</span>
+                <span class="toolbar-field__control scatter-link-toggle">
+                  <input id="spectrogram-clip-toggle" type="checkbox" name="spectrogram-clip-toggle"
+                    aria-label="Clip outliers">
+                  <span>Outliers</span>
+                </span>
+              </label>
+              <label class="toolbar-field scatter-toolbar__field" for="spectrogram-clip-method">
+                <span class="toolbar-field__label">Clip&nbsp;method</span>
+                <select id="spectrogram-clip-method" class="modal-select" aria-label="Clip method"
+                  disabled>
+                  <option value="percentile" selected>Percentile</option>
+                  <option value="iqr">IQR (k)</option>
+                </select>
+              </label>
+              <label class="toolbar-field scatter-toolbar__field" for="spectrogram-clip-param">
+                <span class="toolbar-field__label" id="spectrogram-clip-param-label">Clip&nbsp;%</span>
+                <input id="spectrogram-clip-param" class="modal-input" type="number" min="0" step="0.1"
+                  value="0.5" aria-label="Clip threshold" disabled>
               </label>
             </div>
           </div>
@@ -933,7 +997,20 @@
           </div>
         </div>
         <main class="main main--chart main--analysis-chart">
-          <div id="spectrogram-chart" style="width:100%;height:100%;display:block;"></div>
+          <div class="spectrogram-chart-row">
+            <div id="spectrogram-chart" style="flex:1 1 auto;width:100%;height:100%;display:block;min-width:0;"></div>
+            <div id="spectrogram-colorbar" class="scatter-colorbar-vertical" aria-label="Spectrogram colorbar" hidden>
+              <span class="scatter-colorbar-vtick" data-role="cb-high">High</span>
+              <div class="cb-range-track" data-role="cb-track">
+                <span class="scatter-colorbar-vbar"></span>
+                <span class="cb-range-fill" data-role="cb-fill" hidden></span>
+                <span class="cb-handle cb-handle--high" data-role="cb-handle-high" tabindex="0" role="slider" aria-label="Filter high value" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></span>
+                <span class="cb-handle cb-handle--low" data-role="cb-handle-low" tabindex="0" role="slider" aria-label="Filter low value" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></span>
+              </div>
+              <span class="scatter-colorbar-vtick" data-role="cb-low">Low</span>
+              <span class="scatter-colorbar-vname">scaled</span>
+            </div>
+          </div>
           <div id="spectrogram-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong>No spectrogram yet</strong>
             <span>Pick a numeric column, keep the current time range, and click Compute.</span>
@@ -1147,10 +1224,23 @@
                 <span class="scatter-toolbar__field-label">Detail View</span>
                 <select id="drift-plot-type" class="modal-select" aria-label="Plot style">
                   <option value="box">Box plot</option>
-                  <option value="violin">Violin</option>
+                  <option value="violin">Density area</option>
                   <option value="ecdf">ECDF overlay</option>
                   <option value="histogram">Histogram overlay</option>
                 </select>
+              </div>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">Evaluate</span>
+                <select id="drift-evaluation-mode" class="modal-select" aria-label="Evaluation mode">
+                  <option value="all" selected>All later windows</option>
+                  <option value="latest">Latest window only</option>
+                  <option value="latest-n">Latest N windows</option>
+                </select>
+              </div>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">Latest N</span>
+                <input id="drift-latest-n" type="number" min="1" step="1" value="3" class="modal-input"
+                  aria-label="Latest window count">
               </div>
             </div>
           </div>
@@ -1159,11 +1249,12 @@
             <span class="scatter-toolbar__eyebrow">Reference</span>
             <div class="scatter-toolbar__fields">
               <div class="scatter-toolbar__field">
-                <span class="scatter-toolbar__field-label">Preset</span>
+                <span class="scatter-toolbar__field-label">Source</span>
                 <select id="drift-ref-preset" class="modal-select" aria-label="Reference window preset">
                   <option value="30">First 30%</option>
                   <option value="50" selected>First 50%</option>
                   <option value="70">First 70%</option>
+                  <option value="viewport">Current viewport</option>
                   <option value="custom">Custom</option>
                 </select>
               </div>
@@ -1185,6 +1276,45 @@
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
               <button id="drift-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button" title="Reset chart zoom">↩
                 Reset</button>
+            </div>
+          </div>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
+            <span class="scatter-toolbar__eyebrow">Thresholds</span>
+            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <details class="toolbar-disclosure toolbar-disclosure--end">
+                <summary class="toolbar-disclosure__summary">
+                  <span class="toolbar-label">Composite</span>
+                  <span class="toolbar-disclosure__value">PSI + Wass + KS + E-S</span>
+                </summary>
+                <div class="toolbar-disclosure__menu">
+                  <label class="toolbar-field">
+                    <span class="toolbar-field__label">PSI minor</span>
+                    <input id="drift-psi-minor-threshold" type="number" min="0" step="0.01" value="0.10"
+                      class="modal-input" aria-label="PSI minor threshold">
+                  </label>
+                  <label class="toolbar-field">
+                    <span class="toolbar-field__label">PSI major</span>
+                    <input id="drift-psi-major-threshold" type="number" min="0" step="0.01" value="0.20"
+                      class="modal-input" aria-label="PSI major threshold">
+                  </label>
+                  <label class="toolbar-field">
+                    <span class="toolbar-field__label">KS p</span>
+                    <input id="drift-ks-threshold" type="number" min="0" max="1" step="0.01" value="0.05"
+                      class="modal-input" aria-label="KS p-value threshold">
+                  </label>
+                  <label class="toolbar-field">
+                    <span class="toolbar-field__label">E-S p</span>
+                    <input id="drift-es-threshold" type="number" min="0" max="1" step="0.01" value="0.05"
+                      class="modal-input" aria-label="E-S p-value threshold">
+                  </label>
+                  <label class="toolbar-field">
+                    <span class="toolbar-field__label">Wass std mult</span>
+                    <input id="drift-wasserstein-std-multiplier" type="number" min="0" step="0.01" value="0.10"
+                      class="modal-input" aria-label="Wasserstein standard deviation multiplier">
+                  </label>
+                </div>
+              </details>
             </div>
           </div>
 
@@ -1233,7 +1363,12 @@
             </div>
           </div>
         </div>
+        <div id="drift-status" class="analysis-status" role="status" aria-live="polite">
+          Select one or more columns, choose a baseline, and press Compute.
+        </div>
         <main class="main main--chart">
+          <div id="drift-summary-strip" class="drift-summary-strip" aria-live="polite"></div>
+          <div id="drift-column-summary" class="drift-column-summary" aria-live="polite"></div>
           <div class="drift-layout">
             <!-- Left: macro timeline + legend -->
             <div class="drift-timeline-panel">
@@ -1241,9 +1376,9 @@
                 <div id="drift-timeline-chart" role="img" aria-label="Drift timeline chart"></div>
               </div>
               <div class="drift-legend">
-                <span class="drift-window-badge drift-window-badge--green"></span><span>No drift</span>
-                <span class="drift-window-badge drift-window-badge--yellow"></span><span>Minor drift (PSI ≥ 0.1)</span>
-                <span class="drift-window-badge drift-window-badge--red"></span><span>Major drift</span>
+                <span class="drift-window-badge drift-window-badge--green"></span><span>No trigger fired</span>
+                <span class="drift-window-badge drift-window-badge--yellow"></span><span>One trigger fired</span>
+                <span class="drift-window-badge drift-window-badge--red"></span><span>Composite drift (2+ score)</span>
               </div>
             </div>
 

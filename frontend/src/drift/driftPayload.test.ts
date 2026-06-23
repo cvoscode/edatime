@@ -69,7 +69,13 @@ describe('drift compute payload', () => {
                     ecdf_y: [0.2, 0.6, 1],
                 },
                 windows: [],
-                thresholds: {},
+                thresholds: {
+                    ks_pvalue_threshold: 0.05,
+                    es_pvalue_threshold: 0.05,
+                    wasserstein_threshold: 0.2,
+                    psi_minor_threshold: 0.1,
+                    psi_major_threshold: 0.2,
+                },
                 metadata: { computation_time_ms: 12, num_windows: 0, reference_samples: 10 },
             }),
         }));
@@ -91,11 +97,20 @@ describe('drift compute payload', () => {
               <select id="drift-window-select"><option value="daily" selected>Daily</option></select>
               <select id="drift-plot-type"><option value="box" selected>Box</option></select>
               <select id="drift-ref-preset"><option value="50" selected>50</option></select>
+              <select id="drift-evaluation-mode"><option value="all" selected>All later windows</option><option value="latest">Latest window only</option><option value="latest-n">Latest N windows</option></select>
+              <input id="drift-latest-n" type="number" value="3" />
+              <input id="drift-ks-threshold" type="number" value="0.05" />
+              <input id="drift-es-threshold" type="number" value="0.05" />
+              <input id="drift-psi-minor-threshold" type="number" value="0.10" />
+              <input id="drift-psi-major-threshold" type="number" value="0.20" />
+              <input id="drift-wasserstein-std-multiplier" type="number" value="0.10" />
               <input id="drift-ref-start" type="datetime-local" />
               <input id="drift-ref-end" type="datetime-local" />
               <button id="drift-compute-btn" type="button">Compute</button>
               <button id="drift-zoom-reset-btn" type="button">Reset</button>
               <span id="drift-status"></span>
+              <div id="drift-summary-strip"></div>
+              <div id="drift-column-summary"></div>
               <div id="drift-timeline-chart"></div>
               <div id="drift-detail-chart"></div>
               <select id="drift-detail-col-select"></select>
@@ -162,5 +177,37 @@ describe('drift compute payload', () => {
 
         expect(document.getElementById('drift-col-picker-label')?.textContent).toBe('3 columns');
         expect(document.querySelectorAll('#drift-col-picker-list input[type="checkbox"]')).toHaveLength(3);
+    });
+
+    it('posts optional threshold controls using camelCase backend fields', async () => {
+        const { initDriftPage } = await import('./driftPage.js');
+        await initDriftPage({
+            numeric_columns: ['value'],
+            time_range: { min: 0, max: 1_000 },
+        });
+
+        (document.getElementById('drift-ref-start') as HTMLInputElement).value = '1970-01-01T00:00';
+        (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
+        (document.getElementById('drift-ks-threshold') as HTMLInputElement).value = '0.03';
+        (document.getElementById('drift-es-threshold') as HTMLInputElement).value = '0.04';
+        (document.getElementById('drift-psi-minor-threshold') as HTMLInputElement).value = '0.11';
+        (document.getElementById('drift-psi-major-threshold') as HTMLInputElement).value = '0.22';
+        (document.getElementById('drift-wasserstein-std-multiplier') as HTMLInputElement).value = '0.15';
+
+        (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
+
+        await vi.waitFor(() => {
+            expect(fetch).toHaveBeenCalled();
+        });
+
+        const request = (fetch as any).mock.calls[0];
+        const body = JSON.parse(request[1].body);
+        expect(body).toMatchObject({
+            ksPvalueThreshold: 0.03,
+            esPvalueThreshold: 0.04,
+            psiMinorThreshold: 0.11,
+            psiMajorThreshold: 0.22,
+            wassersteinStdMultiplier: 0.15,
+        });
     });
 });

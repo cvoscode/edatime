@@ -7,6 +7,7 @@ use serde::Deserialize;
 
 use crate::analytics::compute_temporal_drift;
 use crate::error::AppError;
+use edatime_core::temporal::native_to_epoch_ms;
 use edatime_query::pipeline::filter_time_range;
 use edatime_query::validation::validate_time_window;
 use edatime_store::state::AppState;
@@ -18,6 +19,11 @@ pub struct DriftQuery {
     pub window: String,
     pub reference_start: String,
     pub reference_end: String,
+    pub ks_pvalue_threshold: Option<f64>,
+    pub es_pvalue_threshold: Option<f64>,
+    pub psi_minor_threshold: Option<f64>,
+    pub psi_major_threshold: Option<f64>,
+    pub wasserstein_std_multiplier: Option<f64>,
 }
 
 fn window_ms(window: &str) -> i64 {
@@ -53,8 +59,8 @@ pub async fn post_drift_stats(
     let ts_col = ctx.ts_col;
     let multiplier = ctx.multiplier;
 
-    let ref_start_ms = ref_start.timestamp_millis() * multiplier;
-    let ref_end_ms = ref_end.timestamp_millis() * multiplier;
+    let ref_start_native = ref_start.timestamp_millis() * multiplier;
+    let ref_end_native = ref_end.timestamp_millis() * multiplier;
 
     // Find max timestamp using query_executor on Rayon pool
     let lf_max = lf.clone();
@@ -67,33 +73,43 @@ pub async fn post_drift_stats(
             .and_then(|n| df.column(n).ok())
             .and_then(|c| c.as_materialized_series().get(0).ok())
             .and_then(|v| v.try_extract::<i64>().ok())
-            .unwrap_or(ref_end_ms)
+            .unwrap_or(ref_end_native)
     };
 
-    let curr_start_ms = ref_end_ms as f64;
-    let curr_end_ms = max_ts_i64 as f64;
+    let ref_start_ms = ref_start.timestamp_millis() as f64;
+    let ref_end_ms = ref_end.timestamp_millis() as f64;
+    let curr_start_ms = ref_end_ms;
+    let curr_end_ms = native_to_epoch_ms(max_ts_i64, &ctx.dtype);
 
     // filter_time_range now returns LazyFrame; execute on Rayon pool
     // Include the target column in the selection so compute_temporal_drift can access it
     let col_name = query.column.clone();
-    let filtered_lf = filter_time_range(lf, ref_start_ms, max_ts_i64, &[col_name], &ts_col)?;
+    let filtered_lf = filter_time_range(lf, ref_start_native, max_ts_i64, &[col_name], &ts_col)?;
     let df = state.query_executor.execute_async(filtered_lf).await?;
 
-    // Normalize multiplier:
-    // we convert from whatever unit the column uses back to ms
+    let ks_pvalue_threshold = query.ks_pvalue_threshold.unwrap_or(0.05);
+    let es_pvalue_threshold = query.es_pvalue_threshold.unwrap_or(0.05);
+    let psi_minor_threshold = query.psi_minor_threshold.unwrap_or(0.1);
+    let psi_major_threshold = query.psi_major_threshold.unwrap_or(0.2);
+    let wasserstein_threshold = query
+        .wasserstein_std_multiplier
+        .map(|multiplier| -multiplier.abs())
+        .unwrap_or(0.0);
+
     let result = compute_temporal_drift(
         &df,
         &query.column,
         window_size,
-        ref_start_ms as f64,
-        ref_end_ms as f64,
+        ref_start_ms,
+        ref_end_ms,
         curr_start_ms,
         curr_end_ms,
         20,   // n_bins
-        0.05, // ks_threshold
-        0.0,  // wasserstein_threshold (derive from data)
-        0.1,  // psi_minor
-        0.2,  // psi_major
+        ks_pvalue_threshold,
+        es_pvalue_threshold,
+        wasserstein_threshold,
+        psi_minor_threshold,
+        psi_major_threshold,
     )?;
 
     let body = serde_json::to_string(&result).map_err(|e| AppError::internal(e.to_string()))?;

@@ -157,3 +157,60 @@ The original issue.md mentioned `RangeError: Maximum call stack size exceeded` i
 5. **Issue 6** (Settings) - Probably working as designed (modal dialog)
 6. **Issue 4** (FFT) - Working as designed
 7. **Issue 7** (Analytics panel) - Design decision, low priority
+
+---
+
+## Fix Note: Spectrogram + FFT clip-toggle stays disabled (2026-06-23)
+
+**Page:** Spectrogram, FFT
+**Severity:** High (perceived as a broken control)
+**Reported:** 2026-06-23 — checking the "Outliers" toggle on the spectrogram page did not enable the "Clip method" and "Clip param" controls, even though both were wired up to update via the `change` event.
+
+**Root cause:** Static analysis of the wiring at [spectrogramChartRuntime.ts:404–425](frontend/src/pages/spectrogramChartRuntime.ts#L404-L425) was correct, so the user-visible failure is a runtime quirk (label-driven toggle path, stale cached bundle, or back-forward-cache restore that re-applied the HTML `disabled` defaults without re-running the listener). Whichever the cause, the old wiring only synced the disabled state inside a single `change` listener attached at first mount.
+
+**Fix:** Defensive wiring on both pages (`frontend/src/pages/spectrogramChartRuntime.ts`, `frontend/src/pages/fftPage.ts`):
+- Listen on **both `change` and `input`** events (covers label clicks, programmatic flips).
+- Re-derive the disabled state from the current toggle value at the top of every `renderSpectrogramChart()` call (spectrogram) and at the top of `rerenderOrClear()` (FFT).
+- Re-run the sync from `onVisible()` (spectrogram) so back-forward-cache restores can recover.
+- Toggle a `title` attribute on the disabled `select`/`input` so the dependency is discoverable.
+
+**Regression tests added:**
+- `frontend/src/pages/spectrogramPage.test.ts` — three cases: initial state, `input` event flips to enabled, `change` event parity.
+- `frontend/src/pages/fftPage.test.ts` — input-event flip on `#fft-clip-toggle` and round-trip back to disabled.
+
+## Fix Note: Spectrogram colorbar overlap (2026-06-23)
+
+**Page:** Spectrogram
+**Severity:** Medium
+**Reported:** 2026-06-23 — the ECharts `visualMap` colorbar (with High/Low labels) was rendered on top of the heatmap, eating ~10–16px from the right edge of the plot.
+
+**Root cause:** ECharts positioned `visualMap` against the chart container at `right: 18` while `grid.right: 110` reserved only 110px, so the colorbar's left edge sat inside the data area.
+
+**Fix:** Drop the `visualMap` block from the ECharts `setOption` payload in `frontend/src/pages/spectrogramChartRuntime.ts` and shrink `grid.right` to 24. Render the colorbar as a DOM sibling `#spectrogram-colorbar` inside a new `.spectrogram-chart-row` flex container (in `frontend/index.html`), reusing the existing `.scatter-colorbar-vertical` styles from `frontend/css/modules/scatter.css`. On viewports < 720px the row wraps to a stacked layout via the new media query in `frontend/css/modules/layout.css`. The runtime populates the gradient and High/Low labels from the same `minValue`, `maxValue`, `scaleLabel` that fed the old `visualMap`.
+
+---
+
+## Feature: Colorbar value-range filter on the spectrogram (2026-06-23)
+
+**Page:** Spectrogram
+**Severity:** New feature
+**Requested:** 2026-06-23 — "I loved the features that you could filter with the color scale can we bring that back?" (referring to the legacy ECharts `visualMap.calculable: true` behavior).
+
+**Behavior:**
+- Two draggable handles on the DOM colorbar let the user restrict the displayed value range.
+- Out-of-range heatmap cells are dropped from the ECharts data array, so the heatmap grid stays aligned and the user clearly sees the cut.
+- Dragging is throttled via `requestAnimationFrame` to keep interaction smooth.
+- **Reset: double-click** anywhere on the colorbar restores the full range.
+- **Keyboard:** Tab to a handle, Arrow Up/Down/Left/Right nudges by 1% of the scale, Home/End jumps to extremes. `aria-valuenow` updates as the handle moves.
+- The filter resets automatically on a fresh Compute (so the new dataset's scale isn't clipped by stale bounds).
+
+**Implementation:**
+- [frontend/index.html](frontend/index.html) — added `.cb-range-track`, `.cb-handle--high`, `.cb-handle--low`, `.cb-range-fill` to `#spectrogram-colorbar`.
+- [frontend/css/modules/layout.css](frontend/css/modules/layout.css) — handle, track, and fill styles; both vertical and horizontal layout (narrow viewports) supported.
+- [frontend/src/pages/spectrogramChartRuntime.ts](frontend/src/pages/spectrogramChartRuntime.ts) — added `colorFilterRange` state, `initColorbarInteraction()` (pointer + keyboard + dblclick), `updateColorbarHandles()`, and filter logic in `renderSpectrogramChart()`.
+- [frontend/src/pages/spectrogramPage.test.ts](frontend/src/pages/spectrogramPage.test.ts) — 4 new regression tests (handles initialized, drag filters points, dblclick resets, keyboard arrow moves handle).
+
+**Scope decisions:**
+- Spectrogram only. Other colorbars (scatter, timeseries) can adopt the same pattern later if requested.
+- Client-side filtering only — the data is already in memory after Compute; no backend round-trip needed.
+- No backend changes.

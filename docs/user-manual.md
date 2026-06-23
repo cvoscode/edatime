@@ -425,6 +425,104 @@ In the live walkthrough, computing the default `HUFL` spectrogram with a `256` w
 
 Use the spectrogram when a single FFT is too coarse and you need to see how frequency content changes over time.
 
+## Drift Page
+
+The Drift page compares a baseline interval against later windows so you can decide whether a trace has drifted after a known-good period.
+
+Use it when you want to answer:
+
+- did this metric move away from its baseline distribution?
+- which later windows are responsible?
+- is the drift isolated to one column or spread across several?
+
+### Setup
+
+1. Choose one or more numeric columns.
+2. Pick a monitoring window size: `Hourly`, `Daily`, or `Weekly`.
+3. Choose a reference source:
+   - `First 30%`
+   - `First 50%`
+   - `First 70%`
+   - `Current viewport`
+   - `Custom`
+4. Press `Compute`.
+
+The page sends one drift request per selected column and merges the results into a combined review.
+
+### How The Verdict Works
+
+Each monitoring window can trigger one or more drift signals:
+
+- `PSI minor`
+- `PSI major`
+- `Wasserstein`
+- `KS`
+- `E-S`
+
+The page then assigns:
+
+- `Green`: no trigger fired
+- `Yellow`: one trigger fired
+- `Red`: composite drift score of 2 or more
+
+That means the color is not PSI-only. KS and E-S contribute to the final verdict when they cross the configured p-value thresholds.
+
+### Reading The Page
+
+- The summary strip tells you whether any selected trace drifted, how many columns are currently flagged, and the latest versus worst severity.
+- The column cards show the current verdict for each trace, the strongest trigger reasons, the latest PSI/Wasserstein/KS/E-S readings, and how many filtered windows were flagged.
+- The timeline compares the reference distribution with later windows for every selected column.
+- Clicking a window updates the detail panel.
+- The detail panel can switch between:
+  - box plot
+  - density area
+  - ECDF overlay
+  - histogram overlay
+
+### Interpreting The Detail Stats
+
+For the selected window, the page shows:
+
+- count and completeness
+- completeness delta versus the reference window
+- mean, spread, and median
+- KS and E-S statistics plus p-values
+- Wasserstein distance
+- PSI
+- Jensen-Shannon divergence
+- the trigger reasons that produced the current drift level
+
+Treat these carefully when the page shows `Low sample size`, because windows with fewer than 5 valid samples are deliberately de-emphasized.
+
+### Evaluation Modes And Thresholds
+
+The page can evaluate:
+
+- all later windows
+- only the latest window
+- the latest `N` windows
+
+Advanced thresholds let you tune:
+
+- PSI minor
+- PSI major
+- KS p-value
+- E-S p-value
+- Wasserstein threshold as a multiple of the reference standard deviation
+
+If you change the thresholds, recompute before trusting the new verdicts.
+
+### Exports
+
+The Drift page exports:
+
+- timeline PNG
+- detail PNG
+- CSV
+- JSON
+
+The tabular exports include trigger reasons, exact window ranges, completeness deltas, Jensen-Shannon divergence, and summary verdict fields for the current filtered view.
+
 ## Causal Page
 
 The Causal page wraps Tigramite-based causal discovery and manual graph editing.

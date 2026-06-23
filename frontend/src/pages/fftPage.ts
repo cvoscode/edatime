@@ -7,7 +7,13 @@ import { toast } from '../utils/toast.js';
 import { getAnalyticsChipColor, getNumericColumns } from './analyticsPageUtils.js';
 import { setSpectralFilterPreview } from '../store/index.js';
 import { renderSeriesChipList } from '../ui/index.js';
-import { getDropdownValue } from '../ui/primitives/Dropdown.js';
+import { getDropdownValue, setDropdownDisabled } from '../ui/primitives/Dropdown.js';
+import {
+    DEFAULT_SPECTRAL_SCALE,
+    type ClipMode,
+    type ScaleMode,
+    type SpectralScaleOptions,
+} from '../utils/spectralScaling.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 
 interface FftPageDeps {
@@ -17,6 +23,7 @@ interface FftPageDeps {
 let fftTraces: FftTrace[] = [];
 let fftMode = 'magnitude';
 let fftLogScale = true;
+let fftScaleOptions: SpectralScaleOptions = { ...DEFAULT_SPECTRAL_SCALE };
 let fftChart: FftChart | EchartsLineChart | null = null;
 let fftChartReady: Promise<void> | null = null;
 const fftTraceColors: Record<string, string> = {};
@@ -29,6 +36,7 @@ function resetFftPageState(): void {
     fftTraces = [];
     fftMode = 'magnitude';
     fftLogScale = true;
+    fftScaleOptions = { ...DEFAULT_SPECTRAL_SCALE };
     fftChart = null;
     fftChartReady = null;
     fftRuntime = null;
@@ -70,12 +78,30 @@ function syncFftEmptyState(): void {
 
 function rerenderOrClear(): void {
     syncFftEmptyState();
+    // Safety net: keep the disabled state of the clip fields consistent
+    // with the current toggle value. Use setDropdownDisabled for the
+    // method since it may have been upgraded to a custom dropdown.
+    const clipToggle = document.getElementById('fft-clip-toggle') as HTMLInputElement | null;
+    const clipParam = document.getElementById('fft-clip-param') as HTMLInputElement | null;
+    if (clipToggle) {
+        const enabled = clipToggle.checked;
+        const hint = enabled
+            ? ''
+            : "Enable the 'Outliers' toggle above to change the clip method";
+        setDropdownDisabled('fft-clip-method', !enabled);
+        const clipMethod = document.getElementById('fft-clip-method');
+        if (clipMethod) clipMethod.title = hint;
+        if (clipParam) {
+            clipParam.disabled = !enabled;
+            clipParam.title = hint;
+        }
+    }
     if (!fftChart) return;
     if (fftTraces.length === 0) {
         fftChart.clear();
         return;
     }
-    fftChart.updateData(fftTraces, fftMode, fftLogScale);
+    fftChart.updateData(fftTraces, fftMode, fftLogScale, fftScaleOptions);
 }
 
 async function ensureFftChartReady(): Promise<void> {
@@ -186,6 +212,11 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
 
     const modeSelect = document.getElementById('fft-mode-select') as HTMLElement | null;
     const logCheck = document.getElementById('fft-log-scale') as HTMLInputElement | null;
+    const normalizeSelect = document.getElementById('fft-normalize') as HTMLSelectElement | null;
+    const clipToggle = document.getElementById('fft-clip-toggle') as HTMLInputElement | null;
+    const clipMethod = document.getElementById('fft-clip-method') as HTMLSelectElement | null;
+    const clipParam = document.getElementById('fft-clip-param') as HTMLInputElement | null;
+    const clipParamLabel = document.getElementById('fft-clip-param-label') as HTMLElement | null;
     const zoomResetBtn = document.getElementById('fft-zoom-reset-btn') as HTMLButtonElement | null;
 
     fftRuntime = createAnalysisPageRuntime({
@@ -222,6 +253,68 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
                 fftLogScale = logCheck.checked;
                 rerenderOrClear();
             });
+
+            const readScaleOptions = (): SpectralScaleOptions => {
+                const mode = (getDropdownValue('fft-normalize') || 'none') as ScaleMode;
+                const enabled = clipToggle?.checked ?? false;
+                const method = ((getDropdownValue('fft-clip-method') || 'percentile') as ClipMode);
+                const raw = Number.parseFloat(clipParam?.value ?? '0.5');
+                const param = Number.isFinite(raw) ? raw : 0.5;
+                return { mode, clip: enabled ? method : 'none', clipParam: param };
+            };
+            normalizeSelect?.addEventListener('change', () => {
+                fftScaleOptions = readScaleOptions();
+                rerenderOrClear();
+            });
+            // Re-query by id every time we sync, because upgradeSelects()
+            // at app startup replaces native <select> elements with custom
+            // dropdown <div>s, detaching the closure-captured references.
+            const syncClipEnabled = () => {
+                const enabled = clipToggle?.checked ?? false;
+                const liveClipMethod = document.getElementById('fft-clip-method');
+                const liveClipParam = document.getElementById('fft-clip-param') as HTMLInputElement | null;
+                const hint = enabled
+                    ? ''
+                    : "Enable the 'Outliers' toggle above to change the clip method";
+                setDropdownDisabled('fft-clip-method', !enabled);
+                if (liveClipMethod) liveClipMethod.title = hint;
+                if (liveClipParam) {
+                    liveClipParam.disabled = !enabled;
+                    liveClipParam.title = hint;
+                }
+            };
+            const syncClipParamLabel = () => {
+                if (!clipParamLabel) return;
+                const method = getDropdownValue('fft-clip-method') || 'percentile';
+                clipParamLabel.textContent = method === 'iqr' ? 'Clip k' : 'Clip %';
+            };
+            // Listen to BOTH input and change so that label-driven toggles,
+            // programmatic flips, and any browser quirk (e.g. an old cached
+            // bundle) all update the disabled state immediately.
+            const onClipToggleChange = () => {
+                syncClipEnabled();
+                fftScaleOptions = readScaleOptions();
+                rerenderOrClear();
+            };
+            clipToggle?.addEventListener('change', onClipToggleChange);
+            clipToggle?.addEventListener('input', onClipToggleChange);
+            // The custom dropdown forwards a bubbling `change` from its
+            // root (see dispatchDropdownChange in Dropdown.ts), so listen
+            // on the live element rather than the detached <select>.
+            const liveClipMethodRoot = document.getElementById('fft-clip-method');
+            liveClipMethodRoot?.addEventListener('change', () => {
+                syncClipParamLabel();
+                fftScaleOptions = readScaleOptions();
+                rerenderOrClear();
+            });
+            const liveClipParamEl = document.getElementById('fft-clip-param');
+            liveClipParamEl?.addEventListener('change', () => {
+                fftScaleOptions = readScaleOptions();
+                rerenderOrClear();
+            });
+            syncClipEnabled();
+            syncClipParamLabel();
+
             zoomResetBtn?.addEventListener('click', () => fftChart?.resetView());
 
             document.getElementById('fft-filter-apply-btn')?.addEventListener('click', async () => {

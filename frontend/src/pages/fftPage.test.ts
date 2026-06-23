@@ -61,6 +61,14 @@ function buildDom(): void {
         <input id="fft-filter-high-hz" type="number" value="">
         <button id="fft-filter-apply-btn" type="button"></button>
         <span id="fft-filter-status"></span>
+        <select id="fft-normalize"><option value="none" selected>None</option><option value="minmax">Min-max</option></select>
+        <input id="fft-clip-toggle" type="checkbox" />
+        <select id="fft-clip-method" disabled>
+          <option value="percentile" selected>Percentile</option>
+          <option value="iqr">IQR (k)</option>
+        </select>
+        <span id="fft-clip-param-label">Clip %</span>
+        <input id="fft-clip-param" type="number" value="0.5" disabled />
     `;
 }
 
@@ -274,5 +282,49 @@ describe('initFftPage', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
 
         expect(echartsInitMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('enables clip method and param when fft outliers toggle is checked (input event)', async () => {
+        const { appState } = await import('../store/appStateCompat.js');
+        appState.metadata = {
+            total_rows: 10,
+            columns: [],
+            numeric_columns: ['value'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1000 },
+            column_profiles: [],
+        } as any;
+        appState.currentStart = 0;
+        appState.currentEnd = 1000;
+
+        const { initFftPage } = await import('./fftPage');
+        await initFftPage({ renderTimeseries: vi.fn() });
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        const toggle = document.getElementById('fft-clip-toggle') as HTMLInputElement;
+        const method = document.getElementById('fft-clip-method') as HTMLSelectElement;
+        const param = document.getElementById('fft-clip-param') as HTMLInputElement;
+
+        // Initially disabled.
+        expect(method.disabled).toBe(true);
+        expect(param.disabled).toBe(true);
+        expect(method.title).toMatch(/Outliers/);
+
+        // Flip via the input event (label-driven, programmatic).
+        toggle.checked = true;
+        toggle.dispatchEvent(new Event('input', { bubbles: true }));
+
+        expect(method.disabled).toBe(false);
+        expect(param.disabled).toBe(false);
+        expect(method.title).toBe('');
+
+        // Flip back to disabled.
+        toggle.checked = false;
+        toggle.dispatchEvent(new Event('input', { bubbles: true }));
+
+        expect(method.disabled).toBe(true);
+        expect(param.disabled).toBe(true);
     });
 });

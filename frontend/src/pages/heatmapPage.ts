@@ -53,6 +53,17 @@ function syncHeatmapEmptyState(message: string, visible: boolean, reason = ''): 
         message: '',
         fallbackText: message,
     });
+    setHeatmapLoading(false);
+}
+
+function setHeatmapLoading(loading: boolean, label?: string): void {
+    const overlay = document.getElementById('heatmap-loading');
+    if (!overlay) return;
+    overlay.hidden = !loading;
+    if (label) {
+        const labelEl = document.getElementById('heatmap-loading-label');
+        if (labelEl) labelEl.textContent = label;
+    }
 }
 
 function correlationColor(value: number): string {
@@ -125,8 +136,9 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         const loadSequence = ++matrixLoadSequence;
         const container = document.getElementById('heatmap-container');
         if (container) container.innerHTML = '';
-        heatmapRuntime?.updateStatus(`Loading ${getCorrelationModeLabel(nextMetric)}…`);
-        syncHeatmapEmptyState(`Loading ${getCorrelationModeLabel(nextMetric)}…`, true, 'loading');
+        const label = `Loading ${getCorrelationModeLabel(nextMetric)}…`;
+        setHeatmapLoading(true, label);
+        heatmapRuntime?.updateStatus(label);
         try {
             const response = await fetchCorrelationMatrix(nextMetric);
             if (loadSequence !== matrixLoadSequence) return;

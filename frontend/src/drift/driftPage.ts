@@ -12,10 +12,13 @@ import { createAnalysisPageRuntime } from '../pages/shared/analysisPageRuntime.j
 import { createRequestTask } from '../pages/shared/requestTask.js';
 import type { EChartLike } from './types.js';
 import {
+    buildColumnSummary,
+    buildGlobalSummary,
     driftColor,
+    filterResponseForEvaluation,
     formatValue,
 } from './viewModels.js';
-import type { DriftResponse, WindowDistributionStats, DriftWindowStats } from './viewModels.js';
+import type { DriftEvaluationMode, DriftResponse, WindowDistributionStats, DriftWindowStats } from './viewModels.js';
 import { exportEChartsPNG } from '../utils/chartExport.js';
 import {
     getECharts,
@@ -80,6 +83,13 @@ export async function initDriftPage(metadata: any): Promise<void> {
     const windowSelect = document.getElementById('drift-window-select') as HTMLElement | null;
     const plotTypeSelect = document.getElementById('drift-plot-type') as HTMLElement | null;
     const refPresetSelect = document.getElementById('drift-ref-preset') as HTMLElement | null;
+    const evaluationModeSelect = document.getElementById('drift-evaluation-mode') as HTMLElement | null;
+    const latestNInput = document.getElementById('drift-latest-n') as HTMLInputElement | null;
+    const ksThresholdInput = document.getElementById('drift-ks-threshold') as HTMLInputElement | null;
+    const esThresholdInput = document.getElementById('drift-es-threshold') as HTMLInputElement | null;
+    const psiMinorThresholdInput = document.getElementById('drift-psi-minor-threshold') as HTMLInputElement | null;
+    const psiMajorThresholdInput = document.getElementById('drift-psi-major-threshold') as HTMLInputElement | null;
+    const wassersteinStdMultiplierInput = document.getElementById('drift-wasserstein-std-multiplier') as HTMLInputElement | null;
     const refStartInput = document.getElementById('drift-ref-start') as HTMLInputElement | null;
     const refEndInput = document.getElementById('drift-ref-end') as HTMLInputElement | null;
     const computeBtn = document.getElementById('drift-compute-btn') as HTMLButtonElement | null;
@@ -95,10 +105,13 @@ export async function initDriftPage(metadata: any): Promise<void> {
     const windowListEl = document.getElementById('drift-window-list') as HTMLElement | null;
     const driftLayoutEl = document.querySelector('#page-drift .drift-layout') as HTMLElement | null;
     const sortSelect = document.getElementById('drift-sort-select') as HTMLElement | null;
+    const summaryStripEl = document.getElementById('drift-summary-strip') as HTMLElement | null;
+    const columnSummaryEl = document.getElementById('drift-column-summary') as HTMLElement | null;
 
     // ── Chart and data state ────────────────────────────────────────────────────
     let resizeObserver: ResizeObserver | null = null;
     let _pendingFullReset = false;
+    let rawResponsesByColumn = new Map<string, DriftResponse>();
 
     getECharts().catch(() => { /* non-critical; will retry on first ensureCharts() call */ });
 
@@ -200,6 +213,98 @@ export async function initDriftPage(metadata: any): Promise<void> {
         setDropdownValue('drift-detail-col-select', current && getResponsesByColumn().has(current) ? current : cols[0]!);
     }
 
+    function readThresholdValue(input: HTMLInputElement | null, fallback: number): number {
+        const value = Number(input?.value ?? '');
+        return Number.isFinite(value) ? value : fallback;
+    }
+
+    function getEvaluationMode(): DriftEvaluationMode {
+        const mode = getDropdownValue('drift-evaluation-mode');
+        if (mode === 'latest' || mode === 'latest-n') return mode;
+        return 'all';
+    }
+
+    function getLatestWindowCount(): number {
+        const value = Number(latestNInput?.value ?? '1');
+        return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1;
+    }
+
+    function getFilteredResponses(results: Map<string, DriftResponse>): Map<string, DriftResponse> {
+        const mode = getEvaluationMode();
+        const latestCount = getLatestWindowCount();
+        return new Map(
+            Array.from(results.entries()).map(([column, response]) => [
+                column,
+                filterResponseForEvaluation(response, mode, latestCount),
+            ]),
+        );
+    }
+
+    function renderSummaryPanels(): void {
+        if (getResponsesByColumn().size === 0) {
+            if (summaryStripEl) summaryStripEl.innerHTML = '';
+            if (columnSummaryEl) columnSummaryEl.innerHTML = '';
+            return;
+        }
+
+        const globalSummary = buildGlobalSummary(getResponsesByColumn());
+        if (summaryStripEl) {
+            summaryStripEl.innerHTML = `
+                <div class="drift-summary-card">
+                    <span class="drift-summary-label">Any drift detected?</span>
+                    <strong class="drift-summary-value">${globalSummary.anyDrift ? 'Yes' : 'No'}</strong>
+                </div>
+                <div class="drift-summary-card">
+                    <span class="drift-summary-label">Columns flagged</span>
+                    <strong class="drift-summary-value">${globalSummary.columnsFlagged}/${globalSummary.totalColumns}</strong>
+                </div>
+                <div class="drift-summary-card">
+                    <span class="drift-summary-label">Latest window severity</span>
+                    <strong class="drift-summary-value drift-${globalSummary.latestSeverity}">${globalSummary.latestSeverity.toUpperCase()}</strong>
+                </div>
+                <div class="drift-summary-card">
+                    <span class="drift-summary-label">Worst window severity</span>
+                    <strong class="drift-summary-value drift-${globalSummary.worstSeverity}">${globalSummary.worstSeverity.toUpperCase()}</strong>
+                </div>
+            `;
+        }
+
+        if (columnSummaryEl) {
+            columnSummaryEl.innerHTML = Array.from(getResponsesByColumn().values()).map((response) => {
+                const summary = buildColumnSummary(response);
+                return `
+                    <article class="drift-column-card">
+                        <div class="drift-column-card__header">
+                            <strong>${summary.column}</strong>
+                            <span class="drift-column-card__level drift-${summary.currentLevel}">${summary.currentLevel.toUpperCase()}</span>
+                        </div>
+                        <div class="drift-column-card__body">
+                            <div>Window: ${summary.latestLabel}</div>
+                            <div>Strongest reasons: ${summary.strongestReasons.join(', ') || 'none'}</div>
+                            <div>Latest PSI/Wass: ${summary.latestMetrics.psi.toFixed(3)} / ${formatValue(summary.latestMetrics.wasserstein)}</div>
+                            <div>Latest KS p / E-S p: ${summary.latestMetrics.ksPvalue.toFixed(3)} / ${summary.latestMetrics.esPvalue.toFixed(3)}</div>
+                            <div>Flagged windows: ${summary.flaggedWindows}/${summary.totalWindows}</div>
+                        </div>
+                    </article>
+                `;
+            }).join('');
+        }
+    }
+
+    function applyRenderedResponses(
+        results: Map<string, DriftResponse>,
+        failedColumns: string[] = [],
+    ): void {
+        setResponses(getFilteredResponses(results));
+        updateDetailColumnSelect();
+        statusSummary(failedColumns);
+        renderSummaryPanels();
+        renderTimelineLocal();
+        renderDetailLocal();
+        renderWindowListLocal();
+        updateDetailStatsLocal();
+    }
+
     // detailOption and timelineOption live in timelineView.ts / detailView.ts / viewModels.ts
 
     function statusSummary(failedColumns: string[] = []): void {
@@ -272,6 +377,11 @@ export async function initDriftPage(metadata: any): Promise<void> {
                 window: getDropdownValue('drift-window-select') || 'daily',
                 referenceStart: new Date(refStart).toISOString(),
                 referenceEnd: new Date(refEnd).toISOString(),
+                ksPvalueThreshold: readThresholdValue(ksThresholdInput, 0.05),
+                esPvalueThreshold: readThresholdValue(esThresholdInput, 0.05),
+                psiMinorThreshold: readThresholdValue(psiMinorThresholdInput, 0.1),
+                psiMajorThreshold: readThresholdValue(psiMajorThresholdInput, 0.2),
+                wassersteinStdMultiplier: readThresholdValue(wassersteinStdMultiplierInput, 0.1),
             };
 
             const settled = await Promise.allSettled(columns.map(async (column) => {
@@ -297,18 +407,13 @@ export async function initDriftPage(metadata: any): Promise<void> {
                 throw new Error(failures.join(' | ') || 'No drift responses received.');
             }
 
-            setResponses(results);
-            updateDetailColumnSelect();
+            rawResponsesByColumn = results;
 
             // Signal that the next render should do a full ECharts option reset
             // (new series data) rather than an incremental merge (issue #8).
             _pendingFullReset = true;
 
-            statusSummary(failures);
-            renderTimelineLocal();
-            renderDetailLocal();
-            renderWindowListLocal();
-            updateDetailStatsLocal();
+            applyRenderedResponses(results, failures);
 
             const hasWindows = Array.from(getResponsesByColumn().values()).some((resp) => resp.windows.length > 0);
             syncEmptyState(!hasWindows, hasWindows ? undefined : 'No data found in the monitoring range after the reference window.');
@@ -329,9 +434,10 @@ export async function initDriftPage(metadata: any): Promise<void> {
     function exportDriftCsv(): void {
         if (getResponsesByColumn().size === 0) return;
         const rows: string[] = [
-            'column,window,start_ms,end_ms,count,mean,std,median,ks_stat,ks_pvalue,es_stat,es_pvalue,wasserstein,psi,drift_level',
+            'column,window,start_ms,end_ms,count,mean,std,median,ks_stat,ks_pvalue,es_stat,es_pvalue,wasserstein,psi,jensen_shannon,completeness_delta,trigger_reasons,drift_level,current_level,worst_level,flagged_windows',
         ];
         getResponsesByColumn().forEach((resp, column) => {
+            const summary = buildColumnSummary(resp);
             resp.windows.forEach((w) => {
                 rows.push([
                     column,
@@ -348,7 +454,13 @@ export async function initDriftPage(metadata: any): Promise<void> {
                     isFinite(w.es_pvalue) ? w.es_pvalue.toFixed(6) : '',
                     w.wasserstein.toFixed(6),
                     w.psi.toFixed(6),
+                    isFinite(w.jensen_shannon) ? w.jensen_shannon.toFixed(6) : '',
+                    isFinite(w.completeness_delta) ? w.completeness_delta.toFixed(6) : '',
+                    `"${(w.trigger_reasons || []).join('|')}"`,
                     w.drift_level,
+                    summary.currentLevel,
+                    summary.worstLevel,
+                    summary.flaggedWindows,
                 ].join(','));
             });
         });
@@ -365,6 +477,12 @@ export async function initDriftPage(metadata: any): Promise<void> {
         if (getResponsesByColumn().size === 0) return;
         const payload = {
             active_column: getActiveDetailColumn(),
+            evaluationMode: getEvaluationMode(),
+            latestWindowCount: getLatestWindowCount(),
+            summary: buildGlobalSummary(getResponsesByColumn()),
+            columnSummaries: Object.fromEntries(
+                Array.from(getResponsesByColumn().values()).map((response) => [response.column, buildColumnSummary(response)]),
+            ),
             columns: Object.fromEntries(getResponsesByColumn().entries()),
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -400,6 +518,11 @@ export async function initDriftPage(metadata: any): Promise<void> {
         updateDetailStatsFromDetail(detailStatsEl, detailHeader);
     }
 
+    function reapplyEvaluationMode(): void {
+        if (rawResponsesByColumn.size === 0) return;
+        applyRenderedResponses(rawResponsesByColumn);
+    }
+
     // ── Wire controls ────────────────────────────────────────────────────────
     bindDriftControls(
         {
@@ -427,6 +550,8 @@ export async function initDriftPage(metadata: any): Promise<void> {
             windowSelect,
             plotTypeSelect,
             refPresetSelect,
+            evaluationModeSelect,
+            latestNInput,
             refStartInput,
             refEndInput,
             computeBtn,
@@ -452,6 +577,9 @@ export async function initDriftPage(metadata: any): Promise<void> {
             },
         },
     );
+
+    evaluationModeSelect?.addEventListener('change', reapplyEvaluationMode);
+    latestNInput?.addEventListener('change', reapplyEvaluationMode);
 
     scheduleDriftChartRefresh();
 

@@ -315,6 +315,117 @@ async fn data_multiple_columns() {
     assert_eq!(resp.status(), StatusCode::OK);
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn data_downsampled_response_is_non_empty_with_epoch_timestamps() {
+    // Regression test: epoch-millisecond timestamps (1_704_067_200_000…)
+    // previously caused downsample_indices() to return an empty
+    // selection, which made /api/data return an empty Arrow IPC body and
+    // the timeseries page fall into the empty state. The fix decouples
+    // LTTB's coordinate axis from the caller's real x so the lookup is
+    // bounded and the selection stays non-empty.
+    let app = test_app();
+    let req = Request::builder()
+        .uri("/api/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=100&columns=col_a")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // Header contract: downsample-related headers must be present and
+    // consistent with each other.
+    let downsampled = resp
+        .headers()
+        .get("x-edatime-downsampled")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let returned = resp
+        .headers()
+        .get("x-edatime-returned-rows")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<usize>().ok());
+
+    assert_eq!(
+        downsampled.as_deref(),
+        Some("1"),
+        "720 input rows > 100 width → downsampled=1"
+    );
+    let returned = returned.expect("x-edatime-returned-rows must be a usize");
+    assert!(
+        returned > 0,
+        "x-edatime-returned-rows must be > 0, got {returned}"
+    );
+    assert!(
+        returned <= 200,
+        "x-edatime-returned-rows must respect target (width*2=200), got {returned}"
+    );
+
+    // Body contract: the decoded Arrow IPC must contain at least one row
+    // and the column count must match the requested columns (ts + col_a).
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    assert!(!body.is_empty(), "Arrow IPC body must not be empty");
+
+    let table =
+        arrow::ipc::reader::StreamReader::try_new(std::io::Cursor::new(&body), None).unwrap();
+    let mut row_count: usize = 0;
+    let mut schema_cols: usize = 0;
+    for batch in table.flatten() {
+        row_count += batch.num_rows();
+        schema_cols = batch.num_columns();
+    }
+    assert!(
+        row_count > 0,
+        "downsampled Arrow response must contain at least one row (got {row_count})"
+    );
+    assert!(
+        row_count <= returned,
+        "Arrow row count ({row_count}) must not exceed x-edatime-returned-rows ({returned})"
+    );
+    assert_eq!(
+        schema_cols, 2,
+        "request columns=col_a → response must have ts + col_a (2 columns), got {schema_cols}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn data_downsampled_response_is_non_empty_with_narrow_width() {
+    // Companion to the epoch-timestamps test: a very narrow chart width
+    // forces aggressive downsampling. The selection must still be
+    // non-empty and the body must contain data, otherwise the user sees
+    // the timeseries empty state.
+    let app = test_app();
+    let req = Request::builder()
+        .uri("/api/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=10&columns=col_a")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let returned = resp
+        .headers()
+        .get("x-edatime-returned-rows")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<usize>().ok())
+        .expect("x-edatime-returned-rows must be a usize");
+    assert!(
+        returned > 0,
+        "narrow-width downsampled response must still return > 0 rows, got {returned}"
+    );
+
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let table =
+        arrow::ipc::reader::StreamReader::try_new(std::io::Cursor::new(&body), None).unwrap();
+    let mut row_count: usize = 0;
+    for batch in table.flatten() {
+        row_count += batch.num_rows();
+    }
+    assert!(
+        row_count > 0,
+        "narrow-width downsampled body must contain rows, got {row_count}"
+    );
+}
+
 // ─── Metrics endpoint ─────────────────────────────────────────────────────────
 
 #[tokio::test(flavor = "multi_thread")]
@@ -453,6 +564,120 @@ async fn analytics_anomalies() {
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn analytics_spectrogram_default() {
+    let app = test_app();
+    let req = Request::builder()
+        .uri("/api/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let result = json.get("result").expect("result key present");
+    let magnitudes = result
+        .get("magnitudes")
+        .and_then(|m| m.as_array())
+        .expect("magnitudes array present");
+    assert!(!magnitudes.is_empty(), "magnitudes should be non-empty");
+    // Default mode has no scaling, so values should be > 0 (raw FFT magnitudes).
+    let first_row = magnitudes[0].as_array().unwrap();
+    assert!(first_row.iter().all(|v| v.as_f64().unwrap_or(0.0) >= 0.0));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn analytics_spectrogram_normalize_minmax() {
+    let app = test_app();
+    let req = Request::builder()
+        .uri("/api/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&normalize=minmax")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let magnitudes = json
+        .get("result")
+        .and_then(|r| r.get("magnitudes"))
+        .and_then(|m| m.as_array())
+        .expect("magnitudes array present");
+    // With min-max, every finite value must lie in [0, 1].
+    for row in magnitudes {
+        for cell in row.as_array().unwrap() {
+            let v = cell.as_f64().expect("finite number");
+            assert!((0.0..=1.0).contains(&v), "value {v} outside [0, 1]");
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn analytics_spectrogram_clip_percentile() {
+    let app = test_app();
+    // 10% per-tail clip should be a no-op on this signal but the response
+    // must still be valid. We mainly assert status 200 and shape.
+    let req = Request::builder()
+        .uri("/api/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&clip=percentile&clip_param=10")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let magnitudes = json
+        .get("result")
+        .and_then(|r| r.get("magnitudes"))
+        .and_then(|m| m.as_array())
+        .expect("magnitudes array present");
+    assert!(!magnitudes.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn analytics_spectrogram_clip_iqr_with_k() {
+    let app = test_app();
+    let req = Request::builder()
+        .uri("/api/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&normalize=minmax&clip=iqr&clip_param=1.5")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let magnitudes = json
+        .get("result")
+        .and_then(|r| r.get("magnitudes"))
+        .and_then(|m| m.as_array())
+        .expect("magnitudes array present");
+    for row in magnitudes {
+        for cell in row.as_array().unwrap() {
+            let v = cell.as_f64().expect("finite number");
+            assert!((0.0..=1.0).contains(&v), "IQR+minmax value {v} outside [0, 1]");
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn analytics_spectrogram_invalid_normalize_returns_400() {
+    let app = test_app();
+    let req = Request::builder()
+        .uri("/api/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&normalize=bogus")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn analytics_spectrogram_invalid_clip_returns_400() {
+    let app = test_app();
+    let req = Request::builder()
+        .uri("/api/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&clip=bogus")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 
 // ─── Upload endpoints ─────────────────────────────────────────────────────────

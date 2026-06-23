@@ -3,6 +3,7 @@ import {
     type FrequencyPeak,
     formatFrequency,
 } from '../utils/spectralPresets.js';
+import { applySpectralScale } from '../utils/spectralScaling.js';
 
 export interface EchartsFftTrace {
     column: string;
@@ -43,11 +44,23 @@ export class EchartsLineChart {
         this._resizeObserver.observe(container);
     }
 
-    updateData(traces: EchartsFftTrace[], mode: string, logScale: boolean): void {
+    updateData(
+        traces: EchartsFftTrace[],
+        mode: string,
+        logScale: boolean,
+        scaleOptions?: { mode: 'none' | 'minmax' | 'zscore' | 'robust'; clip: 'none' | 'percentile' | 'iqr'; clipParam: number },
+    ): void {
         if (!this._chart) return;
 
+        const opts = scaleOptions || { mode: 'none' as const, clip: 'none' as const, clipParam: 0.5 };
         const series = traces.map((trace, index) => {
             const values = mode === 'psd' ? trace.psd : trace.magnitudes;
+            const preLog: number[] = values.map((v) => {
+                const r = Number(v);
+                return logScale ? (r > 0 ? Math.log10(r) : -10) : r;
+            });
+            const scaled = applySpectralScale(preLog, opts);
+            const display = Array.from(scaled.displayValues);
             return {
                 type: 'line',
                 name: trace.column,
@@ -56,9 +69,8 @@ export class EchartsLineChart {
                 lineStyle: { width: 1.5 },
                 itemStyle: { color: trace.color || TRACE_COLORS[index % TRACE_COLORS.length] },
                 data: trace.frequencies.map((frequency, pointIndex) => {
-                    const rawValue = Number(values[pointIndex]);
-                    const yValue = logScale ? (rawValue > 0 ? Math.log10(rawValue) : -10) : rawValue;
-                    return [frequency, yValue];
+                    const y = display[pointIndex];
+                    return [frequency, y];
                 }).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y)),
             };
         });

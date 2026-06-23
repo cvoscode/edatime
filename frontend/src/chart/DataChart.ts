@@ -57,6 +57,17 @@ interface LegendDragState {
     startTop: number;
 }
 
+/**
+ * Tracked window-level event listeners attached by the legend overlay.
+ * Stored so destroy()/deepDispose() can remove them — without tracking, every
+ * re-init of the chart would leak three listeners on `window`.
+ */
+interface LegendWindowListener {
+    type: string;
+    handler: EventListener;
+    options?: AddEventListenerOptions | boolean;
+}
+
 import {
     analyzeColorValues, baseSeriesName,
     buildColorizedSeries, categoryColorFor, colorForScaleValue,
@@ -122,6 +133,7 @@ export class DataChart {
     _legendEl: HTMLElement | null = null;
     _legendPosition: LegendPosition | null = null;
     _legendDragState: LegendDragState | null = null;
+    _legendWindowListeners: LegendWindowListener[] = [];
 
     constructor(
         containerId: string,
@@ -154,6 +166,7 @@ export class DataChart {
         this._legendEl = null;
         this._legendPosition = null;
         this._legendDragState = null;
+        this._removeLegendWindowListeners();
         this.chartInstance = null;
     }
 
@@ -189,6 +202,7 @@ export class DataChart {
         this._legendEl = null;
         this._legendPosition = null;
         this._legendDragState = null;
+        this._removeLegendWindowListeners();
 
         // Release ChartGPU instance (guards against device-lost scenarios).
         try {
@@ -635,30 +649,6 @@ export class DataChart {
         downloadBlob(blob, 'edatime_chart.html');
     }
 
-    exportSVGDrawings(viewWidth: number, viewHeight: number): string {
-        const allDraws = [...this._drawings];
-        if (this._currentDraw) allDraws.push(this._currentDraw);
-        if (allDraws.length === 0) return '';
-        const baseW = this._overlayCanvas?.width || this._container?.getBoundingClientRect?.().width || viewWidth || 1;
-        const baseH = this._overlayCanvas?.height || this._container?.getBoundingClientRect?.().height || viewHeight || 1;
-        const scaleX = viewWidth / (baseW || 1);
-        const scaleY = viewHeight / (baseH || 1);
-        const strokeScale = Math.min(scaleX, scaleY);
-        let body = '';
-        for (const item of allDraws) {
-            if (item.type === 'arrow') {
-                body += this._drawArrowSVG(item, scaleX, scaleY);
-            } else if (item.type === 'box') {
-                const x = Math.min(item.startX, item.endX) * scaleX;
-                const y = Math.min(item.startY, item.endY) * scaleY;
-                const w = Math.abs(item.endX - item.startX) * scaleX;
-                const h = Math.abs(item.endY - item.startY) * scaleY;
-                body += `  <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="${item.color}" stroke-width="${item.width * strokeScale}" stroke-linecap="round" stroke-linejoin="round" />\n`;
-            }
-        }
-        return body;
-    }
-
     /* ── Private helpers ────────────────────────────────── */
 
     private _applyYRange(min: number, max: number, sourceKind: string, setAuto: boolean | null): void {
@@ -749,7 +739,14 @@ export class DataChart {
     }
 
     private _ensureLegendOverlay(): HTMLElement {
-        if (this._legendEl) return this._legendEl;
+        if (this._legendEl && this._legendEl.isConnected) return this._legendEl;
+        // Defensive: after destroy()/deepDispose(), the previous element may
+        // still be in the DOM briefly but should be replaced.
+        if (this._legendEl) {
+            this._removeLegendWindowListeners();
+            this._legendEl.remove();
+            this._legendEl = null;
+        }
         if (!this._container) throw new Error('Cannot create legend overlay without chart container.');
 
         const legend = document.createElement('div');
@@ -761,12 +758,31 @@ export class DataChart {
         legend.addEventListener('pointerup', (event) => this._finishLegendDrag(event));
         legend.addEventListener('pointercancel', (event) => this._finishLegendDrag(event));
         legend.addEventListener('pointerenter', (event) => this._syncLegendCtrlHint(event));
-        window.addEventListener('keydown', (event) => this._syncLegendCtrlHint(event, legend));
-        window.addEventListener('keyup', (event) => this._syncLegendCtrlHint(event, legend));
-        window.addEventListener('blur', () => legend.classList.remove('is-ctrl-active'));
+
+        // Track every window listener we attach so destroy()/deepDispose()
+        // can remove them — otherwise each chart re-init leaks three
+        // listeners on `window`.
+        this._addLegendWindowListener('keydown', (event) => this._syncLegendCtrlHint(event));
+        this._addLegendWindowListener('keyup', (event) => this._syncLegendCtrlHint(event));
+        this._addLegendWindowListener('blur', () => this._legendEl?.classList.remove('is-ctrl-active'));
+
         this._container.appendChild(legend);
         this._legendEl = legend;
         return legend;
+    }
+
+    private _addLegendWindowListener(type: string, handler: EventListener): void {
+        // Reuse the same handler instance across re-inits so removal works
+        // even if destroy()/init() cycle fires more than once.
+        this._legendWindowListeners.push({ type, handler });
+        window.addEventListener(type, handler);
+    }
+
+    private _removeLegendWindowListeners(): void {
+        for (const { type, handler } of this._legendWindowListeners) {
+            window.removeEventListener(type, handler);
+        }
+        this._legendWindowListeners = [];
     }
 
     private _syncLegendCtrlHint(event: Event, legend?: HTMLElement | null): void {
@@ -783,7 +799,13 @@ export class DataChart {
 
     private _getLegendEntries(): { name: string; color: string; visible: boolean }[] {
         const seriesList = Array.isArray(this._lastSeriesList) ? this._lastSeriesList : [];
-        const byName = new Map<string, { name: string; color: string; visible: boolean; anyVisible: boolean }>();
+        // Group all series for the same base name. A base name can have
+        // multiple series (e.g. raw line + colorized segments + marker
+        // overlays). Visibility is "true if any segment for this name is
+        // visible" — finalizing after the loop avoids the previous
+        // collapse bug where toggling deterministically flipped behavior.
+        const byName = new Map<string, { name: string; color: string; anyVisible: boolean }>();
+        const fallbackPalette = this._getChartColorPalette();
         for (const series of seriesList) {
             if (!series || series.type !== 'line') continue;
             const rawName = typeof series.name === 'string' ? series.name : '';
@@ -794,18 +816,21 @@ export class DataChart {
             const existing = byName.get(name);
             if (existing) {
                 existing.anyVisible = existing.anyVisible || visible;
-                existing.visible = existing.anyVisible;
+                // First encountered color wins; later segments rarely carry
+                // a meaningful color and would otherwise clobber the swatch.
                 continue;
             }
-            const fallbackPalette = this._getChartColorPalette();
             byName.set(name, {
                 name,
                 color: series.color || fallbackPalette[byName.size % fallbackPalette.length],
-                visible,
                 anyVisible: visible,
             });
         }
-        return Array.from(byName.values()).map(({ name, color, visible }) => ({ name, color, visible }));
+        return Array.from(byName.values()).map(({ name, color, anyVisible }) => ({
+            name,
+            color,
+            visible: anyVisible,
+        }));
     }
 
     private _toggleLegendTrace(name: string): void {
@@ -1566,21 +1591,6 @@ export class DataChart {
                 ctx.stroke();
             }
         }
-    }
-
-    private _drawArrowSVG(item: DrawItem, scaleX: number, scaleY: number): string {
-        const strokeScale = Math.min(scaleX, scaleY);
-        const headlen = 10 * strokeScale;
-        const startX = item.startX * scaleX;
-        const startY = item.startY * scaleY;
-        const endX = item.endX * scaleX;
-        const endY = item.endY * scaleY;
-        const angle = Math.atan2(endY - startY, endX - startX);
-        let d = `M ${startX} ${startY} L ${endX} ${endY}`;
-        d += ` L ${endX - headlen * Math.cos(angle - Math.PI / 6)} ${endY - headlen * Math.sin(angle - Math.PI / 6)}`;
-        d += ` M ${endX} ${endY}`;
-        d += ` L ${endX - headlen * Math.cos(angle + Math.PI / 6)} ${endY - headlen * Math.sin(angle + Math.PI / 6)}`;
-        return `  <path d="${d}" fill="none" stroke="${item.color}" stroke-width="${item.width * strokeScale}" stroke-linecap="round" stroke-linejoin="round" />\n`;
     }
 
 }

@@ -150,6 +150,14 @@ pub struct SpectrogramQuery {
     pub hop_size: Option<usize>,
     /// Max total samples (default: 32768)
     pub max_points: Option<usize>,
+    /// Optional server-side colorbar normalization:
+    /// `none` (default), `minmax`, `zscore`, or `robust`.
+    pub normalize: Option<String>,
+    /// Optional server-side outlier clipping: `none`, `percentile`, or `iqr`.
+    pub clip: Option<String>,
+    /// Threshold for the active clip mode (percentage on each tail for
+    /// `percentile`, k multiplier for `iqr`).
+    pub clip_param: Option<f64>,
 }
 
 #[tracing::instrument(skip(state))]
@@ -166,11 +174,22 @@ pub async fn get_spectrogram(
 
     let win_size = params.window_size.unwrap_or(256).clamp(16, 4096);
     let hop = params.hop_size.unwrap_or(win_size / 2).clamp(1, win_size);
+    let scale = analytics::ScaleOptions::from_query(
+        params.normalize.as_deref(),
+        params.clip.as_deref(),
+        params.clip_param,
+    )?;
 
     let result = tokio::task::spawn_blocking({
         let work_df = work_df.clone();
         let col = col.to_string();
-        move || analytics::compute_spectrogram(&work_df, &col, win_size, hop)
+        move || {
+            let mut result = analytics::compute_spectrogram(&work_df, &col, win_size, hop)?;
+            if scale.mode != analytics::ScaleMode::None || scale.clip != analytics::ClipMode::None {
+                analytics::apply_spectrogram_scale(&mut result, scale)?;
+            }
+            Ok::<_, AppError>(result)
+        }
     })
     .await
     .map_err(|e| AppError::internal(format!("Join error: {e}")))??;

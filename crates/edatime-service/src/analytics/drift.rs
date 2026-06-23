@@ -1,5 +1,7 @@
-//! Temporal drift analysis — KS test, Wasserstein-1 distance, PSI, Epps-Singleton test.
+//! Temporal drift analysis — KS test, Wasserstein-1 distance, PSI, Epps-Singleton test,
+//! and Jensen-Shannon divergence.
 
+use chrono::{DateTime, Utc};
 use polars::prelude::*;
 use serde::Serialize;
 
@@ -152,6 +154,57 @@ pub fn compute_psi_with_ref_props(ref_props: &[f64], current: &[f64], edges: &[f
     psi.max(0.0)
 }
 
+fn normalized_histogram_props(data: &[f64], edges: &[f64]) -> Vec<f64> {
+    if data.is_empty() || edges.len() < 2 {
+        return vec![];
+    }
+    let counts = histogram_from_edges(data, edges);
+    let total = counts.iter().sum::<u64>() as f64;
+    let eps = 1e-10_f64;
+    if total <= 0.0 {
+        return vec![eps; counts.len()];
+    }
+    counts
+        .iter()
+        .map(|count| ((*count as f64) / total).max(eps))
+        .collect()
+}
+
+pub fn jensen_shannon_divergence_with_ref_props(
+    ref_props: &[f64],
+    current: &[f64],
+    edges: &[f64],
+) -> f64 {
+    if ref_props.is_empty() || current.is_empty() || edges.len() < 2 {
+        return 0.0;
+    }
+    let curr_props = normalized_histogram_props(current, edges);
+    if curr_props.len() != ref_props.len() {
+        return 0.0;
+    }
+
+    let kl_div = |p: &[f64], q: &[f64]| -> f64 {
+        p.iter()
+            .zip(q.iter())
+            .map(|(p_i, q_i)| {
+                if *p_i <= 0.0 || *q_i <= 0.0 {
+                    0.0
+                } else {
+                    p_i * (p_i / q_i).log2()
+                }
+            })
+            .sum::<f64>()
+    };
+
+    let midpoint: Vec<f64> = ref_props
+        .iter()
+        .zip(curr_props.iter())
+        .map(|(ref_prop, curr_prop)| (ref_prop + curr_prop) / 2.0)
+        .collect();
+
+    (0.5 * kl_div(ref_props, &midpoint) + 0.5 * kl_div(&curr_props, &midpoint)).max(0.0)
+}
+
 /// Compute quantiles from a sorted slice at the given fractions (0.0–1.0).
 fn compute_quantiles_sorted(sorted: &[f64], qs: &[f64]) -> Vec<f64> {
     if sorted.is_empty() {
@@ -242,14 +295,18 @@ pub struct DriftWindowStats {
     pub es_pvalue: f64,
     pub wasserstein: f64,
     pub psi: f64,
+    pub jensen_shannon: f64,
     pub drift_level: String,
+    pub trigger_reasons: Vec<String>,
+    pub completeness_delta: f64,
     pub low_sample_warning: bool,
 }
 
 /// Thresholds used for drift alerting.
 #[derive(Debug, Serialize)]
 pub struct DriftThresholds {
-    pub ks_threshold: f64,
+    pub ks_pvalue_threshold: f64,
+    pub es_pvalue_threshold: f64,
     pub wasserstein_threshold: f64,
     pub psi_minor_threshold: f64,
     pub psi_major_threshold: f64,
@@ -345,6 +402,90 @@ fn build_distribution_stats(
     }
 }
 
+pub fn classify_drift_window(
+    psi: f64,
+    wasserstein: f64,
+    ks_pvalue: f64,
+    es_pvalue: f64,
+    thresholds: &DriftThresholds,
+) -> (String, Vec<String>) {
+    let mut score = 0usize;
+    let mut reasons: Vec<String> = Vec::new();
+
+    if psi >= thresholds.psi_major_threshold {
+        score += 2;
+        reasons.push("psi_major".to_string());
+    } else if psi >= thresholds.psi_minor_threshold {
+        score += 1;
+        reasons.push("psi_minor".to_string());
+    }
+
+    if wasserstein > thresholds.wasserstein_threshold {
+        score += 1;
+        reasons.push("wasserstein".to_string());
+    }
+
+    if ks_pvalue < thresholds.ks_pvalue_threshold {
+        score += 1;
+        reasons.push("ks".to_string());
+    }
+
+    if es_pvalue < thresholds.es_pvalue_threshold {
+        score += 1;
+        reasons.push("es".to_string());
+    }
+
+    let level = if score >= 2 {
+        "red"
+    } else if score == 1 {
+        "yellow"
+    } else {
+        "green"
+    };
+
+    (level.to_string(), reasons)
+}
+
+fn format_timestamp(ms: f64) -> String {
+    if !ms.is_finite() {
+        return "—".to_string();
+    }
+    DateTime::<Utc>::from_timestamp_millis(ms.round() as i64)
+        .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+        .unwrap_or_else(|| "—".to_string())
+}
+
+fn format_time_only(ms: f64) -> String {
+    if !ms.is_finite() {
+        return "—".to_string();
+    }
+    DateTime::<Utc>::from_timestamp_millis(ms.round() as i64)
+        .map(|dt| dt.format("%H:%M").to_string())
+        .unwrap_or_else(|| "—".to_string())
+}
+
+fn same_utc_day(start_ms: f64, end_ms: f64) -> bool {
+    let Some(start) = DateTime::<Utc>::from_timestamp_millis(start_ms.round() as i64) else {
+        return false;
+    };
+    let Some(end) = DateTime::<Utc>::from_timestamp_millis(end_ms.round() as i64) else {
+        return false;
+    };
+    start.date_naive() == end.date_naive()
+}
+
+fn format_range_full(start_ms: f64, end_ms: f64) -> String {
+    format!("{} - {}", format_timestamp(start_ms), format_timestamp(end_ms))
+}
+
+pub fn format_window_label(start_ms: f64, end_ms: f64, window_ms: i64) -> String {
+    if window_ms == 3_600_000 && same_utc_day(start_ms, end_ms) {
+        format!("{} - {}", format_timestamp(start_ms), format_time_only(end_ms))
+    } else {
+        format_range_full(start_ms, end_ms)
+    }
+}
+
 /// Compute temporal drift analysis for a given column.
 #[allow(clippy::too_many_arguments)]
 pub fn compute_temporal_drift(
@@ -356,7 +497,8 @@ pub fn compute_temporal_drift(
     curr_start_ms: f64,
     curr_end_ms: f64,
     n_bins: usize,
-    ks_threshold: f64,
+    ks_pvalue_threshold: f64,
+    es_pvalue_threshold: f64,
     wasserstein_threshold: f64,
     psi_minor: f64,
     psi_major: f64,
@@ -370,7 +512,7 @@ pub fn compute_temporal_drift(
     let (mut ref_vals, ref_total) = ts_ms
         .iter()
         .zip(raw_values.iter())
-        .filter(|&(t, _)| *t >= ref_start_ms && *t <= ref_end_ms)
+        .filter(|&(t, _)| *t >= ref_start_ms && *t < ref_end_ms)
         .fold((Vec::new(), 0), |(mut vals, mut total), (_, &v)| {
             total += 1;
             if let Some(val) = v {
@@ -423,11 +565,7 @@ pub fn compute_temporal_drift(
     }
     let effective_bin_count = hist_edges.len().saturating_sub(1);
 
-    let ref_label = format!(
-        "Ref ({} – {})",
-        ms_to_date_label(ref_start_ms),
-        ms_to_date_label(ref_end_ms)
-    );
+    let ref_label = format!("Ref ({})", format_range_full(ref_start_ms, ref_end_ms));
     let reference = build_distribution_stats(
         &ref_sorted,
         ref_total,
@@ -437,10 +575,15 @@ pub fn compute_temporal_drift(
         &hist_edges,
     );
 
+    let wasserstein_std_multiplier = if wasserstein_threshold < 0.0 {
+        wasserstein_threshold.abs()
+    } else {
+        0.1
+    };
     let effective_wasserstein_threshold = if wasserstein_threshold > 0.0 {
         wasserstein_threshold
     } else {
-        let candidate = reference.std * 0.1;
+        let candidate = reference.std * wasserstein_std_multiplier;
         if candidate.is_finite() && candidate > 0.0 {
             candidate
         } else {
@@ -448,17 +591,29 @@ pub fn compute_temporal_drift(
         }
     };
 
-    let first_curr_bucket = ((curr_start_ms / window_ms as f64).floor() as i64) * window_ms;
+    let thresholds = DriftThresholds {
+        ks_pvalue_threshold,
+        es_pvalue_threshold,
+        wasserstein_threshold: effective_wasserstein_threshold,
+        psi_minor_threshold: psi_minor,
+        psi_major_threshold: psi_major,
+    };
+
+    let first_curr_bucket = curr_start_ms;
     let last_curr_ms = curr_end_ms;
 
-    let n_buckets = ((last_curr_ms - first_curr_bucket as f64) / window_ms as f64).ceil() as usize;
+    let n_buckets = if last_curr_ms >= first_curr_bucket {
+        (((last_curr_ms - first_curr_bucket) / window_ms as f64).floor() as usize).saturating_add(1)
+    } else {
+        1
+    };
     let n_buckets = n_buckets.max(1);
     let mut bucket_vals: Vec<Vec<f64>> = vec![Vec::new(); n_buckets];
     let mut bucket_totals: Vec<usize> = vec![0; n_buckets];
     for i in 0..n {
         let t = ts_ms[i];
-        if t >= curr_start_ms && t < last_curr_ms {
-            let idx = ((t - first_curr_bucket as f64) / window_ms as f64) as usize;
+        if t >= curr_start_ms && t <= last_curr_ms {
+            let idx = ((t - first_curr_bucket) / window_ms as f64).floor() as usize;
             if idx < n_buckets {
                 bucket_totals[idx] += 1;
                 if let Some(v) = raw_values[i] {
@@ -484,7 +639,7 @@ pub fn compute_temporal_drift(
 
     let mut windows: Vec<DriftWindowStats> = Vec::with_capacity(n_buckets);
     for bi in 0..n_buckets {
-        let bucket_start_ms = first_curr_bucket as f64 + bi as f64 * window_ms as f64;
+        let bucket_start_ms = first_curr_bucket + bi as f64 * window_ms as f64;
         let bucket_end_ms = bucket_start_ms + window_ms as f64;
         if bucket_start_ms >= last_curr_ms {
             break;
@@ -492,25 +647,24 @@ pub fn compute_temporal_drift(
         let vals = &bucket_vals[bi];
         let low_sample_warning = vals.len() < 5;
 
-        let (ks_stat, ks_pvalue, es_stat, es_pvalue, wasserstein, psi) = if vals.len() >= 5 {
+        let (ks_stat, ks_pvalue, es_stat, es_pvalue, wasserstein, psi, jensen_shannon) = if vals.len() >= 5 {
             let (ks_s, ks_p) = ks_test_2sample(&ref_sorted, vals);
             let (es_s, es_p) = edatime_core::stats::epps_singleton_test(&es_ref_sample, vals);
             let w = wasserstein_distance_1d(&ref_sorted, vals);
             let p = compute_psi_with_ref_props(&psi_ref_props, vals, &hist_edges);
-            (ks_s, ks_p, es_s, es_p, w, p)
+            let js = jensen_shannon_divergence_with_ref_props(&psi_ref_props, vals, &hist_edges);
+            (ks_s, ks_p, es_s, es_p, w, p, js)
         } else {
-            (0.0, 1.0, 0.0, 1.0, 0.0, 0.0)
+            (0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0)
         };
 
-        let drift_level = if wasserstein > effective_wasserstein_threshold || psi >= psi_major {
-            "red".to_string()
-        } else if psi >= psi_minor {
-            "yellow".to_string()
+        let (drift_level, trigger_reasons) = if low_sample_warning {
+            ("green".to_string(), Vec::new())
         } else {
-            "green".to_string()
+            classify_drift_window(psi, wasserstein, ks_pvalue, es_pvalue, &thresholds)
         };
 
-        let label = ms_to_date_label(bucket_start_ms);
+        let label = format_window_label(bucket_start_ms, bucket_end_ms, window_ms);
         let dist = build_distribution_stats(
             vals,
             bucket_totals[bi],
@@ -519,6 +673,7 @@ pub fn compute_temporal_drift(
             label,
             &hist_edges,
         );
+        let completeness_delta = dist.completeness - reference.completeness;
 
         windows.push(DriftWindowStats {
             distribution: dist,
@@ -528,7 +683,10 @@ pub fn compute_temporal_drift(
             es_pvalue,
             wasserstein,
             psi,
+            jensen_shannon,
             drift_level,
+            trigger_reasons,
+            completeness_delta,
             low_sample_warning,
         });
     }
@@ -553,12 +711,7 @@ pub fn compute_temporal_drift(
         column: column.to_string(),
         reference,
         windows,
-        thresholds: DriftThresholds {
-            ks_threshold,
-            wasserstein_threshold: effective_wasserstein_threshold,
-            psi_minor_threshold: psi_minor,
-            psi_major_threshold: psi_major,
-        },
+        thresholds,
         metadata: DriftMetadata {
             computation_time_ms: start_time.elapsed().as_millis() as u64,
             num_windows,
@@ -571,26 +724,130 @@ pub fn compute_temporal_drift(
     })
 }
 
-fn ms_to_date_label(ms: f64) -> String {
-    if !ms.is_finite() {
-        return "—".to_string();
-    }
-    let secs = (ms / 1000.0) as i64;
-    let days = secs / 86400;
-    let (y, m, d) = days_to_ymd(days);
-    format!("{:04}-{:02}-{:02}", y, m, d)
-}
+#[cfg(test)]
+mod tests {
+    use super::{
+        classify_drift_window, compute_temporal_drift, format_window_label,
+        jensen_shannon_divergence_with_ref_props, DriftThresholds,
+    };
+    use polars::prelude::{DataFrame, DataType, NamedFrom, Series, TimeUnit};
 
-fn days_to_ymd(mut days: i64) -> (i64, i64, i64) {
-    days += 719468;
-    let era = if days >= 0 { days } else { days - 146096 } / 146097;
-    let doe = days - era * 146097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = if m <= 2 { y + 1 } else { y };
-    (y, m, d)
+    fn drift_df(values: Vec<f64>, start_ms: i64, step_ms: i64) -> DataFrame {
+        let ts_values: Vec<i64> = (0..values.len())
+            .map(|idx| start_ms + idx as i64 * step_ms)
+            .collect();
+        let ts = Series::new("ts".into(), ts_values)
+            .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+            .expect("ts should cast to datetime");
+        let value = Series::new("value".into(), values);
+        DataFrame::new(
+            ts.len(),
+            vec![ts.into(), value.into()],
+        )
+        .expect("test dataframe should build")
+    }
+
+    #[test]
+    fn format_window_label_uses_precise_hourly_ranges() {
+        let start = 1_735_689_600_000.0; // 2025-01-01 00:00 UTC
+        let end = start + 3_600_000.0;
+        assert_eq!(
+            format_window_label(start, end, 3_600_000),
+            "2025-01-01 00:00 - 01:00",
+        );
+    }
+
+    #[test]
+    fn format_window_label_uses_full_daily_ranges() {
+        let start = 1_735_689_600_000.0; // 2025-01-01 00:00 UTC
+        let end = start + 86_400_000.0;
+        assert_eq!(
+            format_window_label(start, end, 86_400_000),
+            "2025-01-01 00:00 - 2025-01-02 00:00",
+        );
+    }
+
+    #[test]
+    fn format_window_label_uses_full_weekly_ranges() {
+        let start = 1_735_689_600_000.0; // 2025-01-01 00:00 UTC
+        let end = start + 7.0 * 86_400_000.0;
+        assert_eq!(
+            format_window_label(start, end, 7 * 86_400_000),
+            "2025-01-01 00:00 - 2025-01-08 00:00",
+        );
+    }
+
+    #[test]
+    fn classify_drift_window_scores_composite_triggers() {
+        let thresholds = DriftThresholds {
+            ks_pvalue_threshold: 0.05,
+            es_pvalue_threshold: 0.05,
+            wasserstein_threshold: 0.2,
+            psi_minor_threshold: 0.1,
+            psi_major_threshold: 0.2,
+        };
+
+        let (level, reasons) = classify_drift_window(0.15, 0.0, 0.9, 0.9, &thresholds);
+        assert_eq!(level, "yellow");
+        assert_eq!(reasons, vec!["psi_minor"]);
+
+        let (level, reasons) = classify_drift_window(0.21, 0.0, 0.9, 0.9, &thresholds);
+        assert_eq!(level, "red");
+        assert_eq!(reasons, vec!["psi_major"]);
+
+        let (level, reasons) = classify_drift_window(0.0, 0.0, 0.01, 0.9, &thresholds);
+        assert_eq!(level, "yellow");
+        assert_eq!(reasons, vec!["ks"]);
+
+        let (level, reasons) = classify_drift_window(0.0, 0.0, 0.01, 0.01, &thresholds);
+        assert_eq!(level, "red");
+        assert_eq!(reasons, vec!["ks", "es"]);
+
+        let (level, reasons) = classify_drift_window(0.0, 0.25, 0.9, 0.9, &thresholds);
+        assert_eq!(level, "yellow");
+        assert_eq!(reasons, vec!["wasserstein"]);
+    }
+
+    #[test]
+    fn jensen_shannon_divergence_is_positive_for_shifted_histograms() {
+        let ref_props = vec![0.5, 0.5];
+        let edges = vec![0.0, 1.0, 2.0];
+        let current = vec![1.2, 1.4, 1.6, 1.8];
+        let js = jensen_shannon_divergence_with_ref_props(&ref_props, &current, &edges);
+        assert!(js.is_finite());
+        assert!(js > 0.0);
+    }
+
+    #[test]
+    fn compute_temporal_drift_anchors_windows_at_reference_end_without_overlap() {
+        let values: Vec<f64> = (0..30).map(|idx| idx as f64).collect();
+        let df = drift_df(values, 1_735_689_600_000, 300_000);
+
+        let response = compute_temporal_drift(
+            &df,
+            "value",
+            3_600_000,
+            1_735_689_600_000.0,
+            1_735_691_400_000.0,
+            1_735_691_400_000.0,
+            1_735_698_300_000.0,
+            20,
+            0.05,
+            0.05,
+            0.0,
+            0.1,
+            0.2,
+        )
+        .expect("drift response should compute");
+
+        assert_eq!(response.reference.count, 6);
+        assert_eq!(response.reference.start_ms, 1_735_689_600_000.0);
+        assert_eq!(response.reference.end_ms, 1_735_691_400_000.0);
+
+        let first = response.windows.first().expect("at least one monitoring window");
+        assert_eq!(first.distribution.start_ms, 1_735_691_400_000.0);
+        assert_eq!(first.distribution.end_ms, 1_735_695_000_000.0);
+        assert_eq!(first.distribution.count, 12);
+        assert_eq!(first.distribution.label, "2025-01-01 00:30 - 01:30");
+    }
 }

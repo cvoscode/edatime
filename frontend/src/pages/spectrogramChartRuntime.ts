@@ -10,7 +10,13 @@
 import { fetchSpectrogram, type SpectrogramResult } from '../services/api/index.js';
 import { appState } from '../store/index.js';
 import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../utils/chartExport.js';
-import { getDropdownOptions, getDropdownValue, setDropdownOptions } from '../ui/primitives/Dropdown.js';
+import { getDropdownOptions, getDropdownValue, setDropdownDisabled, setDropdownOptions } from '../ui/primitives/Dropdown.js';
+import {
+    applySpectralScale,
+    scaleModeLabel,
+    type ClipMode,
+    type ScaleMode,
+} from '../utils/spectralScaling.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 
 interface SpectrogramPageDeps {
@@ -64,6 +70,11 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             const colSelect = document.getElementById('spectrogram-col-select') as HTMLElement | null;
             const winSelect = document.getElementById('spectrogram-win-size') as HTMLElement | null;
             const logCheck = document.getElementById('spectrogram-log-scale') as HTMLInputElement | null;
+            const normalizeSelect = document.getElementById('spectrogram-normalize') as HTMLSelectElement | null;
+            const clipToggle = document.getElementById('spectrogram-clip-toggle') as HTMLInputElement | null;
+            const clipMethod = document.getElementById('spectrogram-clip-method') as HTMLSelectElement | null;
+            const clipParam = document.getElementById('spectrogram-clip-param') as HTMLInputElement | null;
+            const clipParamLabel = document.getElementById('spectrogram-clip-param-label') as HTMLElement | null;
             const resetZoomBtn = document.getElementById('spectrogram-zoom-reset-btn') as HTMLButtonElement | null;
             const chartEl = document.getElementById('spectrogram-chart') as HTMLDivElement | null;
 
@@ -198,29 +209,60 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 if (!spectrogramResult) return;
                 const chart = await ensureSpectrogramChart();
                 const logScale = logCheck?.checked ?? true;
+                const scaleMode = ((getDropdownValue('spectrogram-normalize') || 'none') as ScaleMode);
+                // Always sync the disabled state from the current toggle before
+                // reading the rest of the clip inputs — this is the single
+                // source of truth for the gated fields and survives any
+                // listener-timing quirks (cached bundle, label-driven toggle,
+                // back-forward cache restore).
+                syncClipEnabled();
+                const clipEnabled = clipToggle?.checked ?? false;
+                const clipMethodValue = (getDropdownValue('spectrogram-clip-method') || 'percentile') as ClipMode;
+                const clipParamEl = document.getElementById('spectrogram-clip-param') as HTMLInputElement | null;
+                const clipParamValue = Number.parseFloat(clipParamEl?.value ?? '0.5');
+                const clipParam = Number.isFinite(clipParamValue) ? clipParamValue : 0.5;
+                const clipMode: ClipMode = clipEnabled ? clipMethodValue : 'none';
+
                 const points: [number, number, number, number, number, number][] = [];
                 const timeAxis = spectrogramResult.times_ms;
                 const freqAxis = spectrogramResult.frequencies;
-                let minValue = Number.POSITIVE_INFINITY;
-                let maxValue = Number.NEGATIVE_INFINITY;
 
-                for (let timeIndex = 0; timeIndex < timeAxis.length; timeIndex++) {
-                    const timeMs = timeAxis[timeIndex];
-                    const row = spectrogramResult.magnitudes[timeIndex] || [];
-                    for (let freqIndex = 0; freqIndex < freqAxis.length; freqIndex++) {
-                        const freq = freqAxis[freqIndex];
-                        const rawMagnitude = Number(row[freqIndex] ?? 0);
-                        const displayMagnitude = logScale ? Math.log10(Math.max(rawMagnitude, 1e-30)) : rawMagnitude;
-                        if (!Number.isFinite(displayMagnitude)) continue;
-                        minValue = Math.min(minValue, displayMagnitude);
-                        maxValue = Math.max(maxValue, displayMagnitude);
-                        points.push([timeIndex, freqIndex, displayMagnitude, timeMs, freq, rawMagnitude]);
-                    }
+                // Flatten magnitudes into a single typed array — log first if
+                // requested, then pass through applySpectralScale for clip +
+                // normalize.
+                const total = timeAxis.length * freqAxis.length;
+                const flat = new Float64Array(total);
+                for (let i = 0; i < total; i += 1) {
+                    const timeIndex = Math.floor(i / freqAxis.length);
+                    const freqIndex = i % freqAxis.length;
+                    const raw = Number(spectrogramResult.magnitudes[timeIndex]?.[freqIndex] ?? NaN);
+                    flat[i] = logScale ? Math.log10(Math.max(raw, 1e-30)) : raw;
                 }
+                const scaled = applySpectralScale(flat, { mode: scaleMode, clip: clipMode, clipParam });
+                const minValue = scaled.vmin;
+                const maxValue = scaled.vmax;
+                const scaleLabel = scaleModeLabel(scaleMode, clipMode, clipParam);
 
-                if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
-                    minValue = 0;
-                    maxValue = 1;
+                // Capture the global scale bounds so the colorbar filter
+                // handles can position themselves in absolute value space.
+                currentScaleBounds = { min: minValue, max: maxValue };
+
+                for (let i = 0; i < total; i += 1) {
+                    const timeIndex = Math.floor(i / freqAxis.length);
+                    const freqIndex = i % freqAxis.length;
+                    const timeMs = timeAxis[timeIndex];
+                    const freq = freqAxis[freqIndex];
+                    const rawMagnitude = Number(spectrogramResult.magnitudes[timeIndex]?.[freqIndex] ?? 0);
+                    const displayMagnitude = scaled.displayValues[i];
+                    if (!Number.isFinite(displayMagnitude)) continue;
+                    // Apply the user-defined color filter (range drag on the
+                    // colorbar). Filtered-out cells are dropped from the
+                    // data array; ECharts heatmap treats missing cells as
+                    // transparent when combined with a visualMap that has
+                    // an out-of-range color set to transparent. (We
+                    // configure visualMap.inRange.outOfRange below.)
+                    if (!isInsideColorFilter(displayMagnitude)) continue;
+                    points.push([timeIndex, freqIndex, displayMagnitude, timeMs, freq, rawMagnitude]);
                 }
 
                 const xTickInterval = Math.max(0, Math.floor(timeAxis.length / 10) - 1);
@@ -229,7 +271,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 chart.setOption({
                     backgroundColor: 'transparent',
                     animation: false,
-                    grid: { left: 72, right: 110, top: 24, bottom: 80 },
+                    // Colorbar moved out of ECharts into a DOM sibling
+                    // (#spectrogram-colorbar). Shrink grid.right so the heatmap
+                    // uses the space the visualMap used to occupy.
+                    grid: { left: 72, right: 24, top: 24, bottom: 80 },
                     toolbox: {
                         right: 12,
                         feature: {
@@ -248,11 +293,14 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                             const freq = Number(value[4]);
                             const displayMagnitude = Number(value[2]);
                             const rawMagnitude = Number(value[5]);
+                            const intensityLabel = logScale && scaleMode === 'none'
+                                ? `${displayMagnitude.toFixed(4)} log10`
+                                : `${displayMagnitude.toFixed(4)} (${scaleLabel})`;
                             return [
                                 `<strong>${spectrogramResult?.column || 'Spectrogram'}</strong>`,
                                 `Time: ${formatSpectrogramTime(timeMs)}`,
                                 `Frequency: ${formatSpectrogramFrequency(freq)}`,
-                                `Intensity: ${displayMagnitude.toFixed(4)}${logScale ? ' log10' : ''}`,
+                                `Intensity: ${intensityLabel}`,
                                 `Raw magnitude: ${rawMagnitude.toExponential(4)}`,
                             ].join('<br>');
                         },
@@ -287,19 +335,6 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         },
                         splitLine: { show: false },
                     },
-                    visualMap: {
-                        min: minValue,
-                        max: maxValue,
-                        calculable: true,
-                        orient: 'vertical',
-                        right: 18,
-                        top: 'middle',
-                        text: [logScale ? 'High log10' : 'High', logScale ? 'Low log10' : 'Low'],
-                        textStyle: { color: '#9fb1d1' },
-                        inRange: {
-                            color: ['#440154', '#414487', '#2a788e', '#22a884', '#7ad151', '#fde725'],
-                        },
-                    },
                     dataZoom: [
                         {
                             type: 'inside', xAxisIndex: 0, filterMode: 'none',
@@ -310,6 +345,19 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                             zoomOnMouseWheel: false, moveOnMouseMove: false, moveOnMouseWheel: false,
                         },
                     ],
+                    // ECharts requires a visualMap for heatmap series to map
+                    // values to colors. We hide it (show: false) and use the
+                    // DOM colorbar sibling (#spectrogram-colorbar) as the
+                    // user-facing color scale.
+                    visualMap: {
+                        show: false,
+                        min: minValue,
+                        max: maxValue,
+                        calculable: false,
+                        inRange: {
+                            color: ['#440154', '#414487', '#2a788e', '#22a884', '#7ad151', '#fde725'],
+                        },
+                    },
                     series: [{
                         name: spectrogramResult.column,
                         type: 'heatmap',
@@ -319,7 +367,220 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     }],
                 });
 
+                updateSpectrogramColorbar({
+                    min: minValue,
+                    max: maxValue,
+                    label: scaleLabel,
+                });
+
                 syncSpectrogramEmptyState();
+            };
+
+            // ── DOM colorbar (replaces ECharts visualMap) ─────────────────────
+            const VIRIDIS_STOPS = [
+                '#440154', '#414487', '#2a788e', '#22a884', '#7ad151', '#fde725',
+            ] as const;
+
+            const updateSpectrogramColorbar = (args: { min: number; max: number; label: string }) => {
+                const wrap = document.getElementById('spectrogram-colorbar');
+                if (!wrap) return;
+                const vbar = wrap.querySelector<HTMLElement>('.scatter-colorbar-vbar');
+                const vtickHigh = wrap.querySelector<HTMLElement>('[data-role="cb-high"]');
+                const vtickLow = wrap.querySelector<HTMLElement>('[data-role="cb-low"]');
+                const vname = wrap.querySelector<HTMLElement>('.scatter-colorbar-vname');
+                if (vbar) {
+                    vbar.style.background = `linear-gradient(to top, ${VIRIDIS_STOPS.join(', ')})`;
+                }
+                if (vtickHigh) vtickHigh.textContent = `High · ${formatSpectrogramColorbarNumber(args.max)}`;
+                if (vtickLow) vtickLow.textContent = `Low · ${formatSpectrogramColorbarNumber(args.min)}`;
+                if (vname) vname.textContent = args.label;
+                wrap.hidden = false;
+                initColorbarInteraction();
+                updateColorbarHandles();
+            };
+
+            const formatSpectrogramColorbarNumber = (value: number): string => {
+                if (!Number.isFinite(value)) return '—';
+                const abs = Math.abs(value);
+                if (abs !== 0 && (abs >= 1e4 || abs < 1e-3)) return value.toExponential(2);
+                return value.toFixed(3);
+            };
+
+            // ── Colorbar value-range filter (replaces visualMap.calculable) ──
+            //
+            // Two draggable handles on the colorbar let the user restrict the
+            // displayed value range. Out-of-range heatmap cells are dropped
+            // from the data array. State is closure-local so it survives
+            // re-renders but is reset on a fresh Compute.
+            let currentScaleBounds: { min: number; max: number } | null = null;
+            let colorFilterRange: { min: number; max: number } | null = null;
+            let colorbarInteractionInitialized = false;
+            let colorbarDragRaf = 0;
+
+            const isInsideColorFilter = (value: number): boolean => {
+                if (!colorFilterRange || !currentScaleBounds) return true;
+                const { min: fMin, max: fMax } = colorFilterRange;
+                const { min: sMin, max: sMax } = currentScaleBounds;
+                // If the filter is at full extent, treat as inactive.
+                if (fMin <= sMin && fMax >= sMax) return true;
+                return value >= fMin && value <= fMax;
+            };
+
+            const updateColorbarHandles = () => {
+                const wrap = document.getElementById('spectrogram-colorbar');
+                if (!wrap || !currentScaleBounds) return;
+                const handleHigh = wrap.querySelector<HTMLElement>('[data-role="cb-handle-high"]');
+                const handleLow = wrap.querySelector<HTMLElement>('[data-role="cb-handle-low"]');
+                const fill = wrap.querySelector<HTMLElement>('[data-role="cb-fill"]');
+                const { min: sMin, max: sMax } = currentScaleBounds;
+                const span = sMax - sMin || 1;
+                const active = colorFilterRange && !(colorFilterRange.min <= sMin && colorFilterRange.max >= sMax);
+                if (active && colorFilterRange) {
+                    const highPct = Math.max(0, Math.min(100, ((sMax - colorFilterRange.max) / span) * 100));
+                    const lowPct = Math.max(0, Math.min(100, ((colorFilterRange.min - sMin) / span) * 100));
+                    if (handleHigh) {
+                        handleHigh.style.top = `${highPct}%`;
+                        handleHigh.setAttribute('aria-valuenow', String(Math.round(100 - highPct)));
+                    }
+                    if (handleLow) {
+                        handleLow.style.bottom = `${lowPct}%`;
+                        handleLow.setAttribute('aria-valuenow', String(Math.round(100 - lowPct)));
+                    }
+                    if (fill) {
+                        fill.hidden = false;
+                        fill.style.top = `${highPct}%`;
+                        fill.style.height = `${Math.max(0, 100 - highPct - lowPct)}%`;
+                    }
+                } else {
+                    if (handleHigh) {
+                        handleHigh.style.top = '0%';
+                        handleHigh.setAttribute('aria-valuenow', '100');
+                    }
+                    if (handleLow) {
+                        handleLow.style.bottom = '0%';
+                        handleLow.setAttribute('aria-valuenow', '0');
+                    }
+                    if (fill) {
+                        fill.hidden = true;
+                    }
+                }
+            };
+
+            const initColorbarInteraction = () => {
+                if (colorbarInteractionInitialized) return;
+                const wrap = document.getElementById('spectrogram-colorbar');
+                if (!wrap) return;
+                const track = wrap.querySelector<HTMLElement>('[data-role="cb-track"]');
+                const handleHigh = wrap.querySelector<HTMLElement>('[data-role="cb-handle-high"]');
+                const handleLow = wrap.querySelector<HTMLElement>('[data-role="cb-handle-low"]');
+                if (!track || !handleHigh || !handleLow) return;
+
+                colorbarInteractionInitialized = true;
+
+                const onHandlePointerDown = (which: 'high' | 'low') => (event: PointerEvent) => {
+                    if (event.button !== 0) return;
+                    event.preventDefault();
+                    const target = which === 'high' ? handleHigh : handleLow;
+                    target.setAttribute('data-dragging', 'true');
+                    try { target.setPointerCapture(event.pointerId); } catch { /* noop */ }
+                    const startY = event.clientY;
+                    const startBounds = currentScaleBounds ? { ...currentScaleBounds } : null;
+                    const startFilter = colorFilterRange && startBounds
+                        ? { ...colorFilterRange }
+                        : (startBounds ? { min: startBounds.min, max: startBounds.max } : null);
+                    const minSeparation = (startBounds ? (startBounds.max - startBounds.min) * 0.01 : 0.01);
+
+                    const onMove = (moveEvent: PointerEvent) => {
+                        if (!startBounds || !startFilter) return;
+                        const trackRect = track.getBoundingClientRect();
+                        const trackHeight = trackRect.height || 1;
+                        const deltaFrac = (moveEvent.clientY - startY) / trackHeight; // +1 = down
+                        const deltaValue = -deltaFrac * (startBounds.max - startBounds.min);
+                        let nextMin = startFilter.min;
+                        let nextMax = startFilter.max;
+                        if (which === 'high') {
+                            nextMax = startFilter.max + deltaValue;
+                            nextMax = Math.max(nextMax, startFilter.min + minSeparation);
+                            nextMax = Math.min(nextMax, startBounds.max);
+                        } else {
+                            nextMin = startFilter.min + deltaValue;
+                            nextMin = Math.min(nextMin, startFilter.max - minSeparation);
+                            nextMin = Math.max(nextMin, startBounds.min);
+                        }
+                        colorFilterRange = { min: nextMin, max: nextMax };
+                        updateColorbarHandles();
+                        if (colorbarDragRaf) cancelAnimationFrame(colorbarDragRaf);
+                        colorbarDragRaf = requestAnimationFrame(() => {
+                            colorbarDragRaf = 0;
+                            if (spectrogramResult) void renderSpectrogramChart();
+                        });
+                    };
+
+                    const onUp = (upEvent: PointerEvent) => {
+                        target.removeAttribute('data-dragging');
+                        try { target.releasePointerCapture(upEvent.pointerId); } catch { /* noop */ }
+                        target.removeEventListener('pointermove', onMove);
+                        target.removeEventListener('pointerup', onUp);
+                        target.removeEventListener('pointercancel', onUp);
+                        if (colorbarDragRaf) {
+                            cancelAnimationFrame(colorbarDragRaf);
+                            colorbarDragRaf = 0;
+                        }
+                        if (spectrogramResult) void renderSpectrogramChart();
+                    };
+
+                    target.addEventListener('pointermove', onMove);
+                    target.addEventListener('pointerup', onUp);
+                    target.addEventListener('pointercancel', onUp);
+                };
+
+                handleHigh.addEventListener('pointerdown', onHandlePointerDown('high'));
+                handleLow.addEventListener('pointerdown', onHandlePointerDown('low'));
+
+                const onHandleKey = (which: 'high' | 'low') => (event: KeyboardEvent) => {
+                    if (!currentScaleBounds) return;
+                    const span = currentScaleBounds.max - currentScaleBounds.min;
+                    if (span <= 0) return;
+                    const step = span * 0.01;
+                    const start = colorFilterRange ?? { min: currentScaleBounds.min, max: currentScaleBounds.max };
+                    const minSep = span * 0.01;
+                    let nextMin = start.min;
+                    let nextMax = start.max;
+                    let handled = true;
+                    if (which === 'high') {
+                        if (event.key === 'ArrowUp' || event.key === 'ArrowRight') nextMax = start.max + step;
+                        else if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') nextMax = start.max - step;
+                        else if (event.key === 'Home') nextMax = currentScaleBounds.max;
+                        else if (event.key === 'End') nextMax = start.min + minSep;
+                        else handled = false;
+                        nextMax = Math.max(nextMax, start.min + minSep);
+                        nextMax = Math.min(nextMax, currentScaleBounds.max);
+                    } else {
+                        if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') nextMin = start.min - step;
+                        else if (event.key === 'ArrowUp' || event.key === 'ArrowRight') nextMin = start.min + step;
+                        else if (event.key === 'End') nextMin = currentScaleBounds.min;
+                        else if (event.key === 'Home') nextMin = start.max - minSep;
+                        else handled = false;
+                        nextMin = Math.min(nextMin, start.max - minSep);
+                        nextMin = Math.max(nextMin, currentScaleBounds.min);
+                    }
+                    if (!handled) return;
+                    event.preventDefault();
+                    colorFilterRange = { min: nextMin, max: nextMax };
+                    updateColorbarHandles();
+                    if (spectrogramResult) void renderSpectrogramChart();
+                };
+
+                handleHigh.addEventListener('keydown', onHandleKey('high'));
+                handleLow.addEventListener('keydown', onHandleKey('low'));
+
+                // Double-click anywhere on the colorbar resets the filter.
+                wrap.addEventListener('dblclick', () => {
+                    if (!colorFilterRange) return;
+                    colorFilterRange = null;
+                    updateColorbarHandles();
+                    if (spectrogramResult) void renderSpectrogramChart();
+                });
             };
 
             // ── Column select population ───────────────────────────────────────
@@ -332,6 +593,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 });
             }
             syncSpectrogramEmptyState();
+            initColorbarInteraction();
 
             // ── Compute button ─────────────────────────────────────────────────
             document.getElementById('spectrogram-compute-btn')?.addEventListener('click', async () => {
@@ -347,6 +609,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 const winSize = Number.parseInt(getDropdownValue('spectrogram-win-size') || '256', 10);
                 try {
                     deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', true);
+
+                    // Reset any previous color filter on a fresh Compute so
+                    // the new dataset's scale isn't clipped by stale bounds.
+                    colorFilterRange = null;
 
                     const startMs = appState.currentStart;
                     const endMs = appState.currentEnd;
@@ -370,6 +636,61 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             logCheck?.addEventListener('change', () => {
                 if (spectrogramResult) void renderSpectrogramChart();
             });
+            normalizeSelect?.addEventListener('change', () => {
+                if (spectrogramResult) void renderSpectrogramChart();
+            });
+            // Re-query the method/param elements by id every time we sync,
+            // because upgradeSelects() at app startup replaces native
+            // <select> elements with custom dropdown <div>s, detaching the
+            // closure-captured references. The id is preserved on the new
+            // root, so getElementById() always returns the live element.
+            const syncClipEnabled = () => {
+                const enabled = clipToggle?.checked ?? false;
+                const liveClipMethod = document.getElementById('spectrogram-clip-method');
+                const liveClipParam = document.getElementById('spectrogram-clip-param') as HTMLInputElement | null;
+                const hint = enabled
+                    ? ''
+                    : "Enable the 'Outliers' toggle above to change the clip method";
+                // Use setDropdownDisabled so the custom dropdown's
+                // trigger.disabled is updated, not a detached <select>.
+                setDropdownDisabled('spectrogram-clip-method', !enabled);
+                if (liveClipMethod) liveClipMethod.title = hint;
+                if (liveClipParam) {
+                    liveClipParam.disabled = !enabled;
+                    liveClipParam.title = hint;
+                }
+            };
+            const syncClipParamLabel = () => {
+                if (!clipParamLabel) return;
+                const method = getDropdownValue('spectrogram-clip-method') || 'percentile';
+                clipParamLabel.textContent = method === 'iqr' ? 'Clip k' : 'Clip %';
+            };
+            // Listen to BOTH input and change so that label-driven toggles,
+            // programmatic flips, and any browser quirk (e.g. an old cached
+            // bundle) all update the disabled state immediately.
+            const onClipToggleChange = () => {
+                syncClipEnabled();
+                if (spectrogramResult) void renderSpectrogramChart();
+            };
+            clipToggle?.addEventListener('change', onClipToggleChange);
+            clipToggle?.addEventListener('input', onClipToggleChange);
+            // For the clip method, listen to the `dropdown:change` custom
+            // event that the upgraded dropdown dispatches. The native
+            // `change` event won't fire on a detached <select>, but the
+            // dropdown controller forwards a bubbling `change` from its
+            // root (see dispatchDropdownChange in Dropdown.ts).
+            const liveClipMethodRoot = document.getElementById('spectrogram-clip-method');
+            const onClipMethodChange = () => {
+                syncClipParamLabel();
+                if (spectrogramResult) void renderSpectrogramChart();
+            };
+            liveClipMethodRoot?.addEventListener('change', onClipMethodChange);
+            const liveClipParamEl = document.getElementById('spectrogram-clip-param');
+            liveClipParamEl?.addEventListener('change', () => {
+                if (spectrogramResult) void renderSpectrogramChart();
+            });
+            syncClipEnabled();
+            syncClipParamLabel();
             resetZoomBtn?.addEventListener('click', () => {
                 if (!spectrogramChart) return;
                 spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 0, start: 0, end: 100 });
@@ -377,6 +698,25 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             });
         },
         onVisible() {
+            // Safety net for back-forward-cache restores and stale bundles:
+            // re-derive the disabled state of the clip fields from the
+            // current toggle value. Use the dropdown helper for the select
+            // since it may have been upgraded to a custom dropdown.
+            const onVisibleClipToggle = document.getElementById('spectrogram-clip-toggle') as HTMLInputElement | null;
+            const onVisibleClipParam = document.getElementById('spectrogram-clip-param') as HTMLInputElement | null;
+            if (onVisibleClipToggle) {
+                const enabled = onVisibleClipToggle.checked;
+                const hint = enabled
+                    ? ''
+                    : "Enable the 'Outliers' toggle above to change the clip method";
+                setDropdownDisabled('spectrogram-clip-method', !enabled);
+                const onVisibleClipMethod = document.getElementById('spectrogram-clip-method');
+                if (onVisibleClipMethod) onVisibleClipMethod.title = hint;
+                if (onVisibleClipParam) {
+                    onVisibleClipParam.disabled = !enabled;
+                    onVisibleClipParam.title = hint;
+                }
+            }
             const colSelect = document.getElementById('spectrogram-col-select');
             if (appState.metadata && colSelect) {
                 const currentOptions = new Set(getDropdownOptions('spectrogram-col-select').map((option) => option.value));

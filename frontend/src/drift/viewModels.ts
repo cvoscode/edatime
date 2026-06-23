@@ -70,7 +70,10 @@ export interface DriftWindowStats extends WindowDistributionStats {
     es_pvalue: number;
     wasserstein: number;
     psi: number;
+    jensen_shannon: number;
     drift_level: 'green' | 'yellow' | 'red';
+    trigger_reasons: string[];
+    completeness_delta: number;
     low_sample_warning: boolean;
 }
 
@@ -79,7 +82,8 @@ export interface DriftResponse {
     reference: WindowDistributionStats;
     windows: DriftWindowStats[];
     thresholds: {
-        ks_threshold: number;
+        ks_pvalue_threshold: number;
+        es_pvalue_threshold: number;
         wasserstein_threshold: number;
         psi_minor_threshold: number;
         psi_major_threshold: number;
@@ -93,6 +97,32 @@ export interface DriftResponse {
         psi_sample_ratio_warning?: boolean;
         avg_window_samples?: number;
     };
+}
+
+export type DriftEvaluationMode = 'all' | 'latest' | 'latest-n';
+
+export interface ColumnDriftSummary {
+    column: string;
+    currentLevel: DriftWindowStats['drift_level'];
+    worstLevel: DriftWindowStats['drift_level'];
+    flaggedWindows: number;
+    totalWindows: number;
+    strongestReasons: string[];
+    latestLabel: string;
+    latestMetrics: {
+        psi: number;
+        wasserstein: number;
+        ksPvalue: number;
+        esPvalue: number;
+    };
+}
+
+export interface GlobalDriftSummary {
+    anyDrift: boolean;
+    columnsFlagged: number;
+    totalColumns: number;
+    latestSeverity: DriftWindowStats['drift_level'];
+    worstSeverity: DriftWindowStats['drift_level'];
 }
 
 // ── Formatters ───────────────────────────────────────────────────────────────────
@@ -150,6 +180,81 @@ export function severityScore(level: DriftWindowStats['drift_level']): number {
     if (level === 'red') return 3;
     if (level === 'yellow') return 2;
     return 1;
+}
+
+export function formatTriggerReason(reason: string): string {
+    switch (reason) {
+        case 'psi_major': return 'PSI major';
+        case 'psi_minor': return 'PSI minor';
+        case 'wasserstein': return 'Wasserstein';
+        case 'ks': return 'KS';
+        case 'es': return 'E-S';
+        default: return reason.replace(/_/g, ' ');
+    }
+}
+
+export function formatTriggerReasons(reasons: string[] | null | undefined): string {
+    if (!Array.isArray(reasons) || reasons.length === 0) return 'None';
+    return reasons.map((reason) => formatTriggerReason(reason)).join(', ');
+}
+
+export function filterResponseForEvaluation(
+    response: DriftResponse,
+    mode: DriftEvaluationMode,
+    latestCount = 1,
+): DriftResponse {
+    if (mode === 'all') return response;
+    if (mode === 'latest') {
+        return { ...response, windows: response.windows.slice(-1) };
+    }
+    const count = Math.max(1, Math.floor(latestCount || 1));
+    return { ...response, windows: response.windows.slice(-count) };
+}
+
+export function buildColumnSummary(response: DriftResponse): ColumnDriftSummary {
+    const latest = response.windows[response.windows.length - 1] ?? null;
+    const worst = [...response.windows].sort((a, b) => {
+        const severityDelta = severityScore(b.drift_level) - severityScore(a.drift_level);
+        if (severityDelta !== 0) return severityDelta;
+        return (b.trigger_reasons?.length ?? 0) - (a.trigger_reasons?.length ?? 0);
+    })[0] ?? null;
+    const flaggedWindows = response.windows.filter((window) => window.drift_level !== 'green').length;
+
+    return {
+        column: response.column,
+        currentLevel: latest?.drift_level ?? 'green',
+        worstLevel: worst?.drift_level ?? 'green',
+        flaggedWindows,
+        totalWindows: response.windows.length,
+        strongestReasons: worst?.trigger_reasons ?? [],
+        latestLabel: latest?.label ?? 'No windows',
+        latestMetrics: {
+            psi: latest?.psi ?? 0,
+            wasserstein: latest?.wasserstein ?? 0,
+            ksPvalue: latest?.ks_pvalue ?? 1,
+            esPvalue: latest?.es_pvalue ?? 1,
+        },
+    };
+}
+
+export function buildGlobalSummary(
+    responsesByColumn: Map<string, DriftResponse>,
+): GlobalDriftSummary {
+    const summaries = Array.from(responsesByColumn.values()).map((response) => buildColumnSummary(response));
+    const columnsFlagged = summaries.filter((summary) => summary.currentLevel !== 'green').length;
+    const latestSeverity = summaries.reduce<DriftWindowStats['drift_level']>((worst, summary) => {
+        return severityScore(summary.currentLevel) > severityScore(worst) ? summary.currentLevel : worst;
+    }, 'green');
+    const worstSeverity = summaries.reduce<DriftWindowStats['drift_level']>((worst, summary) => {
+        return severityScore(summary.worstLevel) > severityScore(worst) ? summary.worstLevel : worst;
+    }, 'green');
+    return {
+        anyDrift: columnsFlagged > 0,
+        columnsFlagged,
+        totalColumns: summaries.length,
+        latestSeverity,
+        worstSeverity,
+    };
 }
 
 export function sortedWindowIndices(
@@ -216,7 +321,7 @@ export const timelineTooltipFormatter = (params: any): string => {
     const meta = params?.data?.meta || {};
     const lines = [
         `<strong>${meta.column || params.seriesName}</strong>`,
-        `${params.name || ''}`,
+        `${meta.range_label || params.name || ''}`,
         `Q05: ${formatValue(v[0])}`,
         `Q25: ${formatValue(v[1])}`,
         `Q50: ${formatValue(v[2])}`,
@@ -230,6 +335,7 @@ export const timelineTooltipFormatter = (params: any): string => {
         lines.push(`PSI: ${isFinite(meta.psi) ? Number(meta.psi).toFixed(4) : '-'}`);
         lines.push(`KS: ${isFinite(meta.ks_stat) ? Number(meta.ks_stat).toFixed(3) : '-'}`);
         lines.push(`Wasserstein: ${isFinite(meta.wasserstein) ? formatValue(Number(meta.wasserstein)) : '-'}`);
+        lines.push(`Triggered by: ${formatTriggerReasons(meta.trigger_reasons)}`);
         lines.push(`Drift: ${(meta.drift_level || '-').toUpperCase()}`);
     }
     return lines.join('<br/>');
@@ -288,11 +394,13 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
                     column: col,
                     window_index: wIdx,
                     label: w.label,
+                    range_label: w.label,
                     count: w.count,
                     psi: w.psi,
                     ks_stat: w.ks_stat,
                     wasserstein: w.wasserstein,
                     drift_level: w.drift_level,
+                    trigger_reasons: w.trigger_reasons,
                 },
             });
         });
@@ -602,17 +710,23 @@ export function buildDetailStatRows(win: DriftWindowStats | null): DetailStatRow
     const rows: DetailStatRow[] = [
         { label: 'Count', value: String(win.count) },
         { label: 'Completeness', value: `${(win.completeness * 100).toFixed(1)}%` },
+        { label: 'Completeness delta', value: `${(win.completeness_delta * 100).toFixed(1)}%` },
         { label: 'Mean', value: formatValue(win.mean) },
         { label: 'Std', value: formatValue(win.std) },
         { label: 'Median (Q50)', value: formatValue(win.quantiles[2]) },
         { label: 'KS stat / p', value: `${win.ks_stat.toFixed(3)} / ${win.ks_pvalue.toFixed(3)}` },
         { label: 'E-S stat / p', value: `${isFinite(win.es_stat) ? win.es_stat.toFixed(3) : '-'} / ${isFinite(win.es_pvalue) ? win.es_pvalue.toFixed(3) : '-'}` },
         { label: 'Wasserstein', value: formatValue(win.wasserstein) },
+        { label: 'Jensen-Shannon', value: formatValue(win.jensen_shannon) },
         { label: 'PSI', value: win.psi.toFixed(4), className: `drift-${win.drift_level}` },
+        { label: 'Triggered by', value: formatTriggerReasons(win.trigger_reasons) },
         { label: 'Drift level', value: win.drift_level.toUpperCase(), className: `drift-${win.drift_level}` },
     ];
     if (win.low_sample_warning) {
         rows.unshift({ label: 'Low sample size', value: 'N < 5, stats are less reliable' });
+    }
+    if (Math.abs(win.completeness_delta) >= 0.1) {
+        rows.unshift({ label: 'Missingness warning', value: 'Completeness shifted materially from the reference window' });
     }
     return rows;
 }

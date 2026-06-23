@@ -643,7 +643,7 @@ This section documents all features implemented by the reference chart (`old_fro
 | Rolling bands | `GET /api/analytics/rolling?start=&end=&columns=&window=` | `{ bands: [{ column, ts, mean, upper1, lower1, upper2, lower2 }] }` |
 | Anomaly regions | `GET /api/analytics/anomalies?start=&end=&columns=&method=&threshold=` | `{ method, threshold, regions: [{ start_ms, end_ms, score }] }` |
 | FFT | `GET /api/analytics/fft?start=&end=&columns=&max_points=` | `{ results: [{ frequencies, magnitudes, psd }] }` |
-| Spectrogram | `GET /api/analytics/spectrogram?...` | Spectral data |
+| Spectrogram | `GET /api/analytics/spectrogram?start=&end=&column=&window_size=&hop_size=&max_points=&normalize=&clip=&clip_param=` | `{ sample_count, result: { column, times_ms, frequencies, magnitudes } }` — `normalize` ∈ `none` / `minmax` / `zscore` / `robust`; `clip` ∈ `none` / `percentile` / `iqr`; `clip_param` is percent-per-tail for `percentile` and k for `iqr`. Frontend scales by default; pass the params to request server-side pre-scaling instead. |
 | Spectral filter | `POST /api/analytics/spectral-filter` | Filtered series preview |
 | Export CSV | `GET /api/export/parquet?...` | Parquet file (also supports CSV format param) |
 

@@ -169,7 +169,8 @@ let spectrogramRuntime: ReturnType<typeof createAnalysisPageRuntime>;
 
 **Functions**
 
-- `initSpectrogramPage(deps: SpectrogramPageDeps): Promise<void>` — Bootstrap: selects DOM elements, creates `createAnalysisPageRuntime({ page: 'spectelegram', emptyStateRootId: 'spectrogram-empty-state', exportConfig: { key: 'spectrogram', png, svg, html }})`, wires compute button (calls `fetchSpectrogram`), log-scale toggle, zoom-reset button, and `onVisible` resize handler.
+- `initSpectrogramPage(deps: SpectrogramPageDeps): Promise<void>` — Bootstrap: selects DOM elements, creates `createAnalysisPageRuntime({ page: 'spectelegram', emptyStateRootId: 'spectrogram-empty-state', exportConfig: { key: 'spectrogram', png, svg, html }})`, wires compute button (calls `fetchSpectrogram`), log-scale toggle, normalize dropdown, clip-toggle / clip-method / clip-param inputs, zoom-reset button, and `onVisible` resize handler.
+- Toolbar reads `spectrogram-normalize`, `spectrogram-clip-toggle`, `spectrogram-clip-method`, and `spectrogram-clip-param`; the display pipeline runs raw magnitudes through `applySpectralScale` so colorbar bounds and tooltip text reflect the active mode (see `frontend/src/utils/spectralScaling.ts`).
 - `syncSpectrogramEmptyState(message?: string): void` — Updates the empty-state controller visibility based on `spectrogramResult`.
 - `formatSpectrogramTime(timestampMs: number): string` — `toLocaleString` formatter for axis labels.
 - `formatSpectrogramFrequency(frequency: number): string` — Converts Hz/kHz/mHz with fixed decimals.

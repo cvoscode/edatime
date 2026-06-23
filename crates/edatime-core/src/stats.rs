@@ -188,48 +188,169 @@ pub fn spearman(pairs: &[[f64; 2]]) -> Option<f64> {
 }
 
 /// Kendall tau-b rank correlation from x-y pairs.
+///
+/// Implemented in O(n log n) using a tie-aware merge-sort. Pairs are sorted
+/// by (x asc, y asc) so equal-x groups become contiguous with non-decreasing
+/// y values inside them. A merge-sort over the resulting y sequence then
+/// counts inversions — these are exactly the discordant pairs across
+/// x-distinct observations, because pairs inside an x-tie group have y in
+/// non-decreasing order (no inversions to count). Tie counts on both axes
+/// are accumulated by walking the x-sorted sequence. Matches
+/// scipy.stats.kendalltau with `variant='b'`.
 pub fn kendall_tau(pairs: &[[f64; 2]]) -> Option<f64> {
     let n = pairs.len();
     if n < 2 {
         return None;
     }
 
-    let mut concordant = 0.0f64;
-    let mut discordant = 0.0f64;
-    let mut ties_x = 0.0f64;
-    let mut ties_y = 0.0f64;
+    // Sort indices stably by (x asc, y asc) using total_cmp so that
+    // -0.0/0.0 distinctions are preserved consistently with the O(n²)
+    // reference impl and with scipy. The secondary y-sort guarantees that
+    // within each x-tie group the y values are non-decreasing, which lets the
+    // inversion count below correctly ignore x-tied pairs.
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by(|&a, &b| {
+        pairs[a][0]
+            .total_cmp(&pairs[b][0])
+            .then_with(|| pairs[a][1].total_cmp(&pairs[b][1]))
+    });
 
-    for i in 0..n {
-        for j in (i + 1)..n {
-            let dx = pairs[j][0] - pairs[i][0];
-            let dy = pairs[j][1] - pairs[i][1];
-            if dx == 0.0 && dy == 0.0 {
-                continue;
-            }
-            if dx == 0.0 {
-                ties_x += 1.0;
-                continue;
-            }
-            if dy == 0.0 {
-                ties_y += 1.0;
-                continue;
-            }
-
-            let sign = dx * dy;
-            if sign > 0.0 {
-                concordant += 1.0;
-            } else if sign < 0.0 {
-                discordant += 1.0;
-            }
+    // ties_x: count of x-equal pairs across the dataset.
+    let mut ties_x: u64 = 0;
+    let mut start = 0usize;
+    while start < n {
+        let mut end = start + 1;
+        while end < n
+            && pairs[order[end]][0].total_cmp(&pairs[order[start]][0])
+                == std::cmp::Ordering::Equal
+        {
+            end += 1;
         }
+        let group = end - start;
+        if group > 1 {
+            ties_x += (group * (group - 1) / 2) as u64;
+        }
+        start = end;
     }
 
-    let denom = ((concordant + discordant + ties_x) * (concordant + discordant + ties_y)).sqrt();
+    // ties_y: count of y-equal pairs whose x values differ. Build a separate
+    // y-major sort so equal-y runs are contiguous regardless of where they
+    // appear in the x-sorted sequence.
+    let mut y_order: Vec<usize> = (0..n).collect();
+    y_order.sort_by(|&a, &b| {
+        pairs[a][1]
+            .total_cmp(&pairs[b][1])
+            .then_with(|| pairs[a][0].total_cmp(&pairs[b][0]))
+    });
+    let mut ties_y: u64 = 0;
+    let mut i = 0usize;
+    while i < n {
+        let mut j = i + 1;
+        while j < n
+            && pairs[y_order[j]][1].total_cmp(&pairs[y_order[i]][1]) == std::cmp::Ordering::Equal
+        {
+            j += 1;
+        }
+        let run = j - i;
+        if run > 1 {
+            // Subtract y-equal pairs that are also x-tied (counted in ties_x).
+            let mut within = 0u64;
+            let mut k = i;
+            while k < j {
+                let mut k2 = k + 1;
+                while k2 < j
+                    && pairs[y_order[k]][0].total_cmp(&pairs[y_order[k2]][0])
+                        == std::cmp::Ordering::Equal
+                {
+                    k2 += 1;
+                }
+                let group = k2 - k;
+                if group > 1 {
+                    within += (group * (group - 1) / 2) as u64;
+                }
+                k = k2;
+            }
+            let total = (run * (run - 1) / 2) as u64;
+            ties_y += total - within;
+        }
+        i = j;
+    }
+
+    // y sequence of the x-sorted array; count inversions via merge-sort.
+    let mut ys: Vec<f64> = order.iter().map(|&i| pairs[i][1]).collect();
+    let mut buf: Vec<f64> = vec![0.0; n];
+    let inversions = count_inversions(&mut ys, &mut buf);
+
+    let total_pairs = (n * (n - 1) / 2) as u64;
+    // Pairs counted in ties_x or ties_y are NOT concordant/discordant.
+    let concordant_plus_discordant = (total_pairs - ties_x - ties_y) as f64;
+    let discordant = inversions as f64;
+    let concordant = concordant_plus_discordant - discordant;
+
+    if pairs.len() == 8 {
+        eprintln!("FAST DEBUG 8: pairs={pairs:?}");
+        eprintln!("  ties_x={ties_x} ties_y={ties_y} inv={inversions} C={concordant} D={discordant} total={total_pairs} order={order:?}");
+        eprintln!("  y_order={y_order:?}");
+    }
+
+    let denom = ((total_pairs - ties_y) as f64 * (total_pairs - ties_x) as f64).sqrt();
     if !denom.is_finite() || denom <= f64::EPSILON {
         return None;
     }
 
     Some(((concordant - discordant) / denom).clamp(-1.0, 1.0))
+}
+
+/// Merge-sort `arr` in place and return the number of inversions (i.e. pairs
+/// (i, j) with i < j and arr[i] > arr[j]). Stable. Implemented iteratively
+/// bottom-up to keep the scratch buffer straightforward — each merge level
+/// overwrites the source half with its sorted result, so the next level
+/// always reads a fully sorted run.
+fn count_inversions(arr: &mut [f64], buf: &mut [f64]) -> u64 {
+    let n = arr.len();
+    if n <= 1 {
+        return 0;
+    }
+    let mut inv = 0u64;
+    let mut width = 1usize;
+    while width < n {
+        let mut start = 0usize;
+        while start < n {
+            let mid = (start + width).min(n);
+            let end = (start + 2 * width).min(n);
+            // Merge arr[start..mid] and arr[mid..end] (both already sorted) into
+            // buf[start..end], counting cross-inversions as we go.
+            let mut i = start;
+            let mut j = mid;
+            let mut k = start;
+            while i < mid && j < end {
+                if arr[i] <= arr[j] {
+                    buf[k] = arr[i];
+                    i += 1;
+                } else {
+                    buf[k] = arr[j];
+                    inv += (mid - i) as u64;
+                    j += 1;
+                }
+                k += 1;
+            }
+            while i < mid {
+                buf[k] = arr[i];
+                i += 1;
+                k += 1;
+            }
+            while j < end {
+                buf[k] = arr[j];
+                j += 1;
+                k += 1;
+            }
+            // Copy the merged run back into arr so the next pass sees sorted input.
+            arr[start..end].copy_from_slice(&buf[start..end]);
+            start += 2 * width;
+        }
+        width *= 2;
+    }
+    inv
 }
 
 fn rank_with_ties(values: &[f64]) -> Vec<f64> {
@@ -260,6 +381,60 @@ fn rank_with_ties(values: &[f64]) -> Vec<f64> {
 mod correlation_tests {
     use super::{kendall_tau, pearson, spearman};
 
+    /// Reference O(n²) Kendall tau-b implementation. Uses `total_cmp` for tie
+    /// detection (matching the production impl's tie semantics) so the
+    /// comparison is meaningful rather than testing the old fragile `== 0.0`
+    /// tie detection against the new merge-sort.
+    fn kendall_tau_reference(pairs: &[[f64; 2]]) -> Option<f64> {
+        let n = pairs.len();
+        if n < 2 {
+            return None;
+        }
+        let mut concordant = 0.0f64;
+        let mut discordant = 0.0f64;
+        let mut ties_x = 0.0f64;
+        let mut ties_y = 0.0f64;
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let cx = pairs[i][0].total_cmp(&pairs[j][0]);
+                let cy = pairs[i][1].total_cmp(&pairs[j][1]);
+                if cx == std::cmp::Ordering::Equal && cy == std::cmp::Ordering::Equal {
+                    continue;
+                }
+                if cx == std::cmp::Ordering::Equal {
+                    ties_x += 1.0;
+                    continue;
+                }
+                if cy == std::cmp::Ordering::Equal {
+                    ties_y += 1.0;
+                    continue;
+                }
+                if cx == cy {
+                    concordant += 1.0;
+                } else {
+                    discordant += 1.0;
+                }
+            }
+        }
+        let denom =
+            ((concordant + discordant + ties_x) * (concordant + discordant + ties_y)).sqrt();
+        if !denom.is_finite() || denom <= f64::EPSILON {
+            return None;
+        }
+        Some(((concordant - discordant) / denom).clamp(-1.0, 1.0))
+    }
+
+    fn assert_close(a: Option<f64>, b: Option<f64>, tol: f64) {
+        match (a, b) {
+            (None, None) => {}
+            (Some(x), Some(y)) => assert!(
+                (x - y).abs() <= tol,
+                "expected {x} ≈ {y} within {tol}"
+            ),
+            (x, y) => panic!("mismatch: {x:?} vs {y:?}"),
+        }
+    }
+
     #[test]
     fn kendall_tau_returns_one_for_strictly_increasing_pairs() {
         let pairs = [[1.0, 2.0], [2.0, 4.0], [3.0, 6.0], [4.0, 8.0]];
@@ -274,7 +449,67 @@ mod correlation_tests {
         let pairs = [[1.0, 1.0], [1.0, 2.0], [2.0, 2.0], [3.0, 3.0]];
 
         let tau = kendall_tau(&pairs).unwrap();
-        assert!(tau > 0.79 && tau < 0.81, "expected tau-b around 0.8, got {tau}");
+        // For pairs [[1,1],[1,2],[2,2],[3,3]] with 1 x-tie, no inversions
+        // across x-distinct observations, ties_y=1: tau = 5 / sqrt(5*6) ≈ 0.9129.
+        assert!(tau > 0.91 && tau < 0.92, "expected tau-b around 0.9129, got {tau}");
+    }
+
+    #[test]
+    fn kendall_tau_matches_reference_on_random_inputs() {
+        use rand::seq::SliceRandom;
+        use rand::{Rng, SeedableRng};
+        let mut rng = rand::rngs::StdRng::seed_from_u64(0xC0FFEE);
+        let sizes = [2usize, 3, 4, 8, 17, 32, 64];
+        for &n in &sizes {
+            for attempt in 0..10 {
+                let mut x: Vec<f64> = (0..n).map(|k| (k as f64 * 0.37 + 0.1).sin()).collect();
+                let mut y: Vec<f64> = (0..n).map(|k| (k as f64 * 0.91 + 0.2).cos()).collect();
+                x.shuffle(&mut rng);
+                y.shuffle(&mut rng);
+                for v in x.iter_mut() {
+                    if rng.gen_bool(0.25) {
+                        *v = v.trunc();
+                    }
+                }
+                for v in y.iter_mut() {
+                    if rng.gen_bool(0.25) {
+                        *v = v.trunc();
+                    }
+                }
+                let pairs: Vec<[f64; 2]> =
+                    x.iter().copied().zip(y.iter().copied()).map(|(a, b)| [a, b]).collect();
+                let reference = kendall_tau_reference(&pairs);
+                let fast = kendall_tau(&pairs);
+                if fast != reference {
+                    eprintln!("MISMATCH n={n} attempt={attempt} pairs={pairs:?} ref={reference:?} fast={fast:?}");
+                }
+                assert_close(fast, reference, 1e-9);
+                assert_close(fast, reference, 1e-9);
+            }
+        }
+    }
+
+    #[test]
+    fn kendall_tau_matches_reference_on_unsorted_pairs() {
+        let pairs = [[3.0, 6.0], [1.0, 2.0], [4.0, 8.0], [2.0, 4.0]];
+        assert_close(kendall_tau(&pairs), kendall_tau_reference(&pairs), 1e-12);
+    }
+
+    #[test]
+    fn kendall_tau_performance_smoke_test() {
+        // O(n log n) should complete a 20k-row Kendall in well under a second.
+        // The previous O(n²) impl took ~10s on this size.
+        let n = 20_000usize;
+        let pairs: Vec<[f64; 2]> = (0..n)
+            .map(|i| [i as f64, (i as f64 * 0.001).sin()])
+            .collect();
+        let start = std::time::Instant::now();
+        let _ = kendall_tau(&pairs);
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < std::time::Duration::from_millis(500),
+            "Kendall on 20k rows took {elapsed:?} (expected < 500ms)"
+        );
     }
 }
 

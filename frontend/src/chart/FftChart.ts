@@ -19,6 +19,12 @@ import {
     frequencyToPeriod,
     checkAliasingWarning,
 } from '../utils/spectralPresets.js';
+import {
+    applySpectralScale,
+    scaleModeLabel,
+    DEFAULT_SPECTRAL_SCALE,
+    type SpectralScaleOptions,
+} from '../utils/spectralScaling.js';
 
 const FFT_GRID: GridLayout = { left: 80, right: 24, top: 20, bottom: 44 };
 
@@ -51,6 +57,7 @@ export class FftChart {
     private _fullXMax = 1;
     private _mode = 'magnitude';
     private _logScale = true;
+    private _scaleOptions: SpectralScaleOptions = { ...DEFAULT_SPECTRAL_SCALE };
     private _annotations: number[] = [];  // freqHz values
     private _traces: FftTrace[] = [];
     private _showPeakLabels = true;
@@ -122,11 +129,17 @@ export class FftChart {
 
     /* ── Data update ───────────────────────────────────── */
 
-    updateData(traces: FftTrace[], mode: string, logScale: boolean): void {
+    updateData(
+        traces: FftTrace[],
+        mode: string,
+        logScale: boolean,
+        scaleOptions?: SpectralScaleOptions,
+    ): void {
         if (!this._chart) return;
         this._traces = traces;
         this._mode = mode;
         this._logScale = logScale;
+        if (scaleOptions) this._scaleOptions = scaleOptions;
 
         this._fullXMax = 0;
         for (const t of traces) {
@@ -160,12 +173,32 @@ export class FftChart {
         const rng = (xMax - xMin) * sc;
         const tickPrec = rng >= 100 ? 0 : rng >= 10 ? 1 : rng >= 1 ? 2 : 3;
 
+        const scaleOpts = this._scaleOptions;
+        const scaleLabel = scaleModeLabel(scaleOpts.mode, scaleOpts.clip, scaleOpts.clipParam);
+
+        // Build the (pre-scale) raw y values once per trace so the tooltip
+        // can still show the underlying magnitude even when the y-axis is
+        // stretched. We keep `raw` for tooltip, then compute `display` for
+        // the actual chart series.
+        const yDisplay: number[][] = [];
+        let yMin = Number.POSITIVE_INFINITY;
+        let yMax = Number.NEGATIVE_INFINITY;
         const seriesList = traces.map((t, ti) => {
             const raw = mode === 'psd' ? t.psd : t.magnitudes;
+            const preLog: number[] = new Array(raw.length);
+            for (let i = 0; i < raw.length; i += 1) {
+                const r = Number(raw[i]);
+                preLog[i] = logScale ? (r > 0 ? Math.log10(r) : -10) : r;
+            }
+            const scaled = applySpectralScale(preLog, scaleOpts);
+            const display = Array.from(scaled.displayValues);
+            yDisplay.push(display);
+            if (scaled.vmin < yMin) yMin = scaled.vmin;
+            if (scaled.vmax > yMax) yMax = scaled.vmax;
             const points: [number, number][] = [];
-            for (let i = 0; i < t.frequencies.length; i++) {
+            for (let i = 0; i < t.frequencies.length; i += 1) {
                 const f = t.frequencies[i];
-                const y = logScale ? (raw[i] > 0 ? Math.log10(raw[i]) : -10) : raw[i];
+                const y = display[i];
                 if (Number.isFinite(f) && Number.isFinite(y)) points.push([f, y]);
             }
             return {
@@ -173,7 +206,11 @@ export class FftChart {
                 name: t.column,
                 color: t.color || FFT_TRACE_COLORS[ti % FFT_TRACE_COLORS.length],
                 data: points,
-            };
+                // Stash on the series object so the tooltip can show the raw
+                // magnitude alongside the scaled display value.
+                _raw: raw as number[],
+                _preLog: preLog,
+            } as any;
         });
 
         const tooltipFormatter = (params: unknown): string => {
@@ -184,11 +221,28 @@ export class FftChart {
             const rows = list.map((p: any) => {
                 const name = String(p?.seriesName ?? '');
                 const y = Number(p?.value?.[1]);
+                const idx = p?.dataIndex;
+                const seriesObj = p?.series as any;
+                const preLog = seriesObj?._preLog as number[] | undefined;
+                const raw = seriesObj?._raw as number[] | undefined;
                 const yStr = Number.isFinite(y) ? y.toFixed(4) : '';
-                return tooltipRow(name, yStr);
+                const lines = [tooltipRow(name, yStr)];
+                if (preLog && Number.isFinite(preLog[idx]) && scaleOpts.mode !== 'none') {
+                    lines.push(tooltipRow(' pre-scale', preLog[idx].toFixed(4)));
+                }
+                if (raw && Number.isFinite(Number(raw[idx]))) {
+                    lines.push(tooltipRow(' raw', Number(raw[idx]).toExponential(3)));
+                }
+                return lines.join('');
             }).join('');
-            return freqLabel ? tooltipWrap(freqLabel, rows) : rows;
+            return freqLabel
+                ? tooltipWrap(`${freqLabel}<br>${scaleLabel}`, rows)
+                : rows;
         };
+
+        const useScaledY = scaleOpts.mode !== 'none';
+        const yMinOut = useScaledY && Number.isFinite(yMin) ? yMin : undefined;
+        const yMaxOut = useScaledY && Number.isFinite(yMax) ? yMax : undefined;
 
         this._chart.setOption({
             grid: FFT_GRID,
@@ -200,12 +254,28 @@ export class FftChart {
             },
             yAxis: {
                 type: 'value',
+                min: yMinOut,
+                max: yMaxOut,
+                name: this._logScale
+                    ? (useScaledY ? `scaled (${scaleLabel})` : `log10(${this._mode === 'psd' ? 'PSD' : 'Magnitude'})`)
+                    : (useScaledY ? `scaled (${scaleLabel})` : this._mode === 'psd' ? 'PSD' : 'Magnitude'),
                 tickFormatter: (v: number) => v.toFixed(2),
             },
             tooltip: { show: true, trigger: 'axis', formatter: tooltipFormatter },
             series: seriesList,
         });
         this._renderOverlay();
+    }
+
+    /**
+     * Update the active scale options and re-render with the existing
+     * traces. Cheap — does not refetch from the backend.
+     */
+    setScaleOptions(scaleOptions: SpectralScaleOptions): void {
+        this._scaleOptions = scaleOptions;
+        if (this._traces.length > 0) {
+            this.updateData(this._traces, this._mode, this._logScale, this._scaleOptions);
+        }
     }
 
     /* ── View control ──────────────────────────────────── */

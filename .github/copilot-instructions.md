@@ -137,6 +137,8 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
 - Keyboard shortcuts for chart/scatter workflows
 - WebGPU availability guard with a user-facing error
 - Canvas fallback chart registration
+- Spectrogram colorbar normalization (none / min-max [0,1] / z-score / robust [Q1, Q3]) with optional outlier clipping (percentile or IQR); the same controls are mirrored on the FFT page
+- Server-side pre-scaling for `/api/analytics/spectrogram` via `normalize`, `clip`, `clip_param` query params (mirrors the frontend helper; defaults preserve the previous look)
 
 ## Known active issue (priority)
 

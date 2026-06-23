@@ -14,6 +14,7 @@
  */
 
 import { getDropdownValue } from '../ui/primitives/Dropdown.js';
+import { appState } from '../store/index.js';
 
 export interface DriftControlCallbacks {
     getSelectedColumns: () => string[];
@@ -41,6 +42,8 @@ export interface DriftControlOptions {
     windowSelect: HTMLElement | null;
     plotTypeSelect: HTMLElement | null;
     refPresetSelect: HTMLElement | null;
+    evaluationModeSelect: HTMLElement | null;
+    latestNInput: HTMLInputElement | null;
     refStartInput: HTMLInputElement | null;
     refEndInput: HTMLInputElement | null;
     computeBtn: HTMLButtonElement | null;
@@ -187,6 +190,8 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         windowSelect,
         plotTypeSelect,
         refPresetSelect,
+        evaluationModeSelect,
+        latestNInput,
         refStartInput,
         refEndInput,
         computeBtn,
@@ -236,7 +241,17 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
     // ── Reference preset ───────────────────────────────────────────────────
     const timeRange = pageMetadata?.time_range as { min: number; max: number } | undefined;
     function applyReferencePreset(preset: string): void {
-        if (!timeRange || preset === 'custom') return;
+        if (preset === 'custom') return;
+        if (preset === 'viewport') {
+            const start = Number(appState.currentStart);
+            const end = Number(appState.currentEnd);
+            if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+                if (refStartInput) refStartInput.value = toDatetimeLocal(start);
+                if (refEndInput) refEndInput.value = toDatetimeLocal(end);
+            }
+            return;
+        }
+        if (!timeRange) return;
         const pct = Number(preset);
         if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) return;
         const end = timeRange.min + ((timeRange.max - timeRange.min) * pct) / 100;
@@ -270,6 +285,13 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
             cb.renderDetail();
         }, 80);
     });
+
+    function syncEvaluationModeUi(): void {
+        if (!latestNInput) return;
+        latestNInput.disabled = getDropdownValue('drift-evaluation-mode') !== 'latest-n';
+    }
+    syncEvaluationModeUi();
+    evaluationModeSelect?.addEventListener('change', syncEvaluationModeUi);
 
     // ── Reference preset select ─────────────────────────────────────────────
     refPresetSelect?.addEventListener('change', () => {

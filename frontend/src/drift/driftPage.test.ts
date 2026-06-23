@@ -82,7 +82,7 @@ describe('drift page accessibility and debug metadata', () => {
                     {
                         start_ms: 11,
                         end_ms: 20,
-                        label: 'w1',
+                        label: '1970-01-01 00:11 - 1970-01-01 00:20',
                         count: 8,
                         null_count: 0,
                         completeness: 1,
@@ -101,13 +101,16 @@ describe('drift page accessibility and debug metadata', () => {
                         es_pvalue: 0.7,
                         wasserstein: 0.2,
                         psi: 0.12,
+                        jensen_shannon: 0.04,
                         drift_level: 'yellow',
+                        trigger_reasons: ['psi_minor'],
+                        completeness_delta: 0,
                         low_sample_warning: false,
                     },
                     {
                         start_ms: 21,
                         end_ms: 30,
-                        label: 'w2',
+                        label: '1970-01-01 00:21 - 1970-01-01 00:30',
                         count: 9,
                         null_count: 0,
                         completeness: 1,
@@ -126,12 +129,16 @@ describe('drift page accessibility and debug metadata', () => {
                         es_pvalue: 0.4,
                         wasserstein: 0.3,
                         psi: 0.26,
+                        jensen_shannon: 0.11,
                         drift_level: 'red',
+                        trigger_reasons: ['psi_major', 'ks', 'es', 'wasserstein'],
+                        completeness_delta: -0.18,
                         low_sample_warning: false,
                     },
                 ],
                 thresholds: {
-                    ks_threshold: 0.1,
+                    ks_pvalue_threshold: 0.05,
+                    es_pvalue_threshold: 0.05,
                     wasserstein_threshold: 0.2,
                     psi_minor_threshold: 0.1,
                     psi_major_threshold: 0.25,
@@ -204,11 +211,20 @@ describe('drift page accessibility and debug metadata', () => {
               <select id="drift-window-select"><option value="daily" selected>Daily</option></select>
               <select id="drift-plot-type"><option value="box" selected>Box</option></select>
               <select id="drift-ref-preset"><option value="50" selected>50</option></select>
+              <select id="drift-evaluation-mode"><option value="all" selected>All later windows</option><option value="latest">Latest window only</option><option value="latest-n">Latest N windows</option></select>
+              <input id="drift-latest-n" type="number" value="3" />
+              <input id="drift-ks-threshold" type="number" value="0.05" />
+              <input id="drift-es-threshold" type="number" value="0.05" />
+              <input id="drift-psi-minor-threshold" type="number" value="0.10" />
+              <input id="drift-psi-major-threshold" type="number" value="0.20" />
+              <input id="drift-wasserstein-std-multiplier" type="number" value="0.10" />
               <input id="drift-ref-start" type="datetime-local" />
               <input id="drift-ref-end" type="datetime-local" />
               <button id="drift-compute-btn" type="button">Compute</button>
               <button id="drift-zoom-reset-btn" type="button">Reset</button>
               <span id="drift-status"></span>
+              <div id="drift-summary-strip"></div>
+              <div id="drift-column-summary"></div>
               <div id="drift-timeline-chart"></div>
               <div id="drift-detail-chart"></div>
               <select id="drift-detail-col-select"></select>
@@ -276,5 +292,25 @@ describe('drift page accessibility and debug metadata', () => {
         const rerenderedItems = Array.from(document.querySelectorAll<HTMLElement>('#drift-window-list .drift-window-item'));
         expect(rerenderedItems[1].getAttribute('aria-selected')).toBe('true');
         expect(debugSpy).toHaveBeenCalled();
+    });
+
+    it('renders summary cards and trigger reasons after compute', async () => {
+        const { initDriftPage } = await import('./driftPage.js');
+        await initDriftPage({
+            numeric_columns: ['value'],
+            time_range: { min: 0, max: 1_000 },
+        });
+
+        (document.getElementById('drift-ref-start') as HTMLInputElement).value = '1970-01-01T00:00';
+        (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
+
+        (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('drift-summary-strip')?.textContent).toContain('Any drift detected?');
+        });
+
+        expect(document.getElementById('drift-column-summary')?.textContent).toContain('psi_major');
+        expect(document.getElementById('drift-detail-stats')?.textContent).toContain('Triggered by');
     });
 });

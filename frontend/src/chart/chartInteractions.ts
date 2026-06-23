@@ -159,7 +159,7 @@ export function dragToViewport(
 ): { xMin: number; xMax: number; yMin: number; yMax: number } | null {
     const dx = Math.abs(drag.endX - drag.startX);
     const dy = Math.abs(drag.endY - drag.startY);
-    if (dx < minDragPx || dy < minDragPx) return null;
+    if (dx < minDragPx) return null;
 
     const plotLeft = grid.left;
     const plotRight = Math.max(plotLeft + 1, containerWidth - grid.right);
@@ -170,8 +170,13 @@ export function dragToViewport(
 
     const x0 = Math.max(plotLeft, Math.min(drag.startX, drag.endX));
     const x1 = Math.min(plotRight, Math.max(drag.startX, drag.endX));
-    const y0 = Math.max(plotTop, Math.min(drag.startY, drag.endY));
-    const y1 = Math.min(plotBottom, Math.max(drag.startY, drag.endY));
+    // A horizontal-only drag (dy < minDragPx) zooms the x-range with the full
+    // y-range preserved. Most user drags on a wide timeseries plot are
+    // almost purely horizontal; requiring vertical travel here silently
+    // rejects them and breaks the page controller's debounced re-fetch.
+    const hasYSelection = dy >= minDragPx;
+    const y0 = hasYSelection ? Math.max(plotTop, Math.min(drag.startY, drag.endY)) : plotTop;
+    const y1 = hasYSelection ? Math.min(plotBottom, Math.max(drag.startY, drag.endY)) : plotBottom;
 
     const xSpan = xRange.max - xRange.min;
     const ySpan = yRange.max - yRange.min;
