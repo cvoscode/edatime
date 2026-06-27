@@ -1287,6 +1287,7 @@ dependencies = [
  "edatime-core",
  "polars",
  "serde",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tracing",

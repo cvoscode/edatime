@@ -1,11 +1,11 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::Mutex;
 
 use polars::prelude::{DataFrame, LazyFrame, SchemaExt};
 use tokio::sync::RwLock;
 
-use crate::cache::{CorrelationMatrixCacheEntry, DriftCache, ResponseCache};
+use crate::cache::{CorrelationMatrixCacheEntry, ResponseCache};
 use crate::db::DbPool;
 use crate::repository::{DataRepository, InMemoryDataRepository};
 use edatime_core::config::AppConfig;
@@ -32,7 +32,6 @@ pub struct AppState {
     pub config: Arc<AppConfig>,
     pub db_pool: Arc<RwLock<Option<Arc<DbPool>>>>,
     pub db_info: Arc<RwLock<Option<DbConnectionInfo>>>,
-    pub drift_cache: DriftCache,
     pub correlation_matrix_cache: Arc<Mutex<Option<(u64, CorrelationMatrixCacheEntry)>>>,
     pub query_log: Arc<Mutex<VecDeque<QueryEntry>>>,
     pub query_counter: Arc<std::sync::atomic::AtomicU64>,
@@ -48,7 +47,6 @@ impl Clone for AppState {
             config: Arc::clone(&self.config),
             db_pool: Arc::clone(&self.db_pool),
             db_info: Arc::clone(&self.db_info),
-            drift_cache: Arc::clone(&self.drift_cache),
             correlation_matrix_cache: Arc::clone(&self.correlation_matrix_cache),
             query_log: Arc::clone(&self.query_log),
             query_counter: Arc::clone(&self.query_counter),
@@ -76,7 +74,6 @@ impl AppState {
             config: Arc::new(config),
             db_pool: Arc::new(RwLock::new(None)),
             db_info: Arc::new(RwLock::new(None)),
-            drift_cache: Arc::new(std::sync::Mutex::new(HashMap::new())),
             correlation_matrix_cache: Arc::new(Mutex::new(None)),
             query_log: Arc::new(Mutex::new(VecDeque::with_capacity(max_stored))),
             query_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
@@ -122,13 +119,8 @@ impl AppState {
         }
     }
 
-    pub async fn replace_dataset(&self, df: DataFrame) -> Result<u64, std::io::Error> {
-        let rev = self.repository.replace_from_dataframe(df).map_err(|_| {
-            std::io::Error::new(
-                std::io::ErrorKind::WouldBlock,
-                "failed to acquire write lock",
-            )
-        })?;
+    pub async fn replace_dataset(&self, df: DataFrame) -> Result<u64, AppError> {
+        let rev = self.repository.replace_from_dataframe(df)?;
         // Invalidate cached responses so stale data is never served after upload.
         self.cache.invalidate_all().await;
         self.clear_correlation_matrix_cache();

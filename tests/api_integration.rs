@@ -173,7 +173,12 @@ async fn metadata_v1_alias_returns_byte_equal_body() {
     assert_eq!(canonical_resp.status(), StatusCode::OK);
     assert_eq!(v1_resp.status(), StatusCode::OK);
 
-    let canonical_bytes = canonical_resp.into_body().collect().await.unwrap().to_bytes();
+    let canonical_bytes = canonical_resp
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
     let v1_bytes = v1_resp.into_body().collect().await.unwrap().to_bytes();
     assert_eq!(
         canonical_bytes, v1_bytes,
@@ -325,7 +330,9 @@ async fn data_downsampled_response_is_non_empty_with_epoch_timestamps() {
     // bounded and the selection stays non-empty.
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=100&columns=col_a")
+        .uri(
+            "/api/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=100&columns=col_a",
+        )
         .body(Body::empty())
         .unwrap();
 
@@ -653,7 +660,10 @@ async fn analytics_spectrogram_clip_iqr_with_k() {
     for row in magnitudes {
         for cell in row.as_array().unwrap() {
             let v = cell.as_f64().expect("finite number");
-            assert!((0.0..=1.0).contains(&v), "IQR+minmax value {v} outside [0, 1]");
+            assert!(
+                (0.0..=1.0).contains(&v),
+                "IQR+minmax value {v} outside [0, 1]"
+            );
         }
     }
 }

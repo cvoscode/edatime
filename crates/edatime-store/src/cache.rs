@@ -6,12 +6,6 @@ use axum::body::Body;
 use axum::http::{HeaderValue, Response, StatusCode, header};
 use bytes::Bytes;
 
-/// Revision-based cache for expensive drift computation results.
-/// Unlike `ResponseCache` which is TTL-based, this cache is invalidated
-/// when the dataset revision changes (tracked via the `u64` revision field).
-/// The `Instant` field is used for TTL-based eviction of stale drift results.
-pub type DriftCache = Arc<std::sync::Mutex<HashMap<String, (u64, Instant, Vec<u8>)>>>;
-
 /// Revision-scoped cache payload for full raw and first-difference correlation matrices.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CorrelationMatrixCacheEntry {
@@ -181,8 +175,7 @@ impl Default for CacheState {
 /// TTL-based in-memory response cache for query results.
 /// Stores serialized `CachedResponse` objects (JSON or Arrow) keyed by cache key string.
 /// Uses revision-based invalidation (call `invalidate_all`) when the underlying
-/// dataset changes. Contrast with `DriftCache` which is revision-based with a
-/// shorter TTL for expensive drift computation results.
+/// dataset changes.
 pub struct ResponseCache {
     config: CacheConfig,
     // No .await inside critical sections — std::sync::Mutex is cheaper and

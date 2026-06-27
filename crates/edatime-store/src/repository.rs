@@ -3,6 +3,7 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 
+use edatime_core::error::AppError;
 use polars::prelude::{DataFrame, IntoLazy, LazyFrame};
 use std::sync::RwLock as StdRwLock;
 
@@ -100,8 +101,8 @@ pub trait DataRepository: Send + Sync {
     fn set_time_column_display_name(&self, name: Option<String>);
 
     /// Replace the dataset — blocks until write lock acquired.
-    /// Returns the new revision number, or Err(()) if lock couldn't be acquired.
-    fn replace_from_dataframe(&self, df: DataFrame) -> Result<u64, ()>;
+    /// Returns the new revision number, or `Err` if a write lock was poisoned.
+    fn replace_from_dataframe(&self, df: DataFrame) -> Result<u64, AppError>;
 }
 
 impl DataRepository for InMemoryDataRepository {
@@ -138,7 +139,7 @@ impl DataRepository for InMemoryDataRepository {
         }
     }
 
-    fn replace_from_dataframe(&self, df: DataFrame) -> Result<u64, ()> {
+    fn replace_from_dataframe(&self, df: DataFrame) -> Result<u64, AppError> {
         // Capture df info BEFORE moving df into lazy()
         let column_names: Vec<String> = df
             .get_column_names()
@@ -154,11 +155,17 @@ impl DataRepository for InMemoryDataRepository {
         };
         // Use blocking write — only blocks if a snapshot is being collected concurrently.
         // This is the write path for uploads, which should block reads briefly.
-        let mut guard = self.lf.write().map_err(|_| ())?;
+        let mut guard = self
+            .lf
+            .write()
+            .map_err(|_| AppError::internal("dataset write lock poisoned"))?;
         *guard = lf;
         drop(guard);
 
-        let mut meta_guard = self.meta.write().map_err(|_| ())?;
+        let mut meta_guard = self
+            .meta
+            .write()
+            .map_err(|_| AppError::internal("dataset meta write lock poisoned"))?;
         *meta_guard = meta;
         drop(meta_guard);
 

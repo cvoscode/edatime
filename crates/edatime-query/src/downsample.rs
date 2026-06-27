@@ -59,7 +59,10 @@ pub(crate) fn downsample_indices(
     // real x, duplicate x values violate this and the debug_assert in
     // minmaxlttb will fire. Take the row-index fallback so we never
     // panic / silently return empty on duplicate-x input.
-    if indexed.windows(2).any(|w| !(w[0].0 < w[1].0)) {
+    if indexed
+        .windows(2)
+        .any(|w| w[0].0.partial_cmp(&w[1].0) != Some(std::cmp::Ordering::Less))
+    {
         return (0..n).collect();
     }
 
@@ -134,10 +137,10 @@ pub fn downsample_xy_pairs(
         if let Some(yv) = y_vals.get(idx) {
             out_y.push(*yv);
         }
-        if let (Some(c), Some(vals)) = (out_color.as_mut(), color_vals) {
-            if let Some(v) = vals.get(idx) {
-                c.push(*v);
-            }
+        if let (Some(c), Some(vals)) = (out_color.as_mut(), color_vals)
+            && let Some(v) = vals.get(idx)
+        {
+            c.push(*v);
         }
     }
 
@@ -255,8 +258,14 @@ mod tests {
 
         let indices = downsample_indices(&x_vals, &y_vals, 50);
 
-        assert!(!indices.is_empty(), "epoch-scale x must not collapse to empty selection");
-        assert!(indices.len() <= 50, "must respect target_points upper bound");
+        assert!(
+            !indices.is_empty(),
+            "epoch-scale x must not collapse to empty selection"
+        );
+        assert!(
+            indices.len() <= 50,
+            "must respect target_points upper bound"
+        );
         assert_eq!(indices.first().copied(), Some(0), "first row must be kept");
         assert_eq!(
             indices.last().copied(),
@@ -380,7 +389,10 @@ mod tests {
 
         let (sx, sy, sc) = downsample_xy_pairs(&x_vals, &y_vals, Some(&color_vals), 10);
 
-        assert!(!sx.is_empty(), "epoch-scale x must not collapse to empty selection");
+        assert!(
+            !sx.is_empty(),
+            "epoch-scale x must not collapse to empty selection"
+        );
         assert_eq!(sx.len(), sy.len());
         assert_eq!(sx.len(), sc.as_ref().map(Vec::len).unwrap_or(0));
 

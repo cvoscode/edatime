@@ -237,9 +237,10 @@ pub async fn get_spectral_filter(
             let ctx = state.ts_context(&lf_snap)?;
             let ts_col = ctx.ts_col;
             let multiplier = ctx.multiplier;
-            let df_snap = lf_snap
-                .with_new_streaming(true)
-                .collect()
+            let df_snap = state
+                .query_executor
+                .execute_async(lf_snap)
+                .await
                 .map_err(|e| AppError::io(format!("ts probe failed: {e}")))?;
             let ts_col_series = df_snap
                 .column(&ts_col)
@@ -382,7 +383,11 @@ pub async fn post_remove_outliers(
     let cols = query::parse_columns(params.columns.as_deref());
     let limits = &state.config.validation;
     let value_cols = validate_numeric_columns_lazy(&lf, &cols, limits)?;
-    let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::io(e.to_string()))?;
+    let df = state
+        .query_executor
+        .execute_async(lf)
+        .await
+        .map_err(|e| AppError::io(e.to_string()))?;
 
     let method = params.method.as_deref().unwrap_or("zscore");
     let threshold = params
@@ -496,7 +501,11 @@ pub async fn post_causal_graph(
     if value_cols.len() > 20 {
         return Err(AppError::bad_request("Too many columns (max 20)"));
     }
-    let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::io(e.to_string()))?;
+    let df = state
+        .query_executor
+        .execute_async(lf)
+        .await
+        .map_err(|e| AppError::io(e.to_string()))?;
 
     let tau_max = parse_causal_tau_max(params.tau_max)?;
     let pc_alpha = params.pc_alpha.unwrap_or(0.2).clamp(0.001, 0.5);

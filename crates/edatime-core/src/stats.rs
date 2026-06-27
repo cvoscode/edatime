@@ -215,8 +215,14 @@ pub fn kendall_tau(pairs: &[[f64; 2]]) -> Option<f64> {
             .then_with(|| pairs[a][1].total_cmp(&pairs[b][1]))
     });
 
-    // ties_x: count of x-equal pairs across the dataset.
+    // ties_x: count of x-equal pairs whose y values differ. Subtract the
+    // x-equal pairs that are also y-equal (i.e. duplicate rows), which the
+    // O(n²) reference impl drops entirely. This is symmetric to the
+    // `within` subtraction used below for `ties_y`. The dropped dual-tied
+    // pairs are accumulated in `dropped` and subtracted from the
+    // concordant-plus-discordant count below.
     let mut ties_x: u64 = 0;
+    let mut dropped: u64 = 0;
     let mut start = 0usize;
     while start < n {
         let mut end = start + 1;
@@ -228,7 +234,28 @@ pub fn kendall_tau(pairs: &[[f64; 2]]) -> Option<f64> {
         }
         let group = end - start;
         if group > 1 {
-            ties_x += (group * (group - 1) / 2) as u64;
+            // Count pairs within this x-tied run that are also y-equal
+            // (i.e. identical rows). Because `order` sorts by (x, y), the
+            // y values within `[start, end)` are non-decreasing — walk the
+            // y-equal sub-groups and count their within-group counts.
+            let mut within = 0u64;
+            let mut k = start;
+            while k < end {
+                let mut k2 = k + 1;
+                while k2 < end
+                    && pairs[order[k]][1].total_cmp(&pairs[order[k2]][1])
+                        == std::cmp::Ordering::Equal
+                {
+                    k2 += 1;
+                }
+                let run = k2 - k;
+                if run > 1 {
+                    within += (run * (run - 1) / 2) as u64;
+                }
+                k = k2;
+            }
+            dropped += within;
+            ties_x += (group * (group - 1) / 2) as u64 - within;
         }
         start = end;
     }
@@ -283,17 +310,21 @@ pub fn kendall_tau(pairs: &[[f64; 2]]) -> Option<f64> {
 
     let total_pairs = (n * (n - 1) / 2) as u64;
     // Pairs counted in ties_x or ties_y are NOT concordant/discordant.
-    let concordant_plus_discordant = (total_pairs - ties_x - ties_y) as f64;
+    // Pairs with both x and y equal (duplicate rows) are dropped entirely
+    // from both tie counts above; subtract them from the available pair
+    // total so the formula matches the reference impl.
+    let concordant_plus_discordant = (total_pairs - ties_x - ties_y - dropped) as f64;
     let discordant = inversions as f64;
     let concordant = concordant_plus_discordant - discordant;
 
-    if pairs.len() == 8 {
-        eprintln!("FAST DEBUG 8: pairs={pairs:?}");
-        eprintln!("  ties_x={ties_x} ties_y={ties_y} inv={inversions} C={concordant} D={discordant} total={total_pairs} order={order:?}");
-        eprintln!("  y_order={y_order:?}");
+    // If every pair was a tie or a duplicate, tau-b is undefined.
+    if concordant_plus_discordant <= 0.0 {
+        return None;
     }
-
-    let denom = ((total_pairs - ties_y) as f64 * (total_pairs - ties_x) as f64).sqrt();
+    // Match the reference denom (non-y-tied * non-x-tied), which excludes
+    // both single-axis ties and dual-tied (duplicate) pairs.
+    let denom = ((total_pairs - ties_y - dropped) as f64 * (total_pairs - ties_x - dropped) as f64)
+        .sqrt();
     if !denom.is_finite() || denom <= f64::EPSILON {
         return None;
     }
@@ -481,9 +512,10 @@ mod correlation_tests {
                 let reference = kendall_tau_reference(&pairs);
                 let fast = kendall_tau(&pairs);
                 if fast != reference {
-                    eprintln!("MISMATCH n={n} attempt={attempt} pairs={pairs:?} ref={reference:?} fast={fast:?}");
+                    tracing::error!(
+                        "MISMATCH n={n} attempt={attempt} pairs={pairs:?} ref={reference:?} fast={fast:?}"
+                    );
                 }
-                assert_close(fast, reference, 1e-9);
                 assert_close(fast, reference, 1e-9);
             }
         }
@@ -493,6 +525,29 @@ mod correlation_tests {
     fn kendall_tau_matches_reference_on_unsorted_pairs() {
         let pairs = [[3.0, 6.0], [1.0, 2.0], [4.0, 8.0], [2.0, 4.0]];
         assert_close(kendall_tau(&pairs), kendall_tau_reference(&pairs), 1e-12);
+    }
+
+    #[test]
+    fn kendall_tau_handles_duplicate_rows() {
+        // First two rows are identical (both x-tied and y-tied).
+        // Reference impl drops them; fast impl must match.
+        let pairs = [[1.0, 5.0], [1.0, 5.0], [2.0, 7.0], [3.0, 9.0]];
+        assert_close(kendall_tau(&pairs), kendall_tau_reference(&pairs), 1e-9);
+    }
+
+    #[test]
+    fn kendall_tau_handles_three_way_duplicate() {
+        // Three rows identical (one pair counted as both x-tie and y-tie,
+        // and one pair counted as both x-tie and y-tie again).
+        let pairs = [[1.0, 1.0], [1.0, 1.0], [1.0, 1.0], [2.0, 2.0]];
+        assert_close(kendall_tau(&pairs), kendall_tau_reference(&pairs), 1e-9);
+    }
+
+    #[test]
+    fn kendall_tau_handles_fully_duplicated_set() {
+        // All rows identical → tau-b is undefined but the impl must not panic.
+        let pairs = [[1.0, 1.0]; 4];
+        let _ = kendall_tau(&pairs);
     }
 
     #[test]
