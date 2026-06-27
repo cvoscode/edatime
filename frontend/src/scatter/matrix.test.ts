@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { buildMatrixFetchPairs, renderMatrixGrid } from './matrix.js';
+import { buildMatrixFetchPairs } from './matrix.js';
+import { renderMatrixGrid } from './matrixGrid.js';
 
 class MockCanvasContext2D {
     setTransform() { }

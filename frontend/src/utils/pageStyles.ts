@@ -2,13 +2,15 @@ const STYLE_MODULE_NAMES = ['drift', 'home', 'scatter'] as const;
 
 export type StyleModuleName = typeof STYLE_MODULE_NAMES[number];
 
-const PAGE_STYLE_MODULES: Record<string, StyleModuleName[]> = {
+export type PageName = keyof typeof PAGE_STYLE_MODULES;
+
+const PAGE_STYLE_MODULES = {
     drift: ['drift'],
     home: ['home'],
     heatmap: ['scatter'],
     scatter: ['scatter'],
     scattermatrix: ['scatter'],
-};
+} as const satisfies Record<string, readonly StyleModuleName[]>;
 
 const STYLE_HREFS = import.meta.glob('../../css/modules/*.css', {
     query: '?url',
@@ -16,8 +18,8 @@ const STYLE_HREFS = import.meta.glob('../../css/modules/*.css', {
     eager: true,
 }) as Record<string, string>;
 
-export function pageStyleModulesFor(pageName: string): StyleModuleName[] {
-    return PAGE_STYLE_MODULES[pageName] ?? [];
+export function pageStyleModulesFor(pageName: string): readonly StyleModuleName[] {
+    return PAGE_STYLE_MODULES[pageName as PageName] ?? [];
 }
 
 export function ensureStyleModule(name: StyleModuleName): HTMLLinkElement | null {

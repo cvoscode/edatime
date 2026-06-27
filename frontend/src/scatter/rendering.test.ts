@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { appState } from '../store/appStateCompat.js';
-import { applyView, buildDensitySeries, buildDensityTooltipCache, buildOption, densityTooltipFormatterFactory, updateMarginalPlots } from './rendering.js';
+import { applyView, buildOption, updateMarginalPlots } from './rendering.js';
+import { buildDensitySeries, buildDensityTooltipCache, densityTooltipFormatterFactory } from './renderingDensity.js';
 
 class MockCanvasContext2D {
     ops: string[] = [];

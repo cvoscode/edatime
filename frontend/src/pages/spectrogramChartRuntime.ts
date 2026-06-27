@@ -28,6 +28,23 @@ let spectrogramChart: any = null;
 let spectrogramResizeObserver: ResizeObserver | null = null;
 let spectrogramResult: SpectrogramResult | null = null;
 
+// Cache of pre-scaled spectrogram magnitudes keyed by
+// (column, scaleMode, clipMode, clipParam, logScale). On every render
+// the same set of magnitudes would otherwise be flattened into a
+// Float64Array and run through `applySpectralScale` even when the
+// only thing that changed is the colorbar filter bounds. Reusing the
+// scaled values keeps the colorbar-drag hot path cheap. The cache is
+// invalidated automatically when the user picks a different scaling
+// combination because the key captures every input that feeds into
+// `applySpectralScale` and the log transform.
+interface ScaledSpectrogram {
+    vmin: number;
+    vmax: number;
+    displayValues: Float64Array;
+    flat: Float64Array;
+}
+const scaledSpectrogramCache = new Map<string, ScaledSpectrogram>();
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatSpectrogramTime(timestampMs: number): string {
     return new Date(timestampMs).toLocaleString([], {
@@ -229,16 +246,39 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
 
                 // Flatten magnitudes into a single typed array — log first if
                 // requested, then pass through applySpectralScale for clip +
-                // normalize.
+                // normalize. Reuse a cached scaled buffer when the
+                // (column, scale, clip, log) combination is unchanged so
+                // colorbar drags do not retrigger the O(N) flatten +
+                // applySpectralScale work.
                 const total = timeAxis.length * freqAxis.length;
-                const flat = new Float64Array(total);
-                for (let i = 0; i < total; i += 1) {
-                    const timeIndex = Math.floor(i / freqAxis.length);
-                    const freqIndex = i % freqAxis.length;
-                    const raw = Number(spectrogramResult.magnitudes[timeIndex]?.[freqIndex] ?? NaN);
-                    flat[i] = logScale ? Math.log10(Math.max(raw, 1e-30)) : raw;
+                const cacheKey = [
+                    spectrogramResult.column,
+                    scaleMode,
+                    clipMode,
+                    clipParam,
+                    logScale ? 'log' : 'linear',
+                    total,
+                ].join('|');
+                let scaled = scaledSpectrogramCache.get(cacheKey);
+                if (!scaled) {
+                    const flat = new Float64Array(total);
+                    for (let i = 0; i < total; i += 1) {
+                        const timeIndex = Math.floor(i / freqAxis.length);
+                        const freqIndex = i % freqAxis.length;
+                        const raw = Number(spectrogramResult.magnitudes[timeIndex]?.[freqIndex] ?? NaN);
+                        flat[i] = logScale ? Math.log10(Math.max(raw, 1e-30)) : raw;
+                    }
+                    const scaledFresh = applySpectralScale(flat, { mode: scaleMode, clip: clipMode, clipParam });
+                    scaled = { ...scaledFresh, flat };
+                    scaledSpectrogramCache.set(cacheKey, scaled);
+                    // Evict the oldest entry when the cache grows past 8
+                    // combinations (different clip params, normalize modes,
+                    // columns) so a long-lived session cannot leak memory.
+                    if (scaledSpectrogramCache.size > 8) {
+                        const oldestKey = Array.from(scaledSpectrogramCache.keys())[0];
+                        if (oldestKey !== undefined) scaledSpectrogramCache.delete(oldestKey);
+                    }
                 }
-                const scaled = applySpectralScale(flat, { mode: scaleMode, clip: clipMode, clipParam });
                 const minValue = scaled.vmin;
                 const maxValue = scaled.vmax;
                 const scaleLabel = scaleModeLabel(scaleMode, clipMode, clipParam);

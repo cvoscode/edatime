@@ -84,6 +84,11 @@ import {
     initBoxZoom,
 } from './chartInteractions.js';
 import { ChartOverlays } from './chartOverlays.js';
+import {
+    exportDataChartHTML,
+    exportDataChartPNG,
+    exportDataChartSVG,
+} from './dataChartExport.js';
 
 const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
 
@@ -616,37 +621,27 @@ export class DataChart {
     /* ── Export ──────────────────────────────────────────── */
 
     async exportPNG(): Promise<void> {
-        const canvas = await this._getCombinedExportCanvas(true);
-        if (!canvas) return;
-        downloadUrl(canvas.toDataURL('image/png'), 'edatime_chart.png');
+        await exportDataChartPNG({
+            filename: 'edatime_chart.png',
+            getCanvas: (includeDrawings) => this._getCombinedExportCanvas(includeDrawings),
+            downloadUrl,
+        });
     }
 
     async exportSVG(): Promise<void> {
-        // Bake the drawings into the canvas so they are guaranteed to
-        // appear in the export. The wrapper SVG still embeds a PNG of
-        // the chart (the chart visuals themselves are not vector), so
-        // duplicating the drawings as separate SVG primitives was the
-        // only difference between this path and the PNG path. Routing
-        // through the canvas-baked path keeps the two exports visually
-        // identical and avoids a fragile overlay-coordinate conversion.
-        const canvas = await this._getCombinedExportCanvas(true);
-        if (!canvas) return;
-        const pngData = canvas.toDataURL('image/png');
-        const w = canvas.width || 1;
-        const h = canvas.height || 1;
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">\n  <image href="${pngData}" x="0" y="0" width="${w}" height="${h}" />\n</svg>`;
-        const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-        downloadBlob(blob, 'edatime_chart.svg');
+        await exportDataChartSVG({
+            filename: 'edatime_chart.svg',
+            getCanvas: (includeDrawings) => this._getCombinedExportCanvas(includeDrawings),
+            downloadBlob,
+        });
     }
 
     async exportHTML(): Promise<void> {
-        const canvas = await this._getCombinedExportCanvas(true);
-        if (!canvas) return;
-        const dataUrl = canvas.toDataURL('image/png');
-        const exportPalette = getChartPalette();
-        const html = `<!DOCTYPE html><html><head><title>EdaTime Export</title><style>body{margin:0;background:${exportPalette.background};display:flex;justify-content:center;align-items:center;min-height:100vh}img{max-width:100%;height:auto;box-shadow:0 4px 12px rgba(0,0,0,0.5)}</style></head><body><img src="${dataUrl}" alt="EdaTime Chart"/></body></html>`;
-        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-        downloadBlob(blob, 'edatime_chart.html');
+        await exportDataChartHTML({
+            filename: 'edatime_chart.html',
+            getCanvas: (includeDrawings) => this._getCombinedExportCanvas(includeDrawings),
+            downloadBlob,
+        });
     }
 
     /* ── Private helpers ────────────────────────────────── */

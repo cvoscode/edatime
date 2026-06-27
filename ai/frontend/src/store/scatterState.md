@@ -1,5 +1,5 @@
 # ai/frontend/src/store/scatterState.md
-> Canonical scatter state holder. The shape of every scatter-page state field lives here.
+> Canonical scatter state holder. The shape of every scatter-page state field lives here. Shared interfaces (`ScatterView`, `ScatterDrag`, `DensityTooltipMeta`, `DensityTooltipCache`) are now defined in [../types.md](../types.md) so consumers stay in sync.
 
 ## Interfaces
 ```ts
@@ -37,6 +37,8 @@ interface DensityTooltipCache {
     } | null;
     binsBySeriesIndex: Map<number, Map<string, number>>;
     metaBySeriesIndex: Map<number, DensityTooltipMeta>;
+    marginalCountsX: number[] | null;
+    marginalCountsY: number[] | null;
 }
 
 interface ScatterState {

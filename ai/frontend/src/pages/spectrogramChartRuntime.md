@@ -12,6 +12,7 @@ interface SpectrogramPageDeps {
 - `spectrogramChart: any` — ECharts chart instance
 - `spectrogramResizeObserver: ResizeObserver | null`
 - `spectrogramResult: SpectrogramResult | null`
+- `scaledSpectrogramCache: Map<string, ScaledSpectrogram>` — keyed by `(column|scaleMode|clipMode|clipParam|logScale|total)`; caches pre-scaled `Float64Array` + vmin/vmax to avoid O(N) `applySpectralScale` on every colorbar drag. Evicts oldest entry when size exceeds 8.
 
 ## Functions
 - `formatSpectrogramTime(timestampMs: number): string` — formats as locale datetime string

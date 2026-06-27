@@ -117,7 +117,7 @@
   }
 }
 
-@media (max-width: 1380px) {
+@media (max-width: 1280px) {
 
   /* Hide the Selection toggle to keep the row breathable. The
      checkbox state is preserved so it does not need re-toggling
@@ -150,7 +150,7 @@
   }
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 940px) {
 
   /* Collapse all eyebrows; the controls speak for themselves.
      This frees ~50px of horizontal space per segment. */

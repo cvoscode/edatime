@@ -8,12 +8,7 @@ import {
     fmt,
     escapeHtml,
     setPanelStatus,
-    createMiniCanvas,
-    drawMiniScatterCanvas,
-    drawMiniDensityCanvas,
-    drawDistributionCanvas,
     buildCategoricalColorGroups,
-    buildGroupedDistributionSeries,
     MATRIX_POINT_LIMIT,
     MATRIX_MAX_COLUMNS,
 } from './helpers.js';
@@ -27,8 +22,7 @@ import {
     type ScatterControls,
 } from './state.js';
 import { setDropdownValue } from '../ui/primitives/Dropdown.js';
-
-let draggingMatrixColumn: string | null = null;
+import { describeDistributionMode, renderMatrixGrid } from './matrixGrid.js';
 const MATRIX_FETCH_CONCURRENCY = 4;
 
 /* ── Column selection ─────────────────────────────────── */
@@ -59,64 +53,6 @@ function buildOverviewColumns(): string[] {
     }
     appState.scatter.matrixColumnOrder = next.slice(0, MATRIX_MAX_COLUMNS);
     return appState.scatter.matrixColumnOrder;
-}
-
-function moveColumn(columns: string[], source: string, target: string): string[] {
-    if (!source || !target || source === target) return columns.slice();
-    const sourceIndex = columns.indexOf(source);
-    const targetIndex = columns.indexOf(target);
-    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return columns.slice();
-    const next = columns.slice();
-    const [item] = next.splice(sourceIndex, 1);
-    next.splice(targetIndex, 0, item);
-    return next;
-}
-
-function bindReorderHandle(
-    handle: HTMLElement,
-    column: string,
-    columns: string[],
-    onColumnReorder: ((nextColumns: string[]) => void) | null,
-): void {
-    if (!onColumnReorder) return;
-    handle.draggable = true;
-    handle.dataset.column = column;
-
-    handle.addEventListener('dragstart', (event: DragEvent) => {
-        draggingMatrixColumn = column;
-        handle.classList.add('dragging');
-        if (event.dataTransfer) {
-            event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', column);
-        }
-    });
-
-    handle.addEventListener('dragend', () => {
-        draggingMatrixColumn = null;
-        handle.classList.remove('dragging');
-        document.querySelectorAll('.scatter-matrix-drop-target').forEach((element) => {
-            element.classList.remove('scatter-matrix-drop-target');
-        });
-    });
-
-    handle.addEventListener('dragover', (event: DragEvent) => {
-        const source = draggingMatrixColumn || event.dataTransfer?.getData('text/plain') || '';
-        if (!source || source === column) return;
-        event.preventDefault();
-        handle.classList.add('scatter-matrix-drop-target');
-    });
-
-    handle.addEventListener('dragleave', () => {
-        handle.classList.remove('scatter-matrix-drop-target');
-    });
-
-    handle.addEventListener('drop', (event: DragEvent) => {
-        const source = draggingMatrixColumn || event.dataTransfer?.getData('text/plain') || '';
-        handle.classList.remove('scatter-matrix-drop-target');
-        if (!source || source === column) return;
-        event.preventDefault();
-        onColumnReorder(moveColumn(columns, source, column));
-    });
 }
 
 /* ── Data fetch ───────────────────────────────────────── */
@@ -176,12 +112,6 @@ export async function selectMatrixPair(
 
 /* ── Grid rendering ───────────────────────────────────── */
 
-function describeDistributionMode(mode: string): string {
-    if (mode === 'kde') return 'KDE';
-    if (mode === 'boxplot') return 'Box Plot';
-    return 'Histogram';
-}
-
 function matrixPairPriority(
     pair: [string, string],
     controls: Pick<ScatterControls, 'x' | 'y'>,
@@ -229,115 +159,6 @@ export function buildMatrixFetchPairs(
             if (left[1] !== right[1]) return columns.indexOf(left[1]) - columns.indexOf(right[1]);
             return columns.indexOf(left[0]) - columns.indexOf(right[0]);
         });
-}
-
-export function renderMatrixGrid(
-    columns: string[],
-    datasets: Map<string, MatrixCellData>,
-    onCellClick: (x: string, y: string) => void,
-    onColumnReorder: ((nextColumns: string[]) => void) | null = null,
-): void {
-    const container = getEl('scatter-matrix');
-    if (!container) return;
-    container.innerHTML = '';
-
-    if (!Array.isArray(columns) || columns.length < 2) {
-        container.innerHTML = '<div class="scatter-placeholder">Choose scatter axes first. The matrix will then add related numeric columns, and you can drag the row or column headers to reorder the grid.</div>';
-        return;
-    }
-
-    const controls = currentControls();
-    const diagonalMode = controls.diagonalMode;
-    const matrixMode = controls.matrixMode;
-    const cellSize = controls.matrixCellSize;
-    const grid = document.createElement('div');
-    grid.className = 'scatter-matrix-grid';
-    grid.style.gridTemplateColumns = `60px repeat(${columns.length}, ${cellSize}px)`;
-
-    const corner = document.createElement('div');
-    corner.className = 'scatter-matrix-corner';
-    corner.innerHTML = '<span class="scatter-matrix-corner-axis">Y</span><span class="scatter-matrix-corner-sep">/</span><span class="scatter-matrix-corner-axis">X</span>';
-    grid.appendChild(corner);
-
-    for (const column of columns) {
-        const header = document.createElement('div');
-        header.className = 'scatter-matrix-header';
-        header.textContent = column;
-        bindReorderHandle(header, column, columns, onColumnReorder);
-        grid.appendChild(header);
-    }
-
-    const drawJobs: (() => void)[] = [];
-    for (const rowColumn of columns) {
-        const rowHeader = document.createElement('div');
-        rowHeader.className = 'scatter-matrix-row-header';
-        rowHeader.textContent = rowColumn;
-        bindReorderHandle(rowHeader, rowColumn, columns, onColumnReorder);
-        grid.appendChild(rowHeader);
-
-        for (const column of columns) {
-            const data = datasets.get(`${column}|${rowColumn}`) || { totalPoints: 0, points: [], colorValues: null, colorLabels: null };
-
-            if (rowColumn === column) {
-                const diagonal = document.createElement('div');
-                diagonal.className = 'scatter-matrix-diagonal';
-                diagonal.style.width = `${cellSize}px`;
-                diagonal.style.height = `${cellSize}px`;
-                const canvas = createMiniCanvas('scatter-matrix-diagonal-canvas', cellSize - 32);
-                canvas.style.width = '100%';
-                const values = data.points.map((p: any) => Number(p?.[0])).filter((v: number) => Number.isFinite(v));
-                const groupedSeries = controls.selectedColorColumn
-                    ? buildGroupedDistributionSeries(values, data.colorLabels)
-                    : null;
-                drawJobs.push(() => {
-                    drawDistributionCanvas(
-                        canvas, diagonalMode,
-                        groupedSeries || [{ label: column, color: '#00c896', values }],
-                    );
-                });
-                const meta = document.createElement('div');
-                meta.className = 'scatter-diagonal-meta';
-                meta.textContent = groupedSeries
-                    ? `${describeDistributionMode(diagonalMode)} grouped by ${controls.selectedColorColumn}`
-                    : describeDistributionMode(diagonalMode);
-                diagonal.append(canvas, meta);
-                grid.appendChild(diagonal);
-                continue;
-            }
-
-            const cell = document.createElement('button');
-            cell.type = 'button';
-            cell.className = 'scatter-matrix-cell';
-            cell.style.width = `${cellSize}px`;
-            cell.style.height = `${cellSize}px`;
-            if (controls.x === column && controls.y === rowColumn) cell.classList.add('active');
-            const canvas = createMiniCanvas('scatter-matrix-cell-canvas', cellSize - 32);
-            canvas.style.width = '100%';
-            const categoryGroups = buildCategoricalColorGroups(data.colorLabels);
-            drawJobs.push(() => {
-                if (matrixMode === 'density') {
-                    drawMiniDensityCanvas(canvas, data.points, { colorScale: controls.colorScale });
-                } else {
-                    drawMiniScatterCanvas(canvas, data.points, {
-                        color: '#4a9eff',
-                        colorValues: data.colorValues,
-                        colorLabels: categoryGroups ? data.colorLabels : null,
-                        colorScale: controls.colorScale,
-                        categoryColors: categoryGroups?.colorByLabel,
-                    });
-                }
-            });
-            const meta = document.createElement('div');
-            meta.className = 'scatter-matrix-meta';
-            meta.innerHTML = `<span>${escapeHtml(column)} → ${escapeHtml(rowColumn)}</span><span>${escapeHtml(fmt.format(Number(data.totalPoints || data.points.length || 0)))} pts</span>`;
-            cell.append(canvas, meta);
-            cell.addEventListener('click', () => onCellClick(column, rowColumn));
-            grid.appendChild(cell);
-        }
-    }
-
-    container.appendChild(grid);
-    for (const draw of drawJobs) draw();
 }
 
 /* ── Overview fetch + render ──────────────────────────── */
@@ -571,3 +392,5 @@ export async function renderMatrixFftPanel(): Promise<void> {
         (panel as HTMLElement).hidden = true;
     }
 }
+
+export { renderMatrixGrid } from './matrixGrid.js';

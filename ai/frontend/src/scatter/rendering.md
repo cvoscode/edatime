@@ -11,7 +11,7 @@
 
 ## Interfaces
 - `ScatterView = { xMin: number; xMax: number; yMin: number; yMax: number }`
-- `DensityTooltipCache = { key: string; binSize: number; metrics: { plotWidth, plotHeight, devicePixelRatio, plotLeftPx, plotTopPx, plotRightPx, plotBottomPx, exactLeftPx, exactTopPx, exactRightPx, exactBottomPx, binSizePx, binSizeCss, binCountX, binCountY }; binsBySeriesIndex: Map<number, Map<string, number>>; metaBySeriesIndex: Map<number, DensityTooltipMeta> }`
+- `DensityTooltipCache = { key: string; binSize: number; metrics: { plotWidth, plotHeight, devicePixelRatio, plotLeftPx, plotTopPx, plotRightPx, plotBottomPx, exactLeftPx, exactTopPx, exactRightPx, exactBottomPx, binSizePx, binSizeCss, binCountX, binCountY }; binsBySeriesIndex: Map<number, Map<string, number>>; metaBySeriesIndex: Map<number, DensityTooltipMeta>; marginalCountsX: number[] | null; marginalCountsY: number[] | null }` [deps: [DensityTooltipCache][10]]
 
 ## Functions
 - `buildNormalScatterSeries(points: [number, number][], controls: ScatterControls): any[]` [deps: [buildCategoricalColorGroups][1], [paletteForScale][2]]
@@ -47,7 +47,7 @@
 - `projectDensityPointToBin(x: number, y: number, metrics: NonNullable<DensityTooltipCache['metrics']>): { bx, by } | null` (private)
   - Maps a data-space point to a 2D bin index using the cached metrics. Returns null for out-of-viewport or non-finite points.
 - `updateMarginalPlots(): void`
-  - Syncs marginal canvas visibility and triggers `drawMarginalX`/`drawMarginalY` with current `diagonalMode`. Also toggles the `.with-x-marginal` class on `#scatter-chart`. Filters visible points to the current view bounds. In `renderMode === 'density'` with `diagonalMode === 'histogram'`, switches to `drawDensityMarginalX/Y` driven by the cached density bin counts.
+  - Syncs marginal canvas visibility and triggers `drawMarginalX`/`drawMarginalY` with current `diagonalMode`. Also toggles the `.with-x-marginal` class on `#scatter-chart`. Filters visible points to the current view bounds. In `renderMode === 'density'` with `diagonalMode === 'histogram'`, uses `cache?.marginalCountsX/Y` (derived in `buildDensityTooltipCache` from series index 0) with a one-shot fallback to `buildDensityMarginalCounts` if the cache is not yet populated.
 - `buildOption(points: [number, number][], container: HTMLElement | null): any`
   - Constructs the full ECharts option object from controls, points, and series.
 - `renderCurrentOption(): void`
@@ -65,7 +65,7 @@
 - `updateCorrelationStats(): void`
   - Reads current X/Y from the dropdowns, looks up Pearson/Spearman in `appState.scatter.correlationsByColumn`, and updates the stats bar.
 - `initSelectionZoom(container: HTMLElement): void` [deps: [dragToViewport][7], [SCATTER_PLOT_GRID][8], [applyView][4], [resetView][4]]
-  - Wires pointerdown/move/up/cancel for box-selection zoom and dblclick for view pop/reset. Uses `dragToViewport` to honor `SCATTER_PLOT_GRID` padding; ignores drags smaller than 8px in either axis and ignores wheel events on density mode.
+  - Wires pointerdown/move/up/cancel for box-selection zoom and dblclick for view pop/reset. Uses `dragToViewport` to honor `SCATTER_PLOT_GRID` padding. In density mode, requires both axes to span ≥ 8px before invoking `dragToViewport` to prevent single-axis drags from collapsing the heatmap. The non-density path retains the existing horizontal-only fallback.
 - `syncModeUI(): void` [deps: [refreshScatterToolbarOverflow][9]]
   - Toggles visibility of analytics / density / color-scale / export / stats / suggestions groups based on `appState.scatter.activeView` and `renderMode`. The Refine segment hosts the density sub-group and color scale inline; both are toggled together to avoid orphan labels. Also calls `refreshScatterToolbarOverflow()` so the new field set is rebalanced through the overflow popout.
 
@@ -83,3 +83,4 @@
 [7]: ../chart/chartInteractions.md#dragToViewport
 [8]: ./layout.md#SCATTER_PLOT_GRID
 [9]: ./toolbarOverflow.md#refreshScatterToolbarOverflow
+[10]: ../types.md#DensityTooltipCache

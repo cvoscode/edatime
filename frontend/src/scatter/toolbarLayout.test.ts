@@ -24,8 +24,8 @@ describe('scatter toolbar layout shell', () => {
 
     it('defines dedicated scatter toolbar segment styling instead of relying on the base toolbar row', () => {
         expect(toolbarCss).toContain('.scatter-toolbar');
-        expect(toolbarCss).toContain('.scatter-toolbar__segment');
-        expect(toolbarCss).toContain('.scatter-toolbar__eyebrow');
+        expect(scatterCss).toContain('.scatter-toolbar__segment');
+        expect(scatterCss).toContain('.scatter-toolbar__eyebrow');
     });
 
     it('adds scatter-specific chip and stats styling for the redesigned summary row', () => {

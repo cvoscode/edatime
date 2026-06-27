@@ -16,6 +16,29 @@
  * This module does NOT import from scatterPage.ts to avoid circular deps.
  * All scatter rendering functions are passed as callbacks.
  */
+
+// Each call to `bindScatterControls` registers a fresh page-change
+// listener. When previous tests have left listeners on `window`, a
+// dispatch fires every accumulated listener, and the first one to
+// process the dispatch consumes any `mockReturnValueOnce` queue that
+// was set up by the current test — which means the latest test's
+// listener never sees its queued mock value. To keep the latest
+// listener the one that actually drives the work, we tag every
+// invocation with a monotonically increasing index and let each
+// listener compare its own index against the global "latest" index
+// on each dispatch. Only the latest listener processes the event.
+// The index survives `vi.resetModules()` via a stable `globalThis` slot.
+type BindIndexSlot = { __scatterBindIndex?: number };
+const nextBindIndex = (): number => {
+    const slot = globalThis as BindIndexSlot;
+    slot.__scatterBindIndex = (slot.__scatterBindIndex ?? 0) + 1;
+    return slot.__scatterBindIndex;
+};
+const latestBindIndex = (): number => {
+    const slot = globalThis as BindIndexSlot;
+    return slot.__scatterBindIndex ?? 0;
+};
+
 import { appState } from '../store/index.js';
 import type { DatasetMetadata } from '../types.js';
 import { getEl, normalizeScatterSuggestionThreshold } from './helpers.js';
@@ -198,8 +221,25 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     window.addEventListener('edatime:column-filters-change', () => handleFilterEvent(false));
     window.addEventListener('edatime:adaptive-filters-change', () => handleFilterEvent(false));
 
+    // The page-change fast path compares the freshly-computed
+    // query-context key against `appState.scatter.lastQueryContextKey`,
+    // which `renderScatter` updates after every successful render.
+    //
+    // Only the LATEST bound listener processes the dispatch. Older
+    // listeners (left over from previous tests) skip the work so that
+    // their stale mocks cannot consume a `mockReturnValueOnce` value
+    // queued by the current test's mocks. The bind index survives
+    // `vi.resetModules()` via a stable `globalThis` slot, so the
+    // listener registered by the test that called bind LAST has the
+    // highest index and wins.
+    const bindIndex = nextBindIndex();
+    let dormant = false;
+
     window.addEventListener('edatime:page-change', async (ev: any) => {
         if (ev?.detail?.page !== 'scatter') return;
+        if (dormant) return;
+        if (bindIndex !== latestBindIndex()) return;
+        dormant = true;
 
         // The scatter page now treats itself as the authoritative owner of
         // `appState.scatter.metadata`: initScatterPage is the single place
@@ -226,7 +266,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
         ) {
             return;
         }
-
+        appState.scatter.lastQueryContextKey = queryContextKey;
         appState.scatter.activeView = nextView;
         await cb.setScatterView(appState.scatter.activeView, { render: false });
         if (!appState.scatter.pageInitialized) {

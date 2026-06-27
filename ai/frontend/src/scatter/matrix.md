@@ -20,7 +20,11 @@
 - `buildMatrixFetchPairs(columns: string[], controls: Pick<ScatterControls, 'x' | 'y'>, suggestions?: Array<{ x?: string | null; y?: string | null }>): [string, string][]`
   - Returns the full cartesian product of columns sorted by `matrixPairPriority` — current axis first, then diagonals, then off-axis pairs in suggestion order.
 - `renderMatrixGrid(columns: string[], datasets: Map<string, MatrixCellData>, onCellClick: (x: string, y: string) => void, onColumnReorder?: ((nextColumns: string[]) => void) | null): void`
-  - Renders the matrix grid: header drag handles, diagonal cells (histogram / KDE / boxplot via `drawDistributionCanvas`), and off-diagonal scatter / density cells. Schedules canvas draws at the end of DOM construction.
+  - Renders the matrix grid using stable DOM node tracking by `dataset.key`. Reuses existing cell/header nodes and only mutates canvas/text content. Schedules canvas draws at the end of DOM construction.
+- `buildOverviewColumns(): string[]`
+  - Derives overview columns from current controls + suggestions + metadata, preserving `matrixColumnOrder` from appState.
+- `bindReorderHandle(handle: HTMLElement, column: string, columns: string[], onColumnReorder?: ((nextColumns: string[]) => void) | null): void`
+  - Binds drag handles for column reordering; uses `__reorderBound` flag for idempotency.
 - `renderScatterOverview(onCellClick: (x: string, y: string) => void): Promise<void>`
   - Fetches up to `MATRIX_FETCH_CONCURRENCY` matrix cells in parallel with revision-aware abort semantics and incrementally re-renders the grid. Invalidates `appState.scatter.overviewRequestId` to drop stale fetches.
 - `renderScatterMatrixView(onCellClick: (x: string, y: string) => void): Promise<void>`

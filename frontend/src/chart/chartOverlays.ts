@@ -19,6 +19,46 @@ interface ChartOverlayOptions {
     getPendingAdaptivePoint: () => { column: string; x: number; y: number; x2?: number; y2?: number } | null;
 }
 
+/**
+ * Shared plot-geometry result for chart overlays.
+ *
+ * Centralises the plotLeft / plotTop / plotRight / plotBottom / plotWidth
+ * / plotHeight / strokeScale arithmetic that every overlay (rolling
+ * bands, anomaly regions, adaptive filters, annotations) needs before
+ * it can draw anything. Returns `null` when the container or overlay
+ * canvas is missing so callers can short-circuit cleanly.
+ */
+export interface ChartOverlayPlotMetrics {
+    cssWidth: number;
+    cssHeight: number;
+    plotLeft: number;
+    plotTop: number;
+    plotRight: number;
+    plotBottom: number;
+    plotWidth: number;
+    plotHeight: number;
+    strokeScale: number;
+}
+
+function getOverlayPlotMetrics(
+    container: HTMLElement | null,
+    overlayCanvas: HTMLCanvasElement | null,
+    scale: { x: number; y: number },
+): ChartOverlayPlotMetrics | null {
+    if (!container) return null;
+    const rect = container.getBoundingClientRect();
+    const cssWidth = Math.max(1, rect.width || overlayCanvas?.width || 1);
+    const cssHeight = Math.max(1, rect.height || overlayCanvas?.height || 1);
+    const plotLeft = CHART_GRID.left * scale.x;
+    const plotTop = CHART_GRID.top * scale.y;
+    const plotRight = Math.max(plotLeft + 1, (cssWidth - CHART_GRID.right) * scale.x);
+    const plotBottom = Math.max(plotTop + 1, (cssHeight - CHART_GRID.bottom) * scale.y);
+    const plotWidth = Math.max(1, plotRight - plotLeft);
+    const plotHeight = Math.max(1, plotBottom - plotTop);
+    const strokeScale = Math.min(scale.x, scale.y);
+    return { cssWidth, cssHeight, plotLeft, plotTop, plotRight, plotBottom, plotWidth, plotHeight, strokeScale };
+}
+
 export class ChartOverlays {
     private _opts: ChartOverlayOptions;
 
@@ -36,23 +76,15 @@ export class ChartOverlays {
     private _renderRollingBandsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
         const bands = appState.rollingBands;
         if (!bands || bands.length === 0 || !appState.rollingEnabled) return;
-        const container = this._opts.getContainer();
-        if (!container) return;
 
         const xMin = this._opts.getXMin();
         const xMax = this._opts.getXMax();
         const yRange = this._opts.getYRange();
         if (xMin == null || xMax == null || !(xMax > xMin) || !yRange) return;
 
-        const rect = container.getBoundingClientRect();
-        const cssWidth = Math.max(1, rect.width || this._opts.getOverlayCanvas()?.width || 1);
-        const cssHeight = Math.max(1, rect.height || this._opts.getOverlayCanvas()?.height || 1);
-        const plotLeft = CHART_GRID.left * scale.x;
-        const plotTop = CHART_GRID.top * scale.y;
-        const plotRight = Math.max(plotLeft + 1, (cssWidth - CHART_GRID.right) * scale.x);
-        const plotBottom = Math.max(plotTop + 1, (cssHeight - CHART_GRID.bottom) * scale.y);
-        const plotWidth = Math.max(1, plotRight - plotLeft);
-        const plotHeight = Math.max(1, plotBottom - plotTop);
+        const metrics = getOverlayPlotMetrics(this._opts.getContainer(), this._opts.getOverlayCanvas(), scale);
+        if (!metrics) return;
+        const { plotLeft, plotTop, plotRight, plotBottom, plotWidth, plotHeight } = metrics;
         const ySpan = Math.max(1e-9, yRange.max - yRange.min);
 
         const toX = (ms: number) => plotLeft + ((ms - xMin) / (xMax - xMin)) * plotWidth;
@@ -118,27 +150,20 @@ export class ChartOverlays {
     private _renderAnomalyRegionsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
         const regions = appState.anomalyRegions;
         if (!regions || regions.length === 0 || !appState.anomalyEnabled) return;
-        const container = this._opts.getContainer();
-        if (!container) return;
 
         const xMin = this._opts.getXMin();
         const xMax = this._opts.getXMax();
         if (xMin == null || xMax == null || !(xMax > xMin)) return;
 
-        const rect = container.getBoundingClientRect();
-        const cssWidth = Math.max(1, rect.width || this._opts.getOverlayCanvas()?.width || 1);
-        const cssHeight = Math.max(1, rect.height || this._opts.getOverlayCanvas()?.height || 1);
-        const plotLeft = CHART_GRID.left * scale.x;
-        const plotTop = CHART_GRID.top * scale.y;
-        const plotRight = Math.max(plotLeft + 1, (cssWidth - CHART_GRID.right) * scale.x);
-        const plotBottom = Math.max(plotTop + 1, (cssHeight - CHART_GRID.bottom) * scale.y);
-        const plotWidth = Math.max(1, plotRight - plotLeft);
+        const metrics = getOverlayPlotMetrics(this._opts.getContainer(), this._opts.getOverlayCanvas(), scale);
+        if (!metrics) return;
+        const { plotLeft, plotTop, plotRight, plotBottom, plotWidth, plotHeight, strokeScale } = metrics;
 
         ctx.save();
         const anomalyPalette = getChartPalette();
         ctx.fillStyle = anomalyPalette.anomalyFill;
         ctx.strokeStyle = anomalyPalette.anomalyStroke;
-        ctx.lineWidth = 1 * Math.min(scale.x, scale.y);
+        ctx.lineWidth = 1 * strokeScale;
 
         for (const region of regions) {
             const rStart = Math.max(xMin, region.start_ms);
@@ -148,7 +173,6 @@ export class ChartOverlays {
             const sx = plotLeft + ((rStart - xMin) / (xMax - xMin)) * plotWidth;
             const ex = plotLeft + ((rEnd - xMin) / (xMax - xMin)) * plotWidth;
             const w = Math.max(2, ex - sx);
-            const plotHeight = plotBottom - plotTop;
             ctx.fillRect(sx, plotTop, w, plotHeight);
             ctx.strokeRect(sx, plotTop, w, plotHeight);
         }
@@ -159,24 +183,15 @@ export class ChartOverlays {
         const filters = Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters : [];
         const pending = this._opts.getPendingAdaptivePoint();
         if (filters.length === 0 && !pending) return;
-        const container = this._opts.getContainer();
-        if (!container) return;
 
         const xMin = this._opts.getXMin();
         const xMax = this._opts.getXMax();
         const yRange = this._opts.getYRange();
         if (xMin == null || xMax == null || !(xMax > xMin) || !yRange) return;
 
-        const rect = container.getBoundingClientRect();
-        const cssWidth = Math.max(1, rect.width || this._opts.getOverlayCanvas()?.width || 1);
-        const cssHeight = Math.max(1, rect.height || this._opts.getOverlayCanvas()?.height || 1);
-        const plotLeft = CHART_GRID.left * scale.x;
-        const plotTop = CHART_GRID.top * scale.y;
-        const plotRight = Math.max(plotLeft + 1, (cssWidth - CHART_GRID.right) * scale.x);
-        const plotBottom = Math.max(plotTop + 1, (cssHeight - CHART_GRID.bottom) * scale.y);
-        const plotWidth = Math.max(1, plotRight - plotLeft);
-        const plotHeight = Math.max(1, plotBottom - plotTop);
-        const strokeScale = Math.min(scale.x, scale.y);
+        const metrics = getOverlayPlotMetrics(this._opts.getContainer(), this._opts.getOverlayCanvas(), scale);
+        if (!metrics) return;
+        const { plotLeft, plotTop, plotRight, plotBottom, plotWidth, plotHeight, strokeScale } = metrics;
 
         ctx.save();
         ctx.lineCap = 'round';
@@ -258,23 +273,14 @@ export class ChartOverlays {
 
         const timeAnnotations = annotations.getAnnotationsForPage('timeseries');
         if (!timeAnnotations || timeAnnotations.length === 0) return;
-        const container = this._opts.getContainer();
-        if (!container) return;
 
         const xMin = this._opts.getXMin();
         const xMax = this._opts.getXMax();
         if (xMin == null || xMax == null || !(xMax > xMin)) return;
 
-        const rect = container.getBoundingClientRect();
-        const cssWidth = Math.max(1, rect.width || this._opts.getOverlayCanvas()?.width || 1);
-        const cssHeight = Math.max(1, rect.height || this._opts.getOverlayCanvas()?.height || 1);
-        const plotLeft = CHART_GRID.left * scale.x;
-        const plotTop = CHART_GRID.top * scale.y;
-        const plotRight = Math.max(plotLeft + 1, (cssWidth - CHART_GRID.right) * scale.x);
-        const plotBottom = Math.max(plotTop + 1, (cssHeight - CHART_GRID.bottom) * scale.y);
-        const plotWidth = Math.max(1, plotRight - plotLeft);
-        const plotHeight = Math.max(1, plotBottom - plotTop);
-        const strokeScale = Math.min(scale.x, scale.y);
+        const metrics = getOverlayPlotMetrics(this._opts.getContainer(), this._opts.getOverlayCanvas(), scale);
+        if (!metrics) return;
+        const { plotLeft, plotTop, plotRight, plotBottom, plotWidth, plotHeight, strokeScale } = metrics;
 
         ctx.save();
         ctx.font = `${Math.max(10, 11 * strokeScale)}px Inter, system-ui, sans-serif`;

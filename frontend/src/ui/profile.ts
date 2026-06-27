@@ -110,19 +110,40 @@ export function hydrateColumnProfiles(metadata: DatasetMetadata): void {
     }
 
     setColumnProfiles(Array.from(profileByName.values()));
+    invalidateProfileGridViewModel();
 }
 
 // ─── Filtering + sorting ────────────────────────────────────────────────────
 
+// Memoized view-model for the profile grid. Re-rendering the grid on
+// every scroll event would otherwise refilter + resort the column list
+// on each frame even though the underlying data and sort/filter have
+// not changed. Cache the result by the inputs that actually drive it
+// and skip the work on cache hits.
+let cachedFilteredProfiles: ProfileRow[] | null = null;
+let cachedFilteredProfilesKey: string | null = null;
 function getFilteredColumnProfiles(): ProfileRow[] {
     const profiles: ProfileRow[] = appState.columnProfiles || [];
     const q = (appState.profileFilterText || '').trim().toLowerCase();
+    const sort = appState.profileGridSort || {};
+    const cacheKey = `${profiles.length}|${q}|${sort.key ?? ''}|${sort.dir ?? ''}`;
+    if (cachedFilteredProfiles && cachedFilteredProfilesKey === cacheKey && cachedFilteredProfiles.length >= profiles.length) {
+        return cachedFilteredProfiles;
+    }
     const filtered = !q
         ? [...profiles]
         : profiles.filter((p) => p.name.toLowerCase().includes(q) || p.dtype.toLowerCase().includes(q));
+    const sorted = sortProfileRows(filtered, sort.key, sort.dir);
+    cachedFilteredProfiles = sorted;
+    cachedFilteredProfilesKey = cacheKey;
+    return sorted;
+}
 
-    const { key, dir } = appState.profileGridSort || {};
-    return sortProfileRows(filtered, key, dir);
+/** Reset the memoized profile view-model. Called when the underlying
+ *  profiles change (e.g. after `hydrateColumnProfiles`). */
+export function invalidateProfileGridViewModel(): void {
+    cachedFilteredProfiles = null;
+    cachedFilteredProfilesKey = null;
 }
 
 // ─── Grid rendering helpers ─────────────────────────────────────────────────
@@ -409,11 +430,18 @@ export function initColumnProfilesGrid(): void {
     const header = document.querySelector('.profile-grid-header') as HTMLElement | null;
     if (!viewport) return;
 
+    // Throttle scroll-driven rerenders to one render per animation frame
+    // so rapid scroll events coalesce into a single DOM update.
+    let scrollRafId: number | null = null;
     viewport.addEventListener('scroll', () => {
-        renderColumnProfilesGrid(false);
-        if (header) {
-            header.style.transform = `translateX(${-viewport.scrollLeft}px)`;
-        }
+        if (scrollRafId !== null) return;
+        scrollRafId = requestAnimationFrame(() => {
+            scrollRafId = null;
+            renderColumnProfilesGrid(false);
+            if (header) {
+                header.style.transform = `translateX(${-viewport.scrollLeft}px)`;
+            }
+        });
     });
 
     const resizeObserver = new ResizeObserver(() => renderColumnProfilesGrid(false));

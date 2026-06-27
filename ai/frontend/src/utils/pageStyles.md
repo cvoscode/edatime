@@ -3,14 +3,15 @@
 
 ## Types
 - `StyleModuleName = 'drift' | 'home' | 'scatter'`
+- `PageName = keyof typeof PAGE_STYLE_MODULES`
 
 ## Constants
-- `PAGE_STYLE_MODULES: Record<string, StyleModuleName[]>` - maps `drift`, `home`, `scatter`, and `scattermatrix` to page-owned style modules.
-- `STYLE_HREFS: Record<string, string>` - eager `import.meta.glob('../../css/modules/*.css', { query: '?url' })` URL map.
+- `PAGE_STYLE_MODULES` (readonly) — `as const satisfies Record<string, readonly StyleModuleName[]>`; maps `drift → ['drift']`, `home → ['home']`, `heatmap → ['scatter']`, `scatter → ['scatter']`, `scattermatrix → ['scatter']`.
+- `STYLE_HREFS: Record<string, string>` — eager `import.meta.glob('../../css/modules/*.css', { query: '?url' })` URL map.
 
 ## Functions
-- `pageStyleModulesFor(pageName: string): StyleModuleName[]`
-  - Returns the list of style modules required for a page.
+- `pageStyleModulesFor(pageName: string): readonly StyleModuleName[]`
+  - Returns the list of style modules required for a page (uses `as PageName` cast).
 - `ensureStyleModule(name: StyleModuleName): HTMLLinkElement | null`
   - Returns the existing `<link>` if present, otherwise appends a stylesheet link for the resolved module URL.
 - `preloadPageStyles(pageName: string): void`

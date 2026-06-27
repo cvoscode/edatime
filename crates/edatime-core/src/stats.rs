@@ -227,8 +227,7 @@ pub fn kendall_tau(pairs: &[[f64; 2]]) -> Option<f64> {
     while start < n {
         let mut end = start + 1;
         while end < n
-            && pairs[order[end]][0].total_cmp(&pairs[order[start]][0])
-                == std::cmp::Ordering::Equal
+            && pairs[order[end]][0].total_cmp(&pairs[order[start]][0]) == std::cmp::Ordering::Equal
         {
             end += 1;
         }
@@ -323,8 +322,8 @@ pub fn kendall_tau(pairs: &[[f64; 2]]) -> Option<f64> {
     }
     // Match the reference denom (non-y-tied * non-x-tied), which excludes
     // both single-axis ties and dual-tied (duplicate) pairs.
-    let denom = ((total_pairs - ties_y - dropped) as f64 * (total_pairs - ties_x - dropped) as f64)
-        .sqrt();
+    let denom =
+        ((total_pairs - ties_y - dropped) as f64 * (total_pairs - ties_x - dropped) as f64).sqrt();
     if !denom.is_finite() || denom <= f64::EPSILON {
         return None;
     }
@@ -458,10 +457,7 @@ mod correlation_tests {
     fn assert_close(a: Option<f64>, b: Option<f64>, tol: f64) {
         match (a, b) {
             (None, None) => {}
-            (Some(x), Some(y)) => assert!(
-                (x - y).abs() <= tol,
-                "expected {x} ≈ {y} within {tol}"
-            ),
+            (Some(x), Some(y)) => assert!((x - y).abs() <= tol, "expected {x} ≈ {y} within {tol}"),
             (x, y) => panic!("mismatch: {x:?} vs {y:?}"),
         }
     }
@@ -482,7 +478,10 @@ mod correlation_tests {
         let tau = kendall_tau(&pairs).unwrap();
         // For pairs [[1,1],[1,2],[2,2],[3,3]] with 1 x-tie, no inversions
         // across x-distinct observations, ties_y=1: tau = 5 / sqrt(5*6) ≈ 0.9129.
-        assert!(tau > 0.91 && tau < 0.92, "expected tau-b around 0.9129, got {tau}");
+        assert!(
+            tau > 0.91 && tau < 0.92,
+            "expected tau-b around 0.9129, got {tau}"
+        );
     }
 
     #[test]
@@ -507,8 +506,12 @@ mod correlation_tests {
                         *v = v.trunc();
                     }
                 }
-                let pairs: Vec<[f64; 2]> =
-                    x.iter().copied().zip(y.iter().copied()).map(|(a, b)| [a, b]).collect();
+                let pairs: Vec<[f64; 2]> = x
+                    .iter()
+                    .copied()
+                    .zip(y.iter().copied())
+                    .map(|(a, b)| [a, b])
+                    .collect();
                 let reference = kendall_tau_reference(&pairs);
                 let fast = kendall_tau(&pairs);
                 if fast != reference {
@@ -679,7 +682,7 @@ pub fn epps_singleton_test(a: &[f64], b: &[f64]) -> (f64, f64) {
             acc += w * diff_sq;
         }
         // scale by effective sample size
-        
+
         (n * m / (n + m)) * acc * dt
     };
 

@@ -361,6 +361,16 @@ export interface DensityTooltipCache {
     };
     binsBySeriesIndex: Map<number, Map<string, number>>;
     metaBySeriesIndex: Map<number, DensityTooltipMeta>;
+    /**
+     * Per-axis marginal density counts derived from `binsBySeriesIndex`
+     * for series index 0. `null` when the cache has no bins yet.
+     *
+     * Length matches `metrics.binCountX` / `metrics.binCountY`. Populated
+     * alongside the bin map so `updateMarginalPlots` can read the counts
+     * straight off the cache instead of re-binning on every redraw.
+     */
+    marginalCountsX: number[] | null;
+    marginalCountsY: number[] | null;
 }
 
 export interface ScatterState {

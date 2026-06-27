@@ -17,6 +17,8 @@ interface ScatterRenderCallbacks {
 ```
 
 ## Module-Scoped State
+- `nextBindIndex(): number` — returns a monotonically increasing bind index stored on `globalThis.__scatterBindIndex`.
+- `latestBindIndex(): number` — returns the current global bind index.
 - `zoomBadgeInterval: number | null` — singleton interval handle. Created lazily on the first `bindScatterControls` call so repeated bindings do not multiply timers.
 - `refreshLatestZoomBadge: () => void` — captured reference to the latest `refreshBadge` closure. The interval always invokes the most recent closure so successive bindings stay in sync.
 
@@ -26,7 +28,7 @@ interface ScatterRenderCallbacks {
   - **Density colormap removed:** the toolbar no longer hosts a per-page `#scatter-colormap` select — the density colormap is configured globally via `COLOR_SCALES` in [utils/settings.ts][3].
   - **Causal shortcut removed:** `#scatter-open-causal-btn` and its handler are gone; causal preselect now lives in [correlationsPanel.ts:openScatterPairInCausal][4].
   - **Zoom controls:** wires `#scatter-zoom-out-btn` and `#scatter-zoom-reset-btn` to pop the zoom history / reset to the full extent, with `#scatter-zoom-range-badge` reflecting the current zoom ratio. A 4Hz interval keeps the badge in sync with `applyView()` changes (since they mutate `appState.scatter.view` directly without a store event). The interval is installed exactly once across all `bindScatterControls` calls.
-  - **Page-change handler:** treats `initScatterPage` as the single authoritative source of `appState.scatter.metadata`; if the scatter state has no metadata when the handler fires, it bounces through `cb.initScatterPage(appState.metadata)` instead of writing metadata directly. When the page is already initialized and the (view, query-context) pair matches the cached `lastQueryContextKey`, the handler returns early without invoking `setScatterView` or a re-render. The trailing `cb.refreshActiveScatterView()` from the previous version was dropped because the new fast-path makes it redundant for the unchanged case and the changed cases already cover the necessary render work.
+  - **Page-change handler:** uses a bind-index guard (`nextBindIndex`/`latestBindIndex`) on `globalThis` so only the latest `bindScatterControls` invocation processes events — previous test listeners are silenced. Sets `appState.scatter.lastQueryContextKey` after render. Treats `initScatterPage` as the single authoritative source of `appState.scatter.metadata`; if the scatter state has no metadata when the handler fires, it bounces through `cb.initScatterPage(appState.metadata)` instead of writing metadata directly. When the page is already initialized and the (view, query-context) pair matches the cached `lastQueryContextKey`, the handler returns early without invoking `setScatterView` or a re-render. The trailing `cb.refreshActiveScatterView()` from the previous version was dropped because the new fast-path makes it redundant for the unchanged case and the changed cases already cover the necessary render work.
 
 ---
 [1]: ./scatterPage.md
