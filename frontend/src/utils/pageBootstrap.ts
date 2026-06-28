@@ -15,8 +15,18 @@ const DATASET_BOOTSTRAP_PAGES = new Set([
     'drift',
 ]);
 
+const PAGE_BACKING_ALIASES: Record<string, string> = {
+    scattermatrix: 'scatter',
+};
+
+export function resolveBackingPageName(pageName: string | null | undefined): string | null {
+    if (!pageName) return null;
+    return PAGE_BACKING_ALIASES[pageName] ?? pageName;
+}
+
 export function pageNeedsDatasetBootstrap(pageName: string | null | undefined): boolean {
-    return Boolean(pageName && DATASET_BOOTSTRAP_PAGES.has(pageName));
+    const resolved = resolveBackingPageName(pageName);
+    return Boolean(resolved && DATASET_BOOTSTRAP_PAGES.has(resolved));
 }
 
 /**
@@ -32,7 +42,8 @@ export const LAZY_ANALYSIS_PAGES = new Set([
 ]);
 
 export function isLazyAnalysisPage(pageName: string | null | undefined): boolean {
-    return Boolean(pageName && LAZY_ANALYSIS_PAGES.has(pageName));
+    const resolved = resolveBackingPageName(pageName);
+    return Boolean(resolved && LAZY_ANALYSIS_PAGES.has(resolved));
 }
 
 /**
@@ -48,5 +59,6 @@ export const CORE_WORKFLOW_PAGES = new Set([
 ]);
 
 export function isCoreWorkflowPage(pageName: string | null | undefined): boolean {
-    return Boolean(pageName && CORE_WORKFLOW_PAGES.has(pageName));
+    const resolved = resolveBackingPageName(pageName);
+    return Boolean(resolved && CORE_WORKFLOW_PAGES.has(resolved));
 }

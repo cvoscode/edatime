@@ -99,72 +99,6 @@ export function hideGlobalLoading(delay = 200): void {
     }, delay);
 }
 
-/* ── Data Freshness Indicator ─────────────────────── */
-
-interface FreshnessState {
-    lastUpdate: number | null;
-    source: string;
-}
-
-let _freshnessState: FreshnessState = { lastUpdate: null, source: 'initial' };
-
-export function updateDataFreshness(source: string): void {
-    _freshnessState = {
-        lastUpdate: Date.now(),
-        source,
-    };
-
-    const indicator = document.getElementById('data-freshness-indicator');
-    if (indicator) {
-        indicator.hidden = false;
-        indicator.classList.remove('data-freshness--loading', 'data-freshness--stale', 'data-freshness--outdated');
-
-        const timeEl = indicator.querySelector('.data-freshness-time');
-        if (timeEl) {
-            timeEl.textContent = `Fresh: ${formatFreshnessTime(_freshnessState.lastUpdate!)}`;
-        }
-        const dot = indicator.querySelector('.data-freshness-dot');
-        if (dot) {
-            dot.className = 'data-freshness-dot';
-        }
-
-        // Show loading state when actively fetching
-        if (source === 'fetching') {
-            indicator.classList.add('data-freshness--loading');
-            if (timeEl) timeEl.textContent = 'Loading…';
-        }
-    }
-}
-
-export function setDataFreshnessStale(): void {
-    const indicator = document.getElementById('data-freshness-indicator');
-    if (!indicator) return;
-    indicator.classList.remove('data-freshness--loading');
-    indicator.classList.add('data-freshness--stale');
-    const timeEl = indicator.querySelector('.data-freshness-time');
-    if (timeEl) timeEl.textContent = 'Stale';
-}
-
-function formatFreshnessTime(timestamp: number): string {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-    if (seconds < 5) return 'just now';
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
-}
-
-export function getDataFreshnessAge(): number | null {
-    if (!_freshnessState.lastUpdate) return null;
-    return Date.now() - _freshnessState.lastUpdate;
-}
-
-export function isDataStale(thresholdMs = 5 * 60 * 1000): boolean {
-    const age = getDataFreshnessAge();
-    return age !== null && age > thresholdMs;
-}
-
 /* ── Keyboard Shortcuts Help ──────────────────────── */
 
 export interface KeyboardShortcut {
@@ -307,7 +241,6 @@ const CHANGELOG: ChangelogEntry[] = [
             'Added global loading indicator in header',
             'Keyboard shortcuts help modal (Ctrl+?)',
             'Toast notification queue for async feedback',
-            'Data freshness indicator',
         ],
     },
 ];

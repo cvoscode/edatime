@@ -124,7 +124,6 @@ init() [app.ts]
   │    │
   │    └─ initializeDatasetUi()
   │         ├─ initDatasetSearchInputs()          // column/profile filter inputs
-  │         ├─ initSeriesCollapse()
   │         ├─ initTimeseriesActions()            // reset range, clear filters
   │         ├─ buildColumnToggles()                // series chip list
   │         ├─ buildMetaBar()                      // row/col count stats

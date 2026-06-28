@@ -4,7 +4,7 @@
  */
 
 import { preloadPageStyles } from '../utils/pageStyles.js';
-import { pageNeedsDatasetBootstrap } from '../utils/pageBootstrap.js';
+import { pageNeedsDatasetBootstrap, resolveBackingPageName } from '../utils/pageBootstrap.js';
 import { getHashPage } from '../utils/router.js';
 
 type AppWindow = Window & typeof globalThis & {
@@ -13,6 +13,7 @@ type AppWindow = Window & typeof globalThis & {
         ensurePageModuleLoaded?: (pageName: string) => Promise<void>;
         ensureSubsystem?: (name: string) => Promise<void>;
         openSettingsModal?: () => void;
+        showPage?: (pageName: string) => void;
     };
 };
 
@@ -38,6 +39,7 @@ export function initPageNavigation(): void {
     async function showPage(pageName: string) {
         const win = window as AppWindow;
         preloadPageStyles(pageName);
+        const backingPageName = resolveBackingPageName(pageName) ?? pageName;
 
         if (pageName === 'settings') {
             await win.__edatime?.ensureSubsystem?.('settings');
@@ -45,24 +47,24 @@ export function initPageNavigation(): void {
             return;
         }
 
-        if (pageName === 'home') {
+        if (backingPageName === 'home') {
             await win.__edatime?.ensureSubsystem?.('home');
-        } else if (pageName === 'upload') {
+        } else if (backingPageName === 'upload') {
             await win.__edatime?.ensureSubsystem?.('upload');
-        } else if (pageName === 'timeseries') {
+        } else if (backingPageName === 'timeseries') {
             await win.__edatime?.ensureSubsystem?.('timeseries-shell');
         }
 
-        if (pageNeedsDatasetBootstrap(pageName)) {
-            await win.__edatime?.ensureDatasetReady?.(pageName);
+        if (pageNeedsDatasetBootstrap(backingPageName)) {
+            await win.__edatime?.ensureDatasetReady?.(backingPageName);
         }
 
         if (win.__edatime?.ensurePageModuleLoaded) {
-            await win.__edatime.ensurePageModuleLoaded(pageName);
+            await win.__edatime.ensurePageModuleLoaded(backingPageName);
         }
 
         const analyticsView = analyticsViews[pageName] || null;
-        const resolvedPageName = analyticsView ? 'scatter' : pageName;
+        const resolvedPageName = backingPageName;
 
         for (const p of pages) {
             const hide = p.dataset.pageName !== resolvedPageName;
@@ -86,6 +88,9 @@ export function initPageNavigation(): void {
             );
         });
     }
+
+    (window as AppWindow).__edatime = (window as AppWindow).__edatime || {};
+    (window as AppWindow).__edatime!.showPage = showPage;
 
     for (const btn of navButtons) {
         btn.addEventListener('click', async () => { await showPage(btn.dataset.page!); });

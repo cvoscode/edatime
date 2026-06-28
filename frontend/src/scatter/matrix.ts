@@ -203,11 +203,6 @@ export async function renderScatterOverview(
 
     const controls = currentControls();
     setPanelStatus('scatter-matrix-status', 'Refreshing matrix for the current filters and linked time window...');
-    const context = buildScatterQueryContext({
-        x: controls.x,
-        y: controls.y,
-        colorColumn: controls.selectedColorColumn,
-    });
     const requestId = ++appState.scatter.overviewRequestId;
     // Abort any in-flight cell fetches from a previous render so the new
     // render wins cleanly without piling up parallel requests.
@@ -256,7 +251,12 @@ export async function renderScatterOverview(
                 nextPairIndex += 1;
                 const [col, row] = pairs[pairIndex];
                 try {
-                    const data = await fetchMatrixCellData(col, row, context, controls.selectedColorColumn);
+                    const cellContext = buildScatterQueryContext({
+                        x: col,
+                        y: row,
+                        colorColumn: controls.selectedColorColumn,
+                    });
+                    const data = await fetchMatrixCellData(col, row, cellContext, controls.selectedColorColumn);
                     if (requestId !== appState.scatter.overviewRequestId) return;
                     datasets.set(`${col}|${row}`, data);
                 } catch (error) {

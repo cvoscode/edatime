@@ -8,11 +8,9 @@ import {
 import { renderSeriesChipList } from '../../ui/index.js';
 import { sanitizeSelectedColumns, ensureAdaptiveTargetStillValid } from './columnSelection.js';
 import { buildRangeControls } from './rangeControls.js';
-import { applyCollapse } from './seriesCollapse.js';
 import { bindChipContextMenu } from './chipContextMenu.js';
 import { composeChipListItems, bindChipCtrlClick } from './chipComposition.js';
 import { initFilterModalController } from './filterModalController.js';
-export { initSeriesCollapse } from './seriesCollapse.js';
 
 // ─── Column toggles (chips) ─────────────────────────────────────────────────
 
@@ -68,7 +66,6 @@ export function buildColumnToggles(
         fetchAndRender,
     );
     finish();
-    applyCollapse();
 }
 
 // ─── Range control chips (delegated) ──────────────────────────────────────────

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const preloadPageStylesMock = vi.fn<(page: string) => void>();
 const pageNeedsDatasetBootstrapMock = vi.fn<(page: string) => boolean>(() => false);
 const ensureSubsystemMock = vi.fn<(name: string) => Promise<void>>().mockResolvedValue(undefined);
+const ensureDatasetReadyMock = vi.fn<(page?: string) => Promise<void>>().mockResolvedValue(undefined);
+const ensurePageModuleLoadedMock = vi.fn<(page: string) => Promise<void>>().mockResolvedValue(undefined);
 const openSettingsModalMock = vi.fn();
 
 vi.mock('../utils/pageStyles.js', () => ({
@@ -11,6 +13,9 @@ vi.mock('../utils/pageStyles.js', () => ({
 
 vi.mock('../utils/pageBootstrap.js', () => ({
     pageNeedsDatasetBootstrap: (page: string) => pageNeedsDatasetBootstrapMock(page),
+    resolveBackingPageName: (page: string | null | undefined) => (
+        page === 'scattermatrix' ? 'scatter' : (page ?? null)
+    ),
 }));
 
 function buildDom(): void {
@@ -20,6 +25,7 @@ function buildDom(): void {
             <button class="nav-item" data-page="home" type="button">Home</button>
             <button class="nav-item" data-page="upload" type="button">Upload</button>
             <button class="nav-item" data-page="timeseries" type="button">Timeseries</button>
+            <button class="nav-item" data-page="scatter" type="button">Scatter</button>
             <button class="nav-item" data-page="settings" type="button">Settings</button>
         </nav>
         <section class="page" data-page-name="home"></section>
@@ -36,6 +42,8 @@ describe('initPageNavigation', () => {
         buildDom();
         (window as any).__edatime = {
             ensureSubsystem: ensureSubsystemMock,
+            ensureDatasetReady: ensureDatasetReadyMock,
+            ensurePageModuleLoaded: ensurePageModuleLoadedMock,
             openSettingsModal: openSettingsModalMock,
         };
     });
@@ -70,5 +78,33 @@ describe('initPageNavigation', () => {
         const timeseriesPage = document.querySelector('[data-page-name="timeseries"]') as HTMLElement;
         expect(homePage.hidden).toBe(true);
         expect(timeseriesPage.hidden).toBe(false);
+    });
+
+    it('opens scattermatrix hashes through the shared scatter page with matrix analytics metadata', async () => {
+        window.history.replaceState(null, '', '#page=scattermatrix');
+        pageNeedsDatasetBootstrapMock.mockImplementation((page) => page === 'scatter');
+        const pageChangeHandler = vi.fn();
+        window.addEventListener('edatime:page-change', pageChangeHandler);
+        const { initPageNavigation } = await import('./pageNavigation.js');
+
+        initPageNavigation();
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        const scatterPage = document.querySelector('[data-page-name="scatter"]') as HTMLElement;
+        const homePage = document.querySelector('[data-page-name="home"]') as HTMLElement;
+
+        expect(homePage.hidden).toBe(true);
+        expect(scatterPage.hidden).toBe(false);
+        expect(pageNeedsDatasetBootstrapMock).toHaveBeenCalledWith('scatter');
+        expect(ensureDatasetReadyMock).toHaveBeenCalledWith('scatter');
+        expect(ensurePageModuleLoadedMock).toHaveBeenCalledWith('scatter');
+        expect(pageChangeHandler).toHaveBeenCalledWith(expect.objectContaining({
+            detail: expect.objectContaining({
+                page: 'scatter',
+                navPage: 'scattermatrix',
+                analyticsView: 'matrix',
+            }),
+        }));
     });
 });

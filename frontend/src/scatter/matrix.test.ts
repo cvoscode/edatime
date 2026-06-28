@@ -163,4 +163,49 @@ describe('buildMatrixFetchPairs', () => {
         expect(activeSignal?.aborted).toBe(true);
         expect(getMatrixRenderSignal()).toBe(idleSignal);
     });
+
+    it('builds per-cell query contexts so column filters match each matrix pair', async () => {
+        appState.columnRanges = {
+            HUFL: { from: 1, to: 9 },
+            HULL: { from: 2, to: 8 },
+            OT: { from: 3, to: 7 },
+        } as any;
+        appState.scatter.metadata = { numeric_columns: ['HUFL', 'HULL', 'OT'] } as any;
+
+        const fetchScatterPointsMock = vi.spyOn(api, 'fetchScatterPoints').mockResolvedValue({
+            x: 'HUFL',
+            y: 'HULL',
+            color: null,
+            total_points: 2,
+            returned_points: 2,
+            points: [[1, 2], [3, 4]],
+            color_values: null,
+            color_labels: null,
+            color_min: null,
+            color_max: null,
+        });
+
+        await renderScatterOverview(() => { });
+
+        const otHuflCall = fetchScatterPointsMock.mock.calls.find(
+            ([x, y]) => x === 'OT' && y === 'HUFL',
+        );
+        expect(otHuflCall).toBeTruthy();
+        expect(otHuflCall?.[4]).toMatchObject({
+            filters: [
+                { column: 'HUFL', from: 1, to: 9 },
+                { column: 'OT', from: 3, to: 7 },
+            ],
+        });
+
+        const huflHullCall = fetchScatterPointsMock.mock.calls.find(
+            ([x, y]) => x === 'HUFL' && y === 'HULL',
+        );
+        expect(huflHullCall?.[4]).toMatchObject({
+            filters: [
+                { column: 'HUFL', from: 1, to: 9 },
+                { column: 'HULL', from: 2, to: 8 },
+            ],
+        });
+    });
 });

@@ -36,7 +36,7 @@ const appStateMock = {
     },
     columnRanges: {},
     adaptiveLineFilters: [],
-    metadata: null,
+    metadata: null as any,
 };
 
 vi.mock('../store/index.js', () => ({
@@ -262,6 +262,38 @@ describe('bindScatterControls', () => {
 
         expect(callbacks.setScatterView).toHaveBeenCalledTimes(1);
         expect(callbacks.setScatterView).toHaveBeenCalledWith('plot', { render: false });
+    });
+
+    it('refreshes the matrix view on first scatter page-change when analyticsView requests matrix', async () => {
+        const { bindScatterControls } = await import('./controls.js');
+        const callbacks = {
+            initScatterPage: vi.fn(async () => { }),
+            renderScatter: vi.fn(async () => { }),
+            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
+            refreshActiveScatterView: vi.fn(async () => { }),
+            setScatterView: vi.fn(async () => { }),
+            handleErr: vi.fn(),
+            rerenderScatterFromCache: vi.fn(async () => { }),
+            renderScatterDebounced: vi.fn(),
+            syncScatterFilterBadge: vi.fn(),
+        };
+
+        appStateMock.scatter.pageInitialized = false;
+        appStateMock.scatter.activeView = 'plot';
+        appStateMock.metadata = { columns: [{ name: 'HUFL' }, { name: 'HULL' }] };
+
+        bindScatterControls(callbacks);
+
+        window.dispatchEvent(new CustomEvent('edatime:page-change', {
+            detail: { page: 'scatter', analyticsView: 'matrix' },
+        }));
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(callbacks.setScatterView).toHaveBeenCalledWith('matrix', { render: false });
+        expect(callbacks.refreshCorrelationsAndSuggestions).toHaveBeenCalledTimes(1);
+        expect(callbacks.refreshActiveScatterView).toHaveBeenCalledTimes(1);
+        expect(callbacks.renderScatter).not.toHaveBeenCalled();
     });
 
     it('re-renders the scatter when the filter payload changes between page-change events', async () => {

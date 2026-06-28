@@ -237,20 +237,17 @@
   flex: 0 1 auto;
 }
 
-/* The Display segment is the primary content row of the toolbar.
-   Grow it so it absorbs the available width instead of leaving a
-   dead zone next to the action segments. This keeps the toolbar
-   on a single row on wide screens while still letting the fields
-   overflow into the popout at narrow widths. */
-.scatter-toolbar__segment--display {
-  flex: 1 1 0;
-  min-width: 0;
-  width: 0;
-}
-
+/* Display and Refine segments size to their content. Earlier
+   versions stretched these to absorb leftover space (flex: 1 1 0
+   on Display, flex: 1 1 auto on Refine), but that produced
+   oversized pills with mostly empty interior when fields were
+   hidden by overflow popouts. Content-sized segments read as a
+   normal toolbar with consistent padding instead of dead zones. */
+.scatter-toolbar__segment--display,
 .scatter-toolbar__segment--refine {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
+  width: auto;
 }
 
 .scatter-toolbar__segment--actions {

@@ -271,7 +271,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
         await cb.setScatterView(appState.scatter.activeView, { render: false });
         if (!appState.scatter.pageInitialized) {
             cb.refreshCorrelationsAndSuggestions()
-                .then(() => cb.renderScatter())
+                .then(() => (nextView === 'matrix' ? cb.refreshActiveScatterView() : cb.renderScatter()))
                 .then(() => { appState.scatter.pageInitialized = true; })
                 .catch((err: any) => { cb.handleErr(err); });
         } else {

@@ -23,18 +23,12 @@ Primary data exploration surface. Renders one or more time-series traces on a We
     <span class="toolbar-label">Series</span>
     <input type="text" id="column-filter-input" name="column-filter" class="column-filter-input"
       placeholder="Filter columns…" aria-label="Filter columns">
-    <button class="btn btn-ghost btn-sm" id="collapse-series-btn" type="button" title="Collapse series list">
-      <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="4,6 8,10 12,6"/>
-      </svg>
-    </button>
     <div class="series-toggles" id="column-toggles"></div>
   </div>
 </div>
 ```
 
 - `column-filter-input` — live filter for the chip list above
-- `collapse-series-btn` — toggles chip list collapse state
 - `column-toggles` — populated by `app.ts` / `appState.selectedCols` render loop
 
 ### Toolbar Row 2 — Draw | Labels | Export | Analytics | Zoom (lines 288–345)
@@ -291,8 +285,6 @@ chip.dataset.column = col.name;
 // toggle checked state → appState.selectedCols update → timeseriesPage.renderCurrentData()
 ```
 
-Series collapse state: `appState.seriesListCollapsed` boolean; toggle via `collapse-series-btn`.
-
 ---
 
 ## Colorbars
@@ -374,10 +366,7 @@ Response: { "regions": [{ "start": 1538784060000, "end": 1538784120000, "score":
         placeholder="Filter columns…" aria-label="Filter columns">
       <button class="btn btn-ghost btn-sm" id="collapse-series-btn" type="button" title="Collapse series list">
         <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"/></svg>
-      </button>
-      <div class="series-toggles" id="column-toggles"></div>
-    </div>
-  </div>
+      <>
 
   <!-- Row 2: Draw | Labels | Notes | Export | Analytics | Zoom -->
   <div class="toolbar toolbar--tools">

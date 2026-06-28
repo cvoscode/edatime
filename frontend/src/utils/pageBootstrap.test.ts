@@ -10,6 +10,7 @@ describe('pageNeedsDatasetBootstrap', () => {
     it('requires bootstrap for analysis pages', () => {
         expect(pageNeedsDatasetBootstrap('timeseries')).toBe(true);
         expect(pageNeedsDatasetBootstrap('scatter')).toBe(true);
+        expect(pageNeedsDatasetBootstrap('scattermatrix')).toBe(true);
         expect(pageNeedsDatasetBootstrap('drift')).toBe(true);
     });
 });

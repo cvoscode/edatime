@@ -7,15 +7,16 @@
 
 const VALID_PAGES = new Set([
     'home', 'upload', 'timeseries', 'correlations', 'scatter',
-    'fft', 'heatmap', 'spectrogram', 'causal', 'drift', 'settings',
+    'scattermatrix', 'fft', 'heatmap', 'spectrogram', 'causal', 'drift', 'settings',
 ]);
 
-// Aliases for renamed pages — old URL fragments still navigate correctly
-const PAGE_ALIASES: Record<string, string> = {
-    scattermatrix: 'scatter', // "Scatter Matrix" is now the matrix sub-view
-};
-
 let _bound = false;
+
+type AppWindow = Window & typeof globalThis & {
+    __edatime?: {
+        showPage?: (pageName: string) => void;
+    };
+};
 
 /** Read the current page from the URL hash. Returns null if not set or invalid. */
 export function getHashPage(): string | null {
@@ -23,14 +24,7 @@ export function getHashPage(): string | null {
     const params = new URLSearchParams(hash);
     const page = params.get('page');
     if (!page) return null;
-    // Resolve aliases so old deep-links still work
-    const resolved = PAGE_ALIASES[page] ?? page;
-    return VALID_PAGES.has(resolved) ? resolved : null;
-}
-
-/** Resolve a page name, applying any aliases. */
-export function resolvePageAlias(page: string): string {
-    return PAGE_ALIASES[page] ?? page;
+    return VALID_PAGES.has(page) ? page : null;
 }
 
 /** Write the page to the URL hash without triggering navigation. */
@@ -50,6 +44,16 @@ function replaceHashPage(page: string): void {
     const params = new URLSearchParams(hash);
     params.set('page', page);
     history.replaceState(null, '', '#' + params.toString());
+}
+
+function navigateToPage(page: string): void {
+    const win = window as AppWindow;
+    if (win.__edatime?.showPage) {
+        win.__edatime.showPage(page);
+        return;
+    }
+    const btn = document.querySelector(`.sidebar .nav-item[data-page="${page}"]`) as HTMLElement | null;
+    btn?.click();
 }
 
 /**
@@ -74,10 +78,7 @@ export function initHashRouting(): void {
     // On browser back/forward → navigate to page
     window.addEventListener('popstate', () => {
         const page = getHashPage();
-        if (page) {
-            const btn = document.querySelector(`.sidebar .nav-item[data-page="${page}"]`) as HTMLElement | null;
-            btn?.click();
-        }
+        if (page) navigateToPage(page);
     });
 
     // On initial load → navigate to hash page, or set default
@@ -85,8 +86,7 @@ export function initHashRouting(): void {
     if (initialPage) {
         // Defer to next frame so initPages has run first
         requestAnimationFrame(() => {
-            const btn = document.querySelector(`.sidebar .nav-item[data-page="${initialPage}"]`) as HTMLElement | null;
-            btn?.click();
+            navigateToPage(initialPage);
         });
     } else {
         replaceHashPage('home');

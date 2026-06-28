@@ -4,7 +4,6 @@ const {
     buildColumnTogglesMock,
     buildRangeControlsMock,
     initColumnFilterModalMock,
-    initSeriesCollapseMock,
     initDatasetSearchInputsMock,
     initTimeseriesActionsMock,
     initTimeseriesExportButtonsMock,
@@ -12,7 +11,6 @@ const {
     buildColumnTogglesMock: vi.fn(),
     buildRangeControlsMock: vi.fn(),
     initColumnFilterModalMock: vi.fn(),
-    initSeriesCollapseMock: vi.fn(),
     initDatasetSearchInputsMock: vi.fn(),
     initTimeseriesActionsMock: vi.fn(),
     initTimeseriesExportButtonsMock: vi.fn(),
@@ -22,7 +20,6 @@ vi.mock('./columnsController.js', () => ({
     buildColumnToggles: buildColumnTogglesMock,
     buildRangeControls: buildRangeControlsMock,
     initColumnFilterModal: initColumnFilterModalMock,
-    initSeriesCollapse: initSeriesCollapseMock,
 }));
 
 vi.mock('./actions.js', () => ({
@@ -71,7 +68,7 @@ describe('createTimeseriesEntrypoint', () => {
         expect(buildColumnTogglesMock).toHaveBeenCalledWith(fetchAndRender, buildRangeControlsMock, renderCurrentData);
     });
 
-    it('initializes filter modal, collapse, search inputs, and timeseries actions through the feature surface', () => {
+    it('initializes filter modal, search inputs, and timeseries actions through the feature surface', () => {
         const deps = {
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
@@ -86,7 +83,6 @@ describe('createTimeseriesEntrypoint', () => {
         feature.init();
 
         expect(initColumnFilterModalMock).toHaveBeenCalledWith(deps.renderCurrentData, deps.updateAnalysisYRange);
-        expect(initSeriesCollapseMock).toHaveBeenCalledTimes(1);
         expect(initDatasetSearchInputsMock).toHaveBeenCalledTimes(1);
         expect(initTimeseriesActionsMock).toHaveBeenCalledTimes(1);
         expect(initTimeseriesActionsMock).toHaveBeenCalledWith(expect.objectContaining({

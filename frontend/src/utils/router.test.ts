@@ -12,6 +12,12 @@ describe('hash router valid pages', () => {
         expect(getHashPage()).toBe('drift');
     });
 
+    it('keeps scattermatrix as a first-class hash-routed page', () => {
+        window.history.replaceState(null, '', '#page=scattermatrix');
+
+        expect(getHashPage()).toBe('scattermatrix');
+    });
+
     it('rejects unknown hash-routed pages', () => {
         window.history.replaceState(null, '', '#page=unknown');
 

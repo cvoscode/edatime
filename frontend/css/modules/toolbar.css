@@ -182,11 +182,6 @@
   box-shadow: none;
 }
 
-.timeseries-collapse-btn {
-  flex: 0 0 auto;
-  min-width: 32px;
-}
-
 .timeseries-color-slot {
   display: inline-flex;
   align-items: center;
@@ -440,12 +435,12 @@
   position: relative;
   z-index: 30;
   height: auto;
-  min-height: 58px;
-  padding-top: 10px;
-  padding-bottom: 10px;
+  min-height: 48px;
+  padding-top: 8px;
+  padding-bottom: 8px;
   align-items: center;
   justify-content: space-between;
-  gap: 14px 18px;
+  gap: 8px 10px;
   flex-wrap: wrap;
   overflow: visible;
 }
@@ -454,7 +449,7 @@
 .timeseries-utility-shelf__secondary {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
   min-width: 0;
   flex-wrap: wrap;
 }
@@ -466,6 +461,135 @@
 .timeseries-utility-shelf__secondary {
   flex: 1 1 440px;
   justify-content: flex-end;
+}
+
+/* Segment flex layout for the timeseries utility shelf.
+   The shared scatter.css segment rules only load on the scatter
+   page, so the timeseries shelf needs its own scoped equivalents
+   to keep each segment a single horizontal row of fields instead
+   of a vertical stack. Mirrors the scatter.css segment contract
+   with tighter gaps so Draw/Labels/Notes/Export/Analytics/Zoom
+   fit on one row at typical widths and wrap to two rows at
+   narrow widths rather than stacking fields internally. */
+.timeseries-utility-shelf .scatter-toolbar__segment {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex: 0 0 auto;
+  /* Reset the scatter.css flex-grow defaults so segments hug their
+     content instead of being forced to flex: 1 1 0 with width: 0
+     (which would collapse each segment to 0px and let its children
+     overflow visibly). min-width:auto preserves the intrinsic
+     content size while keeping flex: 0 0 auto intact. */
+  flex-grow: 0;
+  flex-shrink: 0;
+  flex-basis: auto;
+  min-width: 0;
+  width: auto;
+  padding: 4px 6px;
+  border: 1px solid var(--tb-border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+  overflow: visible;
+  height: 40px;
+}
+
+.timeseries-utility-shelf .scatter-toolbar__segment--view,
+.timeseries-utility-shelf .scatter-toolbar__segment--display,
+.timeseries-utility-shelf .scatter-toolbar__segment--axes,
+.timeseries-utility-shelf .scatter-toolbar__segment--refine {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: auto;
+}
+
+.timeseries-utility-shelf .scatter-toolbar__eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--tb-eyebrow);
+  white-space: nowrap;
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 44px;
+  padding: 0 5px 0 4px;
+  border-right: 1px solid var(--tb-divider);
+  line-height: 1;
+}
+
+.timeseries-utility-shelf .scatter-toolbar__segment>.scatter-toolbar__controls,
+.timeseries-utility-shelf .scatter-toolbar__segment>.scatter-toolbar__fields {
+  padding: 0 3px 0 5px;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+  align-content: center;
+}
+
+.timeseries-utility-shelf .scatter-toolbar__fields>.scatter-toolbar__actions {
+  margin-left: auto;
+  flex: 0 0 auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.timeseries-utility-shelf .scatter-toolbar__fields>.scatter-toolbar__actions .btn {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 12px;
+  align-self: center;
+}
+
+/* Draw segment: pull labels inline so the three field controls
+   sit on one row instead of stacking TOOL/COLOR/WIDTH vertically.
+   The default `.toolbar-field` is a grid that stacks label and
+   control; override it inside the utility shelf so each Draw
+   field renders as a single inline chip like the other segments. */
+.timeseries-utility-shelf .draw-toolbar .scatter-toolbar__field,
+.timeseries-utility-shelf .draw-toolbar .toolbar-field {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: none;
+  white-space: nowrap;
+}
+
+.timeseries-utility-shelf .draw-toolbar .scatter-toolbar__field .toolbar-field__label {
+  flex: 0 0 auto;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tb-eyebrow);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.timeseries-utility-shelf .draw-toolbar .toolbar-field__control {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.timeseries-utility-shelf .draw-toolbar .draw-select,
+.timeseries-utility-shelf .draw-toolbar .draw-color-swatch,
+.timeseries-utility-shelf .draw-toolbar .draw-width-input {
+  height: 28px;
+  min-height: 28px;
 }
 
 .timeseries-zoom-cluster {
@@ -1602,19 +1726,4 @@ body.drawer-open::after {
   width: 90px;
 }
 
-/* Collapse badge for series list */
-.collapse-badge {
-  display: inline-block;
-  font-size: 0.75rem;
-  color: var(--accent);
-  padding: 6px 10px;
-  cursor: pointer;
-  white-space: nowrap;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  margin: 2px;
-}
-
-.collapse-badge:hover {
-  background: rgba(0, 212, 255, 0.08);
-}
+/* Collapse badge styles removed with the collapse-series-btn feature */

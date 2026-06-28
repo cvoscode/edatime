@@ -9,8 +9,6 @@ import {
     setSelectedCols,
     setSeriesColors,
 } from '../../store/index.js';
-import * as seriesCollapseModule from './seriesCollapse.js';
-import { applyCollapse } from './seriesCollapse.js';
 
 function buildDom(): void {
     document.body.innerHTML = `
@@ -22,7 +20,6 @@ function buildDom(): void {
 describe('buildColumnToggles', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
-        vi.spyOn(seriesCollapseModule, 'applyCollapse');
         buildDom();
 
         setMetadata({
