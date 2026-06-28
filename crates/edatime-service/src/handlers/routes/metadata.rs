@@ -8,9 +8,9 @@ use polars::prelude::{
 use serde::Serialize;
 
 use crate::error::AppError;
-use edatime_store::state::AppState;
 use edatime_core::stats;
 use edatime_core::temporal;
+use edatime_store::state::AppState;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DatasetMetadata {
@@ -52,17 +52,19 @@ fn detect_time_column(
 ) -> Option<(String, DataType)> {
     // If user explicitly specified a column, use it regardless of type
     if let Some(column_name) = override_column
-        && let Some(dtype) = schema.get(column_name) {
-            return Some((column_name.to_string(), dtype.clone()));
-        }
+        && let Some(dtype) = schema.get(column_name)
+    {
+        return Some((column_name.to_string(), dtype.clone()));
+    }
 
     if let Some(dtype) = schema.get("ts")
         && matches!(
             dtype,
             DataType::Datetime(_, _) | DataType::Date | DataType::Int64 | DataType::Int32
-        ) {
-            return Some(("ts".to_string(), dtype.clone()));
-        }
+        )
+    {
+        return Some(("ts".to_string(), dtype.clone()));
+    }
 
     // Prefer explicit temporal columns first.
     if let Some(field) = schema.iter_fields().find(|field| {
@@ -412,10 +414,9 @@ pub fn build_dataset_metadata(
             if let Some(value) = max_raw {
                 profile.max = Some(temporal::native_to_epoch_ms(value, &dtype));
             }
-            if include_histograms
-                && let (Some(min), Some(max)) = (profile.min, profile.max) {
-                    profile.histogram = stats::build_histogram(&temporal_values, min, max);
-                }
+            if include_histograms && let (Some(min), Some(max)) = (profile.min, profile.max) {
+                profile.histogram = stats::build_histogram(&temporal_values, min, max);
+            }
         }
 
         column_profiles.push(profile);
@@ -496,7 +497,10 @@ pub async fn get_metadata(
     let metadata = tokio::task::spawn_blocking(move || {
         let lf = repo.snapshot();
         let time_col_display = repo.time_column_display_name_sync();
-        let df = lf.with_new_streaming(true).collect().map_err(|e| AppError::internal(format!("collect metadata frame: {}", e)))?;
+        let df = lf
+            .with_new_streaming(true)
+            .collect()
+            .map_err(|e| AppError::internal(format!("collect metadata frame: {}", e)))?;
         build_dataset_metadata(&df, true, time_col_display.as_deref())
     })
     .await

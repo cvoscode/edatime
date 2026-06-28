@@ -4,11 +4,20 @@ const mocks = vi.hoisted(() => ({
     fetchSampleDataset: vi.fn(),
     toast: vi.fn(),
     uploadDataset: vi.fn(),
+    readApiError: vi.fn(async (response: Response, label: string) => {
+        const status = response.status;
+        const text = await response.text().catch(() => '');
+        return new Error(`${label} failed (${status}) ${text}`);
+    }),
 }));
 
 vi.mock('../../services/api/index.js', () => ({
     fetchSampleDataset: mocks.fetchSampleDataset,
     uploadDataset: mocks.uploadDataset,
+}));
+
+vi.mock('../../services/api/http.js', () => ({
+    readApiError: mocks.readApiError,
 }));
 
 vi.mock('../../utils/toast.js', () => ({

@@ -10,15 +10,15 @@ use axum::{
     extract::{Query, State},
     response::IntoResponse,
 };
-use chrono::{DateTime, Utc, TimeZone};
+use chrono::{DateTime, TimeZone, Utc};
 use serde::Deserialize;
 
 use crate::analytics;
 use crate::error::AppError;
-use edatime_query::query;
 use crate::handlers::routes::shared::{downsample_by_stride, filter_preamble};
-use edatime_store::state::AppState;
+use edatime_query::query;
 use edatime_query::validation::validate_numeric_columns_lazy;
+use edatime_store::state::AppState;
 
 // ── Rolling Statistics ─────────────────────────────────────────────────────
 
@@ -44,7 +44,13 @@ pub async fn get_rolling(
         let params = params.clone();
         let filtered = filtered.clone();
         let value_cols = value_cols.clone();
-        move || analytics::compute_rolling_bands(&filtered, &value_cols, params.window.unwrap_or(50).clamp(2, 10_000))
+        move || {
+            analytics::compute_rolling_bands(
+                &filtered,
+                &value_cols,
+                params.window.unwrap_or(50).clamp(2, 10_000),
+            )
+        }
     })
     .await
     .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
@@ -165,8 +171,13 @@ pub async fn get_spectrogram(
     State(state): State<AppState>,
     Query(params): Query<SpectrogramQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (value_cols, filtered) =
-        filter_preamble(&state, params.start, params.end, Some(params.column.as_str())).await?;
+    let (value_cols, filtered) = filter_preamble(
+        &state,
+        params.start,
+        params.end,
+        Some(params.column.as_str()),
+    )
+    .await?;
     let col = &value_cols[0];
 
     let max_pts = params.max_points.unwrap_or(32768).max(256);
@@ -244,7 +255,9 @@ pub async fn get_spectral_filter(
                 .map_err(|e| AppError::io(format!("ts probe failed: {e}")))?;
             let ts_col_series = df_snap
                 .column(&ts_col)
-                .map_err(|e| AppError::bad_request(format!("Missing ts column '{}': {}", ts_col, e)))?
+                .map_err(|e| {
+                    AppError::bad_request(format!("Missing ts column '{}': {}", ts_col, e))
+                })?
                 .as_materialized_series();
             let cast = ts_col_series
                 .cast(&polars::prelude::DataType::Int64)
@@ -261,16 +274,13 @@ pub async fn get_spectral_filter(
                     .single()
                     .unwrap_or(Utc::now())
             };
-            let dataset_start = DateTime::from_timestamp_millis(min_ms)
-                .unwrap_or_else(epoch_zero);
-            let dataset_end = DateTime::from_timestamp_millis(max_ms)
-                .unwrap_or_else(epoch_zero);
+            let dataset_start = DateTime::from_timestamp_millis(min_ms).unwrap_or_else(epoch_zero);
+            let dataset_end = DateTime::from_timestamp_millis(max_ms).unwrap_or_else(epoch_zero);
             (opt_s.unwrap_or(dataset_start), opt_e.unwrap_or(dataset_end))
         }
     };
 
-    let (value_cols, filtered) =
-        filter_preamble(&state, start, end, col_opt.as_deref()).await?;
+    let (value_cols, filtered) = filter_preamble(&state, start, end, col_opt.as_deref()).await?;
     let col = &value_cols[0];
 
     let max_pts = params.max_points.unwrap_or(16384).clamp(64, 65536);
@@ -482,7 +492,9 @@ fn estimate_causal_work_units(
         crate::causal::IndependenceTestKind::CmiKnn => 60u128,
     };
 
-    base.saturating_mul(method_factor).saturating_mul(test_factor) / 100
+    base.saturating_mul(method_factor)
+        .saturating_mul(test_factor)
+        / 100
 }
 
 #[tracing::instrument(skip(state))]
@@ -663,7 +675,11 @@ mod tests {
             512,
             vec![
                 Series::new("x".into(), (0..512).map(|i| i as f64).collect::<Vec<_>>()).into(),
-                Series::new("y".into(), (0..512).map(|i| (i as f64) * 0.5).collect::<Vec<_>>()).into(),
+                Series::new(
+                    "y".into(),
+                    (0..512).map(|i| (i as f64) * 0.5).collect::<Vec<_>>(),
+                )
+                .into(),
             ],
         )
         .expect("test dataframe should build");

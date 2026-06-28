@@ -444,8 +444,11 @@ mod tests {
         let df = DataFrame::new(
             2,
             vec![
-                Series::new("event_time".into(), &[1_704_067_200_000_i64, 1_704_153_600_000_i64])
-                    .into(),
+                Series::new(
+                    "event_time".into(),
+                    &[1_704_067_200_000_i64, 1_704_153_600_000_i64],
+                )
+                .into(),
                 Series::new("value".into(), &[1.0_f64, 2.0_f64]).into(),
             ],
         )

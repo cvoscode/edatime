@@ -59,9 +59,10 @@ pub fn ts_dtype(df: &DataFrame, ts_col: &str) -> Result<DataType, AppError> {
 
 /// LazyFrame variant: collect ts dtype cheaply.
 pub fn ts_dtype_lazy(lf: &LazyFrame, ts_col: &str) -> Result<DataType, AppError> {
-    let schema = lf.clone().collect_schema().map_err(|e| {
-        AppError::bad_request(format!("Failed to get schema: {}", e))
-    })?;
+    let schema = lf
+        .clone()
+        .collect_schema()
+        .map_err(|e| AppError::bad_request(format!("Failed to get schema: {}", e)))?;
     schema
         .get(ts_col)
         .cloned()
@@ -95,7 +96,11 @@ pub fn native_to_epoch_ms(value: i64, dtype: &DataType) -> f64 {
 
 /// Convert an epoch-millisecond value (f64) to the native Polars
 /// representation for the given dtype. `round_up` controls ceiling vs floor.
-pub fn epoch_ms_to_native(value_ms: f64, dtype: &DataType, round_up: bool) -> Result<i64, AppError> {
+pub fn epoch_ms_to_native(
+    value_ms: f64,
+    dtype: &DataType,
+    round_up: bool,
+) -> Result<i64, AppError> {
     if !value_ms.is_finite() {
         return Err(AppError::bad_request("Temporal range value must be finite"));
     }
@@ -165,26 +170,50 @@ mod tests {
 
     #[test]
     fn test_detect_seconds() {
-        assert_eq!(detect_time_unit(1_700_000_000), Some(DetectedTimeUnit::Seconds));
-        assert_eq!(detect_time_unit(99_999_999_999), Some(DetectedTimeUnit::Seconds));
+        assert_eq!(
+            detect_time_unit(1_700_000_000),
+            Some(DetectedTimeUnit::Seconds)
+        );
+        assert_eq!(
+            detect_time_unit(99_999_999_999),
+            Some(DetectedTimeUnit::Seconds)
+        );
     }
 
     #[test]
     fn test_detect_milliseconds() {
-        assert_eq!(detect_time_unit(100_000_000_000), Some(DetectedTimeUnit::Milliseconds));
-        assert_eq!(detect_time_unit(99_999_999_999_999), Some(DetectedTimeUnit::Milliseconds));
+        assert_eq!(
+            detect_time_unit(100_000_000_000),
+            Some(DetectedTimeUnit::Milliseconds)
+        );
+        assert_eq!(
+            detect_time_unit(99_999_999_999_999),
+            Some(DetectedTimeUnit::Milliseconds)
+        );
     }
 
     #[test]
     fn test_detect_microseconds() {
-        assert_eq!(detect_time_unit(100_000_000_000_000), Some(DetectedTimeUnit::Microseconds));
-        assert_eq!(detect_time_unit(99_999_999_999_999_999), Some(DetectedTimeUnit::Microseconds));
+        assert_eq!(
+            detect_time_unit(100_000_000_000_000),
+            Some(DetectedTimeUnit::Microseconds)
+        );
+        assert_eq!(
+            detect_time_unit(99_999_999_999_999_999),
+            Some(DetectedTimeUnit::Microseconds)
+        );
     }
 
     #[test]
     fn test_detect_nanoseconds() {
-        assert_eq!(detect_time_unit(100_000_000_000_000_000), Some(DetectedTimeUnit::Nanoseconds));
-        assert_eq!(detect_time_unit(i64::MAX), Some(DetectedTimeUnit::Nanoseconds));
+        assert_eq!(
+            detect_time_unit(100_000_000_000_000_000),
+            Some(DetectedTimeUnit::Nanoseconds)
+        );
+        assert_eq!(
+            detect_time_unit(i64::MAX),
+            Some(DetectedTimeUnit::Nanoseconds)
+        );
     }
 
     #[test]

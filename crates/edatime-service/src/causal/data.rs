@@ -57,7 +57,8 @@ impl CausalDataFrame {
         col_names: &[String],
         max_points: usize,
     ) -> Result<Self, crate::error::AppError> {
-        let data = crate::analytics::extract_columns_f64_preserve_missing(df, col_names, max_points)?;
+        let data =
+            crate::analytics::extract_columns_f64_preserve_missing(df, col_names, max_points)?;
         Ok(Self::new(data, col_names.to_vec()))
     }
 
@@ -283,9 +284,8 @@ mod tests {
         )
         .expect("test dataframe should build");
 
-        let causal_df =
-            CausalDataFrame::from_polars(&df, &["a".to_string(), "b".to_string()], 16)
-                .expect("causal dataframe should build");
+        let causal_df = CausalDataFrame::from_polars(&df, &["a".to_string(), "b".to_string()], 16)
+            .expect("causal dataframe should build");
 
         assert!(causal_df.value(1, 0).is_nan());
         assert!(causal_df.value(2, 1).is_nan());
@@ -305,7 +305,11 @@ mod tests {
 
         assert_eq!(xyz, vec![XyzGroup::X, XyzGroup::Y, XyzGroup::Z]);
         assert_eq!(array.nrows(), 3);
-        assert_eq!(array.ncols(), 1, "only the fully finite sample should remain");
+        assert_eq!(
+            array.ncols(),
+            1,
+            "only the fully finite sample should remain"
+        );
         assert_eq!(array[[0, 0]], 5.0);
         assert_eq!(array[[1, 0]], 15.0);
         assert_eq!(array[[2, 0]], 14.0);

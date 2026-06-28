@@ -13,7 +13,7 @@
 ## Interface: PageDescriptor
 - `name: string`
 - `requiresMetadata: boolean`
-- `cssModules?: readonly string[]`
+- `cssModules?: readonly StyleModuleName[]`
 - `load(deps: PageDescriptorInitDeps): Promise<{ init: () => void | Promise<void> }>`
 
 ## Built-in Descriptors

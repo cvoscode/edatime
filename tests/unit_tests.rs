@@ -6,7 +6,7 @@
 use edatime::analytics;
 use edatime::cache::ResponseCache;
 use edatime::config::AppConfig;
-use edatime::error::{AppError, ErrorCode, ErrorKind};
+use edatime::error::AppError;
 use edatime::filters::{RangeFilter, apply_filters, parse_line_filters, parse_range_filters};
 use edatime::metrics::AppMetrics;
 use edatime::pipeline::{Reduction, apply_reduction, filter_time_range};
@@ -221,7 +221,7 @@ fn parse_line_filters_camel_case_alias() {
 #[test]
 fn apply_filters_no_constraints() {
     let df = small_df();
-    let lf = apply_filters(df.lazy(), None, None, &[], &[]).unwrap();
+    let lf = apply_filters(df.lazy(), None, None, None, &[], &[]).unwrap();
     let result = lf.with_new_streaming(true).collect().unwrap();
     assert_eq!(result.height(), 100);
 }
@@ -231,7 +231,15 @@ fn apply_filters_with_time_range() {
     let df = small_df();
     let start_ms = 1_704_067_200_000.0; // row 0
     let end_ms = 1_704_067_200_000.0 + 10.0 * 3_600_000.0; // row 10
-    let lf = apply_filters(df.lazy(), Some(start_ms), Some(end_ms), &[], &[]).unwrap();
+    let lf = apply_filters(
+        df.lazy(),
+        Some("ts"),
+        Some(start_ms),
+        Some(end_ms),
+        &[],
+        &[],
+    )
+    .unwrap();
     let result = lf.with_new_streaming(true).collect().unwrap();
     assert!(result.height() <= 11);
     assert!(result.height() > 0);
@@ -245,7 +253,7 @@ fn apply_filters_with_range_filter() {
         from: 50.0,
         to: 100.0,
     }];
-    let lf = apply_filters(df.lazy(), None, None, &range_filters, &[]).unwrap();
+    let lf = apply_filters(df.lazy(), None, None, None, &range_filters, &[]).unwrap();
     let result = lf.with_new_streaming(true).collect().unwrap();
     // Values 50..100 ⇒ indices 25..50 ⇒ 26 rows
     assert!(result.height() > 0);
@@ -261,10 +269,8 @@ async fn pipeline_filter_time_range() {
     let end = 1_704_067_200_000 + 5 * 3_600_000; // row 5
     let result = filter_time_range(df.lazy(), start, end, &["value".to_string()], "ts").unwrap();
     // filter_time_range now returns LazyFrame — collect to get the DataFrame
-    let collected = tokio::task::block_in_place(|| {
-        result.with_new_streaming(true).collect()
-    })
-    .unwrap();
+    let collected =
+        tokio::task::block_in_place(|| result.with_new_streaming(true).collect()).unwrap();
     assert!(collected.height() <= 6);
     assert!(collected.height() > 0);
 }
@@ -352,7 +358,7 @@ async fn cache_stores_and_retrieves() {
         max_entries: 10,
         max_bytes: 1024 * 1024,
     });
-    let data = CachedResponse::json(b"test-data".to_vec(), false, 1, 0);
+    let data = CachedResponse::json(b"test-data".to_vec(), false, 1, 0, None);
     cache.insert("key1".to_string(), data).await;
 
     let retrieved = cache.get("key1").await;
@@ -388,22 +394,21 @@ fn metrics_recording() {
 // ─── Error module ─────────────────────────────────────────────────────────────
 
 #[test]
-fn app_error_bad_request_has_validation_kind() {
+fn app_error_bad_request_is_bad_request_variant() {
     let err = AppError::bad_request("test error");
-    assert!(matches!(err.kind, ErrorKind::Validation));
-    assert!(matches!(err.code, ErrorCode::InvalidRequest));
+    assert!(matches!(err, AppError::BadRequest(ref message) if message == "test error"));
 }
 
 #[test]
-fn app_error_internal_has_internal_kind() {
+fn app_error_internal_is_internal_variant() {
     let err = AppError::internal("oops");
-    assert!(matches!(err.kind, ErrorKind::Internal));
+    assert!(matches!(err, AppError::Internal(ref message) if message == "oops"));
 }
 
 #[test]
-fn app_error_rate_limit_has_rate_limit_kind() {
-    let err = AppError::rate_limit("too fast");
-    assert!(matches!(err.kind, ErrorKind::RateLimit));
+fn app_error_validation_is_validation_variant() {
+    let err = AppError::validation("bad");
+    assert!(matches!(err, AppError::Validation(ref message) if message == "bad"));
 }
 
 // ─── Drift module ─────────────────────────────────────────────────────────────
@@ -481,6 +486,7 @@ fn temporal_drift_reference_too_small_returns_error() {
         10,
         0.05,
         0.0,
+        0.0,
         0.1,
         0.2,
     );
@@ -505,6 +511,7 @@ fn temporal_drift_empty_monitoring_range_produces_zero_windows() {
         10,
         0.05,
         0.0,
+        0.0,
         0.1,
         0.2,
     );
@@ -526,7 +533,8 @@ fn temporal_drift_valid_request_returns_correct_shape() {
     let curr_end = ref_end + 24.0 * 3_600_000.0;
 
     let result = analytics::compute_temporal_drift(
-        &df, "value", 86_400_000, ref_start, ref_end, ref_end, curr_end, 10, 0.05, 0.0, 0.1, 0.2,
+        &df, "value", 86_400_000, ref_start, ref_end, ref_end, curr_end, 10, 0.05, 0.0, 0.0, 0.1,
+        0.2,
     );
     let resp = result.expect("Expected Ok for valid drift request");
     assert_eq!(resp.column, "value");
@@ -547,7 +555,7 @@ fn temporal_drift_low_sample_windows_do_not_crash() {
 
     let result = analytics::compute_temporal_drift(
         &df, "value", 86_400_000, // daily — 1 window with 4 samples → low_sample_warning
-        ref_start, ref_end, curr_start, curr_end, 10, 0.05, 0.0, 0.1, 0.2,
+        ref_start, ref_end, curr_start, curr_end, 10, 0.05, 0.0, 0.0, 0.1, 0.2,
     );
     let resp = result.expect("Should not panic on low-sample windows");
     for w in &resp.windows {
@@ -568,7 +576,8 @@ fn temporal_drift_metadata_fields_populated() {
     let curr_end = ref_end + 48.0 * 3_600_000.0;
 
     let result = analytics::compute_temporal_drift(
-        &df, "value", 86_400_000, ref_start, ref_end, ref_end, curr_end, 10, 0.05, 0.0, 0.1, 0.2,
+        &df, "value", 86_400_000, ref_start, ref_end, ref_end, curr_end, 10, 0.05, 0.0, 0.0, 0.1,
+        0.2,
     );
     let resp = result.expect("Expected Ok");
     // metadata.computation_time_ms may be 0 on fast machines, but must be present
@@ -584,7 +593,8 @@ fn temporal_drift_window_stats_include_es_fields() {
     let curr_end = ref_end + 24.0 * 3_600_000.0;
 
     let resp = analytics::compute_temporal_drift(
-        &df, "value", 86_400_000, ref_start, ref_end, ref_end, curr_end, 10, 0.05, 0.0, 0.1, 0.2,
+        &df, "value", 86_400_000, ref_start, ref_end, ref_end, curr_end, 10, 0.05, 0.0, 0.0, 0.1,
+        0.2,
     )
     .expect("Expected Ok");
 
@@ -611,7 +621,8 @@ fn temporal_drift_auto_wasserstein_threshold_is_derived_from_reference_std() {
     let curr_end = ref_end + 24.0 * 3_600_000.0;
 
     let resp = analytics::compute_temporal_drift(
-        &df, "value", 86_400_000, ref_start, ref_end, ref_end, curr_end, 10, 0.05, 0.0, 0.1, 0.2,
+        &df, "value", 86_400_000, ref_start, ref_end, ref_end, curr_end, 10, 0.05, 0.0, 0.0, 0.1,
+        0.2,
     )
     .expect("Expected Ok");
 
@@ -648,6 +659,7 @@ fn temporal_drift_explicit_wasserstein_threshold_is_preserved() {
         curr_end,
         10,
         0.05,
+        0.0,
         explicit_threshold,
         0.1,
         0.2,

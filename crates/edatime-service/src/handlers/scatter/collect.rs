@@ -23,9 +23,9 @@ pub fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option
 
     match series.dtype() {
         dt if dt.is_numeric() => Ok(edatime_core::stats::series_to_finite_f64(series, name)?
-        .into_iter()
-        .map(Some)
-        .collect()),
+            .into_iter()
+            .map(Some)
+            .collect()),
         DataType::Datetime(_, _) | DataType::Date => {
             let casted = series.cast(&DataType::Int64).map_err(|e| {
                 AppError::internal(format!(

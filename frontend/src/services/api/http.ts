@@ -16,6 +16,35 @@ export {
     __resetDatasetRequestScopeForTests as __resetApiRequestStateForTests,
 } from './datasetRequestScope.js';
 
+// ── Request options ──────────────────────────────────────────────────────────
+
+/**
+ * Options accepted by the API request helpers.
+ *
+ * Backwards-compatible with the previous signature that accepted a bare
+ * `AbortSignal`: callers can pass either an `AbortSignal` directly or an
+ * `ApiRequestOptions` object.
+ */
+export interface ApiRequestOptions {
+    /** Optional abort signal to cancel the underlying fetch. */
+    signal?: AbortSignal;
+    /**
+     * When true (default), the request participates in the dataset
+     * request-scope dedupe + invalidation pipeline. Database status / table
+     * / connect calls do not read the active dataset snapshot and should
+     * pass `{ datasetScoped: false }`.
+     */
+    datasetScoped?: boolean;
+}
+
+function normalizeOptions(
+    signalOrOptions: AbortSignal | ApiRequestOptions | undefined,
+): ApiRequestOptions {
+    if (!signalOrOptions) return {};
+    if (signalOrOptions instanceof AbortSignal) return { signal: signalOrOptions };
+    return signalOrOptions;
+}
+
 // ── Arrow helpers (shared between timeseries and scatter) ──────────────────
 
 type TableFromIPCFn = (buffer: ArrayBuffer) => ArrowTable;
@@ -109,39 +138,125 @@ function assertScatterCorrelations(data: unknown): asserts data is ScatterCorrel
     if (!Array.isArray(data.correlations)) throw new Error('Correlations response missing correlations array');
 }
 
+// ── Structured API error parsing ───────────────────────────────────────────
+
+interface ApiErrorPayload {
+    error?: unknown;
+    message?: unknown;
+    code?: unknown;
+    correlation_id?: unknown;
+}
+
+/**
+ * Read a structured Error from a non-2xx fetch response.
+ *
+ * Tries to parse JSON first, then falls back to plain text. Includes
+ * `code` and `correlation_id` when the backend provides them so consumers
+ * (toasts, telemetry) can render actionable diagnostics.
+ */
+export async function readApiError(response: Response, label: string): Promise<Error> {
+    const status = response.status;
+    let contentType = '';
+    try {
+        contentType = response.headers?.get('content-type') ?? '';
+    } catch {
+        // Some test fixtures omit `headers`; treat as no content-type.
+        contentType = '';
+    }
+    let detail = '';
+    let code: string | undefined;
+    let correlationId: string | undefined;
+
+    try {
+        if (contentType.includes('application/json')) {
+            const parsed = (await response.json()) as ApiErrorPayload;
+            const messageRaw = parsed?.message ?? parsed?.error;
+            if (typeof messageRaw === 'string' && messageRaw.trim().length > 0) {
+                detail = messageRaw;
+            } else if (messageRaw != null) {
+                detail = String(messageRaw);
+            }
+            if (typeof parsed?.code === 'string' && parsed.code.trim().length > 0) {
+                code = parsed.code;
+            }
+            if (typeof parsed?.correlation_id === 'string' && parsed.correlation_id.trim().length > 0) {
+                correlationId = parsed.correlation_id;
+            }
+        } else {
+            const text = await response.text().catch(() => '');
+            detail = text;
+        }
+    } catch {
+        // Fall back to a plain-text read when JSON parsing fails.
+        detail = await response.text().catch(() => '');
+    }
+
+    const suffix = detail ? ` ${detail}` : '';
+    const tag = code ? `[${code}]` : '';
+    const correlationTag = correlationId ? ` (correlation_id=${correlationId})` : '';
+    const error = new Error(
+        `${label} failed (${status})${tag ? ' ' + tag : ''}${correlationTag}${suffix}`.trim(),
+    );
+    (error as Error & { status?: number; code?: string; correlationId?: string }).status = status;
+    if (code) (error as Error & { code?: string }).code = code;
+    if (correlationId) (error as Error & { correlationId?: string }).correlationId = correlationId;
+    return error;
+}
+
 // ── Core fetch helpers ──────────────────────────────────────────────────────
 
-function getJson<T>(url: string, label: string, signal?: AbortSignal): Promise<T> {
+function getJson<T>(
+    url: string,
+    label: string,
+    signalOrOptions?: AbortSignal | ApiRequestOptions,
+): Promise<T> {
+    const options = normalizeOptions(signalOrOptions);
     dbg(`GET (${label})`, url);
-    const scope = captureDatasetRequestScope();
-    return dedupe(`GET:${scope}:${url}`, async () => {
-        const res = await globalThis.fetch(url, signal ? { signal, cache: 'no-store' } : { cache: 'no-store' });
-        assertDatasetRequestScopeActive(scope);
+    const scope = options.datasetScoped === false ? null : captureDatasetRequestScope();
+    const dedupeKey = options.datasetScoped === false
+        ? `GET:unscoped:${url}`
+        : `GET:${scope}:${url}`;
+    return dedupe(dedupeKey, async () => {
+        const res = await globalThis.fetch(
+            url,
+            options.signal ? { signal: options.signal, cache: 'no-store' } : { cache: 'no-store' },
+        );
+        if (scope !== null) assertDatasetRequestScopeActive(scope);
         if (!res.ok) {
-            const text = await res.text().catch(() => '');
-            throw new Error(`${label} failed (${res.status}) ${text}`);
+            throw await readApiError(res, label);
         }
         const data = await res.json() as T;
-        assertDatasetRequestScopeActive(scope);
+        if (scope !== null) assertDatasetRequestScopeActive(scope);
         return data;
     });
 }
 
-function postJson<T>(url: string, body: unknown, label: string, signal?: AbortSignal): Promise<T> {
+function postJson<T>(
+    url: string,
+    body: unknown,
+    label: string,
+    signalOrOptions?: AbortSignal | ApiRequestOptions,
+): Promise<T> {
+    const options = normalizeOptions(signalOrOptions);
     dbg(`POST (${label})`, { url, body });
-    const key = `POST:${url}:${JSON.stringify(body)}`;
-    return dedupe(key, async () => {
+    const scope = options.datasetScoped === false ? null : captureDatasetRequestScope();
+    const dedupeKey = options.datasetScoped === false
+        ? `POST:unscoped:${url}:${JSON.stringify(body)}`
+        : `POST:${scope}:${url}:${JSON.stringify(body)}`;
+    return dedupe(dedupeKey, async () => {
         const res = await globalThis.fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
-            signal,
+            ...(options.signal ? { signal: options.signal } : {}),
         });
+        if (scope !== null) assertDatasetRequestScopeActive(scope);
         if (!res.ok) {
-            const text = await res.text().catch(() => '');
-            throw new Error(`${label} failed (${res.status}) ${text}`);
+            throw await readApiError(res, label);
         }
-        return res.json() as T;
+        const data = await res.json() as T;
+        if (scope !== null) assertDatasetRequestScopeActive(scope);
+        return data;
     });
 }
 

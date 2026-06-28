@@ -351,6 +351,7 @@ export function initUploadPanel(
                 timeColumn: timeColumn || null,
                 dbLoadBtn,
                 dbStatus: dbStatus!,
+                refreshDatasetAfterMutation: deps.refreshDatasetAfterMutation,
             });
         });
     }

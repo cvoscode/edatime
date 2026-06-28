@@ -3,8 +3,8 @@
 use polars::prelude::*;
 use serde::Serialize;
 
-use crate::error::AppError;
 use super::shared::{extract_f64_column_opt, extract_ts_epoch_ms};
+use crate::error::AppError;
 
 /// An anomaly flag for a time region.
 #[derive(Debug, Serialize)]
@@ -48,7 +48,10 @@ where
             max_score = init_score(*val);
         } else if !is_anomaly_flag && in_anomaly {
             in_anomaly = false;
-            let prev_ts = ts_values.get(i.wrapping_sub(1)).copied().unwrap_or(region_start);
+            let prev_ts = ts_values
+                .get(i.wrapping_sub(1))
+                .copied()
+                .unwrap_or(region_start);
             regions.push(AnomalyRegion {
                 column: col_name.to_string(),
                 method: method.to_string(),
@@ -115,7 +118,8 @@ pub fn detect_anomalies_zscore(
                 }
             },
             move |val| {
-                val.map(|v| ((v - mean_for_closure) / std_for_closure).abs()).unwrap_or(0.0)
+                val.map(|v| ((v - mean_for_closure) / std_for_closure).abs())
+                    .unwrap_or(0.0)
             },
         );
         regions.extend(col_regions);

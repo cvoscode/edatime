@@ -10,6 +10,7 @@
 
 ## Module-Scoped State
 - `draggingMatrixColumn: string | null` — column currently being dragged for reorder.
+- `matrixRenderController: AbortController | null` — abort controller for the latest matrix render; a newer render aborts in-flight cell fetches from a superseded one.
 
 ## Constants
 - `MATRIX_FETCH_CONCURRENCY = 4`
@@ -19,6 +20,8 @@
   - Applies the clicked matrix pair to the X/Y dropdowns, refreshes correlations, then switches to plot view and renders.
 - `buildMatrixFetchPairs(columns: string[], controls: Pick<ScatterControls, 'x' | 'y'>, suggestions?: Array<{ x?: string | null; y?: string | null }>): [string, string][]`
   - Returns the full cartesian product of columns sorted by `matrixPairPriority` — current axis first, then diagonals, then off-axis pairs in suggestion order.
+- `getMatrixRenderSignal(): AbortSignal` — returns the AbortSignal for the current matrix render, or a never-aborted signal if no render is in progress.
+- `__resetMatrixRenderControllerForTests(): void` — test-only: aborts and clears the matrix render controller between test runs.
 - `renderMatrixGrid(columns: string[], datasets: Map<string, MatrixCellData>, onCellClick: (x: string, y: string) => void, onColumnReorder?: ((nextColumns: string[]) => void) | null): void`
   - Renders the matrix grid using stable DOM node tracking by `dataset.key`. Reuses existing cell/header nodes and only mutates canvas/text content. Schedules canvas draws at the end of DOM construction.
 - `buildOverviewColumns(): string[]`
@@ -26,7 +29,7 @@
 - `bindReorderHandle(handle: HTMLElement, column: string, columns: string[], onColumnReorder?: ((nextColumns: string[]) => void) | null): void`
   - Binds drag handles for column reordering; uses `__reorderBound` flag for idempotency.
 - `renderScatterOverview(onCellClick: (x: string, y: string) => void): Promise<void>`
-  - Fetches up to `MATRIX_FETCH_CONCURRENCY` matrix cells in parallel with revision-aware abort semantics and incrementally re-renders the grid. Invalidates `appState.scatter.overviewRequestId` to drop stale fetches.
+  - Calls `beginMatrixRender()` to abort any in-flight cell fetches from a superseded render, then fetches up to `MATRIX_FETCH_CONCURRENCY` matrix cells in parallel with revision-aware abort semantics and incrementally re-renders the grid. Silences `AbortError` in cell fetch catch blocks so aborted renders don't log errors.
 - `renderScatterMatrixView(onCellClick: (x: string, y: string) => void): Promise<void>`
   - Calls `renderScatterOverview` and then triggers the matrix FFT panel render in the next frame.
 - `renderMatrixFftPanel(): Promise<void>`

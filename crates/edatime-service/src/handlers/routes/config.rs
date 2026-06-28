@@ -4,8 +4,8 @@
 use axum::{Json, extract::State, response::IntoResponse};
 use serde::{Deserialize, Serialize};
 
-use edatime_core::config::DatabaseBackend;
 use crate::error::AppError;
+use edatime_core::config::DatabaseBackend;
 use edatime_store::state::AppState;
 
 #[derive(Serialize)]

@@ -7,15 +7,15 @@
 - `uploadDataset(formData: FormData): Promise<Response>`
   - Ingests the dataset upload and returns the raw `Response`.
 - `fetchDatabaseTables(): Promise<unknown>`
-  - Lists available tables from the connected database. [deps: [getJson][1]]
+  - Lists available tables from the connected database (dataset-scoped: `false`). [deps: [getJson][1]]
 - `connectDatabase(body: unknown): Promise<unknown>`
-  - Establishes a database connection with supplied credentials/config. [deps: [postJson][1]]
+  - Establishes a database connection with supplied credentials/config (dataset-scoped: `false`). [deps: [postJson][1]]
 - `loadDatabaseTable(body: unknown): Promise<unknown>`
-  - Loads a database table into the in-memory dataset. [deps: [postJson][1]]
+  - Loads a database table into the in-memory dataset (dataset-scoped: `true`). [deps: [postJson][1]]
 - `deleteDatabaseConnection(): Promise<Response>`
   - Closes the active database connection and returns the raw `Response`.
 - `fetchDatabaseStatus(): Promise<unknown>`
-  - Returns current database connection health and metadata. [deps: [getJson][1]]
+  - Returns current database connection health and metadata (dataset-scoped: `false`). [deps: [getJson][1]]
 - `fetchDriftStats<T>(payload: unknown, signal?: AbortSignal): Promise<T>`
   - Posts an opaque drift payload and returns the typed response. [deps: [postJson][1]]
 

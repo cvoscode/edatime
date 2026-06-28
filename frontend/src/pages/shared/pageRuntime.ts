@@ -68,7 +68,9 @@ export function createPageRuntime(options: PageRuntimeOptions): PageRuntime {
         setLoading(loading: boolean): void {
             if (!options.loadingElId) return;
             const el = document.getElementById(options.loadingElId);
-            if (el) el.hidden = loading;
+            // Loading=true means the loading element is *visible* (showing the
+            // loading indicator). Loading=false hides it once work finishes.
+            if (el) el.hidden = !loading;
         },
     };
 }

@@ -10,7 +10,7 @@ use tempfile::{Builder, TempPath};
 
 use crate::error::AppError;
 use crate::handlers::routes::metadata::build_dataset_metadata_from_path_with_time_column;
-use crate::handlers::scatter::scatter::spawn_correlation_matrix_warmup;
+use crate::handlers::scatter::spawn_correlation_matrix_warmup;
 use edatime_ingest::ingest::IngestParams;
 use edatime_query::validation::validate_upload_size_with_limit;
 use edatime_store::state::AppState;
@@ -125,10 +125,7 @@ async fn extract_upload_parts(
                 if temp_file.is_none() {
                     let name = field.file_name().unwrap_or("").to_string();
                     file_name = name.clone();
-                    temp_file = Some(create_temp_upload_file(
-                        Some(&name),
-                        "edatime-upload-",
-                    )?);
+                    temp_file = Some(create_temp_upload_file(Some(&name), "edatime-upload-")?);
                 }
 
                 let mut field = field;
@@ -279,11 +276,9 @@ pub async fn serve_sample_file(
         return Err(AppError::bad_request("Sample dataset file not found"));
     }
 
-    let body = tokio::task::spawn_blocking(move || {
-        std::fs::read(&file_path)
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("{e:?}")))?;
+    let body = tokio::task::spawn_blocking(move || std::fs::read(&file_path))
+        .await
+        .map_err(|e| AppError::internal(format!("{e:?}")))?;
 
     match body {
         Ok(bytes) => {

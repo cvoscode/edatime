@@ -250,7 +250,26 @@ export class FftChart {
                 type: 'value',
                 min: xMin,
                 max: xMax,
-                tickFormatter: (v: number) => (v * sc).toFixed(tickPrec),
+                name: `Frequency (${unit})`,
+                nameLocation: 'middle',
+                nameGap: 32,
+                nameTextStyle: {
+                    color: '#cfd9f1',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: [8, 0, 0, 0],
+                },
+                axisLabel: {
+                    color: '#9fb1d1',
+                    fontSize: 11,
+                    hideOverlap: true,
+                    margin: 8,
+                    formatter: (v: number) => (v * sc).toFixed(tickPrec),
+                },
+                axisTick: {
+                    alignWithLabel: true,
+                },
+                splitLine: { show: false },
             },
             yAxis: {
                 type: 'value',
@@ -259,7 +278,25 @@ export class FftChart {
                 name: this._logScale
                     ? (useScaledY ? `scaled (${scaleLabel})` : `log10(${this._mode === 'psd' ? 'PSD' : 'Magnitude'})`)
                     : (useScaledY ? `scaled (${scaleLabel})` : this._mode === 'psd' ? 'PSD' : 'Magnitude'),
-                tickFormatter: (v: number) => v.toFixed(2),
+                nameLocation: 'middle',
+                nameGap: 60,
+                nameTextStyle: {
+                    color: '#cfd9f1',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: [0, 0, 8, 0],
+                },
+                axisLabel: {
+                    color: '#9fb1d1',
+                    fontSize: 11,
+                    hideOverlap: true,
+                    margin: 8,
+                    formatter: (v: number) => v.toFixed(2),
+                },
+                axisTick: {
+                    alignWithLabel: true,
+                },
+                splitLine: { show: false },
             },
             tooltip: { show: true, trigger: 'axis', formatter: tooltipFormatter },
             series: seriesList,
@@ -363,10 +400,9 @@ export class FftChart {
         if (plotW <= 0 || plotH <= 0) return;
 
         ctx.save();
-        ctx.fillStyle = 'rgba(159, 177, 209, 0.92)';
-        ctx.font = '11px Inter, system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(207, 217, 241, 0.95)';
+        ctx.font = '600 12px Inter, system-ui, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(`Frequency (${unit})`, plotL + plotW / 2, canvas.height - 10);
         ctx.translate(16, plotT + plotH / 2);
         ctx.rotate(-Math.PI / 2);
         ctx.fillText(this._yAxisLabel(), 0, 0);

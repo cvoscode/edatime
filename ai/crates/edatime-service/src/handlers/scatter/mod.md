@@ -1,6 +1,9 @@
 # crates/edatime-service/src/handlers/scatter/mod.rs
 > Scatter data collection — filter + project LazyFrame for scatter rendering.
 
+## Module
+- `#[allow(clippy::module_inception)] pub mod scatter` — rename to avoid clippy false positive on `scatter/scatter` name.
+
 ## Functions
 - `pub fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option<f64>>, AppError>`
   - Converts numeric/temporal column to f64 values in ms.

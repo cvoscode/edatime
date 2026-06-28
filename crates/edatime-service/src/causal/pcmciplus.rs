@@ -9,8 +9,8 @@
 //! Reference: Runge (2020), "Discovering contemporaneous and lagged causal
 //! relations in autocorrelated nonlinear time series datasets".
 
-use std::collections::HashMap;
 use rayon::prelude::*;
+use std::collections::HashMap;
 
 use super::data::{CausalDataFrame, VarLag, VarLagSeenSet};
 use super::graph::{CausalGraph, CausalResult, LinkType};
@@ -93,59 +93,66 @@ impl<'a> PcmciPlus<'a> {
         for j in 0..n {
             for i in 0..n {
                 for tau in 0..=tau_max {
-                    if tau == 0 && i >= j { continue; } // Test each pair once at tau=0
-                    if tau == 0 && i == j { continue; }
+                    if tau == 0 && i >= j {
+                        continue;
+                    } // Test each pair once at tau=0
+                    if tau == 0 && i == j {
+                        continue;
+                    }
                     tasks.push((i, j, tau));
                 }
             }
         }
 
         // Run all tests in parallel
-        let results: Vec<(usize, usize, usize, f64, f64)> = tasks.par_iter().map(|&(i, j, tau)| {
-            let neg_tau = -(tau as i32);
+        let results: Vec<(usize, usize, usize, f64, f64)> = tasks
+            .par_iter()
+            .map(|&(i, j, tau)| {
+                let neg_tau = -(tau as i32);
 
-            let x = vec![(i, neg_tau)];
-            let y = vec![(j, 0i32)];
+                let x = vec![(i, neg_tau)];
+                let y = vec![(j, 0i32)];
 
-            // Conditions: parents(j) ∪ shifted_parents(i), plus contemporaneous
-            // adjacencies discovered so far (for iterative refinement we use
-            // lagged parents only in this initial skeleton pass)
-            let mut z: Vec<VarLag> = Vec::new();
-            let mut seen = VarLagSeenSet::new(self.df.n_vars, config.tau_max);
+                // Conditions: parents(j) ∪ shifted_parents(i), plus contemporaneous
+                // adjacencies discovered so far (for iterative refinement we use
+                // lagged parents only in this initial skeleton pass)
+                let mut z: Vec<VarLag> = Vec::new();
+                let mut seen = VarLagSeenSet::new(self.df.n_vars, config.tau_max);
 
-            // Parents of j
-            if let Some(parents_j) = all_parents.get(&j) {
-                let limit = config.max_conds_py.unwrap_or(parents_j.len());
-                for &parent in parents_j.iter().take(limit) {
-                    if parent != (i, neg_tau) && seen.insert(parent) {
-                        z.push(parent);
+                // Parents of j
+                if let Some(parents_j) = all_parents.get(&j) {
+                    let limit = config.max_conds_py.unwrap_or(parents_j.len());
+                    for &parent in parents_j.iter().take(limit) {
+                        if parent != (i, neg_tau) && seen.insert(parent) {
+                            z.push(parent);
+                        }
                     }
                 }
-            }
 
-            // Shifted parents of i
-            if let Some(parents_i) = all_parents.get(&i) {
-                let limit = config.max_conds_px.unwrap_or(parents_i.len());
-                for &(k, tau_k) in parents_i.iter().take(limit) {
-                    let shifted = (k, tau_k + neg_tau);
-                    let abs_lag = (-shifted.1) as usize;
-                    if abs_lag <= 2 * config.tau_max
-                        && shifted != (i, neg_tau)
-                        && seen.insert(shifted)
-                    {
-                        z.push(shifted);
+                // Shifted parents of i
+                if let Some(parents_i) = all_parents.get(&i) {
+                    let limit = config.max_conds_px.unwrap_or(parents_i.len());
+                    for &(k, tau_k) in parents_i.iter().take(limit) {
+                        let shifted = (k, tau_k + neg_tau);
+                        let abs_lag = (-shifted.1) as usize;
+                        if abs_lag <= 2 * config.tau_max
+                            && shifted != (i, neg_tau)
+                            && seen.insert(shifted)
+                        {
+                            z.push(shifted);
+                        }
                     }
                 }
-            }
 
-            let (array, xyz) = self.df.construct_array(&x, &y, &z, config.tau_max);
-            if array.ncols() < 5 {
-                return (i, j, tau, 0.0, 1.0);
-            }
+                let (array, xyz) = self.df.construct_array(&x, &y, &z, config.tau_max);
+                if array.ncols() < 5 {
+                    return (i, j, tau, 0.0, 1.0);
+                }
 
-            let result = self.test.run_test(&array, &xyz, config.alpha_level);
-            (i, j, tau, result.val, result.pval)
-        }).collect();
+                let result = self.test.run_test(&array, &xyz, config.alpha_level);
+                (i, j, tau, result.val, result.pval)
+            })
+            .collect();
 
         // Assemble graph
         let mut graph = CausalGraph::new(n, tau_max);
@@ -170,10 +177,7 @@ impl<'a> PcmciPlus<'a> {
     /// - a-c are NOT adjacent
     /// - The separating set for (a, c) does NOT contain b
     /// - Orient as a → b ← c.
-    fn orient_colliders(
-        &self,
-        graph: &mut CausalGraph,
-    ) {
+    fn orient_colliders(&self, graph: &mut CausalGraph) {
         let n = graph.n_vars;
         let tau_max = graph.tau_max;
 
@@ -193,7 +197,9 @@ impl<'a> PcmciPlus<'a> {
             let mut neighbors: Vec<VarLag> = Vec::new();
             for a in 0..n {
                 for tau in 0..=tau_max {
-                    if tau == 0 && a == b { continue; }
+                    if tau == 0 && a == b {
+                        continue;
+                    }
                     if graph.get_link(a, b, tau).is_active() {
                         neighbors.push((a, -(tau as i32)));
                     }
@@ -208,7 +214,9 @@ impl<'a> PcmciPlus<'a> {
 
                     // Check if a and c are adjacent
                     let a_c_adjacent = self.are_adjacent(graph, a, tau_a, c, tau_c);
-                    if a_c_adjacent { continue; }
+                    if a_c_adjacent {
+                        continue;
+                    }
 
                     // This is an unshielded triple: orient as collider
                     // a → b and c → b (if contemporaneous)
@@ -229,20 +237,26 @@ impl<'a> PcmciPlus<'a> {
     fn are_adjacent(
         &self,
         graph: &CausalGraph,
-        a: usize, tau_a: i32,
-        c: usize, tau_c: i32,
+        a: usize,
+        tau_a: i32,
+        c: usize,
+        tau_c: i32,
     ) -> bool {
         // Check direct adjacency between a and c at the relative lag
         let rel_tau = tau_c - tau_a;
-        if rel_tau >= 0 && (rel_tau as usize) <= graph.tau_max
-            && graph.get_link(a, c, rel_tau as usize).is_active() {
-                return true;
-            }
+        if rel_tau >= 0
+            && (rel_tau as usize) <= graph.tau_max
+            && graph.get_link(a, c, rel_tau as usize).is_active()
+        {
+            return true;
+        }
         let rev_tau = tau_a - tau_c;
-        if rev_tau >= 0 && (rev_tau as usize) <= graph.tau_max
-            && graph.get_link(c, a, rev_tau as usize).is_active() {
-                return true;
-            }
+        if rev_tau >= 0
+            && (rev_tau as usize) <= graph.tau_max
+            && graph.get_link(c, a, rev_tau as usize).is_active()
+        {
+            return true;
+        }
         false
     }
 
@@ -261,9 +275,13 @@ impl<'a> PcmciPlus<'a> {
             // Rule R1: a → b — c, a ⊥ c ⟹ b → c
             for b in 0..n {
                 for c in 0..n {
-                    if b == c { continue; }
+                    if b == c {
+                        continue;
+                    }
                     // b — c (undirected contemporaneous)
-                    if graph.get_link(b, c, 0) != LinkType::Undirected { continue; }
+                    if graph.get_link(b, c, 0) != LinkType::Undirected {
+                        continue;
+                    }
 
                     // Find a such that a → b and a ⊥ c
                     for a in 0..n {
@@ -275,7 +293,9 @@ impl<'a> PcmciPlus<'a> {
                                 break;
                             }
                         }
-                        if !a_to_b { continue; }
+                        if !a_to_b {
+                            continue;
+                        }
 
                         // Check a ⊥ c (not adjacent at any lag)
                         let mut a_adj_c = false;
@@ -287,7 +307,9 @@ impl<'a> PcmciPlus<'a> {
                                 break;
                             }
                         }
-                        if a_adj_c { continue; }
+                        if a_adj_c {
+                            continue;
+                        }
 
                         // Orient b → c
                         graph.set_link(b, c, 0, LinkType::Directed);
@@ -300,16 +322,26 @@ impl<'a> PcmciPlus<'a> {
             // Rule R2: a → b → c, a — c ⟹ a → c
             for b in 0..n {
                 for a in 0..n {
-                    if a == b { continue; }
+                    if a == b {
+                        continue;
+                    }
                     // a → b (at tau=0, directed)
-                    if graph.get_link(a, b, 0) != LinkType::Directed { continue; }
+                    if graph.get_link(a, b, 0) != LinkType::Directed {
+                        continue;
+                    }
 
                     for c in 0..n {
-                        if c == a || c == b { continue; }
+                        if c == a || c == b {
+                            continue;
+                        }
                         // b → c
-                        if graph.get_link(b, c, 0) != LinkType::Directed { continue; }
+                        if graph.get_link(b, c, 0) != LinkType::Directed {
+                            continue;
+                        }
                         // a — c (undirected)
-                        if graph.get_link(a, c, 0) != LinkType::Undirected { continue; }
+                        if graph.get_link(a, c, 0) != LinkType::Undirected {
+                            continue;
+                        }
 
                         graph.set_link(a, c, 0, LinkType::Directed);
                         graph.set_link(c, a, 0, LinkType::ReverseDirected);
@@ -318,7 +350,9 @@ impl<'a> PcmciPlus<'a> {
                 }
             }
 
-            if !changed { break; }
+            if !changed {
+                break;
+            }
         }
     }
 }

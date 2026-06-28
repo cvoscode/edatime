@@ -666,10 +666,7 @@ fn get_residual_pair(
     }
 
     match RegressionWorkspace::from_design(&z) {
-        Some(workspace) => (
-            workspace.residuals(&z, &x),
-            workspace.residuals(&z, &y),
-        ),
+        Some(workspace) => (workspace.residuals(&z, &x), workspace.residuals(&z, &y)),
         None => (x, y),
     }
 }

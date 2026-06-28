@@ -27,11 +27,7 @@ use polars::prelude::*;
 /// When `n <= target_points` or `target_points < 3` the function keeps
 /// every row in insertion order, mirroring the historical early-return
 /// behavior of the scatter and time-series helpers.
-pub(crate) fn downsample_indices(
-    x_vals: &[f64],
-    y_vals: &[f64],
-    target_points: usize,
-) -> Vec<usize> {
+pub fn downsample_indices(x_vals: &[f64], y_vals: &[f64], target_points: usize) -> Vec<usize> {
     let n = x_vals.len();
     if n == 0 {
         return Vec::new();

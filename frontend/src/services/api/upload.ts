@@ -11,13 +11,18 @@ export async function uploadDataset(formData: FormData): Promise<Response> {
 }
 
 // ── Database ────────────────────────────────────────────────────────────────
+//
+// Database status / table / connect calls do NOT read the active dataset
+// snapshot, so they pass `{ datasetScoped: false }` to skip the request
+// scope dedupe / invalidation pipeline. The `loadDatabaseTable` call DOES
+// mutate the active dataset snapshot, so it remains dataset-scoped.
 
 export async function fetchDatabaseTables(): Promise<unknown> {
-    return getJson<unknown>('/api/database/tables', 'Database tables');
+    return getJson<unknown>('/api/database/tables', 'Database tables', { datasetScoped: false });
 }
 
 export async function connectDatabase(body: unknown): Promise<unknown> {
-    return postJson<unknown>('/api/database/connect', body, 'Database connect');
+    return postJson<unknown>('/api/database/connect', body, 'Database connect', { datasetScoped: false });
 }
 
 export async function loadDatabaseTable(body: unknown): Promise<unknown> {
@@ -29,7 +34,7 @@ export async function deleteDatabaseConnection(): Promise<Response> {
 }
 
 export async function fetchDatabaseStatus(): Promise<unknown> {
-    return getJson<unknown>('/api/database/status', 'Database status');
+    return getJson<unknown>('/api/database/status', 'Database status', { datasetScoped: false });
 }
 
 // ── Drift ──────────────────────────────────────────────────────────────────

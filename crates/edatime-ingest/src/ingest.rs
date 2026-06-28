@@ -104,9 +104,10 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
     let mut time_col_name: Option<String> = None;
 
     if let Some(ref explicit_column) = params.time_column
-        && schema.get(explicit_column.as_str()).is_some() {
-            time_col_name = Some(explicit_column.clone());
-        }
+        && schema.get(explicit_column.as_str()).is_some()
+    {
+        time_col_name = Some(explicit_column.clone());
+    }
     if time_col_name.is_none() {
         for field in schema.iter_fields() {
             if matches!(field.dtype(), DataType::Datetime(_, _) | DataType::Date) {
@@ -183,7 +184,10 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
             // single streaming pass over only the ts column.
             let probe = lf
                 .clone()
-                .select([col(old_name.as_str()).cast(DataType::Int64).max().alias("m")])
+                .select([col(old_name.as_str())
+                    .cast(DataType::Int64)
+                    .max()
+                    .alias("m")])
                 .collect()
                 .map_err(|e| PolarsError::ComputeError(format!("ts probe: {e}").into()))?;
             let max_abs: i64 = probe
@@ -238,17 +242,22 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
     // ── 7. Apply time range filters lazily ────────────────────────────────
     if let Some(start_ms) = params.time_start_ms {
         lf = lf.filter(
-            col(&old_name).gt_eq(lit(start_ms).cast(DataType::Datetime(TimeUnit::Milliseconds, None))),
+            col(&old_name)
+                .gt_eq(lit(start_ms).cast(DataType::Datetime(TimeUnit::Milliseconds, None))),
         );
     }
     if let Some(end_ms) = params.time_end_ms {
         lf = lf.filter(
-            col(&old_name).lt_eq(lit(end_ms).cast(DataType::Datetime(TimeUnit::Milliseconds, None))),
+            col(&old_name)
+                .lt_eq(lit(end_ms).cast(DataType::Datetime(TimeUnit::Milliseconds, None))),
         );
     }
 
     // ── 8. Sort and single collect (streaming for out-of-core support) ────
-    let df = lf.sort([old_name.as_str()], SortMultipleOptions::default()).with_new_streaming(true).collect()?;
+    let df = lf
+        .sort([old_name.as_str()], SortMultipleOptions::default())
+        .with_new_streaming(true)
+        .collect()?;
 
     if df.height() == 0 {
         return Err(PolarsError::ComputeError(
@@ -257,7 +266,11 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
         ));
     }
 
-let column_names: Vec<String> = df.get_column_names().iter().map(|s| s.to_string()).collect();
+    let column_names: Vec<String> = df
+        .get_column_names()
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
     let numeric_cols: Vec<String> = numeric_columns_from_df(&df);
 
     Ok(LoadResult {
@@ -297,7 +310,8 @@ mod tests {
         .expect("partial load");
 
         assert_eq!(result.df.height(), 2);
-        let column_names = result.df
+        let column_names = result
+            .df
             .get_column_names()
             .iter()
             .map(|name| name.as_str())

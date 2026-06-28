@@ -1,14 +1,14 @@
 //! Scatter export handlers — Parquet export of filtered scatter data.
 
-use edatime_query::arrow_export::dataframe_to_parquet;
 use crate::error::AppError;
-use edatime_store::state::AppState;
 use axum::{
     Json,
     extract::State,
     http::{HeaderValue, header},
     response::Response,
 };
+use edatime_query::arrow_export::dataframe_to_parquet;
+use edatime_store::state::AppState;
 
 use super::collect::collect_filtered_scatter_frame;
 use super::{ScatterPointsQuery, parse_scatter_filters, parse_scatter_line_filters};
@@ -65,9 +65,9 @@ pub async fn post_scatter_export_parquet(
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::post_scatter_export_parquet;
-    use crate::handlers::scatter::scatter::ScatterPointsQuery;
-    use axum::{Json, extract::State};
+    use crate::handlers::scatter::ScatterPointsQuery;
     use axum::http::header;
+    use axum::{Json, extract::State};
     use edatime_core::config::AppConfig;
     use edatime_store::state::AppState;
     use polars::prelude::{DataFrame, NamedFrom, Series};
@@ -77,7 +77,15 @@ mod tests {
         let df = DataFrame::new(
             3,
             vec![
-                Series::new("ts".into(), [1_467_331_200_000_i64, 1_491_469_996_429_i64, 1_530_042_300_000_i64]).into(),
+                Series::new(
+                    "ts".into(),
+                    [
+                        1_467_331_200_000_i64,
+                        1_491_469_996_429_i64,
+                        1_530_042_300_000_i64,
+                    ],
+                )
+                .into(),
                 Series::new("HUFL".into(), [70.0_f64, 80.0, 90.0]).into(),
                 Series::new("HULL".into(), [10.0_f64, 20.0, 30.0]).into(),
             ],
@@ -105,7 +113,10 @@ mod tests {
             .expect("scatter export should accept compatibility ids");
 
         assert_eq!(
-            response.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()),
+            response
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
             Some("application/x-parquet")
         );
     }

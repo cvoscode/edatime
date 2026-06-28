@@ -26,7 +26,8 @@ pub fn validate_width(width: usize, limits: &ValidationSettings) -> Result<(), A
 pub fn validate_bucket_count(buckets: usize, limits: &ValidationSettings) -> Result<(), AppError> {
     if buckets == 0 || buckets > limits.max_buckets {
         return Err(AppError::BadRequest(format!(
-            "Buckets must be between 1 and {}", limits.max_buckets
+            "Buckets must be between 1 and {}",
+            limits.max_buckets
         )));
     }
     Ok(())
@@ -38,7 +39,9 @@ pub fn validate_window_ms(window_ms: i64, step_ms: Option<i64>) -> Result<(), Ap
             "Window size must be greater than 0 ms".to_string(),
         ));
     }
-    if let Some(step) = step_ms && step <= 0 {
+    if let Some(step) = step_ms
+        && step <= 0
+    {
         return Err(AppError::BadRequest(
             "Window step must be greater than 0 ms".to_string(),
         ));
@@ -49,7 +52,8 @@ pub fn validate_window_ms(window_ms: i64, step_ms: Option<i64>) -> Result<(), Ap
 pub fn validate_scatter_limit(limit: usize, limits: &ValidationSettings) -> Result<(), AppError> {
     if limit == 0 || limit > limits.max_scatter_limit {
         return Err(AppError::BadRequest(format!(
-            "Scatter limit must be between 1 and {}", limits.max_scatter_limit
+            "Scatter limit must be between 1 and {}",
+            limits.max_scatter_limit
         )));
     }
     Ok(())
@@ -87,13 +91,14 @@ pub fn validate_numeric_columns(
             continue;
         }
 
-        let series = df.column(name).map_err(|_| {
-            AppError::BadRequest(format!("Unknown column '{}'", name))
-        })?;
+        let series = df
+            .column(name)
+            .map_err(|_| AppError::BadRequest(format!("Unknown column '{}'", name)))?;
 
         if !series.dtype().is_numeric() {
             return Err(AppError::BadRequest(format!(
-                "Column '{}' must be numeric for this endpoint", name
+                "Column '{}' must be numeric for this endpoint",
+                name
             )));
         }
 
@@ -133,13 +138,14 @@ pub fn validate_numeric_columns_lazy(
             continue;
         }
 
-        let dtype = schema.get(name).ok_or_else(|| {
-            AppError::BadRequest(format!("Unknown column '{}'", name))
-        })?;
+        let dtype = schema
+            .get(name)
+            .ok_or_else(|| AppError::BadRequest(format!("Unknown column '{}'", name)))?;
 
         if !dtype.is_numeric() {
             return Err(AppError::BadRequest(format!(
-                "Column '{}' must be numeric for this endpoint", name
+                "Column '{}' must be numeric for this endpoint",
+                name
             )));
         }
 

@@ -949,21 +949,20 @@
               </label>
               <label class="toolbar-field scatter-toolbar__field" for="spectrogram-clip-method">
                 <span class="toolbar-field__label">Clip&nbsp;method</span>
-                <select id="spectrogram-clip-method" class="modal-select" aria-label="Clip method"
-                  disabled>
+                <select id="spectrogram-clip-method" class="modal-select" aria-label="Clip method" disabled>
                   <option value="percentile" selected>Percentile</option>
                   <option value="iqr">IQR (k)</option>
                 </select>
               </label>
               <label class="toolbar-field scatter-toolbar__field" for="spectrogram-clip-param">
                 <span class="toolbar-field__label" id="spectrogram-clip-param-label">Clip&nbsp;%</span>
-                <input id="spectrogram-clip-param" class="modal-input" type="number" min="0" step="0.1"
-                  value="0.5" aria-label="Clip threshold" disabled>
+                <input id="spectrogram-clip-param" class="modal-input" type="number" min="0" step="0.1" value="0.5"
+                  aria-label="Clip threshold" disabled>
               </label>
             </div>
           </div>
 
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
             <span class="scatter-toolbar__eyebrow">Export</span>
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
               <details class="toolbar-disclosure toolbar-disclosure--end">
@@ -1001,12 +1000,19 @@
             <div id="spectrogram-chart" style="flex:1 1 auto;width:100%;height:100%;display:block;min-width:0;"></div>
             <div id="spectrogram-colorbar" class="scatter-colorbar-vertical" aria-label="Spectrogram colorbar" hidden>
               <span class="scatter-colorbar-vtick" data-role="cb-high">High</span>
+              <span class="scatter-colorbar-vtick cb-mid-tick" data-role="cb-mid-high" hidden></span>
               <div class="cb-range-track" data-role="cb-track">
                 <span class="scatter-colorbar-vbar"></span>
+                <span class="cb-mid-tick-mark cb-mid-tick-mark--high" data-role="cb-mid-mark-high" hidden></span>
+                <span class="cb-mid-tick-mark cb-mid-tick-mark--mid" data-role="cb-mid-mark-mid" hidden></span>
+                <span class="cb-mid-tick-mark cb-mid-tick-mark--low" data-role="cb-mid-mark-low" hidden></span>
                 <span class="cb-range-fill" data-role="cb-fill" hidden></span>
-                <span class="cb-handle cb-handle--high" data-role="cb-handle-high" tabindex="0" role="slider" aria-label="Filter high value" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></span>
-                <span class="cb-handle cb-handle--low" data-role="cb-handle-low" tabindex="0" role="slider" aria-label="Filter low value" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></span>
+                <span class="cb-handle cb-handle--high" data-role="cb-handle-high" tabindex="0" role="slider"
+                  aria-label="Filter high value" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></span>
+                <span class="cb-handle cb-handle--low" data-role="cb-handle-low" tabindex="0" role="slider"
+                  aria-label="Filter low value" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></span>
               </div>
+              <span class="scatter-colorbar-vtick cb-mid-tick" data-role="cb-mid-low" hidden></span>
               <span class="scatter-colorbar-vtick" data-role="cb-low">Low</span>
               <span class="scatter-colorbar-vname">scaled</span>
             </div>

@@ -6,8 +6,8 @@ use chrono::{DateTime, Utc};
 use crate::error::AppError;
 use edatime_query::pipeline;
 use edatime_query::query;
-use edatime_store::state::AppState;
 use edatime_query::validation::{validate_numeric_columns_lazy, validate_time_window};
+use edatime_store::state::AppState;
 use polars::prelude::DataFrame;
 
 /// Metadata for edatime HTTP response headers.

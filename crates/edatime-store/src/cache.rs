@@ -125,10 +125,10 @@ impl CachedResponse {
         if let Ok(v) = HeaderValue::from_str(&meta.returned_rows.to_string()) {
             headers.insert("x-edatime-returned-rows", v);
         }
-        if let Some(tp) = meta.target_points {
-            if let Ok(v) = HeaderValue::from_str(&tp.to_string()) {
-                headers.insert("x-edatime-target-points", v);
-            }
+        if let Some(tp) = meta.target_points
+            && let Ok(v) = HeaderValue::from_str(&tp.to_string())
+        {
+            headers.insert("x-edatime-target-points", v);
         }
         if let Some(time_column) = self.time_column.as_deref()
             && let Ok(v) = HeaderValue::from_str(time_column)
@@ -198,7 +198,9 @@ impl ResponseCache {
     }
 
     pub async fn insert(&self, key: String, response: CachedResponse) {
-        let Ok(mut state) = self.state.lock().map_err(|e| e.into_inner()) else { return };
+        let Ok(mut state) = self.state.lock().map_err(|e| e.into_inner()) else {
+            return;
+        };
         self.maybe_prune(&mut state);
 
         if let Some(previous) = state.entries.remove(&key) {
@@ -249,17 +251,18 @@ impl ResponseCache {
                 .get(key)
                 .map(|entry| now.duration_since(entry.inserted_at) < ttl)
                 .unwrap_or(false);
-            if !keep
-                && let Some(entry) = state.entries.remove(key) {
-                    state.total_bytes = state.total_bytes.saturating_sub(entry.response.body_len());
-                }
+            if !keep && let Some(entry) = state.entries.remove(key) {
+                state.total_bytes = state.total_bytes.saturating_sub(entry.response.body_len());
+            }
             keep
         });
     }
 
     /// Clear all cached entries.
     pub async fn invalidate_all(&self) {
-        let Ok(mut state) = self.state.lock().map_err(|e| e.into_inner()) else { return };
+        let Ok(mut state) = self.state.lock().map_err(|e| e.into_inner()) else {
+            return;
+        };
         state.entries.clear();
         state.order.clear();
         state.total_bytes = 0;

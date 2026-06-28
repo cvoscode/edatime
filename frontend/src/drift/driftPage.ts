@@ -343,7 +343,9 @@ export async function initDriftPage(metadata: any): Promise<void> {
     // Module-level request task for drift compute — cancel-before-new semantics
     const driftComputeTask = createRequestTask({
         setLoading: (loading: boolean) => {
-            if (loadingOverlay) loadingOverlay.hidden = loading;
+            // loading=true means the overlay should be visible; loading=false
+            // hides it once work completes.
+            if (loadingOverlay) loadingOverlay.hidden = !loading;
         },
         onError: (message: string) => {
             if (statusEl) statusEl.textContent = `Error: ${message}`;
@@ -372,63 +374,65 @@ export async function initDriftPage(metadata: any): Promise<void> {
         // Ensure ECharts is loaded and charts are initialised before showing data.
         await ensureChartsAsync();
 
-        await driftComputeTask.run(async (signal) => {
-            const basePayload: Record<string, unknown> = {
-                window: getDropdownValue('drift-window-select') || 'daily',
-                referenceStart: new Date(refStart).toISOString(),
-                referenceEnd: new Date(refEnd).toISOString(),
-                ksPvalueThreshold: readThresholdValue(ksThresholdInput, 0.05),
-                esPvalueThreshold: readThresholdValue(esThresholdInput, 0.05),
-                psiMinorThreshold: readThresholdValue(psiMinorThresholdInput, 0.1),
-                psiMajorThreshold: readThresholdValue(psiMajorThresholdInput, 0.2),
-                wassersteinStdMultiplier: readThresholdValue(wassersteinStdMultiplierInput, 0.1),
-            };
+        try {
+            await driftComputeTask.run(async (signal) => {
+                const basePayload: Record<string, unknown> = {
+                    window: getDropdownValue('drift-window-select') || 'daily',
+                    referenceStart: new Date(refStart).toISOString(),
+                    referenceEnd: new Date(refEnd).toISOString(),
+                    ksPvalueThreshold: readThresholdValue(ksThresholdInput, 0.05),
+                    esPvalueThreshold: readThresholdValue(esThresholdInput, 0.05),
+                    psiMinorThreshold: readThresholdValue(psiMinorThresholdInput, 0.1),
+                    psiMajorThreshold: readThresholdValue(psiMajorThresholdInput, 0.2),
+                    wassersteinStdMultiplier: readThresholdValue(wassersteinStdMultiplierInput, 0.1),
+                };
 
-            const settled = await Promise.allSettled(columns.map(async (column) => {
-                const payload = await fetchDriftStats<DriftResponse>({ ...basePayload, column }, signal);
-                return { column, payload };
-            }));
+                const settled = await Promise.allSettled(columns.map(async (column) => {
+                    const payload = await fetchDriftStats<DriftResponse>({ ...basePayload, column }, signal);
+                    return { column, payload };
+                }));
 
-            const results = new Map<string, DriftResponse>();
-            const failures: string[] = [];
+                const results = new Map<string, DriftResponse>();
+                const failures: string[] = [];
 
-            settled.forEach((result) => {
-                if (result.status === 'fulfilled') {
-                    results.set(result.value.column, result.value.payload);
-                    if (DEBUG && result.value.payload?.metadata) {
-                        console.debug('drift metadata', result.value.column, result.value.payload.metadata);
+                settled.forEach((result) => {
+                    if (result.status === 'fulfilled') {
+                        results.set(result.value.column, result.value.payload);
+                        if (DEBUG && result.value.payload?.metadata) {
+                            console.debug('drift metadata', result.value.column, result.value.payload.metadata);
+                        }
+                    } else {
+                        failures.push(String(result.reason?.message || result.reason || 'unknown error'));
                     }
-                } else {
-                    failures.push(String(result.reason?.message || result.reason || 'unknown error'));
-                }
-            });
-
-            if (results.size === 0) {
-                throw new Error(failures.join(' | ') || 'No drift responses received.');
-            }
-
-            rawResponsesByColumn = results;
-
-            // Signal that the next render should do a full ECharts option reset
-            // (new series data) rather than an incremental merge (issue #8).
-            _pendingFullReset = true;
-
-            applyRenderedResponses(results, failures);
-
-            const hasWindows = Array.from(getResponsesByColumn().values()).some((resp) => resp.windows.length > 0);
-            syncEmptyState(!hasWindows, hasWindows ? undefined : 'No data found in the monitoring range after the reference window.');
-
-            (['drift-export-png', 'drift-export-detail-png', 'drift-export-csv', 'drift-export-json'] as const)
-                .forEach((id) => {
-                    const btn = document.getElementById(id) as HTMLButtonElement | null;
-                    if (btn) btn.disabled = false;
                 });
-        });
 
-        // requestTask.run() handles setLoading(false) in its finally block.
-        // Only reset the button state here since requestTask doesn't manage it.
-        computeBtnEl.disabled = false;
-        computeBtnEl.textContent = 'Compute';
+                if (results.size === 0) {
+                    throw new Error(failures.join(' | ') || 'No drift responses received.');
+                }
+
+                rawResponsesByColumn = results;
+
+                // Signal that the next render should do a full ECharts option reset
+                // (new series data) rather than an incremental merge (issue #8).
+                _pendingFullReset = true;
+
+                applyRenderedResponses(results, failures);
+
+                const hasWindows = Array.from(getResponsesByColumn().values()).some((resp) => resp.windows.length > 0);
+                syncEmptyState(!hasWindows, hasWindows ? undefined : 'No data found in the monitoring range after the reference window.');
+
+                (['drift-export-png', 'drift-export-detail-png', 'drift-export-csv', 'drift-export-json'] as const)
+                    .forEach((id) => {
+                        const btn = document.getElementById(id) as HTMLButtonElement | null;
+                        if (btn) btn.disabled = false;
+                    });
+            });
+        } finally {
+            // Reset button state regardless of whether the run completed,
+            // errored, or was superseded by another run() call.
+            computeBtnEl.disabled = false;
+            computeBtnEl.textContent = 'Compute';
+        }
     }
 
     function exportDriftCsv(): void {

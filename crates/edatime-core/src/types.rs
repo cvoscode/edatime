@@ -3,10 +3,10 @@
 //! Re-exports commonly used Polars types so downstream crates can avoid
 //! spelling out the full `polars::prelude::` path every time.
 
-pub use polars::prelude::{DataFrame, LazyFrame, IntoLazy};
-pub use polars::prelude::{DataType, TimeUnit, Expr, col, lit};
 pub use polars::prelude::Schema as PolarsSchema;
 pub use polars::prelude::SchemaRef as PolarsSchemaRef;
+pub use polars::prelude::{DataFrame, IntoLazy, LazyFrame};
+pub use polars::prelude::{DataType, Expr, TimeUnit, col, lit};
 
 /// Dataset metadata — column names, row count, and optional time column.
 #[derive(Debug, Clone, Default)]
@@ -27,7 +27,10 @@ pub struct TimeContext {
 
 impl TimeContext {
     /// Derive TimeContext from a LazyFrame and an optional time-column name.
-    pub fn from_schema(lf: &LazyFrame, time_column: Option<&str>) -> Result<Self, crate::error::AppError> {
+    pub fn from_schema(
+        lf: &LazyFrame,
+        time_column: Option<&str>,
+    ) -> Result<Self, crate::error::AppError> {
         let ts_col_name = time_column.unwrap_or("ts").to_string();
         let dtype = Self::ts_dtype_lazy(lf, &ts_col_name)?;
         let multiplier = Self::unit_multiplier(&dtype);
@@ -39,11 +42,12 @@ impl TimeContext {
     }
 
     fn ts_dtype_lazy(lf: &LazyFrame, ts_col: &str) -> Result<DataType, crate::error::AppError> {
-        let schema = lf.clone().collect_schema()
-            .map_err(|e| crate::error::AppError::Internal(format!("LazyFrame schema unavailable: {}", e)))?;
-        schema.get(ts_col)
-            .cloned()
-            .ok_or_else(|| crate::error::AppError::NotFound(format!("Missing time column '{}'", ts_col)))
+        let schema = lf.clone().collect_schema().map_err(|e| {
+            crate::error::AppError::Internal(format!("LazyFrame schema unavailable: {}", e))
+        })?;
+        schema.get(ts_col).cloned().ok_or_else(|| {
+            crate::error::AppError::NotFound(format!("Missing time column '{}'", ts_col))
+        })
     }
 
     fn unit_multiplier(dtype: &DataType) -> i64 {

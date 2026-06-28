@@ -7,13 +7,18 @@
 //! Reference: Colombo & Maathuis (2014), order-independent constraint-based
 //! causal structure learning.
 
-use std::collections::HashMap;
 use rayon::prelude::*;
+use std::collections::HashMap;
 
 use super::data::{CausalDataFrame, VarLag};
 use super::independence::CondIndTest;
 
-type PcSingleResult = (usize, Vec<VarLag>, HashMap<VarLag, f64>, HashMap<VarLag, f64>);
+type PcSingleResult = (
+    usize,
+    Vec<VarLag>,
+    HashMap<VarLag, f64>,
+    HashMap<VarLag, f64>,
+);
 type PcSingleTargetResult = (Vec<VarLag>, HashMap<VarLag, f64>, HashMap<VarLag, f64>);
 
 /// Result of the PC-stable condition selection step for all variables.
@@ -43,14 +48,22 @@ pub fn run_pc_stable(
     let n_vars = df.n_vars;
 
     // Run PC-stable for each variable in parallel
-    let results: Vec<PcSingleResult> =
-        (0..n_vars).into_par_iter().map(|j| {
+    let results: Vec<PcSingleResult> = (0..n_vars)
+        .into_par_iter()
+        .map(|j| {
             let (parents, val_min, pval_max) = pc_stable_single(
-                df, test, j, tau_min, tau_max, pc_alpha,
-                max_conds_dim, max_combinations,
+                df,
+                test,
+                j,
+                tau_min,
+                tau_max,
+                pc_alpha,
+                max_conds_dim,
+                max_combinations,
             );
             (j, parents, val_min, pval_max)
-        }).collect();
+        })
+        .collect();
 
     // Merge results
     let mut all_parents = HashMap::new();
@@ -96,7 +109,9 @@ fn pc_stable_single(
     let mut parents: Vec<VarLag> = Vec::new();
     for i in 0..n_vars {
         for tau in tau_min..=tau_max {
-            if tau == 0 && i == j { continue; }
+            if tau == 0 && i == j {
+                continue;
+            }
             parents.push((i, -(tau as i32)));
         }
     }
@@ -124,12 +139,12 @@ fn pc_stable_single(
             let (i, neg_tau) = parent;
 
             // Build condition subsets from other parents
-            let other_parents: Vec<VarLag> = parents.iter()
-                .filter(|&&p| p != parent)
-                .copied()
-                .collect();
+            let other_parents: Vec<VarLag> =
+                parents.iter().filter(|&&p| p != parent).copied().collect();
 
-            if other_parents.len() < conds_dim { continue; }
+            if other_parents.len() < conds_dim {
+                continue;
+            }
 
             for_each_combination(&other_parents, conds_dim, max_combinations, |z_set| {
                 let x = [(i, neg_tau)];

@@ -7,8 +7,8 @@ use std::time::Instant;
 use axum::{extract::ConnectInfo, http::HeaderValue, middleware::Next, response::IntoResponse};
 
 use crate::error::AppError;
-use edatime_core::metrics::AppMetrics;
 use crate::rates::RateLimiter;
+use edatime_core::metrics::AppMetrics;
 
 /// Proxy header names examined when resolving the real client IP, in priority
 /// order.  The first non-empty value wins.
@@ -87,11 +87,12 @@ pub fn rate_limit_middleware(
                     AppError::rate_limit("Rate limit exceeded. Please try again later.")
                         .into_response();
                 if let Some(retry_after) = result.retry_after_seconds
-                    && let Ok(value) = HeaderValue::from_str(&retry_after.to_string()) {
-                        response
-                            .headers_mut()
-                            .insert(axum::http::header::RETRY_AFTER, value);
-                    }
+                    && let Ok(value) = HeaderValue::from_str(&retry_after.to_string())
+                {
+                    response
+                        .headers_mut()
+                        .insert(axum::http::header::RETRY_AFTER, value);
+                }
                 metrics.record_request(
                     &method,
                     &path,
@@ -126,8 +127,7 @@ pub fn rate_limit_middleware(
 /// The built-in origins (`unpkg.com`, `esm.sh`) are always included.
 pub fn csp_header_value(extra_origins: &[String]) -> HeaderValue {
     // Static default — safe fallback for any header construction failure.
-    const DEFAULT: &str =
-        "default-src 'self' unpkg.com esm.sh; \
+    const DEFAULT: &str = "default-src 'self' unpkg.com esm.sh; \
          script-src 'self' 'unsafe-inline' 'unsafe-eval' unpkg.com esm.sh blob:; \
          style-src 'self' 'unsafe-inline'; \
          img-src 'self' data:; \
@@ -162,4 +162,3 @@ pub fn csp_header_value(extra_origins: &[String]) -> HeaderValue {
     );
     HeaderValue::from_str(&value).unwrap_or_else(|_| HeaderValue::from_static(DEFAULT))
 }
-

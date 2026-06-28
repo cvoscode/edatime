@@ -258,9 +258,7 @@ impl<'a> Pcmci<'a> {
                 let shifted = (k, tau_k + neg_tau);
                 // Only include if the shifted lag is within bounds
                 let abs_lag = (-shifted.1) as usize;
-                if abs_lag <= 2 * config.tau_max
-                    && shifted != (i, neg_tau)
-                    && seen.insert(shifted)
+                if abs_lag <= 2 * config.tau_max && shifted != (i, neg_tau) && seen.insert(shifted)
                 {
                     z.push(shifted);
                 }
@@ -380,21 +378,29 @@ mod tests {
         let fullci = pcmci.run_fullci(&config);
         let bivci = pcmci.run_bivci(&config);
 
-        assert!(fullci
-            .links
-            .iter()
-            .any(|l| l.source == "X" && l.target == "Y" && l.lag == 1));
-        assert!(fullci
-            .links
-            .iter()
-            .any(|l| l.source == "Y" && l.target == "Z" && l.lag == 1));
-        assert!(bivci
-            .links
-            .iter()
-            .any(|l| l.source == "X" && l.target == "Y" && l.lag == 1));
-        assert!(bivci
-            .links
-            .iter()
-            .any(|l| l.source == "Y" && l.target == "Z" && l.lag == 1));
+        assert!(
+            fullci
+                .links
+                .iter()
+                .any(|l| l.source == "X" && l.target == "Y" && l.lag == 1)
+        );
+        assert!(
+            fullci
+                .links
+                .iter()
+                .any(|l| l.source == "Y" && l.target == "Z" && l.lag == 1)
+        );
+        assert!(
+            bivci
+                .links
+                .iter()
+                .any(|l| l.source == "X" && l.target == "Y" && l.lag == 1)
+        );
+        assert!(
+            bivci
+                .links
+                .iter()
+                .any(|l| l.source == "Y" && l.target == "Z" && l.lag == 1)
+        );
     }
 }

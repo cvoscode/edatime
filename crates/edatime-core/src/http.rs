@@ -19,7 +19,10 @@ pub fn edatime_headers(meta: &ResponseMeta) -> HashMap<String, String> {
         "x-edatime-downsampled".to_string(),
         if meta.is_downsampled { "1" } else { "0" }.to_string(),
     );
-    headers.insert("x-edatime-returned-rows".to_string(), meta.returned_rows.to_string());
+    headers.insert(
+        "x-edatime-returned-rows".to_string(),
+        meta.returned_rows.to_string(),
+    );
     if let Some(tp) = meta.target_points {
         headers.insert("x-edatime-target-points".to_string(), tp.to_string());
     }

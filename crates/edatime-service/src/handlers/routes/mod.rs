@@ -29,19 +29,19 @@ pub fn api_router() -> Router<AppState> {
         .route("/metrics", get(metrics::get_metrics))
         .route(
             "/scatter/points",
-            get(scatter::scatter::get_scatter_points).post(scatter::scatter::post_scatter_points),
+            get(scatter::get_scatter_points).post(scatter::post_scatter_points),
         )
         .route(
             "/scatter/export/parquet",
-            post(scatter::scatter::post_scatter_export_parquet),
+            post(scatter::post_scatter_export_parquet),
         )
         .route(
             "/scatter/correlations",
-            get(scatter::scatter::get_scatter_correlations),
+            get(scatter::get_scatter_correlations),
         )
         .route(
             "/scatter/correlations/matrix",
-            get(scatter::scatter::get_correlation_matrix),
+            get(scatter::get_correlation_matrix),
         )
         .route("/upload", post(upload::upload_data))
         .route("/upload/preview", post(upload::preview_upload_data))

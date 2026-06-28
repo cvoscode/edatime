@@ -31,6 +31,8 @@ fn lagged_chain_frame(n_vars: usize, n_samples: usize) -> CausalDataFrame {
 fn contemporaneous_chain_frame(n_vars: usize, n_samples: usize) -> CausalDataFrame {
     let mut state = 73u64;
     let mut cols = vec![vec![0.0; n_samples]; n_vars];
+    #[allow(clippy::needless_range_loop)]
+    // bench data construction uses index-based column mutation
     for t in 0..n_samples {
         cols[0][t] = next_noise(&mut state);
         for v in 1..n_vars {

@@ -4,8 +4,8 @@
 
 use edatime_core::error::AppError;
 use edatime_core::types::LazyFrame;
-use std::sync::Arc;
 use rayon::ThreadPool;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub enum ExecutionContext {
@@ -28,19 +28,23 @@ impl QueryExecutor {
                 .build()
                 .unwrap(),
         );
-        Self { ctx, thread_pool: pool }
+        Self {
+            ctx,
+            thread_pool: pool,
+        }
     }
 
-    pub async fn execute_async(&self, lf: LazyFrame) -> Result<edatime_core::types::DataFrame, AppError> {
+    pub async fn execute_async(
+        &self,
+        lf: LazyFrame,
+    ) -> Result<edatime_core::types::DataFrame, AppError> {
         let pool = Arc::clone(&self.thread_pool);
         let ctx = self.ctx.clone();
         tokio::task::spawn_blocking(move || {
-            pool.install(|| {
-                match ctx {
-                    ExecutionContext::Eager => lf.collect(),
-                    ExecutionContext::Streaming | ExecutionContext::Parallel => {
-                        lf.with_new_streaming(true).collect()
-                    }
+            pool.install(|| match ctx {
+                ExecutionContext::Eager => lf.collect(),
+                ExecutionContext::Streaming | ExecutionContext::Parallel => {
+                    lf.with_new_streaming(true).collect()
                 }
             })
         })

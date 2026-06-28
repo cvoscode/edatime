@@ -178,6 +178,52 @@
   opacity: 0.85;
 }
 
+/* Intermediate colorbar tick labels (25%, 50%, 75%) */
+.spectrogram-chart-row #spectrogram-colorbar .cb-mid-tick {
+  font-size: 0.55rem;
+  color: var(--text-dim, #8d9bbc);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: center;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  opacity: 0.85;
+}
+
+.spectrogram-chart-row #spectrogram-colorbar .cb-mid-tick[hidden] {
+  display: none;
+}
+
+/* Tick marks rendered on the gradient bar at 25% / 50% / 75% positions */
+.spectrogram-chart-row #spectrogram-colorbar .cb-mid-tick-mark {
+  position: absolute;
+  left: 50%;
+  width: 18px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.85);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow: 0 0 1px rgba(0, 0, 0, 0.6);
+}
+
+.spectrogram-chart-row #spectrogram-colorbar .cb-mid-tick-mark[hidden] {
+  display: none;
+}
+
+.spectrogram-chart-row #spectrogram-colorbar .cb-mid-tick-mark--high {
+  top: 25%;
+}
+
+.spectrogram-chart-row #spectrogram-colorbar .cb-mid-tick-mark--mid {
+  top: 50%;
+  height: 1px;
+  opacity: 0.55;
+}
+
+.spectrogram-chart-row #spectrogram-colorbar .cb-mid-tick-mark--low {
+  top: 75%;
+}
+
 @media (max-width: 720px) {
   .spectrogram-chart-row {
     flex-direction: column;

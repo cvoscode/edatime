@@ -106,18 +106,31 @@ pub fn apply_filters<I: Into<LazyFrame>>(
         let time_column = time_column
             .map(str::trim)
             .filter(|column| !column.is_empty())
-            .ok_or_else(|| AppError::bad_request("Missing time column for time filter".to_string()))?;
+            .ok_or_else(|| {
+                AppError::bad_request("Missing time column for time filter".to_string())
+            })?;
         let schema = lf.clone().collect_schema().map_err(|e| {
             AppError::bad_request(format!("Failed to get schema for time filter: {}", e))
         })?;
         let ts_dtype = schema.get(time_column).ok_or_else(|| {
-            AppError::bad_request(format!("Missing time column '{}' for time filter", time_column))
+            AppError::bad_request(format!(
+                "Missing time column '{}' for time filter",
+                time_column
+            ))
         })?;
         let start_native = temporal::epoch_ms_to_native(start.min(end), ts_dtype, false)?;
         let end_native = temporal::epoch_ms_to_native(start.max(end), ts_dtype, true)?;
         lf = lf
-            .filter(col(time_column).cast(DataType::Int64).gt_eq(lit(start_native)))
-            .filter(col(time_column).cast(DataType::Int64).lt_eq(lit(end_native)));
+            .filter(
+                col(time_column)
+                    .cast(DataType::Int64)
+                    .gt_eq(lit(start_native)),
+            )
+            .filter(
+                col(time_column)
+                    .cast(DataType::Int64)
+                    .lt_eq(lit(end_native)),
+            );
     }
 
     for filter in range_filters {
@@ -126,11 +139,14 @@ pub fn apply_filters<I: Into<LazyFrame>>(
             continue;
         }
         let schema = lf.clone().collect_schema().map_err(|e| {
-            AppError::bad_request(format!("Failed to get schema for filter column '{}': {}", column, e))
+            AppError::bad_request(format!(
+                "Failed to get schema for filter column '{}': {}",
+                column, e
+            ))
         })?;
-        let dtype = schema.get(column).ok_or_else(|| {
-            AppError::bad_request(format!("Unknown filter column '{}'", column))
-        })?;
+        let dtype = schema
+            .get(column)
+            .ok_or_else(|| AppError::bad_request(format!("Unknown filter column '{}'", column)))?;
         let from = filter.from.min(filter.to);
         let to = filter.from.max(filter.to);
         let expr = match dtype {
@@ -152,7 +168,9 @@ pub fn apply_filters<I: Into<LazyFrame>>(
         let time_column = time_column
             .map(str::trim)
             .filter(|column| !column.is_empty())
-            .ok_or_else(|| AppError::bad_request("Missing time column for adaptive filter".to_string()))?;
+            .ok_or_else(|| {
+                AppError::bad_request("Missing time column for adaptive filter".to_string())
+            })?;
         let schema = lf.clone().collect_schema().map_err(|e| {
             AppError::bad_request(format!("Failed to get schema for line filter: {}", e))
         })?;
@@ -170,7 +188,10 @@ pub fn apply_filters<I: Into<LazyFrame>>(
                 continue;
             }
             let schema = lf.clone().collect_schema().map_err(|e| {
-                AppError::bad_request(format!("Unknown adaptive filter column '{}': {}", column, e))
+                AppError::bad_request(format!(
+                    "Unknown adaptive filter column '{}': {}",
+                    column, e
+                ))
             })?;
             if !schema.get(column).is_some_and(|d| d.is_numeric()) {
                 return Err(AppError::bad_request(format!(

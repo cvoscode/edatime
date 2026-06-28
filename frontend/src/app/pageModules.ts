@@ -21,7 +21,7 @@
 
 import { register } from './pageRegistry.js';
 import type { DatasetMetadata } from '../types.js';
-import { ensureStyleModule } from '../utils/pageStyles.js';
+import { ensureStyleModule, type StyleModuleName } from '../utils/pageStyles.js';
 
 export interface PageDescriptorInitDeps {
     getRenderTimeseries: () => void;
@@ -36,7 +36,7 @@ export interface PageDescriptorInitDeps {
 export interface PageDescriptor {
     name: string;
     requiresMetadata: boolean;
-    cssModules?: readonly string[];
+    cssModules?: readonly StyleModuleName[];
     load(deps: PageDescriptorInitDeps): Promise<{ init: () => void | Promise<void> }>;
 }
 
@@ -121,9 +121,7 @@ export async function loadPageDescriptors(deps: PageDescriptorInitDeps): Promise
                 // Preload any page-owned CSS modules before initializing the page.
                 if (descriptor.cssModules?.length) {
                     for (const moduleName of descriptor.cssModules) {
-                        // Cast: descriptor authors are responsible for keeping
-                        // the cssModules list in sync with STYLE_MODULES keys.
-                        ensureStyleModule(moduleName as 'drift');
+                        ensureStyleModule(moduleName);
                     }
                 }
                 const entry = await descriptor.load(deps);

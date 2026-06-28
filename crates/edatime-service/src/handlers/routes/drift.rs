@@ -104,7 +104,7 @@ pub async fn post_drift_stats(
         ref_end_ms,
         curr_start_ms,
         curr_end_ms,
-        20,   // n_bins
+        20, // n_bins
         ks_pvalue_threshold,
         es_pvalue_threshold,
         wasserstein_threshold,

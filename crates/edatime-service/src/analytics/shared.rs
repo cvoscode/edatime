@@ -1,7 +1,7 @@
 //! Shared helpers used across all analytics submodules.
 
-use polars::prelude::*;
 use crate::error::AppError;
+use polars::prelude::*;
 
 /// Extract the timestamp column as epoch-millisecond f64 values.
 pub fn extract_ts_epoch_ms(df: &DataFrame) -> Result<Vec<f64>, AppError> {

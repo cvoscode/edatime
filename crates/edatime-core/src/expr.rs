@@ -49,7 +49,6 @@ pub fn range_predicate_opt(col_name: &str, min: Option<f64>, max: Option<f64>) -
 /// Build an IN-predicate for categorical columns.
 #[allow(dead_code)]
 pub fn in_predicate(col_name: &str, values: &[String]) -> Expr {
-
     let sc: StringChunked = values.iter().map(|s| s.as_str()).collect();
     let s: Series = sc.into_series();
     col(col_name).is_in(lit(s), false)

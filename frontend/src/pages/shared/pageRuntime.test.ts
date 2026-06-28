@@ -131,19 +131,7 @@ describe('createPageRuntime', () => {
     // Contract item 5 — setLoading(bool) toggles hidden attribute on element
     // with id = loadingElId
     // -----------------------------------------------------------------------
-    it('setLoading(true) hides the loading element', () => {
-        document.body.innerHTML = `<div id="test-loading"></div>`;
-        const runtime = createPageRuntime({
-            page: 'test',
-            emptyStateRootId: 'test-empty-state',
-            loadingElId: 'test-loading',
-        });
-        runtime.mount();
-        runtime.setLoading(true);
-        expect(document.getElementById('test-loading')?.hidden).toBe(true);
-    });
-
-    it('setLoading(false) reveals the loading element', () => {
+    it('setLoading(true) reveals the loading element', () => {
         document.body.innerHTML = `<div id="test-loading" hidden></div>`;
         const runtime = createPageRuntime({
             page: 'test',
@@ -151,8 +139,20 @@ describe('createPageRuntime', () => {
             loadingElId: 'test-loading',
         });
         runtime.mount();
-        runtime.setLoading(false);
+        runtime.setLoading(true);
         expect(document.getElementById('test-loading')?.hidden).toBe(false);
+    });
+
+    it('setLoading(false) hides the loading element', () => {
+        document.body.innerHTML = `<div id="test-loading"></div>`;
+        const runtime = createPageRuntime({
+            page: 'test',
+            emptyStateRootId: 'test-empty-state',
+            loadingElId: 'test-loading',
+        });
+        runtime.mount();
+        runtime.setLoading(false);
+        expect(document.getElementById('test-loading')?.hidden).toBe(true);
     });
 
     it('setLoading is a no-op when no loadingElId is configured', () => {
@@ -275,7 +275,7 @@ describe('createPageRuntime', () => {
     it('statusElId is accepted alongside loadingElId without conflict', () => {
         document.body.innerHTML = `
             <div id="test-status"></div>
-            <div id="test-loading" hidden></div>
+            <div id="test-loading"></div>
         `;
         const runtime = createPageRuntime({
             page: 'test',
@@ -285,8 +285,10 @@ describe('createPageRuntime', () => {
         });
         runtime.mount();
         runtime.updateStatus('ready');
+        // setLoading(false) hides the loading element by contract; the
+        // status element remains independently configurable.
         runtime.setLoading(false);
         expect(document.getElementById('test-status')?.textContent).toBe('ready');
-        expect(document.getElementById('test-loading')?.hidden).toBe(false);
+        expect(document.getElementById('test-loading')?.hidden).toBe(true);
     });
 });

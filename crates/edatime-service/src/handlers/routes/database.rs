@@ -18,8 +18,8 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use edatime_store::db::{self, IngestOptions};
 use crate::error::AppError;
+use edatime_store::db::{self, IngestOptions};
 use edatime_store::state::{AppState, DbConnectionInfo};
 
 // ── POST /api/database/connect ─────────────────────────────────────────────
@@ -76,27 +76,28 @@ pub async fn post_connect(
     let mut rows_loaded: Option<usize> = None;
 
     if body.load_snapshot
-        && let Some(table) = &body.table {
-            let opts = IngestOptions {
-                limit: Some(body.snapshot_limit.unwrap_or(1_000_000)),
-                ..Default::default()
-            };
-            let df: polars::prelude::DataFrame = db::ingest_table(
-                &pool,
-                &body.schema,
-                table,
-                body.time_column.as_deref(),
-                &opts,
-            )
-            .await?;
-            let n = df.height();
-            state.replace_dataset(df).await?;
-            if let Some(ref tc) = body.time_column {
-                state.set_time_column_display_name(Some(tc.clone()));
-            }
-            rows_loaded = Some(n);
-            tracing::info!(rows = n, table = %table, "TimescaleDB snapshot loaded");
+        && let Some(table) = &body.table
+    {
+        let opts = IngestOptions {
+            limit: Some(body.snapshot_limit.unwrap_or(1_000_000)),
+            ..Default::default()
+        };
+        let df: polars::prelude::DataFrame = db::ingest_table(
+            &pool,
+            &body.schema,
+            table,
+            body.time_column.as_deref(),
+            &opts,
+        )
+        .await?;
+        let n = df.height();
+        state.replace_dataset(df).await?;
+        if let Some(ref tc) = body.time_column {
+            state.set_time_column_display_name(Some(tc.clone()));
         }
+        rows_loaded = Some(n);
+        tracing::info!(rows = n, table = %table, "TimescaleDB snapshot loaded");
+    }
 
     // Store pool + metadata in shared state.
     {
@@ -113,10 +114,7 @@ pub async fn post_connect(
     }
 
     let msg = if let Some(n) = rows_loaded {
-        format!(
-            "Connected and loaded {} rows",
-            n
-        )
+        format!("Connected and loaded {} rows", n)
     } else {
         "Connected (no snapshot loaded)".to_string()
     };
@@ -268,13 +266,23 @@ pub async fn post_load(
     .await?;
 
     let n = df.height();
-    let numeric_cols: Vec<String> = df.get_column_names()
+    let numeric_cols: Vec<String> = df
+        .get_column_names()
         .iter()
         .filter_map(|name| {
             let name_str = name.as_str();
             match df.column(name_str) {
                 Ok(col) if col.dtype().is_numeric() => Some(name_str.to_string()),
-                Ok(col) if name_str == "ts" && matches!(col.dtype(), polars::prelude::DataType::Datetime(_, _) | polars::prelude::DataType::Date) => Some(name_str.to_string()),
+                Ok(col)
+                    if name_str == "ts"
+                        && matches!(
+                            col.dtype(),
+                            polars::prelude::DataType::Datetime(_, _)
+                                | polars::prelude::DataType::Date
+                        ) =>
+                {
+                    Some(name_str.to_string())
+                }
                 _ => None,
             }
         })

@@ -26,6 +26,7 @@ pub enum CorrelationMode {
 }
 
 impl CorrelationMode {
+    #[allow(clippy::needless_lifetimes)] // explicit lifetime is part of the public API surface
     fn matrix<'a>(self, data: &'a CorrelationMatrixData) -> &'a Vec<Vec<Option<f64>>> {
         match self {
             Self::PearsonRaw => &data.pearson_raw,
@@ -85,7 +86,9 @@ pub async fn get_scatter_correlations(
 
     let data = tokio::task::spawn_blocking(move || compute_correlation_matrix(lf))
         .await
-        .map_err(|e| AppError::internal(format!("Failed to join scatter correlation task: {:?}", e)))??;
+        .map_err(|e| {
+            AppError::internal(format!("Failed to join scatter correlation task: {:?}", e))
+        })??;
     state.store_correlation_matrix_if_current(revision, data.clone().into_cache());
     Ok(Json(build_scatter_correlations_from_matrix_data(
         &data,
@@ -187,7 +190,9 @@ impl CorrelationMatrixData {
             CorrelationMode::SpearmanRaw => response.spearman_raw = Some(self.spearman_raw.clone()),
             CorrelationMode::KendallRaw => response.kendall_raw = Some(self.kendall_raw.clone()),
             CorrelationMode::PearsonDiff => response.pearson_diff = Some(self.pearson_diff.clone()),
-            CorrelationMode::SpearmanDiff => response.spearman_diff = Some(self.spearman_diff.clone()),
+            CorrelationMode::SpearmanDiff => {
+                response.spearman_diff = Some(self.spearman_diff.clone())
+            }
             CorrelationMode::KendallDiff => response.kendall_diff = Some(self.kendall_diff.clone()),
         }
 
@@ -219,7 +224,8 @@ fn empty_matrix_response(columns: Vec<String>, mode: CorrelationMode) -> Correla
 }
 
 fn first_difference_pairs(pairs: &[[f64; 2]]) -> Vec<[f64; 2]> {
-    pairs.windows(2)
+    pairs
+        .windows(2)
         .map(|window| [window[1][0] - window[0][0], window[1][1] - window[0][1]])
         .collect()
 }
@@ -484,11 +490,12 @@ pub async fn get_correlation_matrix(
 
     let lf = state.dataset_snapshot();
     if let Some(mode) = mode {
-        let response = tokio::task::spawn_blocking(move || compute_correlation_matrix_for_mode(lf, mode))
-            .await
-            .map_err(|e| {
-                AppError::internal(format!("Failed to join correlation matrix task: {:?}", e))
-            })??;
+        let response =
+            tokio::task::spawn_blocking(move || compute_correlation_matrix_for_mode(lf, mode))
+                .await
+                .map_err(|e| {
+                    AppError::internal(format!("Failed to join correlation matrix task: {:?}", e))
+                })??;
         return Ok(Json(response));
     }
 
@@ -505,10 +512,10 @@ pub async fn get_correlation_matrix(
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
-    use edatime_core::config::AppConfig;
-    use edatime_core::IntoLazy;
-    use polars::prelude::{DataFrame, NamedFrom, Series};
     use axum::extract::{Query, State};
+    use edatime_core::IntoLazy;
+    use edatime_core::config::AppConfig;
+    use polars::prelude::{DataFrame, NamedFrom, Series};
 
     #[test]
     fn cached_matrix_builds_sorted_correlations_for_requested_base() {
@@ -553,7 +560,7 @@ mod tests {
             0.7,
             CorrelationMode::KendallDiff,
         )
-            .expect("cached matrix should build response");
+        .expect("cached matrix should build response");
 
         assert_eq!(response.base_column, "b");
         assert_eq!(response.mode, CorrelationMode::KendallDiff);
@@ -690,16 +697,16 @@ mod tests {
         assert!(response.kendall_raw.is_none());
         assert!(response.pearson_diff.is_none());
         assert!(response.spearman_diff.is_none());
-        assert_eq!(response.kendall_diff, Some(vec![vec![Some(1.0), None], vec![None, Some(1.0)]]));
+        assert_eq!(
+            response.kendall_diff,
+            Some(vec![vec![Some(1.0), None], vec![None, Some(1.0)]])
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn warm_correlation_matrix_cache_stores_empty_payload_for_insufficient_numeric_columns() {
-        let df = DataFrame::new(
-            3,
-            vec![Series::new("label".into(), ["x", "y", "z"]).into()],
-        )
-        .expect("dataframe should build");
+        let df = DataFrame::new(3, vec![Series::new("label".into(), ["x", "y", "z"]).into()])
+            .expect("dataframe should build");
         let state = AppState::new(df, AppConfig::default());
         let revision = state.dataset_revision();
 

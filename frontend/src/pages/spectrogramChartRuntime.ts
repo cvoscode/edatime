@@ -350,15 +350,27 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         data: timeAxis,
                         name: 'Time',
                         nameLocation: 'middle',
-                        nameGap: 48,
+                        nameGap: 56,
+                        nameTextStyle: {
+                            color: '#cfd9f1',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            padding: [8, 0, 0, 0],
+                        },
                         axisLabel: {
                             color: '#9fb1d1',
+                            fontSize: 11,
                             rotate: 30,
                             interval: xTickInterval,
+                            hideOverlap: true,
+                            margin: 10,
                             formatter: (value: string | number) => {
                                 const date = new Date(Number(value));
                                 return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}\n${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
                             },
+                        },
+                        axisTick: {
+                            alignWithLabel: true,
                         },
                         splitLine: { show: false },
                     },
@@ -367,11 +379,23 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         data: freqAxis,
                         name: 'Frequency (Hz)',
                         nameLocation: 'middle',
-                        nameGap: 56,
+                        nameGap: 72,
+                        nameTextStyle: {
+                            color: '#cfd9f1',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            padding: [0, 0, 8, 0],
+                        },
                         axisLabel: {
                             color: '#9fb1d1',
+                            fontSize: 11,
                             interval: yTickInterval,
+                            hideOverlap: true,
+                            margin: 8,
                             formatter: (value: string | number) => formatSpectrogramFrequency(Number(value)),
+                        },
+                        axisTick: {
+                            alignWithLabel: true,
                         },
                         splitLine: { show: false },
                     },
@@ -427,12 +451,35 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 const vbar = wrap.querySelector<HTMLElement>('.scatter-colorbar-vbar');
                 const vtickHigh = wrap.querySelector<HTMLElement>('[data-role="cb-high"]');
                 const vtickLow = wrap.querySelector<HTMLElement>('[data-role="cb-low"]');
+                const vtickMidHigh = wrap.querySelector<HTMLElement>('[data-role="cb-mid-high"]');
+                const vtickMidLow = wrap.querySelector<HTMLElement>('[data-role="cb-mid-low"]');
+                const midMarkHigh = wrap.querySelector<HTMLElement>('[data-role="cb-mid-mark-high"]');
+                const midMarkMid = wrap.querySelector<HTMLElement>('[data-role="cb-mid-mark-mid"]');
+                const midMarkLow = wrap.querySelector<HTMLElement>('[data-role="cb-mid-mark-low"]');
                 const vname = wrap.querySelector<HTMLElement>('.scatter-colorbar-vname');
                 if (vbar) {
                     vbar.style.background = `linear-gradient(to top, ${VIRIDIS_STOPS.join(', ')})`;
                 }
                 if (vtickHigh) vtickHigh.textContent = `High · ${formatSpectrogramColorbarNumber(args.max)}`;
                 if (vtickLow) vtickLow.textContent = `Low · ${formatSpectrogramColorbarNumber(args.min)}`;
+                // Populate the intermediate (25% / 75%) tick labels and reveal
+                // the corresponding tick marks on the gradient bar. These give
+                // the user a finer-grained reading of intensity without
+                // forcing them to drag the filter handles.
+                const showMid = Number.isFinite(args.min) && Number.isFinite(args.max) && args.max !== args.min;
+                const midHighValue = args.min + 0.25 * (args.max - args.min);
+                const midLowValue = args.min + 0.75 * (args.max - args.min);
+                if (vtickMidHigh) {
+                    vtickMidHigh.textContent = `· ${formatSpectrogramColorbarNumber(midHighValue)}`;
+                    vtickMidHigh.hidden = !showMid;
+                }
+                if (vtickMidLow) {
+                    vtickMidLow.textContent = `· ${formatSpectrogramColorbarNumber(midLowValue)}`;
+                    vtickMidLow.hidden = !showMid;
+                }
+                if (midMarkHigh) midMarkHigh.hidden = !showMid;
+                if (midMarkMid) midMarkMid.hidden = !showMid;
+                if (midMarkLow) midMarkLow.hidden = !showMid;
                 if (vname) vname.textContent = args.label;
                 wrap.hidden = false;
                 initColorbarInteraction();

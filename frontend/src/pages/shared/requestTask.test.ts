@@ -161,4 +161,37 @@ describe('createRequestTask', () => {
         // Should not throw.
         task.cancel();
     });
+
+    // --- run-token guard ---
+
+    it('a superseded run() cannot clear loading state or surface errors for a newer run()', async () => {
+        const setLoading = vi.fn();
+        const onError = vi.fn();
+        const task = createRequestTask({ setLoading, onError });
+
+        // Start a slow first run.
+        const firstRun = task.run(async (signal) => {
+            await new Promise<void>((resolve) => {
+                const t = setTimeout(resolve, 2000);
+                signal.addEventListener('abort', () => { clearTimeout(t); resolve(); }, { once: true });
+            });
+            // Throw after abort to make sure onError is NOT called.
+            throw new Error('first request failed after abort');
+        });
+
+        // Start a fast second run.
+        await task.run(async () => {
+            await Promise.resolve();
+        });
+
+        // Wait for the first run to settle (it will throw after abort).
+        await firstRun;
+
+        // setLoading(true) called for each run, then only the second run's
+        // setLoading(false) is allowed to fire.
+        const falseCalls = setLoading.mock.calls.filter(([arg]) => arg === false);
+        expect(falseCalls).toHaveLength(1);
+        // The superseded run must NOT surface its error.
+        expect(onError).not.toHaveBeenCalled();
+    });
 });

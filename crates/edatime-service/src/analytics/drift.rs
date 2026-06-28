@@ -5,8 +5,8 @@ use chrono::{DateTime, Utc};
 use polars::prelude::*;
 use serde::Serialize;
 
-use crate::error::AppError;
 use super::shared::{extract_f64_column_opt, extract_ts_epoch_ms};
+use crate::error::AppError;
 
 /// Two-sample Kolmogorov-Smirnov test. Both slices must be pre-sorted.
 pub fn ks_test_2sample(a: &[f64], b: &[f64]) -> (f64, f64) {
@@ -475,12 +475,20 @@ fn same_utc_day(start_ms: f64, end_ms: f64) -> bool {
 }
 
 fn format_range_full(start_ms: f64, end_ms: f64) -> String {
-    format!("{} - {}", format_timestamp(start_ms), format_timestamp(end_ms))
+    format!(
+        "{} - {}",
+        format_timestamp(start_ms),
+        format_timestamp(end_ms)
+    )
 }
 
 pub fn format_window_label(start_ms: f64, end_ms: f64, window_ms: i64) -> String {
     if window_ms == 3_600_000 && same_utc_day(start_ms, end_ms) {
-        format!("{} - {}", format_timestamp(start_ms), format_time_only(end_ms))
+        format!(
+            "{} - {}",
+            format_timestamp(start_ms),
+            format_time_only(end_ms)
+        )
     } else {
         format_range_full(start_ms, end_ms)
     }
@@ -552,13 +560,17 @@ pub fn compute_temporal_drift(
         let hi = ref_sorted[ref_sorted.len() - 1];
         let range = (hi - lo).max(f64::EPSILON);
         let width = range / effective_bins as f64;
-        hist_edges = (0..=effective_bins).map(|i| lo + width * i as f64).collect();
+        hist_edges = (0..=effective_bins)
+            .map(|i| lo + width * i as f64)
+            .collect();
         bin_count_warning = true;
     } else if hist_edges.len() < effective_bins / 2 + 2 {
         let lo = hist_edges[0];
         let hi = hist_edges[hist_edges.len() - 1];
         let width = (hi - lo).max(f64::EPSILON) / effective_bins as f64;
-        hist_edges = (0..=effective_bins).map(|i| lo + width * i as f64).collect();
+        hist_edges = (0..=effective_bins)
+            .map(|i| lo + width * i as f64)
+            .collect();
         bin_count_warning = true;
     } else {
         bin_count_warning = false;
@@ -647,16 +659,18 @@ pub fn compute_temporal_drift(
         let vals = &bucket_vals[bi];
         let low_sample_warning = vals.len() < 5;
 
-        let (ks_stat, ks_pvalue, es_stat, es_pvalue, wasserstein, psi, jensen_shannon) = if vals.len() >= 5 {
-            let (ks_s, ks_p) = ks_test_2sample(&ref_sorted, vals);
-            let (es_s, es_p) = edatime_core::stats::epps_singleton_test(&es_ref_sample, vals);
-            let w = wasserstein_distance_1d(&ref_sorted, vals);
-            let p = compute_psi_with_ref_props(&psi_ref_props, vals, &hist_edges);
-            let js = jensen_shannon_divergence_with_ref_props(&psi_ref_props, vals, &hist_edges);
-            (ks_s, ks_p, es_s, es_p, w, p, js)
-        } else {
-            (0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0)
-        };
+        let (ks_stat, ks_pvalue, es_stat, es_pvalue, wasserstein, psi, jensen_shannon) =
+            if vals.len() >= 5 {
+                let (ks_s, ks_p) = ks_test_2sample(&ref_sorted, vals);
+                let (es_s, es_p) = edatime_core::stats::epps_singleton_test(&es_ref_sample, vals);
+                let w = wasserstein_distance_1d(&ref_sorted, vals);
+                let p = compute_psi_with_ref_props(&psi_ref_props, vals, &hist_edges);
+                let js =
+                    jensen_shannon_divergence_with_ref_props(&psi_ref_props, vals, &hist_edges);
+                (ks_s, ks_p, es_s, es_p, w, p, js)
+            } else {
+                (0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0)
+            };
 
         let (drift_level, trigger_reasons) = if low_sample_warning {
             ("green".to_string(), Vec::new())
@@ -727,8 +741,8 @@ pub fn compute_temporal_drift(
 #[cfg(test)]
 mod tests {
     use super::{
-        classify_drift_window, compute_temporal_drift, format_window_label,
-        jensen_shannon_divergence_with_ref_props, DriftThresholds,
+        DriftThresholds, classify_drift_window, compute_temporal_drift, format_window_label,
+        jensen_shannon_divergence_with_ref_props,
     };
     use polars::prelude::{DataFrame, DataType, NamedFrom, Series, TimeUnit};
 
@@ -740,11 +754,8 @@ mod tests {
             .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
             .expect("ts should cast to datetime");
         let value = Series::new("value".into(), values);
-        DataFrame::new(
-            ts.len(),
-            vec![ts.into(), value.into()],
-        )
-        .expect("test dataframe should build")
+        DataFrame::new(ts.len(), vec![ts.into(), value.into()])
+            .expect("test dataframe should build")
     }
 
     #[test]
@@ -844,7 +855,10 @@ mod tests {
         assert_eq!(response.reference.start_ms, 1_735_689_600_000.0);
         assert_eq!(response.reference.end_ms, 1_735_691_400_000.0);
 
-        let first = response.windows.first().expect("at least one monitoring window");
+        let first = response
+            .windows
+            .first()
+            .expect("at least one monitoring window");
         assert_eq!(first.distribution.start_ms, 1_735_691_400_000.0);
         assert_eq!(first.distribution.end_ms, 1_735_695_000_000.0);
         assert_eq!(first.distribution.count, 12);

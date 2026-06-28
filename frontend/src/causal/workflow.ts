@@ -110,19 +110,24 @@ export async function handleComputeClick(
     const methodLabel = method.toUpperCase().replace('PCMCIPLUS', 'PCMCI+');
     const usesPcStage = METHOD_PC_STAGE.has(method);
     let ticks = 0;
+    // Abort-before-new: cancel any in-flight compute before starting a new one
+    // so a fast-clicking user does not pile up parallel causal runs.
+    if (causalComputeController) causalComputeController.abort();
+    causalComputeController = new AbortController();
+    const signal = causalComputeController.signal;
+    let progressId: number | undefined;
     try {
         deps.setLoading('causal-compute-btn', 'causal-loading', true, 'Compute');
         setStatus(`${methodLabel}: running causal discovery...`);
         setProgress(0, methodLabel + ': preparing');
-        const progressId = window.setInterval(() => {
+        progressId = window.setInterval(() => {
             ticks += 1;
             const pct = Math.min(90, (usesPcStage ? 12 : 18) + ticks * 2);
             setProgress(pct, methodLabel + ': ' + (usesPcStage && ticks < 14 ? 'parent selection' : 'conditional tests'));
         }, 320);
-        const resp = await fetchCausalGraph(numericSelected, tauMax, alpha, method, 5000, undefined,
+        const resp = await fetchCausalGraph(numericSelected, tauMax, alpha, method, 5000, signal,
             parseFloat((document.getElementById('causal-pc-alpha') as HTMLInputElement | null)?.value || '0.2'),
             test, usesPcStage ? maxCondsDim : undefined, fdrMethod);
-        window.clearInterval(progressId);
         setProgress(100, methodLabel + ': complete');
         window.setTimeout(hideProgress, 800);
         const cols = [...resp.columns, ...manualOnly.filter((col) => !resp.columns.includes(col))];
@@ -137,10 +142,28 @@ export async function handleComputeClick(
         renderEChartsGraph();
         onComplete?.();
     } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            // Superseded by a newer compute run; the newer run owns status UI.
+            return;
+        }
         hideProgress();
         setStatus(error instanceof Error ? error.message : 'Causal discovery failed.', 'error');
         onComplete?.();
     } finally {
+        // Always clear the progress interval, even when aborted.
+        if (progressId !== undefined) {
+            window.clearInterval(progressId);
+            progressId = undefined;
+        }
         deps.setLoading('causal-compute-btn', 'causal-loading', false, 'Compute');
     }
+}
+
+/** Module-level controller for the latest causal compute run. */
+let causalComputeController: AbortController | null = null;
+
+/** Test-only: reset the causal compute controller between test runs. */
+export function __resetCausalComputeControllerForTests(): void {
+    if (causalComputeController) causalComputeController.abort();
+    causalComputeController = null;
 }

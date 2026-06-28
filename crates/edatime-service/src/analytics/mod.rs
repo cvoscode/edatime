@@ -20,20 +20,20 @@ pub mod transform;
 
 // ── Public re-exports for the top-level API ─────────────────────────────────
 
-pub use anomaly::{detect_anomalies_iqr, detect_anomalies_zscore, AnomalyRegion};
+pub use anomaly::{AnomalyRegion, detect_anomalies_iqr, detect_anomalies_zscore};
 pub use drift::{
-    compute_temporal_drift, DriftMetadata, DriftResponse, DriftThresholds, DriftWindowStats,
-    WindowDistributionStats,
+    DriftMetadata, DriftResponse, DriftThresholds, DriftWindowStats, WindowDistributionStats,
+    compute_temporal_drift,
 };
-pub use fft::{compute_fft, FftResult, FrequencyPeak};
-pub use outlier::{remove_outliers_global, remove_outliers_windowed, OutlierRemovalResult};
-pub use rolling::{compute_rolling_bands, RollingBands};
+pub use fft::{FftResult, FrequencyPeak, compute_fft};
+pub use outlier::{OutlierRemovalResult, remove_outliers_global, remove_outliers_windowed};
+pub use rolling::{RollingBands, compute_rolling_bands};
 pub use shared::{
     extract_columns_f64_mean, extract_columns_f64_preserve_missing, extract_f64_column,
     extract_f64_column_opt, extract_ts_epoch_ms,
 };
 pub use spectrogram::{
-    apply_scale as apply_spectrogram_scale, apply_spectral_filter, compute_spectrogram,
     ClipMode, FilterType, ScaleMode, ScaleOptions, SpectrogramResult,
+    apply_scale as apply_spectrogram_scale, apply_spectral_filter, compute_spectrogram,
 };
 pub use transform::{apply_column_transform, apply_column_transform_lazy};

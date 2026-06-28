@@ -20,7 +20,3 @@
   - Build an IN-predicate for categorical columns.
 - `not_null_predicate(col_name: &str) -> Expr`
   - Build an is-not-null predicate.
-
-### Combinators
-- `and_all(exprs: Vec<Option<Expr>>) -> Option<Expr>`
-  - Combine multiple optional predicates with AND.

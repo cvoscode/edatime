@@ -3,8 +3,8 @@
 use polars::prelude::*;
 use serde::Serialize;
 
-use crate::error::AppError;
 use super::shared::{extract_f64_column_opt, extract_ts_epoch_ms};
+use crate::error::AppError;
 
 /// Result of rolling statistics computation for a single column.
 #[derive(Debug, Serialize)]

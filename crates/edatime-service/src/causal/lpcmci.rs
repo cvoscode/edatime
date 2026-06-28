@@ -7,8 +7,8 @@
 //! Reference: Gerhardus & Runge (2020), "High-recall causal discovery for
 //! autocorrelated time series with latent confounders".
 
-use std::collections::HashMap;
 use rayon::prelude::*;
+use std::collections::HashMap;
 
 use super::data::{CausalDataFrame, VarLag, VarLagSeenSet};
 use super::graph::{CausalGraph, CausalResult, LinkType};
@@ -61,8 +61,7 @@ impl<'a> Lpcmci<'a> {
             );
 
             // Run ancestral removal with preliminary flag
-            let graph =
-                self.ancestral_removal_phase(config, &pc_result.all_parents, true);
+            let graph = self.ancestral_removal_phase(config, &pc_result.all_parents, true);
 
             // Extract definite ancestors: any lagged link that survives is a
             // definite ancestor
@@ -95,11 +94,7 @@ impl<'a> Lpcmci<'a> {
             );
             // Merge PC parents with definite ancestors
             for j in 0..n {
-                let mut parents = pc_result
-                    .all_parents
-                    .get(&j)
-                    .cloned()
-                    .unwrap_or_default();
+                let mut parents = pc_result.all_parents.get(&j).cloned().unwrap_or_default();
                 if let Some(ancs) = def_ancs.get(&j) {
                     for &a in ancs {
                         if !parents.contains(&a) {
@@ -177,20 +172,19 @@ impl<'a> Lpcmci<'a> {
                 }
 
                 // Shifted parents of i (unless preliminary)
-                if !preliminary
-                    && let Some(parents_i) = all_parents.get(&i) {
-                        let limit = config.max_conds_px.unwrap_or(parents_i.len());
-                        for &(k, tau_k) in parents_i.iter().take(limit) {
-                            let shifted = (k, tau_k + neg_tau);
-                            let abs_lag = (-shifted.1) as usize;
-                            if abs_lag <= 2 * config.tau_max
-                                && shifted != (i, neg_tau)
-                                && seen.insert(shifted)
-                            {
-                                z.push(shifted);
-                            }
+                if !preliminary && let Some(parents_i) = all_parents.get(&i) {
+                    let limit = config.max_conds_px.unwrap_or(parents_i.len());
+                    for &(k, tau_k) in parents_i.iter().take(limit) {
+                        let shifted = (k, tau_k + neg_tau);
+                        let abs_lag = (-shifted.1) as usize;
+                        if abs_lag <= 2 * config.tau_max
+                            && shifted != (i, neg_tau)
+                            && seen.insert(shifted)
+                        {
+                            z.push(shifted);
                         }
                     }
+                }
 
                 let (array, xyz) = self.df.construct_array(&x, &y, &z, config.tau_max);
                 if array.ncols() < 5 {
@@ -375,15 +369,19 @@ impl<'a> Lpcmci<'a> {
         tau_c: i32,
     ) -> bool {
         let rel_tau = tau_c - tau_a;
-        if rel_tau >= 0 && (rel_tau as usize) <= graph.tau_max
-            && graph.get_link(a, c, rel_tau as usize).is_active() {
-                return true;
-            }
+        if rel_tau >= 0
+            && (rel_tau as usize) <= graph.tau_max
+            && graph.get_link(a, c, rel_tau as usize).is_active()
+        {
+            return true;
+        }
         let rev_tau = tau_a - tau_c;
-        if rev_tau >= 0 && (rev_tau as usize) <= graph.tau_max
-            && graph.get_link(c, a, rev_tau as usize).is_active() {
-                return true;
-            }
+        if rev_tau >= 0
+            && (rev_tau as usize) <= graph.tau_max
+            && graph.get_link(c, a, rev_tau as usize).is_active()
+        {
+            return true;
+        }
         false
     }
 }
@@ -432,10 +430,8 @@ mod tests {
         );
 
         assert!(
-            result
-                .links
-                .iter()
-                .any(|l| l.lag == 0 && ((l.source == "X" && l.target == "Y") || (l.source == "Y" && l.target == "X"))),
+            result.links.iter().any(|l| l.lag == 0
+                && ((l.source == "X" && l.target == "Y") || (l.source == "Y" && l.target == "X"))),
             "LPCMCI should retain a contemporaneous adjacency for the hidden-driver case: {:?}",
             result.links
         );

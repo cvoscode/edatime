@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { buildMatrixFetchPairs } from './matrix.js';
+import * as api from '../services/api/index.js';
+import { appState } from './state.js';
+import {
+    __resetMatrixRenderControllerForTests,
+    buildMatrixFetchPairs,
+    getMatrixRenderSignal,
+    renderScatterOverview,
+} from './matrix.js';
 import { renderMatrixGrid } from './matrixGrid.js';
 
 class MockCanvasContext2D {
@@ -21,6 +28,17 @@ class MockCanvasContext2D {
 describe('buildMatrixFetchPairs', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
+        __resetMatrixRenderControllerForTests();
+        appState.scatter.matrixCache = new Map();
+        appState.scatter.matrixColumnOrder = [];
+        appState.scatter.lastSuggestions = [];
+        appState.scatter.colorLabels = null;
+        appState.scatter.overviewRequestId = 0;
+        appState.scatter.metadata = { numeric_columns: ['HUFL', 'HULL'] } as any;
+        appState.metadata = { time_column: '' } as any;
+        appState.currentStart = null;
+        appState.currentEnd = null;
+        appState.columnRanges = {};
         Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
             configurable: true,
             value: () => new MockCanvasContext2D(),
@@ -114,5 +132,35 @@ describe('buildMatrixFetchPairs', () => {
 
         expect(container.querySelector('.scatter-matrix-grid')).toBe(firstGrid);
         expect(container.querySelector('.scatter-matrix-cell')).toBe(firstCell);
+    });
+
+    it('reuses a stable idle signal and resets the active matrix render controller', async () => {
+        const idleSignal = getMatrixRenderSignal();
+        expect(getMatrixRenderSignal()).toBe(idleSignal);
+
+        const fetchScatterPointsMock = vi.spyOn(api, 'fetchScatterPoints').mockResolvedValue({
+            x: 'HUFL',
+            y: 'HULL',
+            color: null,
+            total_points: 2,
+            returned_points: 2,
+            points: [[1, 2], [3, 4]],
+            color_values: null,
+            color_labels: null,
+            color_min: null,
+            color_max: null,
+        });
+
+        await renderScatterOverview(() => { });
+
+        const activeSignal = fetchScatterPointsMock.mock.calls[0]?.[5];
+        expect(activeSignal).toBeInstanceOf(AbortSignal);
+        expect(activeSignal).not.toBe(idleSignal);
+        expect(activeSignal?.aborted).toBe(false);
+
+        __resetMatrixRenderControllerForTests();
+
+        expect(activeSignal?.aborted).toBe(true);
+        expect(getMatrixRenderSignal()).toBe(idleSignal);
     });
 });

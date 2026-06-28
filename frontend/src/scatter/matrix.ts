@@ -57,6 +57,32 @@ function buildOverviewColumns(): string[] {
 
 /* ── Data fetch ───────────────────────────────────────── */
 
+/** Module-level abort controller for the latest matrix render. */
+let matrixRenderController: AbortController | null = null;
+const idleMatrixRenderSignal = new AbortController().signal;
+
+/**
+ * Returns the AbortSignal for the current matrix render, or a never-aborted
+ * signal if no render is in progress. Used by cell fetches and the FFT panel
+ * so a newer render aborts any in-flight cell fetches from a superseded one.
+ */
+export function getMatrixRenderSignal(): AbortSignal {
+    return matrixRenderController?.signal ?? idleMatrixRenderSignal;
+}
+
+/** Abort any in-flight matrix render and replace the controller with a fresh one. */
+function beginMatrixRender(): AbortSignal {
+    if (matrixRenderController) matrixRenderController.abort();
+    matrixRenderController = new AbortController();
+    return matrixRenderController.signal;
+}
+
+/** Test-only: reset the matrix render controller between test runs. */
+export function __resetMatrixRenderControllerForTests(): void {
+    if (matrixRenderController) matrixRenderController.abort();
+    matrixRenderController = null;
+}
+
 async function fetchMatrixCellData(
     x: string,
     y: string,
@@ -67,14 +93,20 @@ async function fetchMatrixCellData(
     const cached = appState.scatter.matrixCache.get(cacheKey);
     if (cached) return cached;
 
-    const request = fetchScatterPoints(x, y, MATRIX_POINT_LIMIT, colorColumn || null, context)
+    const signal = getMatrixRenderSignal();
+    const request = fetchScatterPoints(x, y, MATRIX_POINT_LIMIT, colorColumn || null, context, signal)
         .then((response: any) => ({
             totalPoints: Number(response?.total_points ?? 0),
             points: Array.isArray(response?.points) ? response.points : [],
             colorValues: Array.isArray(response?.color_values) ? response.color_values : null,
             colorLabels: Array.isArray(response?.color_labels) ? response.color_labels : null,
         }))
-        .catch((error: any) => { appState.scatter.matrixCache.delete(cacheKey); throw error; });
+        .catch((error: any) => {
+            // Drop the cached entry on abort so a follow-up render with the
+            // same key starts fresh instead of returning the rejected promise.
+            appState.scatter.matrixCache.delete(cacheKey);
+            throw error;
+        });
 
     appState.scatter.matrixCache.set(cacheKey, request);
 
@@ -177,6 +209,9 @@ export async function renderScatterOverview(
         colorColumn: controls.selectedColorColumn,
     });
     const requestId = ++appState.scatter.overviewRequestId;
+    // Abort any in-flight cell fetches from a previous render so the new
+    // render wins cleanly without piling up parallel requests.
+    beginMatrixRender();
     const pairs = buildMatrixFetchPairs(columns, controls, appState.scatter.lastSuggestions);
 
     const datasets = new Map<string, MatrixCellData>();
@@ -226,6 +261,7 @@ export async function renderScatterOverview(
                     datasets.set(`${col}|${row}`, data);
                 } catch (error) {
                     if (requestId !== appState.scatter.overviewRequestId) return;
+                    if (error instanceof Error && error.name === 'AbortError') return;
                     console.error(error);
                     hadErrors = true;
                 } finally {
@@ -246,6 +282,7 @@ export async function renderScatterOverview(
         updateStatus();
     } catch (error) {
         if (requestId !== appState.scatter.overviewRequestId) return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error(error);
         renderMatrixGrid(columns, new Map(), onCellClick, null);
         setPanelStatus('scatter-matrix-status', 'Matrix preview is temporarily unavailable for this query.');
@@ -353,7 +390,8 @@ export async function renderMatrixFftPanel(): Promise<void> {
     try {
         const startIso = new Date(context.start).toISOString();
         const endIso = new Date(context.end).toISOString();
-        const resp = await fetchFft(startIso, endIso, columns.join(','), 4096);
+        const signal = getMatrixRenderSignal();
+        const resp = await fetchFft(startIso, endIso, columns.join(','), 4096, signal);
 
         chartsContainer.innerHTML = '';
         for (const result of resp.results || []) {
@@ -382,12 +420,17 @@ export async function renderMatrixFftPanel(): Promise<void> {
 
             // Defer draw until canvas is in DOM and has layout
             requestAnimationFrame(() => {
+                if (signal.aborted) return;
                 drawMiniFftCanvas(canvas, result.frequencies, result.magnitudes, result.column);
             });
         }
 
         setPanelStatus('scatter-matrix-fft-status', `${resp.sample_count ?? 0} samples`);
-    } catch {
+    } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            // Superseded matrix render — let the next render repopulate the panel.
+            return;
+        }
         setPanelStatus('scatter-matrix-fft-status', 'FFT unavailable for current range.');
         (panel as HTMLElement).hidden = true;
     }

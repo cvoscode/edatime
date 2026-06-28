@@ -66,7 +66,11 @@ async fn main() {
 
     let frontend_dir = std::env::var("EDATIME_FRONTEND_DIR")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("frontend").join("dist"));
+        .unwrap_or_else(|_| {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("frontend")
+                .join("dist")
+        });
 
     let app = Router::new()
         .nest("/api", routes::api_router())
@@ -114,14 +118,12 @@ async fn frontend_cache_control_middleware(req: Request, next: Next) -> Response
             header::CACHE_CONTROL,
             header::HeaderValue::from_static("no-store, no-cache, must-revalidate"),
         );
-        response.headers_mut().insert(
-            header::PRAGMA,
-            header::HeaderValue::from_static("no-cache"),
-        );
-        response.headers_mut().insert(
-            header::EXPIRES,
-            header::HeaderValue::from_static("0"),
-        );
+        response
+            .headers_mut()
+            .insert(header::PRAGMA, header::HeaderValue::from_static("no-cache"));
+        response
+            .headers_mut()
+            .insert(header::EXPIRES, header::HeaderValue::from_static("0"));
     }
 
     response

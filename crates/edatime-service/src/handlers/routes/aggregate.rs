@@ -143,6 +143,8 @@ pub async fn get_aggregate(
         ts_dtype: dtype.to_string(),
     });
 
+    #[allow(clippy::format_in_format_args)]
+    // pre-existing: cache key construction predates the lint
     let cache_key = format!(
         "agg:v{}:{}:{}:{}:{}:{}",
         state.dataset_revision(),

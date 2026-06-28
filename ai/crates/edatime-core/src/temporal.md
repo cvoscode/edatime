@@ -25,6 +25,9 @@
 - `epoch_ms_to_native(value_ms: f64, dtype: &DataType, round_up: bool) -> Result<i64, AppError>`
   - Convert epoch-milliseconds to native Polars representation.
 
+### `DetectedTimeUnit`
+- `Seconds`, `Milliseconds`, `Microseconds`, `Nanoseconds`
+
 ### Detection
 - `detect_time_unit(max_abs: i64) -> Option<DetectedTimeUnit>`
   - Detects epoch time unit from max absolute value of timestamp column.

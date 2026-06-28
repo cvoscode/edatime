@@ -159,7 +159,7 @@
   gap: 0;
   min-width: 0;
   min-height: var(--scatter-tb-h);
-  padding: 4px;
+  padding: 2px 4px;
   border: 1px solid var(--tb-border);
   border-top-color: rgba(255, 255, 255, 0.10);
   border-radius: 8px;
@@ -192,22 +192,22 @@
   white-space: nowrap;
   flex: 0 0 auto;
   align-self: stretch;
-  width: 64px;
-  padding: 0 10px 0 6px;
+  width: 52px;
+  padding: 0 6px 0 4px;
   border-right: 1px solid var(--tb-divider);
   line-height: 1;
 }
 
 .scatter-toolbar__segment>.scatter-toolbar__controls,
 .scatter-toolbar__segment>.scatter-toolbar__fields {
-  padding: 0 6px 0 10px;
+  padding: 0 4px 0 6px;
   flex: 1 1 auto;
   min-width: 0;
   align-self: stretch;
   display: flex;
   align-items: center;
-  gap: 6px 8px;
-  flex-wrap: wrap;
+  gap: 4px 6px;
+  flex-wrap: nowrap;
   align-content: center;
 }
 
@@ -237,12 +237,20 @@
   flex: 0 1 auto;
 }
 
+/* The Display segment is the primary content row of the toolbar.
+   Grow it so it absorbs the available width instead of leaving a
+   dead zone next to the action segments. This keeps the toolbar
+   on a single row on wide screens while still letting the fields
+   overflow into the popout at narrow widths. */
 .scatter-toolbar__segment--display {
-  flex: 0 1 auto;
+  flex: 1 1 0;
+  min-width: 0;
+  width: 0;
 }
 
 .scatter-toolbar__segment--refine {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .scatter-toolbar__segment--actions {

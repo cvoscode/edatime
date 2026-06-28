@@ -16,10 +16,10 @@ use tower_http::{
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 use edatime_core::config::AppConfig;
-use edatime_service::state::AppState;
-use edatime_service::routes;
 use edatime_service::middleware;
 use edatime_service::rates;
+use edatime_service::routes;
+use edatime_service::state::AppState;
 
 #[tokio::main]
 async fn main() {
@@ -63,7 +63,11 @@ async fn main() {
 
     let frontend_dir = std::env::var("EDATIME_FRONTEND_DIR")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("frontend").join("dist"));
+        .unwrap_or_else(|_| {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("frontend")
+                .join("dist")
+        });
 
     let app = Router::new()
         .nest("/api", routes::api_router())
@@ -143,14 +147,12 @@ async fn frontend_cache_control_middleware(req: Request, next: Next) -> Response
             header::CACHE_CONTROL,
             header::HeaderValue::from_static("no-store, no-cache, must-revalidate"),
         );
-        response.headers_mut().insert(
-            header::PRAGMA,
-            header::HeaderValue::from_static("no-cache"),
-        );
-        response.headers_mut().insert(
-            header::EXPIRES,
-            header::HeaderValue::from_static("0"),
-        );
+        response
+            .headers_mut()
+            .insert(header::PRAGMA, header::HeaderValue::from_static("no-cache"));
+        response
+            .headers_mut()
+            .insert(header::EXPIRES, header::HeaderValue::from_static("0"));
     }
 
     response

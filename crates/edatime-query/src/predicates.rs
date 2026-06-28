@@ -1,7 +1,7 @@
 //! Composable predicate builders for LazyFrame filters.
 
 use edatime_core::error::AppError;
-use edatime_core::types::{LazyFrame, DataType, Expr, col, lit};
+use edatime_core::types::{DataType, Expr, LazyFrame, col, lit};
 
 pub struct PredicateBuilder {
     conditions: Vec<Expr>,
@@ -9,12 +9,16 @@ pub struct PredicateBuilder {
 
 impl PredicateBuilder {
     pub fn new() -> Self {
-        Self { conditions: Vec::new() }
+        Self {
+            conditions: Vec::new(),
+        }
     }
 
     pub fn time_range(mut self, col_name: &str, start: i64, end: i64) -> Self {
         self.conditions.push(
-            col(col_name).cast(DataType::Int64).gt_eq(lit(start))
+            col(col_name)
+                .cast(DataType::Int64)
+                .gt_eq(lit(start))
                 .and(col(col_name).cast(DataType::Int64).lt_eq(lit(end))),
         );
         self
@@ -22,7 +26,9 @@ impl PredicateBuilder {
 
     pub fn numeric_range(mut self, col_name: &str, min: f64, max: f64) -> Self {
         self.conditions.push(
-            col(col_name).gt_eq(lit(min)).and(col(col_name).lt_eq(lit(max))),
+            col(col_name)
+                .gt_eq(lit(min))
+                .and(col(col_name).lt_eq(lit(max))),
         );
         self
     }
@@ -49,5 +55,7 @@ impl PredicateBuilder {
 }
 
 impl Default for PredicateBuilder {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
