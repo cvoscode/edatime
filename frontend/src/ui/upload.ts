@@ -76,8 +76,7 @@ export function initUploadPanel(
     const timeEndInput = document.getElementById('time-end-input') as HTMLInputElement | null;
     const uploadBtn = document.getElementById('upload-btn') as HTMLButtonElement | null;
     const uploadStatus = document.getElementById('upload-status') as HTMLElement | null;
-    const progressWrap = document.getElementById('progress-wrap') as HTMLElement | null;
-    const progressBar = document.getElementById('progress-bar') as HTMLElement | null;
+    const uploadLoading = document.getElementById('upload-loading') as HTMLElement | null;
     const selectAllBtn = document.getElementById('profile-select-all-btn');
     const selectNoneBtn = document.getElementById('profile-select-none-btn');
     const selectAllCheckbox = document.getElementById('profile-select-all-checkbox') as HTMLInputElement | null;
@@ -85,7 +84,7 @@ export function initUploadPanel(
     if (
         !panel || !browseBtn || !fileInput || !dropZone || !fileDisplay ||
         !partialChk || !partialFlds || !nRowsInput || !nRowsRange || !nRowsDisp ||
-        !skipInput || !uploadBtn || !progressWrap || !progressBar
+        !skipInput || !uploadBtn
     ) {
         console.error('Upload panel is missing required elements.');
         return;
@@ -99,22 +98,8 @@ export function initUploadPanel(
             : rowCount >= 1_000 ? (rowCount / 1_000).toFixed(0) + 'K' : String(rowCount);
     }
 
-    function animateProgress(bar: HTMLElement): () => void {
-        let w = 0;
-        if (progressWrap) progressWrap.setAttribute('aria-valuenow', '0');
-        const t = setInterval(() => {
-            w = Math.min(w + Math.random() * 8, 85);
-            bar.style.width = w + '%';
-            if (progressWrap) progressWrap.setAttribute('aria-valuenow', String(Math.round(w)));
-            if (w >= 85) clearInterval(t);
-        }, 120);
-        return () => {
-            clearInterval(t);
-            if (progressWrap) {
-                const current = Number(progressWrap.getAttribute('aria-valuenow') || '0');
-                progressWrap.setAttribute('aria-valuenow', String(Math.max(current, 100)));
-            }
-        };
+    function showUploadLoading(show: boolean): void {
+        if (uploadLoading) uploadLoading.hidden = !show;
     }
 
     // Panel open/close
@@ -264,8 +249,6 @@ export function initUploadPanel(
             timeEndInput: timeEndInput,
             uploadBtn: uploadBtn!,
             statusEl: uploadStatus,
-            progressWrap: progressWrap!,
-            progressBar: progressBar!,
             fileInput: fileInput!,
             fileDisplay: fileDisplay!,
             deps,

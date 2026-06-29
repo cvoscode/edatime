@@ -22,8 +22,8 @@ pub mod transform;
 
 pub use anomaly::{AnomalyRegion, detect_anomalies_iqr, detect_anomalies_zscore};
 pub use drift::{
-    DriftMetadata, DriftResponse, DriftThresholds, DriftWindowStats, WindowDistributionStats,
-    compute_temporal_drift,
+    DriftInvestigationResponse, DriftMetadata, DriftResponse, DriftThresholds, DriftWindowStats,
+    WindowDistributionStats, compute_drift_investigation, compute_temporal_drift,
 };
 pub use fft::{FftResult, FrequencyPeak, compute_fft};
 pub use outlier::{OutlierRemovalResult, remove_outliers_global, remove_outliers_windowed};

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../debug.js', () => ({ DEBUG: false }));
+vi.mock('../utils/toast.js', () => ({ toast: vi.fn() }));
 
 class ResizeObserverMock {
     observe() { }
@@ -68,7 +69,6 @@ describe('drift page chart bootstrap', () => {
               <input id="drift-ref-end" type="datetime-local" />
               <button id="drift-compute-btn" type="button">Compute</button>
               <button id="drift-zoom-reset-btn" type="button">Reset</button>
-              <span id="drift-status"></span>
               <div id="drift-timeline-chart"></div>
               <div id="drift-detail-chart"></div>
               <select id="drift-detail-col-select"></select>

@@ -57,4 +57,5 @@ export {
     deleteDatabaseConnection,
     fetchDatabaseStatus,
     fetchDriftStats,
+    fetchDriftInvestigation,
 } from './upload.js';

@@ -59,9 +59,9 @@
       });
     }
   </script>
-  <script type="module" crossorigin src="/assets/index-CrsJ-ywD.js"></script>
+  <script type="module" crossorigin src="/assets/index-Ch_yjFm6.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/settings-Dtpfs5Fy.js">
-  <link rel="stylesheet" crossorigin href="/assets/index-Ckdy8Ff_.css">
+  <link rel="stylesheet" crossorigin href="/assets/index-D2iG0zCo.css">
 </head>
 
 <body>
@@ -237,12 +237,6 @@
         </div>
 
         <div class="header-meta" id="header-meta">
-          <!-- Data freshness indicator -->
-          <div id="data-freshness-indicator" class="data-freshness" hidden aria-label="Data freshness">
-            <span class="data-freshness-dot" aria-hidden="true"></span>
-            <span class="data-freshness-time">—</span>
-          </div>
-
           <button class="btn btn-ghost btn-sm" id="keyboard-help-btn" type="button" title="Keyboard shortcuts (?)"
             aria-label="Show keyboard shortcuts">
             <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"
@@ -307,13 +301,6 @@
             <div class="timeseries-filter-shell">
               <input type="text" id="column-filter-input" name="column-filter" class="column-filter-input"
                 placeholder="Filter columns…" aria-label="Filter columns">
-              <button class="btn btn-ghost btn-sm timeseries-collapse-btn" id="collapse-series-btn" type="button"
-                title="Collapse series list">
-                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="4,6 8,10 12,6" />
-                </svg>
-              </button>
             </div>
           </div>
           <div class="timeseries-command-bar__center">
@@ -413,7 +400,7 @@
               </div>
             </div>
 
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--actions zoom-toolbar timeseries-zoom-cluster"
+            <div class="scatter-toolbar__segment scatter-toolbar__segment--zoom zoom-toolbar timeseries-zoom-cluster"
               role="group" aria-label="Zoom controls">
               <span class="scatter-toolbar__eyebrow">Zoom</span>
               <div class="scatter-toolbar__controls">
@@ -723,6 +710,35 @@
                   <span>Log</span>
                 </span>
               </label>
+              <label class="toolbar-field scatter-toolbar__field" for="fft-normalize">
+                <span class="toolbar-field__label">Normalize</span>
+                <select id="fft-normalize" class="modal-select" aria-label="Normalize y-axis">
+                  <option value="none" selected>None</option>
+                  <option value="minmax">Min–max [0,1]</option>
+                  <option value="zscore">Z-score</option>
+                  <option value="robust">Robust [Q1, Q3]</option>
+                </select>
+              </label>
+              <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
+                for="fft-clip-toggle">
+                <span class="toolbar-field__label">Clip</span>
+                <span class="toolbar-field__control scatter-link-toggle">
+                  <input id="fft-clip-toggle" type="checkbox" name="fft-clip-toggle" aria-label="Clip outliers">
+                  <span>Outliers</span>
+                </span>
+              </label>
+              <label class="toolbar-field scatter-toolbar__field" for="fft-clip-method">
+                <span class="toolbar-field__label">Clip&nbsp;method</span>
+                <select id="fft-clip-method" class="modal-select" aria-label="Clip method" disabled>
+                  <option value="percentile" selected>Percentile</option>
+                  <option value="iqr">IQR (k)</option>
+                </select>
+              </label>
+              <label class="toolbar-field scatter-toolbar__field" for="fft-clip-param">
+                <span class="toolbar-field__label" id="fft-clip-param-label">Clip&nbsp;%</span>
+                <input id="fft-clip-param" class="modal-input" type="number" min="0" step="0.1" value="0.5"
+                  aria-label="Clip threshold" disabled>
+              </label>
             </div>
           </div>
 
@@ -808,6 +824,8 @@
             <div class="scatter-toolbar__fields">
               <label class="toolbar-field scatter-toolbar__field" for="heatmap-metric">
                 <span class="toolbar-field__label">Type</span>
+                <span id="heatmap-metric-info" class="toolbar-info-icon" tabindex="0"
+                  aria-label="Explain correlation metric choices" data-info-tip="">?</span>
                 <select id="heatmap-metric" class="modal-select" aria-label="Correlation metric">
                   <option value="pearson_raw" selected>Pearson · Raw aligned values</option>
                   <option value="spearman_raw">Spearman · Raw aligned values</option>
@@ -816,7 +834,6 @@
                   <option value="spearman_diff">Spearman · First differences</option>
                   <option value="kendall_diff">Kendall tau · First differences</option>
                 </select>
-                <div id="heatmap-metric-help" class="toolbar-field__help">Use for linear relationships on the original aligned values.</div>
               </label>
             </div>
           </div>
@@ -901,10 +918,40 @@
                   <span>Log</span>
                 </span>
               </label>
+              <label class="toolbar-field scatter-toolbar__field" for="spectrogram-normalize">
+                <span class="toolbar-field__label">Normalize</span>
+                <select id="spectrogram-normalize" class="modal-select" aria-label="Normalize color scale">
+                  <option value="none" selected>None</option>
+                  <option value="minmax">Min–max [0,1]</option>
+                  <option value="zscore">Z-score</option>
+                  <option value="robust">Robust [Q1, Q3]</option>
+                </select>
+              </label>
+              <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
+                for="spectrogram-clip-toggle">
+                <span class="toolbar-field__label">Clip</span>
+                <span class="toolbar-field__control scatter-link-toggle">
+                  <input id="spectrogram-clip-toggle" type="checkbox" name="spectrogram-clip-toggle"
+                    aria-label="Clip outliers">
+                  <span>Outliers</span>
+                </span>
+              </label>
+              <label class="toolbar-field scatter-toolbar__field" for="spectrogram-clip-method">
+                <span class="toolbar-field__label">Clip&nbsp;method</span>
+                <select id="spectrogram-clip-method" class="modal-select" aria-label="Clip method" disabled>
+                  <option value="percentile" selected>Percentile</option>
+                  <option value="iqr">IQR (k)</option>
+                </select>
+              </label>
+              <label class="toolbar-field scatter-toolbar__field" for="spectrogram-clip-param">
+                <span class="toolbar-field__label" id="spectrogram-clip-param-label">Clip&nbsp;%</span>
+                <input id="spectrogram-clip-param" class="modal-input" type="number" min="0" step="0.1" value="0.5"
+                  aria-label="Clip threshold" disabled>
+              </label>
             </div>
           </div>
 
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
             <span class="scatter-toolbar__eyebrow">Export</span>
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
               <details class="toolbar-disclosure toolbar-disclosure--end">
@@ -938,7 +985,27 @@
           </div>
         </div>
         <main class="main main--chart main--analysis-chart">
-          <div id="spectrogram-chart" style="width:100%;height:100%;display:block;"></div>
+          <div class="spectrogram-chart-row">
+            <div id="spectrogram-chart" style="flex:1 1 auto;width:100%;height:100%;display:block;min-width:0;"></div>
+            <div id="spectrogram-colorbar" class="scatter-colorbar-vertical" aria-label="Spectrogram colorbar" hidden>
+              <span class="scatter-colorbar-vtick" data-role="cb-high">High</span>
+              <span class="scatter-colorbar-vtick cb-mid-tick" data-role="cb-mid-high" hidden></span>
+              <div class="cb-range-track" data-role="cb-track">
+                <span class="scatter-colorbar-vbar"></span>
+                <span class="cb-mid-tick-mark cb-mid-tick-mark--high" data-role="cb-mid-mark-high" hidden></span>
+                <span class="cb-mid-tick-mark cb-mid-tick-mark--mid" data-role="cb-mid-mark-mid" hidden></span>
+                <span class="cb-mid-tick-mark cb-mid-tick-mark--low" data-role="cb-mid-mark-low" hidden></span>
+                <span class="cb-range-fill" data-role="cb-fill" hidden></span>
+                <span class="cb-handle cb-handle--high" data-role="cb-handle-high" tabindex="0" role="slider"
+                  aria-label="Filter high value" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></span>
+                <span class="cb-handle cb-handle--low" data-role="cb-handle-low" tabindex="0" role="slider"
+                  aria-label="Filter low value" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></span>
+              </div>
+              <span class="scatter-colorbar-vtick cb-mid-tick" data-role="cb-mid-low" hidden></span>
+              <span class="scatter-colorbar-vtick" data-role="cb-low">Low</span>
+              <span class="scatter-colorbar-vname">scaled</span>
+            </div>
+          </div>
           <div id="spectrogram-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong>No spectrogram yet</strong>
             <span>Pick a numeric column, keep the current time range, and click Compute.</span>
@@ -965,8 +1032,8 @@
                   <option value="bivci">BivCI</option>
                   <option value="lpcmci">LPCMCI</option>
                 </select>
-                <span class="causal-info-icon" tabindex="0"
-                  data-causal-tip="Causal discovery algorithm.&#10;• PCMCI: Two-step PC parent selection plus MCI testing. Reference: Runge et al., Sci Adv (2019).&#10;• PCMCI+: Adds contemporaneous link orientation. Reference: Runge, UAI (2020).&#10;• FullCI: Conditions on all lagged variables directly; no PC pre-selection.&#10;• BivCI: Bivariate screening against the target's own past; fastest but weakest adjustment.&#10;• LPCMCI: Extends PCMCI to latent confounding. Reference: Gerhardus and Runge, NeurIPS (2020).&#10;Controls disabled in the toolbar are ignored by the selected method.">ⓘ</span>
+                <span class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="Causal discovery algorithm.&#10;• PCMCI: Two-step PC parent selection plus MCI testing. Reference: Runge et al., Sci Adv (2019).&#10;• PCMCI+: Adds contemporaneous link orientation. Reference: Runge, UAI (2020).&#10;• FullCI: Conditions on all lagged variables directly; no PC pre-selection.&#10;• BivCI: Bivariate screening against the target's own past; fastest but weakest adjustment.&#10;• LPCMCI: Extends PCMCI to latent confounding. Reference: Gerhardus and Runge, NeurIPS (2020).&#10;Controls disabled in the toolbar are ignored by the selected method.">ⓘ</span>
               </div>
               <div class="scatter-toolbar__field">
                 <span class="scatter-toolbar__field-label">Test</span>
@@ -977,8 +1044,8 @@
                   <option value="gsquared">G-squared</option>
                   <option value="cmi_symb">CMI-Symb</option>
                 </select>
-                <span class="causal-info-icon" tabindex="0"
-                  data-causal-tip="Conditional independence test used inside the Tigramite-style causal engine.&#10;• ParCorr: Linear partial correlation; best when relations are near-Gaussian and linear.&#10;• RobustParCorr: Rank/non-paranormal style preprocessing plus ParCorr.&#10;• CMI-KNN: Nonlinear conditional mutual information. Reference: Runge, AISTATS (2018).&#10;• G-squared: Discrete/categorical likelihood-ratio test.&#10;• CMI-Symb: Symbolic/discretized mutual information test.&#10;Backend causal discovery is still numeric-data oriented even if non-numeric columns are shown as manual graph nodes.">ⓘ</span>
+                <span class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="Conditional independence test used inside the Tigramite-style causal engine.&#10;• ParCorr: Linear partial correlation; best when relations are near-Gaussian and linear.&#10;• RobustParCorr: Rank/non-paranormal style preprocessing plus ParCorr.&#10;• CMI-KNN: Nonlinear conditional mutual information. Reference: Runge, AISTATS (2018).&#10;• G-squared: Discrete/categorical likelihood-ratio test.&#10;• CMI-Symb: Symbolic/discretized mutual information test.&#10;Backend causal discovery is still numeric-data oriented even if non-numeric columns are shown as manual graph nodes.">ⓘ</span>
               </div>
             </div>
           </div>
@@ -988,31 +1055,31 @@
             <div class="scatter-toolbar__fields">
               <div class="scatter-toolbar__field">
                 <span class="scatter-toolbar__field-label">τ max</span>
-                <input id="causal-tau-max" type="number" min="1" max="10" value="3" class="modal-input"
+                <input id="causal-tau-max" type="number" min="1" max="128" value="3" class="modal-input"
                   aria-label="Maximum time lag (tau max)" name="causal-tau-max">
-                <span class="causal-info-icon" tabindex="0"
-                  data-causal-tip="Maximum time lag τ to test (1–10). Higher means more lagged relationships are evaluated, but runtime grows quickly.">ⓘ</span>
+                <span class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="Maximum time lag τ to test (1–128). Higher means more lagged relationships are evaluated, but runtime grows quickly and large requests may be rejected.">ⓘ</span>
               </div>
               <div class="scatter-toolbar__field">
                 <span class="scatter-toolbar__field-label">α</span>
                 <input id="causal-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.05"
                   class="modal-input" aria-label="Significance level (alpha)" name="causal-alpha">
-                <span class="causal-info-icon" tabindex="0"
-                  data-causal-tip="Final significance threshold α. Links with p-values above α are removed from the final result.">ⓘ</span>
+                <span class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="Final significance threshold α. Links with p-values above α are removed from the final result.">ⓘ</span>
               </div>
               <div class="scatter-toolbar__field">
                 <span class="scatter-toolbar__field-label">PC α</span>
                 <input id="causal-pc-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.2"
                   class="modal-input" aria-label="PC stage significance level" name="causal-pc-alpha">
-                <span class="causal-info-icon" tabindex="0"
-                  data-causal-tip="Significance threshold for the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI. Disabled for FullCI and BivCI because those methods do not run the PC step.">ⓘ</span>
+                <span class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="Significance threshold for the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI. Disabled for FullCI and BivCI because those methods do not run the PC step.">ⓘ</span>
               </div>
               <div class="scatter-toolbar__field">
                 <span class="scatter-toolbar__field-label">Max conds</span>
                 <input id="causal-max-conds" type="number" min="1" max="20" value="" placeholder="auto"
                   class="modal-input" aria-label="Maximum conditioning set size" name="causal-max-conds">
-                <span class="causal-info-icon" tabindex="0"
-                  data-causal-tip="Maximum conditioning-set size used in the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI only. &quot;auto&quot; lets the backend decide.">ⓘ</span>
+                <span class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="Maximum conditioning-set size used in the PC parent-selection stage. Used by PCMCI, PCMCI+, and LPCMCI only. &quot;auto&quot; lets the backend decide.">ⓘ</span>
               </div>
               <div class="scatter-toolbar__field">
                 <span class="scatter-toolbar__field-label">FDR</span>
@@ -1020,8 +1087,8 @@
                   <option value="none" selected>None</option>
                   <option value="fdr_bh">Benjamini-Hochberg</option>
                 </select>
-                <span class="causal-info-icon" tabindex="0"
-                  data-causal-tip="False Discovery Rate correction.&#10;• None: Raw p-values.&#10;• Benjamini-Hochberg: Controls FDR across all tested links.">ⓘ</span>
+                <span class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="False Discovery Rate correction.&#10;• None: Raw p-values.&#10;• Benjamini-Hochberg: Controls FDR across all tested links.">ⓘ</span>
               </div>
             </div>
           </div>
@@ -1046,14 +1113,6 @@
                 Compute</button>
             </div>
           </div>
-        </div>
-        <div id="causal-status" class="analysis-status" role="status" aria-live="polite"></div>
-        <!-- Progress bar -->
-        <div id="causal-progress" class="causal-progress-wrap" hidden>
-          <div class="causal-progress-track">
-            <div class="causal-progress-fill" id="causal-progress-fill"></div>
-          </div>
-          <span class="causal-progress-label" id="causal-progress-label"></span>
         </div>
         <div class="fft-traces-bar" id="causal-columns-bar"
           style="flex-wrap:wrap;gap:6px;padding:6px 12px;border-bottom:1px solid var(--border);min-height:34px;">
@@ -1152,9 +1211,28 @@
                 <span class="scatter-toolbar__field-label">Detail View</span>
                 <select id="drift-plot-type" class="modal-select" aria-label="Plot style">
                   <option value="box">Box plot</option>
-                  <option value="violin">Violin</option>
+                  <option value="violin">Density area</option>
                   <option value="ecdf">ECDF overlay</option>
                   <option value="histogram">Histogram overlay</option>
+                </select>
+              </div>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">Evaluate</span>
+                <select id="drift-evaluation-mode" class="modal-select" aria-label="Evaluation mode">
+                  <option value="all" selected>All later windows</option>
+                  <option value="latest">Latest window only</option>
+                  <option value="latest-n">Latest N windows</option>
+                </select>
+              </div>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">Latest N</span>
+                <input id="drift-latest-n" type="number" min="1" step="1" value="3" class="modal-input"
+                  aria-label="Latest window count">
+              </div>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">Segment</span>
+                <select id="drift-segment-by" class="modal-select" aria-label="Segment by column">
+                  <option value="" selected>None</option>
                 </select>
               </div>
             </div>
@@ -1164,11 +1242,12 @@
             <span class="scatter-toolbar__eyebrow">Reference</span>
             <div class="scatter-toolbar__fields">
               <div class="scatter-toolbar__field">
-                <span class="scatter-toolbar__field-label">Preset</span>
+                <span class="scatter-toolbar__field-label">Source</span>
                 <select id="drift-ref-preset" class="modal-select" aria-label="Reference window preset">
                   <option value="30">First 30%</option>
                   <option value="50" selected>First 50%</option>
                   <option value="70">First 70%</option>
+                  <option value="viewport">Current viewport</option>
                   <option value="custom">Custom</option>
                 </select>
               </div>
@@ -1190,6 +1269,45 @@
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
               <button id="drift-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button" title="Reset chart zoom">↩
                 Reset</button>
+            </div>
+          </div>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
+            <span class="scatter-toolbar__eyebrow">Thresholds</span>
+            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <details class="toolbar-disclosure toolbar-disclosure--end">
+                <summary class="toolbar-disclosure__summary">
+                  <span class="toolbar-label">Composite</span>
+                  <span class="toolbar-disclosure__value">PSI + Wass + KS + E-S</span>
+                </summary>
+                <div class="toolbar-disclosure__menu">
+                  <label class="toolbar-field">
+                    <span class="toolbar-field__label">PSI minor</span>
+                    <input id="drift-psi-minor-threshold" type="number" min="0" step="0.01" value="0.10"
+                      class="modal-input" aria-label="PSI minor threshold">
+                  </label>
+                  <label class="toolbar-field">
+                    <span class="toolbar-field__label">PSI major</span>
+                    <input id="drift-psi-major-threshold" type="number" min="0" step="0.01" value="0.20"
+                      class="modal-input" aria-label="PSI major threshold">
+                  </label>
+                  <label class="toolbar-field">
+                    <span class="toolbar-field__label">KS p</span>
+                    <input id="drift-ks-threshold" type="number" min="0" max="1" step="0.01" value="0.05"
+                      class="modal-input" aria-label="KS p-value threshold">
+                  </label>
+                  <label class="toolbar-field">
+                    <span class="toolbar-field__label">E-S p</span>
+                    <input id="drift-es-threshold" type="number" min="0" max="1" step="0.01" value="0.05"
+                      class="modal-input" aria-label="E-S p-value threshold">
+                  </label>
+                  <label class="toolbar-field">
+                    <span class="toolbar-field__label">Wass std mult</span>
+                    <input id="drift-wasserstein-std-multiplier" type="number" min="0" step="0.01" value="0.10"
+                      class="modal-input" aria-label="Wasserstein standard deviation multiplier">
+                  </label>
+                </div>
+              </details>
             </div>
           </div>
 
@@ -1239,16 +1357,29 @@
           </div>
         </div>
         <main class="main main--chart">
-          <div class="drift-layout">
+          <div id="drift-investigation-tabs" class="drift-list-controls" aria-label="Drift investigation tabs">
+            <button type="button" class="btn btn-ghost btn-sm active" data-drift-tab="overview" aria-pressed="true">Overview</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-drift-tab="timeline" aria-pressed="false">Timeline plots</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-drift-tab="segments" aria-pressed="false">Segments</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-drift-tab="quality" aria-pressed="false">Quality</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-drift-tab="relationships" aria-pressed="false">Relationships</button>
+          </div>
+          <div id="drift-overview-panel" class="drift-column-summary" aria-live="polite"></div>
+          <div id="drift-segments-panel" class="drift-column-summary" aria-live="polite" hidden></div>
+          <div id="drift-quality-panel" class="drift-column-summary" aria-live="polite" hidden></div>
+          <div id="drift-relationships-panel" class="drift-column-summary" aria-live="polite" hidden></div>
+          <div id="drift-summary-strip" class="drift-summary-strip" aria-live="polite"></div>
+          <div id="drift-column-summary" class="drift-column-summary" aria-live="polite"></div>
+          <div class="drift-layout" hidden>
             <!-- Left: macro timeline + legend -->
             <div class="drift-timeline-panel">
               <div class="drift-timeline-canvas-wrap">
                 <div id="drift-timeline-chart" role="img" aria-label="Drift timeline chart"></div>
               </div>
               <div class="drift-legend">
-                <span class="drift-window-badge drift-window-badge--green"></span><span>No drift</span>
-                <span class="drift-window-badge drift-window-badge--yellow"></span><span>Minor drift (PSI ≥ 0.1)</span>
-                <span class="drift-window-badge drift-window-badge--red"></span><span>Major drift</span>
+                <span class="drift-window-badge drift-window-badge--green"></span><span>No trigger fired</span>
+                <span class="drift-window-badge drift-window-badge--yellow"></span><span>One trigger fired</span>
+                <span class="drift-window-badge drift-window-badge--red"></span><span>Composite drift (2+ score)</span>
               </div>
             </div>
 
@@ -1642,10 +1773,11 @@
                   </svg>
                   Upload & Ingest
                 </button>
-                <div class="progress-bar-wrap" id="progress-wrap" style="display:none" role="progressbar"
-                  aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Upload progress">
-                  <div class="progress-bar" id="progress-bar"></div>
-                </div>
+              </div>
+              <div id="upload-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite"
+                aria-label="Upload progress">
+                <div class="chart-loading-spinner"></div>
+                <span class="chart-loading-label">Uploading &amp; ingesting…</span>
               </div>
             </div>
 
@@ -2168,7 +2300,7 @@
               <div class="settings-row">
                 <label class="settings-label" for="settings-tau-max">Default tau max</label>
                 <div class="settings-control">
-                  <input id="settings-tau-max" type="number" class="modal-input" min="1" max="10" value="5"
+                  <input id="settings-tau-max" type="number" class="modal-input" min="1" max="128" value="5"
                     style="width:80px;">
                   <div class="settings-hint">Maximum time lag to consider</div>
                 </div>

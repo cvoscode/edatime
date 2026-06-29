@@ -3,7 +3,7 @@
 
 ## Re-exports
 - `detect_anomalies_iqr`, `detect_anomalies_zscore`, `AnomalyRegion` [deps: [anomaly][1]]
-- `compute_temporal_drift`, `DriftMetadata`, `DriftResponse`, `DriftThresholds`, `DriftWindowStats`, `WindowDistributionStats` [deps: [drift][2]]
+- `compute_temporal_drift`, `compute_drift_investigation`, `classify_drift_window`, `format_window_label`, `ks_test_2sample`, `wasserstein_distance_1d`, `compute_psi`, `psi_ref_props_from_sorted`, `compute_psi_with_ref_props`, `jensen_shannon_divergence_with_ref_props`, `DriftMetadata`, `DriftResponse`, `DriftThresholds`, `DriftWindowStats`, `WindowDistributionStats`, `DriftInvestigationOverview`, `DriftFeatureRank`, `DriftSegmentRank`, `DriftChangePointRank`, `DriftQualityIssueRank`, `DriftRelationshipRank`, `DriftInvestigationResponse` [deps: [drift][2]]
 - `compute_fft`, `FftResult`, `FrequencyPeak` [deps: [fft][3]]
 - `remove_outliers_global`, `remove_outliers_windowed`, `OutlierRemovalResult` [deps: [outlier][4]]
 - `compute_rolling_bands`, `RollingBands` [deps: [rolling][5]]

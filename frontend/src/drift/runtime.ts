@@ -58,8 +58,6 @@ export function _setEchartsModule(m: typeof import('echarts') | null): void {
 export interface DriftComputeTaskOptions {
     setLoading: (loading: boolean) => void;
     onError: (message: string) => void;
-    statusEl?: HTMLElement | null;
-    emptyStateEl?: HTMLElement | null;
 }
 
 /** Creates a drift compute request task. */

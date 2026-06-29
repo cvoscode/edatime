@@ -19,6 +19,10 @@ vi.mock('echarts', () => ({
     init: vi.fn(() => chartMock),
 }));
 
+vi.mock('../utils/toast.js', () => ({
+    toast: vi.fn(),
+}));
+
 class ResizeObserverMock {
     observe() { }
     unobserve() { }
@@ -60,94 +64,115 @@ describe('drift page accessibility and debug metadata', () => {
         fetchMock = vi.fn().mockResolvedValue({
             ok: true,
             json: async () => ({
-                column: 'value',
-                reference: {
-                    start_ms: 0,
-                    end_ms: 10,
-                    label: 'ref',
-                    count: 10,
-                    null_count: 0,
-                    completeness: 1,
-                    mean: 1,
-                    std: 0.2,
-                    min: 0,
-                    max: 2,
-                    quantiles: [0.2, 0.7, 1.0, 1.3, 1.8],
-                    hist_bins: [0, 1, 2],
-                    hist_counts: [3, 7],
-                    ecdf_x: [0, 1, 2],
-                    ecdf_y: [0.2, 0.6, 1],
+                overview: {
+                    driftScore: 91,
+                    worstLevel: 'red',
+                    columnsFlagged: 1,
+                    totalColumns: 1,
+                    windowsFlagged: 2,
+                    firstChangePoint: '1970-01-01T00:11:00.000Z',
                 },
-                windows: [
-                    {
-                        start_ms: 11,
-                        end_ms: 20,
-                        label: '1970-01-01 00:11 - 1970-01-01 00:20',
-                        count: 8,
-                        null_count: 0,
-                        completeness: 1,
-                        mean: 1.2,
-                        std: 0.2,
-                        min: 0.5,
-                        max: 2.1,
-                        quantiles: [0.5, 0.9, 1.2, 1.4, 1.9],
-                        hist_bins: [0, 1, 2],
-                        hist_counts: [2, 6],
-                        ecdf_x: [0.5, 1.2, 2.1],
-                        ecdf_y: [0.2, 0.7, 1],
-                        ks_stat: 0.1,
-                        ks_pvalue: 0.8,
-                        es_stat: 0.12,
-                        es_pvalue: 0.7,
-                        wasserstein: 0.2,
-                        psi: 0.12,
-                        jensen_shannon: 0.04,
-                        drift_level: 'yellow',
-                        trigger_reasons: ['psi_minor'],
-                        completeness_delta: 0,
-                        low_sample_warning: false,
+                columns: {
+                    value: {
+                        column: 'value',
+                        reference: {
+                            start_ms: 0,
+                            end_ms: 10,
+                            label: 'ref',
+                            count: 10,
+                            null_count: 0,
+                            completeness: 1,
+                            mean: 1,
+                            std: 0.2,
+                            min: 0,
+                            max: 2,
+                            quantiles: [0.2, 0.7, 1.0, 1.3, 1.8],
+                            hist_bins: [0, 1, 2],
+                            hist_counts: [3, 7],
+                            ecdf_x: [0, 1, 2],
+                            ecdf_y: [0.2, 0.6, 1],
+                        },
+                        windows: [
+                            {
+                                start_ms: 11,
+                                end_ms: 20,
+                                label: '1970-01-01 00:11 - 1970-01-01 00:20',
+                                count: 8,
+                                null_count: 0,
+                                completeness: 1,
+                                mean: 1.2,
+                                std: 0.2,
+                                min: 0.5,
+                                max: 2.1,
+                                quantiles: [0.5, 0.9, 1.2, 1.4, 1.9],
+                                hist_bins: [0, 1, 2],
+                                hist_counts: [2, 6],
+                                ecdf_x: [0.5, 1.2, 2.1],
+                                ecdf_y: [0.2, 0.7, 1],
+                                ks_stat: 0.1,
+                                ks_pvalue: 0.8,
+                                es_stat: 0.12,
+                                es_pvalue: 0.7,
+                                wasserstein: 0.2,
+                                psi: 0.12,
+                                jensen_shannon: 0.04,
+                                drift_level: 'yellow',
+                                trigger_reasons: ['psi_minor'],
+                                completeness_delta: 0,
+                                low_sample_warning: false,
+                            },
+                            {
+                                start_ms: 21,
+                                end_ms: 30,
+                                label: '1970-01-01 00:21 - 1970-01-01 00:30',
+                                count: 9,
+                                null_count: 0,
+                                completeness: 1,
+                                mean: 1.6,
+                                std: 0.3,
+                                min: 0.8,
+                                max: 2.4,
+                                quantiles: [0.8, 1.2, 1.6, 1.9, 2.3],
+                                hist_bins: [0, 1, 2],
+                                hist_counts: [1, 8],
+                                ecdf_x: [0.8, 1.6, 2.4],
+                                ecdf_y: [0.2, 0.75, 1],
+                                ks_stat: 0.2,
+                                ks_pvalue: 0.5,
+                                es_stat: 0.19,
+                                es_pvalue: 0.4,
+                                wasserstein: 0.3,
+                                psi: 0.26,
+                                jensen_shannon: 0.11,
+                                drift_level: 'red',
+                                trigger_reasons: ['psi_major', 'ks', 'es', 'wasserstein'],
+                                completeness_delta: -0.18,
+                                low_sample_warning: false,
+                            },
+                        ],
+                        thresholds: {
+                            ks_pvalue_threshold: 0.05,
+                            es_pvalue_threshold: 0.05,
+                            wasserstein_threshold: 0.2,
+                            psi_minor_threshold: 0.1,
+                            psi_major_threshold: 0.25,
+                        },
+                        metadata: {
+                            computation_time_ms: 12,
+                            num_windows: 2,
+                            reference_samples: 10,
+                        },
                     },
-                    {
-                        start_ms: 21,
-                        end_ms: 30,
-                        label: '1970-01-01 00:21 - 1970-01-01 00:30',
-                        count: 9,
-                        null_count: 0,
-                        completeness: 1,
-                        mean: 1.6,
-                        std: 0.3,
-                        min: 0.8,
-                        max: 2.4,
-                        quantiles: [0.8, 1.2, 1.6, 1.9, 2.3],
-                        hist_bins: [0, 1, 2],
-                        hist_counts: [1, 8],
-                        ecdf_x: [0.8, 1.6, 2.4],
-                        ecdf_y: [0.2, 0.75, 1],
-                        ks_stat: 0.2,
-                        ks_pvalue: 0.5,
-                        es_stat: 0.19,
-                        es_pvalue: 0.4,
-                        wasserstein: 0.3,
-                        psi: 0.26,
-                        jensen_shannon: 0.11,
-                        drift_level: 'red',
-                        trigger_reasons: ['psi_major', 'ks', 'es', 'wasserstein'],
-                        completeness_delta: -0.18,
-                        low_sample_warning: false,
-                    },
-                ],
-                thresholds: {
-                    ks_pvalue_threshold: 0.05,
-                    es_pvalue_threshold: 0.05,
-                    wasserstein_threshold: 0.2,
-                    psi_minor_threshold: 0.1,
-                    psi_major_threshold: 0.25,
                 },
-                metadata: {
-                    computation_time_ms: 12,
-                    num_windows: 2,
-                    reference_samples: 10,
+                rankings: {
+                    features: [{ column: 'value', driftScore: 91, latestLevel: 'red', flaggedWindows: 2, firstChangePoint: '1970-01-01T00:11:00.000Z' }],
+                    segments: [],
+                    changePoints: [{ column: 'value', label: '1970-01-01 00:21 - 1970-01-01 00:30', isoTime: '1970-01-01T00:21:00.000Z', driftScore: 91, triggerReasons: ['psi_major', 'ks', 'es', 'wasserstein'] }],
+                    qualityIssues: [{ column: 'value', issue: 'missingness_jump', label: 'missingness jump', driftScore: 91 }],
+                    relationships: [],
                 },
+                quality: { byColumn: { value: { latestMissingRate: 0, latestCompletenessDelta: -0.18, latestZeroRate: 0, flatline: false, lowSampleWarning: false, issues: ['missingness_jump'] } } },
+                relationships: { mode: 'pearson_raw', pairs: [] },
             }),
         });
         vi.stubGlobal('fetch', fetchMock);
@@ -213,6 +238,7 @@ describe('drift page accessibility and debug metadata', () => {
               <select id="drift-ref-preset"><option value="50" selected>50</option></select>
               <select id="drift-evaluation-mode"><option value="all" selected>All later windows</option><option value="latest">Latest window only</option><option value="latest-n">Latest N windows</option></select>
               <input id="drift-latest-n" type="number" value="3" />
+              <select id="drift-segment-by"><option value="" selected>None</option></select>
               <input id="drift-ks-threshold" type="number" value="0.05" />
               <input id="drift-es-threshold" type="number" value="0.05" />
               <input id="drift-psi-minor-threshold" type="number" value="0.10" />
@@ -222,7 +248,17 @@ describe('drift page accessibility and debug metadata', () => {
               <input id="drift-ref-end" type="datetime-local" />
               <button id="drift-compute-btn" type="button">Compute</button>
               <button id="drift-zoom-reset-btn" type="button">Reset</button>
-              <span id="drift-status"></span>
+              <div id="drift-investigation-tabs">
+                <button type="button" data-drift-tab="overview">Overview</button>
+                <button type="button" data-drift-tab="timeline">Timeline plots</button>
+                <button type="button" data-drift-tab="segments">Segments</button>
+                <button type="button" data-drift-tab="quality">Quality</button>
+                <button type="button" data-drift-tab="relationships">Relationships</button>
+              </div>
+              <div id="drift-overview-panel"></div>
+              <div id="drift-segments-panel"></div>
+              <div id="drift-quality-panel"></div>
+              <div id="drift-relationships-panel"></div>
               <div id="drift-summary-strip"></div>
               <div id="drift-column-summary"></div>
               <div id="drift-timeline-chart"></div>
@@ -263,6 +299,7 @@ describe('drift page accessibility and debug metadata', () => {
         const { initDriftPage } = await import('./driftPage.js');
         await initDriftPage({
             numeric_columns: ['value'],
+            columns: [{ name: 'value', dtype: 'Float64' }],
             time_range: { min: 0, max: 1_000 },
         });
 
@@ -271,6 +308,7 @@ describe('drift page accessibility and debug metadata', () => {
         (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
 
         (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
+        (document.querySelector('[data-drift-tab="timeline"]') as HTMLButtonElement).click();
 
         // Poll for window items, adding longer delays to handle CI/system load.
         const waitForWindowItems = async () => {
@@ -298,6 +336,7 @@ describe('drift page accessibility and debug metadata', () => {
         const { initDriftPage } = await import('./driftPage.js');
         await initDriftPage({
             numeric_columns: ['value'],
+            columns: [{ name: 'value', dtype: 'Float64' }],
             time_range: { min: 0, max: 1_000 },
         });
 
@@ -307,10 +346,127 @@ describe('drift page accessibility and debug metadata', () => {
         (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
 
         await vi.waitFor(() => {
-            expect(document.getElementById('drift-summary-strip')?.textContent).toContain('Any drift detected?');
+            expect(document.getElementById('drift-overview-panel')?.textContent).toContain('Investigation score');
         });
 
-        expect(document.getElementById('drift-column-summary')?.textContent).toContain('psi_major');
+        expect(document.getElementById('drift-overview-panel')?.textContent).toContain('psi_major');
         expect(document.getElementById('drift-detail-stats')?.textContent).toContain('Triggered by');
+    });
+
+    it('opens the timeline plots tab after compute so charts are visible', async () => {
+        const { initDriftPage } = await import('./driftPage.js');
+        await initDriftPage({
+            numeric_columns: ['value'],
+            columns: [{ name: 'value', dtype: 'Float64' }],
+            time_range: { min: 0, max: 1_000 },
+        });
+
+        (document.getElementById('drift-ref-start') as HTMLInputElement).value = '1970-01-01T00:00';
+        (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
+        (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-drift-tab="timeline"]')?.getAttribute('aria-pressed')).toBe('true');
+        });
+
+        expect(document.querySelector('[data-drift-tab="timeline"]')?.textContent).toContain('Timeline plots');
+        expect((document.querySelector('#page-drift .drift-layout') as HTMLElement | null)?.hidden).toBe(false);
+        expect(document.getElementById('drift-overview-panel')?.hidden).toBe(true);
+    });
+
+    it('falls back to legacy per-column drift stats when investigate returns 405', async () => {
+        fetchMock.mockReset();
+        fetchMock
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 405,
+                headers: { get: () => 'text/plain' },
+                text: async () => 'Method Not Allowed',
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    column: 'value',
+                    reference: {
+                        start_ms: 0,
+                        end_ms: 10,
+                        label: 'ref',
+                        count: 10,
+                        null_count: 0,
+                        completeness: 1,
+                        mean: 1,
+                        std: 0.2,
+                        min: 0,
+                        max: 2,
+                        quantiles: [0.2, 0.7, 1.0, 1.3, 1.8],
+                        hist_bins: [0, 1, 2],
+                        hist_counts: [3, 7],
+                        ecdf_x: [0, 1, 2],
+                        ecdf_y: [0.2, 0.6, 1],
+                    },
+                    windows: [
+                        {
+                            start_ms: 11,
+                            end_ms: 20,
+                            label: '1970-01-01 00:11 - 1970-01-01 00:20',
+                            count: 8,
+                            null_count: 0,
+                            completeness: 1,
+                            mean: 1.2,
+                            std: 0.2,
+                            min: 0.5,
+                            max: 2.1,
+                            quantiles: [0.5, 0.9, 1.2, 1.4, 1.9],
+                            hist_bins: [0, 1, 2],
+                            hist_counts: [2, 6],
+                            ecdf_x: [0.5, 1.2, 2.1],
+                            ecdf_y: [0.2, 0.7, 1],
+                            ks_stat: 0.1,
+                            ks_pvalue: 0.8,
+                            es_stat: 0.12,
+                            es_pvalue: 0.7,
+                            wasserstein: 0.2,
+                            psi: 0.12,
+                            jensen_shannon: 0.04,
+                            drift_level: 'yellow',
+                            trigger_reasons: ['psi_minor'],
+                            completeness_delta: 0,
+                            low_sample_warning: false,
+                        },
+                    ],
+                    thresholds: {
+                        ks_pvalue_threshold: 0.05,
+                        es_pvalue_threshold: 0.05,
+                        wasserstein_threshold: 0.2,
+                        psi_minor_threshold: 0.1,
+                        psi_major_threshold: 0.25,
+                    },
+                    metadata: {
+                        computation_time_ms: 12,
+                        num_windows: 1,
+                        reference_samples: 10,
+                    },
+                }),
+            });
+
+        const { initDriftPage } = await import('./driftPage.js');
+        await initDriftPage({
+            numeric_columns: ['value'],
+            columns: [{ name: 'value', dtype: 'Float64' }],
+            time_range: { min: 0, max: 1_000 },
+        });
+
+        (document.getElementById('drift-ref-start') as HTMLInputElement).value = '1970-01-01T00:00';
+        (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
+        (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
+
+        await vi.waitFor(() => {
+            expect(fetchMock).toHaveBeenCalledTimes(2);
+        });
+
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/drift/investigate');
+        expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/drift/stats');
+        expect(document.getElementById('drift-overview-panel')?.textContent).toContain('Legacy fallback');
+        expect(document.getElementById('drift-column-summary')?.textContent).toContain('value');
     });
 });

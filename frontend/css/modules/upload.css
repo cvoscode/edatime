@@ -84,6 +84,7 @@
   grid-template-columns: minmax(260px, 1fr) minmax(240px, 1fr) minmax(200px, 280px);
   gap: 20px;
   align-items: start;
+  position: relative;
 }
 
 /* ─── Drop zone ──────────────────────────────────────────────── */
@@ -396,22 +397,7 @@
   box-shadow: 0 2px 8px rgba(0, 168, 255, 0.2);
 }
 
-/* Progress bar */
-.progress-bar-wrap {
-  height: 4px;
-  background: var(--surface-2);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.progress-bar {
-  height: 100%;
-  width: 0;
-  background: linear-gradient(90deg, var(--accent) 0%, var(--cyan) 100%);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-  box-shadow: 0 0 8px rgba(0, 168, 255, 0.4);
-}
+/* Progress bar (removed — replaced by upload-loading overlay) */
 
 /* ─── Database section ────────────────────────────────────────── */
 .db-section {

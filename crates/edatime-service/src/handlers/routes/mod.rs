@@ -67,6 +67,7 @@ pub fn api_router() -> Router<AppState> {
         .route("/transform", post(analytics::post_transform))
         // Drift endpoint
         .route("/drift/stats", post(drift::post_drift_stats))
+        .route("/drift/investigate", post(drift::post_drift_investigate))
 }
 
 fn analytics_router() -> Router<AppState> {

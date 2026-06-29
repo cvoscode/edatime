@@ -19,6 +19,8 @@
   flex: 1;
   min-height: 0;
 }
+[hidden] { display: none !important; }
+
 .page[hidden] { display: none !important; }
 
 .page--analysis-scroll {

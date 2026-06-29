@@ -593,10 +593,6 @@
   .upload-actions {
     gap: 8px;
   }
-
-  .progress-bar-wrap {
-    height: 4px;
-  }
 }
 
 /* ─── Print styles ─────────────────────────────────────────────── */

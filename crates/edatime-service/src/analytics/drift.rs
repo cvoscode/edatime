@@ -4,6 +4,7 @@
 use chrono::{DateTime, Utc};
 use polars::prelude::*;
 use serde::Serialize;
+use std::collections::{BTreeMap, HashMap};
 
 use super::shared::{extract_f64_column_opt, extract_ts_epoch_ms};
 use crate::error::AppError;
@@ -332,6 +333,131 @@ pub struct DriftResponse {
     pub windows: Vec<DriftWindowStats>,
     pub thresholds: DriftThresholds,
     pub metadata: DriftMetadata,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftInvestigationOverview {
+    pub drift_score: u32,
+    pub worst_level: String,
+    pub columns_flagged: usize,
+    pub total_columns: usize,
+    pub windows_flagged: usize,
+    pub first_change_point: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftFeatureRank {
+    pub column: String,
+    pub drift_score: u32,
+    pub latest_level: String,
+    pub flagged_windows: usize,
+    pub first_change_point: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftSegmentRank {
+    pub segment_value: String,
+    pub drift_score: u32,
+    pub columns_flagged: usize,
+    pub sample_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftChangePointRank {
+    pub column: String,
+    pub label: String,
+    pub iso_time: String,
+    pub drift_score: u32,
+    pub trigger_reasons: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftQualityIssueRank {
+    pub column: String,
+    pub issue: String,
+    pub label: String,
+    pub drift_score: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftRelationshipRank {
+    pub left_column: String,
+    pub right_column: String,
+    pub reference: f64,
+    pub comparison: f64,
+    pub delta: f64,
+    pub aligned_reference_samples: usize,
+    pub aligned_comparison_samples: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftRankingSummary {
+    pub features: Vec<DriftFeatureRank>,
+    pub segments: Vec<DriftSegmentRank>,
+    pub change_points: Vec<DriftChangePointRank>,
+    pub quality_issues: Vec<DriftQualityIssueRank>,
+    pub relationships: Vec<DriftRelationshipRank>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftSegmentGroup {
+    pub value: String,
+    pub sample_count: usize,
+    pub overview: DriftInvestigationOverview,
+    pub feature_ranks: Vec<DriftFeatureRank>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftSegmentSummary {
+    pub segment_by: String,
+    pub groups: Vec<DriftSegmentGroup>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftQualitySummary {
+    pub latest_missing_rate: f64,
+    pub latest_completeness_delta: f64,
+    pub latest_zero_rate: f64,
+    pub flatline: bool,
+    pub low_sample_warning: bool,
+    pub issues: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftQualitySection {
+    pub by_column: BTreeMap<String, DriftQualitySummary>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftRelationshipSection {
+    pub mode: String,
+    pub pairs: Vec<DriftRelationshipRank>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftInvestigationResponse {
+    pub overview: DriftInvestigationOverview,
+    pub columns: BTreeMap<String, DriftResponse>,
+    pub rankings: DriftRankingSummary,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub segments: Option<DriftSegmentSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quality: Option<DriftQualitySection>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relationships: Option<DriftRelationshipSection>,
 }
 
 fn build_distribution_stats(
@@ -738,6 +864,537 @@ pub fn compute_temporal_drift(
     })
 }
 
+fn zero_rate(values: &[f64]) -> f64 {
+    if values.is_empty() {
+        return 0.0;
+    }
+    values.iter().filter(|value| value.abs() <= f64::EPSILON).count() as f64 / values.len() as f64
+}
+
+fn constant_value_share(stats: &WindowDistributionStats) -> f64 {
+    let total: u64 = stats.hist_counts.iter().sum();
+    if total == 0 {
+        return 0.0;
+    }
+    stats.hist_counts.iter().copied().max().unwrap_or(0) as f64 / total as f64
+}
+
+fn compute_window_drift_score(
+    prev_level: Option<&str>,
+    window: &DriftWindowStats,
+) -> u32 {
+    let mut score = match window.drift_level.as_str() {
+        "red" => 80.0,
+        "yellow" => 50.0,
+        _ => 0.0,
+    };
+    score += (window.trigger_reasons.len() as f64 * 3.0).min(10.0);
+    if prev_level.is_some_and(|level| level != "green") && window.drift_level != "green" {
+        score += 10.0;
+    }
+    let sample_confidence = (window.distribution.count as f64 / 20.0).min(1.0);
+    (score * sample_confidence).clamp(0.0, 100.0).round() as u32
+}
+
+fn compute_column_window_scores(response: &DriftResponse) -> Vec<u32> {
+    let mut prev_level: Option<&str> = None;
+    response
+        .windows
+        .iter()
+        .map(|window| {
+            let score = compute_window_drift_score(prev_level, window);
+            prev_level = Some(window.drift_level.as_str());
+            score
+        })
+        .collect()
+}
+
+fn first_non_green_window(response: &DriftResponse) -> Option<(usize, &DriftWindowStats)> {
+    response
+        .windows
+        .iter()
+        .enumerate()
+        .find(|(_, window)| window.drift_level != "green")
+}
+
+fn first_sustained_non_green_window(response: &DriftResponse) -> Option<(usize, &DriftWindowStats)> {
+    response
+        .windows
+        .windows(2)
+        .enumerate()
+        .find(|(_, pair)| pair[0].drift_level != "green" && pair[1].drift_level != "green")
+        .map(|(idx, pair)| (idx, &pair[0]))
+}
+
+fn format_iso_time(ms: f64) -> Option<String> {
+    if !ms.is_finite() {
+        return None;
+    }
+    DateTime::<Utc>::from_timestamp_millis(ms.round() as i64).map(|dt| dt.to_rfc3339())
+}
+
+fn build_feature_rank(response: &DriftResponse) -> DriftFeatureRank {
+    let scores = compute_column_window_scores(response);
+    let drift_score = scores.iter().copied().max().unwrap_or(0);
+    let latest_level = response
+        .windows
+        .last()
+        .map(|window| window.drift_level.clone())
+        .unwrap_or_else(|| "green".to_string());
+    let flagged_windows = response
+        .windows
+        .iter()
+        .filter(|window| window.drift_level != "green")
+        .count();
+    let first_change_point = first_sustained_non_green_window(response)
+        .or_else(|| first_non_green_window(response))
+        .and_then(|(_, window)| format_iso_time(window.distribution.start_ms));
+
+    DriftFeatureRank {
+        column: response.column.clone(),
+        drift_score,
+        latest_level,
+        flagged_windows,
+        first_change_point,
+    }
+}
+
+fn build_change_point_rank(response: &DriftResponse) -> Option<DriftChangePointRank> {
+    let scores = compute_column_window_scores(response);
+    let candidate = first_sustained_non_green_window(response)
+        .or_else(|| first_non_green_window(response));
+    candidate.map(|(idx, window)| DriftChangePointRank {
+        column: response.column.clone(),
+        label: window.distribution.label.clone(),
+        iso_time: format_iso_time(window.distribution.start_ms)
+            .unwrap_or_else(|| window.distribution.label.clone()),
+        drift_score: scores.get(idx).copied().unwrap_or(0),
+        trigger_reasons: window.trigger_reasons.clone(),
+    })
+}
+
+fn build_quality_summary(response: &DriftResponse) -> DriftQualitySummary {
+    let latest = response.windows.last();
+    let reference_zero_rate = zero_rate(
+        &response
+            .reference
+            .ecdf_x
+            .iter()
+            .copied()
+            .collect::<Vec<f64>>(),
+    );
+    let mut issues = Vec::new();
+    let latest_missing_rate = latest
+        .map(|window| 1.0 - window.distribution.completeness)
+        .unwrap_or(0.0);
+    let latest_completeness_delta = latest.map(|window| window.completeness_delta).unwrap_or(0.0);
+    let latest_zero_rate = latest
+        .map(|window| zero_rate(&window.distribution.ecdf_x))
+        .unwrap_or(0.0);
+    let flatline = latest.is_some_and(|window| window.distribution.std <= 1e-12);
+    let low_sample_warning = latest.is_some_and(|window| window.low_sample_warning);
+
+    if latest_completeness_delta <= -0.10 {
+        issues.push("missingness_jump".to_string());
+    }
+    if flatline {
+        issues.push("flatline".to_string());
+    }
+    if latest_zero_rate - reference_zero_rate >= 0.20 {
+        issues.push("zero_spike".to_string());
+    }
+    if low_sample_warning {
+        issues.push("low_sample".to_string());
+    }
+    if latest.is_some_and(|window| constant_value_share(&window.distribution) >= 0.8) {
+        issues.push("constant_value_share".to_string());
+    }
+
+    DriftQualitySummary {
+        latest_missing_rate,
+        latest_completeness_delta,
+        latest_zero_rate,
+        flatline,
+        low_sample_warning,
+        issues,
+    }
+}
+
+fn build_quality_issue_rank(
+    column: &str,
+    summary: &DriftQualitySummary,
+    feature_score: u32,
+) -> Vec<DriftQualityIssueRank> {
+    summary
+        .issues
+        .iter()
+        .map(|issue| DriftQualityIssueRank {
+            column: column.to_string(),
+            issue: issue.clone(),
+            label: issue.replace('_', " "),
+            drift_score: feature_score,
+        })
+        .collect()
+}
+
+fn extract_segment_values(df: &DataFrame, segment_col: &str) -> Result<Vec<Option<String>>, AppError> {
+    let series = df
+        .column(segment_col)
+        .map(|column| column.as_materialized_series())
+        .map_err(|error| AppError::bad_request(format!("Missing segment column '{segment_col}': {error}")))?;
+    Ok((0..series.len())
+        .map(|idx| series.get(idx).ok())
+        .map(|value| match value {
+            Some(AnyValue::Null) | None => None,
+            Some(other) => Some(other.to_string()),
+        })
+        .collect())
+}
+
+fn top_segment_values(
+    ts_ms: &[f64],
+    segment_values: &[Option<String>],
+    comparison_start_ms: f64,
+    comparison_end_ms: f64,
+    segment_limit: usize,
+) -> Vec<(String, usize)> {
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for (idx, ts) in ts_ms.iter().enumerate() {
+        if !ts.is_finite() || *ts < comparison_start_ms || *ts > comparison_end_ms {
+            continue;
+        }
+        let Some(value) = segment_values.get(idx).and_then(|value| value.clone()) else {
+            continue;
+        };
+        *counts.entry(value).or_default() += 1;
+    }
+    let mut ranked: Vec<(String, usize)> = counts.into_iter().collect();
+    ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    ranked.truncate(segment_limit);
+    ranked
+}
+
+fn filter_df_by_segment(
+    df: &DataFrame,
+    segment_col: &str,
+    segment_value: &str,
+) -> Result<DataFrame, AppError> {
+    let values = extract_segment_values(df, segment_col)?;
+    let mask = BooleanChunked::from_iter_values(
+        "segment_mask".into(),
+        values
+            .iter()
+            .map(|value| value.as_deref() == Some(segment_value)),
+    );
+    df.filter(&mask).map_err(AppError::from)
+}
+
+fn compute_pearson(
+    df: &DataFrame,
+    left: &str,
+    right: &str,
+    start_ms: f64,
+    end_ms: f64,
+) -> Result<(Option<f64>, usize), AppError> {
+    let ts_ms = extract_ts_epoch_ms(df)?;
+    let left_values = extract_f64_column_opt(df, left)?;
+    let right_values = extract_f64_column_opt(df, right)?;
+    let mut pairs = Vec::new();
+    for idx in 0..ts_ms.len().min(left_values.len()).min(right_values.len()) {
+        let ts = ts_ms[idx];
+        if !ts.is_finite() || ts < start_ms || ts > end_ms {
+            continue;
+        }
+        if let (Some(left_value), Some(right_value)) = (left_values[idx], right_values[idx]) {
+            pairs.push([left_value, right_value]);
+        }
+    }
+    let count = pairs.len();
+    Ok((edatime_core::stats::pearson(&pairs), count))
+}
+
+fn build_relationship_rankings(
+    df: &DataFrame,
+    columns: &[String],
+    reference_start_ms: f64,
+    reference_end_ms: f64,
+    comparison_start_ms: f64,
+    comparison_end_ms: f64,
+) -> Result<Vec<DriftRelationshipRank>, AppError> {
+    let mut pairs = Vec::new();
+    for left_idx in 0..columns.len() {
+        for right_idx in left_idx + 1..columns.len() {
+            let left = &columns[left_idx];
+            let right = &columns[right_idx];
+            let (reference, reference_count) =
+                compute_pearson(df, left, right, reference_start_ms, reference_end_ms)?;
+            let (comparison, comparison_count) =
+                compute_pearson(df, left, right, comparison_start_ms, comparison_end_ms)?;
+            if reference_count < 20 || comparison_count < 20 {
+                continue;
+            }
+            let (Some(reference), Some(comparison)) = (reference, comparison) else {
+                continue;
+            };
+            pairs.push(DriftRelationshipRank {
+                left_column: left.clone(),
+                right_column: right.clone(),
+                reference,
+                comparison,
+                delta: (comparison - reference).abs(),
+                aligned_reference_samples: reference_count,
+                aligned_comparison_samples: comparison_count,
+            });
+        }
+    }
+    pairs.sort_by(|a, b| {
+        b.delta
+            .total_cmp(&a.delta)
+            .then_with(|| a.left_column.cmp(&b.left_column))
+            .then_with(|| a.right_column.cmp(&b.right_column))
+    });
+    Ok(pairs)
+}
+
+fn build_overview(columns: &BTreeMap<String, DriftResponse>) -> DriftInvestigationOverview {
+    let feature_ranks: Vec<DriftFeatureRank> = columns.values().map(build_feature_rank).collect();
+    let drift_score = feature_ranks
+        .iter()
+        .map(|rank| rank.drift_score)
+        .max()
+        .unwrap_or(0);
+    let worst_level = feature_ranks
+        .iter()
+        .map(|rank| rank.latest_level.as_str())
+        .fold("green", |current, level| match (current, level) {
+            ("red", _) | (_, "red") => "red",
+            ("yellow", _) | (_, "yellow") => "yellow",
+            _ => "green",
+        })
+        .to_string();
+    let columns_flagged = feature_ranks
+        .iter()
+        .filter(|rank| rank.flagged_windows > 0)
+        .count();
+    let windows_flagged = columns
+        .values()
+        .map(|response| {
+            response
+                .windows
+                .iter()
+                .filter(|window| window.drift_level != "green")
+                .count()
+        })
+        .sum();
+    let first_change_point = feature_ranks
+        .iter()
+        .filter_map(|rank| rank.first_change_point.clone())
+        .min();
+    DriftInvestigationOverview {
+        drift_score,
+        worst_level,
+        columns_flagged,
+        total_columns: columns.len(),
+        windows_flagged,
+        first_change_point,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn compute_drift_investigation(
+    df: &DataFrame,
+    columns: &[String],
+    segment_by: Option<&str>,
+    segment_limit: usize,
+    window_ms: i64,
+    reference_start_ms: f64,
+    reference_end_ms: f64,
+    comparison_start_ms: f64,
+    comparison_end_ms: f64,
+    n_bins: usize,
+    thresholds: DriftThresholds,
+    include_quality: bool,
+    include_change_points: bool,
+    include_correlations: bool,
+) -> Result<DriftInvestigationResponse, AppError> {
+    let mut responses = BTreeMap::new();
+    for column in columns {
+        let response = compute_temporal_drift(
+            df,
+            column,
+            window_ms,
+            reference_start_ms,
+            reference_end_ms,
+            comparison_start_ms,
+            comparison_end_ms,
+            n_bins,
+            thresholds.ks_pvalue_threshold,
+            thresholds.es_pvalue_threshold,
+            thresholds.wasserstein_threshold,
+            thresholds.psi_minor_threshold,
+            thresholds.psi_major_threshold,
+        )?;
+        responses.insert(column.clone(), response);
+    }
+
+    let mut feature_ranks: Vec<DriftFeatureRank> = responses.values().map(build_feature_rank).collect();
+    feature_ranks.sort_by(|a, b| {
+        b.drift_score
+            .cmp(&a.drift_score)
+            .then_with(|| b.flagged_windows.cmp(&a.flagged_windows))
+            .then_with(|| a.column.cmp(&b.column))
+    });
+
+    let quality = include_quality.then(|| {
+        let by_column = responses
+            .values()
+            .map(|response| (response.column.clone(), build_quality_summary(response)))
+            .collect();
+        DriftQualitySection { by_column }
+    });
+
+    let mut quality_issues = Vec::new();
+    if let Some(quality_section) = quality.as_ref() {
+        for feature_rank in &feature_ranks {
+            if let Some(summary) = quality_section.by_column.get(&feature_rank.column) {
+                quality_issues.extend(build_quality_issue_rank(
+                    &feature_rank.column,
+                    summary,
+                    feature_rank.drift_score,
+                ));
+            }
+        }
+    }
+    quality_issues.sort_by(|a, b| {
+        b.drift_score
+            .cmp(&a.drift_score)
+            .then_with(|| a.column.cmp(&b.column))
+            .then_with(|| a.issue.cmp(&b.issue))
+    });
+
+    let mut change_points = if include_change_points {
+        responses
+            .values()
+            .filter_map(build_change_point_rank)
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    change_points.sort_by(|a, b| {
+        b.drift_score
+            .cmp(&a.drift_score)
+            .then_with(|| a.iso_time.cmp(&b.iso_time))
+            .then_with(|| a.column.cmp(&b.column))
+    });
+
+    let relationships = if include_correlations {
+        let pairs = build_relationship_rankings(
+            df,
+            columns,
+            reference_start_ms,
+            reference_end_ms,
+            comparison_start_ms,
+            comparison_end_ms,
+        )?;
+        Some(DriftRelationshipSection {
+            mode: "pearson_raw".to_string(),
+            pairs: pairs.clone(),
+        })
+    } else {
+        None
+    };
+
+    let mut segment_summary = None;
+    let mut segment_rankings = Vec::new();
+    if let Some(segment_col) = segment_by {
+        let ts_ms = extract_ts_epoch_ms(df)?;
+        let segment_values = extract_segment_values(df, segment_col)?;
+        let segment_keys = top_segment_values(
+            &ts_ms,
+            &segment_values,
+            comparison_start_ms,
+            comparison_end_ms,
+            segment_limit.max(1),
+        );
+        let mut groups = Vec::new();
+        for (segment_value, sample_count) in segment_keys {
+            let segment_df = filter_df_by_segment(df, segment_col, &segment_value)?;
+            if segment_df.height() == 0 {
+                continue;
+            }
+            let group_response = match compute_drift_investigation(
+                &segment_df,
+                columns,
+                None,
+                0,
+                window_ms,
+                reference_start_ms,
+                reference_end_ms,
+                comparison_start_ms,
+                comparison_end_ms,
+                n_bins,
+                DriftThresholds {
+                    ks_pvalue_threshold: thresholds.ks_pvalue_threshold,
+                    es_pvalue_threshold: thresholds.es_pvalue_threshold,
+                    wasserstein_threshold: thresholds.wasserstein_threshold,
+                    psi_minor_threshold: thresholds.psi_minor_threshold,
+                    psi_major_threshold: thresholds.psi_major_threshold,
+                },
+                false,
+                false,
+                false,
+            ) {
+                Ok(response) => response,
+                Err(_) => continue,
+            };
+            let overview = group_response.overview;
+            let feature_ranks = group_response.rankings.features;
+            segment_rankings.push(DriftSegmentRank {
+                segment_value: segment_value.clone(),
+                drift_score: overview.drift_score,
+                columns_flagged: overview.columns_flagged,
+                sample_count,
+            });
+            groups.push(DriftSegmentGroup {
+                value: segment_value,
+                sample_count,
+                overview,
+                feature_ranks,
+            });
+        }
+        segment_rankings.sort_by(|a, b| {
+            b.drift_score
+                .cmp(&a.drift_score)
+                .then_with(|| b.columns_flagged.cmp(&a.columns_flagged))
+                .then_with(|| a.segment_value.cmp(&b.segment_value))
+        });
+        segment_summary = Some(DriftSegmentSummary {
+            segment_by: segment_col.to_string(),
+            groups,
+        });
+    }
+
+    let relationship_ranks = relationships
+        .as_ref()
+        .map(|section| section.pairs.clone())
+        .unwrap_or_default();
+
+    Ok(DriftInvestigationResponse {
+        overview: build_overview(&responses),
+        columns: responses,
+        rankings: DriftRankingSummary {
+            features: feature_ranks,
+            segments: segment_rankings,
+            change_points,
+            quality_issues,
+            relationships: relationship_ranks,
+        },
+        segments: segment_summary,
+        quality,
+        relationships,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -863,5 +1520,77 @@ mod tests {
         assert_eq!(first.distribution.end_ms, 1_735_695_000_000.0);
         assert_eq!(first.distribution.count, 12);
         assert_eq!(first.distribution.label, "2025-01-01 00:30 - 01:30");
+    }
+
+    #[test]
+    fn investigation_response_includes_rankings_quality_and_relationships() {
+        let ts_values: Vec<i64> = (0..24)
+            .map(|idx| 1_735_689_600_000 + idx as i64 * 3_600_000)
+            .collect();
+        let ts = Series::new("ts".into(), ts_values)
+            .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+            .expect("ts should cast to datetime");
+        let value_a = Series::new(
+            "value_a".into(),
+            vec![
+                1.0, 1.1, 1.0, 1.2, 1.1, 1.0, 1.2, 1.1, 1.0, 1.1, 1.2, 1.0, 4.0, 4.1, 4.2,
+                4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 5.0, 5.1,
+            ],
+        );
+        let value_b = Series::new(
+            "value_b".into(),
+            vec![
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            ],
+        );
+        let segment = Series::new(
+            "segment".into(),
+            vec![
+                "A", "B", "A", "B", "A", "B", "A", "B", "A", "B", "A", "B", "A", "B", "A",
+                "B", "A", "B", "A", "B", "A", "B", "A", "B",
+            ],
+        );
+        let df = DataFrame::new(
+            ts.len(),
+            vec![ts.into(), value_a.into(), value_b.into(), segment.into()],
+        )
+        .expect("test dataframe should build");
+
+        let response = super::compute_drift_investigation(
+            &df,
+            &["value_a".to_string(), "value_b".to_string()],
+            Some("segment"),
+            2,
+            21_600_000,
+            1_735_689_600_000.0,
+            1_735_732_800_000.0,
+            1_735_732_800_000.0,
+            1_735_776_000_000.0,
+            20,
+            DriftThresholds {
+                ks_pvalue_threshold: 0.5,
+                es_pvalue_threshold: 0.5,
+                wasserstein_threshold: 0.0,
+                psi_minor_threshold: 0.01,
+                psi_major_threshold: 0.02,
+            },
+            true,
+            true,
+            true,
+        )
+        .expect("investigation should compute");
+
+        assert_eq!(response.columns.len(), 2);
+        assert!(!response.rankings.features.is_empty());
+        assert_eq!(response.rankings.features[0].column, "value_a");
+        assert!(response.quality.is_some());
+        assert!(response.relationships.is_some());
+        assert!(response.segments.is_some());
+        assert_eq!(response.segments.as_ref().expect("segments").groups.len(), 2);
+        assert!(
+            response.overview.columns_flagged >= 1,
+            "expected at least one flagged column"
+        );
     }
 }

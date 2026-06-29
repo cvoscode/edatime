@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../debug.js', () => ({ DEBUG: false, dbg: vi.fn() }));
+vi.mock('../utils/toast.js', () => ({ toast: vi.fn() }));
 
 class ResizeObserverMock {
     observe() { }
@@ -50,33 +51,54 @@ describe('drift compute payload', () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             ok: true,
             json: async () => ({
-                column: 'value',
-                reference: {
-                    start_ms: 0,
-                    end_ms: 10,
-                    label: 'ref',
-                    count: 10,
-                    null_count: 0,
-                    completeness: 1,
-                    mean: 1,
-                    std: 0.2,
-                    min: 0,
-                    max: 2,
-                    quantiles: [0.2, 0.7, 1.0, 1.3, 1.8],
-                    hist_bins: [0, 1, 2],
-                    hist_counts: [3, 7],
-                    ecdf_x: [0, 1, 2],
-                    ecdf_y: [0.2, 0.6, 1],
+                overview: {
+                    driftScore: 84,
+                    worstLevel: 'red',
+                    columnsFlagged: 1,
+                    totalColumns: 1,
+                    windowsFlagged: 1,
+                    firstChangePoint: '1970-01-01T00:11:00.000Z',
                 },
-                windows: [],
-                thresholds: {
-                    ks_pvalue_threshold: 0.05,
-                    es_pvalue_threshold: 0.05,
-                    wasserstein_threshold: 0.2,
-                    psi_minor_threshold: 0.1,
-                    psi_major_threshold: 0.2,
+                columns: {
+                    value: {
+                        column: 'value',
+                        reference: {
+                            start_ms: 0,
+                            end_ms: 10,
+                            label: 'ref',
+                            count: 10,
+                            null_count: 0,
+                            completeness: 1,
+                            mean: 1,
+                            std: 0.2,
+                            min: 0,
+                            max: 2,
+                            quantiles: [0.2, 0.7, 1.0, 1.3, 1.8],
+                            hist_bins: [0, 1, 2],
+                            hist_counts: [3, 7],
+                            ecdf_x: [0, 1, 2],
+                            ecdf_y: [0.2, 0.6, 1],
+                        },
+                        windows: [],
+                        thresholds: {
+                            ks_pvalue_threshold: 0.05,
+                            es_pvalue_threshold: 0.05,
+                            wasserstein_threshold: 0.2,
+                            psi_minor_threshold: 0.1,
+                            psi_major_threshold: 0.2,
+                        },
+                        metadata: { computation_time_ms: 12, num_windows: 0, reference_samples: 10 },
+                    },
                 },
-                metadata: { computation_time_ms: 12, num_windows: 0, reference_samples: 10 },
+                rankings: {
+                    features: [],
+                    segments: [],
+                    changePoints: [],
+                    qualityIssues: [],
+                    relationships: [],
+                },
+                quality: { byColumn: {} },
+                relationships: { mode: 'pearson_raw', pairs: [] },
             }),
         }));
 
@@ -99,6 +121,7 @@ describe('drift compute payload', () => {
               <select id="drift-ref-preset"><option value="50" selected>50</option></select>
               <select id="drift-evaluation-mode"><option value="all" selected>All later windows</option><option value="latest">Latest window only</option><option value="latest-n">Latest N windows</option></select>
               <input id="drift-latest-n" type="number" value="3" />
+              <select id="drift-segment-by"><option value="" selected>None</option><option value="segment">segment</option></select>
               <input id="drift-ks-threshold" type="number" value="0.05" />
               <input id="drift-es-threshold" type="number" value="0.05" />
               <input id="drift-psi-minor-threshold" type="number" value="0.10" />
@@ -108,7 +131,17 @@ describe('drift compute payload', () => {
               <input id="drift-ref-end" type="datetime-local" />
               <button id="drift-compute-btn" type="button">Compute</button>
               <button id="drift-zoom-reset-btn" type="button">Reset</button>
-              <span id="drift-status"></span>
+              <div id="drift-investigation-tabs">
+                <button type="button" data-drift-tab="overview">Overview</button>
+                <button type="button" data-drift-tab="timeline">Timeline plots</button>
+                <button type="button" data-drift-tab="segments">Segments</button>
+                <button type="button" data-drift-tab="quality">Quality</button>
+                <button type="button" data-drift-tab="relationships">Relationships</button>
+              </div>
+              <div id="drift-overview-panel"></div>
+              <div id="drift-segments-panel"></div>
+              <div id="drift-quality-panel"></div>
+              <div id="drift-relationships-panel"></div>
               <div id="drift-summary-strip"></div>
               <div id="drift-column-summary"></div>
               <div id="drift-timeline-chart"></div>
@@ -138,10 +171,11 @@ describe('drift compute payload', () => {
         Object.defineProperty(pageEl, 'clientHeight', { configurable: true, value: 600 });
     });
 
-    it('posts camelCase reference fields expected by the backend', async () => {
+    it('posts camelCase investigation fields expected by the backend', async () => {
         const { initDriftPage } = await import('./driftPage.js');
         await initDriftPage({
             numeric_columns: ['value'],
+            columns: [{ name: 'value', dtype: 'Float64' }, { name: 'segment', dtype: 'String' }],
             time_range: { min: 0, max: 1_000 },
         });
 
@@ -158,12 +192,16 @@ describe('drift compute payload', () => {
         const body = JSON.parse(request[1].body);
         expect(body).toMatchObject({
             window: 'daily',
-            column: 'value',
+            columns: ['value'],
             referenceStart: expect.any(String),
             referenceEnd: expect.any(String),
+            comparisonStart: expect.any(String),
+            includeQuality: true,
+            includeChangePoints: true,
+            includeCorrelations: true,
         });
-        expect(body.reference_start).toBeUndefined();
-        expect(body.reference_end).toBeUndefined();
+        expect(request[0]).toBe('/api/drift/investigate');
+        expect(body.column).toBeUndefined();
     });
 
     it('updates the picker label after bulk-selecting all columns', async () => {
@@ -183,6 +221,7 @@ describe('drift compute payload', () => {
         const { initDriftPage } = await import('./driftPage.js');
         await initDriftPage({
             numeric_columns: ['value'],
+            columns: [{ name: 'value', dtype: 'Float64' }, { name: 'segment', dtype: 'String' }],
             time_range: { min: 0, max: 1_000 },
         });
 
@@ -209,5 +248,29 @@ describe('drift compute payload', () => {
             psiMajorThreshold: 0.22,
             wassersteinStdMultiplier: 0.15,
         });
+    });
+
+    it('posts optional segmentBy when selected and renders investigation tabs', async () => {
+        const { initDriftPage } = await import('./driftPage.js');
+        await initDriftPage({
+            numeric_columns: ['value'],
+            columns: [{ name: 'value', dtype: 'Float64' }, { name: 'segment', dtype: 'String' }],
+            time_range: { min: 0, max: 1_000 },
+        });
+
+        (document.getElementById('drift-ref-start') as HTMLInputElement).value = '1970-01-01T00:00';
+        (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
+        (document.getElementById('drift-segment-by') as HTMLSelectElement).value = 'segment';
+
+        (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
+
+        await vi.waitFor(() => {
+            expect(fetch).toHaveBeenCalled();
+        });
+
+        const request = (fetch as any).mock.calls[0];
+        const body = JSON.parse(request[1].body);
+        expect(body.segmentBy).toBe('segment');
+        expect(document.querySelectorAll('[data-drift-tab]')).toHaveLength(5);
     });
 });

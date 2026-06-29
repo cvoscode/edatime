@@ -101,6 +101,94 @@ export interface DriftResponse {
 
 export type DriftEvaluationMode = 'all' | 'latest' | 'latest-n';
 
+export interface DriftInvestigationOverview {
+    driftScore: number;
+    worstLevel: DriftWindowStats['drift_level'];
+    columnsFlagged: number;
+    totalColumns: number;
+    windowsFlagged: number;
+    firstChangePoint: string | null;
+}
+
+export interface DriftFeatureRank {
+    column: string;
+    driftScore: number;
+    latestLevel: DriftWindowStats['drift_level'];
+    flaggedWindows: number;
+    firstChangePoint: string | null;
+}
+
+export interface DriftSegmentRank {
+    segmentValue: string;
+    driftScore: number;
+    columnsFlagged: number;
+    sampleCount: number;
+}
+
+export interface DriftChangePointRank {
+    column: string;
+    label: string;
+    isoTime: string;
+    driftScore: number;
+    triggerReasons: string[];
+}
+
+export interface DriftQualityIssueRank {
+    column: string;
+    issue: string;
+    label: string;
+    driftScore: number;
+}
+
+export interface DriftRelationshipRank {
+    leftColumn: string;
+    rightColumn: string;
+    reference: number;
+    comparison: number;
+    delta: number;
+    alignedReferenceSamples: number;
+    alignedComparisonSamples: number;
+}
+
+export interface DriftSegmentGroup {
+    value: string;
+    sampleCount: number;
+    overview: DriftInvestigationOverview;
+    featureRanks: DriftFeatureRank[];
+}
+
+export interface DriftQualitySummary {
+    latestMissingRate: number;
+    latestCompletenessDelta: number;
+    latestZeroRate: number;
+    flatline: boolean;
+    lowSampleWarning: boolean;
+    issues: string[];
+}
+
+export interface DriftInvestigationResponse {
+    overview: DriftInvestigationOverview;
+    columns: Record<string, DriftResponse>;
+    rankings: {
+        features: DriftFeatureRank[];
+        segments: DriftSegmentRank[];
+        changePoints: DriftChangePointRank[];
+        qualityIssues: DriftQualityIssueRank[];
+        relationships: DriftRelationshipRank[];
+    };
+    segments?: {
+        segmentBy: string;
+        groups: DriftSegmentGroup[];
+    };
+    quality?: {
+        byColumn: Record<string, DriftQualitySummary>;
+    };
+    relationships?: {
+        mode: string;
+        pairs: DriftRelationshipRank[];
+    };
+}
+
 export interface ColumnDriftSummary {
     column: string;
     currentLevel: DriftWindowStats['drift_level'];

@@ -6,8 +6,9 @@
  */
 
 import { DEBUG } from '../debug.js';
-import { fetchDriftStats } from '../services/api/index.js';
+import { fetchDriftInvestigation, fetchDriftStats } from '../services/api/index.js';
 import { bindDriftControls, getSelectedColumns } from './controls.js';
+import { toast } from '../utils/toast.js';
 import { createAnalysisPageRuntime } from '../pages/shared/analysisPageRuntime.js';
 import { createRequestTask } from '../pages/shared/requestTask.js';
 import type { EChartLike } from './types.js';
@@ -18,7 +19,15 @@ import {
     filterResponseForEvaluation,
     formatValue,
 } from './viewModels.js';
-import type { DriftEvaluationMode, DriftResponse, WindowDistributionStats, DriftWindowStats } from './viewModels.js';
+import type {
+    DriftChangePointRank,
+    DriftEvaluationMode,
+    DriftFeatureRank,
+    DriftInvestigationResponse,
+    DriftQualityIssueRank,
+    DriftRelationshipRank,
+    DriftResponse,
+} from './viewModels.js';
 import { exportEChartsPNG } from '../utils/chartExport.js';
 import {
     getECharts,
@@ -85,6 +94,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
     const refPresetSelect = document.getElementById('drift-ref-preset') as HTMLElement | null;
     const evaluationModeSelect = document.getElementById('drift-evaluation-mode') as HTMLElement | null;
     const latestNInput = document.getElementById('drift-latest-n') as HTMLInputElement | null;
+    const segmentBySelect = document.getElementById('drift-segment-by') as HTMLElement | null;
     const ksThresholdInput = document.getElementById('drift-ks-threshold') as HTMLInputElement | null;
     const esThresholdInput = document.getElementById('drift-es-threshold') as HTMLInputElement | null;
     const psiMinorThresholdInput = document.getElementById('drift-psi-minor-threshold') as HTMLInputElement | null;
@@ -94,7 +104,6 @@ export async function initDriftPage(metadata: any): Promise<void> {
     const refEndInput = document.getElementById('drift-ref-end') as HTMLInputElement | null;
     const computeBtn = document.getElementById('drift-compute-btn') as HTMLButtonElement | null;
     const zoomResetBtn = document.getElementById('drift-zoom-reset-btn') as HTMLButtonElement | null;
-    const statusEl = document.getElementById('drift-status') as HTMLElement | null;
     const timelineEl = document.getElementById('drift-timeline-chart') as HTMLDivElement | null;
     const detailEl = document.getElementById('drift-detail-chart') as HTMLDivElement | null;
     const detailColumnSelect = document.getElementById('drift-detail-col-select') as HTMLElement | null;
@@ -107,11 +116,19 @@ export async function initDriftPage(metadata: any): Promise<void> {
     const sortSelect = document.getElementById('drift-sort-select') as HTMLElement | null;
     const summaryStripEl = document.getElementById('drift-summary-strip') as HTMLElement | null;
     const columnSummaryEl = document.getElementById('drift-column-summary') as HTMLElement | null;
+    const overviewPanelEl = document.getElementById('drift-overview-panel') as HTMLElement | null;
+    const segmentsPanelEl = document.getElementById('drift-segments-panel') as HTMLElement | null;
+    const qualityPanelEl = document.getElementById('drift-quality-panel') as HTMLElement | null;
+    const relationshipsPanelEl = document.getElementById('drift-relationships-panel') as HTMLElement | null;
+    const tabButtons = Array.from(document.querySelectorAll<HTMLElement>('[data-drift-tab]'));
 
     // ── Chart and data state ────────────────────────────────────────────────────
     let resizeObserver: ResizeObserver | null = null;
     let _pendingFullReset = false;
     let rawResponsesByColumn = new Map<string, DriftResponse>();
+    let currentInvestigation: DriftInvestigationResponse | null = null;
+    let activeTab = 'overview';
+    let usingLegacyFallback = false;
 
     getECharts().catch(() => { /* non-critical; will retry on first ensureCharts() call */ });
 
@@ -213,6 +230,34 @@ export async function initDriftPage(metadata: any): Promise<void> {
         setDropdownValue('drift-detail-col-select', current && getResponsesByColumn().has(current) ? current : cols[0]!);
     }
 
+    function updateSegmentBySelect(): void {
+        const timeColumn = String(metadata?.time_column || '').trim();
+        const options = (Array.isArray(metadata?.columns) ? metadata.columns : [])
+            .map((column: { name?: string; dtype?: string }) => String(column?.name || '').trim())
+            .filter((name: string) => !!name && name !== timeColumn);
+        if (!segmentBySelect) return;
+        setDropdownOptions('drift-segment-by', [{ value: '', label: 'None' }, ...options.map((name: string) => ({ value: name, label: name }))], {
+            preferredValue: getDropdownValue('drift-segment-by') || '',
+        });
+    }
+
+    function setActiveTab(nextTab: string): void {
+        activeTab = nextTab;
+        tabButtons.forEach((button) => {
+            const matches = button.dataset.driftTab === nextTab;
+            button.classList.toggle('active', matches);
+            button.setAttribute('aria-pressed', matches ? 'true' : 'false');
+        });
+        const isTimeline = nextTab === 'timeline';
+        if (summaryStripEl) summaryStripEl.hidden = !isTimeline;
+        if (columnSummaryEl) columnSummaryEl.hidden = !isTimeline;
+        if (driftLayoutEl) driftLayoutEl.hidden = !isTimeline;
+        if (overviewPanelEl) overviewPanelEl.hidden = nextTab !== 'overview';
+        if (segmentsPanelEl) segmentsPanelEl.hidden = nextTab !== 'segments';
+        if (qualityPanelEl) qualityPanelEl.hidden = nextTab !== 'quality';
+        if (relationshipsPanelEl) relationshipsPanelEl.hidden = nextTab !== 'relationships';
+    }
+
     function readThresholdValue(input: HTMLInputElement | null, fallback: number): number {
         const value = Number(input?.value ?? '');
         return Number.isFinite(value) ? value : fallback;
@@ -238,6 +283,97 @@ export async function initDriftPage(metadata: any): Promise<void> {
                 filterResponseForEvaluation(response, mode, latestCount),
             ]),
         );
+    }
+
+    function renderFeatureRankCards(ranks: DriftFeatureRank[]): string {
+        return ranks.slice(0, 5).map((rank) => `
+            <article class="drift-column-card">
+                <div class="drift-column-card__header">
+                    <strong>${rank.column}</strong>
+                    <span class="drift-column-card__level drift-${rank.latestLevel}">${rank.latestLevel.toUpperCase()}</span>
+                </div>
+                <div class="drift-column-card__body">
+                    <div>Score: ${rank.driftScore}</div>
+                    <div>Flagged windows: ${rank.flaggedWindows}</div>
+                    <div>First change: ${rank.firstChangePoint || 'None'}</div>
+                </div>
+            </article>
+        `).join('');
+    }
+
+    function renderSimpleList<T>(items: T[], renderItem: (item: T) => string, emptyText: string): string {
+        if (items.length === 0) return `<div class="drift-column-card"><div class="drift-column-card__body">${emptyText}</div></div>`;
+        return items.slice(0, 5).map(renderItem).join('');
+    }
+
+    function renderInvestigationPanels(): void {
+        if (!currentInvestigation) {
+            if (overviewPanelEl) overviewPanelEl.innerHTML = '';
+            if (segmentsPanelEl) segmentsPanelEl.innerHTML = '';
+            if (qualityPanelEl) qualityPanelEl.innerHTML = '';
+            if (relationshipsPanelEl) relationshipsPanelEl.innerHTML = '';
+            return;
+        }
+        if (overviewPanelEl) {
+            overviewPanelEl.innerHTML = `
+                <div class="drift-summary-strip">
+                    ${usingLegacyFallback ? `
+                    <div class="drift-summary-card">
+                        <span class="drift-summary-label">Legacy fallback</span>
+                        <strong class="drift-summary-value">Using /api/drift/stats compatibility mode</strong>
+                    </div>
+                    ` : ''}
+                    <div class="drift-summary-card">
+                        <span class="drift-summary-label">Investigation score</span>
+                        <strong class="drift-summary-value">${currentInvestigation.overview.driftScore}</strong>
+                    </div>
+                    <div class="drift-summary-card">
+                        <span class="drift-summary-label">Worst level</span>
+                        <strong class="drift-summary-value drift-${currentInvestigation.overview.worstLevel}">${currentInvestigation.overview.worstLevel.toUpperCase()}</strong>
+                    </div>
+                    <div class="drift-summary-card">
+                        <span class="drift-summary-label">First change point</span>
+                        <strong class="drift-summary-value">${currentInvestigation.overview.firstChangePoint || 'None'}</strong>
+                    </div>
+                </div>
+                <div class="drift-column-summary">
+                    ${renderFeatureRankCards(currentInvestigation.rankings.features)}
+                    ${renderSimpleList<DriftChangePointRank>(currentInvestigation.rankings.changePoints, (item) => `
+                        <article class="drift-column-card">
+                            <div class="drift-column-card__header"><strong>${item.column}</strong><span>${item.label}</span></div>
+                            <div class="drift-column-card__body"><div>Change point: ${item.isoTime}</div><div>Reasons: ${item.triggerReasons.join(', ') || 'none'}</div></div>
+                        </article>
+                    `, 'No change points detected.')}
+                </div>
+            `;
+        }
+        if (segmentsPanelEl) {
+            const groups = currentInvestigation.segments?.groups ?? [];
+            segmentsPanelEl.innerHTML = renderSimpleList(groups, (group) => `
+                <article class="drift-column-card">
+                    <div class="drift-column-card__header"><strong>${group.value}</strong><span>${group.sampleCount} rows</span></div>
+                    <div class="drift-column-card__body"><div>Score: ${group.overview.driftScore}</div><div>Flagged columns: ${group.overview.columnsFlagged}</div></div>
+                </article>
+            `, 'No segment breakdown returned.');
+        }
+        if (qualityPanelEl) {
+            const issues = currentInvestigation.rankings.qualityIssues;
+            qualityPanelEl.innerHTML = renderSimpleList<DriftQualityIssueRank>(issues, (issue) => `
+                <article class="drift-column-card">
+                    <div class="drift-column-card__header"><strong>${issue.column}</strong><span>${issue.driftScore}</span></div>
+                    <div class="drift-column-card__body"><div>${issue.label}</div><div>Issue key: ${issue.issue}</div></div>
+                </article>
+            `, 'No quality issues detected.');
+        }
+        if (relationshipsPanelEl) {
+            const pairs = currentInvestigation.relationships?.pairs ?? currentInvestigation.rankings.relationships;
+            relationshipsPanelEl.innerHTML = renderSimpleList<DriftRelationshipRank>(pairs, (pair) => `
+                <article class="drift-column-card">
+                    <div class="drift-column-card__header"><strong>${pair.leftColumn} ↔ ${pair.rightColumn}</strong><span>${pair.delta.toFixed(3)}</span></div>
+                    <div class="drift-column-card__body"><div>Reference: ${pair.reference.toFixed(3)}</div><div>Comparison: ${pair.comparison.toFixed(3)}</div></div>
+                </article>
+            `, 'No relationship drift detected.');
+        }
     }
 
     function renderSummaryPanels(): void {
@@ -289,12 +425,15 @@ export async function initDriftPage(metadata: any): Promise<void> {
                 `;
             }).join('');
         }
+        renderInvestigationPanels();
     }
 
     function applyRenderedResponses(
         results: Map<string, DriftResponse>,
+        investigation: DriftInvestigationResponse | null,
         failedColumns: string[] = [],
     ): void {
+        currentInvestigation = investigation;
         setResponses(getFilteredResponses(results));
         updateDetailColumnSelect();
         statusSummary(failedColumns);
@@ -308,10 +447,9 @@ export async function initDriftPage(metadata: any): Promise<void> {
     // detailOption and timelineOption live in timelineView.ts / detailView.ts / viewModels.ts
 
     function statusSummary(failedColumns: string[] = []): void {
-        if (!statusEl) return;
         const cols = Array.from(getResponsesByColumn().values());
         if (cols.length === 0) {
-            statusEl.textContent = 'No drift response returned.';
+            toast('No drift response returned.', 'warning', {});
             return;
         }
         let windowsTotal = 0;
@@ -337,7 +475,95 @@ export async function initDriftPage(metadata: any): Promise<void> {
         if (psiWarning) warnings.push('PSI may be inflated (reference \u226710\u00d7 window size)');
         if (binWarning) warnings.push('histogram bins fell back to equal-width');
         const warnInfo = warnings.length > 0 ? ` \u26a0 ${warnings.join('; ')}` : '';
-        statusEl.textContent = `${cols.length} column(s) | ~${avgWindows.toFixed(0)} windows/column | ${flaggedTotal} flagged | ref avg ${avgRef.toFixed(0)} samples | ${computeMs.toFixed(0)}ms${failedInfo}${warnInfo}`;
+        const legacyInfo = usingLegacyFallback ? ' | legacy fallback' : '';
+        toast(
+            `Drift: ${cols.length} column(s) | ~${avgWindows.toFixed(0)} windows/column | ${flaggedTotal} flagged | ref avg ${avgRef.toFixed(0)} samples | ${computeMs.toFixed(0)}ms${legacyInfo}${failedInfo}${warnInfo}`,
+            'info',
+            {},
+        );
+    }
+
+    function isLegacyCompatibleError(error: unknown): boolean {
+        const status = (error as Error & { status?: number })?.status;
+        return status === 404 || status === 405;
+    }
+
+    function toLegacyInvestigation(results: Map<string, DriftResponse>): DriftInvestigationResponse {
+        const summaries = Array.from(results.values()).map((response) => {
+            const summary = buildColumnSummary(response);
+            const firstFlaggedWindow = response.windows.find((window) => window.drift_level !== 'green') ?? null;
+            return { response, summary, firstFlaggedWindow };
+        });
+        const globalSummary = buildGlobalSummary(results);
+        const firstChangePoint = summaries
+            .filter((entry) => entry.firstFlaggedWindow)
+            .sort((left, right) => (left.firstFlaggedWindow?.start_ms ?? Number.MAX_SAFE_INTEGER) - (right.firstFlaggedWindow?.start_ms ?? Number.MAX_SAFE_INTEGER))[0]
+            ?.firstFlaggedWindow ?? null;
+        const driftScore = Math.max(...summaries.map((entry) => entry.summary.flaggedWindows * 10), 0);
+
+        return {
+            overview: {
+                driftScore,
+                worstLevel: globalSummary.worstSeverity,
+                columnsFlagged: globalSummary.columnsFlagged,
+                totalColumns: globalSummary.totalColumns,
+                windowsFlagged: summaries.reduce((sum, entry) => sum + entry.summary.flaggedWindows, 0),
+                firstChangePoint: firstChangePoint ? new Date(firstChangePoint.start_ms).toISOString() : null,
+            },
+            columns: Object.fromEntries(results.entries()),
+            rankings: {
+                features: summaries
+                    .map(({ summary, firstFlaggedWindow }) => ({
+                        column: summary.column,
+                        driftScore: summary.flaggedWindows * 10,
+                        latestLevel: summary.currentLevel,
+                        flaggedWindows: summary.flaggedWindows,
+                        firstChangePoint: firstFlaggedWindow ? new Date(firstFlaggedWindow.start_ms).toISOString() : null,
+                    }))
+                    .sort((left, right) => right.driftScore - left.driftScore),
+                segments: [],
+                changePoints: summaries
+                    .flatMap(({ response }) => response.windows
+                        .filter((window) => window.drift_level !== 'green')
+                        .map((window) => ({
+                            column: response.column,
+                            label: window.label,
+                            isoTime: new Date(window.start_ms).toISOString(),
+                            driftScore: window.drift_level === 'red' ? 100 : 50,
+                            triggerReasons: window.trigger_reasons ?? [],
+                        })))
+                    .sort((left, right) => left.isoTime.localeCompare(right.isoTime)),
+                qualityIssues: [],
+                relationships: [],
+            },
+            quality: { byColumn: {} },
+            relationships: { mode: 'legacy', pairs: [] },
+        };
+    }
+
+    async function fetchLegacyInvestigation(
+        basePayload: Record<string, unknown>,
+        columns: string[],
+        signal: AbortSignal,
+    ): Promise<DriftInvestigationResponse> {
+        const window = String(basePayload.window || 'daily');
+        const referenceStart = String(basePayload.referenceStart || '');
+        const referenceEnd = String(basePayload.referenceEnd || '');
+        const sharedPayload = {
+            window,
+            referenceStart,
+            referenceEnd,
+            ksPvalueThreshold: basePayload.ksPvalueThreshold,
+            esPvalueThreshold: basePayload.esPvalueThreshold,
+            psiMinorThreshold: basePayload.psiMinorThreshold,
+            psiMajorThreshold: basePayload.psiMajorThreshold,
+            wassersteinStdMultiplier: basePayload.wassersteinStdMultiplier,
+        };
+        const responses = await Promise.all(columns.map(async (column) => {
+            const response = await fetchDriftStats<DriftResponse>({ column, ...sharedPayload }, signal);
+            return [column, response] as const;
+        }));
+        return toLegacyInvestigation(new Map<string, DriftResponse>(responses));
     }
 
     // Module-level request task for drift compute — cancel-before-new semantics
@@ -348,7 +574,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
             if (loadingOverlay) loadingOverlay.hidden = !loading;
         },
         onError: (message: string) => {
-            if (statusEl) statusEl.textContent = `Error: ${message}`;
+            toast(`Drift failed: ${message}`, 'error', { duration: 0 });
             syncEmptyState(true, message || 'Computation failed. Check column and date ranges.');
         },
     });
@@ -356,14 +582,14 @@ export async function initDriftPage(metadata: any): Promise<void> {
     async function runCompute(): Promise<void> {
         const columns = getSelectedColumns();
         if (columns.length === 0) {
-            if (statusEl) statusEl.textContent = 'Select at least one numeric column.';
+            toast('Select at least one numeric column.', 'warning', {});
             return;
         }
 
         const refStart = refStartInput?.value;
         const refEnd = refEndInput?.value;
         if (!refStart || !refEnd) {
-            if (statusEl) statusEl.textContent = 'Set reference start and end dates.';
+            toast('Set reference start and end dates.', 'warning', {});
             return;
         }
 
@@ -377,38 +603,35 @@ export async function initDriftPage(metadata: any): Promise<void> {
         try {
             await driftComputeTask.run(async (signal) => {
                 const basePayload: Record<string, unknown> = {
+                    columns,
                     window: getDropdownValue('drift-window-select') || 'daily',
                     referenceStart: new Date(refStart).toISOString(),
                     referenceEnd: new Date(refEnd).toISOString(),
+                    comparisonStart: new Date(refEnd).toISOString(),
                     ksPvalueThreshold: readThresholdValue(ksThresholdInput, 0.05),
                     esPvalueThreshold: readThresholdValue(esThresholdInput, 0.05),
                     psiMinorThreshold: readThresholdValue(psiMinorThresholdInput, 0.1),
                     psiMajorThreshold: readThresholdValue(psiMajorThresholdInput, 0.2),
                     wassersteinStdMultiplier: readThresholdValue(wassersteinStdMultiplierInput, 0.1),
+                    includeQuality: true,
+                    includeChangePoints: true,
+                    includeCorrelations: true,
                 };
+                const segmentBy = getDropdownValue('drift-segment-by');
+                if (segmentBy) basePayload.segmentBy = segmentBy;
 
-                const settled = await Promise.allSettled(columns.map(async (column) => {
-                    const payload = await fetchDriftStats<DriftResponse>({ ...basePayload, column }, signal);
-                    return { column, payload };
-                }));
-
-                const results = new Map<string, DriftResponse>();
-                const failures: string[] = [];
-
-                settled.forEach((result) => {
-                    if (result.status === 'fulfilled') {
-                        results.set(result.value.column, result.value.payload);
-                        if (DEBUG && result.value.payload?.metadata) {
-                            console.debug('drift metadata', result.value.column, result.value.payload.metadata);
-                        }
-                    } else {
-                        failures.push(String(result.reason?.message || result.reason || 'unknown error'));
-                    }
-                });
-
-                if (results.size === 0) {
-                    throw new Error(failures.join(' | ') || 'No drift responses received.');
+                let investigation: DriftInvestigationResponse;
+                try {
+                    investigation = await fetchDriftInvestigation<DriftInvestigationResponse>(basePayload, signal);
+                    usingLegacyFallback = false;
+                } catch (error) {
+                    if (!isLegacyCompatibleError(error)) throw error;
+                    usingLegacyFallback = true;
+                    investigation = await fetchLegacyInvestigation(basePayload, columns, signal);
                 }
+                const results = new Map<string, DriftResponse>(Object.entries(investigation.columns || {}));
+                if (results.size === 0) throw new Error('No drift responses received.');
+                if (DEBUG && investigation.overview) console.debug('drift investigation overview', investigation.overview);
 
                 rawResponsesByColumn = results;
 
@@ -416,7 +639,9 @@ export async function initDriftPage(metadata: any): Promise<void> {
                 // (new series data) rather than an incremental merge (issue #8).
                 _pendingFullReset = true;
 
-                applyRenderedResponses(results, failures);
+                applyRenderedResponses(results, investigation);
+                setActiveTab('timeline');
+                scheduleDriftChartRefresh();
 
                 const hasWindows = Array.from(getResponsesByColumn().values()).some((resp) => resp.windows.length > 0);
                 syncEmptyState(!hasWindows, hasWindows ? undefined : 'No data found in the monitoring range after the reference window.');
@@ -478,16 +703,13 @@ export async function initDriftPage(metadata: any): Promise<void> {
     }
 
     function exportDriftJson(): void {
-        if (getResponsesByColumn().size === 0) return;
+        if (!currentInvestigation) return;
         const payload = {
-            active_column: getActiveDetailColumn(),
+            ...currentInvestigation,
+            activeColumn: getActiveDetailColumn(),
             evaluationMode: getEvaluationMode(),
             latestWindowCount: getLatestWindowCount(),
-            summary: buildGlobalSummary(getResponsesByColumn()),
-            columnSummaries: Object.fromEntries(
-                Array.from(getResponsesByColumn().values()).map((response) => [response.column, buildColumnSummary(response)]),
-            ),
-            columns: Object.fromEntries(getResponsesByColumn().entries()),
+            filteredColumns: Object.fromEntries(getResponsesByColumn().entries()),
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -524,7 +746,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
 
     function reapplyEvaluationMode(): void {
         if (rawResponsesByColumn.size === 0) return;
-        applyRenderedResponses(rawResponsesByColumn);
+        applyRenderedResponses(rawResponsesByColumn, currentInvestigation);
     }
 
     // ── Wire controls ────────────────────────────────────────────────────────
@@ -560,7 +782,6 @@ export async function initDriftPage(metadata: any): Promise<void> {
             refEndInput,
             computeBtn,
             zoomResetBtn,
-            statusEl,
             detailColumnSelect,
             loadingOverlay,
             emptyState,
@@ -584,6 +805,11 @@ export async function initDriftPage(metadata: any): Promise<void> {
 
     evaluationModeSelect?.addEventListener('change', reapplyEvaluationMode);
     latestNInput?.addEventListener('change', reapplyEvaluationMode);
+    tabButtons.forEach((button) => {
+        button.addEventListener('click', () => setActiveTab(button.dataset.driftTab || 'overview'));
+    });
+    updateSegmentBySelect();
+    setActiveTab(activeTab);
 
     scheduleDriftChartRefresh();
 
@@ -594,7 +820,6 @@ export async function initDriftPage(metadata: any): Promise<void> {
     driftRuntime = createAnalysisPageRuntime({
         page: 'drift',
         emptyStateRootId: 'drift-empty',
-        statusElId: 'drift-status',
         bindExportsOnInit: false,
         exportConfig: {
             key: 'drift',

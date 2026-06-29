@@ -1112,14 +1112,6 @@
             </div>
           </div>
         </div>
-        <div id="causal-status" class="analysis-status" role="status" aria-live="polite"></div>
-        <!-- Progress bar -->
-        <div id="causal-progress" class="causal-progress-wrap" hidden>
-          <div class="causal-progress-track">
-            <div class="causal-progress-fill" id="causal-progress-fill"></div>
-          </div>
-          <span class="causal-progress-label" id="causal-progress-label"></span>
-        </div>
         <div class="fft-traces-bar" id="causal-columns-bar"
           style="flex-wrap:wrap;gap:6px;padding:6px 12px;border-bottom:1px solid var(--border);min-height:34px;">
         </div>
@@ -1234,6 +1226,12 @@
                 <span class="scatter-toolbar__field-label">Latest N</span>
                 <input id="drift-latest-n" type="number" min="1" step="1" value="3" class="modal-input"
                   aria-label="Latest window count">
+              </div>
+              <div class="scatter-toolbar__field">
+                <span class="scatter-toolbar__field-label">Segment</span>
+                <select id="drift-segment-by" class="modal-select" aria-label="Segment by column">
+                  <option value="" selected>None</option>
+                </select>
               </div>
             </div>
           </div>
@@ -1356,13 +1354,21 @@
             </div>
           </div>
         </div>
-        <div id="drift-status" class="analysis-status" role="status" aria-live="polite">
-          Select one or more columns, choose a baseline, and press Compute.
-        </div>
         <main class="main main--chart">
+          <div id="drift-investigation-tabs" class="drift-list-controls" aria-label="Drift investigation tabs">
+            <button type="button" class="btn btn-ghost btn-sm active" data-drift-tab="overview" aria-pressed="true">Overview</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-drift-tab="timeline" aria-pressed="false">Timeline plots</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-drift-tab="segments" aria-pressed="false">Segments</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-drift-tab="quality" aria-pressed="false">Quality</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-drift-tab="relationships" aria-pressed="false">Relationships</button>
+          </div>
+          <div id="drift-overview-panel" class="drift-column-summary" aria-live="polite"></div>
+          <div id="drift-segments-panel" class="drift-column-summary" aria-live="polite" hidden></div>
+          <div id="drift-quality-panel" class="drift-column-summary" aria-live="polite" hidden></div>
+          <div id="drift-relationships-panel" class="drift-column-summary" aria-live="polite" hidden></div>
           <div id="drift-summary-strip" class="drift-summary-strip" aria-live="polite"></div>
           <div id="drift-column-summary" class="drift-column-summary" aria-live="polite"></div>
-          <div class="drift-layout">
+          <div class="drift-layout" hidden>
             <!-- Left: macro timeline + legend -->
             <div class="drift-timeline-panel">
               <div class="drift-timeline-canvas-wrap">
@@ -1765,10 +1771,11 @@
                   </svg>
                   Upload & Ingest
                 </button>
-                <div class="progress-bar-wrap" id="progress-wrap" style="display:none" role="progressbar"
-                  aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Upload progress">
-                  <div class="progress-bar" id="progress-bar"></div>
-                </div>
+              </div>
+              <div id="upload-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite"
+                aria-label="Upload progress">
+                <div class="chart-loading-spinner"></div>
+                <span class="chart-loading-label">Uploading &amp; ingesting…</span>
               </div>
             </div>
 

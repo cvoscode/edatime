@@ -1,5 +1,9 @@
 /**
  * File source logic — handles file selection, drag/drop, and upload submission.
+ *
+ * Upload progress is shown via the `upload-loading` overlay (the same
+ * `chart-loading-overlay` pattern used by other pages); the legacy inline
+ * progress bar has been removed.
  */
 import {
     uploadDataset,
@@ -18,24 +22,17 @@ import type { DatasetMetadata } from '../../types.js';
 export { loadedRowCountFromResponse } from './preview.js';
 export { formatUploadRowCountValue } from './partialLoadControls.js';
 
-// ── Progress animation ───────────────────────────────────────────────────────
+// ── Upload loading overlay helper ──────────────────────────────────────────────────
 
-export function animateProgress(bar: HTMLElement, wrap: HTMLElement | null): () => void {
-    let w = 0;
-    if (wrap) wrap.setAttribute('aria-valuenow', '0');
-    const t = setInterval(() => {
-        w = Math.min(w + Math.random() * 8, 85);
-        bar.style.width = w + '%';
-        if (wrap) wrap.setAttribute('aria-valuenow', String(Math.round(w)));
-        if (w >= 85) clearInterval(t);
-    }, 120);
-    return () => {
-        clearInterval(t);
-        if (wrap) {
-            const current = Number(wrap.getAttribute('aria-valuenow') || '0');
-            wrap.setAttribute('aria-valuenow', String(Math.max(current, 100)));
-        }
-    };
+const UPLOAD_LOADING_ID = 'upload-loading';
+
+function getUploadLoading(): HTMLElement | null {
+    return document.getElementById(UPLOAD_LOADING_ID);
+}
+
+function showUploadLoading(show: boolean): void {
+    const overlay = getUploadLoading();
+    if (overlay) overlay.hidden = !show;
 }
 
 // ── Upload submission ────────────────────────────────────────────────────────
@@ -55,8 +52,6 @@ export interface FileUploadParams {
     timeEndInput: HTMLInputElement | null;
     uploadBtn: HTMLButtonElement;
     statusEl: HTMLElement | null;
-    progressWrap: HTMLElement;
-    progressBar: HTMLElement;
     fileInput: HTMLInputElement;
     fileDisplay: HTMLElement;
     deps: FileUploadDeps;
@@ -74,8 +69,6 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
         timeEndInput,
         uploadBtn,
         statusEl,
-        progressWrap,
-        progressBar,
         fileInput,
         fileDisplay,
         deps,
@@ -111,8 +104,6 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
             statusEl!.className = 'upload-status error';
             toast('Enter a valid Max rows value for partial load.', 'error', {});
             uploadBtn.disabled = false;
-            progressWrap.style.display = 'none';
-            progressBar.style.width = '0';
             return;
         }
         if (skipRows > 0) formData.append('skip_rows', String(skipRows));
@@ -151,12 +142,10 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
         statusEl.textContent = 'Uploading…';
         statusEl.className = 'upload-status loading';
     }
-    progressWrap.style.display = 'block';
-    const stopProgress = animateProgress(progressBar, progressWrap);
+    showUploadLoading(true);
 
     try {
         const res = await uploadDataset(formData);
-        progressBar.style.width = '100%';
         if (!res.ok) {
             const txt = await res.text();
             let message = txt;
@@ -207,8 +196,9 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
         }
         toast(`Upload failed: ${e instanceof Error ? e.message : String(e)}`, 'error', {});
     } finally {
-        stopProgress();
+        // Keep the overlay visible briefly so success / failure feels
+        // intentional, then dismiss it. Matches the prior 1500ms hold.
+        setTimeout(() => showUploadLoading(false), 1500);
         uploadBtn.disabled = false;
-        setTimeout(() => { progressWrap.style.display = 'none'; progressBar.style.width = '0'; }, 1500);
     }
 }

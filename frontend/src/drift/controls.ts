@@ -48,7 +48,6 @@ export interface DriftControlOptions {
     refEndInput: HTMLInputElement | null;
     computeBtn: HTMLButtonElement | null;
     zoomResetBtn: HTMLButtonElement | null;
-    statusEl: HTMLElement | null;
     detailColumnSelect: HTMLElement | null;
     loadingOverlay: HTMLElement | null;
     emptyState: HTMLElement | null;

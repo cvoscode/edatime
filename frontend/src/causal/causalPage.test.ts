@@ -1,11 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const mocks = vi.hoisted(() => ({
+    toast: vi.fn(),
+}));
+
 vi.mock('../services/api/index.js', () => ({
     fetchCausalGraph: vi.fn(),
 }));
 
 vi.mock('./causalComparison.js', () => ({
     notifyCausalGraphUpdated: vi.fn(),
+}));
+
+vi.mock('../utils/toast.js', () => ({
+    toast: mocks.toast,
 }));
 
 class ResizeObserverMock {
@@ -49,6 +57,7 @@ function createCanvasContextMock() {
 describe('causal page chart bootstrap', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
+        mocks.toast.mockReset();
         (globalThis as any).ResizeObserver = ResizeObserverMock;
         vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => createCanvasContextMock() as any);
 
@@ -72,10 +81,6 @@ describe('causal page chart bootstrap', () => {
               <button id="causal-edit-close" type="button">Close</button>
               <button id="causal-edit-apply" type="button">Apply</button>
               <button id="causal-edit-delete" type="button">Delete</button>
-              <div id="causal-progress" hidden></div>
-              <div id="causal-progress-fill"></div>
-              <div id="causal-progress-label"></div>
-              <div id="causal-status"></div>
               <div id="causal-chart"></div>
               <div id="causal-empty-state"></div>
               <div id="causal-loading" hidden></div>
@@ -143,7 +148,11 @@ describe('causal page chart bootstrap', () => {
             document.getElementById('causal-fdr-select'),
         );
 
-        expect(document.getElementById('causal-status')?.textContent).toContain('Select at least 2 numeric columns');
+        expect(mocks.toast).toHaveBeenCalled();
+        const toastArgs = mocks.toast.mock.calls.find((call) =>
+            typeof call[0] === 'string' && call[0].includes('Select at least 2 numeric columns')
+        );
+        expect(toastArgs).toBeDefined();
     });
 
 });

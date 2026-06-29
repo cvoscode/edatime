@@ -49,43 +49,6 @@
   font-size: 0.8125rem;
 }
 
-/* ─── Causal progress bar ─────────────────────────────────────── */
-.causal-progress-wrap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 12px;
-  border-bottom: 1px solid var(--border, #272d45);
-  background: var(--surface-1);
-}
-
-.causal-progress-wrap[hidden] {
-  display: none;
-}
-
-.causal-progress-track {
-  flex: 1;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--border, #272d45);
-  overflow: hidden;
-}
-
-.causal-progress-fill {
-  height: 100%;
-  width: 0%;
-  border-radius: 3px;
-  background: var(--accent, #00d4ff);
-  transition: width 0.25s ease;
-}
-
-.causal-progress-label {
-  font-size: 0.75rem;
-  color: var(--text-dim, #7a86a4);
-  white-space: nowrap;
-  min-width: 120px;
-}
-
 /* ─── Causal node inline editor ───────────────────────────────── */
 .causal-node-edit {
   font: bold 10px sans-serif;

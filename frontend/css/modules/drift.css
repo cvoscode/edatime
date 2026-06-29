@@ -360,10 +360,6 @@
 }
 
 @media (max-width: 640px) {
-  .drift-toolbar #drift-status {
-    display: none;
-  }
-
   .drift-summary-strip {
     grid-template-columns: 1fr;
   }

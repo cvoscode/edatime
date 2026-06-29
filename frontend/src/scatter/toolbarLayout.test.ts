@@ -24,14 +24,24 @@ describe('scatter toolbar layout shell', () => {
 
     it('defines dedicated scatter toolbar segment styling instead of relying on the base toolbar row', () => {
         expect(toolbarCss).toContain('.scatter-toolbar');
-        expect(scatterCss).toContain('.scatter-toolbar__segment');
-        expect(scatterCss).toContain('.scatter-toolbar__eyebrow');
+        // The segment/eyebrow styles are used by 8 different pages
+        // (timeseries, scatter, drift, causal, fft, spectrogram,
+        // heatmap, upload) so they live in toolbar.css to keep them
+        // available at app start instead of behind the lazy scatter
+        // stylesheet.
+        expect(toolbarCss).toContain('.scatter-toolbar__segment');
+        expect(toolbarCss).toContain('.scatter-toolbar__eyebrow');
     });
 
     it('adds scatter-specific chip and stats styling for the redesigned summary row', () => {
-        expect(scatterCss).toContain('.scatter-stat-chip');
-        expect(scatterCss).toContain('.scatter-stats-bar__suggestions');
-        expect(scatterCss).toContain('.scatter-stats-bar__correlations');
+        // The shared segment/eyebrow/chip/stats-bar styles were moved
+        // out of scatter.css into toolbar.css because the underlying
+        // classes are also reused by the timeseries summary row.
+        // `.scatter-suggestion-empty` is still scatter-only and lives
+        // in scatter.css.
+        expect(toolbarCss).toContain('.scatter-stat-chip');
+        expect(toolbarCss).toContain('.scatter-stats-bar__suggestions');
+        expect(toolbarCss).toContain('.scatter-stats-bar__correlations');
         expect(scatterCss).toContain('.scatter-suggestion-empty');
     });
 

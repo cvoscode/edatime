@@ -109,13 +109,21 @@ All frontend transport calls stay in `frontend/src/services/api/*`. All route ha
 - **Response `200 OK`:** `CausalGraphResponse { columns: string[]; tau_max: number; links: CausalLink[]; graph: string[][][]; val_matrix: number[][][]; p_matrix: number[][][] }`
 
 ### `POST /api/drift/stats`
-- **TS caller:** `fetchDriftStats<T>(payload: unknown, signal?: AbortSignal): Promise<T>` [deps: [fetchDriftStats][10]]
-- **Rust payload:** `DriftQuery { column: String, window: String, reference_start: String, reference_end: String }` [deps: [DriftQuery][11]]
-- **Rust handler:** `pub async fn post_drift_stats(State(state): State<AppState>, Json(query): Json<DriftQuery>) -> Result<Response, AppError>` [deps: [compute_temporal_drift][13]]
-- **Frontend payload shape in practice:** `{ column: string; window: string; reference_start: string; reference_end: string }`
+- **TS caller:** `fetchDriftStats<T>(payload: DriftQueryPayload, signal?: AbortSignal): Promise<T>` [deps: [fetchDriftStats][10]]
+- **Rust payload:** `DriftQuery { column: String, window: String, reference_start: String, reference_end: String, ks_pvalue_threshold: Option<f64>, es_pvalue_threshold: Option<f64>, psi_minor_threshold: Option<f64>, psi_major_threshold: Option<f64>, wasserstein_std_multiplier: Option<f64> }` [serde(rename_all = "camelCase")] [deps: [DriftQuery][11]]
+- **Rust handler:** `pub async fn post_drift_stats(State(state): State<AppState>, Json(query): Json<DriftQuery>) -> Result<Response, AppError>` [deps: [compute_temporal_drift][13], [normalized_thresholds][drift_route]]
+- **Frontend payload shape in practice:** `{ column: string; window: string; reference_start: string; reference_end: string; ksPvalueThreshold?: number; esPvalueThreshold?: number; psiMinorThreshold?: number; psiMajorThreshold?: number; wassersteinStdMultiplier?: number }`
 - **Window sizes:** `hourly` (3600s), `daily` (86400s, default), `weekly` (604800s)
-- **Response `200 OK`:** `DriftResponse { column: string; reference: WindowDistributionStats; windows: DriftWindowStats[]; thresholds: { ks_threshold: number; wasserstein_threshold: number; psi_minor_threshold: number; psi_major_threshold: number }; metadata?: { computation_time_ms: number; num_windows: number; reference_samples: number; bin_count_warning?: boolean; effective_bins?: number; psi_sample_ratio_warning?: boolean; avg_window_samples?: number } }` [deps: [DriftResponse][14]]
-- **Error:** `400` invalid datetime format; `500` compute failure.
+- **Response `200 OK`:** `DriftResponse { column: string; reference: WindowDistributionStats; windows: DriftWindowStats[]; thresholds: { ks_pvalue_threshold: number; es_pvalue_threshold: number; wasserstein_threshold: number; psi_minor_threshold: number; psi_major_threshold: number }; metadata?: { computation_time_ms: number; num_windows: number; reference_samples: number; bin_count_warning?: boolean; effective_bins?: number; psi_sample_ratio_warning?: boolean; avg_window_samples?: number } }` [deps: [DriftResponse][14]]
+- **Error:** `400` invalid datetime format or time window; `500` compute failure.
+
+### `POST /api/drift/investigate` [new in refactor]
+- **TS caller:** `fetchDriftInvestigation(payload: DriftInvestigateQueryPayload, signal?: AbortSignal): Promise<DriftInvestigationResponse>` [deps: [fetchDriftInvestigation][10]]
+- **Rust payload:** `DriftInvestigateQuery { columns: Vec<String>, window: String, reference_start: String, reference_end: String, comparison_start: Option<String>, comparison_end: Option<String>, segment_by: Option<String>, segment_limit: Option<usize>, ks_pvalue_threshold: Option<f64>, es_pvalue_threshold: Option<f64>, psi_minor_threshold: Option<f64>, psi_major_threshold: Option<f64>, wasserstein_std_multiplier: Option<f64>, include_quality: Option<bool>, include_change_points: Option<bool>, include_correlations: Option<bool> }` [serde(rename_all = "camelCase", deny_unknown_fields)] [deps: [DriftInvestigateQuery][11]]
+- **Rust handler:** `pub async fn post_drift_investigate(State(state): State<AppState>, Json(query): Json<DriftInvestigateQuery>) -> Result<Json<crate::analytics::DriftInvestigationResponse>, AppError>` [deps: [compute_drift_investigation][13]]
+- **Frontend payload shape in practice:** `{ columns: string[]; window: string; reference_start: string; reference_end: string; comparisonStart?: string; comparisonEnd?: string; segmentBy?: string; segmentLimit?: number; ksPvalueThreshold?: number; esPvalueThreshold?: number; psiMinorThreshold?: number; psiMajorThreshold?: number; wassersteinStdMultiplier?: number; includeQuality?: boolean; includeChangePoints?: boolean; includeCorrelations?: boolean }`
+- **Response `200 OK`:** `DriftInvestigationResponse { overview: DriftInvestigationOverview, columns: Record<string, DriftResponse>, rankings: { features: DriftFeatureRank[], segments: DriftSegmentRank[], changePoints: DriftChangePointRank[], qualityIssues: DriftQualityIssueRank[], relationships: DriftRelationshipRank[] }, segments?: { segmentBy: string; groups: DriftSegmentGroup[] }, quality?: { byColumn: Record<string, DriftQualitySummary> }, relationships?: { mode: string; pairs: DriftRelationshipRank[] } }` [deps: [DriftInvestigationResponse][14]]
+- **Error:** `400` invalid datetime, unknown segment column, or validation failure; `500` compute failure.
 
 ## Upload And Database
 

@@ -1,14 +1,21 @@
 /* ═══════════════════════════════════════════════════════════════
-   EdaTime — CSS import manifest  v39
+   EdaTime — CSS import manifest  v40
    ─────────────────────────────────────────────────────────────
    Layer order (foundation → primitive/component → shell → feature):
      foundation   — design tokens, reset, scrollbars, animations, a11y
      component    — controls, buttons, chips, modals, range-chips,
                     chart, toast, palette, settings, loading-indicator,
                     keyboard-help, whats-new
-     shell/layout — layout, sidebar, header, toolbar, responsive,
+     shell/layout — layout, sidebar, header, toolbar (incl. shared
+                    .scatter-toolbar__segment* helpers), responsive,
                     upload, provenance
      feature/page — scatter (lazy: drift, home; static: scatter)
+
+   The shared .scatter-toolbar__segment* classes are used by
+   timeseries, scatter, drift, causal, fft, spectrogram, heatmap and
+   upload toolbars, so they live in toolbar.css to keep the toolbar
+   surface rendered correctly at app start instead of depending on a
+   page-level lazy CSS load.
 
    Page modules are bundled by Vite into the hashed stylesheet.
    ═══════════════════════════════════════════════════════════════ */

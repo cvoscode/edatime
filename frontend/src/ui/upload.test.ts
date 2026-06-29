@@ -83,8 +83,7 @@ function buildUploadDom(): void {
         <input id="time-end-input" type="datetime-local" />
         <button id="upload-btn" type="button"></button>
         <div id="upload-status"></div>
-        <div id="progress-wrap"></div>
-        <div id="progress-bar"></div>
+        <div id="upload-loading" hidden></div>
         <button id="profile-select-all-btn" type="button"></button>
         <button id="profile-select-none-btn" type="button"></button>
         <input id="profile-select-all-checkbox" type="checkbox" />

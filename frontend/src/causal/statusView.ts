@@ -1,27 +1,56 @@
 /**
- * causal/statusView — progress overlay, status text, and empty state helpers.
+ * causal/statusView — status toasts, progress overlay, and empty state helpers.
  * Does not own any chart state.
+ *
+ * The page previously had a dedicated status line and a separate progress bar.
+ * Status text is now surfaced as toast notifications; the progress indicator is
+ * rendered as an overlay (the same `causal-loading` element that also blocks
+ * user interaction during compute).
  */
 
+import { toast, type ToastKind } from '../utils/toast.js';
+
+const PROGRESS_OVERLAY_ID = 'causal-loading';
+const PROGRESS_LABEL_ID = 'causal-progress-label';
+
+function progressOverlay(): HTMLElement | null {
+    return document.getElementById(PROGRESS_OVERLAY_ID);
+}
+
+function progressLabel(): HTMLElement | null {
+    return (
+        document.getElementById(PROGRESS_LABEL_ID) ||
+        progressOverlay()?.querySelector<HTMLElement>('.chart-loading-label') ||
+        null
+    );
+}
+
+/** Show the progress overlay and update its label. Percent is currently
+ *  accepted for backward compatibility but not rendered — the spinner is
+ *  indeterminate while compute is in flight. */
 export function setProgress(percent: number, label?: string): void {
-    const overlay = (document.getElementById('causal-progress-overlay') || document.getElementById('causal-progress')) as HTMLElement | null;
-    const fill = document.getElementById('causal-progress-fill') as HTMLElement | null;
-    const text = (document.getElementById('causal-progress-text') || document.getElementById('causal-progress-label')) as HTMLElement | null;
+    const overlay = progressOverlay();
+    const text = progressLabel();
     if (overlay) overlay.hidden = false;
-    if (fill) fill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
-    if (text) text.textContent = label ?? `Running… ${percent}%`;
+    if (text) {
+        const pct = Math.round(Math.min(100, Math.max(0, percent)));
+        text.textContent = label ? `${label} (${pct}%)` : `Running… ${pct}%`;
+    }
 }
 
 export function hideProgress(): void {
-    const overlay = (document.getElementById('causal-progress-overlay') || document.getElementById('causal-progress')) as HTMLElement | null;
+    const overlay = progressOverlay();
     if (overlay) overlay.hidden = true;
+    const text = progressLabel();
+    if (text) text.textContent = 'Running causal discovery…';
 }
 
 export function setStatus(message: string, tone: 'info' | 'error' | 'success' = 'info'): void {
-    const status = document.getElementById('causal-status') as HTMLElement | null;
-    if (!status) return;
-    status.textContent = message;
-    status.dataset.tone = tone;
+    const kind: ToastKind = tone === 'success' ? 'success' : tone === 'error' ? 'error' : 'info';
+    // Success and info messages get the standard auto-dismiss; errors are
+    // sticky so the user can read them.
+    const opts = tone === 'error' ? { duration: 0 } : {};
+    toast(message, kind, opts);
 }
 
 export function syncCausalEmptyState(columnsLength: number): void {
