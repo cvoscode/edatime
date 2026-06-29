@@ -198,6 +198,112 @@ export function ensureRelativePosition(container: HTMLElement): void {
     }
 }
 
+/* ── Ctrl+drag pan ────────────────────────────────────── */
+
+export interface CtrlPanOptions {
+    container: HTMLElement;
+    grid: GridLayout;
+    getXRange: () => NumericRange;
+    getYRange: () => NumericRange | null;
+    onPan: (view: { xMin: number; xMax: number; yMin: number; yMax: number } | { xMin: number; xMax: number }) => void;
+    /** Optional extra predicate; return true to skip the pan gesture. */
+    shouldIgnore?: (e: PointerEvent) => boolean;
+    /** Minimum drag distance in CSS pixels before a pan fires. */
+    minDragPx?: number;
+}
+
+/**
+ * Wire up a Ctrl+left-button pan gesture on a chart container. Only
+ * fires while Ctrl (or Meta) is held; otherwise no listener triggers
+ * so the existing selection-zoom and click handlers are unaffected.
+ *
+ * The callback receives the new view (x range always; y range when a
+ * y range is known). Pixels are converted to data via the current
+ * visible ranges so the result is range-agnostic.
+ */
+export function initCtrlPan(opts: CtrlPanOptions): void {
+    const { container, grid, getXRange, getYRange, onPan, shouldIgnore, minDragPx = 4 } = opts;
+    let drag: DragState | null = null;
+    let lastClientX = 0;
+    let lastClientY = 0;
+    let pending: { xMin: number; xMax: number; yMin?: number; yMax?: number } | null = null;
+    let panRaf: number | null = null;
+
+    const isCtrlPan = (e: PointerEvent): boolean =>
+        (e.ctrlKey || e.metaKey) && e.button === 0;
+
+    container.addEventListener('pointerdown', (e) => {
+        if (!isCtrlPan(e)) return;
+        if (shouldIgnore?.(e)) return;
+        e.preventDefault();
+        const rect = container.getBoundingClientRect();
+        lastClientX = e.clientX;
+        lastClientY = e.clientY;
+        drag = {
+            pointerId: e.pointerId,
+            startX: e.clientX - rect.left,
+            endX: e.clientX - rect.left,
+            startY: e.clientY - rect.top,
+            endY: e.clientY - rect.top,
+        };
+        try { container.setPointerCapture(e.pointerId); } catch { /* ignored */ }
+        container.style.cursor = 'grabbing';
+    });
+
+    container.addEventListener('pointermove', (e) => {
+        if (!drag || e.pointerId !== drag.pointerId) return;
+        const dx = e.clientX - lastClientX;
+        const dy = e.clientY - lastClientY;
+        lastClientX = e.clientX;
+        lastClientY = e.clientY;
+        const rect = container.getBoundingClientRect();
+        drag.endX = e.clientX - rect.left;
+        drag.endY = e.clientY - rect.top;
+        if (Math.abs(drag.endX - drag.startX) < minDragPx && Math.abs(drag.endY - drag.startY) < minDragPx) {
+            return;
+        }
+        // Translate accumulated drag into data-space deltas.
+        const xRange = getXRange();
+        const yRange = getYRange();
+        const plotWidth = Math.max(1, rect.width - grid.left - grid.right);
+        const plotHeight = Math.max(1, rect.height - grid.top - grid.bottom);
+        const xSpan = xRange.max - xRange.min;
+        // Pan moves the view opposite to the cursor: drag right → earlier
+        // timestamps become visible. Negative dx shifts xMin/xMax back in
+        // time by the same proportional amount.
+        const xShift = (-dx / plotWidth) * xSpan;
+        const next: { xMin: number; xMax: number; yMin?: number; yMax?: number } = {
+            xMin: xRange.min + xShift,
+            xMax: xRange.max + xShift,
+        };
+        if (yRange && yRange.max > yRange.min) {
+            const ySpan = yRange.max - yRange.min;
+            // Cursor moving down (positive dy) should reveal higher y values
+            // at the top of the plot, so we shift yMax/yMin up.
+            const yShift = (dy / plotHeight) * ySpan;
+            next.yMin = yRange.min + yShift;
+            next.yMax = yRange.max + yShift;
+        }
+        pending = next;
+        if (panRaf != null) return;
+        panRaf = requestAnimationFrame(() => {
+            panRaf = null;
+            if (!pending) return;
+            onPan(pending);
+            pending = null;
+        });
+    });
+
+    const finish = (e: PointerEvent) => {
+        if (!drag || e.pointerId !== drag.pointerId) return;
+        drag = null;
+        container.style.cursor = '';
+        try { container.releasePointerCapture(e.pointerId); } catch { /* ignored */ }
+    };
+    container.addEventListener('pointerup', finish);
+    container.addEventListener('pointercancel', finish);
+}
+
 /* ── Composed box-zoom wiring ──────────────────────────── */
 
 export interface XOnlyBoxZoomOptions {

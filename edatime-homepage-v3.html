@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EdaTime — Interactive Time-Series Analytics</title>
+  <style>
+    /* ═══════════════════════════════════════════════════
+       RESET & BASE
+    ═══════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #3b82f6;
+      --accent-light: #60a5fa;
+      --accent-glow: rgba(59, 130, 246, 0.15);
+      --accent-glow-strong: rgba(59, 130, 246, 0.3);
+      --surface: #0f1117;
+      --surface-hover: #161822;
+      --border: rgba(255, 255, 255, 0.06);
+      --border-hover: rgba(255, 255, 255, 0.12);
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-tertiary: #64748b;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+
+      /* Tag palette */
+      --tag-time-bg: rgba(59, 130, 246, 0.08);
+      --tag-time-border: rgba(59, 130, 246, 0.15);
+      --tag-time-color: #60a5fa;
+
+      --tag-fft-bg: rgba(139, 92, 246, 0.08);
+      --tag-fft-border: rgba(139, 92, 246, 0.15);
+      --tag-fft-color: #a78bfa;
+
+      --tag-correlations-bg: rgba(245, 158, 11, 0.08);
+      --tag-correlations-border: rgba(245, 158, 11, 0.15);
+      --tag-correlations-color: #fbbf24;
+
+      --tag-spike-bg: rgba(239, 68, 68, 0.08);
+      --tag-spike-border: rgba(239, 68, 68, 0.15);
+      --tag-spike-color: #f87171;
+
+      --tag-gaps-bg: rgba(245, 158, 11, 0.08);
+      --tag-gaps-border: rgba(245, 158, 11, 0.15);
+      --tag-gaps-color: #fbbf24;
+
+      --tag-mixed-bg: rgba(16, 185, 129, 0.08);
+      --tag-mixed-border: rgba(16, 185, 129, 0.15);
+      --tag-mixed-color: #34d399;
+
+      --tag-rows-bg: rgba(251, 146, 60, 0.08);
+      --tag-rows-border: rgba(251, 146, 60, 0.15);
+      --tag-rows-color: #fb923c;
+
+      --icon-ettm2: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      --icon-sinusoidal: linear-gradient(135deg, #8b5cf6, #a855f7);
+      --icon-weather: linear-gradient(135deg, #0ea5e9, #ec4899);
+
+      --card-icon-bg: rgba(255, 255, 255, 0.03);
+    }
+
+    [data-theme="light"] {
+      --surface: #ffffff;
+      --surface-hover: #f8fafc;
+      --border: rgba(0, 0, 0, 0.06);
+      --border-hover: rgba(0, 0, 0, 0.12);
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-tertiary: #94a3b8;
+    }
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    html { font-size: 16px; scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-sans);
+      background: #080a0f;
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       ANIMATED BACKGROUND
+    ═══════════════════════════════════════════════════ */
+    .bg-grid {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.01) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.01) 1px, transparent 1px);
+      background-size: 64px 64px;
+    }
+
+    .bg-glow {
+      position: fixed;
+      z-index: 0;
+      pointer-events: none;
+      width: 800px;
+      height: 800px;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.4;
+      animation: floatGlow 20s ease-in-out infinite alternate;
+    }
+
+    .bg-glow--blue {
+      top: -200px;
+      right: -200px;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.3), transparent 70%);
+    }
+
+    .bg-glow--purple {
+      top: 100px;
+      left: -300px;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.2), transparent 70%);
+      animation-delay: -10s;
+    }
+
+    @keyframes floatGlow {
+      0%   { transform: translate(0, 0) scale(1); opacity: 0.3; }
+      50%  { transform: translate(40px, 20px) scale(1.1); opacity: 0.5; }
+      100% { transform: translate(-20px, -30px) scale(0.95); opacity: 0.35; }
+    }
+
+    /* ═══════════════════════════════════════════════════
+       ACCESSIBILITY
+    ═══════════════════════════════════════════════════ */
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 16px;
+      background: var(--accent);
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      font-weight: 500;
+      z-index: 100;
+      transition: top var(--transition);
+    }
+    .skip-link:focus { top: 16px; }
+
+    /* ═══════════════════════════════════════════════════
+       THEME TOGGLE
+    ═══════════════════════════════════════════════════ */
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 50;
+      background: rgba(15, 17, 23, 0.8);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: all var(--transition);
+    }
+    .theme-toggle:hover { border-color: var(--accent); color: var(--accent-light); transform: rotate(15deg); }
+
+    /* ═══════════════════════════════════════════════════
+       LAYOUT
+    ═══════════════════════════════════════════════════ */
+    .home-content {
+      position: relative;
+      z-index: 1;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       HERO SECTION
+    ═══════════════════════════════════════════════════ */
+    .home-hero {
+      display: flex;
+      align-items: center;
+      gap: 36px;
+      padding: 72px 0 56px;
+      position: relative;
+    }
+
+    /* Animated waveform canvas behind hero */
+    .hero-waveform {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: 300px;
+      z-index: 0;
+      opacity: 0.15;
+      pointer-events: none;
+    }
+
+    .home-hero > * { position: relative; z-index: 1; }
+
+    .home-hero-icon {
+      width: 72px;
+      height: 72px;
+      min-width: 72px;
+      background: linear-gradient(135deg, var(--accent), #6366f1);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow:
+        0 0 40px rgba(59, 130, 246, 0.2),
+        0 0 80px rgba(59, 130, 246, 0.1);
+      position: relative;
+    }
+
+    .home-hero-icon::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, var(--accent), #6366f1);
+      opacity: 0.3;
+      filter: blur(16px);
+      z-index: -1;
+    }
+
+    .home-hero-icon svg { width: 34px; height: 34px; color: #fff; }
+
+    .home-hero-body { flex: 1; min-width: 0; }
+
+    .home-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-light) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .home-tagline {
+      font-size: 1.0625rem;
+      color: var(--text-secondary);
+      max-width: 640px;
+      line-height: 1.6;
+    }
+
+    .home-hero-cta { flex-shrink: 0; }
+
+    /* ═══════════════════════════════════════════════════
+       BUTTONS
+    ═══════════════════════════════════════════════════ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 28px;
+      border-radius: var(--radius);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+      text-decoration: none;
+      border: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #6366f1);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(59, 130, 246, 0.25);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(59, 130, 246, 0.35);
+    }
+    .btn-primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* ═══════════════════════════════════════════════════
+       SECTION TITLES
+    ═══════════════════════════════════════════════════ */
+    .home-section { margin-bottom: 16px; padding-top: 8px; }
+
+    .home-section-title {
+      font-size: 1.375rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .home-section-copy {
+      font-size: 0.9375rem;
+      color: var(--text-secondary);
+      max-width: 680px;
+      line-height: 1.6;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SAMPLE DATASETS GRID
+    ═══════════════════════════════════════════════════ */
+    .home-datasets { margin-bottom: 48px; }
+
+    .home-datasets-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .home-dataset-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      cursor: pointer;
+      text-align: left;
+      transition: all var(--transition);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .home-dataset-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), #6366f1);
+      opacity: 0;
+      transition: opacity var(--transition);
+    }
+
+    .home-dataset-card:hover {
+      border-color: var(--border-hover);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(59, 130, 246, 0.1);
+      transform: translateY(-3px);
+    }
+
+    .home-dataset-card:hover::before { opacity: 1; }
+
+    .home-dataset-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .home-dataset-header { display: flex; align-items: center; gap: 16px; }
+
+    .home-dataset-icon {
+      width: 48px;
+      height: 48px;
+      min-width: 48px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .home-dataset-icon--ettm2 { background: var(--icon-ettm2); }
+    .home-dataset-icon--sinusoidal { background: var(--icon-sinusoidal); }
+    .home-dataset-icon--weather { background: var(--icon-weather); }
+
+    .home-dataset-icon svg { width: 20px; height: 20px; color: #fff; }
+
+    .home-dataset-info { display: flex; flex-direction: column; gap: 2px; }
+    .home-dataset-name { font-size: 1rem; font-weight: 650; color: var(--text-primary); letter-spacing: -0.01em; }
+    .home-dataset-meta { font-size: 0.8125rem; color: var(--text-secondary); }
+
+    .home-dataset-desc {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* Tags */
+    .home-dataset-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 4px; }
+
+    .home-dataset-tag {
+      font-size: 0.6875rem;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 6px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .home-dataset-tag--type { background: var(--tag-time-bg); border: 1px solid var(--tag-time-border); color: var(--tag-time-color); }
+    .home-dataset-tag--fft { background: var(--tag-fft-bg); border: 1px solid var(--tag-fft-border); color: var(--tag-fft-color); }
+    .home-dataset-tag--correlations { background: var(--tag-correlations-bg); border: 1px solid var(--tag-correlations-border); color: var(--tag-correlations-color); }
+    .home-dataset-tag--rows { background: var(--tag-rows-bg); border: 1px solid var(--tag-rows-border); color: var(--tag-rows-color); }
+
+    /* ═══════════════════════════════════════════════════
+       NAVIGATION CARDS GRID
+    ═══════════════════════════════════════════════════ */
+    .home-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+      padding: 4px 0 40px;
+    }
+
+    .home-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      cursor: pointer;
+      transition: all var(--transition);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .home-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 0%), rgba(59, 130, 246, 0.06), transparent 60%);
+      opacity: 0;
+      transition: opacity var(--transition);
+      pointer-events: none;
+    }
+
+    .home-card:hover::after { opacity: 1; }
+
+    .home-card:hover {
+      border-color: var(--border-hover);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(59, 130, 246, 0.08);
+      transform: translateY(-3px);
+    }
+
+    .home-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .home-card-icon {
+      width: 48px;
+      height: 48px;
+      min-width: 48px;
+      background: var(--card-icon-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .home-card-icon svg { width: 20px; height: 20px; color: var(--accent-light); }
+
+    .home-card-title { font-size: 1.0625rem; font-weight: 650; line-height: 1.3; letter-spacing: -0.01em; }
+    .home-card-title kbd {
+      display: inline-block;
+      margin-left: 8px;
+      padding: 2px 7px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      color: var(--text-tertiary);
+    }
+
+    .home-card-desc {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       KEYBOARD SHORTCUTS
+    ═══════════════════════════════════════════════════ */
+    .home-shortcuts { margin-top: 8px; padding-bottom: 48px; }
+
+    .home-shortcuts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 24px;
+      margin-top: 20px;
+    }
+
+    .home-shortcut-group-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 12px;
+    }
+
+    .home-shortcut-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      gap: 12px;
+    }
+
+    .home-shortcut-row kbd {
+      display: inline-block;
+      padding: 4px 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent-light);
+      white-space: nowrap;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       ENTRANCE ANIMATIONS
+    ═══════════════════════════════════════════════════ */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .home-hero       { animation: fadeUp 0.6s ease-out both; }
+    .home-datasets   { animation: fadeUp 0.6s ease-out 0.12s both; }
+    .home-section:nth-of-type(3) { animation: fadeUp 0.6s ease-out 0.24s both; }
+    .home-shortcuts  { animation: fadeUp 0.6s ease-out 0.36s both; }
+
+    /* Staggered card animations */
+    .home-card,
+    .home-dataset-card {
+      opacity: 0;
+      animation: fadeUp 0.5s ease-out both;
+    }
+    .home-grid:nth-of-type(2) > *:nth-child(1),
+    .home-grid:first-of-type > *:nth-child(1) { animation-delay: 0.3s; }
+    .home-grid:nth-of-type(2) > *:nth-child(2),
+    .home-grid:first-of-type > *:nth-child(2) { animation-delay: 0.4s; }
+    .home-grid:nth-of-type(2) > *:nth-child(3),
+    .home-grid:first-of-type > *:nth-child(3) { animation-delay: 0.5s; }
+    .home-grid:nth-of-type(2) > *:nth-child(4),
+    .home-grid:first-of-type > *:nth-child(4) { animation-delay: 0.6s; }
+
+    /* ═══════════════════════════════════════════════════
+       RESPONSIVE
+    ═══════════════════════════════════════════════════ */
+    @media (max-width: 1100px) {
+      .home-content { max-width: none; padding: 0 24px; }
+      .home-hero { gap: 24px; padding: 56px 0 48px; }
+      .home-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+    }
+
+    @media (max-width: 900px) {
+      .home-hero {
+        flex-direction: column;
+        text-align: center;
+        padding: 56px 16px 48px;
+        gap: 24px;
+      }
+      .home-hero-body { align-items: center; max-width: none; }
+      .home-tagline { margin: 0 auto; }
+      .home-section-copy { display: none; }
+      .home-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+      .home-datasets-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 480px) {
+      .home-hero-icon { width: 64px; height: 64px; min-width: 64px; border-radius: 18px; }
+      .home-title { font-size: 2rem; }
+      .home-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .home-card { padding: 20px; gap: 12px; min-height: 96px; }
+      .home-card-icon { width: 40px; height: 40px; min-width: 40px; border-radius: 10px; }
+      .home-card-title { font-size: 0.9375rem; }
+      .home-card-desc { display: none; }
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SCROLLBAR & SELECTION
+    ═══════════════════════════════════════════════════ */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
+
+    ::selection { background: var(--accent); color: #fff; }
+  </style>
+</head>
+<body>
+
+  <!-- Background effects -->
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-glow bg-glow--blue" aria-hidden="true"></div>
+  <div class="bg-glow bg-glow--purple" aria-hidden="true"></div>
+
+  <!-- Skip link -->
+  <a href="#main" class="skip-link">Skip to main content</a>
+
+  <!-- Theme toggle -->
+  <button class="theme-toggle" id="theme-toggle-btn" type="button" title="Toggle light/dark theme" aria-label="Toggle theme">
+    <svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" id="theme-icon">
+      <path d="M13.7 9.3a6.5 6.5 0 11-9-9A5.5 5.5 0 0013.7 9.3z"/>
+    </svg>
+  </button>
+
+  <main id="main" class="home-content">
+
+    <!-- ═══════ HERO ═══════ -->
+    <section class="home-hero" aria-label="Welcome hero">
+      <canvas class="hero-waveform" id="waveform-canvas" aria-hidden="true"></canvas>
+      <div class="home-hero-icon" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="2,18 7,10 12,22 17,6 22,16 27,12 30,12"/>
+        </svg>
+      </div>
+      <div class="home-hero-body">
+        <h1 class="home-title">EdaTime</h1>
+        <p class="home-tagline">Interactive time-series analytics — upload a CSV or Parquet, explore correlations across dimensions, and export insights with one click.</p>
+      </div>
+      <div class="home-hero-cta">
+        <button class="btn btn-primary" type="button" data-home-nav="upload">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+            <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3"/>
+            <polyline points="11 5 8 2 5 5"/>
+            <line x1="8" y1="2" x2="8" y2="11"/>
+          </svg>
+          Upload a file to get started
+        </button>
+      </div>
+    </section>
+
+    <!-- ═══════ SAMPLE DATASETS ═══════ -->
+    <section class="home-datasets" aria-label="Sample datasets">
+      <h2 class="home-section-title">Try with sample data</h2>
+      <p class="home-section-copy">Load built-in datasets to explore the workflow without preparing a file.</p>
+
+      <div class="home-datasets-grid">
+        <!-- ETTm2 -->
+        <button class="home-dataset-card" type="button" data-sample-dataset="ettm2" aria-label="Load ETTm2 Sensor Data sample dataset">
+          <div class="home-dataset-header">
+            <div class="home-dataset-icon home-dataset-icon--ettm2">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="1,10 4,6 7,12 10,3 13,8 15,7"/>
+              </svg>
+            </div>
+            <div class="home-dataset-info">
+              <span class="home-dataset-name">ETTm2 Sensor Data</span>
+              <span class="home-dataset-meta">Electrical transformer monitoring · 69K rows</span>
+            </div>
+          </div>
+          <p class="home-dataset-desc">Time series with multiple sensor readings including temperature, pressure, and power metrics. Contains a famous spike from April 2017.</p>
+          <div class="home-dataset-tags">
+            <span class="home-dataset-tag home-dataset-tag--type">Time-series</span>
+            <span class="home-dataset-tag home-dataset-tag--rows">69K rows</span>
+          </div>
+        </button>
+
+        <!-- Sinusoidal -->
+        <button class="home-dataset-card" type="button" data-sample-dataset="sinusoidal" aria-label="Load Sinusoidal Waves sample dataset">
+          <div class="home-dataset-header">
+            <div class="home-dataset-icon home-dataset-icon--sinusoidal">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="1,8 4,4 7,12 10,2 13,10 15,6"/>
+              </svg>
+            </div>
+            <div class="home-dataset-info">
+              <span class="home-dataset-name">Sinusoidal Waves</span>
+              <span class="home-dataset-meta">Generated periodic signals · 10K rows</span>
+            </div>
+          </div>
+          <p class="home-dataset-desc">Multiple sine waves with different frequencies for testing FFT and spectral analysis features. Clean data, no missing values.</p>
+          <div class="home-dataset-tags">
+            <span class="home-dataset-tag home-dataset-tag--fft">FFT</span>
+            <span class="home-dataset-tag home-dataset-tag--rows">10K rows</span>
+          </div>
+        </button>
+
+        <!-- Weather -->
+        <button class="home-dataset-card" type="button" data-sample-dataset="weather" aria-label="Load Weather Patterns sample dataset">
+          <div class="home-dataset-header">
+            <div class="home-dataset-icon home-dataset-icon--weather">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1" y="1" width="4" height="4" rx="0.5"/>
+                <rect x="6" y="1" width="4" height="4" rx="0.5"/>
+                <rect x="11" y="1" width="4" height="4" rx="0.5"/>
+                <rect x="1" y="6" width="4" height="4" rx="0.5"/>
+                <rect x="6" y="6" width="4" height="4" rx="0.5"/>
+                <rect x="11" y="6" width="4" height="4" rx="0.5"/>
+              </svg>
+            </div>
+            <div class="home-dataset-info">
+              <span class="home-dataset-name">Weather Patterns</span>
+              <span class="home-dataset-meta">Temperature & humidity readings · 50K rows</span>
+            </div>
+          </div>
+          <p class="home-dataset-desc">Environmental sensor data with correlated temperature, humidity, and pressure readings. Shows realistic daily cycles.</p>
+          <div class="home-dataset-tags">
+            <span class="home-dataset-tag home-dataset-tag--correlations">Correlations</span>
+            <span class="home-dataset-tag home-dataset-tag--rows">50K rows</span>
+          </div>
+        </button>
+      </div>
+    </section>
+
+    <!-- ═══════ RECOMMENDED WORKFLOW ═══════ -->
+    <section class="home-section" aria-label="Recommended workflow">
+      <h2 class="home-section-title">Recommended workflow</h2>
+      <p class="home-section-copy">Start with the core path, then branch into advanced analyses once you know which columns and intervals matter.</p>
+    </section>
+
+    <div class="home-grid home-grid--workflow">
+      <!-- Upload -->
+      <div class="home-card" data-home-nav="upload" tabindex="0" role="button" aria-label="Navigate to Upload page">
+        <div class="home-card-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3"/>
+            <polyline points="11 5 8 2 5 5"/>
+            <line x1="8" y1="2" x2="8" y2="11"/>
+          </svg>
+        </div>
+        <h3 class="home-card-title">Upload <kbd>⌥1</kbd></h3>
+        <p class="home-card-desc">Drag & drop CSV or Parquet files. Preview column profiles before ingesting. Select a subset and time slice for partial loads.</p>
+      </div>
+
+      <!-- Timeseries -->
+      <div class="home-card" data-home-nav="timeseries" tabindex="0" role="button" aria-label="Navigate to Timeseries page">
+        <div class="home-card-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1,10 4,6 7,12 10,3 13,8 15,7"/>
+          </svg>
+        </div>
+        <h3 class="home-card-title">Timeseries <kbd>⌥2</kbd></h3>
+        <p class="home-card-desc">WebGPU-accelerated multi-series chart with zoom, custom colors, rolling bands, anomaly detection, and adaptive line filters.</p>
+      </div>
+
+      <!-- Correlations -->
+      <div class="home-card" data-home-nav="heatmap" tabindex="0" role="button" aria-label="Navigate to Correlations page">
+        <div class="home-card-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="1" y="1" width="4" height="4" rx="0.5"/>
+            <rect x="6" y="1" width="4" height="4" rx="0.5"/>
+            <rect x="11" y="1" width="4" height="4" rx="0.5"/>
+            <rect x="1" y="6" width="4" height="4" rx="0.5"/>
+            <rect x="6" y="6" width="4" height="4" rx="0.5"/>
+            <rect x="11" y="6" width="4" height="4" rx="0.5"/>
+            <rect x="1" y="11" width="4" height="4" rx="0.5"/>
+            <rect x="6" y="11" width="4" height="4" rx="0.5"/>
+            <rect x="11" y="11" width="4" height="4" rx="0.5"/>
+          </svg>
+        </div>
+        <h3 class="home-card-title">Correlations <kbd>⌥7</kbd></h3>
+        <p class="home-card-desc">Screen pairs in the correlation heatmap, then jump into the detailed scatter view for the promising relationships.</p>
+      </div>
+
+      <!-- Scatter -->
+      <div class="home-card" data-home-nav="scatter" tabindex="0" role="button" aria-label="Navigate to Scatter page">
+        <div class="home-card-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="4" cy="11" r="1.2"/>
+            <circle cx="8" cy="6" r="1.2"/>
+            <circle cx="12" cy="9" r="1.2"/>
+            <circle cx="6" cy="13" r="1.2"/>
+            <circle cx="11" cy="3" r="1.2"/>
+          </svg>
+        </div>
+        <h3 class="home-card-title">Scatter / Density <kbd>⌥3</kbd></h3>
+        <p class="home-card-desc">Inspect the selected pair in detail, color by an extra column, and switch to matrix view with <kbd>⌥4</kbd> for pairwise screening.</p>
+      </div>
+    </div>
+
+    <!-- ═══════ ADVANCED ANALYSES ═══════ -->
+    <section class="home-section" aria-label="Advanced analyses">
+      <h2 class="home-section-title">Advanced analyses</h2>
+      <p class="home-section-copy">Use these pages after the workflow above has narrowed the signal, time window, or candidate variables.</p>
+    </section>
+
+    <div class="home-grid">
+      <!-- FFT -->
+      <div class="home-card" data-home-nav="fft" tabindex="0" role="button" aria-label="Navigate to FFT page">
+        <div class="home-card-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1,8 3,4 5,10 7,2 9,12 11,6 13,8 15,8"/>
+          </svg>
+        </div>
+        <h3 class="home-card-title">FFT / PSD <kbd>⌥6</kbd></h3>
+        <p class="home-card-desc">Frequency-domain analysis with magnitude or power spectral density. Log scale, multi-trace overlay, zoom, and PNG/SVG/CSV export.</p>
+      </div>
+
+      <!-- Spectrogram -->
+      <div class="home-card" data-home-nav="spectrogram" tabindex="0" role="button" aria-label="Navigate to Spectrogram page">
+        <div class="home-card-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="1" y="2" width="2" height="12" rx="0.3"/>
+            <rect x="4" y="4" width="2" height="8" rx="0.3"/>
+            <rect x="7" y="1" width="2" height="14" rx="0.3"/>
+            <rect x="10" y="5" width="2" height="6" rx="0.3"/>
+            <rect x="13" y="3" width="2" height="10" rx="0.3"/>
+          </svg>
+        </div>
+        <h3 class="home-card-title">Spectrogram <kbd>⌥8</kbd></h3>
+        <p class="home-card-desc">Time-frequency heatmap using short-time FFT. Adjustable window size, log scale, zoom, and PNG export.</p>
+      </div>
+
+      <!-- Causal -->
+      <div class="home-card" data-home-nav="causal" tabindex="0" role="button" aria-label="Navigate to Causal Discovery page">
+        <div class="home-card-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="3" cy="8" r="2"/>
+            <circle cx="13" cy="4" r="2"/>
+            <circle cx="13" cy="12" r="2"/>
+            <line x1="5" y1="7.2" x2="11" y2="4.8"/>
+            <line x1="5" y1="8.8" x2="11" y2="11.2"/>
+          </svg>
+        </div>
+        <h3 class="home-card-title">Causal Discovery <kbd>⌥9</kbd></h3>
+        <p class="home-card-desc">PCMCI, PCMCI+, FullCI, BivCI, and LPCMCI via Tigramite. Directed graph with edge lag and p-value labels.</p>
+      </div>
+
+      <!-- Drift -->
+      <div class="home-card" data-home-nav="drift" tabindex="0" role="button" aria-label="Navigate to Drift Analysis page">
+        <div class="home-card-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="1" y="7" width="3" height="7" rx="0.5"/>
+            <rect x="5" y="4" width="3" height="10" rx="0.5"/>
+            <rect x="9" y="6" width="3" height="8" rx="0.5"/>
+            <rect x="13" y="2" width="2" height="12" rx="0.5"/>
+            <polyline points="1,5 5,2 9,4 13,1" stroke-dasharray="2 1.5"/>
+          </svg>
+        </div>
+        <h3 class="home-card-title">Drift Analysis <kbd>⌥0</kbd></h3>
+        <p class="home-card-desc">Compare windows and detect distribution or score shifts once the main workflow has identified the slices worth monitoring.</p>
+      </div>
+    </div>
+
+    <!-- ═══════ KEYBOARD SHORTCUTS ═══════ -->
+    <section class="home-shortcuts" aria-label="Keyboard shortcuts">
+      <h2 class="home-section-title">Keyboard shortcuts</h2>
+      <div class="home-shortcuts-grid">
+        <div class="home-shortcut-group">
+          <h4 class="home-shortcut-group-title">Navigation</h4>
+          <div class="home-shortcut-row"><kbd>⌥1–3, 6–0</kbd><span>Switch major pages</span></div>
+          <div class="home-shortcut-row"><kbd>⌥4</kbd><span>Open scatter matrix view</span></div>
+          <div class="home-shortcut-row"><kbd>Ctrl+K</kbd><span>Command palette</span></div>
+          <div class="home-shortcut-row"><kbd>Ctrl+I</kbd><span>Analysis context panel</span></div>
+        </div>
+        <div class="home-shortcut-group">
+          <h4 class="home-shortcut-group-title">Chart</h4>
+          <div class="home-shortcut-row"><kbd>Double-click</kbd><span>Reset zoom</span></div>
+          <div class="home-shortcut-row"><kbd>Ctrl+click</kbd><span>Set adaptive filter target</span></div>
+          <div class="home-shortcut-row"><kbd>Drag</kbd><span>Pan / draw</span></div>
+        </div>
+        <div class="home-shortcut-group">
+          <h4 class="home-shortcut-group-title">Session</h4>
+          <div class="home-shortcut-row"><kbd>Ctrl+S</kbd><span>Save session</span></div>
+          <div class="home-shortcut-row"><kbd>Ctrl+Shift+S</kbd><span>Export session file</span></div>
+          <div class="home-shortcut-row"><kbd>Ctrl+O</kbd><span>Import session file</span></div>
+        </div>
+        <div class="home-shortcut-group">
+          <h4 class="home-shortcut-group-title">Drift</h4>
+          <div class="home-shortcut-row"><kbd>Enter / D</kbd><span>Run drift compute</span></div>
+          <div class="home-shortcut-row"><kbd>E</kbd><span>Export drift CSV</span></div>
+          <div class="home-shortcut-row"><kbd>J / P</kbd><span>Export JSON / PNG</span></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══════ JAVASCRIPT ═══════ -->
+  <script>
+    // ── Theme Toggle ──────────────────────────────────
+    const themeBtn = document.getElementById('theme-toggle-btn');
+    const iconSvg = document.getElementById('theme-icon');
+    let isDark = true;
+
+    function updateIcon() {
+      if (isDark) {
+        iconSvg.innerHTML = '<path d="M13.7 9.3a6.5 6.5 0 11-9-9A5.5 5.5 0 0013.7 9.3z"/>';
+      } else {
+        iconSvg.innerHTML = '<circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4"/>';
+      }
+    }
+
+    themeBtn.addEventListener('click', () => {
+      isDark = !isDark;
+      document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+      updateIcon();
+      localStorage.setItem('edaTheme', isDark ? 'dark' : 'light');
+    });
+
+    const saved = localStorage.getItem('edaTheme');
+    if (saved) { isDark = saved === 'dark'; document.documentElement.setAttribute('data-theme', saved); }
+    updateIcon();
+
+    // ── Mouse-follow glow on cards ────────────────────
+    document.querySelectorAll('.home-card').forEach(card => {
+      card.addEventListener('mousemove', e => {
+        const rect = card.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width * 100).toFixed(1);
+        const y = ((e.clientY - rect.top) / rect.height * 100).toFixed(1);
+        card.style.setProperty('--mouse-x', x + '%');
+        card.style.setProperty('--mouse-y', y + '%');
+      });
+    });
+
+    // ── Animated Waveform (canvas) ────────────────────
+    const canvas = document.getElementById('waveform-canvas');
+    if (canvas && typeof window !== 'undefined') {
+      let ctx, W, H;
+      function resize() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        W = canvas.width = rect.width * 2;
+        H = canvas.height = 300 * 2;
+        ctx = canvas.getContext('2d');
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      let t = 0;
+      function draw() {
+        if (!ctx) return;
+        ctx.clearRect(0, 0, W, H);
+        const colors = ['rgba(59,130,246,', 'rgba(139,92,246,', 'rgba(236,72,153,'];
+
+        for (let c = 0; c < 3; c++) {
+          ctx.beginPath();
+          const freq = [0.008, 0.012, 0.006][c];
+          const amp = [40, 25, 35][c];
+          const yOff = H * (0.3 + c * 0.2);
+          const speed = [0.8, 1.2, 0.6][c];
+
+          for (let x = 0; x < W; x++) {
+            const y = yOff + Math.sin(x * freq + t * speed) * amp
+              + Math.sin(x * freq * 2.3 + t * speed * 1.5) * (amp * 0.4);
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+
+          const alpha = c === 0 ? '0.5' : '0.25';
+          ctx.strokeStyle = colors[c] + alpha + ')';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+        t += 1;
+        requestAnimationFrame(draw);
+      }
+      draw();
+    }
+
+    // ── Card click handlers (demo) ────────────────────
+    document.querySelectorAll('.home-card').forEach(card => {
+      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); console.log(`Navigate: ${card.dataset.homeNav}`); } });
+    });
+    document.querySelectorAll('[data-sample-dataset]').forEach(card => {
+      card.addEventListener('click', () => console.log(`Load sample: ${card.dataset.sampleDataset}`));
+    });
+  </script>
+</body>
+</html>

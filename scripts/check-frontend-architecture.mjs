@@ -15,6 +15,7 @@ const ALLOWED_APP_STATE_COMPAT_IMPORTS = new Set([
   'frontend/src/ui/chartTextControls.ts',
   'frontend/src/ui/eventHelpers.ts',
   'frontend/src/ui/metaBar.ts',
+  'frontend/src/ui/quickRange.ts',
   'frontend/src/ui/settingsPanel.ts',
   'frontend/src/ui/toolbar.ts',
   'frontend/src/ui/viewport.ts',

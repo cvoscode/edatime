@@ -19,8 +19,8 @@
   - Registers (or clears) the click handler for correlation pills. The scatter page calls this once during init so subsequent `renderSuggestions` invocations keep the click → re-render wiring intact.
 - `renderSuggestions(suggestions: CorrelationSuggestion[]): void`
   - Renders suggestion buttons with shape `{ x, y, correlation }`. Sets `.active` on the button whose `(x, y)` matches the current X/Y dropdowns. Clicking a button updates `scatter-x-col` and `scatter-y-col`, refreshes `appState.scatter.lastSuggestions`, then fires the registered `activeApplyHandler`. Re-clicking the active pair is a no-op.
-- `refreshCorrelationsAndSuggestions(): Promise<void>`
-  - Fetches correlations for the current X column, populates `appState.scatter.correlationsByColumn` and `lastSuggestions`, then calls `renderSuggestions`. Skips the dropdown rebuild when there are fewer than two numeric columns. Also rebuilds the color-column dropdown so newly-ingested columns appear immediately.
+- `refreshCorrelationsAndSuggestions(options?: { preferTopPairOnFirstLoad?: boolean }): Promise<void>` [new in refactor]
+  - Fetches correlations for the current X column, populates `appState.scatter.correlationsByColumn` and `lastSuggestions`, then calls `renderSuggestions`. On first scatter init (no user pair), biases X/Y to the strongest pair from `response.top_pairs[0]` so the landing view shows the most striking correlation. Once the user has picked a pair, preserves that choice across refreshes. Skips dropdown rebuild when fewer than two numeric columns. Also rebuilds the color-column dropdown for newly-ingested columns.
 - `openScatterPairInCausal(): void`
   - Dispatches `edatime:causal-preselect` with the current X/Y columns and clicks the causal sidebar nav item. Replaces the inline handler previously hosted in [controls.ts][1].
 

@@ -25,13 +25,17 @@ import {
     DEFAULT_SPECTRAL_SCALE,
     type SpectralScaleOptions,
 } from '../utils/spectralScaling.js';
+import { SERIES_COLORS } from '../utils/seriesColors.js';
 
-const FFT_GRID: GridLayout = { left: 80, right: 24, top: 20, bottom: 44 };
+const FFT_GRID: GridLayout = { left: 96, right: 24, top: 20, bottom: 44 };
 
-const FFT_TRACE_COLORS = [
-    '#7ad151', '#4ac3e8', '#f97316', '#e879f9',
-    '#facc15', '#60a5fa', '#f43f5e',
-];
+/**
+ * Fallback palette for the FFT chart when no per-column color override is
+ * supplied. Points at the shared `SERIES_COLORS` so cross-page color
+ * changes (`setSeriesColor(...)`) automatically apply to FFT traces as
+ * well — see `usage_issue.md` §1.3.
+ */
+const FFT_TRACE_COLORS = SERIES_COLORS;
 
 export interface FftTrace {
     column: string;
@@ -243,6 +247,10 @@ export class FftChart {
         const useScaledY = scaleOpts.mode !== 'none';
         const yMinOut = useScaledY && Number.isFinite(yMin) ? yMin : undefined;
         const yMaxOut = useScaledY && Number.isFinite(yMax) ? yMax : undefined;
+        // Adaptive Y-axis precision: 1-2 decimals depending on range so
+        // the rotated Y-axis label never crowds the tick labels.
+        const yRange = Number.isFinite(yMax) && Number.isFinite(yMin) ? yMax - yMin : 0;
+        const yTickPrec = yRange >= 100 ? 0 : yRange >= 10 ? 1 : 2;
 
         this._chart.setOption({
             grid: FFT_GRID,
@@ -291,7 +299,7 @@ export class FftChart {
                     fontSize: 11,
                     hideOverlap: true,
                     margin: 8,
-                    formatter: (v: number) => v.toFixed(2),
+                    formatter: (v: number) => v.toFixed(yTickPrec),
                 },
                 axisTick: {
                     alignWithLabel: true,

@@ -1,5 +1,5 @@
 # ai/frontend/src/pages/spectrogramChartRuntime.md
-> Spectrogram chart runtime — ECharts initialization, resize handling, drag-to-zoom selection box, data loading, colorbar normalization, and empty-state management.
+> Spectrogram chart runtime — ECharts initialization, resize handling, drag-to-zoom selection box, data loading, and empty-state management.
 
 ## Interface: SpectrogramPageDeps
 ```ts
@@ -12,18 +12,17 @@ interface SpectrogramPageDeps {
 - `spectrogramChart: any` — ECharts chart instance
 - `spectrogramResizeObserver: ResizeObserver | null`
 - `spectrogramResult: SpectrogramResult | null`
+- `spectrogramRenderError: string | null` — sticky fetch/render failure message used by the empty state and toast path
 
 ## Functions
 - `formatSpectrogramTime(timestampMs: number): string` — formats as locale datetime string
 - `formatSpectrogramFrequency(frequency: number): string` — formats in Hz/kHz/mHz based on magnitude
 - `createSpectrogramChartRuntime(deps: SpectrogramPageDeps)` [deps: [fetchSpectrogram][1], [createAnalysisPageRuntime][2], [exportEChartsPNG][3], [exportEChartsSVG][4], [exportEChartsHTML][5]]
-  - Returns runtime with `mount()`: sets up chart, resize observer, column select listener, time range change handler, drag-to-zoom selection box (pointer down/move/up/cancel + dblclick reset), and export bindings. Wires status element for normalization/clip readouts.
-- `loadSpectrogramData(start: string, end: string, column: string): Promise<void>` — fetches spectrogram from server and renders heatmap.
-- `renderSpectrogramChart(): Promise<void>` — builds ECharts option (log scale toggle, heatmap series, axes with `hideOverlap`, `nameTextStyle`, `axisTick.alignWithLabel`, tooltip, zoom) and renders it. Time axis uses `nameGap: 56`; frequency axis uses `nameGap: 72`.
-- `syncSpectrogramEmptyState(message?: string): void` — delegates to spectrogramRuntime to update empty state.
-- `ensureSpectrogramChart(): Promise<EChartLike>` — lazy chart init; waits for DOM dimensions, creates ECharts instance, resize observer, drag selection overlay.
-- `waitForSpectrogramChartReady(attempts?: number): Promise<boolean>` — polls until chart container is visible and sized.
-- `syncColorbar(args: { min: number; max: number; label?: string; stops?: string }): void` — populates vertical colorbar tick labels including intermediate 25%/75% marks (`cb-mid-high`, `cb-mid-low`, `cb-mid-mark-high`, `cb-mid-mark-mid`, `cb-mid-mark-low`).
+  - Returns runtime with `mount()`: sets up chart creation, resize handling, column-select hydration, drag-to-zoom selection box, log-scale re-render, and export bindings. The Compute path now forwards `window_size`, derived `hop_size` (default 50% overlap), `normalize`, `clip`, and `clip_param` to `fetchSpectrogram`, uses a larger `max_points` cap (`131072`), and makes failures visible through both the empty state and a 6s toast instead of failing silently.
+- `renderSpectrogramChart(): Promise<void>` — lazily initializes ECharts once the container has non-zero dimensions, reuses cached typed-array grid data across log-scale flips, renders a single `visualMap` color legend, and restores the empty-state placeholder if chart init/render fails.
+- `syncSpectrogramEmptyState(message?: string): void` — updates the shared analysis-page empty state. When `spectrogramRenderError` is set, it switches the reason to `render-error` and shows a concrete failure message.
+- `ensureSpectrogramChart(): Promise<EChartLike>` — waits until the chart container is measurable, creates the ECharts instance, attaches a resize observer, and installs the drag-selection overlay plus dblclick zoom reset.
+- `waitForSpectrogramChartReady(attempts?: number): Promise<boolean>` — polls until the chart container is visible and has dimensions suitable for ECharts init.
 
 ---
 [1]: ../../services/api/analytics.md#fetchSpectrogram

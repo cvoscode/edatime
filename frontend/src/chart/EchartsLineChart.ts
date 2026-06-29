@@ -4,6 +4,7 @@ import {
     formatFrequency,
 } from '../utils/spectralPresets.js';
 import { applySpectralScale } from '../utils/spectralScaling.js';
+import { SERIES_COLORS } from '../utils/seriesColors.js';
 
 export interface EchartsFftTrace {
     column: string;
@@ -16,10 +17,11 @@ export interface EchartsFftTrace {
     dominant_peaks?: FrequencyPeak[];
 }
 
-const TRACE_COLORS = [
-    '#7ad151', '#4ac3e8', '#f97316', '#e879f9',
-    '#facc15', '#60a5fa', '#f43f5e',
-];
+/**
+ * ECharts fallback uses the shared `SERIES_COLORS` palette so the FFT
+ * fallback chart matches the WebGPU primary on cross-page color changes.
+ */
+const TRACE_COLORS = SERIES_COLORS;
 
 export class EchartsLineChart {
     private _containerId: string;
@@ -75,9 +77,28 @@ export class EchartsLineChart {
             };
         });
 
+        // Adaptive Y-axis precision: 1-2 decimals depending on range so the
+        // rotated Y-axis label never crowds the tick labels. Mirrors the
+        // WebGPU primary chart's `yTickPrec` heuristic.
+        let yMinDisplay = Number.POSITIVE_INFINITY;
+        let yMaxDisplay = Number.NEGATIVE_INFINITY;
+        for (const trace of traces) {
+            const values = mode === 'psd' ? trace.psd : trace.magnitudes;
+            for (const v of values) {
+                const r = Number(v);
+                if (!Number.isFinite(r)) continue;
+                if (r > yMaxDisplay) yMaxDisplay = r;
+                if (r < yMinDisplay) yMinDisplay = r;
+            }
+        }
+        const yRange = Number.isFinite(yMaxDisplay) && Number.isFinite(yMinDisplay)
+            ? yMaxDisplay - yMinDisplay
+            : 0;
+        const yTickPrec = yRange >= 100 ? 0 : yRange >= 10 ? 1 : 2;
+
         this._chart.setOption({
             animation: false,
-            grid: { left: 72, right: 28, top: 24, bottom: 48 },
+            grid: { left: 96, right: 28, top: 24, bottom: 56 },
             legend: {
                 top: 8,
                 right: 12,
@@ -94,7 +115,7 @@ export class EchartsLineChart {
                     const heading = Number.isFinite(frequency) ? formatFrequency(frequency) : 'Frequency';
                     const rows = (params || []).map((entry) => {
                         const yValue = Number(entry?.value?.[1]);
-                        return `${entry.marker || ''} ${entry.seriesName}: ${Number.isFinite(yValue) ? yValue.toFixed(4) : '—'}`;
+                        return `${entry.marker || ''} ${entry.seriesName}: ${Number.isFinite(yValue) ? yValue.toFixed(yTickPrec + 2) : '—'}`;
                     });
                     return [heading, ...rows].join('<br>');
                 },
@@ -111,8 +132,11 @@ export class EchartsLineChart {
                 type: 'value',
                 name: logScale ? `log10(${mode === 'psd' ? 'PSD' : 'Magnitude'})` : (mode === 'psd' ? 'PSD' : 'Magnitude'),
                 nameLocation: 'middle',
-                nameGap: 52,
-                axisLabel: { color: '#9fb1d1' },
+                nameGap: 64,
+                axisLabel: {
+                    color: '#9fb1d1',
+                    formatter: (value: number) => Number(value).toFixed(yTickPrec),
+                },
                 splitLine: { lineStyle: { color: 'rgba(126, 158, 212, 0.12)' } },
             },
             series,

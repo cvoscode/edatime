@@ -23,6 +23,7 @@ import {
     setPendingAdaptivePoint,
     setPreviewSelectedColumns,
     setPreviewTimeColumn,
+    setProfileFilterCategory,
     setProfileFilterText,
     setProfileGridBound,
     setProfileGridColWidths,
@@ -142,6 +143,9 @@ const appStateCompositeTarget = {
 
     get profileFilterText(): string { return uiState.profileFilterText; },
     set profileFilterText(v: string) { setProfileFilterText(v); },
+
+    get profileFilterCategory(): UiState['profileFilterCategory'] { return uiState.profileFilterCategory; },
+    set profileFilterCategory(v: UiState['profileFilterCategory']) { setProfileFilterCategory(v); },
 
     get previewSelectedColumns(): string[] { return uiState.previewSelectedColumns; },
     set previewSelectedColumns(v: string[]) { setPreviewSelectedColumns(v); },

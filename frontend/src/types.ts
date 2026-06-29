@@ -98,8 +98,8 @@ export interface CorrelationItem {
 
 /**
  * Suggestion entry for a high-correlation pair. Pairs a base column (`x`) with
- * a suggested partner (`y`) and the absolute correlation value. This is the
- * shape returned by the backend `/api/scatter/correlations` endpoint.
+ * a suggested partner (`y`) and the signed correlation value. Thresholding on
+ * the backend uses `abs(correlation)`, but the payload keeps the sign.
  */
 export interface CorrelationSuggestion {
     x: string;
@@ -114,6 +114,20 @@ export interface ScatterCorrelationsResponse {
     numeric_columns: string[];
     correlations: CorrelationItem[];
     suggestions: CorrelationSuggestion[];
+    /**
+     * Globally-ranked strongest pairs across the entire correlation matrix
+     * (independent of `base_column` / `threshold`). The list is sorted by
+     * absolute correlation descending. See `usage_issue.md` §2.1.
+     */
+    top_pairs?: TopPairItem[];
+}
+
+/** Globally-ranked correlation pair — see `top_pairs`. */
+export interface TopPairItem {
+    x: string;
+    y: string;
+    correlation: number;
+    count: number;
 }
 
 // ── State types ────────────────────────────────────────────────────────────
@@ -195,6 +209,8 @@ export interface AppStateType {
     previewSelectedColumns: string[];
     previewTimeColumn: string | null;
     profileFilterText: string;
+    /** `'all'` (default), `'numeric'`, or `'datetime'`. */
+    profileFilterCategory: 'all' | 'numeric' | 'datetime';
     filterText: string;
     selectedCols: string[];
     adaptiveFilterColumn: string | null;

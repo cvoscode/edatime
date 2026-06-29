@@ -9,13 +9,16 @@
  */
 
 import {
+    appState,
     chartState,
     datasetState,
     setAdaptiveLineFilters,
     setColumnRanges,
     setFilterText,
+    setProfileFilterCategory,
     setProfileFilterText,
     setViewport,
+    type ProfileFilterCategory,
 } from '../../store/index.js';
 import { debounce } from '../../utils/dom.js';
 
@@ -106,6 +109,29 @@ export function initDatasetSearchInputs(
             deps.renderColumnProfilesGrid(true);
         }, 120);
         profileFilterInput.addEventListener('input', onProfileFilterInput);
+    }
+
+    // Profile filter category pills: All / Numeric / Datetime.
+    const categoryButtons = Array.from(
+        document.querySelectorAll<HTMLButtonElement>('.profile-filter-category-btn'),
+    );
+    if (categoryButtons.length > 0) {
+        const setActiveCategoryButton = (category: ProfileFilterCategory) => {
+            for (const button of categoryButtons) {
+                button.classList.toggle('is-active', button.dataset.category === category);
+                button.setAttribute('aria-pressed', button.dataset.category === category ? 'true' : 'false');
+            }
+        };
+        // Initial state mirrors the store default so the UI never lies.
+        setActiveCategoryButton(appState.profileFilterCategory);
+        for (const button of categoryButtons) {
+            button.addEventListener('click', () => {
+                const category = (button.dataset.category || 'all') as ProfileFilterCategory;
+                setProfileFilterCategory(category);
+                setActiveCategoryButton(category);
+                deps.renderColumnProfilesGrid(true);
+            });
+        }
     }
 }
 

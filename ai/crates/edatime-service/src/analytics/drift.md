@@ -1,54 +1,68 @@
-# crates/edatime-service/src/analytics/drift.rs
-> Temporal drift analysis — KS test, Wasserstein-1 distance, PSI, Epps-Singleton, Jensen-Shannon divergence. Also provides multi-column drift investigation with ranking and segmentation.
+# ai/crates/edatime-service/src/analytics/drift.md
+> Temporal drift analysis — KS test, Wasserstein-1 distance, PSI, Epps-Singleton test, and Jensen-Shannon divergence.
 
-## Structs (Distribution Stats)
-- `WindowDistributionStats { start_ms, end_ms, label, count, null_count, completeness, mean, std, min, max, quantiles: f64[], hist_bins: f64[], hist_counts: u64[], ecdf_x: f64[], ecdf_y: f64[] }` — Per-window distribution summary with ECDF and histogram.
-- `DriftWindowStats extends WindowDistributionStats { ks_stat, ks_pvalue, es_stat, es_pvalue, wasserstein, psi, jensen_shannon, drift_level: 'green'|'yellow'|'red', trigger_reasons: string[], completeness_delta, low_sample_warning }` — Per-window drift metrics with classification.
-- `DriftThresholds { ks_threshold, wasserstein_threshold, psi_minor_threshold, psi_major_threshold }` — Classification thresholds.
-- `DriftMetadata { computation_time_ms, num_windows, reference_samples, bin_count_warning, effective_bins, psi_sample_ratio_warning, avg_window_samples }` — Computation diagnostics.
-- `DriftResponse { column, reference: WindowDistributionStats, windows: DriftWindowStats[], thresholds, metadata? }` — Single-column drift result.
+## Functions
+- `pub fn ks_test_2sample(a: &[f64], b: &[f64]) -> (f64, f64)`
+  - Two-sample Kolmogorov-Smirnov test; both slices must be pre-sorted. Returns `(max_diff, p_value)`.
 
-## Structs (Investigation)
-- `DriftInvestigationOverview { driftScore, worstLevel, columnsFlagged, totalColumns, windowsFlagged, firstChangePoint }` — Aggregate drift severity summary.
-- `DriftFeatureRank { column, driftScore, latestLevel, flaggedWindows, firstChangePoint }` — Per-column ranking entry.
-- `DriftSegmentRank { segmentValue, driftScore, columnsFlagged, sampleCount }` — Per-segment ranking entry.
-- `DriftChangePointRank { column, label, isoTime, driftScore, triggerReasons: string[] }` — Change-point ranking entry.
-- `DriftQualityIssueRank { column, issue, label, driftScore }` — Quality issue ranking entry.
-- `DriftRelationshipRank { leftColumn, rightColumn, reference, comparison, delta, alignedReferenceSamples, alignedComparisonSamples }` — Distributional relationship change between two columns.
-- `DriftRankingSummary { features: DriftFeatureRank[], segments: DriftSegmentRank[], changePoints: DriftChangePointRank[], qualityIssues: DriftQualityIssueRank[], relationships: DriftRelationshipRank[] }` — Aggregated ranking container.
-- `DriftSegmentGroup { value, sampleCount, overview: DriftInvestigationOverview, featureRanks: DriftFeatureRank[] }` — Segment with its own investigation overview and rankings.
-- `DriftQualitySummary { latestMissingRate, latestCompletenessDelta, latestZeroRate, flatline, lowSampleWarning, issues: string[] }` — Quality metrics for a single column.
+- `pub fn wasserstein_distance_1d(a: &[f64], b: &[f64]) -> f64`
+  - Earth Mover's Distance on sorted data.
 
-## Structs (Investigation Response)
-- `DriftInvestigationResponse { overview: DriftInvestigationOverview, columns: Record<string, DriftResponse>, rankings: DriftRankingSummary, segments?: { segmentBy, groups: DriftSegmentGroup[] }, quality?: { byColumn: Record<string, DriftQualitySummary> }, relationships?: { mode, pairs: DriftRelationshipRank[] } }` — Full multi-column drift investigation result.
+- `pub fn compute_psi(reference: &[f64], current: &[f64], n_bins: usize) -> f64`
+  - Population Stability Index using reference-quantile binning.
 
-## Functions (Statistical)
-- `pub fn ks_test_2sample(a: &[f64], b: &[f64]) -> (f64, f64)` [deps: [ks_pvalue_asymptotic][1]]
-  - Two-sample Kolmogorov-Smirnov test. Both slices must be pre-sorted. Returns (D statistic, p-value).
-- `pub fn wasserstein_distance_1d(a: &[f64], b: &[f64]) -> f64` [deps: []]
-  - 1D Wasserstein-1 distance (Earth Mover's Distance). Both slices must be pre-sorted.
-- `pub fn compute_psi(reference: &[f64], current: &[f64], n_bins: usize) -> f64` [deps: [psi_ref_props_from_sorted][2]]
-  - Population Stability Index using reference-quantile-based binning.
-- `pub fn psi_ref_props_from_sorted(ref_sorted: &[f64], edges: &[f64]) -> f64[]` [deps: [histogram_from_edges][3]]
-  - Pre-compute reference bin proportions from sorted data and edges.
+- `pub fn psi_ref_props_from_sorted(ref_sorted: &[f64], edges: &[f64]) -> Vec<f64>`
+  - Pre-computes reference bin proportions from sorted data and edge boundaries.
+
 - `pub fn compute_psi_with_ref_props(ref_props: &[f64], current: &[f64], edges: &[f64]) -> f64`
-  - PSI using pre-computed reference proportions (avoids re-binning reference).
-- `pub fn jensen_shannon_divergence_with_ref_props(ref_props: &[f64], current: &[f64], edges: &[f64]) -> f64` [deps: [normalized_histogram_props][3]]
-  - Jensen-Shannon divergence using pre-computed reference proportions.
+  - PSI using pre-computed reference proportions (avoids re-sorting).
 
-## Functions (Classification)
-- `pub fn classify_drift_window(psi, wasserstein, ks_pvalue, es_pvalue, thresholds) -> ('green'|'yellow'|'red', string[])` [deps: []]
-  - Classifies a single window's drift level based on aggregated score from PSI/Wasserstein/KS/Epps-Singleton signals.
-- `pub fn format_window_label(start_ms, end_ms, window_ms: i64) -> string` [deps: [format_timestamp][3], [same_utc_day][3]]
-  - Formats a time-window label; uses hour-only for same-day hourly windows.
+- `pub fn jensen_shannon_divergence_with_ref_props(ref_props: &[f64], current: &[f64], edges: &[f64]) -> f64`
+  - Jensen-Shannon divergence via KL-divergence against midpoint distribution.
 
-## Functions (Core Analysis)
-- `pub fn compute_temporal_drift(df: &DataFrame, column: &str, window_ms: i64, ref_start_ms, ref_end_ms, curr_start_ms, curr_end_ms, n_bins, ks_pvalue_threshold, es_pvalue_threshold, wasserstein_threshold, psi_minor, psi_major) -> Result<DriftResponse, AppError>` [deps: [extract_f64_column_opt][shared], [extract_ts_epoch_ms][shared], [classify_drift_window][above]]
-  - Computes per-window drift for a single column. Returns `Err` if reference has <5 samples.
-- `pub fn compute_drift_investigation(df: &DataFrame, columns: string[], window_ms: i64, ref_start_ms, ref_end_ms, curr_start_ms, curr_end_ms, n_bins, thresholds, segment_column?: string, relationship_mode?: string) -> Result<DriftInvestigationResponse, AppError>` [deps: [compute_temporal_drift][above], [classify_drift_window][above]]
-  - Multi-column drift investigation with feature ranking, optional segmentation, and optional distributional relationship analysis.
+- `pub fn classify_drift_window(psi, wasserstein, ks_pvalue, es_pvalue, thresholds: &DriftThresholds) -> (String, Vec<String>)`
+  - Classifies drift as "green"/"yellow"/"red" and returns trigger reasons.
+
+- `pub fn format_window_label(start_ms, end_ms, window_ms) -> String`
+  - Formats a window label using time-only when same-day hourly windows are detected.
+
+- `pub fn compute_temporal_drift(df: &DataFrame, column: &str, window_ms, ref_start_ms, ref_end_ms, curr_start_ms, curr_end_ms, n_bins, ks_pvalue_threshold, es_pvalue_threshold, wasserstein_threshold, psi_minor, psi_major) -> Result<DriftResponse, AppError>`
+  - Full temporal drift analysis pipeline: splits data into windows, computes statistics and drift metrics per window.
+
+- `pub fn compute_drift_investigation(df: &DataFrame, columns: &[&str], column_label_map: &HashMap<String, String>, window_ms, ref_start_ms, ref_end_ms, curr_start_ms, curr_end_ms, n_bins, ks_pvalue_threshold, es_pvalue_threshold, wasserstein_threshold, psi_minor, psi_major) -> Result<DriftInvestigationResponse, AppError>`
+  - Comprehensive drift investigation across multiple columns; includes segment analysis, quality checks, and relationship analysis.
+
+## Structs
+- `pub struct WindowDistributionStats` — Distribution statistics for a single window (count, mean, std, quantiles, histogram, ECDF).
+- `pub struct DriftWindowStats` extends `WindowDistributionStats` — Per-window drift metrics: KS stat/p-value, Epps-Singleton stat/p-value, Wasserstein, PSI, JSD, level, trigger reasons.
+- `pub struct DriftThresholds` — Thresholds for drift alerting (KS, ES, Wasserstein, PSI minor/major).
+- `pub struct DriftMetadata` — Computation metadata: time_ms, num_windows, reference_samples, bin_count_warning, effective_bins, psi_sample_ratio_warning, avg_window_samples.
+- `pub struct DriftResponse { column, reference, windows, thresholds, metadata }` — Full response for a single-column drift analysis.
+- `pub struct DriftInvestigationOverview { drift_score, worst_level, columns_flagged, total_columns, windows_flagged, first_change_point }` — Summary overview of investigation.
+- `pub struct DriftFeatureRank { column, drift_score, latest_level, flagged_windows, first_change_point }` — Ranked feature drift info.
+- `pub struct DriftSegmentRank { segment_value, drift_score, columns_flagged, sample_count }` — Segment-level drift rank.
+- `pub struct DriftChangePointRank { column, label, iso_time, drift_score, trigger_reasons }` — Change point rank.
+- `pub struct DriftQualityIssueRank { column, issue, label, drift_score }` — Quality issue rank.
+- `pub struct DriftRelationshipRank { left_column, right_column, reference, comparison, delta, aligned_reference_samples, aligned_comparison_samples }` — Relationship drift between two columns.
+- `pub struct DriftRankingSummary { features, segments, change_points, quality_issues, relationships }` — Aggregated ranking summary.
+- `pub struct DriftSegmentGroup { value, sample_count, overview, feature_ranks }` — Segment group with overview and feature ranks.
+- `pub struct DriftSegmentSummary { segment_by, groups }` — Summary of segments by a grouping column.
+- `pub struct DriftQualitySummary { latest_missing_rate, latest_completeness_delta, latest_zero_rate, flatline, low_sample_warning, issues }` — Quality summary for one column.
+- `pub struct DriftQualitySection { by_column: BTreeMap<String, DriftQualitySummary> }` — Grouped quality section.
+- `pub struct DriftRelationshipSection { mode, pairs }` — Relationship analysis section.
+- `pub struct DriftInvestigationResponse { overview, columns, rankings, segments?, quality?, relationships? }` — Full investigation response with optional segment/quality/relationship sections.
+
+### Private Helpers
+- `fn ks_pvalue_asymptotic(z: f64) -> f64` — Asymptotic KS p-value computation via series expansion.
+- `fn normalized_histogram_props(data, edges) -> Vec<f64>` — Normalized histogram proportions with epsilon floor.
+- `fn compute_quantiles_sorted(sorted, qs) -> Vec<f64>` — Quantile extraction from sorted slice at given fractions (0.0–1.0).
+- `fn histogram_from_edges(data, edges) -> Vec<u64>` — Histogram count array using binary search for bin assignment.
+- `fn ecdf_downsampled(sorted, max_pts) -> (Vec<f64>, Vec<f64>)` — Downsampled ECDF with at most `max_pts` points.
+- `fn build_distribution_stats(values, all_values_including_nulls, start_ms, end_ms, label, hist_edges) -> WindowDistributionStats` — Builds distribution stats from raw values and null count.
+- `fn format_timestamp(ms) -> String`, `fn format_time_only(ms) -> String`, `fn same_utc_day(start_ms, end_ms) -> bool`, `fn format_range_full(start_ms, end_ms) -> String` — Timestamp formatting helpers.
+
+[deps: [extract_f64_column_opt][1], [extract_ts_epoch_ms][2]]
 
 ---
-[1]: #ks_test_2sample
-[2]: #psi_ref_props_from_sorted
-[3]: #internal-helpers
+[1]: mod.md#extract_f64_column_opt
+[2]: mod.md#extract_ts_epoch_ms

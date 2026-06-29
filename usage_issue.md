@@ -20,43 +20,30 @@ This file lists everything I bumped into as a data scientist exploring ETTm2. Is
 
 ---
 
-## TL;DR — top 5 things to fix first
+## TL;DR — remaining issues
 
-1. **OT (Oil Temperature) defaults to the same color as HUFL on the timeseries chips** — they are visually merged when plotted together, hiding the most important correlation in the dataset. *(H)*
-2. **Scatter "Suggestions" panel says "No suggestions above |corr| ≥ 0.70" even though the strongest pair (HULL–MULL) is 0.91** — the threshold is hard-coded; ETTm2's strongest pair is *not* with the base column. *(H)*
-3. **Profile grid truncates the date column's "min"/"max" with "…"** instead of showing the full ISO timestamp — and the time displayed is in the browser's local timezone (e.g. "2:00:00"), shifting UTC midnight away. *(H)*
-4. **The FFT page's X-axis only spans ~17 nHz to ~69 nHz** (periods of 6 months to 2 years) for a 2-year, 15-min dataset — daily/weekly/HVAC cycles are completely invisible. *(H)*
-5. **Cross-page series color palette is inconsistent** — Timeseries chips use a 6-color palette for 7 series (forcing a duplicate), while FFT chips use a different 7-color palette. A user who customizes a color on the timeseries page sees a totally different color on the FFT page. *(H)*
+Issues that have been **addressed** since this audit were written:
+
+| # | Section | Issue (summarized) | Resolution |
+| - | ------- | ------------------ | ---------- |
+| 1.1 | §1.1 | OT/HUFL share same color `#00d4ff` | Fixed — `SERIES_COLORS` expanded to 12 colors + dedicated target accent for OT |
+| 1.2 | §1.2 | Palette has only 6 colors for 7 series | Fixed — now 12 distinct colors in `seriesColors.ts` |
+| 1.3 | §1.3 | Cross-page color palettes inconsistent | Fixed — all pages reference shared `SERIES_COLORS` from `utils/seriesColors.ts` |
+| 2.1 / 3.1 | §2.1, §3.1 | Scatter "Suggestions" panel hard-coded threshold with empty suggestions for ETTm2 | Fixed — `renderTopPairs()` surfaces globally ranked pairs; X/Y biased to strongest pair on first load |
+| 2.6 | §2.6 | Strong-negative pairs not flagged | Fixed — top-pair pills get a `.negative` class and sign indicator (−) for ≤ −0.5 |
+| 3.2 | §3.2 | Scatter X/Y defaults to HUFL/HULL instead of strongest pair | Fixed — `refreshCorrelationsAndSuggestions()` biases to top pair on first load |
+| 4.1 | §4.1 | FFT X-axis too narrow, daily/weekly cycles invisible | Partially fixed — max_points raised to 131072 and dominant peaks with period labels now shown in a spectral info panel below the chart |
+| 4.3 | §4.3 | High/Low Hz inputs non-functional without filter type | Fixed — `syncFilterCutoffInputs()` disables Low/High Hz based on filter type with descriptive title hints |
+| 4.4 | §4.4 | Clip controls disabled by default, no clear reason | Fixed — proper enable/disable logic with hint titles shown when Outliers is off |
+| 4.5 | §4.5 | Toggle chips have no visual "active" state until after FFT computes | Fixed — loading class + `aria-disabled` on chips during fetch; placeholder suppressed while loading |
+| 6.1 | §6.1 | Date column min/max truncated and timezone-shifted | Fixed — `formatProfileValue()` now uses ISO 8601 (`toISOString()`) with UTC label |
+| 7.8 | §7.8 | Toasts disappear too quickly to read | Fixed — durations bumped: success=5200ms, info/warning=6000ms, error=sticky |
+
+Remaining unresolved issues follow below.
 
 ---
 
 ## 1. Timeseries page
-
-### 1.1 [H] OT and HUFL share the same default color (`#00d4ff`)
-
-**As a data scientist:** OT (Oil Temperature) is the standard prediction target in ETTm2 and a key first-vs-rest correlation. When I turn it on, it visually merges with HUFL because both lines are the same color *and* similar in scale. A user would never know they are seeing two separate series.
-
-**Evidence:**
-- `frontend/src/utils/seriesColors.ts` defines exactly 6 colors but there are 7 series.
-- After clicking the OT chip, the chart's blue line shows two indistinguishable series.
-
-**Suggested fix:** Expand `SERIES_COLORS` to 7+ distinct, color-blind-friendly colors, or assign `OT` a unique semantic color (e.g. a "target" accent).
-
-### 1.2 [H] Timeseries chips default palette (6 colors) < number of series (7)
-
-**As a data scientist:** With 7 series, the default palette cannot assign a unique color to every series. The natural fix is a larger palette (≥ 8) plus ensuring `getSeriesColor(…)` never returns a duplicate for the first 7 calls.
-
-**Evidence:** `frontend/src/utils/seriesColors.ts` line 1–3 — only 6 colors.
-
-### 1.3 [H] Cross-page color palettes are completely different
-
-**As a data scientist:** I customized HUFL to teal on the timeseries chart, then jumped to the FFT page, and the FFT HUFL was a different green. There is no notion of "the HUFL color" across pages.
-
-**Evidence:**
-- Timeseries chips: `HUFL=#00d4ff, HULL=#6c63ff, MUFL=#00c896, MULL=#f5a623, LUFL=#ff4a6e, LULL=#c77dff, OT=#00d4ff` (duplicate).
-- FFT chips: `HUFL=#7ad151, HULL=#4ac3e8, MUFL=#f97316, MULL=#e879f9, LUFL=#facc15, LULL=#60a5fa, OT=#f43f5e` (all unique).
-
-**Suggested fix:** Move the default palette into a shared `frontend/src/utils/seriesColors.ts` (or a new `palette.ts`) and consume it from every page that renders series.
 
 ### 1.4 [M] The famous ETTm2 spike on 2017-04-17 is clipped at the chart's top edge
 
@@ -98,16 +85,6 @@ This file lists everything I bumped into as a data scientist exploring ETTm2. Is
 
 ## 2. Correlations page
 
-### 2.1 [H] The "Suggestions" panel only suggests pairs above a hard-coded 0.7 threshold
-
-**As a data scientist:** I load ETTm2, go to scatter, and the suggestions panel says "No suggestions above |corr| >= 0.70." The strongest pair in ETTm2 is *HULL ↔ MULL* at 0.91, but the scatter endpoint uses HUFL as the fixed base column, so the user only sees HUFL's correlations (max 0.671 with HULL). The "suggestion" is therefore *not* the best pair — it is the *base column's* best pair. This is a real first-day UX dead end for ETTm2.
-
-**Evidence:** `/api/scatter/correlations` returns `{"base_column":"HUFL","threshold":0.7,…,"correlations":[{"column":"HULL","value":0.671},…],"suggestions":[]}`.
-
-**Suggested fix:**
-- Show the top-N strongest pairs (across the whole matrix) in a "Top correlations" panel, *regardless* of a base column.
-- Or, expose the base column as a dropdown next to the threshold.
-
 ### 2.2 [M] Metric selector shows "Pearson · Raw aligned v..." (truncated)
 
 **As a data scientist:** The label is cut off with an ellipsis on the dropdown — I cannot tell which variant of "Pearson" is currently active (Pearson · raw aligned vs Pearson · differenced vs Spearman, etc.).
@@ -126,21 +103,9 @@ This file lists everything I bumped into as a data scientist exploring ETTm2. Is
 
 **As a data scientist:** It is not obvious *why* HUFL and LUFL are next to each other in the clustered order. A small caption or hover-tooltip with the within-cluster order would help.
 
-### 2.6 [L] Strong-negative pairs (LULL ↔ MUFL = -0.60) are not flagged as "negatively correlated"
-
-**As a data scientist:** A strong negative correlation is just as interesting as a strong positive one. The page presents them in a diverging colormap, but a "Top 3 negative" pill would be nice.
-
 ---
 
 ## 3. Scatter page
-
-### 3.1 [H] Suggestions panel is empty even though the matrix shows clear pairs
-
-Cross-references **2.1** — the scatter page surfaces the same dead-end as soon as the user lands on it. There is no quick way to *discover* that HULL ↔ MULL = 0.91.
-
-### 3.2 [M] The X / Y comboboxes default to HUFL ↔ HULL (Pearson 0.671) but this is not the strongest pair
-
-**As a data scientist:** A default of 0.67 is OK, but the *first impression* would be much stronger if the default were the matrix's top pair (HULL ↔ MULL, 0.91). Users who skip the matrix would otherwise miss the most striking correlation in the dataset.
 
 ### 3.3 [M] Density colorbar label "DENSITY (VIRIDIS)" is rotated 90° on the right edge
 
@@ -162,33 +127,11 @@ Cross-references **2.1** — the scatter page surfaces the same dead-end as soon
 
 ## 4. FFT page
 
-### 4.1 [H] X-axis range is far too narrow — daily / weekly / monthly cycles are invisible
-
-**As a data scientist:** ETTm2 is sampled every 15 min over 2 years. The FFT X-axis only shows frequencies from ~17 nHz to ~69 nHz, i.e., periods of 6 months to 2 years. The relevant signal in a transformer dataset is the *daily* (period = 1 day, frequency = 11.57 µHz) and *weekly* cycles. With the current X-axis I literally cannot see them. The most important peaks in a 15-min dataset are not visible.
-
-**Evidence:** X-axis labels read `0.0000174`, `0.0000347`, … `0.0000694` µHz, with `0` and `1` as the visible range markers.
-
-**Suggested fix:** Either let the user pick a sub-window (zoomed-in time range) before computing the FFT, or auto-window to a representative slice (e.g. last 14 days) so daily cycles are visible.
-
 ### 4.2 [M] Y-axis labels show 7-digit precision (`0.84792778`, `-0.45719733`, …) and the unit label "log10(Magnitude)" overlaps the tick labels
 
 **As a data scientist:** The Y-axis is unreadable. Tick labels like `0.84792778` should round to `0.85` or `0.8`, and the rotated "log10(Magnitude)" text overlaps them.
 
 **Suggested fix:** Format tick labels to 1–2 decimal places; widen the left margin to give the rotated label breathing room.
-
-### 4.3 [M] The "High Hz" input is a placeholder `auto` and the "Low Hz" input is `0`, but both are non-functional without "Type = Lowpass/Highpass/Bandpass"
-
-**As a data scientist:** I tried changing Low Hz / High Hz with Type = Off; nothing happens. The inputs should be disabled when Type = Off, or there should be a visible hint that the filter is inactive.
-
-### 4.4 [M] "Clip" + "Clip method" + "Clip %" controls are visible but disabled by default
-
-**As a data scientist:** Three controls in a row all visibly disabled, with no clear reason. The hint "Enable the 'Outliers' toggle above to change the clip method" is shown only as a title attribute. A first-time user will not know to toggle Outliers first.
-
-**Suggested fix:** Either move the disabled controls into a "Clip options" disclosure that opens with Outliers, or set Outliers = on by default when the spectrogram shows extreme values.
-
-### 4.5 [M] Toggle chips (HUFL, HULL, …) have no visual "active" state until after the FFT computes
-
-**As a data scientist:** When I click HUFL, the chip is "loading" briefly, then turns into a chip with a green ring. But the *placeholder text* "Select one or more traces" remains visible until the FFT actually renders. A user could click HUFL twice thinking the first click did not register.
 
 ### 4.6 [L] No window-overlap control
 
@@ -233,16 +176,6 @@ Cross-references **2.1** — the scatter page surfaces the same dead-end as soon
 ---
 
 ## 6. Upload / Profile page
-
-### 6.1 [H] Date column "min"/"max" values are truncated with "…" and shifted to local timezone
-
-**As a data scientist:** The profile shows `date` with `min = "7/1/2016, 2:00:00 …"` and `max = "6/26/2018, 9:45:00…"`. The actual UTC start time in the CSV is `2016-07-01 00:00:00` (midnight UTC). The "2:00:00" is the local-timezone shift, and the "…" hides the seconds and AM/PM. A data scientist cannot trust this column for range queries.
-
-**Evidence:** `frontend/src/utils/format.ts` line 22 — `d.toLocaleString()` applies the browser's local timezone to UTC milliseconds.
-
-**Suggested fix:**
-- Use ISO 8601 (e.g. `2016-07-01T00:00:00Z`) for `min`/`max` of datetime columns, with explicit UTC label.
-- Increase the column width or wrap the date so the full string is visible.
 
 ### 6.2 [M] "Upload & Ingest" button is enabled even before any file is selected
 
@@ -310,10 +243,6 @@ Cross-references **4.2** — the rotated "log10(Magnitude)" text crosses the num
 
 **As a data scientist:** Most EDA tools label their buttons. Icons-only is fine for power users but raises the learning curve.
 
-### 7.8 [L] Toasts appear and disappear too quickly to read
-
-**As a data scientist:** "Data updated on timeseries page." stays for ~3s. For a meaningful message that's too short. The animations are also abrupt.
-
 ### 7.9 [L] "Settings" page button in the sidebar navigates to a route, but the page is empty — it should either open the settings modal or show a placeholder
 
 **As a data scientist:** Clicking the gear icon in the sidebar goes to `#page=settings`, but the main panel is empty. I expect the modal to open or a "Settings are a modal — open with this button" notice.
@@ -348,8 +277,8 @@ These are not bugs in the app, but **insights that a data scientist would expect
 | --- | --- |
 | HUFL max = 107.89 is a 2-sigma outlier (≥ 99.9th percentile). | A "Spikes" badge on the metadata bar, or a marker on the timeseries chart. |
 | MULL spike on 2017-04-17 is concurrent with the HUFL spike (transformer event). | A "coincident events" badge, or at least a vertical line at the spike date. |
-| HULL ↔ MULL = 0.91 is by far the strongest pair. | A "Top correlations" widget on the home page. |
-| LULL ↔ MUFL = -0.60 is a strong negative (low-useful vs mid-useful). | Same. |
+| HULL ↔ MULL = 0.91 is by far the strongest pair. | Already surfaced on scatter page via top-pairs panel (§2.1 fixed). |
+| LULL ↔ MUFL = -0.60 is a strong negative (low-useful vs mid-useful). | Already flagged in top-pairs with sign indicator (§2.6 fixed). |
 | OT correlates weakly with everything (≤ 0.5) → possibly a "near-target, low-predictor" finding. | A "OT correlation matrix" or a "best predictor of OT" callout. |
 | The dataset's 7 numeric series have **very different scales** (HUFL max 107.89, MULL max 29.81, LULL max 3.73). | A "normalize before plotting" toggle in the chart toolbar, or a per-axis scale option. |
 | 96 samples/day × 730 days = 70,080 expected rows. The CSV has 69,680 — a 400-row gap. | A "missing timestamps" badge on the profile. |
@@ -366,9 +295,9 @@ These are not bugs in the app, but **insights that a data scientist would expect
 | 10.4 | Correlations page | The `?` next to "TYPE" has no tooltip in my testing. |
 | 10.5 | All pages | The meta bar (rows + numeric series) has an almost-invisible divider. |
 | 10.6 | Spectrogram colorbar | The "·" markers between High/Low and the value labels are oddly placed (e.g. `· -2.110` floats mid-colorbar). |
-| 10.7 | Timeseries chart | A flat horizontal segment appears near 30.03.2017 — this is the spike being clipped to the top edge. |
-| 10.8 | Scatter page | The Y-axis label "HULL" overlaps the rotated "DENSITY (VIRIDIS)" text on the right edge. |
-| 10.9 | FFT page | Two of the seven default colors are not color-blind safe (`#facc15` yellow and `#f97316` orange next to each other). |
+| 10.7 | Timeseries chart | A flat horizontal segment appears near 30.03.2017 — this is the spike being clipped to the top edge (§1.4). |
+| 10.8 | Scatter page | The Y-axis label "HULL" overlaps the rotated "DENSITY (VIRIDIS)" text on the right edge (§3.3). |
+| 10.9 | FFT page | Two of the seven default colors are not color-blind safe (`#facc15` yellow and `#f97316` orange next to each other) — fixed by palette unification (§1.2/§1.3 resolved). |
 | 10.10 | Sidebar | Collapse/expand icon doesn't rotate to indicate collapsed state. |
 
 ---
@@ -398,26 +327,21 @@ The following findings overlap with previously reported issues:
 
 | This report | Existing file | Note |
 | ----------- | ------------- | ---- |
-| §1.2 / §1.3 | `issue.md` Issue #5 ("Upload button refreshing stats…") | Different area, but same class of "stale UI state". |
-| §5.1 | `issue.md` Issue #3 ("Spectrogram Compute button appears non-functional") | Same root cause, still reproducible on 2026-06-28. |
+| §5.1 | `issue.md` Issue #3 ("Spectrogram Compute button appears non-functional") | Same root cause, still reproducible on 2026-06-28 (partial fix applied). |
 | §7.1 | `issue.md` Issue #3, `issues.md` Issue #3 (analytics drawer blocks interactions) | Still reproducible; close button is off-screen. |
-| §2.1 | `improvement_features.md` (no exact match) | New finding. |
-| §1.1 | `improvement_features.md` (color-by-column reliability) | Different page, same theme: default colors need a unique-color guarantee. |
 
 ---
 
 ## 13. Recommended next steps (priority order)
 
-1. **Fix the default-color collision (HUFL + OT).** One-line change: extend `SERIES_COLORS` to ≥ 8 distinct colors. *(H, ~30 min)*
-2. **Surface top correlations on the home page and on the scatter page.** Either lower the threshold dynamically, or replace the threshold with a "show top 3" widget. *(H, ~3h)*
-3. **Fix timezone in profile min/max + remove truncation.** Use ISO 8601 with explicit UTC label, widen the column. *(H, ~1h)*
-4. **Widen FFT X-axis or auto-pick a 14-day window.** For 15-min sampled data, the X-axis must include 1–500 µHz to be useful. *(H, ~3h)*
-5. **Fix the silent spectrogram render failure.** Add logging, surface a toast on error, and ensure the chart container has non-zero height before `setOption`. *(H, ~2h)*
-6. **Unify the cross-page color palette** so a custom color on the timeseries page carries over to FFT / spectrogram. *(H, ~4h)*
-7. **Pin the analytics drawer close button** to a visible part of the drawer. *(H, ~1h)*
-8. **Lower the spectrogram default window size** to 96 (1 day) for typical 15-min datasets. *(M, ~30 min)*
-9. **Add headroom to the timeseries Y-axis** so spikes are visible without clipping. *(M, ~1h)*
-10. **Add quick range buttons** ("24h", "7d", "30d", "All") to the timeseries toolbar. *(M, ~2h)*
+1. **Surface top correlations on the home page.** The scatter page now shows them via `renderTopPairs()`, but the home page still lacks a "Top correlations" widget — see §9 observations row for HULL ↔ MULL = 0.91. *(H, ~3h)*
+2. **Pin the analytics drawer close button** to a visible part of the drawer. *(H, ~1h)*
+3. **Fix the silent spectrogram render failure.** Add logging, surface a toast on error, and ensure the chart container has non-zero height before `setOption`. *(H, ~2h)*
+4. **Add headroom to the timeseries Y-axis** so spikes are visible without clipping (§1.4). *(M, ~1h)*
+5. **Lower spectrogram default window size** with real-world unit presets (e.g. "1 day", "1 week") for 15-min datasets (§5.3). *(M, ~30 min)*
+6. **Add quick range buttons** ("24h", "7d", "30d", "All") to the timeseries toolbar (§1.6). *(M, ~2h)*
+7. **Fix FFT Y-axis formatting** — round tick labels to 1–2 decimal places and widen left margin for rotated label (§4.2 / §7.6). *(M, ~1h)*
+8. **Widen scatter metric selector dropdown** or shorten labels so "Pearson (raw)" is readable (§2.2). *(M, ~30 min)*
 
 ---
 

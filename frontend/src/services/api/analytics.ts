@@ -62,11 +62,24 @@ export async function fetchAnomalies(
 
 // ── FFT ────────────────────────────────────────────────────────────────────
 
+export interface FrequencyPeak {
+    frequency_hz: number;
+    magnitude: number;
+    power: number;
+    rank: number;
+}
+
 export interface FftResult {
     column: string;
     frequencies: number[];
     magnitudes: number[];
     psd: number[];
+    /** Effective sampling rate (Hz) inferred from the timestamp column. */
+    sample_rate_hz: number;
+    /** Nyquist frequency = `sample_rate_hz / 2`. */
+    nyquist_hz: number;
+    /** Top detected spectral peaks sorted by magnitude. */
+    dominant_peaks: FrequencyPeak[];
 }
 
 export interface FftResponse {
@@ -100,14 +113,24 @@ export interface SpectrogramResponse {
     result: SpectrogramResult;
 }
 
+export interface SpectrogramScaleOptions {
+    /** `none` (default), `minmax`, `zscore`, or `robust`. */
+    normalize?: string;
+    /** `none`, `percentile`, or `iqr`. */
+    clip?: string;
+    /** Threshold for the active clip mode. */
+    clipParam?: number;
+}
+
 export async function fetchSpectrogram(
     start: string,
     end: string,
     column: string,
-    windowSize = 256,
+    windowSize = 96,
     hopSize?: number,
     maxPoints = 32768,
     signal?: AbortSignal,
+    scaleOptions?: SpectrogramScaleOptions,
 ): Promise<SpectrogramResponse> {
     const params = new URLSearchParams({
         start, end, column,
@@ -115,6 +138,11 @@ export async function fetchSpectrogram(
         max_points: String(maxPoints),
     });
     if (hopSize != null) params.set('hop_size', String(hopSize));
+    if (scaleOptions?.normalize) params.set('normalize', scaleOptions.normalize);
+    if (scaleOptions?.clip) params.set('clip', scaleOptions.clip);
+    if (scaleOptions?.clipParam != null && Number.isFinite(scaleOptions.clipParam)) {
+        params.set('clip_param', String(scaleOptions.clipParam));
+    }
     const url = `/api/analytics/spectrogram?${params.toString()}`;
     return getJson<SpectrogramResponse>(url, 'Spectrogram', signal);
 }

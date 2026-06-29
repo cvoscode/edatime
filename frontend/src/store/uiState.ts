@@ -7,6 +7,12 @@
 import type { AdaptiveLineFilter, ColumnRange, PendingAdaptivePoint, ProfileGridSort } from '../types.js';
 import { emitStoreEvent } from './events.js';
 
+/**
+ * Profile-grid category filter — `'all'` (default), `'numeric'`, or
+ * `'datetime'`. See `usage_issue.md` §6.6.
+ */
+export type ProfileFilterCategory = 'all' | 'numeric' | 'datetime';
+
 export interface UiState {
     filterText: string;
     selectedCols: string[];
@@ -17,6 +23,9 @@ export interface UiState {
     seriesColors: Record<string, string>;
     selectedColorColumn: string | null;
     profileFilterText: string;
+    /** Category filter for the column-profile grid. `'all'` keeps the
+     *  legacy behaviour; `'numeric'` / `'datetime'` restrict the rows. */
+    profileFilterCategory: ProfileFilterCategory;
     previewSelectedColumns: string[];
     previewTimeColumn: string | null;
     profileGridBound: boolean;
@@ -35,6 +44,7 @@ export const uiState: UiState = {
     seriesColors: {},
     selectedColorColumn: null,
     profileFilterText: '',
+    profileFilterCategory: 'all',
     previewSelectedColumns: [],
     previewTimeColumn: null,
     profileGridBound: false,
@@ -146,6 +156,15 @@ export function setProfileFilterText(text: string): void {
     const previous = uiState.profileFilterText;
     uiState.profileFilterText = text;
     emitStoreEvent('ui:profileFilterText', { previous, next: text });
+}
+
+export function setProfileFilterCategory(category: ProfileFilterCategory): void {
+    const normalized: ProfileFilterCategory = (['all', 'numeric', 'datetime'] as const).includes(category)
+        ? category
+        : 'all';
+    const previous = uiState.profileFilterCategory;
+    uiState.profileFilterCategory = normalized;
+    emitStoreEvent('ui:profileFilterCategory', { previous, next: normalized });
 }
 
 export function setPreviewSelectedColumns(cols: string[]): void {

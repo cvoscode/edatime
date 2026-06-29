@@ -4,8 +4,21 @@
  */
 
 import { chartState } from '../store/chartState.js';
-import { setAdaptiveLineFilters, setPendingAdaptivePoint } from '../store/index.js';
+import { setAdaptiveLineFilters, setPendingAdaptivePoint, store } from '../store/index.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
+import { uiState } from '../store/uiState.js';
+
+/**
+ * Reflect the current adaptive-filter state on the Clear filters button.
+ * The button stays hidden when there are no filters to clear so a user
+ * who has not drawn any adaptive line cannot mis-click a no-op button.
+ */
+function syncAdaptiveClearButton(): void {
+    const btn = document.getElementById('adaptive-clear-btn') as HTMLElement | null;
+    if (!btn) return;
+    const hasFilters = (uiState.adaptiveLineFilters || []).length > 0;
+    btn.hidden = !hasFilters;
+}
 
 export function initDrawControls(fetchAndRender: () => void): void {
     const zoomResetBtn = document.getElementById('zoom-reset-btn') as HTMLElement | null;
@@ -45,4 +58,6 @@ export function initDrawControls(fetchAndRender: () => void): void {
         });
         adaptiveClearBtn.dataset.bound = '1';
     }
+    syncAdaptiveClearButton();
+    store.subscribe('ui:adaptiveLineFilters', syncAdaptiveClearButton);
 }

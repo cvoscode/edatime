@@ -4,7 +4,13 @@
  * Covers: hydrateColumnProfiles — profile hydration from metadata.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { formatUploadSelectionStatus, hydrateColumnProfiles, sortProfileRows } from './profile';
+import {
+    formatUploadSelectionStatus,
+    hydrateColumnProfiles,
+    invalidateProfileGridViewModel,
+    renderColumnProfilesGrid,
+    sortProfileRows,
+} from './profile';
 import { appState } from '../store/appStateCompat';
 import type { DatasetMetadata } from '../types';
 
@@ -269,5 +275,82 @@ describe('sortProfileRows', () => {
         ], 'nonNullCount', 'asc');
 
         expect(result.map((profile) => profile.name)).toEqual(['b', 'a']);
+    });
+});
+
+describe('renderColumnProfilesGrid', () => {
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div id="profile-grid">
+                <div class="profile-grid-header"></div>
+                <div id="profile-grid-viewport">
+                    <div id="profile-grid-spacer"></div>
+                    <div id="profile-grid-rows"></div>
+                </div>
+            </div>
+        `;
+        appState.previewSelectedColumns = [];
+        appState.previewTimeColumn = null;
+        appState.profileFilterText = '';
+        appState.profileFilterCategory = 'all';
+        appState.profileGridSort = { key: null, dir: 'asc' };
+        invalidateProfileGridViewModel();
+    });
+
+    it('renders UTC ISO datetime titles for min/max cells', () => {
+        appState.previewTimeColumn = 'timestamp';
+        appState.previewSelectedColumns = ['timestamp'];
+        appState.columnProfiles = [{
+            name: 'timestamp',
+            dtype: 'datetime64[ms]',
+            nonNullCount: 2,
+            nullCount: 0,
+            min: Date.parse('2016-07-01T00:00:00Z'),
+            max: Date.parse('2016-07-02T12:34:56Z'),
+            histCounts: [],
+        }];
+
+        renderColumnProfilesGrid(true);
+
+        const cells = Array.from(document.querySelectorAll<HTMLDivElement>('.profile-grid-row .profile-cell'));
+        const minCell = cells[5];
+        const maxCell = cells[6];
+
+        expect(minCell?.textContent).toBe('2016-07-01T00:00:00Z');
+        expect(minCell?.title).toBe('UTC 2016-07-01T00:00:00.000Z');
+        expect(maxCell?.textContent).toBe('2016-07-02T12:34:56Z');
+        expect(maxCell?.title).toBe('UTC 2016-07-02T12:34:56.000Z');
+    });
+
+    it('filters the grid to datetime columns when the datetime category is active', () => {
+        appState.profileFilterCategory = 'datetime';
+        appState.columnProfiles = [
+            {
+                name: 'timestamp',
+                dtype: 'datetime64[ms]',
+                nonNullCount: 3,
+                nullCount: 0,
+                min: Date.parse('2024-01-01T00:00:00Z'),
+                max: Date.parse('2024-01-03T00:00:00Z'),
+                histCounts: [],
+            },
+            {
+                name: 'value',
+                dtype: 'Float64',
+                nonNullCount: 3,
+                nullCount: 0,
+                min: 1,
+                max: 3,
+                histCounts: [],
+            },
+        ];
+
+        renderColumnProfilesGrid(true);
+
+        const rowText = Array.from(document.querySelectorAll('.profile-grid-row'))
+            .map((row) => row.textContent || '')
+            .join(' ');
+        expect(rowText).toContain('timestamp');
+        expect(rowText).not.toContain('value');
     });
 });

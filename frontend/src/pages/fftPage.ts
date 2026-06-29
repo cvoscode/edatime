@@ -8,6 +8,7 @@ import { getAnalyticsChipColor, getNumericColumns } from './analyticsPageUtils.j
 import { setSpectralFilterPreview } from '../store/index.js';
 import { renderSeriesChipList } from '../ui/index.js';
 import { getDropdownValue, setDropdownDisabled } from '../ui/primitives/Dropdown.js';
+import { setSeriesColor } from '../utils/seriesColors.js';
 import {
     DEFAULT_SPECTRAL_SCALE,
     type ClipMode,
@@ -64,7 +65,12 @@ function updateZoomButton(isZoomed?: boolean): void {
 }
 
 function syncFftEmptyState(): void {
-    const visible = fftTraces.length === 0;
+    // Suppress the placeholder the moment any chip is in the loading
+    // state so the user sees the active "loading" feedback instead of a
+    // contradictory "Select one or more traces" message.
+    const loadingChips = document.querySelectorAll<HTMLElement>('#fft-traces-bar .fft-trace-chip.loading');
+    const inFlight = loadingChips.length > 0;
+    const visible = fftTraces.length === 0 && !inFlight;
     const reason = visible ? 'no-columns-selected' : '';
     const model = {
         visible,
@@ -78,6 +84,7 @@ function syncFftEmptyState(): void {
 
 function rerenderOrClear(): void {
     syncFftEmptyState();
+    syncFftSpectralInfo();
     // Safety net: keep the disabled state of the clip fields consistent
     // with the current toggle value. Use setDropdownDisabled for the
     // method since it may have been upgraded to a custom dropdown.
@@ -102,6 +109,56 @@ function rerenderOrClear(): void {
         return;
     }
     fftChart.updateData(fftTraces, fftMode, fftLogScale, fftScaleOptions);
+}
+
+/**
+ * Reflect the backend's spectral metadata (sample rate, nyquist, top
+ * peaks) into the small live-region panel below the chart. This gives
+ * data scientists an immediate way to identify daily / weekly / monthly
+ * cycles in 15-min datasets where the X-axis is otherwise too narrow —
+ * see `usage_issue.md` §4.1.
+ */
+function syncFftSpectralInfo(): void {
+    const wrap = document.getElementById('fft-spectral-info');
+    const rateEl = document.getElementById('fft-spectral-info-rate');
+    const nyquistEl = document.getElementById('fft-spectral-info-nyquist');
+    const peaksEl = document.getElementById('fft-spectral-info-peaks');
+    if (!wrap || !rateEl || !nyquistEl || !peaksEl) return;
+    const firstWithMeta = fftTraces.find(
+        (trace) => Number.isFinite(trace.sample_rate_hz) && Number.isFinite(trace.nyquist_hz),
+    );
+    if (!firstWithMeta) {
+        wrap.hidden = true;
+        return;
+    }
+    wrap.hidden = false;
+    const fs = Number(firstWithMeta.sample_rate_hz);
+    const nyquist = Number(firstWithMeta.nyquist_hz);
+    rateEl.textContent = Number.isFinite(fs) ? `${fs.toExponential(3)} Hz` : '—';
+    nyquistEl.textContent = Number.isFinite(nyquist) ? `${nyquist.toExponential(3)} Hz` : '—';
+    const peaks = Array.isArray(firstWithMeta.dominant_peaks) ? firstWithMeta.dominant_peaks : [];
+    if (peaks.length === 0) {
+        peaksEl.textContent = '—';
+        peaksEl.removeAttribute('title');
+        return;
+    }
+    peaksEl.textContent = peaks
+        .slice(0, 3)
+        .map((peak) => {
+            const f = Number(peak?.frequency_hz);
+            const periodSeconds = f > 0 ? 1 / f : Number.NaN;
+            const periodLabel = periodSeconds >= 86400
+                ? `${(periodSeconds / 86400).toFixed(1)} d`
+                : periodSeconds >= 3600
+                    ? `${(periodSeconds / 3600).toFixed(1)} h`
+                    : `${periodSeconds.toFixed(1)} s`;
+            return `${f.toExponential(2)} Hz (~${periodLabel})`;
+        })
+        .join(' · ');
+    peaksEl.title = peaks
+        .slice(0, 5)
+        .map((peak, index) => `${index + 1}. ${peak.frequency_hz.toExponential(3)} Hz (r=${peak.rank ?? index + 1})`)
+        .join('\n');
 }
 
 async function ensureFftChartReady(): Promise<void> {
@@ -131,7 +188,12 @@ async function fetchAndAddTrace(column: string): Promise<void> {
     if (startMs == null || endMs == null || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
     const startIso = new Date(startMs).toISOString();
     const endIso = new Date(endMs).toISOString();
-    const response = await fetchFft(startIso, endIso, column);
+    // ETTm2's 69,680-row 15-min dataset was being stride-downsampled to
+    // 8192 points, which collapsed the FFT X-axis to ~17-69 nHz and made
+    // daily/weekly cycles invisible. Raise the cap to 131072 so the
+    // resolution is enough to see daily/weekly cycles; the backend will
+    // still stride down on bigger datasets without truncating ETTm2.
+    const response = await fetchFft(startIso, endIso, column, 131072);
     if (!response?.results?.length) throw new Error('No results');
     const result = response.results[0];
     fftTraces = fftTraces.filter((trace) => trace.column !== column);
@@ -141,6 +203,9 @@ async function fetchAndAddTrace(column: string): Promise<void> {
         magnitudes: result.magnitudes,
         psd: result.psd,
         color: fftColorFor(column, fftColumns().indexOf(column)),
+        sample_rate_hz: result.sample_rate_hz,
+        nyquist_hz: result.nyquist_hz,
+        dominant_peaks: result.dominant_peaks,
     });
 }
 
@@ -167,6 +232,7 @@ function renderChips(): void {
                         activeChip.classList.add('loading');
                         activeChip.classList.add('fft-trace-chip');
                         activeChip.setAttribute('aria-disabled', 'true');
+                        syncFftEmptyState();
                         const loadingEl = document.getElementById('fft-chart-loading');
                         if (loadingEl) loadingEl.hidden = false;
                         try {
@@ -180,6 +246,7 @@ function renderChips(): void {
                             activeChip.classList.remove('loading');
                             activeChip.removeAttribute('aria-disabled');
                             if (loadingEl) loadingEl.hidden = true;
+                            syncFftEmptyState();
                         }
                     } else {
                         fftTraces = fftTraces.filter((trace) => trace.column !== column);
@@ -189,6 +256,10 @@ function renderChips(): void {
                 },
                 onColorInput: (nextColor) => {
                     fftTraceColors[column] = nextColor;
+                    // Mirror the override into the shared series-colors
+                    // store so the timeseries / scatter / spectrogram pages
+                    // stay in sync with the color picked on the FFT page.
+                    setSeriesColor(column, nextColor);
                 },
             };
         }),
@@ -372,13 +443,34 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
             });
 
             const filterTypeSelect = document.getElementById('fft-filter-type') as HTMLElement | null;
-            filterTypeSelect?.addEventListener('change', () => {
-                const filterType = getDropdownValue('fft-filter-type');
+            // Centralised sync helper so the initial render and every
+            // change both end up with the right Low Hz / High Hz enabled
+            // state plus a hint title attribute for screen readers.
+            const syncFilterCutoffInputs = (): void => {
+                const filterType = String(getDropdownValue('fft-filter-type') || 'none').toLowerCase();
                 const lowEl = document.getElementById('fft-filter-low-hz') as HTMLInputElement | null;
                 const highEl = document.getElementById('fft-filter-high-hz') as HTMLInputElement | null;
-                if (lowEl) lowEl.disabled = filterType === 'none' || filterType === 'lowpass';
-                if (highEl) highEl.disabled = filterType === 'none' || filterType === 'highpass';
-            });
+                const lowHint = filterType === 'none'
+                    ? 'Set Filter type to Highpass or Bandpass to use the Low Hz cutoff.'
+                    : filterType === 'lowpass'
+                        ? 'Low Hz cutoff is unused for Lowpass.'
+                        : 'Lower edge of the bandpass / highpass.';
+                const highHint = filterType === 'none'
+                    ? 'Set Filter type to Lowpass or Bandpass to use the High Hz cutoff.'
+                    : filterType === 'highpass'
+                        ? 'High Hz cutoff is unused for Highpass.'
+                        : 'Upper edge of the bandpass / lowpass.';
+                if (lowEl) {
+                    lowEl.disabled = filterType === 'none' || filterType === 'lowpass';
+                    lowEl.title = lowHint;
+                }
+                if (highEl) {
+                    highEl.disabled = filterType === 'none' || filterType === 'highpass';
+                    highEl.title = highHint;
+                }
+            };
+            filterTypeSelect?.addEventListener('change', syncFilterCutoffInputs);
+            syncFilterCutoffInputs();
 
             rerenderOrClear();
 

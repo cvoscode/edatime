@@ -245,6 +245,47 @@ describe('initUploadPanel notifications', () => {
     });
 });
 
+describe('initUploadPanel upload button state', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        buildUploadDom();
+        appState.metadata = null;
+        appState.columnProfiles = [];
+        appState.previewSelectedColumns = [];
+        appState.previewTimeColumn = null;
+    });
+
+    it('keeps Upload & Ingest disabled until a valid file is selected', async () => {
+        initUploadPanel(vi.fn(), vi.fn(), {
+            buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(),
+        });
+
+        const uploadBtn = document.getElementById('upload-btn') as HTMLButtonElement;
+        expect(uploadBtn.disabled).toBe(true);
+        expect(uploadBtn.getAttribute('aria-disabled')).toBe('true');
+        expect(uploadBtn.title).toContain('Pick a CSV/Parquet file above first.');
+
+        const file = new File(['timestamp,value\n2024-01-01T00:00:00Z,1\n'], 'demo.csv', { type: 'text/csv' });
+        const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+        Object.defineProperty(fileInput, 'files', {
+            configurable: true,
+            value: [file],
+        });
+        mocks.previewUpload.mockResolvedValue({
+            ok: true,
+            json: async () => ({ metadata: makeMetadata(), preview_rows: 1 }),
+        });
+
+        fileInput.dispatchEvent(new Event('change'));
+        await flushPromises();
+
+        expect(uploadBtn.disabled).toBe(false);
+        expect(uploadBtn.getAttribute('aria-disabled')).toBe('false');
+        expect(uploadBtn.title).toBe('');
+    });
+});
+
 describe('setProfileMode', () => {
     beforeEach(() => {
         document.body.innerHTML = '<span id="profile-mode-badge" data-mode="dataset">Current dataset</span>';

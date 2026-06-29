@@ -146,6 +146,11 @@ registerSubsystem('sample-datasets', async (deps) => {
     wireSampleDatasetCards(deps.showPage, () => deps.refreshDatasetAfterMutation());
 });
 
+registerSubsystem('home-top-correlations', async () => {
+    const { wireHomeTopCorrelations } = await import('../../features/home/topCorrelations.js');
+    wireHomeTopCorrelations();
+});
+
 registerSubsystem('app-commands', async (deps) => {
     const { registerAppCommands } = await import('../../bootstrap/commands.js');
     const commandDeps: CommandDeps = {

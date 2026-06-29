@@ -42,6 +42,7 @@ import { initDrawControls } from './drawControls.js';
 import { initChartTextControls } from './chartTextControls.js';
 import { initAnalyticsControls } from './analyticsControls.js';
 import { initPageNavigation } from './pageNavigation.js';
+import { initQuickRangeControls, refreshQuickRangeControls } from './quickRange.js';
 
 import { exportChartFilteredData } from './exportControls.js';
 
@@ -103,6 +104,8 @@ export function initAnalysisControls(fetchAndRender: () => void): void {
     initDrawControls(fetchAndRender);
     initChartTextControls();
     initAnalyticsControls();
+
+    initQuickRangeControls(fetchAndRender);
 
     initResetZoomListener(fetchAndRender);
     refreshZoomControlsState();

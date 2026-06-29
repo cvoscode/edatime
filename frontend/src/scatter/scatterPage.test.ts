@@ -497,6 +497,47 @@ describe('initScatterPage view toggles', () => {
         expect(ySelect.querySelector(`option[value="${xSelect.value}"]`)).toBeNull();
     });
 
+    it('prefers the strongest top-pair on first scatter init when no pair was restored', async () => {
+        fetchScatterCorrelationsMock.mockResolvedValueOnce({
+            mode: 'pearson_raw',
+            numeric_columns: ['HUFL', 'HULL', 'MULL', 'OT'],
+            base_column: 'HUFL',
+            correlations: [],
+            suggestions: [],
+            top_pairs: [{ x: 'HULL', y: 'MULL', correlation: 0.91, count: 256 }],
+        });
+
+        const { initScatterPage } = await import('./scatterPage.js');
+
+        await initScatterPage({
+            total_rows: 3,
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+                { name: 'MULL', dtype: 'Float64' },
+                { name: 'OT', dtype: 'Float64' },
+            ],
+            numeric_columns: ['HUFL', 'HULL', 'MULL', 'OT'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1_000 },
+            column_profiles: [],
+        } as any);
+
+        const xSelect = document.getElementById('scatter-x-col') as HTMLSelectElement;
+        const ySelect = document.getElementById('scatter-y-col') as HTMLSelectElement;
+
+        expect(xSelect.value).toBe('HULL');
+        expect(ySelect.value).toBe('MULL');
+        expect(fetchScatterPointsMock).toHaveBeenLastCalledWith(
+            'HULL',
+            'MULL',
+            expect.any(Number),
+            null,
+            expect.any(Object),
+            expect.any(AbortSignal),
+        );
+    });
+
     it('keeps the dropdowns empty but does not fetch when no numeric columns exist', async () => {
         const { initScatterPage } = await import('./scatterPage.js');
 

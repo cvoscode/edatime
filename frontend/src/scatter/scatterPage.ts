@@ -350,6 +350,7 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
     if (!page || !xSelect || !ySelect) return;
 
     const numeric: string[] = ((metadata as any)?.numeric_columns || []).filter((c: any) => c);
+    const hadRestoredPair = !!(getDropdownValue('scatter-x-col') && getDropdownValue('scatter-y-col'));
     appState.scatter.metadata = metadata;
     appState.scatter.columnTypes = new Map(
         ((metadata as any)?.columns || []).map((col: any) => [
@@ -405,7 +406,9 @@ export async function initScatterPage(metadata: DatasetMetadata): Promise<void> 
     if (numeric.length === 0) return;
 
     try {
-        await refreshCorrelationsAndSuggestions();
+        await refreshCorrelationsAndSuggestions({
+            preferTopPairOnFirstLoad: !hadRestoredPair,
+        });
         await renderScatter();
         appState.scatter.pageInitialized = true;
     } catch (err: any) {

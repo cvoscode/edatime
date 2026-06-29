@@ -38,6 +38,36 @@
 - `filters?: ScatterFilterSpec[]`
 - `lineFilters?: ScatterLineFilterSpec[]`
 
+## CorrelationItem
+- `column: string; count: number; value: (number | null)` — One correlation entry for a column relative to the base.
+
+## CorrelationSuggestion
+- `x: string; y: string; correlation: number` — Base/partner pair with **signed** correlation; thresholding uses `abs(correlation)`.
+
+## ScatterCorrelationsResponse
+- `mode: CorrelationMetric (enum)` — PearsonRaw/SpearmanRaw/KendallRaw/PearsonDiff/SpearmanDiff/KendallDiff.
+- `base_column: string`
+- `threshold: number`
+- `numeric_columns: string[]`
+- `correlations: CorrelationItem[]` — Sorted by `abs(correlation)` descending.
+- `suggestions: CorrelationSuggestion[]` — Pairs whose `|correlation| >= threshold`.
+- `top_pairs?: TopPairItem[]` — Globally-ranked strongest pairs across the full matrix (independent of base/threshold). [new in refactor]
+
+## TopPairItem
+- `x: string; y: string; correlation: number; count: number` — Signed correlation, globally ranked by `|correlation|` descending. [new in refactor]
+
+## ScatterState
+- `selectedXColumn?: string; selectedYColumn?: string; selectedColorColumn?: string`
+- `numericCols: string[]`
+- `selectedCols: string[]`
+- `viewMode: 'single' | 'matrix'`
+- `scatterView: ScatterView` — Current scatter view bounds.
+- `lineFilters: ScatterLineFilterSpec[]`
+- `correlationMode: CorrelationMetric`
+
+## AppStateType (partial)
+- `profileFilterCategory?: 'all' | 'numeric' | 'datetime'` — Column profile filter category. [new in refactor]
+
 ---
 [1]: ./scatter/rendering.md
 [2]: ./scatter/state.md

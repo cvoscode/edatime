@@ -47,7 +47,7 @@ All frontend transport calls stay in `frontend/src/services/api/*`. All route ha
 - **TS caller:** `fetchFft(start: string, end: string, columns: string, maxPoints?: number, signal?: AbortSignal): Promise<FftResponse>` [deps: [fetchFft][5]]
 - **Rust query:** `FftQuery { start: DateTime<Utc>, end: DateTime<Utc>, columns?: String, max_points?: usize }` [deps: [FftQuery][6]]
 - **Rust handler:** `pub async fn get_fft(State(state): State<AppState>, Query(params): Query<FftQuery>) -> Result<impl IntoResponse, AppError>`
-- **Response `200 OK`:** `FftResponse { sample_count: number; results: Array<{ column: string; frequencies: number[]; magnitudes: number[]; psd: number[] }> }`
+- **Response `200 OK`:** `FftResponse { sample_count: number; results: Array<{ column: string; frequencies: number[]; magnitudes: number[]; psd: number[]; sample_rate_hz: number; nyquist_hz: number; dominant_peaks: Array<{ frequency_hz: number; magnitude: number; power: number; rank: number }> }> }`
 
 ### `GET /api/analytics/spectral-filter`
 - **TS caller:** `fetchSpectralFilter(params: URLSearchParams, signal?: AbortSignal): Promise<SpectralFilterResponse>` [deps: [fetchSpectralFilter][5]]
@@ -57,15 +57,17 @@ All frontend transport calls stay in `frontend/src/services/api/*`. All route ha
 - **Error:** `400` unknown filter type or invalid cutoffs; `500` compute failure.
 
 ### `GET /api/analytics/spectrogram`
-- **TS caller:** `fetchSpectrogram(start: string, end: string, column: string, windowSize?: number, hopSize?: number, maxPoints?: number, signal?: AbortSignal): Promise<SpectrogramResponse>` [deps: [fetchSpectrogram][5]]
-- **Rust query:** `SpectrogramQuery { start: DateTime<Utc>, end: DateTime<Utc>, column: String, window_size?: usize, hop_size?: usize, max_points?: usize }` [deps: [SpectrogramQuery][6]]
+- **TS caller:** `fetchSpectrogram(start: string, end: string, column: string, windowSize?: number, hopSize?: number, maxPoints?: number, signal?: AbortSignal, scaleOptions?: { normalize?: string; clip?: string; clipParam?: number }): Promise<SpectrogramResponse>` [deps: [fetchSpectrogram][5]]
+- **Rust query:** `SpectrogramQuery { start: DateTime<Utc>, end: DateTime<Utc>, column: String, window_size?: usize, hop_size?: usize, max_points?: usize, normalize?: String, clip?: String, clip_param?: f64 }` [deps: [SpectrogramQuery][6]]
 - **Rust handler:** `pub async fn get_spectrogram(State(state): State<AppState>, Query(params): Query<SpectrogramQuery>) -> Result<impl IntoResponse, AppError>`
+- **Request contract:** frontend now forwards `hop_size`, `normalize`, `clip`, and `clip_param` when the spectrogram controls are enabled.
 - **Response `200 OK`:** `SpectrogramResponse { sample_count: number; result: { column: string; times_ms: number[]; frequencies: number[]; magnitudes: number[][] } }`
 
 ### `GET /api/scatter/correlations/matrix`
 - **TS caller:** `fetchCorrelationMatrix(): Promise<CorrelationMatrixResponse>` [deps: [fetchCorrelationMatrix][5]]
+- **Rust query:** `CorrelationMatrixQuery { mode?: CorrelationMode }` [deps: [ScatterCorrelationsQuery][8]]
 - **Rust handler:** `pub async fn get_correlation_matrix(...) -> Result<Json<CorrelationMatrixResponse>, AppError>`
-- **Response `200 OK`:** `CorrelationMatrixResponse { columns: string[]; pearson: (number | null)[][]; spearman: (number | null)[][] }`
+- **Response `200 OK`:** `CorrelationMatrixResponse { columns: string[]; pearson_raw?: (number | null)[][]; spearman_raw?: (number | null)[][]; kendall_raw?: (number | null)[][]; pearson_diff?: (number | null)[][]; spearman_diff?: (number | null)[][]; kendall_diff?: (number | null)[][] }`
 
 ## Scatter Page
 
@@ -78,10 +80,11 @@ All frontend transport calls stay in `frontend/src/services/api/*`. All route ha
 - **Response headers (Arrow):** `x-edatime-scatter-x`, `x-edatime-scatter-y`, `x-edatime-scatter-color`, `x-edatime-scatter-total`, `x-edatime-scatter-returned`, optional `x-edatime-color-min`, `x-edatime-color-max`.
 
 ### `GET /api/scatter/correlations`
-- **TS caller:** `fetchScatterCorrelations(base: string | null, threshold?: number): Promise<ScatterCorrelationsResponse>` [deps: [fetchScatterCorrelations][7]]
-- **Rust query:** `ScatterCorrelationsQuery { base?: String, threshold?: f64 }` [deps: [ScatterCorrelationsQuery][8]]
-- **Response `200 OK`:** `ScatterCorrelationsResponse { base_column: string; threshold: number; numeric_columns: string[]; correlations: CorrelationItem[]; suggestions: CorrelationSuggestion[] }`
-- **Suggestion shape (TS):** `CorrelationSuggestion { x: string; y: string; correlation: number }` — explicit base/partner column pair with absolute correlation (mirrors the Rust `SuggestionItem` struct). [deps: [CorrelationSuggestion][10]]
+- **TS caller:** `fetchScatterCorrelations(base: string | null, threshold?: number, mode?: CorrelationMetric): Promise<ScatterCorrelationsResponse>` [deps: [fetchScatterCorrelations][7]]
+- **Rust query:** `ScatterCorrelationsQuery { base?: String, threshold?: f64, mode?: CorrelationMode }` [deps: [ScatterCorrelationsQuery][8]]
+- **Response `200 OK`:** `ScatterCorrelationsResponse { mode: CorrelationMetric; base_column: string; threshold: number; numeric_columns: string[]; correlations: Array<{ column: string; count: number; value: number | null }>; suggestions: CorrelationSuggestion[]; top_pairs: Array<{ x: string; y: string; correlation: number; count: number }> }`
+- **Suggestion shape (TS):** `CorrelationSuggestion { x: string; y: string; correlation: number }` — explicit base/partner pair with signed correlation; threshold filtering uses `abs(correlation)`. [deps: [CorrelationSuggestion][10]]
+- **Top-pair shape (TS):** `TopPairItem { x: string; y: string; correlation: number; count: number }` — globally ranked strongest pair across the full matrix, sorted by `abs(correlation)` descending.
 - **Caching:** responses are now backed by a revision-scoped `CorrelationMatrixCacheEntry` on `AppState` (warmup via `spawn_correlation_matrix_warmup`); the cache is invalidated by `replace_dataset` / `clear_correlation_matrix_cache`.
 
 ### `POST /api/scatter/export/parquet`

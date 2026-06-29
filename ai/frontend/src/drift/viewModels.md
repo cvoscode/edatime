@@ -1,107 +1,41 @@
-# frontend/src/drift/viewModels.ts
-> Pure drift formatting and view-model helpers for chart colors, status summaries, tooltips, detail rows, ECharts option building, and multi-column investigation response types.
+# ai/frontend/src/drift/viewModels.md
+> View model types and HTML rendering utilities for the drift page — distribution stats, window rankings, timeline/detail options.
 
-## Constants
-- `COLOR_GREEN: string` — Green severity color (`'#00C896'`).
-- `COLOR_YELLOW: string` — Yellow severity color (`'#FFC041'`).
-- `COLOR_RED: string` — Red severity color (`'#FF6B6B'`).
-- `COLUMN_PALETTE: string[]` — Per-column palette colors.
-- `COLOR_REF_FALLBACK: string`, `COLOR_TEXT_FALLBACK: string`, `COLOR_TEXT_DIM_FALLBACK: string`, `COLOR_DIM_FALLBACK: string` — Backwards-compatible fallbacks for theme-resolved helpers.
+## Interfaces (mirror of Rust structs)
+- `export interface WindowDistributionStats { start_ms, end_ms, label, count, null_count, completeness, mean, std, min, max, quantiles[], hist_bins[], hist_counts[], ecdf_x[], ecdf_y[] }` — Distribution statistics for a single window.
+- `export interface DriftWindowStats extends WindowDistributionStats { ks_stat, ks_pvalue, es_stat, es_pvalue, wasserstein, psi, jensen_shannon, drift_level, trigger_reasons[], completeness_delta, low_sample_warning }` — Per-window drift metrics with level classification.
+- `export interface DriftResponse { column, reference: WindowDistributionStats, windows: DriftWindowStats[], thresholds: DriftThresholds, metadata: DriftMetadata }` — Full response for a single-column drift analysis.
+- `export type DriftEvaluationMode = 'all' | 'latest' | 'latest-n'` — Controls which windows are shown in the UI.
+- `export interface DriftInvestigationOverview { drift_score, worst_level, columns_flagged, total_columns, windows_flagged, first_change_point? }` — Summary overview of investigation.
+- `export interface DriftFeatureRank { column, drift_score, latest_level, flagged_windows, first_change_point? }`, `DriftSegmentRank { segment_value, drift_score, columns_flagged, sample_count }`, `DriftChangePointRank { column, label, iso_time, drift_score, trigger_reasons[] }`, `DriftQualityIssueRank { column, issue, label, drift_score }`, `DriftRelationshipRank { left_column, right_column, reference, comparison, delta, aligned_reference_samples, aligned_comparison_samples }` — Ranked drift findings.
+- `export interface DriftSegmentGroup { value, sample_count, overview: DriftInvestigationOverview, feature_ranks[] }` — Segment group with overview and feature ranks.
+- `export interface DriftQualitySummary { latest_missing_rate, latest_completeness_delta, latest_zero_rate, flatline, low_sample_warning, issues[] }`, `DriftRelationshipSection { mode, pairs[] }` — Quality/relationship sections.
+- `export interface DriftInvestigationResponse { overview: DriftInvestigationOverview, columns: Record<string, DriftResponse>, rankings, segments?, quality?, relationships? }` — Full investigation response with optional sections.
 
-## Theme-resolved color functions (read active data-theme palette)
-- `COLOR_REF(): string`, `TOOLTIP_BG(): string`, `DRIFT_TEXT(): string`, `DRIFT_TEXT_DIM(): string`, `DRIFT_DIM(): string`
-  - Return current-palette colors; fall back to `_FALLBACK` constants.
+## Helper Functions
+- `export function COLOR_REF(): string`, `TOOLTIP_BG(): string`, `DRIFT_TEXT(): string`, `DRIFT_TEXT_DIM(): string`, `DRIFT_DIM(): string` — CSS color constants for drift UI theming.
+- `export function driftColor(level): string` — Returns color hex for a drift level ("green"/"yellow"/"red").
+- `export function formatValue(v: number): string` — Formats a numeric value with appropriate precision.
+- `export function toDatetimeLocal(ms: number): string`, `formatToDatetimeLocal(ms)` [deps: [formatToDatetimeLocal][1]] — Converts epoch ms to HTML datetime-local string.
+- `export function hashColor(text, fallbackIndex): string` — Deterministic color from text for segment visualization.
+- `export function normalizeDensity(stats): Array<[number, number]>` — Normalizes ECDF data for rendering.
+- `export function severityScore(level): number`, `formatTriggerReason(reason): string`, `formatTriggerReasons(reasons[]): string` — Severity and reason formatting utilities.
+- `export function filterResponseForEvaluation(response, mode) -> DriftInvestigationResponse` — Filters investigation response based on evaluation mode (all/latest/latest-n).
+- `export function buildColumnSummary(response): ColumnDriftSummary`, `buildGlobalSummary(responses[])` — Builds summary views for single column and global overview.
+- `export function sortedWindowIndices(response) -> number[]` — Returns window indices sorted by drift severity.
+- `export function statusSummary(status, columnsFlagged, windowsFlagged) -> string` — Formats a status string from investigation results.
 
-## Interfaces (Distribution Stats — mirror of Rust types)
-### `WindowDistributionStats`
-- `start_ms: number`, `end_ms: number`, `label: string`, `count: number`, `null_count: number`, `completeness: number`, `mean: number`, `std: number`, `min: number`, `max: number`, `quantiles: number[]`, `hist_bins: number[]`, `hist_counts: number[]`, `ecdf_x: number[]`, `ecdf_y: number[]`
+## Timeline/Detail Rendering
+- `interface TimelineOptionContext { response, column, evaluationMode }`, `DetailOptionContext { win: DriftWindowStats | null, column }` [deps: [DriftWindowStats][2], [DriftResponse][3]] — Context objects for chart option builders.
+- `export function buildTimelineOption(ctx): Record<string, unknown>` — Builds ECharts timeline option with window distribution charts and drift level indicators.
+- `export function buildDetailOption(ctx): Record<string, unknown>` — Builds ECharts detail view option (histogram + ECDF) for a single window.
 
-### `DriftWindowStats extends WindowDistributionStats`
-- `ks_stat, ks_pvalue, es_stat, es_pvalue, wasserstein, psi, jensen_shannon: number` — drift metrics.
-- `drift_level: 'green' | 'yellow' | 'red'`, `trigger_reasons: string[]`, `completeness_delta: number`, `low_sample_warning: boolean`.
+## Detail Stats & HTML Rendering
+- `interface DetailStatRow { label, value, color? }` [deps: [DriftWindowStats][2]] — One row of drift stats table.
+- `export function buildDetailStatRows(win): DetailStatRow[]` — Builds stat rows from a single window's metrics.
+- `export function buildWindowListHtml(windows[], selectedId, onToggle) -> string` — Renders the window list sidebar HTML with click handlers.
 
-### `DriftResponse`
-- `column: string`, `reference: WindowDistributionStats`, `windows: DriftWindowStats[]`
-- `thresholds: { ks_pvalue_threshold, es_pvalue_threshold, wasserstein_threshold, psi_minor_threshold, psi_major_threshold: number }`
-- `metadata?: { computation_time_ms, num_windows, reference_samples: number; bin_count_warning?, effective_bins?, psi_sample_ratio_warning?, avg_window_samples? }`
-
-## Interfaces (Investigation — new in refactor)
-### `DriftInvestigationOverview` [new]
-- `driftScore: number`, `worstLevel: DriftWindowStats['drift_level']`, `columnsFlagged, totalColumns, windowsFlagged: number`, `firstChangePoint: string | null`.
-
-### `DriftFeatureRank` [new]
-- `column: string`, `driftScore: number`, `latestLevel: DriftWindowStats['drift_level']`, `flaggedWindows: number`, `firstChangePoint: string | null`.
-
-### `DriftSegmentRank` [new]
-- `segmentValue: string`, `driftScore: number`, `columnsFlagged: number`, `sampleCount: number`.
-
-### `DriftChangePointRank` [new]
-- `column: string`, `label: string`, `isoTime: string`, `driftScore: number`, `triggerReasons: string[]`.
-
-### `DriftQualityIssueRank` [new]
-- `column: string`, `issue: string`, `label: string`, `driftScore: number`.
-
-### `DriftRelationshipRank` [new]
-- `leftColumn, rightColumn: string`, `reference, comparison, delta: number`, `alignedReferenceSamples, alignedComparisonSamples: number`.
-
-### `DriftSegmentGroup` [new]
-- `value: string`, `sampleCount: number`, `overview: DriftInvestigationOverview`, `featureRanks: DriftFeatureRank[]`.
-
-### `DriftQualitySummary` [new]
-- `latestMissingRate, latestCompletenessDelta, latestZeroRate: number`, `flatline: boolean`, `lowSampleWarning: boolean`, `issues: string[]`.
-
-### `DriftInvestigationResponse` [new]
-- `overview: DriftInvestigationOverview`, `columns: Record<string, DriftResponse>`, `rankings: { features, segments, changePoints, qualityIssues, relationships }`, `segments?: { segmentBy, groups }, quality?: { byColumn }, relationships?: { mode, pairs }`.
-
-## Interfaces (Summary helpers — new)
-### `ColumnDriftSummary` [new]
-- `column, latestLabel: string`, `currentLevel, worstLevel: DriftWindowStats['drift_level']`, `flaggedWindows, totalWindows: number`, `strongestReasons: string[]`, `latestMetrics: { psi, wasserstein, ksPvalue, esPvalue }`.
-
-### `GlobalDriftSummary` [new]
-- `anyDrift: boolean`, `columnsFlagged, totalColumns: number`, `latestSeverity, worstSeverity: DriftWindowStats['drift_level']`.
-
-## Type aliases
-- `DriftEvaluationMode = 'all' | 'latest' | 'latest-n'` — Window filtering mode.
-
-## Option contexts
-### `TimelineOptionContext`
-- `responsesByColumn: Map<string, DriftResponse>`, `activeDetailColumn: string | null`, `selectedWindowIdx: number | null`.
-
-### `DetailOptionContext`
-- `responsesByColumn: Map<string, DriftResponse>`, `activeDetailColumn: string | null`, `selectedWindowIdx: number | null`, `plotType: string`.
-
-## Interfaces (UI)
-### `DetailStatRow` [new]
-- `label: string`, `value: string`, `className?: string`.
-
-## Functions — Formatters
-- `driftColor(level: string): string` — Maps drift severity to palette color.
-- `formatValue(v: number): string` — Compact numeric formatting.
-- `toDatetimeLocal(ms: number): string` — Epoch ms → `YYYY-MM-DDTHH:MM`.
-- `hashColor(text: string, fallbackIndex: number): string` — Deterministic palette color from text.
-- `normalizeDensity(stats: WindowDistributionStats): Array<[number, number]>` — Histogram → normalized density points.
-- `severityScore(level: DriftWindowStats['drift_level']): number` — Sortable numeric score for severity.
-- `formatTriggerReason(reason: string): string` — Formats single trigger reason key to display text.
-- `formatTriggerReasons(reasons: string[] | null | undefined): string` — Joins formatted trigger reasons.
-
-## Functions — Analysis helpers [new]
-- `filterResponseForEvaluation(response: DriftResponse, mode: DriftEvaluationMode, latestCount?: number): DriftResponse` — Filters window array by evaluation mode.
-- `buildColumnSummary(response: DriftResponse): ColumnDriftSummary` — Aggregates per-column drift summary.
-- `buildGlobalSummary(responsesByColumn: Map<string, DriftResponse>): GlobalDriftSummary` — Computes global drift severity across all columns.
-- `sortedWindowIndices(response: DriftResponse, windowSort: string): number[]` — Window indices sorted by time/PSI/Wasserstein/severity.
-
-## Functions — Status
-- `statusSummary(responsesByColumn: Map<string, DriftResponse>, failedColumns?: string[]): { text, windowsTotal, flaggedTotal, refSamples, computeMs, psiWarning, binWarning }` — Builds drift status summary with warning flags.
-
-## Functions — ECharts option builders
-- `timelineTooltipFormatter(params: any): string` — Tooltip HTML formatter for timeline boxplot.
-- `buildTimelineOption(ctx: TimelineOptionContext): Record<string, unknown>` — Drift timeline (multi-column boxplot) ECharts option.
-- `buildDetailOption(ctx: DetailOptionContext): Record<string, unknown>` — Detail view ECharts option supporting histogram/ecdf/violin/boxplot plot types.
-
-## Functions — UI builders
-- `buildDetailStatRows(win: DriftWindowStats | null): DetailStatRow[]` — Statistics rows for active window detail panel.
-- `buildWindowListHtml(response: DriftResponse, selectedWindowIdx: number | null, orderedIdxs: number[]): { html: string; selectedIdx: number | null }` — Window list HTML with selection state.
-
-## Dependencies (imports)
-- `import type { EChartLike } from './types.js'` [deps: []]
-- `getChartPalette, getPaletteColor from '../utils/theme.js'` [deps: []]
+---
+[1]: ../utils/format.ts#formatToDatetimeLocal
+[2]: #DriftWindowStats
+[3]: #DriftResponse

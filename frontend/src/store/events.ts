@@ -38,6 +38,7 @@ export type StoreEventMap = {
     'ui:previewSelectedColumns': StoreChange<string[]>;
     'ui:previewTimeColumn': StoreChange<string | null>;
     'ui:profileFilterText': StoreChange<string>;
+    'ui:profileFilterCategory': StoreChange<string>;
     'ui:profileGridBound': StoreChange<boolean>;
     'ui:profileGridColWidths': StoreChange<number[]>;
     'ui:profileGridHeaderBound': StoreChange<boolean>;

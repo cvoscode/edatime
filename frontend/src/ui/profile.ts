@@ -10,7 +10,14 @@
 
 import { appState } from '../store/index.js';
 import { PROFILE_ROW_HEIGHT, PROFILE_OVERSCAN, PROFILE_COLUMNS, getDefaultProfileColumnWidths } from '../services/profile/profile.js';
-import { formatCount, formatProfileValue, normalizeDtypeLabel, toFiniteNumberOrNull } from '../utils/format.js';
+import {
+    formatCount,
+    formatProfileValue,
+    formatProfileValueTitle,
+    isTemporalDtype,
+    normalizeDtypeLabel,
+    toFiniteNumberOrNull,
+} from '../utils/format.js';
 import {
     setColumnProfiles,
     setPreviewSelectedColumns,
@@ -125,14 +132,18 @@ let cachedFilteredProfilesKey: string | null = null;
 function getFilteredColumnProfiles(): ProfileRow[] {
     const profiles: ProfileRow[] = appState.columnProfiles || [];
     const q = (appState.profileFilterText || '').trim().toLowerCase();
+    const category = appState.profileFilterCategory || 'all';
     const sort = appState.profileGridSort || {};
-    const cacheKey = `${profiles.length}|${q}|${sort.key ?? ''}|${sort.dir ?? ''}`;
+    const cacheKey = `${profiles.length}|${q}|${category}|${sort.key ?? ''}|${sort.dir ?? ''}`;
     if (cachedFilteredProfiles && cachedFilteredProfilesKey === cacheKey && cachedFilteredProfiles.length >= profiles.length) {
         return cachedFilteredProfiles;
     }
-    const filtered = !q
-        ? [...profiles]
-        : profiles.filter((p) => p.name.toLowerCase().includes(q) || p.dtype.toLowerCase().includes(q));
+    const filtered = profiles.filter((p) => {
+        if (q && !p.name.toLowerCase().includes(q) && !p.dtype.toLowerCase().includes(q)) return false;
+        if (category === 'numeric') return !isTemporalDtype(p.dtype);
+        if (category === 'datetime') return isTemporalDtype(p.dtype);
+        return true;
+    });
     const sorted = sortProfileRows(filtered, sort.key, sort.dir);
     cachedFilteredProfiles = sorted;
     cachedFilteredProfilesKey = cacheKey;
@@ -412,8 +423,14 @@ export function renderColumnProfilesGrid(resetScroll = false): void {
         row.appendChild(createProfileCell(normalizeDtypeLabel(profile.dtype), 'muted'));
         row.appendChild(createProfileCell(`${formatCount(profile.nonNullCount)} (${nonNullPct.toFixed(1)}%)`, 'num'));
         row.appendChild(createProfileCell(formatCount(profile.nullCount), 'num'));
-        row.appendChild(createProfileCell(formatProfileValue(profile.min, profile.dtype), 'num'));
-        row.appendChild(createProfileCell(formatProfileValue(profile.max, profile.dtype), 'num'));
+        const minCell = createProfileCell(formatProfileValue(profile.min, profile.dtype), 'num');
+        const minTitle = formatProfileValueTitle(profile.min, profile.dtype);
+        if (minTitle) minCell.title = minTitle;
+        row.appendChild(minCell);
+        const maxCell = createProfileCell(formatProfileValue(profile.max, profile.dtype), 'num');
+        const maxTitle = formatProfileValueTitle(profile.max, profile.dtype);
+        if (maxTitle) maxCell.title = maxTitle;
+        row.appendChild(maxCell);
         row.appendChild(createHistogramCell(profile));
 
         rows.appendChild(row);

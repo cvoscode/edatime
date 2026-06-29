@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { initBoxZoom, initWheelZoomViewport } from './chartInteractions.js';
+import {
+    initBoxZoom,
+    initCtrlPan,
+    initWheelZoomViewport,
+} from './chartInteractions.js';
 
 describe('initBoxZoom', () => {
     beforeEach(() => {
@@ -361,5 +365,183 @@ describe('initWheelZoomViewport', () => {
         const prevented = dispatchWheel(container, { deltaY: -100, clientX: 100, clientY: 100 });
         expect(prevented).toBe(false); // default was prevented
         expect(onZoom).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('initCtrlPan', () => {
+    beforeEach(() => {
+        document.body.innerHTML = '<div id="chart"></div>';
+    });
+
+    it('shifts xMin/xMax opposite to the cursor when Ctrl is held', async () => {
+        const container = document.getElementById('chart') as HTMLElement & {
+            setPointerCapture?: (pointerId: number) => void;
+            releasePointerCapture?: (pointerId: number) => void;
+        };
+        container.style.position = 'relative';
+        container.setPointerCapture = vi.fn();
+        container.releasePointerCapture = vi.fn();
+        container.getBoundingClientRect = () => ({
+            x: 0,
+            y: 0,
+            top: 0,
+            left: 0,
+            right: 300,
+            bottom: 200,
+            width: 300,
+            height: 200,
+            toJSON: () => ({}),
+        } as DOMRect);
+
+        const onPan = vi.fn();
+        initCtrlPan({
+            container,
+            grid: { left: 50, right: 50, top: 20, bottom: 20 },
+            getXRange: () => ({ min: 1000, max: 1100 }),
+            getYRange: () => null,
+            onPan,
+        });
+
+        container.dispatchEvent(new PointerEvent('pointerdown', {
+            button: 0,
+            ctrlKey: true,
+            pointerId: 7,
+            clientX: 100,
+            clientY: 100,
+            bubbles: true,
+        }));
+        // Drag right 50px → x range should shift left by 25% of span (25).
+        container.dispatchEvent(new PointerEvent('pointermove', {
+            pointerId: 7,
+            ctrlKey: true,
+            clientX: 150,
+            clientY: 100,
+            bubbles: true,
+        }));
+        container.dispatchEvent(new PointerEvent('pointerup', {
+            pointerId: 7,
+            clientX: 150,
+            clientY: 100,
+            bubbles: true,
+        }));
+
+        // Allow the rAF callback to flush.
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+        expect(onPan).toHaveBeenCalled();
+        const view = onPan.mock.calls[0][0];
+        expect(view.xMin).toBeCloseTo(975, 5);
+        expect(view.xMax).toBeCloseTo(1075, 5);
+    });
+
+    it('does not pan without Ctrl held', async () => {
+        const container = document.getElementById('chart') as HTMLElement & {
+            setPointerCapture?: (pointerId: number) => void;
+            releasePointerCapture?: (pointerId: number) => void;
+        };
+        container.style.position = 'relative';
+        container.setPointerCapture = vi.fn();
+        container.releasePointerCapture = vi.fn();
+        container.getBoundingClientRect = () => ({
+            x: 0,
+            y: 0,
+            top: 0,
+            left: 0,
+            right: 300,
+            bottom: 200,
+            width: 300,
+            height: 200,
+            toJSON: () => ({}),
+        } as DOMRect);
+
+        const onPan = vi.fn();
+        initCtrlPan({
+            container,
+            grid: { left: 50, right: 50, top: 20, bottom: 20 },
+            getXRange: () => ({ min: 0, max: 100 }),
+            getYRange: () => null,
+            onPan,
+        });
+
+        container.dispatchEvent(new PointerEvent('pointerdown', {
+            button: 0,
+            pointerId: 7,
+            clientX: 100,
+            clientY: 100,
+            bubbles: true,
+        }));
+        container.dispatchEvent(new PointerEvent('pointermove', {
+            pointerId: 7,
+            clientX: 150,
+            clientY: 100,
+            bubbles: true,
+        }));
+        container.dispatchEvent(new PointerEvent('pointerup', {
+            pointerId: 7,
+            clientX: 150,
+            clientY: 100,
+            bubbles: true,
+        }));
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        expect(onPan).not.toHaveBeenCalled();
+    });
+
+    it('also shifts yMin/yMax when a y range is known', async () => {
+        const container = document.getElementById('chart') as HTMLElement & {
+            setPointerCapture?: (pointerId: number) => void;
+            releasePointerCapture?: (pointerId: number) => void;
+        };
+        container.style.position = 'relative';
+        container.setPointerCapture = vi.fn();
+        container.releasePointerCapture = vi.fn();
+        container.getBoundingClientRect = () => ({
+            x: 0,
+            y: 0,
+            top: 0,
+            left: 0,
+            right: 300,
+            bottom: 200,
+            width: 300,
+            height: 200,
+            toJSON: () => ({}),
+        } as DOMRect);
+
+        const onPan = vi.fn();
+        initCtrlPan({
+            container,
+            grid: { left: 50, right: 50, top: 20, bottom: 20 },
+            getXRange: () => ({ min: 0, max: 100 }),
+            getYRange: () => ({ min: -50, max: 50 }),
+            onPan,
+        });
+
+        container.dispatchEvent(new PointerEvent('pointerdown', {
+            button: 0,
+            ctrlKey: true,
+            pointerId: 8,
+            clientX: 150,
+            clientY: 100,
+            bubbles: true,
+        }));
+        // Drag down 40px on a 160px plot (25% of plot height) →
+        // y range shifts by 25% of the span (25) in the same direction.
+        container.dispatchEvent(new PointerEvent('pointermove', {
+            pointerId: 8,
+            ctrlKey: true,
+            clientX: 150,
+            clientY: 140,
+            bubbles: true,
+        }));
+        container.dispatchEvent(new PointerEvent('pointerup', {
+            pointerId: 8,
+            clientX: 150,
+            clientY: 140,
+            bubbles: true,
+        }));
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        expect(onPan).toHaveBeenCalled();
+        const view = onPan.mock.calls[0][0];
+        expect(view.yMin).toBeCloseTo(-25, 5);
+        expect(view.yMax).toBeCloseTo(75, 5);
     });
 });

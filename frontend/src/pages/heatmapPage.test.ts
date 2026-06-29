@@ -133,12 +133,12 @@ describe('heatmapPage with clustering', () => {
             <div id="heatmap-loading" hidden></div>
             <span id="heatmap-metric-info" class="toolbar-info-icon" data-info-tip=""></span>
             <select id="heatmap-metric">
-                <option value="pearson_raw" selected>Pearson · Raw aligned values</option>
-                <option value="spearman_raw">Spearman · Raw aligned values</option>
-                <option value="kendall_raw">Kendall tau · Raw aligned values</option>
-                <option value="pearson_diff">Pearson · First differences</option>
-                <option value="spearman_diff">Spearman · First differences</option>
-                <option value="kendall_diff">Kendall tau · First differences</option>
+                <option value="pearson_raw" selected>Pearson (raw)</option>
+                <option value="spearman_raw">Spearman (raw)</option>
+                <option value="kendall_raw">Kendall tau (raw)</option>
+                <option value="pearson_diff">Pearson (Δ)</option>
+                <option value="spearman_diff">Spearman (Δ)</option>
+                <option value="kendall_diff">Kendall tau (Δ)</option>
             </select>
             <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36">
             <span id="heatmap-cell-size-value" class="range-value">36</span>

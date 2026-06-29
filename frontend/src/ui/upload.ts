@@ -102,6 +102,20 @@ export function initUploadPanel(
         if (uploadLoading) uploadLoading.hidden = !show;
     }
 
+    /**
+     * Disable the Upload & Ingest button whenever no valid file is
+     * selected. The legacy behaviour allowed the button to be clicked
+     * with no file (resulting in a no-op or stale request) — see
+     * `usage_issue.md` §6.2.
+     */
+    function syncUploadButtonState(): void {
+        if (!uploadBtn) return;
+        const hasFile = !!selectedFile && selectedFile.size > 0;
+        uploadBtn.disabled = !hasFile;
+        uploadBtn.setAttribute('aria-disabled', hasFile ? 'false' : 'true');
+        uploadBtn.title = hasFile ? '' : 'Pick a CSV/Parquet file above first.';
+    }
+
     // Panel open/close
     if (toggleBtn) {
         toggleBtn.addEventListener('click', () => {
@@ -141,10 +155,12 @@ export function initUploadPanel(
             fileDisplay!.textContent = '';
             setUploadPreviewStatus(invalidFileMsg, 'error');
             notify(invalidFileMsg, 'error');
+            syncUploadButtonState();
             return;
         }
         fileDisplay!.textContent = selectedFile ? selectedFile.name : '';
         setPreviewTimeColumn(null);
+        syncUploadButtonState();
         if (selectedFile) void runPreviewWithCurrentFile(selectedFile);
     });
 
@@ -161,10 +177,12 @@ export function initUploadPanel(
             fileDisplay!.textContent = '';
             setUploadPreviewStatus(invalidFileMsg, 'error');
             notify(invalidFileMsg, 'error');
+            syncUploadButtonState();
             return;
         }
         fileDisplay!.textContent = selectedFile ? selectedFile.name : '';
         setPreviewTimeColumn(null);
+        syncUploadButtonState();
         if (selectedFile) void runPreviewWithCurrentFile(selectedFile);
     });
 
@@ -195,6 +213,7 @@ export function initUploadPanel(
     }
 
     applyTimeRangeFromMetadata(appState.metadata, false);
+    syncUploadButtonState();
 
     // If no preview is active and we have no metadata yet, fetch existing dataset state
     if (!appState.metadata) {
@@ -267,10 +286,8 @@ export function initUploadPanel(
         if (source === 'database') {
             fileTabBtn?.setAttribute('aria-selected', 'false');
             dbTabBtn?.setAttribute('aria-selected', 'true');
-            fileTabBtn?.classList.remove('btn-primary');
-            fileTabBtn?.classList.add('btn-ghost');
-            dbTabBtn?.classList.remove('btn-ghost');
-            dbTabBtn?.classList.add('btn-primary');
+            fileTabBtn?.classList.remove('active');
+            dbTabBtn?.classList.add('active');
             if (filePanel) (filePanel as HTMLElement).hidden = true;
             if (dbPanel) (dbPanel as HTMLElement).hidden = false;
             // Sync database status when switching to db tab
@@ -278,10 +295,8 @@ export function initUploadPanel(
         } else {
             dbTabBtn?.setAttribute('aria-selected', 'false');
             fileTabBtn?.setAttribute('aria-selected', 'true');
-            dbTabBtn?.classList.remove('btn-primary');
-            dbTabBtn?.classList.add('btn-ghost');
-            fileTabBtn?.classList.remove('btn-ghost');
-            fileTabBtn?.classList.add('btn-primary');
+            dbTabBtn?.classList.remove('active');
+            fileTabBtn?.classList.add('active');
             if (dbPanel) (dbPanel as HTMLElement).hidden = true;
             if (filePanel) (filePanel as HTMLElement).hidden = false;
         }

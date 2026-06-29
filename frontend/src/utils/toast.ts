@@ -29,9 +29,11 @@ interface ActiveToast {
 }
 
 const DEFAULT_DURATIONS: Record<ToastKind, number> = {
-    success: 3200,
-    info: 3800,
-    warning: 5200,
+    // Bumped important messages to 5–6s — see `usage_issue.md` §7.8.
+    success: 5200,
+    info: 6000,
+    warning: 6000,
+    // Errors stay sticky so the user can read and dismiss them.
     error: 0,
 };
 

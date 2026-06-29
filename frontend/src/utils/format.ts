@@ -31,15 +31,47 @@ export function normalizeDtypeLabel(dtype: string): string {
     return String(dtype || '');
 }
 
+/**
+ * Format a profile `min` / `max` value for display.
+ *
+ * Datetime columns are rendered as UTC ISO 8601 strings (e.g.
+ * `2016-07-01T00:00:00Z`) so the rendered value is not affected by the
+ * browser's local timezone and never silently shifts away from the actual
+ * stored UTC timestamp. The previous behaviour used
+ * `d.toLocaleString()` which (a) truncated to local time, (b) got cut off
+ * at column widths, and (c) hid the unit-of-time — see `usage_issue.md`
+ * §6.1.
+ */
 export function formatProfileValue(value: unknown, dtype: string): string {
     if (value == null || !Number.isFinite(Number(value))) return '—';
     const numeric = Number(value);
     if (isTemporalDtype(dtype)) {
         const d = new Date(numeric);
         if (!Number.isFinite(d.getTime())) return '—';
-        return d.toLocaleString();
+        // `toISOString()` always produces `YYYY-MM-DDTHH:mm:ss.sssZ`. Strip
+        // the trailing milliseconds when they are zero so the cell stays
+        // compact.
+        const iso = d.toISOString();
+        const compact = iso.replace(/\.000Z$/, 'Z');
+        return compact;
     }
     return formatAnalysisNumber(numeric);
+}
+
+/**
+ * Returns the full, untruncated ISO representation of a profile value
+ * suitable for the cell's `title` tooltip. Mirrors `formatProfileValue`
+ * but never shortens the milliseconds.
+ */
+export function formatProfileValueTitle(value: unknown, dtype: string): string {
+    if (value == null || !Number.isFinite(Number(value))) return '';
+    const numeric = Number(value);
+    if (isTemporalDtype(dtype)) {
+        const d = new Date(numeric);
+        if (!Number.isFinite(d.getTime())) return '';
+        return `UTC ${d.toISOString()}`;
+    }
+    return String(value);
 }
 
 export function formatToDatetimeLocal(ms: number): string {

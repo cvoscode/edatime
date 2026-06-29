@@ -55,6 +55,25 @@ pub struct ScatterCorrelationsResponse {
     pub numeric_columns: Vec<String>,
     pub correlations: Vec<CorrelationItem>,
     pub suggestions: Vec<SuggestionItem>,
+    /// Top-N strongest pairs across the entire matrix, ranked by absolute
+    /// correlation. Independent of the base column / threshold so the
+    /// frontend can surface the *globally* strongest pair (e.g. HULL↔MULL
+    /// on ETTm2) even when it does not involve the base column — see
+    /// `usage_issue.md` §2.1 and §3.1. Each entry carries the pair, the
+    /// signed correlation, and the sample count for the pair.
+    #[serde(default)]
+    pub top_pairs: Vec<TopPairItem>,
+}
+
+/// One globally-ranked correlation pair. Includes the signed correlation
+/// (not just absolute) so callers can distinguish strong positives from
+/// strong negatives — see `usage_issue.md` §2.6.
+#[derive(Debug, serde::Serialize, Clone)]
+pub struct TopPairItem {
+    pub x: String,
+    pub y: String,
+    pub correlation: f64,
+    pub count: usize,
 }
 
 #[tracing::instrument(skip(state))]
@@ -370,6 +389,15 @@ fn build_scatter_correlations_from_matrix_data(
     threshold: f64,
     mode: CorrelationMode,
 ) -> Result<ScatterCorrelationsResponse, AppError> {
+    // Globally-ranked top pairs: walk the upper triangle of the selected
+    // correlation matrix, collect every finite (i, j) pair with its
+    // signed correlation + sample count, sort by |r| descending and keep
+    // the top 20. Returned alongside `suggestions` so the frontend can
+    // surface "HULL ↔ MULL = 0.91" even when the user's base column is
+    // HUFL (whose strongest partner tops out around 0.67 on ETTm2) — see
+    // `usage_issue.md` §2.1.
+    let top_pairs = top_pairs_from_matrix(data, mode, 20);
+
     if data.columns.len() < 2 {
         return Ok(ScatterCorrelationsResponse {
             mode,
@@ -378,6 +406,7 @@ fn build_scatter_correlations_from_matrix_data(
             numeric_columns: data.columns.clone(),
             correlations: vec![],
             suggestions: vec![],
+            top_pairs,
         });
     }
 
@@ -439,7 +468,44 @@ fn build_scatter_correlations_from_matrix_data(
         numeric_columns: data.columns.clone(),
         correlations,
         suggestions,
+        top_pairs,
     })
+}
+
+/// Build the globally-ranked `top_pairs` list for the selected correlation
+/// mode. Walks the upper triangle of `data.columns × data.columns` so each
+/// unordered pair appears exactly once.
+fn top_pairs_from_matrix(
+    data: &CorrelationMatrixData,
+    mode: CorrelationMode,
+    limit: usize,
+) -> Vec<TopPairItem> {
+    let selected = mode.matrix(data);
+    let n = data.columns.len();
+    if n < 2 {
+        return Vec::new();
+    }
+    let mut pairs: Vec<TopPairItem> = Vec::with_capacity(n * (n - 1) / 2);
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let Some(value) = selected[i][j] else { continue };
+            pairs.push(TopPairItem {
+                x: data.columns[i].clone(),
+                y: data.columns[j].clone(),
+                correlation: value,
+                count: data.counts[i][j],
+            });
+        }
+    }
+    pairs.sort_by(|a, b| {
+        let a_score = a.correlation.abs();
+        let b_score = b.correlation.abs();
+        // Descending by |r|, ties broken by signed correlation (positive
+        // first) so the strongest positive pair wins on ties.
+        b_score.total_cmp(&a_score).then_with(|| b.correlation.total_cmp(&a.correlation))
+    });
+    pairs.truncate(limit);
+    pairs
 }
 
 fn build_scatter_correlations_from_cached_matrix(
@@ -579,6 +645,142 @@ mod tests {
         assert_eq!(response.suggestions[0].x, "b");
         assert_eq!(response.suggestions[0].y, "c");
         assert_eq!(response.suggestions[0].correlation, 0.72);
+    }
+
+    #[test]
+    fn top_pairs_ranks_by_absolute_correlation_across_full_matrix() {
+        // Mirror the ETTm2 situation: the strongest pair (b↔c) does not
+        // involve the base column `a`. The legacy `suggestions` list would
+        // miss it when threshold > |corr(a,*)|; the new `top_pairs` field
+        // surfaces it regardless — see `usage_issue.md` §2.1.
+        let cached = edatime_store::cache::CorrelationMatrixCacheEntry {
+            columns: vec!["a".to_string(), "b".to_string(), "c".to_string(), "d".to_string()],
+            pearson_raw: vec![
+                vec![Some(1.0),  Some(0.25), Some(0.30), Some(-0.10)],
+                vec![Some(0.25), Some(1.0),  Some(0.91), Some(-0.60)],
+                vec![Some(0.30), Some(0.91), Some(1.0),  Some(-0.20)],
+                vec![Some(-0.10), Some(-0.60), Some(-0.20), Some(1.0)],
+            ],
+            spearman_raw: vec![
+                vec![Some(1.0),  Some(0.25), Some(0.30), Some(-0.10)],
+                vec![Some(0.25), Some(1.0),  Some(0.91), Some(-0.60)],
+                vec![Some(0.30), Some(0.91), Some(1.0),  Some(-0.20)],
+                vec![Some(-0.10), Some(-0.60), Some(-0.20), Some(1.0)],
+            ],
+            kendall_raw: vec![
+                vec![Some(1.0),  Some(0.25), Some(0.30), Some(-0.10)],
+                vec![Some(0.25), Some(1.0),  Some(0.91), Some(-0.60)],
+                vec![Some(0.30), Some(0.91), Some(1.0),  Some(-0.20)],
+                vec![Some(-0.10), Some(-0.60), Some(-0.20), Some(1.0)],
+            ],
+            pearson_diff: vec![
+                vec![Some(1.0),  Some(0.25), Some(0.30), Some(-0.10)],
+                vec![Some(0.25), Some(1.0),  Some(0.91), Some(-0.60)],
+                vec![Some(0.30), Some(0.91), Some(1.0),  Some(-0.20)],
+                vec![Some(-0.10), Some(-0.60), Some(-0.20), Some(1.0)],
+            ],
+            spearman_diff: vec![
+                vec![Some(1.0),  Some(0.25), Some(0.30), Some(-0.10)],
+                vec![Some(0.25), Some(1.0),  Some(0.91), Some(-0.60)],
+                vec![Some(0.30), Some(0.91), Some(1.0),  Some(-0.20)],
+                vec![Some(-0.10), Some(-0.60), Some(-0.20), Some(1.0)],
+            ],
+            kendall_diff: vec![
+                vec![Some(1.0),  Some(0.25), Some(0.30), Some(-0.10)],
+                vec![Some(0.25), Some(1.0),  Some(0.91), Some(-0.60)],
+                vec![Some(0.30), Some(0.91), Some(1.0),  Some(-0.20)],
+                vec![Some(-0.10), Some(-0.60), Some(-0.20), Some(1.0)],
+            ],
+            counts: vec![
+                vec![3, 3, 3, 3],
+                vec![3, 3, 3, 3],
+                vec![3, 3, 3, 3],
+                vec![3, 3, 3, 3],
+            ],
+        };
+
+        let response = build_scatter_correlations_from_cached_matrix(
+            cached,
+            Some("a"),
+            // High threshold so the legacy `suggestions` list comes back
+            // empty — the whole point of `top_pairs` is to surface pairs
+            // regardless of the threshold.
+            0.95,
+            CorrelationMode::PearsonRaw,
+        )
+        .expect("cached matrix should build response");
+
+        // Legacy base-column suggestions are filtered out by threshold.
+        assert!(response.suggestions.is_empty(), "threshold should hide suggestions");
+
+        // top_pairs is sorted by |r| descending and includes the strongest
+        // off-base pair first (b ↔ c = 0.91), then the strong negative
+        // (b ↔ d = -0.60).
+        assert_eq!(response.top_pairs[0].x, "b");
+        assert_eq!(response.top_pairs[0].y, "c");
+        assert!((response.top_pairs[0].correlation - 0.91).abs() < 1e-9);
+        assert_eq!(response.top_pairs[0].count, 3);
+
+        // Negative pair is ranked by absolute value so it sits below the
+        // 0.91 pair but above the 0.30 / 0.25 noise.
+        assert_eq!(response.top_pairs[1].x, "b");
+        assert_eq!(response.top_pairs[1].y, "d");
+        assert!((response.top_pairs[1].correlation + 0.60).abs() < 1e-9);
+    }
+
+    #[test]
+    fn top_pairs_respects_selected_mode() {
+        let cached = edatime_store::cache::CorrelationMatrixCacheEntry {
+            columns: vec!["a".to_string(), "b".to_string()],
+            pearson_raw: vec![vec![Some(1.0), Some(0.5)], vec![Some(0.5), Some(1.0)]],
+            spearman_raw: vec![vec![Some(1.0), Some(0.9)], vec![Some(0.9), Some(1.0)]],
+            kendall_raw: vec![vec![Some(1.0), Some(0.3)], vec![Some(0.3), Some(1.0)]],
+            pearson_diff: vec![vec![Some(1.0), Some(0.1)], vec![Some(0.1), Some(1.0)]],
+            spearman_diff: vec![vec![Some(1.0), Some(0.2)], vec![Some(0.2), Some(1.0)]],
+            kendall_diff: vec![vec![Some(1.0), Some(0.4)], vec![Some(0.4), Some(1.0)]],
+            counts: vec![vec![3, 3], vec![3, 3]],
+        };
+
+        let pearson = build_scatter_correlations_from_cached_matrix(
+            cached.clone(),
+            Some("a"),
+            0.0,
+            CorrelationMode::PearsonRaw,
+        )
+        .expect("pearson build should succeed");
+        assert!((pearson.top_pairs[0].correlation - 0.5).abs() < 1e-9);
+
+        let spearman = build_scatter_correlations_from_cached_matrix(
+            cached,
+            Some("a"),
+            0.0,
+            CorrelationMode::SpearmanRaw,
+        )
+        .expect("spearman build should succeed");
+        // Spearman value is higher than Pearson so it wins under |r| ordering.
+        assert!((spearman.top_pairs[0].correlation - 0.9).abs() < 1e-9);
+    }
+
+    #[test]
+    fn top_pairs_returns_empty_when_matrix_has_no_pairs() {
+        let cached = edatime_store::cache::CorrelationMatrixCacheEntry {
+            columns: vec!["only".to_string()],
+            pearson_raw: vec![vec![Some(1.0)]],
+            spearman_raw: vec![vec![Some(1.0)]],
+            kendall_raw: vec![vec![Some(1.0)]],
+            pearson_diff: vec![vec![Some(1.0)]],
+            spearman_diff: vec![vec![Some(1.0)]],
+            kendall_diff: vec![vec![Some(1.0)]],
+            counts: vec![vec![3]],
+        };
+        let response = build_scatter_correlations_from_cached_matrix(
+            cached,
+            Some("only"),
+            0.5,
+            CorrelationMode::PearsonRaw,
+        )
+        .expect("singleton matrix should still build");
+        assert!(response.top_pairs.is_empty());
     }
 
     #[tokio::test(flavor = "multi_thread")]

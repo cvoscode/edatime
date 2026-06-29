@@ -508,7 +508,8 @@
   white-space: nowrap;
   flex: 0 0 auto;
   align-self: stretch;
-  width: 44px;
+  min-width: 44px;
+  width: auto;
   padding: 0 5px 0 4px;
   border-right: 1px solid var(--tb-divider);
   line-height: 1;
@@ -1424,6 +1425,13 @@
   justify-content: space-between;
   padding: 14px 16px 10px;
   border-bottom: 1px solid var(--border);
+  /* Sticky so the close button stays reachable when the body scrolls,
+   * and the header remains visible at small viewport heights (e.g.
+   * 1366x768) — see `usage_issue.md` §7.1. */
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 2;
 }
 
 .drawer-title {
@@ -1698,7 +1706,7 @@ body.drawer-open::after {
   width: 90px;
 }
 
-/* Collapse badge styles removed with the collapse-series-btn feature *//* Toolbar helpers */
+/* Toolbar helpers */
 .scatter-toolbar__segment {
   display: flex;
   align-items: stretch;
@@ -1741,7 +1749,8 @@ body.drawer-open::after {
   white-space: nowrap;
   flex: 0 0 auto;
   align-self: stretch;
-  width: 52px;
+  min-width: 52px;
+  width: auto;
   padding: 0 6px 0 4px;
   border-right: 1px solid var(--tb-divider);
   line-height: 1;

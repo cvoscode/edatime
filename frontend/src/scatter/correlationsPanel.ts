@@ -108,7 +108,9 @@ export function renderSuggestions(
 /**
  * Fetches correlation data for the current X/Y selection and updates the UI.
  */
-export async function refreshCorrelationsAndSuggestions(): Promise<void> {
+export async function refreshCorrelationsAndSuggestions(
+    options: { preferTopPairOnFirstLoad?: boolean } = {},
+): Promise<void> {
     const xSelect = getEl('scatter-x-col');
     const ySelect = getEl('scatter-y-col');
     if (!xSelect || !ySelect) return;
@@ -126,9 +128,22 @@ export async function refreshCorrelationsAndSuggestions(): Promise<void> {
     const numeric = Array.isArray(response.numeric_columns) ? response.numeric_columns : [];
     if (numeric.length < 2) throw new Error('Need at least two numeric columns for scatter plotting.');
 
-    const selectedX = ensureOptions(xSelect, numeric, currentX || response.base_column || numeric[0], { searchable: true });
+    // On the *very first* scatter init with no restored user choice, bias
+    // X/Y to the strongest pair in the matrix (top_pairs[0]) so the
+    // landing view is the most striking correlation in the dataset. Once
+    // the user has picked a pair, preserve that choice across refreshes.
+    const topPairs = Array.isArray(response.top_pairs) ? response.top_pairs : [];
+    const hasUserPair = !!(currentX && currentY) && !options.preferTopPairOnFirstLoad;
+    const preferredX = hasUserPair
+        ? currentX
+        : (topPairs[0]?.x ?? response.base_column ?? numeric[0]);
+    const preferredY = hasUserPair
+        ? currentY
+        : (topPairs[0]?.y ?? numeric.find((c: string) => c !== preferredX) ?? numeric[1] ?? numeric[0]);
+
+    const selectedX = ensureOptions(xSelect, numeric, preferredX, { searchable: true });
     const yCandidates = numeric.filter((c: string) => c !== selectedX);
-    const selectedY = ensureOptions(ySelect, yCandidates, currentY, { searchable: true });
+    const selectedY = ensureOptions(ySelect, yCandidates, preferredY, { searchable: true });
 
     if (getEl('scatter-color-column')) {
         const colorOptions = [''].concat(

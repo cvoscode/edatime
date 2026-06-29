@@ -10,12 +10,12 @@ export const CORRELATION_MODES = [
 export type CorrelationMetric = typeof CORRELATION_MODES[number];
 
 const MODE_LABELS: Record<CorrelationMetric, string> = {
-    pearson_raw: 'Pearson · Raw aligned values',
-    spearman_raw: 'Spearman · Raw aligned values',
-    kendall_raw: 'Kendall tau · Raw aligned values',
-    pearson_diff: 'Pearson · First differences',
-    spearman_diff: 'Spearman · First differences',
-    kendall_diff: 'Kendall tau · First differences',
+    pearson_raw: 'Pearson (raw)',
+    spearman_raw: 'Spearman (raw)',
+    kendall_raw: 'Kendall tau (raw)',
+    pearson_diff: 'Pearson (Δ)',
+    spearman_diff: 'Spearman (Δ)',
+    kendall_diff: 'Kendall tau (Δ)',
 };
 
 const MODE_SHORT_LABELS: Record<CorrelationMetric, string> = {

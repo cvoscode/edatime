@@ -82,6 +82,7 @@ import {
     type GridLayout,
     createCanvasOverlay, ensureRelativePosition,
     initBoxZoom,
+    initCtrlPan,
 } from './chartInteractions.js';
 import { ChartOverlays } from './chartOverlays.js';
 import {
@@ -322,6 +323,7 @@ export class DataChart {
         this._initTextOverlays();
         this._syncLegendOverlay();
         this._initMouseSelectionZoom();
+        this._initCtrlPan();
         this._themeUnsub?.();
         this._themeUnsub = onThemeChange((next: ResolvedTheme) => {
             this._onThemeChanged(next);
@@ -655,8 +657,23 @@ export class DataChart {
         if (this.onYRangeCallback) this.onYRangeCallback(min, max, sourceKind);
     }
 
-    private _buildYAxisOption() {
-        return { type: 'value', tickFormatter: (value: number) => formatTwoDecimals(value) };
+    private _buildYAxisOption(): { type: 'value'; min?: number; max?: number; tickFormatter: (value: number) => string } {
+        // The data-driven min/max (used by filters, exports, annotations, and
+        // the Y-range callback) is stored verbatim in `_lastDataYMin` /
+        // `_lastDataYMax`. For rendering only, we apply a small 5 % headroom
+        // so spikes like ETTm2's 107.89 HUFL outlier don't get clipped at the
+        // top edge of the chart — see `usage_issue.md` §1.4.
+        const option: { type: 'value'; min?: number; max?: number; tickFormatter: (value: number) => string } = {
+            type: 'value',
+            tickFormatter: (value: number) => formatTwoDecimals(value),
+        };
+        if (Number.isFinite(this._lastDataYMin) && Number.isFinite(this._lastDataYMax) && this._lastDataYMax! > this._lastDataYMin!) {
+            const span = this._lastDataYMax! - this._lastDataYMin!;
+            const padding = span === 0 ? Math.max(1, Math.abs(this._lastDataYMax!) * 0.05) : span * 0.05;
+            option.min = this._lastDataYMin! - padding;
+            option.max = this._lastDataYMax! + padding;
+        }
+        return option;
     }
 
     private _getChartColorPalette(): string[] {
@@ -1366,6 +1383,44 @@ export class DataChart {
             onZoom: (view: ViewSnapshot) => this.onZoomCallback?.(view, 'user'),
             shouldIgnore: (e) => this._drawMode !== 'none' || e.ctrlKey,
             onDblClick: () => this.onZoomOutCallback?.(),
+        });
+    }
+
+    /* ── Ctrl+drag pan ─────────────────────────────────── */
+
+    /**
+     * Wire up a Ctrl/Meta + left-button drag that pans the visible view.
+     * The panning shifts the current xMin/xMax in time and (when a y
+     * range is known) the yMin/yMax, then forwards the new view through
+     * `onZoomCallback` with `sourceKind = 'pan'` so the page controller
+     * treats it the same as a regular user zoom for fetch/refresh
+     * purposes.
+     */
+    private _initCtrlPan(): void {
+        if (!this._container) return;
+        const container = this._container;
+        initCtrlPan({
+            container,
+            grid: CHART_GRID,
+            getXRange: () => ({ min: this._xMin ?? 0, max: this._xMax ?? 0 }),
+            getYRange: () => this.getYRange?.() ?? null,
+            shouldIgnore: () => this._drawMode !== 'none',
+            onPan: (view) => {
+                const xMin = Number(view.xMin);
+                const xMax = Number(view.xMax);
+                if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || xMax <= xMin) return;
+                const snapshot: ViewSnapshot = {
+                    xMin,
+                    xMax,
+                    yMin: 'yMin' in view && Number.isFinite((view as { yMin?: number }).yMin!)
+                        ? (view as { yMin: number }).yMin
+                        : null,
+                    yMax: 'yMax' in view && Number.isFinite((view as { yMax?: number }).yMax!)
+                        ? (view as { yMax: number }).yMax
+                        : null,
+                };
+                this.onZoomCallback?.(snapshot, 'pan');
+            },
         });
     }
 

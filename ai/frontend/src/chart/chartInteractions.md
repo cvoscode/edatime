@@ -1,28 +1,53 @@
 # ai/frontend/src/chart/chartInteractions.md
-> Shared chart interaction utilities: drag-state, grid layout, selection box, canvas overlay, box-zoom, and wheel-zoom helpers.
+> Shared chart interaction primitives — box zoom, Ctrl+drag pan, wheel zoom, drawing overlays, and tooltip helpers.
 
 ## Interfaces
-- `DragState` — `{ pointerId: number; startX: number; endX: number; startY: number; endY: number }`
-- `GridLayout` — `{ left: number; right: number; top: number; bottom: number }`
-- `NumericRange` — `{ min: number; max: number }`
-- `BoxZoomOptions` — `{ container: HTMLElement; grid: GridLayout; getXRange: () => NumericRange; getYRange?: () => NumericRange; onZoom: (min: number, max: number) => void | (view: { xMin: number; xMax: number; yMin: number; yMax: number }) => void; shouldIgnore?: (e: PointerEvent) => boolean; onClick?: (cssX: number, cssY: number) => void; onDblClick?: () => void }`
-- `WheelZoomOptions` — `{ container: HTMLElement; grid: GridLayout; getXRange: () => NumericRange; onZoom: (min: number, max: number) => void; clamp?: NumericRange }`
-- `WheelZoomViewportOptions` — `{ container: HTMLElement; grid: GridLayout; getXRange: () => NumericRange; getYRange: () => NumericRange; onZoom: (view: { xMin: number; xMax: number; yMin: number; yMax: number }) => void; clampX?: NumericRange; clampY?: NumericRange; shouldIgnore?: (e: WheelEvent) => boolean; zoomInFactor?: number; zoomOutFactor?: number }`
+- `export interface DragState { startX, startY, containerRect: DOMRect }` — Pointer drag state during box zoom initialization.
+- `export interface GridLayout { left, right, top, bottom }` — Chart grid padding (pixels).
+- `export interface NumericRange { min: number; max: number }` — Simple numeric range type used by zoom helpers.
+- `export interface CtrlPanOptions { container, grid, getXRange, getYRange?, shouldIgnore?, onPan, onDblClick? }` [deps: [GridLayout][1], [ViewSnapshot][2]] — Ctrl+drag pan configuration.
+- `export interface XOnlyBoxZoomOptions { container, grid, getXRange, getYRange?, onZoom, shouldIgnore?, onDblClick? }` — X-only box zoom (time axis only).
+- `export interface ViewportBoxZoomOptions { container, grid, getXRange, getYRange, onZoom, shouldIgnore?, onDblClick? }` — Full viewport box zoom.
+- `export type BoxZoomOptions = XOnlyBoxZoomOptions | ViewportBoxZoomOptions` — Union of box zoom option types.
+- `export interface WheelZoomOptions { container, getXRange, getYRange, onZoom, shouldIgnore?, onDblClick? }` — Mouse wheel zoom config.
+- `export interface WheelZoomViewportOptions { container, grid, getXRange, getYRange, onZoom, shouldIgnore?, onDblClick? }` — Viewport-aware mouse wheel zoom.
 
 ## Functions
-- `createSelectionBox(container: HTMLElement): HTMLElement` — Creates and appends a selection-box div to the container.
-- `updateSelectionBox(box: HTMLElement, drag: DragState, containerWidth: number, containerHeight: number): void` — Updates the box position and size from the current drag state.
-- `hideSelectionBox(box: HTMLElement): void` — Hides the selection box.
-- `createCanvasOverlay(container: HTMLElement, onResize: () => void): { canvas: HTMLCanvasElement; observer: ResizeObserver }` — Creates a transparent full-size canvas overlay with a ResizeObserver.
-- `startDrag(event: PointerEvent, container: HTMLElement): DragState` — Begins a drag with pointer capture.
-- `moveDrag(event: PointerEvent, drag: DragState, container: HTMLElement): void` — Updates drag end coordinates.
-- `dragToDataRange(drag: DragState, containerWidth: number, grid: GridLayout, dataMin: number, dataMax: number, minDragPx?: number): { min: number; max: number } | null` — Converts a CSS-pixel drag to a data range; returns null if drag is too small.
-- `dragToViewport(drag: DragState, containerWidth: number, containerHeight: number, grid: GridLayout, xRange: NumericRange, yRange: NumericRange, minDragPx?: number): { xMin: number; xMax: number; yMin: number; yMax: number } | null` [deps: [SCATTER_PLOT_GRID][1]]
-  - Converts a CSS-pixel box to a 2D viewport using the grid layout. Honors the `SCATTER_PLOT_GRID` padding so drags that start at the plot's left edge map to `view.xMin` exactly. Returns null when the drag is shorter than `minDragPx` in either axis.
-- `ensureRelativePosition(container: HTMLElement): void` — Sets `position: relative` on the container if it is statically positioned.
-- `initBoxZoom(opts: BoxZoomOptions): HTMLElement` — Wires up the full box-selection-zoom pattern; returns the selection box element. Routes to `dragToDataRange` (x-only) or `dragToViewport` (2D) depending on whether `getYRange` is provided.
-- `initWheelZoom(opts: WheelZoomOptions): void` — Wires up scroll-wheel zoom with optional clamping.
-- `initWheelZoomViewport(opts: WheelZoomViewportOptions): void` — Wires up 2D scroll-wheel zoom that preserves aspect ratio and clamps each axis to the data range.
+- `export function createSelectionBox(container: HTMLElement): HTMLElement` [deps: [GridLayout][1]]
+  - Creates a selection box overlay element positioned within the chart container.
+
+- `export function updateSelectionBox(box, startX, startY, currentX, currentY): void` — Updates selection box geometry during drag.
+
+- `export function hideSelectionBox(box: HTMLElement): void` — Hides the selection box (removes from DOM or sets display:none).
+
+- `export function createCanvasOverlay(container, onResize: () => void) -> { canvas, observer }` [deps: [GridLayout][1]]
+  - Creates a drawing overlay canvas with ResizeObserver for automatic resize handling.
+
+- `export function startDrag(event: PointerEvent, container: HTMLElement): DragState` — Initializes drag state from pointer event and container bounds.
+
+- `export function moveDrag(event: PointerEvent, drag: DragState, container: HTMLElement): void` — Updates drag geometry during pointermove.
+
+- `export function dragToDataRange(clientX, clientY, rangeMin, rangeMax) -> number | null` — Maps CSS coordinate to data range value (0–1 normalized).
+
+- `export function dragToViewport(clientX, clientY, containerRect: DOMRect) -> { x, y }` — Maps pointer event to viewport-relative coordinates.
+
+- `export function ensureRelativePosition(container: HTMLElement): void` — Ensures the container has relative positioning for absolute child elements.
+
+- `export function initCtrlPan(opts: CtrlPanOptions): void` [deps: [ViewSnapshot][2]]
+  - Wires up Ctrl/Meta + left-button drag to pan the visible view, forwarding new view through `onPan`.
+
+- `export function initBoxZoom(opts: BoxZoomOptions): HTMLElement` — Creates selection box and wires pointer events for mouse-selection zoom.
+
+- `export function initWheelZoom(opts: WheelZoomOptions): void` — Wires up mouse wheel to zoom the time axis.
+
+- `export function initWheelZoomViewport(opts: WheelZoomViewportOptions): void` — Viewport-aware mouse wheel zoom with grid-based coordinate mapping.
+
+- `export function tooltipRow(name, value, color?): string` — Formats a single tooltip row HTML string.
+
+- `export function tooltipWrap(header, rows: string): string` — Wraps header + rows in tooltip container HTML.
+
+[deps: [GridLayout][1], [ViewSnapshot][2]]
 
 ---
-[1]: ../scatter/layout.md#SCATTER_PLOT_GRID
+[1]: #GridLayout
+[2]: ../types.md#ViewSnapshot
