@@ -101,9 +101,23 @@ export interface ScatterState {
     lastRenderSignature: string;
     lastQueryContextKey: string;
     matrixCache: Map<string, Promise<MatrixCellData>>;
+    matrixBatchCache: Map<string, Promise<Map<string, MatrixCellData>>>;
     matrixColumnOrder: string[];
     overviewRequestId: number;
     scatterRequestId: number;
+    /**
+     * Per-view filter snapshots so the Plot view and the Matrix view can
+     * hold independent filter sets. The active view's snapshot is what
+     * `buildScatterQueryContext` reads when a scatter fetch runs; the
+     * inactive view keeps its last snapshot so the user can switch
+     * between them without losing prior work. See
+     * `frontend/src/scatter/scatterPage.ts setScatterView` for the
+     * snapshot/restore logic.
+     */
+    plotFilters: Record<string, { from: number; to: number }>;
+    plotLineFilters: ScatterLineFilterSpec[];
+    matrixFilters: Record<string, { from: number; to: number }>;
+    matrixLineFilters: ScatterLineFilterSpec[];
 }
 
 export const scatterState: ScatterState = {
@@ -139,10 +153,60 @@ export const scatterState: ScatterState = {
     lastRenderSignature: '',
     lastQueryContextKey: '',
     matrixCache: new Map(),
+    matrixBatchCache: new Map(),
     matrixColumnOrder: [],
     overviewRequestId: 0,
     scatterRequestId: 0,
+    plotFilters: {},
+    plotLineFilters: [],
+    matrixFilters: {},
+    matrixLineFilters: [],
 };
+
+/**
+ * Per-view scatter filter snapshots. `uiState.columnRanges` and
+ * `uiState.adaptiveLineFilters` are still the canonical user-facing
+ * filter state (the toolbar / range chips write to them). The scatter
+ * page snapshots them here on view switches so the two views can hold
+ * different filter sets without leaking into each other.
+ */
+export interface ScatterFilterSnapshot {
+    columnRanges: Record<string, { from: number; to: number }>;
+    lineFilters: ScatterLineFilterSpec[];
+}
+
+/**
+ * Return the filter snapshot for the named scatter view.
+ */
+export function getScatterViewSnapshot(view: 'plot' | 'matrix'): ScatterFilterSnapshot {
+    if (view === 'matrix') {
+        return {
+            columnRanges: { ...scatterState.matrixFilters },
+            lineFilters: scatterState.matrixLineFilters.slice(),
+        };
+    }
+    return {
+        columnRanges: { ...scatterState.plotFilters },
+        lineFilters: scatterState.plotLineFilters.slice(),
+    };
+}
+
+/**
+ * Replace the filter snapshot for the named scatter view. Used by the
+ * scatter page to save filters when leaving a view and to restore them
+ * when entering.
+ */
+export function setScatterViewSnapshot(view: 'plot' | 'matrix', snapshot: ScatterFilterSnapshot): void {
+    const previous = { ...scatterState };
+    if (view === 'matrix') {
+        scatterState.matrixFilters = { ...snapshot.columnRanges };
+        scatterState.matrixLineFilters = snapshot.lineFilters.slice();
+    } else {
+        scatterState.plotFilters = { ...snapshot.columnRanges };
+        scatterState.plotLineFilters = snapshot.lineFilters.slice();
+    }
+    emitStoreEvent('scatter:state', { previous, next: scatterState });
+}
 
 /* ── Mutations ──────────────────────────────────────────── */
 

@@ -6,6 +6,7 @@
 import { preloadPageStyles } from '../utils/pageStyles.js';
 import { pageNeedsDatasetBootstrap, resolveBackingPageName } from '../utils/pageBootstrap.js';
 import { getHashPage } from '../utils/router.js';
+import { dismissAllToasts } from '../utils/toast.js';
 
 type AppWindow = Window & typeof globalThis & {
     __edatime?: {
@@ -74,6 +75,8 @@ export function initPageNavigation(): void {
         for (const btn of navButtons) {
             btn.classList.toggle('active', btn.dataset.page === pageName);
         }
+
+        dismissAllToasts();
 
         requestAnimationFrame(() => {
             window.dispatchEvent(new Event('resize'));

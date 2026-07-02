@@ -868,7 +868,11 @@ fn zero_rate(values: &[f64]) -> f64 {
     if values.is_empty() {
         return 0.0;
     }
-    values.iter().filter(|value| value.abs() <= f64::EPSILON).count() as f64 / values.len() as f64
+    values
+        .iter()
+        .filter(|value| value.abs() <= f64::EPSILON)
+        .count() as f64
+        / values.len() as f64
 }
 
 fn constant_value_share(stats: &WindowDistributionStats) -> f64 {
@@ -879,10 +883,7 @@ fn constant_value_share(stats: &WindowDistributionStats) -> f64 {
     stats.hist_counts.iter().copied().max().unwrap_or(0) as f64 / total as f64
 }
 
-fn compute_window_drift_score(
-    prev_level: Option<&str>,
-    window: &DriftWindowStats,
-) -> u32 {
+fn compute_window_drift_score(prev_level: Option<&str>, window: &DriftWindowStats) -> u32 {
     let mut score = match window.drift_level.as_str() {
         "red" => 80.0,
         "yellow" => 50.0,
@@ -917,7 +918,9 @@ fn first_non_green_window(response: &DriftResponse) -> Option<(usize, &DriftWind
         .find(|(_, window)| window.drift_level != "green")
 }
 
-fn first_sustained_non_green_window(response: &DriftResponse) -> Option<(usize, &DriftWindowStats)> {
+fn first_sustained_non_green_window(
+    response: &DriftResponse,
+) -> Option<(usize, &DriftWindowStats)> {
     response
         .windows
         .windows(2)
@@ -961,8 +964,8 @@ fn build_feature_rank(response: &DriftResponse) -> DriftFeatureRank {
 
 fn build_change_point_rank(response: &DriftResponse) -> Option<DriftChangePointRank> {
     let scores = compute_column_window_scores(response);
-    let candidate = first_sustained_non_green_window(response)
-        .or_else(|| first_non_green_window(response));
+    let candidate =
+        first_sustained_non_green_window(response).or_else(|| first_non_green_window(response));
     candidate.map(|(idx, window)| DriftChangePointRank {
         column: response.column.clone(),
         label: window.distribution.label.clone(),
@@ -987,7 +990,9 @@ fn build_quality_summary(response: &DriftResponse) -> DriftQualitySummary {
     let latest_missing_rate = latest
         .map(|window| 1.0 - window.distribution.completeness)
         .unwrap_or(0.0);
-    let latest_completeness_delta = latest.map(|window| window.completeness_delta).unwrap_or(0.0);
+    let latest_completeness_delta = latest
+        .map(|window| window.completeness_delta)
+        .unwrap_or(0.0);
     let latest_zero_rate = latest
         .map(|window| zero_rate(&window.distribution.ecdf_x))
         .unwrap_or(0.0);
@@ -1037,11 +1042,16 @@ fn build_quality_issue_rank(
         .collect()
 }
 
-fn extract_segment_values(df: &DataFrame, segment_col: &str) -> Result<Vec<Option<String>>, AppError> {
+fn extract_segment_values(
+    df: &DataFrame,
+    segment_col: &str,
+) -> Result<Vec<Option<String>>, AppError> {
     let series = df
         .column(segment_col)
         .map(|column| column.as_materialized_series())
-        .map_err(|error| AppError::bad_request(format!("Missing segment column '{segment_col}': {error}")))?;
+        .map_err(|error| {
+            AppError::bad_request(format!("Missing segment column '{segment_col}': {error}"))
+        })?;
     Ok((0..series.len())
         .map(|idx| series.get(idx).ok())
         .map(|value| match value {
@@ -1237,7 +1247,8 @@ pub fn compute_drift_investigation(
         responses.insert(column.clone(), response);
     }
 
-    let mut feature_ranks: Vec<DriftFeatureRank> = responses.values().map(build_feature_rank).collect();
+    let mut feature_ranks: Vec<DriftFeatureRank> =
+        responses.values().map(build_feature_rank).collect();
     feature_ranks.sort_by(|a, b| {
         b.drift_score
             .cmp(&a.drift_score)
@@ -1533,22 +1544,22 @@ mod tests {
         let value_a = Series::new(
             "value_a".into(),
             vec![
-                1.0, 1.1, 1.0, 1.2, 1.1, 1.0, 1.2, 1.1, 1.0, 1.1, 1.2, 1.0, 4.0, 4.1, 4.2,
-                4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 5.0, 5.1,
+                1.0, 1.1, 1.0, 1.2, 1.1, 1.0, 1.2, 1.1, 1.0, 1.1, 1.2, 1.0, 4.0, 4.1, 4.2, 4.3,
+                4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 5.0, 5.1,
             ],
         );
         let value_b = Series::new(
             "value_b".into(),
             vec![
-                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
             ],
         );
         let segment = Series::new(
             "segment".into(),
             vec![
-                "A", "B", "A", "B", "A", "B", "A", "B", "A", "B", "A", "B", "A", "B", "A",
-                "B", "A", "B", "A", "B", "A", "B", "A", "B",
+                "A", "B", "A", "B", "A", "B", "A", "B", "A", "B", "A", "B", "A", "B", "A", "B",
+                "A", "B", "A", "B", "A", "B", "A", "B",
             ],
         );
         let df = DataFrame::new(
@@ -1587,7 +1598,10 @@ mod tests {
         assert!(response.quality.is_some());
         assert!(response.relationships.is_some());
         assert!(response.segments.is_some());
-        assert_eq!(response.segments.as_ref().expect("segments").groups.len(), 2);
+        assert_eq!(
+            response.segments.as_ref().expect("segments").groups.len(),
+            2
+        );
         assert!(
             response.overview.columns_flagged >= 1,
             "expected at least one flagged column"

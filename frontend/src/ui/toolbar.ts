@@ -39,6 +39,7 @@ export {
 
 import { initToolbarModals } from './exportControls.js';
 import { initDrawControls } from './drawControls.js';
+import { initYRangeControls } from './yRangeControls.js';
 import { initChartTextControls } from './chartTextControls.js';
 import { initAnalyticsControls } from './analyticsControls.js';
 import { initPageNavigation } from './pageNavigation.js';
@@ -103,6 +104,7 @@ export function initAnalysisControls(fetchAndRender: () => void): void {
     initToolbarModals();
     initDrawControls(fetchAndRender);
     initChartTextControls();
+    initYRangeControls();
     initAnalyticsControls();
 
     initQuickRangeControls(fetchAndRender);

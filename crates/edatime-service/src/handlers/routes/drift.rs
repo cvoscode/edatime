@@ -65,7 +65,12 @@ fn parse_datetime(s: &str) -> Result<DateTime<Utc>, AppError> {
     Ok(DateTime::from_naive_utc_and_offset(ndt, Utc))
 }
 
-async fn max_timestamp_native(state: &AppState, lf: &polars::prelude::LazyFrame, ts_col: &str, fallback: i64) -> Result<i64, AppError> {
+async fn max_timestamp_native(
+    state: &AppState,
+    lf: &polars::prelude::LazyFrame,
+    ts_col: &str,
+    fallback: i64,
+) -> Result<i64, AppError> {
     let max_expr = col(ts_col).cast(polars::prelude::DataType::Int64).max();
     let max_lf = lf.clone().select([max_expr]);
     let df = state.query_executor.execute_async(max_lf).await?;
@@ -115,10 +120,19 @@ async fn filtered_drift_df(
     {
         selected_columns.push(segment_col.to_string());
     }
-    let filtered_lf =
-        filter_time_range(lf, reference_start_native, comparison_end_native, &selected_columns, &ts_col)?;
+    let filtered_lf = filter_time_range(
+        lf,
+        reference_start_native,
+        comparison_end_native,
+        &selected_columns,
+        &ts_col,
+    )?;
     let df = state.query_executor.execute_async(filtered_lf).await?;
-    Ok((df, comparison_end_native, native_to_epoch_ms(comparison_end_native, &ctx.dtype)))
+    Ok((
+        df,
+        comparison_end_native,
+        native_to_epoch_ms(comparison_end_native, &ctx.dtype),
+    ))
 }
 
 #[tracing::instrument(skip(state))]
@@ -210,26 +224,33 @@ pub async fn post_drift_investigate(
                 reference_end.timestamp_millis() * ctx.multiplier,
             )
             .await?;
-            DateTime::<Utc>::from_timestamp_millis(native_to_epoch_ms(max_native, &ctx.dtype).round() as i64)
-                .ok_or_else(|| AppError::bad_request("invalid comparison end derived from dataset"))?
+            DateTime::<Utc>::from_timestamp_millis(
+                native_to_epoch_ms(max_native, &ctx.dtype).round() as i64,
+            )
+            .ok_or_else(|| AppError::bad_request("invalid comparison end derived from dataset"))?
         }
     };
     validate_time_window(comparison_start, comparison_end)?;
 
     let lf = state.dataset_snapshot();
     let limits = &state.config.validation;
-    let columns = validate_numeric_columns_lazy(&lf, &query.columns, limits)
-        .map_err(AppError::from)?;
+    let columns =
+        validate_numeric_columns_lazy(&lf, &query.columns, limits).map_err(AppError::from)?;
     let ctx = state.ts_context(&lf)?;
     if let Some(segment_by) = query.segment_by.as_deref() {
         let schema = lf
             .clone()
             .collect_schema()
             .map_err(|error| AppError::bad_request(format!("Failed to read schema: {error}")))?;
-        let dtype = schema
-            .get(segment_by)
-            .ok_or_else(|| AppError::bad_request(format!("Unknown segment column '{segment_by}'")))?;
-        if segment_by == ctx.ts_col || matches!(dtype, polars::prelude::DataType::Datetime(_, _) | polars::prelude::DataType::Date) {
+        let dtype = schema.get(segment_by).ok_or_else(|| {
+            AppError::bad_request(format!("Unknown segment column '{segment_by}'"))
+        })?;
+        if segment_by == ctx.ts_col
+            || matches!(
+                dtype,
+                polars::prelude::DataType::Datetime(_, _) | polars::prelude::DataType::Date
+            )
+        {
             return Err(AppError::bad_request(format!(
                 "Segment column '{segment_by}' cannot be the time column",
             )));

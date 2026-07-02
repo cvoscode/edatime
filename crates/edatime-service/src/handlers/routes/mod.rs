@@ -31,6 +31,7 @@ pub fn api_router() -> Router<AppState> {
             "/scatter/points",
             get(scatter::get_scatter_points).post(scatter::post_scatter_points),
         )
+        .route("/scatter/matrix", post(scatter::post_scatter_matrix))
         .route(
             "/scatter/export/parquet",
             post(scatter::post_scatter_export_parquet),

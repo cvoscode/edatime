@@ -33,6 +33,25 @@ let spectrogramChart: any = null;
 let spectrogramResizeObserver: ResizeObserver | null = null;
 let spectrogramResult: SpectrogramResult | null = null;
 let spectrogramRenderError: string | null = null;
+let spectrogramAppliedScaleMode: ScaleMode = 'none';
+let spectrogramAppliedClipMode: ClipMode = 'none';
+let spectrogramAppliedClipParam = 0.5;
+
+export function __resetSpectrogramChartRuntimeForTests(): void {
+    spectrogramResizeObserver?.disconnect();
+    spectrogramResizeObserver = null;
+    try {
+        spectrogramChart?.dispose?.();
+    } catch {
+        // Ignore cleanup failures in the test environment.
+    }
+    spectrogramChart = null;
+    spectrogramResult = null;
+    spectrogramRenderError = null;
+    spectrogramAppliedScaleMode = 'none';
+    spectrogramAppliedClipMode = 'none';
+    spectrogramAppliedClipParam = 0.5;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatSpectrogramTime(timestampMs: number): string {
@@ -52,6 +71,58 @@ function formatSpectrogramFrequency(frequency: number): string {
 // ── Runtime factory ───────────────────────────────────────────────────────────
 export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
     let spectrogramRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
+    let autoComputeStarted = false;
+
+    const getSpectrogramWinCustomInput = () => document.getElementById('spectrogram-win-size-custom') as HTMLInputElement | null;
+    const getSpectrogramHopCustomInput = () => document.getElementById('spectrogram-hop-size-custom') as HTMLInputElement | null;
+
+    const syncSpectrogramCustomInputs = () => {
+        const winMode = getDropdownValue('spectrogram-win-size') || '96';
+        const hopMode = getDropdownValue('spectrogram-hop-size') || '0.5';
+        const winCustomInput = getSpectrogramWinCustomInput();
+        const hopCustomInput = getSpectrogramHopCustomInput();
+
+        if (winCustomInput) {
+            const custom = winMode === 'custom';
+            winCustomInput.hidden = !custom;
+            winCustomInput.disabled = !custom;
+        }
+        if (hopCustomInput) {
+            const custom = hopMode === 'custom';
+            hopCustomInput.hidden = !custom;
+            hopCustomInput.disabled = !custom;
+        }
+    };
+
+    const parseCustomInteger = (
+        input: HTMLInputElement | null,
+        fallback: number,
+        min: number,
+        max: number,
+    ): number => {
+        const raw = Number.parseInt(input?.value || '', 10);
+        if (!Number.isFinite(raw)) return fallback;
+        return Math.max(min, Math.min(max, raw));
+    };
+
+    const resolveSpectrogramWindowSize = (): number => {
+        const selected = getDropdownValue('spectrogram-win-size') || '96';
+        if (selected === 'custom') {
+            return parseCustomInteger(getSpectrogramWinCustomInput(), 96, 16, 4096);
+        }
+        const parsed = Number.parseInt(selected, 10);
+        return Number.isFinite(parsed) ? Math.max(16, Math.min(4096, parsed)) : 96;
+    };
+
+    const resolveSpectrogramHopSize = (winSize: number): number => {
+        const selected = getDropdownValue('spectrogram-hop-size') || '0.5';
+        if (selected === 'custom') {
+            return parseCustomInteger(getSpectrogramHopCustomInput(), Math.max(1, Math.round(winSize * 0.5)), 1, winSize);
+        }
+        const hopRatioRaw = Number.parseFloat(selected);
+        const hopRatio = Number.isFinite(hopRatioRaw) && hopRatioRaw > 0 && hopRatioRaw < 1 ? hopRatioRaw : 0.5;
+        return Math.max(1, Math.min(winSize, Math.round(winSize * hopRatio)));
+    };
 
     function syncSpectrogramEmptyState(message?: string): void {
         // If a fetch/render failure is recorded, prefer that message over
@@ -80,7 +151,6 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
         },
         init() {
             const colSelect = document.getElementById('spectrogram-col-select') as HTMLElement | null;
-            const winSelect = document.getElementById('spectrogram-win-size') as HTMLElement | null;
             const logCheck = document.getElementById('spectrogram-log-scale') as HTMLInputElement | null;
             const clipToggle = document.getElementById('spectrogram-clip-toggle') as HTMLInputElement | null;
             const clipParamLabel = document.getElementById('spectrogram-clip-param-label') as HTMLElement | null;
@@ -221,34 +291,28 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             // Math.log10 over each cell, which dominated the frame budget
             // for the log-scale toggle and any subsequent repaint.
             //
-            // We cache two artefacts keyed by the underlying
-            // `spectrogramResult` identity:
-            //
-            //   `cachedGrid`     — a Float64Array of length (time × freq)
-            //                      holding the *log-domain* magnitudes. This
-            //                      is the expensive Math.log10 work and
-            //                      only needs to happen once per Compute.
-            //   `cachedPoints`   — the full `[x, y, value, timeMs, freq,
-            //                      raw]` tuples ECharts consumes. Building
-            //                      this still costs O(N) but skips the
-            //                      Math.log10 step, and we only rebuild it
-            //                      when the user toggles log scale or the
-            //                      active dataset changes.
-            //   `cachedRawMag`   — parallel Float64Array of raw magnitudes
-            //                      so the log-scale flip can rebuild the
-            //                      display values in one tight loop over
-            //                      typed arrays (no per-cell object alloc).
+            // We now cache both display modes and reuse stable visible
+            // buffers during colorbar drags. That removes the biggest
+            // avoidable redraw costs:
+            // - rebuilding every point tuple on log toggles
+            // - allocating a fresh filtered series array on each drag
+            type SpectrogramPoint = [number, number, number, number];
+            type SpectrogramMode = 'linear' | 'log';
+
             let cachedGrid: {
                 result: SpectrogramResult;
                 log: Float64Array;
                 raw: Float64Array;
-                freqLen: number;
-                points: [number, number, number, number, number, number][];
+                linearPoints: SpectrogramPoint[];
+                logPoints: SpectrogramPoint[];
+                visibleLinearPoints: SpectrogramPoint[];
+                visibleLogPoints: SpectrogramPoint[];
                 logMin: number;
                 logMax: number;
-                rawMin: number;
-                rawMax: number;
-                logScale: boolean;
+                linearMin: number;
+                linearMax: number;
+                lastVisibleMode: SpectrogramMode | null;
+                lastVisibleRangeKey: string | null;
             } | null = null;
 
             let currentScaleBounds: { min: number; max: number } | null = null;
@@ -256,16 +320,40 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             let colorbarInteractionInitialized = false;
             let colorbarDragRaf = 0;
 
+            const buildPointsFromDisplay = (
+                result: SpectrogramResult,
+                displayValues: Float64Array,
+                rawValues: Float64Array,
+            ): SpectrogramPoint[] => {
+                const timeAxis = result.times_ms;
+                const freqAxis = result.frequencies;
+                const total = displayValues.length;
+                const points: SpectrogramPoint[] = new Array(total);
+                let writeIndex = 0;
+                for (let t = 0; t < timeAxis.length; t += 1) {
+                    const tBase = t * freqAxis.length;
+                    for (let f = 0; f < freqAxis.length; f += 1) {
+                        const idx = tBase + f;
+                        const display = displayValues[idx];
+                        if (!Number.isFinite(display)) continue;
+                        points[writeIndex++] = [t, f, display, rawValues[idx]];
+                    }
+                }
+                points.length = writeIndex;
+                return points;
+            };
+
             const buildCachedGrid = (result: SpectrogramResult) => {
                 const timeAxis = result.times_ms;
                 const freqAxis = result.frequencies;
                 const total = timeAxis.length * freqAxis.length;
                 const log = new Float64Array(total);
                 const raw = new Float64Array(total);
+                const linearDisplay = new Float64Array(total);
                 let logMin = Number.POSITIVE_INFINITY;
                 let logMax = Number.NEGATIVE_INFINITY;
-                let rawMin = Number.POSITIVE_INFINITY;
-                let rawMax = Number.NEGATIVE_INFINITY;
+                let linearMin = Number.POSITIVE_INFINITY;
+                let linearMax = Number.NEGATIVE_INFINITY;
                 for (let t = 0; t < timeAxis.length; t += 1) {
                     const row = result.magnitudes[t] || [];
                     const tBase = t * freqAxis.length;
@@ -273,9 +361,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         const idx = tBase + f;
                         const v = Number(row[f] ?? NaN);
                         raw[idx] = v;
+                        linearDisplay[idx] = v;
                         if (Number.isFinite(v)) {
-                            if (v < rawMin) rawMin = v;
-                            if (v > rawMax) rawMax = v;
+                            if (v < linearMin) linearMin = v;
+                            if (v > linearMax) linearMax = v;
                         }
                         const display = Number.isFinite(v) && v > 0 ? Math.log10(v) : NaN;
                         log[idx] = display;
@@ -289,40 +378,26 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     logMin = 0;
                     logMax = 1;
                 }
-                if (!Number.isFinite(rawMin) || !Number.isFinite(rawMax)) {
-                    rawMin = 0;
-                    rawMax = 1;
+                if (!Number.isFinite(linearMin) || !Number.isFinite(linearMax)) {
+                    linearMin = 0;
+                    linearMax = 1;
                 }
                 if (!(logMax > logMin)) logMax = logMin + 1;
-                if (!(rawMax > rawMin)) rawMax = rawMin + 1;
-                return { log, raw, logMin, logMax, rawMin, rawMax, total, freqLen: freqAxis.length };
-            };
-
-            const buildPointsFromGrid = (
-                result: SpectrogramResult,
-                grid: { log: Float64Array; raw: Float64Array; freqLen: number },
-                logScale: boolean,
-            ): [number, number, number, number, number, number][] => {
-                const timeAxis = result.times_ms;
-                const freqAxis = result.frequencies;
-                const total = grid.log.length;
-                const points: [number, number, number, number, number, number][] = new Array(total);
-                let writeIndex = 0;
-                for (let t = 0; t < timeAxis.length; t += 1) {
-                    const timeMs = timeAxis[t];
-                    const tBase = t * grid.freqLen;
-                    for (let f = 0; f < freqAxis.length; f += 1) {
-                        const idx = tBase + f;
-                        const rawMag = grid.raw[idx];
-                        const display = logScale
-                            ? grid.log[idx]
-                            : (Number.isFinite(rawMag) ? rawMag : grid.log[idx]);
-                        if (!Number.isFinite(display)) continue;
-                        points[writeIndex++] = [t, f, display, timeMs, freqAxis[f], rawMag];
-                    }
-                }
-                points.length = writeIndex;
-                return points;
+                if (!(linearMax > linearMin)) linearMax = linearMin + 1;
+                const linearPoints = buildPointsFromDisplay(result, linearDisplay, raw);
+                const logPoints = buildPointsFromDisplay(result, log, raw);
+                return {
+                    log,
+                    raw,
+                    linearPoints,
+                    logPoints,
+                    visibleLinearPoints: linearPoints.slice(),
+                    visibleLogPoints: logPoints.slice(),
+                    logMin,
+                    logMax,
+                    linearMin,
+                    linearMax,
+                };
             };
 
             const syncClipEnabled = () => {
@@ -347,14 +422,11 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             };
 
             const activeScaleLabel = () => {
-                const mode = (getDropdownValue('spectrogram-normalize') || 'none') as ScaleMode;
-                const method = (getDropdownValue('spectrogram-clip-method') || 'percentile') as ClipMode;
-                const clipParamValue = Number.parseFloat(
-                    (document.getElementById('spectrogram-clip-param') as HTMLInputElement | null)?.value || '0.5',
+                return scaleModeLabel(
+                    spectrogramAppliedScaleMode,
+                    spectrogramAppliedClipMode,
+                    spectrogramAppliedClipParam,
                 );
-                const clipParam = Number.isFinite(clipParamValue) ? clipParamValue : 0.5;
-                const clipMode: ClipMode = clipToggle?.checked ? method : 'none';
-                return scaleModeLabel(mode, clipMode, clipParam);
             };
 
             const formatSpectrogramColorbarNumber = (value: number): string => {
@@ -364,12 +436,46 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 return value.toFixed(3);
             };
 
-            const isInsideColorFilter = (value: number): boolean => {
-                if (!colorFilterRange || !currentScaleBounds) return true;
-                const { min: fMin, max: fMax } = colorFilterRange;
-                const { min: sMin, max: sMax } = currentScaleBounds;
-                if (fMin <= sMin && fMax >= sMax) return true;
-                return value >= fMin && value <= fMax;
+            const isColorFilterActive = (
+                range: { min: number; max: number } | null,
+                bounds: { min: number; max: number } | null,
+            ): range is { min: number; max: number } => {
+                if (!range || !bounds) return false;
+                return !(range.min <= bounds.min && range.max >= bounds.max);
+            };
+
+            const fillVisiblePoints = (
+                source: SpectrogramPoint[],
+                target: SpectrogramPoint[],
+                range: { min: number; max: number },
+            ): SpectrogramPoint[] => {
+                let writeIndex = 0;
+                for (const point of source) {
+                    const display = Number(point[2]);
+                    if (display < range.min || display > range.max) continue;
+                    target[writeIndex++] = point;
+                }
+                target.length = writeIndex;
+                return target;
+            };
+
+            const getVisiblePointsForMode = (
+                cache: NonNullable<typeof cachedGrid>,
+                mode: SpectrogramMode,
+                range: { min: number; max: number } | null,
+                bounds: { min: number; max: number },
+            ): SpectrogramPoint[] => {
+                const source = mode === 'log' ? cache.logPoints : cache.linearPoints;
+                if (!isColorFilterActive(range, bounds)) return source;
+
+                const key = `${mode}:${range.min}:${range.max}`;
+                const target = mode === 'log' ? cache.visibleLogPoints : cache.visibleLinearPoints;
+                if (cache.lastVisibleMode === mode && cache.lastVisibleRangeKey === key) {
+                    return target;
+                }
+                cache.lastVisibleMode = mode;
+                cache.lastVisibleRangeKey = key;
+                return fillVisiblePoints(source, target, range);
             };
 
             const updateColorbarHandles = () => {
@@ -504,44 +610,37 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             const renderSpectrogramChart = async () => {
                 if (!spectrogramResult) return;
                 const chart = await ensureSpectrogramChart();
-                const logScale = logCheck?.checked ?? true;
+                const logScale = (logCheck?.checked ?? true) && spectrogramAppliedScaleMode === 'none';
                 syncClipEnabled();
                 syncClipParamLabel();
                 const timeAxis = spectrogramResult.times_ms;
                 const freqAxis = spectrogramResult.frequencies;
+                const mode: SpectrogramMode = logScale ? 'log' : 'linear';
 
-                // Rebuild the underlying log/raw Float64Arrays only when the
-                // Compute produced a new spectrogram. The Math.log10 pass is
-                // by far the most expensive step (~9M cells on a 70k-row
-                // dataset with a 256 window) so we never want to repeat it
-                // just because the user toggled log scale.
                 if (!cachedGrid || cachedGrid.result !== spectrogramResult) {
                     const built = buildCachedGrid(spectrogramResult);
                     cachedGrid = {
                         result: spectrogramResult,
                         log: built.log,
                         raw: built.raw,
-                        freqLen: built.freqLen,
-                        points: buildPointsFromGrid(spectrogramResult, built, logScale),
+                        linearPoints: built.linearPoints,
+                        logPoints: built.logPoints,
+                        visibleLinearPoints: built.visibleLinearPoints,
+                        visibleLogPoints: built.visibleLogPoints,
                         logMin: built.logMin,
                         logMax: built.logMax,
-                        rawMin: built.rawMin,
-                        rawMax: built.rawMax,
-                        logScale,
+                        linearMin: built.linearMin,
+                        linearMax: built.linearMax,
+                        lastVisibleMode: null,
+                        lastVisibleRangeKey: null,
                     };
-                } else if (cachedGrid.logScale !== logScale) {
-                    // Log-scale flip: rebuild only the visible points from
-                    // the cached typed arrays. No Math.log10, no nested
-                    // `spectrogramResult.magnitudes[t]` lookups.
-                    cachedGrid.points = buildPointsFromGrid(spectrogramResult, cachedGrid, logScale);
-                    cachedGrid.logScale = logScale;
                 }
 
-                const minValue = logScale ? cachedGrid.logMin : cachedGrid.rawMin;
-                const maxValue = logScale ? cachedGrid.logMax : cachedGrid.rawMax;
+                const minValue = mode === 'log' ? cachedGrid.logMin : cachedGrid.linearMin;
+                const maxValue = mode === 'log' ? cachedGrid.logMax : cachedGrid.linearMax;
                 currentScaleBounds = { min: minValue, max: maxValue };
                 const scaleLabel = activeScaleLabel();
-                const points = cachedGrid.points.filter((point) => isInsideColorFilter(Number(point[2])));
+                const points = getVisiblePointsForMode(cachedGrid, mode, colorFilterRange, currentScaleBounds);
 
                 const xTickInterval = Math.max(0, Math.floor(timeAxis.length / 10) - 1);
                 const yTickInterval = Math.max(0, Math.floor(freqAxis.length / 10) - 1);
@@ -564,10 +663,12 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         textStyle: { color: '#eef4ff' },
                         formatter: (params: any) => {
                             const value = params?.value || [];
-                            const timeMs = Number(value[3]);
-                            const freq = Number(value[4]);
+                            const xIndex = Number(value[0]);
+                            const yIndex = Number(value[1]);
                             const displayMagnitude = Number(value[2]);
-                            const rawMagnitude = Number(value[5]);
+                            const rawMagnitude = Number(value[3]);
+                            const timeMs = Number(timeAxis[xIndex]);
+                            const freq = Number(freqAxis[yIndex]);
                             return [
                                 `<strong>${spectrogramResult?.column || 'Spectrogram'}</strong>`,
                                 `Time: ${formatSpectrogramTime(timeMs)}`,
@@ -647,21 +748,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 syncSpectrogramEmptyState();
             };
 
-            // ── Column select population ───────────────────────────────────────
-            if (appState.metadata) {
-                setDropdownOptions('spectrogram-col-select', appState.metadata.numeric_columns.map((column) => ({
-                    value: column,
-                    label: column,
-                })), {
-                    preferredValue: getDropdownValue('spectrogram-col-select'),
-                });
-            }
-            syncSpectrogramEmptyState();
-            syncClipEnabled();
-            syncClipParamLabel();
-
-            // ── Compute button ─────────────────────────────────────────────────
-            document.getElementById('spectrogram-compute-btn')?.addEventListener('click', async () => {
+            const computeSpectrogram = async () => {
                 const column = getDropdownValue('spectrogram-col-select');
                 if (!column) {
                     syncSpectrogramEmptyState('Pick a numeric column and click Compute to generate the spectrogram.');
@@ -671,20 +758,18 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     return;
                 }
 
-                const winSize = Number.parseInt(getDropdownValue('spectrogram-win-size') || '96', 10);
-                const hopRatioRaw = Number.parseFloat(getDropdownValue('spectrogram-hop-size') || '0.5');
-                const hopRatio = Number.isFinite(hopRatioRaw) && hopRatioRaw > 0 && hopRatioRaw < 1 ? hopRatioRaw : 0.5;
-                const hopSize = Math.max(1, Math.round(winSize * hopRatio));
-                const normalize = String(getDropdownValue('spectrogram-normalize') || 'none');
+                const winSize = resolveSpectrogramWindowSize();
+                const hopSize = resolveSpectrogramHopSize(winSize);
+                const normalize = (getDropdownValue('spectrogram-normalize') || 'none') as ScaleMode;
                 const clipEnabled = !!clipToggle?.checked;
-                const clipMethod = String(getDropdownValue('spectrogram-clip-method') || 'percentile');
+                const clipMethod = (getDropdownValue('spectrogram-clip-method') || 'percentile') as ClipMode;
                 const clipParam = Number.parseFloat(
                     (document.getElementById('spectrogram-clip-param') as HTMLInputElement | null)?.value || '0.5',
                 );
+                const appliedClipMode: ClipMode = clipEnabled ? clipMethod : 'none';
+                const appliedClipParam = Number.isFinite(clipParam) ? clipParam : 0.5;
                 try {
                     deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', true);
-                    // Clear any previous error state since the user just
-                    // requested a new compute.
                     spectrogramRenderError = null;
                     colorFilterRange = null;
 
@@ -701,21 +786,20 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         column,
                         winSize,
                         hopSize,
-                        // Cap max_points so a 70k-row dataset keeps full
-                        // resolution by default; the backend will stride
-                        // down only if needed.
                         131072,
                         undefined,
                         {
                             normalize,
-                            clip: clipEnabled ? clipMethod : 'none',
-                            clipParam: Number.isFinite(clipParam) ? clipParam : 0.5,
+                            clip: appliedClipMode,
+                            clipParam: appliedClipParam,
                         },
                     );
 
+                    spectrogramAppliedScaleMode = normalize;
+                    spectrogramAppliedClipMode = appliedClipMode;
+                    spectrogramAppliedClipParam = appliedClipParam;
                     spectrogramResult = response.result;
                     await renderSpectrogramChart();
-                    // Successful render — clear the error placeholder.
                     spectrogramRenderError = null;
                     syncSpectrogramEmptyState();
                 } catch (error: any) {
@@ -727,32 +811,58 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 } finally {
                     deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', false);
                 }
+            };
+
+            const maybeAutoComputeSpectrogram = () => {
+                if (autoComputeStarted || spectrogramResult) return;
+                if (!getDropdownValue('spectrogram-col-select')) return;
+                if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
+                autoComputeStarted = true;
+                void computeSpectrogram();
+            };
+
+            // ── Column select population ───────────────────────────────────────
+            if (appState.metadata) {
+                setDropdownOptions('spectrogram-col-select', appState.metadata.numeric_columns.map((column) => ({
+                    value: column,
+                    label: column,
+                })), {
+                    preferredValue: getDropdownValue('spectrogram-col-select'),
+                });
+            }
+            syncSpectrogramEmptyState();
+            syncClipEnabled();
+            syncClipParamLabel();
+            syncSpectrogramCustomInputs();
+
+            // ── Compute button ─────────────────────────────────────────────────
+            document.getElementById('spectrogram-compute-btn')?.addEventListener('click', async () => {
+                autoComputeStarted = true;
+                await computeSpectrogram();
             });
 
             logCheck?.addEventListener('change', () => {
                 if (spectrogramResult) void renderSpectrogramChart();
             });
-            document.getElementById('spectrogram-normalize')?.addEventListener('change', () => {
-                if (spectrogramResult) void renderSpectrogramChart();
-            });
+            document.getElementById('spectrogram-win-size')?.addEventListener('change', syncSpectrogramCustomInputs);
+            document.getElementById('spectrogram-win-size')?.addEventListener('input', syncSpectrogramCustomInputs);
+            document.getElementById('spectrogram-hop-size')?.addEventListener('change', syncSpectrogramCustomInputs);
+            document.getElementById('spectrogram-hop-size')?.addEventListener('input', syncSpectrogramCustomInputs);
             const onClipToggleChange = () => {
                 syncClipEnabled();
-                if (spectrogramResult) void renderSpectrogramChart();
             };
             clipToggle?.addEventListener('change', onClipToggleChange);
             clipToggle?.addEventListener('input', onClipToggleChange);
             document.getElementById('spectrogram-clip-method')?.addEventListener('change', () => {
                 syncClipParamLabel();
-                if (spectrogramResult) void renderSpectrogramChart();
-            });
-            document.getElementById('spectrogram-clip-param')?.addEventListener('change', () => {
-                if (spectrogramResult) void renderSpectrogramChart();
             });
             resetZoomBtn?.addEventListener('click', () => {
                 if (!spectrogramChart) return;
                 spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 0, start: 0, end: 100 });
                 spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 1, start: 0, end: 100 });
             });
+
+            maybeAutoComputeSpectrogram();
         },
         onVisible() {
             const visibleClipToggle = document.getElementById('spectrogram-clip-toggle') as HTMLInputElement | null;
@@ -775,6 +885,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     visibleClipParam.title = hint;
                 }
             }
+            syncSpectrogramCustomInputs();
             const colSelect = document.getElementById('spectrogram-col-select');
             if (appState.metadata && colSelect) {
                 const currentOptions = new Set(getDropdownOptions('spectrogram-col-select').map((option) => option.value));
@@ -803,6 +914,9 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     };
                     void waitForReady();
                 }
+            }
+            if (!spectrogramResult && !spectrogramRenderError) {
+                autoComputeStarted = false;
             }
         },
     });

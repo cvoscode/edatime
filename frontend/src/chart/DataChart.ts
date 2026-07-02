@@ -109,6 +109,13 @@ export class DataChart {
     _yMin: number | null = null;
     _yMax: number | null = null;
     _yAuto = true;
+    /**
+     * When true, the chart's lower Y bound is clamped at 0 (with no
+     * negative headroom) so non-negative series render against a clean
+     * baseline. Off by default so the legacy auto-fit behaviour is
+     * preserved for users that rely on the negative headroom.
+     */
+    _stackFromZero = false;
     _lastDataYMin: number | null = null;
     _lastDataYMax: number | null = null;
     _lastSeriesList: SeriesConfig[] | null = null;
@@ -367,6 +374,21 @@ export class DataChart {
     setYRange(min: number, max: number): void {
         if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return;
         this._applyYRange(min, max, 'api', false);
+    }
+
+    /**
+     * Toggle the chart's "stack from zero" behaviour. When enabled, the
+     * y-axis lower bound is clamped at 0 in the next render so a series
+     * like OT (always positive) renders against a clean baseline. The
+     * change is purely presentational; underlying data and zoom history
+     * are unaffected.
+     */
+    setStackFromZero(on: boolean): void {
+        this._stackFromZero = !!on;
+    }
+
+    isStackFromZero(): boolean {
+        return this._stackFromZero;
     }
 
     getYRange(): { min: number; max: number } | null {
@@ -662,7 +684,10 @@ export class DataChart {
         // the Y-range callback) is stored verbatim in `_lastDataYMin` /
         // `_lastDataYMax`. For rendering only, we apply a small 5 % headroom
         // so spikes like ETTm2's 107.89 HUFL outlier don't get clipped at the
-        // top edge of the chart — see `usage_issue.md` §1.4.
+        // top edge of the chart — see `usage_issue.md` §1.4. When the user
+        // has Stack-from-zero on, we clamp the lower bound at 0 so the
+        // chart reflects a non-negative baseline for series that should
+        // never dip below zero (e.g. OT, temperature counts).
         const option: { type: 'value'; min?: number; max?: number; tickFormatter: (value: number) => string } = {
             type: 'value',
             tickFormatter: (value: number) => formatTwoDecimals(value),
@@ -670,7 +695,8 @@ export class DataChart {
         if (Number.isFinite(this._lastDataYMin) && Number.isFinite(this._lastDataYMax) && this._lastDataYMax! > this._lastDataYMin!) {
             const span = this._lastDataYMax! - this._lastDataYMin!;
             const padding = span === 0 ? Math.max(1, Math.abs(this._lastDataYMax!) * 0.05) : span * 0.05;
-            option.min = this._lastDataYMin! - padding;
+            const lower = this._stackFromZero ? Math.max(0, this._lastDataYMin!) : this._lastDataYMin!;
+            option.min = lower - (this._stackFromZero ? 0 : padding);
             option.max = this._lastDataYMax! + padding;
         }
         return option;

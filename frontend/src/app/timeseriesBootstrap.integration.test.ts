@@ -157,14 +157,16 @@ vi.mock('../store/appStateCompat.js', () => ({
 
 vi.mock('../store/index.js', () => ({
     appStateComposite: { metadata: null, chart: null, selectedCols: [] },
-    chartState: { chart: null },
+    chartState: { chart: null, stackFromZero: false },
     datasetState: { metadata: null },
+    initChartStatePrefs: vi.fn(),
     setAdaptiveFilterColumn: setAdaptiveFilterColumnMock,
     setChartInstance: vi.fn(),
     setDatasetRevision: vi.fn(),
     setMetadata: vi.fn(),
     setNumericCols: setNumericColsMock,
     setSelectedCols: setSelectedColsMock,
+    setStackFromZero: vi.fn(),
     setViewport: setViewportMock,
     uiState: { selectedCols: [] },
 }));

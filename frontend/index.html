@@ -70,6 +70,22 @@
   <!-- ARIA live region for dynamic content updates -->
   <div id="aria-live-region" aria-live="polite" aria-atomic="true" class="sr-only"></div>
 
+  <div id="app-loading-overlay" role="status" aria-live="polite">
+    <div class="app-loading-overlay__card">
+      <div class="app-loading-overlay__brand">
+        <span class="app-loading-overlay__icon" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+            stroke-linejoin="round">
+            <polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />
+          </svg>
+        </span>
+        <span class="app-loading-overlay__title">EdaTime</span>
+      </div>
+      <span class="app-loading-overlay__spinner" aria-hidden="true"></span>
+      <span class="app-loading-overlay__label">Loading workspace…</span>
+    </div>
+  </div>
+
   <div class="app-layout">
 
     <nav class="sidebar" id="sidebar">
@@ -320,6 +336,8 @@
             <div class="scatter-toolbar__segment scatter-toolbar__segment--view draw-toolbar" role="group"
               aria-label="Drawing tools">
               <span class="scatter-toolbar__eyebrow">Draw</span>
+              <span id="draw-help-btn" class="toolbar-info-icon draw-toolbar__help" tabindex="0"
+                role="button" aria-label="Show drawing and adaptive filter help">?</span>
               <div class="scatter-toolbar__fields">
                 <label class="toolbar-field scatter-toolbar__field" for="draw-tool">
                   <span class="toolbar-field__label">Tool</span>
@@ -347,6 +365,21 @@
                     title="Clear adaptive line filters (Shift+C)" hidden
                     aria-label="Clear adaptive line filters">Clear filters</button>
                 </div>
+              </div>
+            </div>
+
+            <div class="scatter-toolbar__segment scatter-toolbar__segment--display y-range-toolbar" role="group"
+              aria-label="Y-range options">
+              <span class="scatter-toolbar__eyebrow">Y range</span>
+              <div class="scatter-toolbar__fields">
+                <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field" for="y-stack-from-zero">
+                  <span class="toolbar-field__label">Stack from 0</span>
+                  <span class="toolbar-field__control scatter-link-toggle">
+                    <input id="y-stack-from-zero" type="checkbox"
+                      aria-label="Pin y-axis lower bound to zero">
+                    <span>Pin lower bound</span>
+                  </span>
+                </label>
               </div>
             </div>
 
@@ -886,6 +919,16 @@
                   <span>Group similar</span>
                 </span>
               </label>
+              <div class="toolbar-field scatter-toolbar__field scatter-toolbar__field--fit" role="group"
+                aria-label="Heatmap fit to screen">
+                <span class="toolbar-field__label">Fit</span>
+                <span class="toolbar-field__control">
+                  <button id="heatmap-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn"
+                    aria-pressed="false" title="Snap matrix to panel width">
+                    Auto-fit
+                  </button>
+                </span>
+              </div>
             </div>
           </div>
 
@@ -939,7 +982,10 @@
                   <option value="256">256 (~2.7d @ 15min)</option>
                   <option value="512">512 (~5.3d @ 15min)</option>
                   <option value="1024">1024 (~10.7d @ 15min)</option>
+                  <option value="custom">Custom…</option>
                 </select>
+                <input id="spectrogram-win-size-custom" class="modal-input" type="number" min="16" max="4096"
+                  step="1" value="96" aria-label="Custom FFT window size" hidden disabled>
               </label>
               <label class="toolbar-field scatter-toolbar__field" for="spectrogram-hop-size">
                 <span class="toolbar-field__label">Hop</span>
@@ -947,7 +993,10 @@
                   <option value="0.25">25% (75% overlap)</option>
                   <option value="0.5" selected>50% (50% overlap)</option>
                   <option value="0.75">75% (25% overlap)</option>
+                  <option value="custom">Custom…</option>
                 </select>
+                <input id="spectrogram-hop-size-custom" class="modal-input" type="number" min="1" step="1"
+                  value="48" aria-label="Custom STFT hop size" hidden disabled>
               </label>
               <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
                 for="spectrogram-log-scale">

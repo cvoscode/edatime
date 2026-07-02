@@ -10,10 +10,12 @@
 
 import { createChart } from '../../libs/chartgpu/dist/index.js';
 import { defaultGpuPowerPreference } from '../utils/platform.js';
+import { toast, dismissAllToasts } from '../utils/toast.js';
 import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 import { EchartsScatterChart } from '../chart/EchartsScatterChart.js';
 import { fetchScatterPoints } from '../services/api/index.js';
-import { appState } from '../store/index.js';
+import { appState, uiState, setColumnRanges, setAdaptiveLineFilters, getScatterViewSnapshot, setScatterViewSnapshot } from '../store/index.js';
+import { buildAdaptiveLineFiltersForQueryState } from '../services/timeseries/filtering.js';
 import {
     getEl,
     fmt,
@@ -125,6 +127,55 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
         clearTimeout(_scatterDebounceTimer);
         _scatterDebounceTimer = null;
     }
+    // Dismiss any stale intra-page toast before switching views. The
+    // empty-plot warning ("Active matrix filters hide all scatter
+    // points…") is only relevant for the view it appeared on, and it
+    // would otherwise follow the user between Plot ↔ Matrix.
+    dismissAllToasts();
+
+    // Independent filter scopes per view. Snapshot the current global
+    // filters into the leaving view's slot, then restore the entering
+    // view's snapshot into global state so each view keeps its own
+    // filters when the user toggles back and forth. Globals are the
+    // shared source for the scatter query context; the snapshot exists
+    // only to remember what filters were staged while on the other view.
+    const previousView = (appState.scatter.activeView === 'matrix' ? 'matrix' : 'plot') as 'plot' | 'matrix';
+    const nextViewName: 'plot' | 'matrix' = nextView === 'matrix' ? 'matrix' : 'plot';
+    if (previousView !== nextViewName) {
+        const liveLineFilters = buildAdaptiveLineFiltersForQueryState(uiState.adaptiveLineFilters || []);
+        setScatterViewSnapshot(previousView, {
+            columnRanges: { ...(uiState.columnRanges || {}) },
+            lineFilters: liveLineFilters,
+        });
+        const enteringSnapshot = getScatterViewSnapshot(nextViewName);
+        setColumnRanges(enteringSnapshot.columnRanges as Record<string, { from: number; to: number }>);
+        // Adaptive line filters round-trip back through the Adaptive shape,
+        // because that is what `uiState` and the controller storage expect.
+        const storedAdaptive = (enteringSnapshot.lineFilters || []).map((spec) => {
+            return {
+                target: spec.column,
+                x1: spec.x1,
+                y1: spec.y1,
+                x2: spec.x2,
+                y2: spec.y2,
+                keepAbove: spec.keepAbove,
+            };
+        });
+        setAdaptiveLineFilters(storedAdaptive as any);
+    }
+
+    // When the user switches back to the plot from the matrix, the cached
+    // `view` bounds usually come from a stale zoom/pan state that was
+    // captured before they entered the matrix. Without a reset, the plot
+    // appears empty because the cached view box covers zero in-range
+    // points. We drop any saved view history and force the next
+    // `renderScatter` to reset to the full extent.
+    if (appState.scatter.activeView === 'matrix' && nextView === 'plot') {
+        appState.scatter.view = { ...appState.scatter.full };
+        appState.scatter.zoomHistory = [];
+        _preserveViewOnNextRender = false;
+        _warnOnEmptyPlotAfterMatrix = true;
+    }
     appState.scatter.activeView = nextView;
     setSidebarAnalyticsSelection(nextView);
     syncScatterViewButtons(nextView);
@@ -136,6 +187,12 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
 
     if (!shouldRender) return;
     if (nextView === 'matrix') { await renderScatterMatrixView(onMatrixCellClick); return; }
+    // Re-render the plot so the reset view is reflected immediately, even
+    // if a fresh data fetch is not required. This is what fixes the
+    // "empty plot after Matrix" complaint: switching back no longer leaves
+    // the previous zoom/pan state lingering over an unrelated point set.
+    await renderScatter();
+    syncScatterEmptyState();
     requestAnimationFrame(() => appState.scatter.chart?.resize?.());
 }
 
@@ -146,6 +203,7 @@ function refreshActiveScatterView(): Promise<void> {
 /* ── Main render pipeline ─────────────────────────────── */
 
 let _scatterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let _warnOnEmptyPlotAfterMatrix = false;
 
 /**
  * When set, the next `renderScatter()` invocation will preserve the current
@@ -225,6 +283,25 @@ async function renderScatter(): Promise<void> {
         appState.scatter.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
         appState.scatter.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
         appState.scatter.colorColumn = response.color || '';
+        const carriedFilterCount = queryContext.filters.length + queryContext.lineFilters.length;
+        if (_warnOnEmptyPlotAfterMatrix && appState.scatter.totalPoints === 0 && carriedFilterCount > 0) {
+            toast(
+                'Active matrix filters hide all scatter points. Clear them to repopulate the plot.',
+                'warning',
+                {
+                    action: {
+                        label: 'Clear',
+                        onClick: () => {
+                            window.dispatchEvent(new CustomEvent('edatime:clear-all-filters'));
+                        },
+                    },
+                    dedupeKey: 'scatter:matrix-empty-plot-warning',
+                },
+            );
+        }
+        if (_warnOnEmptyPlotAfterMatrix) {
+            _warnOnEmptyPlotAfterMatrix = false;
+        }
         // When this render was triggered by a density-mode zoom, the caller
         // has already updated `appState.scatter.view` to the new bounds.
         // Resetting the view here would clobber the zoom and the user would

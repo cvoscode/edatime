@@ -143,6 +143,7 @@ describe('heatmapPage with clustering', () => {
             <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36">
             <span id="heatmap-cell-size-value" class="range-value">36</span>
             <input id="heatmap-cluster-toggle" type="checkbox" checked>
+            <button id="heatmap-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn" aria-pressed="false">Auto-fit</button>
             <select id="scatter-x-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
             <select id="scatter-y-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
         `;
@@ -186,7 +187,7 @@ describe('heatmapPage with clustering', () => {
         expect(scale).not.toBeNull();
         expect(positiveTick?.textContent).toBe('+1.0');
         expect(negativeTick?.textContent).toBe('-1.0');
-        expect(headers.every((header) => header.classList.contains('heatmap-header--vertical'))).toBe(true);
+        expect(headers.every((header) => header.classList.contains('heatmap-header--vertical'))).toBe(false);
         expect(strongPositiveCell?.style.getPropertyValue('--heatmap-cell-bg')).toBeTruthy();
         expect(negativeCell?.style.getPropertyValue('--heatmap-cell-bg')).toBeTruthy();
     });
@@ -400,4 +401,51 @@ describe('heatmapPage with clustering', () => {
         expect(document.getElementById('heatmap-empty-state')?.textContent).toContain('Restart the server');
     });
 
+    it('fills the available shell width so cells do not squish against the left edge', async () => {
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const shell = document.querySelector('.heatmap-shell') as HTMLElement | null;
+        const grid = document.querySelector('.heatmap-grid') as HTMLElement | null;
+        expect(shell).not.toBeNull();
+        expect(grid).not.toBeNull();
+        // The grid must be sized to fill the shell instead of sitting at
+        // its natural inline-grid width, which previously pinned the
+        // correlation matrix to size × fixed-cell-size and ignored the
+        // available container width.
+        expect(grid!.style.display).toBe('grid');
+        expect(grid!.style.width).toBe('100%');
+        // The shell must also allow horizontal scrolling for very wide
+        // matrices rather than clipping cells.
+        expect(getComputedStyle(shell!).overflowX).not.toBe('visible');
+    });
+
+    it('snaps to panel width when the Auto-fit toggle is on, regardless of slider value', async () => {
+        const slider = document.getElementById('heatmap-cell-size') as HTMLInputElement;
+        // Push the slider well past what 6 columns can actually fit; the
+        // toggle must still produce a sensible layout that uses the
+        // available shell width.
+        slider.value = '72';
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const fitToggle = document.getElementById('heatmap-fit-toggle') as HTMLButtonElement;
+        fitToggle.click();
+        expect(fitToggle.getAttribute('aria-pressed')).toBe('true');
+        expect(fitToggle.classList.contains('is-active')).toBe(true);
+
+        const colsAttr = (document.querySelector('.heatmap-grid') as HTMLElement).style.gridTemplateColumns;
+        // After clicking Auto-fit the columns should be derived from the
+        // container width rather than capped at the slider value (72px),
+        // producing a "fit" cell size ≤ 72px.
+        const cellSizes = colsAttr.split(' ').slice(1).map((s) => parseInt(s, 10));
+        for (const size of cellSizes) {
+            expect(size).toBeLessThanOrEqual(72);
+            expect(size).toBeGreaterThanOrEqual(24);
+        }
+    });
 });

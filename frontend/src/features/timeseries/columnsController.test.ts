@@ -21,6 +21,7 @@ describe('buildColumnToggles', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
         buildDom();
+        window.localStorage.clear();
 
         setMetadata({
             total_rows: 12,
@@ -78,6 +79,63 @@ describe('buildColumnToggles', () => {
         buildColumnToggles(fetchAndRender, buildRangeControls);
 
         expect(container.querySelectorAll('.series-chip').length).toBe(3);
-        expect(container.textContent).not.toContain('No matching columns');
+    });
+
+    it('renders an inline adaptive-filter hint next to the chip rail and highlights the active target', () => {
+        const fetchAndRender = vi.fn();
+        const buildRangeControls = vi.fn();
+
+        setAdaptiveFilterColumn('HUFL');
+        buildColumnToggles(fetchAndRender, buildRangeControls);
+
+        const hint = document.querySelector<HTMLElement>('.timeseries-adaptive-hint');
+        expect(hint).not.toBeNull();
+        expect(hint!.classList.contains('timeseries-adaptive-hint--active')).toBe(true);
+        expect(hint!.getAttribute('title')).toContain('HUFL');
+        expect(hint!.textContent).toMatch(/Ctrl\s*\+\s*click/);
+
+        // Clearing the target drops the active state and updates the title.
+        setAdaptiveFilterColumn('');
+        buildColumnToggles(fetchAndRender, buildRangeControls);
+        const clearedHint = document.querySelector<HTMLElement>('.timeseries-adaptive-hint');
+        expect(clearedHint?.classList.contains('timeseries-adaptive-hint--active')).toBe(false);
+        expect(clearedHint?.getAttribute('title')).toMatch(/Ctrl\+click/);
+    });
+
+    it('lets the user dismiss the adaptive-filter hint and keeps it dismissed across rebuilds', () => {
+        const fetchAndRender = vi.fn();
+        const buildRangeControls = vi.fn();
+
+        setAdaptiveFilterColumn('');
+        buildColumnToggles(fetchAndRender, buildRangeControls);
+
+        const dismissButton = document.querySelector<HTMLButtonElement>('.timeseries-adaptive-hint__dismiss');
+        expect(dismissButton).not.toBeNull();
+
+        dismissButton!.click();
+        expect(document.querySelector('.timeseries-adaptive-hint')).toBeNull();
+
+        buildColumnToggles(fetchAndRender, buildRangeControls);
+        expect(document.querySelector('.timeseries-adaptive-hint')).toBeNull();
+    });
+
+    it('exposes a refresh hook so the Draw help icon can re-show the dismissed hint', async () => {
+        const fetchAndRender = vi.fn();
+        const buildRangeControls = vi.fn();
+
+        setAdaptiveFilterColumn('');
+        buildColumnToggles(fetchAndRender, buildRangeControls);
+
+        const dismissButton = document.querySelector<HTMLButtonElement>('.timeseries-adaptive-hint__dismiss');
+        dismissButton!.click();
+        expect(document.querySelector('.timeseries-adaptive-hint')).toBeNull();
+
+        // The Draw toolbar's "?" help icon dispatches a re-show once the
+        // user asks for it. After the pref is reset the hint should be
+        // visible again on the next refresh call.
+        const { refreshAdaptiveFilterHint, setAdaptiveHintDismissed } = await import('./columnsController.js');
+        setAdaptiveHintDismissed(false);
+        refreshAdaptiveFilterHint();
+        expect(document.querySelector('.timeseries-adaptive-hint')).not.toBeNull();
     });
 });

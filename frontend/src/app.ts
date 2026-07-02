@@ -30,6 +30,7 @@ import { showPage } from './app/navigation/showPage.js';
 import { initGlobalShortcuts } from './app/bootstrap/globalShortcuts.js';
 import { initTimeseriesShortcuts } from './app/bootstrap/timeseriesShortcuts.js';
 import { createAppRuntime } from './app/runtime.js';
+import { markAppReady, resetAppReady } from './app/bootState.js';
 import { upgradeSelects } from './ui/primitives/Dropdown.js';
 import { upgradeFlexibleNumberInputs } from './ui/primitives/FlexibleNumberInput.js';
 import { ensurePageModuleLoaded, clearLoadedPageModules, markMetadataReady } from './app/pageRegistry.js';
@@ -55,6 +56,7 @@ import {
     appStateComposite,
     chartState,
     datasetState,
+    initChartStatePrefs,
     setAdaptiveFilterColumn,
     setChartInstance,
     setDatasetRevision,
@@ -139,6 +141,9 @@ async function init(): Promise<void> {
     upgradeSelects(document);
     upgradeFlexibleNumberInputs(document);
     installWindowsWebGpuRequestAdapterWorkaround();
+    // Hydrate persisted chart preferences (Y-range "stack from 0", etc.)
+    // BEFORE the toolbar wires up so the toggle starts in the right state.
+    initChartStatePrefs();
     // Load data transport first; chart rendering stays behind timeseries readiness.
     await ensureDataModules();
 
@@ -230,4 +235,7 @@ async function init(): Promise<void> {
     }
 }
 
-init();
+resetAppReady();
+void init().finally(() => {
+    markAppReady();
+});

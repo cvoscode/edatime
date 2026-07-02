@@ -21,6 +21,8 @@ interface FftPageDeps {
     renderTimeseries: () => void;
 }
 
+const FFT_SELECTION_STORAGE_KEY = 'edatime_fft_selected_columns';
+
 let fftTraces: FftTrace[] = [];
 let fftMode = 'magnitude';
 let fftLogScale = true;
@@ -30,6 +32,7 @@ let fftChartReady: Promise<void> | null = null;
 const fftTraceColors: Record<string, string> = {};
 let fftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let fftPageCleanup: (() => void) | null = null;
+let fftInitialSelectionSeeded = false;
 
 function resetFftPageState(): void {
     fftPageCleanup?.();
@@ -41,6 +44,7 @@ function resetFftPageState(): void {
     fftChart = null;
     fftChartReady = null;
     fftRuntime = null;
+    fftInitialSelectionSeeded = false;
     for (const key of Object.keys(fftTraceColors)) delete fftTraceColors[key];
 }
 
@@ -54,6 +58,29 @@ function fftColumns(): string[] {
 
 function fftColorFor(column: string, fallbackIndex: number): string {
     return getAnalyticsChipColor(column, fallbackIndex, fftTraceColors);
+}
+
+function loadStoredFftSelection(): string[] | null {
+    try {
+        const raw = window.localStorage.getItem(FFT_SELECTION_STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return null;
+        return parsed.map((value) => String(value)).filter(Boolean);
+    } catch {
+        return null;
+    }
+}
+
+function persistFftSelection(): void {
+    try {
+        window.localStorage.setItem(
+            FFT_SELECTION_STORAGE_KEY,
+            JSON.stringify(fftTraces.map((trace) => trace.column)),
+        );
+    } catch {
+        // Ignore storage failures; the current in-memory selection still works.
+    }
 }
 
 function updateZoomButton(isZoomed?: boolean): void {
@@ -209,6 +236,38 @@ async function fetchAndAddTrace(column: string): Promise<void> {
     });
 }
 
+async function seedInitialFftSelection(): Promise<void> {
+    if (fftInitialSelectionSeeded || !appState.metadata || fftTraces.length > 0) return;
+    const columns = fftColumns();
+    if (columns.length === 0) {
+        fftInitialSelectionSeeded = true;
+        return;
+    }
+    const stored = loadStoredFftSelection();
+    const targetColumns = (stored ?? columns.slice(0, 2))
+        .filter((column, index, list) => columns.includes(column) && list.indexOf(column) === index);
+    fftInitialSelectionSeeded = true;
+    if (targetColumns.length === 0) return;
+
+    const loadingEl = document.getElementById('fft-chart-loading');
+    if (loadingEl) loadingEl.hidden = false;
+    try {
+        await Promise.all(targetColumns.map(async (column) => {
+            try {
+                await fetchAndAddTrace(column);
+            } catch (error) {
+                console.warn(`FFT failed for ${column}: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }));
+        await ensureFftChartReady();
+        renderChips();
+        rerenderOrClear();
+    } finally {
+        if (loadingEl) loadingEl.hidden = true;
+        syncFftEmptyState();
+    }
+}
+
 function renderChips(): void {
     const bar = document.getElementById('fft-traces-bar');
     if (!bar || !appState.metadata) return;
@@ -238,6 +297,7 @@ function renderChips(): void {
                         try {
                             await fetchAndAddTrace(column);
                             await ensureFftChartReady();
+                            persistFftSelection();
                             renderChips();
                             rerenderOrClear();
                         } catch (error: any) {
@@ -250,6 +310,7 @@ function renderChips(): void {
                         }
                     } else {
                         fftTraces = fftTraces.filter((trace) => trace.column !== column);
+                        persistFftSelection();
                         renderChips();
                         rerenderOrClear();
                     }
@@ -473,6 +534,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
             syncFilterCutoffInputs();
 
             rerenderOrClear();
+            void seedInitialFftSelection();
 
             // Deferred export binding so csv dataCheck captures the current fftTraces
             // reference rather than a stale closure from mount time.
@@ -480,7 +542,10 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
         },
         onEveryPageChange() {
             // Re-render chips on every page change (fft needs to reflect selected columns from any page)
-            if (appState.metadata) renderChips();
+            if (appState.metadata) {
+                renderChips();
+                void seedInitialFftSelection();
+            }
         },
     });
 

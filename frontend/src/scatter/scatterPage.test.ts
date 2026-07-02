@@ -7,6 +7,7 @@ const fetchScatterCorrelationsMock = vi.fn();
 const fetchScatterPointsMock = vi.fn();
 const renderScatterMatrixViewMock = vi.fn();
 const emptyStateUpdateMock = vi.fn();
+const toastMock = vi.fn();
 const requestGpuAdapterMock = vi.hoisted(() => vi.fn(async (..._args: unknown[]): Promise<{ name: string } | null> => ({ name: 'mock-adapter' })));
 
 const freshScatterState = vi.hoisted(() => ({
@@ -42,6 +43,7 @@ const freshScatterState = vi.hoisted(() => ({
     lastRenderSignature: '' as any,
     lastQueryContextKey: '',
     matrixCache: new Map(),
+    matrixBatchCache: new Map(),
     matrixColumnOrder: [] as string[],
     overviewRequestId: 0,
     scatterRequestId: 0,
@@ -105,6 +107,12 @@ vi.mock('../store/index.js', async (importOriginal) => {
 vi.mock('../ui/emptyState.js', () => ({
     createEmptyStateController: () => ({ update: emptyStateUpdateMock }),
     isRangeOutsideDataset: () => false,
+}));
+
+const dismissAllToastsMock = vi.fn();
+vi.mock('../utils/toast.js', () => ({
+    toast: (...args: unknown[]) => toastMock(...args),
+    dismissAllToasts: (...args: unknown[]) => dismissAllToastsMock(...args),
 }));
 
 vi.mock('./rendering.js', () => ({
@@ -292,6 +300,99 @@ describe('initScatterPage view toggles', () => {
         expect(document.getElementById('scatter-view-matrix-btn')?.getAttribute('aria-pressed')).toBe('true');
         expect((document.querySelector('[data-scatter-view-panel="plot"]') as HTMLElement).hidden).toBe(true);
         expect((document.querySelector('[data-scatter-view-panel="matrix"]') as HTMLElement).hidden).toBe(false);
+    });
+
+    it('resets the plot view when switching back from matrix so the chart is not blank', async () => {
+        // Regression: users reported the plot looked empty after they
+        // returned from the matrix view. Cause: a stale `view` from a
+        // zoom/pan session was kept across the view switch and clamped
+        // to zero because the underlying data had been replaced.
+        const { initScatterPage, setScatterView, renderScatter } = await import('./scatterPage.js');
+
+        await initScatterPage({
+            total_rows: 2,
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+            ],
+            numeric_columns: ['HUFL', 'HULL'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1_000 },
+            column_profiles: [],
+        } as any);
+
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        // Simulate a stale zoom state captured while in the matrix view.
+        freshScatterState.view = { xMin: 100, xMax: 105, yMin: 200, yMax: 205 };
+        freshScatterState.zoomHistory = [{ xMin: 0, xMax: 1, yMin: 0, yMax: 1 }];
+
+        // Switch to matrix (renders mock).
+        await setScatterView('matrix');
+        // Switch back to plot — view must reset to full extent.
+        await setScatterView('plot');
+
+        expect(freshScatterState.view).toEqual(freshScatterState.full);
+        expect(freshScatterState.zoomHistory).toHaveLength(0);
+
+        // And a fresh fetch must have been triggered so the chart redraws
+        // with the reset view instead of staying blank.
+        expect(fetchScatterPointsMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('warns when the active (plot) filters leave the plot empty after switching back', async () => {
+        fetchScatterPointsMock
+            .mockResolvedValueOnce({
+                points: [[1, 2], [2, 3]],
+                total_points: 2,
+                color_values: null,
+                color_labels: null,
+                color: '',
+            })
+            .mockResolvedValueOnce({
+                points: [],
+                total_points: 0,
+                color_values: null,
+                color_labels: null,
+                color: '',
+            });
+
+        const { initScatterPage, setScatterView } = await import('./scatterPage.js');
+        const { appState, setScatterViewSnapshot } = await import('../store/index.js');
+
+        // Stage a filter globally and seed the plot-view snapshot so
+        // the matrix swap re-installs it on the way back. The snapshot
+        // is the only thing the round-trip matrix → plot needs to
+        // carry the filter through the view switch.
+        appState.columnRanges = { HUFL: { from: 0, to: 1 } } as any;
+        setScatterViewSnapshot('plot', {
+            columnRanges: { HUFL: { from: 0, to: 1 } },
+            lineFilters: [],
+        });
+
+        await initScatterPage({
+            total_rows: 2,
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+            ],
+            numeric_columns: ['HUFL', 'HULL'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1_000 },
+            column_profiles: [],
+        } as any);
+
+        await setScatterView('matrix');
+        await setScatterView('plot');
+
+        expect(toastMock).toHaveBeenCalledWith(
+            expect.stringContaining('hide all scatter points'),
+            'warning',
+            expect.objectContaining({
+                action: expect.objectContaining({ label: 'Clear' }),
+            }),
+        );
     });
 
     it('suppresses the empty state while scatter points are still loading', async () => {

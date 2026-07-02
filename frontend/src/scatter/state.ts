@@ -118,13 +118,22 @@ export function isLinkedBrushEnabled(): boolean {
 }
 
 export function buildScatterQueryContext(
-    columns: { x?: string; y?: string; colorColumn?: string } = {},
+    columns: { x?: string; y?: string; colorColumn?: string; scopeToColumns?: boolean } = {},
 ): ScatterQueryContext {
     const start = Number(appState.currentStart);
     const end = Number(appState.currentEnd);
     const hasTimeColumn = !!String(appState.metadata?.time_column || '').trim();
+    // The scatter page's setScatterView keeps `uiState.columnRanges` in
+    // sync with the active view's snapshot, so reading from globals here
+    // is equivalent to reading from the active-view snapshot. We
+    // deliberately read globals (not the snapshot) because that is the
+    // shared source for the toolbar/range-chip UI as well; the snapshot
+    // exists purely to remember a view's filters while the user is on
+    // the other view.
     const allFilters = collectColumnRangeFilters();
-    const filters = scopeFiltersToColumns(allFilters, [columns.x || '', columns.y || '', columns.colorColumn || '']);
+    const filters = columns.scopeToColumns === false
+        ? allFilters
+        : scopeFiltersToColumns(allFilters, [columns.x || '', columns.y || '', columns.colorColumn || '']);
 
     const linkedRangeValid = hasTimeColumn
         && isLinkedBrushEnabled()

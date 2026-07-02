@@ -1,30 +1,23 @@
 # ai/frontend/src/pages/heatmapPage.md
-> Correlation heatmap page displaying Pearson/Spearman matrices with click-to-scatter navigation.
+> Correlation heatmap page with metric switching, optional clustering, persisted Auto-fit layout, and click-through navigation into Scatter.
 
-## Interface
-- `HeatmapPageDeps { showPage: (pageName: string) => void }`
-
-## State
-- `heatmapCellSize: number` — pixel size of each matrix cell (default 36)
-- `matrixData: { columns: string[]; pearson: (number | null)[][]; spearman: (number | null)[][] } | null`
-- `metric: string` — current metric ('pearson' | 'spearman')
-- `matrixLoadInFlight: Promise<void> | null`
-- `heatmapRuntime: ReturnType<typeof createAnalysisPageRuntime> | null`
+## Interface `HeatmapPageDeps`
+- `showPage: (pageName: string) => void`
 
 ## Functions
-- `syncHeatmapEmptyState(message: string, visible: boolean, reason?: string): void` [deps: [createAnalysisPageRuntime][1]]
-  - Updates empty state via heatmapRuntime.
-- `correlationColor(value: number): string`
-  - Maps correlation value [-1, 1] to diverging blue-red RGB string.
-- `renderHeatmap(): void`
-  - Renders the heatmap grid HTML with vertical color legend; cell clicks navigate to scatter.
-- `initHeatmapPage(deps: HeatmapPageDeps): Promise<void>` [deps: [createAnalysisPageRuntime][1], [fetchCorrelationMatrix][2], [exportElementPNG][3], [exportElementSVG][4], [exportElementHTML][5], [exportMatrixCSV][6]]
-  - Initializes heatmap page, metric/size controls, and export bindings.
+- `readHeatmapFitPref(): boolean`
+  - Reads the persisted Auto-fit toggle from `localStorage`.
+- `writeHeatmapFitPref(value: boolean): void`
+  - Persists the Auto-fit toggle to `localStorage`.
+- `updateRangeFill(input: HTMLInputElement | null): void`
+  - Updates the slider track fill custom property for the heatmap cell-size control.
+- `syncHeatmapEmptyState(message: string, visible: boolean, reason = ''): void`
+  - Routes empty-state visibility through the shared analysis runtime.
+- `buildHeatmapStatus(clusterCount: number | null): string`
+  - Formats the status line for the current matrix layout.
+- `initHeatmapPage(deps: HeatmapPageDeps): Promise<void>` [deps: [fetchCorrelationMatrix][1], [createAnalysisPageRuntime][2]]
+  - Boots heatmap controls, reloads matrices by metric, toggles clustering and Auto-fit, and renders click-through cells that forward X/Y to the Scatter page.
 
 ---
-[1]: ./shared/analysisPageRuntime.md#createAnalysisPageRuntime
-[2]: ../../services/api/index.md#fetchCorrelationMatrix
-[3]: ../../utils/chartExport.md#exportElementPNG
-[4]: ../../utils/chartExport.md#exportElementSVG
-[5]: ../../utils/chartExport.md#exportElementHTML
-[6]: ../../utils/chartExport.md#exportMatrixCSV
+[1]: ../services/api/analytics.md#fetchCorrelationMatrix
+[2]: ./shared/analysisPageRuntime.md#createAnalysisPageRuntime

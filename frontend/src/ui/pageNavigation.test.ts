@@ -107,4 +107,22 @@ describe('initPageNavigation', () => {
             }),
         }));
     });
+
+    it('dismisses sticky toasts when navigating to another page', async () => {
+        const { initPageNavigation } = await import('./pageNavigation.js');
+        const { toast } = await import('../utils/toast.js');
+
+        initPageNavigation();
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        toast('Upload failed', 'error');
+        expect(document.querySelectorAll('.toast')).toHaveLength(1);
+
+        (document.querySelector('.nav-item[data-page="timeseries"]') as HTMLButtonElement).click();
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(document.querySelectorAll('.toast')).toHaveLength(0);
+    });
 });

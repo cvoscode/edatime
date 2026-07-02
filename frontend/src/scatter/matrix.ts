@@ -2,7 +2,7 @@
  * Scatter matrix view: pairwise grid with mini scatter canvases and diagonal distributions.
  */
 
-import { fetchScatterPoints, fetchFft } from '../services/api/index.js';
+import { fetchScatterMatrix, fetchFft } from '../services/api/index.js';
 import {
     getEl,
     fmt,
@@ -23,7 +23,6 @@ import {
 } from './state.js';
 import { setDropdownValue } from '../ui/primitives/Dropdown.js';
 import { describeDistributionMode, renderMatrixGrid } from './matrixGrid.js';
-const MATRIX_FETCH_CONCURRENCY = 4;
 
 /* ── Column selection ─────────────────────────────────── */
 
@@ -63,8 +62,8 @@ const idleMatrixRenderSignal = new AbortController().signal;
 
 /**
  * Returns the AbortSignal for the current matrix render, or a never-aborted
- * signal if no render is in progress. Used by cell fetches and the FFT panel
- * so a newer render aborts any in-flight cell fetches from a superseded one.
+ * signal if no render is in progress. Used by the batch fetch and the FFT panel
+ * so a newer render aborts any in-flight work from a superseded one.
  */
 export function getMatrixRenderSignal(): AbortSignal {
     return matrixRenderController?.signal ?? idleMatrixRenderSignal;
@@ -83,42 +82,51 @@ export function __resetMatrixRenderControllerForTests(): void {
     matrixRenderController = null;
 }
 
-async function fetchMatrixCellData(
-    x: string,
-    y: string,
+function buildMatrixBatchCacheKey(
+    pairs: [string, string][],
     context: ReturnType<typeof buildScatterQueryContext>,
     colorColumn: string,
-): Promise<MatrixCellData> {
-    const cacheKey = `${x}|${y}|${colorColumn || ''}|${buildOverviewContextKey(context)}`;
-    const cached = appState.scatter.matrixCache.get(cacheKey);
+): string {
+    return JSON.stringify({
+        pairs,
+        colorColumn: colorColumn || '',
+        context: buildOverviewContextKey(context),
+        limit: MATRIX_POINT_LIMIT,
+    });
+}
+
+async function fetchMatrixBatchData(
+    pairs: [string, string][],
+    context: ReturnType<typeof buildScatterQueryContext>,
+    colorColumn: string,
+): Promise<Map<string, MatrixCellData>> {
+    const cacheKey = buildMatrixBatchCacheKey(pairs, context, colorColumn);
+    const cached = appState.scatter.matrixBatchCache.get(cacheKey);
     if (cached) return cached;
 
     const signal = getMatrixRenderSignal();
-    const request = fetchScatterPoints(x, y, MATRIX_POINT_LIMIT, colorColumn || null, context, signal)
-        .then((response: any) => ({
-            totalPoints: Number(response?.total_points ?? 0),
-            points: Array.isArray(response?.points) ? response.points : [],
-            colorValues: Array.isArray(response?.color_values) ? response.color_values : null,
-            colorLabels: Array.isArray(response?.color_labels) ? response.color_labels : null,
-        }))
+    const request = fetchScatterMatrix(
+        pairs.map(([x, y]) => ({ x, y })),
+        colorColumn || null,
+        context,
+        MATRIX_POINT_LIMIT,
+        signal,
+    )
+        .then((response) => response.cells)
         .catch((error: any) => {
-            // Drop the cached entry on abort so a follow-up render with the
-            // same key starts fresh instead of returning the rejected promise.
-            appState.scatter.matrixCache.delete(cacheKey);
+            appState.scatter.matrixBatchCache.delete(cacheKey);
             throw error;
         });
 
-    appState.scatter.matrixCache.set(cacheKey, request);
+    appState.scatter.matrixBatchCache.set(cacheKey, request);
 
-    // Evict oldest entries when the cache exceeds a reasonable size to
-    // prevent unbounded memory growth on long-lived sessions.
-    const MAX_MATRIX_CACHE = 256;
-    if (appState.scatter.matrixCache.size > MAX_MATRIX_CACHE) {
-        const keys = appState.scatter.matrixCache.keys();
-        let toRemove = appState.scatter.matrixCache.size - MAX_MATRIX_CACHE;
+    const MAX_MATRIX_BATCH_CACHE = 64;
+    if (appState.scatter.matrixBatchCache.size > MAX_MATRIX_BATCH_CACHE) {
+        const keys = appState.scatter.matrixBatchCache.keys();
+        let toRemove = appState.scatter.matrixBatchCache.size - MAX_MATRIX_BATCH_CACHE;
         for (const k of keys) {
             if (toRemove-- <= 0) break;
-            appState.scatter.matrixCache.delete(k);
+            appState.scatter.matrixBatchCache.delete(k);
         }
     }
 
@@ -204,10 +212,14 @@ export async function renderScatterOverview(
     const controls = currentControls();
     setPanelStatus('scatter-matrix-status', 'Refreshing matrix for the current filters and linked time window...');
     const requestId = ++appState.scatter.overviewRequestId;
-    // Abort any in-flight cell fetches from a previous render so the new
-    // render wins cleanly without piling up parallel requests.
+    // Abort any in-flight matrix batch from a previous render so the new
+    // render wins cleanly without piling up overlapping requests.
     beginMatrixRender();
     const pairs = buildMatrixFetchPairs(columns, controls, appState.scatter.lastSuggestions);
+    const matrixContext = buildScatterQueryContext({
+        colorColumn: controls.selectedColorColumn,
+        scopeToColumns: false,
+    });
 
     const datasets = new Map<string, MatrixCellData>();
     const rerenderOrderedGrid = (nextColumns: string[]) => {
@@ -216,68 +228,29 @@ export async function renderScatterOverview(
     };
     renderMatrixGrid(columns, datasets, onCellClick, rerenderOrderedGrid);
 
-    let completed = 0;
     let hadErrors = false;
+    let lastReportedCompleted = 0;
 
     const updateStatus = () => {
         const groups = buildCategoricalColorGroups(appState.scatter.colorLabels);
         const groupText = groups && controls.selectedColorColumn
             ? ` Grouped distributions use ${controls.selectedColorColumn}.`
             : '';
-        const base = `Matrix loaded ${completed}/${pairs.length} cells with ${describeDistributionMode(controls.diagonalMode)} diagonals.`;
-        const hint = completed < pairs.length
+        const base = `Matrix loaded ${lastReportedCompleted}/${pairs.length} cells with ${describeDistributionMode(controls.diagonalMode)} diagonals.`;
+        const hint = lastReportedCompleted < pairs.length
             ? ' Prioritizing the current pair and suggested columns first.'
             : ' Drag headers to reorder.';
         const warning = hadErrors ? ' Some cells are temporarily unavailable.' : '';
         setPanelStatus('scatter-matrix-status', `${base}${hint}${warning}${groupText}`);
     };
 
-    let renderQueued = false;
-    const scheduleRender = () => {
-        if (renderQueued) return;
-        renderQueued = true;
-        requestAnimationFrame(() => {
-            renderQueued = false;
-            if (requestId !== appState.scatter.overviewRequestId) return;
-            renderMatrixGrid(appState.scatter.matrixColumnOrder.length > 0 ? appState.scatter.matrixColumnOrder : columns, datasets, onCellClick, rerenderOrderedGrid);
-        });
-    };
-
     try {
-        let nextPairIndex = 0;
-        const runWorker = async () => {
-            while (nextPairIndex < pairs.length) {
-                const pairIndex = nextPairIndex;
-                nextPairIndex += 1;
-                const [col, row] = pairs[pairIndex];
-                try {
-                    const cellContext = buildScatterQueryContext({
-                        x: col,
-                        y: row,
-                        colorColumn: controls.selectedColorColumn,
-                    });
-                    const data = await fetchMatrixCellData(col, row, cellContext, controls.selectedColorColumn);
-                    if (requestId !== appState.scatter.overviewRequestId) return;
-                    datasets.set(`${col}|${row}`, data);
-                } catch (error) {
-                    if (requestId !== appState.scatter.overviewRequestId) return;
-                    if (error instanceof Error && error.name === 'AbortError') return;
-                    console.error(error);
-                    hadErrors = true;
-                } finally {
-                    if (requestId !== appState.scatter.overviewRequestId) return;
-                    completed += 1;
-                    updateStatus();
-                    scheduleRender();
-                }
-            }
-        };
-
-        await Promise.all(
-            Array.from({ length: Math.min(MATRIX_FETCH_CONCURRENCY, pairs.length) }, () => runWorker()),
-        );
-
+        const batchData = await fetchMatrixBatchData(pairs, matrixContext, controls.selectedColorColumn);
         if (requestId !== appState.scatter.overviewRequestId) return;
+        batchData.forEach((data, key) => {
+            datasets.set(key, data);
+        });
+        lastReportedCompleted = pairs.length;
         renderMatrixGrid(appState.scatter.matrixColumnOrder.length > 0 ? appState.scatter.matrixColumnOrder : columns, datasets, onCellClick, rerenderOrderedGrid);
         updateStatus();
     } catch (error) {

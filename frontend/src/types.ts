@@ -90,6 +90,15 @@ export interface ScatterPointsResponse {
     color_max: number | null;
 }
 
+export interface ScatterMatrixPair {
+    x: string;
+    y: string;
+}
+
+export interface ScatterMatrixResponse {
+    cells: Map<string, MatrixCellData>;
+}
+
 export interface CorrelationItem {
     column: string;
     count: number;
@@ -422,6 +431,7 @@ export interface ScatterState {
     lastRenderSignature: string;
     lastQueryContextKey: string;
     matrixCache: Map<string, Promise<MatrixCellData>>;
+    matrixBatchCache: Map<string, Promise<Map<string, MatrixCellData>>>;
     matrixColumnOrder: string[];
     overviewRequestId: number;
     scatterRequestId: number;

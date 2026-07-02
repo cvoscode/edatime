@@ -17,6 +17,12 @@ export interface ChartState {
     initialView: ViewSnapshot | null;
     zoomHistory: ViewSnapshot[];
     chartText: { title: string; xLabel: string; yLabel: string };
+    /**
+     * When true, the chart's y-axis lower bound is clamped at 0 so the
+     * series render against a clean baseline. Persists across reloads
+     * via `localStorage` under `edatime_chart_stack_from_zero`.
+     */
+    stackFromZero: boolean;
 }
 
 export const chartState: ChartState = {
@@ -26,7 +32,37 @@ export const chartState: ChartState = {
     initialView: null,
     zoomHistory: [],
     chartText: { title: '', xLabel: '', yLabel: '' },
+    stackFromZero: false,
 };
+
+const STACK_FROM_ZERO_STORAGE_KEY = 'edatime_chart_stack_from_zero';
+
+function readStackFromZeroPref(): boolean {
+    if (typeof window === 'undefined') return false;
+    try {
+        return window.localStorage.getItem(STACK_FROM_ZERO_STORAGE_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+function writeStackFromZeroPref(value: boolean): void {
+    if (typeof window === 'undefined') return;
+    try {
+        window.localStorage.setItem(STACK_FROM_ZERO_STORAGE_KEY, value ? '1' : '0');
+    } catch {
+        // Best-effort persistence.
+    }
+}
+
+/**
+ * Initialise the chart-state from persisted user preferences. Called
+ * once at startup from `app.ts` so the toolbar picks up the right
+ * default.
+ */
+export function initChartStatePrefs(): void {
+    chartState.stackFromZero = readStackFromZeroPref();
+}
 
 /* ── Mutations ──────────────────────────────────────────── */
 
@@ -103,4 +139,11 @@ export function setChartText(text: ChartState['chartText']): void {
     const previous = chartState.chartText;
     chartState.chartText = { ...text };
     emitStoreEvent('chart:chartText', { previous, next: chartState.chartText });
+}
+
+export function setStackFromZero(on: boolean): void {
+    const previous = chartState.stackFromZero;
+    chartState.stackFromZero = !!on;
+    writeStackFromZeroPref(chartState.stackFromZero);
+    emitStoreEvent('chart:stackFromZero', { previous, next: chartState.stackFromZero });
 }

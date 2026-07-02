@@ -553,7 +553,15 @@ export function drawMiniScatterCanvas(canvas: HTMLCanvasElement, points: [number
     ctx.globalAlpha = 1;
 }
 
-/** 2D density heat-map for mini matrix cells. Uses a simple grid bin count. */
+/**
+ * 2D density heat-map for mini matrix cells.
+ *
+ * Uses a 32×32 bin grid (raised from the previous 20×20) so low-density
+ * cells stop looking like sparse scatter dots, and applies a 3×3 box blur
+ * over the binned grid so the rendered cells shade smoothly instead of
+ * appearing as hard, isolated pixels. The "Density" label is drawn in the
+ * bottom-right corner so the cell is unambiguous next to scatter cells.
+ */
 export function drawMiniDensityCanvas(
     canvas: HTMLCanvasElement,
     points: [number, number][],
@@ -563,35 +571,37 @@ export function drawMiniDensityCanvas(
     if (!frame) return;
     const { ctx, width, height } = frame;
 
-    if (!points.length) {
+    const writeNoPoints = () => {
         ctx.fillStyle = 'rgba(122, 134, 164, 0.7)';
         ctx.font = '12px Inter, system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('No points', width / 2, height / 2);
+    };
+
+    if (!points.length) {
+        writeNoPoints();
         return;
     }
 
-    const BINS = 20;
+    const BINS = 32;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    let finiteCount = 0;
     for (const p of points) {
         const x = Number(p?.[0]); const y = Number(p?.[1]);
         if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
         if (x < minX) minX = x; if (x > maxX) maxX = x;
         if (y < minY) minY = y; if (y > maxY) maxY = y;
+        finiteCount += 1;
     }
-    if (!Number.isFinite(minX)) {
-        ctx.fillStyle = 'rgba(122, 134, 164, 0.7)';
-        ctx.font = '12px Inter, system-ui, sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('No points', width / 2, height / 2);
+    if (!Number.isFinite(minX) || finiteCount === 0) {
+        writeNoPoints();
         return;
     }
 
     const xSpan = Math.max(1e-9, maxX - minX);
     const ySpan = Math.max(1e-9, maxY - minY);
     const grid = new Float32Array(BINS * BINS);
-    let maxCount = 0;
 
     for (const p of points) {
         const x = Number(p?.[0]); const y = Number(p?.[1]);
@@ -600,9 +610,34 @@ export function drawMiniDensityCanvas(
         const by = Math.min(BINS - 1, Math.floor(((y - minY) / ySpan) * BINS));
         const idx = (BINS - 1 - by) * BINS + bx;
         grid[idx] += 1;
-        if (grid[idx] > maxCount) maxCount = grid[idx];
     }
 
+    // Box-blur the grid (with edge clamping) so cells shade smoothly.
+    // Without this pass the high-contrast grid + sqrt scaling produces
+    // blocky shapes that read as scattered dots instead of density.
+    const smoothed = new Float32Array(BINS * BINS);
+    for (let row = 0; row < BINS; row++) {
+        for (let col = 0; col < BINS; col++) {
+            let sum = 0;
+            let hits = 0;
+            for (let dy = -1; dy <= 1; dy++) {
+                const ny = row + dy;
+                if (ny < 0 || ny >= BINS) continue;
+                for (let dx = -1; dx <= 1; dx++) {
+                    const nx = col + dx;
+                    if (nx < 0 || nx >= BINS) continue;
+                    sum += grid[ny * BINS + nx];
+                    hits += 1;
+                }
+            }
+            smoothed[row * BINS + col] = hits > 0 ? sum / hits : 0;
+        }
+    }
+
+    let maxCount = 0;
+    for (let i = 0; i < smoothed.length; i++) {
+        if (smoothed[i] > maxCount) maxCount = smoothed[i];
+    }
     if (maxCount === 0) return;
 
     const palette = paletteForScale(options.colorScale || 'viridis');
@@ -612,7 +647,7 @@ export function drawMiniDensityCanvas(
 
     for (let row = 0; row < BINS; row++) {
         for (let col = 0; col < BINS; col++) {
-            const count = grid[row * BINS + col];
+            const count = smoothed[row * BINS + col];
             if (count === 0) continue;
             const t = Math.sqrt(count / maxCount); // sqrt for perceptual scaling
             ctx.fillStyle = sampleGradient(palette, t);
@@ -622,6 +657,14 @@ export function drawMiniDensityCanvas(
     ctx.strokeStyle = 'rgba(54, 63, 98, 0.7)';
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+
+    // Density badge in the bottom-right so the cell reads unambiguously as
+    // "density" instead of being mistaken for a faint scatter cell.
+    ctx.font = '9px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = 'rgba(238, 244, 255, 0.55)';
+    ctx.fillText('Density', width - 4, height - 3);
 }
 
 export function buildGroupedDistributionSeries(values: number[], labels?: unknown[] | null): DistributionSeries[] | null {

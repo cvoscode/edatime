@@ -1,71 +1,46 @@
 # ai/frontend/src/scatter/state.md
-> Scatter-page controls readers, query-context builders, view utilities, and backward-compatible scatterState re-exports.
-
-## Re-exports
-- `state` — alias for `scatterState` from store/index.js [deps: [scatterState][1]]
-- `appState` — re-exported from store/appStateCompat.js [deps: [appState][2]]
+> Scatter control readers, query-context builders, cache-key helpers, and chart-state utilities shared across plot and matrix views.
 
 ## Interfaces
-```typescript
-interface ScatterControls {
-    x: string; y: string; binSize: number; colormap: string; normalization: string;
-    renderMode: string; diagonalMode: string; colorColumn: string;
-    selectedColorColumn: string; colorScale: string; matrixMode: string; matrixCellSize: number;
-}
+- `ScatterControls` — `{ x: string; y: string; binSize: number; colormap: string; normalization: string; renderMode: string; diagonalMode: string; colorColumn: string; selectedColorColumn: string; colorScale: string; matrixMode: string; matrixCellSize: number }`
+- `ScatterQueryContext` — `{ start?: number; end?: number; filters: Array<{ column: string; from: number; to: number }>; lineFilters: ScatterLineFilterSpec[] }`
 
-interface ScatterQueryContext {
-    start?: number; end?: number;
-    filters: Array<{ column: string; from: number; to: number }>;
-    lineFilters: ScatterLineFilterSpec[];
-}
-```
-
-## Type Aliases
-- `ScatterView = { xMin: number; xMax: number; yMin: number; yMax: number }`
-- `ScatterDrag = { pointerId: number; startX: number; endX: number; startY: number; endY: number }`
-- `DensityTooltipMeta = { colorCenter: number; colorLo: number; colorHi: number }`
-- `DensityTooltipCache = { key: string; binSize: number; metrics: { plotWidth, plotHeight, devicePixelRatio, plotLeftPx, plotTopPx, plotRightPx, plotBottomPx, exactLeftPx, exactTopPx, exactRightPx, exactBottomPx, binSizePx, binSizeCss, binCountX, binCountY }; binsBySeriesIndex: Map<number, Map<string, number>>; metaBySeriesIndex: Map<number, DensityTooltipMeta> }` [deps: [scatterState metrics shape][5]]
-- `MatrixCellData = { totalPoints: number; points: [number, number][]; colorValues: number[] | null; colorLabels: string[] | null }`
+## Re-exports
+- `appState` [deps: [store/index][1]]
+- `state`
+- `scatterState`
+- `getEl`
+- `fmt`
+- `computeColorExtent`
+- `computeDomains`
+- `normalizeCategoryLabel`
+- `normalizeColorValues`
+- `buildCategoricalColorGroups`
 
 ## Functions
-- `currentControls(): ScatterControls` [deps: [getDropdownValue][3], [getScatterPlotMetrics][4]]
-  - Reads current values from all scatter control dropdowns. Uses `getDropdownValue` for all select controls. `colormap` is hardcoded to `'viridis'` (must stay aligned with `COLOR_SCALES` in [utils/settings.ts][5]) because the per-page colormap select was removed from the toolbar.
+- `currentControls(): ScatterControls`
+  - Reads all active scatter controls from the DOM.
 - `isLinkedBrushEnabled(): boolean`
-  - Returns whether the linked brush from the main chart is active (either the `scatter-link-brush` checkbox or the matrix `scatter-matrix-link-range` checkbox).
-- `buildScatterQueryContext(columns?: { x?: string; y?: string; colorColumn?: string }): ScatterQueryContext`
-  - Builds query context filtering linked time range only when metadata time_column is present and the linked brush is on. The line-filter payload is the canonical `ScatterLineFilterSpec[]` returned by [buildAdaptiveLineFiltersForQuery][4].
+  - Returns whether either scatter linked-range checkbox is enabled.
+- `buildScatterQueryContext(columns: { x?: string; y?: string; colorColumn?: string; scopeToColumns?: boolean } = {}): ScatterQueryContext`
+  - Builds the shared scatter query context. When `scopeToColumns === false`, range filters are left unscoped so matrix batches can reuse the full active filter set.
 - `getActiveScatterFilterColumns(columns?: { x?: string; y?: string; colorColumn?: string }): string[]`
-  - Returns list of columns that have active range filters, scoped to the supplied column names.
+  - Lists the currently active scoped range-filter columns.
 - `buildRenderSignature(controls: ScatterControls): string`
-  - Builds a cache key from the current view and controls state. **Includes view bounds** so density-mode zoom changes the signature and forces a chart re-create.
+  - Builds the plot render signature from active controls plus the current view bounds.
 - `buildOverviewContextKey(context: Partial<ScatterQueryContext>): string`
-  - Builds a cache key for the scatter matrix overview context, including the canonical line-filter payload.
+  - Builds the matrix overview cache key from linked range, range filters, and line filters.
 - `clampView(view: ScatterView): ScatterView`
-  - Clamps view bounds to safe numeric ranges inside the full extent.
-- `applyScatterStateFromCache(resetView?: boolean): void`
-  - Populates `appState.scatter.points` / `colorValues` / `colorLabels` from the cached allPoints array and recomputes color extent and full domain. When `resetView` is true, resets the view to the full extent and clears zoom history; otherwise clamps the current view.
+- `applyScatterStateFromCache(resetView = true): void`
 - `setStats(partial: Record<string, string | number | null | undefined>): void`
-  - Updates `#scatter-pearson` / `#scatter-spearman` text spans and the `Stats: total points` readout.
-- `getPlotMetrics(container: HTMLElement | null): { width, height, grid, plotLeft, plotRight, plotTop, plotBottom, plotWidth, plotHeight } | null`
-  - Delegates to `getScatterPlotMetrics` from [layout.js](./layout.md).
-- `getProfileForColumn(column: string): any`
-  - Returns the matching entry from `appState.scatter.metadata.column_profiles`, or null.
-- `getProfileHistogram(column: string): { min, max, counts, edges } | null`
-  - Returns the histogram for a column profile if available and well-formed.
+- `getPlotMetrics(container: HTMLElement | null)`
+- `getProfileForColumn(column: string)`
+- `getProfileHistogram(column: string)`
 - `getCurrentScatterValues(column: string): number[]`
-  - Returns finite numeric values for the given column from the current scatter state (X/Y axis or colorValues).
 - `normalizeAnalyticsView(viewName: string): string`
-  - Maps any non-`'matrix'` value to `'plot'`.
-- `disposeScatterChart(resetSignature?: boolean): void`
-  - Disposes the chart, clears selection box / drag / density tooltip cache; optionally clears the last render signature.
+- `disposeScatterChart(resetSignature = false): void`
 - `resetScatterContainer(): HTMLElement | null`
-  - Clones `#scatter-chart` to discard the disposed canvas and returns the new element.
 - `ensureOptions(selectEl: HTMLElement | null, values: string[], preferredValue?: string): string | null`
-  - Sets dropdown options by ID using `setDropdownOptions`. Falls back to preferred value.
 
 ---
-[1]: ../../store/index.md#scatterState
-[2]: ../../store/appStateCompat.md#appState
-[3]: ./helpers.md#getEl
-[4]: ../../services/timeseries/filtering.md#buildAdaptiveLineFiltersForQuery
-[5]: ../../store/scatterState.md
+[1]: ../../store/index.md

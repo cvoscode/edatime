@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as api from '../services/api/index.js';
 import { appState } from './state.js';
+import { setScatterViewSnapshot } from '../store/scatterState.js';
 import {
     __resetMatrixRenderControllerForTests,
     buildMatrixFetchPairs,
@@ -30,6 +31,7 @@ describe('buildMatrixFetchPairs', () => {
         vi.restoreAllMocks();
         __resetMatrixRenderControllerForTests();
         appState.scatter.matrixCache = new Map();
+        appState.scatter.matrixBatchCache = new Map();
         appState.scatter.matrixColumnOrder = [];
         appState.scatter.lastSuggestions = [];
         appState.scatter.colorLabels = null;
@@ -46,6 +48,7 @@ describe('buildMatrixFetchPairs', () => {
 
         document.body.innerHTML = `
             <div id="scatter-matrix"></div>
+            <span id="scatter-matrix-status"></span>
             <select id="scatter-x-col"><option value="HUFL" selected>HUFL</option></select>
             <select id="scatter-y-col"><option value="HULL" selected>HULL</option></select>
             <input id="scatter-bin-size" value="10">
@@ -138,22 +141,15 @@ describe('buildMatrixFetchPairs', () => {
         const idleSignal = getMatrixRenderSignal();
         expect(getMatrixRenderSignal()).toBe(idleSignal);
 
-        const fetchScatterPointsMock = vi.spyOn(api, 'fetchScatterPoints').mockResolvedValue({
-            x: 'HUFL',
-            y: 'HULL',
-            color: null,
-            total_points: 2,
-            returned_points: 2,
-            points: [[1, 2], [3, 4]],
-            color_values: null,
-            color_labels: null,
-            color_min: null,
-            color_max: null,
+        const fetchScatterMatrixMock = vi.spyOn(api, 'fetchScatterMatrix').mockResolvedValue({
+            cells: new Map([
+                ['HUFL|HULL', { totalPoints: 2, points: [[1, 2], [3, 4]], colorValues: null, colorLabels: null }],
+            ]),
         });
 
         await renderScatterOverview(() => { });
 
-        const activeSignal = fetchScatterPointsMock.mock.calls[0]?.[5];
+        const activeSignal = fetchScatterMatrixMock.mock.calls[0]?.[4];
         expect(activeSignal).toBeInstanceOf(AbortSignal);
         expect(activeSignal).not.toBe(idleSignal);
         expect(activeSignal?.aborted).toBe(false);
@@ -171,41 +167,75 @@ describe('buildMatrixFetchPairs', () => {
             OT: { from: 3, to: 7 },
         } as any;
         appState.scatter.metadata = { numeric_columns: ['HUFL', 'HULL', 'OT'] } as any;
+        appState.scatter.activeView = 'matrix';
+        // Push the staged column ranges into the matrix view's snapshot
+        // so each per-cell fetch picks them up; the production scatter
+        // page mirrors globals into the snapshot on view-entry.
+        setScatterViewSnapshot('matrix', {
+            columnRanges: appState.columnRanges as Record<string, { from: number; to: number }>,
+            lineFilters: [],
+        });
 
-        const fetchScatterPointsMock = vi.spyOn(api, 'fetchScatterPoints').mockResolvedValue({
-            x: 'HUFL',
-            y: 'HULL',
-            color: null,
-            total_points: 2,
-            returned_points: 2,
-            points: [[1, 2], [3, 4]],
-            color_values: null,
-            color_labels: null,
-            color_min: null,
-            color_max: null,
+        const fetchScatterMatrixMock = vi.spyOn(api, 'fetchScatterMatrix').mockResolvedValue({
+            cells: new Map([
+                ['HUFL|HULL', { totalPoints: 2, points: [[1, 2], [3, 4]], colorValues: null, colorLabels: null }],
+                ['OT|HUFL', { totalPoints: 1, points: [[5, 6]], colorValues: null, colorLabels: null }],
+            ]),
         });
 
         await renderScatterOverview(() => { });
 
-        const otHuflCall = fetchScatterPointsMock.mock.calls.find(
-            ([x, y]) => x === 'OT' && y === 'HUFL',
-        );
-        expect(otHuflCall).toBeTruthy();
-        expect(otHuflCall?.[4]).toMatchObject({
-            filters: [
-                { column: 'HUFL', from: 1, to: 9 },
-                { column: 'OT', from: 3, to: 7 },
-            ],
-        });
-
-        const huflHullCall = fetchScatterPointsMock.mock.calls.find(
-            ([x, y]) => x === 'HUFL' && y === 'HULL',
-        );
-        expect(huflHullCall?.[4]).toMatchObject({
+        expect(fetchScatterMatrixMock).toHaveBeenCalledTimes(1);
+        expect(fetchScatterMatrixMock.mock.calls[0]?.[0]).toEqual(expect.arrayContaining([
+            { x: 'HUFL', y: 'HULL' },
+            { x: 'OT', y: 'HUFL' },
+        ]));
+        expect(fetchScatterMatrixMock.mock.calls[0]?.[2]).toMatchObject({
             filters: [
                 { column: 'HUFL', from: 1, to: 9 },
                 { column: 'HULL', from: 2, to: 8 },
+                { column: 'OT', from: 3, to: 7 },
             ],
         });
+    });
+
+    it('renders the matrix from one batch response instead of per-cell requests', async () => {
+        const fetchSpy = vi.spyOn(api, 'fetchScatterMatrix').mockResolvedValue({
+            cells: new Map([
+                ['HUFL|HUFL', { totalPoints: 1, points: [[1, 1]], colorValues: null, colorLabels: null }],
+                ['HULL|HUFL', { totalPoints: 1, points: [[2, 1]], colorValues: null, colorLabels: null }],
+                ['HUFL|HULL', { totalPoints: 1, points: [[1, 2]], colorValues: null, colorLabels: null }],
+                ['HULL|HULL', { totalPoints: 1, points: [[2, 2]], colorValues: null, colorLabels: null }],
+            ]),
+        });
+
+        appState.scatter.metadata = { numeric_columns: ['HUFL', 'HULL'] } as any;
+        appState.scatter.lastSuggestions = [];
+
+        await renderScatterOverview(() => { });
+
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+        const statusEl = document.getElementById('scatter-matrix-status');
+        expect(statusEl).not.toBeNull();
+        expect(statusEl?.textContent).toMatch(/Matrix loaded 4\/4 cells/);
+    });
+
+    it('reuses a cached matrix batch for identical pair sets and filters', async () => {
+        const fetchSpy = vi.spyOn(api, 'fetchScatterMatrix').mockResolvedValue({
+            cells: new Map([
+                ['HUFL|HUFL', { totalPoints: 1, points: [[1, 1]], colorValues: null, colorLabels: null }],
+                ['HULL|HUFL', { totalPoints: 1, points: [[2, 1]], colorValues: null, colorLabels: null }],
+                ['HUFL|HULL', { totalPoints: 1, points: [[1, 2]], colorValues: null, colorLabels: null }],
+                ['HULL|HULL', { totalPoints: 1, points: [[2, 2]], colorValues: null, colorLabels: null }],
+            ]),
+        });
+
+        appState.scatter.metadata = { numeric_columns: ['HUFL', 'HULL'] } as any;
+
+        await renderScatterOverview(() => { });
+        await renderScatterOverview(() => { });
+
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
 });

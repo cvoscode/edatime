@@ -4,7 +4,7 @@
  * Validates scatter-page utilities: color palettes, gradient sampling,
  * hex/RGB conversion, and computation helpers.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
     DEFAULT_SCATTER_SUGGESTION_THRESHOLD,
     paletteForScale,
@@ -18,7 +18,33 @@ import {
     LOW_CARDINALITY_LIMIT,
     normalizeScatterSuggestionThreshold,
     buildHistogramForDomain,
+    drawMiniDensityCanvas,
 } from './helpers';
+
+class DensityMockContext2D {
+    ops: string[] = [];
+    fillStyle = '';
+    strokeStyle = '';
+    lineWidth = 1;
+    font = '';
+    textAlign: CanvasTextAlign = 'start';
+    textBaseline: CanvasTextBaseline = 'alphabetic';
+
+    setTransform() { this.ops.push('setTransform'); }
+    clearRect() { this.ops.push('clearRect'); }
+    fillRect(x: number, y: number, w: number, h: number) {
+        this.ops.push(`fillRect:${Math.round(x)},${Math.round(y)},${Math.round(w)},${Math.round(h)}`);
+    }
+    strokeRect(_x: number, _y: number, w: number, h: number) { this.ops.push(`strokeRect:${Math.round(w)}x${Math.round(h)}`); }
+    fillText(text: string) { this.ops.push(`fillText:${text}`); }
+    beginPath() { this.ops.push('beginPath'); }
+    moveTo() { this.ops.push('moveTo'); }
+    lineTo() { this.ops.push('lineTo'); }
+    arc() { this.ops.push('arc'); }
+    closePath() { this.ops.push('closePath'); }
+    stroke() { this.ops.push('stroke'); }
+    fill() { this.ops.push('fill'); }
+}
 
 describe('scatter constants', () => {
     it('defines sensible limits', () => {
@@ -155,5 +181,110 @@ describe('buildHistogramForDomain', () => {
         );
 
         expect(histogram?.counts).toEqual([1, 1, 0, 0, 2]);
+    });
+});
+
+describe('drawMiniDensityCanvas', () => {
+    const densityContexts = new WeakMap<HTMLCanvasElement, DensityMockContext2D>();
+
+    beforeEach(() => {
+        Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+            configurable: true,
+            value: function getContext() {
+                let ctx = densityContexts.get(this);
+                if (!ctx) {
+                    ctx = new DensityMockContext2D();
+                    densityContexts.set(this, ctx);
+                }
+                ctx.ops = [];
+                return ctx;
+            },
+        });
+    });
+
+    function bindRect(element: HTMLElement, width: number, height: number) {
+        Object.defineProperty(element, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => ({
+                x: 0, y: 0, top: 0, left: 0, right: width, bottom: height, width, height,
+                toJSON: () => ({ x: 0, y: 0, top: 0, left: 0, right: width, bottom: height, width, height }),
+            }),
+        });
+    }
+
+    it('writes a "No points" placeholder for empty input', () => {
+        document.body.innerHTML = '<canvas id="density-empty"></canvas>';
+        const canvas = document.getElementById('density-empty') as HTMLCanvasElement;
+        bindRect(canvas, 180, 92);
+
+        drawMiniDensityCanvas(canvas, []);
+
+        const ctx = densityContexts.get(canvas)!;
+        const text = ctx.ops.filter((op) => op.startsWith('fillText:'));
+        expect(text).toContain('fillText:No points');
+        // No rectangle fills for an empty cell.
+        expect(ctx.ops.filter((op) => op.startsWith('fillRect:')).length).toBe(0);
+    });
+
+    it('renders a soft density fill instead of sparse scatter dots for low-density cells', () => {
+        // Tightly clustered points should produce a small but contiguous
+        // density blob. The 3×3 box-blur ensures neighbours of populated
+        // bins are shaded, so a 5×5 cluster produces > 25 fillRect ops
+        // (every populated bin + its smoothed neighbours).
+        document.body.innerHTML = '<canvas id="density-blob"></canvas>';
+        const canvas = document.getElementById('density-blob') as HTMLCanvasElement;
+        bindRect(canvas, 180, 92);
+
+        const points: [number, number][] = [];
+        for (let i = 0; i < 5; i++) {
+            for (let j = 0; j < 5; j++) {
+                points.push([10 + i * 0.1, 20 + j * 0.1]);
+            }
+        }
+
+        drawMiniDensityCanvas(canvas, points);
+
+        const ctx = densityContexts.get(canvas)!;
+        const fills = ctx.ops.filter((op) => op.startsWith('fillRect:'));
+        expect(fills.length).toBeGreaterThan(25);
+        // Density badge should make the cell unambiguous next to scatter cells.
+        expect(ctx.ops).toContain('fillText:Density');
+        // No isolated fill calls — neighbours of the cluster must be shaded too.
+        const xPositions = fills.map((op) => Number(op.split(':')[1].split(',')[0]));
+        const uniqueXs = new Set(xPositions.map((x) => Math.round(x)));
+        expect(uniqueXs.size).toBeGreaterThan(3);
+    });
+
+    it('survives non-finite values mixed into the point list', () => {
+        document.body.innerHTML = '<canvas id="density-mixed"></canvas>';
+        const canvas = document.getElementById('density-mixed') as HTMLCanvasElement;
+        bindRect(canvas, 180, 92);
+
+        drawMiniDensityCanvas(canvas, [
+            [Number.NaN, 1],
+            [1, Number.POSITIVE_INFINITY],
+            [2, 4],
+            [3, 5],
+            [4, 6],
+        ]);
+
+        const ctx = densityContexts.get(canvas)!;
+        const fills = ctx.ops.filter((op) => op.startsWith('fillRect:'));
+        // Only the three finite points (2,4), (3,5), (4,6) should populate bins.
+        expect(fills.length).toBeGreaterThan(0);
+        // "No points" placeholder must not be drawn when there is finite data.
+        expect(ctx.ops.filter((op) => op === 'fillText:No points')).toHaveLength(0);
+    });
+
+    it('writes a density label on the canvas regardless of fill colour', () => {
+        document.body.innerHTML = '<canvas id="density-label"></canvas>';
+        const canvas = document.getElementById('density-label') as HTMLCanvasElement;
+        bindRect(canvas, 180, 92);
+
+        const points: [number, number][] = Array.from({ length: 30 }, (_, i) => [i * 0.5, i * 0.25]);
+        drawMiniDensityCanvas(canvas, points, { colorScale: 'inferno' });
+
+        const ctx = densityContexts.get(canvas)!;
+        expect(ctx.ops).toContain('fillText:Density');
     });
 });

@@ -1,42 +1,32 @@
 # ai/frontend/src/pages/fftPage.md
-> Owns the FFT analysis page, including trace fetch/render state, shared analysis-shell wiring, deferred exports, and optional spectral-filter preview flow.
+> FFT analysis page runtime: persisted trace selection, first-visit seeding, spectral metadata panel, exports, and optional spectral-filter preview.
 
-## Interface: FftPageDeps
+## Interface `FftPageDeps`
 - `renderTimeseries: () => void`
 
-## State
-- `fftTraces: FftTrace[]`
-- `fftMode: string`
-- `fftLogScale: boolean`
-- `fftChart: FftChart | null`
-- `fftTraceColors: Record<string, string>`
-- `fftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null`
-- `fftPageCleanup: (() => void) | null`
-
 ## Functions
-- `resetFftPageState(): void`
-  - Clears FFT runtime state and teardown hooks.
 - `__resetFftPageForTests(): void`
-  - Test-only wrapper around the FFT state reset.
-- `fftColumns(): string[]` [deps: [getNumericColumns][1]]
-  - Returns the numeric dataset columns available for FFT.
-- `fftColorFor(column: string, fallbackIndex: number): string` [deps: [getAnalyticsChipColor][1]]
-  - Resolves a trace color from overrides or the analytics palette.
-- `updateZoomButton(isZoomed?: boolean): void`
-  - Shows or hides the FFT zoom-reset button.
+  - Clears module-scoped FFT page state between tests.
+- `loadStoredFftSelection(): string[] | null`
+  - Reads the persisted selected FFT columns from `localStorage`.
+- `persistFftSelection(): void`
+  - Writes the current FFT trace selection to `localStorage`.
 - `syncFftEmptyState(): void`
-  - Synchronizes the FFT empty-state model and DOM visibility with current trace selection.
-- `rerenderOrClear(): void`
-  - Clears the chart when no traces are active or rerenders it with the current FFT mode.
-- `fetchAndAddTrace(column: string): Promise<void>` [deps: [fetchFft][2]]
-  - Fetches FFT data for one column and merges it into the active trace set.
-- `renderChips(): void` [deps: [renderSeriesChipList][3]]
-  - Renders FFT trace chips with preserved transient loading state and shared color plumbing.
-- `initFftPage(deps: FftPageDeps): Promise<void>` [deps: [createAnalysisPageRuntime][4], [fetchSpectralFilter][2]]
-  - Initializes the FFT page shell, chart, controls, exports, and spectral-filter preview interactions.
+  - Keeps the shared empty state hidden while traces are selected or loading.
+- `syncFftSpectralInfo(): void`
+  - Mirrors `sample_rate_hz`, `nyquist_hz`, and dominant peaks from the first loaded trace into the live info panel.
+- `ensureFftChartReady(): Promise<void>`
+  - Initializes `FftChart` and falls back to `EchartsLineChart` on renderer failure.
+- `fetchAndAddTrace(column: string): Promise<void>` [deps: [fetchFft][1]]
+  - Fetches one FFT trace and merges it into `fftTraces`.
+- `seedInitialFftSelection(): Promise<void>`
+  - Loads the stored trace selection or, on first visit, fetches the first two numeric columns.
+- `renderChips(): void` [deps: [renderSeriesChipList][2]]
+  - Renders FFT trace chips with preserved loading state and shared color updates.
+- `initFftPage(deps: FftPageDeps): Promise<void>` [deps: [createAnalysisPageRuntime][3], [fetchSpectralFilter][1]]
+  - Boots the FFT page shell, control listeners, exports, chip rail, first-load selection, and spectral-filter preview flow.
 
 ---
-[1]: ./analyticsPageUtils.md
-[2]: ../services/api/analytics.md
-[3]: ../ui/seriesChipList.md#renderSeriesChipList
-[4]: ./shared/analysisPageRuntime.md#createAnalysisPageRuntime
+[1]: ../services/api/analytics.md
+[2]: ../ui/seriesChipList.md#renderSeriesChipList
+[3]: ./shared/analysisPageRuntime.md#createAnalysisPageRuntime

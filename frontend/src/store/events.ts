@@ -14,6 +14,7 @@ export type StoreEventMap = {
     'analytics:spectralFilterPreview': StoreChange<unknown>;
     'chart:chart': StoreChange<unknown>;
     'chart:chartText': StoreChange<unknown>;
+    'chart:stackFromZero': StoreChange<boolean>;
     'chart:currentEnd': StoreChange<number | null>;
     'chart:currentStart': StoreChange<number | null>;
     'chart:initialView': StoreChange<unknown>;

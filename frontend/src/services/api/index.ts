@@ -13,7 +13,7 @@ export { fetchMetadata, fetchSampleDataset } from './metadata.js';
 export { fetchData } from './timeseries.js';
 
 // Scatter / Correlation
-export { fetchScatterPoints, fetchScatterCorrelations } from './scatter.js';
+export { fetchScatterPoints, fetchScatterMatrix, fetchScatterCorrelations } from './scatter.js';
 export { fetchCorrelationMatrix } from './scatter-matrix.js';
 
 // Analytics

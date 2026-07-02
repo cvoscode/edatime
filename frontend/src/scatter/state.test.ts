@@ -1,6 +1,21 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { appState } from '../store/appStateCompat.js';
 import { buildScatterQueryContext, getActiveScatterFilterColumns } from './state.js';
+import { setScatterViewSnapshot } from '../store/scatterState.js';
+
+/**
+ * Mirror the in-app behaviour: tests that stage `appState.columnRanges`
+ * should also push them into the active view's filter snapshot so the
+ * scatter query context picks them up. The page controller keeps the two
+ * in sync via event listeners; here we just call the setter directly
+ * because we want a deterministic test fixture.
+ */
+function primePlotSnapshot(): void {
+    setScatterViewSnapshot('plot', {
+        columnRanges: (appState.columnRanges as Record<string, { from: number; to: number }>) || {},
+        lineFilters: [],
+    });
+}
 
 describe('scatter query context builders', () => {
     beforeEach(() => {
@@ -9,6 +24,7 @@ describe('scatter query context builders', () => {
         appState.currentEnd = null;
         appState.columnRanges = {};
         appState.metadata = null;
+        primePlotSnapshot();
     });
 
     it('returns undefined start/end for invalid linked ranges in scatter queries', () => {
@@ -63,6 +79,7 @@ describe('scatter query context builders', () => {
             y: { from: 2, to: 8 },
             unrelated: { from: 5, to: 6 },
         } as any;
+        primePlotSnapshot();
 
         const result = buildScatterQueryContext({ x: 'x', y: 'y', colorColumn: '' });
         expect(result.filters).toEqual([
@@ -77,6 +94,7 @@ describe('scatter query context builders', () => {
             color_bucket: { from: 0, to: 1 },
             ignored: { from: 5, to: 6 },
         } as any;
+        primePlotSnapshot();
 
         const cols = getActiveScatterFilterColumns({ x: 'x', y: 'y', colorColumn: 'color_bucket' });
         expect(cols.sort()).toEqual(['color_bucket', 'x']);

@@ -3,6 +3,7 @@
 mod collect;
 mod correlations;
 mod export;
+mod matrix;
 mod points;
 mod sample;
 
@@ -24,6 +25,7 @@ pub use correlations::{
     get_correlation_matrix, get_scatter_correlations, spawn_correlation_matrix_warmup,
 };
 pub use export::post_scatter_export_parquet;
+pub use matrix::post_scatter_matrix;
 pub use points::{get_scatter_points, post_scatter_points};
 
 // Re-export sampling helpers for tests and downstream consumers.
@@ -65,6 +67,26 @@ pub struct ScatterPointsResponse {
     pub size_values: Option<Vec<f64>>,
     pub size_min: Option<f64>,
     pub size_max: Option<f64>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ScatterMatrixPair {
+    pub x: String,
+    pub y: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ScatterMatrixQuery {
+    pub pairs: Vec<ScatterMatrixPair>,
+    pub color: Option<String>,
+    pub start: Option<f64>,
+    pub end: Option<f64>,
+    pub filters: Option<String>,
+    pub line_filters: Option<String>,
+    #[serde(default = "default_scatter_limit")]
+    pub limit: usize,
 }
 
 #[derive(Debug, Serialize, Clone)]

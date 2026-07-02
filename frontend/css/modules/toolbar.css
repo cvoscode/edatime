@@ -1011,6 +1011,41 @@
   line-height: 16px;
 }
 
+/* Pressed-state styling for compact toolbar toggle buttons used by
+   features like the heatmap "Auto-fit" toggle. The same `.is-active`
+   modifier keeps the API consistent across pages so toggling a
+   filter / mode is always visually identical. */
+.toolbar-toggle-btn {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  letter-spacing: 0.01em;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--shell-border, rgba(255, 255, 255, 0.08));
+  color: var(--text);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.toolbar-toggle-btn[aria-pressed="true"],
+.toolbar-toggle-btn.is-active {
+  background: rgba(0, 168, 255, 0.18);
+  border-color: rgba(0, 168, 255, 0.45);
+  color: var(--accent, #00A8FF);
+}
+
+.toolbar-toggle-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 168, 255, 0.35);
+  border-color: rgba(0, 168, 255, 0.5);
+}
+
+.scatter-toolbar .scatter-toolbar__field--fit {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Density sub-controls (Bins, Scale) live inside the Refine segment
    next to the color column / color scale selects. They are only shown
    in density mode (toggled by syncModeUI) and the row is allowed to

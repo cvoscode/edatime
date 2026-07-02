@@ -488,7 +488,9 @@ fn top_pairs_from_matrix(
     let mut pairs: Vec<TopPairItem> = Vec::with_capacity(n * (n - 1) / 2);
     for i in 0..n {
         for j in (i + 1)..n {
-            let Some(value) = selected[i][j] else { continue };
+            let Some(value) = selected[i][j] else {
+                continue;
+            };
             pairs.push(TopPairItem {
                 x: data.columns[i].clone(),
                 y: data.columns[j].clone(),
@@ -502,7 +504,9 @@ fn top_pairs_from_matrix(
         let b_score = b.correlation.abs();
         // Descending by |r|, ties broken by signed correlation (positive
         // first) so the strongest positive pair wins on ties.
-        b_score.total_cmp(&a_score).then_with(|| b.correlation.total_cmp(&a.correlation))
+        b_score
+            .total_cmp(&a_score)
+            .then_with(|| b.correlation.total_cmp(&a.correlation))
     });
     pairs.truncate(limit);
     pairs
@@ -654,41 +658,46 @@ mod tests {
         // miss it when threshold > |corr(a,*)|; the new `top_pairs` field
         // surfaces it regardless — see `usage_issue.md` §2.1.
         let cached = edatime_store::cache::CorrelationMatrixCacheEntry {
-            columns: vec!["a".to_string(), "b".to_string(), "c".to_string(), "d".to_string()],
+            columns: vec![
+                "a".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+                "d".to_string(),
+            ],
             pearson_raw: vec![
-                vec![Some(1.0),  Some(0.25), Some(0.30), Some(-0.10)],
-                vec![Some(0.25), Some(1.0),  Some(0.91), Some(-0.60)],
-                vec![Some(0.30), Some(0.91), Some(1.0),  Some(-0.20)],
+                vec![Some(1.0), Some(0.25), Some(0.30), Some(-0.10)],
+                vec![Some(0.25), Some(1.0), Some(0.91), Some(-0.60)],
+                vec![Some(0.30), Some(0.91), Some(1.0), Some(-0.20)],
                 vec![Some(-0.10), Some(-0.60), Some(-0.20), Some(1.0)],
             ],
             spearman_raw: vec![
-                vec![Some(1.0),  Some(0.25), Some(0.30), Some(-0.10)],
-                vec![Some(0.25), Some(1.0),  Some(0.91), Some(-0.60)],
-                vec![Some(0.30), Some(0.91), Some(1.0),  Some(-0.20)],
+                vec![Some(1.0), Some(0.25), Some(0.30), Some(-0.10)],
+                vec![Some(0.25), Some(1.0), Some(0.91), Some(-0.60)],
+                vec![Some(0.30), Some(0.91), Some(1.0), Some(-0.20)],
                 vec![Some(-0.10), Some(-0.60), Some(-0.20), Some(1.0)],
             ],
             kendall_raw: vec![
-                vec![Some(1.0),  Some(0.25), Some(0.30), Some(-0.10)],
-                vec![Some(0.25), Some(1.0),  Some(0.91), Some(-0.60)],
-                vec![Some(0.30), Some(0.91), Some(1.0),  Some(-0.20)],
+                vec![Some(1.0), Some(0.25), Some(0.30), Some(-0.10)],
+                vec![Some(0.25), Some(1.0), Some(0.91), Some(-0.60)],
+                vec![Some(0.30), Some(0.91), Some(1.0), Some(-0.20)],
                 vec![Some(-0.10), Some(-0.60), Some(-0.20), Some(1.0)],
             ],
             pearson_diff: vec![
-                vec![Some(1.0),  Some(0.25), Some(0.30), Some(-0.10)],
-                vec![Some(0.25), Some(1.0),  Some(0.91), Some(-0.60)],
-                vec![Some(0.30), Some(0.91), Some(1.0),  Some(-0.20)],
+                vec![Some(1.0), Some(0.25), Some(0.30), Some(-0.10)],
+                vec![Some(0.25), Some(1.0), Some(0.91), Some(-0.60)],
+                vec![Some(0.30), Some(0.91), Some(1.0), Some(-0.20)],
                 vec![Some(-0.10), Some(-0.60), Some(-0.20), Some(1.0)],
             ],
             spearman_diff: vec![
-                vec![Some(1.0),  Some(0.25), Some(0.30), Some(-0.10)],
-                vec![Some(0.25), Some(1.0),  Some(0.91), Some(-0.60)],
-                vec![Some(0.30), Some(0.91), Some(1.0),  Some(-0.20)],
+                vec![Some(1.0), Some(0.25), Some(0.30), Some(-0.10)],
+                vec![Some(0.25), Some(1.0), Some(0.91), Some(-0.60)],
+                vec![Some(0.30), Some(0.91), Some(1.0), Some(-0.20)],
                 vec![Some(-0.10), Some(-0.60), Some(-0.20), Some(1.0)],
             ],
             kendall_diff: vec![
-                vec![Some(1.0),  Some(0.25), Some(0.30), Some(-0.10)],
-                vec![Some(0.25), Some(1.0),  Some(0.91), Some(-0.60)],
-                vec![Some(0.30), Some(0.91), Some(1.0),  Some(-0.20)],
+                vec![Some(1.0), Some(0.25), Some(0.30), Some(-0.10)],
+                vec![Some(0.25), Some(1.0), Some(0.91), Some(-0.60)],
+                vec![Some(0.30), Some(0.91), Some(1.0), Some(-0.20)],
                 vec![Some(-0.10), Some(-0.60), Some(-0.20), Some(1.0)],
             ],
             counts: vec![
@@ -711,7 +720,10 @@ mod tests {
         .expect("cached matrix should build response");
 
         // Legacy base-column suggestions are filtered out by threshold.
-        assert!(response.suggestions.is_empty(), "threshold should hide suggestions");
+        assert!(
+            response.suggestions.is_empty(),
+            "threshold should hide suggestions"
+        );
 
         // top_pairs is sorted by |r| descending and includes the strongest
         // off-base pair first (b ↔ c = 0.91), then the strong negative

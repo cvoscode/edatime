@@ -550,16 +550,26 @@
 .heatmap-container {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 8px;
+  width: 100%;
 }
 
 .heatmap-shell {
-  display: inline-flex;
+  display: flex;
   align-items: flex-end;
+  justify-content: space-between;
   gap: 18px;
   padding: 10px 8px;
   background: transparent;
+  width: 100%;
+  box-sizing: border-box;
+  /* Allow wide grids to scroll horizontally instead of forcing every cell
+     to shrink to fit. The previous `display:inline-flex` left the grid
+     locked at the natural column-count × fixed-cell-size width, which
+     made larger correlation matrices feel cramped on a wide page. */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .heatmap-grid {
@@ -585,15 +595,15 @@
 .heatmap-header {
   display: flex;
   align-items: flex-end;
-  justify-content: center;
+  justify-content: flex-start;
   overflow: hidden;
-  padding: 4px 2px 8px;
+  padding: 0 2px 8px;
   text-overflow: ellipsis;
-}
-
-.heatmap-header--vertical {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
+  white-space: normal;
+  line-height: 1.15;
+  min-height: 40px;
+  text-align: left;
+  overflow-wrap: anywhere;
 }
 
 .heatmap-row-label {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock shared dependencies
 vi.mock('../services/api/index.js', () => ({
@@ -63,11 +63,21 @@ describe('spectrogramPage', () => {
         document.body.innerHTML = `
             <div id="spectrogram-chart"></div>
             <div id="spectrogram-empty-state"></div>
-            <div id="spectrogram-col-select"></div>
-            <div id="spectrogram-win-size"></div>
-            <div id="spectrogram-hop-size"></div>
-            <div id="spectrogram-log-scale"></div>
-            <div id="spectrogram-zoom-reset-btn"></div>
+            <select id="spectrogram-col-select">
+              <option value="HUFL" selected>HUFL</option>
+            </select>
+            <select id="spectrogram-win-size">
+              <option value="96" selected>96</option>
+              <option value="custom">Custom</option>
+            </select>
+            <input id="spectrogram-win-size-custom" type="number" value="96" hidden disabled />
+            <select id="spectrogram-hop-size">
+              <option value="0.5" selected>0.5</option>
+              <option value="custom">Custom</option>
+            </select>
+            <input id="spectrogram-hop-size-custom" type="number" value="48" hidden disabled />
+            <input id="spectrogram-log-scale" type="checkbox" checked />
+            <button id="spectrogram-zoom-reset-btn">Reset zoom</button>
             <div class="spectrogram-chart-row">
               <div id="spectrogram-colorbar" class="scatter-colorbar-vertical" hidden>
                 <span class="scatter-colorbar-vtick" data-role="cb-high">High</span>
@@ -188,13 +198,20 @@ describe('spectrogramPage colorbar filter', () => {
               </select>
               <select id="spectrogram-win-size">
                 <option value="96" selected>96</option>
+                <option value="custom">Custom</option>
               </select>
+              <input id="spectrogram-win-size-custom" type="number" value="96" hidden disabled />
               <select id="spectrogram-hop-size">
                 <option value="0.5" selected>0.5</option>
+                <option value="custom">Custom</option>
               </select>
+              <input id="spectrogram-hop-size-custom" type="number" value="48" hidden disabled />
               <input id="spectrogram-log-scale" type="checkbox" checked />
               <button id="spectrogram-zoom-reset-btn">Reset zoom</button>
-              <select id="spectrogram-normalize"><option value="none" selected>None</option></select>
+              <select id="spectrogram-normalize">
+                <option value="none" selected>None</option>
+                <option value="zscore">Z-score</option>
+              </select>
               <input id="spectrogram-clip-toggle" type="checkbox" />
               <select id="spectrogram-clip-method" disabled><option value="percentile" selected>Percentile</option></select>
               <input id="spectrogram-clip-param" type="number" value="0.5" disabled />
@@ -204,13 +221,17 @@ describe('spectrogramPage colorbar filter', () => {
         makeChartReady();
     });
 
+    afterEach(async () => {
+        const { __resetSpectrogramPageForTests } = await import('../pages/spectrogramPage.js');
+        __resetSpectrogramPageForTests();
+    });
+
     async function mountAndCompute(): Promise<void> {
         const { appState } = await import('../store/appStateCompat.js');
         appState.currentStart = 0;
         appState.currentEnd = 1e6;
         const { initSpectrogramPage } = await import('../pages/spectrogramPage.js');
         await initSpectrogramPage({ setLoading: vi.fn() });
-        document.getElementById('spectrogram-compute-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         for (let i = 0; i < 30; i += 1) {
             await new Promise((resolve) => setTimeout(resolve, 0));
         }
@@ -224,10 +245,161 @@ describe('spectrogramPage colorbar filter', () => {
         expect(wrap?.querySelector('[data-role="cb-low"]')?.textContent).toMatch(/^Low/);
     });
 
+    it('auto-computes on first load when a default column is already selected', async () => {
+        const { appState } = await import('../store/appStateCompat.js');
+        const { fetchSpectrogram } = await import('../services/api/index.js');
+        const beforeCalls = vi.mocked(fetchSpectrogram).mock.calls.length;
+        appState.currentStart = 0;
+        appState.currentEnd = 1e6;
+
+        const { initSpectrogramPage } = await import('../pages/spectrogramPage.js');
+        await initSpectrogramPage({ setLoading: vi.fn() });
+        for (let i = 0; i < 30; i += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+
+        expect(vi.mocked(fetchSpectrogram).mock.calls.length).toBe(beforeCalls + 1);
+    });
+
+    it('treats normalize as a staged control and only applies it after Compute', async () => {
+        await mountAndCompute();
+
+        const { fetchSpectrogram } = await import('../services/api/index.js');
+        const { setDropdownValue } = await import('../ui/primitives/Dropdown.js');
+        const fetchMock = vi.mocked(fetchSpectrogram);
+        const computeButton = document.getElementById('spectrogram-compute-btn') as HTMLButtonElement;
+        const instance = echartsInstances[echartsInstances.length - 1];
+        const setOptionCallsBefore = instance.setOption.mock.calls.length;
+        const fetchCallsBefore = fetchMock.mock.calls.length;
+
+        setDropdownValue('spectrogram-normalize', 'zscore', { emitChange: true });
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(fetchMock.mock.calls.length).toBe(fetchCallsBefore);
+        expect(instance.setOption.mock.calls.length).toBe(setOptionCallsBefore);
+
+        computeButton.click();
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(fetchMock.mock.calls.length).toBe(fetchCallsBefore + 1);
+        expect(fetchMock.mock.calls.at(-1)?.[7]).toEqual(expect.objectContaining({ normalize: 'zscore' }));
+        expect(instance.setOption.mock.calls.length).toBeGreaterThan(setOptionCallsBefore);
+    });
+
+    it('reveals custom window and hop inputs and sends absolute sample values on Compute', async () => {
+        const { appState } = await import('../store/appStateCompat.js');
+        const { fetchSpectrogram } = await import('../services/api/index.js');
+        const { setDropdownValue } = await import('../ui/primitives/Dropdown.js');
+        appState.currentStart = 0;
+        appState.currentEnd = 1e6;
+
+        const { initSpectrogramPage } = await import('../pages/spectrogramPage.js');
+        await initSpectrogramPage({ setLoading: vi.fn() });
+        for (let i = 0; i < 10; i += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+
+        const fetchMock = vi.mocked(fetchSpectrogram);
+        fetchMock.mockClear();
+
+        const winCustom = document.getElementById('spectrogram-win-size-custom') as HTMLInputElement;
+        const hopCustom = document.getElementById('spectrogram-hop-size-custom') as HTMLInputElement;
+        const computeButton = document.getElementById('spectrogram-compute-btn') as HTMLButtonElement;
+
+        setDropdownValue('spectrogram-win-size', 'custom', { emitChange: true });
+        setDropdownValue('spectrogram-hop-size', 'custom', { emitChange: true });
+
+        expect(winCustom.hidden).toBe(false);
+        expect(winCustom.disabled).toBe(false);
+        expect(hopCustom.hidden).toBe(false);
+        expect(hopCustom.disabled).toBe(false);
+
+        winCustom.value = '320';
+        hopCustom.value = '48';
+
+        computeButton.click();
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock.mock.calls[0]?.[3]).toBe(320);
+        expect(fetchMock.mock.calls[0]?.[4]).toBe(48);
+    });
+
+    it('renders normalized spectrogram values even when log scale remains checked', async () => {
+        const { appState } = await import('../store/appStateCompat.js');
+        const { fetchSpectrogram } = await import('../services/api/index.js');
+        const { setDropdownValue } = await import('../ui/primitives/Dropdown.js');
+        appState.currentStart = 0;
+        appState.currentEnd = 1e6;
+
+        const fetchMock = vi.mocked(fetchSpectrogram);
+        const { initSpectrogramPage } = await import('../pages/spectrogramPage.js');
+        await initSpectrogramPage({ setLoading: vi.fn() });
+        for (let i = 0; i < 20; i += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+
+        fetchMock.mockClear();
+        fetchMock.mockResolvedValueOnce({
+            result: {
+                column: 'HUFL',
+                times_ms: [1000, 2000],
+                frequencies: [10, 20],
+                magnitudes: [[-1, 0.5], [1.25, -0.25]],
+            },
+            sample_count: 4,
+        });
+
+        setDropdownValue('spectrogram-normalize', 'zscore', { emitChange: true });
+        const computeButton = document.getElementById('spectrogram-compute-btn') as HTMLButtonElement;
+        computeButton.click();
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        const instance = echartsInstances[echartsInstances.length - 1];
+        const option = instance.setOption.mock.calls.at(-1)?.[0];
+        expect(option?.series?.[0]?.data).toHaveLength(4);
+    });
+
+    it('reuses the cached log-series array when toggling log off and back on', async () => {
+        await mountAndCompute();
+
+        const logToggle = document.getElementById('spectrogram-log-scale') as HTMLInputElement;
+        const instance = echartsInstances[echartsInstances.length - 1];
+        const initialOption = instance.setOption.mock.calls.at(-1)?.[0];
+        const firstLogData = initialOption?.series?.[0]?.data;
+
+        logToggle.checked = false;
+        logToggle.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        logToggle.checked = true;
+        logToggle.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        const afterOption = instance.setOption.mock.calls.at(-1)?.[0];
+        expect(afterOption?.series?.[0]?.data).toBe(firstLogData);
+    });
+
+    it('formats tooltip values from axis indices and compact point payloads', async () => {
+        await mountAndCompute();
+
+        const instance = echartsInstances[echartsInstances.length - 1];
+        const option = instance.setOption.mock.calls.at(-1)?.[0];
+        const formatter = option?.tooltip?.formatter as ((params: { value: number[] }) => string) | undefined;
+        const tooltipHtml = formatter?.({ value: [1, 2, 0.5, 7] });
+
+        expect(String(tooltipHtml)).toContain('Frequency: 300.00 Hz');
+        expect(String(tooltipHtml)).toContain('Raw magnitude: 7.0000e+0');
+    });
+
     it('dragging the high handle down filters the rendered heatmap points', async () => {
         await mountAndCompute();
 
-        const instance = firstEchartsInstance ?? echartsInstances[0];
+        const instance = echartsInstances[echartsInstances.length - 1];
         const beforeCalls = instance.setOption.mock.calls.length;
         const beforeOption = beforeCalls > 0 ? instance.setOption.mock.calls[beforeCalls - 1][0] : null;
         const beforeData: any[] = beforeOption?.series?.[0]?.data ?? [];
@@ -251,5 +423,35 @@ describe('spectrogramPage colorbar filter', () => {
         expect(parseFloat(handleHigh.style.top)).toBeGreaterThan(0);
         expect(afterData.length).toBeLessThan(beforeData.length);
         expect(document.querySelector<HTMLElement>('[data-role="cb-fill"]')?.hidden).toBe(false);
+    });
+
+    it('reuses the visible data buffer across colorbar drags', async () => {
+        await mountAndCompute();
+
+        const instance = echartsInstances[echartsInstances.length - 1];
+        const handleHigh = document.querySelector<HTMLElement>('[data-role="cb-handle-high"]')!;
+        (handleHigh as any).setPointerCapture = vi.fn();
+        (handleHigh as any).releasePointerCapture = vi.fn();
+
+        handleHigh.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientY: 0, button: 0, pointerId: 1 }));
+        handleHigh.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientY: 100, pointerId: 1 }));
+        handleHigh.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientY: 100, pointerId: 1 }));
+
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        const firstFiltered = instance.setOption.mock.calls.at(-1)?.[0]?.series?.[0]?.data;
+        const firstFilteredLength = firstFiltered?.length ?? 0;
+
+        handleHigh.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientY: 100, button: 0, pointerId: 2 }));
+        handleHigh.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientY: 120, pointerId: 2 }));
+        handleHigh.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientY: 120, pointerId: 2 }));
+
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        const secondFiltered = instance.setOption.mock.calls.at(-1)?.[0]?.series?.[0]?.data;
+        expect(firstFilteredLength).toBeGreaterThan(0);
+        expect(secondFiltered).toBe(firstFiltered);
     });
 });

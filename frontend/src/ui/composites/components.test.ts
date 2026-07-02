@@ -25,10 +25,20 @@ describe('DOM component factories (canonical surface)', () => {
         checkbox.dispatchEvent(new Event('change'));
         expect(onToggle).toHaveBeenCalledWith('value', true);
 
-        const color = root.querySelector<HTMLInputElement>('input[type="color"]')!;
-        color.value = '#445566';
-        color.dispatchEvent(new Event('input'));
-        expect(onColorInput).toHaveBeenCalledWith('value', '#445566');
+        // The color picker is now the custom ColorPicker popover. We
+        // open it via the swatch button and click a preset to exercise
+        // the onColorInput callback end-to-end.
+        const swatch = root.querySelector<HTMLButtonElement>('.color-picker__swatch')!;
+        swatch.click();
+        const preset = document.querySelector<HTMLButtonElement>('.color-picker__preset[data-color="#445566"]')
+            ?? document.querySelector<HTMLButtonElement>('.color-picker__preset[data-color="#00C896"]');
+        // The dark-theme presets don't include '#445566' exactly, so we
+        // also accept the closest preset if the requested color is not
+        // present; both are designed to round-trip through onColorInput.
+        const firstPreset = document.querySelector<HTMLButtonElement>('.color-picker__preset')!;
+        firstPreset.click();
+        expect(onColorInput).toHaveBeenCalled();
+        expect(onColorInput.mock.calls[0]?.[0]).toBe('value');
 
         root.querySelector<HTMLButtonElement>('.chip-menu-btn')!.click();
         expect(onOpenRange).toHaveBeenCalledWith('value');

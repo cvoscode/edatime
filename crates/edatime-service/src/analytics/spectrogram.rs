@@ -4,9 +4,9 @@ use polars::prelude::*;
 use rustfft::{FftPlanner, num_complex::Complex};
 use serde::{Deserialize, Serialize};
 
+use super::shared::{estimate_sample_rate_hz, extract_f64_column, extract_ts_epoch_ms};
 use crate::error::AppError;
-use super::shared::{extract_f64_column, extract_ts_epoch_ms, estimate_sample_rate_hz};
-use edatime_core::stats::{compute_column_stats, ColumnStats};
+use edatime_core::stats::{ColumnStats, compute_column_stats};
 
 /// Normalization mode for the spectrogram colorbar. Mirrors the
 /// frontend `ScaleMode` in `frontend/src/utils/spectralScaling.ts` so
@@ -84,7 +84,11 @@ impl ScaleOptions {
             ClipMode::Iqr => 1.5,
         };
         let param = clip_param.unwrap_or(default_param);
-        Ok(Self { mode, clip, clip_param: param })
+        Ok(Self {
+            mode,
+            clip,
+            clip_param: param,
+        })
     }
 }
 
@@ -230,19 +234,13 @@ pub fn apply_scale(result: &mut SpectrogramResult, opts: ScaleOptions) -> Result
     // 2. Stretch the clipped values into [0, 1] (or pass through when no
     //    normalization is requested). We compute the stretch span from the
     //    same `flat` array so degenerate inputs collapse to a stable 0.5.
-    let mut clipped_flat: Vec<f64> = flat
-        .iter()
-        .map(|&v| v.clamp(clip_low, clip_high))
-        .collect();
+    let mut clipped_flat: Vec<f64> = flat.iter().map(|&v| v.clamp(clip_low, clip_high)).collect();
 
     let (vmin, vmax) = match opts.mode {
         ScaleMode::None => {
             // Colorbar pinned to the clipped span so the user sees the
             // tightened range even without an explicit stretch.
-            let lo = clipped_flat
-                .iter()
-                .cloned()
-                .fold(f64::INFINITY, f64::min);
+            let lo = clipped_flat.iter().cloned().fold(f64::INFINITY, f64::min);
             let hi = clipped_flat
                 .iter()
                 .cloned()
@@ -253,7 +251,11 @@ pub fn apply_scale(result: &mut SpectrogramResult, opts: ScaleOptions) -> Result
         ScaleMode::Zscore => stretch_zscore(&mut clipped_flat, &stats),
         ScaleMode::Robust => stretch_robust(&mut clipped_flat, &stats),
     };
-    let _ = if vmax > vmin { (vmin, vmax) } else { (vmin, vmin + 1.0) };
+    let _ = if vmax > vmin {
+        (vmin, vmax)
+    } else {
+        (vmin, vmin + 1.0)
+    };
     // ^ colorbar bounds; informational only at the moment, but kept here
     //   so the next iteration can surface them in the response.
 
@@ -464,7 +466,11 @@ mod tests {
         let mut r = make_result(vec![1.0, 2.0, 3.0]);
         apply_scale(
             &mut r,
-            ScaleOptions { mode: ScaleMode::None, clip: ClipMode::None, clip_param: 0.0 },
+            ScaleOptions {
+                mode: ScaleMode::None,
+                clip: ClipMode::None,
+                clip_param: 0.0,
+            },
         )
         .unwrap();
         assert_eq!(r.magnitudes, vec![vec![1.0], vec![2.0], vec![3.0]]);
@@ -475,7 +481,11 @@ mod tests {
         let mut r = make_result(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
         apply_scale(
             &mut r,
-            ScaleOptions { mode: ScaleMode::Minmax, clip: ClipMode::None, clip_param: 0.0 },
+            ScaleOptions {
+                mode: ScaleMode::Minmax,
+                clip: ClipMode::None,
+                clip_param: 0.0,
+            },
         )
         .unwrap();
         let flat: Vec<f64> = r.magnitudes.iter().flatten().copied().collect();
@@ -493,7 +503,11 @@ mod tests {
         let mut r = make_result(raw);
         apply_scale(
             &mut r,
-            ScaleOptions { mode: ScaleMode::Minmax, clip: ClipMode::Iqr, clip_param: 1.5 },
+            ScaleOptions {
+                mode: ScaleMode::Minmax,
+                clip: ClipMode::Iqr,
+                clip_param: 1.5,
+            },
         )
         .unwrap();
         let flat: Vec<f64> = r.magnitudes.iter().flatten().copied().collect();
@@ -513,7 +527,11 @@ mod tests {
         let mut r = make_result(vec![0.0, 1.0, 2.0, 3.0, 4.0]);
         apply_scale(
             &mut r,
-            ScaleOptions { mode: ScaleMode::None, clip: ClipMode::Percentile, clip_param: 100.0 },
+            ScaleOptions {
+                mode: ScaleMode::None,
+                clip: ClipMode::Percentile,
+                clip_param: 100.0,
+            },
         )
         .unwrap();
         for row in &r.magnitudes {
@@ -528,7 +546,11 @@ mod tests {
         let mut r1 = make_result(vec![10.0, 12.0, 14.0, 16.0, 18.0]);
         apply_scale(
             &mut r1,
-            ScaleOptions { mode: ScaleMode::Zscore, clip: ClipMode::None, clip_param: 0.0 },
+            ScaleOptions {
+                mode: ScaleMode::Zscore,
+                clip: ClipMode::None,
+                clip_param: 0.0,
+            },
         )
         .unwrap();
         let flat: Vec<f64> = r1.magnitudes.iter().flatten().copied().collect();
@@ -537,7 +559,11 @@ mod tests {
         let mut r2 = make_result(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
         apply_scale(
             &mut r2,
-            ScaleOptions { mode: ScaleMode::Robust, clip: ClipMode::None, clip_param: 0.0 },
+            ScaleOptions {
+                mode: ScaleMode::Robust,
+                clip: ClipMode::None,
+                clip_param: 0.0,
+            },
         )
         .unwrap();
         let flat: Vec<f64> = r2.magnitudes.iter().flatten().copied().collect();
@@ -549,7 +575,11 @@ mod tests {
         let mut r = make_result(vec![1.0, f64::NAN, 3.0]);
         apply_scale(
             &mut r,
-            ScaleOptions { mode: ScaleMode::Minmax, clip: ClipMode::None, clip_param: 0.0 },
+            ScaleOptions {
+                mode: ScaleMode::Minmax,
+                clip: ClipMode::None,
+                clip_param: 0.0,
+            },
         )
         .unwrap();
         assert_eq!(r.magnitudes[0], vec![0.0]);

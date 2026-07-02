@@ -1,4 +1,10 @@
-import type { ScatterFetchOptions, ScatterPointsResponse, ScatterCorrelationsResponse } from '../../types.js';
+import type {
+    ScatterFetchOptions,
+    ScatterMatrixPair,
+    ScatterMatrixResponse,
+    ScatterPointsResponse,
+    ScatterCorrelationsResponse,
+} from '../../types.js';
 import type { CorrelationMetric } from '../../utils/correlationModes.js';
 import {
     assertDatasetRequestScopeActive,
@@ -8,6 +14,7 @@ import {
     assertScatterPoints,
     assertScatterCorrelations,
     dbg,
+    readApiError,
     type ArrowColumn,
 } from './http.js';
 
@@ -134,6 +141,169 @@ export async function fetchScatterPoints(
     assertDatasetRequestScopeActive(requestScope);
     assertScatterPoints(data);
     return data;
+}
+
+interface ScatterMatrixCellHeader {
+    cell_id: string;
+    x: string;
+    y: string;
+    total_points: number;
+    returned_points: number;
+    color_min: number | null;
+    color_max: number | null;
+    color_kind?: 'continuous' | 'categorical' | null;
+}
+
+function decodeMatrixCellHeaders(value: string | null): ScatterMatrixCellHeader[] {
+    if (!value) return [];
+    const encoded = String(value).trim();
+    if (!encoded) return [];
+
+    let decoded = '';
+    try {
+        decoded = globalThis.atob(encoded);
+    } catch {
+        throw new Error('Scatter matrix response metadata is not valid base64');
+    }
+
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(decoded);
+    } catch {
+        throw new Error('Scatter matrix response metadata is not valid JSON');
+    }
+    if (!Array.isArray(parsed)) {
+        throw new Error('Scatter matrix response metadata must be an array');
+    }
+
+    return parsed.map((entry) => ({
+        cell_id: String((entry as Record<string, unknown>)?.cell_id ?? ''),
+        x: String((entry as Record<string, unknown>)?.x ?? ''),
+        y: String((entry as Record<string, unknown>)?.y ?? ''),
+        total_points: Number((entry as Record<string, unknown>)?.total_points ?? 0),
+        returned_points: Number((entry as Record<string, unknown>)?.returned_points ?? 0),
+        color_min: (entry as Record<string, unknown>)?.color_min == null
+            ? null
+            : Number((entry as Record<string, unknown>)?.color_min),
+        color_max: (entry as Record<string, unknown>)?.color_max == null
+            ? null
+            : Number((entry as Record<string, unknown>)?.color_max),
+        color_kind: ((entry as Record<string, unknown>)?.color_kind === 'continuous'
+            || (entry as Record<string, unknown>)?.color_kind === 'categorical')
+            ? (entry as Record<string, unknown>)?.color_kind as 'continuous' | 'categorical'
+            : null,
+    })).filter((entry) => entry.cell_id.length > 0);
+}
+
+export async function fetchScatterMatrix(
+    pairs: ScatterMatrixPair[],
+    color: string | null = null,
+    options: ScatterFetchOptions | null = null,
+    limit = 1_000_000,
+    signal?: AbortSignal,
+): Promise<ScatterMatrixResponse> {
+    const requestScope = captureDatasetRequestScope();
+    const payload: Record<string, unknown> = {
+        pairs: pairs.map((pair) => ({
+            x: String(pair?.x ?? ''),
+            y: String(pair?.y ?? ''),
+        })).filter((pair) => pair.x && pair.y),
+        limit: Number(limit),
+    };
+    if (color !== null && color !== undefined && String(color).trim() !== '') {
+        payload.color = String(color);
+    }
+    const start = Number(options?.start);
+    const end = Number(options?.end);
+    if (Number.isFinite(start) && Number.isFinite(end)) {
+        payload.start = start;
+        payload.end = end;
+    }
+    if (Array.isArray(options?.filters) && options.filters.length > 0) {
+        payload.filters = JSON.stringify(options.filters);
+    }
+    if (Array.isArray(options?.lineFilters) && options.lineFilters.length > 0) {
+        payload.line_filters = JSON.stringify(normalizeScatterLineFilters(options.lineFilters));
+    }
+
+    const url = '/api/scatter/matrix';
+    dbg('POST (Scatter matrix)', { url, body: payload });
+
+    const res = await globalThis.fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal,
+    });
+    assertDatasetRequestScopeActive(requestScope);
+    if (!res.ok) {
+        throw await readApiError(res, 'Scatter matrix');
+    }
+
+    const ct = res.headers.get('Content-Type') ?? '';
+    if (!(ct.includes('apache-arrow') || ct.includes('arrow.stream'))) {
+        throw new Error('Scatter matrix response must be Arrow IPC');
+    }
+
+    const buffer = await res.arrayBuffer();
+    assertDatasetRequestScopeActive(requestScope);
+    const tableFromIPC = await ensureArrowParser();
+    const table = tableFromIPC(buffer);
+
+    const metadata = decodeMatrixCellHeaders(res.headers.get('x-edatime-matrix-cells'));
+    const cells = new Map<string, {
+        totalPoints: number;
+        points: [number, number][];
+        colorValues: number[] | null;
+        colorLabels: (string | null)[] | null;
+    }>();
+    for (const cell of metadata) {
+        cells.set(cell.cell_id, {
+            totalPoints: Number.isFinite(cell.total_points) ? cell.total_points : 0,
+            points: [],
+            colorValues: cell.color_kind === 'continuous' ? [] : null,
+            colorLabels: cell.color_kind === 'categorical' ? [] : null,
+        });
+    }
+
+    const cellIdCol = table.getChild('cell_id');
+    const xCol = table.getChild('x');
+    const yCol = table.getChild('y');
+    const colorValueCol = table.getChild('color_value');
+    const colorLabelCol = table.getChild('color_label');
+
+    for (let i = 0; i < table.numRows; i++) {
+        const cellId = String(cellIdCol?.get(i) ?? '');
+        if (!cellId) continue;
+        const current = cells.get(cellId) ?? {
+            totalPoints: 0,
+            points: [],
+            colorValues: colorValueCol ? [] : null,
+            colorLabels: colorLabelCol ? [] : null,
+        };
+        current.points.push([
+            Number(xCol?.get(i) ?? Number.NaN),
+            Number(yCol?.get(i) ?? Number.NaN),
+        ]);
+        const rawColorValue = Number((colorValueCol as ArrowColumn | null)?.get(i) ?? Number.NaN);
+        if (!current.colorValues && Number.isFinite(rawColorValue)) {
+            current.colorValues = Array.from({ length: current.points.length - 1 }, () => Number.NaN);
+        }
+        if (current.colorValues) {
+            current.colorValues.push(rawColorValue);
+        }
+        const rawLabel = (colorLabelCol as ArrowColumn | null)?.get(i);
+        const normalizedLabel = rawLabel == null ? null : String(rawLabel);
+        if (!current.colorLabels && normalizedLabel !== null && normalizedLabel !== '') {
+            current.colorLabels = Array.from({ length: current.points.length - 1 }, () => null);
+        }
+        if (current.colorLabels) {
+            current.colorLabels.push(normalizedLabel);
+        }
+        cells.set(cellId, current);
+    }
+
+    return { cells };
 }
 
 export async function fetchScatterCorrelations(

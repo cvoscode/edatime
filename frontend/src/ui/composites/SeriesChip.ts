@@ -1,4 +1,4 @@
-import { ColorInput } from '../primitives/ColorInput.js';
+import { ColorPicker } from '../primitives/ColorPicker.js';
 
 export interface SeriesChipProps {
     column: string;
@@ -53,7 +53,12 @@ export function SeriesChip(props: SeriesChipProps): HTMLLabelElement {
     });
 
     const displayLabel = props.label ?? props.column;
-    const colorInput = ColorInput({
+    // The new ColorPicker exposes dark-theme presets and a hex input, but
+    // it shares the same `onInput` contract as the legacy native input so
+    // the existing live-update path keeps working. The picker root is
+    // stored on the chip via `dataset.colorPicker` so external code can
+    // push fresh values into the swatch when the chart re-renders.
+    const colorInput = ColorPicker({
         label: `Set ${displayLabel} color`,
         value: props.color,
         className: 'chip-color-picker',
@@ -64,7 +69,8 @@ export function SeriesChip(props: SeriesChipProps): HTMLLabelElement {
     labelSpan.className = 'chip-label';
     labelSpan.textContent = displayLabel;
 
-    chip.append(checkbox, colorInput, labelSpan);
+    chip.append(checkbox, colorInput.element, labelSpan);
+    chip.dataset.colorPicker = '';
 
     if (props.onMenuClick) {
         const menu = document.createElement('button');
