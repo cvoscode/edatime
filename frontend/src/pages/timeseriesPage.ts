@@ -30,6 +30,9 @@ interface TimeseriesControllerDeps {
 
 let timeseriesEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
 
+// Issue 7.2: Track last successful fetch parameters for no-op short-circuit
+let lastFetchedParams: string | null = null;
+
 function getTimeseriesEmptyStateController() {
     if (!timeseriesEmptyStateController) {
         timeseriesEmptyStateController = createEmptyStateController({
@@ -200,6 +203,22 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             return;
         }
 
+        // Issue 7.2: Short-circuit no-op requests by checking if parameters
+        // match the last successful fetch. This avoids redundant API calls when
+        // the user clicks a series chip that's already selected, or triggers
+        // other events that would produce identical requests.
+        const currentCols = appState.selectedCols.join(',');
+        const currentColorCol = appState.selectedColorColumn || null;
+        const lastFetchKey = `${currentStart}|${currentEnd}|${currentCols}|${currentColorCol}`;
+
+        if (lastFetchedParams === lastFetchKey && appState.lastFetchedData) {
+            dbg('fetchAndRender: short-circuiting no-op request', { startIso: new Date(currentStart).toISOString(), endIso: new Date(currentEnd).toISOString(), cols: currentCols, colorCol: currentColorCol });
+            deps.buildRangeControls();
+            renderCurrentData();
+            emitChartRangeChange('data');
+            return;
+        }
+
         await task.run(async (signal) => {
             const startIso = new Date(currentStart).toISOString();
             const endIso = new Date(currentEnd).toISOString();
@@ -236,6 +255,8 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             }
 
             setLastFetchedData(data);
+            // Issue 7.2: Update last successful fetch parameters for no-op short-circuit
+            lastFetchedParams = lastFetchKey;
 
             if (DEBUG) {
                 const n = data?.ts?.length ?? 0;

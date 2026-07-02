@@ -372,9 +372,66 @@ pub async fn post_transform(
 
 // ── Outlier Removal ────────────────────────────────────────────────────────
 
+/// Internal type used to accept either a comma-separated string
+/// (`"HUFL,HULL"`) or a JSON array (`["HUFL", "HULL"]`) for the
+/// `columns` field. The frontend already follows the string shape;
+/// the array shape is a strict improvement for hand-written clients.
+fn deserialize_columns<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Visitor};
+    use std::fmt;
+
+    struct ColumnsVisitor;
+
+    impl<'de> Visitor<'de> for ColumnsVisitor {
+        type Value = Option<String>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a comma-separated string or an array of strings")
+        }
+
+        fn visit_none<E: de::Error>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+            Ok(Some(v.to_string()))
+        }
+
+        fn visit_string<E: de::Error>(self, v: String) -> Result<Self::Value, E> {
+            Ok(Some(v))
+        }
+
+        fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+            let mut parts: Vec<String> = Vec::new();
+            while let Some(value) = seq.next_element::<String>()? {
+                let trimmed = value.trim();
+                if !trimmed.is_empty() {
+                    parts.push(trimmed.to_string());
+                }
+            }
+            if parts.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(parts.join(",")))
+            }
+        }
+    }
+
+    deserializer.deserialize_any(ColumnsVisitor)
+}
+
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OutlierRemovalRequest {
-    /// Columns to check for outliers (comma-separated or JSON array)
+    /// Columns to check for outliers (comma-separated string or JSON array)
+    #[serde(default, deserialize_with = "deserialize_columns")]
     pub columns: Option<String>,
     /// Detection method: "zscore" (default) or "iqr"
     pub method: Option<String>,
@@ -428,7 +485,10 @@ pub async fn post_remove_outliers(
 // ── Causal Graph (Native Rust — PCMCI / PCMCI+) ───────────────────────────
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CausalGraphRequest {
+    /// Columns to include in the causal search (comma-separated string or JSON array)
+    #[serde(default, deserialize_with = "deserialize_columns")]
     pub columns: Option<String>,
     /// Maximum time lag (default: 3)
     pub tau_max: Option<usize>,
@@ -764,6 +824,42 @@ mod tests {
                 .unwrap_or_default()
                 .contains("causal request is too large"),
             "unexpected error body: {json}"
+        );
+    }
+
+    // ── Fix 5.1/5.2 regression tests ─────────────────────────────────────
+
+    /// `OutlierRemovalRequest` and `CausalGraphRequest` must accept both
+    /// the documented comma-separated string and the alternative JSON
+    /// array form. Previously, a singular `column` (the obvious typo)
+    /// was silently ignored, leading to a misleading "No valid numeric
+    /// columns were requested" error. `deny_unknown_fields` now rejects
+    /// singular `column` upfront.
+    #[test]
+    fn causal_request_accepts_comma_separated_columns() {
+        let body = serde_json::json!({"columns": "x,y", "tau_max": 1});
+        let req: CausalGraphRequest = serde_json::from_value(body).expect("parse");
+        assert_eq!(req.columns.as_deref(), Some("x,y"));
+    }
+
+    #[test]
+    fn causal_request_accepts_json_array_columns() {
+        let body = serde_json::json!({"columns": ["x", "y"], "tau_max": 1});
+        let req: CausalGraphRequest = serde_json::from_value(body).expect("parse");
+        assert_eq!(req.columns.as_deref(), Some("x,y"));
+    }
+
+    #[test]
+    fn causal_request_rejects_singular_column_field() {
+        // Regression test for audit issue 5.2: a singular `column`
+        // field was previously silently dropped, leading to a
+        // misleading "No valid numeric columns were requested" error.
+        // `deny_unknown_fields` now rejects it with 422.
+        let body = serde_json::json!({"column": "x", "tau_max": 1});
+        let result: Result<CausalGraphRequest, _> = serde_json::from_value(body);
+        assert!(
+            result.is_err(),
+            "singular `column` must be rejected, got {result:?}"
         );
     }
 }

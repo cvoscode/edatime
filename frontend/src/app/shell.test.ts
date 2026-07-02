@@ -73,4 +73,26 @@ describe('shell bootstrap', () => {
         expect(initThemeToggle).toHaveBeenCalledTimes(1);
         expect(wireHomeNavigationCards).toHaveBeenCalledWith(deps.showPage);
     });
+
+    it('attaches the __edatime bridge BEFORE initShellCore runs (audit issue 1.1)', async () => {
+        // Regression test: previously `initShellCore` (which triggers
+        // `initPages()` -> `showPage('home')`) ran BEFORE the
+        // `__edatime.ensureSubsystem` bridge was attached. The first
+        // `showPage('home')` then silently no-op'd the
+        // `ensureSubsystem('home')` call and the home-page sample
+        // dataset click handlers were never bound.
+        const { initAppShell } = await import('./shell.js');
+        const deps = {
+            showPage: vi.fn(),
+            ensurePageModuleLoaded: vi.fn(),
+            registerCleanup: vi.fn(),
+        };
+        // Snapshot window.__edatime immediately after initAppShell.
+        initAppShell(deps as any);
+        const bridge = (window as any).__edatime;
+        expect(bridge).toBeTruthy();
+        expect(bridge.ensureSubsystem).toBeTypeOf('function');
+        expect(bridge.ensurePageModuleLoaded).toBe(deps.ensurePageModuleLoaded);
+        expect(bridge.showPage).toBe(deps.showPage);
+    });
 });

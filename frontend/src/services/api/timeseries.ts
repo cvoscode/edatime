@@ -22,10 +22,16 @@ export async function fetchData(
         .split(',')
         .map((col) => col.trim())
         .filter(Boolean);
+    // Audit issue 2.2: enforce a sensible minimum width so the
+    // backend never receives `width=1`, which the LTTB downsampler
+    // treats as "keep every row" (effectively a raw-data escape
+    // hatch). The backend allows widths up to 20,000; below 50 px
+    // the chart has nothing meaningful to render anyway.
+    const safeWidth = Math.max(50, Math.floor(width));
     const params = new URLSearchParams({
         start,
         end,
-        width: String(width),
+        width: String(safeWidth),
         columns,
     });
     if (colorColumn) params.set('color_column', colorColumn);

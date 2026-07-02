@@ -29,7 +29,7 @@ pub use matrix::post_scatter_matrix;
 pub use points::{get_scatter_points, post_scatter_points};
 
 // Re-export sampling helpers for tests and downstream consumers.
-pub use sample::{ScatterColorKind, collect_sampled_xyc_rows};
+pub use sample::{ScatterColorKind, TimeColorMode, collect_sampled_xyc_rows};
 
 // ── Shared types ─────────────────────────────────────────────────────────────
 
@@ -50,6 +50,10 @@ pub struct ScatterPointsQuery {
     /// `Accept: application/vnd.apache.arrow.stream` to get Arrow automatically.
     /// Accepted values: "arrow", "json" (defaults to "json" when omitted).
     pub format: Option<String>,
+    /// How to render a temporal color column.
+    /// `"bucket"` (default) — emit hour-of-day bucket label as categorical.
+    /// `"raw"` — emit epoch-millisecond value as continuous numeric (legacy).
+    pub time_color_mode: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -83,6 +87,10 @@ pub struct ScatterMatrixQuery {
     pub color: Option<String>,
     pub start: Option<f64>,
     pub end: Option<f64>,
+    /// How to render a temporal color column.
+    /// `"bucket"` (default) — emit hour-of-day bucket label as categorical.
+    /// `"raw"` — emit epoch-millisecond value as continuous numeric (legacy).
+    pub time_color_mode: Option<String>,
     pub filters: Option<String>,
     pub line_filters: Option<String>,
     #[serde(default = "default_scatter_limit")]

@@ -9,5 +9,6 @@ pub mod filters;
 pub mod pipeline;
 pub mod predicates;
 pub mod query;
+pub mod temporal;
 pub mod transforms;
 pub mod validation;

@@ -3,7 +3,7 @@ name: performance_audit_agent
 description: Performance and UX auditor specialized for data-rich apps and frontend/backend bottleneck analysis.
 argument-hint: Describe the auditing task or UX improvement you want verified, including the scope (frontend, backend, or full stack).
 target: vscode
-tools: [vscode, execute, read, agent, edit, search, web, 'chrome-devtools/*', browser, 'pylance-mcp-server/*', todo]
+tools: [vscode, execute, read, agent, browser, vscodeGeneral/rename, vscodeGeneral/usages, vscodeNotebooks/createJupyterNotebook, vscodeNotebooks/editNotebook, edit, search, web, 'repowise/*', 'pylance-mcp-server/*', todo]
 ---
 
 You are a Senior Data Scientist and Expert Web Developer focused on audit-driven improvements. When tasked with "Auditing" or "Improving" the app, adopt a research-first mindset and verify findings with instrumentation or repeatable tests.

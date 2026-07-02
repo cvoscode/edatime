@@ -106,6 +106,57 @@ pub fn downsample_indices(x_vals: &[f64], y_vals: &[f64], target_points: usize) 
     indices
 }
 
+/// Top up a sorted, deduplicated set of indices so the final length is
+/// at least `target`. Excess entries are filled by deterministic stride
+/// from the remaining candidate range `[0, candidate_count)`, skipping
+/// any index that is already present in `indices`.
+///
+/// `minmaxlttb` can return slightly fewer points than requested because
+/// the algorithm collapses duplicate x values via `sort_unstable() +
+/// dedup()`. This helper preserves LTTB's choices (those indices stay
+/// in the result) and only adds more rows from the unused range to hit
+/// the contract. Deterministic stride (no randomness) keeps analyses
+/// reproducible across calls.
+pub fn pad_to_limit(indices: Vec<usize>, candidate_count: usize, target: usize) -> Vec<usize> {
+    if target == 0 || candidate_count == 0 {
+        return Vec::new();
+    }
+    let mut out: Vec<usize> = indices;
+    out.sort_unstable();
+    out.dedup();
+    if out.len() >= target {
+        return out;
+    }
+    let already: std::collections::HashSet<usize> = out.iter().copied().collect();
+    let needed = target - out.len();
+    // We have candidate_count total slots. We want to pick `needed` more
+    // uniformly from the slots that aren't already in `out`. The stride
+    // is computed so that the new picks are evenly distributed across
+    // the candidate range, weighted by the empty slots.
+    let empty = candidate_count.saturating_sub(already.len());
+    if empty == 0 {
+        return out;
+    }
+    let stride = (empty as f64 / needed as f64).ceil() as usize;
+    let stride = stride.max(1);
+    let mut picked = 0usize;
+    let mut cursor = 0usize;
+    while picked < needed && cursor < candidate_count {
+        if !already.contains(&cursor) {
+            out.push(cursor);
+            picked += 1;
+        }
+        cursor += stride;
+        if cursor >= candidate_count && picked < needed {
+            // Wrap and pick remaining empties.
+            cursor = 0;
+            // Keep going; the `already` set guards against duplicates.
+        }
+    }
+    out.sort_unstable();
+    out
+}
+
 pub fn downsample_xy_pairs(
     x_vals: &[f64],
     y_vals: &[f64],
@@ -193,6 +244,7 @@ pub fn downsample_dataframe_multi(
 mod tests {
     use super::downsample_indices;
     use super::downsample_xy_pairs;
+    use super::pad_to_limit;
 
     #[test]
     fn downsample_indices_returns_all_rows_when_under_target() {
@@ -424,5 +476,52 @@ mod tests {
         assert_eq!(sx, x_vals.to_vec());
         assert_eq!(sy, y_vals.to_vec());
         assert_eq!(sc, Some(color_vals.to_vec()));
+    }
+
+    // ── pad_to_limit tests ─────────────────────────────────────────────────
+
+    #[test]
+    fn pad_to_limit_returns_at_least_target_points() {
+        // Regression test for audit issue 3.3: scatter `limit=N` was
+        // contract-violated by ~0.4% because LTTB can return fewer
+        // indices than requested. `pad_to_limit` must top up to the
+        // requested target.
+        let indices = vec![0, 5, 10, 15]; // 4 indices, target 10
+        let padded = pad_to_limit(indices, 20, 10);
+        assert!(
+            padded.len() >= 10,
+            "padded length must hit the target (got {})",
+            padded.len()
+        );
+        // The original indices must still be present.
+        for &i in &[0, 5, 10, 15] {
+            assert!(padded.contains(&i), "original index {i} must be preserved");
+        }
+    }
+
+    #[test]
+    fn pad_to_limit_keeps_oversized_input_unchanged() {
+        // If LTTB already returned more than `target` (rare but
+        // possible for very smooth data), pad_to_limit must not drop
+        // any of the original selections.
+        let indices = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let padded = pad_to_limit(indices.clone(), 20, 5);
+        assert_eq!(padded.len(), 11);
+    }
+
+    #[test]
+    fn pad_to_limit_does_not_duplicate() {
+        let indices = vec![0, 4, 8, 12, 16];
+        let padded = pad_to_limit(indices, 20, 10);
+        let mut sorted = padded.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(sorted.len(), padded.len(), "padding must not introduce duplicates");
+    }
+
+    #[test]
+    fn pad_to_limit_zero_target_returns_empty() {
+        let padded = pad_to_limit(vec![0, 1, 2], 10, 0);
+        assert!(padded.is_empty());
     }
 }

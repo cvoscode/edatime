@@ -59,7 +59,29 @@ pub async fn preview_upload_data(
 
     let (path, time_column) = extract_preview_file(&state, multipart).await?;
     let metadata = tokio::task::spawn_blocking(move || {
-        build_dataset_metadata_from_path_with_time_column(path.as_ref(), time_column.as_deref())
+        let raw = build_dataset_metadata_from_path_with_time_column(
+            path.as_ref(),
+            time_column.as_deref(),
+        )?;
+        // Normalize temporal dtypes in the returned metadata so the
+        // preview aligns with the post-ingest dtype that the rest of
+        // the pipeline assumes. (Audit issue 4.1.)
+        let mut metadata = raw;
+        for profile in &mut metadata.column_profiles {
+            if profile.dtype.starts_with("datetime")
+                && !profile.dtype.starts_with("datetime[ms]")
+            {
+                profile.dtype = "datetime[ms]".to_string();
+            }
+        }
+        for col in &mut metadata.columns {
+            if col.dtype.starts_with("datetime")
+                && !col.dtype.starts_with("datetime[ms]")
+            {
+                col.dtype = "datetime[ms]".to_string();
+            }
+        }
+        Ok::<_, AppError>(metadata)
     })
     .await
     .map_err(|error| AppError::internal(format!("Failed to join preview task: {error:?}")))??;

@@ -11,7 +11,8 @@ use edatime_core::types;
 use crate::error::AppError;
 use edatime_query::pipeline::{self, Reduction};
 use edatime_query::query::{
-    self, AggFn, AggregateQuery, AggregateWindowMode, QueryEntry, ReductionSpec,
+    self, output_format, AggFn, AggregateQuery, AggregateWindowMode, OutputFormat, QueryEntry,
+    ReductionSpec,
 };
 use edatime_query::validation::{
     validate_bucket_count, validate_numeric_columns_lazy, validate_time_window, validate_window_ms,
@@ -155,13 +156,93 @@ pub async fn get_aggregate(
         format!("{:?}", params.window_mode),
     );
 
-    let cached = CachedResponse::arrow(
-        pipeline::serialize_arrow(aggregated.clone(), &ts_col)?,
-        true,
-        returned_rows,
-        params.buckets,
-        Some(ts_col.to_string()),
-    );
+    let cached = match output_format(params.format.as_deref()) {
+        OutputFormat::Json => {
+            // JSON variant: emit a summary payload that lists row count,
+            // column names, and a flat per-column arrays view. This is a
+            // useful drop-in for clients that don't ship an Arrow parser.
+            use polars::prelude::DataType;
+            let mut column_arrays = serde_json::Map::with_capacity(aggregated.width());
+            for name in aggregated.get_column_names() {
+                let column = aggregated.column(name.as_str()).map_err(|e| {
+                    AppError::internal(format!("aggregate json column '{}': {}", name, e))
+                })?;
+                let series = column.as_materialized_series().clone();
+                let values: Vec<serde_json::Value> = match series.dtype() {
+                    DataType::Float64 | DataType::Float32 | DataType::Int64 | DataType::Int32 => {
+                        let ca = series
+                            .cast(&DataType::Float64)
+                            .ok()
+                            .and_then(|s| s.f64().ok().map(|ca| ca.clone()));
+                        match ca {
+                            Some(ca) => ca
+                                .into_iter()
+                                .map(|v| match v {
+                                    Some(f) => serde_json::json!(f),
+                                    None => serde_json::Value::Null,
+                                })
+                                .collect(),
+                            None => Vec::new(),
+                        }
+                    }
+                    DataType::Datetime(_, _) | DataType::Date => {
+                        let ca = series
+                            .cast(&DataType::Int64)
+                            .ok()
+                            .and_then(|s| s.i64().ok().map(|ca| ca.clone()));
+                        match ca {
+                            Some(ca) => ca
+                                .into_iter()
+                                .map(|v| match v {
+                                    Some(i) => serde_json::json!(i),
+                                    None => serde_json::Value::Null,
+                                })
+                                .collect(),
+                            None => Vec::new(),
+                        }
+                    }
+                    _ => {
+                        let ca = series
+                            .cast(&DataType::String)
+                            .ok()
+                            .and_then(|s| s.str().ok().map(|ca| ca.clone()));
+                        match ca {
+                            Some(ca) => ca
+                                .into_iter()
+                                .map(|v| match v {
+                                    Some(s) => serde_json::json!(s.to_string()),
+                                    None => serde_json::Value::Null,
+                                })
+                                .collect(),
+                            None => Vec::new(),
+                        }
+                    }
+                };
+                column_arrays.insert(name.to_string(), serde_json::Value::Array(values));
+            }
+            let payload = serde_json::json!({
+                "rows": returned_rows,
+                "columns": aggregated.get_column_names(),
+                "data": column_arrays,
+            });
+            let json_bytes = serde_json::to_vec(&payload)
+                .map_err(|e| AppError::internal(format!("aggregate json: {}", e)))?;
+            CachedResponse::json(
+                json_bytes,
+                true,
+                returned_rows,
+                params.buckets,
+                Some(ts_col.to_string()),
+            )
+        }
+        OutputFormat::Arrow => CachedResponse::arrow(
+            pipeline::serialize_arrow(aggregated.clone(), &ts_col)?,
+            true,
+            returned_rows,
+            params.buckets,
+            Some(ts_col.to_string()),
+        ),
+    };
 
     state.cache.insert(cache_key, cached.clone()).await;
     Ok(cached.into_response("miss"))

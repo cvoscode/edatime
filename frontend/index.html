@@ -336,8 +336,8 @@
             <div class="scatter-toolbar__segment scatter-toolbar__segment--view draw-toolbar" role="group"
               aria-label="Drawing tools">
               <span class="scatter-toolbar__eyebrow">Draw</span>
-              <span id="draw-help-btn" class="toolbar-info-icon draw-toolbar__help" tabindex="0"
-                role="button" aria-label="Show drawing and adaptive filter help">?</span>
+              <span id="draw-help-btn" class="toolbar-info-icon draw-toolbar__help" tabindex="0" role="button"
+                aria-label="Show drawing and adaptive filter help">?</span>
               <div class="scatter-toolbar__fields">
                 <label class="toolbar-field scatter-toolbar__field" for="draw-tool">
                   <span class="toolbar-field__label">Tool</span>
@@ -362,8 +362,8 @@
                   <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings"
                     aria-label="Clear drawings">Clear drawings</button>
                   <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button"
-                    title="Clear adaptive line filters (Shift+C)" hidden
-                    aria-label="Clear adaptive line filters">Clear filters</button>
+                    title="Clear adaptive line filters (Shift+C)" hidden aria-label="Clear adaptive line filters">Clear
+                    filters</button>
                 </div>
               </div>
             </div>
@@ -375,8 +375,7 @@
                 <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field" for="y-stack-from-zero">
                   <span class="toolbar-field__label">Stack from 0</span>
                   <span class="toolbar-field__control scatter-link-toggle">
-                    <input id="y-stack-from-zero" type="checkbox"
-                      aria-label="Pin y-axis lower bound to zero">
+                    <input id="y-stack-from-zero" type="checkbox" aria-label="Pin y-axis lower bound to zero">
                     <span>Pin lower bound</span>
                   </span>
                 </label>
@@ -448,14 +447,18 @@
               </div>
             </div>
 
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--range quick-range-toolbar"
-              role="group" aria-label="Quick range">
+            <div class="scatter-toolbar__segment scatter-toolbar__segment--range quick-range-toolbar" role="group"
+              aria-label="Quick range">
               <span class="scatter-toolbar__eyebrow">Quick range</span>
               <div class="scatter-toolbar__controls">
-                <button class="btn btn-ghost btn-sm" id="quick-range-24h" type="button" title="Last 24 hours (UTC)" disabled>24h</button>
-                <button class="btn btn-ghost btn-sm" id="quick-range-7d" type="button" title="Last 7 days (UTC)" disabled>7d</button>
-                <button class="btn btn-ghost btn-sm" id="quick-range-30d" type="button" title="Last 30 days (UTC)" disabled>30d</button>
-                <button class="btn btn-ghost btn-sm" id="quick-range-all" type="button" title="Full dataset range" disabled>All</button>
+                <button class="btn btn-ghost btn-sm" id="quick-range-24h" type="button" title="Last 24 hours (UTC)"
+                  disabled>24h</button>
+                <button class="btn btn-ghost btn-sm" id="quick-range-7d" type="button" title="Last 7 days (UTC)"
+                  disabled>7d</button>
+                <button class="btn btn-ghost btn-sm" id="quick-range-30d" type="button" title="Last 30 days (UTC)"
+                  disabled>30d</button>
+                <button class="btn btn-ghost btn-sm" id="quick-range-all" type="button" title="Full dataset range"
+                  disabled>All</button>
               </div>
             </div>
           </div>
@@ -984,8 +987,8 @@
                   <option value="1024">1024 (~10.7d @ 15min)</option>
                   <option value="custom">Custom…</option>
                 </select>
-                <input id="spectrogram-win-size-custom" class="modal-input" type="number" min="16" max="4096"
-                  step="1" value="96" aria-label="Custom FFT window size" hidden disabled>
+                <input id="spectrogram-win-size-custom" class="modal-input" type="number" min="16" max="4096" step="1"
+                  value="96" aria-label="Custom FFT window size" hidden disabled>
               </label>
               <label class="toolbar-field scatter-toolbar__field" for="spectrogram-hop-size">
                 <span class="toolbar-field__label">Hop</span>
@@ -995,8 +998,8 @@
                   <option value="0.75">75% (25% overlap)</option>
                   <option value="custom">Custom…</option>
                 </select>
-                <input id="spectrogram-hop-size-custom" class="modal-input" type="number" min="1" step="1"
-                  value="48" aria-label="Custom STFT hop size" hidden disabled>
+                <input id="spectrogram-hop-size-custom" class="modal-input" type="number" min="1" step="1" value="48"
+                  aria-label="Custom STFT hop size" hidden disabled>
               </label>
               <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
                 for="spectrogram-log-scale">
@@ -1777,8 +1780,8 @@
             <div class="upload-source-tabs" role="tablist" aria-label="Upload source">
               <button class="btn btn-sm active" id="upload-source-file-btn" type="button" role="tab"
                 aria-selected="true" data-upload-source="file">File</button>
-              <button class="btn btn-sm" id="upload-source-database-btn" type="button" role="tab"
-                aria-selected="false" data-upload-source="database">Database</button>
+              <button class="btn btn-sm" id="upload-source-database-btn" type="button" role="tab" aria-selected="false"
+                data-upload-source="database">Database</button>
             </div>
 
             <div class="upload-source-panel upload-source-panel--file" data-upload-source-panel="file">

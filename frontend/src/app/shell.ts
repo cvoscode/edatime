@@ -45,15 +45,6 @@ export interface AppShellDeps {
 }
 
 export function initAppShell(deps: AppShellDeps): void {
-    // Always-on bridge. Keep this cheap — see `shell/core.ts` for details.
-    initShellCore({ showPage: deps.showPage });
-
-    // Lightweight global bridge used by command palette, tests, and
-    // utility hooks. We intentionally do not import the heavy
-    // subsystems here; they remain behind deferred loaders.
-    (window as unknown as { __edatime: Record<string, unknown> }).__edatime = (window as unknown as { __edatime: Record<string, unknown> }).__edatime || {};
-    (window as unknown as { __edatime: { ensurePageModuleLoaded?: typeof deps.ensurePageModuleLoaded } }).__edatime.ensurePageModuleLoaded = deps.ensurePageModuleLoaded;
-
     // Build the deferred-shell contract once and let callers request
     // subsystems on demand. The shell does not eagerly load any of
     // them at startup; pages and user actions trigger the loads.
@@ -70,10 +61,29 @@ export function initAppShell(deps: AppShellDeps): void {
         registerCleanup: deps.registerCleanup,
     };
 
-    // Expose the deferred loaders on the global so pages and other
-    // entrypoints can opt-in to specific subsystems without importing
-    // the shell directly.
-    (window as unknown as { __edatime: { ensureSubsystem?: (name: string) => Promise<void> } }).__edatime.ensureSubsystem = async (name: string) => {
+    // Lightweight global bridge used by command palette, tests, and
+    // utility hooks. We intentionally do not import the heavy
+    // subsystems here; they remain behind deferred loaders.
+    //
+    // IMPORTANT: this bridge MUST be installed BEFORE `initShellCore`
+    // runs. `initShellCore` calls `initPages()` which immediately
+    // invokes `showPage(getHashPage() ?? 'home')`. The very first
+    // `showPage('home')` calls `ensureSubsystem('home')`, which wires
+    // the home-page sample-dataset click handlers. If we attach the
+    // bridge after `initShellCore` returns, that first `ensureSubsystem`
+    // call no-ops via the optional chain, and the sample-dataset cards
+    // stay unbound on first paint. (See audit issue 1.1.)
+    const win = window as unknown as {
+        __edatime: Record<string, unknown> & {
+            ensurePageModuleLoaded?: typeof deps.ensurePageModuleLoaded;
+            ensureSubsystem?: (name: string) => Promise<void>;
+            showPage?: typeof deps.showPage;
+        };
+    };
+    win.__edatime = win.__edatime || {};
+    win.__edatime.ensurePageModuleLoaded = deps.ensurePageModuleLoaded;
+    win.__edatime.showPage = deps.showPage;
+    win.__edatime.ensureSubsystem = async (name: string) => {
         switch (name) {
             case 'upload':
                 return ensureUploadSubsystems(deferred);
@@ -89,4 +99,7 @@ export function initAppShell(deps: AppShellDeps): void {
                 throw new Error(`Unknown deferred subsystem: ${name}`);
         }
     };
+
+    // Always-on bridge. Keep this cheap — see `shell/core.ts` for details.
+    initShellCore({ showPage: deps.showPage });
 }

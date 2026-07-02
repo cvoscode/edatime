@@ -12,8 +12,8 @@ use edatime_store::cache::CachedResponse;
 use edatime_store::state::AppState;
 
 use super::{
-    ScatterColorKind, ScatterFilterSpec, ScatterMatrixPair, ScatterMatrixQuery, clamp_limit,
-    collect_filtered_scatter_frame, collect_sampled_xyc_rows, parse_scatter_filters,
+    ScatterColorKind, ScatterFilterSpec, ScatterMatrixPair, ScatterMatrixQuery, TimeColorMode,
+    clamp_limit, collect_filtered_scatter_frame, collect_sampled_xyc_rows, parse_scatter_filters,
     parse_scatter_line_filters,
 };
 
@@ -93,6 +93,7 @@ async fn scatter_matrix_response(
 
     let limit = clamp_limit(params.limit, &state.config.validation);
     validate_scatter_limit(limit, &state.config.validation)?;
+    let time_color_mode = TimeColorMode::from_query(params.time_color_mode.as_deref());
     if let (Some(start_ms), Some(end_ms)) = (start, end) {
         let start_dt = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(start_ms as i64)
             .ok_or_else(|| {
@@ -173,6 +174,7 @@ async fn scatter_matrix_response(
                     None,
                     limit,
                     effective_limit,
+                    time_color_mode,
                 )?;
                 let returned_for_cell = sampled_rows.len();
 
@@ -303,6 +305,7 @@ mod tests {
             filters: None,
             line_filters: None,
             limit: 10,
+            time_color_mode: None,
         };
 
         let response = post_scatter_matrix(State(state), Json(params))
@@ -356,6 +359,7 @@ mod tests {
             filters: None,
             line_filters: None,
             limit: 10,
+            time_color_mode: None,
         };
 
         let first = post_scatter_matrix(State(state.clone()), Json(params.clone()))
@@ -404,6 +408,7 @@ mod tests {
             filters: None,
             line_filters: None,
             limit: 10,
+            time_color_mode: None,
         };
 
         let response = post_scatter_matrix(State(state), Json(params))

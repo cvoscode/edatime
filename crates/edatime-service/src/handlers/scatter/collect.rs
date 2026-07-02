@@ -60,6 +60,67 @@ pub fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option
     }
 }
 
+/// Convert a DataFrame temporal column (Datetime / Date) into hour-of-day
+/// bucket labels, e.g. "00–01", "01–02", ..., "23–00".
+///
+/// Used by the scatter color pipeline to render a temporal color column as a
+/// useful discrete dimension instead of raw epoch milliseconds. NaN / null
+/// entries stay `None`. Days of week are intentionally NOT bucketed here —
+/// keep the temporal axis semantic to its dominant cycle (hour-of-day) which
+/// is what DS workflows care about most (e.g. diurnal load patterns).
+pub fn series_to_time_bucket_labels(df: &DataFrame, name: &str) -> Result<Vec<Option<String>>, AppError> {
+    let series = df
+        .column(name)
+        .map_err(|e| AppError::bad_request(format!("Missing column '{}': {}", name, e)))?
+        .as_materialized_series();
+
+    match series.dtype() {
+        DataType::Datetime(_, _) | DataType::Date => {
+            // Cast to Int64 to access raw count, then to f64 to bucket.
+            let casted = series.cast(&DataType::Int64).map_err(|e| {
+                AppError::internal(format!(
+                    "Failed to cast temporal '{}' to Int64: {}",
+                    name, e
+                ))
+            })?;
+            let vals = casted
+                .i64()
+                .map_err(|e| AppError::internal(format!("Failed to read '{}' as Int64: {}", name, e)))?;
+
+            let dtype = series.dtype();
+            let divisor = edatime_core::temporal::unit_multiplier(dtype);
+
+            let to_ms = |raw: i64| -> i64 {
+                if matches!(dtype, DataType::Date) {
+                    raw * 86_400_000
+                } else {
+                    raw / divisor
+                }
+            };
+
+            Ok(vals
+                .into_iter()
+                .map(|opt_raw| {
+                    opt_raw.map(|raw| {
+                        let ms = to_ms(raw);
+                        // Day-boundary guard: anchor epoch so modulo math is
+                        // stable for Date columns whose raw value is days
+                        // since epoch (not ms).
+                        let secs_of_day = ((ms.rem_euclid(86_400_000)) / 1000) as i64;
+                        let hour = (secs_of_day / 3600).clamp(0, 23);
+                        let next_hour = (hour + 1) % 24;
+                        format!("{:02}\u{2013}{:02}", hour, next_hour)
+                    })
+                })
+                .collect())
+        }
+        _ => Err(AppError::bad_request(format!(
+            "Column '{}' is not temporal; time bucketing requires Datetime or Date",
+            name
+        ))),
+    }
+}
+
 /// Convert a DataFrame column to `Vec<Option<String>>` for categorical scatter coloring.
 pub fn series_to_label_values(df: &DataFrame, name: &str) -> Result<Vec<Option<String>>, AppError> {
     let series = df

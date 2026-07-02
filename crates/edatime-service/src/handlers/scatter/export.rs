@@ -106,6 +106,7 @@ mod tests {
             ),
             limit: 10,
             format: None,
+            time_color_mode: None,
         };
 
         let response = post_scatter_export_parquet(State(state), Json(params))
