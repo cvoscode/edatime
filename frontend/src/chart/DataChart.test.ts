@@ -506,6 +506,92 @@ describe('updateDataMulti', () => {
         expect(updatedButton?.getAttribute('aria-pressed')).toBe('false');
     });
 
+    it('applies a robust display-only y-range without changing the reported data bounds', () => {
+        const chart = makeChart();
+        const setOption = vi.fn();
+        (chart as any).chartInstance = {
+            options: { animation: false, legend: { show: false }, series: [] },
+            setOption,
+            setZoomRange: vi.fn(),
+        };
+
+        chart.updateDataMulti({
+            ts: new Float64Array([0, 1, 2, 3, 4]),
+            values: {
+                OT: new Float64Array([12.1, 12.1, 12.2, 12.2, 113.76]),
+            },
+            series: {
+                OT: {
+                    x: new Float64Array([0, 1, 2, 3, 4]),
+                    y: new Float64Array([12.1, 12.1, 12.2, 12.2, 113.76]),
+                },
+            },
+            colorByColumn: {},
+        } as any, ['OT']);
+
+        setOption.mockClear();
+        (chart as any).setRobustDisplayRange({ mode: 'percentile', param: 10 });
+
+        expect(chart.getYRange()).toEqual({ min: 12.1, max: 113.76 });
+        expect(setOption).toHaveBeenCalledOnce();
+        const yAxis = setOption.mock.calls[0][0].yAxis;
+        expect(yAxis.max).toBeLessThan(113.76);
+        expect(yAxis.min).toBeLessThanOrEqual(12.1);
+    });
+
+    it('computes a narrower chart grid for compact y-axis labels', () => {
+        const chart = makeChart();
+        const setOption = vi.fn();
+        (chart as any).chartInstance = {
+            options: { animation: false, legend: { show: false }, series: [] },
+            setOption,
+            setZoomRange: vi.fn(),
+        };
+
+        chart.updateDataMulti({
+            ts: new Float64Array([1_000, 2_000, 3_000]),
+            values: {
+                temperature: new Float64Array([12.1, 12.3, 12.5]),
+            },
+            series: {
+                temperature: {
+                    x: new Float64Array([1_000, 2_000, 3_000]),
+                    y: new Float64Array([12.1, 12.3, 12.5]),
+                },
+            },
+            colorByColumn: {},
+        } as any, ['temperature']);
+
+        const nextOption = setOption.mock.calls[0][0];
+        expect(nextOption.grid.left).toBeLessThan(120);
+        expect(nextOption.grid.left).toBeGreaterThanOrEqual(64);
+    });
+
+    it('suggests a robust display range when a spike dominates the raw y-span', () => {
+        const chart = makeChart();
+        (chart as any).chartInstance = {
+            options: { animation: false, legend: { show: false }, series: [] },
+            setOption: vi.fn(),
+            setZoomRange: vi.fn(),
+        };
+
+        chart.updateDataMulti({
+            ts: new Float64Array([0, 1, 2, 3, 4]),
+            values: {
+                OT: new Float64Array([12.1, 12.1, 12.2, 12.2, 113.76]),
+            },
+            series: {
+                OT: {
+                    x: new Float64Array([0, 1, 2, 3, 4]),
+                    y: new Float64Array([12.1, 12.1, 12.2, 12.2, 113.76]),
+                },
+            },
+            colorByColumn: {},
+        } as any, ['OT']);
+
+        expect(chart.getRobustDisplayRangeSuggestion()).toEqual({ mode: 'percentile', param: 1 });
+    });
+
     it('clamps dragged legend position inside the chart container', () => {
         const chart = makeChart();
         const container = document.createElement('div');

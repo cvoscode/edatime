@@ -451,6 +451,10 @@
     margin-top: 4px;
   }
 
+  .upload-preview-guide {
+    grid-template-columns: 1fr;
+  }
+
   .upload-preview-selection .btn {
     padding: 6px 12px;
   }

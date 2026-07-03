@@ -14,7 +14,7 @@ use edatime_query::validation::validate_time_window;
 use edatime_store::state::AppState;
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DriftQuery {
     pub column: String,
     pub window: String,
@@ -54,6 +54,31 @@ fn window_ms(window: &str) -> i64 {
         "weekly" => 7 * 24 * 3600 * 1000,
         _ => 24 * 3600 * 1000, // daily
     }
+}
+
+fn validated_drift_stats_window_ms(window: &str) -> Result<i64, AppError> {
+    match window {
+        "hourly" | "daily" | "weekly" => Ok(window_ms(window)),
+        other => Err(AppError::bad_request(format!(
+            "Invalid drift window '{}'",
+            other
+        ))),
+    }
+}
+
+fn validate_drift_stats_query(
+    lf: &polars::prelude::LazyFrame,
+    query: &DriftQuery,
+    limits: &edatime_core::config::ValidationSettings,
+) -> Result<(String, i64), AppError> {
+    let columns = validate_numeric_columns_lazy(lf, &[query.column.clone()], limits)
+        .map_err(AppError::from)?;
+    let column = columns
+        .first()
+        .cloned()
+        .ok_or_else(|| AppError::bad_request("A numeric drift column is required"))?;
+    let window_size = validated_drift_stats_window_ms(&query.window)?;
+    Ok((column, window_size))
 }
 
 fn parse_datetime(s: &str) -> Result<DateTime<Utc>, AppError> {
@@ -140,13 +165,13 @@ pub async fn post_drift_stats(
     State(state): State<AppState>,
     Json(query): Json<DriftQuery>,
 ) -> Result<Response, AppError> {
-    let window_size = window_ms(&query.window);
-
     let ref_start = parse_datetime(&query.reference_start)?;
     let ref_end = parse_datetime(&query.reference_end)?;
     validate_time_window(ref_start, ref_end)?;
 
     let lf = state.dataset_snapshot();
+    let (column_name, window_size) =
+        validate_drift_stats_query(&lf, &query, &state.config.validation)?;
     let ctx = state.ts_context(&lf)?;
     let ts_col = ctx.ts_col;
     let multiplier = ctx.multiplier;
@@ -163,8 +188,13 @@ pub async fn post_drift_stats(
 
     // filter_time_range now returns LazyFrame; execute on Rayon pool
     // Include the target column in the selection so compute_temporal_drift can access it
-    let col_name = query.column.clone();
-    let filtered_lf = filter_time_range(lf, ref_start_native, max_ts_i64, &[col_name], &ts_col)?;
+    let filtered_lf = filter_time_range(
+        lf,
+        ref_start_native,
+        max_ts_i64,
+        std::slice::from_ref(&column_name),
+        &ts_col,
+    )?;
     let df = state.query_executor.execute_async(filtered_lf).await?;
 
     let thresholds = normalized_thresholds(
@@ -177,7 +207,7 @@ pub async fn post_drift_stats(
 
     let result = compute_temporal_drift(
         &df,
-        &query.column,
+        &column_name,
         window_size,
         ref_start_ms,
         ref_end_ms,
@@ -289,4 +319,70 @@ pub async fn post_drift_investigate(
         query.include_correlations.unwrap_or(true),
     )?;
     Ok(Json(response))
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use polars::prelude::IntoLazy;
+    use polars::df;
+    use serde_json::json;
+
+    fn sample_drift_query() -> DriftQuery {
+        DriftQuery {
+            column: "value".to_string(),
+            window: "daily".to_string(),
+            reference_start: "1970-01-01T00:00".to_string(),
+            reference_end: "1970-01-01T00:10".to_string(),
+            ks_pvalue_threshold: None,
+            es_pvalue_threshold: None,
+            psi_minor_threshold: None,
+            psi_major_threshold: None,
+            wasserstein_std_multiplier: None,
+        }
+    }
+
+    #[test]
+    fn drift_query_rejects_unknown_fields() {
+        let err = serde_json::from_value::<DriftQuery>(json!({
+            "column": "value",
+            "window": "daily",
+            "referenceStart": "1970-01-01T00:00",
+            "referenceEnd": "1970-01-01T00:10",
+            "unexpected": true
+        }))
+        .unwrap_err();
+        assert!(err.to_string().contains("unknown field"));
+    }
+
+    #[test]
+    fn drift_stats_validation_rejects_invalid_window() {
+        let lf = df!(
+            "ts" => &[1_i64, 2_i64],
+            "value" => &[1.0_f64, 2.0_f64],
+        )
+        .unwrap()
+        .lazy();
+        let mut query = sample_drift_query();
+        query.window = "monthly".to_string();
+
+        let err = validate_drift_stats_query(&lf, &query, &Default::default()).unwrap_err();
+        assert!(err.to_string().contains("Invalid drift window"));
+    }
+
+    #[test]
+    fn drift_stats_validation_rejects_unknown_column() {
+        let lf = df!(
+            "ts" => &[1_i64, 2_i64],
+            "value" => &[1.0_f64, 2.0_f64],
+        )
+        .unwrap()
+        .lazy();
+        let mut query = sample_drift_query();
+        query.column = "missing".to_string();
+
+        let err = validate_drift_stats_query(&lf, &query, &Default::default()).unwrap_err();
+        assert!(err.to_string().contains("Unknown column 'missing'"));
+    }
 }

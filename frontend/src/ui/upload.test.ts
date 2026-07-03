@@ -89,6 +89,8 @@ function buildUploadDom(): void {
         <input id="profile-select-all-checkbox" type="checkbox" />
         <span id="upload-preview-status"></span>
         <span id="profile-mode-badge" data-mode="dataset">Current dataset</span>
+        <div id="upload-source-guidance"></div>
+        <div id="upload-next-step-guidance"></div>
         <span id="time-range-hint"></span>
         <select id="time-column-select"></select>
         <button id="upload-source-file-btn" type="button"></button>
@@ -283,6 +285,22 @@ describe('initUploadPanel upload button state', () => {
         expect(uploadBtn.disabled).toBe(false);
         expect(uploadBtn.getAttribute('aria-disabled')).toBe('false');
         expect(uploadBtn.title).toBe('');
+    });
+
+    it('keeps persistent source guidance in sync with the active upload mode', async () => {
+        initUploadPanel(vi.fn(), vi.fn(), {
+            buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(),
+        });
+
+        expect(document.getElementById('upload-source-guidance')?.textContent).toContain('File mode');
+        expect(document.getElementById('upload-next-step-guidance')?.textContent).toContain('Choose a file');
+
+        document.getElementById('upload-source-database-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        await flushPromises();
+
+        expect(document.getElementById('upload-source-guidance')?.textContent).toContain('Database mode');
+        expect(document.getElementById('upload-next-step-guidance')?.textContent).toContain('Connect');
     });
 });
 

@@ -68,6 +68,25 @@ export function renderSuggestions(
     box.innerHTML = '';
 
     if (!Array.isArray(suggestions) || suggestions.length === 0) {
+        const topPair = Array.isArray(appState.scatter.lastTopPairs)
+            ? appState.scatter.lastTopPairs[0]
+            : null;
+        if (topPair?.x && topPair?.y) {
+            const fallback = document.createElement('div');
+            fallback.className = 'scatter-suggestion-fallback';
+
+            const summary = document.createElement('span');
+            summary.className = 'scatter-suggestion-empty';
+            summary.textContent = `Top pair below ${appState.scatter.suggestionThreshold.toFixed(2)} threshold:`;
+            fallback.appendChild(summary);
+
+            const fallbackButton = buildSuggestionButton(topPair.x, topPair.y, topPair.correlation, xValue, yValue);
+            fallbackButton.classList.add('scatter-suggestion-btn-top-pair');
+            fallbackButton.setAttribute('aria-label', `Top pair ${topPair.x} and ${topPair.y}`);
+            fallback.insertAdjacentElement('beforeend', fallbackButton);
+            box.appendChild(fallback);
+            return;
+        }
         const empty = document.createElement('span');
         empty.className = 'scatter-suggestion-empty';
         empty.textContent = `No suggestions above |corr| >= ${appState.scatter.suggestionThreshold.toFixed(2)}.`;
@@ -79,30 +98,40 @@ export function renderSuggestions(
         const x = typeof item?.x === 'string' ? item.x.trim() : '';
         const y = typeof item?.y === 'string' ? item.y.trim() : '';
         if (!x || !y) continue;
-        const corr = Number.isFinite(item.correlation) ? item.correlation.toFixed(2) : '--';
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'scatter-suggestion-btn';
-        btn.dataset.xColumn = x;
-        btn.dataset.yColumn = y;
-        if (xValue === x && yValue === y) btn.classList.add('active');
-        btn.textContent = `${x} ↔ ${y}  |corr| ${corr}`;
-        btn.title = `Use ${x} (X) and ${y} (Y) — |corr| ${corr}`;
-        btn.addEventListener('click', () => {
-            if (getDropdownValue('scatter-x-col') === x && getDropdownValue('scatter-y-col') === y) return;
-            setDropdownValue('scatter-x-col', x);
-            setDropdownValue('scatter-y-col', y);
-            updateCorrelationStats();
-            renderSuggestions(appState.scatter.lastSuggestions);
-            const handler = activeApplyHandler;
-            if (handler) {
-                void Promise.resolve(handler(x, y)).catch((err) => {
-                    console.error('scatter: suggestion apply handler failed', err);
-                });
-            }
-        });
-        box.appendChild(btn);
+        box.appendChild(buildSuggestionButton(x, y, item.correlation, xValue, yValue));
     }
+}
+
+function buildSuggestionButton(
+    x: string,
+    y: string,
+    correlation: number,
+    activeX: string,
+    activeY: string,
+): HTMLButtonElement {
+    const corr = Number.isFinite(correlation) ? correlation.toFixed(2) : '--';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'scatter-suggestion-btn';
+    btn.dataset.xColumn = x;
+    btn.dataset.yColumn = y;
+    if (activeX === x && activeY === y) btn.classList.add('active');
+    btn.textContent = `${x} ↔ ${y}  |corr| ${corr}`;
+    btn.title = `Use ${x} (X) and ${y} (Y) — |corr| ${corr}`;
+    btn.addEventListener('click', () => {
+        if (getDropdownValue('scatter-x-col') === x && getDropdownValue('scatter-y-col') === y) return;
+        setDropdownValue('scatter-x-col', x);
+        setDropdownValue('scatter-y-col', y);
+        updateCorrelationStats();
+        renderSuggestions(appState.scatter.lastSuggestions);
+        const handler = activeApplyHandler;
+        if (handler) {
+            void Promise.resolve(handler(x, y)).catch((err) => {
+                console.error('scatter: suggestion apply handler failed', err);
+            });
+        }
+    });
+    return btn;
 }
 
 /**
@@ -133,6 +162,7 @@ export async function refreshCorrelationsAndSuggestions(
     // landing view is the most striking correlation in the dataset. Once
     // the user has picked a pair, preserve that choice across refreshes.
     const topPairs = Array.isArray(response.top_pairs) ? response.top_pairs : [];
+    appState.scatter.lastTopPairs = topPairs.slice();
     const hasUserPair = !!(currentX && currentY) && !options.preferTopPairOnFirstLoad;
     const preferredX = hasUserPair
         ? currentX

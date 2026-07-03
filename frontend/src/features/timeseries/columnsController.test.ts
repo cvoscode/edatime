@@ -29,15 +29,19 @@ describe('buildColumnToggles', () => {
                 { name: 'ts', dtype: 'Datetime' },
                 { name: 'HUFL', dtype: 'Float64' },
                 { name: 'HULL', dtype: 'Float64' },
+                { name: 'LUFL', dtype: 'Float64' },
+                { name: 'LULL', dtype: 'Float64' },
                 { name: 'MUFL', dtype: 'Float64' },
+                { name: 'MULL', dtype: 'Float64' },
+                { name: 'OT', dtype: 'Float64' },
             ],
-            numeric_columns: ['HUFL', 'HULL', 'MUFL'],
+            numeric_columns: ['HUFL', 'HULL', 'MUFL', 'MULL', 'LUFL', 'LULL', 'OT'],
             time_column: 'ts',
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any);
-        datasetState.numericCols = ['HUFL', 'HULL', 'MUFL'];
-        setSelectedCols(['HUFL', 'HULL', 'MUFL']);
+        datasetState.numericCols = ['HUFL', 'HULL', 'LUFL', 'LULL', 'MUFL', 'MULL', 'OT'];
+        setSelectedCols(['HUFL', 'HULL', 'OT']);
         setAdaptiveFilterColumn('HUFL');
         setSelectedColorColumn(null);
         setSeriesColors({});
@@ -78,7 +82,7 @@ describe('buildColumnToggles', () => {
         setFilterText('');
         buildColumnToggles(fetchAndRender, buildRangeControls);
 
-        expect(container.querySelectorAll('.series-chip').length).toBe(3);
+        expect(container.querySelectorAll('.series-chip').length).toBe(7);
     });
 
     it('renders an inline adaptive-filter hint next to the chip rail and highlights the active target', () => {
@@ -88,18 +92,33 @@ describe('buildColumnToggles', () => {
         setAdaptiveFilterColumn('HUFL');
         buildColumnToggles(fetchAndRender, buildRangeControls);
 
+        const summary = document.querySelector<HTMLElement>('.timeseries-chip-status__summary');
+        expect(summary?.textContent).toBe('3 of 7 active. Click chips to add more.');
+        expect(Array.from(document.querySelectorAll('#column-toggles .chip-label')).map((el) => el.textContent?.trim()))
+            .toEqual(['HUFL', 'HULL', 'LUFL', 'LULL', 'MUFL', 'MULL', 'OT']);
+
         const hint = document.querySelector<HTMLElement>('.timeseries-adaptive-hint');
         expect(hint).not.toBeNull();
+        expect(hint?.parentElement?.classList.contains('timeseries-chip-status')).toBe(true);
         expect(hint!.classList.contains('timeseries-adaptive-hint--active')).toBe(true);
         expect(hint!.getAttribute('title')).toContain('HUFL');
         expect(hint!.textContent).toMatch(/Ctrl\s*\+\s*click/);
 
+        const inactiveChip = Array.from(document.querySelectorAll<HTMLElement>('#column-toggles .series-chip'))
+            .find((chip) => chip.querySelector('.chip-label')?.textContent === 'MUFL');
+        expect(inactiveChip?.classList.contains('inactive')).toBe(true);
+
         // Clearing the target drops the active state and updates the title.
         setAdaptiveFilterColumn('');
+        setSelectedCols(['HUFL', 'HULL', 'OT', 'MUFL']);
         buildColumnToggles(fetchAndRender, buildRangeControls);
+        expect(document.querySelector<HTMLElement>('.timeseries-chip-status__summary')?.textContent).toBe('4 of 7 active. Click chips to add more.');
         const clearedHint = document.querySelector<HTMLElement>('.timeseries-adaptive-hint');
         expect(clearedHint?.classList.contains('timeseries-adaptive-hint--active')).toBe(false);
         expect(clearedHint?.getAttribute('title')).toMatch(/Ctrl\+click/);
+        const inactiveMuflChip = Array.from(document.querySelectorAll<HTMLElement>('#column-toggles .series-chip'))
+            .find((chip) => chip.querySelector('.chip-label')?.textContent === 'MUFL');
+        expect(inactiveMuflChip?.classList.contains('inactive')).toBe(false);
     });
 
     it('lets the user dismiss the adaptive-filter hint and keeps it dismissed across rebuilds', () => {

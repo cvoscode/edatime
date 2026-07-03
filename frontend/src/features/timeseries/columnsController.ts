@@ -110,11 +110,11 @@ export function buildColumnToggles(
  * adjacent toolbar groups.
  */
 function syncAdaptiveFilterHint(chipContainer: HTMLElement): void {
-    const parent = chipContainer.parentElement;
-    if (!parent) return;
-    let hint = parent.querySelector<HTMLElement>('.timeseries-adaptive-hint');
+    const statusRow = ensureChipStatusRow(chipContainer);
+    let hint = statusRow.querySelector<HTMLElement>('.timeseries-adaptive-hint');
     if (isAdaptiveHintDismissed()) {
         hint?.remove();
+        syncChipStatusSummary(statusRow);
         return;
     }
     if (!hint) {
@@ -124,9 +124,11 @@ function syncAdaptiveFilterHint(chipContainer: HTMLElement): void {
         hint.querySelector<HTMLButtonElement>('.timeseries-adaptive-hint__dismiss')?.addEventListener('click', () => {
             setAdaptiveHintDismissed(true);
             hint?.remove();
+            syncChipStatusSummary(statusRow);
         });
-        chipContainer.insertAdjacentElement('afterend', hint);
+        statusRow.appendChild(hint);
     }
+    syncChipStatusSummary(statusRow);
     // Highlight the current adaptive target so the hint doubles as a
     // status indicator once the user has picked one.
     const target = appState.adaptiveFilterColumn || '';
@@ -137,6 +139,32 @@ function syncAdaptiveFilterHint(chipContainer: HTMLElement): void {
         hint.classList.remove('timeseries-adaptive-hint--active');
         hint.setAttribute('title', 'Ctrl+click a selected series chip to target adaptive line filters to it.');
     }
+}
+
+function ensureChipStatusRow(chipContainer: HTMLElement): HTMLElement {
+    const parent = chipContainer.parentElement;
+    if (!parent) return chipContainer;
+    let statusRow = parent.querySelector<HTMLElement>('.timeseries-chip-status');
+    if (!statusRow) {
+        statusRow = document.createElement('div');
+        statusRow.className = 'timeseries-chip-status';
+        chipContainer.insertAdjacentElement('afterend', statusRow);
+    }
+    return statusRow;
+}
+
+function syncChipStatusSummary(statusRow: HTMLElement): void {
+    let summary = statusRow.querySelector<HTMLElement>('.timeseries-chip-status__summary');
+    if (!summary) {
+        summary = document.createElement('span');
+        summary.className = 'timeseries-chip-status__summary';
+        statusRow.prepend(summary);
+    }
+    const total = Array.isArray(appState.numericCols) ? appState.numericCols.length : 0;
+    const active = Array.isArray(appState.selectedCols) ? appState.selectedCols.length : 0;
+    summary.textContent = total > 0
+        ? `${active} of ${total} active. Click chips to add more.`
+        : 'No numeric series available.';
 }
 
 // ─── Range control chips (delegated) ──────────────────────────────────────────

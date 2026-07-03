@@ -39,6 +39,7 @@ export {
 
 import { initToolbarModals } from './exportControls.js';
 import { initDrawControls } from './drawControls.js';
+import { bindInfoPopovers } from './infoPopovers.js';
 import { initYRangeControls } from './yRangeControls.js';
 import { initChartTextControls } from './chartTextControls.js';
 import { initAnalyticsControls } from './analyticsControls.js';
@@ -101,6 +102,7 @@ export function initAnalysisControls(fetchAndRender: () => void): void {
     window.__edatime = window.__edatime || {};
     window.__edatime.exportChartFilteredData = exportChartFilteredData;
 
+    bindInfoPopovers();
     initToolbarModals();
     initDrawControls(fetchAndRender);
     initChartTextControls();

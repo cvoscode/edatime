@@ -21,6 +21,17 @@ export const datasetState: DatasetState = {
     datasetRevision: 0,
 };
 
+function deriveNumericCols(metadata: DatasetMetadata): string[] {
+    const timeCol = String(metadata.time_column || '').toLowerCase();
+    const typedColumns = Array.isArray(metadata.columns) ? metadata.columns : [];
+    const fromColumns = typedColumns
+        .filter((column) => /^(u?int|float|decimal)/i.test(String(column?.dtype || '')))
+        .map((column) => String(column?.name || '').trim())
+        .filter((name) => name && name.toLowerCase() !== timeCol);
+    if (fromColumns.length > 0) return fromColumns;
+    return (metadata.numeric_columns || []).filter((col: string) => col.toLowerCase() !== timeCol);
+}
+
 /* ── Mutations ──────────────────────────────────────────── */
 
 export function setMetadata(metadata: DatasetMetadata | null): void {
@@ -29,10 +40,7 @@ export function setMetadata(metadata: DatasetMetadata | null): void {
     datasetState.metadata = metadata;
     // Keep numericCols in sync when metadata changes
     if (metadata) {
-        const timeCol = String(metadata.time_column || '').toLowerCase();
-        datasetState.numericCols = (metadata.numeric_columns || []).filter(
-            (col: string) => col.toLowerCase() !== timeCol,
-        );
+        datasetState.numericCols = deriveNumericCols(metadata);
     } else {
         datasetState.numericCols = [];
     }

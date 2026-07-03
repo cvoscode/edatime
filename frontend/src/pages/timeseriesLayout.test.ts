@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 const indexHtml = readFileSync(join(process.cwd(), 'frontend/index.html'), 'utf8');
 const chartCss = readFileSync(join(process.cwd(), 'frontend/css/modules/chart.css'), 'utf8');
+const chipsCss = readFileSync(join(process.cwd(), 'frontend/css/modules/chips.css'), 'utf8');
 const toolbarCss = readFileSync(join(process.cwd(), 'frontend/css/modules/toolbar.css'), 'utf8');
 const responsiveCss = readFileSync(join(process.cwd(), 'frontend/css/modules/responsive.css'), 'utf8');
 
@@ -42,5 +43,11 @@ describe('timeseries layout shell', () => {
     it('adds responsive wrapping rules for the refreshed timeseries controls', () => {
         expect(responsiveCss).toContain('.timeseries-command-bar');
         expect(responsiveCss).toContain('.timeseries-chip-rail');
+    });
+
+    it('lets the chip rail wrap instead of hiding overflow behind horizontal scrolling', () => {
+        expect(chipsCss).toMatch(/\.timeseries-chip-rail\s*\{[^}]*flex-wrap:\s*wrap;/s);
+        expect(chipsCss).toMatch(/\.timeseries-chip-rail\s*\{[^}]*overflow-x:\s*visible;/s);
+        expect(chipsCss).toContain('.timeseries-chip-status');
     });
 });

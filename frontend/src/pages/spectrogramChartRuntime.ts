@@ -21,6 +21,10 @@ import {
     type ClipMode,
     type ScaleMode,
 } from '../utils/spectralScaling.js';
+import {
+    formatFrequencyInUnit,
+    pickFrequencyAxisUnit,
+} from '../utils/spectralPresets.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 import { toast } from '../utils/toast.js';
 
@@ -59,13 +63,6 @@ function formatSpectrogramTime(timestampMs: number): string {
         year: 'numeric', month: '2-digit', day: '2-digit',
         hour: '2-digit', minute: '2-digit', second: '2-digit',
     });
-}
-
-function formatSpectrogramFrequency(frequency: number): string {
-    if (!Number.isFinite(frequency)) return '—';
-    if (frequency >= 1000) return `${(frequency / 1000).toFixed(2)} kHz`;
-    if (frequency >= 1) return `${frequency.toFixed(2)} Hz`;
-    return `${(frequency * 1000).toFixed(2)} mHz`;
 }
 
 // ── Runtime factory ───────────────────────────────────────────────────────────
@@ -213,7 +210,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
 
                 let dragStart: { x: number; y: number; pid: number } | null = null;
                 let dragEnd = { x: 0, y: 0 };
-                const grid = { left: 72, right: 110, top: 24, bottom: 80 };
+                const grid = { left: 92, right: 110, top: 36, bottom: 88 };
 
                 chartEl.addEventListener('pointerdown', (event: PointerEvent) => {
                     if (event.button !== 0) return;
@@ -644,11 +641,14 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
 
                 const xTickInterval = Math.max(0, Math.floor(timeAxis.length / 10) - 1);
                 const yTickInterval = Math.max(0, Math.floor(freqAxis.length / 10) - 1);
+                const maxFrequency = freqAxis.reduce((max, value) => Math.max(max, Number(value) || 0), 0);
+                const frequencyUnit = pickFrequencyAxisUnit(maxFrequency);
+                const formatFrequencyForAxis = (value: number) => formatFrequencyInUnit(value, frequencyUnit);
 
                 chart.setOption({
                     backgroundColor: 'transparent',
                     animation: false,
-                    grid: { left: 72, right: 24, top: 24, bottom: 80 },
+                    grid: { left: 92, right: 40, top: 36, bottom: 88 },
                     toolbox: {
                         right: 12,
                         feature: {
@@ -672,7 +672,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                             return [
                                 `<strong>${spectrogramResult?.column || 'Spectrogram'}</strong>`,
                                 `Time: ${formatSpectrogramTime(timeMs)}`,
-                                `Frequency: ${formatSpectrogramFrequency(freq)}`,
+                                `Frequency: ${formatFrequencyForAxis(freq)}`,
                                 `Intensity: ${displayMagnitude.toFixed(4)}${logScale ? ' log10' : ` (${scaleLabel})`}`,
                                 `Raw magnitude: ${rawMagnitude.toExponential(4)}`,
                             ].join('<br>');
@@ -683,7 +683,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         data: timeAxis,
                         name: 'Time',
                         nameLocation: 'middle',
-                        nameGap: 48,
+                        nameGap: 60,
                         axisLabel: {
                             color: '#9fb1d1',
                             rotate: 30,
@@ -698,13 +698,13 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     yAxis: {
                         type: 'category',
                         data: freqAxis,
-                        name: 'Frequency (Hz)',
+                        name: `Frequency (${frequencyUnit})`,
                         nameLocation: 'middle',
-                        nameGap: 56,
+                        nameGap: 76,
                         axisLabel: {
                             color: '#9fb1d1',
                             interval: yTickInterval,
-                            formatter: (value: string | number) => formatSpectrogramFrequency(Number(value)),
+                            formatter: (value: string | number) => formatFrequencyForAxis(Number(value)),
                         },
                         splitLine: { show: false },
                     },
@@ -744,7 +744,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 });
 
                 initColorbarInteraction();
-                updateSpectrogramColorbar(minValue, maxValue, logScale ? 'log10' : scaleLabel);
+                updateSpectrogramColorbar(minValue, maxValue, logScale ? 'log10 magnitude' : scaleLabel);
                 syncSpectrogramEmptyState();
             };
 

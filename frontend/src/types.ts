@@ -77,6 +77,12 @@ export interface SeriesData {
     y: Float64Array;
 }
 
+export interface ColorCardinality {
+    requested: number;
+    used: number;
+    bucketed: number;
+}
+
 export interface ScatterPointsResponse {
     x: string;
     y: string;
@@ -88,6 +94,13 @@ export interface ScatterPointsResponse {
     color_labels: (string | null)[] | null;
     color_min: number | null;
     color_max: number | null;
+    /**
+     * Audit issue 2.2: categorical color cardinality summary. `null`
+     * when no color column was requested or when the column is
+     * continuous. The frontend uses `bucketed > 0` to show a
+     * "X other categories collapsed" hint under the colorbar.
+     */
+    color_cardinality?: ColorCardinality | null;
 }
 
 export interface ScatterMatrixPair {
@@ -306,6 +319,8 @@ export interface ChartInstance {
     updateDataMulti(dataObj: FilteredDataObject, columns: string[]): void;
     setXRange(min: number, max: number): void;
     setYRange(min: number, max: number): void;
+    setStackFromZero?(on: boolean): void;
+    setRobustDisplayRange?(options: RobustDisplayRangeOptions | null): void;
     setChartText(title: string, xLabel: string, yLabel: string): void;
     onCrosshairMove(callback: (data: CrosshairData) => void): void;
     onClick(callback: (data: unknown) => void): void;
@@ -321,6 +336,11 @@ export interface ChartInstance {
     requestOverlayRender?(): void;
     cssPointToData?(clientX: number, clientY: number): { x: number; y: number } | null;
     destroy?(): void;
+}
+
+export interface RobustDisplayRangeOptions {
+    mode: 'percentile' | 'iqr';
+    param: number;
 }
 
 export interface ChartAdapter {
@@ -428,6 +448,7 @@ export interface ScatterState {
     lastOptionSeries: SeriesConfig[] | null;
     columnTypes: Map<string, string>;
     lastSuggestions: Array<{ x: string; y: string; correlation: number }>;
+    lastTopPairs: TopPairItem[];
     lastRenderSignature: string;
     lastQueryContextKey: string;
     matrixCache: Map<string, Promise<MatrixCellData>>;

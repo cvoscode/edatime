@@ -466,6 +466,17 @@ describe('drift page accessibility and debug metadata', () => {
 
         expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/drift/investigate');
         expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/drift/stats');
+        expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toMatchObject({
+            column: 'value',
+            window: 'daily',
+            referenceStart: expect.any(String),
+            referenceEnd: expect.any(String),
+            ksPvalueThreshold: 0.05,
+            esPvalueThreshold: 0.05,
+            psiMinorThreshold: 0.1,
+            psiMajorThreshold: 0.2,
+            wassersteinStdMultiplier: 0.1,
+        });
         expect(document.getElementById('drift-overview-panel')?.textContent).toContain('Legacy fallback');
         expect(document.getElementById('drift-column-summary')?.textContent).toContain('value');
     });

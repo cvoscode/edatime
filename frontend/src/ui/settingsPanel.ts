@@ -24,18 +24,34 @@ import { createModalController } from './shell/createModalController';
 import { getDropdownValue, setDropdownValue } from './primitives/Dropdown.js';
 
 let currentSettings: AppSettings | null = null;
+let draftSettings: AppSettings | null = null;
 let activeTab = 'appearance';
+let previewBaseline: Pick<AppSettings, 'theme' | 'layoutDensity'> | null = null;
+let skipPreviewRevertOnClose = false;
 
 const controller = createModalController({
     modalId: 'settings-modal',
     closeButtonIds: ['settings-close-btn', 'settings-cancel-btn'],
     onOpen: () => {
         currentSettings = loadSettings();
-        populateSettingsForm(currentSettings);
+        draftSettings = { ...currentSettings };
+        previewBaseline = {
+            theme: currentSettings.theme,
+            layoutDensity: currentSettings.layoutDensity,
+        };
+        skipPreviewRevertOnClose = false;
+        populateSettingsForm(draftSettings);
         setActiveTab('appearance');
     },
     onClose: () => {
+        if (!skipPreviewRevertOnClose && previewBaseline) {
+            applyTheme(previewBaseline.theme);
+            applyLayoutDensity(previewBaseline.layoutDensity);
+        }
         currentSettings = null;
+        draftSettings = null;
+        previewBaseline = null;
+        skipPreviewRevertOnClose = false;
     },
 });
 
@@ -113,9 +129,14 @@ function collectSettingsFromForm(): AppSettings {
     };
 }
 
+function syncDraftSettings(): AppSettings {
+    draftSettings = collectSettingsFromForm();
+    return draftSettings;
+}
+
 /** Apply settings and close modal. */
 function applySettings(): void {
-    const settings = collectSettingsFromForm();
+    const settings = syncDraftSettings();
     saveSettings(settings);
 
     // Apply immediately
@@ -130,13 +151,17 @@ function applySettings(): void {
         SERIES_COLORS.push(...palette);
     }
 
+    currentSettings = { ...settings };
+    skipPreviewRevertOnClose = true;
     closeSettingsModal();
 }
 
 /** Reset settings to defaults. */
 function resetSettings(): void {
-    currentSettings = { ...DEFAULT_SETTINGS };
-    populateSettingsForm(currentSettings);
+    draftSettings = { ...DEFAULT_SETTINGS };
+    populateSettingsForm(draftSettings);
+    applyTheme(draftSettings.theme);
+    applyLayoutDensity(draftSettings.layoutDensity);
 }
 
 /** Render a preview of the selected color palette. */
@@ -200,17 +225,20 @@ export function initSettingsPanel(): void {
 
     // Palette preview update
     document.getElementById('settings-palette')?.addEventListener('change', () => {
-        renderPalettePreview(getDropdownValue('settings-palette'));
+        const draft = syncDraftSettings();
+        renderPalettePreview(draft.defaultPalette);
     });
 
     // Theme preview (live update as user changes)
     document.getElementById('settings-theme')?.addEventListener('change', () => {
-        applyTheme(getDropdownValue('settings-theme') as ThemeMode);
+        const draft = syncDraftSettings();
+        applyTheme(draft.theme);
     });
 
     // Layout density preview
     document.getElementById('settings-layout')?.addEventListener('change', () => {
-        applyLayoutDensity(getDropdownValue('settings-layout') as LayoutDensity);
+        const draft = syncDraftSettings();
+        applyLayoutDensity(draft.layoutDensity);
     });
 
     // Settings button in header

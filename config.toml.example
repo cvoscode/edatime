@@ -1,0 +1,31 @@
+# Example runtime configuration for edatime.
+#
+# Copy to `config.toml` (or point the `EDATIME_CONFIG` env var at any
+# path) and uncomment / tweak the values you want to override. Any
+# field you omit falls back to the defaults defined in
+# `crates/edatime-core/src/config.rs::ValidationSettings::default`.
+#
+# The two new fields below make the scatter default point limit and the
+# minimum viewport width configurable from a single place (audit
+# issues 1.2 and 2.6 from `usage_issue.md`).
+
+[validation]
+# Floor for `/api/data?width=...` — the backend rejects requests
+# below this. The frontend already clamps to 50, so setting this
+# higher than 50 effectively tightens the backend contract.
+# min_viewport_width = 50
+
+# Ceiling for `/api/data?width=...`.
+# max_viewport_width = 20_000
+
+# Used when the client omits `?limit=` on `/api/scatter/points`.
+# Default 200_000 keeps a typical EDA session responsive; raise
+# toward `max_scatter_limit` for "show every point" workflows.
+# default_scatter_limit = 200_000
+
+# Hard upper bound for explicit `?limit=` on `/api/scatter/points`.
+# max_scatter_limit = 5_000_000
+
+# Top-N distinct labels preserved in the scatter categorical
+# color legend before the long tail collapses into "Other".
+# max_color_cardinality = 64

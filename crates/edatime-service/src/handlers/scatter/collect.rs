@@ -68,7 +68,10 @@ pub fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option
 /// entries stay `None`. Days of week are intentionally NOT bucketed here —
 /// keep the temporal axis semantic to its dominant cycle (hour-of-day) which
 /// is what DS workflows care about most (e.g. diurnal load patterns).
-pub fn series_to_time_bucket_labels(df: &DataFrame, name: &str) -> Result<Vec<Option<String>>, AppError> {
+pub fn series_to_time_bucket_labels(
+    df: &DataFrame,
+    name: &str,
+) -> Result<Vec<Option<String>>, AppError> {
     let series = df
         .column(name)
         .map_err(|e| AppError::bad_request(format!("Missing column '{}': {}", name, e)))?
@@ -83,9 +86,9 @@ pub fn series_to_time_bucket_labels(df: &DataFrame, name: &str) -> Result<Vec<Op
                     name, e
                 ))
             })?;
-            let vals = casted
-                .i64()
-                .map_err(|e| AppError::internal(format!("Failed to read '{}' as Int64: {}", name, e)))?;
+            let vals = casted.i64().map_err(|e| {
+                AppError::internal(format!("Failed to read '{}' as Int64: {}", name, e))
+            })?;
 
             let dtype = series.dtype();
             let divisor = edatime_core::temporal::unit_multiplier(dtype);
@@ -139,6 +142,130 @@ pub fn series_to_label_values(df: &DataFrame, name: &str) -> Result<Vec<Option<S
         .into_iter()
         .map(|value| value.map(|text| text.to_string()))
         .collect())
+}
+
+/// Audit issue 2.2: collapse the long tail of a categorical color
+/// column into a single `"Other (N)"` bucket so the legend stays
+/// readable when the user picks a high-cardinality column (e.g. a
+/// unique-id column on a 1M-row dataset).
+///
+/// The policy preserves the top `max_cardinality` labels by frequency
+/// (ties broken by first-seen order to keep the legend stable across
+/// requests) and replaces every other label with
+/// `"Other (<dropped_count>)"`. `None` entries — nulls / NaNs — are
+/// preserved untouched.
+///
+/// Returns the rewritten label vector and a `ColorCardinality`
+/// describing the projection so the route handler can forward it to
+/// the frontend (and surface a small hint in the legend).
+pub fn cap_categorical_cardinality(
+    labels: Vec<Option<String>>,
+    max_cardinality: usize,
+) -> (Vec<Option<String>>, ColorCardinality) {
+    use std::collections::HashMap;
+
+    if max_cardinality == 0 {
+        // Defensive: a zero cap would discard every label. Treat as
+        // "no cap" so the caller never produces an empty legend by
+        // accident.
+        let total = labels.iter().filter(|label| label.is_some()).count();
+        return (
+            labels,
+            ColorCardinality {
+                requested: total,
+                used: total,
+                bucketed: 0,
+            },
+        );
+    }
+
+    // First pass: build a frequency table keyed by *owned* `String`
+    // so we don't keep any borrow into `labels` alive for the
+    // second pass (which needs to consume `labels` by value to build
+    // the rewritten output). Track first-seen order through the
+    // `first_seen_index` map.
+    let mut frequencies: HashMap<String, usize> = HashMap::new();
+    let mut first_seen_index: HashMap<String, usize> = HashMap::new();
+    let mut insertion_counter: usize = 0;
+    for label in &labels {
+        if let Some(text) = label.as_ref() {
+            let entry = frequencies.entry(text.clone()).or_insert(0);
+            *entry += 1;
+            first_seen_index.entry(text.clone()).or_insert(insertion_counter);
+            insertion_counter += 1;
+        }
+    }
+
+    let total = frequencies.len();
+    if total <= max_cardinality {
+        return (
+            labels,
+            ColorCardinality {
+                requested: total,
+                used: total,
+                bucketed: 0,
+            },
+        );
+    }
+
+    // Pick the top `max_cardinality` labels by frequency, ties broken
+    // by first-seen index.
+    let mut ranked: Vec<(String, usize)> = frequencies.into_iter().collect();
+    ranked.sort_by(|(label_a, count_a), (label_b, count_b)| {
+        count_b.cmp(count_a).then_with(|| {
+            // Stable tie-break: first-seen index.
+            let pos_a = first_seen_index
+                .get(label_a)
+                .copied()
+                .unwrap_or(usize::MAX);
+            let pos_b = first_seen_index
+                .get(label_b)
+                .copied()
+                .unwrap_or(usize::MAX);
+            pos_a.cmp(&pos_b)
+        })
+    });
+    let kept: std::collections::HashSet<String> = ranked
+        .into_iter()
+        .take(max_cardinality)
+        .map(|(label, _)| label)
+        .collect();
+    let dropped = total.saturating_sub(max_cardinality);
+    let other_label = format!("Other ({})", dropped);
+
+    // Second pass: take `labels` by value and rewrite non-kept
+    // entries. `None` (null / NaN) rows are preserved as-is.
+    let rewritten: Vec<Option<String>> = labels
+        .into_iter()
+        .map(|label| {
+            label.map(|text| {
+                if kept.contains(&text) {
+                    text
+                } else {
+                    other_label.clone()
+                }
+            })
+        })
+        .collect();
+
+    (
+        rewritten,
+        ColorCardinality {
+            requested: total,
+            used: max_cardinality,
+            bucketed: dropped,
+        },
+    )
+}
+
+/// Cardinality summary returned by `cap_categorical_cardinality` and
+/// serialized into the scatter points response so the frontend can
+/// render a "X other categories collapsed" hint.
+#[derive(Debug, Clone, Copy)]
+pub struct ColorCardinality {
+    pub requested: usize,
+    pub used: usize,
+    pub bucketed: usize,
 }
 
 /// Collect x/y pairs from a DataFrame as `Vec<[f64; 2]>`, filtering out non-finite values.
@@ -233,7 +360,7 @@ pub fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
-    use super::collect_filtered_scatter_frame;
+    use super::{cap_categorical_cardinality, collect_filtered_scatter_frame};
     use crate::error::AppError;
     use polars::prelude::{DataFrame, DataType, IntoColumn, IntoLazy, NamedFrom, Series, TimeUnit};
 
@@ -277,5 +404,75 @@ mod tests {
             .f64()
             .expect("x column should be f64");
         assert_eq!(x_values.get(0), Some(20.0));
+    }
+
+    /// Audit issue 2.2: when distinct label count is below the cap,
+    /// the labels must come through unchanged and `bucketed` must be
+    /// zero.
+    #[test]
+    fn cap_categorical_cardinality_below_cap_is_noop() {
+        let labels: Vec<Option<String>> = (0..5)
+            .map(|i| Some(format!("cat-{i}")))
+            .collect();
+        let (rewritten, info) = cap_categorical_cardinality(labels.clone(), 64);
+        assert_eq!(rewritten, labels, "below-cap labels must be unchanged");
+        assert_eq!(info.requested, 5);
+        assert_eq!(info.used, 5);
+        assert_eq!(info.bucketed, 0);
+    }
+
+    /// Above the cap, the long tail collapses into a single
+    /// `"Other (N)"` bucket and the info struct reports the
+    /// breakdown.
+    #[test]
+    fn cap_categorical_cardinality_above_cap_buckets_tail() {
+        let mut labels: Vec<Option<String>> = Vec::new();
+        // 100 distinct labels, 5 of them dominate by frequency.
+        for i in 0..100 {
+            let freq = if i < 5 { 10 } else { 1 };
+            for _ in 0..freq {
+                labels.push(Some(format!("cat-{i}")));
+            }
+        }
+        let (rewritten, info) = cap_categorical_cardinality(labels, 5);
+        assert_eq!(info.requested, 100, "all 100 distinct labels were seen");
+        assert_eq!(info.used, 5, "cap is 5");
+        assert_eq!(info.bucketed, 95, "95 categories collapsed into Other");
+        // Every rewritten label is either one of the kept top-5 or
+        // the "Other (95)" bucket.
+        for label in rewritten.iter().flatten() {
+            assert!(
+                label == "Other (95)"
+                    || (0..5).map(|i| format!("cat-{i}")).any(|kept| kept == *label),
+                "unexpected label after cap: {label}"
+            );
+        }
+    }
+
+    /// `None` entries (null / NaN color rows) must be preserved
+    /// untouched by the cap so the row alignment with the xy pairs
+    /// stays intact.
+    #[test]
+    fn cap_categorical_cardinality_preserves_nulls() {
+        let labels: Vec<Option<String>> = vec![
+            Some("a".to_string()),
+            None,
+            Some("b".to_string()),
+            None,
+            Some("a".to_string()),
+        ];
+        let (rewritten, _info) = cap_categorical_cardinality(labels, 1);
+        assert_eq!(rewritten[1], None, "None must be preserved");
+        assert_eq!(rewritten[3], None, "None must be preserved");
+    }
+
+    /// A zero cap is treated as "no cap" so the caller never produces
+    /// an empty legend by accident.
+    #[test]
+    fn cap_categorical_cardinality_zero_cap_is_noop() {
+        let labels: Vec<Option<String>> = vec![Some("a".to_string()), Some("b".to_string())];
+        let (rewritten, info) = cap_categorical_cardinality(labels.clone(), 0);
+        assert_eq!(rewritten, labels);
+        assert_eq!(info.bucketed, 0);
     }
 }

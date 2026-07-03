@@ -354,7 +354,10 @@ fn count_inversions(arr: &mut [f64], buf: &mut [f64]) -> u64 {
             let mut j = mid;
             let mut k = start;
             while i < mid && j < end {
-                if arr[i] <= arr[j] {
+                // Keep inversion ordering consistent with the tau tie logic:
+                // `total_cmp` distinguishes `-0.0` from `0.0`, while `<=`
+                // does not.
+                if arr[i].total_cmp(&arr[j]) != std::cmp::Ordering::Greater {
                     buf[k] = arr[i];
                     i += 1;
                 } else {
@@ -477,11 +480,17 @@ mod correlation_tests {
 
         let tau = kendall_tau(&pairs).unwrap();
         // For pairs [[1,1],[1,2],[2,2],[3,3]] with 1 x-tie, no inversions
-        // across x-distinct observations, ties_y=1: tau = 5 / sqrt(5*6) ≈ 0.9129.
+        // across x-distinct observations, ties_y=1: tau = 4 / sqrt(5*5) = 0.8.
         assert!(
-            tau > 0.91 && tau < 0.92,
-            "expected tau-b around 0.9129, got {tau}"
+            tau > 0.79 && tau < 0.81,
+            "expected tau-b around 0.8, got {tau}"
         );
+    }
+
+    #[test]
+    fn kendall_tau_treats_signed_zero_as_ordered() {
+        let pairs = [[1.0, 0.0], [2.0, -0.0]];
+        assert_close(kendall_tau(&pairs), kendall_tau_reference(&pairs), 1e-12);
     }
 
     #[test]

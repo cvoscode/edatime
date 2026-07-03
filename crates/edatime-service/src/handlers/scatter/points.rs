@@ -20,7 +20,10 @@ use edatime_store::state::AppState;
 
 use super::collect::collect_filtered_scatter_frame;
 use super::sample::{ScatterColorKind, TimeColorMode, collect_sampled_xyc_rows};
-use super::{ScatterPointsQuery, clamp_limit, parse_scatter_filters, parse_scatter_line_filters};
+use super::{
+    ColorCardinalityInfo, ScatterPointsQuery, clamp_limit, parse_scatter_filters,
+    parse_scatter_line_filters, resolved_scatter_limit,
+};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -84,7 +87,17 @@ async fn scatter_points_response(
     } else {
         None
     };
-    let limit = clamp_limit(params.limit, &state.config.validation);
+    // `params.limit == 0` is the sentinel emitted by serde when the client
+    // omits the field; substitute the configured default so operators can
+    // tune the baseline via `config.toml` (audit issue 2.6). Any explicit
+    // value the client sent is preserved before clamping against the
+    // configured upper bound.
+    let parsed_limit = if params.limit == 0 {
+        resolved_scatter_limit(&state.config.validation)
+    } else {
+        params.limit
+    };
+    let limit = clamp_limit(parsed_limit, &state.config.validation);
     validate_scatter_limit(limit, &state.config.validation)?;
     let time_color_mode = TimeColorMode::from_query(params.time_color_mode.as_deref());
     let cache_key = format!(
@@ -145,8 +158,9 @@ async fn scatter_points_response(
         x_buf,
         y_buf,
         cv_buf,
-        color_strings,
+        color_strings, // Vec<Option<String>>: None for continuous-color rows.
         sv_buf,
+        color_cardinality,
     ) = tokio::task::spawn_blocking(move || {
         let filtered_df = lazy_frame
             .clone()
@@ -171,7 +185,11 @@ async fn scatter_points_response(
         let mut x_buf = Vec::with_capacity(n);
         let mut y_buf = Vec::with_capacity(n);
         let mut cv_buf: Vec<f64> = Vec::with_capacity(n);
-        let mut color_strings: Vec<String> = Vec::with_capacity(n);
+        // Audit issue 2.2: keep categorical labels as `Option<String>`
+        // (None for continuous-color rows) so we can apply the
+        // cardinality cap *after* sampling without losing the row
+        // alignment with `x_buf` / `cv_buf`.
+        let mut color_strings: Vec<Option<String>> = Vec::with_capacity(n);
         let mut sv_buf: Vec<f64> = Vec::with_capacity(n);
 
         let mut cmin = f64::INFINITY;
@@ -185,7 +203,7 @@ async fn scatter_points_response(
             match row.color_value {
                 Some(v) if v.is_finite() => {
                     cv_buf.push(v);
-                    color_strings.push(String::new());
+                    color_strings.push(None);
                     if v < cmin {
                         cmin = v;
                     }
@@ -195,7 +213,7 @@ async fn scatter_points_response(
                 }
                 _ => {
                     cv_buf.push(f64::NAN);
-                    color_strings.push(row.color_label.unwrap_or_default());
+                    color_strings.push(row.color_label);
                 }
             }
             if let Some(sv) = row.size_value {
@@ -208,6 +226,19 @@ async fn scatter_points_response(
                 }
             }
         }
+
+        // Apply the cardinality cap on categorical color so a
+        // high-cardinality column doesn't blow up the legend (audit
+        // issue 2.2). The cap is a no-op for the continuous path
+        // because no row in `color_strings` is `Some` there.
+        let (color_strings, color_cardinality) =
+            if matches!(color_kind, Some(ScatterColorKind::Categorical)) {
+                let cap = state.config.validation.max_color_cardinality;
+                let (rewritten, info) = super::cap_categorical_cardinality(color_strings, cap);
+                (rewritten, Some(info))
+            } else {
+                (color_strings, None)
+            };
 
         let color_min = if cmin.is_finite() { Some(cmin) } else { None };
         let color_max = if cmax.is_finite() { Some(cmax) } else { None };
@@ -231,6 +262,7 @@ async fn scatter_points_response(
             cv_buf,
             color_strings,
             sv_buf,
+            color_cardinality,
         ))
     })
     .await
@@ -278,6 +310,23 @@ async fn scatter_points_response(
     if let Some(ref sc) = size_col_for_headers {
         extra_headers.push(("x-edatime-scatter-size".to_string(), sc.clone()));
     }
+    // Audit issue 2.2: surface the cardinality summary on the
+    // response headers so non-JSON consumers (Arrow, exports) can
+    // also render a legend hint without parsing the body.
+    if let Some(info) = color_cardinality {
+        extra_headers.push((
+            "x-edatime-color-cardinality-requested".to_string(),
+            info.requested.to_string(),
+        ));
+        extra_headers.push((
+            "x-edatime-color-cardinality-used".to_string(),
+            info.used.to_string(),
+        ));
+        extra_headers.push((
+            "x-edatime-color-cardinality-bucketed".to_string(),
+            info.bucketed.to_string(),
+        ));
+    }
 
     let wants_json = params.format.as_deref() == Some("json");
 
@@ -309,20 +358,20 @@ async fn scatter_points_response(
                 Some(cv_buf.clone())
             },
             color_labels: if matches!(color_kind, Some(ScatterColorKind::Categorical)) {
-                Some(
-                    color_strings
-                        .iter()
-                        .map(|s| if s.is_empty() { None } else { Some(s.clone()) })
-                        .collect(),
-                )
+                Some(color_strings.clone())
             } else {
                 None
             },
             color_min,
             color_max,
-            size_values: if sv_buf.is_empty() { None } else { Some(sv_buf.clone()) },
+            size_values: if sv_buf.is_empty() {
+                None
+            } else {
+                Some(sv_buf.clone())
+            },
             size_min,
             size_max,
+            color_cardinality: color_cardinality.map(ColorCardinalityInfo::from),
         };
         let json_bytes = serde_json::to_vec(&response)
             .map_err(|e| AppError::internal(format!("JSON serialization: {}", e)))?;

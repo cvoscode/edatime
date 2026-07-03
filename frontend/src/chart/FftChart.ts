@@ -15,9 +15,13 @@ import {
 } from './chartInteractions.js';
 import {
     type FrequencyPeak,
+    type FrequencyUnit,
+    formatFrequencyInUnit,
     formatFrequency,
+    frequencyUnitScale,
     frequencyToPeriod,
     checkAliasingWarning,
+    pickFrequencyUnit,
 } from '../utils/spectralPresets.js';
 import {
     applySpectralScale,
@@ -27,7 +31,7 @@ import {
 } from '../utils/spectralScaling.js';
 import { SERIES_COLORS } from '../utils/seriesColors.js';
 
-const FFT_GRID: GridLayout = { left: 96, right: 24, top: 20, bottom: 44 };
+const FFT_GRID: GridLayout = { left: 112, right: 32, top: 34, bottom: 52 };
 
 /**
  * Fallback palette for the FFT chart when no per-column color override is
@@ -110,20 +114,12 @@ export class FftChart {
         return !(this._xMin === 0 && Math.abs(this._xMax - this._fullXMax) < 1e-30);
     }
 
-    private _xUnit(): string {
-        const m = this._getXMax();
-        if (m > 0 && m < 0.001) return 'µHz';
-        if (m > 0 && m < 1) return 'mHz';
-        if (m >= 1000) return 'kHz';
-        return 'Hz';
+    private _xUnit(): FrequencyUnit {
+        return pickFrequencyUnit(this._getXMax());
     }
 
     private _xScale(): number {
-        const m = this._getXMax();
-        if (m > 0 && m < 0.001) return 1e6;
-        if (m > 0 && m < 1) return 1000;
-        if (m >= 1000) return 0.001;
-        return 1;
+        return frequencyUnitScale(this._xUnit());
     }
 
     private _yAxisLabel(): string {
@@ -221,7 +217,7 @@ export class FftChart {
             const list = Array.isArray(params) ? params : [params as any];
             if (!list.length) return '';
             const x = Number((list[0] as any)?.value?.[0]);
-            const freqLabel = Number.isFinite(x) ? `${(x * sc).toFixed(4)} ${unit}` : '';
+            const freqLabel = Number.isFinite(x) ? formatFrequencyInUnit(x, unit) : '';
             const rows = list.map((p: any) => {
                 const name = String(p?.seriesName ?? '');
                 const y = Number(p?.value?.[1]);
@@ -272,7 +268,7 @@ export class FftChart {
                     fontSize: 11,
                     hideOverlap: true,
                     margin: 8,
-                    formatter: (v: number) => (v * sc).toFixed(tickPrec),
+                    formatter: (v: number) => formatFrequencyInUnit(v, unit, tickPrec).replace(/\s+[A-Za-zµ]+$/, ''),
                 },
                 axisTick: {
                     alignWithLabel: true,
@@ -287,7 +283,7 @@ export class FftChart {
                     ? (useScaledY ? `scaled (${scaleLabel})` : `log10(${this._mode === 'psd' ? 'PSD' : 'Magnitude'})`)
                     : (useScaledY ? `scaled (${scaleLabel})` : this._mode === 'psd' ? 'PSD' : 'Magnitude'),
                 nameLocation: 'middle',
-                nameGap: 60,
+                nameGap: 76,
                 nameTextStyle: {
                     color: '#cfd9f1',
                     fontSize: 12,
@@ -399,7 +395,6 @@ export class FftChart {
         const xMin = this._getXMin();
         const xMax = this._getXMax();
         if (xMax <= xMin) return;
-        const sc = this._xScale();
         const unit = this._xUnit();
         const plotL = FFT_GRID.left;
         const plotT = FFT_GRID.top;
@@ -418,7 +413,7 @@ export class FftChart {
 
         // Draw peak labels if enabled
         if (this._showPeakLabels && this._dominantPeaks.length > 0) {
-            this._renderPeakLabels(ctx, xMin, xMax, plotL, plotT, plotW, plotH, sc, unit);
+            this._renderPeakLabels(ctx, xMin, xMax, plotL, plotT, plotW, plotH);
         }
 
         if (this._annotations.length === 0) return;
@@ -436,7 +431,7 @@ export class FftChart {
             ctx.lineTo(ax, plotT + plotH);
             ctx.stroke();
             ctx.setLineDash([]);
-            const label = `${(freqHz * sc).toFixed(4)} ${unit}`;
+            const label = formatFrequencyInUnit(freqHz, unit);
             ctx.fillStyle = 'rgba(255,220,80,0.95)';
             ctx.textAlign = ax > w / 2 ? 'right' : 'left';
             ctx.fillText(label, ax + (ax > w / 2 ? -5 : 5), plotT + 14);
@@ -491,8 +486,6 @@ export class FftChart {
         plotT: number,
         plotW: number,
         plotH: number,
-        sc: number,
-        unit: string,
     ): void {
         ctx.save();
         ctx.font = '10px Inter, system-ui, sans-serif';
@@ -500,7 +493,7 @@ export class FftChart {
         // Only show top 3 peaks in labels to avoid clutter
         const peaksToShow = this._dominantPeaks.slice(0, 3);
 
-        for (const peak of peaksToShow) {
+        for (const [index, peak] of peaksToShow.entries()) {
             const freqHz = peak.frequency_hz;
             if (freqHz < xMin || freqHz > xMax) continue;
 
@@ -536,15 +529,17 @@ export class FftChart {
             ctx.fill();
 
             // Draw label
-            const label = `${(freqHz * sc).toFixed(2)} ${unit}`;
+            const label = formatFrequency(freqHz);
             const period = frequencyToPeriod(freqHz);
+            const row = index % 2;
+            const yBase = ay - 12 - (row * 18);
 
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
             ctx.textAlign = ax > plotL + plotW / 2 ? 'right' : 'left';
             const xOffset = ax > plotL + plotW / 2 ? -8 : 8;
-            ctx.fillText(label, ax + xOffset, ay - 8);
+            ctx.fillText(label, ax + xOffset, yBase);
             ctx.fillStyle = 'rgba(180, 180, 180, 0.85)';
-            ctx.fillText(`(${period})`, ax + xOffset, ay + 4);
+            ctx.fillText(`(${period})`, ax + xOffset, yBase + 11);
         }
 
         ctx.restore();

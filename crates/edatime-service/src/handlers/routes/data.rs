@@ -102,6 +102,13 @@ pub async fn get_data(
         .execute_async(pipeline.apply(lf))
         .await?;
 
+    // Audit issue 1.4: capture the row count after the time filter /
+    // non-finite cleanup but *before* LTTB so we can surface how many
+    // rows were dropped by filtering. The LTTB step may also reduce
+    // the row count further; we never let the dropped count go
+    // negative.
+    let filtered_rows = filtered.height();
+
     // ── LTTB reduction on collected DataFrame ─────────────────────────────────
     let target_points = params.width * 2;
     let extra_cols = color_column
@@ -157,10 +164,19 @@ pub async fn get_data(
     } else {
         "0"
     };
-    let cached = cached.with_extra_headers(vec![(
-        "x-edatime-empty".to_string(),
-        empty_header.to_string(),
-    )]);
+    // Filter-drop accounting (audit issue 1.4): expose how many rows
+    // survived the time filter and how many were dropped relative to
+    // the pre-LTTB filtered set. LTTB can also reduce rows; clamp at
+    // zero so the contract stays non-negative.
+    let dropped_rows = filtered_rows.saturating_sub(returned_rows);
+    let cached = cached.with_extra_headers(vec![
+        ("x-edatime-empty".to_string(), empty_header.to_string()),
+        ("x-edatime-filtered-rows".to_string(), filtered_rows.to_string()),
+        (
+            "x-edatime-dropped-rows".to_string(),
+            dropped_rows.to_string(),
+        ),
+    ]);
 
     state.cache.insert(cache_key, cached.clone()).await;
     Ok(cached.into_response("miss"))
@@ -254,6 +270,50 @@ mod tests {
             empty,
             Some("0"),
             "non-empty window must set x-edatime-empty: 0"
+        );
+    }
+
+    /// Regression test for audit issue 1.4: the response must expose
+    /// `x-edatime-filtered-rows` and `x-edatime-dropped-rows` so the
+    /// frontend can tell when a range produced zero rows because the
+    /// time window itself was empty (filtered_rows == 0) vs. because
+    /// filters / non-finite cleanup removed rows after the time
+    /// filter. The `build_test_state` fixture has 3 rows total; a
+    /// normal in-range request should report filtered_rows == 3 and
+    /// dropped_rows == 0 (LTTB `width=400` is far above the row
+    /// count so no LTTB reduction kicks in).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn get_data_emits_filtered_and_dropped_rows_headers() {
+        let state = build_test_state();
+        let params = DataQuery {
+            start: chrono::Utc.with_ymd_and_hms(2018, 1, 1, 0, 0, 0).unwrap(),
+            end: chrono::Utc.with_ymd_and_hms(2018, 2, 1, 0, 0, 0).unwrap(),
+            width: 400,
+            columns: Some("HUFL".to_string()),
+            color_column: None,
+            format: None,
+        };
+        let response = get_data(State(state), Query(params))
+            .await
+            .expect("normal window should succeed");
+
+        let filtered = response
+            .headers()
+            .get("x-edatime-filtered-rows")
+            .and_then(|v| v.to_str().ok());
+        let dropped = response
+            .headers()
+            .get("x-edatime-dropped-rows")
+            .and_then(|v| v.to_str().ok());
+        assert_eq!(
+            filtered,
+            Some("3"),
+            "x-edatime-filtered-rows must equal the pre-LTTB row count"
+        );
+        assert_eq!(
+            dropped,
+            Some("0"),
+            "x-edatime-dropped-rows must be 0 when the LTTB target is above the filtered row count"
         );
     }
 }

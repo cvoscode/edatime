@@ -14,7 +14,7 @@ use edatime_store::state::AppState;
 use super::{
     ScatterColorKind, ScatterFilterSpec, ScatterMatrixPair, ScatterMatrixQuery, TimeColorMode,
     clamp_limit, collect_filtered_scatter_frame, collect_sampled_xyc_rows, parse_scatter_filters,
-    parse_scatter_line_filters,
+    parse_scatter_line_filters, resolved_scatter_limit,
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -91,7 +91,17 @@ async fn scatter_matrix_response(
     let line_filters = parse_scatter_line_filters(params.line_filters.as_deref())?;
     let requires_time_column = start.zip(end).is_some() || !line_filters.is_empty();
 
-    let limit = clamp_limit(params.limit, &state.config.validation);
+    // `params.limit == 0` is the sentinel emitted by serde when the client
+    // omits the field; substitute the configured default so operators can
+    // tune the baseline via `config.toml` (audit issue 2.6). Any explicit
+    // value the client sent is preserved before clamping against the
+    // configured upper bound.
+    let parsed_limit = if params.limit == 0 {
+        resolved_scatter_limit(&state.config.validation)
+    } else {
+        params.limit
+    };
+    let limit = clamp_limit(parsed_limit, &state.config.validation);
     validate_scatter_limit(limit, &state.config.validation)?;
     let time_color_mode = TimeColorMode::from_query(params.time_color_mode.as_deref());
     if let (Some(start_ms), Some(end_ms)) = (start, end) {

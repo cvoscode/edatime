@@ -6,7 +6,7 @@ vi.mock('../services/api/index.js', () => ({
         result: {
             column: 'test_col',
             times_ms: [1000, 2000, 3000],
-            frequencies: [100, 200, 300],
+            frequencies: [0.0001, 0.0002, 0.0003],
             magnitudes: [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
         },
         sample_count: 1000,
@@ -245,6 +245,19 @@ describe('spectrogramPage colorbar filter', () => {
         expect(wrap?.querySelector('[data-role="cb-low"]')?.textContent).toMatch(/^Low/);
     });
 
+    it('renders spectrogram axes with extra padding so titles cannot collide with ticks', async () => {
+        await mountAndCompute();
+        const instance = echartsInstances[echartsInstances.length - 1];
+        const option = instance.setOption.mock.calls.at(-1)?.[0];
+
+        expect(option.grid.left).toBeGreaterThanOrEqual(88);
+        expect(option.grid.top).toBeGreaterThanOrEqual(36);
+        expect(option.xAxis.nameGap).toBeGreaterThanOrEqual(56);
+        expect(option.yAxis.nameGap).toBeGreaterThanOrEqual(72);
+        expect(option.yAxis.name).toBe('Frequency (mHz)');
+        expect(option.yAxis.axisLabel.formatter(0.00028)).toBe('0.28 mHz');
+    });
+
     it('auto-computes on first load when a default column is already selected', async () => {
         const { appState } = await import('../store/appStateCompat.js');
         const { fetchSpectrogram } = await import('../services/api/index.js');
@@ -392,7 +405,7 @@ describe('spectrogramPage colorbar filter', () => {
         const formatter = option?.tooltip?.formatter as ((params: { value: number[] }) => string) | undefined;
         const tooltipHtml = formatter?.({ value: [1, 2, 0.5, 7] });
 
-        expect(String(tooltipHtml)).toContain('Frequency: 300.00 Hz');
+        expect(String(tooltipHtml)).toContain('Frequency: 0.30 mHz');
         expect(String(tooltipHtml)).toContain('Raw magnitude: 7.0000e+0');
     });
 

@@ -53,4 +53,24 @@ describe('FftChart.init', () => {
         expect(initBoxZoomMock).toHaveBeenCalledTimes(1);
         expect(initWheelZoomMock).not.toHaveBeenCalled();
     });
+
+    it('uses roomier FFT axes and compact y tick formatting for log-scale renders', async () => {
+        const instance = makeChartInstance();
+        createChartMock.mockResolvedValue(instance);
+        const chart = new FftChart('fft-chart');
+        await chart.init();
+
+        chart.updateData([{
+            column: 'OT',
+            frequencies: [0.00028, 0.00056, 0.00084],
+            magnitudes: [0.004659095, 0.0008607398, 0.00021873892],
+            psd: [0.004659095, 0.0008607398, 0.00021873892],
+        }], 'magnitude', true);
+
+        const option = instance.setOption.mock.calls.at(-1)?.[0];
+        expect(option.grid.left).toBeGreaterThanOrEqual(110);
+        expect(option.grid.top).toBeGreaterThanOrEqual(32);
+        expect(option.yAxis.nameGap).toBeGreaterThanOrEqual(72);
+        expect(option.yAxis.axisLabel.formatter(-2.1873892)).toBe('-2.19');
+    });
 });

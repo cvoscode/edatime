@@ -97,16 +97,41 @@ export interface SpectralInfo {
     sampleCount: number;
 }
 
+export type FrequencyUnit = 'µHz' | 'mHz' | 'Hz' | 'kHz';
+
+export function pickFrequencyUnit(hz: number): FrequencyUnit {
+    if (!Number.isFinite(hz) || hz < 0.001) return 'µHz';
+    if (hz < 1) return 'mHz';
+    if (hz >= 1000) return 'kHz';
+    return 'Hz';
+}
+
+export function pickFrequencyAxisUnit(hz: number): FrequencyUnit {
+    if (!Number.isFinite(hz) || hz <= 0) return 'Hz';
+    if (hz >= 1000) return 'kHz';
+    if (hz >= 1) return 'Hz';
+    return 'mHz';
+}
+
+export function frequencyUnitScale(unit: FrequencyUnit): number {
+    if (unit === 'µHz') return 1e6;
+    if (unit === 'mHz') return 1e3;
+    if (unit === 'kHz') return 1e-3;
+    return 1;
+}
+
+export function formatFrequencyInUnit(hz: number, unit: FrequencyUnit, fractionDigits = 2): string {
+    if (!Number.isFinite(hz) || hz < 0) return '—';
+    const scale = frequencyUnitScale(unit);
+    return `${(hz * scale).toFixed(fractionDigits)} ${unit}`;
+}
+
 /**
  * Format frequency for human-readable display.
  */
 export function formatFrequency(hz: number): string {
     if (!Number.isFinite(hz) || hz < 0) return '—';
-
-    if (hz < 0.001) return `${(hz * 1e6).toFixed(2)} µHz`;
-    if (hz < 1) return `${(hz * 1000).toFixed(2)} mHz`;
-    if (hz >= 1000) return `${(hz / 1000).toFixed(2)} kHz`;
-    return `${hz.toFixed(4)} Hz`;
+    return formatFrequencyInUnit(hz, pickFrequencyUnit(hz));
 }
 
 /**

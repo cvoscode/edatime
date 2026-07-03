@@ -55,10 +55,13 @@ pub struct DataSettings {}
 #[serde(default)]
 pub struct ValidationSettings {
     pub max_selected_columns: usize,
+    pub min_viewport_width: usize,
     pub max_viewport_width: usize,
     pub max_buckets: usize,
     pub max_scatter_limit: usize,
+    pub default_scatter_limit: usize,
     pub max_scatter_effective_points: usize,
+    pub max_color_cardinality: usize,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -136,10 +139,24 @@ impl Default for ValidationSettings {
     fn default() -> Self {
         Self {
             max_selected_columns: 100,
+            // Frontend `services/api/timeseries.ts` already clamps width to a
+            // minimum of 50; enforcing the same floor server-side makes the
+            // backend authoritative so the `width=1` escape hatch
+            // (audit issue 1.2) cannot reappear.
+            min_viewport_width: 50,
             max_viewport_width: 20_000,
             max_buckets: 10_000,
             max_scatter_limit: 5_000_000,
+            // Keep the user-visible default conservative so a typical EDA
+            // session does not allocate megabytes of points by accident
+            // (audit issue 2.6). Operators can raise this via config.toml
+            // for "all points" workflows.
+            default_scatter_limit: 200_000,
             max_scatter_effective_points: 200_000,
+            // Top-N distinct labels preserved in the scatter categorical
+            // color legend before the long tail collapses into "Other"
+            // (audit issue 2.2).
+            max_color_cardinality: 64,
         }
     }
 }
@@ -214,6 +231,31 @@ impl AppConfig {
         {
             self.upload.max_upload_bytes = max_upload_bytes;
         }
+        if let Ok(min_width) = env::var("EDATIME_MIN_VIEWPORT_WIDTH")
+            && let Ok(min_width) = min_width.parse::<usize>()
+        {
+            self.validation.min_viewport_width = min_width;
+        }
+        if let Ok(max_width) = env::var("EDATIME_MAX_VIEWPORT_WIDTH")
+            && let Ok(max_width) = max_width.parse::<usize>()
+        {
+            self.validation.max_viewport_width = max_width;
+        }
+        if let Ok(default_scatter) = env::var("EDATIME_DEFAULT_SCATTER_LIMIT")
+            && let Ok(default_scatter) = default_scatter.parse::<usize>()
+        {
+            self.validation.default_scatter_limit = default_scatter;
+        }
+        if let Ok(max_scatter) = env::var("EDATIME_MAX_SCATTER_LIMIT")
+            && let Ok(max_scatter) = max_scatter.parse::<usize>()
+        {
+            self.validation.max_scatter_limit = max_scatter;
+        }
+        if let Ok(max_card) = env::var("EDATIME_MAX_COLOR_CARDINALITY")
+            && let Ok(max_card) = max_card.parse::<usize>()
+        {
+            self.validation.max_color_cardinality = max_card;
+        }
         if let Ok(db_url) = env::var("EDATIME_DATABASE_URL") {
             let db_url = db_url.trim().to_string();
             if !db_url.is_empty() {
@@ -257,6 +299,41 @@ impl CacheSettings {
             ttl_seconds: self.ttl_seconds.max(1),
             max_entries: self.max_entries.max(1),
             max_bytes: self.max_bytes.max(1024),
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    #[test]
+    fn default_scatter_limit_can_be_overridden_from_env() {
+        let _guard = env_lock().lock().expect("env lock should not be poisoned");
+        let previous = env::var("EDATIME_DEFAULT_SCATTER_LIMIT").ok();
+
+        unsafe {
+            env::set_var("EDATIME_DEFAULT_SCATTER_LIMIT", "345678");
+        }
+
+        let mut config = AppConfig::default();
+        config.apply_env_overrides();
+        assert_eq!(config.validation.default_scatter_limit, 345_678);
+
+        match previous {
+            Some(value) => unsafe {
+                env::set_var("EDATIME_DEFAULT_SCATTER_LIMIT", value);
+            },
+            None => unsafe {
+                env::remove_var("EDATIME_DEFAULT_SCATTER_LIMIT");
+            },
         }
     }
 }

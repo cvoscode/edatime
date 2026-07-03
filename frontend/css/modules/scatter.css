@@ -116,6 +116,29 @@
   opacity: 0.85;
 }
 
+/* Audit issue 2.2: "X shown · Y other" hint shown under the
+   colorbar when the backend collapsed categorical labels into an
+   "Other" bucket. Same vertical-lr treatment as `.scatter-colorbar-vname`
+   so it lines up with the legend axis. */
+.scatter-colorbar-cardinality {
+  font-size: 0.55rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+  max-height: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 4px;
+  padding: 2px 0;
+  opacity: 0.75;
+}
+
+.scatter-colorbar-cardinality[hidden] {
+  display: none !important;
+}
+
 /* Timeseries colorbar overlay stack */
 .scatter-overlay-stack {
   position: absolute;
@@ -606,10 +629,23 @@
   overflow-wrap: anywhere;
 }
 
+.heatmap-header--vertical {
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  padding: 4px 0 8px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  text-align: center;
+}
+
 .heatmap-row-label {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  min-width: 0;
   overflow: hidden;
   padding-right: 9px;
   text-overflow: ellipsis;

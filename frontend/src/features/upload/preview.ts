@@ -28,6 +28,18 @@ export function setUploadPreviewStatus(text: string, kind = ''): void {
     el.className = `upload-preview-status ${kind}`.trim();
 }
 
+export function setUploadSourceGuidance(text: string): void {
+    const el = document.getElementById('upload-source-guidance');
+    if (!el) return;
+    el.textContent = text;
+}
+
+export function setUploadNextStepGuidance(text: string): void {
+    const el = document.getElementById('upload-next-step-guidance');
+    if (!el) return;
+    el.textContent = text;
+}
+
 // ── Profile mode badge ──────────────────────────────────────────────────────
 
 export function setProfileMode(mode: 'dataset' | 'preview'): void {
@@ -65,6 +77,8 @@ export async function runFilePreview(
     if (_previewController) _previewController.abort();
     _previewController = new AbortController();
     setUploadPreviewStatus('Profiling file…', 'loading');
+    setUploadSourceGuidance(`File mode · Profiling ${file.name}`);
+    setUploadNextStepGuidance('Inspect the detected columns and time range before ingesting.');
 
     try {
         const formData = new FormData();
@@ -96,6 +110,8 @@ export async function runFilePreview(
         } else {
             setUploadPreviewStatus(`Preview ready (${formatCount(previewRows)} rows)`, 'success');
         }
+        setUploadSourceGuidance(`File mode · Preview ready for ${file.name}`);
+        setUploadNextStepGuidance('Confirm the selected columns and load options, then run Upload & Ingest.');
         setProfileMode('preview');
     } catch (e: unknown) {
         if ((e as Error)?.name === 'AbortError') return;
@@ -103,6 +119,8 @@ export async function runFilePreview(
             setPreviewTimeColumn(null);
         }
         setUploadPreviewStatus(`Preview failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
+        setUploadSourceGuidance('File mode · Preview failed');
+        setUploadNextStepGuidance('Adjust the file or time-column choice, then preview again.');
         toast(`Upload preview failed: ${e instanceof Error ? e.message : String(e)}`, 'error', {});
         applyTimeRangeFromMetadata(null, false);
     }

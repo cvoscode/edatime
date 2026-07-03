@@ -7,7 +7,7 @@
 - **TS caller:** `fetchScatterPoints(x: string, y: string, limit?: number, color?: string | null, options?: ScatterFetchOptions | null, signal?: AbortSignal): Promise<ScatterPointsResponse>` [deps: [scatter_api][1]]
 - **Rust payload/query:** `ScatterPointsQuery { x: String, y: String, color?: String, size?: String, start?: f64, end?: f64, filters?: String, line_filters?: String, limit: usize, format?: String }` [deps: [scatter_types][2]]
 - **Request contract:** frontend uses `POST` with JSON; `filters` and `line_filters` are JSON-serialized strings inside the payload body.
-- **Response `200 OK` Arrow or JSON:** `ScatterPointsResponse { x: string; y: string; color: string | null; total_points: number; returned_points: number; points: Array<[number, number]>; color_values: number[] | null; color_labels: Array<string | null> | null; color_min: number | null; color_max: number | null }`
+- **Response `200 OK` Arrow or JSON:** `ScatterPointsResponse { x: string; y: string; color: string | null; total_points: number; returned_points: number; points: Array<[number, number]>; color_values: number[] | null; color_labels: Array<string | null> | null; color_min: number | null; color_max: number | null; color_cardinality: { used: number; bucketed: number } | null }`
 - **Arrow headers:** `x-edatime-scatter-x`, `x-edatime-scatter-y`, `x-edatime-scatter-color`, `x-edatime-scatter-total`, `x-edatime-scatter-returned`, optional `x-edatime-color-min`, `x-edatime-color-max`, `x-edatime-cache`.
 
 ### `POST /api/scatter/matrix`

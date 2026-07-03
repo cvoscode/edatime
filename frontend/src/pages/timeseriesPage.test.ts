@@ -247,4 +247,65 @@ describe('createTimeseriesPageController', () => {
         const call = fetchData.mock.calls[0] ?? [];
         expect(call[4]).toBeNull();
     });
+
+    it('passes fetched OT values through to the rendered series unchanged so spike handling stays evidence-based', async () => {
+        document.body.innerHTML = '<div id="main-chart-loading" hidden></div><div id="main-chart" style="width:600px;"></div>';
+        setMetadata({
+            revision: 1,
+            total_rows: 5,
+            columns: [
+                { name: 'timestamp', dtype: 'datetime' } as any,
+                { name: 'HUFL', dtype: 'float64' } as any,
+                { name: 'OT', dtype: 'float64' } as any,
+            ],
+            numeric_columns: ['HUFL', 'OT'],
+            time_column: 'timestamp',
+            time_range: { min: 0, max: 4_000 },
+            column_profiles: [],
+        } as any);
+        appState.selectedCols = ['HUFL', 'OT'];
+        appState.selectedColorColumn = null;
+        setViewport(0, 4_000);
+
+        const fetchedOt = new Float64Array([12.1, 12.1, 12.2, 12.2, 113.76]);
+        const chart = {
+            setXRange: vi.fn(),
+            setYRange: vi.fn(),
+            getYRange: vi.fn(() => ({ min: 0, max: 1 })),
+            updateDataMulti: vi.fn(),
+            requestOverlayRender: vi.fn(),
+        };
+        setChartInstance(chart as any);
+
+        const fetchData = vi.fn().mockResolvedValue({
+            ts: new Float64Array([0, 1_000, 2_000, 3_000, 4_000]),
+            values: {
+                HUFL: new Float64Array([8, 8.5, 9, 9.5, 10]),
+                OT: fetchedOt,
+            },
+            series: {
+                OT: {
+                    x: new Float64Array([0, 1_000, 2_000, 3_000, 4_000]),
+                    y: fetchedOt,
+                },
+            },
+            colorByColumn: {},
+        });
+
+        const controller = createTimeseriesPageController({
+            fetchData,
+            buildRangeControls: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+            updateAnalysisZoom: vi.fn(),
+            getCurrentView: vi.fn(() => ({ xMin: 0, xMax: 4_000, yMin: 0, yMax: 1 })),
+            fetchAndRenderAnalytics: vi.fn(),
+        } as any);
+
+        await controller.fetchAndRender();
+
+        expect(chart.updateDataMulti).toHaveBeenCalledOnce();
+        const rendered = chart.updateDataMulti.mock.calls[0]?.[0];
+        expect(Array.from(rendered.values.OT)).toEqual(Array.from(fetchedOt));
+        expect(Array.from(rendered.series.OT.y)).toEqual(Array.from(fetchedOt));
+    });
 });

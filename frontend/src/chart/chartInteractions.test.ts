@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+    dragToViewport,
     initBoxZoom,
     initCtrlPan,
     initWheelZoomViewport,
@@ -181,6 +182,24 @@ describe('initBoxZoom', () => {
         }));
 
         expect(onZoom).not.toHaveBeenCalled();
+    });
+});
+
+describe('dragToViewport', () => {
+    it('maps drag coordinates against the provided plot box', () => {
+        const viewport = dragToViewport(
+            { pointerId: 1, startX: 100, startY: 40, endX: 300, endY: 180 },
+            800,
+            320,
+            { left: 84, right: 30, top: 16, bottom: 36 },
+            { min: 0, max: 100 },
+            { min: -10, max: 10 },
+        );
+
+        expect(viewport?.xMin).toBeGreaterThan(0);
+        expect(viewport?.xMax).toBeLessThan(100);
+        expect(viewport?.yMin).toBeGreaterThan(-10);
+        expect(viewport?.yMax).toBeLessThan(10);
     });
 });
 

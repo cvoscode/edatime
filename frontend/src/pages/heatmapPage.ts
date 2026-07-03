@@ -231,6 +231,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         const responsiveCell = heatmapFitToScreen
             ? Math.max(minCell, fitCell)
             : Math.max(minCell, Math.min(maxCell, fitCell));
+        const headerCellSize = heatmapFitToScreen ? responsiveCell : heatmapCellSize;
+        const useVerticalHeaders = headerCellSize < 34;
 
         // Optionally reorder columns by cluster. The data arrays stay
         // indexed by the ORIGINAL column order; we map render position
@@ -271,9 +273,13 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             const colName = renderOrder[c]!;
             const colOriginal = orderToOriginal.get(c) ?? c;
             const isFirstInCluster = c > 0 && clusters.some((cl) => cl.startIndex === c);
-            const sep = isFirstInCluster ? ' heatmap-header--cluster-start' : '';
+            const headerClass = [
+                'heatmap-header',
+                isFirstInCluster ? 'heatmap-header--cluster-start' : '',
+                useVerticalHeaders ? 'heatmap-header--vertical' : '',
+            ].filter(Boolean).join(' ');
             cells.push(
-                `<div class="heatmap-header${sep}" style="grid-column:${colGridFor(c)};grid-row:1;" title="${escapeAttr(colName)}" data-cluster-col="${colOriginal}">${escapeAttr(colName)}</div>`,
+                `<div class="${headerClass}" style="grid-column:${colGridFor(c)};grid-row:1;" title="${escapeAttr(colName)}" data-cluster-col="${colOriginal}">${escapeAttr(colName)}</div>`,
             );
         }
 

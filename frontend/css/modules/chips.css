@@ -10,20 +10,37 @@
   gap: 8px;
   flex: 1 1 auto;
   min-width: 100px;
-  max-width: 72%;
-  overflow-x: auto;
+  max-width: none;
+  overflow: visible;
   padding-bottom: 2px;
 }
 
 .timeseries-chip-rail {
   width: 100%;
-  max-width: none;
   min-height: 48px;
   padding: 2px 0 4px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  flex-wrap: nowrap;
+  overflow-x: visible;
+  overflow-y: visible;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  align-content: flex-start;
+}
+
+.timeseries-chip-status {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 24px;
+  width: 100%;
+}
+
+.timeseries-chip-status__summary {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .series-empty {
@@ -441,6 +458,20 @@
   opacity: 0.92;
 }
 
+.series-chip.inactive {
+  color: color-mix(in srgb, var(--text-dim) 82%, transparent);
+  border-color: color-mix(in srgb, var(--chip-accent) 10%, var(--border));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01)),
+    color-mix(in srgb, var(--surface-2, #151b2c) 62%, transparent);
+  box-shadow: none;
+  opacity: 0.82;
+}
+
+.series-chip.inactive .chip-label {
+  color: var(--text-muted);
+}
+
 /* Adaptive-filter target — slightly stronger glow, no label change */
 .series-chip.adaptive-target {
   border-color: color-mix(in srgb, var(--chip-accent) 82%, var(--border-hi));
@@ -612,7 +643,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-left: 8px;
+  margin-left: auto;
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 0.7rem;

@@ -6,7 +6,7 @@
  */
 
 import type { ChartGPUInstance, SeriesConfig } from '../../libs/chartgpu/dist/index.js';
-import type { DatasetMetadata, ScatterFilterSpec, ScatterLineFilterSpec } from '../types.js';
+import type { DatasetMetadata, ScatterFilterSpec, ScatterLineFilterSpec, TopPairItem } from '../types.js';
 import { emitStoreEvent } from './events.js';
 
 /* ── Types (mirror of ScatterState in types.ts) ─────────── */
@@ -90,6 +90,14 @@ export interface ScatterState {
     colorLabels: unknown[] | null;
     colorMin: number | null;
     colorMax: number | null;
+    /**
+     * Audit issue 2.2: cardinality summary for the categorical
+     * color pipeline. `null` when no color column is selected or
+     * when the column is continuous. Populated from the
+     * `/api/scatter/points` response so the rendering layer can
+     * show a "X other categories collapsed" hint under the colorbar.
+     */
+    colorCardinality: { requested: number; used: number; bucketed: number } | null;
     correlationsByColumn: Map<string, { value?: number | null; count?: number; column?: string }>;
     suggestionThreshold: number;
     lastBinnedText: string;
@@ -98,6 +106,7 @@ export interface ScatterState {
     lastOptionSeries: SeriesConfig[] | null;
     columnTypes: Map<string, string>;
     lastSuggestions: Array<{ x: string; y: string; correlation: number }>;
+    lastTopPairs: TopPairItem[];
     lastRenderSignature: string;
     lastQueryContextKey: string;
     matrixCache: Map<string, Promise<MatrixCellData>>;
@@ -142,6 +151,7 @@ export const scatterState: ScatterState = {
     colorLabels: null,
     colorMin: null,
     colorMax: null,
+    colorCardinality: null,
     correlationsByColumn: new Map(),
     suggestionThreshold: 0.7,
     lastBinnedText: '',
@@ -150,6 +160,7 @@ export const scatterState: ScatterState = {
     lastOptionSeries: null,
     columnTypes: new Map(),
     lastSuggestions: [],
+    lastTopPairs: [],
     lastRenderSignature: '',
     lastQueryContextKey: '',
     matrixCache: new Map(),
@@ -205,6 +216,15 @@ export function setScatterViewSnapshot(view: 'plot' | 'matrix', snapshot: Scatte
         scatterState.plotFilters = { ...snapshot.columnRanges };
         scatterState.plotLineFilters = snapshot.lineFilters.slice();
     }
+    emitStoreEvent('scatter:state', { previous, next: scatterState });
+}
+
+export function clearScatterViewSnapshots(): void {
+    const previous = { ...scatterState };
+    scatterState.plotFilters = {};
+    scatterState.plotLineFilters = [];
+    scatterState.matrixFilters = {};
+    scatterState.matrixLineFilters = [];
     emitStoreEvent('scatter:state', { previous, next: scatterState });
 }
 

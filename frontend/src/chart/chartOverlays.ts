@@ -8,13 +8,12 @@ import { appState } from '../store/index.js';
 import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 import { getChartPalette } from '../utils/theme.js';
 
-const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
-
 interface ChartOverlayOptions {
     getXMin: () => number | null;
     getXMax: () => number | null;
     getContainer: () => HTMLElement | null;
     getOverlayCanvas: () => HTMLCanvasElement | null;
+    getGrid: () => { left: number; right: number; top: number; bottom: number };
     getYRange: () => { min: number; max: number } | null;
     getPendingAdaptivePoint: () => { column: string; x: number; y: number; x2?: number; y2?: number } | null;
 }
@@ -43,16 +42,17 @@ export interface ChartOverlayPlotMetrics {
 function getOverlayPlotMetrics(
     container: HTMLElement | null,
     overlayCanvas: HTMLCanvasElement | null,
+    grid: { left: number; right: number; top: number; bottom: number },
     scale: { x: number; y: number },
 ): ChartOverlayPlotMetrics | null {
     if (!container) return null;
     const rect = container.getBoundingClientRect();
     const cssWidth = Math.max(1, rect.width || overlayCanvas?.width || 1);
     const cssHeight = Math.max(1, rect.height || overlayCanvas?.height || 1);
-    const plotLeft = CHART_GRID.left * scale.x;
-    const plotTop = CHART_GRID.top * scale.y;
-    const plotRight = Math.max(plotLeft + 1, (cssWidth - CHART_GRID.right) * scale.x);
-    const plotBottom = Math.max(plotTop + 1, (cssHeight - CHART_GRID.bottom) * scale.y);
+    const plotLeft = grid.left * scale.x;
+    const plotTop = grid.top * scale.y;
+    const plotRight = Math.max(plotLeft + 1, (cssWidth - grid.right) * scale.x);
+    const plotBottom = Math.max(plotTop + 1, (cssHeight - grid.bottom) * scale.y);
     const plotWidth = Math.max(1, plotRight - plotLeft);
     const plotHeight = Math.max(1, plotBottom - plotTop);
     const strokeScale = Math.min(scale.x, scale.y);
@@ -82,7 +82,7 @@ export class ChartOverlays {
         const yRange = this._opts.getYRange();
         if (xMin == null || xMax == null || !(xMax > xMin) || !yRange) return;
 
-        const metrics = getOverlayPlotMetrics(this._opts.getContainer(), this._opts.getOverlayCanvas(), scale);
+        const metrics = getOverlayPlotMetrics(this._opts.getContainer(), this._opts.getOverlayCanvas(), this._opts.getGrid(), scale);
         if (!metrics) return;
         const { plotLeft, plotTop, plotRight, plotBottom, plotWidth, plotHeight } = metrics;
         const ySpan = Math.max(1e-9, yRange.max - yRange.min);
@@ -155,7 +155,7 @@ export class ChartOverlays {
         const xMax = this._opts.getXMax();
         if (xMin == null || xMax == null || !(xMax > xMin)) return;
 
-        const metrics = getOverlayPlotMetrics(this._opts.getContainer(), this._opts.getOverlayCanvas(), scale);
+        const metrics = getOverlayPlotMetrics(this._opts.getContainer(), this._opts.getOverlayCanvas(), this._opts.getGrid(), scale);
         if (!metrics) return;
         const { plotLeft, plotTop, plotRight, plotBottom, plotWidth, plotHeight, strokeScale } = metrics;
 
@@ -189,7 +189,7 @@ export class ChartOverlays {
         const yRange = this._opts.getYRange();
         if (xMin == null || xMax == null || !(xMax > xMin) || !yRange) return;
 
-        const metrics = getOverlayPlotMetrics(this._opts.getContainer(), this._opts.getOverlayCanvas(), scale);
+        const metrics = getOverlayPlotMetrics(this._opts.getContainer(), this._opts.getOverlayCanvas(), this._opts.getGrid(), scale);
         if (!metrics) return;
         const { plotLeft, plotTop, plotRight, plotBottom, plotWidth, plotHeight, strokeScale } = metrics;
 
@@ -278,7 +278,7 @@ export class ChartOverlays {
         const xMax = this._opts.getXMax();
         if (xMin == null || xMax == null || !(xMax > xMin)) return;
 
-        const metrics = getOverlayPlotMetrics(this._opts.getContainer(), this._opts.getOverlayCanvas(), scale);
+        const metrics = getOverlayPlotMetrics(this._opts.getContainer(), this._opts.getOverlayCanvas(), this._opts.getGrid(), scale);
         if (!metrics) return;
         const { plotLeft, plotTop, plotRight, plotBottom, plotWidth, plotHeight, strokeScale } = metrics;
 

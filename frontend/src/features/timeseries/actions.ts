@@ -10,6 +10,7 @@
 
 import {
     appState,
+    clearScatterViewSnapshots,
     chartState,
     datasetState,
     setAdaptiveLineFilters,
@@ -157,6 +158,7 @@ export function initTimeseriesActions(deps: TimeseriesActionDeps): void {
     const clearAllFilters = async (source = 'clear') => {
         setColumnRanges({});
         setAdaptiveLineFilters([]);
+        clearScatterViewSnapshots();
         deps.buildRangeControls();
         deps.renderCurrentData();
         window.dispatchEvent(new CustomEvent('edatime:column-filters-change', { detail: { source } }));

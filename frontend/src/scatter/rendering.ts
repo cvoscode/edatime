@@ -181,15 +181,30 @@ export function updateColorbarUI(): void {
     const nameEl = getEl('scatter-colorbar-name');
     const minEl = getEl('scatter-colorbar-min');
     const maxEl = getEl('scatter-colorbar-max');
+    const cardEl = getEl('scatter-colorbar-cardinality');
 
     if (isDensity) {
         if (nameEl) nameEl.textContent = `Density (${ctl.colormap})`;
         if (minEl) minEl.textContent = 'Low';
         if (maxEl) maxEl.textContent = 'High';
+        if (cardEl) cardEl.hidden = true;
     } else {
         if (nameEl) nameEl.textContent = `${ctl.selectedColorColumn} (${ctl.colorScale})`;
         if (minEl) minEl.textContent = formatTwoDecimals(appState.scatter.colorMin!);
         if (maxEl) maxEl.textContent = formatTwoDecimals(appState.scatter.colorMax!);
+        // Audit issue 2.2: when the backend collapsed categorical
+        // labels into a single "Other" bucket, surface the count
+        // under the colorbar so the user knows the legend is
+        // truncated. Hidden when no bucketing happened.
+        const cardinality = appState.scatter.colorCardinality;
+        if (cardEl) {
+            if (cardinality && cardinality.bucketed > 0) {
+                cardEl.textContent = `${cardinality.used} shown · ${cardinality.bucketed} other`;
+                cardEl.hidden = false;
+            } else {
+                cardEl.hidden = true;
+            }
+        }
     }
     requestAnimationFrame(renderColorbarCanvas);
 }

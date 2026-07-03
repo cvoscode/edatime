@@ -1,7 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createModalController } from './shell/createModalController';
 
 describe('createModalController', () => {
+    beforeEach(() => {
+        document.body.innerHTML = '';
+        document.body.style.overflow = '';
+    });
+
     it('closes on cancel button click', () => {
         document.body.innerHTML = `
       <div id="settings-modal" hidden>
@@ -79,5 +84,68 @@ describe('createModalController', () => {
         });
         controller.open();
         expect(onOpen).toHaveBeenCalledTimes(1);
+    });
+
+    it('closes on Escape and restores blocked shell state', () => {
+        document.body.innerHTML = `
+      <div class="app-layout">
+        <button id="outside-btn" type="button">Outside</button>
+      </div>
+      <div id="settings-modal" hidden>
+        <div role="dialog" tabindex="-1">
+          <button id="settings-close-btn"></button>
+          <button id="settings-cancel-btn"></button>
+        </div>
+      </div>
+    `;
+        const onClose = vi.fn();
+        const controller = createModalController({
+            modalId: 'settings-modal',
+            closeButtonIds: ['settings-close-btn', 'settings-cancel-btn'],
+            onClose,
+        });
+        const layout = document.querySelector('.app-layout') as HTMLElement;
+        controller.open();
+
+        expect(document.body.style.overflow).toBe('hidden');
+        expect(layout.getAttribute('aria-hidden')).toBe('true');
+        expect(layout.hasAttribute('inert')).toBe(true);
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+        expect(onClose).toHaveBeenCalledTimes(1);
+        expect(document.body.style.overflow).toBe('');
+        expect(layout.hasAttribute('inert')).toBe(false);
+        expect(layout.hasAttribute('aria-hidden')).toBe(false);
+    });
+
+    it('traps focus within the dialog while open', () => {
+        document.body.innerHTML = `
+      <button id="outside-before" type="button">Before</button>
+      <div id="settings-modal" hidden>
+        <div role="dialog" tabindex="-1">
+          <button id="first-btn" type="button">First</button>
+          <button id="last-btn" type="button">Last</button>
+        </div>
+      </div>
+      <button id="outside-after" type="button">After</button>
+    `;
+        const controller = createModalController({
+            modalId: 'settings-modal',
+            closeButtonIds: [],
+        });
+        const first = document.getElementById('first-btn') as HTMLButtonElement;
+        const last = document.getElementById('last-btn') as HTMLButtonElement;
+
+        controller.open();
+        expect(document.activeElement).toBe(first);
+
+        last.focus();
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+        expect(document.activeElement).toBe(first);
+
+        first.focus();
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+        expect(document.activeElement).toBe(last);
     });
 });

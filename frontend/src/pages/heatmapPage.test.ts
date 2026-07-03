@@ -192,6 +192,21 @@ describe('heatmapPage with clustering', () => {
         expect(negativeCell?.style.getPropertyValue('--heatmap-cell-bg')).toBeTruthy();
     });
 
+    it('switches narrow heatmap headers into a vertical label mode', async () => {
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const slider = document.getElementById('heatmap-cell-size') as HTMLInputElement;
+        slider.value = '24';
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+
+        await vi.waitFor(() => {
+            const headers = Array.from(document.querySelectorAll('.heatmap-header'));
+            expect(headers.some((header) => header.classList.contains('heatmap-header--vertical'))).toBe(true);
+        });
+    });
+
     it('reorders columns by cluster when enabled', async () => {
         const { initHeatmapPage } = await import('../pages/heatmapPage.js');
         await initHeatmapPage({ showPage: vi.fn() });

@@ -198,6 +198,8 @@ export function updateSeriesChipList(options: SeriesChipListOptions): void {
             const checkbox = chip.querySelector<HTMLInputElement>('input[type="checkbox"]');
             if (checkbox) checkbox.checked = item.checked;
             chip.classList.toggle('active', item.checked);
+            chip.classList.toggle('inactive', !item.checked);
+            chip.setAttribute('aria-pressed', item.checked ? 'true' : 'false');
             chip.style.setProperty('--chip-accent', item.color);
         }
     }

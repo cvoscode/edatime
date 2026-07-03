@@ -121,6 +121,22 @@ export async function fetchScatterPoints(
         const returned = Number(res.headers.get('x-edatime-scatter-returned') ?? n);
         const color_min = res.headers.get('x-edatime-color-min');
         const color_max = res.headers.get('x-edatime-color-max');
+        // Audit issue 2.2: surface the cardinality summary on the
+        // response. Headers take priority over a hypothetical body
+        // field for the Arrow path; both are kept in sync by the
+        // backend so the JSON path's `data.color_cardinality` is
+        // the authoritative source there.
+        const cardReq = res.headers.get('x-edatime-color-cardinality-requested');
+        const cardUsed = res.headers.get('x-edatime-color-cardinality-used');
+        const cardBucketed = res.headers.get('x-edatime-color-cardinality-bucketed');
+        const color_cardinality =
+            cardReq !== null && cardUsed !== null && cardBucketed !== null
+                ? {
+                    requested: Number(cardReq),
+                    used: Number(cardUsed),
+                    bucketed: Number(cardBucketed),
+                }
+                : null;
 
         return {
             x,
@@ -133,6 +149,7 @@ export async function fetchScatterPoints(
             color_labels,
             color_min: color_min !== null ? Number(color_min) : null,
             color_max: color_max !== null ? Number(color_max) : null,
+            color_cardinality,
         };
     }
 

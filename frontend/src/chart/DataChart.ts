@@ -11,7 +11,15 @@ import { formatTwoDecimals } from '../formatUtils.js';
 import { appState } from '../store/index.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
 import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
-import type { AdaptiveLineFilter, ChartTextOverlays, DataObject, FilteredDataObject, ViewSnapshot } from '../types.js';
+import type {
+    AdaptiveLineFilter,
+    ChartTextOverlays,
+    DataObject,
+    FilteredDataObject,
+    RobustDisplayRangeOptions,
+    ViewSnapshot,
+} from '../types.js';
+import { quantileSorted } from '../utils/spectralScaling.js';
 import {
     type ChartGPUOptions,
     type ChartGPUCrosshairMovePayload,
@@ -86,12 +94,17 @@ import {
 } from './chartInteractions.js';
 import { ChartOverlays } from './chartOverlays.js';
 import {
+    DEFAULT_CHART_GRID,
+    computeChartGrid,
+    scaleGridLayout,
+} from './gridLayout.js';
+import {
     exportDataChartHTML,
     exportDataChartPNG,
     exportDataChartSVG,
 } from './dataChartExport.js';
 
-const CHART_GRID = { left: 120, right: 30, top: 16, bottom: 36 };
+const CHART_GRID = DEFAULT_CHART_GRID;
 
 /* ── DataChart class ──────────────────────────────────── */
 
@@ -116,6 +129,8 @@ export class DataChart {
      * preserved for users that rely on the negative headroom.
      */
     _stackFromZero = false;
+    _robustDisplayRange: RobustDisplayRangeOptions | null = null;
+    _lastDisplayYValues: number[] = [];
     _lastDataYMin: number | null = null;
     _lastDataYMax: number | null = null;
     _lastSeriesList: SeriesConfig[] | null = null;
@@ -143,6 +158,7 @@ export class DataChart {
     _lastChartOptions: ChartGPUOptions | null = null;
     _lastAppliedTheme: ResolvedTheme | null = null;
     _themeUnsub: (() => void) | null = null;
+    _currentGrid: GridLayout = { ...DEFAULT_CHART_GRID };
     _legendEl: HTMLElement | null = null;
     _legendPosition: LegendPosition | null = null;
     _legendDragState: LegendDragState | null = null;
@@ -239,6 +255,8 @@ export class DataChart {
         this._yMax = null;
         this._lastDataYMin = null;
         this._lastDataYMax = null;
+        this._robustDisplayRange = null;
+        this._lastDisplayYValues = [];
         this._lastSeriesList = null;
         this._lastXDomainMin = null;
         this._lastXDomainMax = null;
@@ -254,6 +272,7 @@ export class DataChart {
         this._xAxisLabel = String(xLabel ?? '').trim();
         this._yAxisLabel = String(yLabel ?? '').trim();
         this._syncTextOverlays();
+        this._applyDisplayYRangeToChart();
     }
 
     setDrawMode(mode: string, color?: string, width?: number): void {
@@ -302,9 +321,10 @@ export class DataChart {
         if (!container) throw new Error(`Chart container not found: ${this.containerId}`);
         container.replaceChildren();
         this._container = container;
+        const chartGrid = { ...this._updateCurrentGrid() };
         const chartOptions: ChartGPUOptions & Record<string, unknown> = {
             animation: false,
-            grid: CHART_GRID,
+            grid: chartGrid,
             theme: this._buildChartGpuTheme(),
             palette: this._getChartColorPalette(),
             xAxis: { type: 'time' },
@@ -385,10 +405,29 @@ export class DataChart {
      */
     setStackFromZero(on: boolean): void {
         this._stackFromZero = !!on;
+        this._applyDisplayYRangeToChart();
     }
 
     isStackFromZero(): boolean {
         return this._stackFromZero;
+    }
+
+    setRobustDisplayRange(options: RobustDisplayRangeOptions | null): void {
+        if (!options) {
+            this._robustDisplayRange = null;
+            this._applyDisplayYRangeToChart();
+            return;
+        }
+        const mode = options.mode === 'iqr' ? 'iqr' : 'percentile';
+        const fallbackParam = mode === 'iqr' ? 1.5 : 1;
+        const param = Number.isFinite(options.param) ? Number(options.param) : fallbackParam;
+        this._robustDisplayRange = {
+            mode,
+            param: mode === 'iqr'
+                ? Math.max(0.1, param)
+                : Math.min(25, Math.max(0, param)),
+        };
+        this._applyDisplayYRangeToChart();
     }
 
     getYRange(): { min: number; max: number } | null {
@@ -401,6 +440,20 @@ export class DataChart {
         return null;
     }
 
+    getRobustDisplayRangeSuggestion(): RobustDisplayRangeOptions | null {
+        if (!Number.isFinite(this._lastDataYMin) || !Number.isFinite(this._lastDataYMax)) return null;
+        const sorted = this._lastDisplayYValues
+            .filter((value) => Number.isFinite(value))
+            .sort((a, b) => a - b);
+        if (sorted.length < 4) return null;
+        const q1 = quantileSorted(sorted, 0.25);
+        const q3 = quantileSorted(sorted, 0.75);
+        if (!Number.isFinite(q1) || !Number.isFinite(q3) || q3 <= q1) return null;
+        const rawSpan = this._lastDataYMax! - this._lastDataYMin!;
+        const robustSpan = q3 - q1;
+        return rawSpan > robustSpan * 3 ? { mode: 'percentile', param: 1 } : null;
+    }
+
     cssPointToData(clientX: number, clientY: number): { x: number; y: number } | null {
         if (!this._container) return null;
         if (!Number.isFinite(this._xMin) || !Number.isFinite(this._xMax) || this._xMax! <= this._xMin!) return null;
@@ -410,10 +463,11 @@ export class DataChart {
         const rect = this._container.getBoundingClientRect();
         const localX = clientX - rect.left;
         const localY = clientY - rect.top;
-        const plotLeft = CHART_GRID.left;
-        const plotTop = CHART_GRID.top;
-        const plotRight = Math.max(plotLeft + 1, rect.width - CHART_GRID.right);
-        const plotBottom = Math.max(plotTop + 1, rect.height - CHART_GRID.bottom);
+        const grid = this._updateCurrentGrid();
+        const plotLeft = grid.left;
+        const plotTop = grid.top;
+        const plotRight = Math.max(plotLeft + 1, rect.width - grid.right);
+        const plotBottom = Math.max(plotTop + 1, rect.height - grid.bottom);
         if (localX < plotLeft || localX > plotRight || localY < plotTop || localY > plotBottom) return null;
 
         const xNorm = (localX - plotLeft) / Math.max(1, plotRight - plotLeft);
@@ -451,6 +505,7 @@ export class DataChart {
         let dataYMax = Number.NEGATIVE_INFINITY;
         let xDomainMin = Number.POSITIVE_INFINITY;
         let xDomainMax = Number.NEGATIVE_INFINITY;
+        const displayYValues: number[] = [];
         /* Internal intermediate types for series building */
         interface ColorCandidateEntry {
             readonly __colorCandidate: true;
@@ -481,6 +536,7 @@ export class DataChart {
                     const y = Number(yValues[i]);
                     if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
                     points.push([x, y]);
+                    displayYValues.push(y);
                     if (x < xDomainMin) xDomainMin = x;
                     if (x > xDomainMax) xDomainMax = x;
                     if (y < dataYMin) dataYMin = y;
@@ -571,6 +627,7 @@ export class DataChart {
 
         const flattenedSeriesList = [...baseSeriesList, ...colorDecoratedSeries];
         this._lastSeriesList = flattenedSeriesList;
+        this._lastDisplayYValues = displayYValues;
         this._lastXDomainMin = Number.isFinite(xDomainMin) ? xDomainMin : null;
         this._lastXDomainMax = Number.isFinite(xDomainMax) ? xDomainMax : null;
 
@@ -609,7 +666,7 @@ export class DataChart {
 
             const nextOption = {
                 animation: false,
-                grid: CHART_GRID,
+                grid: { ...this._updateCurrentGrid() },
                 theme: this._buildChartGpuTheme(),
                 palette: this._getChartColorPalette(),
                 xAxis: {
@@ -692,14 +749,85 @@ export class DataChart {
             type: 'value',
             tickFormatter: (value: number) => formatTwoDecimals(value),
         };
-        if (Number.isFinite(this._lastDataYMin) && Number.isFinite(this._lastDataYMax) && this._lastDataYMax! > this._lastDataYMin!) {
-            const span = this._lastDataYMax! - this._lastDataYMin!;
+        const displayBounds = this._computeRobustDisplayBounds();
+        const baseMin = displayBounds?.min ?? this._lastDataYMin;
+        const baseMax = displayBounds?.max ?? this._lastDataYMax;
+        if (Number.isFinite(baseMin) && Number.isFinite(baseMax) && baseMax! > baseMin!) {
+            const span = baseMax! - baseMin!;
             const padding = span === 0 ? Math.max(1, Math.abs(this._lastDataYMax!) * 0.05) : span * 0.05;
-            const lower = this._stackFromZero ? Math.max(0, this._lastDataYMin!) : this._lastDataYMin!;
+            const lower = this._stackFromZero ? Math.max(0, baseMin!) : baseMin!;
             option.min = lower - (this._stackFromZero ? 0 : padding);
-            option.max = this._lastDataYMax! + padding;
+            option.max = baseMax! + padding;
         }
         return option;
+    }
+
+    private _measureGrid(scale = 1): GridLayout {
+        const yAxis = this._buildYAxisOption();
+        const yMin = Number(yAxis.min);
+        const yMax = Number(yAxis.max);
+        const yTickLabels = Number.isFinite(yMin) && Number.isFinite(yMax) && yMax > yMin
+            ? niceLinearTicks(yMin, yMax, 6).map((value) => yAxis.tickFormatter(value))
+            : [formatTwoDecimals(0), formatTwoDecimals(1)];
+        return computeChartGrid({
+            yTickLabels,
+            yAxisLabel: this._yAxisLabel,
+            scale,
+        });
+    }
+
+    private _updateCurrentGrid(scale = 1): GridLayout {
+        const next = this._measureGrid(scale);
+        this._currentGrid.left = next.left;
+        this._currentGrid.right = next.right;
+        this._currentGrid.top = next.top;
+        this._currentGrid.bottom = next.bottom;
+        return this._currentGrid;
+    }
+
+    private _applyDisplayYRangeToChart(): void {
+        if (!this.chartInstance) return;
+        const previous = this._lastChartOptions ?? this.chartInstance.options;
+        if (!previous) return;
+        const nextOption = {
+            ...previous,
+            animation: false,
+            grid: { ...this._updateCurrentGrid() },
+            yAxis: {
+                ...(previous.yAxis ?? {}),
+                ...this._buildYAxisOption(),
+            },
+        } as ChartGPUOptions;
+        try {
+            this.chartInstance.setOption(nextOption);
+            this._lastChartOptions = nextOption;
+        } catch (error) {
+            console.error('[edatime:chart] y-range refresh failed', error);
+        }
+    }
+
+    private _computeRobustDisplayBounds(): { min: number; max: number } | null {
+        if (!this._robustDisplayRange) return null;
+        const sorted = this._lastDisplayYValues
+            .filter((value) => Number.isFinite(value))
+            .sort((a, b) => a - b);
+        if (sorted.length < 4) return null;
+
+        if (this._robustDisplayRange.mode === 'percentile') {
+            const pct = Math.min(25, Math.max(0, this._robustDisplayRange.param));
+            const min = quantileSorted(sorted, pct / 100);
+            const max = quantileSorted(sorted, 1 - (pct / 100));
+            return Number.isFinite(min) && Number.isFinite(max) && max > min ? { min, max } : null;
+        }
+
+        const q1 = quantileSorted(sorted, 0.25);
+        const q3 = quantileSorted(sorted, 0.75);
+        if (!Number.isFinite(q1) || !Number.isFinite(q3) || q3 <= q1) return null;
+        const iqr = q3 - q1;
+        const k = Math.max(0.1, this._robustDisplayRange.param);
+        const min = q1 - (k * iqr);
+        const max = q3 + (k * iqr);
+        return Number.isFinite(min) && Number.isFinite(max) && max > min ? { min, max } : null;
     }
 
     private _getChartColorPalette(): string[] {
@@ -1014,6 +1142,7 @@ export class DataChart {
             getXMax: () => this._xMax,
             getContainer: () => this._container,
             getOverlayCanvas: () => this._overlayCanvas,
+            getGrid: () => this._currentGrid,
             getYRange: () => this.getYRange(),
             getPendingAdaptivePoint: () => appState.pendingAdaptivePoint,
         });
@@ -1403,7 +1532,7 @@ export class DataChart {
 
         this._selectionBox = initBoxZoom({
             container,
-            grid: CHART_GRID,
+            grid: this._currentGrid,
             getXRange: () => ({ min: this._xMin ?? 0, max: this._xMax ?? 0 }),
             getYRange: () => this.getYRange?.() ?? { min: 0, max: 0 },
             onZoom: (view: ViewSnapshot) => this.onZoomCallback?.(view, 'user'),
@@ -1427,7 +1556,7 @@ export class DataChart {
         const container = this._container;
         initCtrlPan({
             container,
-            grid: CHART_GRID,
+            grid: this._currentGrid,
             getXRange: () => ({ min: this._xMin ?? 0, max: this._xMax ?? 0 }),
             getYRange: () => this.getYRange?.() ?? null,
             shouldIgnore: () => this._drawMode !== 'none',
@@ -1508,7 +1637,7 @@ export class DataChart {
         ctx.fillStyle = bg;
         ctx.fillRect(0, 0, width, height);
 
-        const grid = { left: CHART_GRID.left * scale, right: CHART_GRID.right * scale, top: CHART_GRID.top * scale, bottom: CHART_GRID.bottom * scale };
+        const grid = scaleGridLayout(this._updateCurrentGrid(), scale);
         const plotLeft = grid.left;
         const plotTop = grid.top;
         const plotRight = Math.max(plotLeft + 1, width - grid.right);

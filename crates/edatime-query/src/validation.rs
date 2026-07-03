@@ -14,10 +14,14 @@ pub fn validate_time_window(start: DateTime<Utc>, end: DateTime<Utc>) -> Result<
 }
 
 pub fn validate_width(width: usize, limits: &ValidationSettings) -> Result<(), AppError> {
-    if width == 0 || width > limits.max_viewport_width {
+    // Enforce BOTH the lower and upper bounds so the `width=1` raw-data
+    // escape hatch (audit issue 1.2) cannot resurface via direct API
+    // calls. The frontend already clamps to 50 in
+    // `services/api/timeseries.ts`; this makes the backend authoritative.
+    if width < limits.min_viewport_width || width > limits.max_viewport_width {
         return Err(AppError::BadRequest(format!(
-            "Width must be between 1 and {} pixels",
-            limits.max_viewport_width
+            "Width must be between {} and {} pixels",
+            limits.min_viewport_width, limits.max_viewport_width
         )));
     }
     Ok(())
@@ -171,6 +175,37 @@ mod tests {
         let limits = ValidationSettings::default();
         let err = validate_width(0, &limits).unwrap_err();
         assert!(err.to_string().contains("Width must be"));
+        // Audit issue 1.2: the `width=1` raw-data escape hatch is
+        // closed by the new min bound. The error message must
+        // mention the actual configured min so the caller can
+        // recover without guessing.
+        let err_min = validate_width(1, &limits).unwrap_err();
+        assert!(err_min.to_string().contains("Width must be"));
+    }
+
+    /// Audit issue 1.2: `width=1` must be rejected (escape hatch
+    /// closed); `width = min_viewport_width` (default 50) must be
+    /// accepted; `width = max_viewport_width + 1` must be rejected.
+    #[test]
+    fn width_enforces_min_and_max_floor() {
+        let limits = ValidationSettings::default();
+        assert!(validate_width(1, &limits).is_err(), "width=1 is below min");
+        assert!(
+            validate_width(limits.min_viewport_width, &limits).is_ok(),
+            "width at the min must be accepted"
+        );
+        assert!(
+            validate_width(limits.min_viewport_width - 1, &limits).is_err(),
+            "width one below the min must be rejected"
+        );
+        assert!(
+            validate_width(limits.max_viewport_width, &limits).is_ok(),
+            "width at the max must be accepted"
+        );
+        assert!(
+            validate_width(limits.max_viewport_width + 1, &limits).is_err(),
+            "width above the max must be rejected"
+        );
     }
 
     #[test]

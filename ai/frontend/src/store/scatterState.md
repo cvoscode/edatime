@@ -25,6 +25,8 @@
   - `colorColumn: string`
   - `colorMin: number | null`
   - `colorMax: number | null`
+  - `colorCardinality: { used: number; bucketed: number } | null`
+  - `lastTopPairs: Array<{ x: string; y: string; correlation: number }>`
   - `chart: ChartGPUInstance | null`
   - `full: ScatterView`
   - `view: ScatterView`

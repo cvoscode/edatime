@@ -29,7 +29,8 @@
 - `renderColorbarCanvas(): void`
   - Renders the colorbar gradient onto the colorbar canvas.
 - `updateColorbarUI(): void` [deps: [appState][3]]
-  - Updates colorbar DOM elements from current scatter state.
+  - Updates colorbar DOM elements from current scatter state. Reads `appState.scatter.colorCardinality` to surface a `"used · other"` bucketing hint when categorical colors were collapsed by the backend.
+- `setCorrelationOverlayText(pearson?: number | null, spearman?: number | null): void`
 - `setCorrelationOverlayText(pearson?: number | null, spearman?: number | null): void`
   - Currently a no-op that hides the overlay; kept for backward compatibility.
 - `drawMarginalX(canvas: HTMLCanvasElement, values: number[], viewMin: number, viewMax: number, mode: string): void`
@@ -61,13 +62,13 @@
 - `scheduleRenderScatter(opts?: { preserveView?: boolean }): void` (private)
   - Calls `globalThis.__scatterScheduleRender` (set up by [scatterPage.js](./scatterPage.md)) to trigger a debounced re-render. Falls back to `renderCurrentOption()` when no helper is registered (e.g. unit tests).
 - `updateBinnedReadout(): void`
-  - No-op stub; the count is now surfaced through chart performance callbacks.
+  - No-op stub; count surfaced through chart performance callbacks.
 - `updateCorrelationStats(): void`
   - Reads current X/Y from the dropdowns, looks up Pearson/Spearman in `appState.scatter.correlationsByColumn`, and updates the stats bar.
 - `initSelectionZoom(container: HTMLElement): void` [deps: [dragToViewport][7], [SCATTER_PLOT_GRID][8], [applyView][4], [resetView][4]]
-  - Wires pointerdown/move/up/cancel for box-selection zoom and dblclick for view pop/reset. Uses `dragToViewport` to honor `SCATTER_PLOT_GRID` padding. In density mode, requires both axes to span ≥ 8px before invoking `dragToViewport` to prevent single-axis drags from collapsing the heatmap. The non-density path retains the existing horizontal-only fallback.
+  - Wires pointerdown/move/up/cancel for box-selection zoom and dblclick for view pop/reset. Uses `dragToViewport` to honor `SCATTER_PLOT_GRID` padding. In density mode, requires both axes to span ≥ 8px before invoking `dragToViewport`.
 - `syncModeUI(): void` [deps: [refreshScatterToolbarOverflow][9]]
-  - Toggles visibility of analytics / density / color-scale / export / stats / suggestions groups based on `appState.scatter.activeView` and `renderMode`. The Refine segment hosts the density sub-group and color scale inline; both are toggled together to avoid orphan labels. Also calls `refreshScatterToolbarOverflow()` so the new field set is rebalanced through the overflow popout.
+  - Toggles visibility of analytics / density / color-scale / export / stats / suggestions groups based on `appState.scatter.activeView` and `renderMode`. Also calls `refreshScatterToolbarOverflow()` for overflow rebalancing.
 
 ## Re-exports from `./export.js`
 - `buildLinearTicks`, `getScatterExportViewport`, `drawScatterSeriesToCanvas`, `renderScatterExportToCanvas`, `buildVisibleScatterRows`

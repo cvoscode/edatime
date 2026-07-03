@@ -15,6 +15,8 @@ import { appState } from '../store/index.js';
 import {
     setUploadPreviewStatus,
     setProfileMode,
+    setUploadSourceGuidance,
+    setUploadNextStepGuidance,
     runFilePreview,
     applyPreviewColumnSelection,
     applyTimeRangeFromMetadata,
@@ -92,6 +94,21 @@ export function initUploadPanel(
 
     let selectedFile: File | null = null;
 
+    function syncUploadGuidance(source: 'file' | 'database', stage: 'idle' | 'selected' = 'idle'): void {
+        if (source === 'database') {
+            setUploadSourceGuidance('Database mode · waiting for a PostgreSQL or TimescaleDB connection.');
+            setUploadNextStepGuidance('Connect, choose a table, confirm the time column, then load data.');
+            return;
+        }
+        if (stage === 'selected' && selectedFile) {
+            setUploadSourceGuidance(`File mode · selected ${selectedFile.name}`);
+            setUploadNextStepGuidance('Review the detected columns and load options, then run Upload & Ingest.');
+            return;
+        }
+        setUploadSourceGuidance('File mode · waiting for a CSV or Parquet file.');
+        setUploadNextStepGuidance('Choose a file, preview the detected columns, then ingest the selected set.');
+    }
+
     function formatUploadRowCountLocal(rowCount: number): string {
         return rowCount >= 1_000_000
             ? (rowCount / 1_000_000).toFixed(1) + 'M'
@@ -155,11 +172,13 @@ export function initUploadPanel(
             fileDisplay!.textContent = '';
             setUploadPreviewStatus(invalidFileMsg, 'error');
             notify(invalidFileMsg, 'error');
+            syncUploadGuidance('file');
             syncUploadButtonState();
             return;
         }
         fileDisplay!.textContent = selectedFile ? selectedFile.name : '';
         setPreviewTimeColumn(null);
+        syncUploadGuidance('file', selectedFile ? 'selected' : 'idle');
         syncUploadButtonState();
         if (selectedFile) void runPreviewWithCurrentFile(selectedFile);
     });
@@ -177,11 +196,13 @@ export function initUploadPanel(
             fileDisplay!.textContent = '';
             setUploadPreviewStatus(invalidFileMsg, 'error');
             notify(invalidFileMsg, 'error');
+            syncUploadGuidance('file');
             syncUploadButtonState();
             return;
         }
         fileDisplay!.textContent = selectedFile ? selectedFile.name : '';
         setPreviewTimeColumn(null);
+        syncUploadGuidance('file', selectedFile ? 'selected' : 'idle');
         syncUploadButtonState();
         if (selectedFile) void runPreviewWithCurrentFile(selectedFile);
     });
@@ -213,6 +234,7 @@ export function initUploadPanel(
     }
 
     applyTimeRangeFromMetadata(appState.metadata, false);
+    syncUploadGuidance('file');
     syncUploadButtonState();
 
     // If no preview is active and we have no metadata yet, fetch existing dataset state
@@ -290,6 +312,7 @@ export function initUploadPanel(
             dbTabBtn?.classList.add('active');
             if (filePanel) (filePanel as HTMLElement).hidden = true;
             if (dbPanel) (dbPanel as HTMLElement).hidden = false;
+            syncUploadGuidance('database');
             // Sync database status when switching to db tab
             void syncDatabaseStatus();
         } else {
@@ -299,6 +322,7 @@ export function initUploadPanel(
             fileTabBtn?.classList.add('active');
             if (dbPanel) (dbPanel as HTMLElement).hidden = true;
             if (filePanel) (filePanel as HTMLElement).hidden = false;
+            syncUploadGuidance('file', selectedFile ? 'selected' : 'idle');
         }
     }
 

@@ -3,7 +3,7 @@ FROM ornith:35b
 # Set the context window size to 16k tokens
 PARAMETER num_ctx 196000
 # Hard cap runaway responses.
-PARAMETER num_predict 4096
+PARAMETER num_predict 16384
 
 # Stable coding/chat sampling.
 # PARAMETER temperature 0.25

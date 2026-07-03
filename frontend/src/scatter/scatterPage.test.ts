@@ -32,6 +32,7 @@ const freshScatterState = vi.hoisted(() => ({
     colorLabels: null as string[] | null,
     colorMin: null as number | null,
     colorMax: null as number | null,
+    colorCardinality: null as { requested: number; used: number; bucketed: number } | null,
     correlationsByColumn: new Map(),
     suggestionThreshold: 0.7,
     lastBinnedText: '',
@@ -40,6 +41,7 @@ const freshScatterState = vi.hoisted(() => ({
     lastOptionSeries: null as any,
     columnTypes: new Map<string, string>(),
     lastSuggestions: [] as any[],
+    lastTopPairs: [] as any[],
     lastRenderSignature: '' as any,
     lastQueryContextKey: '',
     matrixCache: new Map(),
@@ -231,6 +233,7 @@ describe('initScatterPage view toggles', () => {
         freshScatterState.lastOptionSeries = null;
         freshScatterState.columnTypes = new Map();
         freshScatterState.lastSuggestions = [];
+        freshScatterState.lastTopPairs = [];
         freshScatterState.lastRenderSignature = '';
         freshScatterState.lastQueryContextKey = '';
         freshScatterState.matrixCache = new Map();

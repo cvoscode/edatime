@@ -283,6 +283,10 @@ async function renderScatter(): Promise<void> {
         appState.scatter.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
         appState.scatter.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
         appState.scatter.colorColumn = response.color || '';
+        // Audit issue 2.2: surface the cardinality summary so the
+        // colorbar can show a "X other categories collapsed" hint
+        // when the categorical color column has a long tail.
+        appState.scatter.colorCardinality = response.color_cardinality ?? null;
         const carriedFilterCount = queryContext.filters.length + queryContext.lineFilters.length;
         if (_warnOnEmptyPlotAfterMatrix && appState.scatter.totalPoints === 0 && carriedFilterCount > 0) {
             toast(

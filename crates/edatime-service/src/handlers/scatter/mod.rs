@@ -18,7 +18,9 @@ pub use edatime_query::filters::{
 };
 
 // Re-export data helpers from collect.rs.
-pub use collect::{collect_filtered_scatter_frame, collect_xy_pairs};
+pub use collect::{
+    ColorCardinality, cap_categorical_cardinality, collect_filtered_scatter_frame, collect_xy_pairs,
+};
 
 // Re-export route handlers for the router.
 pub use correlations::{
@@ -71,6 +73,30 @@ pub struct ScatterPointsResponse {
     pub size_values: Option<Vec<f64>>,
     pub size_min: Option<f64>,
     pub size_max: Option<f64>,
+    /// Audit issue 2.2: cardinality summary for the categorical color
+    /// pipeline. `None` when no color column was requested. `used` is
+    /// the number of distinct categories actually rendered;
+    /// `bucketed` is how many were collapsed into the "Other" bucket.
+    pub color_cardinality: Option<ColorCardinalityInfo>,
+}
+
+/// Public-facing shape of `ColorCardinality` so the frontend receives a
+/// stable field set even if the internal helper grows new fields.
+#[derive(Debug, Serialize, Clone, Copy)]
+pub struct ColorCardinalityInfo {
+    pub requested: usize,
+    pub used: usize,
+    pub bucketed: usize,
+}
+
+impl From<ColorCardinality> for ColorCardinalityInfo {
+    fn from(value: ColorCardinality) -> Self {
+        Self {
+            requested: value.requested,
+            used: value.used,
+            bucketed: value.bucketed,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -115,12 +141,37 @@ pub struct SuggestionItem {
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
 
+/// Sentinel used by `#[serde(default = ...)]` when the request struct is
+/// parsed without a `ValidationSettings` in scope. The route handlers
+/// recognize `0` as "use the configured default" and substitute
+/// `resolved_scatter_limit(validation)`. This keeps serde defaults safe
+/// (no accidental 1M-row payloads) while still letting operators tune the
+/// default through `config.toml` (audit issue 2.6).
 fn default_scatter_limit() -> usize {
-    1_000_000
+    0
 }
 
+/// Resolved scatter point limit when the client omits `?limit=`.
+///
+/// Reads `ValidationSettings.default_scatter_limit` so operators can tune
+/// it via `config.toml` (audit issue 2.6). Returns 1 if the configured
+/// value is zero (defensive — a zero default would prevent any scatter
+/// plot from rendering).
+pub(crate) fn resolved_scatter_limit(
+    validation: &edatime_core::config::ValidationSettings,
+) -> usize {
+    validation.default_scatter_limit.max(1)
+}
+
+/// Clamp a caller-supplied scatter limit into the inclusive range
+/// `[1, validation.max_scatter_limit]`. When the caller did not supply a
+/// limit, the caller should substitute
+/// `resolved_scatter_limit(validation)` first so the configured default
+/// takes effect; the upper bound here protects only against explicit
+/// oversized `?limit=` requests.
 fn clamp_limit(limit: usize, validation: &edatime_core::config::ValidationSettings) -> usize {
-    limit.clamp(1, validation.max_scatter_limit)
+    let upper = validation.max_scatter_limit.max(1);
+    limit.clamp(1, upper)
 }
 
 /// Returns numeric column names from a LazyFrame for correlation suggestions.
@@ -180,5 +231,22 @@ mod tests {
         assert_eq!(clamp_limit(0, &validation), 1);
         assert_eq!(clamp_limit(120, &validation), 120);
         assert_eq!(clamp_limit(1000, &validation), 123);
+    }
+
+    /// Audit issue 2.6: the scatter default limit must come from
+    /// `ValidationSettings.default_scatter_limit` so operators can tune it
+    /// via `config.toml`. The 0 sentinel used by `serde(default = ...)`
+    /// is the signal that the client omitted the field and the route
+    /// handler should resolve through `resolved_scatter_limit`.
+    #[test]
+    fn resolved_scatter_limit_uses_configured_default() {
+        let mut validation = ValidationSettings::default();
+        validation.default_scatter_limit = 42_000;
+        assert_eq!(resolved_scatter_limit(&validation), 42_000);
+
+        // Zero / missing default falls back to 1 so the handler can never
+        // produce an empty scatter response by accident.
+        validation.default_scatter_limit = 0;
+        assert_eq!(resolved_scatter_limit(&validation), 1);
     }
 }

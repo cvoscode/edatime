@@ -29,6 +29,7 @@ const appStateMock = {
         colorLabels: null,
         colorMin: null,
         colorMax: null,
+        colorCardinality: null,
         allColorValues: null,
         allColorLabels: null,
         points: [] as [number, number][],

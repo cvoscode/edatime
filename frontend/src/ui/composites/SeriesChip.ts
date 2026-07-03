@@ -36,7 +36,7 @@ function createDotsSvg(): SVGElement {
 
 export function SeriesChip(props: SeriesChipProps): HTMLLabelElement {
     const chip = document.createElement('label');
-    chip.className = `series-chip${props.checked ? ' active' : ''}${props.adaptiveTarget ? ' adaptive-target' : ''}${props.disabled ? ' disabled' : ''}`;
+    chip.className = `series-chip${props.checked ? ' active' : ' inactive'}${props.adaptiveTarget ? ' adaptive-target' : ''}${props.disabled ? ' disabled' : ''}`;
     chip.style.setProperty('--chip-accent', props.color);
     chip.dataset.col = props.column;
     if (props.title) chip.title = props.title;
@@ -47,9 +47,12 @@ export function SeriesChip(props: SeriesChipProps): HTMLLabelElement {
     checkbox.value = props.column;
     checkbox.disabled = props.disabled ?? false;
     checkbox.setAttribute('aria-label', `Toggle ${props.column} series`);
+    chip.setAttribute('aria-pressed', props.checked ? 'true' : 'false');
     checkbox.addEventListener('change', () => {
         props.onToggle?.(checkbox.checked);
         chip.classList.toggle('active', checkbox.checked);
+        chip.classList.toggle('inactive', !checkbox.checked);
+        chip.setAttribute('aria-pressed', checkbox.checked ? 'true' : 'false');
     });
 
     const displayLabel = props.label ?? props.column;
