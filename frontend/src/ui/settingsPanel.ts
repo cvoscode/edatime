@@ -28,6 +28,23 @@ let draftSettings: AppSettings | null = null;
 let activeTab = 'appearance';
 let previewBaseline: Pick<AppSettings, 'theme' | 'layoutDensity'> | null = null;
 let skipPreviewRevertOnClose = false;
+let hasUnsavedChanges = false;
+
+function syncApplyIndicator(): void {
+    const indicator = document.getElementById('settings-apply-indicator');
+    if (!indicator) return;
+    indicator.hidden = !hasUnsavedChanges;
+}
+
+function markUnsavedChanges(): void {
+    hasUnsavedChanges = true;
+    syncApplyIndicator();
+}
+
+function clearUnsavedChanges(): void {
+    hasUnsavedChanges = false;
+    syncApplyIndicator();
+}
 
 const controller = createModalController({
     modalId: 'settings-modal',
@@ -40,6 +57,7 @@ const controller = createModalController({
             layoutDensity: currentSettings.layoutDensity,
         };
         skipPreviewRevertOnClose = false;
+        clearUnsavedChanges();
         populateSettingsForm(draftSettings);
         setActiveTab('appearance');
     },
@@ -52,6 +70,7 @@ const controller = createModalController({
         draftSettings = null;
         previewBaseline = null;
         skipPreviewRevertOnClose = false;
+        clearUnsavedChanges();
     },
 });
 
@@ -153,6 +172,7 @@ function applySettings(): void {
 
     currentSettings = { ...settings };
     skipPreviewRevertOnClose = true;
+    clearUnsavedChanges();
     closeSettingsModal();
 }
 
@@ -162,6 +182,7 @@ function resetSettings(): void {
     populateSettingsForm(draftSettings);
     applyTheme(draftSettings.theme);
     applyLayoutDensity(draftSettings.layoutDensity);
+    markUnsavedChanges();
 }
 
 /** Render a preview of the selected color palette. */
@@ -227,19 +248,32 @@ export function initSettingsPanel(): void {
     document.getElementById('settings-palette')?.addEventListener('change', () => {
         const draft = syncDraftSettings();
         renderPalettePreview(draft.defaultPalette);
+        markUnsavedChanges();
     });
 
     // Theme preview (live update as user changes)
     document.getElementById('settings-theme')?.addEventListener('change', () => {
         const draft = syncDraftSettings();
         applyTheme(draft.theme);
+        markUnsavedChanges();
     });
 
     // Layout density preview
     document.getElementById('settings-layout')?.addEventListener('change', () => {
         const draft = syncDraftSettings();
         applyLayoutDensity(draft.layoutDensity);
+        markUnsavedChanges();
     });
+
+    document.getElementById('settings-export-format')?.addEventListener('change', markUnsavedChanges);
+    document.getElementById('settings-white-bg')?.addEventListener('change', markUnsavedChanges);
+    document.getElementById('settings-correlation')?.addEventListener('change', markUnsavedChanges);
+    document.getElementById('settings-causal-method')?.addEventListener('change', markUnsavedChanges);
+    document.getElementById('settings-tau-max')?.addEventListener('input', markUnsavedChanges);
+    document.getElementById('settings-fft-preset')?.addEventListener('change', markUnsavedChanges);
+    document.getElementById('settings-draw-auto-reset')?.addEventListener('change', markUnsavedChanges);
+    document.getElementById('settings-color-scale')?.addEventListener('change', markUnsavedChanges);
+    document.getElementById('settings-sidebar-collapsed')?.addEventListener('change', markUnsavedChanges);
 
     // Settings button in header
     document.getElementById('settings-btn')?.addEventListener('click', openSettingsModal);

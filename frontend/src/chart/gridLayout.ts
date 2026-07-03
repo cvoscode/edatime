@@ -1,7 +1,7 @@
 import type { GridLayout } from './chartInteractions.js';
 
 export const DEFAULT_CHART_GRID: GridLayout = {
-    left: 72,
+    left: 84,
     right: 30,
     top: 16,
     bottom: 36,
@@ -22,7 +22,7 @@ export function computeChartGrid(input: ComputeChartGridInput): GridLayout {
     const yAxisAllowance = String(input.yAxisLabel ?? '').trim() ? (fontPx + (18 * scale)) : (8 * scale);
     const left = Math.max(
         DEFAULT_CHART_GRID.left * scale,
-        Math.ceil(labelWidth + yAxisAllowance + (18 * scale)),
+        Math.ceil(labelWidth + yAxisAllowance + (22 * scale)),
     );
     return {
         left,

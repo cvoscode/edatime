@@ -64,6 +64,7 @@
 - `scatterView: ScatterView` — Current scatter view bounds.
 - `lineFilters: ScatterLineFilterSpec[]`
 - `correlationMode: CorrelationMetric`
+- `colorCardinality: ColorCardinality | null` [new in refactor]
 
 ## AppStateType (partial)
 - `profileFilterCategory?: 'all' | 'numeric' | 'datetime'` — Column profile filter category. [new in refactor]

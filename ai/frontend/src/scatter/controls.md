@@ -32,6 +32,7 @@ interface ScatterRenderCallbacks {
 - **Matrix mode toggle** now uses `[data-matrix-mode]` button group and a hidden `#scatter-matrix-mode` input instead of a `<select>`.
 - **Zoom controls:** wires `#scatter-zoom-out-btn` and `#scatter-zoom-reset-btn` to pop the zoom history / reset to the full extent, with `#scatter-zoom-range-badge` reflecting the current zoom ratio via a 4Hz interval. The interval is installed exactly once across all `bindScatterControls` calls.
 - **Page-change handler** uses a bind-index guard (`nextBindIndex`/`latestBindIndex`) on `globalThis` so only the latest `bindScatterControls` invocation processes events. Sets `appState.scatter.lastQueryContextKey` after render. When metadata is missing defers to `cb.initScatterPage(appState.metadata)`. When the query-context matches the cached key, returns early without re-rendering.
+- **`edatime:clear-all-filters` handler:** clears column ranges (`setColumnRanges({})`), adaptive line filters (`setAdaptiveLineFilters([])`), then calls `syncScatterFilterBadge()` and `refreshActiveScatterView()`. Uses bind-index guard to prevent stale handlers from firing.
 
 ---
 [1]: ./scatterPage.md

@@ -440,6 +440,7 @@ export interface ScatterState {
     colorLabels: unknown[] | null;
     colorMin: number | null;
     colorMax: number | null;
+    colorCardinality: ColorCardinality | null;
     correlationsByColumn: Map<string, { value?: number | null; count?: number; column?: string }>;
     suggestionThreshold: number;
     lastBinnedText: string;

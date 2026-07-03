@@ -1,5 +1,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+class ResizeObserverMock {
+    static instances: ResizeObserverMock[] = [];
+
+    constructor(private readonly callback: ResizeObserverCallback) {
+        ResizeObserverMock.instances.push(this);
+    }
+
+    observe(): void {}
+
+    disconnect(): void {}
+
+    trigger(target: Element): void {
+        this.callback([
+            {
+                target,
+                contentRect: target.getBoundingClientRect(),
+            } as ResizeObserverEntry,
+        ], this as unknown as ResizeObserver);
+    }
+}
+
 const DEFAULT_MATRIX_RESPONSE = {
     columns: ['a1', 'a2', 'a3', 'b1', 'b2', 'b3'],
     pearson_raw: [
@@ -108,6 +129,8 @@ describe('heatmapPage with clustering', () => {
         vi.restoreAllMocks();
         vi.clearAllMocks();
         window.localStorage.clear();
+        ResizeObserverMock.instances = [];
+        (globalThis as any).ResizeObserver = ResizeObserverMock;
         const { fetchCorrelationMatrix } = await import('../services/api/index.js');
         vi.mocked(fetchCorrelationMatrix).mockReset();
         vi.mocked(fetchCorrelationMatrix).mockResolvedValue(structuredClone(DEFAULT_MATRIX_RESPONSE) as any);
@@ -159,6 +182,7 @@ describe('heatmapPage with clustering', () => {
             }
             handlers.length = 0;
         }
+        delete (globalThis as any).ResizeObserver;
         vi.restoreAllMocks();
     });
 
@@ -196,6 +220,9 @@ describe('heatmapPage with clustering', () => {
         const { initHeatmapPage } = await import('../pages/heatmapPage.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
+
+        const fitToggle = document.getElementById('heatmap-fit-toggle') as HTMLButtonElement;
+        fitToggle.click();
 
         const slider = document.getElementById('heatmap-cell-size') as HTMLInputElement;
         slider.value = '24';
@@ -437,19 +464,18 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('snaps to panel width when the Auto-fit toggle is on, regardless of slider value', async () => {
-        const slider = document.getElementById('heatmap-cell-size') as HTMLInputElement;
-        // Push the slider well past what 6 columns can actually fit; the
-        // toggle must still produce a sensible layout that uses the
-        // available shell width.
-        slider.value = '72';
-        slider.dispatchEvent(new Event('input', { bubbles: true }));
-
         const { initHeatmapPage } = await import('../pages/heatmapPage.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
+        const slider = document.getElementById('heatmap-cell-size') as HTMLInputElement;
+        // Push the slider well past what 6 columns can actually fit; the
+        // fit-on default must still produce a sensible layout that uses the
+        // available shell width.
+        slider.value = '72';
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+
         const fitToggle = document.getElementById('heatmap-fit-toggle') as HTMLButtonElement;
-        fitToggle.click();
         expect(fitToggle.getAttribute('aria-pressed')).toBe('true');
         expect(fitToggle.classList.contains('is-active')).toBe(true);
 
@@ -462,5 +488,16 @@ describe('heatmapPage with clustering', () => {
             expect(size).toBeLessThanOrEqual(72);
             expect(size).toBeGreaterThanOrEqual(24);
         }
+    });
+
+    it('defaults Auto-fit on and watches the container with ResizeObserver', async () => {
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const fitToggle = document.getElementById('heatmap-fit-toggle') as HTMLButtonElement;
+        expect(fitToggle.getAttribute('aria-pressed')).toBe('true');
+        expect(fitToggle.classList.contains('is-active')).toBe(true);
+        expect(ResizeObserverMock.instances).toHaveLength(1);
     });
 });

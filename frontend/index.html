@@ -76,7 +76,7 @@
         <span class="app-loading-overlay__icon" aria-hidden="true">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round">
-            <polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />
+            <path d="M1 9C2.6 6 4.1 4.8 5.7 6.1C6.6 6.8 7.2 8.2 8 8.2C9.1 8.2 9.7 4.2 11 4.2C12.2 4.2 12.6 7.2 13.5 8.1C14 8.6 14.5 8.4 15 7.2" />
           </svg>
         </span>
         <span class="app-loading-overlay__title">EdaTime</span>
@@ -117,7 +117,7 @@
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
-            <polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />
+            <path d="M1 9C2.6 6 4.1 4.8 5.7 6.1C6.6 6.8 7.2 8.2 8 8.2C9.1 8.2 9.7 4.2 11 4.2C12.2 4.2 12.6 7.2 13.5 8.1C14 8.6 14.5 8.4 15 7.2" />
           </svg>
         </span>
         <span class="nav-text">Timeseries</span>
@@ -1093,7 +1093,6 @@
           </div>
 
           <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
-            <span class="scatter-toolbar__eyebrow">Run</span>
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
               <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">▶
                 Compute</button>
@@ -1559,7 +1558,7 @@
                 <div class="home-dataset-icon">
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
                     stroke-linejoin="round">
-                    <polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />
+                    <path d="M1 9C2.6 6 4.1 4.8 5.7 6.1C6.6 6.8 7.2 8.2 8 8.2C9.1 8.2 9.7 4.2 11 4.2C12.2 4.2 12.6 7.2 13.5 8.1C14 8.6 14.5 8.4 15 7.2" />
                   </svg>
                 </div>
                 <div class="home-dataset-info">
@@ -1571,6 +1570,7 @@
                 and power metrics.</p>
               <div class="home-dataset-tags">
                 <span class="home-dataset-tag">Time-series</span>
+                <span class="home-dataset-tag home-dataset-tag--primary">Best first stop: Timeseries</span>
                 <span class="home-dataset-tag home-dataset-tag--rows">69K rows</span>
                 <span class="home-dataset-tag home-dataset-tag--size">7 columns</span>
               </div>
@@ -1658,12 +1658,12 @@
             <div class="home-card-icon">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
                 stroke-linejoin="round">
-                <polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />
+                <path d="M1 9C2.6 6 4.1 4.8 5.7 6.1C6.6 6.8 7.2 8.2 8 8.2C9.1 8.2 9.7 4.2 11 4.2C12.2 4.2 12.6 7.2 13.5 8.1C14 8.6 14.5 8.4 15 7.2" />
               </svg>
             </div>
             <h3 class="home-card-title">Timeseries <kbd>⌥2</kbd></h3>
-            <p class="home-card-desc">WebGPU-accelerated multi-series chart with zoom, custom colors, rolling bands,
-              anomaly detection, and adaptive line filters.</p>
+            <p class="home-card-desc">WebGPU-accelerated multi-series chart with zoom, custom colors, and a guided path
+              into deeper rolling, anomaly, and filter tools.</p>
           </div>
           <div class="home-card" data-home-nav="heatmap" tabindex="0" role="button">
             <div class="home-card-icon">
@@ -1977,8 +1977,10 @@
                 <button class="btn btn-select profile-filter-category-btn" id="profile-filter-category-datetime"
                   type="button" data-category="datetime">Datetime</button>
               </div>
-              <input type="text" id="profile-filter-input" class="column-filter-input" placeholder="Filter columns…"
-                aria-label="Filter profile columns">
+              <div class="upload-preview-filter">
+                <input type="text" id="profile-filter-input" class="column-filter-input" placeholder="Filter columns…"
+                  aria-label="Filter profile columns">
+              </div>
               <span class="upload-preview-status" id="upload-preview-status" role="status" aria-live="polite">Select a
                 file to preview columns</span>
             </div>
@@ -2343,6 +2345,7 @@
                 <div class="settings-control">
                   <select id="settings-layout" class="modal-select">
                     <option value="spacious">Spacious</option>
+                    <option value="roomy">Roomy</option>
                     <option value="compact">Compact</option>
                   </select>
                 </div>
@@ -2501,6 +2504,7 @@
             <div class="modal-actions-right">
               <button class="btn btn-ghost" id="settings-cancel-btn" type="button">Cancel</button>
               <button class="btn btn-primary" id="settings-apply-btn" type="button">Apply</button>
+              <span id="settings-apply-indicator" class="settings-apply-indicator" hidden aria-hidden="true"></span>
             </div>
           </div>
         </div>

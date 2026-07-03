@@ -5,7 +5,7 @@
 ## Types
 ```typescript
 type ThemeMode = 'dark' | 'light' | 'auto';
-type LayoutDensity = 'compact' | 'spacious';
+type LayoutDensity = 'compact' | 'roomy' | 'spacious';
 type ExportFormat = 'png' | 'svg' | 'csv' | 'json' | 'parquet';
 type CorrelationMetric = 'pearson' | 'spearman';
 type ColorScaleName = 'viridis' | 'plasma' | 'magma' | 'coolwarm' | 'inferno';

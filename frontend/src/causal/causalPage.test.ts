@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     toast: vi.fn(),
+    selectedCols: ['HUFL', 'HULL'],
 }));
 
 vi.mock('../services/api/index.js', () => ({
@@ -14,6 +15,12 @@ vi.mock('./causalComparison.js', () => ({
 
 vi.mock('../utils/toast.js', () => ({
     toast: mocks.toast,
+}));
+
+vi.mock('../store/index.js', () => ({
+    appState: {
+        selectedCols: mocks.selectedCols,
+    },
 }));
 
 class ResizeObserverMock {
@@ -153,6 +160,30 @@ describe('causal page chart bootstrap', () => {
             typeof call[0] === 'string' && call[0].includes('Select at least 2 numeric columns')
         );
         expect(toastArgs).toBeDefined();
+    });
+
+    it('preselects causal chips from the existing numeric selection when available', async () => {
+        const { initCausalPage } = await import('./causalPage.js');
+        const { resetSelectionState } = await import('./selectionState.js');
+        resetSelectionState();
+
+        initCausalPage({
+            getMetadata: () => ({
+                numeric_columns: ['HUFL', 'HULL', 'OT'],
+                columns: [
+                    { name: 'HUFL', dtype: 'Float64' },
+                    { name: 'HULL', dtype: 'Float64' },
+                    { name: 'OT', dtype: 'Float64' },
+                ],
+            }),
+            chipColor: () => '#00d4ff',
+            numericColumns: () => ['HUFL', 'HULL', 'OT'],
+            setLoading: vi.fn(),
+        });
+
+        expect(document.querySelector('[data-col="HUFL"]')?.getAttribute('aria-pressed')).toBe('true');
+        expect(document.querySelector('[data-col="HULL"]')?.getAttribute('aria-pressed')).toBe('true');
+        expect(document.querySelector('[data-col="OT"]')?.getAttribute('aria-pressed')).toBe('false');
     });
 
 });

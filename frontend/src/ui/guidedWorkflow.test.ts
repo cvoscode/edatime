@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildWorkflowSuggestion, computeWorkflowProgress, type WorkflowSnapshot } from './guidedWorkflow';
 
 function snapshot(overrides: Partial<WorkflowSnapshot> = {}): WorkflowSnapshot {
@@ -74,5 +74,44 @@ describe('buildWorkflowSuggestion', () => {
         }));
         expect(suggestion.actionPage).toBe('scatter');
         expect(suggestion.body).toContain('Click');
+    });
+});
+
+describe('initGuidedWorkflow', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        window.localStorage.clear();
+        document.body.innerHTML = `
+            <nav class="sidebar">
+                <button class="nav-item active" data-page="home" type="button">Home</button>
+                <button class="nav-item" data-page="timeseries" type="button">Timeseries</button>
+            </nav>
+            <button id="workflow-toggle-btn" type="button"></button>
+            <section id="workflow-panel"></section>
+        `;
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+    });
+
+    it('delays workflow panel updates on page-change so stale copy does not flash through', async () => {
+        const { initGuidedWorkflow } = await import('./guidedWorkflow.js');
+
+        initGuidedWorkflow();
+        expect(document.getElementById('workflow-panel')?.textContent).toContain('Open Upload');
+
+        const home = document.querySelector('.sidebar .nav-item[data-page="home"]') as HTMLButtonElement;
+        const timeseries = document.querySelector('.sidebar .nav-item[data-page="timeseries"]') as HTMLButtonElement;
+        home.classList.remove('active');
+        timeseries.classList.add('active');
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'timeseries', navPage: 'timeseries' } }));
+
+        expect(document.getElementById('workflow-panel')?.textContent).toContain('Open Upload');
+
+        await vi.advanceTimersByTimeAsync(50);
+
+        expect(document.getElementById('workflow-panel')?.hidden).toBe(true);
     });
 });

@@ -648,7 +648,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 chart.setOption({
                     backgroundColor: 'transparent',
                     animation: false,
-                    grid: { left: 92, right: 40, top: 36, bottom: 88 },
+                    grid: { left: 104, right: 40, top: 36, bottom: 88 },
                     toolbox: {
                         right: 12,
                         feature: {
@@ -700,7 +700,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         data: freqAxis,
                         name: `Frequency (${frequencyUnit})`,
                         nameLocation: 'middle',
-                        nameGap: 76,
+                        nameGap: 84,
                         axisLabel: {
                             color: '#9fb1d1',
                             interval: yTickInterval,
@@ -744,7 +744,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 });
 
                 initColorbarInteraction();
-                updateSpectrogramColorbar(minValue, maxValue, logScale ? 'log10 magnitude' : scaleLabel);
+                updateSpectrogramColorbar(minValue, maxValue, logScale ? 'log10' : scaleLabel);
                 syncSpectrogramEmptyState();
             };
 

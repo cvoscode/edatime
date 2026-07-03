@@ -599,6 +599,18 @@
   box-shadow: 0 0 12px rgba(0, 168, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
+.upload-preview-filter {
+  flex: 1 1 280px;
+  min-width: 240px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.upload-preview-filter .column-filter-input {
+  width: min(360px, 100%);
+  margin-top: 0;
+}
+
 .upload-preview-selection-text {
   font-size: 0.6875rem;
   color: var(--text-dim);

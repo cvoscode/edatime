@@ -40,8 +40,13 @@ const appStateMock = {
     metadata: null as any,
 };
 
+const setColumnRangesMock = vi.fn();
+const setAdaptiveLineFiltersMock = vi.fn();
+
 vi.mock('../store/index.js', () => ({
     appState: appStateMock,
+    setColumnRanges: setColumnRangesMock,
+    setAdaptiveLineFilters: setAdaptiveLineFiltersMock,
 }));
 
 vi.mock('./helpers.js', () => ({
@@ -337,5 +342,33 @@ describe('bindScatterControls', () => {
 
         expect(callbacks.setScatterView).toHaveBeenCalledTimes(1);
         expect(callbacks.setScatterView).toHaveBeenCalledWith('plot', { render: false });
+    });
+
+    it('clears scatter filters and re-renders when the empty-state clear action fires', async () => {
+        const { bindScatterControls } = await import('./controls.js');
+        const callbacks = {
+            initScatterPage: vi.fn(async () => { }),
+            renderScatter: vi.fn(async () => { }),
+            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
+            refreshActiveScatterView: vi.fn(async () => { }),
+            setScatterView: vi.fn(async () => { }),
+            handleErr: vi.fn(),
+            rerenderScatterFromCache: vi.fn(async () => { }),
+            renderScatterDebounced: vi.fn(),
+            syncScatterFilterBadge: vi.fn(),
+        };
+
+        bindScatterControls(callbacks);
+        setColumnRangesMock.mockClear();
+        setAdaptiveLineFiltersMock.mockClear();
+
+        window.dispatchEvent(new CustomEvent('edatime:clear-all-filters'));
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(setColumnRangesMock).toHaveBeenCalledWith({});
+        expect(setAdaptiveLineFiltersMock).toHaveBeenCalledWith([]);
+        expect(callbacks.syncScatterFilterBadge).toHaveBeenCalled();
+        expect(callbacks.refreshActiveScatterView).toHaveBeenCalled();
     });
 });

@@ -129,6 +129,26 @@
     gap: 10px;
 }
 
+:root[data-layout="roomy"] {
+    --ctrl-h: 36px;
+    --ctrl-h-sm: 30px;
+    --ctrl-h-xs: 24px;
+}
+
+:root[data-layout="roomy"] .toolbar {
+    padding: 12px 16px;
+    gap: 12px;
+}
+
+:root[data-layout="roomy"] .nav-item {
+    padding: 8px 12px;
+}
+
+:root[data-layout="roomy"] .modal-body {
+    padding: 16px 18px;
+    gap: 14px;
+}
+
 /* Settings modal actions */
 .settings-modal .modal-actions {
     border-top: 1px solid var(--border);
@@ -145,4 +165,15 @@
     width: 18px;
     height: 18px;
     accent-color: var(--accent);
+}
+
+.settings-apply-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-left: 8px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+    vertical-align: middle;
 }

@@ -53,6 +53,7 @@ const WORKFLOW_STEPS: Array<{ id: WorkflowStepId; label: string; page: string }>
 
 let _initialized = false;
 let _currentNavPage = 'home';
+let _renderTimer: number | null = null;
 
 function sanitizeVisitedPages(value: unknown): string[] {
     if (!Array.isArray(value)) return [];
@@ -424,17 +425,25 @@ function bindStaticEvents(): void {
     document.addEventListener('change', (event) => {
         const target = event.target as HTMLElement | null;
         const id = target?.id || '';
-        if (id === 'scatter-x-col' || id === 'scatter-y-col') renderGuidedWorkflow();
+        if (id === 'scatter-x-col' || id === 'scatter-y-col') scheduleGuidedWorkflowRender();
     });
 
     window.addEventListener('edatime:page-change', (event: any) => {
         const nextPage = event?.detail?.navPage || event?.detail?.page || currentPage();
         _currentNavPage = nextPage;
         markVisited(nextPage);
-        renderGuidedWorkflow();
+        scheduleGuidedWorkflowRender();
     });
-    window.addEventListener('edatime:session-restored', renderGuidedWorkflow);
-    window.addEventListener('edatime:workflow-refresh', renderGuidedWorkflow as EventListener);
+    window.addEventListener('edatime:session-restored', () => scheduleGuidedWorkflowRender());
+    window.addEventListener('edatime:workflow-refresh', () => scheduleGuidedWorkflowRender());
+}
+
+function scheduleGuidedWorkflowRender(delayMs = 50): void {
+    if (_renderTimer) clearTimeout(_renderTimer);
+    _renderTimer = window.setTimeout(() => {
+        _renderTimer = null;
+        renderGuidedWorkflow();
+    }, delayMs);
 }
 
 export function renderGuidedWorkflow(): void {

@@ -17,6 +17,11 @@ describe('timeseries layout shell', () => {
         expect(indexHtml).toContain('registration.unregister()');
     });
 
+    it('uses a curved wave path for the shared EdaTime sparkline icon', () => {
+        expect(indexHtml).not.toContain('<polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />');
+        expect(indexHtml).toContain('<path d="M1 9');
+    });
+
     it('uses dedicated command bar and utility shelf wrappers', () => {
         expect(indexHtml).toContain('timeseries-command-bar');
         expect(indexHtml).toContain('timeseries-chip-rail');

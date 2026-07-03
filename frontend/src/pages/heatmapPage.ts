@@ -22,8 +22,9 @@ let heatmapClusterEnabled = true;
 // When `heatmapFitToScreen` is on, the matrix snaps to fill the available
 // panel width regardless of the cell-size slider. The slider still drives
 // the cell-size slider's display value, but its max is bypassed for layout.
-// The toggle defaults to off so the existing slider behaviour is preserved.
-let heatmapFitToScreen = false;
+// Default to fit-on so the matrix fills the available panel width on first
+// load; users can still turn it off when they want slider-driven overflow.
+let heatmapFitToScreen = true;
 const HEATMAP_FIT_STORAGE_KEY = 'edatime_heatmap_fit_to_screen';
 // Hardcoded clustering cutoff. Exposed as a constant (rather than a slider)
 // because the threshold is rarely useful to tune interactively and the
@@ -33,12 +34,13 @@ let matrixData: CorrelationMatrixResponse | null = null;
 let metric: CorrelationMetric = 'pearson_raw';
 let matrixLoadSequence = 0;
 let heatmapRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
+let heatmapResizeObserver: ResizeObserver | null = null;
 
 function readHeatmapFitPref(): boolean {
     try {
-        return window.localStorage.getItem(HEATMAP_FIT_STORAGE_KEY) === '1';
+        return window.localStorage.getItem(HEATMAP_FIT_STORAGE_KEY) !== '0';
     } catch {
-        return false;
+        return true;
     }
 }
 
@@ -219,7 +221,11 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         const labelWidth = Math.max(84, Math.min(180, Math.round(heatmapCellSize * 2.5)));
         const minCell = 24;
         const maxCell = Math.max(minCell, heatmapCellSize);
-        const shellWidth = container.clientWidth || container.getBoundingClientRect().width || 0;
+        const shellWidth = Math.max(
+            container.clientWidth || 0,
+            container.getBoundingClientRect().width || 0,
+            480,
+        );
         const scaleBarWidth = 56; // color scale gutter reserved on the right
         const usableWidth = Math.max(labelWidth + minCell * size + 8, shellWidth - scaleBarWidth);
         const fitCell = Math.floor((usableWidth - labelWidth - 2 * (size - 1)) / Math.max(1, size));
@@ -232,7 +238,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             ? Math.max(minCell, fitCell)
             : Math.max(minCell, Math.min(maxCell, fitCell));
         const headerCellSize = heatmapFitToScreen ? responsiveCell : heatmapCellSize;
-        const useVerticalHeaders = headerCellSize < 34;
+        const useVerticalHeaders = headerCellSize < 40;
 
         // Optionally reorder columns by cluster. The data arrays stay
         // indexed by the ORIGINAL column order; we map render position
@@ -279,7 +285,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                 useVerticalHeaders ? 'heatmap-header--vertical' : '',
             ].filter(Boolean).join(' ');
             cells.push(
-                `<div class="${headerClass}" style="grid-column:${colGridFor(c)};grid-row:1;" title="${escapeAttr(colName)}" data-cluster-col="${colOriginal}">${escapeAttr(colName)}</div>`,
+                `<div class="${headerClass}" style="grid-column:${colGridFor(c)};grid-row:1;--heatmap-header-cell:${headerCellSize}px;" title="${escapeAttr(colName)}" data-cluster-col="${colOriginal}">${escapeAttr(colName)}</div>`,
             );
         }
 
@@ -368,9 +374,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
 
             // Sync initial control state with module-level defaults.
             if (clusterToggle) clusterToggle.checked = heatmapClusterEnabled;
-            // Restore the "Fit to screen" pref from session storage. The
-            // toggle is opt-in so users see the slider-driven layout on
-            // first visit and only flip on Fit when they want it.
+            // Restore the "Fit to screen" pref, defaulting to on so the
+            // heatmap uses the page width on first visit.
             heatmapFitToScreen = readHeatmapFitPref();
             if (fitToggle) {
                 fitToggle.setAttribute('aria-pressed', String(heatmapFitToScreen));
@@ -404,11 +409,13 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                 fitToggle.classList.toggle('is-active', heatmapFitToScreen);
                 renderHeatmap();
             });
-            // Re-fit when the panel is resized so the toggle keeps the
-            // matrix filling the available width after a layout change.
-            window.addEventListener('resize', () => {
-                if (heatmapFitToScreen) renderHeatmap();
-            });
+            heatmapResizeObserver?.disconnect();
+            if (typeof ResizeObserver !== 'undefined') {
+                heatmapResizeObserver = new ResizeObserver(() => {
+                    if (heatmapFitToScreen) renderHeatmap();
+                });
+                heatmapResizeObserver.observe(container);
+            }
         },
         onVisible() {
             void loadMatrix(metric);

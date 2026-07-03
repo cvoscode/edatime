@@ -8,6 +8,7 @@ function buildSettingsDom(): void {
                 <button id="settings-close-btn" type="button">Close</button>
                 <button id="settings-cancel-btn" type="button">Cancel</button>
                 <button id="settings-apply-btn" type="button">Apply</button>
+                <span id="settings-apply-indicator" hidden aria-hidden="true">•</span>
                 <button id="settings-reset-btn" type="button">Reset</button>
                 <button class="settings-tab-btn active" data-tab="appearance" type="button">Appearance</button>
                 <button class="settings-tab-btn" data-tab="analytics" type="button">Analytics</button>
@@ -20,6 +21,7 @@ function buildSettingsDom(): void {
                 </select>
                 <select id="settings-layout">
                     <option value="spacious">Spacious</option>
+                    <option value="roomy">Roomy</option>
                     <option value="compact">Compact</option>
                 </select>
                 <select id="settings-palette">
@@ -126,5 +128,30 @@ describe('settingsPanel', () => {
         }));
         expect(applyTheme).toHaveBeenLastCalledWith('light');
         expect(applyLayoutDensity).toHaveBeenLastCalledWith('compact');
+    });
+
+    it('shows the unsaved-changes indicator while the draft differs from the saved settings', async () => {
+        const settingsModule = await import('../utils/settings.js');
+        vi.spyOn(settingsModule, 'loadSettings').mockReturnValue({
+            ...settingsModule.DEFAULT_SETTINGS,
+            theme: 'dark',
+            layoutDensity: 'spacious',
+        });
+        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => {});
+        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => {});
+        vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => {});
+
+        const panelModule = await import('./settingsPanel.js');
+        panelModule.initSettingsPanel();
+        panelModule.openSettingsModal();
+
+        const layout = document.getElementById('settings-layout') as HTMLSelectElement;
+        layout.value = 'roomy';
+        layout.dispatchEvent(new Event('change', { bubbles: true }));
+
+        expect(document.getElementById('settings-apply-indicator')?.hidden).toBe(false);
+
+        document.getElementById('settings-cancel-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        expect(document.getElementById('settings-apply-indicator')?.hidden).toBe(true);
     });
 });

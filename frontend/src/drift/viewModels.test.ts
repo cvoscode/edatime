@@ -3,6 +3,7 @@ import {
     buildColumnSummary,
     buildDetailStatRows,
     buildGlobalSummary,
+    buildTimelineOption,
     filterResponseForEvaluation,
     timelineTooltipFormatter,
     type DriftResponse,
@@ -152,6 +153,27 @@ describe('drift view models', () => {
         expect(summary.worstSeverity).toBe('red');
     });
 
+    it('softens the latest severity when almost every column is already flagged', () => {
+        const flagged = new Map(
+            Array.from({ length: 10 }, (_, i) => [
+                `col-${i}`,
+                makeResponse(`col-${i}`, [
+                    {
+                        ...response.windows[0]!,
+                        drift_level: 'red',
+                        trigger_reasons: ['psi_major'],
+                    },
+                ]),
+            ]),
+        );
+
+        const summary = buildGlobalSummary(flagged);
+        expect(summary.columnsFlagged).toBe(10);
+        expect(summary.totalColumns).toBe(10);
+        expect(summary.latestSeverity).toBe('yellow');
+        expect(summary.worstSeverity).toBe('red');
+    });
+
     it('includes trigger reasons and additional metrics in detail stats rows', () => {
         const rows = buildDetailStatRows(response.windows[1] ?? null);
         expect(rows.some((row) => row.label === 'Triggered by' && row.value.includes('PSI major'))).toBe(true);
@@ -180,5 +202,22 @@ describe('drift view models', () => {
 
         expect(html).toContain('2025-01-01 01:30 - 02:30');
         expect(html).toContain('PSI major, KS, E-S');
+    });
+
+    it('limits timeline tick labels so dense window series stay readable', () => {
+        const denseResponse = makeResponse('dense', Array.from({ length: 12 }, (_, i) => ({
+            ...response.windows[0]!,
+            label: `2025-01-01 00:${String(i * 5).padStart(2, '0')} - 00:${String(i * 5 + 5).padStart(2, '0')}`,
+        })));
+        const option = buildTimelineOption({
+            responsesByColumn: new Map([['dense', denseResponse]]),
+            activeDetailColumn: 'dense',
+            selectedWindowIdx: null,
+        });
+        const axisLabel = (option as any).xAxis.axisLabel;
+        expect(axisLabel.rotate).toBe(24);
+        expect(axisLabel.hideOverlap).toBe(true);
+        expect(axisLabel.interval(0)).toBe(true);
+        expect(axisLabel.interval(1)).toBe(false);
     });
 });

@@ -5,6 +5,7 @@
  * export to export.ts, workflow to workflow.ts, and runtime to runtime.ts.
  */
 import './runtime.js'; // bootstraps page lifecycle before first edatime:page-change event
+import { appState } from '../store/index.js';
 
 export type { CausalDeps } from './selectionState.js';
 export type { MetadataColumn, CausalMetadata } from './selectionState.js';
@@ -26,6 +27,16 @@ import { bindInfoPopovers } from '../ui/infoPopovers.js';
 
 let _chartEl: HTMLDivElement | null = null;
 
+function seedSelectedColumnsFromDataset(deps: any): void {
+    if (_selectedColumns.size > 0) return;
+    const numericSet = new Set(Array.isArray(deps?.numericColumns?.()) ? deps.numericColumns() : []);
+    const restored = Array.isArray(appState.selectedCols) ? appState.selectedCols.filter((col) => numericSet.has(col)) : [];
+    if (restored.length === 0) return;
+    for (const col of restored) {
+        _selectedColumns.add(col);
+    }
+}
+
 export function initCausalPage(deps: any): void {
     const methodSelect = document.getElementById('causal-method-select') as HTMLElement | null;
     const testSelect = document.getElementById('causal-test-select') as HTMLElement | null;
@@ -44,6 +55,7 @@ export function initCausalPage(deps: any): void {
     if (!_chartEl || !columnsBar) return;
 
     bindEditPanelEvents();
+    seedSelectedColumnsFromDataset(deps);
     renderColumnChips(deps, columnsBar, openEditPanel);
     syncCausalEmptyState(_currentColumns.length);
     bindInfoPopovers();
@@ -95,6 +107,7 @@ export function initCausalPage(deps: any): void {
 
     window.addEventListener('edatime:page-change', (event: any) => {
         if (event?.detail?.page === 'causal' && deps.getMetadata()) {
+            seedSelectedColumnsFromDataset(deps);
             renderColumnChips(deps, columnsBar, openEditPanel);
             scheduleCausalChartRefresh();
             syncCausalEmptyState(_currentColumns.length);

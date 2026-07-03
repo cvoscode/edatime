@@ -12,6 +12,14 @@ import { toast, type ToastKind } from '../utils/toast.js';
 
 const PROGRESS_OVERLAY_ID = 'causal-loading';
 const PROGRESS_LABEL_ID = 'causal-progress-label';
+let dismissActiveStatusToast: (() => void) | null = null;
+
+window.addEventListener('edatime:page-change', (event: Event) => {
+    const page = (event as CustomEvent<{ page?: string }>).detail?.page;
+    if (page === 'causal') return;
+    dismissActiveStatusToast?.();
+    dismissActiveStatusToast = null;
+});
 
 function progressOverlay(): HTMLElement | null {
     return document.getElementById(PROGRESS_OVERLAY_ID);
@@ -50,7 +58,8 @@ export function setStatus(message: string, tone: 'info' | 'error' | 'success' = 
     // Success and info messages get the standard auto-dismiss; errors are
     // sticky so the user can read them.
     const opts = tone === 'error' ? { duration: 0 } : {};
-    toast(message, kind, opts);
+    dismissActiveStatusToast?.();
+    dismissActiveStatusToast = toast(message, kind, opts);
 }
 
 export function syncCausalEmptyState(columnsLength: number): void {

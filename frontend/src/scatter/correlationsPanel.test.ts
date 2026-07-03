@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const appStateMock = {
+const appStateMock: {
+    scatter: {
+        suggestionThreshold: number;
+        lastSuggestions: Array<{ x: string; y: string; correlation: number }>;
+        lastTopPairs: Array<{ x: string; y: string; correlation: number; count: number }>;
+    };
+} = {
     scatter: {
         suggestionThreshold: 0.7,
         lastSuggestions: [],

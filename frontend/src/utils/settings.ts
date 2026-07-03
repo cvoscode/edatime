@@ -12,7 +12,7 @@ import {
 } from './correlationModes.js';
 
 export type ThemeMode = 'dark' | 'light' | 'auto';
-export type LayoutDensity = 'compact' | 'spacious';
+export type LayoutDensity = 'compact' | 'roomy' | 'spacious';
 export type ExportFormat = 'png' | 'svg' | 'csv' | 'json' | 'parquet';
 export type { CorrelationMetric } from './correlationModes.js';
 

@@ -632,7 +632,8 @@
 .heatmap-header--vertical {
   align-items: center;
   justify-content: center;
-  min-height: 72px;
+  height: var(--heatmap-header-cell, 72px);
+  min-height: var(--heatmap-header-cell, 72px);
   padding: 4px 0 8px;
   writing-mode: vertical-rl;
   text-orientation: mixed;

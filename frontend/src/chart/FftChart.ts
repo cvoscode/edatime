@@ -31,7 +31,7 @@ import {
 } from '../utils/spectralScaling.js';
 import { SERIES_COLORS } from '../utils/seriesColors.js';
 
-const FFT_GRID: GridLayout = { left: 112, right: 32, top: 34, bottom: 52 };
+const FFT_GRID: GridLayout = { left: 112, right: 32, top: 52, bottom: 52 };
 
 /**
  * Fallback palette for the FFT chart when no per-column color override is
@@ -125,6 +125,15 @@ export class FftChart {
     private _yAxisLabel(): string {
         const base = this._mode === 'psd' ? 'PSD' : 'Magnitude';
         return this._logScale ? `log10(${base})` : base;
+    }
+
+    private _formatLogAxisTick(value: number): string {
+        const magnitude = 10 ** value;
+        if (!Number.isFinite(magnitude) || magnitude <= 0) return '';
+        if (magnitude >= 1000 || magnitude < 0.001) {
+            return magnitude.toExponential(1).replace('e+', 'e+');
+        }
+        return Number(magnitude.toPrecision(2)).toString();
     }
 
     /* ── Data update ───────────────────────────────────── */
@@ -295,7 +304,9 @@ export class FftChart {
                     fontSize: 11,
                     hideOverlap: true,
                     margin: 8,
-                    formatter: (v: number) => v.toFixed(yTickPrec),
+                    formatter: this._logScale
+                        ? (v: number) => this._formatLogAxisTick(v)
+                        : (v: number) => v.toFixed(yTickPrec),
                 },
                 axisTick: {
                     alignWithLabel: true,
@@ -402,15 +413,6 @@ export class FftChart {
         const plotH = canvas.height - FFT_GRID.top - FFT_GRID.bottom;
         if (plotW <= 0 || plotH <= 0) return;
 
-        ctx.save();
-        ctx.fillStyle = 'rgba(207, 217, 241, 0.95)';
-        ctx.font = '600 12px Inter, system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.translate(16, plotT + plotH / 2);
-        ctx.rotate(-Math.PI / 2);
-        ctx.fillText(this._yAxisLabel(), 0, 0);
-        ctx.restore();
-
         // Draw peak labels if enabled
         if (this._showPeakLabels && this._dominantPeaks.length > 0) {
             this._renderPeakLabels(ctx, xMin, xMax, plotL, plotT, plotW, plotH);
@@ -489,11 +491,15 @@ export class FftChart {
     ): void {
         ctx.save();
         ctx.font = '10px Inter, system-ui, sans-serif';
+        ctx.textBaseline = 'middle';
 
         // Only show top 3 peaks in labels to avoid clutter
         const peaksToShow = this._dominantPeaks.slice(0, 3);
+        const rowHeight = 18;
+        const labelTop = plotT + 12;
+        let rowIndex = 0;
 
-        for (const [index, peak] of peaksToShow.entries()) {
+        for (const peak of peaksToShow) {
             const freqHz = peak.frequency_hz;
             if (freqHz < xMin || freqHz > xMax) continue;
 
@@ -528,18 +534,36 @@ export class FftChart {
             ctx.arc(ax, ay, 4, 0, Math.PI * 2);
             ctx.fill();
 
+            const alignRight = ax > plotL + plotW / 2;
+            const labelX = ax + (alignRight ? -12 : 12);
+            const labelY = labelTop + (rowIndex * rowHeight);
+            const periodY = labelY + 10;
+            const lineEndX = labelX + (alignRight ? -4 : 4);
+            rowIndex += 1;
+
+            // Draw a short leader so the label is clearly tied to its peak.
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(ax, ay - 6);
+            ctx.lineTo(lineEndX, labelY);
+            ctx.stroke();
+
             // Draw label
             const label = formatFrequency(freqHz);
             const period = frequencyToPeriod(freqHz);
-            const row = index % 2;
-            const yBase = ay - 12 - (row * 18);
+            const plateWidth = Math.max(ctx.measureText(label).width, ctx.measureText(`(${period})`).width) + 10;
+            const plateHeight = 18;
+            const plateX = alignRight ? labelX - plateWidth : labelX;
+            const plateY = labelY - 8;
+            ctx.fillStyle = 'rgba(11, 17, 28, 0.78)';
+            ctx.fillRect(plateX, plateY, plateWidth, plateHeight);
 
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-            ctx.textAlign = ax > plotL + plotW / 2 ? 'right' : 'left';
-            const xOffset = ax > plotL + plotW / 2 ? -8 : 8;
-            ctx.fillText(label, ax + xOffset, yBase);
+            ctx.textAlign = alignRight ? 'right' : 'left';
+            ctx.fillText(label, labelX, labelY);
             ctx.fillStyle = 'rgba(180, 180, 180, 0.85)';
-            ctx.fillText(`(${period})`, ax + xOffset, yBase + 11);
+            ctx.fillText(`(${period})`, labelX, periodY);
         }
 
         ctx.restore();

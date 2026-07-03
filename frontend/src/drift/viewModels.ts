@@ -336,11 +336,12 @@ export function buildGlobalSummary(
     const worstSeverity = summaries.reduce<DriftWindowStats['drift_level']>((worst, summary) => {
         return severityScore(summary.worstLevel) > severityScore(worst) ? summary.worstLevel : worst;
     }, 'green');
+    const flaggedCoverage = summaries.length > 0 ? columnsFlagged / summaries.length : 0;
     return {
         anyDrift: columnsFlagged > 0,
         columnsFlagged,
         totalColumns: summaries.length,
-        latestSeverity,
+        latestSeverity: flaggedCoverage > 0.9 && latestSeverity === 'red' ? 'yellow' : latestSeverity,
         worstSeverity,
     };
 }
@@ -449,6 +450,7 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
     }
 
     const categories = ['Reference', ...first.windows.map((w) => w.label)];
+    const visibleTickStep = Math.max(1, Math.ceil(categories.length / 8));
 
     const series = columns.map((col, colIdx) => {
         const response = responsesByColumn.get(col)!;
@@ -546,7 +548,13 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
         xAxis: {
             type: 'category',
             data: categories,
-            axisLabel: { color: DRIFT_TEXT_DIM(), rotate: 32, fontSize: 10 },
+            axisLabel: {
+                color: DRIFT_TEXT_DIM(),
+                rotate: 24,
+                fontSize: 10,
+                hideOverlap: true,
+                interval: (index: number) => index === 0 || index === categories.length - 1 || index % visibleTickStep === 0,
+            },
             axisLine: { lineStyle: { color: 'rgba(255,255,255,0.16)' } },
         },
         yAxis: {

@@ -71,7 +71,7 @@
 .spectrogram-chart-row #spectrogram-colorbar {
   align-self: stretch;
   flex-shrink: 0;
-  width: 56px;
+  width: 72px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -166,17 +166,18 @@
 .spectrogram-chart-row #spectrogram-colorbar .scatter-colorbar-vname {
   /* Keep the label horizontal on desktop so the color scale reads like a
      normal legend instead of a rotated annotation. */
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   font-weight: 600;
   color: var(--text, #eef4ff);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   writing-mode: horizontal-tb;
   transform: none;
-  max-width: 72px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: normal;
+  white-space: nowrap;
+  overflow-wrap: normal;
   margin-top: 8px;
   padding: 0;
   opacity: 0.9;

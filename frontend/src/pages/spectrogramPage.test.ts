@@ -243,6 +243,7 @@ describe('spectrogramPage colorbar filter', () => {
         expect(wrap?.hidden).toBe(false);
         expect(wrap?.querySelector('[data-role="cb-high"]')?.textContent).toMatch(/^High/);
         expect(wrap?.querySelector('[data-role="cb-low"]')?.textContent).toMatch(/^Low/);
+        expect(wrap?.querySelector('.scatter-colorbar-vname')?.textContent).toBe('log10');
     });
 
     it('renders spectrogram axes with extra padding so titles cannot collide with ticks', async () => {

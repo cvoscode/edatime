@@ -21,13 +21,13 @@
 - `export function normalizeDensity(stats): Array<[number, number]>` — Normalizes ECDF data for rendering.
 - `export function severityScore(level): number`, `formatTriggerReason(reason): string`, `formatTriggerReasons(reasons[]): string` — Severity and reason formatting utilities.
 - `export function filterResponseForEvaluation(response, mode) -> DriftInvestigationResponse` — Filters investigation response based on evaluation mode (all/latest/latest-n).
-- `export function buildColumnSummary(response): ColumnDriftSummary`, `buildGlobalSummary(responses[])` — Builds summary views for single column and global overview.
+- `export function buildColumnSummary(response): ColumnDriftSummary`, `buildGlobalSummary(responses[])` — Builds summary views for single column and global overview. Global summary applies a "flagged coverage" softening: if >90% of columns are flagged and latest severity is `red`, it is downgraded to `yellow`.
 - `export function sortedWindowIndices(response) -> number[]` — Returns window indices sorted by drift severity.
 - `export function statusSummary(status, columnsFlagged, windowsFlagged) -> string` — Formats a status string from investigation results.
 
 ## Timeline/Detail Rendering
 - `interface TimelineOptionContext { response, column, evaluationMode }`, `DetailOptionContext { win: DriftWindowStats | null, column }` [deps: [DriftWindowStats][2], [DriftResponse][3]] — Context objects for chart option builders.
-- `export function buildTimelineOption(ctx): Record<string, unknown>` — Builds ECharts timeline option with window distribution charts and drift level indicators.
+- `export function buildTimelineOption(ctx): Record<string, unknown>` — Builds ECharts timeline option. Tick labels are interval-throttled to every `ceil(categories.length / 8)` ticks with `rotate: 24` and `hideOverlap: true` for dense window series readability. [new in refactor]
 - `export function buildDetailOption(ctx): Record<string, unknown>` — Builds ECharts detail view option (histogram + ECDF) for a single window.
 
 ## Detail Stats & HTML Rendering

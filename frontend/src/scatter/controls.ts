@@ -39,7 +39,7 @@ const latestBindIndex = (): number => {
     return slot.__scatterBindIndex ?? 0;
 };
 
-import { appState } from '../store/index.js';
+import { appState, setColumnRanges, setAdaptiveLineFilters } from '../store/index.js';
 import type { DatasetMetadata } from '../types.js';
 import { getEl, normalizeScatterSuggestionThreshold } from './helpers.js';
 import {
@@ -220,6 +220,17 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     window.addEventListener('edatime:chart-range-change', () => handleFilterEvent(true));
     window.addEventListener('edatime:column-filters-change', () => handleFilterEvent(false));
     window.addEventListener('edatime:adaptive-filters-change', () => handleFilterEvent(false));
+    window.addEventListener('edatime:clear-all-filters', async () => {
+        if (bindIndex !== latestBindIndex()) return;
+        setColumnRanges({});
+        setAdaptiveLineFilters([]);
+        try {
+            cb.syncScatterFilterBadge();
+            await cb.refreshActiveScatterView();
+        } catch (err: any) {
+            cb.handleErr(err);
+        }
+    });
 
     // The page-change fast path compares the freshly-computed
     // query-context key against `appState.scatter.lastQueryContextKey`,

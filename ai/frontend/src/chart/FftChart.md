@@ -1,6 +1,9 @@
 # ai/frontend/src/chart/FftChart.md
 > ChartGPU adapter for FFT / Power Spectral Density visualisation with numeric frequency axis and peak annotation overlay.
 
+## Constants
+- `FFT_GRID: GridLayout = { left: 112, right: 32, top: 52, bottom: 52 }` [top increased from 34]
+
 ## Class: FftChart
 - `constructor(containerId: string)`
   - Creates the FFT chart bound to a DOM container.
@@ -20,6 +23,10 @@
   - Returns current spectral metadata.
 - `destroy(): void`
   - Disposes the overlay observer and chart.
+- `private _formatLogAxisTick(value: number): string` [new in refactor]
+  - Formats log-scale Y-axis ticks; converts `10^value` to readable form (exponential notation for `>=1000 || <0.001`, otherwise 2-significant-figure decimal).
+- `private _renderPeakLabels(...)` [new in refactor]
+  - Draws non-overlapping peak labels with distinct row stacking. Each label gets a dark plate background and a short leader line. Position is side-aware (right-side peaks anchor left, left-side peaks anchor right).
 
 ## Interface: FftTrace
 - `column: string`
