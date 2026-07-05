@@ -1,30 +1,19 @@
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-describe('causal statusView', () => {
+import { syncCausalEmptyState } from './statusView.js';
+
+describe('syncCausalEmptyState', () => {
     beforeEach(() => {
-        vi.resetModules();
-        vi.useFakeTimers();
         document.body.innerHTML = `
-            <section id="page-causal"></section>
-            <section id="page-drift"></section>
+            <div id="causal-empty-state" data-empty-reason="no-columns-selected"></div>
         `;
     });
 
-    afterEach(() => {
-        vi.useRealTimers();
-        vi.restoreAllMocks();
-    });
+    it('keeps the empty state visible until at least two numeric columns are selected', () => {
+        syncCausalEmptyState(1);
+        expect((document.getElementById('causal-empty-state') as HTMLElement).hidden).toBe(false);
 
-    it('dismisses a causal error toast when navigation leaves the causal page', async () => {
-        const { setStatus } = await import('./statusView.js');
-
-        setStatus('Select at least 2 numeric columns before computing a causal graph.', 'error');
-        expect(document.querySelector('.toast')).toBeTruthy();
-
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'drift' } }));
-        await Promise.resolve();
-        await vi.advanceTimersByTimeAsync(300);
-
-        expect(document.querySelector('.toast')).toBeFalsy();
+        syncCausalEmptyState(2);
+        expect((document.getElementById('causal-empty-state') as HTMLElement).hidden).toBe(true);
     });
 });

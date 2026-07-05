@@ -99,4 +99,31 @@ describe('scatter query context builders', () => {
         const cols = getActiveScatterFilterColumns({ x: 'x', y: 'y', colorColumn: 'color_bucket' });
         expect(cols.sort()).toEqual(['color_bucket', 'x']);
     });
+
+    it('drops full-range filters that still match the dataset profile bounds', () => {
+        appState.metadata = {
+            total_rows: 3,
+            columns: [],
+            numeric_columns: ['x', 'y'],
+            time_column: 'timestamp',
+            time_range: { min: 0, max: 200 },
+            column_profiles: [
+                { name: 'x', dtype: 'float64', min: 1, max: 9, count: 3, non_null_count: 3, null_count: 0, mean: 5, median: 5, std: 2, unique: 3, top: null, freq: null, histogram: null },
+                { name: 'y', dtype: 'float64', min: 2, max: 8, count: 3, non_null_count: 3, null_count: 0, mean: 5, median: 5, std: 2, unique: 3, top: null, freq: null, histogram: null },
+            ],
+        } as any;
+        appState.columnRanges = {
+            x: { from: 1, to: 9 },
+            y: { from: 3, to: 8 },
+        } as any;
+        primePlotSnapshot();
+
+        const result = buildScatterQueryContext({ x: 'x', y: 'y', colorColumn: '' });
+        expect(result.filters).toEqual([
+            { column: 'y', from: 3, to: 8 },
+        ]);
+
+        const cols = getActiveScatterFilterColumns({ x: 'x', y: 'y', colorColumn: '' });
+        expect(cols).toEqual(['y']);
+    });
 });

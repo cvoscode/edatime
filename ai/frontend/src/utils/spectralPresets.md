@@ -40,3 +40,15 @@ interface SpectralInfo {
 ## Functions
 - `getPresetById(id: string): SpectralPreset | undefined`
   - Returns the spectral preset matching the given id.
+- `pickFrequencyUnit(hz: number): FrequencyUnit`
+  - Picks a human-readable unit for frequency labels.
+- `pickFrequencyAxisUnit(hz: number): FrequencyUnit`
+  - Picks the axis unit for spectral plots.
+- `frequencyUnitScale(unit: FrequencyUnit): number`
+  - Returns the multiplier needed to render a value in the given unit.
+- `formatFrequencyInUnit(hz: number, unit: FrequencyUnit, fractionDigits = 2): string`
+  - Formats a frequency using a fixed unit.
+- `formatFrequency(hz: number): string`
+  - Formats a frequency using the best-fit unit.
+- `frequencyToPeriod(hz: number): string`
+  - Formats the reciprocal period for a frequency.

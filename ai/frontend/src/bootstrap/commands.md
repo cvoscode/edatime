@@ -27,7 +27,7 @@ interface CommandDefinition {
 ### APP_COMMAND_DEFINITIONS
 - `APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition>`
   - All command definitions including:
-    - Navigation (Alt+1-9,0) → showPage
+    - Navigation (Alt+1-9,0) → showPage, including `Alt+7` for `correlations`
     - Chart controls (Shift+R/Z/C) → resetZoom, zoomOut, triggerAdaptiveFilterClear
     - Exports (CSV/JSON/PNG/Parquet) → window.__edatime.exportChartFilteredData, chart.exportPNG, `#export-data-parquet-btn` click
     - Session (save/load) → async helpers `exportSession()` / `importSession()` dynamically import `../utils/session.js` before calling `exportSessionToFile` / `importSessionFromFile`

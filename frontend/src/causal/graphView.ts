@@ -38,6 +38,7 @@ let _chartInitPromise: Promise<void> | null = null;
 // ─── Initialization helpers ────────────────────────────────────────────────
 
 export function isCausalChartReadyForInit(): boolean {
+    if (typeof document === 'undefined') return false;
     const page = document.getElementById('page-causal') as HTMLElement | null;
     return !!(page && !page.hidden && _chartEl && _chartEl.clientWidth > 0 && _chartEl.clientHeight > 0);
 }

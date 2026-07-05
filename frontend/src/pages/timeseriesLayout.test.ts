@@ -15,11 +15,34 @@ describe('timeseries layout shell', () => {
         expect(indexHtml).toContain("127.0.0.1");
         expect(indexHtml).toContain('navigator.serviceWorker.getRegistrations()');
         expect(indexHtml).toContain('registration.unregister()');
+        expect(indexHtml).not.toContain('controllerchange');
+        expect(indexHtml).not.toContain('edatime-sw-reload');
     });
 
-    it('uses a curved wave path for the shared EdaTime sparkline icon', () => {
-        expect(indexHtml).not.toContain('<polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />');
-        expect(indexHtml).toContain('<path d="M1 9');
+    it('does not ship the old full-screen splash overlay markup', () => {
+        expect(indexHtml).not.toContain('id="app-loading-overlay"');
+        expect(indexHtml).not.toContain('Loading workspace…');
+        expect(indexHtml).not.toContain('.app-loading-overlay__');
+    });
+
+    it('uses distinct inline icons instead of a shared wave symbol across the shell', () => {
+        expect(indexHtml).not.toContain('<symbol id="icon-wave"');
+        expect(indexHtml).not.toContain('href="#icon-wave"');
+        expect(indexHtml).toContain('<button class="nav-item" type="button" data-page="timeseries"');
+        expect(indexHtml).toContain('<div class="home-hero-icon">');
+        expect(indexHtml).toContain('<div class="home-dataset-icon">');
+    });
+
+    it('keeps the verbose y-range explanations in the help tooltip instead of inline headings', () => {
+        expect(indexHtml).toContain('Stack from 0 clamps the display floor at zero.');
+        expect(indexHtml).not.toContain('<span class="toolbar-field__label">Stack from 0</span>');
+        expect(indexHtml).not.toContain('<span class="toolbar-field__label">Robust range</span>');
+    });
+
+    it('uses correlations as the canonical nav id while keeping the heatmap page section', () => {
+        expect(indexHtml).toContain('data-page="correlations"');
+        expect(indexHtml).toContain('data-home-nav="correlations"');
+        expect(indexHtml).toContain('data-page-name="heatmap"');
     });
 
     it('uses dedicated command bar and utility shelf wrappers', () => {

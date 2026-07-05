@@ -217,6 +217,20 @@ describe('drift compute payload', () => {
         expect(document.querySelectorAll('#drift-col-picker-list input[type="checkbox"]')).toHaveLength(3);
     });
 
+    it('fills the reference datetime inputs from UTC timestamps without a browser-local offset', async () => {
+        const { initDriftPage } = await import('./driftPage.js');
+        await initDriftPage({
+            numeric_columns: ['value'],
+            time_range: {
+                min: Date.UTC(2016, 6, 1, 0, 0, 0, 0),
+                max: Date.UTC(2018, 5, 26, 19, 45, 0, 0),
+            },
+        });
+
+        expect((document.getElementById('drift-ref-start') as HTMLInputElement).value).toBe('2016-07-01T00:00');
+        expect((document.getElementById('drift-ref-end') as HTMLInputElement).value).toBe('2017-06-28T21:52');
+    });
+
     it('posts optional threshold controls using camelCase backend fields', async () => {
         const { initDriftPage } = await import('./driftPage.js');
         await initDriftPage({

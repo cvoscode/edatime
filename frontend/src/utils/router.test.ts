@@ -6,7 +6,7 @@ function buildDom(): void {
             <button class="nav-item" data-page="home" type="button">Home</button>
             <button class="nav-item" data-page="upload" type="button">Upload</button>
             <button class="nav-item" data-page="timeseries" type="button">Timeseries</button>
-            <button class="nav-item" data-page="heatmap" type="button">Correlations</button>
+            <button class="nav-item" data-page="correlations" type="button">Correlations</button>
             <button class="nav-item" data-page="scatter" type="button">Scatter</button>
             <button class="nav-item" data-page="fft" type="button">FFT</button>
             <button class="nav-item" data-page="spectrogram" type="button">Spectrogram</button>
@@ -54,6 +54,50 @@ describe('hash router valid pages', () => {
         expect(getHashPage()).toBeNull();
     });
 
+    it('rejects legacy heatmap hashes so only correlations remains public', async () => {
+        const { getHashPage } = await import('./router.js');
+        window.history.replaceState(null, '', '#page=heatmap');
+
+        expect(getHashPage()).toBeNull();
+    });
+
+    it('accepts ?page=correlations as an initial deep link fallback', async () => {
+        const { getHashPage } = await import('./router.js');
+        window.history.replaceState(null, '', '?page=correlations');
+
+        expect(getHashPage()).toBe('correlations');
+    });
+
+    it('does not trigger a second initial navigation for hash deep links', async () => {
+        const { initHashRouting } = await import('./router.js');
+        const showPage = vi.fn();
+        (window as typeof globalThis & {
+            __edatime?: { showPage?: (pageName: string) => void };
+        }).__edatime = { showPage };
+        window.history.replaceState(null, '', '#page=timeseries');
+
+        initHashRouting();
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(showPage).not.toHaveBeenCalled();
+    });
+
+    it('canonicalizes ?page deep links to a hash route without keeping the query string', async () => {
+        const { initPageNavigation } = await import('../ui/pageNavigation.js');
+        const { initHashRouting } = await import('./router.js');
+
+        window.history.replaceState(null, '', '?page=correlations');
+        initPageNavigation();
+        initHashRouting();
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(window.location.search).toBe('');
+        expect(window.location.hash).toBe('#page=correlations');
+        expect((document.querySelector('.page[data-page-name="heatmap"]') as HTMLElement).hidden).toBe(false);
+    });
+
     it('replaces the hash instead of accumulating page entries while walking the sidebar', async () => {
         const { initPageNavigation } = await import('../ui/pageNavigation.js');
         const { initHashRouting } = await import('./router.js');
@@ -65,7 +109,7 @@ describe('hash router valid pages', () => {
 
         const walk: Array<[string, string]> = [
             ['timeseries', '#page=timeseries'],
-            ['heatmap', '#page=heatmap'],
+            ['correlations', '#page=correlations'],
             ['scatter', '#page=scatter'],
             ['fft', '#page=fft'],
             ['spectrogram', '#page=spectrogram'],
@@ -81,6 +125,26 @@ describe('hash router valid pages', () => {
             const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
             expect(params.getAll('page')).toHaveLength(1);
             expect(window.location.hash).toBe(expectedHash);
+            if (page === 'correlations') {
+                expect((document.querySelector('.page[data-page-name="heatmap"]') as HTMLElement).hidden).toBe(false);
+            }
         }
+    });
+
+    it('rewrites malformed deep-link hashes to a single canonical page entry on navigation', async () => {
+        const { initPageNavigation } = await import('../ui/pageNavigation.js');
+        const { initHashRouting } = await import('./router.js');
+
+        window.history.replaceState(null, '', '#page%3Dhome=&page=timeseries');
+        initPageNavigation();
+        initHashRouting();
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        (document.querySelector('.nav-item[data-page="scatter"]') as HTMLButtonElement).click();
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(window.location.hash).toBe('#page=scatter');
     });
 });

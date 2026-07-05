@@ -11,4 +11,4 @@
 
 ### Empty State
 - `syncCausalEmptyState(columnsLength: number): void`
-  - Shows/hides `#causal-empty-state` based on column selection count.
+  - Shows/hides `#causal-empty-state` based on numeric column selection count; the empty state stays visible until at least two numeric columns are selected.

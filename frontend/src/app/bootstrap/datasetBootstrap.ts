@@ -27,6 +27,7 @@ export interface DatasetBootstrapDeps {
     getNumericColumns: (metadata: DatasetMetadata) => string[];
     getDefaultTimeseriesColumns: (metadata: DatasetMetadata) => string[];
     rebuildTimeseriesColumns: () => void;
+    clearPersistedFilters: () => void;
     onMetadataReady?: () => void;
     emitWorkflowRefresh?: () => void;
     setAdaptiveFilterColumn: (col: string | null) => void;
@@ -46,6 +47,7 @@ interface BootstrapResult {
 
 // Module-level deduplication promise shared across all callers
 let _datasetReadyPromise: Promise<void> | null = null;
+let _lastDatasetRevision: number | null = null;
 
 /**
  * Creates the dataset bootstrap owner.
@@ -89,6 +91,7 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
             const metadata = await deps.fetchMetadata();
             assertDatasetRequestScopeActive(requestScope);
             deps.storeFetchedMetadata(metadata);
+            _lastDatasetRevision = Number.isFinite(Number(metadata?.revision)) ? Number(metadata.revision) : 0;
             deps.markMetadataReady();
             window.dispatchEvent(new Event('edatime:metadata-ready'));
             if (DEBUG) dbgGroup('metadata', () => dbg(metadata));
@@ -123,12 +126,22 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
         }
 
         deps.clearLoadedPageModules();
+        deps.clearPersistedFilters();
+        const previousRevision = _lastDatasetRevision;
         const metadata = await deps.fetchMetadata();
         deps.storeFetchedMetadata(metadata);
+        const nextRevision = Number.isFinite(Number(metadata?.revision)) ? Number(metadata.revision) : 0;
+        _lastDatasetRevision = nextRevision;
         deps.markMetadataReady();
         // Mirror the initial-bootstrap event so subscribers (e.g. the scatter
         // page) can re-read metadata after a dataset mutation such as upload.
         window.dispatchEvent(new Event('edatime:metadata-ready'));
+        window.dispatchEvent(new CustomEvent('edatime:dataset-changed', {
+            detail: {
+                previousRevision,
+                nextRevision,
+            },
+        }));
         syncDatasetSelection(metadata, options?.selectedColumn);
         await deps.initializeDatasetUi(metadata);
         deps.rebuildTimeseriesColumns();

@@ -104,6 +104,9 @@ export function setupFlexibleNumberInput(
     if (input.dataset.flexMax === undefined) input.dataset.flexMax = '';
     if (input.dataset.flexStep === undefined) input.dataset.flexStep = '';
     input.classList.add('flexible-number');
+    if (!input.hasAttribute('lang')) {
+        input.setAttribute('lang', 'en-US');
+    }
     input.setAttribute('inputmode', input.getAttribute('inputmode') || 'decimal');
     input.setAttribute('autocomplete', 'off');
 

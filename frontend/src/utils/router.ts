@@ -7,7 +7,7 @@
 
 const VALID_PAGES = new Set([
     'home', 'upload', 'timeseries', 'correlations', 'scatter',
-    'scattermatrix', 'fft', 'heatmap', 'spectrogram', 'causal', 'drift', 'settings',
+    'scattermatrix', 'fft', 'spectrogram', 'causal', 'drift', 'settings',
 ]);
 
 let _bound = false;
@@ -18,32 +18,45 @@ type AppWindow = Window & typeof globalThis & {
     };
 };
 
+function normalizePage(page: string | null): string | null {
+    const trimmed = String(page || '').trim();
+    if (!trimmed) return null;
+    return VALID_PAGES.has(trimmed) ? trimmed : null;
+}
+
+function getCanonicalPageUrl(page: string): string {
+    return `${location.pathname}#page=${encodeURIComponent(page)}`;
+}
+
+function readHashPage(): string | null {
+    const hash = location.hash.replace(/^#/, '');
+    return normalizePage(new URLSearchParams(hash).get('page'));
+}
+
+function readQueryPage(): string | null {
+    return normalizePage(new URLSearchParams(location.search).get('page'));
+}
+
 /** Read the current page from the URL hash. Returns null if not set or invalid. */
 export function getHashPage(): string | null {
-    const hash = location.hash.replace(/^#/, '');
-    const params = new URLSearchParams(hash);
-    const page = params.get('page');
-    if (!page) return null;
-    return VALID_PAGES.has(page) ? page : null;
+    return readHashPage() ?? readQueryPage();
 }
 
 /** Write the page to the URL hash without triggering navigation. */
 function setHashPage(page: string): void {
-    const hash = location.hash.replace(/^#/, '');
-    const params = new URLSearchParams(hash);
-    params.set('page', page);
-    const newHash = '#' + params.toString();
-    if (location.hash !== newHash) {
-        history.pushState(null, '', newHash);
+    const nextPage = normalizePage(page);
+    if (!nextPage) return;
+    const nextUrl = getCanonicalPageUrl(nextPage);
+    if (`${location.pathname}${location.search}${location.hash}` !== nextUrl) {
+        history.pushState(null, '', nextUrl);
     }
 }
 
 /** Replace hash without adding history entry (for initial load). */
 function replaceHashPage(page: string): void {
-    const hash = location.hash.replace(/^#/, '');
-    const params = new URLSearchParams(hash);
-    params.set('page', page);
-    history.replaceState(null, '', '#' + params.toString());
+    const nextPage = normalizePage(page);
+    if (!nextPage) return;
+    history.replaceState(null, '', getCanonicalPageUrl(nextPage));
 }
 
 function navigateToPage(page: string): void {
@@ -81,14 +94,8 @@ export function initHashRouting(): void {
         if (page) navigateToPage(page);
     });
 
-    // On initial load → navigate to hash page, or set default
-    const initialPage = getHashPage();
-    if (initialPage) {
-        // Defer to next frame so initPages has run first
-        requestAnimationFrame(() => {
-            navigateToPage(initialPage);
-        });
-    } else {
-        replaceHashPage('home');
-    }
+    // initPageNavigation() already owns the first page show. The router's
+    // responsibility on startup is only to canonicalize the URL so query-based
+    // deep links become hash routes without triggering a second navigation.
+    replaceHashPage(getHashPage() ?? 'home');
 }

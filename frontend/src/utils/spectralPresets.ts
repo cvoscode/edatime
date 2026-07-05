@@ -107,10 +107,8 @@ export function pickFrequencyUnit(hz: number): FrequencyUnit {
 }
 
 export function pickFrequencyAxisUnit(hz: number): FrequencyUnit {
-    if (!Number.isFinite(hz) || hz <= 0) return 'Hz';
-    if (hz >= 1000) return 'kHz';
-    if (hz >= 1) return 'Hz';
-    return 'mHz';
+    if (!Number.isFinite(hz) || hz < 0) return 'Hz';
+    return pickFrequencyUnit(hz);
 }
 
 export function frequencyUnitScale(unit: FrequencyUnit): number {

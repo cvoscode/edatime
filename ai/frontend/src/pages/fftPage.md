@@ -1,5 +1,5 @@
 # ai/frontend/src/pages/fftPage.md
-> FFT analysis page runtime: persisted trace selection, first-visit seeding, spectral metadata panel, exports, and optional spectral-filter preview.
+> FFT analysis page runtime: persisted trace selection, first-visit seeding, readable spectral metadata, exports, and optional spectral-filter preview.
 
 ## Interface `FftPageDeps`
 - `renderTimeseries: () => void`
@@ -14,7 +14,7 @@
 - `syncFftEmptyState(): void`
   - Keeps the shared empty state hidden while traces are selected or loading.
 - `syncFftSpectralInfo(): void`
-  - Mirrors `sample_rate_hz`, `nyquist_hz`, and dominant peaks from the first loaded trace into the live info panel.
+  - Mirrors `sample_rate_hz`, `nyquist_hz`, and dominant peaks from the first loaded trace into the live info panel using a shared frequency-unit picker and period labels.
 - `ensureFftChartReady(): Promise<void>`
   - Initializes `FftChart` and falls back to `EchartsLineChart` on renderer failure.
 - `fetchAndAddTrace(column: string): Promise<void>` [deps: [fetchFft][1]]

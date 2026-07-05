@@ -9,7 +9,15 @@ import { createTimeseriesEntrypoint } from '../features/timeseries/entrypoint.js
 import { createTimeseriesRuntime } from './timeseriesRuntime.js';
 import { createDatasetBootstrap } from '../app/bootstrap/datasetBootstrap.js';
 import { createTimeseriesBootstrap } from '../app/bootstrap/ensureTimeseriesReady.js';
-import { setDatasetRevision, setMetadata, setSelectedColorColumn, uiState } from '../store/index.js';
+import {
+    clearScatterViewSnapshots,
+    setAdaptiveLineFilters,
+    setColumnRanges,
+    setDatasetRevision,
+    setMetadata,
+    setSelectedColorColumn,
+    uiState,
+} from '../store/index.js';
 import { getNumericColumns, getDefaultTimeseriesColumns } from './analyticsPageUtils.js';
 import type { DatasetMetadata, ViewSnapshot } from '../types.js';
 
@@ -170,6 +178,11 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         getNumericColumns: (metadata: DatasetMetadata) => getNumericColumns(metadata),
         getDefaultTimeseriesColumns: (metadata: DatasetMetadata) => getDefaultTimeseriesColumns(metadata),
         rebuildTimeseriesColumns: () => feature.rebuildColumns(),
+        clearPersistedFilters: () => {
+            setColumnRanges({});
+            setAdaptiveLineFilters([]);
+            clearScatterViewSnapshots();
+        },
         timeseriesFeatureInit: () => feature.init(),
         ensureSessionPersistenceStarted: deps.ensureSessionPersistenceStarted,
         setViewport: deps.setViewport,

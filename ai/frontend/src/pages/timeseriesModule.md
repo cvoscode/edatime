@@ -42,6 +42,7 @@ interface TimeseriesModule {
     buildColumnToggles: () => void;
     buildRangeControls: () => void;
     rebuildTimeseriesColumns: () => void;
+    clearPersistedFilters: () => void;
     rebuildTimeseriesRanges: () => void;
     renderCurrentData: () => void;
     fetchAndRender: () => Promise<void>;
@@ -76,6 +77,8 @@ interface TimeseriesModule {
   - Stores metadata and revision via `setMetadata` / `setDatasetRevision`.
 - `initializeDatasetUi(metadata: DatasetMetadata): Promise<void>`
   - Async. Calls `ensureDatasetUiModules()` to dynamically import `ui/profile.js`, `features/upload/preview.js`, and `features/upload/partialLoadControls.js`. Then dispatches `edatime:workflow-refresh`, sets viewport/zoom via `setViewport` / `updateAnalysisZoom`, and emits `edatime:chart-range-change` with source `initial`. Hydrates column profiles, applies the time range, and builds the chip/range controls.
+- `clearPersistedFilters(): void`
+  - Clears stored scatter range filters, adaptive line filters, and scatter view snapshots before a dataset mutation refresh.
 - The dataset bootstrap is given a no-op `ensureChartModules` because the chart constructor now loads lazily in `createTimeseriesBootstrap`.
 - Creates the dataset bootstrap with injected deps from `TimeseriesModuleDeps`.
 

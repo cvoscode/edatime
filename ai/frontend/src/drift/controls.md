@@ -60,7 +60,7 @@ interface DriftControlOptions {
 - `resetDriftControlsState(): void`
   - Resets selectedCols and numericCols to initial state (for test isolation).
 - `toDatetimeLocal(ms: number): string`
-  - Converts epoch ms to `YYYY-MM-DDTHH:MM` local datetime string.
+  - Converts epoch ms to `YYYY-MM-DDTHH:MM` using the shared UTC datetime-input formatter.
 - `syncPickerLabel(colPickerLabel: HTMLElement | null): void`
   - Updates picker label text (e.g., "3 columns") from current selectedCols size.
 - `syncHiddenSelect(colSelect: HTMLSelectElement | null, allCols: string[]): void`

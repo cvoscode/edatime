@@ -15,6 +15,7 @@ import {
     type ScaleMode,
     type SpectralScaleOptions,
 } from '../utils/spectralScaling.js';
+import { formatFrequencyInUnit, frequencyToPeriod, pickFrequencyUnit } from '../utils/spectralPresets.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 
 interface FftPageDeps {
@@ -161,8 +162,9 @@ function syncFftSpectralInfo(): void {
     wrap.hidden = false;
     const fs = Number(firstWithMeta.sample_rate_hz);
     const nyquist = Number(firstWithMeta.nyquist_hz);
-    rateEl.textContent = Number.isFinite(fs) ? `${fs.toExponential(3)} Hz` : '—';
-    nyquistEl.textContent = Number.isFinite(nyquist) ? `${nyquist.toExponential(3)} Hz` : '—';
+    const unit = pickFrequencyUnit(Number.isFinite(nyquist) && nyquist > 0 ? nyquist : fs);
+    rateEl.textContent = Number.isFinite(fs) ? formatFrequencyInUnit(fs, unit) : '—';
+    nyquistEl.textContent = Number.isFinite(nyquist) ? formatFrequencyInUnit(nyquist, unit) : '—';
     const peaks = Array.isArray(firstWithMeta.dominant_peaks) ? firstWithMeta.dominant_peaks : [];
     if (peaks.length === 0) {
         peaksEl.textContent = '—';
@@ -173,18 +175,12 @@ function syncFftSpectralInfo(): void {
         .slice(0, 3)
         .map((peak) => {
             const f = Number(peak?.frequency_hz);
-            const periodSeconds = f > 0 ? 1 / f : Number.NaN;
-            const periodLabel = periodSeconds >= 86400
-                ? `${(periodSeconds / 86400).toFixed(1)} d`
-                : periodSeconds >= 3600
-                    ? `${(periodSeconds / 3600).toFixed(1)} h`
-                    : `${periodSeconds.toFixed(1)} s`;
-            return `${f.toExponential(2)} Hz (~${periodLabel})`;
+            return `${formatFrequencyInUnit(f, unit)} (~${frequencyToPeriod(f)})`;
         })
         .join(' · ');
     peaksEl.title = peaks
         .slice(0, 5)
-        .map((peak, index) => `${index + 1}. ${peak.frequency_hz.toExponential(3)} Hz (r=${peak.rank ?? index + 1})`)
+        .map((peak, index) => `${index + 1}. ${formatFrequencyInUnit(Number(peak.frequency_hz), unit)} (r=${peak.rank ?? index + 1})`)
         .join('\n');
 }
 

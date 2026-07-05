@@ -16,7 +16,7 @@
 - `export function COLOR_REF(): string`, `TOOLTIP_BG(): string`, `DRIFT_TEXT(): string`, `DRIFT_TEXT_DIM(): string`, `DRIFT_DIM(): string` — CSS color constants for drift UI theming.
 - `export function driftColor(level): string` — Returns color hex for a drift level ("green"/"yellow"/"red").
 - `export function formatValue(v: number): string` — Formats a numeric value with appropriate precision.
-- `export function toDatetimeLocal(ms: number): string`, `formatToDatetimeLocal(ms)` [deps: [formatToDatetimeLocal][1]] — Converts epoch ms to HTML datetime-local string.
+- `export function toDatetimeLocal(ms: number): string`, `formatUtcDatetimeInputValue(ms)` [deps: [datetimeInput][1]] — Converts epoch ms to the UTC `datetime-local` string used by the drift page.
 - `export function hashColor(text, fallbackIndex): string` — Deterministic color from text for segment visualization.
 - `export function normalizeDensity(stats): Array<[number, number]>` — Normalizes ECDF data for rendering.
 - `export function severityScore(level): number`, `formatTriggerReason(reason): string`, `formatTriggerReasons(reasons[]): string` — Severity and reason formatting utilities.
@@ -36,6 +36,6 @@
 - `export function buildWindowListHtml(windows[], selectedId, onToggle) -> string` — Renders the window list sidebar HTML with click handlers.
 
 ---
-[1]: ../utils/format.ts#formatToDatetimeLocal
+[1]: ../utils/datetimeInput.md
 [2]: #DriftWindowStats
 [3]: #DriftResponse

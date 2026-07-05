@@ -26,7 +26,7 @@
 - `private _formatLogAxisTick(value: number): string` [new in refactor]
   - Formats log-scale Y-axis ticks; converts `10^value` to readable form (exponential notation for `>=1000 || <0.001`, otherwise 2-significant-figure decimal).
 - `private _renderPeakLabels(...)` [new in refactor]
-  - Draws non-overlapping peak labels with distinct row stacking. Each label gets a dark plate background and a short leader line. Position is side-aware (right-side peaks anchor left, left-side peaks anchor right).
+  - Draws clustered peak labels with at most two annotations, distinct row stacking, a dark plate background, and a short leader line. Position is side-aware (right-side peaks anchor left, left-side peaks anchor right).
 
 ## Interface: FftTrace
 - `column: string`

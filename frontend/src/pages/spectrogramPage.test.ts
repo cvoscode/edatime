@@ -255,8 +255,8 @@ describe('spectrogramPage colorbar filter', () => {
         expect(option.grid.top).toBeGreaterThanOrEqual(36);
         expect(option.xAxis.nameGap).toBeGreaterThanOrEqual(56);
         expect(option.yAxis.nameGap).toBeGreaterThanOrEqual(72);
-        expect(option.yAxis.name).toBe('Frequency (mHz)');
-        expect(option.yAxis.axisLabel.formatter(0.00028)).toBe('0.28 mHz');
+        expect(option.yAxis.name).toBe('Frequency (µHz)');
+        expect(option.yAxis.axisLabel.formatter(0.00028)).toBe('280.00 µHz');
     });
 
     it('auto-computes on first load when a default column is already selected', async () => {
@@ -406,7 +406,7 @@ describe('spectrogramPage colorbar filter', () => {
         const formatter = option?.tooltip?.formatter as ((params: { value: number[] }) => string) | undefined;
         const tooltipHtml = formatter?.({ value: [1, 2, 0.5, 7] });
 
-        expect(String(tooltipHtml)).toContain('Frequency: 0.30 mHz');
+        expect(String(tooltipHtml)).toContain('Frequency: 300.00 µHz');
         expect(String(tooltipHtml)).toContain('Raw magnitude: 7.0000e+0');
     });
 

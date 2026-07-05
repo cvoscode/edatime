@@ -493,11 +493,12 @@ export class FftChart {
         ctx.font = '10px Inter, system-ui, sans-serif';
         ctx.textBaseline = 'middle';
 
-        // Only show top 3 peaks in labels to avoid clutter
+        // Collapse peaks that land in the same visual neighborhood so the
+        // left edge of the plot does not turn into an unreadable label stack.
+        const peakCandidates: Array<{ peak: FrequencyPeak; ax: number; ay: number }> = [];
         const peaksToShow = this._dominantPeaks.slice(0, 3);
         const rowHeight = 18;
         const labelTop = plotT + 12;
-        let rowIndex = 0;
 
         for (const peak of peaksToShow) {
             const freqHz = peak.frequency_hz;
@@ -527,6 +528,22 @@ export class FftChart {
             if (!Number.isFinite(yMin) || !Number.isFinite(yMax) || yMax <= yMin) continue;
 
             const ay = plotT + plotH - ((yVal - yMin) / (yMax - yMin)) * plotH;
+            peakCandidates.push({ peak, ax, ay });
+        }
+
+        const clusteredPeaks: Array<{ peak: FrequencyPeak; ax: number; ay: number }> = [];
+        let previousCandidate: { peak: FrequencyPeak; ax: number; ay: number } | null = null;
+        for (const candidate of peakCandidates) {
+            const overlapsPrevious = previousCandidate
+                && Math.abs(previousCandidate.ax - candidate.ax) < 60
+                && Math.abs(previousCandidate.ay - candidate.ay) < 40;
+            if (!overlapsPrevious) clusteredPeaks.push(candidate);
+            previousCandidate = candidate;
+        }
+
+        let rowIndex = 0;
+        for (const { peak, ax, ay } of clusteredPeaks.slice(0, 2)) {
+            const freqHz = peak.frequency_hz;
 
             // Draw peak marker
             ctx.fillStyle = 'rgba(255, 100, 100, 0.9)';

@@ -87,6 +87,7 @@ function createDeps(overrides: Partial<DatasetBootstrapDeps> = {}): DatasetBoots
         getNumericColumns: vi.fn(() => ['value']),
         getDefaultTimeseriesColumns: vi.fn(() => ['value']),
         rebuildTimeseriesColumns: vi.fn(),
+        clearPersistedFilters: vi.fn(),
         setAdaptiveFilterColumn: vi.fn(),
         getSelectedCols: vi.fn(() => fakeState.selectedCols),
         setSelectedCols: vi.fn((cols: string[]) => {
@@ -158,8 +159,31 @@ describe('createDatasetBootstrap', () => {
 
         expect(deps.storeFetchedMetadata).toHaveBeenCalledWith(baseMetadata);
         expect(deps.markMetadataReady).toHaveBeenCalledTimes(1);
+        expect(deps.clearPersistedFilters).toHaveBeenCalledTimes(1);
         expect(deps.initializeDatasetUi).toHaveBeenCalledWith(baseMetadata);
         expect(deps.refreshVisibleData).toHaveBeenCalledTimes(1);
+    });
+
+    it('broadcasts a dataset-changed event with the previous and next revision after mutation refresh', async () => {
+        const createDatasetBootstrap = await importCreateDatasetBootstrap();
+        const deps = createDeps({
+            fetchMetadata: vi.fn()
+                .mockResolvedValueOnce(baseMetadata)
+                .mockResolvedValueOnce({ ...baseMetadata, revision: 43 }),
+        });
+        const bootstrap = createDatasetBootstrap(deps);
+        const listener = vi.fn();
+        window.addEventListener('edatime:dataset-changed', listener as EventListener);
+
+        await bootstrap.ensureDatasetReady();
+        isMetadataReadyMock.mockReturnValue(true);
+        await bootstrap.refreshAfterMutation();
+
+        expect(listener).toHaveBeenCalledTimes(1);
+        expect((listener.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({
+            previousRevision: 42,
+            nextRevision: 43,
+        });
     });
 
     it('starts a fresh metadata bootstrap when a dataset mutation happens during initial bootstrap', async () => {

@@ -17,6 +17,7 @@ describe('computeChartGrid', () => {
 
         expect(compact.left).toBeLessThan(120);
         expect(compact.left).toBeGreaterThanOrEqual(80);
+        expect(compact.top).toBeGreaterThanOrEqual(24);
         expect(titled.left).toBeGreaterThan(compact.left);
     });
 });

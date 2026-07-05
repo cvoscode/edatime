@@ -8,7 +8,7 @@
 - `seedSelectedColumnsFromDataset(deps: any): void` [new in refactor]
   - Restores selected columns from `appState.selectedCols` if `_selectedColumns` is empty; filters to columns present in `deps.numericColumns()`. Called on init and on `edatime:column-select-change`.
 - `initCausalPage(deps: any): void`
-  - Bootstraps the causal page: finds DOM elements, seeds selected columns, renders column chips, sets up column-select change listener.
+  - Bootstraps the causal page: finds DOM elements, seeds selected columns, renders column chips, and keeps the empty-state gate synchronized with numeric selection count.
 
 ---
 [1]: ../store/index.md

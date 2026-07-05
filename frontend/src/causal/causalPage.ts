@@ -57,7 +57,7 @@ export function initCausalPage(deps: any): void {
     bindEditPanelEvents();
     seedSelectedColumnsFromDataset(deps);
     renderColumnChips(deps, columnsBar, openEditPanel);
-    syncCausalEmptyState(_currentColumns.length);
+    syncCausalEmptyState(_selectedColumns.size);
     bindInfoPopovers();
     applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci');
     scheduleCausalChartRefresh();
@@ -68,7 +68,7 @@ export function initCausalPage(deps: any): void {
         _selectedColumns.clear();
         for (const c of cols) _selectedColumns.add(c);
         renderColumnChips(deps, columnsBar, openEditPanel);
-        syncCausalEmptyState(_currentColumns.length);
+        syncCausalEmptyState(_selectedColumns.size);
     }) as EventListener);
 
     methodSelect?.addEventListener('change', () => applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci'));
@@ -101,7 +101,7 @@ export function initCausalPage(deps: any): void {
             maxCondsInput,
             testSelect,
             fdrSelect,
-            () => syncCausalEmptyState(_currentColumns.length),
+            () => syncCausalEmptyState(_selectedColumns.size),
         );
     });
 
@@ -110,7 +110,7 @@ export function initCausalPage(deps: any): void {
             seedSelectedColumnsFromDataset(deps);
             renderColumnChips(deps, columnsBar, openEditPanel);
             scheduleCausalChartRefresh();
-            syncCausalEmptyState(_currentColumns.length);
+            syncCausalEmptyState(_selectedColumns.size);
         }
     });
 }

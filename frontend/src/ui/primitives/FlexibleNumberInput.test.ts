@@ -28,6 +28,7 @@ describe('FlexibleNumberInput primitive', () => {
         expect(input.dataset.flexMin).toBe('1');
         expect(input.dataset.flexMax).toBe('10');
         expect(input.classList.contains('flexible-number')).toBe(true);
+        expect(input.lang).toBe('en-US');
     });
 
     it('clamps out-of-range values on commit and flags the warning class', () => {

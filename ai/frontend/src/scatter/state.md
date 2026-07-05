@@ -4,6 +4,7 @@
 ## Interfaces
 - `ScatterControls` — `{ x: string; y: string; binSize: number; colormap: string; normalization: string; renderMode: string; diagonalMode: string; colorColumn: string; selectedColorColumn: string; colorScale: string; matrixMode: string; matrixCellSize: number }`
 - `ScatterQueryContext` — `{ start?: number; end?: number; filters: Array<{ column: string; from: number; to: number }>; lineFilters: ScatterLineFilterSpec[] }`
+  - Range filters drop entries that match the dataset profile bounds exactly.
 
 ## Re-exports
 - `appState` [deps: [store/index][1]]

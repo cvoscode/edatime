@@ -25,7 +25,9 @@ export function renderColumnChips(
     const cols = metadataColumns(meta);
     columnsBar.innerHTML = '';
 
-    const allSelected = cols.length > 0 && cols.every((item) => _selectedColumns.has(item.name));
+    const numericCols = cols.filter((item) => numeric.has(item.name));
+    const selectedNumericCount = () => numericCols.filter((item) => _selectedColumns.has(item.name)).length;
+    const allSelected = numericCols.length > 0 && numericCols.every((item) => _selectedColumns.has(item.name));
     const selectAllBtn = document.createElement('button');
     selectAllBtn.className = `series-chip fft-trace-chip causal-column-action${allSelected ? ' active' : ''}`;
     selectAllBtn.type = 'button';
@@ -37,15 +39,14 @@ export function renderColumnChips(
         if (allSelected) {
             _selectedColumns.clear();
         } else {
-            cols.forEach((item) => _selectedColumns.add(item.name));
+            numericCols.forEach((item) => _selectedColumns.add(item.name));
         }
         renderColumnChips(deps, columnsBar, openEditPanel);
-        syncCausalEmptyState(_selectedColumns.size);
+        syncCausalEmptyState(selectedNumericCount());
         if (savedTauMax && tauInputEl && tauInputEl.value !== savedTauMax) {
             tauInputEl.value = savedTauMax;
         }
     });
-    columnsBar.appendChild(selectAllBtn);
 
     renderSeriesChipList({
         container: columnsBar,
@@ -54,7 +55,7 @@ export function renderColumnChips(
             const numericColumn = numeric.has(col);
             ensureNodeMetadata(col, meta, deps);
             const currentColor = _chipColors.get(col) ?? '#00a8ff';
-            const active = _selectedColumns.has(col);
+            const active = numericColumn && _selectedColumns.has(col);
             return {
                 column: col,
                 checked: active,
@@ -63,10 +64,11 @@ export function renderColumnChips(
                     ? `Toggle ${col} for causal discovery`
                     : `Toggle ${col} as a manual graph/meta node`,
                 onToggle: (checked) => {
+                    if (!numericColumn) return;
                     if (checked) _selectedColumns.add(col);
                     else _selectedColumns.delete(col);
                     renderColumnChips(deps, columnsBar, openEditPanel);
-                    syncCausalEmptyState(_selectedColumns.size);
+                    syncCausalEmptyState(selectedNumericCount());
                 },
                 onColorInput: (color) => {
                     _chipColors.set(col, color);
@@ -86,4 +88,19 @@ export function renderColumnChips(
             if (chip) chip.style.setProperty('--chip-accent', color);
         },
     });
+    columnsBar.prepend(selectAllBtn);
+
+    for (const item of cols) {
+        if (numeric.has(item.name)) continue;
+        const existing = columnsBar.querySelector<HTMLElement>(`[data-col="${item.name}"]`);
+        if (!existing) continue;
+
+        const metaChip = document.createElement('span');
+        metaChip.className = 'series-chip fft-trace-chip causal-chip-nonnumeric';
+        metaChip.dataset.col = item.name;
+        metaChip.setAttribute('role', 'note');
+        metaChip.setAttribute('title', `${item.name} metadata column`);
+        metaChip.innerHTML = `<span class="chip-label">${item.name}</span>`;
+        existing.replaceWith(metaChip);
+    }
 }

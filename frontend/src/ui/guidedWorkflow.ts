@@ -46,7 +46,7 @@ const STORAGE_KEY = 'edatime-guided-workflow';
 const WORKFLOW_STEPS: Array<{ id: WorkflowStepId; label: string; page: string }> = [
     { id: 'upload', label: 'Upload', page: 'upload' },
     { id: 'timeseries', label: 'Timeseries', page: 'timeseries' },
-    { id: 'correlations', label: 'Correlations', page: 'heatmap' },
+    { id: 'correlations', label: 'Correlations', page: 'correlations' },
     { id: 'scatter', label: 'Scatter', page: 'scatter' },
     { id: 'causal', label: 'Causal', page: 'causal' },
 ];
@@ -171,10 +171,10 @@ function isRepeatVisitor(snapshot: WorkflowSnapshot): boolean {
 function mapPageToStep(page: string, nextStepId: WorkflowStepId | null): WorkflowStepId | null {
     if (page === 'upload') return 'upload';
     if (page === 'timeseries') return 'timeseries';
-    if (page === 'heatmap' || page === 'scattermatrix') return 'correlations';
+    if (page === 'correlations' || page === 'heatmap' || page === 'scattermatrix') return 'correlations';
     if (page === 'scatter') return 'scatter';
     if (page === 'causal') return 'causal';
-    if (page === 'fft' || page === 'spectrogram') return nextStepId;
+    if (page === 'fft' || page === 'spectrogram' || page === 'drift' || page === 'settings') return null;
     return nextStepId;
 }
 
@@ -185,7 +185,9 @@ export function computeWorkflowProgress(snapshot: WorkflowSnapshot): WorkflowPro
 
     if (snapshot.hasDataset) completedStepIds.push('upload');
     if (snapshot.selectedSeriesCount > 0) completedStepIds.push('timeseries');
-    if (visited.has('heatmap') || visited.has('scattermatrix')) completedStepIds.push('correlations');
+    if (visited.has('correlations') || visited.has('heatmap') || visited.has('scattermatrix')) {
+        completedStepIds.push('correlations');
+    }
     if (snapshot.scatterX && snapshot.scatterY) completedStepIds.push('scatter');
     if (snapshot.causalLinkCount > 0) completedStepIds.push('causal');
 
@@ -223,8 +225,8 @@ function defaultSuggestionForStep(stepId: WorkflowStepId | null): WorkflowSugges
         return {
             title: 'Screen correlations next',
             body: 'Use Heatmap or Matrix to separate strong candidates from weak relationships before a deeper scatter drill-down.',
-            actionLabel: 'Open Heatmap',
-            actionPage: 'heatmap',
+            actionLabel: 'Open Correlations',
+            actionPage: 'correlations',
             hint: 'Scatter Matrix cells already open the detailed scatter view when clicked.',
         };
     }
@@ -297,7 +299,7 @@ export function buildWorkflowSuggestion(snapshot: WorkflowSnapshot): WorkflowSug
         return { title: '', body: '', actionLabel: null, actionPage: null };
     }
 
-    if (snapshot.currentPage === 'heatmap') {
+    if (snapshot.currentPage === 'correlations' || snapshot.currentPage === 'heatmap') {
         return {
             title: 'Choose the strongest pair',
             body: 'Use the heatmap to pick a promising relationship, then inspect it in Scatter where filter context and color-by are easier to read.',
@@ -350,15 +352,13 @@ export function buildWorkflowSuggestion(snapshot: WorkflowSnapshot): WorkflowSug
         };
     }
 
-    if (snapshot.currentPage === 'fft' || snapshot.currentPage === 'spectrogram') {
-        const fallback = defaultSuggestionForStep(progress.nextStepId);
-        return {
-            title: 'Use spectral pages as side analysis',
-            body: 'These pages work best after you already know the interesting column or interval from the main workflow.',
-            actionLabel: fallback.actionLabel,
-            actionPage: fallback.actionPage,
-            hint: fallback.title,
-        };
+    if (
+        snapshot.currentPage === 'fft'
+        || snapshot.currentPage === 'spectrogram'
+        || snapshot.currentPage === 'drift'
+        || snapshot.currentPage === 'settings'
+    ) {
+        return { title: '', body: '', actionLabel: null, actionPage: null };
     }
 
     return defaultSuggestionForStep(progress.nextStepId);

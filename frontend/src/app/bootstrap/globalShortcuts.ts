@@ -43,7 +43,7 @@ const ALT_NAVIGATION: Record<string, string> = {
     '3': 'scatter',
     '4': 'scattermatrix',
     '6': 'fft',
-    '7': 'heatmap',
+    '7': 'correlations',
     '8': 'spectrogram',
     '9': 'causal',
     '0': 'drift',

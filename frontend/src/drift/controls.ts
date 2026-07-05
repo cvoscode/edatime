@@ -15,6 +15,7 @@
 
 import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 import { appState } from '../store/index.js';
+import { formatUtcDatetimeInputValue } from '../utils/datetimeInput.js';
 
 export interface DriftControlCallbacks {
     getSelectedColumns: () => string[];
@@ -58,14 +59,6 @@ export interface DriftControlOptions {
     detailChartDispatch: (action: { type: string; dataZoomIndex?: number; start?: number; end?: number }) => void;
     exportTimelinePNG: () => void;
     exportDetailPNG: () => void;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function toDatetimeLocal(ms: number): string {
-    if (!isFinite(ms)) return '';
-    const d = new Date(ms);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 // ── Column picker state (module-level to survive across page visits) ─────────
@@ -245,8 +238,8 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
             const start = Number(appState.currentStart);
             const end = Number(appState.currentEnd);
             if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-                if (refStartInput) refStartInput.value = toDatetimeLocal(start);
-                if (refEndInput) refEndInput.value = toDatetimeLocal(end);
+                if (refStartInput) refStartInput.value = formatUtcDatetimeInputValue(start);
+                if (refEndInput) refEndInput.value = formatUtcDatetimeInputValue(end);
             }
             return;
         }
@@ -254,8 +247,8 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         const pct = Number(preset);
         if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) return;
         const end = timeRange.min + ((timeRange.max - timeRange.min) * pct) / 100;
-        if (refStartInput) refStartInput.value = toDatetimeLocal(timeRange.min);
-        if (refEndInput) refEndInput.value = toDatetimeLocal(end);
+        if (refStartInput) refStartInput.value = formatUtcDatetimeInputValue(timeRange.min);
+        if (refEndInput) refEndInput.value = formatUtcDatetimeInputValue(end);
     }
     applyReferencePreset(getDropdownValue('drift-ref-preset') || '50');
 

@@ -6,7 +6,7 @@
 - `PageName = keyof typeof PAGE_STYLE_MODULES`
 
 ## Constants
-- `PAGE_STYLE_MODULES` (readonly) — `as const satisfies Record<string, readonly StyleModuleName[]>`; maps `drift → ['drift']`, `home → ['home']`, `heatmap → ['scatter']`, `scatter → ['scatter']`, `scattermatrix → ['scatter']`.
+- `PAGE_STYLE_MODULES` (readonly) — `as const satisfies Record<string, readonly StyleModuleName[]>`; maps `correlations → ['scatter']`, `drift → ['drift']`, `home → ['home']`, `heatmap → ['scatter']`, `scatter → ['scatter']`, `scattermatrix → ['scatter']`.
 - `STYLE_HREFS: Record<string, string>` — eager `import.meta.glob('../../css/modules/*.css', { query: '?url' })` URL map.
 
 ## Functions

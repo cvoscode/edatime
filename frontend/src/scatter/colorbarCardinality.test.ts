@@ -52,6 +52,7 @@ describe('scatter colorbar cardinality badge', () => {
         appState.scatter.colorMax = 3.0;
         appState.scatter.colorColumn = 'OT';
         appState.scatter.colorCardinality = null;
+        (document.getElementById('scatter-color-column') as HTMLSelectElement).value = 'OT';
     });
 
     afterEach(() => {

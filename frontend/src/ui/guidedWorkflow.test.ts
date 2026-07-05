@@ -32,7 +32,7 @@ describe('computeWorkflowProgress', () => {
         const progress = computeWorkflowProgress(snapshot({
             hasDataset: true,
             selectedSeriesCount: 2,
-            visitedPages: ['upload', 'timeseries', 'scattermatrix'],
+            visitedPages: ['upload', 'timeseries', 'correlations'],
         }));
         expect(progress.completedStepIds).toContain('correlations');
         expect(progress.nextStepId).toBe('scatter');
@@ -43,7 +43,7 @@ describe('computeWorkflowProgress', () => {
             currentPage: 'causal',
             hasDataset: true,
             selectedSeriesCount: 2,
-            visitedPages: ['upload', 'timeseries', 'heatmap'],
+            visitedPages: ['upload', 'timeseries', 'correlations'],
             scatterX: 'HUFL',
             scatterY: 'OT',
             causalLinkCount: 4,
@@ -74,6 +74,34 @@ describe('buildWorkflowSuggestion', () => {
         }));
         expect(suggestion.actionPage).toBe('scatter');
         expect(suggestion.body).toContain('Click');
+    });
+
+    it('hides the workflow prompt on side-analysis pages once the core path is underway', () => {
+        const suggestion = buildWorkflowSuggestion(snapshot({
+            currentPage: 'fft',
+            hasDataset: true,
+            selectedSeriesCount: 2,
+            visitedPages: ['upload', 'timeseries', 'correlations'],
+            scatterX: 'HUFL',
+            scatterY: 'OT',
+        }));
+        expect(suggestion.actionPage).toBeNull();
+        expect(suggestion.actionLabel).toBeNull();
+        expect(suggestion.body).toBe('');
+    });
+
+    it('hides the workflow prompt on drift as well', () => {
+        const suggestion = buildWorkflowSuggestion(snapshot({
+            currentPage: 'drift',
+            hasDataset: true,
+            selectedSeriesCount: 2,
+            visitedPages: ['upload', 'timeseries', 'correlations'],
+            scatterX: 'HUFL',
+            scatterY: 'OT',
+        }));
+        expect(suggestion.actionPage).toBeNull();
+        expect(suggestion.actionLabel).toBeNull();
+        expect(suggestion.body).toBe('');
     });
 });
 

@@ -7,6 +7,7 @@
 
 import type { EChartLike } from './types.js';
 import { getChartPalette, getPaletteColor } from '../utils/theme.js';
+import { formatUtcDatetimeInputValue } from '../utils/datetimeInput.js';
 
 // ── Color constants (mirrored from driftPage for co-location) ─────────────────────
 
@@ -234,10 +235,7 @@ export function formatValue(v: number): string {
 }
 
 export function toDatetimeLocal(ms: number): string {
-    if (!isFinite(ms)) return '';
-    const d = new Date(ms);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return formatUtcDatetimeInputValue(ms);
 }
 
 export function hashColor(text: string, fallbackIndex: number): string {
@@ -513,7 +511,11 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
         animationDuration: 200,
         legend: {
             top: 2,
-            right: 6,
+            left: 56,
+            right: 96,
+            itemGap: 12,
+            itemWidth: 12,
+            itemHeight: 8,
             textStyle: { color: DRIFT_TEXT_DIM(), fontSize: 11 },
             type: 'scroll',
         },

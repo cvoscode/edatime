@@ -29,33 +29,8 @@
           return;
         }
 
-        navigator.serviceWorker.register('/sw.js').then(function (registration) {
-          console.log('ServiceWorker registration successful');
-          // Ask the browser to re-check the SW script in the background.
-          // The new worker will move to waiting.state when BUILD_ID changes;
-          // controllerchange fires once it activates and the page reloads to
-          // pick up the new chunk graph. The sessionStorage guard prevents
-          // a reload loop if the new worker is identical (no skipWaiting).
-          try {
-            registration.update();
-          } catch (err) {
-            console.log('ServiceWorker update() threw: ', err);
-          }
-          navigator.serviceWorker.addEventListener('controllerchange', function () {
-            if (window.sessionStorage && sessionStorage.getItem('edatime-sw-reload') === '1') {
-              return;
-            }
-            try {
-              if (window.sessionStorage) {
-                sessionStorage.setItem('edatime-sw-reload', '1');
-              }
-              window.location.reload();
-            } catch (err) {
-              console.log('ServiceWorker controllerchange reload failed: ', err);
-            }
-          });
-        }, function (err) {
-          console.log('ServiceWorker registration failed: ', err);
+        navigator.serviceWorker.register('/sw.js').catch(function (err) {
+          console.error('ServiceWorker registration failed: ', err);
         });
       });
     }
@@ -69,23 +44,6 @@
 
   <!-- ARIA live region for dynamic content updates -->
   <div id="aria-live-region" aria-live="polite" aria-atomic="true" class="sr-only"></div>
-
-  <div id="app-loading-overlay" role="status" aria-live="polite">
-    <div class="app-loading-overlay__card">
-      <div class="app-loading-overlay__brand">
-        <span class="app-loading-overlay__icon" aria-hidden="true">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
-            stroke-linejoin="round">
-            <path d="M1 9C2.6 6 4.1 4.8 5.7 6.1C6.6 6.8 7.2 8.2 8 8.2C9.1 8.2 9.7 4.2 11 4.2C12.2 4.2 12.6 7.2 13.5 8.1C14 8.6 14.5 8.4 15 7.2" />
-          </svg>
-        </span>
-        <span class="app-loading-overlay__title">EdaTime</span>
-      </div>
-      <span class="app-loading-overlay__spinner" aria-hidden="true"></span>
-      <span class="app-loading-overlay__label">Loading workspace…</span>
-    </div>
-  </div>
-
   <div class="app-layout">
 
     <nav class="sidebar" id="sidebar">
@@ -123,7 +81,7 @@
         <span class="nav-text">Timeseries</span>
         <kbd class="nav-shortcut">⌥2</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="heatmap" title="Correlations (Alt+7)" aria-label="Correlations">
+      <button class="nav-item" type="button" data-page="correlations" title="Correlations (Alt+7)" aria-label="Correlations">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
@@ -376,14 +334,14 @@
                 data-info-tip="Stack from 0 clamps the display floor at zero.&#10;Percentile hides the top and bottom tails by the selected percent.&#10;IQR expands from Q1/Q3 by k × IQR.">ⓘ</span>
               <div class="scatter-toolbar__fields">
                 <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field" for="y-stack-from-zero">
-                  <span class="toolbar-field__label">Stack from 0</span>
+                  <span class="toolbar-field__label">Zero floor</span>
                   <span class="toolbar-field__control scatter-link-toggle">
                     <input id="y-stack-from-zero" type="checkbox" aria-label="Pin y-axis lower bound to zero">
                     <span>Pin lower bound</span>
                   </span>
                 </label>
                 <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field" for="y-robust-range-toggle">
-                  <span class="toolbar-field__label">Robust range</span>
+                  <span class="toolbar-field__label">Spike clamp</span>
                   <span class="toolbar-field__control scatter-link-toggle">
                     <input id="y-robust-range-toggle" type="checkbox" aria-label="Use a robust display-only y-range">
                     <span>Hide spike-driven span</span>
@@ -1558,7 +1516,9 @@
                 <div class="home-dataset-icon">
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
                     stroke-linejoin="round">
-                    <path d="M1 9C2.6 6 4.1 4.8 5.7 6.1C6.6 6.8 7.2 8.2 8 8.2C9.1 8.2 9.7 4.2 11 4.2C12.2 4.2 12.6 7.2 13.5 8.1C14 8.6 14.5 8.4 15 7.2" />
+                    <ellipse cx="8" cy="3.5" rx="5.5" ry="2" />
+                    <path d="M2.5 3.5v4.5c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V3.5" />
+                    <path d="M2.5 8v4.5c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V8" />
                   </svg>
                 </div>
                 <div class="home-dataset-info">
@@ -1665,7 +1625,7 @@
             <p class="home-card-desc">WebGPU-accelerated multi-series chart with zoom, custom colors, and a guided path
               into deeper rolling, anomaly, and filter tools.</p>
           </div>
-          <div class="home-card" data-home-nav="heatmap" tabindex="0" role="button">
+          <div class="home-card" data-home-nav="correlations" tabindex="0" role="button">
             <div class="home-card-icon">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
                 stroke-linejoin="round">

@@ -34,6 +34,12 @@
   flex: 0 0 auto;
 }
 
+.drift-toolbar .scatter-toolbar__fields > .scatter-toolbar__field:first-child {
+  padding-right: 12px;
+  margin-right: 4px;
+  border-right: 1px solid var(--border);
+}
+
 #page-drift .plot-empty-state {
   z-index: 5;
   inset: 12px;

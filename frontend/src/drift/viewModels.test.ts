@@ -220,4 +220,16 @@ describe('drift view models', () => {
         expect(axisLabel.interval(0)).toBe(true);
         expect(axisLabel.interval(1)).toBe(false);
     });
+
+    it('reserves separate space for the series legend so it does not collide with the toolbox', () => {
+        const option = buildTimelineOption({
+            responsesByColumn: new Map([['HUFL', response]]),
+            activeDetailColumn: 'HUFL',
+            selectedWindowIdx: null,
+        }) as any;
+
+        expect(option.legend.right).toBeGreaterThan(option.toolbox.right);
+        expect(option.legend.itemGap).toBeGreaterThanOrEqual(12);
+        expect(option.legend.itemWidth).toBeGreaterThanOrEqual(12);
+    });
 });

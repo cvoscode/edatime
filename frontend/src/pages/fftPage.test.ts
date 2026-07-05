@@ -61,6 +61,11 @@ function buildDom(): void {
         <input id="fft-filter-high-hz" type="number" value="">
         <button id="fft-filter-apply-btn" type="button"></button>
         <span id="fft-filter-status"></span>
+        <div id="fft-spectral-info" hidden>
+          <span id="fft-spectral-info-rate"></span>
+          <span id="fft-spectral-info-nyquist"></span>
+          <span id="fft-spectral-info-peaks"></span>
+        </div>
         <select id="fft-normalize"><option value="none" selected>None</option><option value="minmax">Min-max</option></select>
         <input id="fft-clip-toggle" type="checkbox" />
         <select id="fft-clip-method" disabled>
@@ -351,5 +356,48 @@ describe('initFftPage', () => {
 
         expect(method.disabled).toBe(true);
         expect(param.disabled).toBe(true);
+    });
+
+    it('formats spectral info in readable frequency units instead of raw exponential Hz', async () => {
+        fetchFftMock.mockResolvedValueOnce({
+            sample_count: 64,
+            results: [{
+                column: 'value',
+                frequencies: [0.00028, 0.00056, 0.00084],
+                magnitudes: [10, 8, 6],
+                psd: [100, 64, 36],
+                sample_rate_hz: 0.001111111,
+                nyquist_hz: 0.0005555555,
+                dominant_peaks: [{ frequency_hz: 0.00028, magnitude: 10, power: 100, rank: 1 }],
+            }],
+        });
+
+        const { appState } = await import('../store/appStateCompat.js');
+        appState.metadata = {
+            total_rows: 10,
+            columns: [],
+            numeric_columns: ['value'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1000 },
+            column_profiles: [],
+        } as any;
+        appState.currentStart = 0;
+        appState.currentEnd = 1000;
+        window.localStorage.setItem('edatime_fft_selected_columns', JSON.stringify([]));
+
+        const { initFftPage } = await import('./fftPage');
+        await initFftPage({ renderTimeseries: vi.fn() });
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+
+        (document.querySelector('.fft-trace-chip') as HTMLButtonElement).click();
+        await vi.waitFor(() => {
+            expect(fetchFftMock).toHaveBeenCalledTimes(1);
+        });
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('fft-spectral-info')?.hidden).toBe(false);
+        });
+        expect(document.getElementById('fft-spectral-info-rate')?.textContent).toBe('1111.11 µHz');
+        expect(document.getElementById('fft-spectral-info-nyquist')?.textContent).toBe('555.56 µHz');
     });
 });

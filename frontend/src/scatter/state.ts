@@ -92,12 +92,30 @@ export interface ScatterQueryContext {
     lineFilters: ReturnType<typeof buildAdaptiveLineFiltersForQuery>;
 }
 
+function isNearlyEqual(left: number, right: number): boolean {
+    const scale = Math.max(1, Math.abs(left), Math.abs(right));
+    return Math.abs(left - right) <= scale * 1e-9;
+}
+
+function getColumnProfileBounds(column: string): { min: number; max: number } | null {
+    const profiles = Array.isArray(appState.metadata?.column_profiles) ? appState.metadata.column_profiles : [];
+    const profile = profiles.find((entry) => entry?.name === column);
+    const min = Number(profile?.min);
+    const max = Number(profile?.max);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || !(max >= min)) return null;
+    return { min, max };
+}
+
 const collectColumnRangeFilters = (): Array<{ column: string; from: number; to: number }> => (
     Object.entries(appState.columnRanges || {})
         .map(([column, range]) => {
             const from = Number(range?.from);
             const to = Number(range?.to);
             if (!column || !Number.isFinite(from) || !Number.isFinite(to)) return null;
+            const profileBounds = getColumnProfileBounds(column);
+            if (profileBounds && isNearlyEqual(from, profileBounds.min) && isNearlyEqual(to, profileBounds.max)) {
+                return null;
+            }
             return { column, from, to };
         })
         .filter((f): f is { column: string; from: number; to: number } => f !== null)

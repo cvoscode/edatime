@@ -1,5 +1,5 @@
 # frontend/src/ui/guidedWorkflow.ts
-> Guided workflow panel with step tracking and contextual suggestions.
+> Guided workflow panel with step tracking and contextual suggestions that treats `correlations` as the canonical public page.
 
 ## Types
 - `WorkflowStepId`: `'upload' | 'timeseries' | 'correlations' | 'scatter' | 'causal'`
@@ -12,9 +12,9 @@
 
 ## Functions
 - `computeWorkflowProgress(snapshot: WorkflowSnapshot): WorkflowProgress`
-  - Builds workflow progress from application snapshot.
+  - Builds workflow progress from application snapshot, including the `correlations` step.
 - `buildWorkflowSuggestion(snapshot: WorkflowSnapshot): WorkflowSuggestion`
-  - Builds contextual guided recommendation.
+  - Builds contextual guided recommendation and suppresses prompts on FFT, spectrogram, drift, and settings pages once the core workflow is underway.
 - `renderGuidedWorkflow(): void`
   - Renders the workflow panel to DOM.
 - `initGuidedWorkflow(): void`

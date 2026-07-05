@@ -65,6 +65,6 @@ export function setStatus(message: string, tone: 'info' | 'error' | 'success' = 
 export function syncCausalEmptyState(columnsLength: number): void {
     const empty = document.getElementById('causal-empty-state') as HTMLElement | null;
     if (!empty) return;
-    empty.hidden = columnsLength > 0;
-    empty.setAttribute('data-empty-reason', columnsLength > 0 ? '' : 'no-columns-selected');
+    empty.hidden = columnsLength >= 2;
+    empty.setAttribute('data-empty-reason', columnsLength >= 2 ? '' : 'no-columns-selected');
 }

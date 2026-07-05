@@ -114,7 +114,7 @@ describe('FftChart.init', () => {
         expect(overlayFillTextMock).not.toHaveBeenCalledWith('log10(Magnitude)', expect.any(Number), expect.any(Number));
     });
 
-    it('stacks top-peak labels onto distinct rows when nearby peaks cluster together', async () => {
+    it('collapses tightly clustered top peaks down to a single on-plot label', async () => {
         const instance = makeChartInstance();
         createChartMock.mockResolvedValue(instance);
         const chart = new FftChart('fft-chart');
@@ -134,10 +134,8 @@ describe('FftChart.init', () => {
 
         const labelYs = overlayFillTextMock.mock.calls
             .filter(([text]) => typeof text === 'string' && text.includes('Hz'))
-            .slice(0, 3)
             .map(([, , y]) => Number(y));
 
-        expect(labelYs).toHaveLength(3);
-        expect(new Set(labelYs).size).toBe(3);
+        expect(labelYs).toHaveLength(1);
     });
 });

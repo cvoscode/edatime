@@ -134,7 +134,7 @@ describe('appShell helpers', () => {
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'C', shiftKey: true, bubbles: true }));
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'E', shiftKey: true, bubbles: true }));
 
-        expect(showPage).toHaveBeenCalledWith('heatmap');
+        expect(showPage).toHaveBeenCalledWith('correlations');
         expect(resetZoom).toHaveBeenCalledTimes(1);
         expect(zoomOut).toHaveBeenCalledTimes(1);
         expect(adaptiveClear).toHaveBeenCalledTimes(1);

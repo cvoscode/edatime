@@ -1,5 +1,5 @@
 # app/bootstrap/datasetBootstrap.md
-> Manages dataset readiness: fetching metadata, populating store, initializing UI, and refreshing after mutations. Coordinates: chart modules → metadata fetch → store → mark ready → column setup → UI hydration. Dispatches the `edatime:metadata-ready` event on BOTH the initial bootstrap path AND the post-mutation refresh path so scatter / controls listeners always re-read metadata.
+> Manages dataset readiness, metadata refresh, and post-mutation UI rehydration. Coordinates: chart modules → metadata fetch → store → mark ready → column setup → UI hydration. Dispatches `edatime:metadata-ready` on both bootstrap and refresh, and `edatime:dataset-changed` after mutation refresh.
 
 ## Interface: `DatasetBootstrapDeps`
 ```typescript
@@ -17,6 +17,7 @@ interface DatasetBootstrapDeps {
     getNumericColumns: (metadata: DatasetMetadata) => string[];
     getDefaultTimeseriesColumns: (metadata: DatasetMetadata) => string[];
     rebuildTimeseriesColumns: () => void;
+    clearPersistedFilters: () => void;
     onMetadataReady?: () => void;
     emitWorkflowRefresh?: () => void;
     setAdaptiveFilterColumn: (col: string | null) => void;
@@ -53,7 +54,7 @@ interface BootstrapResult {
 
 ### refreshAfterMutation
 - `(options?: { selectedColumn?: string }): Promise<void>`
-  - Invalidates the dataset request scope and clears `_datasetReadyPromise`. If metadata is not yet ready, delegates to `ensureDatasetReady`. Otherwise clears loaded page modules, re-fetches metadata, stores it, calls `markMetadataReady`, **dispatches `edatime:metadata-ready`** (mirrors the initial-bootstrap event so subscribers such as the scatter page re-read metadata after a partial upload), then runs `syncDatasetSelection`, `await initializeDatasetUi`, `rebuildTimeseriesColumns`, and `await refreshVisibleData`.
+  - Invalidates the dataset request scope and clears `_datasetReadyPromise`. If metadata is not yet ready, delegates to `ensureDatasetReady`. Otherwise clears loaded page modules and persisted filters, re-fetches metadata, stores it, calls `markMetadataReady`, dispatches `edatime:metadata-ready`, dispatches `edatime:dataset-changed` with `{ previousRevision, nextRevision }`, then runs `syncDatasetSelection`, `await initializeDatasetUi`, `rebuildTimeseriesColumns`, and `await refreshVisibleData`.
 
 ### syncDatasetSelection
 - `(metadata: DatasetMetadata, selectedColumn?: string): void`

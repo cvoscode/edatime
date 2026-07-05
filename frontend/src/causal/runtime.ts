@@ -9,7 +9,7 @@
 
 import { createAnalysisPageRuntime } from '../pages/shared/analysisPageRuntime.js';
 import { syncCausalEmptyState } from './statusView.js';
-import { _currentColumns } from './selectionState.js';
+import { _selectedColumns } from './selectionState.js';
 
 /** Module-level runtime handle for the causal page lifecycle. */
 let causalRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
@@ -36,10 +36,10 @@ export function initCausalPageRuntime(): void {
         emptyStateRootId: 'causal-empty-state',
         bindExportsOnInit: false,
         init() {
-            _syncCausalEmptyState(_currentColumns.length);
+            _syncCausalEmptyState(_selectedColumns.size);
         },
         onEveryPageChange() {
-            _syncCausalEmptyState(_currentColumns.length);
+            _syncCausalEmptyState(_selectedColumns.size);
         },
     });
 }

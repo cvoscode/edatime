@@ -3,7 +3,7 @@ import type { GridLayout } from './chartInteractions.js';
 export const DEFAULT_CHART_GRID: GridLayout = {
     left: 84,
     right: 30,
-    top: 16,
+    top: 24,
     bottom: 36,
 };
 
