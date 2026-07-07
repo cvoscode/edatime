@@ -15,6 +15,7 @@ export async function fetchData(
     width: number,
     columns = 'value',
     colorColumn: string | null = null,
+    lookaroundMs = 0,
     signal?: AbortSignal,
 ): Promise<DataObject> {
     const requestScope = captureDatasetRequestScope();
@@ -35,6 +36,7 @@ export async function fetchData(
         columns,
     });
     if (colorColumn) params.set('color_column', colorColumn);
+    if (Number.isFinite(lookaroundMs) && lookaroundMs > 0) params.set('lookaround_ms', String(Math.round(lookaroundMs)));
 
     const tableFromIPC = await ensureArrowParser();
     const url = `/api/data?${params.toString()}`;

@@ -197,8 +197,30 @@ export function buildRenderSignature(controls: ScatterControls): string {
     ].join('|');
 }
 
-export function buildOverviewContextKey(context: Partial<ScatterQueryContext>): string {
+/**
+ * Build the cache key used by the scatter page-change handler to decide
+ * whether the current render can be reused.
+ *
+ * The `edatime:page-change { page: 'scatter' }` listener compares this key
+ * against the value stored on the last successful render so an identity
+ * dispatch (same filters, same axes, same zoom range) can short-circuit
+ * the work. Including `x`, `y`, and `colorColumn` is essential: the
+ * heatmap page (`heatmapPage.ts` `container.onclick`) silently mutates the
+ * X/Y dropdowns before navigating to the scatter page. If those columns
+ * were absent from the key, the handler would treat the navigation as a
+ * no-op and leave the chart rendering the previous X/Y's cached points
+ * against the new axis labels. See issue follow-up in `usage_issue.md`.
+ *
+ * Numeric filters and the linked time range are intentionally included —
+ * they are part of the request payload that the scatter backend hashes
+ * — but we deliberately exclude `view` bounds from this key: zoom
+ * state lives on the chart instance and is owned by the zoom handlers.
+ */
+export function buildOverviewContextKey(context: Partial<ScatterQueryContext> & { x?: string; y?: string; colorColumn?: string }): string {
     return JSON.stringify({
+        x: typeof context?.x === 'string' ? context.x : '',
+        y: typeof context?.y === 'string' ? context.y : '',
+        colorColumn: typeof context?.colorColumn === 'string' ? context.colorColumn : '',
         start: Number.isFinite(context?.start) ? context.start : null,
         end: Number.isFinite(context?.end) ? context.end : null,
         filters: Array.isArray(context?.filters) ? context.filters : [],
@@ -252,13 +274,20 @@ export function setStats(partial: Record<string, string | number | null | undefi
     const primaryEl = getEl('scatter-pearson');
     const secondaryEl = getEl('scatter-spearman');
 
-    if (Object.prototype.hasOwnProperty.call(partial, 'correlationLabel') && primaryEl) {
-        const label = partial.correlationLabel ?? 'Correlation';
-        const value = partial.correlationValue ?? '—';
+    if (Object.prototype.hasOwnProperty.call(partial, 'primaryLabel') && primaryEl) {
+        const label = partial.primaryLabel ?? 'Correlation';
+        const value = partial.primaryValue ?? '—';
         primaryEl.textContent = `${label}: ${value}`;
     }
-    if (Object.prototype.hasOwnProperty.call(partial, 'correlationContext') && secondaryEl) {
-        secondaryEl.textContent = String(partial.correlationContext ?? '');
+    if (Object.prototype.hasOwnProperty.call(partial, 'secondaryLabel') && secondaryEl) {
+        const label = partial.secondaryLabel ?? 'Correlation';
+        const value = partial.secondaryValue ?? '—';
+        secondaryEl.textContent = `${label}: ${value}`;
+    }
+    if (Object.prototype.hasOwnProperty.call(partial, 'correlationContext')) {
+        const context = String(partial.correlationContext ?? '');
+        if (primaryEl) primaryEl.title = context;
+        if (secondaryEl) secondaryEl.title = context;
     }
 }
 

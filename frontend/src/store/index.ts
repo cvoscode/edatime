@@ -13,7 +13,7 @@
  * object below. New code should prefer importing from here directly.
  */
 
-import type { AppStateType, RollingBandData, AnomalyRegionData, AdaptiveLineFilter, ColumnRange, PendingAdaptivePoint, ProfileRow, DatasetMetadata, SpectralFilterPreview, ViewSnapshot, ChartInstance, YMode } from '../types.js';
+import type { AppStateType, RollingBandData, AnomalyRegionData, AdaptiveLineFilter, ColumnRange, PendingAdaptivePoint, ProfileRow, DatasetMetadata, SpectralFilterPreview, SummaryStats, ViewSnapshot, ChartInstance, YMode } from '../types.js';
 import { datasetState, setColumnProfiles, setDatasetRevision, setMetadata, setNumericCols, type DatasetState } from './datasetState.js';
 import {
     setAdaptiveFilterColumn,
@@ -38,8 +38,10 @@ import {
 import {
     analyticsState,
     setAnomalyEnabled,
+    setAnomalyGlobalEnabled,
     setAnomalyMethod,
     setAnomalyRegions,
+    setAnomalySummaryStats,
     setAnomalyThreshold,
     setRollingBands,
     setRollingEnabled,
@@ -53,6 +55,7 @@ import {
     runtimeState,
     setAnalysisBound,
     setFetchDebounceId,
+    setFetchedWindow,
     setLastFetchedData,
     setPendingRestoreY,
     setPendingYMode,
@@ -177,6 +180,9 @@ const appStateCompositeTarget = {
     get anomalyEnabled(): boolean { return analyticsState.anomalyEnabled; },
     set anomalyEnabled(v: boolean) { setAnomalyEnabled(v); },
 
+    get anomalyGlobalEnabled(): boolean { return analyticsState.anomalyGlobalEnabled; },
+    set anomalyGlobalEnabled(v: boolean) { setAnomalyGlobalEnabled(v); },
+
     get anomalyMethod(): string { return analyticsState.anomalyMethod; },
     set anomalyMethod(v: string) { setAnomalyMethod(v); },
 
@@ -185,6 +191,9 @@ const appStateCompositeTarget = {
 
     get anomalyRegions(): AnomalyRegionData[] | null { return analyticsState.anomalyRegions; },
     set anomalyRegions(v: AnomalyRegionData[] | null) { setAnomalyRegions(v); },
+
+    get anomalySummaryStats(): SummaryStats | null { return analyticsState.anomalySummaryStats; },
+    set anomalySummaryStats(v: SummaryStats | null) { setAnomalySummaryStats(v); },
 
     get spectralFilterPreview(): SpectralFilterPreview | null { return analyticsState.spectralFilterPreview; },
     set spectralFilterPreview(v: SpectralFilterPreview | null) { setSpectralFilterPreview(v); },
@@ -218,6 +227,9 @@ const appStateCompositeTarget = {
 
     get lastFetchedData(): AppStateType['lastFetchedData'] { return runtimeState.lastFetchedData; },
     set lastFetchedData(v: AppStateType['lastFetchedData']) { setLastFetchedData(v); },
+
+    get fetchedWindow(): AppStateType['fetchedWindow'] { return runtimeState.fetchedWindow; },
+    set fetchedWindow(v: AppStateType['fetchedWindow']) { setFetchedWindow(v); },
 
     get analysisBound(): boolean { return runtimeState.analysisBound; },
     set analysisBound(v: boolean) { setAnalysisBound(v); },

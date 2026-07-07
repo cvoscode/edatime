@@ -15,7 +15,7 @@ import {
     type ScaleMode,
     type SpectralScaleOptions,
 } from '../utils/spectralScaling.js';
-import { formatFrequencyInUnit, frequencyToPeriod, pickFrequencyUnit } from '../utils/spectralPresets.js';
+import { formatCyclesPerDay, formatFrequencyInUnit, frequencyToPeriod, pickFrequencyUnit, useCyclesPerDayFrequencyAxis } from '../utils/spectralPresets.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 
 interface FftPageDeps {
@@ -34,6 +34,27 @@ const fftTraceColors: Record<string, string> = {};
 let fftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let fftPageCleanup: (() => void) | null = null;
 let fftInitialSelectionSeeded = false;
+
+function formatReciprocalInterval(hz: number): string {
+    if (!Number.isFinite(hz) || hz <= 0) return '—';
+    const seconds = 1 / hz;
+    if (seconds < 60) return `1 / ${seconds.toFixed(1)} sec`;
+    if (seconds < 3600) return `1 / ${(seconds / 60).toFixed(1)} min`;
+    if (seconds < 86_400) return `1 / ${(seconds / 3600).toFixed(1)} hr`;
+    return `1 / ${(seconds / 86_400).toFixed(1)} day`;
+}
+
+function setFieldHidden(fieldOrControl: HTMLElement | null, hidden: boolean): void {
+    if (!fieldOrControl) return;
+    const field = fieldOrControl.closest('label, .toolbar-field') as HTMLElement | null;
+    (field ?? fieldOrControl).hidden = hidden;
+}
+
+function formatPeakFrequency(hz: number, referenceHz: number): string {
+    return useCyclesPerDayFrequencyAxis(referenceHz)
+        ? formatCyclesPerDay(hz, 2)
+        : formatFrequencyInUnit(hz, pickFrequencyUnit(referenceHz), 2);
+}
 
 function resetFftPageState(): void {
     fftPageCleanup?.();
@@ -130,6 +151,8 @@ function rerenderOrClear(): void {
             clipParam.disabled = !enabled;
             clipParam.title = hint;
         }
+        setFieldHidden(clipMethod as HTMLElement | null, !enabled);
+        setFieldHidden(clipParam, !enabled);
     }
     if (!fftChart) return;
     if (fftTraces.length === 0) {
@@ -163,24 +186,42 @@ function syncFftSpectralInfo(): void {
     const fs = Number(firstWithMeta.sample_rate_hz);
     const nyquist = Number(firstWithMeta.nyquist_hz);
     const unit = pickFrequencyUnit(Number.isFinite(nyquist) && nyquist > 0 ? nyquist : fs);
-    rateEl.textContent = Number.isFinite(fs) ? formatFrequencyInUnit(fs, unit) : '—';
-    nyquistEl.textContent = Number.isFinite(nyquist) ? formatFrequencyInUnit(nyquist, unit) : '—';
+    rateEl.textContent = Number.isFinite(fs) ? formatReciprocalInterval(fs) : '—';
+    nyquistEl.textContent = Number.isFinite(nyquist) ? formatReciprocalInterval(nyquist) : '—';
+    rateEl.title = Number.isFinite(fs) ? formatFrequencyInUnit(fs, unit) : '';
+    nyquistEl.title = Number.isFinite(nyquist) ? formatFrequencyInUnit(nyquist, unit) : '';
     const peaks = Array.isArray(firstWithMeta.dominant_peaks) ? firstWithMeta.dominant_peaks : [];
     if (peaks.length === 0) {
         peaksEl.textContent = '—';
         peaksEl.removeAttribute('title');
         return;
     }
-    peaksEl.textContent = peaks
-        .slice(0, 3)
-        .map((peak) => {
-            const f = Number(peak?.frequency_hz);
-            return `${formatFrequencyInUnit(f, unit)} (~${frequencyToPeriod(f)})`;
-        })
-        .join(' · ');
+    const fragment = document.createDocumentFragment();
+    peaksEl.replaceChildren();
+    peaksEl.classList.add('fft-spectral-info__peak-table');
+    peaks.slice(0, 3).forEach((peak, index) => {
+        const row = document.createElement('span');
+        row.className = 'fft-spectral-info__peak-row';
+
+        const frequencyHz = Number(peak?.frequency_hz);
+        const cells = [
+            `#${index + 1}`,
+            formatPeakFrequency(frequencyHz, nyquist),
+            frequencyToPeriod(frequencyHz),
+            Number.isFinite(Number(peak?.power)) ? Number(peak.power).toExponential(2) : '—',
+        ];
+        cells.forEach((cellText, cellIndex) => {
+            const cell = document.createElement('span');
+            cell.className = `fft-spectral-info__peak-cell fft-spectral-info__peak-cell--${cellIndex}`;
+            cell.textContent = cellText;
+            row.appendChild(cell);
+        });
+        fragment.appendChild(row);
+    });
+    peaksEl.appendChild(fragment);
     peaksEl.title = peaks
         .slice(0, 5)
-        .map((peak, index) => `${index + 1}. ${formatFrequencyInUnit(Number(peak.frequency_hz), unit)} (r=${peak.rank ?? index + 1})`)
+        .map((peak, index) => `${index + 1}. ${formatPeakFrequency(Number(peak.frequency_hz), nyquist)} · ${frequencyToPeriod(Number(peak.frequency_hz))} · power ${Number(peak.power).toExponential(2)} (r=${peak.rank ?? index + 1})`)
         .join('\n');
 }
 
@@ -410,6 +451,8 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
                     liveClipParam.disabled = !enabled;
                     liveClipParam.title = hint;
                 }
+                setFieldHidden(liveClipMethod as HTMLElement | null, !enabled);
+                setFieldHidden(liveClipParam, !enabled);
             };
             const syncClipParamLabel = () => {
                 if (!clipParamLabel) return;
@@ -520,10 +563,12 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
                 if (lowEl) {
                     lowEl.disabled = filterType === 'none' || filterType === 'lowpass';
                     lowEl.title = lowHint;
+                    setFieldHidden(lowEl, filterType === 'none' || filterType === 'lowpass');
                 }
                 if (highEl) {
                     highEl.disabled = filterType === 'none' || filterType === 'highpass';
                     highEl.title = highHint;
+                    setFieldHidden(highEl, filterType === 'none' || filterType === 'highpass');
                 }
             };
             filterTypeSelect?.addEventListener('change', syncFilterCutoffInputs);

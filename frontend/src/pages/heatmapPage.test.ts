@@ -166,7 +166,8 @@ describe('heatmapPage with clustering', () => {
             <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36">
             <span id="heatmap-cell-size-value" class="range-value">36</span>
             <input id="heatmap-cluster-toggle" type="checkbox" checked>
-            <button id="heatmap-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn" aria-pressed="false">Auto-fit</button>
+            <button id="heatmap-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn" aria-pressed="false">Snap to panel</button>
+            <button id="heatmap-axis-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn" aria-pressed="false">Fit color axis</button>
             <select id="scatter-x-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
             <select id="scatter-y-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
         `;
@@ -214,6 +215,20 @@ describe('heatmapPage with clustering', () => {
         expect(headers.every((header) => header.classList.contains('heatmap-header--vertical'))).toBe(false);
         expect(strongPositiveCell?.style.getPropertyValue('--heatmap-cell-bg')).toBeTruthy();
         expect(negativeCell?.style.getPropertyValue('--heatmap-cell-bg')).toBeTruthy();
+    });
+
+    it('fits the color axis to the strongest off-diagonal magnitude when requested', async () => {
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const fitColorAxisToggle = document.getElementById('heatmap-axis-fit-toggle') as HTMLButtonElement;
+        fitColorAxisToggle.click();
+
+        const positiveTick = document.querySelector('.heatmap-scale__tick--positive');
+        const negativeTick = document.querySelector('.heatmap-scale__tick--negative');
+        expect(positiveTick?.textContent).toBe('+0.95');
+        expect(negativeTick?.textContent).toBe('-0.95');
     });
 
     it('switches narrow heatmap headers into a vertical label mode', async () => {

@@ -757,3 +757,188 @@ mod tests {
         assert!((0.0..=1.0).contains(&p_same));
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod proptests {
+    //! Property-based tests for the statistics primitives.
+    //!
+    //! Targets:
+    //! - `pearson` / `spearman` / `kendall_tau` invariants
+    //!   (`|r| ≤ 1`, constant-input handling, linear-input sign).
+    //! - `compute_column_stats` invariants
+    //!   (min ≤ median ≤ max, q1 ≤ median ≤ q3, std_dev ≥ 0, mean in range).
+    //! - `build_histogram_with_bins` invariants
+    //!   (sum of counts equals input length when input spans the bin range).
+
+    use super::*;
+    use proptest::prelude::*;
+
+    /// Finite f64 in a small bounded range — keeps arithmetic well-conditioned
+    /// and avoids NaN/inf leakage into downstream properties.
+    fn bounded_finite() -> impl Strategy<Value = f64> {
+        -1_000.0f64..1_000.0f64
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(256))]
+
+        #[test]
+        fn pearson_is_bounded_for_any_pairs(
+            xs in proptest::collection::vec(bounded_finite(), 2..32),
+            ys in proptest::collection::vec(bounded_finite(), 2..32),
+        ) {
+            let n = xs.len().min(ys.len());
+            let pairs: Vec<[f64; 2]> = xs.iter().zip(ys.iter()).take(n).map(|(&x, &y)| [x, y]).collect();
+            if let Some(r) = pearson(&pairs) {
+                prop_assert!(r.is_finite(), "r must be finite, got {r}");
+                prop_assert!((-1.0..=1.0).contains(&r), "|r| must be ≤ 1, got {r}");
+            }
+        }
+
+        #[test]
+        fn pearson_perfect_linear_is_plus_or_minus_one(
+            slope in bounded_finite(),
+            n in 3usize..32,
+            intercept in bounded_finite(),
+        ) {
+            // y = slope * x + intercept for distinct x.
+            let pairs: Vec<[f64; 2]> = (0..n)
+                .map(|i| {
+                    let x = i as f64 + 1.0;
+                    [x, slope * x + intercept]
+                })
+                .collect();
+            let r = pearson(&pairs).unwrap();
+            // |r| must be 1.0 for an exact linear relationship.
+            prop_assert!((r.abs() - 1.0).abs() < 1e-9, "expected |r| = 1, got {r}");
+        }
+
+        #[test]
+        fn pearson_zero_on_zero_x(_unused in 0..1i32) {
+            // All x = 0, varying y → variance_x = 0, so correlation is undefined.
+            let pairs = [[0.0, 1.0], [0.0, 2.0], [0.0, 3.0], [0.0, 4.0]];
+            prop_assert_eq!(pearson(&pairs), None);
+        }
+
+        #[test]
+        fn pearson_is_symmetric(
+            xs in proptest::collection::vec(bounded_finite(), 2..32),
+            ys in proptest::collection::vec(bounded_finite(), 2..32),
+        ) {
+            let n = xs.len().min(ys.len());
+            let xy: Vec<[f64; 2]> = xs.iter().zip(ys.iter()).take(n).map(|(&x, &y)| [x, y]).collect();
+            let yx: Vec<[f64; 2]> = xs.iter().zip(ys.iter()).take(n).map(|(&x, &y)| [y, x]).collect();
+            prop_assert_eq!(pearson(&xy), pearson(&yx));
+        }
+
+        #[test]
+        fn spearman_matches_pearson_on_linear_input(
+            slope in bounded_finite(),
+            n in 3usize..32,
+        ) {
+            // Strictly increasing x and y ⇒ Spearman of (x, y) == Pearson
+            // because the ranks are a linear transform of the values.
+            let pairs: Vec<[f64; 2]> = (0..n)
+                .map(|i| {
+                    let x = i as f64 + 1.0;
+                    [x, slope * x]
+                })
+                .collect();
+            let p = pearson(&pairs).unwrap();
+            let s = spearman(&pairs).unwrap();
+            prop_assert!((p - s).abs() < 1e-9, "pearson={p} spearman={s}");
+        }
+
+        #[test]
+        fn kendall_tau_is_bounded_when_defined(
+            xs in proptest::collection::vec(bounded_finite(), 2..32),
+            ys in proptest::collection::vec(bounded_finite(), 2..32),
+        ) {
+            let n = xs.len().min(ys.len());
+            let pairs: Vec<[f64; 2]> = xs.iter().zip(ys.iter()).take(n).map(|(&x, &y)| [x, y]).collect();
+            if let Some(tau) = kendall_tau(&pairs) {
+                prop_assert!(tau.is_finite());
+                prop_assert!((-1.0..=1.0).contains(&tau), "tau must be in [-1, 1], got {tau}");
+            }
+        }
+
+        #[test]
+        fn kendall_tau_agrees_with_pearson_sign_on_linear_input(
+            slope in 0.1f64..10.0f64, // exclude 0 to keep both defined
+            n in 3usize..32,
+        ) {
+            let pairs: Vec<[f64; 2]> = (0..n)
+                .map(|i| {
+                    let x = i as f64 + 1.0;
+                    [x, slope * x]
+                })
+                .collect();
+            let p = pearson(&pairs).unwrap();
+            let t = kendall_tau(&pairs).unwrap();
+            // Sign must match on a strictly monotone linear map.
+            prop_assert_eq!(p.signum(), t.signum());
+        }
+
+        #[test]
+        fn column_stats_invariants(values in proptest::collection::vec(bounded_finite(), 1..64)) {
+            let stats = compute_column_stats(&values);
+            let min = stats.min.unwrap();
+            let max = stats.max.unwrap();
+            let median = stats.median.unwrap();
+            let q1 = stats.q1.unwrap();
+            let q3 = stats.q3.unwrap();
+            let mean = stats.mean.unwrap();
+            let std = stats.std_dev.unwrap();
+
+            prop_assert!(min <= max, "min {min} > max {max}");
+            prop_assert!(min <= median && median <= max, "median {median} out of [{min}, {max}]");
+            prop_assert!(q1 <= q3, "q1 {q1} > q3 {q3}");
+            prop_assert!(q1 <= median && median <= q3, "median {median} out of [{q1}, {q3}]");
+            prop_assert!(mean >= min && mean <= max, "mean {mean} out of [{min}, {max}]");
+            prop_assert!(std >= 0.0, "std_dev must be ≥ 0, got {std}");
+            prop_assert!(std.is_finite(), "std_dev must be finite, got {std}");
+        }
+
+        #[test]
+        fn column_stats_empty_returns_none(_unused in 0..1i32) {
+            let stats = compute_column_stats(&[]);
+            prop_assert!(stats.min.is_none());
+            prop_assert!(stats.max.is_none());
+            prop_assert!(stats.mean.is_none());
+            prop_assert!(stats.std_dev.is_none());
+            prop_assert!(stats.median.is_none());
+            prop_assert!(stats.q1.is_none());
+            prop_assert!(stats.q3.is_none());
+        }
+
+        #[test]
+        fn histogram_counts_sum_to_input_length(
+            values in proptest::collection::vec(-100.0f64..100.0f64, 0..200),
+            bins in 2usize..32,
+        ) {
+            // Use data-driven bounds so all values fall within [min, max]
+            // and the count-total invariant holds exactly.
+            if values.is_empty() {
+                return Ok(());
+            }
+            let mut sorted = values.clone();
+            sorted.sort_by(|a, b| a.total_cmp(b));
+            let lo = sorted[0];
+            let hi = sorted[sorted.len() - 1];
+            // If all values are equal, the impl returns a single bin with the
+            // total count, which is still sum-to-length.
+            let h = build_histogram_with_bins(&values, lo, hi, bins).unwrap();
+            let total: u64 = h.counts.iter().sum();
+            prop_assert_eq!(total, values.len() as u64);
+            // bin_edges has either `bins + 1` entries (normal case, max > min)
+            // or 2 entries (degenerate case where max <= min ⇒ single bin
+            // edge pair). Both shapes preserve the count-total invariant.
+            prop_assert!(
+                h.bin_edges.len() == bins + 1 || h.bin_edges.len() == 2,
+                "unexpected bin_edges.len = {}",
+                h.bin_edges.len()
+            );
+        }
+    }
+}

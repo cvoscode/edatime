@@ -142,4 +142,38 @@ describe('initGuidedWorkflow', () => {
 
         expect(document.getElementById('workflow-panel')?.hidden).toBe(true);
     });
+
+    it('omits the automatic completed-count summary in compact mode', async () => {
+        vi.resetModules();
+
+        const { appState } = await import('../store/index.js');
+        appState.metadata = {
+            total_rows: 69_680,
+            time_column: 'date',
+            time_range: { min: 1, max: 2 },
+            numeric_columns: ['HUFL', 'HULL', 'OT'],
+        } as any;
+        appState.selectedCols = ['HUFL', 'HULL', 'OT'];
+
+        document.body.innerHTML = `
+            <nav class="sidebar">
+                <button class="nav-item" data-page="home" type="button">Home</button>
+                <button class="nav-item active" data-page="scatter" type="button">Scatter</button>
+            </nav>
+            <button id="workflow-toggle-btn" type="button"></button>
+            <section id="workflow-panel"></section>
+            <select id="scatter-x-col"><option value="HUFL" selected>HUFL</option></select>
+            <select id="scatter-y-col"><option value="OT" selected>OT</option></select>
+        `;
+        window.localStorage.setItem('edatime-guided-workflow', JSON.stringify({
+            enabled: true,
+            visitedPages: ['home', 'timeseries', 'correlations'],
+        }));
+
+        const { renderGuidedWorkflow } = await import('./guidedWorkflow.js');
+        renderGuidedWorkflow();
+
+        expect(document.getElementById('workflow-panel')?.textContent).not.toContain('completed');
+        expect(document.getElementById('workflow-panel')?.classList.contains('workflow-panel--compact-shell')).toBe(true);
+    });
 });

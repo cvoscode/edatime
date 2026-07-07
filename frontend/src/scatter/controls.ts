@@ -243,56 +243,84 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     // `vi.resetModules()` via a stable `globalThis` slot, so the
     // listener registered by the test that called bind LAST has the
     // highest index and wins.
+    //
+    // The `inFlight` guard drops re-entrant dispatches fired while a
+    // previous invocation is still awaiting. Scatter itself does not
+    // dispatch `edatime:page-change` from within the handler chain, so
+    // this is purely defensive: synchronous `setScatterView` calls
+    // re-enter the same page-change from `showPage` (which queues the
+    // event inside a `requestAnimationFrame`), and we don't want those
+    // queued events to fire while the first invocation is still
+    // mid-render. Unlike a one-shot `dormant` flag, `inFlight` resets
+    // when the work completes so legitimate repeat navigations
+    // (heatmap → scatter → heatmap → scatter, home-correlations → scatter,
+    // etc.) still run.
     const bindIndex = nextBindIndex();
-    let dormant = false;
+    let inFlight = false;
 
     window.addEventListener('edatime:page-change', async (ev: any) => {
         if (ev?.detail?.page !== 'scatter') return;
-        if (dormant) return;
+        if (inFlight) return;
         if (bindIndex !== latestBindIndex()) return;
-        dormant = true;
+        inFlight = true;
+        try {
+            // The scatter page now treats itself as the authoritative owner of
+            // `appState.scatter.metadata`: initScatterPage is the single place
+            // where it gets written. If a page-change fires before init ran (for
+            // example when the user navigates to scatter on a cold dataset), we
+            // bounce via a single dedicated init call rather than reading from
+            // `appState.metadata` here. That keeps the page-change handler
+            // strictly an effect, not a side-channel metadata source.
+            if (!appState.scatter.metadata && appState.metadata) {
+                await cb.initScatterPage(appState.metadata as DatasetMetadata);
+            }
 
-        // The scatter page now treats itself as the authoritative owner of
-        // `appState.scatter.metadata`: initScatterPage is the single place
-        // where it gets written. If a page-change fires before init ran (for
-        // example when the user navigates to scatter on a cold dataset), we
-        // bounce via a single dedicated init call rather than reading from
-        // `appState.metadata` here. That keeps the page-change handler
-        // strictly an effect, not a side-channel metadata source.
-        if (!appState.scatter.metadata && appState.metadata) {
-            await cb.initScatterPage(appState.metadata as DatasetMetadata);
-        }
-
-        const nextView = normalizeAnalyticsView(ev?.detail?.analyticsView);
-        const ctl = currentControls();
-        const queryContextKey = buildOverviewContextKey(buildScatterQueryContext({
-            x: ctl.x,
-            y: ctl.y,
-            colorColumn: ctl.selectedColorColumn || undefined,
-        }));
-        if (
-            appState.scatter.pageInitialized
-            && appState.scatter.activeView === nextView
-            && appState.scatter.lastQueryContextKey === queryContextKey
-        ) {
-            return;
-        }
-        appState.scatter.lastQueryContextKey = queryContextKey;
-        appState.scatter.activeView = nextView;
-        await cb.setScatterView(appState.scatter.activeView, { render: false });
-        if (!appState.scatter.pageInitialized) {
-            cb.refreshCorrelationsAndSuggestions()
-                .then(() => (nextView === 'matrix' ? cb.refreshActiveScatterView() : cb.renderScatter()))
-                .then(() => { appState.scatter.pageInitialized = true; })
-                .catch((err: any) => { cb.handleErr(err); });
-        } else {
-            try {
-                if (isLinkedBrushEnabled() || Object.keys(appState.columnRanges || {}).length > 0 || (appState.adaptiveLineFilters || []).length > 0) {
-                    await cb.renderScatter();
-                } else {
-                    await cb.rerenderScatterFromCache(true);
-                }
-            } catch (err: any) { cb.handleErr(err); }
+            const nextView = normalizeAnalyticsView(ev?.detail?.analyticsView);
+            const ctl = currentControls();
+            // The overview context key includes X, Y, and the color-column
+            // selection (in addition to the filter payload) so a navigation
+            // that mutates only the axes — e.g. clicking a cell in the
+            // Correlations heatmap or a "Top pair" pill on the home page —
+            // still invalidates the cache and re-runs the pipeline. Without
+            // those fields the fast path swallowed the navigation and the
+            // scatter kept showing the previous X/Y's cached points against
+            // the new axis labels.
+            const queryContextKey = buildOverviewContextKey({
+                ...buildScatterQueryContext({
+                    x: ctl.x,
+                    y: ctl.y,
+                    colorColumn: ctl.selectedColorColumn || undefined,
+                }),
+                x: ctl.x,
+                y: ctl.y,
+                colorColumn: ctl.selectedColorColumn || undefined,
+            });
+            if (
+                appState.scatter.pageInitialized
+                && appState.scatter.activeView === nextView
+                && appState.scatter.lastQueryContextKey === queryContextKey
+            ) {
+                return;
+            }
+            appState.scatter.lastQueryContextKey = queryContextKey;
+            appState.scatter.activeView = nextView;
+            await cb.setScatterView(appState.scatter.activeView, { render: false });
+            if (!appState.scatter.pageInitialized) {
+                cb.refreshCorrelationsAndSuggestions()
+                    .then(() => (nextView === 'matrix' ? cb.refreshActiveScatterView() : cb.renderScatter()))
+                    .then(() => { appState.scatter.pageInitialized = true; })
+                    .catch((err: any) => { cb.handleErr(err); });
+            } else {
+                try {
+                    if (isLinkedBrushEnabled() || Object.keys(appState.columnRanges || {}).length > 0 || (appState.adaptiveLineFilters || []).length > 0) {
+                        await cb.renderScatter();
+                    } else {
+                        await cb.rerenderScatterFromCache(true);
+                    }
+                } catch (err: any) { cb.handleErr(err); }
+            }
+        } finally {
+            inFlight = false;
         }
     });
 }

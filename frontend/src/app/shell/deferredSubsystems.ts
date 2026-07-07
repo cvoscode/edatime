@@ -189,6 +189,16 @@ export async function ensureCommands(deps: DeferredShellDeps): Promise<void> {
 
 export async function ensureHomeSubsystems(deps: DeferredShellDeps): Promise<void> {
     await ensureSubsystem('sample-datasets', deps);
+    // The "Top correlations (current dataset)" widget on the home page
+    // is registered as a deferred subsystem but must be loaded alongside
+    // the sample-dataset cards. Without this call `wireHomeTopCorrelations`
+    // never runs, the `#home-top-correlations-section` stays hidden, and
+    // the home → scatter deep-link path documented in `topCorrelations.ts`
+    // is invisible to users. Loading it here also keeps the rest of the
+    // home bootstrap order (sample-datasets first so card click handlers
+    // exist before any card-rendered correlation pill is interacted
+    // with) intact.
+    await ensureSubsystem('home-top-correlations', deps);
 }
 
 export async function ensureAll(deps: DeferredShellDeps): Promise<void> {
@@ -203,8 +213,8 @@ export async function ensureAll(deps: DeferredShellDeps): Promise<void> {
  * Reset the registry (used in tests).
  */
 export function _resetDeferredSubsystems(): void {
-    for (const key of Object.keys(SUBSYSTEMS)) {
-        SUBSYSTEMS[key].loaded = false;
-        SUBSYSTEMS[key].pending = null;
+    for (const pokey of Object.keys(SUBSYSTEMS)) {
+        SUBSYSTEMS[pokey].loaded = false;
+        SUBSYSTEMS[pokey].pending = null;
     }
 }

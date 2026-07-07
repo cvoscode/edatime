@@ -131,7 +131,7 @@ describe('createTimeseriesPageController', () => {
         expect(chart.updateDataMulti).toHaveBeenCalled();
     });
 
-    it('pins the /api/data fetch contract: fetchData(startIso, endIso, width, cols, colorCol, signal)', async () => {
+    it('pins the /api/data fetch contract: fetchData(startIso, endIso, width, cols, colorCol, lookaroundMs, signal)', async () => {
         // Guard against drift in the wire contract the page controller sends
         // to the timeseries fetch service. The service layer in
         // `frontend/src/services/api/timeseries.ts` builds the URL from these
@@ -183,9 +183,9 @@ describe('createTimeseriesPageController', () => {
 
         expect(fetchData).toHaveBeenCalledTimes(1);
         const call = fetchData.mock.calls[0] ?? [];
-        // 6 positional args, in this exact order:
-        //   startIso, endIso, width, cols, colorCol, signal
-        expect(call).toHaveLength(6);
+        // 7 positional args, in this exact order:
+        //   startIso, endIso, width, cols, colorCol, lookaroundMs, signal
+        expect(call).toHaveLength(7);
         expect(call[0]).toBe(new Date(100).toISOString());
         expect(call[1]).toBe(new Date(900).toISOString());
         // happy-dom does not lay out a <div> so clientWidth is 0 and the
@@ -196,7 +196,8 @@ describe('createTimeseriesPageController', () => {
         expect(Number.isInteger(call[2])).toBe(true);
         expect(call[3]).toBe('value'); // selectedCols joined
         expect(call[4]).toBe('value'); // color column
-        expect(call[5]).toBeInstanceOf(AbortSignal);
+        expect(call[5]).toBeGreaterThan(0);
+        expect(call[6]).toBeInstanceOf(AbortSignal);
     });
 
     it('forwards a null colorCol when no color column is selected', async () => {
@@ -246,6 +247,7 @@ describe('createTimeseriesPageController', () => {
 
         const call = fetchData.mock.calls[0] ?? [];
         expect(call[4]).toBeNull();
+        expect(call[5]).toBeGreaterThan(0);
     });
 
     it('passes fetched OT values through to the rendered series unchanged so spike handling stays evidence-based', async () => {

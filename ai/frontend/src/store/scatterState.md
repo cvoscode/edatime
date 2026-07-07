@@ -2,65 +2,28 @@
 > Canonical scatter-page state, including matrix batch caching and per-view filter snapshots.
 
 ## Interfaces
-- `ScatterView` — `{ xMin: number; xMax: number; yMin: number; yMax: number }`
-- `ScatterDrag` — `{ pointerId: number; startX: number; endX: number; startY: number; endY: number }`
-- `DensityTooltipMeta` — `{ colorCenter: number; colorLo: number; colorHi: number }`
-- `DensityTooltipCache` — `{ key: string; binSize: number; metrics: { plotWidth: number; plotHeight: number; devicePixelRatio: number; plotLeftPx: number; plotTopPx: number; plotRightPx: number; plotBottomPx: number; exactLeftPx: number; exactTopPx: number; exactRightPx: number; exactBottomPx: number; binSizePx: number; binSizeCss: number; binCountX: number; binCountY: number } | null; binsBySeriesIndex: Map<number, Map<string, number>>; metaBySeriesIndex: Map<number, DensityTooltipMeta>; marginalCountsX: number[] | null; marginalCountsY: number[] | null }`
-- `MatrixCellData` — `{ totalPoints: number; points: [number, number][]; colorValues?: number[] | null; colorLabels?: (string | null)[] | null }`
-- `ScatterFetchOptions` — `{ start?: number; end?: number; filters?: ScatterFilterSpec[]; lineFilters?: ScatterLineFilterSpec[] }`
-- `ScatterFilterSnapshot` — `{ columnRanges: Record<string, { from: number; to: number }>; lineFilters: ScatterLineFilterSpec[] }`
+- `ScatterView`
+  - `{ xMin: number; xMax: number; yMin: number; yMax: number }`
+- `ScatterDrag`
+  - `{ pointerId: number; startX: number; endX: number; startY: number; endY: number }`
+- `DensityTooltipMeta`
+  - `{ colorCenter: number; colorLo: number; colorHi: number }`
+- `DensityTooltipCache`
+  - `{ key: string; binSize: number; metrics: { plotWidth: number; plotHeight: number; devicePixelRatio: number; plotLeftPx: number; plotTopPx: number; plotRightPx: number; plotBottomPx: number; exactLeftPx: number; exactTopPx: number; exactRightPx: number; exactBottomPx: number; binSizePx: number; binSizeCss: number; binCountX: number; binCountY: number } | null; binsBySeriesIndex: Map<number, Map<string, number>>; metaBySeriesIndex: Map<number, DensityTooltipMeta>; marginalCountsX: number[] | null; marginalCountsY: number[] | null }`
+- `MatrixCellData`
+  - `{ totalPoints: number; points: [number, number][]; colorValues?: number[] | null; colorLabels?: (string | null)[] | null }`
+- `ScatterFetchOptions`
+  - `{ start?: number; end?: number; filters?: ScatterFilterSpec[]; lineFilters?: ScatterLineFilterSpec[] }`
+- `ScatterFilterSnapshot`
+  - `{ columnRanges: Record<string, { from: number; to: number }>; lineFilters: ScatterLineFilterSpec[] }`
 - `ScatterState`
-  - `initialized: boolean`
-  - `pageInitialized: boolean`
-  - `activeView: 'plot' | 'matrix'`
-  - `loading: boolean`
-  - `metadata: DatasetMetadata | null`
-  - `totalPoints: number`
-  - `allPoints: [number, number][]`
-  - `points: [number, number][]`
-  - `allColorValues: number[] | null`
-  - `allColorLabels: (string | null)[] | null`
-  - `colorValues: number[] | null`
-  - `colorLabels: (string | null)[] | null`
-  - `colorColumn: string`
-  - `colorMin: number | null`
-  - `colorMax: number | null`
-  - `colorCardinality: { used: number; bucketed: number } | null`
-  - `lastTopPairs: Array<{ x: string; y: string; correlation: number }>`
-  - `chart: ChartGPUInstance | null`
-  - `full: ScatterView`
-  - `view: ScatterView`
-  - `zoomHistory: ScatterView[]`
-  - `selectionBox: { startX: number; startY: number; endX: number; endY: number } | null`
-  - `drag: ScatterDrag | null`
-  - `densityTooltipCache: DensityTooltipCache | null`
-  - `suggestionThreshold: number`
-  - `lastPerformanceMs: number`
-  - `lastUpdateMs: number`
-  - `lastBinnedText: string`
-  - `lastOptionSeries: unknown[] | null`
-  - `correlationsByColumn: Map<string, unknown>`
-  - `columnTypes: Map<string, string>`
-  - `lastSuggestions: Array<{ x: string; y: string; correlation: number }>`
-  - `lastRenderSignature: string`
-  - `lastQueryContextKey: string`
-  - `matrixCache: Map<string, Promise<MatrixCellData>>`
-  - `matrixBatchCache: Map<string, Promise<Map<string, MatrixCellData>>>`
-  - `matrixColumnOrder: string[]`
-  - `overviewRequestId: number`
-  - `scatterRequestId: number`
-  - `plotFilters: Record<string, { from: number; to: number }>`
-  - `plotLineFilters: ScatterLineFilterSpec[]`
-  - `matrixFilters: Record<string, { from: number; to: number }>`
-  - `matrixLineFilters: ScatterLineFilterSpec[]`
+  - Includes metadata, point/color buffers, color cardinality, `correlationsByColumn`, `currentPairStats`, active/full/view ranges, zoom history, render-signature/cache keys, matrix caches, and per-view filter snapshots.
 
 ## Exports
 - `scatterState: ScatterState`
-  - Module-scoped scatter singleton.
 - `getScatterViewSnapshot(view: 'plot' | 'matrix'): ScatterFilterSnapshot`
-  - Returns the saved filter snapshot for one scatter view.
 - `setScatterViewSnapshot(view: 'plot' | 'matrix', snapshot: ScatterFilterSnapshot): void`
-  - Replaces the saved filter snapshot for one scatter view.
+- `clearScatterViewSnapshots(): void`
 - `setScatterChart(chart: ChartGPUInstance | null): void`
 - `setScatterInitialized(v: boolean): void`
 - `setScatterPageInitialized(v: boolean): void`

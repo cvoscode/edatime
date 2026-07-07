@@ -11,7 +11,15 @@ import type { ChartInstance, ViewSnapshot } from '../../types.js';
 
 export interface DataModules {
     fetchMetadata: (signal?: AbortSignal) => Promise<import('../../types.js').DatasetMetadata>;
-    fetchData: (start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<import('../../types.js').DataObject>;
+    fetchData: (
+        start: string,
+        end: string,
+        width: number,
+        columns?: string,
+        colorColumn?: string | null,
+        lookaroundMs?: number,
+        signal?: AbortSignal,
+    ) => Promise<import('../../types.js').DataObject>;
     fetchAnomalies: (start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<import('../../types.js').AnomalyResponse>;
     postTransform: (expression: string, outputName: string) => Promise<import('../../types.js').TransformResponse>;
 }

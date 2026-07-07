@@ -60,17 +60,28 @@ pub async fn get_data(
     }
 
     let ctx = state.ts_context(&lf)?;
-    let start_ts = params.start.timestamp_millis() * ctx.multiplier;
-    let end_ts = params.end.timestamp_millis() * ctx.multiplier;
+    let lookaround_ms = params.lookaround_ms.unwrap_or(0).max(0);
+    let lookaround_ts = lookaround_ms.saturating_mul(ctx.multiplier.abs());
+    let start_ts = params
+        .start
+        .timestamp_millis()
+        .saturating_mul(ctx.multiplier)
+        .saturating_sub(lookaround_ts);
+    let end_ts = params
+        .end
+        .timestamp_millis()
+        .saturating_mul(ctx.multiplier)
+        .saturating_add(lookaround_ts);
     let dtype = ctx.dtype;
     let ts_col = ctx.ts_col;
     let format = query::output_format(params.format.as_deref());
     let cache_key = format!(
-        "data:v{}:{}:{}:{}:{}:{}:{:?}",
+        "data:v{}:{}:{}:{}:{}:{}:{}:{:?}",
         state.dataset_revision(),
         params.start.timestamp_millis(),
         params.end.timestamp_millis(),
         params.width,
+        lookaround_ms,
         value_cols.join(","),
         color_column.as_deref().unwrap_or(""),
         format,
@@ -232,6 +243,7 @@ mod tests {
             width: 400,
             columns: Some("HUFL".to_string()),
             color_column: None,
+            lookaround_ms: None,
             format: None,
         };
         let response = get_data(State(state), Query(params))
@@ -257,6 +269,7 @@ mod tests {
             width: 400,
             columns: Some("HUFL".to_string()),
             color_column: None,
+            lookaround_ms: None,
             format: None,
         };
         let response = get_data(State(state), Query(params))
@@ -279,7 +292,7 @@ mod tests {
     /// time window itself was empty (filtered_rows == 0) vs. because
     /// filters / non-finite cleanup removed rows after the time
     /// filter. The `build_test_state` fixture has 3 rows total; a
-    /// normal in-range request should report filtered_rows == 3 and
+    /// normal in-range request should report filtered_rows == 2 and
     /// dropped_rows == 0 (LTTB `width=400` is far above the row
     /// count so no LTTB reduction kicks in).
     #[tokio::test(flavor = "multi_thread")]
@@ -291,6 +304,7 @@ mod tests {
             width: 400,
             columns: Some("HUFL".to_string()),
             color_column: None,
+            lookaround_ms: None,
             format: None,
         };
         let response = get_data(State(state), Query(params))
@@ -307,7 +321,7 @@ mod tests {
             .and_then(|v| v.to_str().ok());
         assert_eq!(
             filtered,
-            Some("3"),
+            Some("2"),
             "x-edatime-filtered-rows must equal the pre-LTTB row count"
         );
         assert_eq!(

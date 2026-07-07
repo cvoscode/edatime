@@ -20,7 +20,10 @@ pub mod transform;
 
 // ── Public re-exports for the top-level API ─────────────────────────────────
 
-pub use anomaly::{AnomalyRegion, detect_anomalies_iqr, detect_anomalies_zscore};
+pub use anomaly::{
+    AnomalyRegion, SummaryStats, compute_summary_stats, detect_anomalies_iqr,
+    detect_anomalies_zscore,
+};
 pub use drift::{
     DriftInvestigationResponse, DriftMetadata, DriftResponse, DriftThresholds, DriftWindowStats,
     WindowDistributionStats, compute_drift_investigation, compute_temporal_drift,

@@ -14,12 +14,15 @@
  */
 
 import { getDropdownValue } from '../ui/primitives/Dropdown.js';
+import { renderSeriesChipList } from '../ui/seriesChipList.js';
 import { appState } from '../store/index.js';
 import { formatUtcDatetimeInputValue } from '../utils/datetimeInput.js';
+import { getSeriesColor } from '../utils/seriesColors.js';
 
 export interface DriftControlCallbacks {
     getSelectedColumns: () => string[];
     runCompute: () => Promise<void>;
+    onSelectionChange: () => void;
     exportDriftCsv: () => void;
     exportDriftJson: () => void;
     renderTimeline: () => void;
@@ -45,6 +48,7 @@ export interface DriftControlOptions {
     refPresetSelect: HTMLElement | null;
     evaluationModeSelect: HTMLElement | null;
     latestNInput: HTMLInputElement | null;
+    latestNHelper: HTMLElement | null;
     refStartInput: HTMLInputElement | null;
     refEndInput: HTMLInputElement | null;
     computeBtn: HTMLButtonElement | null;
@@ -66,6 +70,7 @@ let selectedCols = new Set<string>();
 let numericCols: string[] = [];
 let pickerLabelEl: HTMLElement | null = null;
 let hiddenColSelectEl: HTMLSelectElement | null = null;
+let selectionChangeCallback: (() => void) | null = null;
 
 export function getSelectedColumns(): string[] {
     return [...selectedCols];
@@ -76,12 +81,14 @@ export function resetDriftControlsState(): void {
     numericCols = [];
     pickerLabelEl = null;
     hiddenColSelectEl = null;
+    selectionChangeCallback = null;
 }
 
-function syncPickerLabel(): void {
+function syncPickerLabel(allCols: string[] = numericCols): void {
     if (!pickerLabelEl) return;
-    const n = selectedCols.size;
-    pickerLabelEl.textContent = n === 0 ? 'Select columns' : n === 1 ? `${[...selectedCols][0]}` : `${n} columns`;
+    const total = allCols.length;
+    const selected = selectedCols.size;
+    pickerLabelEl.textContent = total === 0 ? 'No numeric columns' : `${selected} of ${total} selected`;
 }
 
 function syncHiddenSelect(allCols: string[]): void {
@@ -96,15 +103,31 @@ function syncHiddenSelect(allCols: string[]): void {
     });
 }
 
-function getCheckboxes(colPickerList: HTMLElement | null): NodeListOf<HTMLInputElement> {
-    return (colPickerList ?? document).querySelectorAll<HTMLInputElement>('.drift-col-cb');
-}
-
-function syncCheckboxes(colPickerList: HTMLElement | null): void {
-    getCheckboxes(colPickerList).forEach((cb) => {
-        cb.checked = selectedCols.has(cb.value);
+function renderColumnChips(colPickerList: HTMLElement | null, allCols: string[]): void {
+    if (!colPickerList) return;
+    renderSeriesChipList({
+        container: colPickerList,
+        items: allCols.map((col, index) => ({
+            column: col,
+            checked: selectedCols.has(col),
+            color: getSeriesColor(col, index),
+            title: `Toggle ${col} for drift analysis`,
+            onToggle: (checked) => {
+                if (checked) {
+                    selectedCols.add(col);
+                } else {
+                    selectedCols.delete(col);
+                    if (selectedCols.size === 0 && allCols.length > 0) selectedCols.add(allCols[0]!);
+                }
+                syncHiddenSelect(allCols);
+                renderColumnChips(colPickerList, allCols);
+                selectionChangeCallback?.();
+            },
+        })),
+        chipClass: 'fft-trace-chip',
+        postChipAttributes: { role: 'button', tabIndex: '0' },
     });
-    syncPickerLabel();
+    syncPickerLabel(allCols);
 }
 
 function openPicker(colPickerPanel: HTMLElement | null, colPickerBtn: HTMLButtonElement | null): void {
@@ -135,35 +158,7 @@ function repopulateColumnSelect(
     selectedCols = new Set([...selectedCols].filter((c) => allCols.includes(c)));
     if (selectedCols.size === 0 && allCols.length > 0) selectedCols.add(allCols[0]!);
 
-    if (!colPickerList) return;
-    colPickerList.innerHTML = '';
-    allCols.forEach((col) => {
-        const label = document.createElement('label');
-        label.className = 'drift-col-picker-item';
-        label.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;cursor:pointer;font-size:0.75rem;color:var(--text-dim,#788bae);user-select:none;';
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.className = 'drift-col-cb';
-        cb.value = col;
-        cb.checked = selectedCols.has(col);
-        cb.addEventListener('change', () => {
-            if (cb.checked) {
-                selectedCols.add(col);
-            } else {
-                selectedCols.delete(col);
-                if (selectedCols.size === 0 && allCols.length > 0) selectedCols.add(allCols[0]!);
-                syncCheckboxes(colPickerList);
-            }
-            syncPickerLabel();
-            syncHiddenSelect(allCols);
-        });
-        const span = document.createElement('span');
-        span.textContent = col;
-        label.appendChild(cb);
-        label.appendChild(span);
-        colPickerList.appendChild(label);
-    });
-    syncPickerLabel();
+    renderColumnChips(colPickerList, allCols);
     syncHiddenSelect(allCols);
 }
 
@@ -184,6 +179,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         refPresetSelect,
         evaluationModeSelect,
         latestNInput,
+        latestNHelper,
         refStartInput,
         refEndInput,
         computeBtn,
@@ -204,6 +200,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
     selectedCols = new Set(numericCols.length > 0 ? [numericCols[0]!] : []);
     pickerLabelEl = colPickerLabel;
     hiddenColSelectEl = colSelect;
+    selectionChangeCallback = cb.onSelectionChange;
 
     // ── Picker event listeners ──────────────────────────────────────────────
     colPickerBtn?.addEventListener('click', (e) => {
@@ -280,7 +277,14 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
 
     function syncEvaluationModeUi(): void {
         if (!latestNInput) return;
-        latestNInput.disabled = getDropdownValue('drift-evaluation-mode') !== 'latest-n';
+        const enabled = getDropdownValue('drift-evaluation-mode') === 'latest-n';
+        latestNInput.disabled = !enabled;
+        if (latestNHelper) {
+            latestNHelper.hidden = enabled;
+            latestNHelper.textContent = "Used only with 'Latest N windows' mode.";
+        }
+        if (!enabled) latestNInput.setAttribute('aria-describedby', 'drift-latest-n-helper');
+        else latestNInput.removeAttribute('aria-describedby');
     }
     syncEvaluationModeUi();
     evaluationModeSelect?.addEventListener('change', syncEvaluationModeUi);
@@ -293,8 +297,9 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
     // ── Column picker bulk actions ─────────────────────────────────────────
     colSelectAllBtn?.addEventListener('click', () => {
         numericCols.forEach((c) => selectedCols.add(c));
-        syncCheckboxes(colPickerList);
+        renderColumnChips(colPickerList, numericCols);
         syncHiddenSelect(numericCols);
+        selectionChangeCallback?.();
         closePicker(colPickerPanel, colPickerBtn);
     });
 
@@ -302,16 +307,18 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         const keep = [...selectedCols][0] || numericCols[0];
         if (keep) {
             selectedCols = new Set([keep]);
-            syncCheckboxes(colPickerList);
+            renderColumnChips(colPickerList, numericCols);
             syncHiddenSelect(numericCols);
+            selectionChangeCallback?.();
         }
         closePicker(colPickerPanel, colPickerBtn);
     });
 
     colSelectNoneBtn?.addEventListener('click', () => {
         selectedCols = new Set(numericCols.length > 0 ? [numericCols[0]!] : []);
-        syncCheckboxes(colPickerList);
+        renderColumnChips(colPickerList, numericCols);
         syncHiddenSelect(numericCols);
+        selectionChangeCallback?.();
     });
 
     // ── Zoom reset ──────────────────────────────────────────────────────────
@@ -368,6 +375,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         numericCols = cols;
         selectedCols = new Set(numericCols.length > 0 ? [numericCols[0]!] : []);
         repopulateColumnSelect(colPickerList, cols);
+        selectionChangeCallback?.();
         cb.scheduleDriftChartRefresh();
     });
 }

@@ -21,7 +21,7 @@ import {
     upperBoundByX,
 } from './helpers.js';
 import { appState } from '../store/index.js';
-import { getCorrelationModeBasisLabel, getCorrelationModeShortLabel, normalizeCorrelationMetric } from '../utils/correlationModes.js';
+import { getCorrelationModeBasisLabel, normalizeCorrelationMetric } from '../utils/correlationModes.js';
 import { getSetting } from '../utils/settings.js';
 import {
     currentControls,
@@ -557,15 +557,30 @@ export function updateCorrelationStats(): void {
     const yValue = getDropdownValue('scatter-y-col');
     const corr = appState.scatter.correlationsByColumn.get(yValue || '');
     const mode = normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
-    const value = Number.isFinite(corr?.value) ? corr!.value!.toFixed(3) : '—';
-    const count = Number.isFinite(corr?.count) ? `${corr!.count} aligned pairs` : '';
+    const pairStats = appState.scatter.currentPairStats;
+    const useDiffBasis = mode.endsWith('_diff');
+    const pearson = useDiffBasis ? pairStats?.pearsonDiff : pairStats?.pearsonRaw;
+    const spearman = useDiffBasis ? pairStats?.spearmanDiff : pairStats?.spearmanRaw;
+    const pearsonNumber: number | null = typeof pearson === 'number' && Number.isFinite(pearson) ? pearson : null;
+    const spearmanNumber: number | null = typeof spearman === 'number' && Number.isFinite(spearman) ? spearman : null;
+    const pearsonValue = pearsonNumber !== null
+        ? pearsonNumber.toFixed(3)
+        : (mode.startsWith('pearson') && Number.isFinite(corr?.value) ? corr!.value!.toFixed(3) : '—');
+    const spearmanValue = spearmanNumber !== null
+        ? spearmanNumber.toFixed(3)
+        : (mode.startsWith('spearman') && Number.isFinite(corr?.value) ? corr!.value!.toFixed(3) : '—');
+    const count = Number.isFinite(pairStats?.count)
+        ? `${pairStats!.count} aligned pairs`
+        : (Number.isFinite(corr?.count) ? `${corr!.count} aligned pairs` : '');
     if (openCausalBtn) openCausalBtn.disabled = !(xValue && yValue);
     setStats({
-        correlationLabel: getCorrelationModeShortLabel(mode),
-        correlationValue: value,
+        primaryLabel: 'Pearson r',
+        primaryValue: pearsonValue,
+        secondaryLabel: 'Spearman ρ',
+        secondaryValue: spearmanValue,
         correlationContext: count ? `${getCorrelationModeBasisLabel(mode)} · ${count}` : getCorrelationModeBasisLabel(mode),
     });
-    setCorrelationOverlayText(corr?.value, null);
+    setCorrelationOverlayText(pearsonNumber, spearmanNumber);
 }
 
 /* ── Selection zoom ───────────────────────────────────── */

@@ -22,6 +22,8 @@ import {
     frequencyToPeriod,
     checkAliasingWarning,
     pickFrequencyUnit,
+    formatCyclesPerDay,
+    useCyclesPerDayFrequencyAxis,
 } from '../utils/spectralPresets.js';
 import {
     applySpectralScale,
@@ -93,7 +95,7 @@ export class FftChart {
             grid: FFT_GRID,
             xAxis: { type: 'value' },
             yAxis: { type: 'value' },
-            legend: { show: true, position: 'right' },
+            legend: { show: false, position: 'right' },
             series: [],
         };
         const powerPreference = defaultGpuPowerPreference();
@@ -120,6 +122,18 @@ export class FftChart {
 
     private _xScale(): number {
         return frequencyUnitScale(this._xUnit());
+    }
+
+    private _formatXAxisTick(hz: number, fractionDigits: number): string {
+        if (useCyclesPerDayFrequencyAxis(this._getXMax())) {
+            return formatCyclesPerDay(hz, fractionDigits).replace(/\s+cycles\/day$/, '');
+        }
+        return formatFrequencyInUnit(hz, this._xUnit(), fractionDigits).replace(/\s+[A-Za-zµ]+$/, '');
+    }
+
+    private _xAxisLabel(): string {
+        if (useCyclesPerDayFrequencyAxis(this._getXMax())) return 'Frequency (cycles/day)';
+        return `Frequency (${this._xUnit()})`;
     }
 
     private _yAxisLabel(): string {
@@ -179,8 +193,12 @@ export class FftChart {
         const xMax = this._getXMax();
         const sc = this._xScale();
         const unit = this._xUnit();
-        const rng = (xMax - xMin) * sc;
-        const tickPrec = rng >= 100 ? 0 : rng >= 10 ? 1 : rng >= 1 ? 2 : 3;
+        const rng = useCyclesPerDayFrequencyAxis(xMax)
+            ? (xMax - xMin) * 86_400
+            : (xMax - xMin) * sc;
+        const tickPrec = useCyclesPerDayFrequencyAxis(xMax)
+            ? (rng >= 100 ? 1 : 2)
+            : (rng >= 100 ? 0 : rng >= 10 ? 1 : rng >= 1 ? 2 : 3);
 
         const scaleOpts = this._scaleOptions;
         const scaleLabel = scaleModeLabel(scaleOpts.mode, scaleOpts.clip, scaleOpts.clipParam);
@@ -226,7 +244,9 @@ export class FftChart {
             const list = Array.isArray(params) ? params : [params as any];
             if (!list.length) return '';
             const x = Number((list[0] as any)?.value?.[0]);
-            const freqLabel = Number.isFinite(x) ? formatFrequencyInUnit(x, unit) : '';
+            const freqLabel = Number.isFinite(x)
+                ? (useCyclesPerDayFrequencyAxis(xMax) ? formatCyclesPerDay(x, 2) : formatFrequencyInUnit(x, unit))
+                : '';
             const rows = list.map((p: any) => {
                 const name = String(p?.seriesName ?? '');
                 const y = Number(p?.value?.[1]);
@@ -263,7 +283,7 @@ export class FftChart {
                 type: 'value',
                 min: xMin,
                 max: xMax,
-                name: `Frequency (${unit})`,
+                name: this._xAxisLabel(),
                 nameLocation: 'middle',
                 nameGap: 32,
                 nameTextStyle: {
@@ -277,7 +297,7 @@ export class FftChart {
                     fontSize: 11,
                     hideOverlap: true,
                     margin: 8,
-                    formatter: (v: number) => formatFrequencyInUnit(v, unit, tickPrec).replace(/\s+[A-Za-zµ]+$/, ''),
+                    formatter: (v: number) => this._formatXAxisTick(v, tickPrec),
                 },
                 axisTick: {
                     alignWithLabel: true,

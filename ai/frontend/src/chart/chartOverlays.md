@@ -1,7 +1,7 @@
 # ai/frontend/src/chart/chartOverlays.md
-> Renders rolling bands, anomaly regions, adaptive filter lines, and annotations on a transparent canvas overlaying the chart.
+> Renders rolling bands, anomaly regions, and adaptive-filter overlays on the transparent chart canvas.
 
-## Interface: ChartOverlayPlotMetrics
+## Interface `ChartOverlayPlotMetrics`
 - `cssWidth: number`
 - `cssHeight: number`
 - `plotLeft: number`
@@ -12,23 +12,21 @@
 - `plotHeight: number`
 - `strokeScale: number`
 
-## Function: getOverlayPlotMetrics
-- `getOverlayPlotMetrics(container: HTMLElement | null, overlayCanvas: HTMLCanvasElement | null, scale: { x: number; y: number }): ChartOverlayPlotMetrics | null`
-  - Shared plot-geometry helper; centralises plotLeft/plotTop/plotRight/plotBottom/plotWidth/plotHeight/strokeScale arithmetic. Returns `null` when container is missing.
+## Functions
+- `getOverlayPlotMetrics(container: HTMLElement | null, overlayCanvas: HTMLCanvasElement | null, grid: GridLayout, scale: { x: number; y: number }): ChartOverlayPlotMetrics | null`
+  - Computes plot geometry for overlay rendering.
 
-## Class: ChartOverlays
-- `constructor(opts: ChartOverlayOptions)` — Creates the overlay renderer with accessor functions.
-- `renderAll(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void` — Renders all overlay layers using `getOverlayPlotMetrics`.
-
-## Interface: ChartOverlayOptions
+## Interface `ChartOverlayOptions`
 - `getXMin: () => number | null`
 - `getXMax: () => number | null`
 - `getContainer: () => HTMLElement | null`
 - `getOverlayCanvas: () => HTMLCanvasElement | null`
+- `getGrid: () => GridLayout`
 - `getYRange: () => { min: number; max: number } | null`
 - `getPendingAdaptivePoint: () => { column: string; x: number; y: number; x2?: number; y2?: number } | null`
 
----
-[1]: ../store/appStateCompat.md#appState
-[2]: ../services/timeseries/filtering.md#buildAdaptiveLineY
-[3]: ./chartInteractions.md#createCanvasOverlay
+## Class `ChartOverlays`
+- `constructor(opts: ChartOverlayOptions)`
+  - Creates the overlay renderer from chart accessor callbacks.
+- `renderAll(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void`
+  - Renders rolling bands, optional global anomaly shading, per-series anomaly regions, and adaptive filter lines.

@@ -1,5 +1,27 @@
 /* ─── Scatter & density page ──────────────────────────────────── */
 
+.scatter-filter-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--border-hi) 72%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-2, #151b2c) 90%, transparent);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+}
+
+.scatter-filter-banner[hidden] {
+  display: none !important;
+}
+
+.scatter-filter-banner__text {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
 /* Scatter chart canvas and marginal panels */
 #scatter-chart {
   width: calc(100% - var(--scatter-right, 72px));

@@ -1,8 +1,9 @@
-import type { DataObject, YMode } from '../types.js';
+import type { DataObject, FetchedWindow, YMode } from '../types.js';
 import { emitStoreEvent } from './events.js';
 
 export interface RuntimeState {
     lastFetchedData: DataObject | null;
+    fetchedWindow: FetchedWindow | null;
     fetchDebounceId: ReturnType<typeof setTimeout> | null;
     pendingYMode: YMode | null;
     pendingRestoreY: { min: number; max: number } | null;
@@ -12,6 +13,7 @@ export interface RuntimeState {
 
 export const runtimeState: RuntimeState = {
     lastFetchedData: null,
+    fetchedWindow: null,
     fetchDebounceId: null,
     pendingYMode: 'fit',
     pendingRestoreY: null,
@@ -23,6 +25,12 @@ export function setLastFetchedData(data: DataObject | null): void {
     const previous = runtimeState.lastFetchedData;
     runtimeState.lastFetchedData = data;
     emitStoreEvent('runtime:lastFetchedData', { previous, next: data });
+}
+
+export function setFetchedWindow(window: FetchedWindow | null): void {
+    const previous = runtimeState.fetchedWindow;
+    runtimeState.fetchedWindow = window ? { ...window } : null;
+    emitStoreEvent('runtime:fetchedWindow', { previous, next: runtimeState.fetchedWindow });
 }
 
 export function setFetchDebounceId(id: ReturnType<typeof setTimeout> | null): void {

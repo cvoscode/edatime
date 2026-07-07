@@ -4,7 +4,7 @@ export const DEFAULT_CHART_GRID: GridLayout = {
     left: 84,
     right: 30,
     top: 24,
-    bottom: 36,
+    bottom: 52,
 };
 
 interface ComputeChartGridInput {

@@ -27,6 +27,18 @@ import { getDropdownValueFromElement, setDropdownDisabledForElement } from '../u
 
 export const METHOD_PC_STAGE = new Set(['pcmci', 'pcmciplus', 'lpcmci']);
 
+export function syncCausalGraphActionState(hasGraph: boolean): void {
+    const addEdgeBtn = document.getElementById('causal-add-edge-btn') as HTMLButtonElement | null;
+    const exportBtn = document.getElementById('causal-export-btn') as HTMLButtonElement | null;
+    const exportMenu = document.getElementById('causal-export-menu') as HTMLElement | null;
+    const saveRunBtn = document.getElementById('causal-save-run-btn') as HTMLButtonElement | null;
+
+    if (addEdgeBtn) addEdgeBtn.disabled = !hasGraph;
+    if (exportBtn) exportBtn.disabled = !hasGraph;
+    if (saveRunBtn) saveRunBtn.disabled = !hasGraph;
+    if (!hasGraph && exportMenu) exportMenu.hidden = true;
+}
+
 // ─── Control helpers ─────────────────────────────────────────────────────────
 
 function controlDecorators(control: HTMLElement | null): HTMLElement[] {
@@ -135,6 +147,7 @@ export async function handleComputeClick(
         setCurrentColumns(cols);
         setCurrentLinks(resp.links);
         setCurrentTauMax(resp.tau_max);
+        syncCausalGraphActionState(resp.links.length > 0 && cols.length >= 2);
         notifyCausalGraphUpdated(cols, resp.links);
         window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
         for (const col of cols) ensureNodeMetadata(col, meta, deps);

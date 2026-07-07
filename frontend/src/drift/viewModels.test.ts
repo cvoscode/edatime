@@ -4,6 +4,7 @@ import {
     buildDetailStatRows,
     buildGlobalSummary,
     buildTimelineOption,
+    buildWindowListHtml,
     filterResponseForEvaluation,
     timelineTooltipFormatter,
     type DriftResponse,
@@ -231,5 +232,39 @@ describe('drift view models', () => {
         expect(option.legend.right).toBeGreaterThan(option.toolbox.right);
         expect(option.legend.itemGap).toBeGreaterThanOrEqual(12);
         expect(option.legend.itemWidth).toBeGreaterThanOrEqual(12);
+    });
+
+    it('labels the drift timeline y-axis and shortens daily range labels', () => {
+        const dailyResponse = makeResponse('value', [
+            {
+                ...response.windows[0]!,
+                label: '2025-01-01 00:00 - 2025-01-02 00:00',
+            },
+        ]);
+        const option = buildTimelineOption({
+            responsesByColumn: new Map([['value', dailyResponse]]),
+            activeDetailColumn: 'value',
+            selectedWindowIdx: null,
+        }) as any;
+
+        expect(option.yAxis.name).toBe('Drift score');
+        expect(option.xAxis.axisLabel.formatter('2025-01-01 00:00 - 2025-01-02 00:00')).toBe('2025-01-01');
+    });
+
+    it('renders drift window list items with compact day labels when the windows are daily', () => {
+        const dailyResponse = makeResponse('value', [
+            {
+                ...response.windows[0]!,
+                label: '2025-01-01 00:00 - 2025-01-02 00:00',
+            },
+            {
+                ...response.windows[1]!,
+                label: '2025-01-02 00:00 - 2025-01-03 00:00',
+            },
+        ]);
+        const { html } = buildWindowListHtml(dailyResponse, 0, [0, 1]);
+        expect(html).toContain('Day 1');
+        expect(html).toContain('Day 2');
+        expect(html).not.toContain('2025-01-01 00:00 - 2025-01-02 00:00');
     });
 });

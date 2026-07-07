@@ -1,0 +1,730 @@
+# EdaTime UI/UX walkthrough — 2026-07-05
+
+This file lists concrete UI/UX problems observed by **only interacting with the
+running app** in a browser. The companion "Plan of fixes" section at the bottom
+maps each issue to a concrete fix shape so it can be implemented without
+re-investigating the symptom.
+
+The walkthrough used the ETTm2 sample dataset (69 680 rows, 7 numeric columns
++ a `date` time column at 15-minute resolution) loaded via the home-page
+"Try with sample data" cards.
+
+> Issues are grouped by page; severity is the user-visible impact × how often
+> the user hits it.
+
+---
+
+## Summary table
+
+| # | Page | Title | Severity |
+|---|------|-------|----------|
+| F1 | Scatter | X / Y axis dropdowns render empty — user cannot pick columns | High |
+| F2 | Scatter | "No scatter points found" empty-state blames filters when the real cause is "no axes selected" | High |
+| F3 | Scatter | Heatmap-to-scatter deep link drops the chosen X/Y pair | High |
+| F4 | Timeseries | Y-axis default range includes negatives for strictly-positive temperature data | High |
+| F5 | Timeseries | "Robust y-range mode" and "Robust y-range parameter" remain visible while disabled, looking like bugs | Medium |
+| F6 | Timeseries | Series chips and the in-chart legend list the same items twice | Medium |
+| F7 | Timeseries | "Adaptive filter target" hint banner is always on by default with no obvious link to documentation | Low |
+| F8 | FFT | Plotted FFT for slow signals (e.g. ETTm2) collapses to a single near-DC dot — looks broken | High |
+| F9 | FFT | "Clip method" and "Clip %" controls visible while disabled | Medium |
+| F10 | FFT | "Computing FFT…" copy never clears after Compute | Low |
+| F11 | Spectrogram | Auto-loaded with no visible explanation that it picked HUFL for the user | Low |
+| F12 | Causal | Variables (HUFL/HULL/OT) are pre-selected but no graph is shown until Compute | Medium |
+| F13 | Causal | Parameter header is dense; many `?` tooltips on a single row | Low |
+| F14 | Drift | "Columns" button hides multi-select behind a single click instead of showing chips | High |
+| F15 | Drift | Status bar copy "Select one or more columns, choose a baseline, and press Compute." persists after a successful run | Medium |
+| F16 | Drift | "Composite PSI + Wass + KS + E-S" group label is jargon-heavy | Low |
+| F17 | Correlations | Metric dropdown header reads "TYPE" while grouped under eyebrow "METRIC" | Low |
+| F18 | Correlations | "Cell size" slider value "36" sits between label and slider, ambiguous | Low |
+| F19 | Upload | Top filter row "All / None / All / Numeric / Datetime" reads like two competing filter sets | High |
+| F20 | Upload | `date` column profile truncates the timestamp to `2016-07-01T00:00:…` and the user cannot see resolution | Low |
+| F21 | Global | "Guided workflow" strip shows "✓ 4 completed" for steps the user never took | Medium |
+| F22 | Global | Disabled controls are styled the same as enabled ones (only the combobox chevron greys out) | Medium |
+| F23 | Settings | Field labeled "Density" without "Layout" prefix | Low |
+| F24 | Home | Sample-data card badges ("Time-series", "FFT", "Correlations") look like chip-tags but never explain what to do next | Low |
+| F25 | Global | Empty chart states never mention how to escape them (e.g. which control to click) | Medium |
+
+---
+
+## Detail per issue
+
+### F1 — Scatter: X / Y axis dropdowns render empty
+
+**Where:** `/#page=scatter` (the Plot view).
+
+**What I see:** The "View" toolbar shows two labelled fields — `X axis` and
+`Y axis` — but the dropdowns themselves render as 38 × 28 px containers with
+no value, no placeholder, and no clickable affordance. Clicking the labels
+does nothing. Inspecting the DOM shows `<div id="scatter-x-col" …></div>`
+with no children.
+
+**Impact:** The user cannot start a scatter plot from the Plot view. Only the
+heatmap deep-link exposes column choices (and that one is broken too — see F3).
+
+---
+
+### F2 — Scatter empty state blames filters when axes are missing
+
+**Where:** `/#page=scatter`.
+
+**What I see:** "No scatter points found — No points match active filters
+(2 column, 0 adaptive)." This appears the moment the user lands on the page,
+because no axes are selected. The phrase "(2 column, 0 adaptive)" is
+confusing — it suggests "2 columns" are filtered, when the real reason is
+"no axes".
+
+**Impact:** First-time users think their data is broken or filtered. They
+have no idea they need to pick X and Y.
+
+---
+
+### F3 — Heatmap-to-Scatter deep link drops X/Y
+
+**Where:** `/#page=correlations` → click any heatmap cell.
+
+**What I see:** Clicking HULL × MULL (0.91) navigates to
+`#page=scatter`. The scatter page then shows the same empty state from F2 —
+X and Y are not pre-populated, no chart is drawn, and Pearson/Spearman
+remain `—`.
+
+**Impact:** The single most discoverable path into scatter is broken.
+
+---
+
+### F4 — Timeseries Y-axis shows negative range for positive data
+
+**Where:** `/#page=timeseries`.
+
+**What I see:** Default Y ticks read `-15.20, 16.80, 48.80, 80.79, 112.79`,
+but every series in the dataset is strictly positive (oil temperatures in
+`HUFL/HULL/MUFL/MULL/LUFL/LULL/OT`). About 25 % of vertical space is wasted
+on empty area below zero.
+
+**Impact:** Charts feel "broken" — values look negative, vertical resolution
+for the actual data range is wasted.
+
+---
+
+### F5 — Robust y-range controls visible while disabled
+
+**Where:** `/#page=timeseries` → `Y range` group.
+
+**What I see:** When "Hide spike-driven span" is unchecked, both
+`Mode (Percentile)` and `Param (1)` remain visible but greyed out. New users
+see what looks like three active controls when only one is actually wired up.
+
+**Impact:** Suggests the page is in a half-configured state. Users waste time
+trying to interact with disabled controls.
+
+---
+
+### F6 — Series chips duplicate the in-chart legend
+
+**Where:** `/#page=timeseries`.
+
+**What I see:** Two places list the same series names:
+- The "Series" toolbar at the top has chips for HUFL, HULL, … OT.
+- The chart's corner legend inside the SVG also lists the active series.
+
+There is no obvious link between the two; they can drift apart.
+
+**Impact:** Cognitive overhead. The in-chart legend also lacks the per-series
+"Set … color" controls that the toolbar chips have, so users have to learn
+which affordance lives where.
+
+---
+
+### F7 — Adaptive filter hint banner has no docs link
+
+**Where:** `/#page=timeseries` → "Ctrl + click a selected series to add an
+adaptive line filter" banner.
+
+**What I see:** The banner shows a hint and a dismiss "×". There's no link to
+documentation, and the "?" tooltip in the Draw group mentions adaptive filters
+only in passing. The hint is shown by default for every new dataset, even
+when the user already knows the feature.
+
+**Impact:** Onboarding value is small; experienced users dismiss it every
+time they reload.
+
+---
+
+### F8 — FFT for slow signals collapses to a single near-DC point
+
+**Where:** `/#page=fft` with ETTm2 (HUFL, HULL selected).
+
+**What I see:** The plot shows a single red dot at `0.02 µHz (725.8 days)`,
+with the X axis stretching from `0` to `~0.0006 µHz`. The two chips are
+clearly pressed (HUFL + HULL), but the chart looks empty because the actual
+signal energy sits at much higher frequencies.
+
+**Impact:** Looks like the FFT engine is broken when in reality the chosen
+display window does not match the signal's frequency content. The
+"Top peaks 0.02 µHz · 0.06 µHz · 0.05 µHz" annotation is not visible without
+hover and is easy to miss.
+
+---
+
+### F9 — FFT Clip controls visible while disabled
+
+**Where:** `/#page=fft` → `Display` group.
+
+**What I see:** "Clip method" + "Clip %" remain in the toolbar with the
+disabled styling when "Outliers" is unchecked. Same pattern as F5.
+
+---
+
+### F10 — "Computing FFT…" copy never clears
+
+**Where:** `/#page=fft` main panel.
+
+**What I see:** After Compute finishes, the text "Computing FFT…" still
+appears overlaid on the chart area. Possibly only visible on first paint,
+but easy to read as "still computing".
+
+---
+
+### F11 — Spectrogram silently picks HUFL
+
+**Where:** `/#page=spectrogram`.
+
+**What I see:** Lands already loaded with HUFL selected and a spectrogram
+rendered. There's no toast / banner explaining "we picked HUFL because it
+was first", and no obvious way to know the chosen column if you weren't
+looking at the dropdown.
+
+**Impact:** Nice auto-default, but invisible to the user — feels like magic
+on revisit, and accidental on first sight.
+
+---
+
+### F12 — Causal pre-selects variables but shows an empty graph
+
+**Where:** `/#page=causal`.
+
+**What I see:** HUFL, HULL, OT chips are highlighted as selected, but the
+graph area is empty until Compute is pressed. The summary stats panel on the
+right is also empty. Users who don't read the "Compute" button label will
+think the page is broken.
+
+**Impact:** Same family of issue as F8 — page looks empty despite being
+"ready".
+
+---
+
+### F13 — Causal header is dense and tooltips-heavy
+
+**Where:** `/#page=causal` top toolbar.
+
+**What I see:** "ALGORITHM Method PCMCI · Test ParCorr · τ max 3 · α 0.05 ·
+PC α 0.2 · Max conds auto · FDR None" all on one row, with a `?` tooltip
+on almost every field. Scrolling with the eye is hard.
+
+**Impact:** Power users can deal with it; first-time users bounce.
+
+---
+
+### F14 — Drift "Columns" button hides multi-select
+
+**Where:** `/#page=drift` → `Data` group.
+
+**What I see:** A single button labelled "HUFL" suggests a single choice.
+Clicking opens a panel; there is no chip group visible inline. Most users
+will assume the page is single-column.
+
+**Impact:** The "Columns" naming also doesn't match the chip-style selectors
+used on the Timeseries and Spectrogram pages.
+
+---
+
+### F15 — Drift status bar sticks on pre-compute copy
+
+**Where:** `/#page=drift` status banner.
+
+**What I see:** After pressing Compute and getting results, the banner still
+reads "Select one or more columns, choose a baseline, and press Compute."
+above a result table that shows drift detected.
+
+**Impact:** Confusing state — message contradicts the rendered output.
+
+---
+
+### F16 — Drift "Composite PSI + Wass + KS + E-S" is jargon-only
+
+**Where:** `/#page=drift` → `Thresholds` group.
+
+**What I see:** A group whose only label is "Composite PSI + Wass + KS + E-S".
+No tooltip, no expansion, no plain-language explanation.
+
+**Impact:** Power users will understand, but new users have no idea what a
+threshold group does.
+
+---
+
+### F17 — Correlations metric dropdown header is split
+
+**Where:** `/#page=correlations` top toolbar.
+
+**What I see:** Eyebrow label is `METRIC`, but the dropdown field next to it
+uses `TYPE` as its column label, with its own `?` tooltip. The two compete
+for visual attention.
+
+**Impact:** Minor but adds noise to a small toolbar.
+
+---
+
+### F18 — Correlations cell-size value rendering
+
+**Where:** `/#page=correlations` → `Display` group.
+
+**What I see:** Slider with value `36` shown both to the right of the label
+"Cell size" and as a slider thumb position. The number is rendered in a
+way that looks like a separate field rather than a slider readout.
+
+**Impact:** Minor; the pattern works but the visual emphasis is ambiguous.
+
+---
+
+### F19 — Upload filter row reads like two competing filter sets
+
+**Where:** `/#page=upload` → `File preview` header.
+
+**What I see:** Two pill groups side by side: `All / None` and
+`All / Numeric / Datetime`. The first toggles "include selected" vs
+"include none", the second filters by column type. New users read this as
+two ways to do the same thing.
+
+**Impact:** The `None` button is easy to miss because it sits at the same
+visual weight as `All`, and the meaning of the two pairs is not labelled.
+
+---
+
+### F20 — Date column profile truncates timestamps
+
+**Where:** `/#page=upload` profile grid, `date` row.
+
+**What I see:** `Min` and `Max` cells show `2016-07-01T00:00:…` and
+`2018-06-26T19:45:…`. The full timestamp is not visible without hovering;
+users cannot tell whether the data is 15-minute or daily.
+
+**Impact:** Minor; affects trust in the preview.
+
+---
+
+### F21 — Guided workflow "✓ 4 completed" sticks
+
+**Where:** top banner on most pages after `/#page=scatter`.
+
+**What I see:** After clicking through Scatter, the workflow strip auto-opens
+saying "✓ 4 completed" and offers "→ Scatter" / "Open Causal" actions. The
+count includes pages the user only briefly visited, and the workflow stays
+visible until manually hidden.
+
+**Impact:** Suggests the user did more than they did. The strip also
+overlaps the page toolbar and the user's chart on small screens.
+
+---
+
+### F22 — Disabled controls share enabled styling
+
+**Where:** global.
+
+**What I see:** Disabled comboboxes and spin-buttons keep the same border,
+background, and padding as enabled ones. Only the chevron and the cursor
+change. They look like normal inputs that just don't respond.
+
+**Impact:** F5, F9 and F15 all stem from this.
+
+---
+
+### F23 — Settings "Density" label
+
+**Where:** `Settings → Appearance → Layout`.
+
+**What I see:** Field is labelled `Density`, with options
+`Spacious / Roomy / Compact`. No `Layout` prefix, no tooltip.
+
+**Impact:** Minor; label alone doesn't tell the user this is about UI density.
+
+---
+
+### F24 — Home sample-data cards: ambiguous next-step badges
+
+**Where:** `/#page=home`.
+
+**What I see:** Each sample card has two badges:
+- a category badge (`Time-series`, `FFT`, `Correlations`)
+- a hint badge (`Best first stop: Timeseries`)
+
+The first is a *topic tag*, the second is a *recommended next page*. They
+look identical at a glance.
+
+**Impact:** Mild onboarding friction; could be unified.
+
+---
+
+### F25 — Empty chart states don't tell the user what to do
+
+**Where:** Scatter, Causal, Drift, FFT (before Compute).
+
+**What I see:** When the chart area is empty, the placeholder copy says
+what is missing ("Select columns", "Pick a column and click Compute") but
+not which toolbar control to click. The action lives one screen away.
+
+**Impact:** New users bounce. This affects F1, F2, F8, F11, F12, F14.
+
+---
+
+# Plan of fixes
+
+Each fix below is sized to fit inside one focused PR. Order: F1 / F3 first
+(scatter is unusable today), then F4 / F8 / F12 (broken-looking charts),
+then F22 + everything that flows from it (F5 / F9 / F15), then the polish
+batch.
+
+### Fix 1 — Render the scatter X / Y axis dropdowns (F1)
+
+**Goal:** Make X-axis and Y-axis pickable so the scatter page actually
+renders.
+
+**Shape:**
+- Audit the dropdown component used for `scatter-x-col` /
+  `scatter-y-col`. It's the same `data-dropdown-id` component used
+  elsewhere; the symptom is that on the Scatter page the option list is
+  not hydrated.
+- Likely root causes to check:
+  - The scatter page receives `numericColumns` only after a metadata
+    fetch completes; if the dropdown mounts before that fetch resolves,
+    it renders empty. Solution: re-hydrate the dropdown after
+    `datasetState.numericColumns` is populated, or render the dropdown
+    only once `numericColumns.length > 0`.
+  - The dropdown's option-builder may key off `categoricalColumns` /
+    `numericColumns` separately and miss the scatter case. Verify the
+    numeric-column source.
+- Add a regression test: load the ETTm2 sample, navigate to
+  `#page=scatter`, assert `scatter-x-col` contains 7 options and a
+  default selection of `HUFL`.
+
+**Acceptance:**
+- `scatter-x-col` and `scatter-y-col` show 7 column options each.
+- Both have sensible defaults (e.g. `HUFL` / `HULL`) so first-time users
+  see a populated chart.
+- The empty state copy disappears once defaults are set.
+
+---
+
+### Fix 2 — Re-word the scatter empty state when axes are missing (F2)
+
+**Goal:** Tell the user why the chart is empty and what to do.
+
+**Shape:**
+- Distinguish three empty reasons: (a) no axes picked, (b) axes picked but
+  filters return zero rows, (c) data fetch failed.
+- When (a): replace the message with "Pick an X and Y column above to plot
+  your data." and put a button "Open X axis" that scrolls to / focuses
+  the `scatter-x-col` dropdown.
+- When (b): keep the existing message but drop "(2 column, 0 adaptive)"
+  jargon — just say "No points match the active filters."
+- When (c): surface the API error message inline with a retry button.
+
+**Acceptance:**
+- Loading `/api/scatter/points` with empty body returns no error but no
+  rows; the UI shows the (a) state.
+- After clicking "Open X axis", the X-axis dropdown receives focus.
+
+---
+
+### Fix 3 — Make heatmap → scatter deep-link set X and Y (F3)
+
+**Goal:** Clicking a heatmap cell should land the user on Scatter with the
+right axes pre-selected and the chart rendered.
+
+**Shape:**
+- Confirm where the deep-link navigation happens (heatmap cell click
+  handler). Today it sets `page=scatter` only.
+- Pipe the clicked (row, col) pair into `scatterState.xColumn` /
+  `scatterState.yColumn` before navigation.
+- Persist the selection in the URL hash (`#page=scatter&x=HULL&y=MULL`) so
+  it survives reloads and the share-link path. Use the same parser the
+  URL-hash fix in Fix 1 will rely on.
+- Trigger an initial `/api/scatter/points` fetch as soon as both axes are
+  known — do not wait for a manual "Compute" that doesn't exist on the
+  Scatter page.
+
+**Acceptance:**
+- Click HULL × MULL on the heatmap → Scatter loads with X=HULL, Y=MULL,
+  Pearson/Spearman stats populated, density backdrop rendered.
+- Browser URL hash reflects the selection.
+
+---
+
+### Fix 4 — Y-axis auto-fit for strictly-positive data (F4)
+
+**Goal:** Timeseries Y-axis should hug the data, not include empty bands.
+
+**Shape:**
+- When computing the default Y range, compute per-series min/max (across
+  the active chips and within the current viewport) and floor the lower
+  bound to `min(0, globalMin)` instead of `0` always and
+  `min - 5 %` always.
+- Also: enable "Pin lower bound" by default when **all** active series are
+  non-negative, and disable it when any series goes negative.
+- Add a small `toolbar-field__helper` line under the Y-range group
+  explaining when the floor is pinned.
+
+**Acceptance:**
+- ETTm2 default view shows Y range ~5 → 120, no negative ticks.
+- If a user selects a series with negative values, the floor relaxes
+  automatically.
+
+---
+
+### Fix 5 — Hide disabled controls until their parent toggle is on (F5, F9, F22)
+
+**Goal:** Disabled controls should not be visible.
+
+**Shape:**
+- Replace the "show-but-greyed" pattern with conditional rendering:
+  - "Mode" + "Param" only render when "Hide spike-driven span" is on.
+  - "Clip method" + "Clip %" only render when "Outliers" is on.
+  - Same for FFT filter Low/High Hz — only render when Filter Type ≠ Off.
+- Where the toggle has dependent controls, render them in a subtle inset
+  panel to make the relationship obvious.
+- Add a small `aria-disabled` / `disabled` on the parent toggle for
+  accessibility.
+
+**Acceptance:**
+- ETTm2 default Timeseries view shows Y-range with two fields, not four.
+- Switching the toggle on reveals the dependent fields with an animation.
+
+---
+
+### Fix 6 — De-duplicate series chips and in-chart legend (F6)
+
+**Goal:** One source of truth for the active series list.
+
+**Shape:**
+- Hide the in-chart SVG legend and keep the toolbar chips as the
+  single interactive surface.
+- Or, if the in-chart legend is required for accessibility, keep it but
+  remove the toolbar chips' selection state and leave only color +
+  visibility controls in the toolbar. Series visibility becomes a click
+  on the in-chart legend.
+
+**Acceptance:**
+- The same series name only appears once in the active UI.
+- The per-series "Set … color" affordance stays.
+
+---
+
+### Fix 7 — Adaptive-filter hint banner (F7)
+
+**Goal:** Onboarding hint should be useful and unobtrusive.
+
+**Shape:**
+- Move the hint to the first time a user opens a dataset — dismiss it
+  forever after that.
+- Add a docs link "Learn more" pointing at the timeseries help page.
+- Persist the dismissed state in `localStorage` so it doesn't reappear
+  on reload.
+
+---
+
+### Fix 8 — FFT: auto-pick a frequency window that matches the data (F8)
+
+**Goal:** FFT should show useful content for slow signals like ETTm2.
+
+**Shape:**
+- On first render of an FFT page, run a quick "find dominant frequency"
+  pass and auto-zoom the X axis to a band of `0.1 × … 10 ×` the dominant
+  frequency.
+- Surface the dominant frequency and the chosen band as a small caption
+  under the chart so users understand why the axis starts where it does.
+- Add an "Auto-fit" toggle (default on) so users can disable it.
+- If the user has manually zoomed, do not auto-reset until they press
+  the existing "↺" zoom reset button.
+
+**Acceptance:**
+- ETTm2 with HUFL selected shows a populated FFT band, not a single DC
+  dot.
+
+---
+
+### Fix 9 — Clear stale "Computing FFT…" copy (F10)
+
+**Shape:**
+- Wrap the FFT rendering pipeline so that the "Computing…" overlay is
+  unmounted as soon as the response is parsed. Currently it appears to
+  remain in the DOM after `state.status === 'ready'`.
+
+---
+
+### Fix 10 — Spectrogram auto-default explanation (F11)
+
+**Shape:**
+- On the Spectrogram page, render a one-line caption under the column
+  dropdown when the value was auto-picked: "Auto-selected HUFL (first
+  numeric column)."
+- The caption disappears the moment the user changes the dropdown.
+
+---
+
+### Fix 11 — Causal: show a placeholder graph or empty-state (F12)
+
+**Shape:**
+- Replace the empty graph area with an empty-state card that mirrors
+  Drift's pattern: "Run Compute to discover causal links between
+  HUFL, HULL, and OT."
+- Include the currently-selected variable chips so users see what they
+  will run on.
+- Add a "Run Compute" call-to-action button next to the chip row.
+
+---
+
+### Fix 12 — Causal header density (F13)
+
+**Shape:**
+- Split the parameter row into two lines:
+  - Line 1: Method, Test, τ max
+  - Line 2: α, PC α, Max conds, FDR
+- Drop the per-field `?` tooltips into a single "What's this?" link that
+  opens a modal with all parameter explanations.
+
+---
+
+### Fix 13 — Drift: use chip-style multi-select for columns (F14)
+
+**Shape:**
+- Replace the single "Columns" button with a chip row that mirrors the
+  Timeseries `Series` selector. Each chip is the column name, click to
+  toggle, color matches the chart palette.
+- "Columns" header is the eyebrow label; chips flow underneath.
+- Multi-select summary shows "N of 7 selected".
+
+---
+
+### Fix 14 — Drift: refresh the status banner after Compute (F15)
+
+**Shape:**
+- Lift the status banner state to depend on `result != null`.
+- When results render, swap the text to "Drift analysis complete — X of
+  Y windows flagged." with the same colour-code as the cards.
+- When the user changes a column, restore the pre-compute text.
+
+---
+
+### Fix 15 — Drift: human-readable thresholds label (F16)
+
+**Shape:**
+- Rename `Composite PSI + Wass + KS + E-S` to `Composite drift (PSI +
+  Wasserstein + KS + E-S)`.
+- Add a `?` tooltip explaining what each test is for.
+
+---
+
+### Fix 16 — Correlations: unify metric label (F17)
+
+**Shape:**
+- Change the field label inside the dropdown from `Type` to `Metric`.
+- Keep the outer eyebrow `Metric` for grouping.
+
+---
+
+### Fix 17 — Correlations: cell-size readout (F18)
+
+**Shape:**
+- Move the value to the right of the slider with `align-self: center` and
+  a softer colour, so it reads as "this slider's current value" rather
+  than a separate input.
+
+---
+
+### Fix 18 — Upload: clarify the two filter rows (F19)
+
+**Shape:**
+- Rename the first row to "Selection" and the second to "Type".
+- Visually separate them with a small vertical divider.
+- Move the "None" button to the right of the row and recolor it as a
+  secondary action.
+
+---
+
+### Fix 19 — Upload: show full timestamp in the date profile (F20)
+
+**Shape:**
+- Render the full timestamp in the Min/Max cells; truncate only on
+  hover-tooltip via the existing title attribute.
+- Add a small "Resolution: 15 min" hint under the date column row when the
+  column is datetime.
+
+---
+
+### Fix 20 — Guided workflow: stop counting "completed" automatically (F21)
+
+**Shape:**
+- Track explicit "I read this" or "I visited and acted" rather than
+  "I navigated to the page". Visiting Scatter without selecting X and Y
+  should not count.
+- Add a small `?` tooltip explaining how the count is computed.
+- Default the strip to collapsed when the user reloads the app.
+
+---
+
+### Fix 21 — Disabled-control visibility (F22) — covers F5 / F9 / F15
+
+Already covered by Fix 5. Apply the same pattern globally.
+
+---
+
+### Fix 22 — Settings: rename "Density" to "Layout density" (F23)
+
+**Shape:** Rename the field label; keep the options as-is. Add a tooltip
+on hover.
+
+---
+
+### Fix 23 — Home: differentiate topic tag vs. recommendation (F24)
+
+**Shape:**
+- Use a smaller, monochrome "Topic" badge for the category.
+- Use a coloured "Recommended next → Timeseries" badge with an arrow
+  icon for the recommendation.
+
+---
+
+### Fix 24 — Global: empty-state CTA pointer (F25)
+
+**Shape:**
+- For each empty chart state (Scatter, Causal, Drift, FFT, Spectrogram),
+  add a primary CTA button that scrolls to and focuses the missing
+  control. Re-use a single `<EmptyStateCTA>` component so the copy stays
+  consistent.
+
+---
+
+## Suggested execution order
+
+1. Fix 1 — Scatter X/Y dropdowns (unblocks Scatter completely).
+2. Fix 3 — Heatmap → Scatter deep link (uses Fix 1).
+3. Fix 2 — Re-word scatter empty state (depends on Fix 1 to be testable).
+4. Fix 4 — Timeseries Y-axis auto-fit.
+5. Fix 5 + Fix 21 — Hide disabled controls globally.
+6. Fix 8 — FFT auto-fit.
+7. Fix 13 — Drift columns chip row.
+8. Fix 11 + Fix 14 — Causal/Drift empty states with CTAs.
+9. Fix 18 — Upload filter row clarity.
+10. Fixes 6, 7, 9, 10, 12, 15–17, 19, 20, 22–24 — polish batch.
+
+---
+
+## Out-of-scope notes
+
+- The scatter backend already returns the right Arrow IPC for HUFL×HULL
+  (`POST /api/scatter/points` works correctly via curl). The issues on
+  this page are all frontend wiring.
+- The "ETTm2 sample dataset" button on the home page works as expected;
+  the dataset is loaded and the chip selection defaults to HUFL/HULL/OT
+  are reasonable.
+- The current FFT visualization is *technically* correct for the full
+  dataset (DC + very-low-frequency components), but the user-visible
+  result is misleading. Fix 8 closes that gap without changing the math.

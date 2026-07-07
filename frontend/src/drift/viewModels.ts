@@ -284,6 +284,21 @@ export function formatTriggerReasons(reasons: string[] | null | undefined): stri
     return reasons.map((reason) => formatTriggerReason(reason)).join(', ');
 }
 
+function compactRangeStartDate(label: string): string | null {
+    const match = label.match(/^(\d{4}-\d{2}-\d{2})\s+\d{2}:\d{2}\s+-\s+(?:\d{2}:\d{2}|\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})$/);
+    return match?.[1] ?? null;
+}
+
+function compactTimelineLabel(label: string): string {
+    return compactRangeStartDate(label) ?? label;
+}
+
+function compactWindowListLabel(label: string, index: number): string {
+    const startDate = compactRangeStartDate(label);
+    if (!startDate) return label;
+    return `Day ${index + 1} · ${startDate}`;
+}
+
 export function filterResponseForEvaluation(
     response: DriftResponse,
     mode: DriftEvaluationMode,
@@ -556,12 +571,16 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
                 fontSize: 10,
                 hideOverlap: true,
                 interval: (index: number) => index === 0 || index === categories.length - 1 || index % visibleTickStep === 0,
+                formatter: (value: string) => compactTimelineLabel(value),
             },
             axisLine: { lineStyle: { color: 'rgba(255,255,255,0.16)' } },
         },
         yAxis: {
             type: 'value',
             scale: true,
+            name: 'Drift score',
+            nameLocation: 'middle',
+            nameGap: 42,
             axisLabel: { color: DRIFT_TEXT_DIM() },
             splitLine: { lineStyle: { color: 'rgba(255,255,255,0.07)' } },
         },
@@ -844,7 +863,7 @@ export function buildWindowListHtml(
             idx,
             html: `<div class="drift-window-item${isSelected ? ' selected' : ''}" role="option" tabindex="0" aria-selected="${isSelected ? 'true' : 'false'}" data-window-idx="${idx}">
                 <span class="drift-window-badge drift-window-badge--${badgeClass}"></span>
-                <span class="drift-window-label">${w.label}</span>
+                <span class="drift-window-label">${compactWindowListLabel(w.label, idx)}</span>
                 <span class="drift-window-psi">PSI ${isFinite(w.psi) ? w.psi.toFixed(3) : '-'}</span>
             </div>`,
         };

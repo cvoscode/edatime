@@ -555,6 +555,12 @@
   padding: 5px 8px;
 }
 
+.upload-preview-type-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .upload-preview-selection .btn {
   padding: 6px 14px;
   font-size: 0.75rem;

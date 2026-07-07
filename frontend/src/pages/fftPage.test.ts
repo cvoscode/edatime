@@ -56,9 +56,9 @@ function buildDom(): void {
         <button id="fft-export-svg-btn" type="button"></button>
         <button id="fft-export-html-btn" type="button"></button>
         <button id="fft-export-csv-btn" type="button"></button>
-        <select id="fft-filter-type"><option value="none" selected>None</option><option value="lowpass">Lowpass</option></select>
-        <input id="fft-filter-low-hz" type="number" value="">
-        <input id="fft-filter-high-hz" type="number" value="">
+        <select id="fft-filter-type"><option value="none" selected>None</option><option value="lowpass">Lowpass</option><option value="bandpass">Bandpass</option></select>
+        <label id="fft-filter-low-field"><input id="fft-filter-low-hz" type="number" value=""></label>
+        <label id="fft-filter-high-field"><input id="fft-filter-high-hz" type="number" value=""></label>
         <button id="fft-filter-apply-btn" type="button"></button>
         <span id="fft-filter-status"></span>
         <div id="fft-spectral-info" hidden>
@@ -68,12 +68,11 @@ function buildDom(): void {
         </div>
         <select id="fft-normalize"><option value="none" selected>None</option><option value="minmax">Min-max</option></select>
         <input id="fft-clip-toggle" type="checkbox" />
-        <select id="fft-clip-method" disabled>
-          <option value="percentile" selected>Percentile</option>
-          <option value="iqr">IQR (k)</option>
-        </select>
-        <span id="fft-clip-param-label">Clip %</span>
-        <input id="fft-clip-param" type="number" value="0.5" disabled />
+        <label id="fft-clip-method-field"><select id="fft-clip-method" disabled>
+            <option value="percentile" selected>Percentile</option>
+            <option value="iqr">IQR (k)</option>
+        </select></label>
+        <label id="fft-clip-param-field"><span id="fft-clip-param-label">Clip %</span><input id="fft-clip-param" type="number" value="0.5" disabled /></label>
     `;
 }
 
@@ -358,6 +357,72 @@ describe('initFftPage', () => {
         expect(param.disabled).toBe(true);
     });
 
+    it('hides advanced clip controls until outlier clipping is enabled', async () => {
+        const { appState } = await import('../store/appStateCompat.js');
+        appState.metadata = {
+            total_rows: 10,
+            columns: [],
+            numeric_columns: ['value'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1000 },
+            column_profiles: [],
+        } as any;
+        appState.currentStart = 0;
+        appState.currentEnd = 1000;
+
+        const { initFftPage } = await import('./fftPage');
+        await initFftPage({ renderTimeseries: vi.fn() });
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+
+        const methodField = document.getElementById('fft-clip-method-field') as HTMLElement;
+        const paramField = document.getElementById('fft-clip-param-field') as HTMLElement;
+        const toggle = document.getElementById('fft-clip-toggle') as HTMLInputElement;
+
+        expect(methodField.hidden).toBe(true);
+        expect(paramField.hidden).toBe(true);
+
+        toggle.checked = true;
+        toggle.dispatchEvent(new Event('input', { bubbles: true }));
+
+        expect(methodField.hidden).toBe(false);
+        expect(paramField.hidden).toBe(false);
+    });
+
+    it('hides inactive spectral cutoff inputs until the selected filter uses them', async () => {
+        const { appState } = await import('../store/appStateCompat.js');
+        appState.metadata = {
+            total_rows: 10,
+            columns: [],
+            numeric_columns: ['value'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1000 },
+            column_profiles: [],
+        } as any;
+        appState.currentStart = 0;
+        appState.currentEnd = 1000;
+
+        const { initFftPage } = await import('./fftPage');
+        await initFftPage({ renderTimeseries: vi.fn() });
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+
+        const filterType = document.getElementById('fft-filter-type') as HTMLSelectElement;
+        const lowField = document.getElementById('fft-filter-low-field') as HTMLElement;
+        const highField = document.getElementById('fft-filter-high-field') as HTMLElement;
+
+        expect(lowField.hidden).toBe(true);
+        expect(highField.hidden).toBe(true);
+
+        filterType.value = 'lowpass';
+        filterType.dispatchEvent(new Event('change', { bubbles: true }));
+        expect(lowField.hidden).toBe(true);
+        expect(highField.hidden).toBe(false);
+
+        filterType.value = 'bandpass';
+        filterType.dispatchEvent(new Event('change', { bubbles: true }));
+        expect(lowField.hidden).toBe(false);
+        expect(highField.hidden).toBe(false);
+    });
+
     it('formats spectral info in readable frequency units instead of raw exponential Hz', async () => {
         fetchFftMock.mockResolvedValueOnce({
             sample_count: 64,
@@ -397,7 +462,9 @@ describe('initFftPage', () => {
         await vi.waitFor(() => {
             expect(document.getElementById('fft-spectral-info')?.hidden).toBe(false);
         });
-        expect(document.getElementById('fft-spectral-info-rate')?.textContent).toBe('1111.11 µHz');
-        expect(document.getElementById('fft-spectral-info-nyquist')?.textContent).toBe('555.56 µHz');
+        expect(document.getElementById('fft-spectral-info-rate')?.textContent).toBe('1 / 15.0 min');
+        expect(document.getElementById('fft-spectral-info-nyquist')?.textContent).toBe('1 / 30.0 min');
+        expect(document.getElementById('fft-spectral-info-peaks')?.textContent).toContain('#1');
+        expect(document.getElementById('fft-spectral-info-peaks')?.textContent).toMatch(/min|hr|day/);
     });
 });

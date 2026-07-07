@@ -8,7 +8,7 @@ import { formatTwoDecimals, formatTimestamp } from '../formatUtils.js';
 import { escapeHtml, downloadUrl, downloadBlob, getEl } from '../utils/dom.js';
 
 export const MATRIX_POINT_LIMIT = 8_000;
-export const MATRIX_MAX_COLUMNS = 4;
+export const MATRIX_MAX_COLUMNS = 8;
 export const HISTOGRAM_BINS = 24;
 export const DEFAULT_SCATTER_SUGGESTION_THRESHOLD = 0.7;
 const KDE_SAMPLES = 64;

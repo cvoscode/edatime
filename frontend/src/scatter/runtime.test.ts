@@ -70,6 +70,10 @@ vi.mock('./state.js', async (importOriginal) => {
 
 function buildDom(): void {
     document.body.innerHTML = `
+        <div id="scatter-filter-banner" hidden>
+            <span id="scatter-filter-banner-text"></span>
+            <button id="scatter-filter-banner-clear" type="button">Clear all</button>
+        </div>
         <div id="scatter-empty-state" hidden>
             <h2 id="scatter-empty-title"></h2>
             <p id="scatter-empty-message"></p>
@@ -150,6 +154,24 @@ describe('syncScatterFilterBadge', () => {
         expect(badge.hidden).toBe(false);
         expect(badge.textContent).toBe('3 filters active');
         expect(badge.getAttribute('title')).toBe('Active scatter filters: HUFL, HULL, OT');
+    });
+
+    it('shows the inherited-filter banner even when points exist', async () => {
+        const { getActiveScatterFilterColumns } = await import('./state.js');
+        (getActiveScatterFilterColumns as ReturnType<typeof vi.fn>).mockReturnValue(['HUFL']);
+        const { appState } = await import('../store/index.js');
+        appState.scatter.totalPoints = 42;
+        appState.adaptiveLineFilters = [{ column: 'OT' }] as any;
+
+        syncScatterEmptyState();
+
+        const banner = document.getElementById('scatter-filter-banner') as HTMLElement;
+        const text = document.getElementById('scatter-filter-banner-text') as HTMLElement;
+        expect(banner.hidden).toBe(false);
+        expect(text.textContent).toContain('Timeseries filters carry over');
+        expect(text.textContent).toContain('zoom range');
+        expect(text.textContent).toContain('1 column filter');
+        expect(text.textContent).toContain('1 adaptive filter');
     });
 
     it('does nothing when badge element does not exist', () => {

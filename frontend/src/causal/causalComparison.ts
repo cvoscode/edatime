@@ -39,6 +39,7 @@ interface ChangedLink {
 const STORAGE_KEY = 'edatime-causal-runs';
 const NUMERIC_CHANGE_EPSILON = 1e-6;
 let _savedRuns: SavedCausalRun[] = [];
+let _comparisonBound = false;
 
 function generateId(): string {
     return `run_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -201,6 +202,11 @@ let _compareRunAId: string | null = null;
 let _compareRunBId: string | null = null;
 
 export function initCausalComparison(): void {
+    if (_comparisonBound) {
+        refreshCompareUI();
+        return;
+    }
+    _comparisonBound = true;
     loadSavedRuns();
 
     // Save button handler (called after a successful Compute)
@@ -249,10 +255,15 @@ function refreshCompareUI(): void {
     renderRunSelector('causal-compare-run-a', _savedRuns, _compareRunAId, (id) => { _compareRunAId = id; });
     renderRunSelector('causal-compare-run-b', _savedRuns, _compareRunBId, (id) => { _compareRunBId = id; });
 
+    const compareBtn = document.getElementById('causal-compare-run-btn') as HTMLButtonElement | null;
+    const clearBtn = document.getElementById('causal-compare-clear-btn') as HTMLButtonElement | null;
+    if (compareBtn) compareBtn.disabled = _savedRuns.length < 2;
+    if (clearBtn) clearBtn.disabled = _savedRuns.length === 0;
+
     const savedList = document.getElementById('causal-saved-runs-list');
     if (savedList) {
         if (_savedRuns.length === 0) {
-            savedList.innerHTML = '<p style="color:var(--text-muted,#888);font-size:12px">No saved runs yet.</p>';
+            savedList.innerHTML = '<p style="color:var(--text-muted,#888);font-size:12px">Run Compute first, then save a run to compare it here.</p>';
         } else {
             savedList.innerHTML = _savedRuns.map((r) => `
                 <div class="causal-run-item" style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;border-bottom:1px solid var(--border);">

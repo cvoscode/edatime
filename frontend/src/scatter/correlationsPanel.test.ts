@@ -56,15 +56,17 @@ describe('renderSuggestions', () => {
         const { renderSuggestions } = await import('./correlationsPanel.js');
         appStateMock.scatter.lastTopPairs = [
             { x: 'HULL', y: 'MULL', correlation: 0.91, count: 256 },
+            { x: 'HUFL', y: 'OT', correlation: 0.67, count: 256 },
         ];
 
         renderSuggestions([]);
 
         const container = document.getElementById('scatter-suggestions')!;
-        expect(container.textContent).toContain('Top pair');
+        expect(container.textContent).toContain('Showing top');
         expect(container.textContent).toContain('HULL');
         expect(container.textContent).toContain('MULL');
-        expect(container.textContent).toContain('0.70');
-        expect(container.querySelector('button')).not.toBeNull();
+        expect(container.textContent).toContain('HUFL');
+        expect(container.textContent).toContain('OT');
+        expect(container.querySelectorAll('button')).toHaveLength(2);
     });
 });

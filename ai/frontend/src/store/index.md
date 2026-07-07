@@ -1,38 +1,22 @@
-# frontend/src/store/index.ts
-> Central pub/sub state container. Exports sub-states and backward-compatible `appStateComposite`.
+# ai/frontend/src/store/index.md
+> Central pub/sub state container that re-exports sub-states and exposes the backward-compatible `appState` composite.
 
-## Exports
+## Sub-states
+- `chartState`
+- `analyticsState`
+- `uiState`
+- `datasetState`
+- `scatterState`
+- `runtimeState`
 
-### Sub-states
-- `chartState` [deps: [chartState][1]]
-- `analyticsState` [deps: [analyticsState][2]]
-- `uiState` [deps: [uiState][3]]
-- `datasetState` [deps: [datasetState][4]]
-- `scatterState` [deps: [scatterState][5]]
-- `runtimeState` [deps: [runtimeState][6]]
-
-### Setters & Types
-All setters re-exported from sub-state modules.
-
-### Event emitter
+## Events
 - `emitStoreEvent<K extends keyof StoreEventMap>(eventName: K, payload: StoreEventMap[K]): void`
 - `subscribe<K extends keyof StoreEventMap>(eventName: K, handler: StoreHandler<K>): () => void`
-  - Returns unsubscribe function.
 - `unsubscribe<K extends keyof StoreEventMap>(eventName: K, handler: StoreHandler<K>): void`
 - `clearSubscribers(): void`
 
-### Store
+## Composite store
 - `store.get<K extends keyof ChartState>(key: K): ChartState[K]`
 - `store.set<K extends keyof ChartState>(key: K, value: ChartState[K]): void`
-
-### Backward-compatible composite
-- `appStateComposite: AppStateType` — Proxy over sub-states; emits deprecation warnings on direct writes. Re-exported as `appState` via `appStateCompat.md` [deps: [appStateCompat][7]].
-
----
-[1]: chartState.md
-[2]: analyticsState.md
-[3]: uiState.md
-[4]: datasetState.md
-[5]: scatterState.md
-[6]: runtimeState.md
-[7]: appStateCompat.md
+- `appStateComposite: AppStateType`
+  - Proxy over sub-states; now includes `anomalyGlobalEnabled`, `anomalySummaryStats`, and `fetchedWindow` accessors alongside the existing analytics/runtime fields.

@@ -61,3 +61,86 @@ impl Default for ResponseCache {
         Self::new()
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod proptests {
+    //! Property-based tests for the in-memory response cache.
+    //!
+    //! Targets:
+    //! - `revision` is monotonically non-decreasing across repeated writes
+    //!   and strictly increasing across `clear_for_revision` calls.
+    //! - `insert` then `get` round-trips the stored value.
+    //! - After `clear_for_revision`, all previously-stored entries are gone.
+
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(128))]
+
+        #[test]
+        fn revision_starts_at_zero(_unused in 0..1i32) {
+            let cache = ResponseCache::new();
+            prop_assert_eq!(cache.revision(), 0);
+        }
+
+        #[test]
+        fn clear_for_revision_increments_monotonically(n in 1usize..64) {
+            let cache = ResponseCache::new();
+            let mut prev = 0u64;
+            for _ in 0..n {
+                cache.clear_for_revision();
+                let now = cache.revision();
+                prop_assert!(now > prev, "revision must strictly increase: {prev} -> {now}");
+                prev = now;
+            }
+        }
+
+        #[test]
+        fn insert_then_get_returns_value(
+            key in "[a-zA-Z0-9_]{1,32}",
+            value in proptest::collection::vec(any::<u8>(), 0..256),
+        ) {
+            let cache = ResponseCache::new();
+            cache.insert(key.clone(), value.clone());
+            let got = cache.get(&key);
+            prop_assert_eq!(got, Some(value));
+        }
+
+        #[test]
+        fn clear_drops_all_entries(
+            entries in proptest::collection::vec(
+                ("[a-zA-Z0-9_]{1,16}", proptest::collection::vec(any::<u8>(), 0..32)),
+                0..32,
+            ),
+        ) {
+            let cache = ResponseCache::new();
+            for (k, v) in &entries {
+                cache.insert(k.clone(), v.clone());
+            }
+            cache.clear_for_revision();
+            for (k, _) in &entries {
+                prop_assert!(
+                    cache.get(k).is_none(),
+                    "key {} should be cleared after clear_for_revision",
+                    k
+                );
+            }
+        }
+
+        #[test]
+        fn distinct_keys_do_not_clobber(
+            keys in proptest::collection::hash_set("[a-zA-Z0-9_]{1,16}", 1..32),
+            value in proptest::collection::vec(any::<u8>(), 0..64),
+        ) {
+            let cache = ResponseCache::new();
+            for k in &keys {
+                cache.insert(k.clone(), value.clone());
+            }
+            for k in &keys {
+                prop_assert_eq!(cache.get(k), Some(value.clone()));
+            }
+        }
+    }
+}

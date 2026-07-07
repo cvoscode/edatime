@@ -28,40 +28,15 @@
           return;
         }
 
-        navigator.serviceWorker.register('/sw.js').then(function (registration) {
-          console.log('ServiceWorker registration successful');
-          // Ask the browser to re-check the SW script in the background.
-          // The new worker will move to waiting.state when BUILD_ID changes;
-          // controllerchange fires once it activates and the page reloads to
-          // pick up the new chunk graph. The sessionStorage guard prevents
-          // a reload loop if the new worker is identical (no skipWaiting).
-          try {
-            registration.update();
-          } catch (err) {
-            console.log('ServiceWorker update() threw: ', err);
-          }
-          navigator.serviceWorker.addEventListener('controllerchange', function () {
-            if (window.sessionStorage && sessionStorage.getItem('edatime-sw-reload') === '1') {
-              return;
-            }
-            try {
-              if (window.sessionStorage) {
-                sessionStorage.setItem('edatime-sw-reload', '1');
-              }
-              window.location.reload();
-            } catch (err) {
-              console.log('ServiceWorker controllerchange reload failed: ', err);
-            }
-          });
-        }, function (err) {
-          console.log('ServiceWorker registration failed: ', err);
+        navigator.serviceWorker.register('/sw.js').catch(function (err) {
+          console.error('ServiceWorker registration failed: ', err);
         });
       });
     }
   </script>
-  <script type="module" crossorigin src="/assets/index-Ch_yjFm6.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/settings-Dtpfs5Fy.js">
-  <link rel="stylesheet" crossorigin href="/assets/index-D2iG0zCo.css">
+  <script type="module" crossorigin src="/assets/index-C9wk6-ff.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/settings-CNiChajn.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-C-JPuAd7.css">
 </head>
 
 <body>
@@ -71,7 +46,6 @@
 
   <!-- ARIA live region for dynamic content updates -->
   <div id="aria-live-region" aria-live="polite" aria-atomic="true" class="sr-only"></div>
-
   <div class="app-layout">
 
     <nav class="sidebar" id="sidebar">
@@ -103,13 +77,13 @@
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
-            <polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />
+            <path d="M1 9C2.6 6 4.1 4.8 5.7 6.1C6.6 6.8 7.2 8.2 8 8.2C9.1 8.2 9.7 4.2 11 4.2C12.2 4.2 12.6 7.2 13.5 8.1C14 8.6 14.5 8.4 15 7.2" />
           </svg>
         </span>
         <span class="nav-text">Timeseries</span>
         <kbd class="nav-shortcut">⌥2</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="heatmap" title="Correlations (Alt+7)" aria-label="Correlations">
+      <button class="nav-item" type="button" data-page="correlations" title="Correlations (Alt+7)" aria-label="Correlations">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
@@ -237,6 +211,12 @@
         </div>
 
         <div class="header-meta" id="header-meta">
+          <!-- Data freshness indicator -->
+          <div id="data-freshness-indicator" class="data-freshness" hidden aria-label="Data freshness">
+            <span class="data-freshness-dot" aria-hidden="true"></span>
+            <span class="data-freshness-time">—</span>
+          </div>
+
           <button class="btn btn-ghost btn-sm" id="keyboard-help-btn" type="button" title="Keyboard shortcuts (?)"
             aria-label="Show keyboard shortcuts">
             <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"
@@ -256,9 +236,9 @@
                 d="M13.7 9.3l1.1.6a.5.5 0 01.2.7l-1 1.7a.5.5 0 01-.6.2l-1.1-.4a5.5 5.5 0 01-1.1.6l-.2 1.2a.5.5 0 01-.5.4H9.5a.5.5 0 01-.5-.4l-.2-1.2a5.5 5.5 0 01-1.1-.6l-1.1.4a.5.5 0 01-.6-.2l-1-1.7a.5.5 0 01.2-.7l1.1-.6a5.5 5.5 0 010-1.3l-1.1-.6a.5.5 0 01-.2-.7l1-1.7a.5.5 0 01.6-.2l1.1.4a5.5 5.5 0 011.1-.6l.2-1.2a.5.5 0 01.5-.4h2a.5.5 0 01.5.4l.2 1.2a5.5 5.5 0 011.1.6l1.1-.4a.5.5 0 01.6.2l1 1.7a.5.5 0 01-.2.7l-1.1.6a5.5 5.5 0 010 1.3z" />
             </svg>
           </button>
-          <button class="btn btn-ghost btn-sm" id="workflow-toggle-btn" type="button" title="Toggle guided workflow"
-            aria-label="Toggle guided workflow" aria-pressed="true">
-            Guide
+          <button class="btn btn-ghost btn-sm" id="workflow-toggle-btn" type="button" title="Open guided workflow panel"
+            aria-label="Open guided workflow panel" aria-pressed="false">
+            Workflow
           </button>
           <button class="btn btn-ghost btn-sm theme-toggle" id="theme-toggle-btn" type="button"
             title="Toggle light/dark theme">
@@ -316,6 +296,8 @@
             <div class="scatter-toolbar__segment scatter-toolbar__segment--view draw-toolbar" role="group"
               aria-label="Drawing tools">
               <span class="scatter-toolbar__eyebrow">Draw</span>
+              <span id="draw-help-btn" class="toolbar-info-icon draw-toolbar__help" tabindex="0" role="button"
+                aria-label="Show drawing and adaptive filter help">?</span>
               <div class="scatter-toolbar__fields">
                 <label class="toolbar-field scatter-toolbar__field" for="draw-tool">
                   <span class="toolbar-field__label">Tool</span>
@@ -337,13 +319,50 @@
                     class="draw-width-input">
                 </label>
                 <div class="scatter-toolbar__actions">
-                  <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings">
-                    Clear
-                  </button>
+                  <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings"
+                    aria-label="Clear drawings">Clear drawings</button>
                   <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button"
-                    title="Clear adaptive line filters (Shift+C)">Clear Filter</button>
+                    title="Clear adaptive line filters (Shift+C)" hidden aria-label="Clear adaptive line filters">Clear
+                    filters</button>
                 </div>
               </div>
+            </div>
+
+            <div class="scatter-toolbar__segment scatter-toolbar__segment--display y-range-toolbar" role="group"
+              aria-label="Y-range options">
+              <span class="scatter-toolbar__eyebrow">Y range</span>
+              <span id="y-range-help" class="toolbar-info-icon" tabindex="0"
+                aria-label="Explain y-range controls"
+                data-info-tip="Stack from 0 clamps the display floor at zero.&#10;Percentile hides the top and bottom tails by the selected percent.&#10;IQR expands from Q1/Q3 by k × IQR.">ⓘ</span>
+              <div class="scatter-toolbar__fields">
+                <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field" for="y-stack-from-zero">
+                  <span class="toolbar-field__label">Zero floor</span>
+                  <span class="toolbar-field__control scatter-link-toggle">
+                    <input id="y-stack-from-zero" type="checkbox" aria-label="Pin y-axis lower bound to zero">
+                    <span>Pin lower bound</span>
+                  </span>
+                </label>
+                <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field" for="y-robust-range-toggle">
+                  <span class="toolbar-field__label">Spike clamp</span>
+                  <span class="toolbar-field__control scatter-link-toggle">
+                    <input id="y-robust-range-toggle" type="checkbox" aria-label="Use a robust display-only y-range">
+                    <span>Hide spike-driven span</span>
+                  </span>
+                </label>
+                <label class="toolbar-field scatter-toolbar__field" for="y-robust-range-mode">
+                  <span class="toolbar-field__label">Mode</span>
+                  <select id="y-robust-range-mode" aria-label="Robust y-range mode" disabled>
+                    <option value="percentile" selected>Percentile</option>
+                    <option value="iqr">IQR</option>
+                  </select>
+                </label>
+                <label class="toolbar-field scatter-toolbar__field" for="y-robust-range-param">
+                  <span class="toolbar-field__label">Param</span>
+                  <input id="y-robust-range-param" type="number" min="0" step="0.1" value="1"
+                    aria-label="Robust y-range parameter" disabled>
+                </label>
+              </div>
+              <span id="y-range-hint" class="toolbar-field__hint" hidden></span>
             </div>
 
             <div class="scatter-toolbar__segment scatter-toolbar__segment--display labels-toolbar" role="group"
@@ -408,6 +427,21 @@
                 <span class="zoom-range-badge" id="zoom-range-badge">Viewing 100%</span>
                 <button class="btn btn-ghost btn-sm" id="zoom-reset-btn" type="button"
                   title="Reset zoom to initial view">↺</button>
+              </div>
+            </div>
+
+            <div class="scatter-toolbar__segment scatter-toolbar__segment--range quick-range-toolbar" role="group"
+              aria-label="Quick range">
+              <span class="scatter-toolbar__eyebrow">Quick range</span>
+              <div class="scatter-toolbar__controls">
+                <button class="btn btn-ghost btn-sm" id="quick-range-24h" type="button" title="Last 24 hours (UTC)"
+                  disabled>24h</button>
+                <button class="btn btn-ghost btn-sm" id="quick-range-7d" type="button" title="Last 7 days (UTC)"
+                  disabled>7d</button>
+                <button class="btn btn-ghost btn-sm" id="quick-range-30d" type="button" title="Last 30 days (UTC)"
+                  disabled>30d</button>
+                <button class="btn btn-ghost btn-sm" id="quick-range-all" type="button" title="Full dataset range"
+                  disabled>All</button>
               </div>
             </div>
           </div>
@@ -597,7 +631,7 @@
 
         <div class="analysis-toolbar scatter-stats-bar">
           <div class="scatter-stats-bar__suggestions scatter-suggestions-bar">
-            <span id="scatter-suggestions-label" class="toolbar-label">Suggestions (|corr| ≥ 0.70)</span>
+            <span id="scatter-suggestions-label" class="toolbar-label">Base-column suggestions (|corr| ≥ 0.70)</span>
             <div class="scatter-suggestions-controls">
               <label class="scatter-inline-label" for="scatter-suggestion-threshold">Threshold</label>
               <input id="scatter-suggestion-threshold" type="range" min="0.30" max="0.95" step="0.05" value="0.70"
@@ -639,6 +673,7 @@
                 <canvas id="scatter-colorbar" class="scatter-colorbar-vbar" aria-hidden="true"></canvas>
                 <span id="scatter-colorbar-min" class="scatter-colorbar-vtick">0.00</span>
                 <span id="scatter-colorbar-name" class="scatter-colorbar-vname">Color</span>
+                <span id="scatter-colorbar-cardinality" class="scatter-colorbar-cardinality" hidden></span>
               </div>
             </div>
             <div id="scatter-correlation-overlay" class="scatter-correlation-overlay" hidden></div>
@@ -806,6 +841,20 @@
         <div class="fft-traces-bar" id="fft-traces-bar" hidden></div>
         <main class="main main--analysis-chart">
           <div id="fft-chart" style="width:100%;height:100%;"></div>
+          <div id="fft-spectral-info" class="fft-spectral-info" hidden aria-live="polite">
+            <span class="fft-spectral-info__row">
+              <span class="fft-spectral-info__label">Sample rate</span>
+              <span id="fft-spectral-info-rate" class="fft-spectral-info__value">—</span>
+            </span>
+            <span class="fft-spectral-info__row">
+              <span class="fft-spectral-info__label">Nyquist</span>
+              <span id="fft-spectral-info-nyquist" class="fft-spectral-info__value">—</span>
+            </span>
+            <span class="fft-spectral-info__row">
+              <span class="fft-spectral-info__label">Top peaks</span>
+              <span id="fft-spectral-info-peaks" class="fft-spectral-info__value">—</span>
+            </span>
+          </div>
           <div id="fft-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong>Select one or more traces</strong>
             <span>Choose column chips below to compute FFT or PSD overlays for this range.</span>
@@ -827,9 +876,9 @@
                 <span id="heatmap-metric-info" class="toolbar-info-icon" tabindex="0"
                   aria-label="Explain correlation metric choices" data-info-tip="">?</span>
                 <select id="heatmap-metric" class="modal-select" aria-label="Correlation metric">
-                  <option value="pearson_raw" selected>Pearson · Raw aligned values</option>
-                  <option value="spearman_raw">Spearman · Raw aligned values</option>
-                  <option value="kendall_raw">Kendall tau · Raw aligned values</option>
+                  <option value="pearson_raw" selected>Pearson · Original level comparison</option>
+                  <option value="spearman_raw">Spearman · Original level comparison</option>
+                  <option value="kendall_raw">Kendall tau · Original level comparison</option>
                   <option value="pearson_diff">Pearson · First differences</option>
                   <option value="spearman_diff">Spearman · First differences</option>
                   <option value="kendall_diff">Kendall tau · First differences</option>
@@ -857,6 +906,16 @@
                   <span>Group similar</span>
                 </span>
               </label>
+              <div class="toolbar-field scatter-toolbar__field scatter-toolbar__field--fit" role="group"
+                aria-label="Heatmap fit to screen">
+                <span class="toolbar-field__label">Fit</span>
+                <span class="toolbar-field__control">
+                  <button id="heatmap-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn"
+                    aria-pressed="false" title="Snap matrix to panel width">
+                    Auto-fit
+                  </button>
+                </span>
+              </div>
             </div>
           </div>
 
@@ -902,12 +961,29 @@
               <label class="toolbar-field scatter-toolbar__field" for="spectrogram-win-size">
                 <span class="toolbar-field__label">Window</span>
                 <select id="spectrogram-win-size" class="modal-select" aria-label="FFT window size">
-                  <option value="64">64</option>
-                  <option value="128">128</option>
-                  <option value="256" selected>256</option>
-                  <option value="512">512</option>
-                  <option value="1024">1024</option>
+                  <option value="32">32 (~8h @ 15min)</option>
+                  <option value="64">64 (~16h @ 15min)</option>
+                  <option value="96" selected>96 (1 day @ 15min)</option>
+                  <option value="128">128 (~1.3d @ 15min)</option>
+                  <option value="192">192 (2 days @ 15min)</option>
+                  <option value="256">256 (~2.7d @ 15min)</option>
+                  <option value="512">512 (~5.3d @ 15min)</option>
+                  <option value="1024">1024 (~10.7d @ 15min)</option>
+                  <option value="custom">Custom…</option>
                 </select>
+                <input id="spectrogram-win-size-custom" class="modal-input" type="number" min="16" max="4096" step="1"
+                  value="96" aria-label="Custom FFT window size" hidden disabled>
+              </label>
+              <label class="toolbar-field scatter-toolbar__field" for="spectrogram-hop-size">
+                <span class="toolbar-field__label">Hop</span>
+                <select id="spectrogram-hop-size" class="modal-select" aria-label="STFT hop size">
+                  <option value="0.25">25% (75% overlap)</option>
+                  <option value="0.5" selected>50% (50% overlap)</option>
+                  <option value="0.75">75% (25% overlap)</option>
+                  <option value="custom">Custom…</option>
+                </select>
+                <input id="spectrogram-hop-size-custom" class="modal-input" type="number" min="1" step="1" value="48"
+                  aria-label="Custom STFT hop size" hidden disabled>
               </label>
               <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
                 for="spectrogram-log-scale">
@@ -951,7 +1027,7 @@
             </div>
           </div>
 
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
             <span class="scatter-toolbar__eyebrow">Export</span>
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
               <details class="toolbar-disclosure toolbar-disclosure--end">
@@ -977,7 +1053,6 @@
           </div>
 
           <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
-            <span class="scatter-toolbar__eyebrow">Run</span>
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
               <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">▶
                 Compute</button>
@@ -989,19 +1064,14 @@
             <div id="spectrogram-chart" style="flex:1 1 auto;width:100%;height:100%;display:block;min-width:0;"></div>
             <div id="spectrogram-colorbar" class="scatter-colorbar-vertical" aria-label="Spectrogram colorbar" hidden>
               <span class="scatter-colorbar-vtick" data-role="cb-high">High</span>
-              <span class="scatter-colorbar-vtick cb-mid-tick" data-role="cb-mid-high" hidden></span>
               <div class="cb-range-track" data-role="cb-track">
                 <span class="scatter-colorbar-vbar"></span>
-                <span class="cb-mid-tick-mark cb-mid-tick-mark--high" data-role="cb-mid-mark-high" hidden></span>
-                <span class="cb-mid-tick-mark cb-mid-tick-mark--mid" data-role="cb-mid-mark-mid" hidden></span>
-                <span class="cb-mid-tick-mark cb-mid-tick-mark--low" data-role="cb-mid-mark-low" hidden></span>
                 <span class="cb-range-fill" data-role="cb-fill" hidden></span>
                 <span class="cb-handle cb-handle--high" data-role="cb-handle-high" tabindex="0" role="slider"
                   aria-label="Filter high value" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></span>
                 <span class="cb-handle cb-handle--low" data-role="cb-handle-low" tabindex="0" role="slider"
                   aria-label="Filter low value" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></span>
               </div>
-              <span class="scatter-colorbar-vtick cb-mid-tick" data-role="cb-mid-low" hidden></span>
               <span class="scatter-colorbar-vtick" data-role="cb-low">Low</span>
               <span class="scatter-colorbar-vname">scaled</span>
             </div>
@@ -1113,6 +1183,14 @@
                 Compute</button>
             </div>
           </div>
+        </div>
+        <div id="causal-status" class="analysis-status" role="status" aria-live="polite"></div>
+        <!-- Progress bar -->
+        <div id="causal-progress" class="causal-progress-wrap" hidden>
+          <div class="causal-progress-track">
+            <div class="causal-progress-fill" id="causal-progress-fill"></div>
+          </div>
+          <span class="causal-progress-label" id="causal-progress-label"></span>
         </div>
         <div class="fft-traces-bar" id="causal-columns-bar"
           style="flex-wrap:wrap;gap:6px;padding:6px 12px;border-bottom:1px solid var(--border);min-height:34px;">
@@ -1228,12 +1306,6 @@
                 <span class="scatter-toolbar__field-label">Latest N</span>
                 <input id="drift-latest-n" type="number" min="1" step="1" value="3" class="modal-input"
                   aria-label="Latest window count">
-              </div>
-              <div class="scatter-toolbar__field">
-                <span class="scatter-toolbar__field-label">Segment</span>
-                <select id="drift-segment-by" class="modal-select" aria-label="Segment by column">
-                  <option value="" selected>None</option>
-                </select>
               </div>
             </div>
           </div>
@@ -1356,21 +1428,13 @@
             </div>
           </div>
         </div>
+        <div id="drift-status" class="analysis-status" role="status" aria-live="polite">
+          Select one or more columns, choose a baseline, and press Compute.
+        </div>
         <main class="main main--chart">
-          <div id="drift-investigation-tabs" class="drift-list-controls" aria-label="Drift investigation tabs">
-            <button type="button" class="btn btn-ghost btn-sm active" data-drift-tab="overview" aria-pressed="true">Overview</button>
-            <button type="button" class="btn btn-ghost btn-sm" data-drift-tab="timeline" aria-pressed="false">Timeline plots</button>
-            <button type="button" class="btn btn-ghost btn-sm" data-drift-tab="segments" aria-pressed="false">Segments</button>
-            <button type="button" class="btn btn-ghost btn-sm" data-drift-tab="quality" aria-pressed="false">Quality</button>
-            <button type="button" class="btn btn-ghost btn-sm" data-drift-tab="relationships" aria-pressed="false">Relationships</button>
-          </div>
-          <div id="drift-overview-panel" class="drift-column-summary" aria-live="polite"></div>
-          <div id="drift-segments-panel" class="drift-column-summary" aria-live="polite" hidden></div>
-          <div id="drift-quality-panel" class="drift-column-summary" aria-live="polite" hidden></div>
-          <div id="drift-relationships-panel" class="drift-column-summary" aria-live="polite" hidden></div>
           <div id="drift-summary-strip" class="drift-summary-strip" aria-live="polite"></div>
           <div id="drift-column-summary" class="drift-column-summary" aria-live="polite"></div>
-          <div class="drift-layout" hidden>
+          <div class="drift-layout">
             <!-- Left: macro timeline + legend -->
             <div class="drift-timeline-panel">
               <div class="drift-timeline-canvas-wrap">
@@ -1454,7 +1518,9 @@
                 <div class="home-dataset-icon">
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
                     stroke-linejoin="round">
-                    <polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />
+                    <ellipse cx="8" cy="3.5" rx="5.5" ry="2" />
+                    <path d="M2.5 3.5v4.5c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V3.5" />
+                    <path d="M2.5 8v4.5c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V8" />
                   </svg>
                 </div>
                 <div class="home-dataset-info">
@@ -1466,6 +1532,7 @@
                 and power metrics.</p>
               <div class="home-dataset-tags">
                 <span class="home-dataset-tag">Time-series</span>
+                <span class="home-dataset-tag home-dataset-tag--primary">Best first stop: Timeseries</span>
                 <span class="home-dataset-tag home-dataset-tag--rows">69K rows</span>
                 <span class="home-dataset-tag home-dataset-tag--size">7 columns</span>
               </div>
@@ -1522,6 +1589,13 @@
           </div>
         </div>
 
+        <div class="home-section" id="home-top-correlations-section" hidden>
+          <h2 class="home-section-title">Top correlations (current dataset)</h2>
+          <p class="home-section-copy">Strongest pairs across the full numeric matrix — click any pair to jump to
+            scatter with that X/Y already selected.</p>
+          <div id="home-top-correlations" class="home-top-pairs" aria-label="Top correlations"></div>
+        </div>
+
         <div class="home-section">
           <h2 class="home-section-title">Recommended workflow</h2>
           <p class="home-section-copy">Start with the core path, then branch into advanced analyses only after you know
@@ -1546,14 +1620,14 @@
             <div class="home-card-icon">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
                 stroke-linejoin="round">
-                <polyline points="1,10 4,6 7,12 10,3 13,8 15,7" />
+                <path d="M1 9C2.6 6 4.1 4.8 5.7 6.1C6.6 6.8 7.2 8.2 8 8.2C9.1 8.2 9.7 4.2 11 4.2C12.2 4.2 12.6 7.2 13.5 8.1C14 8.6 14.5 8.4 15 7.2" />
               </svg>
             </div>
             <h3 class="home-card-title">Timeseries <kbd>⌥2</kbd></h3>
-            <p class="home-card-desc">WebGPU-accelerated multi-series chart with zoom, custom colors, rolling bands,
-              anomaly detection, and adaptive line filters.</p>
+            <p class="home-card-desc">WebGPU-accelerated multi-series chart with zoom, custom colors, and a guided path
+              into deeper rolling, anomaly, and filter tools.</p>
           </div>
-          <div class="home-card" data-home-nav="heatmap" tabindex="0" role="button">
+          <div class="home-card" data-home-nav="correlations" tabindex="0" role="button">
             <div class="home-card-icon">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
                 stroke-linejoin="round">
@@ -1692,8 +1766,8 @@
             <div class="upload-source-tabs" role="tablist" aria-label="Upload source">
               <button class="btn btn-sm active" id="upload-source-file-btn" type="button" role="tab"
                 aria-selected="true" data-upload-source="file">File</button>
-              <button class="btn btn-sm btn-ghost" id="upload-source-database-btn" type="button" role="tab"
-                aria-selected="false" data-upload-source="database">Database</button>
+              <button class="btn btn-sm" id="upload-source-database-btn" type="button" role="tab" aria-selected="false"
+                data-upload-source="database">Database</button>
             </div>
 
             <div class="upload-source-panel upload-source-panel--file" data-upload-source-panel="file">
@@ -1773,11 +1847,15 @@
                   </svg>
                   Upload & Ingest
                 </button>
-              </div>
-              <div id="upload-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite"
-                aria-label="Upload progress">
-                <div class="chart-loading-spinner"></div>
-                <span class="chart-loading-label">Uploading &amp; ingesting…</span>
+                <div class="progress-bar-wrap" id="progress-wrap" style="display:none" role="progressbar"
+                  aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Upload progress">
+                  <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <div id="upload-loading" class="chart-loading-overlay upload-loading" hidden role="status"
+                  aria-live="polite" aria-label="Upload in progress">
+                  <div class="chart-loading-spinner"></div>
+                  <span class="chart-loading-label">Uploading…</span>
+                </div>
               </div>
             </div>
 
@@ -1850,13 +1928,37 @@
               <span class="toolbar-label">File Preview</span>
               <span class="profile-mode-badge" id="profile-mode-badge" data-mode="dataset">Current dataset</span>
               <div class="upload-preview-selection">
+                <span class="upload-preview-selection-text">Selection</span>
                 <button class="btn btn-select" id="profile-select-all-btn" type="button">All</button>
                 <button class="btn btn-select" id="profile-select-none-btn" type="button">None</button>
               </div>
-              <input type="text" id="profile-filter-input" class="column-filter-input" placeholder="Filter columns…"
-                aria-label="Filter profile columns">
+              <div class="upload-preview-type-group">
+                <span class="upload-preview-selection-text">Type</span>
+                <div class="profile-filter-categories" role="group" aria-label="Profile filter category">
+                  <button class="btn btn-select profile-filter-category-btn is-active" id="profile-filter-category-all"
+                    type="button" data-category="all">All</button>
+                  <button class="btn btn-select profile-filter-category-btn" id="profile-filter-category-numeric"
+                    type="button" data-category="numeric">Numeric</button>
+                  <button class="btn btn-select profile-filter-category-btn" id="profile-filter-category-datetime"
+                    type="button" data-category="datetime">Datetime</button>
+                </div>
+              </div>
+              <div class="upload-preview-filter">
+                <input type="text" id="profile-filter-input" class="column-filter-input" placeholder="Filter columns…"
+                  aria-label="Filter profile columns">
+              </div>
               <span class="upload-preview-status" id="upload-preview-status" role="status" aria-live="polite">Select a
                 file to preview columns</span>
+            </div>
+            <div class="upload-preview-guide" aria-label="Upload preview guidance">
+              <div class="upload-preview-guide__card">
+                <span class="upload-preview-guide__label">Source status</span>
+                <strong class="upload-preview-guide__value" id="upload-source-guidance">File mode · waiting for a CSV or Parquet file.</strong>
+              </div>
+              <div class="upload-preview-guide__card">
+                <span class="upload-preview-guide__label">Next step</span>
+                <strong class="upload-preview-guide__value" id="upload-next-step-guidance">Choose a file, preview the detected columns, then ingest the selected set.</strong>
+              </div>
             </div>
 
             <span id="profile-grid-caption" class="sr-only">Column profile preview with selectable columns for upload
@@ -2205,10 +2307,11 @@
             <div class="settings-section">
               <div class="settings-section-title">Layout</div>
               <div class="settings-row">
-                <label class="settings-label" for="settings-layout">Density</label>
+                <label class="settings-label" for="settings-layout" title="Controls overall interface spacing and compactness">Layout density</label>
                 <div class="settings-control">
                   <select id="settings-layout" class="modal-select">
                     <option value="spacious">Spacious</option>
+                    <option value="roomy">Roomy</option>
                     <option value="compact">Compact</option>
                   </select>
                 </div>
@@ -2268,9 +2371,9 @@
                 <label class="settings-label" for="settings-correlation">Default correlation mode</label>
                 <div class="settings-control">
                   <select id="settings-correlation" class="modal-select">
-                    <option value="pearson_raw">Pearson · Raw aligned values</option>
-                    <option value="spearman_raw">Spearman · Raw aligned values</option>
-                    <option value="kendall_raw">Kendall tau · Raw aligned values</option>
+                    <option value="pearson_raw">Pearson · Original level comparison</option>
+                    <option value="spearman_raw">Spearman · Original level comparison</option>
+                    <option value="kendall_raw">Kendall tau · Original level comparison</option>
                     <option value="pearson_diff">Pearson · First differences</option>
                     <option value="spearman_diff">Spearman · First differences</option>
                     <option value="kendall_diff">Kendall tau · First differences</option>
@@ -2367,6 +2470,7 @@
             <div class="modal-actions-right">
               <button class="btn btn-ghost" id="settings-cancel-btn" type="button">Cancel</button>
               <button class="btn btn-primary" id="settings-apply-btn" type="button">Apply</button>
+              <span id="settings-apply-indicator" class="settings-apply-indicator" hidden aria-hidden="true"></span>
             </div>
           </div>
         </div>

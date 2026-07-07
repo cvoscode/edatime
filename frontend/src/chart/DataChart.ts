@@ -756,7 +756,11 @@ export class DataChart {
             const span = baseMax! - baseMin!;
             const padding = span === 0 ? Math.max(1, Math.abs(this._lastDataYMax!) * 0.05) : span * 0.05;
             const lower = this._stackFromZero ? Math.max(0, baseMin!) : baseMin!;
-            option.min = lower - (this._stackFromZero ? 0 : padding);
+            const shouldClampToNonNegativeFloor = this._stackFromZero
+                || (baseMin! >= 0 && (this._lastDataYMin ?? baseMin!) >= 0);
+            option.min = shouldClampToNonNegativeFloor
+                ? Math.max(0, lower - (this._stackFromZero ? 0 : padding))
+                : lower - padding;
             option.max = baseMax! + padding;
         }
         return option;
@@ -1238,9 +1242,10 @@ export class DataChart {
         for (const band of bands) {
             const n = band.ts.length;
             if (n < 2) continue;
+            const bandColor = band.color || getSeriesColor(band.column, appState.selectedCols.indexOf(band.column));
 
             // 2-sigma band (lighter)
-            ctx.fillStyle = rollingPalette.rollingBandOuter;
+            ctx.fillStyle = this._applyAlphaToColor(bandColor, 0.18) || rollingPalette.rollingBandOuter;
             ctx.beginPath();
             let started = false;
             for (let i = 0; i < n; i++) {
@@ -1258,7 +1263,7 @@ export class DataChart {
             ctx.fill();
 
             // 1-sigma band (slightly darker)
-            ctx.fillStyle = rollingPalette.rollingBandInner;
+            ctx.fillStyle = this._applyAlphaToColor(bandColor, 0.32) || rollingPalette.rollingBandInner;
             ctx.beginPath();
             started = false;
             for (let i = 0; i < n; i++) {
@@ -1276,7 +1281,7 @@ export class DataChart {
             ctx.fill();
 
             // Mean line
-            ctx.strokeStyle = rollingPalette.rollingMeanStroke;
+            ctx.strokeStyle = this._applyAlphaToColor(bandColor, 0.9) || rollingPalette.rollingMeanStroke;
             ctx.lineWidth = 1.5 * Math.min(scale.x, scale.y);
             ctx.setLineDash([6, 3]);
             ctx.beginPath();
@@ -1314,9 +1319,26 @@ export class DataChart {
 
         ctx.save();
         const anomalyPalette = getChartPalette();
-        ctx.fillStyle = anomalyPalette.anomalyFill;
-        ctx.strokeStyle = anomalyPalette.anomalyStroke;
         ctx.lineWidth = 1 * Math.min(scale.x, scale.y);
+
+        if (appState.anomalyGlobalEnabled && appState.anomalySummaryStats) {
+            const mergedRanges = regions
+                .map((region) => [Math.max(xMin, region.start_ms), Math.min(xMax, region.end_ms)] as const)
+                .filter(([start, end]) => start < end)
+                .sort((a, b) => a[0] - b[0]);
+            const unionRanges: Array<[number, number]> = [];
+            for (const [start, end] of mergedRanges) {
+                const prev = unionRanges[unionRanges.length - 1];
+                if (prev && start <= prev[1]) prev[1] = Math.max(prev[1], end);
+                else unionRanges.push([start, end]);
+            }
+            ctx.fillStyle = this._applyAlphaToColor(anomalyPalette.anomalyStroke, 0.09);
+            for (const [rStart, rEnd] of unionRanges) {
+                const sx = plotLeft + ((rStart - xMin) / (xMax - xMin)) * plotWidth;
+                const ex = plotLeft + ((rEnd - xMin) / (xMax - xMin)) * plotWidth;
+                ctx.fillRect(sx, plotTop, Math.max(2, ex - sx), plotHeight);
+            }
+        }
 
         for (const region of regions) {
             const rStart = Math.max(xMin, region.start_ms);
@@ -1326,11 +1348,27 @@ export class DataChart {
             const sx = plotLeft + ((rStart - xMin) / (xMax - xMin)) * plotWidth;
             const ex = plotLeft + ((rEnd - xMin) / (xMax - xMin)) * plotWidth;
             const w = Math.max(2, ex - sx);
+            const regionColor = getSeriesColor(region.column, appState.selectedCols.indexOf(region.column));
 
+            ctx.fillStyle = this._applyAlphaToColor(regionColor, 0.16) || anomalyPalette.anomalyFill;
+            ctx.strokeStyle = this._applyAlphaToColor(regionColor, 0.55) || anomalyPalette.anomalyStroke;
             ctx.fillRect(sx, plotTop, w, plotHeight);
             ctx.strokeRect(sx, plotTop, w, plotHeight);
         }
         ctx.restore();
+    }
+
+    private _applyAlphaToColor(color: string, alpha: number): string {
+        if (color.startsWith('#')) {
+            const r = parseInt(color.slice(1, 3), 16);
+            const g = parseInt(color.slice(3, 5), 16);
+            const b = parseInt(color.slice(5, 7), 16);
+            return `rgba(${r},${g},${b},${alpha})`;
+        }
+        if (color.startsWith('rgb(')) {
+            return color.replace('rgb(', 'rgba(').replace(')', `,${alpha})`);
+        }
+        return color;
     }
 
     private _renderAdaptiveFilterLinesToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {

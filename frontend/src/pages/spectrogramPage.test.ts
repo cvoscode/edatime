@@ -23,6 +23,11 @@ vi.mock('../utils/bindExportButtons.js', () => ({
     bindExportButtons: vi.fn(),
 }));
 
+const toastMock = vi.fn();
+vi.mock('../utils/toast.js', () => ({
+    toast: (...args: unknown[]) => toastMock(...args),
+}));
+
 class ResizeObserverStub {
     observe() { /* noop */ }
     unobserve() { /* noop */ }
@@ -60,6 +65,7 @@ vi.mock('../app/pageLifecycle.js', () => ({
 
 describe('spectrogramPage', () => {
     beforeEach(() => {
+        toastMock.mockReset();
         document.body.innerHTML = `
             <div id="spectrogram-chart"></div>
             <div id="spectrogram-empty-state"></div>
@@ -92,9 +98,9 @@ describe('spectrogramPage', () => {
               </div>
             </div>
             <select id="spectrogram-normalize">
-              <option value="none" selected>None</option>
+              <option value="none">None</option>
               <option value="minmax">Min-max [0,1]</option>
-              <option value="zscore">Z-score</option>
+              <option value="zscore" selected>Z-score</option>
               <option value="robust">Robust [Q1, Q3]</option>
             </select>
             <input id="spectrogram-clip-toggle" type="checkbox" />
@@ -176,8 +182,11 @@ describe('spectrogramPage colorbar filter', () => {
             firstEchartsInstance = echartsInstances[0];
         }
         echartsInitMock.mockClear();
+        toastMock.mockReset();
         document.body.innerHTML = `
             <section id="page-spectrogram">
+              <div id="spectrogram-summary"></div>
+              <label><input id="spectrogram-auto-fit-toggle" type="checkbox" checked />Auto-fit</label>
               <div id="spectrogram-chart"></div>
               <div class="spectrogram-chart-row">
                 <div id="spectrogram-colorbar" class="scatter-colorbar-vertical" hidden>
@@ -209,8 +218,8 @@ describe('spectrogramPage colorbar filter', () => {
               <input id="spectrogram-log-scale" type="checkbox" checked />
               <button id="spectrogram-zoom-reset-btn">Reset zoom</button>
               <select id="spectrogram-normalize">
-                <option value="none" selected>None</option>
-                <option value="zscore">Z-score</option>
+                <option value="none">None</option>
+                <option value="zscore" selected>Z-score</option>
               </select>
               <input id="spectrogram-clip-toggle" type="checkbox" />
               <select id="spectrogram-clip-method" disabled><option value="percentile" selected>Percentile</option></select>
@@ -243,7 +252,7 @@ describe('spectrogramPage colorbar filter', () => {
         expect(wrap?.hidden).toBe(false);
         expect(wrap?.querySelector('[data-role="cb-high"]')?.textContent).toMatch(/^High/);
         expect(wrap?.querySelector('[data-role="cb-low"]')?.textContent).toMatch(/^Low/);
-        expect(wrap?.querySelector('.scatter-colorbar-vname')?.textContent).toBe('log10');
+        expect(wrap?.querySelector('.scatter-colorbar-vname')?.textContent).toContain('[0,1]');
     });
 
     it('renders spectrogram axes with extra padding so titles cannot collide with ticks', async () => {
@@ -253,10 +262,28 @@ describe('spectrogramPage colorbar filter', () => {
 
         expect(option.grid.left).toBeGreaterThanOrEqual(88);
         expect(option.grid.top).toBeGreaterThanOrEqual(36);
-        expect(option.xAxis.nameGap).toBeGreaterThanOrEqual(56);
+        expect(option.xAxis.nameGap).toBeLessThanOrEqual(52);
         expect(option.yAxis.nameGap).toBeGreaterThanOrEqual(72);
         expect(option.yAxis.name).toBe('Frequency (µHz)');
         expect(option.yAxis.axisLabel.formatter(0.00028)).toBe('280.00 µHz');
+        expect(option.xAxis.axisLabel.rotate).toBeLessThanOrEqual(15);
+        expect(option.xAxis.axisLabel.formatter(option.xAxis.data[0])).not.toContain('\n');
+        expect(option.xAxis.axisLabel.formatter(option.xAxis.data[0])).toMatch(/[/:]/);
+    });
+
+    it('renders a spectrogram summary and auto-fits the y-range to the dominant band', async () => {
+        await mountAndCompute();
+
+        const instance = echartsInstances[echartsInstances.length - 1];
+        const yZoomCalls = instance.dispatchAction.mock.calls.filter(([action]: any[]) =>
+            action?.type === 'dataZoom' && action?.dataZoomIndex === 1
+        );
+
+        expect(document.getElementById('spectrogram-summary')?.textContent).toContain('Spectrogram of test_col');
+        expect(document.getElementById('spectrogram-summary')?.textContent).toContain('Window 96');
+        expect(document.getElementById('spectrogram-summary')?.textContent).toContain('Hop 48');
+        expect(document.getElementById('spectrogram-summary')?.textContent).toMatch(/(z-score|min-max|robust|raw)/i);
+        expect(yZoomCalls.some(([action]: any[]) => action.start > 0 || action.end < 100)).toBe(true);
     });
 
     it('auto-computes on first load when a default column is already selected', async () => {
@@ -273,6 +300,11 @@ describe('spectrogramPage colorbar filter', () => {
         }
 
         expect(vi.mocked(fetchSpectrogram).mock.calls.length).toBe(beforeCalls + 1);
+        expect(toastMock).toHaveBeenCalledWith(
+            'Loaded HUFL automatically. Pick another column and press Compute to switch.',
+            'info',
+            expect.anything(),
+        );
     });
 
     it('treats normalize as a staged control and only applies it after Compute', async () => {

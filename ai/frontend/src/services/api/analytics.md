@@ -1,35 +1,49 @@
 # ai/frontend/src/services/api/analytics.md
-> Frontend API client for analytics endpoints — rolling bands, anomaly detection, FFT, spectrogram, causal graph, transforms, outlier removal, spectral filtering.
+> Frontend client for rolling-band, anomaly, FFT, spectrogram, causal, transform, correlation-matrix, outlier-removal, and spectral-filter endpoints.
 
-## Interfaces (request/response shapes)
-- `export interface RollingBand { ts[], mean[], upper1[], lower1[], upper2[], lower2[] }`, `RollingResponse { column, window_size, bands: RollingBand[] }` — Rolling band request/response.
-- `export interface AnomalyRegion { start_ms, end_ms, score, severity }`, `AnomalyResponse { regions: AnomalyRegion[] }` — IQR/Z-score anomaly detection response.
-- `export interface FrequencyPeak { frequency, power, amplitude }, FftResult { frequencies[], powers[], amplitudes[] }, FftResponse { column, result: FftResult }` — FFT computation response.
-- `export interface SpectrogramResult { time[], freq[], power[] }, SpectrogramResponse { result: SpectrogramResult }`, `SpectrogramScaleOptions { scale?: 'log' | 'linear', filter_type?: string }` — STFT spectrogram request/response with optional spectral filtering.
-- `export interface CausalLink { from, to, strength, p_value }`, `CausalGraphResponse { nodes[], edges: CausalLink[] }` — Causal inference graph response.
-- `export interface TransformResponse { columns: string[], result: Record<string, number[]> }` — Column transform response (apply transformation and return new column).
-- `export interface CorrelationMatrixResponse { columns[], pearson_raw?, spearman_raw?, kendall_raw? }` — NxN correlation matrix.
-- `export interface OutlierRemovalResult { removed_count, stats: Record<string, number[]> }`, `SpectralFilterResponse { filtered: Record<string, number[]>, original: Record<string, number[]> }` — Outlier removal and spectral filter responses.
+## Interfaces
+- `RollingBand`
+  - `{ column: string; ts: number[]; mean: (number | null)[]; upper1: (number | null)[]; lower1: (number | null)[]; upper2: (number | null)[]; lower2: (number | null)[] }`
+- `RollingResponse`
+  - `{ bands: RollingBand[] }`
+- `AnomalyRegion`
+  - `{ column: string; method: string; start_ms: number; end_ms: number; score: number }`
+- `SummaryStats`
+  - `{ mean: number; std: number; min: number; max: number }`
+- `AnomalyResponse`
+  - `{ method: string; threshold: number; regions: AnomalyRegion[]; summary_stats?: SummaryStats | null }`
+- `FrequencyPeak`
+  - `{ frequency_hz: number; magnitude: number; power: number; rank: number }`
+- `FftResult`
+  - `{ column: string; frequencies: number[]; magnitudes: number[]; psd: number[]; sample_rate_hz: number; nyquist_hz: number; dominant_peaks: FrequencyPeak[] }`
+- `FftResponse`
+  - `{ sample_count: number; results: FftResult[] }`
+- `SpectrogramResult`
+  - `{ column: string; times_ms: number[]; frequencies: number[]; magnitudes: number[][] }`
+- `SpectrogramResponse`
+  - `{ sample_count: number; result: SpectrogramResult }`
+- `SpectrogramScaleOptions`
+  - `{ normalize?: string; clip?: string; clipParam?: number }`
+- `CausalLink`
+  - `{ source: string; target: string; lag: number; type: string; value: number; pvalue: number }`
+- `CausalGraphResponse`
+  - `{ columns: string[]; tau_max: number; links: CausalLink[]; graph: string[][][]; val_matrix: number[][][]; p_matrix: number[][][] }`
+- `TransformResponse`
+  - `{ status: string; column: string; expression: string }`
+- `CorrelationMatrixResponse`
+  - `{ columns: string[]; pearson?: (number | null)[][]; spearman?: (number | null)[][]; pearson_raw?: (number | null)[][]; spearman_raw?: (number | null)[][]; kendall_raw?: (number | null)[][]; pearson_diff?: (number | null)[][]; spearman_diff?: (number | null)[][]; kendall_diff?: (number | null)[][] }`
+- `OutlierRemovalResult`
+  - `{ method: string; columns: string[]; rows_before: number; rows_after: number; rows_removed: number }`
+- `SpectralFilterResponse`
+  - `{ column: string; ts: number[]; values: number[]; filter_type: string; low_hz?: number; high_hz?: number }`
 
 ## Functions
-- `async function fetchRollingBands(payload): Promise<RollingResponse>` [deps: [ROLLING_ENDPOINT][1]]
-  - POST to rolling band endpoint with window size and column configuration.
-
-- `async function fetchAnomalies(payload): Promise<AnomalyResponse>` — POST to anomaly detection endpoint.
-
-- `async function fetchFft(payload): Promise<FftResponse>` — POST to FFT computation endpoint.
-
-- `async function fetchSpectrogram(payload): Promise<SpectrogramResponse>` — POST to spectrogram/STFT endpoint with optional scale/filter options.
-
-- `async function fetchCausalGraph(payload): Promise<CausalGraphResponse>` — POST to causal inference endpoint.
-
-- `async function applyTransform(payload): Promise<TransformResponse>` — POST column transform (e.g., log, diff).
-
-- `async function fetchCorrelationMatrix(mode?): Promise<CorrelationMatrixResponse>` — GET correlation matrix with optional mode filter.
-
-- `async function removeOutliers(payload): Promise<OutlierRemovalResult>` — POST outlier removal endpoint.
-
-- `async function applySpectralFilter(payload): Promise<SpectralFilterResponse>` — POST spectral filtering endpoint.
-
----
-[1]: ../../constants.md#ROLLING_ENDPOINT
+- `fetchRollingBands(start: string, end: string, columns: string, window?: number, signal?: AbortSignal): Promise<RollingResponse>`
+- `fetchAnomalies(start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal): Promise<AnomalyResponse>`
+- `fetchFft(start: string, end: string, columns: string, maxPoints?: number, signal?: AbortSignal): Promise<FftResponse>`
+- `fetchSpectrogram(start: string, end: string, column: string, windowSize?: number, hopSize?: number, maxPoints?: number, signal?: AbortSignal, scaleOptions?: SpectrogramScaleOptions): Promise<SpectrogramResponse>`
+- `fetchCausalGraph(columns: string[], tauMax?: number, alpha?: number, method?: string, maxPoints?: number, signal?: AbortSignal, pcAlpha?: number, test?: string, maxCondsDim?: number, fdrMethod?: string): Promise<CausalGraphResponse>`
+- `postTransform(expression: string, outputName: string): Promise<TransformResponse>`
+- `fetchCorrelationMatrix(): Promise<CorrelationMatrixResponse>`
+- `postRemoveOutliers(columns: string[] | null, method?: string, threshold?: number, window?: number): Promise<OutlierRemovalResult>`
+- `fetchSpectralFilter(params: URLSearchParams, signal?: AbortSignal): Promise<SpectralFilterResponse>`

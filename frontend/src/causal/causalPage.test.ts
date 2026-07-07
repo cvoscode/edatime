@@ -9,9 +9,13 @@ vi.mock('../services/api/index.js', () => ({
     fetchCausalGraph: vi.fn(),
 }));
 
-vi.mock('./causalComparison.js', () => ({
-    notifyCausalGraphUpdated: vi.fn(),
-}));
+vi.mock('./causalComparison.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('./causalComparison.js')>();
+    return {
+        ...actual,
+        notifyCausalGraphUpdated: vi.fn(),
+    };
+});
 
 vi.mock('../utils/toast.js', () => ({
     toast: mocks.toast,
@@ -81,6 +85,7 @@ describe('causal page chart bootstrap', () => {
               <div id="causal-columns-bar"></div>
               <button id="causal-add-edge-btn" type="button">Add edge</button>
               <button id="causal-export-btn" type="button">Export</button>
+              <button id="causal-save-run-btn" type="button">Save Run</button>
               <div id="causal-export-menu" hidden></div>
               <div id="causal-ctx-menu" hidden></div>
               <button id="causal-ctx-edit" type="button">Edit</button>
@@ -91,6 +96,14 @@ describe('causal page chart bootstrap', () => {
               <div id="causal-chart"></div>
               <div id="causal-empty-state"></div>
               <div id="causal-loading" hidden></div>
+              <div id="causal-compare-panel">
+                <select id="causal-compare-run-a"></select>
+                <select id="causal-compare-run-b"></select>
+                <button id="causal-compare-run-btn" type="button">Compare</button>
+                <button id="causal-compare-clear-btn" type="button">Clear All</button>
+                <div id="causal-saved-runs-list"></div>
+                <div id="causal-compare-results"></div>
+              </div>
             </section>
         `;
 
@@ -184,6 +197,32 @@ describe('causal page chart bootstrap', () => {
         expect(document.querySelector('[data-col="HUFL"]')?.getAttribute('aria-pressed')).toBe('true');
         expect(document.querySelector('[data-col="HULL"]')?.getAttribute('aria-pressed')).toBe('true');
         expect(document.querySelector('[data-col="OT"]')?.getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('keeps graph-only actions disabled until a causal graph exists', async () => {
+        const { initCausalPage } = await import('./causalPage.js');
+        const { resetSelectionState } = await import('./selectionState.js');
+        resetSelectionState();
+
+        initCausalPage({
+            getMetadata: () => ({
+                numeric_columns: ['HUFL', 'HULL'],
+                columns: [
+                    { name: 'HUFL', dtype: 'Float64' },
+                    { name: 'HULL', dtype: 'Float64' },
+                ],
+            }),
+            chipColor: () => '#00d4ff',
+            numericColumns: () => ['HUFL', 'HULL'],
+            setLoading: vi.fn(),
+        });
+
+        expect((document.getElementById('causal-add-edge-btn') as HTMLButtonElement).disabled).toBe(true);
+        expect((document.getElementById('causal-export-btn') as HTMLButtonElement).disabled).toBe(true);
+        expect((document.getElementById('causal-save-run-btn') as HTMLButtonElement).disabled).toBe(true);
+        expect((document.getElementById('causal-compare-run-btn') as HTMLButtonElement).disabled).toBe(true);
+        expect((document.getElementById('causal-compare-clear-btn') as HTMLButtonElement).disabled).toBe(true);
+        expect(document.getElementById('causal-saved-runs-list')?.textContent).toContain('Run Compute first');
     });
 
 });

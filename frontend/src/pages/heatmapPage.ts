@@ -25,6 +25,7 @@ let heatmapClusterEnabled = true;
 // Default to fit-on so the matrix fills the available panel width on first
 // load; users can still turn it off when they want slider-driven overflow.
 let heatmapFitToScreen = true;
+let heatmapAxisFit = false;
 const HEATMAP_FIT_STORAGE_KEY = 'edatime_heatmap_fit_to_screen';
 // Hardcoded clustering cutoff. Exposed as a constant (rather than a slider)
 // because the threshold is rarely useful to tune interactively and the
@@ -90,8 +91,9 @@ function setHeatmapLoading(loading: boolean, label?: string): void {
     }
 }
 
-function correlationColor(value: number): string {
-    const clamped = Math.max(-1, Math.min(1, value));
+function correlationColor(value: number, maxAbs = 1): string {
+    const domain = Math.max(1e-6, maxAbs);
+    const clamped = Math.max(-1, Math.min(1, value / domain));
     if (clamped >= 0) {
         const t = clamped;
         const r = Math.round(245 - t * (245 - 190));
@@ -104,6 +106,24 @@ function correlationColor(value: number): string {
     const g = Math.round(245 - t * (245 - 112));
     const b = Math.round(245 - t * (245 - 180));
     return `rgb(${r},${g},${b})`;
+}
+
+function getColorDomainMax(data: (number | null)[][]): number {
+    if (!heatmapAxisFit) return 1;
+    let maxAbs = 0;
+    for (let row = 0; row < data.length; row++) {
+        for (let col = 0; col < data[row]!.length; col++) {
+            if (row === col) continue;
+            const value = data[row]![col];
+            if (value == null || !Number.isFinite(value)) continue;
+            maxAbs = Math.max(maxAbs, Math.abs(value));
+        }
+    }
+    return maxAbs > 0 ? maxAbs : 1;
+}
+
+function formatScaleTick(value: number): string {
+    return Math.abs(value) >= 1 ? value.toFixed(1) : value.toFixed(2);
 }
 
 function correlationToneClass(value: number | null): string {
@@ -212,6 +232,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         }
 
         syncHeatmapEmptyState('', false);
+        const colorDomainMax = getColorDomainMax(data);
         // Make the matrix fill the available shell width: derive a cell
         // size from the container's client width and the user's cell-size
         // preference, instead of locking the grid to size * heatmapCellSize.
@@ -303,7 +324,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                 const colOriginal = orderToOriginal.get(c) ?? c;
                 const value = data[rowOriginal]?.[colOriginal] ?? null;
                 const displayValue = value !== null ? value.toFixed(2) : '—';
-                const background = value !== null ? correlationColor(value) : 'transparent';
+                const background = value !== null ? correlationColor(value, colorDomainMax) : 'transparent';
                 const textColor = correlationTextColor(value);
                 const toneClass = correlationToneClass(value);
                 const tooltip = `${rowName} × ${colName}: ${displayValue}${rowOriginal !== colOriginal ? ' — click to explore in Scatter' : ''}`;
@@ -318,9 +339,9 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         html += cells.join('');
         html += '</div>';
         html += '<div class="heatmap-scale" aria-label="Correlation color scale">';
-        html += '<span class="heatmap-scale__tick heatmap-scale__tick--positive">+1.0</span>';
+        html += `<span class="heatmap-scale__tick heatmap-scale__tick--positive">+${formatScaleTick(colorDomainMax)}</span>`;
         html += '<div class="heatmap-scale__bar" aria-hidden="true"></div>';
-        html += '<span class="heatmap-scale__tick heatmap-scale__tick--negative">-1.0</span>';
+        html += `<span class="heatmap-scale__tick heatmap-scale__tick--negative">-${formatScaleTick(colorDomainMax)}</span>`;
         html += '</div>';
         html += '</div>';
 
@@ -365,6 +386,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             const sizeValue = document.getElementById('heatmap-cell-size-value') as HTMLElement | null;
             const clusterToggle = document.getElementById('heatmap-cluster-toggle') as HTMLInputElement | null;
             const fitToggle = document.getElementById('heatmap-fit-toggle') as HTMLButtonElement | null;
+            const axisFitToggle = document.getElementById('heatmap-axis-fit-toggle') as HTMLButtonElement | null;
             if (!container) return;
 
             metric = normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
@@ -380,6 +402,10 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             if (fitToggle) {
                 fitToggle.setAttribute('aria-pressed', String(heatmapFitToScreen));
                 fitToggle.classList.toggle('is-active', heatmapFitToScreen);
+            }
+            if (axisFitToggle) {
+                axisFitToggle.setAttribute('aria-pressed', String(heatmapAxisFit));
+                axisFitToggle.classList.toggle('is-active', heatmapAxisFit);
             }
             // Sync the custom `--range-fill` property so the slider
             // track's accent fill matches the current value on first
@@ -407,6 +433,12 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                 writeHeatmapFitPref(heatmapFitToScreen);
                 fitToggle.setAttribute('aria-pressed', String(heatmapFitToScreen));
                 fitToggle.classList.toggle('is-active', heatmapFitToScreen);
+                renderHeatmap();
+            });
+            axisFitToggle?.addEventListener('click', () => {
+                heatmapAxisFit = !heatmapAxisFit;
+                axisFitToggle.setAttribute('aria-pressed', String(heatmapAxisFit));
+                axisFitToggle.classList.toggle('is-active', heatmapAxisFit);
                 renderHeatmap();
             });
             heatmapResizeObserver?.disconnect();

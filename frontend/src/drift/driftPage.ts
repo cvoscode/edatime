@@ -18,6 +18,7 @@ import {
     driftColor,
     filterResponseForEvaluation,
     formatValue,
+    statusSummary as buildStatusSummary,
 } from './viewModels.js';
 import type {
     DriftChangePointRank,
@@ -94,6 +95,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
     const refPresetSelect = document.getElementById('drift-ref-preset') as HTMLElement | null;
     const evaluationModeSelect = document.getElementById('drift-evaluation-mode') as HTMLElement | null;
     const latestNInput = document.getElementById('drift-latest-n') as HTMLInputElement | null;
+    const latestNHelper = document.getElementById('drift-latest-n-helper') as HTMLElement | null;
     const segmentBySelect = document.getElementById('drift-segment-by') as HTMLElement | null;
     const ksThresholdInput = document.getElementById('drift-ks-threshold') as HTMLInputElement | null;
     const esThresholdInput = document.getElementById('drift-es-threshold') as HTMLInputElement | null;
@@ -116,6 +118,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
     const sortSelect = document.getElementById('drift-sort-select') as HTMLElement | null;
     const summaryStripEl = document.getElementById('drift-summary-strip') as HTMLElement | null;
     const columnSummaryEl = document.getElementById('drift-column-summary') as HTMLElement | null;
+    const statusEl = document.getElementById('drift-status') as HTMLElement | null;
     const overviewPanelEl = document.getElementById('drift-overview-panel') as HTMLElement | null;
     const segmentsPanelEl = document.getElementById('drift-segments-panel') as HTMLElement | null;
     const qualityPanelEl = document.getElementById('drift-quality-panel') as HTMLElement | null;
@@ -213,6 +216,27 @@ export async function initDriftPage(metadata: any): Promise<void> {
         if (message) emptyState.innerHTML = `<strong>No drift data</strong><span>${message}</span>`;
         emptyState.hidden = !show;
         driftLayoutEl?.classList.toggle('drift-empty-active', show);
+    }
+
+    function setIdleStatus(): void {
+        if (!statusEl) return;
+        statusEl.textContent = 'Select one or more columns, choose a baseline, and press Compute.';
+    }
+
+    function setComputedStatus(
+        responsesByColumn: Map<string, DriftResponse>,
+        failedColumns: string[] = [],
+    ): void {
+        if (!statusEl) return;
+        const summary = buildStatusSummary(responsesByColumn, failedColumns);
+        if (summary.windowsTotal === 0) {
+            setIdleStatus();
+            return;
+        }
+        const hint = summary.flaggedTotal === summary.windowsTotal && summary.windowsTotal > 0
+            ? ' Every window is flagged; consider relaxing thresholds or using a longer baseline.'
+            : '';
+        statusEl.textContent = `Drift analysis complete. ${summary.flaggedTotal} of ${summary.windowsTotal} windows flagged.${hint}`;
     }
 
     function updateDetailColumnSelect(): void {
@@ -437,6 +461,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
         setResponses(getFilteredResponses(results));
         updateDetailColumnSelect();
         statusSummary(failedColumns);
+        setComputedStatus(getResponsesByColumn(), failedColumns);
         renderSummaryPanels();
         renderTimelineLocal();
         renderDetailLocal();
@@ -754,6 +779,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
         {
             getSelectedColumns,
             runCompute,
+            onSelectionChange: setIdleStatus,
             exportDriftCsv,
             exportDriftJson,
             renderTimeline: renderTimelineLocal,
@@ -778,6 +804,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
             refPresetSelect,
             evaluationModeSelect,
             latestNInput,
+            latestNHelper,
             refStartInput,
             refEndInput,
             computeBtn,
@@ -810,6 +837,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
     });
     updateSegmentBySelect();
     setActiveTab(activeTab);
+    setIdleStatus();
 
     scheduleDriftChartRefresh();
 

@@ -22,7 +22,15 @@ import { getNumericColumns, getDefaultTimeseriesColumns } from './analyticsPageU
 import type { DatasetMetadata, ViewSnapshot } from '../types.js';
 
 export interface TimeseriesModuleDeps {
-    fetchData: (start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<import('../types.js').DataObject>;
+    fetchData: (
+        start: string,
+        end: string,
+        width: number,
+        columns?: string,
+        colorColumn?: string | null,
+        lookaroundMs?: number,
+        signal?: AbortSignal,
+    ) => Promise<import('../types.js').DataObject>;
     fetchMetadata: () => Promise<DatasetMetadata>;
     ensurePrimaryChartCtor: () => Promise<new (
         containerId: string,

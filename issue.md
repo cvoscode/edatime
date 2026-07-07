@@ -1,414 +1,669 @@
-# EdaTime app review (ETTm2 walkthrough)
+# EdaTime UI/UX walkthrough — 2026-07-06
 
-Walked through the app using the **ETTm2** sample dataset (`HUFL, HULL, MUFL,
-MULL, LUFL, LULL, OT`, 69 680 rows). Reviewed the running app in the browser
-and inspected the backend API responses. This document lists observed issues
-and a fix plan per issue. Severity is the user's-visible impact.
+This file lists concrete UI/UX problems observed by **only interacting with
+the running app** in a browser (Spectrogram, Causal, Drift + brief checks of
+Timeseries). The companion "Plan of fixes" section at the bottom maps each
+issue to a concrete fix shape so it can be implemented without
+re-investigating the symptom.
 
-Severity legend: **H** high (blocks primary use), **M** medium (visual or
-workflow friction), **L** low (polish).
+The walkthrough used the **ETTm2** sample dataset (69 680 rows, 7 numeric
+columns + a `date` time column at 15-minute resolution) loaded via the
+home-page "Try with sample data" cards. All findings are reproducible from a
+fresh browser session without touching the source.
 
-## Top priorities to address first
+> The previous walkthrough (`issue.md.bak`, 2026-07-05) had **25 issues
+> (F1–F25)** with a plan of fixes. This re-walkthrough confirms:
+> - **Some prior issues are fixed** (Spectrogram auto-pick now has a toast;
+>   FFT no longer shows stuck "Computing…" copy).
+> - **Several prior issues remain unchanged** (Y-axis auto-fit, hidden
+>   disabled controls, multi-select chip pattern on Drift, threshold jargon,
+>   empty-state CTAs).
+> - **A new critical regression** on the **Causal page**: clicking
+>   Compute sends a valid request to `/api/analytics/causal`, but the
+>   response is never rendered — the main `<main>` area stays empty.
+> - **A new clarity issue** on Drift: every window is flagged RED
+>   (`363/363` flagged windows for both selected columns), which makes the
+>   default thresholds look wrong for ETTm2.
 
-1. **Scatter "No scatter points found"** when "Link chart range" is on but no
-   range is set (Issue 6, H).
-2. **Scatter Y-axis wrong / y-floor stripe** (Issues 7, 8, H).
-3. **Correlation colormap inverted** for positive values (Issue 17, H).
-4. **Drift Start/End timezone shift + 363/363 flag-everything** (Issues 14,
-   15, H).
-5. **Timeseries legend overlapping Y-axis labels on zoom** (Issue 3, H).
-
----
-
-## Issues found
-
-### 1. Timeseries "X of N active" counter is stale (M)
-
-After toggling MUFL on (4 of 7 columns active), the label still reads
-`3 of 7 active. Click chips to add more.`. The legend/trace group updates
-correctly, but the inline count text doesn't.
-
-### 2. Timeseries chips and "Filter columns" row have broken layout (M)
-
-When chips overflow (more than ~5 selected), the row containing
-"Series / Filter columns…" input gets pushed down and the chips render above
-the toolbar row, leaving the SERIES label isolated in the upper-left and the
-chips floating between two unrelated rows. The two rows should be one
-horizontally-scrolling group.
-
-### 3. Timeseries chart legend overlaps Y-axis labels on zoom-in (H)
-
-After zooming to a narrow range, the right-side floating trace legend (HUFL,
-HULL, OT, MUFL) renders on top of the Y-axis tick labels (`61.11`, `46.53`),
-making both unreadable.
-
-### 4. Timeseries hides negative values for HULL when "Pin lower bound" is on (M)
-
-With `Pin lower bound = 0` and the default chart range, HULL values below
-zero are silently clipped at the floor (real HULL range is
-`min=-29.32, max=36.44`). Users lose visibility of negative excursions and
-of the 30.03.2017 large outlier cluster.
-
-### 5. Timeseries "Viewing X%" indicator behaves oddly after Quick Range (L)
-
-After pressing `7d`, the indicator briefly showed `Viewing 1%`. Likely a
-fraction-vs-percent formatting glitch while the chart is settling.
-
-### 6. Scatter reports "No scatter points found" when "Link chart range" is on with no time filter (H)
-
-With Link chart range enabled but no active time range / adaptive filters,
-the scatter view shows:
-`No scatter points found — No points match active filters (1 column, 0 adaptive).`
-even though the density backdrop clearly contains data. Toggling the checkbox
-off recovers the points.
-
-### 7. Scatter Y-axis range is wrong for HULL (H)
-
-The Y-axis displays ticks at `1.49, 13.44, 25.40, 37.36` for HULL when
-`HULL.min=-29.32, HULL.max=36.44`. The negative half is missing and a
-horizontal "stripe" of points at `y ≈ 1.49` is visible, indicating a partial
-drop / floor in the axis padding. Likely a `min > max` or `pad < 0` bug in
-the axis-fit logic.
-
-### 8. Scatter density shows a long horizontal bright bar at the y-axis floor (M)
-
-In density mode the entire row at `y = 1.49` is lit up, including parts of
-the canvas far away from the data cluster. Looks like zero / NaN
-substitutions, or a missing y-bin on the bins array.
-
-### 9. FFT page only plots 2 of N selected columns by default (M)
-
-The chip row shows 7 columns but only `HUFL` and `HULL` are pressed. This is
-a reasonable default but the selection is not visible on the legend until
-the user toggles chips. No hint explains that the chart starts with only
-two.
-
-### 10. FFT Y-axis shows negative "log10(Magnitude)" values (M)
-
-Magnitudes are non-negative. After log, log10(magnitude) should also be
-non-negative. Current axis shows `0.164, -0.615, -1.393, -2.171, -2.949`.
-Either log10 is being applied to a value that has been centered/scaled, or
-the axis is offset incorrectly. Either way, "log10(Magnitude)" should
-produce values ≥ 0.
-
-### 11. Spectrogram X-axis labels are rotated to a near-vertical angle (M)
-
-Time labels like `06/20 09:45` are tilted almost 90°, fighting each other
-and the next tick. Auto-rotate is too aggressive; should use a shallower
-angle or fewer ticks.
-
-### 12. Spectrogram color range is dominated by yellow (M)
-
-Default color range is `-3.998 .. 0.575` (LOG10). With "None" normalize and
-no clipping, ~99 % of pixels saturate at the bright yellow end. Either the
-default normalize/clipping is wrong, or the colorbar isn't being computed
-from the visible data range.
-
-### 13. Causal workflow banner has an empty action box with only ✕ (M)
-
-On the Causal page the guided-workflow card shows
-`✓ 4 completed → Causal` and then a small empty box containing only an `✕`
-button. There is no "Open …" action button for the current step. On
-non-current pages (Upload, Scatter) the workflow banner shows the correct
-action button (e.g. "Open Timeseries", "Open Scatter"). The Causal
-branch is missing the action button or the empty placeholder is wrong.
-
-### 14. Drift page uses an off-by-2-hour timestamp for Start/End (H)
-
-Default reference shows `Start: 01/07/2016 02:00` and `End: 28/06/2017 23:52`
-while the dataset spans `2016-07-01 00:00:00` to `2018-06-26 19:45:00`.
-The start is shifted by 2 hours and the end is shifted to the wrong day
-boundary. Looks like a TZ conversion (Europe/Berlin?) is applied to a
-UTC-stored time column. Reference window therefore does not align with
-the data.
-
-### 15. Drift flags every window as RED (363/363) for every column (H)
-
-All seven columns show `Flagged windows: 363/363` with PSI > 5, Wasserstein
-> 2, KS p ≈ 0. ETTm2 has real concept drift, but **identical 363/363 across
-every column and identical "Strongest reasons: psi_major, wasserstein, ks,
-es"** suggests a degenerate comparison — possibly caused by the wrong
-reference window (#14) or by comparing daily windows that don't overlap
-the reference range.
-
-### 16. Drift "Columns" picker shows a single value instead of a multi-select (M)
-
-The Columns pill shows `HUFL` / `7 columns` but it isn't styled like a
-multi-select pill — it looks like a single-select combobox until the user
-opens the dialog. Users miss that this is a multi-select.
-
-### 17. Correlation matrix colormap appears inverted for positive values (H)
-
-The diagonal `1.00` cells render dark red, off-diagonal `0.67` cells render
-in white/light pink, and `0.91` (HULL↔MULL) is lighter than `0.67` (HUFL↔LUFL).
-The mapping appears reversed: brighter = lower |corr|, darker red = higher
-|corr|. Negative values render in light blue that is hard to read on the
-dark background.
-
-### 18. Settings page not verified in this pass (—)
-
-Settings link exists in the sidebar but was not exercised; flagged for a
-follow-up walkthrough.
-
-### 19. Home page sample cards: text overflow / inconsistent CTA label (L)
-
-"Upload a file to get started" sits in the hero CTA; the sample cards under
-"Try with sample data" include the badge `Best first stop: Timeseries` for
-ETTm2 but the same-style card for Sinusoidal has `FFT` only. The badge is
-helpful, but the helper line under each card is slightly clipped on the
-Sinusoidal card at default zoom.
-
-### 20. Several chart overlays / export controls not exercised (—)
-
-`Drawing tools`, `Analytics → Bands, anomalies, cleanup`, `Annotations`,
-and `Export → SVG/JSON/Parquet` were not exercised end-to-end. They are
-flagged for a follow-up pass; likely candidates for similar staleness
-issues to #1.
+Issues are grouped by page; severity is the user-visible impact × how often
+the user hits it. New issues use the `S#` prefix to distinguish them from
+the prior walkthrough's `F#` set.
 
 ---
 
-## Fix plan
-
-Each plan is sized to be a single PR / commit. Items ordered by impact.
-
-### F1. Fix scatter "No scatter points found" when Link chart range is on but empty (Issue 6)
-
-Goal: When "Link chart range" is on, the scatter query should still return
-data unless the user explicitly selected a chart viewport that has no
-overlap with the scatter range.
-
-Suggested approach:
-
-- Audit `frontend/src/scatter/*` for the link-chart-range wiring. Confirm
-  that an empty linked range is treated as "no filter" instead of "filter
-  that matches nothing".
-- In `frontend/src/services/api/scatter.ts` (or equivalent transport
-  helper), make sure that an empty `start/end` pair is dropped from the
-  request payload, mirroring the timeseries data fetcher.
-- Add a regression test that mounts the scatter page with "Link chart
-  range" checked and an empty viewport, asserts no empty-state copy is
-  shown, and asserts a non-zero `returned_points` in the latest fetch.
-- Add a `tests/unit_tests.rs` / frontend test covering: empty linked range
-  → no filter, non-empty → filter applied.
-
-### F2. Fix scatter Y-axis range and the bright stripe at y = 1.49 (Issues 7, 8)
-
-Goal: HULL (and other columns) should render with their full range, and no
-horizontal stripe should appear.
+## Summary table
 
-Suggested approach:
+| #       | Page        | Title                                                                  | Severity |
+|---------|-------------|------------------------------------------------------------------------|----------|
+| S1      | Spectrogram | Y-axis stretches to 555 µHz — most of the heatmap is empty purple     | High     |
+| S2      | Spectrogram | Colorbar `Z-SCORE → [...]` caption clipped at right edge of viewport   | Medium   |
+| S3      | Spectrogram | X-axis date labels overlap (`07/01`, `09/12` readable, others cramped) | Medium   |
+| S4      | Spectrogram | No "what am I looking at" caption / metadata summary above the chart    | Low      |
+| C1      | Causal      | **Graph never renders** — clicking Compute leaves `<main>` empty       | Critical |
+| C2      | Causal      | Duplicate toast "PCMCI: running causal discovery..." fired twice       | High     |
+| C3      | Causal      | Empty main canvas has no placeholder / CTA / preview before Compute   | High     |
+| C4      | Causal      | "GRAPH" toolbar exposes `+ Edge` / `Export` / `Save Run` before run    | Medium   |
+| C5      | Causal      | Parameters row has 5 fields + 5 `ⓘ` tooltips on a single row           | Medium   |
+| C6      | Causal      | "Run Comparison" panel sits at the very bottom, empty, no hint         | Medium   |
+| D1      | Drift       | Status banner "Select one or more columns…" persists after a run      | High     |
+| D2      | Drift       | **All 363/363 daily windows flagged RED** — thresholds too tight for ETTm2 | High   |
+| D3      | Drift       | Timeline chart Y-axis unlabeled (no "Score / Magnitude" axis title)    | Medium   |
+| D4      | Drift       | "Evaluate" dropdown value truncated to `All later win...`              | Medium   |
+| D5      | Drift       | "Columns" button hides multi-select behind a single dropdown click     | Medium   |
+| D6      | Drift       | "THRESHOLDS" group is jargon (`PSI + Wass + KS + E-S`) with no tooltip | Medium   |
+| D7      | Drift       | Window selector shows 24-hour ranges even when Window = "Daily"       | Medium   |
+| D8      | Drift       | "Latest N" disabled when "All later windows" mode is on — no hint why  | Low      |
+| F4*     | Timeseries  | Y-axis still includes negative range for strictly-positive data       | High     |
+| F11*    | Spectrogram | Auto-pick toast appears (FIXED vs previous walkthrough)               | —        |
+| F10*    | FFT         | "Computing…" copy no longer sticks (FIXED vs previous walkthrough)    | —        |
 
-- Locate the axis-fit logic in `frontend/src/scatter/rendering.ts` (or
-  wherever the density/scatter option builder lives).
-- Confirm that axis bounds use `[min, max]` of the visible points,
-  including negatives; never clamp by `[0, max]`.
-- Confirm that empty bins are still binned into the y-bin array (no
-  division by zero or `min >= max` shortcut).
-- For the stripe: verify there is no `if (y === undefined) y = 0` default;
-  filter out `null/undefined` and non-finite values before computing
-  density, and skip missing bins.
-- Add a fixture of 1000 random points including negatives, assert no
-  y-floor stripe, assert `y_axis_min < 0`.
-
-### F3. Fix correlation matrix colormap (Issue 17)
+\* = carried over from the prior walkthrough; status indicated where known.
 
-Goal: Strong positive correlations should look bright/saturated, weak
-correlations pale, negatives blue. Number labels must stay legible.
+---
 
-Suggested approach:
-
-- Locate the colormap construction in
-  `frontend/src/scatter/correlationsPanel.ts` (or matrix mode).
-- Pick a diverging colormap (e.g. RdBu reversed) and anchor it at `[-1, 0,
-  +1]` with `0` as the neutral midpoint.
-- Sanity check by asserting the diagonal cell color is the most saturated
-  end of the scale and the `0` cell is at the neutral midpoint.
-- Bump contrast on numeric labels (white or near-white text on saturated
-  cells, dark text on pale cells, or always a contrasting stroke).
-- Add a unit test that renders a known matrix and asserts the colors at
-  `[i,i]`, `[0,1]`, and `[0,1]` where `corr = -1`.
+## Detail per issue
 
-### F4. Fix Drift Start/End timezone shift (Issue 14)
+### Spectrogram
 
-Goal: The reference Start/End inputs should display the dataset's actual
-UTC time, not a shifted value.
+#### S1 — Y-axis stretches to 555 µHz; most of the chart is empty purple
 
-Suggested approach:
+**Where:** `/#page=spectrogram`, ETTm2 with HUFL selected, Window = 96, Hop = 50%, Z-score normalize.
 
-- Find the formatter used for the Start/End inputs
-  (`frontend/src/pages/driftPage.ts` or similar).
-- The dataset stores `date` as `datetime[ms]` already in UTC. Verify the
-  formatter is `formatInUtc(...)` and not `formatInLocal(...)`.
-- Once shifted back to UTC, the default `First 50%` should land near
-  `2016-07-01 00:00 → 2017-06-28 ~00:00` instead of `02:00 → 23:52`.
-- Add a regression test that loads ETTm2, reads the displayed reference
-  start, and asserts it equals `2016-07-01T00:00`.
+**What I see:** The frequency axis goes from `0.00 µHz` to `555.56 µHz`. All
+visible signal sits in the bottom ~10 % of the heatmap (below ~46 µHz).
+Above that, the canvas is uniform dark purple, indicating near-zero
+spectral energy.
 
-### F5. Fix Drift all-windows-flagged regression (Issue 15)
+**Impact:** Looks broken to first-time users. Same root cause as the FFT
+problem F8 from the previous walkthrough — the default frequency window
+doesn't match the dominant signal content of slow time series.
 
-Goal: Drift results should reflect real distribution shifts, not flag
-every window uniformly.
+---
 
-Suggested approach:
+#### S2 — Colorbar `Z-SCORE → [...]` caption clipped at right edge
 
-- Verify the reference window is actually applied. The 363/363 across
-  every column plus identical "Strongest reasons" suggests a single
-  shared comparison result is being reused per column without proper
-  per-column windowing.
-- Confirm the backend route `POST /api/drift/stats` (or equivalent)
-  computes the reference per column or takes the reference window once
-  and applies it consistently.
-- Sanity-check by running drift against a stable synthetic series (e.g.
-  sine wave) — it should not flag every window.
-- Add a backend integration test asserting that two disjoint windows of
-  the same stable distribution report `Flagged ≈ 0`.
+**Where:** bottom-right corner of the spectrogram canvas.
 
-### F6. Make Timeseries active-count text reactive (Issue 1)
+**What I see:** The colorbar legend reads `Z-SCORE → [...]` and the value
+text is truncated at the right edge of the viewport, so the actual
+target range (`[0, 1]`) is partially hidden.
 
-Goal: "X of N active" updates immediately on chip toggle.
+**Impact:** Users can't tell at a glance what the colour scale means.
 
-Suggested approach:
+---
 
-- Find the active-count text node in `frontend/src/features/timeseries/*`
-  (likely a derived value). Replace any memoized/read-once value with a
-  live read of `selectedSeries.length` from the store.
-- Add a vitest unit test that toggles chips and asserts the text updates
-  synchronously.
+#### S3 — X-axis date labels overlap
 
-### F7. Fix Timeseries chips / Filter-columns layout (Issue 2)
+**Where:** spectrogram time axis.
 
-Goal: Series chip row + Filter columns input should be one tidy
-horizontally-scrolling group that doesn't push other rows around.
+**What I see:** Tick labels are rotated ~30° but still overlap. Only
+`07/01`, `09/12`, `11/23`, `02/04`, `04/17`, `06/29`, `09/09`, `11/21`,
+`02/01`, `04/15` are partially readable; others are stacked.
 
-Suggested approach:
+**Impact:** Time orientation is hard to read on a wide canvas.
 
-- Audit the toolbar flex layout in the Timeseries page toolbar module.
-  Ensure the chips wrapper has `flex-wrap: wrap` with the input sticking
-  to the left, and that it does not break onto a separate row above the
-  controls toolbar.
-- If the right-side workflow hint can't fit, it should be allowed to
-  collapse below the chips, not above.
-- Add a Playwright screenshot regression at two viewports (1280 and
-  1600 width) with all 7 columns selected, capturing the layout.
+---
 
-### F8. Move Timeseries legend out of the chart plot area on zoom (Issue 3)
+#### S4 — No "what am I looking at" caption
 
-Goal: Legend must not overlap Y-axis labels.
+**Where:** above the spectrogram canvas.
 
-Suggested approach:
+**What I see:** The toolbar at top shows `Column: HUFL · Window: 96 ·
+Hop: 50% · Scale: Log · Normalize: Z-score · Clip: Outliers`, but the
+chart itself has no header showing what the visualization represents or
+the time/frequency ranges.
 
-- In `frontend/src/chart/DataChart.ts`, when the chart is zoomed-in (small
-  X span), relocate the trace legend to the toolbar area (next to
-  "Series") or pin it to the top-left *inside* the toolbar wrapper, not
-  inside the SVG canvas.
-- Verify the floating legend is removed (or moved) when chart width is
-  small.
-- Add a Playwright screenshot regression for both initial and zoomed-in
-  states.
+**Impact:** New users can't immediately orient themselves.
 
-### F9. Make negative Y values visible when Pin lower bound is off (Issue 4)
+---
 
-Goal: HULL negative excursions should remain visible.
+### Causal
 
-Suggested approach:
+#### C1 — **Graph never renders** — Compute runs, but `<main>` stays empty
 
-- In `frontend/src/features/timeseries/entrypoint.ts` and related, verify
-  the default Y-range is computed from `Math.min`/`Math.max` over visible
-  points and that "Pin lower bound" only kicks in when explicitly
-  enabled. With the default off, negatives should be visible.
+**Where:** `/#page=causal`, ETTm2, HUFL + HULL + OT (or any subset) selected.
 
-### F10. Replace single-value Columns pill with a multi-select pill (Issue 16)
+**What I see:**
 
-Goal: Drift Columns pill should look and act as a multi-select.
+1. Click `▶ Compute`.
+2. A toast appears: "PCMCI: running causal discovery..." (see C2 about
+   duplication).
+3. After ~5–60 s the toast disappears.
+4. The `<main>` area is **completely empty**. No SVG, no canvas, no
+   placeholder, no error message.
 
-Suggested approach:
+I verified the API works fine via curl:
+```
+POST /api/analytics/causal
+{"columns":["HUFL","HULL","OT"],"tau_max":3,"alpha":0.05,"pc_alpha":0.2,
+ "max_conds_dim":null,"method":"pcmci","test":"parcorr","fdr_method":null}
+→ 200 OK, returns {columns, graph: 3×3×3 array, links: [...]}
+```
 
-- Locate the columns pill in the drift page UI; ensure it always shows
-  `N columns` when `N > 1`, and that the dropdown clearly indicates
-  multi-select behavior (and a quick "All / Single / None" toggle).
+The browser's network log shows `POST /api/analytics/causal` failing
+with `net::ERR_ABORTED`. The toast says "running" but the request was
+aborted (probably a duplicate request firing — see C2). The aborted
+request means **no JSON body is parsed by the renderer**, so the graph
+never gets a chance to render.
 
-### F11. Fix FFT Y-axis for log10(Magnitude) (Issue 10)
+**Impact:** The Causal page is fully broken — clicking Compute produces
+no visible feedback of success or failure. Power users will notice the
+aborted request; first-time users will assume the algorithm doesn't work.
 
-Goal: log10(Magnitude) should be ≥ 0.
+---
 
-Suggested approach:
+#### C2 — Duplicate "PCMCI: running causal discovery..." toasts
 
-- Locate the FFT Y-axis configuration. Confirm the FFT magnitude is
-  normalized before log, or that the axis `min = 0`. Magnitudes are
-  always ≥ 0; log10 of them is ≥ -∞, but typically you floor at a small
-  epsilon or shift by 1 to avoid negative infinities.
-- If log10 is intentional for small values, document and clamp the
-  axis `min = -3` or similar.
+**Where:** notification region while Compute is in flight.
 
-### F12. Tune Spectrogram axis label rotation and default normalization (Issues 11, 12)
+**What I see:** Each click of Compute produces **two identical** toasts,
+one immediately after the other. That suggests the click handler fires
+twice (likely a double event registration between the entrypoint and the
+inner `initCausalPage`).
 
-Goal: Time labels stay readable; the heatmap shows real variation instead
-of an all-yellow field.
+**Impact:** Confusing for users (looks like two runs), and one of the
+two requests gets aborted (→ C1).
 
-Suggested approach:
+---
 
-- For label rotation: in the spectrogram option builder, rotate X labels
-  by -25° or use multi-line labels instead of -90°.
-- For color: default `Normalize = Min-max` (or `Z-score`) so the colorbar
-  spans the actual data range. Disable log scale by default for cleaner
-  reads, or make log scale explicit with a more aggressive color domain.
-- Add Playwright screenshot regression at default and at "Min-max" +
-  "Outliers 1%" modes.
+#### C3 — Empty main canvas has no placeholder or CTA
 
-### F13. Repair Causal guided-workflow action button (Issue 13)
+**Where:** `/#page=causal` before any Compute.
 
-Goal: Workflow card should render the correct "Open …" action button for
-the next step, or render a clean empty state when there is no next step.
+**What I see:** `<main>` is a black void until Compute finishes.
+Compare with Drift, which has a clear "No drift analysis yet" empty state
+with a secondary line ("Select a column, adjust the reference window,
+and press Compute."). The Causal page offers nothing — no icon, no
+copy, no CTA, no preview of the selected variables.
 
-Suggested approach:
+**Impact:** New users don't know the page is ready; they may click
+nothing and assume the feature is broken.
 
-- Audit `frontend/src/components/workflow/*` (or equivalent) for the
-  empty `✕` rendering. Add a fallback when the current step has no
-  suggested next page: either hide the action box entirely or replace
-  it with "Current step" disabled state.
+---
 
-### F14. Stale "Viewing X%" indicator after Quick Range (Issue 5)
+#### C4 — GRAPH toolbar exposes actions before a graph exists
 
-Goal: The zoom indicator displays a sensible percentage as soon as the
-chart settles.
+**Where:** top-right `GRAPH` group: `+ Edge` · `Export ▾` · `Save Run` · `▶ Compute`.
 
-Suggested approach:
+**What I see:** `+ Edge`, `Export`, and `Save Run` are all enabled
+regardless of whether a graph has been computed. Clicking `Export ▾`
+produces no dropdown. Clicking `+ Edge` is undefined behaviour with no
+graph.
 
-- Confirm the zoom indicator reads from the current chart viewport, not
-  from a previous value, and that the format is integer percent with no
-  fraction when below 10 %.
+**Impact:** The toolbar is "always-on" but most actions don't make sense
+before Compute. Either disable or hide them.
 
-### F15. Verify Home sample card layout polish (Issue 19)
+---
 
-Goal: Sinusoidal sample card description fits without clipping.
+#### C5 — Parameters row density
 
-Suggested approach:
+**Where:** Parameters group on Causal.
 
-- Audit the card grid CSS so descriptions wrap to multiple lines instead
-  of clipping.
+**What I see:** `τ max · α · PC α · Max conds · FDR` all in one row, each
+followed by a `ⓘ` tooltip. Five inputs + five tooltips on a single
+horizontal row is hard to scan.
 
-### F16. Add browser-verified regression tests for the fixes above
+**Impact:** Power users adapt; first-time users bounce. (Carried over as
+F13 in the prior walkthrough; not fixed.)
 
-Goal: Every fix should land with a Playwright or vitest regression test
-that reproduces the original symptom and confirms the new behaviour.
+---
 
-Suggested approach:
+#### C6 — "Run Comparison" panel sits at the bottom, empty and unlabelled
 
-- Add a `tests/e2e_audit_tests.ts` scenario that:
-  - Loads the ETTm2 sample
-  - Walks Timeseries → Scatter → FFT → Spectrogram → Causal → Drift →
-    Correlations → Home
-  - Captures a screenshot per page
-  - Asserts the key UI invariants (legend not overlapping y-axis, scatter
-    returns points, drift does not flag all windows, correlation colors
-    match expectations, etc.)
+**Where:** bottom of the Causal page.
 
-### F17. Settings + remaining untouched controls (Issues 18, 20)
+**What I see:** After the empty main area, there's a `RUN COMPARISON`
+group with two empty `<select>` dropdowns (`Run A` vs `Run B`) and
+disabled `Compare` / `Clear All` buttons. Until the user runs Compute
+at least once, this panel is meaningless. There's no explanation of
+"Run Comparison" anywhere.
 
-Goal: Cover Settings page, drawing tools, analytics modal, annotations,
-and additional exports.
+**Impact:** It takes up vertical space and confuses new users. Either
+hide it until at least one run is saved, or add a "What is this?" link.
 
-Suggested approach:
+---
 
-- Schedule a second walkthrough that exercises each of these surfaces and
-  files follow-up issues.
+### Drift
+
+#### D1 — Status banner sticks after a successful Compute
+
+**Where:** `/#page=drift`, immediately under the toolbar.
+
+**What I see:** After pressing Compute and getting a result panel with
+HUFL & HULL cards, the status banner still reads "Select one or more
+columns, choose a baseline, and press Compute." That copy contradicts the
+results displayed below it.
+
+**Impact:** Same family of issue as the previous walkthrough's F15. Not
+fixed.
+
+---
+
+#### D2 — Every window flagged RED (363/363)
+
+**Where:** `/#page=drift`, after Compute with ETTm2 + "Daily" window.
+
+**What I see:** Both columns (HUFL, HULL) are flagged with `RED` severity.
+`Flagged windows: 363/363` for each. The timeline chart at the bottom is
+entirely red — there is no "OK" / "Watch" region visible. `Latest window
+severity: YELLOW` and `Worst window severity: RED` summary cards reflect
+this.
+
+**Impact:** For a stable sensor dataset like ETTm2, this is a strong
+signal that the **default thresholds are too tight**. The user either
+dismisses the feature as broken or assumes their data is corrupt. The
+THRESHOLDS group label (`COMPOSITE PSI + Wass + KS + E-S`) does not
+explain what knob to turn.
+
+**Recommendation:** Either auto-tune the thresholds to the data's noise
+level, or surface a clear "Why is everything red?" link next to the
+threshold label that opens a modal explaining the four tests and how to
+relax them.
+
+---
+
+#### D3 — Timeline chart Y-axis has no label
+
+**Where:** the drift timeline plot.
+
+**What I see:** Y-axis ticks read `-10, 0, 10, 20, 30, 40, 50, 60, 70`.
+There's no axis title (`Magnitude`, `Score`, `PSI`, etc.) and no hint
+about what the y-axis represents (drift score per window, presumably).
+
+**Impact:** New users can't tell if bigger is better or worse without
+reading the doc. Adding `Drift score` as a Y-axis title would close
+this gap.
+
+---
+
+#### D4 — "Evaluate" dropdown truncates "All later windows"
+
+**Where:** `Evaluate` combobox on Drift toolbar.
+
+**What I see:** Combobox value reads `All later win...` — three letters
+short of "All later windows". Same pattern as the prior walkthrough's
+F19-style truncation.
+
+**Impact:** Visible only because the toolbar is densely packed; widening
+the combobox or shortening the label to "Later windows" would fix.
+
+---
+
+#### D5 — "Columns" multi-select is hidden behind a single button
+
+**Where:** `Data → Columns` row on Drift.
+
+**What I see:** The control is a single button reading `HUFL` (or `2
+columns` once multiple are selected). It looks like a single-value
+dropdown. To multi-select you have to click and then check boxes in a
+modal dialog that includes `All / Single / None` bulk actions.
+
+**Impact:** The previous walkthrough's F14 noted this. The behaviour is
+improved (it now says "2 columns" when multiple are picked) but the
+**affordance still doesn't match the chip pattern** used on Timeseries,
+Spectrogram, and Causal — the inconsistency is the issue.
+
+**Recommendation:** Render the columns as inline chips (like the
+Timeseries `Series` chips), so multi-select is visible without a
+modal.
+
+---
+
+#### D6 — "THRESHOLDS" group is jargon with no tooltip
+
+**Where:** Drift toolbar.
+
+**What I see:** Group eyebrow says `THRESHOLDS`. The single control
+reads `Composite PSI + Wass + KS + E-S` — no tooltip, no expansion, no
+plain-language explanation. PSI, Wasserstein, Kolmogorov-Smirnov, and
+Energy-distance are all advanced statistics.
+
+**Impact:** First-time users can't tell what the thresholds group does.
+Combined with D2 (everything is RED), the user has no path forward.
+
+---
+
+#### D7 — Window selector shows 24-hour ranges while Window = "Daily"
+
+**Where:** top-right of the Drift result panel.
+
+**What I see:** A dropdown reads `HUFL - 2017-06-28 19:52 - 2017-06-29
+19:52`. The two timestamps are 24 hours apart — i.e. **the unit shown
+in the selector is one window**, not one day. Meanwhile the X-axis of
+the timeline plot also shows 24-hour slices (`2017-06-12 19:52 - 2017-06-13 19:52`).
+
+**Impact:** Confusion between "Daily" (the resolution) and "this 24-hour
+window" (the slice). The footer timeline labels should match the
+selected window unit ("day", "week", "month"), and the selector should
+say "Window 1 of 363" or similar.
+
+---
+
+#### D8 — "Latest N" disabled state has no hint
+
+**Where:** Drift toolbar.
+
+**What I see:** "Latest N" is a spinbutton showing `3` but it is disabled
+because Evaluate = "All later windows". There's no helper text or
+tooltip explaining why.
+
+**Impact:** Users see a greyed-out field and wonder if the app is buggy.
+A short subtitle like "only used with 'Latest N windows' mode" would
+resolve it.
+
+---
+
+### Timeseries (carry-overs)
+
+#### F4* — Y-axis still includes negative range for strictly-positive data
+
+**Where:** `/#page=timeseries`, ETTm2.
+
+**What I see:** Default Y-axis ticks read `-15.20, 16.80, 48.80, 80.79,
+112.79`. All seven series are strictly positive (oil temperatures).
+About 25 % of the vertical space is wasted on the negative range.
+
+**Status:** Not fixed from the prior walkthrough.
+
+---
+
+#### F11* — Spectrogram auto-pick toast appears (fixed)
+
+**Status:** The toast "Loaded HUFL automatically. Pick another column
+and press Compute to switch." now appears as expected.
+
+---
+
+#### F10* — FFT "Computing…" copy no longer sticks (fixed)
+
+**Status:** The Spectrogram's Compute button is no longer stuck on
+"Computing…"; it returns to "Compute" after the result lands. (FFT
+itself was not re-tested in this walkthrough.)
+
+---
+
+## Plan of fixes
+
+Each fix below is sized to fit inside one focused PR. Order: C1 first
+(Causal is fully broken), then D1 + D2 (Drift contradicts itself),
+then the clarity fixes (C3–C6, D3–D8, S1–S4), then the carry-overs
+(F4*).
+
+### Fix C1 — Causal Compute actually renders the graph
+
+**Goal:** Clicking Compute on Causal must produce a visible graph.
+
+**Shape:**
+
+- Investigate the `net::ERR_ABORTED` on `POST /api/analytics/causal`.
+  Possible root causes:
+  - Duplicate event registration between the feature entrypoint and the
+    page init (see C2) — one of the two requests gets aborted.
+  - The frontend request body uses `variables:` instead of `columns:`,
+    which would cause a 422 deserialization error (confirmed via curl:
+    the API expects `columns`).
+- Confirm the response handler in `frontend/src/causal/causalPage.ts`
+  (or wherever the renderer lives) actually paints the graph on a
+  successful response. Today, no SVG/canvas appears, which suggests
+  the handler either never runs or throws silently.
+- Surface any error message returned by the backend as a toast /
+  inline status, instead of failing silently.
+- Keep the request body shape in sync with the backend schema
+  (`columns`, `tau_max`, `pc_alpha`, `alpha`, `max_conds_dim`,
+  `fdr_method`, `method`, `test`).
+
+**Acceptance:**
+- Compute on Causal with 3 selected columns produces a graph in
+  `<main>` within a few seconds.
+- Compute failures (HTTP error or backend exception) produce a clear
+  toast with the error message and a Retry button.
+- No `net::ERR_ABORTED` entries in the network log.
+
+---
+
+### Fix C2 — De-duplicate the Causal Compute click handler
+
+**Shape:**
+
+- Audit where `initCausalPage` (or the Compute button handler) is
+  registered. The duplicate toast suggests the click handler is
+  bound twice — once by the feature entrypoint and once by an inner
+  page init.
+- Remove the duplicate binding. Use a single entrypoint that registers
+  exactly one listener.
+- Add an `AbortController` to the request and call `.abort()` on the
+  previous controller when a new Compute is clicked, so re-clicking
+  Compute cancels the previous run cleanly.
+
+**Acceptance:**
+- Each Compute click produces exactly one toast and one network
+  request.
+- Re-clicking Compute mid-run cancels the previous request without
+  producing an `ERR_ABORTED` console warning.
+
+---
+
+### Fix C3 — Causal empty-state with CTA
+
+**Shape:** Mirror the Drift empty-state pattern.
+
+- When no graph is loaded, render an empty-state card with:
+  - An icon
+  - Title: "No causal graph yet"
+  - Subtitle: "Press Compute to discover causal links between
+    HUFL, HULL, and OT." (replace with the actual chip selection).
+  - A primary button "Run Compute" that triggers the same handler.
+- Render the selected variable chips inside the empty state so the user
+  sees what will run.
+
+---
+
+### Fix C4 — Hide GRAPH toolbar actions until a graph exists
+
+**Shape:**
+
+- Disable `+ Edge`, `Export`, and `Save Run` until at least one
+  successful Compute has finished.
+- Once a graph exists, enable them.
+- Alternatively, render a single "Run analysis" CTA before the first
+  graph and the full toolbar after.
+
+---
+
+### Fix C5 — Causal Parameters layout
+
+**Shape:**
+
+- Split the Parameters row into two lines:
+  - Line 1: τ max, α, PC α
+  - Line 2: Max conds, FDR
+- Replace the per-field `ⓘ` tooltips with a single "What's this?"
+  link that opens a modal explaining every parameter.
+
+---
+
+### Fix C6 — Causal Run Comparison panel
+
+**Shape:**
+
+- Move "Run Comparison" next to the main `<main>` area or collapse it
+  into the toolbar until at least one run is saved.
+- Add a one-line caption: "Compare two previously-saved runs."
+
+---
+
+### Fix D1 — Refresh Drift status banner after Compute
+
+**Shape:**
+
+- Drive the status banner off `result != null`:
+  - Pre-compute: "Select one or more columns, choose a baseline, and
+    press Compute."
+  - Post-compute: "Drift analysis complete — X of Y windows flagged."
+    (or similar summary in the result color)
+  - When the user changes a column, restore the pre-compute text.
+
+---
+
+### Fix D2 — Don't flag every window RED on stable data
+
+**Shape:**
+
+- Add an "Auto-tune thresholds" toggle (default on) that adjusts the
+  PSI / Wasserstein / KS / ES thresholds relative to the reference
+  distribution's own noise floor.
+- When the auto-tune is off, show the four numeric thresholds next to
+  the THRESHOLDS button so users can see exactly what's being applied.
+- When every window is flagged, surface a non-blocking hint:
+  "Every window flagged — consider relaxing thresholds or using a
+  longer baseline."
+
+---
+
+### Fix D3 — Add a Y-axis title to the Drift timeline chart
+
+**Shape:**
+
+- Label the timeline Y-axis "Drift score" (or whatever the underlying
+  metric is — pick one that matches the legend items below).
+- The existing legend ("No trigger fired · One trigger fired ·
+  Composite drift (2+ score)") should map to the axis.
+
+---
+
+### Fix D4 — Stop truncating "All later windows"
+
+**Shape:**
+
+- Widen the Evaluate combobox or shorten the option label to "Later
+  windows".
+- Same audit for any other combobox where the value is truncated.
+
+---
+
+### Fix D5 — Drift Columns as inline chips
+
+**Shape:**
+
+- Replace the single "Columns" button + modal with an inline chip row,
+  matching the Timeseries `Series` selector and the Causal node
+  selector. Each chip is a column name; click to toggle; colour
+  matches the chart palette.
+- Multi-select summary: "N of 7 selected".
+
+---
+
+### Fix D6 — Drift Thresholds group with tooltip
+
+**Shape:**
+
+- Add an `ⓘ` next to the THRESHOLDS label that opens a modal:
+  "Composite drift uses four tests — PSI (population stability),
+  Wasserstein distance, Kolmogorov-Smirnov, and Energy distance.
+  Each fires when its score exceeds its threshold; 'Composite' fires
+  when 2+ tests agree."
+- Same pattern for any other jargon-heavy label on the page.
+
+---
+
+### Fix D7 — Align window selector units with the chosen Window
+
+**Shape:**
+
+- When Window = "Daily", the timeline X-axis should show single days
+  (`2017-06-28`, `2017-06-29`), not 24-hour ranges.
+- The window-selector dropdown should label windows as `Day 1`, `Day 2`
+  (or `Window 1 of 363`).
+- Same audit for Hourly, Weekly, Monthly.
+
+---
+
+### Fix D8 — Disabled Latest N with helper text
+
+**Shape:**
+
+- Below the Latest N spinbutton, render a small helper line: "Used
+  only with 'Latest N windows' mode." when disabled.
+- Same pattern for any other disabled combobox/spinbutton in the app.
+
+---
+
+### Fix S1 — Spectrogram auto-zoom to dominant frequency band
+
+**Shape:** Mirror Fix 8 from the prior walkthrough.
+
+- On first render, run a quick "find dominant frequency" pass and
+  auto-zoom the Y-axis to a band of `0.1 × … 10 ×` the dominant
+  frequency.
+- Surface the dominant frequency and chosen band as a small caption
+  above the chart.
+- Add an "Auto-fit" toggle (default on).
+
+---
+
+### Fix S2 — Stop clipping the colorbar caption
+
+**Shape:**
+
+- The colorbar's `Z-SCORE → [0, 1]` caption should sit inside its
+  container with adequate right padding.
+- Consider wrapping the caption onto two lines if narrow.
+
+---
+
+### Fix S3 — Spectrogram X-axis label legibility
+
+**Shape:**
+
+- Drop ticks to a reasonable count (`maxTickCount = 8`) and rotate 0° /
+  15° instead of 30°.
+- Use shorter formats (`'17 Jun` instead of `06/28/2017`) when the
+  chart is narrow.
+
+---
+
+### Fix S4 — Spectrogram chart caption
+
+**Shape:**
+
+- Render a one-line caption above the chart: "Spectrogram of HUFL ·
+  Window 96 (1 day) · Hop 48 (50 % overlap) · Normalize Z-score
+  [0, 1]".
+- Update it as the user changes any control.
+
+---
+
+### Fix F4* — Timeseries Y-axis auto-fit for strictly-positive data
+
+**Shape:** (unchanged from the prior walkthrough)
+
+- Compute per-series min/max across active chips within the current
+  viewport; floor the lower bound to `min(0, globalMin)`.
+- Default-enable "Pin lower bound" when all active series are
+  non-negative.
+
+---
+
+## Suggested execution order
+
+1. Fix C1 + Fix C2 — Causal Compute (Causal is fully broken).
+2. Fix D1 + Fix D2 — Drift status banner + thresholds (Drift contradicts itself).
+3. Fix C3 + Fix C4 + Fix D3 — empty states and axis titles (new users' first impression).
+4. Fix S1 — Spectrogram auto-fit (matches FFT fix from prior walkthrough).
+5. Fix S2 + Fix S3 + Fix S4 — Spectrogram polish batch.
+6. Fix C5 + Fix C6 + Fix D5 + Fix D6 + Fix D7 + Fix D8 — layout & jargon batch.
+7. Fix D4 — combobox truncation.
+8. Fix F4* — Timeseries Y-axis carry-over.
+
+---
+
+## Out-of-scope notes
+
+- The Causal backend (`POST /api/analytics/causal`) works correctly via
+  curl with the right payload shape. The bug is purely in the frontend
+  request wiring and/or response handling.
+- The Drift backend works fine — the threshold tightness is a UX /
+  default-value concern, not a correctness bug.
+- The previous walkthrough's out-of-scope notes still apply: the
+  backend endpoints (`/api/data`, `/api/scatter/points`,
+  `/api/analytics/spectrogram`) are returning the expected payloads.

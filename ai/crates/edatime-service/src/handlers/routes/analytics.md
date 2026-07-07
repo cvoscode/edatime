@@ -1,66 +1,30 @@
-# crates/edatime-service/src/handlers/routes/analytics.rs
-> Analytics endpoints: rolling, anomalies, FFT, spectrogram, spectral filter, transform, causal graph, outlier removal.
+# ai/crates/edatime-service/src/handlers/routes/analytics.md
+> HTTP handlers for rolling statistics, anomaly detection, FFT, spectrogram, spectral filtering, transforms, outlier removal, and causal graph requests.
 
-## Structs (Query Params)
-
-### `RollingQuery`
-- `start: DateTime<Utc>`, `end: DateTime<Utc>`
-- `columns: Option<String>`
-- `window: Option<usize>` — rolling window size in samples (default: 50)
-
-### `AnomalyQuery`
-- `start`, `end`, `columns`
-- `method: Option<String>` — "zscore" (default) or "iqr"
-- `threshold: Option<f64>`
-
-### `FftQuery`
-- `start`, `end`, `columns`
-- `max_points: Option<usize>` — default: 8192
-
-### `SpectrogramQuery`
-- `start`, `end`, `column: String`
-- `window_size: Option<usize>` — default: 256
-- `hop_size: Option<usize>` — default: window_size / 2
-- `max_points: Option<usize>` — default: 32768
-
-### `SpectralFilterQuery`
-- `start: Option<DateTime<Utc>>`, `end: Option<DateTime<Utc>>`
-- `column: String`
-- `filter_type: String` — lowpass | highpass | bandpass | bandstop
-- `low_hz: Option<f64>`, `high_hz: Option<f64>`
-- `sample_rate_hz: Option<f64>`
-- `max_points: Option<usize>` — default: 16384
-
-### `TransformRequest`
-- `expression: String` — e.g. "col_a / col_b"
-- `output_name: String`
-
-### `OutlierRemovalRequest`
-- `columns: Option<String>`
-- `method: Option<String>` — "zscore" or "iqr"
-- `threshold: Option<f64>`
-- `window: Option<usize>`
-
-### `CausalGraphRequest`
-- `columns: Option<String>`
-- `tau_max: Option<usize>` — default: 3
-- `pc_alpha: Option<f64>` — default: 0.2
-- `alpha: Option<f64>` — default: 0.05
-- `method: Option<String>` — "pcmci" (default), "pcmciplus", "fullci", "bivci", "lpcmci"
-- `test: Option<String>` — "par_corr" (default), "cmi_knn", "robust_parcorr", "gsquared", "cmi_symb"
-- `max_points: Option<usize>` — default: 5000
-- `max_conds_dim: Option<usize>`
-- `fdr_method: Option<String>` — "none" (default) or "fdr_bh"
-- `n_preliminary_iterations: Option<usize>` — default: 1
-- `knn: Option<usize>` — default: 10
-- `sig_samples: Option<usize>` — default: 200
+## Query / payload structs
+- `RollingQuery`
+  - `{ start: DateTime<Utc>, end: DateTime<Utc>, columns: Option<String>, window: Option<usize> }`
+- `AnomalyQuery`
+  - `{ start: DateTime<Utc>, end: DateTime<Utc>, columns: Option<String>, method: Option<String>, threshold: Option<f64> }`
+- `FftQuery`
+  - `{ start: DateTime<Utc>, end: DateTime<Utc>, columns: Option<String>, max_points: Option<usize> }`
+- `SpectrogramQuery`
+  - `{ start: DateTime<Utc>, end: DateTime<Utc>, column: String, window_size: Option<usize>, hop_size: Option<usize>, max_points: Option<usize>, normalize: Option<String>, clip: Option<String>, clip_param: Option<f64> }`
+- `SpectralFilterQuery`
+  - `{ start: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>, column: String, filter_type: String, low_hz: Option<f64>, high_hz: Option<f64>, sample_rate_hz: Option<f64>, max_points: Option<usize> }`
+- `TransformRequest`
+  - `{ expression: String, output_name: String }`
+- `OutlierRemovalRequest`
+  - `{ columns: Option<String>, method: Option<String>, threshold: Option<f64>, window: Option<usize> }`
+- `CausalGraphRequest`
+  - `{ columns: Option<String>, tau_max: Option<usize>, pc_alpha: Option<f64>, alpha: Option<f64>, method: Option<String>, test: Option<String>, max_points: Option<usize>, max_conds_dim: Option<usize>, fdr_method: Option<String>, n_preliminary_iterations: Option<usize>, knn: Option<usize>, sig_samples: Option<usize> }`
 
 ## Handlers
-
-- `get_rolling(...) -> Result<impl IntoResponse, AppError>`
-- `get_anomalies(...) -> Result<impl IntoResponse, AppError>`
-- `get_fft(...) -> Result<impl IntoResponse, AppError>`
-- `get_spectrogram(...) -> Result<impl IntoResponse, AppError>`
+- `get_rolling(State(state): State<AppState>, Query(params): Query<RollingQuery>) -> Result<impl IntoResponse, AppError>`
+- `get_anomalies(State(state): State<AppState>, Query(params): Query<AnomalyQuery>) -> Result<impl IntoResponse, AppError>`
+  - Returns `{ method, threshold, regions, summary_stats }`, where `summary_stats` is computed across the filtered numeric values.
+- `get_fft(State(state): State<AppState>, Query(params): Query<FftQuery>) -> Result<impl IntoResponse, AppError>`
+- `get_spectrogram(State(state): State<AppState>, Query(params): Query<SpectrogramQuery>) -> Result<impl IntoResponse, AppError>`
 - `get_spectral_filter(...) -> Result<impl IntoResponse, AppError>`
 - `post_transform(...) -> Result<impl IntoResponse, AppError>`
 - `post_remove_outliers(...) -> Result<impl IntoResponse, AppError>`

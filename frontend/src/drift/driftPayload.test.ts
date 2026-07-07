@@ -121,6 +121,7 @@ describe('drift compute payload', () => {
               <select id="drift-ref-preset"><option value="50" selected>50</option></select>
               <select id="drift-evaluation-mode"><option value="all" selected>All later windows</option><option value="latest">Latest window only</option><option value="latest-n">Latest N windows</option></select>
               <input id="drift-latest-n" type="number" value="3" />
+              <div id="drift-latest-n-helper" hidden></div>
               <select id="drift-segment-by"><option value="" selected>None</option><option value="segment">segment</option></select>
               <input id="drift-ks-threshold" type="number" value="0.05" />
               <input id="drift-es-threshold" type="number" value="0.05" />
@@ -204,7 +205,7 @@ describe('drift compute payload', () => {
         expect(body.column).toBeUndefined();
     });
 
-    it('updates the picker label after bulk-selecting all columns', async () => {
+    it('renders inline drift column chips and updates the selection summary after bulk-selecting all columns', async () => {
         const { initDriftPage } = await import('./driftPage.js');
         await initDriftPage({
             numeric_columns: ['HUFL', 'HULL', 'OT'],
@@ -213,8 +214,30 @@ describe('drift compute payload', () => {
 
         (document.getElementById('drift-cols-all') as HTMLButtonElement).click();
 
-        expect(document.getElementById('drift-col-picker-label')?.textContent).toBe('3 columns');
-        expect(document.querySelectorAll('#drift-col-picker-list input[type="checkbox"]')).toHaveLength(3);
+        expect(document.getElementById('drift-col-picker-label')?.textContent).toBe('3 of 3 selected');
+        expect(document.querySelectorAll('#drift-col-picker-list .series-chip')).toHaveLength(3);
+        expect(document.querySelector('#drift-col-picker-list [data-col="HUFL"]')?.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('explains why Latest N is disabled until the matching evaluation mode is selected', async () => {
+        const { initDriftPage } = await import('./driftPage.js');
+        await initDriftPage({
+            numeric_columns: ['value'],
+            time_range: { min: 0, max: 1_000 },
+        });
+
+        const latestN = document.getElementById('drift-latest-n') as HTMLInputElement;
+        const helper = document.getElementById('drift-latest-n-helper') as HTMLElement | null;
+
+        expect(latestN.disabled).toBe(true);
+        expect(helper?.hidden).toBe(false);
+        expect(helper?.textContent).toContain('Latest N windows');
+
+        (document.getElementById('drift-evaluation-mode') as HTMLSelectElement).value = 'latest-n';
+        document.getElementById('drift-evaluation-mode')?.dispatchEvent(new Event('change', { bubbles: true }));
+
+        expect(latestN.disabled).toBe(false);
+        expect(helper?.hidden).toBe(true);
     });
 
     it('fills the reference datetime inputs from UTC timestamps without a browser-local offset', async () => {

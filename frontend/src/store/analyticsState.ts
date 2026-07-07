@@ -6,6 +6,7 @@
 
 export interface RollingBandData {
     column: string;
+    color?: string;
     ts: number[];
     mean: (number | null)[];
     upper1: (number | null)[];
@@ -22,6 +23,13 @@ export interface AnomalyRegionData {
     score: number;
 }
 
+export interface SummaryStats {
+    mean: number;
+    std: number;
+    min: number;
+    max: number;
+}
+
 export interface SpectralFilterPreview {
     column: string;
     ts: number[];
@@ -36,9 +44,11 @@ export interface AnalyticsState {
     rollingWindow: number;
     rollingBands: RollingBandData[] | null;
     anomalyEnabled: boolean;
+    anomalyGlobalEnabled: boolean;
     anomalyMethod: string;
     anomalyThreshold: number;
     anomalyRegions: AnomalyRegionData[] | null;
+    anomalySummaryStats: SummaryStats | null;
     spectralFilterPreview: SpectralFilterPreview | null;
 }
 
@@ -47,9 +57,11 @@ export const analyticsState: AnalyticsState = {
     rollingWindow: 50,
     rollingBands: null,
     anomalyEnabled: false,
+    anomalyGlobalEnabled: true,
     anomalyMethod: 'zscore',
     anomalyThreshold: 3.0,
     anomalyRegions: null,
+    anomalySummaryStats: null,
     spectralFilterPreview: null,
 };
 
@@ -79,6 +91,12 @@ export function setAnomalyEnabled(v: boolean): void {
     emitStoreEvent('analytics:anomalyEnabled', { previous, next: v });
 }
 
+export function setAnomalyGlobalEnabled(v: boolean): void {
+    const previous = analyticsState.anomalyGlobalEnabled;
+    analyticsState.anomalyGlobalEnabled = v;
+    emitStoreEvent('analytics:anomalyGlobalEnabled', { previous, next: v });
+}
+
 export function setAnomalyMethod(m: string): void {
     const previous = analyticsState.anomalyMethod;
     analyticsState.anomalyMethod = m;
@@ -95,6 +113,12 @@ export function setAnomalyRegions(regions: AnomalyRegionData[] | null): void {
     const previous = analyticsState.anomalyRegions;
     analyticsState.anomalyRegions = regions ? regions.map((region) => ({ ...region })) : null;
     emitStoreEvent('analytics:anomalyRegions', { previous, next: analyticsState.anomalyRegions });
+}
+
+export function setAnomalySummaryStats(stats: SummaryStats | null): void {
+    const previous = analyticsState.anomalySummaryStats;
+    analyticsState.anomalySummaryStats = stats ? { ...stats } : null;
+    emitStoreEvent('analytics:anomalySummaryStats', { previous, next: analyticsState.anomalySummaryStats });
 }
 
 export function setSpectralFilterPreview(preview: SpectralFilterPreview | null): void {

@@ -1575,6 +1575,22 @@ body.drawer-open::after {
     linear-gradient(90deg, rgba(108, 99, 255, 0.05), transparent 40%);
 }
 
+.workflow-panel.workflow-panel--compact-shell {
+  gap: 4px;
+  padding: 4px 14px 6px;
+  background:
+    linear-gradient(180deg, rgba(0, 168, 255, 0.08), rgba(0, 168, 255, 0.02)),
+    linear-gradient(90deg, rgba(108, 99, 255, 0.03), transparent 32%);
+}
+
+.workflow-panel.workflow-panel--compact-shell .workflow-panel__summary {
+  gap: 1px;
+}
+
+.workflow-panel.workflow-panel--compact-shell .workflow-panel__actions {
+  gap: 6px;
+}
+
 .workflow-panel[hidden] {
   display: none !important;
 }

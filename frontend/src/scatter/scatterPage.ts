@@ -258,7 +258,17 @@ async function renderScatter(): Promise<void> {
         const ctl = currentControls();
         const colorColumn = ctl.selectedColorColumn || null;
         const queryContext = buildScatterQueryContext({ x: xValue, y: yValue, colorColumn: colorColumn || undefined });
-        const queryContextKey = buildOverviewContextKey(queryContext);
+        // The overview context key now also folds in x/y/colorColumn so a
+        // navigation that mutates only the axes (heatmap cell click, home
+        // top-pair row click) invalidates the scatter fast-path cache.
+        // Mirroring the same shape in `renderScatter` keeps the key written
+        // here in lockstep with what the page-change handler computes.
+        const queryContextKey = buildOverviewContextKey({
+            ...queryContext,
+            x: xValue,
+            y: yValue,
+            colorColumn: colorColumn || undefined,
+        });
 
         // Consume the one-shot preserveView flag the density-zoom path set
         // before scheduling this render. We must read it BEFORE awaiting

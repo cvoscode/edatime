@@ -72,11 +72,16 @@ vi.mock('./state.js', () => ({
     buildScatterQueryContext: vi.fn(() => ({ start: undefined, end: undefined, filters: [], lineFilters: [] })),
     buildOverviewContextKey: vi.fn((context: any) => {
         // Mirror the production JSON.stringify shape so tests can drive the
-        // fast-path toggle by changing the filter payload. Default to
-        // 'key:0' (no filters) to match the default buildScatterQueryContext.
+        // fast-path toggle. The overview key now includes X, Y, and
+        // colorColumn in addition to the filter payload, so a navigation
+        // that mutates only the axes (heatmap cell click, home top-pair
+        // row click) still invalidates the cache.
         const filters = Array.isArray(context?.filters) ? context.filters : [];
         const lineFilters = Array.isArray(context?.lineFilters) ? context.lineFilters : [];
-        return `key:f${filters.length}.l${lineFilters.length}`;
+        const x = typeof context?.x === 'string' ? context.x : '';
+        const y = typeof context?.y === 'string' ? context.y : '';
+        const color = typeof context?.colorColumn === 'string' ? context.colorColumn : '';
+        return `key:${x}|${y}|${color}|f${filters.length}.l${lineFilters.length}`;
     }),
     isLinkedBrushEnabled: () => false,
     normalizeAnalyticsView: (value: string) => value || 'plot',
@@ -204,9 +209,10 @@ describe('bindScatterControls', () => {
         };
         appStateMock.scatter.pageInitialized = true;
         appStateMock.scatter.activeView = 'plot';
-        // The mock returns 'key:f0.l0' for the default empty-filter query context;
-        // pre-populate the cached key to the same value so the fast path matches.
-        appStateMock.scatter.lastQueryContextKey = 'key:f0.l0';
+        // The mock returns 'key:HUFL|HULL||f0.l0' for the default empty-filter
+        // query context (X=HUFL, Y=HULL, colorColumn=""). Pre-populate the
+        // cached key to the same value so the fast path matches.
+        appStateMock.scatter.lastQueryContextKey = 'key:HUFL|HULL||f0.l0';
 
         bindScatterControls(callbacks);
         callbacks.setScatterView.mockClear();
@@ -221,6 +227,102 @@ describe('bindScatterControls', () => {
         expect(callbacks.renderScatter).not.toHaveBeenCalled();
         expect(callbacks.rerenderScatterFromCache).not.toHaveBeenCalled();
         expect(callbacks.refreshActiveScatterView).not.toHaveBeenCalled();
+    });
+
+    it('re-renders the scatter when only the X/Y column selection changes between page-change events', async () => {
+        // Repro for the heatmap → scatter / home → scatter regression:
+        // `setDropdownValue` does not emit a `change` event when called from
+        // those code paths, so the dropdown's manual `change` handler cannot
+        // catch the axis mutation. The page-change handler must therefore
+        // include X/Y/colorColumn in its overview context key, otherwise
+        // the fast path would swallow the navigation and leave the chart
+        // rendering the previous X/Y's cached points against the new axes.
+        const { bindScatterControls } = await import('./controls.js');
+        const stateModule = await import('./state.js');
+        const buildScatterQueryContextMock = stateModule.buildScatterQueryContext as unknown as ReturnType<typeof vi.fn>;
+        const buildOverviewContextKeyMock = stateModule.buildOverviewContextKey as unknown as ReturnType<typeof vi.fn>;
+
+        const callbacks = {
+            initScatterPage: vi.fn(async () => { }),
+            renderScatter: vi.fn(async () => { }),
+            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
+            refreshActiveScatterView: vi.fn(async () => { }),
+            setScatterView: vi.fn(async () => { }),
+            handleErr: vi.fn(),
+            rerenderScatterFromCache: vi.fn(async () => { }),
+            renderScatterDebounced: vi.fn(),
+            syncScatterFilterBadge: vi.fn(),
+        };
+
+        appStateMock.scatter.pageInitialized = true;
+        appStateMock.scatter.activeView = 'plot';
+        // Previous render was for HUFL×HULL with no filters; the cached key
+        // matches that. The next dispatch will arrive after the user clicks
+        // a heatmap cell that switches Y to a different column, so the mock
+        // for `buildOverviewContextKey` returns a new key that includes the
+        // changed Y. The handler must fall through to setScatterView.
+        appStateMock.scatter.lastQueryContextKey = 'key:HUFL|HULL||f0.l0';
+        buildScatterQueryContextMock.mockReturnValueOnce({ start: undefined, end: undefined, filters: [], lineFilters: [] });
+        buildOverviewContextKeyMock.mockReturnValueOnce('key:HUFL|MULL||f0.l0');
+
+        bindScatterControls(callbacks);
+        callbacks.setScatterView.mockClear();
+
+        window.dispatchEvent(new CustomEvent('edatime:page-change', {
+            detail: { page: 'scatter', analyticsView: 'plot' },
+        }));
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(callbacks.setScatterView).toHaveBeenCalledTimes(1);
+        expect(callbacks.setScatterView).toHaveBeenCalledWith('plot', { render: false });
+    });
+
+    it('processes successive scatter page-change events instead of dropping them after the first', async () => {
+        // Repro for the `dormant = true` flag bug. After the first page-change
+        // fired, the listener set a one-shot `dormant` flag that never reset,
+        // so every subsequent scatter page-change dispatched by `showPage`
+        // was silently ignored. The fix uses an `inFlight` guard that resets
+        // when the work completes, so legitimate follow-up dispatches (for
+        // example heatmap → scatter → heatmap → scatter, or two rapid filter
+        // changes that both reach `showPage('scatter')`) still run.
+        const { bindScatterControls } = await import('./controls.js');
+        const stateModule = await import('./state.js');
+        const buildOverviewContextKeyMock = stateModule.buildOverviewContextKey as unknown as ReturnType<typeof vi.fn>;
+        const callbacks = {
+            initScatterPage: vi.fn(async () => { }),
+            renderScatter: vi.fn(async () => { }),
+            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
+            refreshActiveScatterView: vi.fn(async () => { }),
+            setScatterView: vi.fn(async () => { }),
+            handleErr: vi.fn(),
+            rerenderScatterFromCache: vi.fn(async () => { }),
+            renderScatterDebounced: vi.fn(),
+            syncScatterFilterBadge: vi.fn(),
+        };
+        appStateMock.scatter.pageInitialized = true;
+        appStateMock.scatter.activeView = 'plot';
+        // The handler writes `lastQueryContextKey` to whatever the mocked
+        // `buildOverviewContextKey` returns on each invocation. To prove the
+        // listener stays alive across multiple dispatches we must make each
+        // dispatch return a *different* key so the fast path keeps missing.
+        appStateMock.scatter.lastQueryContextKey = 'stale-key';
+        buildOverviewContextKeyMock
+            .mockReturnValueOnce('key:HUFL|HULL||f0.l0')
+            .mockReturnValueOnce('key:HUFL|MULL||f0.l0');
+
+        bindScatterControls(callbacks);
+        callbacks.setScatterView.mockClear();
+
+        for (let i = 0; i < 2; i += 1) {
+            window.dispatchEvent(new CustomEvent('edatime:page-change', {
+                detail: { page: 'scatter', analyticsView: 'plot' },
+            }));
+            await Promise.resolve();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+
+        expect(callbacks.setScatterView).toHaveBeenCalledTimes(2);
     });
 
     it('re-renders the scatter when only filters change between page-change events', async () => {
@@ -249,13 +351,14 @@ describe('bindScatterControls', () => {
         };
 
         // First dispatch: cached key is 'current-query', the mock returns
-        // 'key:f0.l0' for the default query context → keys differ, so the
+        // 'key:HUFL|HULL||f0.l0' for the default query context (currentControls
+        // returns X=HUFL, Y=HULL, no color column) → keys differ, so the
         // handler falls through to setScatterView.
         appStateMock.scatter.pageInitialized = true;
         appStateMock.scatter.activeView = 'plot';
         appStateMock.scatter.lastQueryContextKey = 'current-query';
         buildScatterQueryContextMock.mockReturnValueOnce({ start: undefined, end: undefined, filters: [], lineFilters: [] });
-        buildOverviewContextKeyMock.mockReturnValueOnce('key:f0.l0');
+        buildOverviewContextKeyMock.mockReturnValueOnce('key:HUFL|HULL||f0.l0');
 
         bindScatterControls(callbacks);
         callbacks.setScatterView.mockClear();
@@ -327,9 +430,9 @@ describe('bindScatterControls', () => {
 
         appStateMock.scatter.pageInitialized = true;
         appStateMock.scatter.activeView = 'plot';
-        appStateMock.scatter.lastQueryContextKey = 'key:f0.l0';
+        appStateMock.scatter.lastQueryContextKey = 'key:HUFL|HULL||f0.l0';
         buildScatterQueryContextMock.mockReturnValueOnce({ start: undefined, end: undefined, filters: [{ column: 'HUFL', from: 0, to: 50 }], lineFilters: [] });
-        buildOverviewContextKeyMock.mockReturnValueOnce('key:f1.l0');
+        buildOverviewContextKeyMock.mockReturnValueOnce('key:HUFL|HULL||f1.l0');
 
         bindScatterControls(callbacks);
         callbacks.setScatterView.mockClear();

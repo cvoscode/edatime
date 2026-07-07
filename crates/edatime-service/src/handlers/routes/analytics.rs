@@ -81,21 +81,25 @@ pub async fn get_anomalies(
         filter_preamble(&state, params.start, params.end, params.columns.as_deref()).await?;
 
     let method = params.method.as_deref().unwrap_or("zscore");
-    let regions = tokio::task::spawn_blocking({
+    let (regions, summary_stats) = tokio::task::spawn_blocking({
         let params = params.clone();
         let filtered = filtered.clone();
         let value_cols = value_cols.clone();
         let method = method.to_string();
-        move || match method.as_str() {
-            "iqr" => {
+        move || {
+            let regions = match method.as_str() {
+                "iqr" => {
                 let k = params.threshold.unwrap_or(1.5);
                 analytics::detect_anomalies_iqr(&filtered, &value_cols, k)
-            }
-            _ => {
+                }
+                _ => {
                 let threshold = params.threshold.unwrap_or(3.0);
                 analytics::detect_anomalies_zscore(&filtered, &value_cols, threshold)
+                }
+            }?;
+            let summary_stats = analytics::compute_summary_stats(&filtered, &value_cols)?;
+            Ok::<_, AppError>((regions, summary_stats))
             }
-        }
     })
     .await
     .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
@@ -104,6 +108,7 @@ pub async fn get_anomalies(
         "method": method,
         "threshold": params.threshold.unwrap_or(if method == "iqr" { 1.5 } else { 3.0 }),
         "regions": regions,
+        "summary_stats": summary_stats,
     })))
 }
 
@@ -676,8 +681,9 @@ pub async fn post_causal_graph(
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
-    use super::{CausalGraphRequest, post_causal_graph};
+    use super::{AnomalyQuery, CausalGraphRequest, get_anomalies, post_causal_graph};
     use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+    use chrono::TimeZone;
     use edatime_core::config::AppConfig;
     use edatime_store::state::AppState;
     use polars::prelude::{DataFrame, NamedFrom, Series};
@@ -861,5 +867,56 @@ mod tests {
             result.is_err(),
             "singular `column` must be rejected, got {result:?}"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn anomaly_route_includes_global_summary_stats() {
+        let ts_ms: Vec<i64> = vec![
+            1_514_764_800_000,
+            1_517_424_000_000,
+            1_520_169_600_000,
+            1_522_915_200_000,
+        ];
+        let df = DataFrame::new(
+            4,
+            vec![
+                Series::new("ts".into(), ts_ms)
+                    .cast(&polars::prelude::DataType::Datetime(
+                        polars::prelude::TimeUnit::Milliseconds,
+                        None,
+                    ))
+                    .expect("cast ts")
+                    .into(),
+                Series::new("HUFL".into(), [1.0_f64, 2.0, 3.0, 4.0]).into(),
+                Series::new("HULL".into(), [10.0_f64, 20.0, 30.0, 40.0]).into(),
+            ],
+        )
+        .expect("test dataframe should build");
+        let state = AppState::new(df, AppConfig::default());
+
+        let response = get_anomalies(
+            State(state),
+            axum::extract::Query(AnomalyQuery {
+                start: chrono::Utc.with_ymd_and_hms(2018, 1, 1, 0, 0, 0).unwrap(),
+                end: chrono::Utc.with_ymd_and_hms(2018, 5, 1, 0, 0, 0).unwrap(),
+                columns: Some("HUFL,HULL".to_string()),
+                method: Some("zscore".to_string()),
+                threshold: Some(3.0),
+            }),
+        )
+        .await
+        .expect("anomaly route should succeed")
+        .into_response();
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("response body should read");
+        let json: Value = serde_json::from_slice(&body).expect("response should be json");
+        let summary = json.get("summary_stats").expect("summary stats should be present");
+
+        assert_eq!(summary.get("min").and_then(Value::as_f64), Some(1.0));
+        assert_eq!(summary.get("max").and_then(Value::as_f64), Some(40.0));
+        assert!(summary.get("mean").and_then(Value::as_f64).is_some());
+        assert!(summary.get("std").and_then(Value::as_f64).is_some());
     }
 }

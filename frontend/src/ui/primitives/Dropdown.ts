@@ -477,6 +477,8 @@ export function createDropdown(props: DropdownProps): DropdownController {
         setDisabled: (disabled) => {
             trigger.disabled = !!disabled;
             root.classList.toggle('dropdown--disabled', !!disabled);
+            root.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+            trigger.setAttribute('aria-disabled', disabled ? 'true' : 'false');
             if (disabled) closeMenu();
         },
         focus: () => trigger.focus(),

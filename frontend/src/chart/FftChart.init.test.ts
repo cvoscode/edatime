@@ -90,6 +90,12 @@ describe('FftChart.init', () => {
 
         expect(initBoxZoomMock).toHaveBeenCalledTimes(1);
         expect(initWheelZoomMock).not.toHaveBeenCalled();
+        expect(createChartMock).toHaveBeenCalledWith(
+            expect.any(HTMLElement),
+            expect.objectContaining({
+                legend: expect.objectContaining({ show: false }),
+            }),
+        );
     });
 
     it('uses roomier FFT axes and readable log-scale ticks without duplicating the axis title', async () => {
@@ -108,6 +114,8 @@ describe('FftChart.init', () => {
         const option = instance.setOption.mock.calls.at(-1)?.[0];
         expect(option.grid.left).toBeGreaterThanOrEqual(110);
         expect(option.grid.top).toBeGreaterThanOrEqual(32);
+        expect(option.xAxis.name).toBe('Frequency (cycles/day)');
+        expect(option.xAxis.axisLabel.formatter(0.00028)).toBe('24.19');
         expect(option.yAxis.nameGap).toBeGreaterThanOrEqual(72);
         expect(option.yAxis.axisLabel.formatter(-2.1873892)).toBe('0.0065');
         expect(option.yAxis.axisLabel.formatter(-0.8607398)).toBe('0.14');

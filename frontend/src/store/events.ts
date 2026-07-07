@@ -5,8 +5,10 @@ export interface StoreChange<T> {
 
 export type StoreEventMap = {
     'analytics:anomalyEnabled': StoreChange<boolean>;
+    'analytics:anomalyGlobalEnabled': StoreChange<boolean>;
     'analytics:anomalyMethod': StoreChange<string>;
     'analytics:anomalyRegions': StoreChange<unknown>;
+    'analytics:anomalySummaryStats': StoreChange<unknown>;
     'analytics:anomalyThreshold': StoreChange<number>;
     'analytics:rollingBands': StoreChange<unknown>;
     'analytics:rollingEnabled': StoreChange<boolean>;
@@ -26,6 +28,7 @@ export type StoreEventMap = {
     'dataset:numericCols': StoreChange<string[]>;
     'runtime:analysisBound': StoreChange<boolean>;
     'runtime:fetchDebounceId': StoreChange<ReturnType<typeof setTimeout> | null>;
+    'runtime:fetchedWindow': StoreChange<unknown>;
     'runtime:lastFetchedData': StoreChange<unknown>;
     'runtime:pendingRestoreY': StoreChange<{ min: number; max: number } | null>;
     'runtime:pendingYMode': StoreChange<unknown>;

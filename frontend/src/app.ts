@@ -92,7 +92,15 @@ let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
 /* ── Lazy-loaded modules ──────────────────────────────── */
 
 let fetchMetadata: ((signal?: AbortSignal) => Promise<DatasetMetadata>) | null = null;
-let fetchData: ((start: string, end: string, width: number, columns?: string, colorColumn?: string | null, signal?: AbortSignal) => Promise<DataObject>) | null = null;
+let fetchData: ((
+    start: string,
+    end: string,
+    width: number,
+    columns?: string,
+    colorColumn?: string | null,
+    lookaroundMs?: number,
+    signal?: AbortSignal,
+) => Promise<DataObject>) | null = null;
 let fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null = null;
 let postTransform: ((expression: string, outputName: string) => Promise<TransformResponse>) | null = null;
 let DataChartCtor: (new (containerId: string, onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null = null;
@@ -148,7 +156,7 @@ async function init(): Promise<void> {
     await ensureDataModules();
 
     timeseriesModule = createTimeseriesModule({
-        fetchData: (start, end, width, columns, colorColumn, signal) => fetchData!(start, end, width, columns, colorColumn, signal),
+        fetchData: (start, end, width, columns, colorColumn, lookaroundMs, signal) => fetchData!(start, end, width, columns, colorColumn, lookaroundMs, signal),
         fetchMetadata: () => fetchMetadata!(),
         ensurePrimaryChartCtor,
         markMetadataReady,

@@ -1,6 +1,7 @@
 import {
     analyticsState,
     setAnomalyEnabled,
+    setAnomalyGlobalEnabled,
     setAnomalyMethod,
     setAnomalyThreshold,
     setRollingEnabled,
@@ -12,6 +13,7 @@ export function initAnalyticsControls(): void {
     const rollingCheck = document.getElementById('rolling-enabled') as HTMLInputElement | null;
     const rollingWindowInput = document.getElementById('rolling-window') as HTMLInputElement | null;
     const anomalyCheck = document.getElementById('anomaly-enabled') as HTMLInputElement | null;
+    const anomalyGlobalCheck = document.getElementById('anomaly-global') as HTMLInputElement | null;
     const anomalyMethodSelect = document.getElementById('anomaly-method') as HTMLElement | null;
     const anomalyThresholdInput = document.getElementById('anomaly-threshold') as HTMLInputElement | null;
     const transformOpenBtn = document.getElementById('transform-open-btn') as HTMLElement | null;
@@ -45,6 +47,13 @@ export function initAnalyticsControls(): void {
             dispatchAnalyticsChange();
         });
         anomalyCheck.dataset.bound = '1';
+    }
+    if (anomalyGlobalCheck && !anomalyGlobalCheck.dataset.bound) {
+        anomalyGlobalCheck.addEventListener('change', () => {
+            setAnomalyGlobalEnabled(anomalyGlobalCheck.checked);
+            if (analyticsState.anomalyEnabled) dispatchAnalyticsChange();
+        });
+        anomalyGlobalCheck.dataset.bound = '1';
     }
     if (anomalyMethodSelect && !anomalyMethodSelect.dataset.bound) {
         anomalyMethodSelect.addEventListener('change', () => {

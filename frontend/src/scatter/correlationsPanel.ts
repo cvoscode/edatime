@@ -33,6 +33,31 @@ export type SuggestionApplyHandler = (x: string, y: string) => void | Promise<vo
  */
 let activeApplyHandler: SuggestionApplyHandler | null = null;
 
+function isFiniteNumber(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value);
+}
+
+function buildCurrentPairStats(
+    responsesByMode: Map<string, { correlations?: Array<{ column: string; value?: number | null; count?: number }> }>,
+    yColumn: string,
+): typeof appState.scatter.currentPairStats {
+    const findRow = (mode: string) => responsesByMode.get(mode)?.correlations?.find((row) => row.column === yColumn);
+    const pearsonRaw = findRow('pearson_raw');
+    const spearmanRaw = findRow('spearman_raw');
+    const pearsonDiff = findRow('pearson_diff');
+    const spearmanDiff = findRow('spearman_diff');
+    const count = [pearsonRaw, spearmanRaw, pearsonDiff, spearmanDiff]
+        .map((row) => row?.count)
+        .find((value) => isFiniteNumber(value)) ?? null;
+    return {
+        pearsonRaw: isFiniteNumber(pearsonRaw?.value) ? pearsonRaw.value : null,
+        spearmanRaw: isFiniteNumber(spearmanRaw?.value) ? spearmanRaw.value : null,
+        pearsonDiff: isFiniteNumber(pearsonDiff?.value) ? pearsonDiff.value : null,
+        spearmanDiff: isFiniteNumber(spearmanDiff?.value) ? spearmanDiff.value : null,
+        count,
+    };
+}
+
 /**
  * Register the apply handler for correlation pills. The scatter page calls
  * this once during init so subsequent `renderSuggestions` invocations (from
@@ -68,22 +93,24 @@ export function renderSuggestions(
     box.innerHTML = '';
 
     if (!Array.isArray(suggestions) || suggestions.length === 0) {
-        const topPair = Array.isArray(appState.scatter.lastTopPairs)
-            ? appState.scatter.lastTopPairs[0]
-            : null;
-        if (topPair?.x && topPair?.y) {
+        const topPairs = Array.isArray(appState.scatter.lastTopPairs)
+            ? appState.scatter.lastTopPairs.filter((pair) => pair?.x && pair?.y).slice(0, 5)
+            : [];
+        if (topPairs.length > 0) {
             const fallback = document.createElement('div');
             fallback.className = 'scatter-suggestion-fallback';
 
             const summary = document.createElement('span');
             summary.className = 'scatter-suggestion-empty';
-            summary.textContent = `Top pair below ${appState.scatter.suggestionThreshold.toFixed(2)} threshold:`;
+            summary.textContent = `Showing top ${topPairs.length} by |corr|`;
             fallback.appendChild(summary);
 
-            const fallbackButton = buildSuggestionButton(topPair.x, topPair.y, topPair.correlation, xValue, yValue);
-            fallbackButton.classList.add('scatter-suggestion-btn-top-pair');
-            fallbackButton.setAttribute('aria-label', `Top pair ${topPair.x} and ${topPair.y}`);
-            fallback.insertAdjacentElement('beforeend', fallbackButton);
+            for (const pair of topPairs) {
+                const fallbackButton = buildSuggestionButton(pair.x, pair.y, pair.correlation, xValue, yValue);
+                fallbackButton.classList.add('scatter-suggestion-btn-top-pair');
+                fallbackButton.setAttribute('aria-label', `Top pair ${pair.x} and ${pair.y}`);
+                fallback.insertAdjacentElement('beforeend', fallbackButton);
+            }
             box.appendChild(fallback);
             return;
         }
@@ -191,14 +218,34 @@ export async function refreshCorrelationsAndSuggestions(
         });
     }
 
-    appState.scatter.correlationsByColumn = new Map();
-    for (const row of response.correlations || []) {
-        appState.scatter.correlationsByColumn.set(row.column, row);
+    const selectedBase = selectedX || response.base_column || currentX || null;
+    const familyModes = mode.endsWith('_diff')
+        ? ['pearson_diff', 'spearman_diff']
+        : ['pearson_raw', 'spearman_raw'];
+    const settledResponses = await Promise.allSettled(familyModes.map(async (familyMode) => {
+        if (familyMode === mode && response.base_column === selectedBase) {
+            return [familyMode, response] as const;
+        }
+        return [familyMode, await fetchScatterCorrelations(selectedBase, appState.scatter.suggestionThreshold, familyMode as typeof mode)] as const;
+    }));
+    const responsesByMode = new Map<string, typeof response>();
+    for (const settled of settledResponses) {
+        if (settled.status === 'fulfilled') {
+            responsesByMode.set(settled.value[0], settled.value[1]);
+        }
     }
+    const activeResponse = responsesByMode.get(mode) ?? response;
 
     if (!selectedY && yCandidates.length > 0) setDropdownValue('scatter-y-col', yCandidates[0]!);
 
-    renderSuggestions(response.suggestions || []);
+    appState.scatter.correlationsByColumn = new Map();
+    for (const row of activeResponse.correlations || []) {
+        appState.scatter.correlationsByColumn.set(row.column, row);
+    }
+    const activeY = getDropdownValue('scatter-y-col') || selectedY || '';
+    appState.scatter.currentPairStats = activeY ? buildCurrentPairStats(responsesByMode, activeY) : null;
+
+    renderSuggestions(activeResponse.suggestions || []);
     updateCorrelationStats();
     updateColorbarUI();
 }

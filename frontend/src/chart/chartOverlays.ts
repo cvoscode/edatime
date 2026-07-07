@@ -7,6 +7,7 @@
 import { appState } from '../store/index.js';
 import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 import { getChartPalette } from '../utils/theme.js';
+import { getSeriesColor } from '../utils/seriesColors.js';
 
 interface ChartOverlayOptions {
     getXMin: () => number | null;
@@ -95,8 +96,9 @@ export class ChartOverlays {
         for (const band of bands) {
             const n = band.ts.length;
             if (n < 2) continue;
+            const bandColor = band.color || getSeriesColor(band.column, appState.selectedCols.indexOf(band.column));
 
-            ctx.fillStyle = rollingPalette.rollingBandOuter;
+            ctx.fillStyle = this._applyAlphaToColor(bandColor, 0.18) || rollingPalette.rollingBandOuter;
             ctx.beginPath();
             let started = false;
             for (let i = 0; i < n; i++) {
@@ -113,7 +115,7 @@ export class ChartOverlays {
             ctx.closePath();
             ctx.fill();
 
-            ctx.fillStyle = rollingPalette.rollingBandInner;
+            ctx.fillStyle = this._applyAlphaToColor(bandColor, 0.32) || rollingPalette.rollingBandInner;
             ctx.beginPath();
             started = false;
             for (let i = 0; i < n; i++) {
@@ -130,7 +132,7 @@ export class ChartOverlays {
             ctx.closePath();
             ctx.fill();
 
-            ctx.strokeStyle = rollingPalette.rollingMeanStroke;
+            ctx.strokeStyle = this._applyAlphaToColor(bandColor, 0.9) || rollingPalette.rollingMeanStroke;
             ctx.lineWidth = 1.5 * Math.min(scale.x, scale.y);
             ctx.setLineDash([6, 3]);
             ctx.beginPath();
@@ -161,9 +163,26 @@ export class ChartOverlays {
 
         ctx.save();
         const anomalyPalette = getChartPalette();
-        ctx.fillStyle = anomalyPalette.anomalyFill;
-        ctx.strokeStyle = anomalyPalette.anomalyStroke;
         ctx.lineWidth = 1 * strokeScale;
+
+        if (appState.anomalyGlobalEnabled && appState.anomalySummaryStats) {
+            const mergedRanges = regions
+                .map((region) => [Math.max(xMin, region.start_ms), Math.min(xMax, region.end_ms)] as const)
+                .filter(([start, end]) => start < end)
+                .sort((a, b) => a[0] - b[0]);
+            const unionRanges: Array<[number, number]> = [];
+            for (const [start, end] of mergedRanges) {
+                const prev = unionRanges[unionRanges.length - 1];
+                if (prev && start <= prev[1]) prev[1] = Math.max(prev[1], end);
+                else unionRanges.push([start, end]);
+            }
+            ctx.fillStyle = this._applyAlphaToColor(anomalyPalette.anomalyStroke, 0.09);
+            for (const [rStart, rEnd] of unionRanges) {
+                const sx = plotLeft + ((rStart - xMin) / (xMax - xMin)) * plotWidth;
+                const ex = plotLeft + ((rEnd - xMin) / (xMax - xMin)) * plotWidth;
+                ctx.fillRect(sx, plotTop, Math.max(2, ex - sx), plotHeight);
+            }
+        }
 
         for (const region of regions) {
             const rStart = Math.max(xMin, region.start_ms);
@@ -173,6 +192,9 @@ export class ChartOverlays {
             const sx = plotLeft + ((rStart - xMin) / (xMax - xMin)) * plotWidth;
             const ex = plotLeft + ((rEnd - xMin) / (xMax - xMin)) * plotWidth;
             const w = Math.max(2, ex - sx);
+            const regionColor = getSeriesColor(region.column, appState.selectedCols.indexOf(region.column));
+            ctx.fillStyle = this._applyAlphaToColor(regionColor, 0.16) || anomalyPalette.anomalyFill;
+            ctx.strokeStyle = this._applyAlphaToColor(regionColor, 0.55) || anomalyPalette.anomalyStroke;
             ctx.fillRect(sx, plotTop, w, plotHeight);
             ctx.strokeRect(sx, plotTop, w, plotHeight);
         }

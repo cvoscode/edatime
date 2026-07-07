@@ -223,3 +223,138 @@ mod tests {
         assert_eq!(detect_time_unit(-100_000_000_000_000_000), None);
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod proptests {
+    //! Property-based tests for the temporal conversion primitives.
+    //!
+    //! The arithmetic here is small but high-stakes: every time-window query
+    //! flows through `native_to_epoch_ms` / `epoch_ms_to_native`, and the
+    //! hand-written tests above only exercise a handful of hand-picked
+    //! values. These properties close that gap on the inverse-pair shapes.
+
+    use proptest::prelude::*;
+    use super::{
+        DataType, DetectedTimeUnit, TimeUnit, detect_time_unit, epoch_ms_to_native,
+        native_to_epoch_ms, ts_to_ms_factor, unit_multiplier,
+    };
+
+    /// Native ticks that fit comfortably inside i64 for all four time units
+    /// without overflow when converted to epoch-ms (f64).
+    fn native_ticks_ms() -> impl Strategy<Value = i64> {
+        // Pick from a representative range — sub-millisecond ticks are
+        // uninteresting for ms and would only stress the i64 → f64 cast.
+        (-1_000_000_000i64..1_000_000_000i64).prop_map(|v| v)
+    }
+
+    fn native_ticks_us() -> impl Strategy<Value = i64> {
+        // Microseconds: stay within ±1e9 µs ⇒ ±1000 s, well inside i64.
+        -1_000_000_000_000i64..1_000_000_000_000i64
+    }
+
+    fn native_ticks_ns() -> impl Strategy<Value = i64> {
+        // Nanoseconds: keep the absolute value small enough that the
+        // corresponding epoch-ms fits in f64 with sub-ms precision
+        // (|ns| < 2^53).
+        -(1i64 << 50)..(1i64 << 50)
+    }
+
+    fn date_days() -> impl Strategy<Value = i64> {
+        // Days since epoch — keep small so |days * 86_400_000 ms| stays in f64.
+        -10_000i64..10_000i64
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(512))]
+
+        #[test]
+        fn roundtrip_ms_is_exact(v in native_ticks_ms()) {
+            let dtype = DataType::Datetime(TimeUnit::Milliseconds, None);
+            let ms = native_to_epoch_ms(v, &dtype);
+            let back = epoch_ms_to_native(ms, &dtype, false).unwrap();
+            prop_assert_eq!(back, v);
+        }
+
+        #[test]
+        fn roundtrip_us_within_one_tick(v in native_ticks_us()) {
+            let dtype = DataType::Datetime(TimeUnit::Microseconds, None);
+            let ms = native_to_epoch_ms(v, &dtype);
+            let back = epoch_ms_to_native(ms, &dtype, false).unwrap();
+            // 1 ms = 1000 µs, so the floor-then-divide path can lose up to
+            // 999 µs of precision; require agreement to within 1 native tick.
+            prop_assert!((back - v).abs() <= 999, "back={back} v={v}");
+        }
+
+        #[test]
+        fn roundtrip_ns_within_one_tick(v in native_ticks_ns()) {
+            let dtype = DataType::Datetime(TimeUnit::Nanoseconds, None);
+            let ms = native_to_epoch_ms(v, &dtype);
+            let back = epoch_ms_to_native(ms, &dtype, false).unwrap();
+            // 1 ms = 1_000_000 ns; same precision argument as µs.
+            prop_assert!((back - v).abs() <= 999_999, "back={back} v={v}");
+        }
+
+        #[test]
+        fn roundtrip_date_is_exact_on_day_boundaries(v in date_days()) {
+            let dtype = DataType::Date;
+            let ms = native_to_epoch_ms(v, &dtype);
+            // ms is already an exact multiple of 86_400_000 because v is i64.
+            prop_assert_eq!(ms, (v as f64) * 86_400_000.0);
+            let back = epoch_ms_to_native(ms, &dtype, false).unwrap();
+            prop_assert_eq!(back, v);
+        }
+
+        #[test]
+        fn epoch_ms_to_native_rejects_nan(_unused in 0..1i32) {
+            let dtype = DataType::Datetime(TimeUnit::Milliseconds, None);
+            prop_assert!(epoch_ms_to_native(f64::NAN, &dtype, false).is_err());
+            prop_assert!(epoch_ms_to_native(f64::INFINITY, &dtype, false).is_err());
+            prop_assert!(epoch_ms_to_native(f64::NEG_INFINITY, &dtype, false).is_err());
+        }
+
+        #[test]
+        fn unit_multiplier_matches_time_unit_dispatch(_unused in 0..1i32) {
+            prop_assert_eq!(unit_multiplier(&DataType::Datetime(TimeUnit::Nanoseconds, None)), 1_000_000);
+            prop_assert_eq!(unit_multiplier(&DataType::Datetime(TimeUnit::Microseconds, None)), 1_000);
+            prop_assert_eq!(unit_multiplier(&DataType::Datetime(TimeUnit::Milliseconds, None)), 1);
+            prop_assert_eq!(unit_multiplier(&DataType::Date), 1);
+            // Unknown dtypes fall back to 1 — make the contract explicit.
+            prop_assert_eq!(unit_multiplier(&DataType::Float64), 1);
+        }
+
+        #[test]
+        fn detect_then_factor_matches_documented_thresholds(
+            // Cover the boundary regions explicitly.
+            bucket in 0u32..4,
+        ) {
+            // bucket 0: pure seconds
+            // bucket 1: ms band
+            // bucket 2: us band
+            // bucket 3: ns band
+            let v = match bucket {
+                0 => 1_700_000_000i64,
+                1 => 100_000_000_000i64,
+                2 => 100_000_000_000_000i64,
+                _ => 100_000_000_000_000_000i64,
+            };
+            let unit = detect_time_unit(v).unwrap();
+            let factor = ts_to_ms_factor(unit);
+            // Only Seconds and Milliseconds have a non-zero multiplier; the
+            // other two require division, which `factor = 0` signals to
+            // callers. This property pins the contract.
+            match unit {
+                DetectedTimeUnit::Seconds => prop_assert_eq!(factor, 1_000),
+                DetectedTimeUnit::Milliseconds => prop_assert_eq!(factor, 1),
+                DetectedTimeUnit::Microseconds | DetectedTimeUnit::Nanoseconds => {
+                    prop_assert_eq!(factor, 0);
+                }
+            }
+        }
+
+        #[test]
+        fn detect_zero_or_negative_is_none(v in -1_000_000_000i64..=0i64) {
+            prop_assert_eq!(detect_time_unit(v), None);
+        }
+    }
+}

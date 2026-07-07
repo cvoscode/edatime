@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { appState } from '../store/appStateCompat.js';
-import { buildScatterQueryContext, getActiveScatterFilterColumns } from './state.js';
+import { buildOverviewContextKey, buildScatterQueryContext, getActiveScatterFilterColumns } from './state.js';
 import { setScatterViewSnapshot } from '../store/scatterState.js';
 
 /**
@@ -125,5 +125,67 @@ describe('scatter query context builders', () => {
 
         const cols = getActiveScatterFilterColumns({ x: 'x', y: 'y', colorColumn: '' });
         expect(cols).toEqual(['y']);
+    });
+});
+
+describe('buildOverviewContextKey', () => {
+    it('changes the key when only the X column changes', () => {
+        const base = {
+            start: undefined,
+            end: undefined,
+            filters: [],
+            lineFilters: [],
+        };
+        const k1 = buildOverviewContextKey({ ...base, x: 'HUFL', y: 'HULL', colorColumn: '' });
+        const k2 = buildOverviewContextKey({ ...base, x: 'OT', y: 'HULL', colorColumn: '' });
+        expect(k1).not.toEqual(k2);
+    });
+
+    it('changes the key when only the Y column changes', () => {
+        const base = {
+            start: undefined,
+            end: undefined,
+            filters: [],
+            lineFilters: [],
+        };
+        const k1 = buildOverviewContextKey({ ...base, x: 'HUFL', y: 'HULL', colorColumn: '' });
+        const k2 = buildOverviewContextKey({ ...base, x: 'HUFL', y: 'MULL', colorColumn: '' });
+        expect(k1).not.toEqual(k2);
+    });
+
+    it('changes the key when only the color column changes', () => {
+        const base = {
+            start: undefined,
+            end: undefined,
+            filters: [],
+            lineFilters: [],
+        };
+        const k1 = buildOverviewContextKey({ ...base, x: 'HUFL', y: 'HULL', colorColumn: '' });
+        const k2 = buildOverviewContextKey({ ...base, x: 'HUFL', y: 'HULL', colorColumn: 'OT' });
+        expect(k1).not.toEqual(k2);
+    });
+
+    it('stays stable when only the X/Y/colorColumn stay the same', () => {
+        const a = buildOverviewContextKey({
+            x: 'HUFL', y: 'HULL', colorColumn: '',
+            start: undefined, end: undefined, filters: [], lineFilters: [],
+        });
+        const b = buildOverviewContextKey({
+            x: 'HUFL', y: 'HULL', colorColumn: '',
+            start: undefined, end: undefined, filters: [], lineFilters: [],
+        });
+        expect(a).toEqual(b);
+    });
+
+    it('normalizes missing X/Y/colorColumn to empty strings so callers can rely on a stable shape', () => {
+        const k = buildOverviewContextKey({
+            start: undefined,
+            end: undefined,
+            filters: [],
+            lineFilters: [],
+        });
+        // The key must include the empty-string defaults so two callers
+        // with undefined axis values still get the same key.
+        expect(k).toContain('""');
     });
 });

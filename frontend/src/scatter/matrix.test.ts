@@ -221,6 +221,31 @@ describe('buildMatrixFetchPairs', () => {
         expect(statusEl?.textContent).toMatch(/Matrix loaded 4\/4 cells/);
     });
 
+    it('includes every numeric metadata column in the overview matrix up to the soft cap', async () => {
+        const columns = ['HUFL', 'HULL', 'MUFL', 'MULL', 'LUFL', 'LULL', 'OT'];
+        const cells = new Map<string, any>();
+        for (const row of columns) {
+            for (const column of columns) {
+                cells.set(`${column}|${row}`, {
+                    totalPoints: 1,
+                    points: [[1, 1]],
+                    colorValues: null,
+                    colorLabels: null,
+                });
+            }
+        }
+
+        const fetchSpy = vi.spyOn(api, 'fetchScatterMatrix').mockResolvedValue({ cells });
+        appState.scatter.metadata = { numeric_columns: columns } as any;
+        appState.scatter.lastSuggestions = [];
+
+        await renderScatterOverview(() => { });
+
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        expect(fetchSpy.mock.calls[0]?.[0]).toHaveLength(49);
+        expect(document.getElementById('scatter-matrix-status')?.textContent).toMatch(/Matrix loaded 49\/49 cells/);
+    });
+
     it('reuses a cached matrix batch for identical pair sets and filters', async () => {
         const fetchSpy = vi.spyOn(api, 'fetchScatterMatrix').mockResolvedValue({
             cells: new Map([
@@ -237,5 +262,21 @@ describe('buildMatrixFetchPairs', () => {
         await renderScatterOverview(() => { });
 
         expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders off-diagonal density cells when matrix mode is density', () => {
+        (document.getElementById('scatter-matrix-mode') as HTMLInputElement).value = 'density';
+        const columns = ['HUFL', 'HULL'];
+        const datasets = new Map([
+            ['HUFL|HUFL', { totalPoints: 3, points: [[1, 1], [2, 2], [3, 3]] as [number, number][], colorValues: null, colorLabels: null }],
+            ['HULL|HUFL', { totalPoints: 3, points: [[1, 4], [2, 5], [3, 6]] as [number, number][], colorValues: null, colorLabels: null }],
+            ['HUFL|HULL', { totalPoints: 3, points: [[4, 1], [5, 2], [6, 3]] as [number, number][], colorValues: null, colorLabels: null }],
+            ['HULL|HULL', { totalPoints: 3, points: [[4, 4], [5, 5], [6, 6]] as [number, number][], colorValues: null, colorLabels: null }],
+        ]);
+
+        renderMatrixGrid(columns, datasets, () => { });
+
+        const canvas = document.querySelector('.scatter-matrix-cell canvas') as HTMLCanvasElement;
+        expect(canvas).not.toBeNull();
     });
 });

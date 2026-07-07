@@ -54,6 +54,18 @@ export interface DataFetchMeta {
     targetPoints: number;
 }
 
+export interface FetchedWindow {
+    start: number;
+    end: number;
+}
+
+export interface SummaryStats {
+    mean: number;
+    std: number;
+    min: number;
+    max: number;
+}
+
 export interface DataObject {
     ts: Float64Array;
     values: Record<string, Float64Array>;
@@ -152,6 +164,14 @@ export interface TopPairItem {
     count: number;
 }
 
+export interface ScatterPairStats {
+    pearsonRaw: number | null;
+    spearmanRaw: number | null;
+    pearsonDiff: number | null;
+    spearmanDiff: number | null;
+    count: number | null;
+}
+
 // ── State types ────────────────────────────────────────────────────────────
 
 /** Hydrated column profile as stored in app state (differs from raw API ColumnProfile). */
@@ -240,6 +260,7 @@ export interface AppStateType {
     adaptiveLineFilters: AdaptiveLineFilter[];
     pendingAdaptivePoint: PendingAdaptivePoint | null;
     lastFetchedData: DataObject | null;
+    fetchedWindow: FetchedWindow | null;
     currentStart: number | null;
     currentEnd: number | null;
     chart: ChartInstance | null;
@@ -262,9 +283,11 @@ export interface AppStateType {
     rollingWindow: number;
     rollingBands: RollingBandData[] | null;
     anomalyEnabled: boolean;
+    anomalyGlobalEnabled: boolean;
     anomalyMethod: string;
     anomalyThreshold: number;
     anomalyRegions: AnomalyRegionData[] | null;
+    anomalySummaryStats: SummaryStats | null;
     /** Preview of a spectral-filtered signal for the timeseries chart overlay */
     spectralFilterPreview?: SpectralFilterPreview | null;
     /** Dataset revision counter (incremented on upload) */
@@ -276,6 +299,7 @@ export interface AppStateType {
 
 export interface RollingBandData {
     column: string;
+    color?: string;
     ts: number[];
     mean: (number | null)[];
     upper1: (number | null)[];
@@ -296,6 +320,7 @@ export interface AnomalyResponse {
     method: string;
     threshold: number;
     regions: AnomalyRegionData[];
+    summary_stats?: SummaryStats | null;
 }
 
 export interface TransformResponse {
@@ -442,6 +467,7 @@ export interface ScatterState {
     colorMax: number | null;
     colorCardinality: ColorCardinality | null;
     correlationsByColumn: Map<string, { value?: number | null; count?: number; column?: string }>;
+    currentPairStats: ScatterPairStats | null;
     suggestionThreshold: number;
     lastBinnedText: string;
     lastUpdateMs: number;

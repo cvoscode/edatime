@@ -563,4 +563,89 @@ describe('initCtrlPan', () => {
         expect(view.yMin).toBeCloseTo(-25, 5);
         expect(view.yMax).toBeCloseTo(75, 5);
     });
+
+    it('continues panning with decaying inertia after pointerup', async () => {
+        vi.useFakeTimers();
+        const scheduledFrames: FrameRequestCallback[] = [];
+        const originalRaf = globalThis.requestAnimationFrame;
+        const originalCancel = globalThis.cancelAnimationFrame;
+        vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+            scheduledFrames.push(cb);
+            return scheduledFrames.length;
+        });
+        vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+        try {
+            const container = document.getElementById('chart') as HTMLElement & {
+                setPointerCapture?: (pointerId: number) => void;
+                releasePointerCapture?: (pointerId: number) => void;
+            };
+            container.style.position = 'relative';
+            container.setPointerCapture = vi.fn();
+            container.releasePointerCapture = vi.fn();
+            container.getBoundingClientRect = () => ({
+                x: 0,
+                y: 0,
+                top: 0,
+                left: 0,
+                right: 300,
+                bottom: 200,
+                width: 300,
+                height: 200,
+                toJSON: () => ({}),
+            } as DOMRect);
+
+            let xRange = { min: 0, max: 100 };
+            const onPan = vi.fn((view: { xMin: number; xMax: number }) => {
+                xRange = { min: view.xMin, max: view.xMax };
+            });
+            initCtrlPan({
+                container,
+                grid: { left: 50, right: 50, top: 20, bottom: 20 },
+                getXRange: () => xRange,
+                getYRange: () => null,
+                onPan,
+            });
+
+            container.dispatchEvent(new PointerEvent('pointerdown', {
+                button: 0,
+                ctrlKey: true,
+                pointerId: 9,
+                clientX: 100,
+                clientY: 100,
+                bubbles: true,
+            }));
+            vi.advanceTimersByTime(16);
+            container.dispatchEvent(new PointerEvent('pointermove', {
+                pointerId: 9,
+                ctrlKey: true,
+                clientX: 150,
+                clientY: 100,
+                bubbles: true,
+            }));
+            const dragFrame = scheduledFrames.shift();
+            dragFrame?.(16);
+
+            container.dispatchEvent(new PointerEvent('pointerup', {
+                pointerId: 9,
+                clientX: 150,
+                clientY: 100,
+                bubbles: true,
+            }));
+
+            const inertiaFrame1 = scheduledFrames.shift();
+            inertiaFrame1?.(32);
+            const afterFirstFrame = xRange.min;
+            const inertiaFrame2 = scheduledFrames.shift();
+            inertiaFrame2?.(48);
+
+            expect(onPan.mock.calls.length).toBeGreaterThan(2);
+            expect(afterFirstFrame).toBeLessThan(-25);
+            expect(xRange.min).toBeLessThan(afterFirstFrame);
+        } finally {
+            vi.useRealTimers();
+            vi.stubGlobal('requestAnimationFrame', originalRaf);
+            vi.stubGlobal('cancelAnimationFrame', originalCancel);
+        }
+    });
 });

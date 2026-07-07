@@ -118,6 +118,15 @@ export function frequencyUnitScale(unit: FrequencyUnit): number {
     return 1;
 }
 
+export function useCyclesPerDayFrequencyAxis(hz: number): boolean {
+    return Number.isFinite(hz) && hz > 0 && hz < 0.01;
+}
+
+export function formatCyclesPerDay(hz: number, fractionDigits = 2): string {
+    if (!Number.isFinite(hz) || hz < 0) return '—';
+    return `${(hz * 86_400).toFixed(fractionDigits)} cycles/day`;
+}
+
 export function formatFrequencyInUnit(hz: number, unit: FrequencyUnit, fractionDigits = 2): string {
     if (!Number.isFinite(hz) || hz < 0) return '—';
     const scale = frequencyUnitScale(unit);

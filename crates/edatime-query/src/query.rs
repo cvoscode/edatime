@@ -17,6 +17,7 @@ pub struct DataQuery {
     pub width: usize,
     pub columns: Option<String>,
     pub color_column: Option<String>,
+    pub lookaround_ms: Option<i64>,
     /// `"arrow"` (default) or `"json"`.
     pub format: Option<String>,
 }

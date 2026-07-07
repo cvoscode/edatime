@@ -28,6 +28,43 @@ let scatterRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 
 let scatterEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
 
+function syncScatterFilterBanner(): void {
+    const banner = document.getElementById('scatter-filter-banner') as HTMLElement | null;
+    const text = document.getElementById('scatter-filter-banner-text') as HTMLElement | null;
+    const clearButton = document.getElementById('scatter-filter-banner-clear') as HTMLButtonElement | null;
+    if (!banner || !text || !clearButton) return;
+
+    const controls = currentControls();
+    const activeColumns = Array.from(new Set(getActiveScatterFilterColumns({
+        x: controls.x,
+        y: controls.y,
+        colorColumn: controls.selectedColorColumn,
+    })));
+    const columnCount = activeColumns.length;
+    const adaptiveCount = Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters.length : 0;
+    const hasZoomRange = Number.isFinite(appState.currentStart) && Number.isFinite(appState.currentEnd);
+    const hasFilters = hasZoomRange || columnCount > 0 || adaptiveCount > 0;
+
+    banner.hidden = !hasFilters;
+    if (!hasFilters) {
+        text.textContent = '';
+        return;
+    }
+
+    const parts: string[] = [];
+    if (hasZoomRange) parts.push('zoom range');
+    if (columnCount > 0) parts.push(`${columnCount} column filter${columnCount === 1 ? '' : 's'}`);
+    if (adaptiveCount >= 0) parts.push(`${adaptiveCount} adaptive filter${adaptiveCount === 1 ? '' : 's'}`);
+    text.textContent = `Timeseries filters carry over here: ${parts.join(', ')}`;
+
+    if (!clearButton.dataset.bound) {
+        clearButton.addEventListener('click', () => {
+            window.dispatchEvent(new CustomEvent('edatime:clear-all-filters'));
+        });
+        clearButton.dataset.bound = '1';
+    }
+}
+
 export function getScatterEmptyStateController() {
     if (!scatterEmptyStateController) {
         scatterEmptyStateController = createEmptyStateController({
@@ -78,6 +115,7 @@ export function syncScatterEmptyState(message?: string): void {
     const hasAxes = !!getDropdownValue('scatter-x-col') && !!getDropdownValue('scatter-y-col');
     const isLoading = appState.scatter.loading && hasAxes && !(_gpuUnavailable && !appState.scatter.chart);
     syncScatterFilterBadge();
+    syncScatterFilterBanner();
 
     const linkedRangeOutside = isLinkedBrushEnabled()
         && isRangeOutsideDataset(appState.metadata?.time_range, appState.currentStart, appState.currentEnd);
@@ -176,6 +214,7 @@ export function initScatterPageRuntime(): void {
         init() {
             syncScatterEmptyState();
             syncScatterFilterBadge();
+            syncScatterFilterBanner();
             scatterRuntime?.bindExports();
         },
         onEveryPageChange() {

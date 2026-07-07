@@ -571,6 +571,23 @@
   opacity: 0.9;
 }
 
+.fft-spectral-info__peak-table {
+  display: inline-grid;
+  gap: 2px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.fft-spectral-info__peak-row {
+  display: grid;
+  grid-template-columns: 32px minmax(110px, auto) minmax(72px, auto) minmax(72px, auto);
+  gap: 8px;
+  align-items: baseline;
+}
+
+.fft-spectral-info__peak-cell {
+  white-space: nowrap;
+}
+
 /* ─── Adaptive-filter trace picker popup ─────────────────────── */
 .adaptive-trace-picker {
   position: fixed;

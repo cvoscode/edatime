@@ -65,10 +65,42 @@ function formatSpectrogramTime(timestampMs: number): string {
     });
 }
 
+function findDominantFrequencyBand(result: SpectrogramResult): { lowerIndex: number; upperIndex: number; dominantHz: number } | null {
+    const freqs = result.frequencies;
+    if (!Array.isArray(freqs) || freqs.length === 0) return null;
+    const totals = freqs.map(() => 0);
+    result.magnitudes.forEach((row) => {
+        freqs.forEach((_, index) => {
+            const value = Number(row?.[index] ?? NaN);
+            if (Number.isFinite(value)) totals[index] += Math.abs(value);
+        });
+    });
+    let dominantIndex = 0;
+    for (let i = 1; i < totals.length; i += 1) {
+        if (totals[i] > totals[dominantIndex]!) dominantIndex = i;
+    }
+    const dominantTotal = totals[dominantIndex] ?? 0;
+    const threshold = dominantTotal * 0.75;
+    let lowerIndex = dominantIndex;
+    let upperIndex = dominantIndex;
+    while (lowerIndex > 0 && (totals[lowerIndex - 1] ?? 0) >= threshold) lowerIndex -= 1;
+    while (upperIndex < totals.length - 1 && (totals[upperIndex + 1] ?? 0) >= threshold) upperIndex += 1;
+    if (lowerIndex === upperIndex && totals.length > 1) {
+        if (dominantIndex === totals.length - 1) lowerIndex = dominantIndex - 1;
+        else upperIndex = dominantIndex + 1;
+    }
+    return {
+        lowerIndex,
+        upperIndex,
+        dominantHz: Number(freqs[dominantIndex] ?? 0),
+    };
+}
+
 // ── Runtime factory ───────────────────────────────────────────────────────────
 export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
     let spectrogramRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
     let autoComputeStarted = false;
+    let autoComputeExplained = false;
 
     const getSpectrogramWinCustomInput = () => document.getElementById('spectrogram-win-size-custom') as HTMLInputElement | null;
     const getSpectrogramHopCustomInput = () => document.getElementById('spectrogram-hop-size-custom') as HTMLInputElement | null;
@@ -152,6 +184,8 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             const clipToggle = document.getElementById('spectrogram-clip-toggle') as HTMLInputElement | null;
             const clipParamLabel = document.getElementById('spectrogram-clip-param-label') as HTMLElement | null;
             const resetZoomBtn = document.getElementById('spectrogram-zoom-reset-btn') as HTMLButtonElement | null;
+            const autoFitToggle = document.getElementById('spectrogram-auto-fit-toggle') as HTMLInputElement | null;
+            const summaryEl = document.getElementById('spectrogram-summary') as HTMLElement | null;
             const chartEl = document.getElementById('spectrogram-chart') as HTMLDivElement | null;
 
             if (!chartEl || !colSelect) return;
@@ -410,6 +444,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     liveClipParam.disabled = !enabled;
                     liveClipParam.title = hint;
                 }
+                const clipMethodField = liveClipMethod?.closest('label, .toolbar-field') as HTMLElement | null;
+                const clipParamField = liveClipParam?.closest('label, .toolbar-field') as HTMLElement | null;
+                if (clipMethodField) clipMethodField.hidden = !enabled;
+                if (clipParamField) clipParamField.hidden = !enabled;
             };
 
             const syncClipParamLabel = () => {
@@ -639,11 +677,12 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 const scaleLabel = activeScaleLabel();
                 const points = getVisiblePointsForMode(cachedGrid, mode, colorFilterRange, currentScaleBounds);
 
-                const xTickInterval = Math.max(0, Math.floor(timeAxis.length / 10) - 1);
+                const xTickInterval = Math.max(0, Math.ceil(timeAxis.length / 8) - 1);
                 const yTickInterval = Math.max(0, Math.floor(freqAxis.length / 10) - 1);
                 const maxFrequency = freqAxis.reduce((max, value) => Math.max(max, Number(value) || 0), 0);
                 const frequencyUnit = pickFrequencyAxisUnit(maxFrequency);
                 const formatFrequencyForAxis = (value: number) => formatFrequencyInUnit(value, frequencyUnit);
+                const totalSpanMs = Math.max(0, Number(timeAxis[timeAxis.length - 1] ?? 0) - Number(timeAxis[0] ?? 0));
 
                 chart.setOption({
                     backgroundColor: 'transparent',
@@ -683,14 +722,17 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         data: timeAxis,
                         name: 'Time',
                         nameLocation: 'middle',
-                        nameGap: 60,
+                        nameGap: 48,
                         axisLabel: {
                             color: '#9fb1d1',
-                            rotate: 30,
+                            rotate: totalSpanMs > 48 * 60 * 60_000 ? 0 : 15,
                             interval: xTickInterval,
                             formatter: (value: string | number) => {
                                 const date = new Date(Number(value));
-                                return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}\n${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+                                if (totalSpanMs > 48 * 60 * 60_000) {
+                                    return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
+                                }
+                                return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
                             },
                         },
                         splitLine: { show: false },
@@ -743,6 +785,29 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     }],
                 });
 
+                const dominantBand = findDominantFrequencyBand(spectrogramResult);
+                if (summaryEl) {
+                    const summaryParts = [
+                        `Spectrogram of ${spectrogramResult.column}`,
+                        `Window ${resolveSpectrogramWindowSize()}`,
+                        `Hop ${resolveSpectrogramHopSize(resolveSpectrogramWindowSize())}`,
+                        scaleModeLabel(spectrogramAppliedScaleMode, spectrogramAppliedClipMode, spectrogramAppliedClipParam),
+                    ];
+                    if (dominantBand) {
+                        summaryParts.push(`Peak ${formatFrequencyForAxis(dominantBand.dominantHz)}`);
+                    }
+                    summaryEl.textContent = summaryParts.join(' · ');
+                }
+                if (autoFitToggle?.checked && dominantBand && freqAxis.length > 1) {
+                    const denom = Math.max(1, freqAxis.length - 1);
+                    chart.dispatchAction({
+                        type: 'dataZoom',
+                        dataZoomIndex: 1,
+                        start: (dominantBand.lowerIndex / denom) * 100,
+                        end: (dominantBand.upperIndex / denom) * 100,
+                    });
+                }
+
                 initColorbarInteraction();
                 updateSpectrogramColorbar(minValue, maxValue, logScale ? 'log10' : scaleLabel);
                 syncSpectrogramEmptyState();
@@ -760,7 +825,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
 
                 const winSize = resolveSpectrogramWindowSize();
                 const hopSize = resolveSpectrogramHopSize(winSize);
-                const normalize = (getDropdownValue('spectrogram-normalize') || 'none') as ScaleMode;
+                const normalize = (getDropdownValue('spectrogram-normalize') || 'zscore') as ScaleMode;
                 const clipEnabled = !!clipToggle?.checked;
                 const clipMethod = (getDropdownValue('spectrogram-clip-method') || 'percentile') as ClipMode;
                 const clipParam = Number.parseFloat(
@@ -818,6 +883,13 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 if (!getDropdownValue('spectrogram-col-select')) return;
                 if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
                 autoComputeStarted = true;
+                if (!autoComputeExplained) {
+                    autoComputeExplained = true;
+                    const autoColumn = getDropdownValue('spectrogram-col-select');
+                    toast(`Loaded ${autoColumn} automatically. Pick another column and press Compute to switch.`, 'info', {
+                        duration: 5000,
+                    });
+                }
                 void computeSpectrogram();
             };
 
@@ -856,6 +928,9 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             document.getElementById('spectrogram-clip-method')?.addEventListener('change', () => {
                 syncClipParamLabel();
             });
+            autoFitToggle?.addEventListener('change', () => {
+                if (spectrogramResult) void renderSpectrogramChart();
+            });
             resetZoomBtn?.addEventListener('click', () => {
                 if (!spectrogramChart) return;
                 spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 0, start: 0, end: 100 });
@@ -884,6 +959,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     visibleClipParam.disabled = !enabled;
                     visibleClipParam.title = hint;
                 }
+                const clipMethodField = visibleClipMethod?.closest('label, .toolbar-field') as HTMLElement | null;
+                const clipParamField = visibleClipParam?.closest('label, .toolbar-field') as HTMLElement | null;
+                if (clipMethodField) clipMethodField.hidden = !enabled;
+                if (clipParamField) clipParamField.hidden = !enabled;
             }
             syncSpectrogramCustomInputs();
             const colSelect = document.getElementById('spectrogram-col-select');

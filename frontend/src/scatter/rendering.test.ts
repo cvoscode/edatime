@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { appState } from '../store/appStateCompat.js';
-import { applyView, buildOption, updateMarginalPlots } from './rendering.js';
+import { applyView, buildOption, updateCorrelationStats, updateMarginalPlots } from './rendering.js';
 import { buildDensitySeries, buildDensityTooltipCache, densityTooltipFormatterFactory } from './renderingDensity.js';
 
 class MockCanvasContext2D {
@@ -297,6 +297,27 @@ describe('scatter marginal rendering modes', () => {
         expect(yBars).toHaveLength(2);
         expect(xBars[0].h).toBe(xBars[1].h);
         expect(yBars[0].w).toBe(yBars[1].w);
+    });
+});
+
+describe('updateCorrelationStats', () => {
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <select id="scatter-x-col"><option value="HUFL" selected>HUFL</option></select>
+            <select id="scatter-y-col"><option value="HULL" selected>HULL</option></select>
+            <div id="scatter-pearson"></div>
+            <div id="scatter-spearman"></div>
+        `;
+        appState.scatter.correlationsByColumn = new Map([
+            ['HULL', { column: 'HULL', value: 0.671, count: 42 }],
+        ]);
+        (appState.scatter as any).currentPairStats = { pearsonRaw: 0.671, spearmanRaw: 0.642, count: 42 };
+    });
+
+    it('renders Pearson and Spearman values for the active pair', () => {
+        updateCorrelationStats();
+        expect(document.getElementById('scatter-pearson')?.textContent).toBe('Pearson r: 0.671');
+        expect(document.getElementById('scatter-spearman')?.textContent).toBe('Spearman ρ: 0.642');
     });
 });
 

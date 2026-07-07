@@ -40,10 +40,18 @@ export interface AnomalyRegion {
     score: number;
 }
 
+export interface SummaryStats {
+    mean: number;
+    std: number;
+    min: number;
+    max: number;
+}
+
 export interface AnomalyResponse {
     method: string;
     threshold: number;
     regions: AnomalyRegion[];
+    summary_stats?: SummaryStats | null;
 }
 
 export async function fetchAnomalies(

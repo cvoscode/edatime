@@ -11,6 +11,7 @@ const {
     setAnnotationOverlayCallbackMock,
     setAnomalyOverlayCallbackMock,
     initAdaptiveFilterGestureMock,
+    initYRangeControlsMock,
     restoreSessionAfterChartReadyMock,
 } = vi.hoisted(() => ({
     appStateMock: {
@@ -32,6 +33,7 @@ const {
     setAnnotationOverlayCallbackMock: vi.fn(),
     setAnomalyOverlayCallbackMock: vi.fn(),
     initAdaptiveFilterGestureMock: vi.fn(),
+    initYRangeControlsMock: vi.fn(),
     restoreSessionAfterChartReadyMock: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -62,6 +64,10 @@ vi.mock('../../bootstrap/analyticsOverlay.js', () => ({
 
 vi.mock('../adaptiveGesture.js', () => ({
     initAdaptiveFilterGesture: initAdaptiveFilterGestureMock,
+}));
+
+vi.mock('../../ui/yRangeControls.js', () => ({
+    initYRangeControls: initYRangeControlsMock,
 }));
 
 vi.mock('../../bootstrap/sessionBootstrap.js', () => ({
@@ -206,5 +212,27 @@ describe('createTimeseriesBootstrap', () => {
         expect(Number.isFinite(forwarded[0].xMin)).toBe(true);
         expect(Number.isFinite(forwarded[0].xMax)).toBe(true);
         expect(forwarded[1]).toBe('user');
+    });
+
+    it('initializes Y-range controls after the main chart is ready', async () => {
+        checkWebGPUMock.mockResolvedValue(null);
+
+        const { createTimeseriesBootstrap } = await import('./ensureTimeseriesReady.js');
+
+        const bootstrap = createTimeseriesBootstrap({
+            ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class { }),
+            onZoom: vi.fn(),
+            onYRange: vi.fn(),
+            onZoomOut: vi.fn(),
+            buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(),
+            renderCurrentData: vi.fn(),
+            fetchAndRender: vi.fn().mockResolvedValue(undefined),
+            refreshZoomControlsState: vi.fn(),
+        });
+
+        await bootstrap.ensureReady();
+
+        expect(initYRangeControlsMock).toHaveBeenCalledTimes(1);
     });
 });

@@ -12,13 +12,15 @@
  */
 
 import { applyColumnRanges } from '../services/timeseries/filtering.js';
-import { analyticsState, chartState, runtimeState, setAnomalyRegions, setRollingBands, uiState } from '../store/index.js';
+import { analyticsState, chartState, runtimeState, setAnomalyRegions, setAnomalySummaryStats, setRollingBands, uiState } from '../store/index.js';
 import type { AnomalyResponse, AdaptiveLineFilter } from '../types.js';
+import { getSeriesColor } from '../utils/seriesColors.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface RollingBandData {
     column: string;
+    color?: string;
     ts: number[];
     mean: (number | null)[];
     upper1: (number | null)[];
@@ -76,7 +78,16 @@ export function computeFrontendRollingBands(
                 lower2[i] = m - 2 * std;
             }
         }
-        bands.push({ column: col, ts: tsOut, mean, upper1, lower1, upper2, lower2 });
+        bands.push({
+            column: col,
+            color: getSeriesColor(col, cols.indexOf(col)),
+            ts: tsOut,
+            mean,
+            upper1,
+            lower1,
+            upper2,
+            lower2,
+        });
     }
     return bands;
 }
@@ -124,14 +135,17 @@ export async function fetchAnomalyRegions(
                 controllerSignal,
             );
             setAnomalyRegions(resp?.regions ?? null);
+            setAnomalySummaryStats(resp?.summary_stats ?? null);
         } else {
             setAnomalyRegions(null);
+            setAnomalySummaryStats(null);
         }
     } catch (e: unknown) {
         if (!(e instanceof Error) || e.name !== 'AbortError') {
             console.warn('Anomaly fetch failed:', e);
         }
         setAnomalyRegions(null);
+        setAnomalySummaryStats(null);
     }
 
     requestOverlayRender();

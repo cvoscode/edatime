@@ -1,8 +1,9 @@
 # ai/frontend/src/store/runtimeState.ts
-> Runtime state for fetch debouncing, data cache, Y-axis mode, and analysis binding.
+> Runtime state for buffered fetch data, debounce handles, Y-axis mode, and analysis binding.
 
 ## Interface `RuntimeState`
 - `lastFetchedData: DataObject | null`
+- `fetchedWindow: FetchedWindow | null`
 - `fetchDebounceId: ReturnType<typeof setTimeout> | null`
 - `pendingYMode: YMode | null`
 - `pendingRestoreY: { min: number; max: number } | null`
@@ -10,17 +11,11 @@
 - `refetchOnZoom: boolean`
 
 ## Exports
-
-### State
 - `runtimeState: RuntimeState`
-
-### Mutations
 - `setLastFetchedData(data: DataObject | null): void`
+- `setFetchedWindow(window: FetchedWindow | null): void`
 - `setFetchDebounceId(id: ReturnType<typeof setTimeout> | null): void`
 - `setPendingYMode(mode: YMode | null): void`
 - `setPendingRestoreY(range: { min: number; max: number } | null): void`
 - `setAnalysisBound(bound: boolean): void`
 - `setRefetchOnZoom(refetch: boolean): void`
-
----
-[1]: events.md

@@ -337,3 +337,52 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod proptests {
+    //! Property-based tests for `AppConfig` defaults and overrides.
+    //!
+    //! Targets:
+    //! - Validation bounds must always be self-consistent
+    //!   (`min ≤ max`, non-zero caps, sane positive integers) so the
+    //!   `validate_*` helpers in the service layer can never get a config
+    //!   that violates its own contract.
+    //! - `AppConfig::default()` is reproducible across calls (idempotent).
+
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(64))]
+
+        #[test]
+        fn validation_default_bounds_are_consistent(_unused in 0..1i32) {
+            let v = ValidationSettings::default();
+            prop_assert!(v.min_viewport_width > 0);
+            prop_assert!(v.max_viewport_width > v.min_viewport_width);
+            prop_assert!(v.max_buckets > 0);
+            prop_assert!(v.max_scatter_limit > 0);
+            prop_assert!(v.default_scatter_limit > 0);
+            prop_assert!(v.default_scatter_limit <= v.max_scatter_limit);
+            prop_assert!(v.max_scatter_effective_points > 0);
+            prop_assert!(v.max_color_cardinality > 0);
+            prop_assert!(v.max_selected_columns > 0);
+        }
+
+        #[test]
+        fn app_config_default_is_idempotent(_unused in 0..1i32) {
+            // Two independent defaults must agree — guards against accidental
+            // global state leaking into Default impls. We compare the
+            // observable validation contract rather than serializing the whole
+            // struct (which is Deserialize-only).
+            let a = AppConfig::default().validation;
+            let b = AppConfig::default().validation;
+            prop_assert_eq!(a.max_selected_columns, b.max_selected_columns);
+            prop_assert_eq!(a.min_viewport_width, b.min_viewport_width);
+            prop_assert_eq!(a.max_viewport_width, b.max_viewport_width);
+            prop_assert_eq!(a.max_buckets, b.max_buckets);
+            prop_assert_eq!(a.max_scatter_limit, b.max_scatter_limit);
+            prop_assert_eq!(a.default_scatter_limit, b.default_scatter_limit);
+        }
+    }
+}

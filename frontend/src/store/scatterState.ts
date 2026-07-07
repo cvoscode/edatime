@@ -6,7 +6,7 @@
  */
 
 import type { ChartGPUInstance, SeriesConfig } from '../../libs/chartgpu/dist/index.js';
-import type { DatasetMetadata, ScatterFilterSpec, ScatterLineFilterSpec, TopPairItem } from '../types.js';
+import type { DatasetMetadata, ScatterFilterSpec, ScatterLineFilterSpec, ScatterPairStats, TopPairItem } from '../types.js';
 import { emitStoreEvent } from './events.js';
 
 /* ── Types (mirror of ScatterState in types.ts) ─────────── */
@@ -99,6 +99,7 @@ export interface ScatterState {
      */
     colorCardinality: { requested: number; used: number; bucketed: number } | null;
     correlationsByColumn: Map<string, { value?: number | null; count?: number; column?: string }>;
+    currentPairStats: ScatterPairStats | null;
     suggestionThreshold: number;
     lastBinnedText: string;
     lastUpdateMs: number;
@@ -153,6 +154,7 @@ export const scatterState: ScatterState = {
     colorMax: null,
     colorCardinality: null,
     correlationsByColumn: new Map(),
+    currentPairStats: null,
     suggestionThreshold: 0.7,
     lastBinnedText: '',
     lastUpdateMs: 0,

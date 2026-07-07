@@ -208,6 +208,21 @@ describe('dataClient fetch helpers', () => {
             expect(calledUrl).toContain('color_column=temperature');
         });
 
+        it('includes lookaround_ms when specified', async () => {
+            const { fetchData } = await import('./dataClient');
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([]),
+                arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+            });
+
+            await fetchData('0', '1000', 500, 'value', null, 120_000);
+
+            const calledUrl = mockFetch.mock.calls[0][0];
+            expect(calledUrl).toContain('lookaround_ms=120000');
+        });
+
         it('populates data.color_column and data.color when a color column is present in the Arrow table', async () => {
             const { fetchData } = await import('./dataClient');
 

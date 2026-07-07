@@ -592,6 +592,17 @@ describe('updateDataMulti', () => {
         expect(chart.getRobustDisplayRangeSuggestion()).toEqual({ mode: 'percentile', param: 1 });
     });
 
+    it('does not render negative y-axis headroom for strictly positive data', () => {
+        const chart = makeChart();
+        (chart as any)._lastDataYMin = 0.1;
+        (chart as any)._lastDataYMax = 100;
+        (chart as any)._lastDisplayYValues = [0.1, 0.2, 1, 25, 100];
+
+        const yAxis = (chart as any)._buildYAxisOption();
+
+        expect(yAxis.min).toBeGreaterThanOrEqual(0);
+    });
+
     it('clamps dragged legend position inside the chart container', () => {
         const chart = makeChart();
         const container = document.createElement('div');

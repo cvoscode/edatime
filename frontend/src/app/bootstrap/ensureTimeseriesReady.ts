@@ -15,6 +15,7 @@ import { setAnnotationOverlayCallback } from '../../ui/annotationPanel.js';
 import { setAnomalyOverlayCallback } from '../../bootstrap/analyticsOverlay.js';
 import { initAdaptiveFilterGesture } from '../adaptiveGesture.js';
 import { restoreSessionAfterChartReady } from '../../bootstrap/sessionBootstrap.js';
+import { initYRangeControls } from '../../ui/yRangeControls.js';
 import { dbg, dbgGroup } from '../../debug.js';
 export interface TimeseriesBootstrapCallbacks {
     onZoom: (view: ViewSnapshot, sourceKind: string) => void;
@@ -92,6 +93,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
 
                     setAnalysisBound(false);
                     bindAnalysisChartEvents();
+                    initYRangeControls();
                     initAdaptiveFilterGesture({
                         buildColumnToggles: deps.buildColumnToggles,
                         buildRangeControls: deps.buildRangeControls,
@@ -144,6 +146,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                         await chartState.chart!.init();
                         setAnalysisBound(false);
                         bindAnalysisChartEvents();
+                        initYRangeControls();
                         const fallbackChart = chartState.chart as ChartInstance | null;
                         fallbackChart?.setXRange?.(chartState.currentStart!, chartState.currentEnd!);
                         fallbackChart?.setChartText?.(

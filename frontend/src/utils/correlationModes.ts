@@ -28,9 +28,9 @@ const MODE_SHORT_LABELS: Record<CorrelationMetric, string> = {
 };
 
 const MODE_BASIS_LABELS: Record<CorrelationMetric, string> = {
-    pearson_raw: 'Original level comparison',
-    spearman_raw: 'Original level comparison',
-    kendall_raw: 'Original level comparison',
+    pearson_raw: 'Raw values',
+    spearman_raw: 'Raw values',
+    kendall_raw: 'Raw values',
     pearson_diff: 'First differences',
     spearman_diff: 'First differences',
     kendall_diff: 'First differences',

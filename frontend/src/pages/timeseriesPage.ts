@@ -8,6 +8,7 @@ import { createRequestTask } from './shared/requestTask.js';
 import type { ViewSnapshot } from '../types.js';
 import {
     setFetchDebounceId,
+    setFetchedWindow,
     setLastFetchedData,
     setPendingRestoreY,
     setPendingYMode,
@@ -19,7 +20,15 @@ import {
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
 
 interface TimeseriesControllerDeps {
-    fetchData: (startIso: string, endIso: string, width: number, cols: string, colorCol: string | null, signal: AbortSignal) => Promise<any>;
+    fetchData: (
+        startIso: string,
+        endIso: string,
+        width: number,
+        cols: string,
+        colorCol: string | null,
+        lookaroundMs: number,
+        signal: AbortSignal,
+    ) => Promise<any>;
     buildRangeControls: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
@@ -32,6 +41,7 @@ let timeseriesEmptyStateController: ReturnType<typeof createEmptyStateController
 
 // Issue 7.2: Track last successful fetch parameters for no-op short-circuit
 let lastFetchedParams: string | null = null;
+const MIN_LOOKAROUND_MS = 60_000;
 
 function getTimeseriesEmptyStateController() {
     if (!timeseriesEmptyStateController) {
@@ -209,11 +219,26 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         // other events that would produce identical requests.
         const currentCols = appState.selectedCols.join(',');
         const currentColorCol = appState.selectedColorColumn || null;
-        const lastFetchKey = `${currentStart}|${currentEnd}|${currentCols}|${currentColorCol}`;
+        const lastFetchKey = `${currentCols}|${currentColorCol}`;
+        const fetchedWindow = appState.fetchedWindow;
+        const viewportInsideFetchedWindow = !!(
+            fetchedWindow
+            && Number.isFinite(fetchedWindow.start)
+            && Number.isFinite(fetchedWindow.end)
+            && fetchedWindow.start <= currentStart
+            && fetchedWindow.end >= currentEnd
+        );
 
-        if (lastFetchedParams === lastFetchKey && appState.lastFetchedData) {
-            dbg('fetchAndRender: short-circuiting no-op request', { startIso: new Date(currentStart).toISOString(), endIso: new Date(currentEnd).toISOString(), cols: currentCols, colorCol: currentColorCol });
+        if (lastFetchedParams === lastFetchKey && appState.lastFetchedData && viewportInsideFetchedWindow) {
+            dbg('fetchAndRender: reusing buffered data window', {
+                startIso: new Date(currentStart).toISOString(),
+                endIso: new Date(currentEnd).toISOString(),
+                cols: currentCols,
+                colorCol: currentColorCol,
+                fetchedWindow,
+            });
             deps.buildRangeControls();
+            appState.chart?.setXRange?.(currentStart, currentEnd);
             renderCurrentData();
             emitChartRangeChange('data');
             return;
@@ -223,6 +248,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             const startIso = new Date(currentStart).toISOString();
             const endIso = new Date(currentEnd).toISOString();
             const width = document.getElementById('main-chart')?.clientWidth || 1200;
+            const lookaroundMs = Math.max(MIN_LOOKAROUND_MS, Math.round((currentEnd - currentStart) * 1.25));
 
             const requestData = async () => {
                 const cols = appState.selectedCols.join(',');
@@ -230,12 +256,12 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
                 announceChartLoading(appState.selectedCols || []);
                 dbgGroup('fetchAndRender', () => {
-                    dbg('request', { startIso, endIso, width, cols, colorCol });
+                    dbg('request', { startIso, endIso, width, cols, colorCol, lookaroundMs });
                     dbg('selectedCols', appState.selectedCols);
                     dbg('selectedColorColumn', appState.selectedColorColumn);
                 });
 
-                return deps.fetchData(startIso, endIso, width, cols, colorCol, signal);
+                return deps.fetchData(startIso, endIso, width, cols, colorCol, lookaroundMs, signal);
             };
 
             let data: any;
@@ -255,6 +281,14 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             }
 
             setLastFetchedData(data);
+            if (Array.isArray(data?.ts) || data?.ts instanceof Float64Array) {
+                const tsCount = data.ts.length;
+                const fetchedStart = tsCount > 0 ? Number(data.ts[0]) : currentStart - lookaroundMs;
+                const fetchedEnd = tsCount > 0 ? Number(data.ts[tsCount - 1]) : currentEnd + lookaroundMs;
+                setFetchedWindow({ start: fetchedStart, end: fetchedEnd });
+            } else {
+                setFetchedWindow({ start: currentStart - lookaroundMs, end: currentEnd + lookaroundMs });
+            }
             // Issue 7.2: Update last successful fetch parameters for no-op short-circuit
             lastFetchedParams = lastFetchKey;
 

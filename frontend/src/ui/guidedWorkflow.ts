@@ -485,13 +485,16 @@ function renderCompactAssistant(
     suggestion: WorkflowSuggestion,
     progress: WorkflowProgress,
 ): void {
+    panel.classList.add('workflow-panel--compact-shell');
     const activeStep = progress.steps.find(s => s.status === 'current');
-    const completedCount = progress.completedStepIds.length;
+    const summaryText = suggestion.actionLabel
+        ? `Next: ${suggestion.actionLabel}`
+        : (activeStep ? `Current: ${activeStep.label}` : 'Guided flow');
     panel.innerHTML = `
         <div class="workflow-panel--compact">
             <div class="workflow-panel__summary">
                 <div class="workflow-panel__eyebrow">Guided Workflow</div>
-                <span class="workflow-panel__hint-text">${completedCount > 0 ? `✓ ${completedCount} completed` : 'Start'}</span>
+                <span class="workflow-panel__hint-text">${escapeHtml(summaryText)}</span>
                 ${activeStep ? `<span class="workflow-panel__current-step">→ ${escapeHtml(activeStep.label)}</span>` : ''}
             </div>
             <div class="workflow-panel__actions">
@@ -509,6 +512,7 @@ function renderFullWorkflowPanel(
     progress: WorkflowProgress,
     suggestion: WorkflowSuggestion,
 ): void {
+    panel.classList.remove('workflow-panel--compact-shell');
     const crumbs = progress.steps.map((step) => `
         <button
             class="workflow_step workflow_step--${step.status}"

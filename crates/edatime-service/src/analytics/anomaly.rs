@@ -16,6 +16,36 @@ pub struct AnomalyRegion {
     pub score: f64,
 }
 
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct SummaryStats {
+    pub mean: f64,
+    pub std: f64,
+    pub min: f64,
+    pub max: f64,
+}
+
+pub fn compute_summary_stats(df: &DataFrame, columns: &[String]) -> Result<Option<SummaryStats>, AppError> {
+    let mut finite_vals = Vec::new();
+    for col_name in columns {
+        finite_vals.extend(extract_f64_column_opt(df, col_name)?.into_iter().flatten());
+    }
+    if finite_vals.is_empty() {
+        return Ok(None);
+    }
+    let n = finite_vals.len() as f64;
+    let mean = finite_vals.iter().sum::<f64>() / n;
+    let variance = finite_vals.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / n;
+    let std = variance.sqrt();
+    let min = finite_vals.iter().copied().fold(f64::INFINITY, f64::min);
+    let max = finite_vals.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    Ok(Some(SummaryStats {
+        mean,
+        std,
+        min,
+        max,
+    }))
+}
+
 /// Iterates values and produces anomaly regions by calling `is_anomaly` for each point.
 fn merge_anomaly_regions<F, S>(
     values: &[Option<f64>],

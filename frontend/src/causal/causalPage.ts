@@ -12,6 +12,7 @@ export type { MetadataColumn, CausalMetadata } from './selectionState.js';
 
 import {
     _currentColumns,
+    _currentLinks,
     _selectedColumns,
     _addEdgeMode,
 } from './selectionState.js';
@@ -21,7 +22,8 @@ import { scheduleCausalChartRefresh, setChartEl } from './graphView.js';
 import { syncCausalEmptyState } from './statusView.js';
 import { openEditPanel, bindEditPanelEvents } from './editPanel.js';
 import { handleExport } from './export.js';
-import { applyMethodControlState, toggleAddEdgeMode, cancelAddEdgeMode, handleComputeClick } from './workflow.js';
+import { initCausalComparison } from './causalComparison.js';
+import { applyMethodControlState, toggleAddEdgeMode, cancelAddEdgeMode, handleComputeClick, syncCausalGraphActionState } from './workflow.js';
 import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 import { bindInfoPopovers } from '../ui/infoPopovers.js';
 
@@ -55,11 +57,13 @@ export function initCausalPage(deps: any): void {
     if (!_chartEl || !columnsBar) return;
 
     bindEditPanelEvents();
+    initCausalComparison();
     seedSelectedColumnsFromDataset(deps);
     renderColumnChips(deps, columnsBar, openEditPanel);
     syncCausalEmptyState(_selectedColumns.size);
     bindInfoPopovers();
     applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci');
+    syncCausalGraphActionState(_currentLinks.length > 0 && _currentColumns.length >= 2);
     scheduleCausalChartRefresh();
 
     window.addEventListener('edatime:causal-preselect', ((e: CustomEvent) => {

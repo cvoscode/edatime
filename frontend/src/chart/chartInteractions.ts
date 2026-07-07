@@ -226,8 +226,19 @@ export function initCtrlPan(opts: CtrlPanOptions): void {
     let drag: DragState | null = null;
     let lastClientX = 0;
     let lastClientY = 0;
+    let lastMoveAt = 0;
     let pending: { xMin: number; xMax: number; yMin?: number; yMax?: number } | null = null;
     let panRaf: number | null = null;
+    let inertiaRaf: number | null = null;
+    let recentMoves: Array<{ dx: number; dt: number }> = [];
+
+    const cancelInertia = () => {
+        if (inertiaRaf != null) {
+            cancelAnimationFrame(inertiaRaf);
+            inertiaRaf = null;
+        }
+        recentMoves = [];
+    };
 
     const isCtrlPan = (e: PointerEvent): boolean =>
         (e.ctrlKey || e.metaKey) && e.button === 0;
@@ -235,10 +246,12 @@ export function initCtrlPan(opts: CtrlPanOptions): void {
     container.addEventListener('pointerdown', (e) => {
         if (!isCtrlPan(e)) return;
         if (shouldIgnore?.(e)) return;
+        cancelInertia();
         e.preventDefault();
         const rect = container.getBoundingClientRect();
         lastClientX = e.clientX;
         lastClientY = e.clientY;
+        lastMoveAt = Date.now();
         drag = {
             pointerId: e.pointerId,
             startX: e.clientX - rect.left,
@@ -256,6 +269,9 @@ export function initCtrlPan(opts: CtrlPanOptions): void {
         const dy = e.clientY - lastClientY;
         lastClientX = e.clientX;
         lastClientY = e.clientY;
+        const now = Date.now();
+        const dt = Math.max(1, now - lastMoveAt);
+        lastMoveAt = now;
         const rect = container.getBoundingClientRect();
         drag.endX = e.clientX - rect.left;
         drag.endY = e.clientY - rect.top;
@@ -285,6 +301,8 @@ export function initCtrlPan(opts: CtrlPanOptions): void {
             next.yMax = yRange.max + yShift;
         }
         pending = next;
+        recentMoves.push({ dx, dt });
+        if (recentMoves.length > 6) recentMoves.shift();
         if (panRaf != null) return;
         panRaf = requestAnimationFrame(() => {
             panRaf = null;
@@ -296,9 +314,44 @@ export function initCtrlPan(opts: CtrlPanOptions): void {
 
     const finish = (e: PointerEvent) => {
         if (!drag || e.pointerId !== drag.pointerId) return;
+        const samples = recentMoves.slice(-4);
         drag = null;
         container.style.cursor = '';
         try { container.releasePointerCapture(e.pointerId); } catch { /* ignored */ }
+
+        const totalDt = samples.reduce((sum, sample) => sum + sample.dt, 0);
+        const totalDx = samples.reduce((sum, sample) => sum + sample.dx, 0);
+        const velocityPxPerMs = totalDt > 0 ? totalDx / totalDt : 0;
+        if (Math.abs(velocityPxPerMs) < 0.01) {
+            recentMoves = [];
+            return;
+        }
+
+        let currentVelocity = velocityPxPerMs;
+        let lastTs: number | null = null;
+        const step = (ts: number) => {
+            if (lastTs == null) lastTs = ts - 16.67;
+            const dtMs = Math.max(1, ts - lastTs);
+            lastTs = ts;
+            const rect = container.getBoundingClientRect();
+            const plotWidth = Math.max(1, rect.width - grid.left - grid.right);
+            const xRange = getXRange();
+            const xSpan = xRange.max - xRange.min;
+            const dxPx = currentVelocity * dtMs;
+            const xShift = (-dxPx / plotWidth) * xSpan;
+            onPan({
+                xMin: xRange.min + xShift,
+                xMax: xRange.max + xShift,
+            });
+            currentVelocity *= Math.pow(0.92, dtMs / 16.67);
+            if (Math.abs(currentVelocity) < 0.01) {
+                inertiaRaf = null;
+                recentMoves = [];
+                return;
+            }
+            inertiaRaf = requestAnimationFrame(step);
+        };
+        inertiaRaf = requestAnimationFrame(step);
     };
     container.addEventListener('pointerup', finish);
     container.addEventListener('pointercancel', finish);

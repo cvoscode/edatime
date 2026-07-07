@@ -261,6 +261,7 @@ describe('drift page accessibility and debug metadata', () => {
               <div id="drift-relationships-panel"></div>
               <div id="drift-summary-strip"></div>
               <div id="drift-column-summary"></div>
+              <div id="drift-status" role="status" aria-live="polite">Select one or more columns, choose a baseline, and press Compute.</div>
               <div id="drift-timeline-chart"></div>
               <div id="drift-detail-chart"></div>
               <select id="drift-detail-col-select"></select>
@@ -351,6 +352,56 @@ describe('drift page accessibility and debug metadata', () => {
 
         expect(document.getElementById('drift-overview-panel')?.textContent).toContain('psi_major');
         expect(document.getElementById('drift-detail-stats')?.textContent).toContain('Triggered by');
+    });
+
+    it('replaces the instructional drift status with a compute summary and all-flagged hint', async () => {
+        const { initDriftPage } = await import('./driftPage.js');
+        await initDriftPage({
+            numeric_columns: ['value'],
+            columns: [{ name: 'value', dtype: 'Float64' }],
+            time_range: { min: 0, max: 1_000 },
+        });
+
+        expect(document.getElementById('drift-status')?.textContent).toContain('press Compute');
+
+        (document.getElementById('drift-ref-start') as HTMLInputElement).value = '1970-01-01T00:00';
+        (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
+        (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('drift-status')?.textContent).toContain('Drift analysis complete');
+        });
+
+        const statusText = document.getElementById('drift-status')?.textContent ?? '';
+        expect(statusText).toContain('2 of 2 windows flagged');
+        expect(statusText).toContain('Every window is flagged');
+    });
+
+    it('restores the instructional drift status after the selection changes', async () => {
+        const { initDriftPage } = await import('./driftPage.js');
+        await initDriftPage({
+            numeric_columns: ['value', 'other'],
+            columns: [
+                { name: 'value', dtype: 'Float64' },
+                { name: 'other', dtype: 'Float64' },
+            ],
+            time_range: { min: 0, max: 1_000 },
+        });
+
+        (document.getElementById('drift-ref-start') as HTMLInputElement).value = '1970-01-01T00:00';
+        (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
+        (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('drift-status')?.textContent).toContain('Drift analysis complete');
+        });
+
+        const otherCheckbox = document.querySelector<HTMLInputElement>('#drift-col-picker-list input[value="other"]');
+        expect(otherCheckbox).not.toBeNull();
+        otherCheckbox!.checked = true;
+        otherCheckbox!.dispatchEvent(new Event('change', { bubbles: true }));
+
+        expect(document.getElementById('drift-status')?.textContent).toContain('press Compute');
     });
 
     it('opens the timeline plots tab after compute so charts are visible', async () => {
