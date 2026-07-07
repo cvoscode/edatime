@@ -234,11 +234,11 @@ mod proptests {
     //! hand-written tests above only exercise a handful of hand-picked
     //! values. These properties close that gap on the inverse-pair shapes.
 
-    use proptest::prelude::*;
     use super::{
         DataType, DetectedTimeUnit, TimeUnit, detect_time_unit, epoch_ms_to_native,
         native_to_epoch_ms, ts_to_ms_factor, unit_multiplier,
     };
+    use proptest::prelude::*;
 
     /// Native ticks that fit comfortably inside i64 for all four time units
     /// without overflow when converted to epoch-ms (f64).

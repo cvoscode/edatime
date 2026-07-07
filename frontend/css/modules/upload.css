@@ -487,8 +487,10 @@
   background: var(--surface-0);
   overflow: hidden;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto minmax(300px, 1fr);
   min-height: clamp(420px, 54vh, 760px);
+  min-width: 0;
 }
 
 .upload-preview-head {
@@ -499,42 +501,11 @@
   flex-wrap: wrap;
   background: var(--surface-1);
   border-bottom: 1px solid var(--border);
+  min-width: 0;
 }
 
-.upload-preview-guide {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 14px 16px;
-  background:
-    linear-gradient(180deg, rgba(0, 168, 255, 0.06) 0%, rgba(0, 168, 255, 0.02) 100%),
-    var(--surface-0);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.upload-preview-guide__card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 72px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.upload-preview-guide__label {
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-
-.upload-preview-guide__value {
-  font-size: 0.8125rem;
-  line-height: 1.45;
-  color: var(--text);
+.upload-preview-head > * {
+  min-width: 0;
 }
 
 .upload-preview-head .toolbar-label {
@@ -606,14 +577,14 @@
 }
 
 .upload-preview-filter {
-  flex: 1 1 280px;
-  min-width: 240px;
+  flex: 1 1 200px;
+  min-width: 0;
   display: flex;
   justify-content: flex-end;
 }
 
 .upload-preview-filter .column-filter-input {
-  width: min(360px, 100%);
+  width: min(220px, 100%);
   margin-top: 0;
 }
 
@@ -626,10 +597,12 @@
 }
 
 .upload-preview-status {
-  margin-left: auto;
+  flex: 0 1 auto;
+  min-width: 0;
   font-size: 0.6875rem;
   color: var(--text-dim);
-  white-space: nowrap;
+  white-space: normal;
+  text-align: right;
 }
 
 .upload-preview-status.success {

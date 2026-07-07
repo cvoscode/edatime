@@ -1,15 +1,9 @@
 # ai/frontend/src/features/timeseries/columnsController.md
-> Timeseries column-chip orchestration, including the inline adaptive-filter hint and filter-modal bridge.
+> Timeseries column-chip orchestration and filter-modal bridge. The previous version of this module also rendered two persistent discovery affordances below the chip rail — a "X of Y active" text summary and an inline "Ctrl + click" adaptive-filter hint chip — which were clipped off the right edge of the panel at intermediate viewports and consumed a fixed ~50 px row at every width. Both have been removed; the chip rail's own tooltips and the Draw toolbar "?" help button (see `frontend/src/ui/drawControls.ts`) now carry the same discoverability information via title attributes.
 
 ## Functions
-- `isAdaptiveHintDismissed(): boolean`
-  - Reads the adaptive-hint dismissal preference from `localStorage`.
-- `setAdaptiveHintDismissed(dismissed: boolean): void`
-  - Persists or clears the adaptive-hint dismissal preference.
-- `refreshAdaptiveFilterHint(): void`
-  - Re-renders the inline adaptive-filter hint inside `#column-toggles` when the surrounding UI changes out of band.
 - `buildColumnToggles(fetchAndRender: () => void, buildRangeControlsFn: () => void, renderCurrentDataFn: (() => void) | null = null): void` [deps: [composeChipListItems][1], [renderSeriesChipList][2], [bindChipCtrlClick][3]]
-  - Rebuilds the timeseries chip rail, syncs the adaptive hint, and wires toggle/color/context-menu behavior.
+  - Rebuilds the timeseries chip rail, annotates the rail container with the active/total count via `title` / `aria-label`, and wires toggle/color/context-menu behavior.
 - `buildRangeControls(): void` [deps: [buildRangeControls][4]]
   - Re-export of the selected-column range-chip renderer.
 - `initColumnFilterModal(renderCurrentData: () => void, updateAnalysisYRange: (min: number, max: number, source: string) => void): void` [deps: [initFilterModalController][5]]

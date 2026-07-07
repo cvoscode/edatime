@@ -85,76 +85,21 @@ describe('buildColumnToggles', () => {
         expect(container.querySelectorAll('.series-chip').length).toBe(7);
     });
 
-    it('renders an inline adaptive-filter hint next to the chip rail and highlights the active target', () => {
+    it('exposes the active/total series count via the chip-rail container title and aria-label', () => {
         const fetchAndRender = vi.fn();
         const buildRangeControls = vi.fn();
 
-        setAdaptiveFilterColumn('HUFL');
         buildColumnToggles(fetchAndRender, buildRangeControls);
 
-        const summary = document.querySelector<HTMLElement>('.timeseries-chip-status__summary');
-        expect(summary?.textContent).toBe('3 of 7 active. Click chips to add more.');
-        expect(Array.from(document.querySelectorAll('#column-toggles .chip-label')).map((el) => el.textContent?.trim()))
-            .toEqual(['HUFL', 'HULL', 'LUFL', 'LULL', 'MUFL', 'MULL', 'OT']);
+        const container = document.getElementById('column-toggles') as HTMLElement;
+        expect(container.getAttribute('title')).toBe('3 of 7 active. Click chips to add more.');
+        expect(container.getAttribute('aria-label')).toBe('3 of 7 active. Click chips to add more.');
 
-        const hint = document.querySelector<HTMLElement>('.timeseries-adaptive-hint');
-        expect(hint).not.toBeNull();
-        expect(hint?.parentElement?.classList.contains('timeseries-chip-status')).toBe(true);
-        expect(hint!.classList.contains('timeseries-adaptive-hint--active')).toBe(true);
-        expect(hint!.getAttribute('title')).toContain('HUFL');
-        expect(hint!.textContent).toMatch(/Ctrl\s*\+\s*click/);
-
-        const inactiveChip = Array.from(document.querySelectorAll<HTMLElement>('#column-toggles .series-chip'))
-            .find((chip) => chip.querySelector('.chip-label')?.textContent === 'MUFL');
-        expect(inactiveChip?.classList.contains('inactive')).toBe(true);
-
-        // Clearing the target drops the active state and updates the title.
-        setAdaptiveFilterColumn('');
+        // Adding a chip updates the summary annotation on the next rebuild.
         setSelectedCols(['HUFL', 'HULL', 'OT', 'MUFL']);
         buildColumnToggles(fetchAndRender, buildRangeControls);
-        expect(document.querySelector<HTMLElement>('.timeseries-chip-status__summary')?.textContent).toBe('4 of 7 active. Click chips to add more.');
-        const clearedHint = document.querySelector<HTMLElement>('.timeseries-adaptive-hint');
-        expect(clearedHint?.classList.contains('timeseries-adaptive-hint--active')).toBe(false);
-        expect(clearedHint?.getAttribute('title')).toMatch(/Ctrl\+click/);
-        const inactiveMuflChip = Array.from(document.querySelectorAll<HTMLElement>('#column-toggles .series-chip'))
-            .find((chip) => chip.querySelector('.chip-label')?.textContent === 'MUFL');
-        expect(inactiveMuflChip?.classList.contains('inactive')).toBe(false);
-    });
-
-    it('lets the user dismiss the adaptive-filter hint and keeps it dismissed across rebuilds', () => {
-        const fetchAndRender = vi.fn();
-        const buildRangeControls = vi.fn();
-
-        setAdaptiveFilterColumn('');
-        buildColumnToggles(fetchAndRender, buildRangeControls);
-
-        const dismissButton = document.querySelector<HTMLButtonElement>('.timeseries-adaptive-hint__dismiss');
-        expect(dismissButton).not.toBeNull();
-
-        dismissButton!.click();
-        expect(document.querySelector('.timeseries-adaptive-hint')).toBeNull();
-
-        buildColumnToggles(fetchAndRender, buildRangeControls);
-        expect(document.querySelector('.timeseries-adaptive-hint')).toBeNull();
-    });
-
-    it('exposes a refresh hook so the Draw help icon can re-show the dismissed hint', async () => {
-        const fetchAndRender = vi.fn();
-        const buildRangeControls = vi.fn();
-
-        setAdaptiveFilterColumn('');
-        buildColumnToggles(fetchAndRender, buildRangeControls);
-
-        const dismissButton = document.querySelector<HTMLButtonElement>('.timeseries-adaptive-hint__dismiss');
-        dismissButton!.click();
-        expect(document.querySelector('.timeseries-adaptive-hint')).toBeNull();
-
-        // The Draw toolbar's "?" help icon dispatches a re-show once the
-        // user asks for it. After the pref is reset the hint should be
-        // visible again on the next refresh call.
-        const { refreshAdaptiveFilterHint, setAdaptiveHintDismissed } = await import('./columnsController.js');
-        setAdaptiveHintDismissed(false);
-        refreshAdaptiveFilterHint();
-        expect(document.querySelector('.timeseries-adaptive-hint')).not.toBeNull();
+        const rebuilt = document.getElementById('column-toggles') as HTMLElement;
+        expect(rebuilt.getAttribute('title')).toBe('4 of 7 active. Click chips to add more.');
+        expect(rebuilt.getAttribute('aria-label')).toBe('4 of 7 active. Click chips to add more.');
     });
 });

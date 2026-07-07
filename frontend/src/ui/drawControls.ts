@@ -60,20 +60,19 @@ export function initDrawControls(fetchAndRender: () => void): void {
         adaptiveClearBtn.dataset.bound = '1';
     }
     if (drawHelpBtn && !drawHelpBtn.dataset.bound) {
-        // The help icon opens the global keyboard shortcuts modal so the
-        // Draw / adaptive-filter interactions are documented next to the
-        // tool instead of only being reachable through the `?` global
-        // shortcut. If the user previously dismissed the inline adaptive
-        // hint, clicking "?" also brings the hint back so the discovery
-        // surface stays alive without becoming intrusive on repeat visits.
+        // The Draw "?" help icon opens the global keyboard shortcuts
+        // modal so Draw / adaptive-filter interactions are documented
+        // next to the tool instead of only being reachable through the
+        // `?` global shortcut. Hover/focus also surfaces the
+        // discoverability text via the title attribute so the inline
+        // status row the previous version of the page carried is no
+        // longer needed.
+        drawHelpBtn.setAttribute(
+            'title',
+            'Show drawing and adaptive-filter help — ctrl + click a selected series chip to target adaptive line filters',
+        );
         drawHelpBtn.addEventListener('click', () => {
-            void import('../features/timeseries/columnsController.js').then(({ isAdaptiveHintDismissed, setAdaptiveHintDismissed, refreshAdaptiveFilterHint }) => {
-                if (isAdaptiveHintDismissed()) {
-                    setAdaptiveHintDismissed(false);
-                    refreshAdaptiveFilterHint();
-                }
-                return import('../utils/a11y.js');
-            }).then((m) => m.showKeyboardShortcutsHelp());
+            void import('../utils/a11y.js').then((m) => m.showKeyboardShortcutsHelp());
         });
         drawHelpBtn.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' || event.key === ' ') {

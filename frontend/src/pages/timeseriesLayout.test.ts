@@ -76,6 +76,10 @@ describe('timeseries layout shell', () => {
     it('lets the chip rail wrap instead of hiding overflow behind horizontal scrolling', () => {
         expect(chipsCss).toMatch(/\.timeseries-chip-rail\s*\{[^}]*flex-wrap:\s*wrap;/s);
         expect(chipsCss).toMatch(/\.timeseries-chip-rail\s*\{[^}]*overflow-x:\s*visible;/s);
-        expect(chipsCss).toContain('.timeseries-chip-status');
+    });
+
+    it('does not render the obsolete chip-status / adaptive-hint row in the timeseries header', () => {
+        expect(chipsCss).not.toContain('.timeseries-chip-status');
+        expect(chipsCss).not.toContain('.timeseries-adaptive-hint');
     });
 });

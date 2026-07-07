@@ -1,5 +1,14 @@
 /**
  * Column toggle chip UI + column range filter controls.
+ *
+ * The previous version of this module also rendered two persistent
+ * discovery affordances below the chip rail — a "X of Y active" text
+ * summary and an inline "Ctrl + click" adaptive-filter hint chip —
+ * which were clipped off the right edge of the panel at intermediate
+ * viewports (1100 / 768 / 414 / 375 px) and added a fixed ~50 px tall
+ * row at every width. Both have been removed; the chip rail's own
+ * tooltips and the Draw toolbar "?" help button now carry that
+ * discoverability information (see `frontend/src/ui/drawControls.ts`).
  */
 
 import {
@@ -11,38 +20,6 @@ import { buildRangeControls } from './rangeControls.js';
 import { bindChipContextMenu } from './chipContextMenu.js';
 import { composeChipListItems, bindChipCtrlClick } from './chipComposition.js';
 import { initFilterModalController } from './filterModalController.js';
-
-const ADAPTIVE_HINT_DISMISSED_KEY = 'edatime_timeseries_adaptive_hint_dismissed';
-
-export function isAdaptiveHintDismissed(): boolean {
-    try {
-        return window.localStorage.getItem(ADAPTIVE_HINT_DISMISSED_KEY) === '1';
-    } catch {
-        return false;
-    }
-}
-
-export function setAdaptiveHintDismissed(dismissed: boolean): void {
-    try {
-        if (dismissed) {
-            window.localStorage.setItem(ADAPTIVE_HINT_DISMISSED_KEY, '1');
-        } else {
-            window.localStorage.removeItem(ADAPTIVE_HINT_DISMISSED_KEY);
-        }
-    } catch {
-        // Ignore storage failures and keep the hint visible for this session.
-    }
-}
-
-/**
- * Re-render the inline adaptive-filter hint in the chip rail. Re-exposed
- * so out-of-band UI (e.g. the Draw toolbar "?" help button) can restore
- * the hint after the user dismissed it earlier.
- */
-export function refreshAdaptiveFilterHint(): void {
-    const container = document.getElementById('column-toggles');
-    if (container) syncAdaptiveFilterHint(container);
-}
 
 // ─── Column toggles (chips) ─────────────────────────────────────────────────
 
@@ -87,7 +64,16 @@ export function buildColumnToggles(
         },
     });
 
-    syncAdaptiveFilterHint(container);
+    // Annotate the rail container with the active / total counts so the
+    // information previously shown in the removed chip-status summary row
+    // is still available via the native tooltip on hover/focus.
+    const total = Array.isArray(appState.numericCols) ? appState.numericCols.length : 0;
+    const active = Array.isArray(appState.selectedCols) ? appState.selectedCols.length : 0;
+    const summaryText = total > 0
+        ? `${active} of ${total} active. Click chips to add more.`
+        : 'No numeric series available.';
+    container.setAttribute('title', summaryText);
+    container.setAttribute('aria-label', summaryText);
 
     bindChipCtrlClick(
         container,
@@ -100,71 +86,6 @@ export function buildColumnToggles(
         fetchAndRender,
     );
     finish();
-}
-
-/**
- * Insert or update the inline adaptive-filter hint next to the column
- * chips. The chip tooltips already mention Ctrl+click, but users often
- * miss the gesture; an inline hint makes the interaction discoverable.
- * The hint is anchored to the chip rail so it does not collide with
- * adjacent toolbar groups.
- */
-function syncAdaptiveFilterHint(chipContainer: HTMLElement): void {
-    const statusRow = ensureChipStatusRow(chipContainer);
-    let hint = statusRow.querySelector<HTMLElement>('.timeseries-adaptive-hint');
-    if (isAdaptiveHintDismissed()) {
-        hint?.remove();
-        syncChipStatusSummary(statusRow);
-        return;
-    }
-    if (!hint) {
-        hint = document.createElement('span');
-        hint.className = 'timeseries-adaptive-hint';
-        hint.innerHTML = '<span class="timeseries-adaptive-hint__kbd" aria-hidden="true">Ctrl + click</span><span class="timeseries-adaptive-hint__label">a selected series to add an adaptive line filter</span><button type="button" class="timeseries-adaptive-hint__dismiss" aria-label="Dismiss adaptive filter hint">×</button>';
-        hint.querySelector<HTMLButtonElement>('.timeseries-adaptive-hint__dismiss')?.addEventListener('click', () => {
-            setAdaptiveHintDismissed(true);
-            hint?.remove();
-            syncChipStatusSummary(statusRow);
-        });
-        statusRow.appendChild(hint);
-    }
-    syncChipStatusSummary(statusRow);
-    // Highlight the current adaptive target so the hint doubles as a
-    // status indicator once the user has picked one.
-    const target = appState.adaptiveFilterColumn || '';
-    if (target) {
-        hint.classList.add('timeseries-adaptive-hint--active');
-        hint.setAttribute('title', `Adaptive filter target: ${target}. Ctrl+click another chip to switch.`);
-    } else {
-        hint.classList.remove('timeseries-adaptive-hint--active');
-        hint.setAttribute('title', 'Ctrl+click a selected series chip to target adaptive line filters to it.');
-    }
-}
-
-function ensureChipStatusRow(chipContainer: HTMLElement): HTMLElement {
-    const parent = chipContainer.parentElement;
-    if (!parent) return chipContainer;
-    let statusRow = parent.querySelector<HTMLElement>('.timeseries-chip-status');
-    if (!statusRow) {
-        statusRow = document.createElement('div');
-        statusRow.className = 'timeseries-chip-status';
-        chipContainer.insertAdjacentElement('afterend', statusRow);
-    }
-    return statusRow;
-}
-
-function syncChipStatusSummary(statusRow: HTMLElement): void {
-    let summary = statusRow.querySelector<HTMLElement>('.timeseries-chip-status__summary');
-    if (!summary) {
-        summary = document.createElement('span');
-        summary.className = 'timeseries-chip-status__summary';
-        statusRow.prepend(summary);
-    }
-    const total = Array.isArray(appState.numericCols) ? appState.numericCols.length : 0;
-    const active = Array.isArray(appState.selectedCols) ? appState.selectedCols.length : 0;
-    summary.textContent = total > 0
-        ? `${active} of ${total} active. Click chips to add more.`
-        : 'No numeric series available.';
 }
 
 // ─── Range control chips (delegated) ──────────────────────────────────────────

@@ -29,7 +29,6 @@
 - `'analysis-controls'`
 - `'command-palette'`
 - `'sample-datasets'`
-- `'home-top-correlations'`
 - `'app-commands'`
 
 ## Functions
@@ -38,6 +37,6 @@
 - `ensureSettingsPanel(deps: DeferredShellDeps): Promise<void>`
 - `ensureCommands(deps: DeferredShellDeps): Promise<void>`
 - `ensureHomeSubsystems(deps: DeferredShellDeps): Promise<void>`
-  - Loads both `'sample-datasets'` and `'home-top-correlations'` for the home page.
+  - Loads `'sample-datasets'` for the home page.
 - `ensureAll(deps: DeferredShellDeps): Promise<void>`
 - `_resetDeferredSubsystems(): void`

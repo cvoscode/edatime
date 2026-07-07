@@ -26,23 +26,6 @@
   align-content: flex-start;
 }
 
-.timeseries-chip-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 24px;
-  width: 100%;
-}
-
-.timeseries-chip-status__summary {
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
 .series-empty {
   font-size: 0.75rem;
   color: var(--text-muted);
@@ -651,57 +634,4 @@
 .adaptive-trace-picker__option.current {
   color: var(--text, #eef4ff);
   background: color-mix(in srgb, var(--pick-accent, #fff) 14%, transparent);
-}
-
-/* ─── Inline adaptive-filter hint ──────────────────────────────
-   Sits next to the chip rail so the Ctrl+click gesture is
-   discoverable without relying on hover-only tooltips. */
-.timeseries-adaptive-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  color: var(--text-muted, #9fb1d1);
-  background: color-mix(in srgb, var(--surface-2, #1a1f2e) 70%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border, #2a3147) 80%, transparent);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.timeseries-adaptive-hint__kbd {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--accent, #4a9eff) 14%, transparent);
-  color: var(--text, #eef4ff);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.66rem;
-  letter-spacing: 0.02em;
-}
-
-.timeseries-adaptive-hint__label {
-  color: inherit;
-}
-
-.timeseries-adaptive-hint__dismiss {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  font-size: 0.8rem;
-  line-height: 1;
-  padding: 0;
-}
-
-.timeseries-adaptive-hint__dismiss:hover,
-.timeseries-adaptive-hint__dismiss:focus-visible {
-  color: var(--text, #eef4ff);
-}
-
-.timeseries-adaptive-hint--active {
-  color: var(--accent, #4a9eff);
-  border-color: color-mix(in srgb, var(--accent, #4a9eff) 35%, transparent);
 }
