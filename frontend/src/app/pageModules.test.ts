@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-    register: vi.fn(),
     ensureStyleModule: vi.fn(),
     createFftEntrypoint: vi.fn(() => ({ init: vi.fn() })),
     createHeatmapEntrypoint: vi.fn(() => ({ init: vi.fn() })),
@@ -11,7 +10,6 @@ const mocks = vi.hoisted(() => ({
     createDriftEntrypoint: vi.fn(() => ({ init: vi.fn() })),
 }));
 
-vi.mock('./pageRegistry.js', () => ({ register: mocks.register }));
 vi.mock('../utils/pageStyles.js', () => ({ ensureStyleModule: mocks.ensureStyleModule }));
 vi.mock('../features/fft/entrypoint.js', () => ({ createFftEntrypoint: mocks.createFftEntrypoint }));
 vi.mock('../features/heatmap/entrypoint.js', () => ({ createHeatmapEntrypoint: mocks.createHeatmapEntrypoint }));
@@ -21,6 +19,7 @@ vi.mock('../features/causal/entrypoint.js', () => ({ createCausalEntrypoint: moc
 vi.mock('../features/drift/entrypoint.js', () => ({ createDriftEntrypoint: mocks.createDriftEntrypoint }));
 
 import { loadPageDescriptors, type PageDescriptorInitDeps } from './pageModules.js';
+import type { PageRegistry } from './pageRegistry.js';
 
 function createDeps(): PageDescriptorInitDeps {
     return {
@@ -36,10 +35,11 @@ function createDeps(): PageDescriptorInitDeps {
 
 describe('page module descriptors', () => {
     it('registers lightweight descriptors without importing page implementations', async () => {
-        await loadPageDescriptors(createDeps());
+        const register = vi.fn();
+        await loadPageDescriptors({ register } as unknown as PageRegistry, createDeps());
 
-        expect(mocks.register).toHaveBeenCalledTimes(6);
-        expect(mocks.register.mock.calls.map(([name]) => name)).toEqual([
+        expect(register).toHaveBeenCalledTimes(6);
+        expect(register.mock.calls.map(([name]) => name)).toEqual([
             'fft', 'heatmap', 'scatter', 'spectrogram', 'causal', 'drift',
         ]);
         expect(mocks.createFftEntrypoint).not.toHaveBeenCalled();
@@ -49,8 +49,9 @@ describe('page module descriptors', () => {
 
     it('loads page-owned CSS and the page implementation only on first page initialization', async () => {
         const deps = createDeps();
-        await loadPageDescriptors(deps);
-        const scatter = mocks.register.mock.calls.find(([name]) => name === 'scatter')?.[1];
+        const register = vi.fn();
+        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        const scatter = register.mock.calls.find(([name]) => name === 'scatter')?.[1];
 
         expect(scatter).toBeDefined();
         expect(mocks.ensureStyleModule).not.toHaveBeenCalled();

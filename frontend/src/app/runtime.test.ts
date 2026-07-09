@@ -24,4 +24,20 @@ describe('page registry', () => {
         await pending;
         expect(init).toHaveBeenCalledTimes(1);
     });
+
+    it('shares one pending initialization between concurrent page requests', async () => {
+        let releaseInit!: () => void;
+        const init = vi.fn(() => new Promise<void>((resolve) => { releaseInit = resolve; }));
+        const registry = createPageRegistry();
+        registry.register('scatter', { requiresMetadata: false, init });
+
+        const first = registry.ensurePageModuleLoaded('scatter');
+        const second = registry.ensurePageModuleLoaded('scatter');
+        expect(init).toHaveBeenCalledTimes(1);
+
+        releaseInit();
+        await Promise.all([first, second]);
+        await registry.ensurePageModuleLoaded('scatter');
+        expect(init).toHaveBeenCalledTimes(1);
+    });
 });

@@ -33,7 +33,7 @@ import { createAppRuntime } from './app/runtime.js';
 import { markAppReady, resetAppReady } from './app/bootState.js';
 import { upgradeSelects } from './ui/primitives/Dropdown.js';
 import { upgradeFlexibleNumberInputs } from './ui/primitives/FlexibleNumberInput.js';
-import { ensurePageModuleLoaded, clearLoadedPageModules, markMetadataReady } from './app/pageRegistry.js';
+import { createPageRegistry } from './app/pageRegistry.js';
 import { loadPageDescriptors } from './app/pageModules.js';
 import {
     ensureChartModules as ensureChartBootstrapModules,
@@ -86,6 +86,7 @@ window.__edatime.DEBUG = true;
 
 const _appCleanups: Array<() => void> = [];
 const runtime = createAppRuntime();
+const pageRegistry = createPageRegistry();
 let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
 
 /* ── Lazy-loaded modules ──────────────────────────────── */
@@ -158,9 +159,10 @@ async function init(): Promise<void> {
         fetchData: (start, end, width, columns, colorColumn, lookaroundMs, signal) => fetchData!(start, end, width, columns, colorColumn, lookaroundMs, signal),
         fetchMetadata: () => fetchMetadata!(),
         ensurePrimaryChartCtor,
-        markMetadataReady,
+        markMetadataReady: pageRegistry.markMetadataReady,
+        isMetadataReady: pageRegistry.isMetadataReady,
         sanitizeSelectedColumns,
-        clearLoadedPageModules,
+        clearLoadedPageModules: pageRegistry.clearLoadedPageModules,
         ensureSessionPersistenceStarted,
         getSelectedCols: () => uiState.selectedCols,
         setSelectedCols,
@@ -183,7 +185,7 @@ async function init(): Promise<void> {
     timeseriesModule.mount();
 
     initAppShell({
-        ensurePageModuleLoaded,
+        ensurePageModuleLoaded: pageRegistry.ensurePageModuleLoaded,
         showPage,
         fetchAndRender: () => timeseriesModule.fetchAndRender(),
         renderCurrentData: () => timeseriesModule.renderCurrentData(),
@@ -199,7 +201,7 @@ async function init(): Promise<void> {
     // Register lazy-loaded page modules. Each descriptor resolves its own
     // heavy dependencies via dynamic import; app.ts only passes the small
     // runtime helpers each page needs.
-    await loadPageDescriptors({
+    await loadPageDescriptors(pageRegistry, {
         getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
         showPage,
         getMetadata: () => datasetState.metadata ?? null,

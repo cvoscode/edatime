@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
     fakeState,
     isMetadataReadyMock,
-    importedMarkMetadataReadyMock,
     setMetadataMock,
     setDatasetRevisionMock,
     hydrateColumnProfilesMock,
@@ -20,7 +19,6 @@ const {
     return {
         fakeState,
         isMetadataReadyMock: vi.fn(() => false),
-        importedMarkMetadataReadyMock: vi.fn(),
         setMetadataMock: vi.fn((metadata: unknown) => {
             fakeState.metadata = metadata;
         }),
@@ -32,11 +30,6 @@ const {
         applyPartialTimeRangeFromMetadataMock: vi.fn(),
     };
 });
-
-vi.mock('../pageRegistry.js', () => ({
-    isMetadataReady: isMetadataReadyMock,
-    markMetadataReady: importedMarkMetadataReadyMock,
-}));
 
 vi.mock('../../store/index.js', () => ({
     setMetadata: setMetadataMock,
@@ -77,6 +70,7 @@ function createDeps(overrides: Partial<DatasetBootstrapDeps> = {}): DatasetBoots
         ensureChartModules: vi.fn().mockResolvedValue(undefined),
         fetchMetadata: vi.fn().mockResolvedValue(baseMetadata),
         markMetadataReady: vi.fn(),
+        isMetadataReady: isMetadataReadyMock,
         clearLoadedPageModules: vi.fn(),
         storeFetchedMetadata: vi.fn(),
         initializeDatasetUi: vi.fn(),
@@ -114,7 +108,6 @@ describe('createDatasetBootstrap', () => {
         fakeState.metadata = null;
         fakeState.selectedCols = [];
         isMetadataReadyMock.mockReturnValue(false);
-        importedMarkMetadataReadyMock.mockReset();
         setMetadataMock.mockClear();
         setDatasetRevisionMock.mockClear();
         hydrateColumnProfilesMock.mockClear();

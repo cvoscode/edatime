@@ -88,6 +88,7 @@ const defaultDeps = () => ({
     DataChartCtor: class {} as any,
     ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class {}),
     markMetadataReady: vi.fn(),
+    isMetadataReady: vi.fn(() => false),
     sanitizeSelectedColumns: vi.fn(),
     clearLoadedPageModules: vi.fn(),
     ensureSessionPersistenceStarted: vi.fn(),

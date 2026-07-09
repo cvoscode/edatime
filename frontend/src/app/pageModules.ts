@@ -19,7 +19,7 @@
  * declared, so no descriptor pulls in the rest of the app graph.
  */
 
-import { register } from './pageRegistry.js';
+import type { PageRegistry } from './pageRegistry.js';
 import type { DatasetMetadata } from '../types.js';
 import { ensureStyleModule, type StyleModuleName } from '../utils/pageStyles.js';
 
@@ -113,9 +113,9 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
  * Register all built-in page descriptors. The descriptors are registered
  * eagerly but their modules are not loaded until the page is navigated to.
  */
-export async function loadPageDescriptors(deps: PageDescriptorInitDeps): Promise<void> {
+export async function loadPageDescriptors(registry: PageRegistry, deps: PageDescriptorInitDeps): Promise<void> {
     for (const descriptor of PAGE_DESCRIPTORS) {
-        register(descriptor.name, {
+        registry.register(descriptor.name, {
             requiresMetadata: descriptor.requiresMetadata,
             init: async () => {
                 // Preload any page-owned CSS modules before initializing the page.

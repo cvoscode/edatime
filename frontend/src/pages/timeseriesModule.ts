@@ -39,6 +39,7 @@ export interface TimeseriesModuleDeps {
         onZoomOutCb: (() => void) | null,
     ) => import('../types.js').ChartInstance>;
     markMetadataReady: () => void;
+    isMetadataReady: () => boolean;
     sanitizeSelectedColumns: () => void;
     clearLoadedPageModules: () => void;
     ensureSessionPersistenceStarted: () => void;
@@ -176,6 +177,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         fetchMetadata: deps.fetchMetadata,
         storeFetchedMetadata,
         markMetadataReady: deps.markMetadataReady,
+        isMetadataReady: deps.isMetadataReady,
         initializeDatasetUi,
         setNumericCols: deps.setNumericCols,
         setDefaultSelectedColumns: (cols: string[]) => deps.setSelectedCols(cols),

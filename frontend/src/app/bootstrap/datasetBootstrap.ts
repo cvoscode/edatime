@@ -5,7 +5,6 @@
  */
 
 import type { DatasetMetadata } from '../../types.js';
-import { isMetadataReady } from '../pageRegistry.js';
 import { DEBUG, dbg, dbgGroup } from '../../debug.js';
 import {
     assertDatasetRequestScopeActive,
@@ -17,6 +16,7 @@ export interface DatasetBootstrapDeps {
     ensureChartModules: () => Promise<void>;
     fetchMetadata: () => Promise<DatasetMetadata>;
     markMetadataReady: () => void;
+    isMetadataReady: () => boolean;
     clearLoadedPageModules: () => void;
     storeFetchedMetadata: (metadata: DatasetMetadata) => void;
     initializeDatasetUi: (metadata: DatasetMetadata) => Promise<void>;
@@ -80,7 +80,7 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
 
     // ── Bootstrap sequence ───────────────────────────────────────────────
     async function ensureDatasetReady(): Promise<void> {
-        if (isMetadataReady()) return;
+        if (deps.isMetadataReady()) return;
         if (_datasetReadyPromise) return _datasetReadyPromise;
 
         let pending: Promise<void>;
@@ -119,7 +119,7 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
         invalidateDatasetRequestScope();
         _datasetReadyPromise = null;
 
-        if (!isMetadataReady()) {
+        if (!deps.isMetadataReady()) {
             // If metadata isn't ready yet, run full bootstrap instead
             await ensureDatasetReady();
             return;

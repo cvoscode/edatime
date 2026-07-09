@@ -100,9 +100,12 @@ vi.mock('../bootstrap/commands.js', () => ({
 }));
 
 vi.mock('../app/pageRegistry.js', () => ({
-    ensurePageModuleLoaded: vi.fn(),
-    clearLoadedPageModules: clearLoadedPageModulesMock,
-    markMetadataReady: markMetadataReadyMock,
+    createPageRegistry: vi.fn(() => ({
+        ensurePageModuleLoaded: vi.fn(),
+        clearLoadedPageModules: clearLoadedPageModulesMock,
+        markMetadataReady: markMetadataReadyMock,
+        isMetadataReady: vi.fn(),
+    })),
 }));
 
 vi.mock('../app/pageModules.js', () => ({

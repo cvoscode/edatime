@@ -1,67 +1,58 @@
-const loaded = new Set<string>();
-const pages = new Map<string, { requiresMetadata: boolean; init: () => Promise<void> }>();
-let metadataReady = false;
-let releaseMetadata: (() => void) | null = null;
-const metadataPromise = new Promise<void>((resolve) => { releaseMetadata = resolve; });
-
-export function register(name: string, page: { requiresMetadata: boolean; init: () => Promise<void> }) {
-    pages.set(name, page);
+export interface PageDefinition {
+    requiresMetadata: boolean;
+    init: () => Promise<void>;
 }
 
-export async function ensurePageModuleLoaded(name: string): Promise<void> {
-    if (loaded.has(name)) return;
-    const page = pages.get(name);
-    if (!page) return;
-    if (page.requiresMetadata && !metadataReady) await metadataPromise;
-    try {
-        await page.init();
-    } catch (error) {
-        // Surface page-init failures so callers can show a friendly error
-        // instead of leaving the page in a half-loaded state. The page is
-        // NOT marked as loaded on failure so the next navigation will
-        // retry.
-        console.error(`[EdaTime] Failed to initialize page "${name}":`, error);
-        throw error;
-    }
-    loaded.add(name);
+/**
+ * Per-application registry for lazy page features.
+ *
+ * The registry intentionally has no module-level state: app composition owns
+ * its lifetime and passes the instance to dataset/bootstrap boundaries. That
+ * makes page readiness deterministic in tests and prevents state leaking
+ * between independently mounted application roots.
+ */
+export interface PageRegistry {
+    register(name: string, page: PageDefinition): void;
+    ensurePageModuleLoaded(name: string): Promise<void>;
+    markMetadataReady(): void;
+    isMetadataReady(): boolean;
+    clearLoadedPageModules(): void;
 }
 
-export function markMetadataReady() {
-    metadataReady = true;
-    releaseMetadata?.();
-}
-
-export function isMetadataReady() {
-    return metadataReady;
-}
-
-export function clearLoadedPageModules() {
-    loaded.clear();
-}
-
-// Export createPageRegistry for test compatibility - creates isolated instance
-export function createPageRegistry() {
+export function createPageRegistry(): PageRegistry {
     const instanceLoaded = new Set<string>();
-    const instancePages = new Map<string, { requiresMetadata: boolean; init: () => Promise<void> }>();
+    const instancePages = new Map<string, PageDefinition>();
+    const pendingInitializations = new Map<string, Promise<void>>();
     let instanceMetadataReady = false;
     let instanceReleaseMetadata: (() => void) | null = null;
     const instanceMetadataPromise = new Promise<void>((resolve) => { instanceReleaseMetadata = resolve; });
+
     return {
-        register(name: string, page: { requiresMetadata: boolean; init: () => Promise<void> }) {
+        register(name: string, page: PageDefinition) {
             instancePages.set(name, page);
         },
         async ensurePageModuleLoaded(name: string) {
             if (instanceLoaded.has(name)) return;
             const page = instancePages.get(name);
             if (!page) return;
-            if (page.requiresMetadata && !instanceMetadataReady) await instanceMetadataPromise;
-            try {
-                await page.init();
-            } catch (error) {
-                console.error(`[EdaTime] Failed to initialize page "${name}":`, error);
-                throw error;
-            }
-            instanceLoaded.add(name);
+            const pending = pendingInitializations.get(name);
+            if (pending) return pending;
+
+            const initialization = (async () => {
+                if (page.requiresMetadata && !instanceMetadataReady) await instanceMetadataPromise;
+                try {
+                    await page.init();
+                } catch (error) {
+                    // A failed page remains retryable on the next navigation.
+                    console.error(`[EdaTime] Failed to initialize page "${name}":`, error);
+                    throw error;
+                }
+                instanceLoaded.add(name);
+            })().finally(() => {
+                pendingInitializations.delete(name);
+            });
+            pendingInitializations.set(name, initialization);
+            return initialization;
         },
         markMetadataReady() {
             instanceMetadataReady = true;
