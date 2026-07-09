@@ -40,6 +40,9 @@ interface ChartInstanceAPI {
     on(eventName: 'click', callback: (payload: import('../../libs/chartgpu/dist/ChartGPU.js').ChartGPUEventPayload) => void): void;
     off(eventName: 'crosshairMove', callback: (payload: ChartGPUCrosshairMovePayload) => void): void;
     off(eventName: 'click', callback: (payload: import('../../libs/chartgpu/dist/ChartGPU.js').ChartGPUEventPayload) => void): void;
+    setInteractionX?(x: number | null, source?: unknown): void;
+    setCrosshairX?(x: number | null, source?: unknown): void;
+    getInteractionX?(): number | null;
 }
 
 interface DrawItem {
@@ -939,7 +942,7 @@ export class DataChart {
 
         const legend = this._ensureLegendOverlay();
         legend.replaceChildren();
-        legend.title = 'Legend (Ctrl+click + drag to move)';
+        legend.title = 'Legend (Shift+click + drag to move)';
 
         const rows = document.createElement('div');
         rows.className = 'timeseries-legend-overlay__rows';
@@ -987,14 +990,17 @@ export class DataChart {
         legend.addEventListener('pointermove', (event) => this._moveLegendDrag(event));
         legend.addEventListener('pointerup', (event) => this._finishLegendDrag(event));
         legend.addEventListener('pointercancel', (event) => this._finishLegendDrag(event));
-        legend.addEventListener('pointerenter', (event) => this._syncLegendCtrlHint(event));
+        legend.addEventListener('pointerenter', (event) => this._syncLegendShiftHint(event));
 
         // Track every window listener we attach so destroy()/deepDispose()
         // can remove them — otherwise each chart re-init leaks three
         // listeners on `window`.
-        this._addLegendWindowListener('keydown', (event) => this._syncLegendCtrlHint(event));
-        this._addLegendWindowListener('keyup', (event) => this._syncLegendCtrlHint(event));
-        this._addLegendWindowListener('blur', () => this._legendEl?.classList.remove('is-ctrl-active'));
+        this._addLegendWindowListener('keydown', (event) => this._syncLegendShiftHint(event));
+        this._addLegendWindowListener('keyup', (event) => this._syncLegendShiftHint(event));
+        this._addLegendWindowListener('blur', () => {
+            this._legendEl?.classList.remove('is-shift-active');
+            this._container?.classList.remove('is-shift-active');
+        });
 
         this._container.appendChild(legend);
         this._legendEl = legend;
@@ -1015,16 +1021,26 @@ export class DataChart {
         this._legendWindowListeners = [];
     }
 
-    private _syncLegendCtrlHint(event: Event, legend?: HTMLElement | null): void {
+    private _syncLegendShiftHint(event: Event, legend?: HTMLElement | null): void {
         const el = legend ?? this._legendEl;
         if (!el) return;
         const ke = event as KeyboardEvent;
         const pe = event as PointerEvent;
-        const ctrl = (typeof ke.ctrlKey === 'boolean' && ke.ctrlKey)
-            || (typeof ke.metaKey === 'boolean' && ke.metaKey)
-            || (typeof pe.ctrlKey === 'boolean' && pe.ctrlKey)
-            || (typeof pe.metaKey === 'boolean' && pe.metaKey);
-        el.classList.toggle('is-ctrl-active', ctrl);
+        const shiftOnly = (
+            ((typeof ke.shiftKey === 'boolean' && ke.shiftKey)
+                && !(typeof ke.ctrlKey === 'boolean' && ke.ctrlKey)
+                && !(typeof ke.metaKey === 'boolean' && ke.metaKey)
+                && !(typeof ke.altKey === 'boolean' && ke.altKey))
+            || ((typeof pe.shiftKey === 'boolean' && pe.shiftKey)
+                && !(typeof pe.ctrlKey === 'boolean' && pe.ctrlKey)
+                && !(typeof pe.metaKey === 'boolean' && pe.metaKey)
+                && !(typeof pe.altKey === 'boolean' && pe.altKey))
+        );
+        el.classList.toggle('is-shift-active', shiftOnly);
+        // Mirror the hint on the chart container so other handlers
+        // (notably box-zoom) can cheaply check `is-shift-active` and
+        // bail out while the user is dragging the legend.
+        this._container?.classList.toggle('is-shift-active', shiftOnly);
     }
 
     private _getLegendEntries(): { name: string; color: string; visible: boolean }[] {
@@ -1126,7 +1142,7 @@ export class DataChart {
 
     private _startLegendDrag(event: PointerEvent): void {
         if (event.button !== 0 || !this._legendEl) return;
-        if (!(event.ctrlKey || event.metaKey)) return;
+        if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
         const target = event.target as HTMLElement | null;
         if (target?.closest?.('.timeseries-legend-overlay__row')) return;
         event.preventDefault();
@@ -1138,12 +1154,20 @@ export class DataChart {
             startTop: this._legendPosition?.top ?? this._legendEl.offsetTop,
         };
         this._legendEl.classList.add('is-dragging');
+        // Suppress chart hover (crosshair + tooltip) for the duration of
+        // the drag so the legend overlay can receive the pointermove
+        // uninterrupted. Without this, the chart re-engages its tooltip
+        // whenever the legend sits over a series line and the drag stalls.
+        this._suppressChartHover();
         try { this._legendEl.setPointerCapture(event.pointerId); } catch { /* ignored */ }
     }
 
     private _moveLegendDrag(event: PointerEvent): void {
         const drag = this._legendDragState;
         if (!drag || drag.pointerId !== event.pointerId) return;
+        // Defeat any chart-internal pointer handler that re-engages hover
+        // while the pointer is over the legend overlay.
+        this._suppressChartHover();
         this._applyLegendPosition({
             left: drag.startLeft + event.clientX - drag.startClientX,
             top: drag.startTop + event.clientY - drag.startClientY,
@@ -1156,6 +1180,20 @@ export class DataChart {
         this._legendDragState = null;
         this._legendEl?.classList.remove('is-dragging');
         try { this._legendEl?.releasePointerCapture(event.pointerId); } catch { /* ignored */ }
+        // Leave hover cleared: the pointer is still over the legend, and the
+        // next natural pointermove into the chart grid will re-establish it.
+        this._suppressChartHover();
+    }
+
+    private _suppressChartHover(): void {
+        const chart = this.chartInstance as (ChartInstanceAPI & {
+            setInteractionX?: (x: number | null, source?: unknown) => void;
+            setCrosshairX?: (x: number | null, source?: unknown) => void;
+        }) | null;
+        if (!chart) return;
+        const setter = chart.setInteractionX ?? chart.setCrosshairX;
+        if (typeof setter !== 'function') return;
+        try { setter.call(chart, null, 'legend-drag'); } catch { /* ignored */ }
     }
 
     /* ── Text overlays ──────────────────────────────────── */
@@ -1634,7 +1672,10 @@ export class DataChart {
             getXRange: () => ({ min: this._xMin ?? 0, max: this._xMax ?? 0 }),
             getYRange: () => this.getYRange?.() ?? { min: 0, max: 0 },
             onZoom: (view: ViewSnapshot) => this.onZoomCallback?.(view, 'user'),
-            shouldIgnore: (e) => this._drawMode !== 'none' || e.ctrlKey,
+            shouldIgnore: (e) =>
+                this._drawMode !== 'none'
+                || e.ctrlKey
+                || this._container?.classList.contains('is-shift-active') === true,
             onDblClick: () => this.onZoomOutCallback?.(),
         });
     }

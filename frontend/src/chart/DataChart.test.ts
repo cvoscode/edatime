@@ -674,6 +674,24 @@ describe('updateDataMulti', () => {
         expect((chart as any)._clampLegendPosition({ left: 290, top: 170 })).toEqual({ left: 172, top: 112 });
         expect((chart as any)._clampLegendPosition({ left: -20, top: -10 })).toEqual({ left: 8, top: 8 });
     });
+
+    it('mirrors the shift-hint class onto the chart container for box-zoom suppression', () => {
+        const chart = makeChart();
+        const container = document.createElement('div');
+        (chart as any)._container = container;
+        const legend = document.createElement('div');
+        (chart as any)._legendEl = legend;
+
+        // Simulate a Shift-only keydown so the hint should turn on.
+        (chart as any)._syncLegendShiftHint({ shiftKey: true, ctrlKey: false, metaKey: false, altKey: false });
+        expect(legend.classList.contains('is-shift-active')).toBe(true);
+        expect(container.classList.contains('is-shift-active')).toBe(true);
+
+        // Releasing Shift (e.g. mixed Ctrl+Shift should not light it up).
+        (chart as any)._syncLegendShiftHint({ shiftKey: true, ctrlKey: true, metaKey: false, altKey: false });
+        expect(container.classList.contains('is-shift-active')).toBe(false);
+        expect(legend.classList.contains('is-shift-active')).toBe(false);
+    });
 });
 
 // ── Export with drawings ─────────────────────────────────────────────────────

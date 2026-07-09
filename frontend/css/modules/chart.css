@@ -47,9 +47,9 @@
   user-select: none;
 }
 
-/* Visual affordance: hold Ctrl/Cmd to grab the legend. */
+/* Visual affordance: hold Shift to grab the legend. */
 .timeseries-legend-overlay:has(:active),
-.timeseries-legend-overlay.is-ctrl-active {
+.timeseries-legend-overlay.is-shift-active {
   cursor: grab;
 }
 
