@@ -15,8 +15,8 @@ describe('timeseries layout shell', () => {
         expect(indexHtml).toContain("127.0.0.1");
         expect(indexHtml).toContain('navigator.serviceWorker.getRegistrations()');
         expect(indexHtml).toContain('registration.unregister()');
-        expect(indexHtml).not.toContain('controllerchange');
-        expect(indexHtml).not.toContain('edatime-sw-reload');
+        expect(indexHtml).toContain('controllerchange');
+        expect(indexHtml).toContain('edatime-sw-reload');
     });
 
     it('does not ship the old full-screen splash overlay markup', () => {
@@ -68,7 +68,6 @@ describe('timeseries layout shell', () => {
     });
 
     it('positions direct chart canvas layers as overlays instead of stacked blocks', () => {
-        expect(chartCss).toContain('#main-chart > canvas');
         expect(chartCss).toMatch(/#main-chart\s*>\s*canvas\s*\{[^}]*position:\s*absolute/s);
         expect(chartCss).toMatch(/#main-chart\s*>\s*canvas\s*\{[^}]*inset:\s*0/s);
     });

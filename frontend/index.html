@@ -29,7 +29,20 @@
           return;
         }
 
-        navigator.serviceWorker.register('/sw.js').catch(function (err) {
+        navigator.serviceWorker.register('/sw.js').then(function (registration) {
+          // Ask the browser to check for a newer worker whenever a deployed
+          // page is loaded. Vite hashes application assets, so a new worker
+          // can safely take control and reload once into its matching graph.
+          registration.update();
+
+          navigator.serviceWorker.addEventListener('controllerchange', function () {
+            // A worker takeover can fire again after the reload. Keep the
+            // guard for the lifetime of this tab to avoid a reload loop.
+            if (sessionStorage.getItem('edatime-sw-reload')) return;
+            sessionStorage.setItem('edatime-sw-reload', 'true');
+            window.location.reload();
+          });
+        }).catch(function (err) {
           console.error('ServiceWorker registration failed: ', err);
         });
       });
@@ -1116,7 +1129,7 @@
             <div class="causal-params-heading">
               <span class="scatter-toolbar__eyebrow">Parameters</span>
               <span id="causal-params-info" class="toolbar-info-icon" tabindex="0"
-                data-info-tip="τ max sets the longest lag to test. α is the final significance cutoff. PC α and Max conds only affect methods with a PC parent-selection stage (PCMCI, PCMCI+, LPCMCI). FDR optionally applies Benjamini-Hochberg correction across tested links.">ⓘ</span>
+                data-info-tip="Maximum time lag τ to test (1–128). τ max sets the longest lag to test. α is the final significance cutoff. PC α and Max conds only affect methods with a PC parent-selection stage (PCMCI, PCMCI+, LPCMCI). FDR optionally applies Benjamini-Hochberg correction across tested links.">ⓘ</span>
             </div>
             <div class="causal-parameter-grid">
               <div class="causal-parameter-row">
