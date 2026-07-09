@@ -92,6 +92,19 @@ export class FallbackChart implements ChartInstance {
         this.redraw();
     }
 
+    /**
+     * Drop the user-set y range and fall back to the data-driven fit on
+     * the next render. Mirrors `DataChart.resetYRange` so quick-range,
+     * zoom-out, and zoom-reset all clear any prior y zoom on both
+     * rendering adapters.
+     */
+    resetYRange(): void {
+        if (this.yMin === null && this.yMax === null) return;
+        this.yMin = null;
+        this.yMax = null;
+        this.redraw();
+    }
+
     supportsZoomControls(): boolean { return !!this.canvas; }
     onCrosshairMove(): void { }
     onClick(): void { }

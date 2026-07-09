@@ -3,6 +3,7 @@ import {
     applyColumnRangesToData,
     buildAdaptiveLineFiltersForQueryState,
     buildAdaptiveLineY,
+    clipDataToViewport,
     computeBounds,
 } from './filtering.js';
 
@@ -48,5 +49,32 @@ describe('timeseries filtering helpers', () => {
         expect(Array.from(filtered.series.value.y)).toEqual([1, 9]);
         expect(filtered.colorByColumn.value).toEqual(['a', 'c']);
         expect(buildAdaptiveLineY({ id: 'x1', column: 'x', x1: 0, y1: 0, x2: 10, y2: 20, keepAbove: true }, 5)).toBe(10);
+    });
+
+    it('clips buffered data to the visible x viewport before downstream rendering', () => {
+        const clipped = clipDataToViewport(
+            {
+                ts: Float64Array.from([0, 5, 10, 15]),
+                values: {
+                    value: Float64Array.from([1, 2, 3, 4]),
+                    other: Float64Array.from([10, 20, 30, 40]),
+                },
+                color: ['a', 'b', 'c', 'd'],
+                color_column: 'label',
+                _meta: {
+                    downsampled: false,
+                    downsampleKnown: true,
+                    returnedRows: 4,
+                    targetPoints: 10,
+                },
+            },
+            5,
+            10,
+        );
+
+        expect(Array.from(clipped.ts)).toEqual([5, 10]);
+        expect(Array.from(clipped.values.value)).toEqual([2, 3]);
+        expect(Array.from(clipped.values.other)).toEqual([20, 30]);
+        expect(clipped.color).toEqual(['b', 'c']);
     });
 });

@@ -130,7 +130,7 @@ registerSubsystem('settings-panel', async () => {
 
 registerSubsystem('analysis-controls', async (deps) => {
     const { initAnalysisControls, initChartPageFilterGesture } = await import('../../ui/toolbar.js');
-    initAnalysisControls(deps.fetchAndRender);
+    initAnalysisControls(deps.fetchAndRender, deps.zoomOut, deps.resetZoom);
     initChartPageFilterGesture();
 });
 

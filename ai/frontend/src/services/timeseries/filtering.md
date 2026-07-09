@@ -16,6 +16,8 @@
   - Returns true when a point passes all adaptive line keepAbove/keepBelow constraints.
 - `buildAdaptiveLineFiltersForQueryState(filters: AdaptiveLineFilter[]): ScatterLineFilterSpec[]`
   - Serialises and validates adaptive line filters for API queries, stripping non-finite values and dropping compatibility `id` fields.
+- `clipDataToViewport(dataObj: DataObject, startMs: number, endMs: number): DataObject`
+  - Returns a data object limited to timestamps inside the visible viewport, preserving aligned `ts`, `values`, and optional color arrays.
 - `applyColumnRangesToData(dataObj: DataObject, selectedCols: string[], columnRanges: Record<string, ColumnRange>, adaptiveLineFilters: AdaptiveLineFilter[]): FilteredDataObject`
   - Applies numeric column ranges and adaptive line filters to produce a filtered data object.
 - `buildAdaptiveLineFiltersForQuery(): ScatterLineFilterSpec[]`

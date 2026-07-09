@@ -17,6 +17,7 @@
 ### initToolbarModals
 - `initToolbarModals(): void`
   - Binds toolbar panel open/close buttons and Escape key handlers for labels/export/analytics drawer.
+  - Wires `#zoom-out-btn` and `#zoom-reset-btn` click events to dispatch `edatime:zoom-out` / `edatime:reset-zoom` respectively. The actual zoom logic + real `fetchAndRender` lives in `initZoomOutListener` / `initResetZoomListener` (see `viewport.md`). The previous version of this module called `zoomOut(() => {})` / `resetZoom(() => {})` directly with an empty callback, which left the chart store updated but the chart canvas visually stuck at the zoomed-in range after a single box zoom + click (−).
 
 ### openToolbarModal / closeToolbarModal
 - `openToolbarModal(modalId: string): void`

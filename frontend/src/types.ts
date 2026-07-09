@@ -344,6 +344,12 @@ export interface ChartInstance {
     updateDataMulti(dataObj: FilteredDataObject, columns: string[]): void;
     setXRange(min: number, max: number): void;
     setYRange(min: number, max: number): void;
+    /**
+     * Clear any user-set y range so the next render uses the
+     * data-driven fit. Optional because older chart adapters never grew
+     * one and the call site uses optional chaining for that reason.
+     */
+    resetYRange?(): void;
     setStackFromZero?(on: boolean): void;
     setRobustDisplayRange?(options: RobustDisplayRangeOptions | null): void;
     setChartText(title: string, xLabel: string, yLabel: string): void;

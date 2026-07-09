@@ -75,13 +75,15 @@
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
-            <path d="M1 9C2.6 6 4.1 4.8 5.7 6.1C6.6 6.8 7.2 8.2 8 8.2C9.1 8.2 9.7 4.2 11 4.2C12.2 4.2 12.6 7.2 13.5 8.1C14 8.6 14.5 8.4 15 7.2" />
+            <path
+              d="M1 9C2.6 6 4.1 4.8 5.7 6.1C6.6 6.8 7.2 8.2 8 8.2C9.1 8.2 9.7 4.2 11 4.2C12.2 4.2 12.6 7.2 13.5 8.1C14 8.6 14.5 8.4 15 7.2" />
           </svg>
         </span>
         <span class="nav-text">Timeseries</span>
         <kbd class="nav-shortcut">⌥2</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="correlations" title="Correlations (Alt+7)" aria-label="Correlations">
+      <button class="nav-item" type="button" data-page="correlations" title="Correlations (Alt+7)"
+        aria-label="Correlations">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
@@ -329,8 +331,7 @@
             <div class="scatter-toolbar__segment scatter-toolbar__segment--display y-range-toolbar" role="group"
               aria-label="Y-range options">
               <span class="scatter-toolbar__eyebrow">Y range</span>
-              <span id="y-range-help" class="toolbar-info-icon" tabindex="0"
-                aria-label="Explain y-range controls"
+              <span id="y-range-help" class="toolbar-info-icon" tabindex="0" aria-label="Explain y-range controls"
                 data-info-tip="Stack from 0 clamps the display floor at zero.&#10;Percentile hides the top and bottom tails by the selected percent.&#10;IQR expands from Q1/Q3 by k × IQR.">ⓘ</span>
               <div class="scatter-toolbar__fields">
                 <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field" for="y-stack-from-zero">
@@ -1238,7 +1239,8 @@
             <button id="causal-compare-clear-btn" class="btn btn-ghost btn-sm causal-compare-clear-btn" type="button"
               title="Delete all saved runs">Clear All</button>
           </div>
-          <p class="causal-compare-caption">Compare two previously saved runs after you have at least one result worth keeping.</p>
+          <p class="causal-compare-caption">Compare two previously saved runs after you have at least one result worth
+            keeping.</p>
           <div id="causal-saved-runs-list" class="causal-saved-runs-list"></div>
           <div id="causal-compare-results" class="causal-compare-results"></div>
         </div>
@@ -1261,8 +1263,8 @@
                       <button id="drift-cols-none" type="button" class="btn btn-xs">Clear</button>
                     </div>
                   </div>
-                  <div id="drift-col-picker-panel" class="drift-col-picker-panel drift-col-picker-panel--inline" role="group"
-                    aria-label="Numeric columns">
+                  <div id="drift-col-picker-panel" class="drift-col-picker-panel drift-col-picker-panel--inline"
+                    role="group" aria-label="Numeric columns">
                     <div id="drift-col-picker-list" class="drift-col-picker-list drift-col-chip-list" role="group"
                       aria-label="Numeric columns">
                       <!-- populated by driftPage.ts -->
@@ -1303,7 +1305,8 @@
                 <span class="scatter-toolbar__field-label">Latest N</span>
                 <input id="drift-latest-n" type="number" min="1" step="1" value="3" class="modal-input"
                   aria-label="Latest window count">
-                <div id="drift-latest-n-helper" class="toolbar-field__hint">Used only with 'Latest N windows' mode.</div>
+                <div id="drift-latest-n-helper" class="toolbar-field__hint">Used only with 'Latest N windows' mode.
+                </div>
               </div>
             </div>
           </div>
@@ -1613,7 +1616,8 @@
             <div class="home-card-icon">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
                 stroke-linejoin="round">
-                <path d="M1 9C2.6 6 4.1 4.8 5.7 6.1C6.6 6.8 7.2 8.2 8 8.2C9.1 8.2 9.7 4.2 11 4.2C12.2 4.2 12.6 7.2 13.5 8.1C14 8.6 14.5 8.4 15 7.2" />
+                <path
+                  d="M1 9C2.6 6 4.1 4.8 5.7 6.1C6.6 6.8 7.2 8.2 8 8.2C9.1 8.2 9.7 4.2 11 4.2C12.2 4.2 12.6 7.2 13.5 8.1C14 8.6 14.5 8.4 15 7.2" />
               </svg>
             </div>
             <h3 class="home-card-title">Timeseries <kbd>⌥2</kbd></h3>
@@ -2297,7 +2301,8 @@
             <div class="settings-section">
               <div class="settings-section-title">Layout</div>
               <div class="settings-row">
-                <label class="settings-label" for="settings-layout" title="Controls overall interface spacing and compactness">Layout density</label>
+                <label class="settings-label" for="settings-layout"
+                  title="Controls overall interface spacing and compactness">Layout density</label>
                 <div class="settings-control">
                   <select id="settings-layout" class="modal-select">
                     <option value="spacious">Spacious</option>

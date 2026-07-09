@@ -1,10 +1,18 @@
 /**
- * exportControls — toolbar modal wiring and zoom controls.
+ * exportControls — toolbar modal wiring and zoom control click dispatch.
  * Transport-layer calls (CSV/JSON/Parquet export) moved to features/export/entrypoint.ts.
+ *
+ * The `#zoom-out-btn` and `#zoom-reset-btn` clicks dispatch `edatime:zoom-out`
+ * and `edatime:reset-zoom` events respectively. The real `fetchAndRender`
+ * callback is wired to those events by `initZoomOutListener` /
+ * `initResetZoomListener` in `viewport.ts`. Calling `zoomOut` / `resetZoom`
+ * directly here would be unsafe: this module has no access to the page
+ * module's `fetchAndRender`, so doing so would silently break zoom-out
+ * (the chart store would update but the chart would never refetch the
+ * data for the new range, leaving the canvas empty).
  */
 
 import { createExportFeature } from '../features/export/entrypoint.js';
-import { zoomOut, resetZoom } from './viewport.js';
 
 const exportFeature = createExportFeature();
 
@@ -77,6 +85,10 @@ export function initToolbarModals(): void {
         }
     }
 
-    document.getElementById('zoom-out-btn')?.addEventListener('click', () => zoomOut(() => { }));
-    document.getElementById('zoom-reset-btn')?.addEventListener('click', () => resetZoom(() => { }));
+    document.getElementById('zoom-out-btn')?.addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('edatime:zoom-out', { detail: { source: 'toolbar' } }));
+    });
+    document.getElementById('zoom-reset-btn')?.addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('edatime:reset-zoom', { detail: { source: 'toolbar' } }));
+    });
 }

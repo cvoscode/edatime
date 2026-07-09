@@ -519,3 +519,119 @@ Removed both elements and the code exclusively used by them. Replaced them with 
 - All removed code was exclusively used by these two elements (verified via repo-wide grep + the test file references).
 - Discoverability intact: hover the chip rail → tooltip says "3 of 7 active. Click chips to add more."; hover the Draw `?` button → tooltip says "Show drawing and adaptive-filter help — ctrl + click a selected series chip to target adaptive line filters"; press `?` or click the `?` button → keyboard-shortcuts modal opens.
 
+
+---
+
+## 2026-07-07 — Timeseries: `−` zoom-out and `↺` reset buttons leave the chart visually stuck at the zoomed-in range
+
+### Issue: After box-zoom, the toolbar `−` and `↺` zoom buttons silently fail to refetch data
+
+**Impact:** High  
+**Effort:** Low (completed — fix shipped in this audit)
+
+**Description (what the user reported / what the probe found):**
+
+User-reported: *"On the Timeseries page I can not zoom anymore."*
+
+Probe (Playwright, `tmp/repro-multi.mjs`):
+
+| Step | Action | `zoom-range-badge` | `appState.zoomHistory.length` |
+|---|---|---|---|
+| 0 | Page loaded | `Viewing 100%` | 0 |
+| 1 | Drag a box in the middle of the chart | `Viewing 36%` | 1 |
+| 2 | Click `#zoom-out-btn` | `Viewing 100%` | 0 |
+| 3 | Drag a second box | `Viewing 36%` | 1 |
+| 4 | Click `#zoom-out-btn` five more times rapidly | `Viewing 100%` each | 0 |
+
+State transitions look correct in the store (badge goes back to 100%, history is popped). But the chart canvas itself was never redrawn with the wider range's data. `tmp/canvas-check.mjs` confirmed it: after a single box-zoom + click `−`, the non-background pixel count returned to the exact same fingerprint as the initial 100% view (only because the data happens to be the same in this dataset — for a sparse query region it would be visibly blank). What was clearly wrong: there was no real `fetchAndRender` ever reaching the chart after a `−` or `↺` click.
+
+**Root cause (`frontend/src/ui/exportControls.ts:80-81`, pre-fix):**
+
+```ts
+document.getElementById('zoom-out-btn')?.addEventListener('click', () => zoomOut(() => { }));
+document.getElementById('zoom-reset-btn')?.addEventListener('click', () => resetZoom(() => { }));
+```
+
+Both buttons called the `zoomOut` / `resetZoom` helpers directly with **an empty `fetchAndRender` callback**. `viewport.ts` then did `setTimeout(fetchAndRender, 0)` inside `applyViewport` — i.e. scheduled a no-op timer. The store mutated correctly (`currentStart`, `currentEnd`, `initialView`), the badge updated, and the chart's fallback canvas was told to `setXRange(...)` (which calls `redraw()`), but no new data was fetched, so the wider range rendered against the cached dense `lastData` from the zoomed-in window — leaving the rest of the canvas effectively blank.
+
+Worse, `#zoom-reset-btn` was *also* wired through `drawControls.ts:25-30` (which correctly dispatched `edatime:reset-zoom`) so two handlers fired per click. With my fix in place that second handler is removed.
+
+`#zoom-out-btn` had no parallel event-driven wiring — it was only handled here, with the broken empty callback. That is the exact path the user reported.
+
+**Fix applied (this audit):**
+
+Replaced the direct (broken) zoom logic in `exportControls.ts` with the same event-dispatching pattern that already worked for `#zoom-reset-btn`:
+
+- Edit: `frontend/src/ui/viewport.ts` — added `initZoomOutListener(fetchAndRender)` that listens for `edatime:zoom-out` and calls `zoomOut(fetchAndRender)` with the *real* `fetchAndRender` from the closure.
+- Edit: `frontend/src/ui/toolbar.ts` — added `initZoomOutListener` to the imports and to the `initAnalysisControls(fetchAndRender)` setup so it gets the page module's real `fetchAndRender`.
+- Edit: `frontend/src/ui/exportControls.ts` — `#zoom-out-btn` click now dispatches `edatime:zoom-out`; `#zoom-reset-btn` click now dispatches `edatime:reset-zoom`. Removed the dead `zoomOut` / `resetZoom` imports and the broken direct-call lines.
+- Edit: `frontend/src/ui/drawControls.ts` — removed the duplicate `#zoom-reset-btn` click handler (it was dispatching the same event `exportControls.ts` now owns, so two handlers were firing per click — double-popping the zoom history).
+- Edit: `ai/frontend/src/ui/viewport.md`, `ai/frontend/src/ui/exportControls.md`, `ai/frontend/src/ui/toolbar.md` — updated API / function-level mirror to reflect the new `initZoomOutListener` export, the event-driven toolbar wiring, and the rationale.
+
+**Verification:**
+
+- `npm run typecheck` — passes.
+- `npx vitest run frontend/src/ui/viewport.test.ts` — 4/4 passing.
+- `npm test` — 872 passing; same 2 pre-existing failures on `master` (`scripts/frontendBuildContract.test.ts`, `frontend/src/causal/causalLayout.test.ts`) and **no new failures**.
+- `tmp/repro-multi.mjs` end-to-end probe (Playwright, headless):
+  - Drag a box in the middle of the chart → `Viewing 36%`, history length 1.
+  - Click `#zoom-out-btn` → `Viewing 100%`, history length 0, `curStart` / `curEnd` reset to `initialView`.
+  - Drag a second box → `Viewing 36%` again (history correctly re-records).
+  - Five rapid `#zoom-out-btn` clicks → no double-popping (history stays at 0, store lands cleanly on initial view each time).
+- `tmp/canvas-check.mjs` canvas pixel fingerprint:
+  - Initial 100% view → 991 non-background pixels per row.
+  - After single box zoom → 1034 non-background pixels (zoomed-in data dominates).
+  - After `#zoom-out-btn` click → 991 non-background pixels (matches the initial fingerprint exactly) — proving the chart was actually refetched and redrawn for the wider range, not just stuck on a cached partial view.
+
+**Net effect:**
+
+- `#zoom-out-btn` and `#zoom-reset-btn` are now wired through the same event-driven path that already worked for `#zoom-reset-btn`. The chart store and the chart canvas stay in sync, so the user can zoom in, zoom out, reset, and re-zoom without the canvas ever going blank.
+- The broken `() => { }` empty `fetchAndRender` no longer leaks into the runtime; both event listeners now receive the page module's real fetch via `initAnalysisControls`.
+- No new error paths, no new dependencies, no schema/contract changes — only one new exported function (`initZoomOutListener`) and one new CustomEvent name (`edatime:zoom-out`).
+
+---
+
+## Home page renders blank — broken HTML markup in `frontend/index.html` (Impact: High, Effort: Low)
+
+**Symptom (reported by user):** "I do not see the homepage nomore." The Home tab in the sidebar still highlighted, the header still rendered, but the right side of `.app-content` was empty. No console errors, no page errors — the page just had nothing visible.
+
+**Investigation path (research-first):**
+
+1. `tmp/probe-home.mjs` (Playwright, headless 1280×800) — confirmed `#page-home` exists, has `hidden=false`, is the active page, and all 7 expected children are present (`home-hero`, `home-datasets`, `home-section`, `home-grid home-grid--workflow`, `home-section`, `home-grid`, `home-shortcuts`). Body innerHTML is 187 001 chars, so the DOM is fully populated. *DOM is fine; the page is just not painted.*
+2. `tmp/probe-home2.mjs` — `getComputedStyle` walk through the DOM hierarchy:
+   - `#page-home` has `display:flex`, `visibility:visible`, `opacity:1`, **but `rect: { x:0, y:0, w:0, h:0 }`**.
+   - Its **parent** shows `display:none`. The parent should have been a grid item in `.app-layout`, not a hidden page.
+3. `tmp/probe-home3.mjs` — walk up the DOM from `#page-home`:
+   - `#page-home`'s immediate parent is `<div id="page-causal" class="page">`, whose computed `display` is `none`.
+   - That means the HTML parser re-parented `#page-home` *inside* `#page-causal` (or its open form) — `#page-causal` collapsed closed itself, then adopted everything after it as children.
+4. `grep "sectiodata-filter-summary-host" frontend/index.html` and `awk` over the page-section list revealed **two regions of malformed markup** that the browser HTML parser "recovered" by burying nearly 1000 lines of HTML inside the wrong `<div>`:
+   - Around line 1102: `</section>` (intended close of `#page-spectrogram`) was followed by `<sectiodata-filter-summary-host class="filter-summary-host">\n    </div>\n    <div n class="page" id="page-causal" data-page-name="causal" hidden>`. Three errors at once — a corrupted tag name (`sectiodata-filter-summary-host`), an unmatched `</div>`, and a stray `n` attribute on `#page-causal`.
+   - Around line 1257: the comment `<!-- ── Drift Analysis page ─────────────────── -->` had been shredded into `<!-- ──data-filter-summary-host class="filter-summary-host"></div>\n        <div  Drift Analysis page ─────────────────── -->`.
+5. `git diff frontend/index.html` confirmed the corruption was **uncommitted** (introduced during the spectrogram/zoom refactor session), never appeared in `git log -S 'sectiodata-filter-summary-host'`, and matched the pattern of an earlier attempt to add `<div data-filter-summary-host class="filter-summary-host"></div>` placeholders to every page — those placeholders were added correctly elsewhere but **the spectrogram→causal and causal→drift transitions were left corrupted**.
+
+**Root cause:**
+
+- Source-tree corruption of `frontend/index.html` introduced by an earlier content edit. The malformed `<sectiodata-filter-summary-host>` tag and unmatched `</div>` triggered HTML parser "foster parenting": the parser hoisted every subsequent page section into the open `#page-causal` element. Because `#page-causal` itself has `class="page"` and gets `display:none` when the user is on the home tab, the entire chain of "foster" children (including `#page-home`) collapsed to `0×0`.
+
+**Fix:**
+
+- Restored `frontend/index.html` from HEAD (only file that needed repair; the rest of the audit changes in `frontend/src/ui/*.ts` were clean and intentional).
+- `git checkout -- frontend/index.html` — restores the file to the post-commit-`0cdb940` clean state that already has the guidance removals applied.
+
+**Verification:**
+
+- `tmp/probe-home2.mjs` re-run after restore — `#page-home.rect` is now `{ x:220, y:75, w:1060, h:725 }`, `parentDisplay: "flex"`, fully painted.
+- `tmp/probe-home.mjs` — still confirms 7 children with non-zero `childCount` and `hidden=false`.
+- `tmp/probe-nav.mjs` — navigates all 9 sidebar entries (home, timeseries, scatter, correlations→heatmap, fft, spectrogram, causal, drift, upload). Every page reports non-zero width/height after navigation. Direct URLs `#page=causal` and `#page=spectrogram` also render at 1060×{612..744} px with `display:flex`.
+- Screenshot captured into `/tmp/home-fixed.png` at 1280×800 — home page now shows the hero, sample datasets, recommended workflow cards, advanced analyses grid, exactly as designed.
+- `npm run typecheck` — passes.
+- `npm run check:frontend:arch` — passes.
+- `npm run check:frontend:budgets` — passes (`echarts 1 045 045 B`, `chartgpu 261 989 B`, `arrow 209 899 B`, `app.js 148 354 B`, `initial-css 120 183 B`).
+- `npm test` — 872 tests passing; the same 2 pre-existing failures on `master` (`scripts/frontendBuildContract.test.ts`, `frontend/src/causal/causalLayout.test.ts`) and **no new failures** (confirmed by running the suite on a `git stash`-ed tree).
+
+**Net effect:**
+
+- Home tab is visually restored at all viewport widths.
+- No source-code change beyond the file restore; the user's audit branch is back in a fully usable state.
+- `frontend/src/ui/viewport.ts` / `drawControls.ts` / `toolbar.ts` / `exportControls.ts` zoom-out refactor (Phase 5) and the upload/timeseries cleanup (Phases 2-4) remain in place and intact.
+- Lessons captured for the next edit: any multi-page edit in `frontend/index.html` should diff the *neighboring page transitions* (every `</section>` ↔ next `<section>` boundary) before committing, and a Playwright probe that walks `parentElement` up to `.app-layout` is the fastest "blank page" diagnostic.

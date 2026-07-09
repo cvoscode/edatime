@@ -115,6 +115,42 @@ export function buildAdaptiveLineFiltersForQueryState(filters: AdaptiveLineFilte
         );
 }
 
+export function clipDataToViewport(
+    dataObj: DataObject,
+    startMs: number,
+    endMs: number,
+): DataObject {
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs || !dataObj?.ts?.length) {
+        return dataObj;
+    }
+
+    const keptIndices: number[] = [];
+    for (let i = 0; i < dataObj.ts.length; i++) {
+        const ts = Number(dataObj.ts[i]);
+        if (!Number.isFinite(ts)) continue;
+        if (ts < startMs || ts > endMs) continue;
+        keptIndices.push(i);
+    }
+
+    const ts = Float64Array.from(keptIndices.map((index) => Number(dataObj.ts[index])));
+    const values = Object.fromEntries(
+        Object.entries(dataObj.values || {}).map(([column, series]) => [
+            column,
+            Float64Array.from(keptIndices.map((index) => Number(series[index]))),
+        ]),
+    );
+    const color = Array.isArray(dataObj.color)
+        ? keptIndices.map((index) => dataObj.color![index] ?? null)
+        : dataObj.color;
+
+    return {
+        ...dataObj,
+        ts,
+        values,
+        color,
+    };
+}
+
 export function applyColumnRangesToData(
     dataObj: DataObject,
     selectedCols: string[],

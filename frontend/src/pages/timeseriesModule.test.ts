@@ -131,6 +131,8 @@ describe('createTimeseriesModule', () => {
         expect(mod.buildRangeControls).toBeDefined();
         expect(mod.emitChartRangeChange).toBeDefined();
         expect(mod.onZoomRangeChange).toBeDefined();
+        expect(mod.zoomOut).toBeDefined();
+        expect(mod.resetZoom).toBeDefined();
 
         // createTimeseriesPageController should be called once with correct deps
         expect(mockCreateTimeseriesPageController).toHaveBeenCalledTimes(1);
@@ -198,6 +200,8 @@ describe('createTimeseriesModule', () => {
             'buildRangeControls',
             'emitChartRangeChange',
             'onZoomRangeChange',
+            'zoomOut',
+            'resetZoom',
             'refreshAfterMutation',
         ];
 

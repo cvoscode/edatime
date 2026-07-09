@@ -18,7 +18,7 @@
 
 ### initAnalysisControls
 - `initAnalysisControls(fetchAndRender: () => void): void`
-  - Wires all sub-controls (toolbar modals, draw controls, chart text, analytics drawer, reset-zoom listener) and registers `exportChartFilteredData` on `window.__edatime`.
+  - Wires all sub-controls (toolbar modals, draw controls, chart text, analytics drawer, reset-zoom + zoom-out listeners) and registers `exportChartFilteredData` on `window.__edatime`.
 
 ### initPages
 - `initPages(): void`

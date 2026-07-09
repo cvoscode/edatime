@@ -279,13 +279,13 @@ describe('getYRange', () => {
         expect(chart.getYRange()).toBeNull();
     });
 
-    it('prefers _lastDataYMin/Max over _yMin/yMax when both are set', () => {
+    it('prefers an explicit user y range over the raw data bounds when both are set', () => {
         const chart = makeChart();
         (chart as any)._lastDataYMin = 10;
         (chart as any)._lastDataYMax = 90;
         (chart as any)._yMin = 20;
         (chart as any)._yMax = 80;
-        expect(chart.getYRange()).toEqual({ min: 10, max: 90 });
+        expect(chart.getYRange()).toEqual({ min: 20, max: 80 });
     });
 
     it('falls back to _yMin/yMax when _lastData range is invalid', () => {
@@ -326,6 +326,35 @@ describe('cssPointToData', () => {
         const chart = makeChart();
         (chart as any)._container = null; // no container = immediate null
         expect(chart.cssPointToData(100, 100)).toBeNull();
+    });
+
+    it('maps y coordinates against the active user y range when the chart is y-zoomed', () => {
+        const chart = makeChart();
+        const container = document.createElement('div');
+        (chart as any)._container = container;
+        (chart as any)._xMin = 0;
+        (chart as any)._xMax = 100;
+        (chart as any)._lastDataYMin = 10;
+        (chart as any)._lastDataYMax = 90;
+        (chart as any)._yMin = 30;
+        (chart as any)._yMax = 70;
+        container.getBoundingClientRect = () => ({
+            x: 0,
+            y: 0,
+            top: 0,
+            left: 0,
+            right: 300,
+            bottom: 200,
+            width: 300,
+            height: 200,
+            toJSON: () => ({}),
+        } as DOMRect);
+        vi.spyOn(window, 'getComputedStyle').mockReturnValue({ position: 'relative' } as CSSStyleDeclaration);
+        vi.spyOn(chart as any, '_updateCurrentGrid').mockReturnValue({ left: 50, right: 50, top: 20, bottom: 20 });
+
+        const topEdge = chart.cssPointToData(150, 20);
+
+        expect(topEdge).toEqual({ x: 50, y: 70 });
     });
 });
 
@@ -590,6 +619,33 @@ describe('updateDataMulti', () => {
         } as any, ['OT']);
 
         expect(chart.getRobustDisplayRangeSuggestion()).toEqual({ mode: 'percentile', param: 1 });
+    });
+
+    it('preserves the requested x viewport instead of resetting to the full fetched window', () => {
+        const chart = makeChart();
+        const setZoomRange = vi.fn();
+        (chart as any).chartInstance = {
+            options: { animation: false, legend: { show: false }, series: [] },
+            setOption: vi.fn(),
+            setZoomRange,
+        };
+
+        chart.setXRange(25, 75);
+        chart.updateDataMulti({
+            ts: new Float64Array([0, 25, 50, 75, 100]),
+            values: {
+                temperature: new Float64Array([10, 20, 30, 40, 50]),
+            },
+            series: {
+                temperature: {
+                    x: new Float64Array([0, 25, 50, 75, 100]),
+                    y: new Float64Array([10, 20, 30, 40, 50]),
+                },
+            },
+            colorByColumn: {},
+        } as any, ['temperature']);
+
+        expect(setZoomRange).toHaveBeenCalledWith(25, 75, 'api');
     });
 
     it('does not render negative y-axis headroom for strictly positive data', () => {

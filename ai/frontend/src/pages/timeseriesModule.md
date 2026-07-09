@@ -19,7 +19,6 @@
 - `getCurrentView: () => ViewSnapshot`
 - `fetchAndRenderAnalytics: () => Promise<void>`
 - `refreshZoomControlsState: () => void`
-- `zoomOut: () => void`
 - `chartExportPng?: () => void`
 - `chartExportSvg?: () => void`
 - `exportFilteredCsv?: () => void`
@@ -37,6 +36,8 @@
 - `fetchAndRender: () => Promise<void>`
 - `onZoomRangeChange: (view: ViewSnapshot, sourceKind?: string) => void`
 - `emitChartRangeChange: (sourceKind?: string) => void`
+- `zoomOut: () => void`
+- `resetZoom: () => void`
 - `ensureDatasetReady: () => Promise<void>`
 - `ensureReady: () => Promise<void>`
 - `refreshAfterMutation: (options?: { selectedColumn?: string }) => Promise<void>`

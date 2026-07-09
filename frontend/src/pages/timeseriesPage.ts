@@ -1,6 +1,6 @@
 import { DEBUG, dbg, dbgGroup } from '../debug.js';
 import { appState } from '../store/appStateCompat.js';
-import { ensureRangeStateFromData, applyColumnRanges, sanitizeSelectedColumns } from '../services/timeseries/filtering.js';
+import { ensureRangeStateFromData, applyColumnRanges, clipDataToViewport, sanitizeSelectedColumns } from '../services/timeseries/filtering.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
 import { announceChartLoading, announceDataUpdate } from '../utils/a11y.js';
 import { computeFrontendRollingBands } from '../bootstrap/analyticsOverlay.js';
@@ -18,6 +18,13 @@ import {
 } from '../store/index.js';
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
+const CONSECUTIVE_ZOOM_OUT_RESET_COUNT = 5;
+type ZoomRestoreState = {
+    view: ViewSnapshot;
+    data: any | null;
+    fetchedWindow: { start: number; end: number } | null;
+    fetchKey: string | null;
+};
 
 interface TimeseriesControllerDeps {
     fetchData: (
@@ -39,8 +46,6 @@ interface TimeseriesControllerDeps {
 
 let timeseriesEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
 
-// Issue 7.2: Track last successful fetch parameters for no-op short-circuit
-let lastFetchedParams: string | null = null;
 const MIN_LOOKAROUND_MS = 60_000;
 
 function getTimeseriesEmptyStateController() {
@@ -101,6 +106,79 @@ function computeRenderedYDebugSnapshot() {
 }
 
 export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
+    let lastKnownView: ViewSnapshot | null = null;
+    let zoomRestoreHistory: ZoomRestoreState[] = [];
+    let consecutiveZoomOuts = 0;
+    // Controller-local so buffered zoom reuse cannot leak across page/controller
+    // lifetimes after dataset reloads or test harness remounts.
+    let lastFetchedParams: string | null = null;
+
+    function snapshotCurrentViewport(): ViewSnapshot | null {
+        const xMin = Number(appState.currentStart);
+        const xMax = Number(appState.currentEnd);
+        if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || xMax <= xMin) return null;
+        const yRange = appState.chart?.getYRange?.();
+        const yMin = Number.isFinite(yRange?.min) ? yRange!.min : null;
+        const yMax = Number.isFinite(yRange?.max) ? yRange!.max : null;
+        return { xMin, xMax, yMin, yMax };
+    }
+
+    function rememberRenderedViewport(): void {
+        lastKnownView = snapshotCurrentViewport();
+    }
+
+    function rememberAppliedViewport(view: ViewSnapshot): void {
+        const currentY = appState.chart?.getYRange?.();
+        const yMin = Number.isFinite(view.yMin)
+            ? Number(view.yMin)
+            : (Number.isFinite(currentY?.min) ? currentY!.min : null);
+        const yMax = Number.isFinite(view.yMax)
+            ? Number(view.yMax)
+            : (Number.isFinite(currentY?.max) ? currentY!.max : null);
+        lastKnownView = {
+            xMin: Number(view.xMin),
+            xMax: Number(view.xMax),
+            yMin,
+            yMax,
+        };
+    }
+
+    function currentFetchKey(): string {
+        const currentCols = Array.isArray(appState.selectedCols) ? appState.selectedCols.join(',') : '';
+        const currentColorCol = appState.selectedColorColumn || null;
+        return `${currentCols}|${currentColorCol}`;
+    }
+
+    function syncZoomHistoryStore(): void {
+        setZoomHistory(zoomRestoreHistory.map((entry) => entry.view).slice(-5));
+    }
+
+    function applyView(view: ViewSnapshot, sourceKind: string): void {
+        const newStart = Number(view.xMin);
+        const newEnd = Number(view.xMax);
+        if (!Number.isFinite(newStart) || !Number.isFinite(newEnd) || newStart >= newEnd) return;
+
+        setViewport(newStart, newEnd);
+        appState.chart?.setXRange?.(newStart, newEnd);
+        if (Number.isFinite(view.yMin) && Number.isFinite(view.yMax) && view.yMax! > view.yMin!) {
+            appState.chart?.setYRange?.(view.yMin!, view.yMax!);
+            setPendingYMode('restore');
+            setPendingRestoreY({ min: view.yMin!, max: view.yMax! });
+        } else {
+            setPendingYMode('fit');
+            setPendingRestoreY(null);
+        }
+        rememberAppliedViewport({
+            xMin: newStart,
+            xMax: newEnd,
+            yMin: Number.isFinite(view.yMin) ? Number(view.yMin) : null,
+            yMax: Number.isFinite(view.yMax) ? Number(view.yMax) : null,
+        });
+
+        deps.updateAnalysisZoom(newStart, newEnd, sourceKind);
+        emitChartRangeChange(sourceKind);
+    }
+
     const uploadButton = document.getElementById('timeseries-empty-upload-btn');
     if (uploadButton) {
         uploadButton.addEventListener('click', () => {
@@ -144,13 +222,17 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         if (!hasSelection) {
             setRollingBands(null);
             appState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
+            rememberRenderedViewport();
             return;
         }
         if (!appState.lastFetchedData) {
             emptyState.update({ visible: false, reason: '', title: '', message: '', showResetAction: false });
             return;
         }
-        const filtered = applyColumnRanges(appState.lastFetchedData);
+        const viewportStart = Number(appState.currentStart);
+        const viewportEnd = Number(appState.currentEnd);
+        const viewportData = clipDataToViewport(appState.lastFetchedData, viewportStart, viewportEnd);
+        const filtered = applyColumnRanges(viewportData);
         const hasPoints = !!filtered?.ts && filtered.ts.length > 0;
         if (!hasPoints) {
             const start = Number(appState.currentStart);
@@ -172,6 +254,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
                 appState.chart.setXRange(start, end);
             }
+            rememberRenderedViewport();
             return;
         }
 
@@ -186,17 +269,29 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             if (!displayCols.includes(previewKey)) displayCols = [...displayCols, previewKey];
         }
 
+        // Capture the pending y-range restore *before* `updateDataMulti` —
+        // its onYRangeCallback consumes the pending store entries via
+        // `updateAnalysisYRange`, so by the time we look at them after the
+        // render the entries are gone. Saving the snapshot locally lets
+        // us re-apply the user y range once the new data has been drawn.
+        const restoreY = appState.pendingRestoreY;
+        const restoreMode = appState.pendingYMode;
         appState.chart.updateDataMulti(filtered, displayCols);
 
-        if (appState.pendingRestoreY && appState.pendingYMode === 'restore') {
-            const savedY = appState.pendingRestoreY;
-            appState.chart.setYRange(savedY.min, savedY.max);
+        if (restoreY && restoreMode === 'restore') {
+            appState.chart.setYRange(restoreY.min, restoreY.max);
+        } else {
+            // No pending restore (or pendingYMode === 'fit'): drop any
+            // persisted user-set y range so the chart re-renders against
+            // the data fit instead of an earlier zoomed-in window.
+            appState.chart.resetYRange?.();
         }
 
         if (appState.rollingEnabled) {
             setRollingBands(computeFrontendRollingBands(filtered as any, appState.selectedCols, (appState as any).rollingWindow || 50));
             appState.chart?.requestOverlayRender?.();
         }
+        rememberRenderedViewport();
         window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
         announceDataUpdate('timeseries');
     }
@@ -221,6 +316,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         const currentColorCol = appState.selectedColorColumn || null;
         const lastFetchKey = `${currentCols}|${currentColorCol}`;
         const fetchedWindow = appState.fetchedWindow;
+        const bufferedDataIsRaw = appState.lastFetchedData?._meta?.downsampled === false;
         const viewportInsideFetchedWindow = !!(
             fetchedWindow
             && Number.isFinite(fetchedWindow.start)
@@ -229,13 +325,14 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             && fetchedWindow.end >= currentEnd
         );
 
-        if (lastFetchedParams === lastFetchKey && appState.lastFetchedData && viewportInsideFetchedWindow) {
+        if (lastFetchedParams === lastFetchKey && appState.lastFetchedData && viewportInsideFetchedWindow && bufferedDataIsRaw) {
             dbg('fetchAndRender: reusing buffered data window', {
                 startIso: new Date(currentStart).toISOString(),
                 endIso: new Date(currentEnd).toISOString(),
                 cols: currentCols,
                 colorCol: currentColorCol,
                 fetchedWindow,
+                downsampled: appState.lastFetchedData?._meta?.downsampled ?? null,
             });
             deps.buildRangeControls();
             appState.chart?.setXRange?.(currentStart, currentEnd);
@@ -336,8 +433,49 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         });
     }
 
+    function zoomOut(): void {
+        if (appState.fetchDebounceId) clearTimeout(appState.fetchDebounceId);
+        consecutiveZoomOuts += 1;
+        if (consecutiveZoomOuts >= CONSECUTIVE_ZOOM_OUT_RESET_COUNT && appState.initialView) {
+            resetZoom();
+            return;
+        }
+
+        const restoreState = zoomRestoreHistory[zoomRestoreHistory.length - 1] ?? null;
+        if (!restoreState) return;
+
+        zoomRestoreHistory = zoomRestoreHistory.slice(0, -1);
+        syncZoomHistoryStore();
+
+        applyView(restoreState.view, 'zoom-out');
+
+        const canReuseRawBufferedState = restoreState.fetchKey === currentFetchKey()
+            && !!restoreState.data
+            && restoreState.data?._meta?.downsampled === false;
+        if (canReuseRawBufferedState) {
+            setLastFetchedData(restoreState.data);
+            setFetchedWindow(restoreState.fetchedWindow);
+            lastFetchedParams = restoreState.fetchKey;
+            renderCurrentData();
+            return;
+        }
+
+        setFetchDebounceId(setTimeout(fetchAndRender, 0));
+    }
+
+    function resetZoom(): void {
+        if (appState.fetchDebounceId) clearTimeout(appState.fetchDebounceId);
+        consecutiveZoomOuts = 0;
+        zoomRestoreHistory = [];
+        syncZoomHistoryStore();
+        if (!appState.initialView) return;
+        applyView(appState.initialView, 'reset');
+        setFetchDebounceId(setTimeout(fetchAndRender, 0));
+    }
+
     function onZoomRangeChange(view: ViewSnapshot, sourceKind = 'user'): void {
         if (appState.fetchDebounceId) clearTimeout(appState.fetchDebounceId);
+        consecutiveZoomOuts = 0;
 
         dbgGroup(`onZoomRangeChange (${sourceKind})`, () => {
             dbg('prev', { start: appState.currentStart, end: appState.currentEnd });
@@ -348,24 +486,24 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         const newEnd = Number(view.xMax);
         if (!Number.isFinite(newStart) || !Number.isFinite(newEnd) || newStart >= newEnd) return;
 
-        const snap = deps.getCurrentView();
-        setZoomHistory([...appState.zoomHistory, snap].slice(-5));
-
-        setViewport(newStart, newEnd);
-        appState.chart?.setXRange?.(newStart, newEnd);
-        if (Number.isFinite(view.yMin) && Number.isFinite(view.yMax) && view.yMax! > view.yMin!) {
-            appState.chart?.setYRange?.(view.yMin!, view.yMax!);
-            setPendingYMode('restore');
-            setPendingRestoreY({ min: view.yMin!, max: view.yMax! });
-        } else {
-            setPendingYMode('fit');
-            setPendingRestoreY(null);
+        const snap = lastKnownView ?? snapshotCurrentViewport();
+        if (snap) {
+            zoomRestoreHistory = [
+                ...zoomRestoreHistory,
+                {
+                    view: { ...snap },
+                    data: appState.lastFetchedData,
+                    fetchedWindow: appState.fetchedWindow ? { ...appState.fetchedWindow } : null,
+                    fetchKey: currentFetchKey(),
+                },
+            ].slice(-5);
+            syncZoomHistoryStore();
         }
 
-        deps.updateAnalysisZoom(newStart, newEnd, sourceKind);
-        emitChartRangeChange(sourceKind);
+        applyView(view, sourceKind);
         if (!appState.refetchOnZoom) return;
-        setFetchDebounceId(setTimeout(fetchAndRender, 150));
+        const delayMs = sourceKind === 'user' ? 0 : 75;
+        setFetchDebounceId(setTimeout(fetchAndRender, delayMs));
     }
 
     return {
@@ -373,5 +511,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         fetchAndRender,
         onZoomRangeChange,
         renderCurrentData,
+        resetZoom,
+        zoomOut,
     };
 }

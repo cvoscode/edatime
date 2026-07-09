@@ -394,6 +394,23 @@ export class DataChart {
     setYRange(min: number, max: number): void {
         if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return;
         this._applyYRange(min, max, 'api', false);
+        this._applyDisplayYRangeToChart();
+    }
+
+    /**
+     * Clear any user-set y range (set via `setYRange` or box-zoom) so the
+     * next render uses the data-driven fit. Without this, zoom-out,
+     * zoom-reset, and the `fit` mode of `applyViewport` leave the user y
+     * range in place — visually keeping the chart pinned at the last
+     * zoomed-in y-range when it should be showing the full data span.
+     * Triggers an immediate chart repaint.
+     */
+    resetYRange(): void {
+        if (this._yMin === null && this._yMax === null) return;
+        this._yMin = null;
+        this._yMax = null;
+        this._yAuto = true;
+        this._applyDisplayYRangeToChart();
     }
 
     /**
@@ -431,11 +448,16 @@ export class DataChart {
     }
 
     getYRange(): { min: number; max: number } | null {
-        if (Number.isFinite(this._lastDataYMin) && Number.isFinite(this._lastDataYMax) && this._lastDataYMax! > this._lastDataYMin!) {
-            return { min: this._lastDataYMin!, max: this._lastDataYMax! };
-        }
+        // Expose the active viewport first. The app uses `getYRange()` as the
+        // global source of truth for chart gestures, zoom-history snapshots,
+        // filter state, and exports. If a user-set y zoom exists, reporting the
+        // raw data bounds here makes the rest of the app behave as though the
+        // zoom never happened.
         if (Number.isFinite(this._yMin) && Number.isFinite(this._yMax) && this._yMax! > this._yMin!) {
             return { min: this._yMin!, max: this._yMax! };
+        }
+        if (Number.isFinite(this._lastDataYMin) && Number.isFinite(this._lastDataYMax) && this._lastDataYMax! > this._lastDataYMin!) {
+            return { min: this._lastDataYMin!, max: this._lastDataYMax! };
         }
         return null;
     }
@@ -479,7 +501,6 @@ export class DataChart {
     }
 
     zoomY(_factor: number, _anchorNormalized = 0.5): void { /* intentionally blank */ }
-    resetYRange(): void { /* intentionally blank */ }
 
     fitYToData(): void {
         if (!Number.isFinite(this._lastDataYMin) || !Number.isFinite(this._lastDataYMax)) return;
@@ -689,7 +710,8 @@ export class DataChart {
                 this._lastChartOptions = nextOption as ChartGPUOptions;
                 this._lastAppliedTheme = getResolvedTheme();
                 this.chartInstance.setOption(nextOption as unknown as ChartGPUOptions);
-                this.chartInstance.setZoomRange(0, 100, 'api');
+                const zoomRange = this._computeChartZoomPercentRange(xDomainMin, xDomainMax);
+                this.chartInstance.setZoomRange(zoomRange.start, zoomRange.end, 'api');
             } catch (e) {
                 console.error('[edatime:chart] setOption failed', e);
             }
@@ -745,10 +767,26 @@ export class DataChart {
         // has Stack-from-zero on, we clamp the lower bound at 0 so the
         // chart reflects a non-negative baseline for series that should
         // never dip below zero (e.g. OT, temperature counts).
+        //
+        // When the user has set an explicit y range (via `setYRange`,
+        // box-zoom, or Ctrl-pan y motion), honour that range verbatim so
+        // the chart zooms in on y exactly the way they asked. Without
+        // this, dragging a smaller box on the chart would only zoom the
+        // x-axis and the y-axis would keep showing the full data span,
+        // defeating the whole point of a box-zoom interaction.
         const option: { type: 'value'; min?: number; max?: number; tickFormatter: (value: number) => string } = {
             type: 'value',
             tickFormatter: (value: number) => formatTwoDecimals(value),
         };
+        const hasUserY = Number.isFinite(this._yMin) && Number.isFinite(this._yMax) && this._yMax! > this._yMin!;
+        if (hasUserY) {
+            const span = this._yMax! - this._yMin!;
+            const padding = span === 0 ? Math.max(1, Math.abs(this._yMax!) * 0.05) : span * 0.05;
+            const lower = this._stackFromZero ? Math.max(0, this._yMin!) : this._yMin!;
+            option.min = lower - (this._stackFromZero ? 0 : padding);
+            option.max = this._yMax! + padding;
+            return option;
+        }
         const displayBounds = this._computeRobustDisplayBounds();
         const baseMin = displayBounds?.min ?? this._lastDataYMin;
         const baseMax = displayBounds?.max ?? this._lastDataYMax;
@@ -832,6 +870,28 @@ export class DataChart {
         const min = q1 - (k * iqr);
         const max = q3 + (k * iqr);
         return Number.isFinite(min) && Number.isFinite(max) && max > min ? { min, max } : null;
+    }
+
+    private _computeChartZoomPercentRange(
+        domainMin: number,
+        domainMax: number,
+    ): { start: number; end: number } {
+        if (!Number.isFinite(domainMin) || !Number.isFinite(domainMax) || domainMax <= domainMin) {
+            return { start: 0, end: 100 };
+        }
+        if (!Number.isFinite(this._xMin) || !Number.isFinite(this._xMax) || this._xMax! <= this._xMin!) {
+            return { start: 0, end: 100 };
+        }
+
+        const span = domainMax - domainMin;
+        const clampedMin = Math.min(domainMax, Math.max(domainMin, this._xMin!));
+        const clampedMax = Math.min(domainMax, Math.max(domainMin, this._xMax!));
+        if (clampedMax <= clampedMin) return { start: 0, end: 100 };
+
+        return {
+            start: Math.max(0, Math.min(100, ((clampedMin - domainMin) / span) * 100)),
+            end: Math.max(0, Math.min(100, ((clampedMax - domainMin) / span) * 100)),
+        };
     }
 
     private _getChartColorPalette(): string[] {

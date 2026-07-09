@@ -46,7 +46,6 @@ import { startSessionPersistence } from './bootstrap/sessionBootstrap.js';
 import {
     updateAnalysisZoom, updateAnalysisYRange,
     refreshZoomControlsState, getCurrentView,
-    zoomOut, resetZoom,
     setComputeLoading,
 } from './ui/toolbar.js';
 import { exportChartFilteredData, exportChartFilteredParquet } from './ui/exportControls.js';
@@ -173,7 +172,6 @@ async function init(): Promise<void> {
         getCurrentView,
         fetchAndRenderAnalytics,
         refreshZoomControlsState,
-        zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
         chartExportPng: () => chartState.chart?.exportPNG?.(),
         chartExportSvg: () => chartState.chart?.exportSVG?.(),
         exportFilteredCsv: () => exportChartFilteredData('csv'),
@@ -192,8 +190,8 @@ async function init(): Promise<void> {
         updateAnalysisYRange,
         buildTimeseriesColumns: () => timeseriesModule.buildColumnToggles(),
         buildTimeseriesRanges: () => timeseriesModule.buildRangeControls(),
-        zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
-        resetZoom: () => resetZoom(() => timeseriesModule.fetchAndRender()),
+        zoomOut: () => timeseriesModule.zoomOut(),
+        resetZoom: () => timeseriesModule.resetZoom(),
         refreshDatasetAfterMutation: (opts) => timeseriesModule.refreshAfterMutation(opts),
         registerCleanup: runtime.registerCleanup,
     });
@@ -223,8 +221,8 @@ async function init(): Promise<void> {
 
     initTimeseriesShortcuts({
         fetchAndRender: () => timeseriesModule.fetchAndRender(),
-        zoomOut: () => zoomOut(() => timeseriesModule.fetchAndRender()),
-        resetZoom: () => resetZoom(() => timeseriesModule.fetchAndRender()),
+        zoomOut: () => timeseriesModule.zoomOut(),
+        resetZoom: () => timeseriesModule.resetZoom(),
         chartExportPng: () => chartState.chart?.exportPNG?.(),
         exportFilteredCsv: () => (window as any).__edatime?.exportChartFilteredData?.('csv'),
         exportFilteredJson: () => (window as any).__edatime?.exportChartFilteredData?.('json'),

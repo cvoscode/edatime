@@ -26,3 +26,4 @@ crates/*/frontend/dist/*
 .superpowers/*
 */dist/*
 Modelfile
+tmp/

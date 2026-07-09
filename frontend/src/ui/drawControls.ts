@@ -21,14 +21,6 @@ function syncAdaptiveClearButton(): void {
 }
 
 export function initDrawControls(fetchAndRender: () => void): void {
-    const zoomResetBtn = document.getElementById('zoom-reset-btn') as HTMLElement | null;
-    if (zoomResetBtn && !zoomResetBtn.dataset.bound) {
-        zoomResetBtn.addEventListener('click', () => {
-            window.dispatchEvent(new CustomEvent('edatime:reset-zoom', { detail: { source: 'toolbar' } }));
-        });
-        zoomResetBtn.dataset.bound = '1';
-    }
-
     const drawTool = document.getElementById('draw-tool') as HTMLElement | null;
     const drawColor = document.getElementById('draw-color') as HTMLInputElement | null;
     const drawWidth = document.getElementById('draw-width') as HTMLInputElement | null;

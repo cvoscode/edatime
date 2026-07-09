@@ -20,6 +20,7 @@ import {
     resetZoom,
     initChartPageFilterGesture,
     initResetZoomListener,
+    initZoomOutListener,
 } from './viewport.js';
 
 export {
@@ -98,7 +99,11 @@ export function setComputeLoading(btnId: string, overlayId: string, loading: boo
 
 // ─── Main init — wires all sub-controls ─────────────────────────────────────
 
-export function initAnalysisControls(fetchAndRender: () => void): void {
+export function initAnalysisControls(
+    fetchAndRender: () => void,
+    zoomOutAction: () => void = () => zoomOut(fetchAndRender),
+    resetZoomAction: () => void = () => resetZoom(fetchAndRender),
+): void {
     window.__edatime = window.__edatime || {};
     window.__edatime.exportChartFilteredData = exportChartFilteredData;
 
@@ -111,7 +116,8 @@ export function initAnalysisControls(fetchAndRender: () => void): void {
 
     initQuickRangeControls(fetchAndRender);
 
-    initResetZoomListener(fetchAndRender);
+    initResetZoomListener(resetZoomAction);
+    initZoomOutListener(zoomOutAction);
     refreshZoomControlsState();
 }
 

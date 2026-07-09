@@ -87,9 +87,18 @@ export function applyViewport(
         updateAnalysisYRange(view.yMin!, view.yMax!, sourceKind);
         setPendingYMode('restore');
         setPendingRestoreY({ min: view.yMin!, max: view.yMax! });
+        // Persist onto the chart so an in-progress render is not overwritten
+        // by `_buildYAxisOption`'s data-fit branch (which would otherwise ignore
+        // a user y range and re-paint the chart at the full data span after a
+        // zoom-in or zoom-out transition).
+        appState.chart?.setYRange?.(view.yMin!, view.yMax!);
     } else {
         setPendingYMode('fit');
         setPendingRestoreY(null);
+        // Drop any persisted user y range so a quick-range, zoom-out, or
+        // reset that does not specify a y range reverts the chart to the
+        // data-driven fit on the next render.
+        appState.chart?.resetYRange?.();
     }
 
     if (appState.fetchDebounceId) clearTimeout(appState.fetchDebounceId);
@@ -147,8 +156,21 @@ export function initChartPageFilterGesture(): void {
     pageChart.dataset.filterCtxBound = '1';
 }
 
-export function initResetZoomListener(fetchAndRender: () => void): void {
+export function initResetZoomListener(onResetZoom: () => void): void {
     window.addEventListener('edatime:reset-zoom', () => {
-        zoomOut(fetchAndRender);
+        onResetZoom();
+    });
+}
+
+/**
+ * Listen for the zoom-out toolbar button so `#zoom-out-btn` reuses the
+ * same event-driven path as `#zoom-reset-btn`. Without this listener the
+ * click was previously wired in `exportControls.ts` with an empty
+ * `fetchAndRender` callback, which left the chart visually stuck at
+ * the zoomed-in window after a single box zoom + click (−).
+ */
+export function initZoomOutListener(onZoomOut: () => void): void {
+    window.addEventListener('edatime:zoom-out', () => {
+        onZoomOut();
     });
 }

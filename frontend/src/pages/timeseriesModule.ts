@@ -52,7 +52,6 @@ export interface TimeseriesModuleDeps {
     getCurrentView: () => ViewSnapshot;
     fetchAndRenderAnalytics: () => Promise<void>;
     refreshZoomControlsState: () => void;
-    zoomOut: () => void;
     chartExportPng?: () => void;
     chartExportSvg?: () => void;
     exportFilteredCsv?: () => void;
@@ -206,7 +205,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         ensurePrimaryChartCtor: deps.ensurePrimaryChartCtor,
         onZoom: (view, sourceKind) => pageController.onZoomRangeChange(view, sourceKind),
         onYRange: deps.updateAnalysisYRange,
-        onZoomOut: deps.zoomOut,
+        onZoomOut: () => pageController.zoomOut(),
         buildColumnToggles: () => feature.rebuildColumns(),
         buildRangeControls: () => feature.buildRangeControls(),
         renderCurrentData: () => pageController.renderCurrentData(),
@@ -238,6 +237,8 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         buildRangeControls: () => feature.buildRangeControls(),
         emitChartRangeChange: (sourceKind?: string) => pageController.emitChartRangeChange(sourceKind),
         onZoomRangeChange: (view: ViewSnapshot, sourceKind?: string) => pageController.onZoomRangeChange(view, sourceKind),
+        resetZoom: () => pageController.resetZoom(),
+        zoomOut: () => pageController.zoomOut(),
         refreshAfterMutation: (options?: { selectedColumn?: string }) => bootstrap.refreshAfterMutation(options),
     };
 }
