@@ -20,6 +20,7 @@ import {
 } from '../store/index.js';
 import { getNumericColumns, getDefaultTimeseriesColumns } from './analyticsPageUtils.js';
 import type { DatasetMetadata, ViewSnapshot } from '../types.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 export interface TimeseriesModuleDeps {
     fetchData: (
@@ -32,6 +33,7 @@ export interface TimeseriesModuleDeps {
         signal?: AbortSignal,
     ) => Promise<import('../types.js').DataObject>;
     fetchMetadata: () => Promise<DatasetMetadata>;
+    workspace: Pick<WorkspaceStore, 'beginDatasetSession' | 'commitDataset'>;
     ensurePrimaryChartCtor: () => Promise<new (
         containerId: string,
         onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
@@ -175,6 +177,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     const bootstrap = createDatasetBootstrap({
         ensureChartModules: async () => { /* no-op: chart modules loaded before this module is created */ },
         fetchMetadata: deps.fetchMetadata,
+        workspace: deps.workspace,
         storeFetchedMetadata,
         markMetadataReady: deps.markMetadataReady,
         isMetadataReady: deps.isMetadataReady,

@@ -85,6 +85,10 @@ const mockChartBootstrap = () => ({
 const defaultDeps = () => ({
     fetchData: vi.fn(),
     fetchMetadata: vi.fn(),
+    workspace: {
+        beginDatasetSession: vi.fn(() => ({ id: 1, signal: new AbortController().signal })),
+        commitDataset: vi.fn(() => true),
+    },
     DataChartCtor: class {} as any,
     ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class {}),
     markMetadataReady: vi.fn(),

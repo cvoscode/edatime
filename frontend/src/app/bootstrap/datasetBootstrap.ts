@@ -5,6 +5,7 @@
  */
 
 import type { DatasetMetadata } from '../../types.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { DEBUG, dbg, dbgGroup } from '../../debug.js';
 import {
     assertDatasetRequestScopeActive,
@@ -15,6 +16,7 @@ import {
 export interface DatasetBootstrapDeps {
     ensureChartModules: () => Promise<void>;
     fetchMetadata: () => Promise<DatasetMetadata>;
+    workspace: Pick<WorkspaceStore, 'beginDatasetSession' | 'commitDataset'>;
     markMetadataReady: () => void;
     isMetadataReady: () => boolean;
     clearLoadedPageModules: () => void;
@@ -86,12 +88,15 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
         let pending: Promise<void>;
         pending = (async () => {
             const requestScope = captureDatasetRequestScope();
+            const workspaceSession = deps.workspace.beginDatasetSession();
             await deps.ensureChartModules();
 
             const metadata = await deps.fetchMetadata();
             assertDatasetRequestScopeActive(requestScope);
+            const revision = Number.isFinite(Number(metadata?.revision)) ? Number(metadata.revision) : 0;
+            if (!deps.workspace.commitDataset(workspaceSession, metadata, revision)) return;
             deps.storeFetchedMetadata(metadata);
-            _lastDatasetRevision = Number.isFinite(Number(metadata?.revision)) ? Number(metadata.revision) : 0;
+            _lastDatasetRevision = revision;
             deps.markMetadataReady();
             window.dispatchEvent(new Event('edatime:metadata-ready'));
             if (DEBUG) dbgGroup('metadata', () => dbg(metadata));
@@ -128,9 +133,11 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
         deps.clearLoadedPageModules();
         deps.clearPersistedFilters();
         const previousRevision = _lastDatasetRevision;
+        const workspaceSession = deps.workspace.beginDatasetSession();
         const metadata = await deps.fetchMetadata();
-        deps.storeFetchedMetadata(metadata);
         const nextRevision = Number.isFinite(Number(metadata?.revision)) ? Number(metadata.revision) : 0;
+        if (!deps.workspace.commitDataset(workspaceSession, metadata, nextRevision)) return;
+        deps.storeFetchedMetadata(metadata);
         _lastDatasetRevision = nextRevision;
         deps.markMetadataReady();
         // Mirror the initial-bootstrap event so subscribers (e.g. the scatter

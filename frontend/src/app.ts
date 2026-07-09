@@ -30,6 +30,7 @@ import { showPage } from './app/navigation/showPage.js';
 import { initGlobalShortcuts } from './app/bootstrap/globalShortcuts.js';
 import { initTimeseriesShortcuts } from './app/bootstrap/timeseriesShortcuts.js';
 import { createAppRuntime } from './app/runtime.js';
+import { createWorkspaceStore } from './workspace/workspaceStore.js';
 import { markAppReady, resetAppReady } from './app/bootState.js';
 import { upgradeSelects } from './ui/primitives/Dropdown.js';
 import { upgradeFlexibleNumberInputs } from './ui/primitives/FlexibleNumberInput.js';
@@ -87,6 +88,8 @@ window.__edatime.DEBUG = true;
 const _appCleanups: Array<() => void> = [];
 const runtime = createAppRuntime();
 const pageRegistry = createPageRegistry();
+const workspace = createWorkspaceStore();
+runtime.registerCleanup(() => workspace.dispose());
 let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
 
 /* ── Lazy-loaded modules ──────────────────────────────── */
@@ -158,6 +161,7 @@ async function init(): Promise<void> {
     timeseriesModule = createTimeseriesModule({
         fetchData: (start, end, width, columns, colorColumn, lookaroundMs, signal) => fetchData!(start, end, width, columns, colorColumn, lookaroundMs, signal),
         fetchMetadata: () => fetchMetadata!(),
+        workspace,
         ensurePrimaryChartCtor,
         markMetadataReady: pageRegistry.markMetadataReady,
         isMetadataReady: pageRegistry.isMetadataReady,

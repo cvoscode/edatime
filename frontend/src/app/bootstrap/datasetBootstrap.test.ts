@@ -69,6 +69,10 @@ function createDeps(overrides: Partial<DatasetBootstrapDeps> = {}): DatasetBoots
     return {
         ensureChartModules: vi.fn().mockResolvedValue(undefined),
         fetchMetadata: vi.fn().mockResolvedValue(baseMetadata),
+        workspace: {
+            beginDatasetSession: vi.fn(() => ({ id: 1, signal: new AbortController().signal })),
+            commitDataset: vi.fn(() => true),
+        },
         markMetadataReady: vi.fn(),
         isMetadataReady: isMetadataReadyMock,
         clearLoadedPageModules: vi.fn(),
@@ -126,6 +130,9 @@ describe('createDatasetBootstrap', () => {
 
         expect(deps.storeFetchedMetadata).toHaveBeenCalledWith(baseMetadata);
         expect(deps.markMetadataReady).toHaveBeenCalledTimes(1);
+        expect(deps.workspace.commitDataset).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 1 }), baseMetadata, 42,
+        );
     });
 
     it('uses the injected initializeDatasetUi callback instead of hardcoding UI hydration internally', async () => {
@@ -206,5 +213,21 @@ describe('createDatasetBootstrap', () => {
         await expect(initialBootstrap).rejects.toMatchObject({ name: 'AbortError' });
 
         expect(deps.storeFetchedMetadata).toHaveBeenCalledWith(freshMetadata);
+    });
+
+    it('does not publish metadata when a newer workspace session supersedes the refresh', async () => {
+        const createDatasetBootstrap = await importCreateDatasetBootstrap();
+        const deps = createDeps({
+            workspace: {
+                beginDatasetSession: vi.fn(() => ({ id: 1, signal: new AbortController().signal })),
+                commitDataset: vi.fn(() => false),
+            },
+        });
+        const bootstrap = createDatasetBootstrap(deps);
+
+        await bootstrap.ensureDatasetReady();
+
+        expect(deps.storeFetchedMetadata).not.toHaveBeenCalled();
+        expect(deps.initializeDatasetUi).not.toHaveBeenCalled();
     });
 });

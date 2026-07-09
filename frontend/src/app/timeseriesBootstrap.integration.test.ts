@@ -211,6 +211,10 @@ describe('app -> timeseries bootstrap wiring', () => {
         const deps = createTimeseriesModuleMock.mock.calls[0]?.[0];
         expect(deps).toEqual(expect.objectContaining({
             fetchMetadata: expect.any(Function),
+            workspace: expect.objectContaining({
+                beginDatasetSession: expect.any(Function),
+                commitDataset: expect.any(Function),
+            }),
             markMetadataReady: markMetadataReadyMock,
             sanitizeSelectedColumns: sanitizeSelectedColumnsMock,
             clearLoadedPageModules: clearLoadedPageModulesMock,
