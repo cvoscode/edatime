@@ -120,6 +120,16 @@ describe('createPageLifecycle', () => {
         expect(cleanup).toHaveBeenCalledTimes(1);
     });
 
+    it('does not retain a cleanup when unregistered before first activation', () => {
+        const init = vi.fn();
+        const unregister = createPageLifecycle({ page: 'test', init });
+
+        unregister();
+        dispatchPageChange('test');
+
+        expect(init).not.toHaveBeenCalled();
+    });
+
     it('onEveryPageChange fires on init page activation too', () => {
         const onEveryPageChange = vi.fn();
         createPageLifecycle({ page: 'test', init() { }, onEveryPageChange });

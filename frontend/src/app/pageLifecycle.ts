@@ -64,7 +64,7 @@ export interface PageLifecycleOptions {
  */
 export function createPageLifecycle(options: PageLifecycleOptions): () => void {
     let initialized = false;
-    let cleanup: (() => void) | void;
+    const scope = createLifecycleScope();
 
     const handler = (event: Event) => {
         const detail = (event as CustomEvent<{ page?: string }>).detail;
@@ -74,7 +74,8 @@ export function createPageLifecycle(options: PageLifecycleOptions): () => void {
             if (isTargetPage) {
                 // First time this specific page is activated — run init and onVisible
                 initialized = true;
-                cleanup = options.init();
+                const cleanup = options.init();
+                if (typeof cleanup === 'function') scope.add(cleanup);
                 options.onVisible?.();
             }
             // onEveryPageChange fires on every page change, even before init
@@ -91,11 +92,7 @@ export function createPageLifecycle(options: PageLifecycleOptions): () => void {
         options.onEveryPageChange?.();
     };
 
-    window.addEventListener('edatime:page-change', handler);
-
-    // Return cleanup function
-    return () => {
-        window.removeEventListener('edatime:page-change', handler);
-        if (typeof cleanup === 'function') cleanup();
-    };
+    scope.listen(window, 'edatime:page-change', handler);
+    return () => scope.dispose();
 }
+import { createLifecycleScope } from '../platform/lifecycleScope.js';
