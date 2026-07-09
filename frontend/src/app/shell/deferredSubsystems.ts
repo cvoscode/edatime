@@ -30,6 +30,7 @@ export interface DeferredSubsystemRegistry {
     ensureSettingsPanel(deps: DeferredShellDeps): Promise<void>;
     openSettings(deps: DeferredShellDeps): Promise<void>;
     ensureCommands(deps: DeferredShellDeps): Promise<void>;
+    openCommands(deps: DeferredShellDeps): Promise<void>;
     ensureHomeSubsystems(deps: DeferredShellDeps): Promise<void>;
     ensureAll(deps: DeferredShellDeps): Promise<void>;
 }
@@ -47,6 +48,7 @@ type CommandDeps = Pick<DeferredShellDeps, 'showPage' | 'zoomOut' | 'resetZoom'>
 export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     const subsystems: Record<string, SubsystemEntry> = {};
     let openSettingsModal: (() => void) | null = null;
+    let openPalette: (() => void) | null = null;
 
     function registerSubsystem(name: string, init: Initializer): void {
         subsystems[name] = { init, loaded: false, pending: null };
@@ -127,11 +129,9 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     });
 
     registerSubsystem('command-palette', async () => {
-        const { initCommandPalette, openPalette } = await import('../../utils/palette.js');
-        initCommandPalette();
-        const runtime = window as unknown as { __edatime?: { openPalette?: () => void } };
-        runtime.__edatime = runtime.__edatime || {};
-        runtime.__edatime.openPalette = openPalette;
+        const palette = await import('../../utils/palette.js');
+        palette.initCommandPalette();
+        openPalette = palette.openPalette;
     });
 
     registerSubsystem('sample-datasets', async (deps) => {
@@ -178,6 +178,11 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         await ensureSubsystem('app-commands', deps);
     }
 
+    async function openCommands(deps: DeferredShellDeps): Promise<void> {
+        await ensureCommands(deps);
+        openPalette?.();
+    }
+
     async function ensureHomeSubsystems(deps: DeferredShellDeps): Promise<void> {
         await ensureSubsystem('sample-datasets', deps);
     }
@@ -196,6 +201,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         ensureSettingsPanel,
         openSettings,
         ensureCommands,
+        openCommands,
         ensureHomeSubsystems,
         ensureAll,
     };

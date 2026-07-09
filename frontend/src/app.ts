@@ -184,7 +184,7 @@ async function init(): Promise<void> {
     // Mount registers page lifecycle (page-change listener, etc.)
     timeseriesModule.mount();
 
-    initAppShell({
+    const shell = initAppShell({
         ensurePageModuleLoaded: pageRegistry.ensurePageModuleLoaded,
         ensureDatasetReady: () => timeseriesModule.ensureDatasetReady(),
         showPage,
@@ -219,6 +219,8 @@ async function init(): Promise<void> {
 
     initGlobalShortcuts({
         showPage,
+        openCommands: shell.openCommands,
+        openSettings: shell.openSettings,
         registerCleanup: runtime.registerCleanup,
     });
 

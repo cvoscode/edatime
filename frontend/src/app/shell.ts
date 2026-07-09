@@ -38,7 +38,12 @@ export interface AppShellDeps {
     registerCleanup: (cleanup: () => void) => void;
 }
 
-export function initAppShell(deps: AppShellDeps): void {
+export interface AppShell {
+    openCommands(): Promise<void>;
+    openSettings(): Promise<void>;
+}
+
+export function initAppShell(deps: AppShellDeps): AppShell {
     // Build the deferred-shell contract once and let callers request
     // subsystems on demand. The shell does not eagerly load any of
     // them at startup; pages and user actions trigger the loads.
@@ -104,4 +109,9 @@ export function initAppShell(deps: AppShellDeps): void {
             openSettings: async () => deferredSubsystems.openSettings(deferred),
         },
     });
+
+    return {
+        openCommands: () => deferredSubsystems.openCommands(deferred),
+        openSettings: () => deferredSubsystems.openSettings(deferred),
+    };
 }

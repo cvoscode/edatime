@@ -67,11 +67,11 @@ describe('deferred shell subsystems', () => {
         expect(mocks.initSettingsPanel).toHaveBeenCalledTimes(2);
     });
 
-    it('loads command dependencies once and forwards only the command dependencies they need', async () => {
+    it('loads command dependencies once, opens the palette, and forwards only the command dependencies they need', async () => {
         const deps = createDeps();
         const registry = createDeferredSubsystemRegistry();
-        await registry.ensureCommands(deps);
-        await registry.ensureCommands(deps);
+        await registry.openCommands(deps);
+        await registry.openCommands(deps);
 
         expect(mocks.initCommandPalette).toHaveBeenCalledTimes(1);
         expect(mocks.registerAppCommands).toHaveBeenCalledTimes(1);
@@ -80,7 +80,6 @@ describe('deferred shell subsystems', () => {
             zoomOut: deps.zoomOut,
             resetZoom: deps.resetZoom,
         });
-        expect((window as Window & { __edatime?: { openPalette?: () => void } }).__edatime?.openPalette)
-            .toBe(mocks.openPalette);
+        expect(mocks.openPalette).toHaveBeenCalledTimes(2);
     });
 });

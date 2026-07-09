@@ -76,7 +76,10 @@ vi.mock('../bootstrap/analyticsOverlay.js', () => ({
 }));
 
 vi.mock('../app/shell.js', () => ({
-    initAppShell: vi.fn(),
+    initAppShell: vi.fn(() => ({
+        openCommands: vi.fn().mockResolvedValue(undefined),
+        openSettings: vi.fn().mockResolvedValue(undefined),
+    })),
 }));
 
 vi.mock('../app/navigation/showPage.js', () => ({
