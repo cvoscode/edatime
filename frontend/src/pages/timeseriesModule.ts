@@ -33,7 +33,7 @@ export interface TimeseriesModuleDeps {
         signal?: AbortSignal,
     ) => Promise<import('../types.js').DataObject>;
     fetchMetadata: () => Promise<DatasetMetadata>;
-    workspace: Pick<WorkspaceStore, 'beginDatasetSession' | 'commitDataset'>;
+    workspace: Pick<WorkspaceStore, 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters'>;
     ensurePrimaryChartCtor: () => Promise<new (
         containerId: string,
         onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,

@@ -214,6 +214,8 @@ describe('app -> timeseries bootstrap wiring', () => {
             workspace: expect.objectContaining({
                 beginDatasetSession: expect.any(Function),
                 commitDataset: expect.any(Function),
+                setSelection: expect.any(Function),
+                setFilters: expect.any(Function),
             }),
             markMetadataReady: markMetadataReadyMock,
             sanitizeSelectedColumns: sanitizeSelectedColumnsMock,

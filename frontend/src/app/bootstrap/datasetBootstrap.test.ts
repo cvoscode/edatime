@@ -72,6 +72,8 @@ function createDeps(overrides: Partial<DatasetBootstrapDeps> = {}): DatasetBoots
         workspace: {
             beginDatasetSession: vi.fn(() => ({ id: 1, signal: new AbortController().signal })),
             commitDataset: vi.fn(() => true),
+            setSelection: vi.fn(),
+            setFilters: vi.fn(),
         },
         markMetadataReady: vi.fn(),
         isMetadataReady: isMetadataReadyMock,
@@ -133,6 +135,7 @@ describe('createDatasetBootstrap', () => {
         expect(deps.workspace.commitDataset).toHaveBeenCalledWith(
             expect.objectContaining({ id: 1 }), baseMetadata, 42,
         );
+        expect(deps.workspace.setSelection).toHaveBeenCalledWith(['value']);
     });
 
     it('uses the injected initializeDatasetUi callback instead of hardcoding UI hydration internally', async () => {
@@ -160,6 +163,7 @@ describe('createDatasetBootstrap', () => {
         expect(deps.storeFetchedMetadata).toHaveBeenCalledWith(baseMetadata);
         expect(deps.markMetadataReady).toHaveBeenCalledTimes(1);
         expect(deps.clearPersistedFilters).toHaveBeenCalledTimes(1);
+        expect(deps.workspace.setFilters).toHaveBeenCalledWith({ columnRanges: {}, adaptiveLines: [] });
         expect(deps.initializeDatasetUi).toHaveBeenCalledWith(baseMetadata);
         expect(deps.refreshVisibleData).toHaveBeenCalledTimes(1);
     });
@@ -221,6 +225,8 @@ describe('createDatasetBootstrap', () => {
             workspace: {
                 beginDatasetSession: vi.fn(() => ({ id: 1, signal: new AbortController().signal })),
                 commitDataset: vi.fn(() => false),
+                setSelection: vi.fn(),
+                setFilters: vi.fn(),
             },
         });
         const bootstrap = createDatasetBootstrap(deps);

@@ -16,7 +16,7 @@ import {
 export interface DatasetBootstrapDeps {
     ensureChartModules: () => Promise<void>;
     fetchMetadata: () => Promise<DatasetMetadata>;
-    workspace: Pick<WorkspaceStore, 'beginDatasetSession' | 'commitDataset'>;
+    workspace: Pick<WorkspaceStore, 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters'>;
     markMetadataReady: () => void;
     isMetadataReady: () => boolean;
     clearLoadedPageModules: () => void;
@@ -78,6 +78,7 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
         }
 
         deps.setAdaptiveFilterColumn(deps.getSelectedCols()[0] || null);
+        deps.workspace.setSelection(deps.getSelectedCols());
     }
 
     // ── Bootstrap sequence ───────────────────────────────────────────────
@@ -132,6 +133,7 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
 
         deps.clearLoadedPageModules();
         deps.clearPersistedFilters();
+        deps.workspace.setFilters({ columnRanges: {}, adaptiveLines: [] });
         const previousRevision = _lastDatasetRevision;
         const workspaceSession = deps.workspace.beginDatasetSession();
         const metadata = await deps.fetchMetadata();

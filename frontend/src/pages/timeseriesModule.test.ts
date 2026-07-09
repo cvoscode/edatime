@@ -88,6 +88,8 @@ const defaultDeps = () => ({
     workspace: {
         beginDatasetSession: vi.fn(() => ({ id: 1, signal: new AbortController().signal })),
         commitDataset: vi.fn(() => true),
+        setSelection: vi.fn(),
+        setFilters: vi.fn(),
     },
     DataChartCtor: class {} as any,
     ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class {}),
