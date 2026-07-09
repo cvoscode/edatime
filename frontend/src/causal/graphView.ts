@@ -65,6 +65,9 @@ export async function initChart(): Promise<void> {
 }
 
 export function scheduleCausalChartRefresh(attempts = 6): void {
+    // A deferred retry may outlive a test environment or an application root.
+    // Never schedule another browser timer once the DOM has been torn down.
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
     if (!isCausalChartReadyForInit()) {
         if (attempts <= 0) return;
         window.setTimeout(() => scheduleCausalChartRefresh(attempts - 1), 0);

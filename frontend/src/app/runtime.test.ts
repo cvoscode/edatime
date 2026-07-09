@@ -11,6 +11,15 @@ describe('app runtime', () => {
         runtime.dispose();
         expect(cleanup).toHaveBeenCalledTimes(1);
     });
+
+    it('exposes an abort signal for app-owned asynchronous work', () => {
+        const runtime = createAppRuntime();
+        expect(runtime.signal.aborted).toBe(false);
+
+        runtime.dispose();
+
+        expect(runtime.signal.aborted).toBe(true);
+    });
 });
 
 describe('page registry', () => {

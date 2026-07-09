@@ -1,17 +1,14 @@
+import { createLifecycleScope } from '../platform/lifecycleScope.js';
+
 export function createAppRuntime() {
-    const cleanups = new Set<() => void>();
-    let disposed = false;
+    const scope = createLifecycleScope();
     return {
+        signal: scope.signal,
         registerCleanup(fn: () => void) {
-            if (disposed) return () => {};
-            cleanups.add(fn);
-            return () => cleanups.delete(fn);
+            return scope.add(fn);
         },
         dispose() {
-            if (disposed) return;
-            disposed = true;
-            for (const fn of cleanups) fn();
-            cleanups.clear();
+            scope.dispose();
         },
     };
 }
