@@ -5,7 +5,16 @@ const pageNeedsDatasetBootstrapMock = vi.fn<(page: string) => boolean>(() => fal
 const ensureSubsystemMock = vi.fn<(name: string) => Promise<void>>().mockResolvedValue(undefined);
 const ensureDatasetReadyMock = vi.fn<(page?: string) => Promise<void>>().mockResolvedValue(undefined);
 const ensurePageModuleLoadedMock = vi.fn<(page: string) => Promise<void>>().mockResolvedValue(undefined);
-const openSettingsModalMock = vi.fn();
+const openSettingsMock = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+
+function navigationDeps() {
+    return {
+        ensureSubsystem: ensureSubsystemMock,
+        ensureDatasetReady: ensureDatasetReadyMock,
+        ensurePageModuleLoaded: ensurePageModuleLoadedMock,
+        openSettings: openSettingsMock,
+    };
+}
 
 vi.mock('../utils/pageStyles.js', () => ({
     preloadPageStyles: (page: string) => preloadPageStylesMock(page),
@@ -40,17 +49,11 @@ describe('initPageNavigation', () => {
         vi.resetModules();
         vi.clearAllMocks();
         buildDom();
-        (window as any).__edatime = {
-            ensureSubsystem: ensureSubsystemMock,
-            ensureDatasetReady: ensureDatasetReadyMock,
-            ensurePageModuleLoaded: ensurePageModuleLoadedMock,
-            openSettingsModal: openSettingsModalMock,
-        };
     });
 
     it('loads the deferred settings subsystem before opening the settings modal', async () => {
         const { initPageNavigation } = await import('./pageNavigation.js');
-        initPageNavigation();
+        initPageNavigation(navigationDeps());
 
         await Promise.resolve();
 
@@ -61,8 +64,7 @@ describe('initPageNavigation', () => {
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
-        expect(ensureSubsystemMock).toHaveBeenCalledWith('settings');
-        expect(openSettingsModalMock).toHaveBeenCalledTimes(1);
+        expect(openSettingsMock).toHaveBeenCalledTimes(1);
         expect(homePage.hidden).toBe(false);
     });
 
@@ -70,7 +72,7 @@ describe('initPageNavigation', () => {
         window.history.replaceState(null, '', '#page=timeseries');
         const { initPageNavigation } = await import('./pageNavigation.js');
 
-        initPageNavigation();
+        initPageNavigation(navigationDeps());
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -87,7 +89,7 @@ describe('initPageNavigation', () => {
         window.addEventListener('edatime:page-change', pageChangeHandler);
         const { initPageNavigation } = await import('./pageNavigation.js');
 
-        initPageNavigation();
+        initPageNavigation(navigationDeps());
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -112,7 +114,7 @@ describe('initPageNavigation', () => {
         const { initPageNavigation } = await import('./pageNavigation.js');
         const { toast } = await import('../utils/toast.js');
 
-        initPageNavigation();
+        initPageNavigation(navigationDeps());
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 

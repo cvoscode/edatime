@@ -12,11 +12,7 @@ const VALID_PAGES = new Set([
 
 let _bound = false;
 
-type AppWindow = Window & typeof globalThis & {
-    __edatime?: {
-        showPage?: (pageName: string) => void;
-    };
-};
+export type PageNavigator = (page: string) => void | Promise<void>;
 
 function normalizePage(page: string | null): string | null {
     const trimmed = String(page || '').trim();
@@ -59,16 +55,6 @@ function replaceHashPage(page: string): void {
     history.replaceState(null, '', getCanonicalPageUrl(nextPage));
 }
 
-function navigateToPage(page: string): void {
-    const win = window as AppWindow;
-    if (win.__edatime?.showPage) {
-        win.__edatime.showPage(page);
-        return;
-    }
-    const btn = document.querySelector(`.sidebar .nav-item[data-page="${page}"]`) as HTMLElement | null;
-    btn?.click();
-}
-
 /**
  * Bind hash routing to the page navigation system.
  *
@@ -76,7 +62,7 @@ function navigateToPage(page: string): void {
  * Listens for `edatime:page-change` to update the hash,
  * and `popstate` to navigate on back/forward.
  */
-export function initHashRouting(): void {
+export function initHashRouting(navigateToPage: PageNavigator): void {
     if (_bound) return;
     _bound = true;
 
@@ -91,7 +77,7 @@ export function initHashRouting(): void {
     // On browser back/forward → navigate to page
     window.addEventListener('popstate', () => {
         const page = getHashPage();
-        if (page) navigateToPage(page);
+        if (page) void navigateToPage(page);
     });
 
     // initPageNavigation() already owns the first page show. The router's

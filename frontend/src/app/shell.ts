@@ -25,6 +25,7 @@ interface RefreshDatasetOptions {
 
 export interface AppShellDeps {
     ensurePageModuleLoaded: (page: string) => Promise<void>;
+    ensureDatasetReady: () => Promise<void>;
     showPage: (pageName: string) => void;
     fetchAndRender: () => void;
     renderCurrentData: () => void;
@@ -54,6 +55,22 @@ export function initAppShell(deps: AppShellDeps): void {
         registerCleanup: deps.registerCleanup,
     };
     const deferredSubsystems = createDeferredSubsystemRegistry();
+    const ensureSubsystem = async (name: string): Promise<void> => {
+        switch (name) {
+            case 'upload':
+                return deferredSubsystems.ensureUploadSubsystems(deferred);
+            case 'home':
+                return deferredSubsystems.ensureHomeSubsystems(deferred);
+            case 'timeseries-shell':
+                return deferredSubsystems.ensureTimeseriesShell(deferred);
+            case 'settings':
+                return deferredSubsystems.ensureSettingsPanel(deferred);
+            case 'commands':
+                return deferredSubsystems.ensureCommands(deferred);
+            default:
+                throw new Error(`Unknown deferred subsystem: ${name}`);
+        }
+    };
 
     // Lightweight global bridge used by command palette, tests, and
     // utility hooks. We intentionally do not import the heavy
@@ -75,25 +92,16 @@ export function initAppShell(deps: AppShellDeps): void {
         };
     };
     win.__edatime = win.__edatime || {};
-    win.__edatime.ensurePageModuleLoaded = deps.ensurePageModuleLoaded;
-    win.__edatime.showPage = deps.showPage;
-    win.__edatime.ensureSubsystem = async (name: string) => {
-        switch (name) {
-            case 'upload':
-                return deferredSubsystems.ensureUploadSubsystems(deferred);
-            case 'home':
-                return deferredSubsystems.ensureHomeSubsystems(deferred);
-            case 'timeseries-shell':
-                return deferredSubsystems.ensureTimeseriesShell(deferred);
-            case 'settings':
-                return deferredSubsystems.ensureSettingsPanel(deferred);
-            case 'commands':
-                return deferredSubsystems.ensureCommands(deferred);
-            default:
-                throw new Error(`Unknown deferred subsystem: ${name}`);
-        }
-    };
+    win.__edatime.ensureSubsystem = ensureSubsystem;
 
     // Always-on bridge. Keep this cheap — see `shell/core.ts` for details.
-    initShellCore({ showPage: deps.showPage });
+    initShellCore({
+        showPage: deps.showPage,
+        navigation: {
+            ensureDatasetReady: deps.ensureDatasetReady,
+            ensurePageModuleLoaded: deps.ensurePageModuleLoaded,
+            ensureSubsystem,
+            openSettings: async () => deferredSubsystems.openSettings(deferred),
+        },
+    });
 }

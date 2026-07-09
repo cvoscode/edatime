@@ -8,20 +8,23 @@ import { pageNeedsDatasetBootstrap, resolveBackingPageName } from '../utils/page
 import { getHashPage } from '../utils/router.js';
 import { dismissAllToasts } from '../utils/toast.js';
 
-type AppWindow = Window & typeof globalThis & {
-    __edatime?: {
-        ensureDatasetReady?: (pageName?: string) => Promise<void>;
-        ensurePageModuleLoaded?: (pageName: string) => Promise<void>;
-        ensureSubsystem?: (name: string) => Promise<void>;
-        openSettingsModal?: () => void;
-        showPage?: (pageName: string) => void;
-    };
-};
+export interface PageNavigationDeps {
+    ensureDatasetReady: (pageName?: string) => Promise<void>;
+    ensurePageModuleLoaded: (pageName: string) => Promise<void>;
+    ensureSubsystem: (name: string) => Promise<void>;
+    openSettings: () => Promise<void>;
+}
 
-export function initPageNavigation(): void {
+export interface PageNavigation {
+    showPage(pageName: string): Promise<void>;
+}
+
+export function initPageNavigation(deps: PageNavigationDeps): PageNavigation {
     const navButtons = Array.from(document.querySelectorAll('.sidebar .nav-item[data-page]')) as HTMLElement[];
     const pages = Array.from(document.querySelectorAll('.page[data-page-name]')) as HTMLElement[];
-    if (navButtons.length === 0 || pages.length === 0) return;
+    if (navButtons.length === 0 || pages.length === 0) {
+        return { showPage: async () => {} };
+    }
     const analyticsViews: Record<string, string> = {
         scatter: 'plot',
         scattermatrix: 'matrix',
@@ -38,31 +41,27 @@ export function initPageNavigation(): void {
     }
 
     async function showPage(pageName: string) {
-        const win = window as AppWindow;
         preloadPageStyles(pageName);
         const backingPageName = resolveBackingPageName(pageName) ?? pageName;
 
         if (pageName === 'settings') {
-            await win.__edatime?.ensureSubsystem?.('settings');
-            win.__edatime?.openSettingsModal?.();
+            await deps.openSettings();
             return;
         }
 
         if (backingPageName === 'home') {
-            await win.__edatime?.ensureSubsystem?.('home');
+            await deps.ensureSubsystem('home');
         } else if (backingPageName === 'upload') {
-            await win.__edatime?.ensureSubsystem?.('upload');
+            await deps.ensureSubsystem('upload');
         } else if (backingPageName === 'timeseries') {
-            await win.__edatime?.ensureSubsystem?.('timeseries-shell');
+            await deps.ensureSubsystem('timeseries-shell');
         }
 
         if (pageNeedsDatasetBootstrap(backingPageName)) {
-            await win.__edatime?.ensureDatasetReady?.(backingPageName);
+            await deps.ensureDatasetReady(backingPageName);
         }
 
-        if (win.__edatime?.ensurePageModuleLoaded) {
-            await win.__edatime.ensurePageModuleLoaded(backingPageName);
-        }
+        await deps.ensurePageModuleLoaded(backingPageName);
 
         const analyticsView = analyticsViews[pageName] || null;
         const resolvedPageName = backingPageName;
@@ -92,14 +91,12 @@ export function initPageNavigation(): void {
         });
     }
 
-    (window as AppWindow).__edatime = (window as AppWindow).__edatime || {};
-    (window as AppWindow).__edatime!.showPage = showPage;
-
     for (const btn of navButtons) {
         btn.addEventListener('click', async () => { await showPage(btn.dataset.page!); });
     }
 
-    showPage(getHashPage() ?? 'home');
+    void showPage(getHashPage() ?? 'home');
+    return { showPage };
 }
 
 /**

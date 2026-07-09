@@ -28,6 +28,7 @@ export interface DeferredSubsystemRegistry {
     ensureUploadSubsystems(deps: DeferredShellDeps): Promise<void>;
     ensureTimeseriesShell(deps: DeferredShellDeps): Promise<void>;
     ensureSettingsPanel(deps: DeferredShellDeps): Promise<void>;
+    openSettings(deps: DeferredShellDeps): Promise<void>;
     ensureCommands(deps: DeferredShellDeps): Promise<void>;
     ensureHomeSubsystems(deps: DeferredShellDeps): Promise<void>;
     ensureAll(deps: DeferredShellDeps): Promise<void>;
@@ -45,6 +46,7 @@ type CommandDeps = Pick<DeferredShellDeps, 'showPage' | 'zoomOut' | 'resetZoom'>
 
 export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     const subsystems: Record<string, SubsystemEntry> = {};
+    let openSettingsModal: (() => void) | null = null;
 
     function registerSubsystem(name: string, init: Initializer): void {
         subsystems[name] = { init, loaded: false, pending: null };
@@ -113,11 +115,9 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     });
 
     registerSubsystem('settings-panel', async () => {
-        const { initSettingsPanel, openSettingsModal } = await import('../../ui/settingsPanel.js');
-        initSettingsPanel();
-        const runtime = window as unknown as { __edatime?: { openSettingsModal?: () => void } };
-        runtime.__edatime = runtime.__edatime || {};
-        runtime.__edatime.openSettingsModal = openSettingsModal;
+        const settingsPanel = await import('../../ui/settingsPanel.js');
+        settingsPanel.initSettingsPanel();
+        openSettingsModal = settingsPanel.openSettingsModal;
     });
 
     registerSubsystem('analysis-controls', async (deps) => {
@@ -168,6 +168,11 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         await ensureSubsystem('settings-panel', deps);
     }
 
+    async function openSettings(deps: DeferredShellDeps): Promise<void> {
+        await ensureSettingsPanel(deps);
+        openSettingsModal?.();
+    }
+
     async function ensureCommands(deps: DeferredShellDeps): Promise<void> {
         await ensureSubsystem('command-palette', deps);
         await ensureSubsystem('app-commands', deps);
@@ -189,6 +194,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         ensureUploadSubsystems,
         ensureTimeseriesShell,
         ensureSettingsPanel,
+        openSettings,
         ensureCommands,
         ensureHomeSubsystems,
         ensureAll,

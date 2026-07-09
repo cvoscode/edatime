@@ -44,7 +44,6 @@ import { bindInfoPopovers } from './infoPopovers.js';
 import { initYRangeControls } from './yRangeControls.js';
 import { initChartTextControls } from './chartTextControls.js';
 import { initAnalyticsControls } from './analyticsControls.js';
-import { initPageNavigation } from './pageNavigation.js';
 import { initQuickRangeControls, refreshQuickRangeControls } from './quickRange.js';
 
 import { exportChartFilteredData } from './exportControls.js';
@@ -119,8 +118,4 @@ export function initAnalysisControls(
     initResetZoomListener(resetZoomAction);
     initZoomOutListener(zoomOutAction);
     refreshZoomControlsState();
-}
-
-export function initPages(): void {
-    initPageNavigation();
 }

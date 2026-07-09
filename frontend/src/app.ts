@@ -186,6 +186,7 @@ async function init(): Promise<void> {
 
     initAppShell({
         ensurePageModuleLoaded: pageRegistry.ensurePageModuleLoaded,
+        ensureDatasetReady: () => timeseriesModule.ensureDatasetReady(),
         showPage,
         fetchAndRender: () => timeseriesModule.fetchAndRender(),
         renderCurrentData: () => timeseriesModule.renderCurrentData(),

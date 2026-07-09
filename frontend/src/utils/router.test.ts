@@ -30,7 +30,6 @@ describe('hash router valid pages', () => {
         vi.resetModules();
         buildDom();
         window.history.replaceState(null, '', '#');
-        (window as typeof globalThis & { __edatime?: Record<string, unknown> }).__edatime = {};
     });
 
     it('accepts drift as a valid hash-routed page', async () => {
@@ -71,12 +70,9 @@ describe('hash router valid pages', () => {
     it('does not trigger a second initial navigation for hash deep links', async () => {
         const { initHashRouting } = await import('./router.js');
         const showPage = vi.fn();
-        (window as typeof globalThis & {
-            __edatime?: { showPage?: (pageName: string) => void };
-        }).__edatime = { showPage };
         window.history.replaceState(null, '', '#page=timeseries');
 
-        initHashRouting();
+        initHashRouting(showPage);
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -88,8 +84,13 @@ describe('hash router valid pages', () => {
         const { initHashRouting } = await import('./router.js');
 
         window.history.replaceState(null, '', '?page=correlations');
-        initPageNavigation();
-        initHashRouting();
+        const navigation = initPageNavigation({
+            ensureDatasetReady: vi.fn().mockResolvedValue(undefined),
+            ensurePageModuleLoaded: vi.fn().mockResolvedValue(undefined),
+            ensureSubsystem: vi.fn().mockResolvedValue(undefined),
+            openSettings: vi.fn().mockResolvedValue(undefined),
+        });
+        initHashRouting(navigation.showPage);
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -102,8 +103,13 @@ describe('hash router valid pages', () => {
         const { initPageNavigation } = await import('../ui/pageNavigation.js');
         const { initHashRouting } = await import('./router.js');
 
-        initPageNavigation();
-        initHashRouting();
+        const navigation = initPageNavigation({
+            ensureDatasetReady: vi.fn().mockResolvedValue(undefined),
+            ensurePageModuleLoaded: vi.fn().mockResolvedValue(undefined),
+            ensureSubsystem: vi.fn().mockResolvedValue(undefined),
+            openSettings: vi.fn().mockResolvedValue(undefined),
+        });
+        initHashRouting(navigation.showPage);
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -136,8 +142,13 @@ describe('hash router valid pages', () => {
         const { initHashRouting } = await import('./router.js');
 
         window.history.replaceState(null, '', '#page%3Dhome=&page=timeseries');
-        initPageNavigation();
-        initHashRouting();
+        const navigation = initPageNavigation({
+            ensureDatasetReady: vi.fn().mockResolvedValue(undefined),
+            ensurePageModuleLoaded: vi.fn().mockResolvedValue(undefined),
+            ensureSubsystem: vi.fn().mockResolvedValue(undefined),
+            openSettings: vi.fn().mockResolvedValue(undefined),
+        });
+        initHashRouting(navigation.showPage);
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 

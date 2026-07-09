@@ -15,11 +15,12 @@ import { initSettings, getSetting } from '../../utils/settings.js';
 import { initThemeToggle } from './themeToggle.js';
 import { initAccessibilityShortcuts, showKeyboardShortcutsHelp } from '../../utils/a11y.js';
 import { initHashRouting } from '../../utils/router.js';
-import { initPages } from '../../ui/toolbar.js';
+import { initPageNavigation, type PageNavigationDeps } from '../../ui/pageNavigation.js';
 import { wireHomeNavigationCards } from './homeNavigation.js';
 
 export interface ShellCoreInitDeps {
     showPage: (pageName: string) => void;
+    navigation: PageNavigationDeps;
 }
 
 /**
@@ -28,8 +29,8 @@ export interface ShellCoreInitDeps {
  */
 export function initShellCore(deps: ShellCoreInitDeps): void {
     normalizeFormControlAccessibility();
-    initPages();
-    initHashRouting();
+    const navigation = initPageNavigation(deps.navigation);
+    initHashRouting(navigation.showPage);
     initSettings();
     initThemeToggle();
     initAccessibilityShortcuts();

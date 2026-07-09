@@ -45,17 +45,15 @@ describe('deferred shell subsystems', () => {
         mocks.initCommandPalette.mockClear();
         mocks.openPalette.mockClear();
         mocks.registerAppCommands.mockClear();
-        Reflect.deleteProperty(window, '__edatime');
     });
 
-    it('initializes the settings panel once and exposes its opener after it loads', async () => {
+    it('initializes the settings panel once and opens it through the registry', async () => {
         const deps = createDeps();
         const registry = createDeferredSubsystemRegistry();
-        await Promise.all([registry.ensureSettingsPanel(deps), registry.ensureSettingsPanel(deps)]);
+        await Promise.all([registry.openSettings(deps), registry.openSettings(deps)]);
 
         expect(mocks.initSettingsPanel).toHaveBeenCalledTimes(1);
-        expect((window as Window & { __edatime?: { openSettingsModal?: () => void } }).__edatime?.openSettingsModal)
-            .toBe(mocks.openSettingsModal);
+        expect(mocks.openSettingsModal).toHaveBeenCalledTimes(2);
     });
 
     it('keeps initialization state scoped to the owning shell registry', async () => {
