@@ -19,9 +19,7 @@ vi.mock('../../utils/palette.js', () => ({
 vi.mock('../../bootstrap/commands.js', () => ({ registerAppCommands: mocks.registerAppCommands }));
 
 import {
-    _resetDeferredSubsystems,
-    ensureCommands,
-    ensureSettingsPanel,
+    createDeferredSubsystemRegistry,
     type DeferredShellDeps,
 } from './deferredSubsystems.js';
 
@@ -42,7 +40,6 @@ function createDeps(): DeferredShellDeps {
 
 describe('deferred shell subsystems', () => {
     afterEach(() => {
-        _resetDeferredSubsystems();
         mocks.initSettingsPanel.mockClear();
         mocks.openSettingsModal.mockClear();
         mocks.initCommandPalette.mockClear();
@@ -53,17 +50,30 @@ describe('deferred shell subsystems', () => {
 
     it('initializes the settings panel once and exposes its opener after it loads', async () => {
         const deps = createDeps();
-        await Promise.all([ensureSettingsPanel(deps), ensureSettingsPanel(deps)]);
+        const registry = createDeferredSubsystemRegistry();
+        await Promise.all([registry.ensureSettingsPanel(deps), registry.ensureSettingsPanel(deps)]);
 
         expect(mocks.initSettingsPanel).toHaveBeenCalledTimes(1);
         expect((window as Window & { __edatime?: { openSettingsModal?: () => void } }).__edatime?.openSettingsModal)
             .toBe(mocks.openSettingsModal);
     });
 
+    it('keeps initialization state scoped to the owning shell registry', async () => {
+        const deps = createDeps();
+        const firstShell = createDeferredSubsystemRegistry();
+        const secondShell = createDeferredSubsystemRegistry();
+
+        await firstShell.ensureSettingsPanel(deps);
+        await secondShell.ensureSettingsPanel(deps);
+
+        expect(mocks.initSettingsPanel).toHaveBeenCalledTimes(2);
+    });
+
     it('loads command dependencies once and forwards only the command dependencies they need', async () => {
         const deps = createDeps();
-        await ensureCommands(deps);
-        await ensureCommands(deps);
+        const registry = createDeferredSubsystemRegistry();
+        await registry.ensureCommands(deps);
+        await registry.ensureCommands(deps);
 
         expect(mocks.initCommandPalette).toHaveBeenCalledTimes(1);
         expect(mocks.registerAppCommands).toHaveBeenCalledTimes(1);

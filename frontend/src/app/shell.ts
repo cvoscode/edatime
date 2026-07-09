@@ -17,14 +17,7 @@
  */
 
 import { initShellCore } from './shell/core.js';
-import {
-    ensureHomeSubsystems,
-    ensureUploadSubsystems,
-    ensureTimeseriesShell,
-    ensureSettingsPanel,
-    ensureCommands,
-    type DeferredShellDeps,
-} from './shell/deferredSubsystems.js';
+import { createDeferredSubsystemRegistry, type DeferredShellDeps } from './shell/deferredSubsystems.js';
 
 interface RefreshDatasetOptions {
     selectedColumn?: string;
@@ -60,6 +53,7 @@ export function initAppShell(deps: AppShellDeps): void {
         updateAnalysisYRange: deps.updateAnalysisYRange,
         registerCleanup: deps.registerCleanup,
     };
+    const deferredSubsystems = createDeferredSubsystemRegistry();
 
     // Lightweight global bridge used by command palette, tests, and
     // utility hooks. We intentionally do not import the heavy
@@ -86,15 +80,15 @@ export function initAppShell(deps: AppShellDeps): void {
     win.__edatime.ensureSubsystem = async (name: string) => {
         switch (name) {
             case 'upload':
-                return ensureUploadSubsystems(deferred);
+                return deferredSubsystems.ensureUploadSubsystems(deferred);
             case 'home':
-                return ensureHomeSubsystems(deferred);
+                return deferredSubsystems.ensureHomeSubsystems(deferred);
             case 'timeseries-shell':
-                return ensureTimeseriesShell(deferred);
+                return deferredSubsystems.ensureTimeseriesShell(deferred);
             case 'settings':
-                return ensureSettingsPanel(deferred);
+                return deferredSubsystems.ensureSettingsPanel(deferred);
             case 'commands':
-                return ensureCommands(deferred);
+                return deferredSubsystems.ensureCommands(deferred);
             default:
                 throw new Error(`Unknown deferred subsystem: ${name}`);
         }

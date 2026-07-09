@@ -1,16 +1,10 @@
 /**
  * Deferred shell subsystems.
  *
- * Houses heavier UI subsystems that should not block the initial app
- * chunk: upload panel, analytics drawer / listeners, annotations, guided
- * workflow, transform & outlier modals, provenance, the column profile
- * grid, command palette, sample dataset cards, analysis controls, and
- * keyboard shortcuts. Subsystems are loaded on demand where that creates a
- * real chunk boundary; modules already owned by startup are imported normally
- * so Rollup does not warn about fake-lazy imports.
- *
- * The contract is intentionally small: every initializer receives only
- * the dependencies it actually needs (see `DeferredShellDeps`).
+ * A shell owns one registry for its lifetime. Each subsystem is imported and
+ * initialized at most once for that shell, while failures remain retryable.
+ * Keeping the registry instance-scoped prevents initialization state leaking
+ * between independently mounted app roots and makes the lazy boundary explicit.
  */
 
 export interface RefreshDatasetOptions {
@@ -30,6 +24,15 @@ export interface DeferredShellDeps {
     registerCleanup: (cleanup: () => void) => void;
 }
 
+export interface DeferredSubsystemRegistry {
+    ensureUploadSubsystems(deps: DeferredShellDeps): Promise<void>;
+    ensureTimeseriesShell(deps: DeferredShellDeps): Promise<void>;
+    ensureSettingsPanel(deps: DeferredShellDeps): Promise<void>;
+    ensureCommands(deps: DeferredShellDeps): Promise<void>;
+    ensureHomeSubsystems(deps: DeferredShellDeps): Promise<void>;
+    ensureAll(deps: DeferredShellDeps): Promise<void>;
+}
+
 type Initializer = (deps: DeferredShellDeps) => void | Promise<void>;
 
 interface SubsystemEntry {
@@ -38,168 +41,156 @@ interface SubsystemEntry {
     pending: Promise<void> | null;
 }
 
-type CommandDeps = {
-    showPage: (pageName: string) => void;
-    zoomOut: () => void;
-    resetZoom: () => void;
-};
+type CommandDeps = Pick<DeferredShellDeps, 'showPage' | 'zoomOut' | 'resetZoom'>;
 
-const SUBSYSTEMS: Record<string, SubsystemEntry> = {};
+export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
+    const subsystems: Record<string, SubsystemEntry> = {};
 
-function registerSubsystem(name: string, init: Initializer): void {
-    if (!SUBSYSTEMS[name]) {
-        SUBSYSTEMS[name] = { init, loaded: false, pending: null };
+    function registerSubsystem(name: string, init: Initializer): void {
+        subsystems[name] = { init, loaded: false, pending: null };
     }
-}
 
-async function ensureSubsystem(name: string, deps: DeferredShellDeps): Promise<void> {
-    const entry = SUBSYSTEMS[name];
-    if (!entry) {
-        throw new Error(`Unknown deferred subsystem: ${name}`);
+    async function ensureSubsystem(name: string, deps: DeferredShellDeps): Promise<void> {
+        const entry = subsystems[name];
+        if (!entry) throw new Error(`Unknown deferred subsystem: ${name}`);
+        if (entry.loaded) return;
+        if (entry.pending) return entry.pending;
+
+        entry.pending = Promise.resolve(entry.init(deps))
+            .then(() => { entry.loaded = true; })
+            .finally(() => { entry.pending = null; });
+        return entry.pending;
     }
-    if (entry.loaded) return;
-    if (entry.pending) return entry.pending;
-    entry.pending = Promise.resolve(entry.init(deps))
-        .then(() => {
-            entry.loaded = true;
-        })
-        .finally(() => {
-            entry.pending = null;
+
+    registerSubsystem('upload-panel', async (deps) => {
+        const profileModule = await import('../../ui/profile.js');
+        const { initUploadPanel } = await import('../../ui/upload.js');
+        initUploadPanel(profileModule.hydrateColumnProfiles, profileModule.renderColumnProfilesGrid, {
+            buildColumnToggles: deps.buildTimeseriesColumns,
+            buildRangeControls: deps.buildTimeseriesRanges,
+            refreshDatasetAfterMutation: () => deps.refreshDatasetAfterMutation(),
         });
-    return entry.pending;
-}
-
-/* ── Subsystem registrations ─────────────────────────────────────────────── */
-
-registerSubsystem('upload-panel', async (deps) => {
-    const profileModule = await import('../../ui/profile.js');
-    const { initUploadPanel } = await import('../../ui/upload.js');
-    initUploadPanel(profileModule.hydrateColumnProfiles, profileModule.renderColumnProfilesGrid, {
-        buildColumnToggles: deps.buildTimeseriesColumns,
-        buildRangeControls: deps.buildTimeseriesRanges,
-        refreshDatasetAfterMutation: () => deps.refreshDatasetAfterMutation(),
     });
-});
 
-registerSubsystem('column-profiles', async () => {
-    const { initColumnProfilesGrid } = await import('../../ui/profile.js');
-    initColumnProfilesGrid();
-});
+    registerSubsystem('column-profiles', async () => {
+        const { initColumnProfilesGrid } = await import('../../ui/profile.js');
+        initColumnProfilesGrid();
+    });
 
-registerSubsystem('analytics-overlay', async () => {
-    const { initAnalyticsDrawer } = await import('../../ui/analyticsDrawer.js');
-    initAnalyticsDrawer();
-});
+    registerSubsystem('analytics-overlay', async () => {
+        const { initAnalyticsDrawer } = await import('../../ui/analyticsDrawer.js');
+        initAnalyticsDrawer();
+    });
 
-registerSubsystem('analytics-listeners', async () => {
-    const { initAnalyticsListeners } = await import('../../bootstrap/analyticsOverlay.js');
-    initAnalyticsListeners(() => Promise.resolve(
-        (window as unknown as { __edatime?: { runAnalytics?: () => Promise<void> } }).__edatime?.runAnalytics?.(),
-    ));
-});
+    registerSubsystem('analytics-listeners', async () => {
+        const { initAnalyticsListeners } = await import('../../bootstrap/analyticsOverlay.js');
+        initAnalyticsListeners(() => Promise.resolve(
+            (window as unknown as { __edatime?: { runAnalytics?: () => Promise<void> } }).__edatime?.runAnalytics?.(),
+        ));
+    });
 
-registerSubsystem('annotation-subsystems', async () => {
-    const { initAnnotations } = await import('../../chart/annotations.js');
-    const { initAnnotationPanel } = await import('../../ui/annotationPanel.js');
-    initAnnotations();
-    initAnnotationPanel();
-});
+    registerSubsystem('annotation-subsystems', async () => {
+        const { initAnnotations } = await import('../../chart/annotations.js');
+        const { initAnnotationPanel } = await import('../../ui/annotationPanel.js');
+        initAnnotations();
+        initAnnotationPanel();
+    });
 
-registerSubsystem('guided-workflow', async () => {
-    const { initGuidedWorkflow } = await import('../../ui/guidedWorkflow.js');
-    initGuidedWorkflow();
-});
+    registerSubsystem('guided-workflow', async () => {
+        const { initGuidedWorkflow } = await import('../../ui/guidedWorkflow.js');
+        initGuidedWorkflow();
+    });
 
-registerSubsystem('workflow-modals', async (deps) => {
-    const { initOutlierModal, initTransformModal } = await import('../../ui/dataMutationModals.js');
-    initTransformModal({ refreshDataset: deps.refreshDatasetAfterMutation });
-    initOutlierModal({ refreshDataset: deps.refreshDatasetAfterMutation });
-});
+    registerSubsystem('workflow-modals', async (deps) => {
+        const { initOutlierModal, initTransformModal } = await import('../../ui/dataMutationModals.js');
+        initTransformModal({ refreshDataset: deps.refreshDatasetAfterMutation });
+        initOutlierModal({ refreshDataset: deps.refreshDatasetAfterMutation });
+    });
 
-registerSubsystem('provenance', async () => {
-    const { initProvenance } = await import('../../utils/provenance.js');
-    initProvenance();
-});
+    registerSubsystem('provenance', async () => {
+        const { initProvenance } = await import('../../utils/provenance.js');
+        initProvenance();
+    });
 
-registerSubsystem('settings-panel', async () => {
-    const { initSettingsPanel, openSettingsModal } = await import('../../ui/settingsPanel.js');
-    initSettingsPanel();
-    (window as unknown as { __edatime?: { openSettingsModal?: () => void } }).__edatime = (window as unknown as { __edatime?: { openSettingsModal?: () => void } }).__edatime || {};
-    (window as unknown as { __edatime?: { openSettingsModal?: () => void } }).__edatime!.openSettingsModal = openSettingsModal;
-});
+    registerSubsystem('settings-panel', async () => {
+        const { initSettingsPanel, openSettingsModal } = await import('../../ui/settingsPanel.js');
+        initSettingsPanel();
+        const runtime = window as unknown as { __edatime?: { openSettingsModal?: () => void } };
+        runtime.__edatime = runtime.__edatime || {};
+        runtime.__edatime.openSettingsModal = openSettingsModal;
+    });
 
-registerSubsystem('analysis-controls', async (deps) => {
-    const { initAnalysisControls, initChartPageFilterGesture } = await import('../../ui/toolbar.js');
-    initAnalysisControls(deps.fetchAndRender, deps.zoomOut, deps.resetZoom);
-    initChartPageFilterGesture();
-});
+    registerSubsystem('analysis-controls', async (deps) => {
+        const { initAnalysisControls, initChartPageFilterGesture } = await import('../../ui/toolbar.js');
+        initAnalysisControls(deps.fetchAndRender, deps.zoomOut, deps.resetZoom);
+        initChartPageFilterGesture();
+    });
 
-registerSubsystem('command-palette', async () => {
-    const { initCommandPalette, openPalette } = await import('../../utils/palette.js');
-    initCommandPalette();
-    (window as unknown as { __edatime?: { openPalette?: () => void } }).__edatime = (window as unknown as { __edatime?: { openPalette?: () => void } }).__edatime || {};
-    (window as unknown as { __edatime?: { openPalette?: () => void } }).__edatime!.openPalette = openPalette;
-});
+    registerSubsystem('command-palette', async () => {
+        const { initCommandPalette, openPalette } = await import('../../utils/palette.js');
+        initCommandPalette();
+        const runtime = window as unknown as { __edatime?: { openPalette?: () => void } };
+        runtime.__edatime = runtime.__edatime || {};
+        runtime.__edatime.openPalette = openPalette;
+    });
 
-registerSubsystem('sample-datasets', async (deps) => {
-    const { wireSampleDatasetCards } = await import('./sampleDatasets.js');
-    wireSampleDatasetCards(deps.showPage, () => deps.refreshDatasetAfterMutation());
-});
+    registerSubsystem('sample-datasets', async (deps) => {
+        const { wireSampleDatasetCards } = await import('./sampleDatasets.js');
+        wireSampleDatasetCards(deps.showPage, () => deps.refreshDatasetAfterMutation());
+    });
 
-registerSubsystem('app-commands', async (deps) => {
-    const { registerAppCommands } = await import('../../bootstrap/commands.js');
-    const commandDeps: CommandDeps = {
-        showPage: deps.showPage,
-        zoomOut: deps.zoomOut,
-        resetZoom: deps.resetZoom,
-    };
-    await registerAppCommands(commandDeps);
-});
+    registerSubsystem('app-commands', async (deps) => {
+        const { registerAppCommands } = await import('../../bootstrap/commands.js');
+        const commandDeps: CommandDeps = {
+            showPage: deps.showPage,
+            zoomOut: deps.zoomOut,
+            resetZoom: deps.resetZoom,
+        };
+        await registerAppCommands(commandDeps);
+    });
 
-/* ── Public API ──────────────────────────────────────────────────────────── */
-
-export async function ensureUploadSubsystems(deps: DeferredShellDeps): Promise<void> {
-    await ensureSubsystem('upload-panel', deps);
-    await ensureSubsystem('column-profiles', deps);
-}
-
-export async function ensureTimeseriesShell(deps: DeferredShellDeps): Promise<void> {
-    await ensureSubsystem('analysis-controls', deps);
-    await ensureSubsystem('analytics-overlay', deps);
-    await ensureSubsystem('analytics-listeners', deps);
-    await ensureSubsystem('annotation-subsystems', deps);
-    await ensureSubsystem('guided-workflow', deps);
-    await ensureSubsystem('workflow-modals', deps);
-    await ensureSubsystem('provenance', deps);
-}
-
-export async function ensureSettingsPanel(deps: DeferredShellDeps): Promise<void> {
-    await ensureSubsystem('settings-panel', deps);
-}
-
-export async function ensureCommands(deps: DeferredShellDeps): Promise<void> {
-    await ensureSubsystem('command-palette', deps);
-    await ensureSubsystem('app-commands', deps);
-}
-
-export async function ensureHomeSubsystems(deps: DeferredShellDeps): Promise<void> {
-    await ensureSubsystem('sample-datasets', deps);
-}
-
-export async function ensureAll(deps: DeferredShellDeps): Promise<void> {
-    await ensureHomeSubsystems(deps);
-    await ensureUploadSubsystems(deps);
-    await ensureTimeseriesShell(deps);
-    await ensureSettingsPanel(deps);
-    await ensureCommands(deps);
-}
-
-/**
- * Reset the registry (used in tests).
- */
-export function _resetDeferredSubsystems(): void {
-    for (const pokey of Object.keys(SUBSYSTEMS)) {
-        SUBSYSTEMS[pokey].loaded = false;
-        SUBSYSTEMS[pokey].pending = null;
+    async function ensureUploadSubsystems(deps: DeferredShellDeps): Promise<void> {
+        await ensureSubsystem('upload-panel', deps);
+        await ensureSubsystem('column-profiles', deps);
     }
+
+    async function ensureTimeseriesShell(deps: DeferredShellDeps): Promise<void> {
+        await ensureSubsystem('analysis-controls', deps);
+        await ensureSubsystem('analytics-overlay', deps);
+        await ensureSubsystem('analytics-listeners', deps);
+        await ensureSubsystem('annotation-subsystems', deps);
+        await ensureSubsystem('guided-workflow', deps);
+        await ensureSubsystem('workflow-modals', deps);
+        await ensureSubsystem('provenance', deps);
+    }
+
+    async function ensureSettingsPanel(deps: DeferredShellDeps): Promise<void> {
+        await ensureSubsystem('settings-panel', deps);
+    }
+
+    async function ensureCommands(deps: DeferredShellDeps): Promise<void> {
+        await ensureSubsystem('command-palette', deps);
+        await ensureSubsystem('app-commands', deps);
+    }
+
+    async function ensureHomeSubsystems(deps: DeferredShellDeps): Promise<void> {
+        await ensureSubsystem('sample-datasets', deps);
+    }
+
+    async function ensureAll(deps: DeferredShellDeps): Promise<void> {
+        await ensureHomeSubsystems(deps);
+        await ensureUploadSubsystems(deps);
+        await ensureTimeseriesShell(deps);
+        await ensureSettingsPanel(deps);
+        await ensureCommands(deps);
+    }
+
+    return {
+        ensureUploadSubsystems,
+        ensureTimeseriesShell,
+        ensureSettingsPanel,
+        ensureCommands,
+        ensureHomeSubsystems,
+        ensureAll,
+    };
 }
