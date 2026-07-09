@@ -143,6 +143,17 @@ describe('initGuidedWorkflow', () => {
         expect(document.getElementById('workflow-panel')?.hidden).toBe(true);
     });
 
+    it('renders workflow step crumbs with the styled class contract', async () => {
+        const { renderGuidedWorkflow } = await import('./guidedWorkflow.js');
+
+        renderGuidedWorkflow();
+
+        const uploadStep = document.querySelector<HTMLElement>('[data-workflow-page="upload"]');
+        expect(uploadStep?.classList.contains('workflow-step')).toBe(true);
+        expect(uploadStep?.classList.contains('workflow-step--current')).toBe(true);
+        expect(document.querySelector('.workflow_step')).toBeNull();
+    });
+
     it('omits the automatic completed-count summary in compact mode', async () => {
         vi.resetModules();
 

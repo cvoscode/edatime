@@ -729,6 +729,7 @@
 
 .heatmap-scale__tick--negative {
   grid-row: 3;
+}
 
 /* Item #10 — on small viewports the in-chart overlay stack
    (colorbar, categorical legend) overlaps axis labels. Move it

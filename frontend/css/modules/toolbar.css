@@ -1626,6 +1626,14 @@ body.drawer-open::after {
   gap: 6px;
 }
 
+.workflow-panel--compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
 .workflow-panel[hidden] {
   display: none !important;
 }
@@ -1654,6 +1662,20 @@ body.drawer-open::after {
   font-size: 0.875rem;
   font-weight: 700;
   color: var(--text);
+}
+
+.workflow-panel__hint-text {
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.workflow-panel__current-step {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
 .workflow-panel__actions {
@@ -1742,6 +1764,11 @@ body.drawer-open::after {
   }
 
   .workflow-panel__header {
+    flex-direction: column;
+  }
+
+  .workflow-panel--compact {
+    align-items: flex-start;
     flex-direction: column;
   }
 }

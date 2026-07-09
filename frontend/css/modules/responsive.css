@@ -56,6 +56,7 @@
 }
 
 @media (max-width: 1024px) and (min-width: 641px) {
+
   /* Item #8 — keep nav labels fully visible between tablet and
      desktop. The previous 180px column truncated "Timeseries",
      "Correlations" and "Spectrogram" to "Times…", "Corre…",

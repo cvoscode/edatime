@@ -515,7 +515,7 @@ function renderFullWorkflowPanel(
     panel.classList.remove('workflow-panel--compact-shell');
     const crumbs = progress.steps.map((step) => `
         <button
-            class="workflow_step workflow_step--${step.status}"
+            class="workflow-step workflow-step--${step.status}"
             type="button"
             data-workflow-action="goto"
             data-workflow-page="${escapeHtml(step.page)}"

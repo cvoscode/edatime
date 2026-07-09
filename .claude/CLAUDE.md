@@ -9,7 +9,7 @@
 > (documentation, ownership, history, decisions). **Always verify against
 > actual source files before making changes** — the index may be stale.
 
-Last indexed: 2026-07-09 (commit f007bab)
+Last indexed: 2026-07-09 (commit b8caeb3)
 ### Entry Points
 - `frontend/src/store/index.ts`
 - `docs/developer/index.md`
@@ -27,10 +27,10 @@ Last indexed: 2026-07-09 (commit f007bab)
 | File | Churn | 90d Commits | Owner |
 |------|-------|-------------|-------|
 | `frontend/js/app.js` | 100.0th %ile | 40 | cvoscode |
-| `frontend/index.html` | 100.0th %ile | 49 | cvoscode |
+| `frontend/index.html` | 100.0th %ile | 50 | cvoscode |
 | `crates/edatime-bin/frontend/dist/js/app.js` | 99.9th %ile | 18 | cvoscode |
 | `frontend/src/app.ts` | 99.9th %ile | 43 | cvoscode |
-| `frontend/css/modules/toolbar.css` | 99.9th %ile | 31 | cvoscode |
+| `frontend/css/modules/toolbar.css` | 99.9th %ile | 32 | cvoscode |
 
 ### Repowise MCP Tools
 
