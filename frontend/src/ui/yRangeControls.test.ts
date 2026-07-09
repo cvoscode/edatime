@@ -3,69 +3,53 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setChartInstance } from '../store/index.js';
 import { initYRangeControls } from './yRangeControls.js';
 
-function buildDom(): void {
-    document.body.innerHTML = `
-        <span id="y-range-help" class="toolbar-info-icon" data-info-tip="Stack from 0 clamps the display floor at zero.&#10;Percentile hides the top and bottom tails by the selected percent.&#10;IQR expands from Q1/Q3 by k × IQR."></span>
-        <input id="y-stack-from-zero" type="checkbox" />
-        <input id="y-robust-range-toggle" type="checkbox" />
-        <select id="y-robust-range-mode">
-            <option value="percentile" selected>Percentile</option>
-            <option value="iqr">IQR</option>
-        </select>
-        <input id="y-robust-range-param" type="number" value="1" />
-        <span id="y-range-hint" hidden></span>
-    `;
-}
-
-describe('initYRangeControls', () => {
+describe('initYRangeControls — production no-op behavior', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
-        buildDom();
+        document.body.innerHTML = '';
         setChartInstance(null);
     });
 
-    it('applies robust y-range settings to the chart without persisting them', () => {
+    it('is a complete no-op when the y-range toolbar DOM is absent', () => {
+        // Production reality after improvement_features.md #15:
+        // the entire Y range segment was removed from the toolbar,
+        // so initYRangeControls() runs on every page load but must
+        // touch nothing on the page and never call the chart API.
         const setStackFromZero = vi.fn();
         const setRobustDisplayRange = vi.fn();
         const resize = vi.fn();
-        setChartInstance({
-            setStackFromZero,
-            setRobustDisplayRange,
-            resize,
-        } as any);
+        setChartInstance({ setStackFromZero, setRobustDisplayRange, resize } as any);
 
-        initYRangeControls();
-
-        const toggle = document.getElementById('y-robust-range-toggle') as HTMLInputElement;
-        const mode = document.getElementById('y-robust-range-mode') as HTMLSelectElement;
-        const param = document.getElementById('y-robust-range-param') as HTMLInputElement;
-
-        toggle.checked = true;
-        mode.value = 'iqr';
-        param.value = '1.5';
-        toggle.dispatchEvent(new Event('change'));
-
-        expect(setRobustDisplayRange).toHaveBeenLastCalledWith({ mode: 'iqr', param: 1.5 });
-
-        toggle.checked = false;
-        toggle.dispatchEvent(new Event('change'));
-
-        expect(setRobustDisplayRange).toHaveBeenLastCalledWith(null);
+        expect(() => initYRangeControls()).not.toThrow();
+        expect(setStackFromZero).not.toHaveBeenCalled();
+        expect(setRobustDisplayRange).not.toHaveBeenCalled();
+        expect(resize).not.toHaveBeenCalled();
     });
 
-    it('exposes y-range help text and a spike-compression hint when suggested by the chart', () => {
-        setChartInstance({
-            setStackFromZero: vi.fn(),
-            setRobustDisplayRange: vi.fn(),
-            resize: vi.fn(),
-            getRobustDisplayRangeSuggestion: () => ({ mode: 'percentile', param: 1 }),
-        } as any);
+    it('does not throw or query the DOM twice when called repeatedly', () => {
+        const resize = vi.fn();
+        setChartInstance({ resize } as any);
 
-        initYRangeControls();
+        expect(() => {
+            initYRangeControls();
+            initYRangeControls();
+            initYRangeControls();
+        }).not.toThrow();
+        expect(resize).not.toHaveBeenCalled();
+    });
 
-        expect(document.getElementById('y-range-help')?.getAttribute('data-info-tip'))
-            .toContain('Percentile hides the top and bottom tails');
-        expect(document.getElementById('y-range-hint')?.hidden).toBe(false);
-        expect(document.getElementById('y-range-hint')?.textContent).toBe('Spike-compressed view detected. Try Robust range.');
+    it('still returns early when only the main toggle is present (partial DOM)', () => {
+        // Defensive: if someone re-adds a single y-range field
+        // without the rest, initYRangeControls must still bail
+        // safely rather than partially wire controls.
+        document.body.innerHTML = `
+            <input id="y-stack-from-zero" type="checkbox" />
+        `;
+
+        const resize = vi.fn();
+        setChartInstance({ resize } as any);
+
+        expect(() => initYRangeControls()).not.toThrow();
+        expect(resize).not.toHaveBeenCalled();
     });
 });

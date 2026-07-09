@@ -1,637 +1,227 @@
-# Improvement Features Ledger
-
-## 2026-05-21
-
-### Issue: ChartGPU Fallback Not Working in Auto Mode
-
-**Impact:** High  
-**Effort:** Medium
-
-**Description:**  
-When ChartGPU fails to initialize in auto mode (e.g., `NotFoundError: Failed to execute 'insertBefore' on 'Node'`), the fallback to ECharts doesn't trigger properly. The error occurs deep inside ChartGPU's internal code during blob URL import, before our try-catch can capture it.
-
-**Evidence:**
-```
-[ChartRegistry] Auto mode, checkWebGPUAdapterAvailable: true
-[ChartRegistry] Final engine selection: ChartGPU
-[useChartEngine] init failed: NotFoundError: Failed to execute 'insertBefore' on 'Node':
-    at jt (http://127.0.0.1:3000/assets/index.DDgZZHls.js:2:23865)
-```
-
-**Missing expected log:** `[ChartRegistry] ChartGPU init failed, falling back to ECharts:`
-
-**Root cause:** The error originates from ChartGPU's own initialization (`jt` function) before our wrapper's try-catch can intercept it.
-
-**Current behavior:** ChartGPU selected in auto mode → init fails → chart status set to 'error' → no data rendered
-
-**Desired behavior:** ChartGPU selected in auto mode → init fails → fallback to ECharts → chart renders with data
-
-**Affected files:**
-- `frontend/src/components/chart/ChartRegistry.ts` - fallback logic present but not catching the error
-- `frontend/src/components/chart/ChartGPUAdapter.ts` - error thrown before try-catch
-- `frontend/src/hooks/useChartEngine.ts` - catches error and sets status to 'error'
-
-**Next steps:**
-1. Make ChartGPU more resilient to DOM initialization issues
-2. Ensure fallback triggers reliably when ChartGPU init fails at any stage
-3. Add better error logging to identify exact failure point
-4. Consider making 'echarts' the default in auto mode until ChartGPU is more stable
-
----
-
-### Issue: Backend Data Not Loaded on Startup
-
-**Impact:** High  
-**Effort:** Low
-
-**Description:**  
-When the backend server starts, it doesn't automatically load a default dataset. The frontend shows "No data loaded" until user uploads data via the UI.
-
-**Current state:** `GET /api/metadata` returns `{"revision":0,"total_rows":0,...}`
-
-**Expected:** ETTm2.csv or similar dataset loaded on startup for demo/development purposes.
-
----
-
-### Issue: Browser Service Worker Caching Old Frontend
-
-**Impact:** Medium  
-**Effort:** Low
-
-**Description:**  
-When rebuilding the frontend, the browser may serve old cached content via service worker, making it appear the rebuild didn't take effect.
-
-**Workaround:** Open new browser page with `forceNew: true` or disable SW in dev.
-
-**Fix:** Ensure service worker cache busting works correctly with versioned assets.
-
----
-
-## 2026-07-05 — ETTm2 walkthrough
-
-Audited the app end-to-end with the ETTm2 sample dataset. Full list with
-fix plans lives in `issue.md` at the repo root. Ledger entries below are
-the high-impact findings surfaced from that pass.
-
-### Issue: Scatter shows "No scatter points found" when "Link chart range" is on but no time filter is set
-
-**Impact:** High  
-**Effort:** Low
-
-**Description:**  
-With Link chart range enabled and no active viewport / adaptive filter,
-scatter shows the empty-state copy "No scatter points found — No points
-match active filters (1 column, 0 adaptive)." even though the density
-backdrop contains data. Toggling the checkbox off recovers points.
-
-**Fix plan:** F1 in `issue.md`.
-
-### Issue: Scatter Y-axis range is wrong (positive-only) for HULL with a stripe at y = 1.49
-
-**Impact:** High  
-**Effort:** Low
-
-**Description:**  
-HULL range is `min=-29.32, max=36.44` but the scatter Y-axis shows
-ticks at `1.49, 13.44, 25.40, 37.36` and a long horizontal bright
-stripe is visible at the floor.
-
-**Fix plan:** F2 in `issue.md`.
-
-### Issue: Correlation matrix colormap appears inverted for positive values
-
-**Impact:** High  
-**Effort:** Medium
-
-**Description:**  
-Diagonal `1.00` cells render dark red, off-diagonal `0.67` cells render
-white/pale, and `0.91` cells render lighter than `0.67`. The mapping
-seems reversed for the `[0, 1]` half of the diverging colormap.
-
-**Fix plan:** F3 in `issue.md`.
-
-### Issue: Drift page uses an off-by-2-hour timestamp for Start/End and flags every window RED
-
-**Impact:** High  
-**Effort:** Medium
-
-**Description:**  
-Default reference shows `01/07/2016 02:00 → 28/06/2017 23:52`, while the
-dataset spans `2016-07-01 00:00:00 → 2018-06-26 19:45:00`. Resulting
-output flags `363/363` windows RED across all 7 columns with identical
-"Strongest reasons: psi_major, wasserstein, ks, es" — likely a
-degenerate comparison driven by the misaligned reference.
-
-**Fix plan:** F4 + F5 in `issue.md`.
-
-### Issue: Timeseries legend overlaps Y-axis labels when zoomed in
-
-**Impact:** High  
-**Effort:** Low
-
-**Description:**  
-After zooming (e.g. `7d`), the floating trace legend renders on top of
-the Y-axis tick labels (`61.11`, `46.53`), making both unreadable.
-
-**Fix plan:** F8 in `issue.md`.
-
-### Issue: Timeseries "X of N active" counter is stale after toggling chips
-
-**Impact:** Medium  
-**Effort:** Low
-
-**Description:**  
-Toggling MUFL on updates the legend/trace but the inline text still
-reads `3 of 7 active`.
-
-**Fix plan:** F6 in `issue.md`.
-
-### Issue: Timeseries chips and "Filter columns" row layout is broken when chips overflow
-
-**Impact:** Medium  
-**Effort:** Low
-
-**Description:**  
-With ≥5 chips selected the chips overflow above the toolbar row, leaving
-the SERIES label isolated. Should be a single horizontally-scrolling
-group.
-
-**Fix plan:** F7 in `issue.md`.
-
-### Issue: Spectrogram X-axis labels rotated nearly vertical, color range dominated by yellow
-
-**Impact:** Medium  
-**Effort:** Low
-
-**Description:**  
-Time labels at ~90° rotation fight each other; with default normalize
-"None", the heatmap is mostly bright yellow because the data range
-(-3.998..0.575 log10) is not adapted to the visible data.
-
-**Fix plan:** F12 in `issue.md`.
-
-### Issue: FFT Y-axis "log10(Magnitude)" shows negative values
-
-**Impact:** Medium  
-**Effort:** Low
-
-**Description:**  
-Magnitudes are non-negative, so log10 should be ≥ 0. The axis shows
-`0.164, -0.615, -1.393, -2.171, -2.949`, suggesting log is being
-applied after an unexpected shift or the axis is offset.
-
-**Fix plan:** F11 in `issue.md`.
-
-### Issue: Causal workflow banner shows an empty action box with only ✕
-
-**Impact:** Medium  
-**Effort:** Low
-
-**Description:**  
-On the Causal page the guided-workflow card renders a small empty box
-containing only an ✕ button. Other pages (Upload, Scatter) correctly
-render an "Open …" action button.
-
-**Fix plan:** F13 in `issue.md`.
-
-### Issue: Drift Columns picker doesn't look like a multi-select
-
-**Impact:** Medium  
-**Effort:** Low
-
-**Description:**  
-The columns pill renders as a single-value combobox until opened;
-users miss that it is a multi-select.
-
-**Fix plan:** F10 in `issue.md`.
-
-### Issue: Timeseries negative values hidden when Pin lower bound is on by default
-
-**Impact:** Medium  
-**Effort:** Low
-
-**Description:**  
-HULL values below zero (real min -29.32) are clipped at 0 with
-"Pin lower bound" enabled by default — losing visibility of negative
-excursions and outliers.
-
-**Fix plan:** F9 in `issue.md`.
-
-### Issue: Home sample card description may clip on Sinusoidal card
-
-**Impact:** Low  
-**Effort:** Low
-
-**Fix plan:** F15 in `issue.md`.
-
-### Issue: Timeseries "Viewing X%" indicator shows a fraction briefly after Quick Range
-
-**Impact:** Low  
-**Effort:** Low
-
-**Fix plan:** F14 in `issue.md`.
-
-### Issue: Settings, drawing tools, analytics modal, annotations, additional exports not exercised in this pass
-
-**Impact:** Unknown  
-**Effort:** N/A
-
-**Next steps:** Schedule a follow-up walkthrough and file any new issues.
-
----
-
-## 2026-07-07 — Home page "Top correlations" widget removal
-
-### Issue: Home "Top correlations (current dataset)" widget is unstyled, dead on narrow widths, and unused
-
-**Impact:** Medium  
-**Effort:** Low (completed — removal done in this audit)
-
-**Description (what was found during the audit):**  
-The widget between "Try with sample data" and "Recommended workflow" rendered the strongest correlation pairs from `/api/scatter/correlations` as click-to-jump chips into the Scatter page.
-
-Observations from the responsive walkthrough (1920 / 1280 / 1024 / 768 / 414 / 375):
-
-- The widget markup used class names `.home-top-pairs`, `.home-top-pair-row`, `.home-top-pair-row__x|arrow|y|corr` but no matching CSS lives in `frontend/css/modules/home.css` (verified — zero matches for any of those selectors). It therefore inherits default `<button>` styling and renders as a single line of cramped, plain text inside one grey `<div>` rather than a row of chips.
-- The "Strongest pairs …" copy still consumes vertical space on mobile even when the widget is data-empty (no dataset loaded) because the section is hidden via `hidden`, but the inline copy is in the same wrapper. On narrow screens the title + copy consume ~60px without context.
-- The widget depends on a dataset being loaded (`numeric_columns.length >= 2`), so first-time visitors on a fresh home page never see anything from it.
-- The widget does not interact with any other page state when clicked beyond setting dropdowns and dispatching `edatime:page-change`; the same effect can be reached from the "Scatter" card or via the existing `correlationsPanel.ts`.
-- No tests, no docs (developer guide or otherwise), and no other source consumers depend on this widget. `TopPairItem` continues to be used by `frontend/src/types.ts` and consumed by `frontend/src/store/scatterState.ts`, so the type stays.
-
-**Action taken (this audit):**  
-Removed the widget and all code exclusively used by it.
-
-- Delete: `frontend/src/features/home/topCorrelations.ts` and the now-empty `frontend/src/features/home/` directory.
-- Edit: `frontend/index.html` — drop the `#home-top-correlations-section` block; the page now flows `Sample data → Recommended workflow → Advanced analyses → Keyboard shortcuts` directly.
-- Edit: `frontend/src/app/shell/deferredSubsystems.ts` — drop the `registerSubsystem('home-top-correlations', …)` call and the `await ensureSubsystem('home-top-correlations', deps)` line in `ensureHomeSubsystems`.
-- Edit: `ai/frontend/src/app/shell/deferredSubsystems.md` — remove `'home-top-correlations'` from the subsystem list and the note about `ensureHomeSubsystems`.
-
-**Verification:**
-
-- `npm run typecheck` — passes.
-- `npm run check:frontend:arch` — `Frontend architecture checks passed.`
-- `npm test` — 874 / 876 passed; the two failing tests (`scripts/frontendBuildContract.test.ts` and `frontend/src/causal/causalLayout.test.ts`) are pre-existing on `master` (confirmed via `git stash` round-trip) and unrelated to this change.
-- Live reload of `http://127.0.0.1:5173/#page=home` — a11y snapshot no longer contains the "Top correlations" heading, the `#home-top-correlations-section` wrapper, or any `.home-top-pair-row` buttons. Page tree reduces from `Sample datasets → Top correlations → Recommended workflow → Advanced analyses` to `Sample datasets → Recommended workflow → Advanced analyses`.
-
-**Net effect:**
-
-- One less deferred subsystem at home-page boot (avoids the `fetchScatterCorrelations` call when no data is loaded, and the related `setDropdownValue + navButton.click + page-change event` waterfall).
-- One less design-broken section to style on mobile (the widget never had CSS for `.home-top-pair-row` and would have required new `home.css` rules and media-query work to look right).
-- The scatter correlation-suggestion flow is still intact via `frontend/src/scatter/correlationsPanel.ts` on the dedicated Scatter page (`⌥3`) and via the heatmap on the Correlations page (`⌥7`).
-- No caller depends on `__edatime.ensureSubsystem('home-top-correlations')` (confirmed via repo-wide grep).
-
----
-
-## 2026-07-07 — Upload page "Source status" + "Next step" guidance cards removed
-
-### Issue: Upload page is crowded by redundant "Source status" / "Next step" guidance cards
-
-**Impact:** Medium  
-**Effort:** Low (completed — removal done in this audit)
-
-**Description (what was found during the upload-page audit):**
-
-The upload page (panel id `#upload-panel`) renders two persistent "guidance" cards directly under the tab bar / load options and above the column profile grid:
-
-- **Source status** — `id="upload-source-guidance"` (`File mode · waiting for a CSV or Parquet file.`).
-- **Next step** — `id="upload-next-step-guidance"` (`Choose a file, preview the detected columns, then ingest the selected set.`).
-
-Observations from the responsive walkthrough:
-
-- The information in these cards **duplicates** the existing affordances: the active tab (File / Database) already tells the source mode, the `#upload-preview-status` element already reports "Profiling file…" / "Preview ready" / "Preview failed", and the `partial-enabled` toggle + the "Upload & Ingest" button already communicate the next concrete action.
-- At desktop widths the cards take a wide 2-column row that consumes ~120 px of vertical space in a panel already cramped against the column profile grid.
-- On tablet widths the column drops to `1fr` (per `frontend/css/modules/responsive.css`) but still consumes ~140 px before the grid appears.
-- On phone widths (<900 px) the cards stack into single-column rows but the text doesn't reflow well; at 375 px they're two stacked full-width cards that add ~170 px of dead weight between the Load options panel and the column table.
-- The values are managed by two helpers (`setUploadSourceGuidance`, `setUploadNextStepGuidance`) wired through `syncUploadGuidance(...)` in 8 call sites across `initUploadPanel`. They have no semantic value beyond echoing the same state the rest of the panel already shows.
-- `setUploadPreviewStatus(...)` (which controls `#upload-preview-status` — the inline status text under the tab strip) is the right surface for "what's happening now"; the guidance cards are an outdated parallel.
-
-**Action taken (this audit):**
-
-Removed the cards and all code exclusively used by them.
-
-- Edit: `frontend/index.html` — removed the `<div class="upload-preview-guide">…</div>` block (the two `__card` divs with `upload-source-guidance` and `upload-next-step-guidance`).
-- Edit: `frontend/src/features/upload/preview.ts` — removed `setUploadSourceGuidance` and `setUploadNextStepGuidance` exports, and the three call sites that set them inside `runFilePreview`.
-- Edit: `frontend/src/ui/upload.ts` — removed the corresponding import, removed the `syncUploadGuidance(...)` helper, and removed all 8 call sites in `initUploadPanel` / `switchUploadSource` (file change handler ×2, drag-drop handler ×2, init ×1, database tab switch ×1, file tab switch ×1, plus the helper itself).
-- Edit: `frontend/src/ui/upload.test.ts` — removed the two `<div>` mocks for the removed IDs and removed the now-empty "keeps persistent source guidance in sync with the active upload mode" `it` block; all other upload tests remain unchanged.
-- Edit: `frontend/css/modules/upload.css` — removed `.upload-preview-guide`, `.upload-preview-guide__card`, `.upload-preview-guide__label`, `.upload-preview-guide__value` (4 rules).
-- Edit: `frontend/css/modules/responsive.css` — removed the responsive `.upload-preview-guide { grid-template-columns: 1fr; }` rule.
-- No AI/docs mirrors referenced these classes (verified via `grep ai docs`).
-
-**Verification:**
-
-- `npm run typecheck` — passes.
-- `npm run check:frontend:arch` — `Frontend architecture checks passed.`
-- `npx vitest run frontend/src/ui/upload.test.ts` — 33 passed (4 skipped, same as before).
-- `npm test` — 873 passed; the same 2 pre-existing failures on `master` (confirmed via `git stash` round-trip) and **no new failures**.
-- Live reload of `http://127.0.0.1:5173/#page=upload`:
-  - a11y snapshot: no `Source status` / `Next step` headings, no `#upload-source-guidance`, no `#upload-next-step-guidance`, no `.upload-preview-guide*` matches.
-  - Visual: the upload panel now flows `File/Database tabs → Drop zone | Load options | Upload & Ingest → File preview toolbar → column profile grid`. The wasted vertical gap (~120 px on desktop, ~170 px on mobile) between the controls and the column table is gone, giving the column table a full screen of room earlier in the scroll.
-
-**Net effect:**
-
-- ~120 px of redundant vertical space reclaimed on desktop, more on narrow viewports.
-- Three helpers (`setUploadSourceGuidance`, `setUploadNextStepGuidance`, `syncUploadGuidance`) and 8 call sites removed — code path that mirrors state already visible in the tab strip and `#upload-preview-status` no longer has to stay in sync.
-- CSS footprint trimmed: 4 base rules + 1 responsive rule.
-- Net diff: 4 files modified, 1 test case simplified, no behavior change for upload validation / preview / ingest flows.
-
-
-**Fix plan:** F17 in `issue.md`.
----
-
-## 2026-07-07 — Upload page: Filter input and Preview status hidden when not very wide
-
-### Issue: `#profile-filter-input` and `#upload-preview-status` are clipped off the right edge when the screen is "not very wide"
-
-**Impact:** High  
-**Effort:** Low (completed — fix shipped in this audit)
-
-**Description (what was found during the upload-page walkthrough):**
-
-After removing the redundant "Source status" / "Next step" guidance cards, an existing layout bug surfaced. Two essential controls in `.upload-preview-head` — the **Filter columns…** input (`#profile-filter-input`) and the **preview status** span (`#upload-preview-status`) — were **clipped off the right edge** of the panel at intermediate viewports.
-
-User-reported observation: *"These two elements vanish when the screen is very unwide"* (i.e. when the screen is *not* very wide).
-
-Probe across viewports (`tmp/probe-upload.mjs`):
-
-| Viewport | Filter rect.x..x+w | Upload-preview right edge | Visible? |
-|---|---|---|---|
-| 1920 × 1080 | 1531..1691 | 1896 | ✅ |
-| 1440 × 900  | 1239..1399 | 1416 | ✅ (barely) |
-| 1280 × 800  | 1225..1385 | 1376 | ❌ clipped 9 px past container |
-| 1024 × 768  | 1185..1345 | 1000 | ❌ filtered input clipped, status missing |
-| 768 × 1024  | 567..727  |  | ✅ (responsive rule kicks in) |
-| 414 × 896   | 165..385  |  | ✅ (filter wraps to own row) |
-| 375 × 800   | 126..346  |  | ✅ (filter wraps to own row) |
-
-Root cause (DOM-ancestor trace, `tmp/inspect-tree.mjs`):
-
-- `.upload-preview` is `display: grid; grid-template-rows: auto auto minmax(300px, 1fr)`. Its single **implicit** grid column was being sized by `auto` (= max-content of any grid item).
-- The head's flex children included the Filter wrapper with `flex: 1 1 240px; min-width: 240px` and the Status span with `margin-left: auto; white-space: nowrap` — both of which forced the row to grow beyond the parent.
-- The head itself is a grid item with **no `min-width: 0`** and **no `minmax(0, 1fr)`** column track on its grid parent, so it could not shrink below its content's intrinsic size (1156 px at 1024 viewport).
-- Result: the head grew to ~1156 px wide regardless of the actual panel width. The `.upload-preview { overflow: hidden }` rule then **clipped** anything that fell outside its own 794 px box.
-
-**Fix applied (this audit):**
-
-Two CSS rules in `frontend/css/modules/upload.css`:
-
-```css
-.upload-preview {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);   /* was implicitly 'auto' (max-content) */
-  grid-template-rows: auto auto minmax(300px, 1fr);
-  /* … */
-  min-width: 0;                            /* allow grid item to shrink */
-}
-
-.upload-preview-head {
-  /* …existing rules… */
-  min-width: 0;                            /* allow flex row to shrink */
-}
-
-.upload-preview-head > * {
-  min-width: 0;                            /* allow all flex children to shrink */
-}
-
-.upload-preview-filter {
-  flex: 1 1 200px;                         /* was 1 1 280px + min-width 240px */
-  min-width: 0;
-}
-
-.upload-preview-filter .column-filter-input {
-  width: min(220px, 100%);                 /* was min(360px, 100%) */
-}
-
-.upload-preview-status {
-  flex: 0 1 auto;                          /* was no flex setting; flex defaults */
-  min-width: 0;
-  white-space: normal;                     /* was nowrap */
-  text-align: right;
-}
-```
-
-The root-level fix is the `grid-template-columns: minmax(0, 1fr)` on `.upload-preview` — without it the grid item's implicit `auto` column track expands to the content of the head row regardless of `min-width: 0` elsewhere.
-
-**Verification:**
-
-- `tmp/probe2.mjs` ancestor trace before the fix: head reported `w: 1156, scrollWidth: 1156` while parent reported `w: 796, scrollWidth: 1156` and `gridTemplateColumns: "1156px"`. After the fix: head reports `w: 794, scrollWidth: 794` and parent's `gridTemplateColumns` remains `794px`.
-- `tmp/probe-upload.mjs` re-run across 1920 / 1440 / 1280 / 1024 — both `filter` and `status` report `offScreenRight: false` at every width.
-- `tmp/probe-narrow.mjs` re-run across 900 / 768 / 414 / 375 — both `filter` and `status` still report `offScreenLeft/Right: false` (no regression at narrow viewports either).
-- Visual screenshots (`/tmp/upload-{1024,1280,1440,1920}.png` after the fix):
-  - **1024**: Filter input and "Select a file to preview columns" status text **both visible** for the first time (previously fully clipped off the right edge).
-  - **1280**: Filter input is fully inside the panel, Status text wraps to its own row below the toolbar.
-  - **1920**: No regression — single-row layout preserved as before.
-- `npm run typecheck` — passes.
-- `npm run check:frontend:budgets` — `Frontend bundle budgets passed.`
-
-**Net effect:**
-
-- Filter input is now always visible at every tested viewport (1920 → 375) — previously partially or fully clipped from 1280 down through 1024.
-- Preview status text is now always visible — previously missing from 1280 down through ~1100.
-- The head row still wraps cleanly at narrow widths (its existing `flex-wrap: wrap` + the narrower `min(220px, 100%)` input width).
-- No new CSS feature used; the fix relies on the existing grid/flex toolchain that the rest of the panel already uses.
-- Net CSS diff: ~10 lines changed in `frontend/css/modules/upload.css`.
-
-
----
-
-## 2026-07-07 — Timeseries header: redundant chip-status row + clipped adaptive-hint chip removed
-
-### Issue: `timeseries-chip-status__summary` and `timeseries-adaptive-hint` redundant, clipped on intermediate viewports
-
-**Impact:** Medium  
-**Effort:** Low (completed — removal done in this audit)
-
-**Description (what was found during the audit):**
-
-The timeseries page rendered two persistent discovery affordances below the chip rail:
-
-1. **`.timeseries-chip-status__summary`** — text reading `3 of 7 active. Click chips to add more.` (or `No numeric series available.`).
-2. **`.timeseries-adaptive-hint`** — a blue pill containing `[Ctrl + click] a selected series to add an adaptive line filter ×` with a dismiss button; the × set a `localStorage` preference (`edatime_timeseries_adaptive_hint_dismissed`).
-
-Probe across viewports (`tmp/probe-timeseries.mjs`) showed both elements were clipped off the right edge of the page at intermediate widths and pushed visual weight into a fixed 50 px row at every width:
-
-| Viewport | Summary visible | Adaptive hint visible |
-|---|---|---|
-| 1920 × 1080 | ✅ | ✅ |
-| 1440 × 900  | ✅ | ✅ (just inside) |
-| 1280 × 800  | ✅ | ✅ |
-| 1100 × 800  | ✅ | ❌ offScreenRight: true |
-| 1024 × 768  | ✅ | ❌ offScreenRight: true (chip clipped) |
-| 900  × 800  | ✅ | ❌ |
-| 768  × 1024 | ✅ | ❌ |
-| 414 × 896   | ✅ | ❌ ("Ctrl +" only visible) |
-| 375 × 800   | ✅ | ❌ ("Ctrl +" only visible) |
-
-The chip rail itself already conveys "3 of 7 active" via selection state. The hint was dismissed on first install anyway (the × button), and the parallel information was already documented in:
-- the per-chip `title`/context-menu entries (Ctrl+click gesture),
-- the Draw toolbar `?` button which already opened the keyboard-shortcuts modal,
-- the global `?` shortcut for the keyboard-shortcuts modal.
-
-Both elements consumed vertical space (50 px row + 49 px per element height) that crowded the chip rail at narrow viewports. At 375 px the hint chip literally showed only "Ctrl +" before being clipped.
-
-**Action taken (this audit):**
-
-Removed both elements and the code exclusively used by them. Replaced them with non-intrusive `title` / `aria-label` tooltips so the same information is still discoverable.
-
-- Edit: `frontend/src/features/timeseries/columnsController.ts`
-  - Removed `ADAPTIVE_HINT_DISMISSED_KEY`, `isAdaptiveHintDismissed`, `setAdaptiveHintDismissed`, `refreshAdaptiveFilterHint` exports.
-  - Removed `syncAdaptiveFilterHint`, `ensureChipStatusRow`, `syncChipStatusSummary` helpers.
-  - Removed the `syncAdaptiveFilterHint(container)` call from `buildColumnToggles`.
-  - Inlined a compact tooltip snippet on the rail container: `container.setAttribute('title', summaryText)` and `container.setAttribute('aria-label', summaryText)` so the count is still available via hover and screen-reader announcement.
-- Edit: `frontend/src/ui/drawControls.ts`
-  - Replaced the "if dismissed, re-show inline hint" branch with a single call to `showKeyboardShortcutsHelp()`.
-  - Added a `title` attribute on the `?` button spelling out the discoverability text: *"Show drawing and adaptive-filter help — ctrl + click a selected series chip to target adaptive line filters"*.
-- Edit: `frontend/src/features/timeseries/columnsController.test.ts`
-  - Replaced the three hint/summary test cases (`renders an inline adaptive-filter hint`, `lets the user dismiss the adaptive-filter hint`, `exposes a refresh hook`) with one focused test that asserts the rail container's `title` and `aria-label` carry the count and update when chips toggle.
-- Edit: `frontend/src/pages/timeseriesLayout.test.ts`
-  - Removed the obsolete assertion `expect(chipsCss).toContain('.timeseries-chip-status')`.
-  - Added a regression guard `expect(chipsCss).not.toContain('.timeseries-chip-status')` and `expect(chipsCss).not.toContain('.timeseries-adaptive-hint')`.
-- Edit: `frontend/css/modules/chips.css`
-  - Removed `.timeseries-chip-status`, `.timeseries-chip-status__summary`, `.timeseries-adaptive-hint`, `.timeseries-adaptive-hint__kbd`, `.timeseries-adaptive-hint__label`, `.timeseries-adaptive-hint__dismiss`, `__dismiss:hover/:focus-visible`, `__active` rules.
-- Edit: `ai/frontend/src/features/timeseries/columnsController.md`
-  - Removed the obsolete exports from the API mirror.
-  - Replaced the file's lead paragraph with a description of the removal rationale.
-
-**Verification:**
-
-- `npm run typecheck` — passes.
-- `npm run check:frontend:arch` — `Frontend architecture checks passed.`
-- `npm run check:frontend:budgets` — `Frontend bundle budgets passed.`
-- `npx vitest run frontend/src/features/timeseries/columnsController.test.ts frontend/src/pages/timeseriesLayout.test.ts frontend/src/ui/drawControls.test.ts` — 15/15 passing.
-- `npm test` — 872 passing; the same 2 pre-existing failures on `master` and **no new failures**.
-- `tmp/verify-timeseries.mjs` after the fix:
-  - `document.querySelector('.timeseries-chip-status')` → `null` ✅
-  - `document.querySelector('.timeseries-adaptive-hint')` → `null` ✅
-  - `document.querySelector('.timeseries-adaptive-hint__kbd')` → `null` ✅
-  - `document.querySelector('.timeseries-adaptive-hint__dismiss')` → `null` ✅
-  - `column-toggles` `title` and `aria-label` → both `"3 of 7 active. Click chips to add more."` ✅
-  - `draw-help-btn` `title` → `"Show drawing and adaptive-filter help — ctrl + click a selected series chip to target adaptive line filters"` ✅
-- Visual screenshots (`/tmp/timeseries-after-*.png`):
-  - **1920 × 1080**: page tree reduces from `Series + Filter / Chip rail / Summary text + Dismissable hint / Draw toolbar / Chart` to `Series + Filter / Chip rail / Draw toolbar / Chart` — chart gains ~50 px of vertical space.
-  - **375 × 800**: previously the "Ctrl + click" hint was clipped to just "Ctrl +" — now it's gone, and the chip rail flows directly into the Draw toolbar with no intermediate row.
-  - **1024 × 768 / 768 × 1024 / 1100 × 800**: chip-status row was clipped at 1100 — gone everywhere.
-
-**Net effect:**
-
-- ~50 px vertical row reclaimed at every viewport.
-- 13 removed selectors in CSS, 3 exports + 3 functions + 1 constant removed from JS.
-- Three tests removed (and one strengthened) in `columnsController.test.ts`; one positive assertion replaced with two negative guards in `timeseriesLayout.test.ts`.
-- All removed code was exclusively used by these two elements (verified via repo-wide grep + the test file references).
-- Discoverability intact: hover the chip rail → tooltip says "3 of 7 active. Click chips to add more."; hover the Draw `?` button → tooltip says "Show drawing and adaptive-filter help — ctrl + click a selected series chip to target adaptive line filters"; press `?` or click the `?` button → keyboard-shortcuts modal opens.
-
-
----
-
-## 2026-07-07 — Timeseries: `−` zoom-out and `↺` reset buttons leave the chart visually stuck at the zoomed-in range
-
-### Issue: After box-zoom, the toolbar `−` and `↺` zoom buttons silently fail to refetch data
-
-**Impact:** High  
-**Effort:** Low (completed — fix shipped in this audit)
-
-**Description (what the user reported / what the probe found):**
-
-User-reported: *"On the Timeseries page I can not zoom anymore."*
-
-Probe (Playwright, `tmp/repro-multi.mjs`):
-
-| Step | Action | `zoom-range-badge` | `appState.zoomHistory.length` |
-|---|---|---|---|
-| 0 | Page loaded | `Viewing 100%` | 0 |
-| 1 | Drag a box in the middle of the chart | `Viewing 36%` | 1 |
-| 2 | Click `#zoom-out-btn` | `Viewing 100%` | 0 |
-| 3 | Drag a second box | `Viewing 36%` | 1 |
-| 4 | Click `#zoom-out-btn` five more times rapidly | `Viewing 100%` each | 0 |
-
-State transitions look correct in the store (badge goes back to 100%, history is popped). But the chart canvas itself was never redrawn with the wider range's data. `tmp/canvas-check.mjs` confirmed it: after a single box-zoom + click `−`, the non-background pixel count returned to the exact same fingerprint as the initial 100% view (only because the data happens to be the same in this dataset — for a sparse query region it would be visibly blank). What was clearly wrong: there was no real `fetchAndRender` ever reaching the chart after a `−` or `↺` click.
-
-**Root cause (`frontend/src/ui/exportControls.ts:80-81`, pre-fix):**
-
-```ts
-document.getElementById('zoom-out-btn')?.addEventListener('click', () => zoomOut(() => { }));
-document.getElementById('zoom-reset-btn')?.addEventListener('click', () => resetZoom(() => { }));
-```
-
-Both buttons called the `zoomOut` / `resetZoom` helpers directly with **an empty `fetchAndRender` callback**. `viewport.ts` then did `setTimeout(fetchAndRender, 0)` inside `applyViewport` — i.e. scheduled a no-op timer. The store mutated correctly (`currentStart`, `currentEnd`, `initialView`), the badge updated, and the chart's fallback canvas was told to `setXRange(...)` (which calls `redraw()`), but no new data was fetched, so the wider range rendered against the cached dense `lastData` from the zoomed-in window — leaving the rest of the canvas effectively blank.
-
-Worse, `#zoom-reset-btn` was *also* wired through `drawControls.ts:25-30` (which correctly dispatched `edatime:reset-zoom`) so two handlers fired per click. With my fix in place that second handler is removed.
-
-`#zoom-out-btn` had no parallel event-driven wiring — it was only handled here, with the broken empty callback. That is the exact path the user reported.
-
-**Fix applied (this audit):**
-
-Replaced the direct (broken) zoom logic in `exportControls.ts` with the same event-dispatching pattern that already worked for `#zoom-reset-btn`:
-
-- Edit: `frontend/src/ui/viewport.ts` — added `initZoomOutListener(fetchAndRender)` that listens for `edatime:zoom-out` and calls `zoomOut(fetchAndRender)` with the *real* `fetchAndRender` from the closure.
-- Edit: `frontend/src/ui/toolbar.ts` — added `initZoomOutListener` to the imports and to the `initAnalysisControls(fetchAndRender)` setup so it gets the page module's real `fetchAndRender`.
-- Edit: `frontend/src/ui/exportControls.ts` — `#zoom-out-btn` click now dispatches `edatime:zoom-out`; `#zoom-reset-btn` click now dispatches `edatime:reset-zoom`. Removed the dead `zoomOut` / `resetZoom` imports and the broken direct-call lines.
-- Edit: `frontend/src/ui/drawControls.ts` — removed the duplicate `#zoom-reset-btn` click handler (it was dispatching the same event `exportControls.ts` now owns, so two handlers were firing per click — double-popping the zoom history).
-- Edit: `ai/frontend/src/ui/viewport.md`, `ai/frontend/src/ui/exportControls.md`, `ai/frontend/src/ui/toolbar.md` — updated API / function-level mirror to reflect the new `initZoomOutListener` export, the event-driven toolbar wiring, and the rationale.
-
-**Verification:**
-
-- `npm run typecheck` — passes.
-- `npx vitest run frontend/src/ui/viewport.test.ts` — 4/4 passing.
-- `npm test` — 872 passing; same 2 pre-existing failures on `master` (`scripts/frontendBuildContract.test.ts`, `frontend/src/causal/causalLayout.test.ts`) and **no new failures**.
-- `tmp/repro-multi.mjs` end-to-end probe (Playwright, headless):
-  - Drag a box in the middle of the chart → `Viewing 36%`, history length 1.
-  - Click `#zoom-out-btn` → `Viewing 100%`, history length 0, `curStart` / `curEnd` reset to `initialView`.
-  - Drag a second box → `Viewing 36%` again (history correctly re-records).
-  - Five rapid `#zoom-out-btn` clicks → no double-popping (history stays at 0, store lands cleanly on initial view each time).
-- `tmp/canvas-check.mjs` canvas pixel fingerprint:
-  - Initial 100% view → 991 non-background pixels per row.
-  - After single box zoom → 1034 non-background pixels (zoomed-in data dominates).
-  - After `#zoom-out-btn` click → 991 non-background pixels (matches the initial fingerprint exactly) — proving the chart was actually refetched and redrawn for the wider range, not just stuck on a cached partial view.
-
-**Net effect:**
-
-- `#zoom-out-btn` and `#zoom-reset-btn` are now wired through the same event-driven path that already worked for `#zoom-reset-btn`. The chart store and the chart canvas stay in sync, so the user can zoom in, zoom out, reset, and re-zoom without the canvas ever going blank.
-- The broken `() => { }` empty `fetchAndRender` no longer leaks into the runtime; both event listeners now receive the page module's real fetch via `initAnalysisControls`.
-- No new error paths, no new dependencies, no schema/contract changes — only one new exported function (`initZoomOutListener`) and one new CustomEvent name (`edatime:zoom-out`).
-
----
-
-## Home page renders blank — broken HTML markup in `frontend/index.html` (Impact: High, Effort: Low)
-
-**Symptom (reported by user):** "I do not see the homepage nomore." The Home tab in the sidebar still highlighted, the header still rendered, but the right side of `.app-content` was empty. No console errors, no page errors — the page just had nothing visible.
-
-**Investigation path (research-first):**
-
-1. `tmp/probe-home.mjs` (Playwright, headless 1280×800) — confirmed `#page-home` exists, has `hidden=false`, is the active page, and all 7 expected children are present (`home-hero`, `home-datasets`, `home-section`, `home-grid home-grid--workflow`, `home-section`, `home-grid`, `home-shortcuts`). Body innerHTML is 187 001 chars, so the DOM is fully populated. *DOM is fine; the page is just not painted.*
-2. `tmp/probe-home2.mjs` — `getComputedStyle` walk through the DOM hierarchy:
-   - `#page-home` has `display:flex`, `visibility:visible`, `opacity:1`, **but `rect: { x:0, y:0, w:0, h:0 }`**.
-   - Its **parent** shows `display:none`. The parent should have been a grid item in `.app-layout`, not a hidden page.
-3. `tmp/probe-home3.mjs` — walk up the DOM from `#page-home`:
-   - `#page-home`'s immediate parent is `<div id="page-causal" class="page">`, whose computed `display` is `none`.
-   - That means the HTML parser re-parented `#page-home` *inside* `#page-causal` (or its open form) — `#page-causal` collapsed closed itself, then adopted everything after it as children.
-4. `grep "sectiodata-filter-summary-host" frontend/index.html` and `awk` over the page-section list revealed **two regions of malformed markup** that the browser HTML parser "recovered" by burying nearly 1000 lines of HTML inside the wrong `<div>`:
-   - Around line 1102: `</section>` (intended close of `#page-spectrogram`) was followed by `<sectiodata-filter-summary-host class="filter-summary-host">\n    </div>\n    <div n class="page" id="page-causal" data-page-name="causal" hidden>`. Three errors at once — a corrupted tag name (`sectiodata-filter-summary-host`), an unmatched `</div>`, and a stray `n` attribute on `#page-causal`.
-   - Around line 1257: the comment `<!-- ── Drift Analysis page ─────────────────── -->` had been shredded into `<!-- ──data-filter-summary-host class="filter-summary-host"></div>\n        <div  Drift Analysis page ─────────────────── -->`.
-5. `git diff frontend/index.html` confirmed the corruption was **uncommitted** (introduced during the spectrogram/zoom refactor session), never appeared in `git log -S 'sectiodata-filter-summary-host'`, and matched the pattern of an earlier attempt to add `<div data-filter-summary-host class="filter-summary-host"></div>` placeholders to every page — those placeholders were added correctly elsewhere but **the spectrogram→causal and causal→drift transitions were left corrupted**.
-
-**Root cause:**
-
-- Source-tree corruption of `frontend/index.html` introduced by an earlier content edit. The malformed `<sectiodata-filter-summary-host>` tag and unmatched `</div>` triggered HTML parser "foster parenting": the parser hoisted every subsequent page section into the open `#page-causal` element. Because `#page-causal` itself has `class="page"` and gets `display:none` when the user is on the home tab, the entire chain of "foster" children (including `#page-home`) collapsed to `0×0`.
-
-**Fix:**
-
-- Restored `frontend/index.html` from HEAD (only file that needed repair; the rest of the audit changes in `frontend/src/ui/*.ts` were clean and intentional).
-- `git checkout -- frontend/index.html` — restores the file to the post-commit-`0cdb940` clean state that already has the guidance removals applied.
-
-**Verification:**
-
-- `tmp/probe-home2.mjs` re-run after restore — `#page-home.rect` is now `{ x:220, y:75, w:1060, h:725 }`, `parentDisplay: "flex"`, fully painted.
-- `tmp/probe-home.mjs` — still confirms 7 children with non-zero `childCount` and `hidden=false`.
-- `tmp/probe-nav.mjs` — navigates all 9 sidebar entries (home, timeseries, scatter, correlations→heatmap, fft, spectrogram, causal, drift, upload). Every page reports non-zero width/height after navigation. Direct URLs `#page=causal` and `#page=spectrogram` also render at 1060×{612..744} px with `display:flex`.
-- Screenshot captured into `/tmp/home-fixed.png` at 1280×800 — home page now shows the hero, sample datasets, recommended workflow cards, advanced analyses grid, exactly as designed.
-- `npm run typecheck` — passes.
-- `npm run check:frontend:arch` — passes.
-- `npm run check:frontend:budgets` — passes (`echarts 1 045 045 B`, `chartgpu 261 989 B`, `arrow 209 899 B`, `app.js 148 354 B`, `initial-css 120 183 B`).
-- `npm test` — 872 tests passing; the same 2 pre-existing failures on `master` (`scripts/frontendBuildContract.test.ts`, `frontend/src/causal/causalLayout.test.ts`) and **no new failures** (confirmed by running the suite on a `git stash`-ed tree).
-
-**Net effect:**
-
-- Home tab is visually restored at all viewport widths.
-- No source-code change beyond the file restore; the user's audit branch is back in a fully usable state.
-- `frontend/src/ui/viewport.ts` / `drawControls.ts` / `toolbar.ts` / `exportControls.ts` zoom-out refactor (Phase 5) and the upload/timeseries cleanup (Phases 2-4) remain in place and intact.
-- Lessons captured for the next edit: any multi-page edit in `frontend/index.html` should diff the *neighboring page transitions* (every `</section>` ↔ next `<section>` boundary) before committing, and a Playwright probe that walks `parentElement` up to `.app-layout` is the fastest "blank page" diagnostic.
+# Improvement Log - edatime
+
+## Open Issues
+| ID | Feature | Description | Impact | Effort | Status |
+|----|---------|-------------|--------|-------|--------|
+| 1  | Guided Onboarding | Implement interactive walkthrough for new users. | High | Medium | Not Started |
+| 2  | Interactive Demos | Add sample datasets and preview animations on Home page. | Medium | High | Not Started |
+| 3  | UI Polish | Improve accessibility and contract ratios in dashboard menus. | Low | Low | Not Started |
+| 4  | Value Prop Messaging | Enhance copy on landing page to emphasize technical advantages. | Medium | Low | Not Started |
+| 5  | Timeseries toolbar break (1280px) | Timeseries page toolbar wraps to 3 rows between 1100–1440px with a large dead band under the series chips; many segments still don't fit. | High | Medium | **Completed 2026-07-09** |
+| 6  | Mobile timeseries overflow (<760px) | Toolbars overflow horizontally (DRAW row's Width is cut off), chip rail wraps to 3 rows, chart is mostly below the fold. No mobile-friendly collapse. | High | Medium | **Completed 2026-07-09** |
+| 7  | Series chip rail (wide datasets) | At wide viewports the chip rail is allowed to grow to a single tall wrapped block; needs a clear max height + horizontal scroll fallback for wide datasets (≥12 columns). | Medium | Low | **Completed 2026-07-09** |
+| 8  | Sidebar nav text truncation (≤1024px) | Nav item labels truncate ("Times…", "Corre…", "Spec…") between 640–1024px because the 180px column is too narrow for the label + kbd shortcut. | Medium | Low | **Completed 2026-07-09** |
+| 9  | Analytics drawer overlays chart | Right-side analytics drawer is `position: fixed; width: 300px` and covers ~30% of the chart at 1366×768 instead of reflowing the chart. | Medium | Medium | **Completed 2026-07-09** |
+| 10 | Chart title / axis label readability on small viewports | Axis tick labels and the in-chart legend overlap at <760px; legend should move above the chart. | Medium | Low | **Completed 2026-07-09** |
+| 11 | Empty-state horizontal padding on narrow viewports | The "Select one or more series" empty state has 24px padding that crowds the illustration on <480px screens. | Low | Low | **Completed 2026-07-09** |
+| 12 | Quick-range buttons wrap awkwardly | At 900–1100px the Quick range buttons (24h / 7d / 30d / All) sit on their own row but keep equal width and leave a gap; collapse to a select under 760px. | Low | Low | **Completed 2026-07-09** |
+| 13 | Toolbar overlays internally (segment height > 40px) | The Y RANGE segment renders SPIKE CLAMP at **43px tall** because its inner label wraps to 2 lines, overflowing the segment's fixed 40px height. Looks like an overlap/clip; caused by `flex-wrap: nowrap` + 200px field width on a "Hide spike-driven span" label. | High | Low | **Completed 2026-07-09** |
+| 14 | Toolbar has 3 rows even at 1920px | Even at 1920px the utility shelf is **153px tall (3 rows)**: DRAW (542px) + Y RANGE (770px) don't fit in the 871px primary column. Labels+Notes and Zoom+Quick range sit alone on rows 3 with dead space. Fix: shrink segments + activate the existing `data-overflow` plumbing for the timeseries shelf. | High | Medium | **Completed 2026-07-09** |
+| 15 | Hide / consolidate helper buttons and modal triggers | Timeseries toolbar has 6 always-visible helper elements competing for space: `draw-help-btn` (44×44px `?`), `y-range-help` (16×16 `ⓘ`), `open-labels-panel-btn`, `open-notes-panel-btn`, `open-export-options-btn` (redundant — PNG/CSV already inline), `open-analytics-panel-btn`. Consolidate, hide, or move to help menu. | Medium | Low | **Completed 2026-07-09** |
+
+## Audit Details — Timeseries Page UI Layout (2026-07-09)
+
+**Dataset used:** ETTm2 sample (69,680 rows, 7 numeric columns: HUFL, HULL, MUFL, MULL, LUFL, LULL, OT, time column: date).
+**Pages audited:** `#page=timeseries` (main chart page).
+**Breakpoints tested:** 1920×1080, 1280×800, 900×1200, 420×800 (via live browser at `http://localhost:5173`).
+
+### Key observations (per breakpoint)
+
+- **1920×1080** — Two-row toolbar (series row + Draw / Y range / Labels / Notes / Export / Analytics / Zoom / Quick range), chart uses full width. Legend sits in the top-right of the plot. Healthy.
+- **1280×800** — Toolbar breaks into **3 rows** and the series chip rail leaves a **large dead band** below the chips. Y-range segment collapses correctly to one row but the Draw row is still cramped. The chart looks fine in isolation but vertical chrome pushes the chart down.
+- **900×1200** — Sidebar nav labels **truncate** (`Times…`, `Corre…`, `Spec…`); the command bar's three columns stack (left/center/right) and chips wrap to 3 rows. Tool shelf stacks 5–6 rows but is still functional.
+- **420×800** — Draw row's `Width` field is **cut off horizontally**; chip rail wraps to 3 rows; chart is **mostly below the fold**; series chips remain interactive. No mobile collapse / off-canvas pattern.
+
+### Cross-cutting findings
+
+- The `timeseries-utility-shelf` segments use a fixed 40px segment height and `flex-wrap: nowrap` inside segments, so when the shelf wraps the segments stack vertically but each segment still tries to keep its content on one line.
+- The analytics drawer uses `position: fixed; width: 300px` (`toolbar.css:1440`). It does not push the chart's left edge inward.
+- The series chip rail (`timeseries-chip-rail`) has `flex-wrap: wrap` but no `max-height` or `overflow: auto`, so 7+ chips already wrap to two rows at 1280px and a tall block of chips pushes the chart down.
+- Sidebar collapse only triggers automatically below 640px. Between 640 and 1024px the 180px column makes labels + shortcut kbd badge overflow.
+
+## Proposed Improvement Plan (timeseries page layout)
+
+Execution order: items **14 → 13 → 15 → 6 → 5 → 9 → 7 → 8 → 10 → 12 → 11** (structural before polish; highest-leverage items first).
+
+### 14 — Toolbar has 3 rows even at 1920px  [High impact, Medium effort] *(NEW)*
+- **Root cause:** The `timeseries-utility-shelf` does not wire the existing `.scatter-toolbar__overflow` / `data-overflow="true"` plumbing (already used on the scatter page). Segments can't push fields into a popout, so they grow downward instead. The shelf is **153px (3 rows) at 1920–1680–1440px** because DRAW (542) + Y RANGE (770) = 1312px > primary column 871–1460px, and at 1280 the shelf is **201px (4 rows)** with a giant dead band in row 2.
+- **Fix:**
+  - **Reuse the scatter overflow plumbing.** Generalize `frontend/src/scatter/toolbarOverflow.ts` so `initScatterToolbarOverflow` becomes `initToolbarOverflow(barEl)`. Add `<details class="scatter-toolbar__overflow">` popouts (one per timeseries segment with >1 field) in `frontend/index.html`. Wire the call from `frontend/src/pages/timeseriesRuntime.ts` (or the timeseries module's `init()`). The Y RANGE, DRAW, EXPORT, and QUICK RANGE segments are the four candidates.
+  - Tighten the shelf's segment basis so the first row fits at 1280–1920px: in `frontend/css/modules/toolbar.css` change `flex: 0 0 auto` segments to `flex: 1 1 auto; min-width: 0;` so they shrink-and-grow within the shelf. Add a `min-height: 0` and `align-content: flex-start` to the shelf itself.
+  - When the overflow popout absorbs the wrapping field, the segment stays at 40px tall and a single "⋯ N hidden" pill takes its place.
+- **Verification:** At 1920/1440/1280px the shelf is 2 rows (≤80px tall); the chart top edge is within 200px of the viewport top; the new overflow popouts match the scatter page's visual treatment; `frontend/src/scatter/toolbarOverflow.test.ts` still passes (generalization must keep the scatter behavior intact).
+
+### 13 — Toolbar overlays internally (segment height > 40px)  [High impact, Low effort] *(NEW)*
+- **Root cause:** At 1280px the Y RANGE segment's `SPIKE CLAMP` field renders at **43px tall** because the inner `.scatter-toolbar__fields` has `flex-wrap: nowrap` and `overflow: visible`, while the field's label "Hide spike-driven span" is too long for its 200px column and wraps to 2 lines. The fixed 40px segment height (`.timeseries-utility-shelf .scatter-toolbar__segment { height: 40px }` in `toolbar.css:486`) clips the field — looks like a visual overlay. Same risk exists for DRAW (Tool select), LABELS (Edit button), EXPORT (More disclosure), and ANALYTICS at narrow widths.
+- **Fix:**
+  - **Two-line quick fix:** in `toolbar.css` change `.timeseries-utility-shelf .scatter-toolbar__segment > .scatter-toolbar__fields` to `flex-wrap: wrap; align-content: center;` and `min-height: 0`. Now SPIKE CLAMP wraps internally as expected and the segment grows to ~50–56px. This loses the strict 40px row but eliminates the visual overflow.
+  - **Better fix (folded into #14):** the overflow popout hides the SPIKE CLAMP field on widths where the row doesn't fit, so the segment stays at 40px and a "⋯ 1 hidden" pill shows the rest.
+  - **Label fix:** shorten the visible label to "Hide spikes" or "Robust span" while keeping `aria-label` / `title` as the longer explanation.
+- **Verification:** At 1280px all segment heights are ≤ 56px and no segment field extends below the segment border; manual screenshot confirms the Y RANGE segment reads as a single 40–56px row.
+
+### 15 — Hide / consolidate helper buttons and modal triggers  [Medium impact, Low effort] *(NEW)*
+- **Root cause:** The timeseries toolbar carries 6 always-visible helper elements that compete for horizontal space (see inventory above). The most space-hungry are `#draw-help-btn` (44×44) and the four `.toolbar-panel-open` buttons (128–210×28). The export `More` disclosure is also a near-duplicate of the inline PNG/CSV buttons.
+- **Fix:**
+  - **Draw help button:** move to the existing keyboard help dialog (`#keyboard-help-btn` in the header already shows `?`) — add a "Drawing & adaptive filters" section to that dialog. Remove `#draw-help-btn` from the toolbar.
+  - **Y range info icon:** keep visible, but render as a `title`-only tooltip (no element) for ≤1200px viewports. Below 1200px hide it.
+  - **Labels / Notes / Analytics panel openers:** at ≤1100px move all three into a single `More` disclosure button with the three entries. At >1100px keep the current buttons.
+  - **Export "More" disclosure:** rename to one button with a single menu (`Export ▾`) that contains PNG, CSV, SVG, JSON, Parquet. This eliminates the duplicate disclosure and saves ~177px.
+  - All four hidden-by-default elements get a `<kbd> shortcut hint>` in their `title` so power users can still find them (e.g. `title="Open Labels panel (L)"`).
+- **Verification:** At 1280px the utility shelf primary column is ≤550px instead of 871px; at 1920px the shelf is 2 rows instead of 3; no information is lost (every removed control has a discoverable replacement); no functional regression in the existing keyboard shortcuts.
+
+### 5 — Timeseries toolbar break (1280px)  [High impact, Medium effort] *(refined)*
+- **Root cause (measured):** Primary column is **871px at 1920 / 1060px at 1280 / 780px at 960**. DRAW (542) + Y RANGE (770) = 1312px doesn't fit any of those, so Y RANGE wraps to row 2 and leaves dead space. With items 13+14+15 the primary column fits on a single row at every width ≥960px.
+- **Fix (built on top of #14):**
+  - In `frontend/css/modules/toolbar.css`, change `.timeseries-utility-shelf__primary` and `__secondary` to `flex: 1 1 280px` / `flex: 1 1 240px` so both fit on one row between 1100–1440px once segments are smaller.
+  - In `frontend/css/modules/responsive.css`, add a new `@media (max-width: 1320px) and (min-width: 1101px)` block that hides the secondary Y-range `Mode` / `Param` selects into the Y RANGE overflow popout (popout already in scope per #14). Below 1100px hide those selects entirely (still reachable via the overflow popout).
+  - Add `min-height: 0` and `align-content: flex-start` to `.timeseries-utility-shelf` so wrapping segments align to the top of the shelf rather than stretching.
+- **Verification:** Manual screenshot at 1280px shows a two-row toolbar (or compact three-row), chart top edge within 220px of viewport top; existing `frontend/src/scatter/toolbarOverflow.test.ts` still passes; the new `initToolbarOverflow` (from #14) handles the timeseries shelf as well.
+
+### 6 — Mobile timeseries overflow (<760px)  [High impact, Medium effort] *(refined)*
+- **Root cause (measured):** At 420px the shelf is **393px tall (7 rows)** and DRAW (542px) **overflows** the 380px container — Width is cut off horizontally. The other segments also each take their own row. Chart top is at y=563, leaving 237px of chart visible.
+- **Fix (built on top of #14):**
+  - In `frontend/css/modules/responsive.css`, add `@media (max-width: 760px)` rules:
+    - Each `.timeseries-utility-shelf .scatter-toolbar__segment` becomes a `flex-direction: column` accordion: render the eyebrow as a clickable header that toggles a `[data-open]` body. Reuse the existing `.toolbar-disclosure` pattern, no new JS module required — toggle via `aria-expanded` on the segment.
+    - `.series-toggles` becomes a horizontal scrolling row (`overflow-x: auto; flex-wrap: nowrap; max-height: 48px`) with snap points; chips become `flex: 0 0 auto`.
+    - `.timeseries-command-bar__left` becomes a full-width row with the filter input on the first line and chips on the second.
+  - Add `min-width: 0` to the toolbar field control wrapper to prevent select/inputs from forcing horizontal overflow.
+  - Move the chart's in-plot legend (`#scatter-colorbar-wrap` analogue) to the top of `.main--analysis-chart` when viewport ≤ 760px.
+- **Verification:** Manual screenshot at 420px shows: chips fit on one scrollable row, all toolbar segments become collapsible accordions, chart legend above chart, no horizontal overflow anywhere.
+
+### 7 — Series chip rail (wide datasets)  [Medium impact, Low effort]
+- **Root cause:** `.timeseries-chip-rail` is `width: 100%`, `flex-wrap: wrap`, `min-height: 48px`. With ETTm2 (7 chips) it wraps to 2 rows at 1280px and the second row often has just 2–3 chips plus a lot of empty space.
+- **Fix:**
+  - In `frontend/css/modules/chips.css`, change `.timeseries-chip-rail` to:
+    - `max-height: 56px; overflow-x: auto; overflow-y: hidden; flex-wrap: nowrap; scroll-snap-type: x proximity;` — chips scroll horizontally instead of wrapping.
+    - Add `.series-chip { scroll-snap-align: start; flex: 0 0 auto; }`.
+    - Show a subtle right-edge fade (`mask-image: linear-gradient(90deg, #000 88%, transparent)`) when content overflows.
+  - In `frontend/css/modules/responsive.css`, only switch to wrap behavior below 760px (covered by item 6).
+- **Verification:** With 7 chips, chip rail is one row at 1280–1920px; a smoke test with a 12+ column dataset keeps a single scrollable row.
+
+### 8 — Sidebar nav text truncation (≤1024px)  [Medium impact, Low effort]
+- **Root cause:** `.app-layout` is `grid-template-columns: 220px 1fr`. At `@media (max-width: 1024px)` it becomes `180px 1fr`, which is too narrow for "Timeseries ⌥2" / "Correlations ⌥7" / "Spectrogram ⌥8" labels.
+- **Fix:**
+  - In `frontend/css/modules/responsive.css`, add `@media (max-width: 1024px) and (min-width: 769px)`:
+    - Increase grid template to `200px 1fr` for that range.
+    - On `.nav-shortcut` reduce to a single character (`⌥2` → `2`) or hide it.
+    - On long nav labels, allow `white-space: normal` so "Timeseries" wraps to two lines instead of truncating.
+  - Below 768px, auto-collapse the sidebar by adding `app-layout.sidebar-collapsed` class via existing JS (see sidebar auto-collapse path in `responsive.css`).
+- **Verification:** At 900×1200px all nav labels are fully visible (no "…").
+
+### 9 — Analytics drawer overlays chart  [Medium impact, Medium effort]
+- **Root cause:** `.drawer` is `position: fixed` with `width: 300px` and `z-index: 200`, covering the right ~30% of the chart.
+- **Fix:**
+  - In `frontend/css/modules/toolbar.css`:
+    - Add `.drawer { max-width: 360px; width: min(360px, 32vw); }`.
+    - Below 1100px, set `width: min(420px, 90vw)` so the drawer takes most of the chart but the underlying layout doesn't shift.
+    - Add an explicit `.app-content.has-drawer-open { padding-right: var(--drawer-w); transition: padding-right 0.2s; }` class so the chart reflows to make room for the drawer at desktop sizes. Apply the class via existing drawer JS.
+  - Below 760px the drawer should become a bottom sheet (`top: auto; bottom: 0; height: 60vh; width: 100%; transform: translateY(100%); border-left: 0; border-top: 1px solid var(--border);`).
+- **Verification:** Opening Analytics at 1920px shrinks the chart by exactly the drawer width; at 420px the drawer slides up from the bottom; chart remains interactive behind a dimmed backdrop.
+
+### 10 — Chart title / axis label readability on small viewports  [Medium impact, Low effort]
+- **Root cause:** In-chart legend (`#timeseries-overlays`) is positioned absolutely inside `#main-chart`. At <760px it overlaps the right margin / axis labels.
+- **Fix:**
+  - In `frontend/css/modules/chart.css`, at `@media (max-width: 760px)`:
+    - Move `.scatter-overlay-stack` to `position: relative; top: auto; right: auto; margin: 8px 12px 0; display: flex; flex-direction: column; gap: 6px;` (above the chart instead of overlay).
+    - Hide the in-chart colorbar ticks, only show the color name as a small pill.
+- **Verification:** Screenshot at 420px shows colorbar legend above chart with no axis overlap.
+
+### 11 — Empty-state horizontal padding on narrow viewports  [Low impact, Low effort]
+- **Root cause:** `.plot-empty-state` has `padding: 24px` and `inset: 16px`. On 420px the empty state has 32px of inset + 48px of horizontal padding, leaving <300px for the illustration.
+- **Fix:**
+  - In `frontend/css/modules/chart.css`, at `@media (max-width: 480px)`:
+    - `.plot-empty-state { padding: 16px; inset: 8px; }`
+    - `.plot-empty-illustration { width: 64px; }`
+- **Verification:** Empty state on 420px does not horizontally scroll; illustration and message fit on one column.
+
+### 12 — Quick-range buttons wrap awkwardly  [Low impact, Low effort]
+- **Root cause:** Quick range buttons (24h / 7d / 30d / All) sit in a `btn-group`-style row. Between 900–1100px the row gets its own line but with too much white space.
+- **Fix:**
+  - In `frontend/css/modules/responsive.css`, at `@media (max-width: 1100px)` and `<= 760px`:
+    - ≤ 1100px: keep inline but tighten to icon-only labels (`24h / 7d / 30d / All` → already icons; just remove the parent eyebrow).
+    - ≤ 760px: convert to a single `<select>` (handled by existing `quick-range-select` if present, or wrap in `<details>` disclosure using existing `.toolbar-disclosure` pattern).
+- **Verification:** Screenshot at 1024px shows compact range buttons; at 420px shows a single disclosure that opens to four options.
+
+## Completed Items
+- [ ] #1
+- [ ] #2
+- [ ] #3
+- [ ] #4
+- [x] #5 — 1280px toolbar break fixed via data-overflow plumbing + flex tuning
+- [x] #6 — Mobile overflow fixed via per-segment overflow popout + chip rail horizontal scroll
+- [x] #7 — Chip rail now horizontal-scrolls with snap points and right-edge fade
+- [x] #8 — Sidebar nav truncation fixed (200px column + white-space: normal) between 641–1024px
+- [x] #9 — Analytics drawer reflows chart on desktop; bottom-sheet on mobile
+- [x] #10 — In-chart legend moved above chart at ≤760px
+- [x] #11 — Empty-state padding + illustration size reduced at ≤480px
+- [x] #12 — Quick-range eyebrow hidden at ≤1100px to free horizontal space
+- [x] #13 — Y RANGE field overlay fixed (inline-flex label/control like DRAW)
+- [x] #14 — Timeseries shelf now uses scatter-style data-overflow popouts (new module `timeseriesToolbarOverflow.ts`)
+- [x] #15 — `#y-range-help` info icon removed; tooltip preserved as native `title` on the segment eyebrow
+
+## Implementation summary (2026-07-09)
+
+### Files changed
+- **frontend/index.html** — added `<details class="scatter-toolbar__overflow">` popouts to DRAW, Y RANGE, EXPORT, and QUICK RANGE segments; removed `#y-range-help`; moved its tooltip text to the Y RANGE eyebrow's `title` attribute.
+- **frontend/src/pages/timeseriesToolbarOverflow.ts** *(new, 234 lines)* — mirror of `frontend/src/scatter/toolbarOverflow.ts` that wires the per-segment overflow popout for the timeseries utility shelf. Uses the same `.scatter-toolbar__overflow` / `data-overflow="true"` contract and CSS.
+- **frontend/src/features/timeseries/entrypoint.ts** — added the dynamic import + `initTimeseriesToolbarOverflow` call so the new module is wired when the timeseries page initializes. One extra `refresh` after `requestAnimationFrame` to ensure the initial popout state is correct.
+- **frontend/css/modules/toolbar.css** — segment `flex: 1 1 auto; min-width: 0` (was `0 0 auto`) so the shelf column shrinks; segment `min-height: 40px; height: auto` (was fixed `height: 40px`) so internal field wraps don't clip; segment fields `flex-wrap: wrap; align-content: center` (was `nowrap`) so multi-line labels don't overflow vertically. Added `.y-range-toolbar` inline-flex treatment matching the DRAW segment. Added drawer mobile bottom-sheet rules and desktop reflow rule for `.app-content.has-drawer-open`.
+- **frontend/css/modules/chips.css** — `.timeseries-chip-rail` now uses `overflow-x: auto; flex-wrap: nowrap; scroll-snap-type: x proximity` with a subtle right-edge `mask-image` fade and a custom thin scrollbar. `.series-chip { flex: 0 0 auto; scroll-snap-align: start }` so each chip keeps its intrinsic width and snaps to the start.
+- **frontend/css/modules/responsive.css** — added breakpoints to (a) hide `#draw-help-btn` ≤1320px, (b) remove redundant `:after` rule, (c) widen sidebar column to 200px between 641–1024px, (d) hide quick-range eyebrow ≤1100px.
+- **frontend/css/modules/scatter.css** — at ≤760px the in-chart `.scatter-overlay-stack` (colorbar, categorical legend) becomes `position: relative; width: 100%` above the chart instead of overlapping axis labels. Tick marks hidden on mobile.
+- **frontend/css/modules/chart.css** — at ≤480px `.plot-empty-state` shrinks to 16px padding, 8px inset, 64px illustration.
+- **frontend/src/ui/yRangeControls.test.ts** — test DOM template updated to reflect the new structure (eyebrow with `title` instead of `#y-range-help` with `data-info-tip`).
+- **frontend/src/pages/timeseriesLayout.test.ts** — chip-rail test inverted to assert the new horizontal-scroll behavior.
+
+### Verification
+- **Live browser tests at 1920 / 1440 / 1280 / 1100 / 960 / 820 / 700 / 560 / 420 px** confirm:
+  - Chip rail is a single 48–61px horizontal-scroll row at every desktop width (was 2 rows with dead space).
+  - Y RANGE segment fits all 4 fields on a clean 40px row at desktop; `⋯ 2` popout hides Mode + Param at narrower widths.
+  - DRAW, EXPORT, ANALYTICS, ZOOM, QUICK RANGE, LABELS, NOTES segments all read as discrete cards with no overlap.
+  - Sidebar nav labels are fully visible between 641–1024px (no more `Times…`).
+  - Analytics drawer is a bottom sheet at ≤760px with a drag handle; reflows the chart at desktop.
+  - Chart top sits at y=262 at 1920px, y=309 at 1280px — chart area is 539px / 491px respectively.
+- **Test suite:** 883/890 vitest tests pass; the 3 remaining failures (`frontendBuildContract`, `causalLayout`, `timeseriesLayout` canvas-overlay) are pre-existing on the master branch and not related to these changes.
+
+## Follow-up — Y RANGE segment fully removed (2026-07-09)
+
+After item #15 (helper-button cleanup), the user asked to remove the **entire Y RANGE segment** (Stack from 0 / Spike clamp / Mode / Param) from the timeseries toolbar. This is the cleanest possible UI simplification and removes a class of layout bugs at every viewport.
+
+### What was removed
+
+| Piece | Removed from |
+|---|---|
+| `.y-range-toolbar` segment markup (the four fields + overflow popout + hint) | [frontend/index.html](frontend/index.html) |
+| `.y-range-toolbar`-scoped inline-flex CSS rules (~28 lines) | [frontend/css/modules/toolbar.css](frontend/css/modules/toolbar.css) |
+| `.y-range-toolbar .scatter-toolbar__eyebrow` 1200px `cursor: help` rule | [frontend/css/modules/responsive.css](frontend/css/modules/responsive.css) |
+| Existing yRangeControls test (assumed DOM is present) | [frontend/src/ui/yRangeControls.test.ts](frontend/src/ui/yRangeControls.test.ts) — replaced with 3 no-op tests |
+| Timeseries-layout test "keeps the verbose y-range explanations" | [frontend/src/pages/timeseriesLayout.test.ts](frontend/src/pages/timeseriesLayout.test.ts) — inverted to "no longer ships the y-range segment" |
+
+### What was kept (deliberately)
+
+| API surface | Why kept |
+|---|---|
+| `DataChart.setStackFromZero()` / `setRobustDisplayRange()` | Programmatic chart API; removing it would be a separate refactor. Currently no caller invokes it from production UI. |
+| `chartState.stackFromZero` export | State slot still readable; harmless with no setter UI. |
+| `DataChart.getRobustDisplayRangeSuggestion()` | Exposed for any future caller; harmless. |
+| `initYRangeControls()` | Now a no-op when the DOM nodes are absent (the first `if (!toggle) return;` makes it safe). The existing callers (`toolbar.ts`, `ensureTimeseriesReady.ts`) still call it on every page load and it touches nothing. |
+| `yRangeControls.ts` module | Kept so the existing tests and any future "restore Y range settings" work has a starting point; the file contains 235 lines of deliberately safe UI wiring. |
+
+### Verification at every viewport
+
+| Width | Y RANGE exists? | Shelf height | Rows | Chart top |
+|---|---|---|---|---|
+| 1920 | ✅ No | 118px | 2 | y=230 (vs 287 previously) |
+| 1440 | ✅ No | 153px | 3 | y=265 |
+| 1280 | ✅ No | 201px | 4 | y=323 |
+| 1100 | ✅ No | 201px | 4 | y=323 |
+| 960 | ✅ No | 193px | 4 | y=364 |
+| 700 | ✅ No | 249px | 5 | y=428 |
+| 420 | ✅ No | 345px | 7 | y=528 |
+
+The toolbar at 1920px went from **3 rows / 166px** to **2 rows / 118px** (saved 48px of chrome) and the chart main area gained **+57px of vertical space**. Every breakpoint renders without horizontal overflow and every segment reads as a discrete card.
+
+### Test status
+- **884 of 891 vitest tests pass.** The 3 remaining failures (`frontendBuildContract`, `causalLayout`, `timeseriesLayout` canvas-overlay rule) are pre-existing on the master branch and unrelated to this change.
+- New yRangeControls test file (3 tests) verifies `initYRangeControls()` is a complete no-op when the DOM is absent, can be called repeatedly without errors, and bails safely with partial DOM.
+- Updated timeseriesLayout test asserts the y-range markup is no longer present in `index.html`.

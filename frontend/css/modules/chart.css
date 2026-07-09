@@ -128,7 +128,7 @@
   overflow: hidden;
 }
 
-#main-chart > canvas {
+#main-chart>canvas {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -284,4 +284,30 @@
 .chart-skeleton-text {
   color: var(--text-dim);
   font-size: 0.8125rem;
+}
+/* Item #11 — empty-state gets cramped on narrow phones. Reduce
+   padding and illustration size so the message fits one column. */
+@media (max-width: 480px) {
+  .plot-empty-state {
+    padding: 16px;
+    inset: 8px;
+  }
+
+  .plot-empty-state strong {
+    font-size: 0.85rem;
+  }
+
+  .plot-empty-state span {
+    font-size: 0.78rem;
+    line-height: 1.45;
+  }
+
+  .plot-empty-illustration {
+    width: 64px;
+  }
+
+  .plot-empty-illustration svg {
+    width: 64px;
+    height: 48px;
+  }
 }

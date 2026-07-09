@@ -59,6 +59,28 @@ export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
                     exportFilteredParquet: deps.exportFilteredParquet,
                 });
             }
+            // Wire the per-segment overflow popout on the timeseries
+            // utility shelf so segments stay a single row tall at
+            // every viewport (see improvement_features.md #14).
+            // Failure is non-fatal — the layout still works without
+            // the popout, it just doesn't react to resize.
+            const shelf = document.querySelector<HTMLElement>('.timeseries-utility-shelf');
+            if (shelf) {
+                try {
+                    // Late-imported to keep the initial bundle small
+                    // and to avoid a static dependency cycle with
+                    // the timeseries page module.
+                    void import('../../pages/timeseriesToolbarOverflow.js')
+                        .then(({ initTimeseriesToolbarOverflow, refreshTimeseriesToolbarOverflow }) => {
+                            try { initTimeseriesToolbarOverflow(shelf); } catch { /* noop */ }
+                            // One extra refresh after a frame so the
+                            // initial popout state is correct even if
+                            // the ResizeObserver hasn't fired yet.
+                            requestAnimationFrame(() => { try { refreshTimeseriesToolbarOverflow(); } catch { /* noop */ } });
+                        })
+                        .catch(() => { /* module missing — non-fatal */ });
+                } catch { /* noop */ }
+            }
         },
         rebuildColumns,
         buildRangeControls,

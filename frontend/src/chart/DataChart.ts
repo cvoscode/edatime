@@ -942,7 +942,7 @@ export class DataChart {
 
         const legend = this._ensureLegendOverlay();
         legend.replaceChildren();
-        legend.title = 'Legend (Shift+click + drag to move)';
+        legend.title = 'Legend (click to toggle, Shift+drag to move)';
 
         const rows = document.createElement('div');
         rows.className = 'timeseries-legend-overlay__rows';
@@ -1672,12 +1672,30 @@ export class DataChart {
             getXRange: () => ({ min: this._xMin ?? 0, max: this._xMax ?? 0 }),
             getYRange: () => this.getYRange?.() ?? { min: 0, max: 0 },
             onZoom: (view: ViewSnapshot) => this.onZoomCallback?.(view, 'user'),
+            // Box-zoom owns pointer events on the chart container. The
+            // chart rebalances zoom/pan on every pointerup, which would
+            // otherwise consume the event before it bubbles to a child
+            // legend button. To make the in-chart legend toggle work
+            // with a plain left-click, we ignore pointer events whose
+            // target sits inside the floating legend overlay.
             shouldIgnore: (e) =>
                 this._drawMode !== 'none'
                 || e.ctrlKey
-                || this._container?.classList.contains('is-shift-active') === true,
+                || this._container?.classList.contains('is-shift-active') === true
+                || this._isLegendPointerTarget(e.target as Element | null),
             onDblClick: () => this.onZoomOutCallback?.(),
         });
+    }
+
+    /**
+     * True when the pointer event's DOM target is the floating legend
+     * overlay (or one of its descendants). Used by the chart-level
+     * pointerdown/box-zoom ignore predicate so the legend's own click
+     * handler can toggle trace visibility without a Shift modifier.
+     */
+    private _isLegendPointerTarget(target: Element | null): boolean {
+        if (!target || typeof target.closest !== 'function') return false;
+        return target.closest('.timeseries-legend-overlay') !== null;
     }
 
     /* ── Ctrl+drag pan ─────────────────────────────────── */
@@ -1698,7 +1716,13 @@ export class DataChart {
             grid: this._currentGrid,
             getXRange: () => ({ min: this._xMin ?? 0, max: this._xMax ?? 0 }),
             getYRange: () => this.getYRange?.() ?? null,
-            shouldIgnore: () => this._drawMode !== 'none',
+            // Skip pan when the drag starts on the legend overlay so
+            // Ctrl+click within the legend doesn't pan the chart under
+            // the overlay (and so future legend interactions still
+            // work).
+            shouldIgnore: (e: PointerEvent) =>
+                this._drawMode !== 'none'
+                || this._isLegendPointerTarget(e.target as Element | null),
             onPan: (view) => {
                 const xMin = Number(view.xMin);
                 const xMax = Number(view.xMax);

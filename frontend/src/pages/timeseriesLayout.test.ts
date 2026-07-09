@@ -33,10 +33,21 @@ describe('timeseries layout shell', () => {
         expect(indexHtml).toContain('<div class="home-dataset-icon">');
     });
 
-    it('keeps the verbose y-range explanations in the help tooltip instead of inline headings', () => {
-        expect(indexHtml).toContain('Stack from 0 clamps the display floor at zero.');
+    it('no longer ships the y-range segment in the timeseries toolbar', () => {
+        // The Y RANGE segment (Stack from 0 / Spike clamp / Mode / Param)
+        // was removed entirely from the toolbar after improvement_features.md
+        // #15. The data-info-tip text on the eyebrow, the inline field labels
+        // and the y-range-hint span all disappear together. The initYRangeControls
+        // module remains as a safe no-op when its DOM nodes are absent.
+        expect(indexHtml).not.toContain('Stack from 0 clamps the display floor at zero.');
         expect(indexHtml).not.toContain('<span class="toolbar-field__label">Stack from 0</span>');
         expect(indexHtml).not.toContain('<span class="toolbar-field__label">Robust range</span>');
+        expect(indexHtml).not.toContain('id="y-stack-from-zero"');
+        expect(indexHtml).not.toContain('id="y-robust-range-toggle"');
+        expect(indexHtml).not.toContain('id="y-robust-range-mode"');
+        expect(indexHtml).not.toContain('id="y-robust-range-param"');
+        expect(indexHtml).not.toContain('id="y-range-hint"');
+        expect(indexHtml).not.toContain('class="y-range-toolbar"');
     });
 
     it('uses correlations as the canonical nav id while keeping the heatmap page section', () => {
@@ -73,9 +84,14 @@ describe('timeseries layout shell', () => {
         expect(responsiveCss).toContain('.timeseries-chip-rail');
     });
 
-    it('lets the chip rail wrap instead of hiding overflow behind horizontal scrolling', () => {
-        expect(chipsCss).toMatch(/\.timeseries-chip-rail\s*\{[^}]*flex-wrap:\s*wrap;/s);
-        expect(chipsCss).toMatch(/\.timeseries-chip-rail\s*\{[^}]*overflow-x:\s*visible;/s);
+    it('lets the chip rail scroll horizontally instead of wrapping to multiple rows (item #7)', () => {
+        // After improvement_features.md #7, the chip rail keeps a
+        // single 48–56px row at desktop widths and lets the user
+        // scroll horizontally instead of wrapping. Wrapping
+        // returns only below 760px (via .timeseries-command-bar).
+        expect(chipsCss).toMatch(/\.timeseries-chip-rail\s*\{[^}]*flex-wrap:\s*nowrap;/s);
+        expect(chipsCss).toMatch(/\.timeseries-chip-rail\s*\{[^}]*overflow-x:\s*auto;/s);
+        expect(chipsCss).toMatch(/\.timeseries-chip-rail\s*\{[^}]*scroll-snap-type:\s*x\s+proximity;/s);
     });
 
     it('does not render the obsolete chip-status / adaptive-hint row in the timeseries header', () => {

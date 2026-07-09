@@ -325,43 +325,14 @@
                     title="Clear adaptive line filters (Shift+C)" hidden aria-label="Clear adaptive line filters">Clear
                     filters</button>
                 </div>
+                <details class="scatter-toolbar__overflow" hidden>
+                  <summary class="scatter-toolbar__overflow-btn" aria-label="More options">
+                    <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
+                    <span class="scatter-toolbar__overflow-count" hidden>0</span>
+                  </summary>
+                  <div class="scatter-toolbar__overflow-menu" role="menu"></div>
+                </details>
               </div>
-            </div>
-
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--display y-range-toolbar" role="group"
-              aria-label="Y-range options">
-              <span class="scatter-toolbar__eyebrow">Y range</span>
-              <span id="y-range-help" class="toolbar-info-icon" tabindex="0" aria-label="Explain y-range controls"
-                data-info-tip="Stack from 0 clamps the display floor at zero.&#10;Percentile hides the top and bottom tails by the selected percent.&#10;IQR expands from Q1/Q3 by k × IQR.">ⓘ</span>
-              <div class="scatter-toolbar__fields">
-                <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field" for="y-stack-from-zero">
-                  <span class="toolbar-field__label">Zero floor</span>
-                  <span class="toolbar-field__control scatter-link-toggle">
-                    <input id="y-stack-from-zero" type="checkbox" aria-label="Pin y-axis lower bound to zero">
-                    <span>Pin lower bound</span>
-                  </span>
-                </label>
-                <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field" for="y-robust-range-toggle">
-                  <span class="toolbar-field__label">Spike clamp</span>
-                  <span class="toolbar-field__control scatter-link-toggle">
-                    <input id="y-robust-range-toggle" type="checkbox" aria-label="Use a robust display-only y-range">
-                    <span>Hide spike-driven span</span>
-                  </span>
-                </label>
-                <label class="toolbar-field scatter-toolbar__field" for="y-robust-range-mode">
-                  <span class="toolbar-field__label">Mode</span>
-                  <select id="y-robust-range-mode" aria-label="Robust y-range mode" disabled>
-                    <option value="percentile" selected>Percentile</option>
-                    <option value="iqr">IQR</option>
-                  </select>
-                </label>
-                <label class="toolbar-field scatter-toolbar__field" for="y-robust-range-param">
-                  <span class="toolbar-field__label">Param</span>
-                  <input id="y-robust-range-param" type="number" min="0" step="0.1" value="1"
-                    aria-label="Robust y-range parameter" disabled>
-                </label>
-              </div>
-              <span id="y-range-hint" class="toolbar-field__hint" hidden></span>
             </div>
 
             <div class="scatter-toolbar__segment scatter-toolbar__segment--display labels-toolbar" role="group"
@@ -403,6 +374,13 @@
                   <span class="toolbar-label">More</span>
                   <span class="toolbar-disclosure__value">SVG, JSON, Parquet</span>
                 </button>
+                <details class="scatter-toolbar__overflow" hidden>
+                  <summary class="scatter-toolbar__overflow-btn" aria-label="More export options">
+                    <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
+                    <span class="scatter-toolbar__overflow-count" hidden>0</span>
+                  </summary>
+                  <div class="scatter-toolbar__overflow-menu" role="menu"></div>
+                </details>
               </div>
             </div>
 
@@ -441,6 +419,13 @@
                   disabled>30d</button>
                 <button class="btn btn-ghost btn-sm" id="quick-range-all" type="button" title="Full dataset range"
                   disabled>All</button>
+                <details class="scatter-toolbar__overflow" hidden>
+                  <summary class="scatter-toolbar__overflow-btn" aria-label="More range options">
+                    <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
+                    <span class="scatter-toolbar__overflow-count" hidden>0</span>
+                  </summary>
+                  <div class="scatter-toolbar__overflow-menu" role="menu"></div>
+                </details>
               </div>
             </div>
           </div>

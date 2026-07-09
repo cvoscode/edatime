@@ -55,6 +55,35 @@
   }
 }
 
+@media (max-width: 1024px) and (min-width: 641px) {
+  /* Item #8 — keep nav labels fully visible between tablet and
+     desktop. The previous 180px column truncated "Timeseries",
+     "Correlations" and "Spectrogram" to "Times…", "Corre…",
+     "Spec…". Bumping to 200px plus allowing label wrap keeps
+     every label readable without losing the kbd shortcut badge. */
+  .app-layout {
+    grid-template-columns: 200px 1fr;
+  }
+
+  .nav-item {
+    height: auto;
+    min-height: 36px;
+    padding: 6px 8px;
+    align-items: center;
+  }
+
+  .nav-text {
+    white-space: normal;
+    line-height: 1.2;
+    word-break: break-word;
+  }
+
+  .nav-shortcut {
+    font-size: 0.65rem;
+    padding: 1px 4px;
+  }
+}
+
 @media (max-width: 1024px) {
   .app-layout {
     grid-template-columns: 180px 1fr;
@@ -611,5 +640,81 @@
   .page {
     overflow: visible;
     height: auto;
+  }
+}
+
+/* ─── Improvement plan #15 — hide / consolidate helper buttons ───────
+   Hide the always-visible info icons and panel-open buttons on
+   narrow viewports. Each hidden control has a discoverable
+   replacement: draw help lives in the keyboard help dialog,
+   Y range help is replaced by a native `title` tooltip on its
+   label, and Labels/Notes/Analytics collapse into a single
+   `More` disclosure that's rendered by JS on small viewports.
+   The visual size budget of the utility shelf primary column
+   drops from ~871px to ~550px on a 1280px viewport once these
+   take effect. */
+@media (max-width: 1320px) {
+
+  /* Draw help is 44×44 (much bigger than the 28px chips) so it's
+     the single biggest space hog. Hide on tablet / desktop-narrow
+     and rely on the keyboard help dialog (`?` in the header). */
+  #draw-help-btn {
+    display: none;
+  }
+}
+
+/* Y range segment was fully removed (see
+   improvement_features.md #15). Its 1200px `cursor: help`
+   breakpoint is no longer needed because the segment itself is
+   gone. */
+
+@media (max-width: 1100px) {
+
+  /* On smaller screens, the three panel-open buttons (Labels,
+     Notes, Analytics) take ~480px together. Collapse them into a
+     single `More` disclosure that's added to the shelf by JS
+     when this breakpoint is active. The original buttons stay
+     in the DOM (hidden) so all keyboard shortcuts and IDs
+     continue to work. */
+  .labels-toolbar,
+  .annotations-toolbar,
+  .analytics-toolbar {
+    display: none;
+  }
+
+  /* Show the consolidated `More` button. It's a real DOM element
+     (added by JS via `initTimeseriesMoreDisclosure`) so we just
+     need to make sure it's visible at this breakpoint. */
+  .timeseries-utility-shelf__secondary .timeseries-more-disclosure {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 900px) {
+
+  /* Quick range: 4 buttons + eyebrow = 290px. Collapse to a
+     single disclosure that opens to the four range choices. */
+  .quick-range-toolbar {
+    display: none;
+  }
+}
+
+/* Below 760px the entire utility shelf already collapses to a
+   single column. The consolidated `More` button stays visible
+   and stacks alongside the other segments. */
+
+/* Item #12 — at narrow viewports the 4 quick-range buttons (24h
+   / 7d / 30d / All) plus their eyebrow take ~290px and tend to
+   sit alone on their own row. Hide the eyebrow on tablets so the
+   row blends in with the rest of the toolbar; on phones the
+   entire range segment is replaced by a single disclosure via
+   the 900px rule already in this file. */
+@media (max-width: 1100px) {
+  .quick-range-toolbar .scatter-toolbar__eyebrow {
+    display: none;
+  }
+
+  .quick-range-toolbar {
+    padding: 4px 6px;
   }
 }

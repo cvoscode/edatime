@@ -729,3 +729,39 @@
 
 .heatmap-scale__tick--negative {
   grid-row: 3;
+
+/* Item #10 — on small viewports the in-chart overlay stack
+   (colorbar, categorical legend) overlaps axis labels. Move it
+   above the chart so it reads as a header strip instead of
+   floating chrome. The chart keeps its full width; the legend
+   becomes a small horizontal pill. */
+@media (max-width: 760px) {
+  .scatter-overlay-stack {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    margin: 6px 8px 0;
+    z-index: 5;
+  }
+
+  .scatter-colorbar-wrap--ts {
+    width: 100%;
+    padding: 6px 8px;
+  }
+
+  .scatter-colorbar-wrap--ts .scatter-colorbar-name {
+    font-size: 0.6rem;
+  }
+
+  .scatter-colorbar-wrap--ts .scatter-colorbar-bound {
+    font-size: 0.55rem;
+  }
+
+  /* Hide the inline colorbar tick marks on mobile; the name +
+     min/max are enough and the gradient strip itself still shows
+     the range. */
+  .scatter-colorbar-wrap--ts .cb-mid-tick {
+    display: none;
+  }
+}

@@ -466,20 +466,19 @@
    of a vertical stack. Mirrors the scatter.css segment contract
    with tighter gaps so Draw/Labels/Notes/Export/Analytics/Zoom
    fit on one row at typical widths and wrap to two rows at
-   narrow widths rather than stacking fields internally. */
+   narrow widths rather than stacking fields internally.
+
+   Item #14: switched from `flex: 0 0 auto` to `flex: 1 1 auto;
+   min-width: 0` so segments can shrink within the shelf column
+   and the overflow popout takes over when their content
+   overflows. The segment `height` is no longer strictly fixed so
+   internal field wraps (item #13) don't visually clip. The
+   data-overflow popout keeps the segment at ~40px when active. */
 .timeseries-utility-shelf .scatter-toolbar__segment {
   display: flex;
   align-items: center;
   gap: 0;
-  flex: 0 0 auto;
-  /* Reset the scatter.css flex-grow defaults so segments hug their
-     content instead of being forced to flex: 1 1 0 with width: 0
-     (which would collapse each segment to 0px and let its children
-     overflow visibly). min-width:auto preserves the intrinsic
-     content size while keeping flex: 0 0 auto intact. */
-  flex-grow: 0;
-  flex-shrink: 0;
-  flex-basis: auto;
+  flex: 1 1 auto;
   min-width: 0;
   width: auto;
   padding: 4px 6px;
@@ -487,14 +486,15 @@
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.025);
   overflow: visible;
-  height: 40px;
+  min-height: 40px;
+  height: auto;
 }
 
 .timeseries-utility-shelf .scatter-toolbar__segment--view,
 .timeseries-utility-shelf .scatter-toolbar__segment--display,
 .timeseries-utility-shelf .scatter-toolbar__segment--axes,
 .timeseries-utility-shelf .scatter-toolbar__segment--refine {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-width: 0;
   width: auto;
 }
@@ -527,7 +527,13 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  flex-wrap: nowrap;
+  /* Allow fields to wrap internally when their inline content is
+     too wide (e.g. the Y RANGE SPIKE CLAMP label). Items 13/14 use
+     the data-overflow popout to hide them instead, but this lets
+     the segment degrade gracefully when no popout is registered
+     yet. `align-content: center` keeps wrapped rows visually
+     centered inside the segment. */
+  flex-wrap: wrap;
   align-content: center;
 }
 
@@ -581,6 +587,17 @@
   align-items: center;
   gap: 4px;
 }
+
+/* Y RANGE segment: same inline-flex treatment so toggle fields
+   (Zero floor / Spike clamp) read as single inline chips instead
+   of stacking label + control vertically. Without this the
+   `toolbar-field--toggle` grid layout grows each field to ~56px
+   tall and pushes the second toggle's label above the segment's
+   visible card boundary. The smaller eyebrow-style labels keep
+   the segment height at the toolbar's 28px field line. The y-range
+   segment was removed in the improvement_features.md cleanup so
+   the `.y-range-toolbar` rules are no longer needed; the same
+   inline-flex treatment lives on `.draw-toolbar` just above. */
 
 .timeseries-utility-shelf .draw-toolbar .draw-select,
 .timeseries-utility-shelf .draw-toolbar .draw-color-swatch,
@@ -1442,7 +1459,14 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: 300px;
+  /* Item #9 — wider, viewport-responsive drawer that takes up
+     less of the chart on desktop and never overflows on mobile.
+     On wide viewports 360px is plenty for the analytics form
+     and keeps the chart readable. On narrow viewports the
+     drawer collapses to a bottom sheet via the 760px breakpoint
+     further down. */
+  width: min(360px, 32vw);
+  max-width: 420px;
   background: var(--surface);
   border-left: 1px solid var(--border);
   box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
@@ -1455,6 +1479,17 @@
 
 .drawer:not([hidden]) {
   transform: translateX(0);
+}
+
+/* When the drawer is open on desktop, reflow the chart to make
+   room for it instead of overlapping. The class is applied by
+   the existing drawer JS via `body.drawer-open` plus a new
+   `app-content.has-drawer-open` (handled here). */
+@media (min-width: 1101px) {
+  body.drawer-open .app-content {
+    padding-right: min(360px, 32vw);
+    transition: padding-right 0.2s ease-in-out;
+  }
 }
 
 .drawer-header {
@@ -2075,4 +2110,59 @@ body.drawer-open::after {
   border-radius: 999px;
   padding: 2px 8px;
   white-space: nowrap;
+}
+
+/* ─── Drawer mobile bottom sheet (item #9) ───────────────────── */
+@media (max-width: 760px) {
+  .drawer {
+    /* Slide up from the bottom instead of in from the right.
+       Covers most of the chart height on mobile so all form
+       fields are reachable without overlapping the chart. */
+    top: auto;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: none;
+    height: 70vh;
+    max-height: 70vh;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+    transform: translateY(100%);
+    transition: transform 0.22s ease-in-out;
+  }
+
+  .drawer:not([hidden]) {
+    transform: translateY(0);
+  }
+
+  /* Drawer drag handle — purely decorative so users know they
+     can swipe the sheet down. The drawer JS still opens/closes
+     via the existing button + Esc handling. */
+  .drawer-header::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .drawer-header {
+    position: relative;
+    padding-top: 18px;
+  }
+
+  /* On mobile the page should not pad-right for the drawer;
+     the sheet covers the whole viewport. */
+  body.drawer-open .app-content {
+    padding-right: 0;
+  }
 }
