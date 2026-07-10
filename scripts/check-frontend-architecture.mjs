@@ -6,7 +6,6 @@ const srcRoot = join(root, 'frontend/src');
 const violations = [];
 const ALLOWED_APP_STATE_COMPAT_IMPORTS = new Set([
   'frontend/src/app/adaptiveGesture.ts',
-  'frontend/src/features/dataMutation/entrypoint.ts',
   'frontend/src/features/export/entrypoint.ts',
   'frontend/src/pages/timeseriesPage.ts',
   'frontend/src/scatter/viewController.ts',

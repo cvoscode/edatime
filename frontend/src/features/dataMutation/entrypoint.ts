@@ -4,7 +4,6 @@
  * UI layer (ui/*) only binds DOM to injected action interfaces.
  */
 
-import { appState } from '../../store/appStateCompat.js';
 import { postTransform, postRemoveOutliers } from '../../services/api/index.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
