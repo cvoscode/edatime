@@ -27,9 +27,7 @@ function createDeps(): PageDescriptorInitDeps {
         showPage: vi.fn(),
         getMetadata: vi.fn(() => ({ columns: [] } as never)),
         chipColor: vi.fn(() => '#fff'),
-        numericColumns: vi.fn(() => []),
         setLoading: vi.fn(),
-        initDriftPage: vi.fn(),
         workspace: { getSnapshot: vi.fn() },
     };
 }
@@ -77,5 +75,16 @@ describe('page module descriptors', () => {
         expect(mocks.createCausalEntrypoint).toHaveBeenCalledWith(expect.objectContaining({
             workspace: deps.workspace,
         }));
+    });
+
+    it('injects the workspace boundary into drift initialization', async () => {
+        const deps = createDeps();
+        const register = vi.fn();
+        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        const drift = register.mock.calls.find(([name]) => name === 'drift')?.[1];
+
+        await drift!.init();
+
+        expect(mocks.createDriftEntrypoint).toHaveBeenCalledWith({ workspace: deps.workspace });
     });
 });

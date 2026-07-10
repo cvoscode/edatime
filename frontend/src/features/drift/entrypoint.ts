@@ -1,6 +1,7 @@
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+
 export interface DriftEntrypointDeps {
-    initDriftPage: (metadata: unknown) => void;
-    getMetadata: () => unknown;
+    workspace: Pick<WorkspaceStore, 'getSnapshot'>;
 }
 
 export function createDriftEntrypoint(deps: DriftEntrypointDeps) {
@@ -11,7 +12,7 @@ export function createDriftEntrypoint(deps: DriftEntrypointDeps) {
             if (initialized) return;
             initialized = true;
             const { initDriftPage } = await import('../../drift/driftPage.js');
-            initDriftPage(deps.getMetadata());
+            initDriftPage(deps.workspace.getSnapshot().dataset.metadata);
         },
     };
 }

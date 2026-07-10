@@ -29,9 +29,7 @@ export interface PageDescriptorInitDeps {
     showPage: (name: string) => void;
     getMetadata: () => DatasetMetadata | null;
     chipColor: (col: string, idx: number) => string;
-    numericColumns: () => string[];
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
-    initDriftPage: (metadata: unknown) => void;
     workspace: Pick<WorkspaceStore, 'getSnapshot'>;
 }
 
@@ -104,8 +102,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         async load(deps) {
             const { createDriftEntrypoint } = await import('../features/drift/entrypoint.js');
             return createDriftEntrypoint({
-                initDriftPage: deps.initDriftPage,
-                getMetadata: () => deps.getMetadata()!,
+                workspace: deps.workspace,
             });
         },
     },

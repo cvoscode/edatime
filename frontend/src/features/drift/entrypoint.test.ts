@@ -14,26 +14,23 @@ describe('createDriftEntrypoint', () => {
 
     it('returns an explicit init surface', () => {
         const deps = {
-            initDriftPage: vi.fn(),
-            getMetadata: vi.fn().mockReturnValue(null),
+            workspace: { getSnapshot: vi.fn().mockReturnValue({ dataset: { metadata: null } }) },
         };
         const entrypoint = createDriftEntrypoint(deps);
         expect(entrypoint.init).toBeTypeOf('function');
     });
 
-    it('does not call initDriftPage before init', () => {
+    it('does not read the workspace before init', () => {
         const deps = {
-            initDriftPage: vi.fn(),
-            getMetadata: vi.fn().mockReturnValue(null),
+            workspace: { getSnapshot: vi.fn() },
         };
         createDriftEntrypoint(deps);
-        expect(deps.initDriftPage).not.toHaveBeenCalled();
+        expect(deps.workspace.getSnapshot).not.toHaveBeenCalled();
     });
 
     it('init only calls initDriftPage once on repeated calls', async () => {
         const deps = {
-            initDriftPage: vi.fn(),
-            getMetadata: vi.fn().mockReturnValue(null),
+            workspace: { getSnapshot: vi.fn().mockReturnValue({ dataset: { metadata: null } }) },
         };
         const entrypoint = createDriftEntrypoint(deps);
         await entrypoint.init();
@@ -41,15 +38,13 @@ describe('createDriftEntrypoint', () => {
         expect(initDriftPageMock).toHaveBeenCalledTimes(1);
     });
 
-    it('init calls initDriftPage with metadata from getMetadata', async () => {
+    it('init calls initDriftPage with metadata from the workspace', async () => {
         const metadata = { columns: [] };
         const deps = {
-            initDriftPage: vi.fn(),
-            getMetadata: vi.fn().mockReturnValue(metadata),
+            workspace: { getSnapshot: vi.fn().mockReturnValue({ dataset: { metadata } }) },
         };
         const entrypoint = createDriftEntrypoint(deps);
         await entrypoint.init();
         expect(initDriftPageMock).toHaveBeenCalledWith(metadata);
     });
 });
-
