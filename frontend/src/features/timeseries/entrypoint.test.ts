@@ -30,6 +30,13 @@ vi.mock('./actions.js', () => ({
 
 import { createTimeseriesEntrypoint } from './entrypoint.js';
 
+function selectionWorkspace() {
+    return {
+        getSnapshot: vi.fn(() => ({ selection: { columns: [], colorColumn: null } } as never)),
+        setSelection: vi.fn(),
+    };
+}
+
 describe('createTimeseriesEntrypoint', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -37,6 +44,7 @@ describe('createTimeseriesEntrypoint', () => {
 
     it('returns init, rebuildColumns, and buildRangeControls', () => {
         const feature = createTimeseriesEntrypoint({
+            workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
             updateAnalysisYRange: vi.fn(),
@@ -54,6 +62,7 @@ describe('createTimeseriesEntrypoint', () => {
         const fetchAndRender = vi.fn();
         const renderCurrentData = vi.fn();
         const feature = createTimeseriesEntrypoint({
+            workspace: selectionWorkspace(),
             fetchAndRender,
             renderCurrentData,
             updateAnalysisYRange: vi.fn(),
@@ -65,11 +74,17 @@ describe('createTimeseriesEntrypoint', () => {
         feature.rebuildColumns();
 
         expect(buildColumnTogglesMock).toHaveBeenCalledTimes(1);
-        expect(buildColumnTogglesMock).toHaveBeenCalledWith(fetchAndRender, buildRangeControlsMock, renderCurrentData);
+        expect(buildColumnTogglesMock).toHaveBeenCalledWith(
+            fetchAndRender,
+            buildRangeControlsMock,
+            renderCurrentData,
+            expect.any(Object),
+        );
     });
 
     it('initializes filter modal, search inputs, and timeseries actions through the feature surface', () => {
         const deps = {
+            workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
             updateAnalysisYRange: vi.fn(),
@@ -99,6 +114,7 @@ describe('createTimeseriesEntrypoint', () => {
 
     it('wires the export buttons when all five handlers are provided', () => {
         const feature = createTimeseriesEntrypoint({
+            workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
             updateAnalysisYRange: vi.fn(),
@@ -126,6 +142,7 @@ describe('createTimeseriesEntrypoint', () => {
 
     it('skips wiring the export buttons when any handler is missing', () => {
         const feature = createTimeseriesEntrypoint({
+            workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
             updateAnalysisYRange: vi.fn(),

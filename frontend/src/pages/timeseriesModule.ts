@@ -128,6 +128,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
 
     // 2. Create the feature entrypoint (wires column toggles, range controls, actions)
     feature = createTimeseriesEntrypoint({
+        workspace: deps.workspace,
         fetchAndRender: () => pageController.fetchAndRender(),
         renderCurrentData: () => pageController.renderCurrentData(),
         updateAnalysisYRange: deps.updateAnalysisYRange,

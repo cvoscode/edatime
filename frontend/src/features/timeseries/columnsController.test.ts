@@ -9,6 +9,7 @@ import {
     setSelectedCols,
     setSeriesColors,
 } from '../../store/index.js';
+import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 
 function buildDom(): void {
     document.body.innerHTML = `
@@ -18,6 +19,8 @@ function buildDom(): void {
 }
 
 describe('buildColumnToggles', () => {
+    let workspace: ReturnType<typeof createWorkspaceStore>;
+
     beforeEach(() => {
         vi.restoreAllMocks();
         buildDom();
@@ -46,13 +49,15 @@ describe('buildColumnToggles', () => {
         setSelectedColorColumn(null);
         setSeriesColors({});
         setFilterText('');
+        workspace = createWorkspaceStore();
+        workspace.setSelection(['HUFL', 'HULL', 'OT']);
     });
 
     it('rerenders chip active state after deselecting a selected series', () => {
         const fetchAndRender = vi.fn();
         const buildRangeControls = vi.fn();
 
-        buildColumnToggles(fetchAndRender, buildRangeControls);
+        buildColumnToggles(fetchAndRender, buildRangeControls, null, workspace);
 
         const hullChip = Array.from(document.querySelectorAll<HTMLLabelElement>('#column-toggles .series-chip'))
             .find((chip) => chip.querySelector('.chip-label')?.textContent === 'HULL');
@@ -68,19 +73,31 @@ describe('buildColumnToggles', () => {
         expect(fetchAndRender).toHaveBeenCalledTimes(1);
     });
 
+    it('publishes chip selection changes to the workspace intent', () => {
+        const fetchAndRender = vi.fn();
+        const buildRangeControls = vi.fn();
+        buildColumnToggles(fetchAndRender, buildRangeControls, null, workspace);
+
+        const hullChip = Array.from(document.querySelectorAll<HTMLLabelElement>('#column-toggles .series-chip'))
+            .find((chip) => chip.querySelector('.chip-label')?.textContent === 'HULL');
+        hullChip!.click();
+
+        expect(workspace.getSnapshot().selection.columns).toEqual(['HUFL', 'OT']);
+    });
+
     it('clears the rebuild guard after rendering the empty state so later rebuilds can recover', () => {
         const fetchAndRender = vi.fn();
         const buildRangeControls = vi.fn();
 
         setFilterText('zzz');
-        buildColumnToggles(fetchAndRender, buildRangeControls);
+        buildColumnToggles(fetchAndRender, buildRangeControls, null, workspace);
 
         const container = document.getElementById('column-toggles') as HTMLElement;
         expect(container.dataset.rebuilding).toBe('');
         expect(container.textContent).toContain('No matching columns');
 
         setFilterText('');
-        buildColumnToggles(fetchAndRender, buildRangeControls);
+        buildColumnToggles(fetchAndRender, buildRangeControls, null, workspace);
 
         expect(container.querySelectorAll('.series-chip').length).toBe(7);
     });
@@ -89,7 +106,7 @@ describe('buildColumnToggles', () => {
         const fetchAndRender = vi.fn();
         const buildRangeControls = vi.fn();
 
-        buildColumnToggles(fetchAndRender, buildRangeControls);
+        buildColumnToggles(fetchAndRender, buildRangeControls, null, workspace);
 
         const container = document.getElementById('column-toggles') as HTMLElement;
         expect(container.getAttribute('title')).toBe('3 of 7 active. Click chips to add more.');
@@ -97,7 +114,8 @@ describe('buildColumnToggles', () => {
 
         // Adding a chip updates the summary annotation on the next rebuild.
         setSelectedCols(['HUFL', 'HULL', 'OT', 'MUFL']);
-        buildColumnToggles(fetchAndRender, buildRangeControls);
+        workspace.setSelection(['HUFL', 'HULL', 'OT', 'MUFL']);
+        buildColumnToggles(fetchAndRender, buildRangeControls, null, workspace);
         const rebuilt = document.getElementById('column-toggles') as HTMLElement;
         expect(rebuilt.getAttribute('title')).toBe('4 of 7 active. Click chips to add more.');
         expect(rebuilt.getAttribute('aria-label')).toBe('4 of 7 active. Click chips to add more.');

@@ -11,8 +11,10 @@ import {
     initColumnFilterModal,
 } from './columnsController.js';
 import { initDatasetSearchInputs, initTimeseriesActions, initTimeseriesExportButtons } from './actions.js';
+import type { SelectionWorkspace } from './selectionIntent.js';
 
 export interface TimeseriesFeatureDeps {
+    workspace: SelectionWorkspace;
     fetchAndRender: () => Promise<void>;
     renderCurrentData: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
@@ -33,7 +35,7 @@ export interface TimeseriesFeatureDeps {
  */
 export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
     const rebuildColumns = () => {
-        buildColumnToggles(deps.fetchAndRender, buildRangeControls, deps.renderCurrentData);
+        buildColumnToggles(deps.fetchAndRender, buildRangeControls, deps.renderCurrentData, deps.workspace);
     };
 
     return {

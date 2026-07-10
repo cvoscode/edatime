@@ -11,12 +11,13 @@ import {
     getSeriesColor,
     setAdaptiveFilterColumn,
     setPendingAdaptivePoint,
-    setSelectedCols,
     setSeriesColor,
 } from '../../store/index.js';
 import { ensureAdaptiveTargetStillValid } from './columnSelection.js';
+import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace } from './selectionIntent.js';
 
 export interface ChipCompositionOptions {
+    workspace: SelectionWorkspace;
     filterText: string;
     renderCurrentDataFn: (() => void) | null;
     buildRangeControlsFn: () => void;
@@ -36,7 +37,8 @@ export interface ChipListItem {
 }
 
 export function composeChipListItems(options: ChipCompositionOptions): ChipListItem[] {
-    const { filterText, buildRangeControlsFn, fetchAndRender, renderCurrentDataFn } = options;
+    const { filterText, buildRangeControlsFn, fetchAndRender, renderCurrentDataFn, workspace } = options;
+    const selection = getTimeseriesSelection(workspace);
 
     const visibleCols = appState.numericCols.filter((col) => {
         if (!filterText) return true;
@@ -48,7 +50,7 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
     return visibleCols.map((col) => {
         const colIdx = appState.numericCols.indexOf(col);
         const color = getSeriesColor(col, colIdx >= 0 ? colIdx : 0);
-        const isActive = appState.selectedCols.includes(col);
+        const isActive = selection.includes(col);
         const isAdaptiveTarget = isActive && appState.adaptiveFilterColumn === col;
 
         const chipTitle = isAdaptiveTarget
@@ -63,11 +65,11 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
             title: chipTitle,
             onToggle: (checked: boolean) => {
                 if (checked) {
-                    if (!appState.selectedCols.includes(col)) setSelectedCols([...appState.selectedCols, col]);
+                    if (!selection.includes(col)) setTimeseriesSelection(workspace, [...selection, col]);
                 } else {
-                    setSelectedCols(appState.selectedCols.filter((c) => c !== col));
+                    setTimeseriesSelection(workspace, selection.filter((column) => column !== col));
                 }
-                ensureAdaptiveTargetStillValid();
+                ensureAdaptiveTargetStillValid(workspace);
                 buildRangeControlsFn();
                 (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
                 fetchAndRender();
@@ -92,6 +94,7 @@ export function bindChipCtrlClick(
     buildRangeControlsFn: () => void,
     renderCurrentDataFn: (() => void) | null,
     fetchAndRender: () => void,
+    workspace: SelectionWorkspace,
 ): void {
     for (const chip of container.querySelectorAll<HTMLElement>('.series-chip')) {
         chip.addEventListener(
@@ -106,8 +109,9 @@ export function bindChipCtrlClick(
                 const col = input?.value;
                 if (!col) return;
 
-                const hadColumn = appState.selectedCols.includes(col);
-                if (!hadColumn) setSelectedCols([...appState.selectedCols, col]);
+                const selection = getTimeseriesSelection(workspace);
+                const hadColumn = selection.includes(col);
+                if (!hadColumn) setTimeseriesSelection(workspace, [...selection, col]);
                 setAdaptiveFilterColumn(col);
                 setPendingAdaptivePoint(null);
 

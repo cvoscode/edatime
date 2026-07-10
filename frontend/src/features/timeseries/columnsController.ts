@@ -20,6 +20,7 @@ import { buildRangeControls } from './rangeControls.js';
 import { bindChipContextMenu } from './chipContextMenu.js';
 import { composeChipListItems, bindChipCtrlClick } from './chipComposition.js';
 import { initFilterModalController } from './filterModalController.js';
+import type { SelectionWorkspace } from './selectionIntent.js';
 
 // ─── Column toggles (chips) ─────────────────────────────────────────────────
 
@@ -27,18 +28,20 @@ export function buildColumnToggles(
     fetchAndRender: () => void,
     buildRangeControlsFn: () => void,
     renderCurrentDataFn: (() => void) | null = null,
+    workspace: SelectionWorkspace,
 ): void {
     const container = document.getElementById('column-toggles');
     if (!container || (container as any)?.dataset?.rebuilding) return;
     container.dataset.rebuilding = '1';
-    sanitizeSelectedColumns();
-    ensureAdaptiveTargetStillValid();
+    sanitizeSelectedColumns(workspace);
+    ensureAdaptiveTargetStillValid(workspace);
     container.innerHTML = '';
     const finish = () => { container.dataset.rebuilding = ''; };
 
     bindChipContextMenu(container);
 
     const items = composeChipListItems({
+        workspace,
         filterText: appState.filterText ?? '',
         buildRangeControlsFn,
         fetchAndRender,
@@ -68,7 +71,7 @@ export function buildColumnToggles(
     // information previously shown in the removed chip-status summary row
     // is still available via the native tooltip on hover/focus.
     const total = Array.isArray(appState.numericCols) ? appState.numericCols.length : 0;
-    const active = Array.isArray(appState.selectedCols) ? appState.selectedCols.length : 0;
+    const active = workspace.getSnapshot().selection.columns.length;
     const summaryText = total > 0
         ? `${active} of ${total} active. Click chips to add more.`
         : 'No numeric series available.';
@@ -78,12 +81,13 @@ export function buildColumnToggles(
     bindChipCtrlClick(
         container,
         () => {
-            buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn);
+            buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn, workspace);
             buildRangeControlsFn();
         },
         buildRangeControlsFn,
         renderCurrentDataFn,
         fetchAndRender,
+        workspace,
     );
     finish();
 }

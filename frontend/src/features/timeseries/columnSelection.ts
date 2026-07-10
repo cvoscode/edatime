@@ -7,14 +7,14 @@
 import {
     appStateComposite as appState,
     setAdaptiveFilterColumn,
-    setSelectedCols,
 } from '../../store/index.js';
+import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace } from './selectionIntent.js';
 
 /**
  * Remove selected columns that are blocked, temporal, or no longer present in metadata.
  * Called at the start of buildColumnToggles to keep the selection valid.
  */
-export function sanitizeSelectedColumns(): void {
+export function sanitizeSelectedColumns(workspace: SelectionWorkspace): void {
     const blockedNames = new Set(['ts', 'timestamp', 'time']);
     const datetimeCols = new Set(
         (appState.metadata?.columns ?? [])
@@ -25,8 +25,9 @@ export function sanitizeSelectedColumns(): void {
         (appState.metadata?.columns ?? []).map((col) => String(col?.name ?? '').trim()),
     );
 
-    setSelectedCols(
-        (appState.selectedCols ?? []).filter((col) => {
+    setTimeseriesSelection(
+        workspace,
+        getTimeseriesSelection(workspace).filter((col) => {
             const name = String(col ?? '').trim();
             if (!name) return false;
             const lower = name.toLowerCase();
@@ -41,8 +42,9 @@ export function sanitizeSelectedColumns(): void {
  * If the target column is no longer selected, fall back to the first selected column.
  * Called after sanitizeSelectedColumns inside buildColumnToggles.
  */
-export function ensureAdaptiveTargetStillValid(): void {
+export function ensureAdaptiveTargetStillValid(workspace: SelectionWorkspace): void {
     if (!appState.adaptiveFilterColumn) return;
-    if (appState.selectedCols.includes(appState.adaptiveFilterColumn)) return;
-    setAdaptiveFilterColumn(appState.selectedCols[0] ?? null);
+    const selection = getTimeseriesSelection(workspace);
+    if (selection.includes(appState.adaptiveFilterColumn)) return;
+    setAdaptiveFilterColumn(selection[0] ?? null);
 }

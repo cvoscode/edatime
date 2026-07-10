@@ -5,12 +5,15 @@ import {
     datasetState,
     setAdaptiveFilterColumn,
     setMetadata,
-    setSelectedCols,
 } from '../../store/index.js';
+import { createWorkspaceStore, type WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 describe('columnSelection', () => {
+    let workspace: WorkspaceStore;
+
     beforeEach(() => {
         vi.restoreAllMocks();
+        workspace = createWorkspaceStore();
         setMetadata({
             total_rows: 100,
             columns: [
@@ -25,71 +28,72 @@ describe('columnSelection', () => {
             column_profiles: [],
         } as any);
         datasetState.numericCols = ['HUFL', 'HULL', 'MUFL'];
+        workspace.setSelection([]);
     });
 
     describe('sanitizeSelectedColumns', () => {
         it('removes columns not present in metadata', () => {
-            setSelectedCols(['HUFL', 'NOTACOLUMN', 'HULL']);
-            sanitizeSelectedColumns();
+            workspace.setSelection(['HUFL', 'NOTACOLUMN', 'HULL']);
+            sanitizeSelectedColumns(workspace);
             expect([...appState.selectedCols]).toEqual(['HUFL', 'HULL']);
         });
 
         it('removes blocked time-like column names regardless of case', () => {
-            setSelectedCols(['HUFL', 'ts', 'HULL', 'TIMESTAMP', 'time']);
-            sanitizeSelectedColumns();
+            workspace.setSelection(['HUFL', 'ts', 'HULL', 'TIMESTAMP', 'time']);
+            sanitizeSelectedColumns(workspace);
             expect([...appState.selectedCols]).toEqual(['HUFL', 'HULL']);
         });
 
         it('removes datetime-typed columns by dtype pattern', () => {
-            setSelectedCols(['HUFL', 'ts', 'HULL']);
-            sanitizeSelectedColumns();
+            workspace.setSelection(['HUFL', 'ts', 'HULL']);
+            sanitizeSelectedColumns(workspace);
             expect([...appState.selectedCols]).toEqual(['HUFL', 'HULL']);
         });
 
         it('keeps valid numeric columns', () => {
-            setSelectedCols(['HUFL', 'HULL', 'MUFL']);
-            sanitizeSelectedColumns();
+            workspace.setSelection(['HUFL', 'HULL', 'MUFL']);
+            sanitizeSelectedColumns(workspace);
             expect([...appState.selectedCols]).toEqual(['HUFL', 'HULL', 'MUFL']);
         });
 
         it('handles empty selectedCols gracefully', () => {
-            setSelectedCols([]);
-            expect(() => sanitizeSelectedColumns()).not.toThrow();
+            workspace.setSelection([]);
+            expect(() => sanitizeSelectedColumns(workspace)).not.toThrow();
             expect([...appState.selectedCols]).toEqual([]);
         });
 
         it('handles null/undefined column names gracefully', () => {
-            setSelectedCols(['HUFL', null as any, 'HULL', undefined as any]);
-            expect(() => sanitizeSelectedColumns()).not.toThrow();
+            workspace.setSelection(['HUFL', null as any, 'HULL', undefined as any]);
+            expect(() => sanitizeSelectedColumns(workspace)).not.toThrow();
         });
     });
 
     describe('ensureAdaptiveTargetStillValid', () => {
         it('does nothing when adaptiveFilterColumn is already valid', () => {
-            setSelectedCols(['HUFL', 'HULL']);
+            workspace.setSelection(['HUFL', 'HULL']);
             setAdaptiveFilterColumn('HUFL');
-            ensureAdaptiveTargetStillValid();
+            ensureAdaptiveTargetStillValid(workspace);
             expect(appState.adaptiveFilterColumn).toBe('HUFL');
         });
 
         it('falls back to first selected column when adaptive target was removed', () => {
-            setSelectedCols(['HUFL', 'HULL']);
+            workspace.setSelection(['HUFL', 'HULL']);
             setAdaptiveFilterColumn('NOTACOLUMN');
-            ensureAdaptiveTargetStillValid();
+            ensureAdaptiveTargetStillValid(workspace);
             expect(appState.adaptiveFilterColumn).toBe('HUFL');
         });
 
         it('sets to null when selectedCols is empty', () => {
-            setSelectedCols([]);
+            workspace.setSelection([]);
             setAdaptiveFilterColumn('HUFL');
-            ensureAdaptiveTargetStillValid();
+            ensureAdaptiveTargetStillValid(workspace);
             expect(appState.adaptiveFilterColumn).toBeNull();
         });
 
         it('does nothing when adaptiveFilterColumn is already null', () => {
-            setSelectedCols(['HUFL']);
+            workspace.setSelection(['HUFL']);
             setAdaptiveFilterColumn(null);
-            expect(() => ensureAdaptiveTargetStillValid()).not.toThrow();
+            expect(() => ensureAdaptiveTargetStillValid(workspace)).not.toThrow();
         });
     });
 });
