@@ -86,6 +86,12 @@ const defaultDeps = () => ({
     fetchData: vi.fn(),
     fetchMetadata: vi.fn(),
     workspace: {
+        getSnapshot: vi.fn(() => ({
+            dataset: { metadata: null, revision: 0 },
+            selection: { columns: [], colorColumn: null },
+            filters: { columnRanges: {}, adaptiveLines: [] },
+            viewport: null,
+        })),
         beginDatasetSession: vi.fn(() => ({ id: 1, signal: new AbortController().signal })),
         commitDataset: vi.fn(() => true),
         setSelection: vi.fn(),
@@ -144,6 +150,9 @@ describe('createTimeseriesModule', () => {
 
         // createTimeseriesPageController should be called once with correct deps
         expect(mockCreateTimeseriesPageController).toHaveBeenCalledTimes(1);
+        expect(mockCreateTimeseriesPageController).toHaveBeenCalledWith(expect.objectContaining({
+            workspace: deps.workspace,
+        }));
 
         // createTimeseriesEntrypoint should be called once
         expect(mockCreateTimeseriesEntrypoint).toHaveBeenCalledTimes(1);

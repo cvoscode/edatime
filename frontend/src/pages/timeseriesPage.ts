@@ -6,6 +6,7 @@ import { announceChartLoading, announceDataUpdate } from '../utils/a11y.js';
 import { computeFrontendRollingBands } from '../bootstrap/analyticsOverlay.js';
 import { createRequestTask } from './shared/requestTask.js';
 import type { ViewSnapshot } from '../types.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import {
     setFetchDebounceId,
     setFetchedWindow,
@@ -42,6 +43,7 @@ interface TimeseriesControllerDeps {
     getCurrentView: () => ViewSnapshot;
     fetchAndRenderAnalytics: () => Promise<void>;
     recoverFromColumnMismatch?: () => Promise<boolean>;
+    workspace?: Pick<WorkspaceStore, 'getSnapshot'>;
 }
 
 let timeseriesEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
@@ -113,6 +115,28 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     // lifetimes after dataset reloads or test harness remounts.
     let lastFetchedParams: string | null = null;
 
+    function getRequestIntent() {
+        const workspace = deps.workspace?.getSnapshot();
+        const viewport = workspace?.viewport;
+        const workspaceStart = Number(viewport?.xMin);
+        const workspaceEnd = Number(viewport?.xMax);
+        const start = Number.isFinite(workspaceStart) ? workspaceStart : Number(appState.currentStart);
+        const end = Number.isFinite(workspaceEnd) ? workspaceEnd : Number(appState.currentEnd);
+        const columns = workspace
+            ? [...workspace.selection.columns]
+            : (Array.isArray(appState.selectedCols) ? [...appState.selectedCols] : []);
+        const colorColumn = workspace
+            ? workspace.selection.colorColumn
+            : (appState.selectedColorColumn || null);
+        return {
+            start,
+            end,
+            columns,
+            colorColumn,
+            key: `${columns.join(',')}|${colorColumn}`,
+        };
+    }
+
     function snapshotCurrentViewport(): ViewSnapshot | null {
         const xMin = Number(appState.currentStart);
         const xMax = Number(appState.currentEnd);
@@ -144,9 +168,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     }
 
     function currentFetchKey(): string {
-        const currentCols = Array.isArray(appState.selectedCols) ? appState.selectedCols.join(',') : '';
-        const currentColorCol = appState.selectedColorColumn || null;
-        return `${currentCols}|${currentColorCol}`;
+        return getRequestIntent().key;
     }
 
     function syncZoomHistoryStore(): void {
@@ -298,11 +320,12 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
     async function fetchAndRender(): Promise<void> {
         sanitizeSelectedColumns();
-        if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
-        const currentStart = Number(appState.currentStart);
-        const currentEnd = Number(appState.currentEnd);
+        const intent = getRequestIntent();
+        if (!Number.isFinite(intent.start) || !Number.isFinite(intent.end)) return;
+        const currentStart = intent.start;
+        const currentEnd = intent.end;
         if (currentStart >= currentEnd) return;
-        if (!Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
+        if (intent.columns.length === 0) {
             deps.buildRangeControls();
             renderCurrentData();
             return;
@@ -312,9 +335,9 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         // match the last successful fetch. This avoids redundant API calls when
         // the user clicks a series chip that's already selected, or triggers
         // other events that would produce identical requests.
-        const currentCols = appState.selectedCols.join(',');
-        const currentColorCol = appState.selectedColorColumn || null;
-        const lastFetchKey = `${currentCols}|${currentColorCol}`;
+        const currentCols = intent.columns.join(',');
+        const currentColorCol = intent.colorColumn;
+        const lastFetchKey = intent.key;
         const fetchedWindow = appState.fetchedWindow;
         const bufferedDataIsRaw = appState.lastFetchedData?._meta?.downsampled === false;
         const viewportInsideFetchedWindow = !!(
@@ -347,15 +370,16 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             const width = document.getElementById('main-chart')?.clientWidth || 1200;
             const lookaroundMs = Math.max(MIN_LOOKAROUND_MS, Math.round((currentEnd - currentStart) * 1.25));
 
+            let requestIntent = intent;
             const requestData = async () => {
-                const cols = appState.selectedCols.join(',');
-                const colorCol = appState.selectedColorColumn || null;
+                const cols = requestIntent.columns.join(',');
+                const colorCol = requestIntent.colorColumn;
 
-                announceChartLoading(appState.selectedCols || []);
+                announceChartLoading(requestIntent.columns);
                 dbgGroup('fetchAndRender', () => {
                     dbg('request', { startIso, endIso, width, cols, colorCol, lookaroundMs });
-                    dbg('selectedCols', appState.selectedCols);
-                    dbg('selectedColorColumn', appState.selectedColorColumn);
+                    dbg('selectedCols', requestIntent.columns);
+                    dbg('selectedColorColumn', requestIntent.colorColumn);
                 });
 
                 return deps.fetchData(startIso, endIso, width, cols, colorCol, lookaroundMs, signal);
@@ -374,6 +398,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                     renderCurrentData();
                     return;
                 }
+                requestIntent = getRequestIntent();
                 data = await requestData();
             }
 
@@ -387,7 +412,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 setFetchedWindow({ start: currentStart - lookaroundMs, end: currentEnd + lookaroundMs });
             }
             // Issue 7.2: Update last successful fetch parameters for no-op short-circuit
-            lastFetchedParams = lastFetchKey;
+            lastFetchedParams = requestIntent.key;
 
             if (DEBUG) {
                 const n = data?.ts?.length ?? 0;

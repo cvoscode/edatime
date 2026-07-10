@@ -33,7 +33,7 @@ export interface TimeseriesModuleDeps {
         signal?: AbortSignal,
     ) => Promise<import('../types.js').DataObject>;
     fetchMetadata: () => Promise<DatasetMetadata>;
-    workspace: Pick<WorkspaceStore, 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters' | 'setViewport'>;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters' | 'setViewport'>;
     ensurePrimaryChartCtor: () => Promise<new (
         containerId: string,
         onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
@@ -93,6 +93,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     // 1. Create the page controller (holds fetch/render/chart state)
     const pageController = createTimeseriesPageController({
         fetchData: deps.fetchData,
+        workspace: deps.workspace,
         buildRangeControls: () => feature.buildRangeControls(),
         updateAnalysisYRange: deps.updateAnalysisYRange,
         updateAnalysisZoom: deps.updateAnalysisZoom,

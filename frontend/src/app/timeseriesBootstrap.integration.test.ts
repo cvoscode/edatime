@@ -213,6 +213,7 @@ describe('app -> timeseries bootstrap wiring', () => {
         expect(deps).toEqual(expect.objectContaining({
             fetchMetadata: expect.any(Function),
             workspace: expect.objectContaining({
+                getSnapshot: expect.any(Function),
                 beginDatasetSession: expect.any(Function),
                 commitDataset: expect.any(Function),
                 setSelection: expect.any(Function),

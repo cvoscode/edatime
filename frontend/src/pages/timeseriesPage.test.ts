@@ -68,6 +68,34 @@ describe('createTimeseriesPageController', () => {
         expect(chart.setXRange).toHaveBeenCalledWith(20, 80);
     });
 
+    it('builds series requests from workspace selection and viewport intent', async () => {
+        document.body.innerHTML = '<div id="main-chart-loading" hidden></div><div id="main-chart"></div>';
+        appState.selectedCols = ['legacy'];
+        appState.selectedColorColumn = 'legacy-color';
+        setViewport(0, 100);
+        const fetchData = vi.fn().mockResolvedValue({ ts: [], values: {}, series: {}, colorByColumn: {} });
+        const controller = createTimeseriesPageController({
+            fetchData,
+            buildRangeControls: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+            updateAnalysisZoom: vi.fn(),
+            getCurrentView: vi.fn(),
+            fetchAndRenderAnalytics: vi.fn(),
+            workspace: {
+                getSnapshot: () => ({
+                    selection: { columns: ['workspace'], colorColumn: 'group' },
+                    viewport: { xMin: 10, xMax: 20, yMin: null, yMax: null },
+                }),
+            } as any,
+        });
+
+        await controller.fetchAndRender();
+
+        expect(fetchData).toHaveBeenCalledWith(
+            new Date(10).toISOString(), new Date(20).toISOString(), expect.any(Number), 'workspace', 'group', expect.any(Number), expect.any(AbortSignal),
+        );
+    });
+
     it('stores the exact rendered viewport in zoom history instead of recomputing it from a live helper', async () => {
         document.body.innerHTML = '<div id="main-chart-loading" hidden></div><div id="main-chart" style="width:600px;"></div>';
         setMetadata({
