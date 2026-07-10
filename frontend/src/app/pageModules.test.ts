@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
     ensureStyleModule: vi.fn(),
     initFftPage: vi.fn(),
     initHeatmapPage: vi.fn(),
-    createScatterEntrypoint: vi.fn(() => ({ init: vi.fn() })),
+    initScatterPage: vi.fn(),
     initSpectrogramPage: vi.fn(),
     initCausalPage: vi.fn(),
     initDriftPage: vi.fn(),
@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../utils/pageStyles.js', () => ({ ensureStyleModule: mocks.ensureStyleModule }));
 vi.mock('../pages/fftPage.js', () => ({ initFftPage: mocks.initFftPage }));
 vi.mock('../pages/heatmapPage.js', () => ({ initHeatmapPage: mocks.initHeatmapPage }));
-vi.mock('../features/scatter/entrypoint.js', () => ({ createScatterEntrypoint: mocks.createScatterEntrypoint }));
+vi.mock('../scatter/scatterPage.js', () => ({ initScatterPage: mocks.initScatterPage }));
 vi.mock('../pages/spectrogramPage.js', () => ({ initSpectrogramPage: mocks.initSpectrogramPage }));
 vi.mock('../causal/causalPage.js', () => ({ initCausalPage: mocks.initCausalPage }));
 vi.mock('../drift/driftPage.js', () => ({ initDriftPage: mocks.initDriftPage }));
@@ -40,11 +40,12 @@ describe('page module descriptors', () => {
         expect(register.mock.calls.map(([name]) => name)).toEqual([
             'fft', 'heatmap', 'scatter', 'spectrogram', 'causal', 'drift',
         ]);
-        expect(mocks.createScatterEntrypoint).not.toHaveBeenCalled();
     });
 
-    it('loads page-owned CSS and the page implementation only on first page initialization', async () => {
-        const deps = createDeps();
+    it('loads Scatter directly from its descriptor only on first page initialization', async () => {
+        const metadata = { numeric_columns: [], columns: [] } as never;
+        const workspace = { getSnapshot: vi.fn(() => ({ dataset: { metadata } } as never)) };
+        const deps = { ...createDeps(), workspace };
         const register = vi.fn();
         await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
         const scatter = register.mock.calls.find(([name]) => name === 'scatter')?.[1];
@@ -54,10 +55,7 @@ describe('page module descriptors', () => {
         await scatter!.init();
 
         expect(mocks.ensureStyleModule).toHaveBeenCalledWith('scatter');
-        expect(mocks.createScatterEntrypoint).toHaveBeenCalledWith(expect.objectContaining({
-            workspace: deps.workspace,
-        }));
-        expect(mocks.createScatterEntrypoint.mock.results[0].value.init).toHaveBeenCalledTimes(1);
+        expect(mocks.initScatterPage).toHaveBeenCalledWith(metadata, { workspace: deps.workspace });
     });
 
     it('loads Heatmap directly from its descriptor only on initialization', async () => {
