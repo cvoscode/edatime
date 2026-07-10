@@ -21,7 +21,7 @@ describe('createSpectrogramEntrypoint', () => {
 
     it('returns an explicit init surface', async () => {
         const { createSpectrogramEntrypoint } = await import('./entrypoint.js');
-        const deps = { setLoading: vi.fn() };
+        const deps = { setLoading: vi.fn(), workspace: { getSnapshot: vi.fn() } };
         const entrypoint = createSpectrogramEntrypoint(deps);
         expect(entrypoint.init).toBeTypeOf('function');
         expect(spectrogramPageImported.value).toBe(false);
@@ -29,7 +29,7 @@ describe('createSpectrogramEntrypoint', () => {
 
     it('does not call setLoading before init', async () => {
         const { createSpectrogramEntrypoint } = await import('./entrypoint.js');
-        const deps = { setLoading: vi.fn() };
+        const deps = { setLoading: vi.fn(), workspace: { getSnapshot: vi.fn() } };
         createSpectrogramEntrypoint(deps);
         expect(deps.setLoading).not.toHaveBeenCalled();
         expect(spectrogramPageImported.value).toBe(false);
@@ -37,7 +37,7 @@ describe('createSpectrogramEntrypoint', () => {
 
     it('init loads the spectrogram page only when first invoked', async () => {
         const { createSpectrogramEntrypoint } = await import('./entrypoint.js');
-        const deps = { setLoading: vi.fn() };
+        const deps = { setLoading: vi.fn(), workspace: { getSnapshot: vi.fn() } };
         const entrypoint = createSpectrogramEntrypoint(deps);
         await entrypoint.init();
         expect(spectrogramPageImported.value).toBe(true);

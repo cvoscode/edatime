@@ -27,9 +27,11 @@ import {
 } from '../utils/spectralPresets.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 import { toast } from '../utils/toast.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
+    workspace?: Pick<WorkspaceStore, 'getSnapshot'>;
 }
 
 // ── Module-level chart state ─────────────────────────────────────────────────
@@ -101,6 +103,9 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
     let spectrogramRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
     let autoComputeStarted = false;
     let autoComputeExplained = false;
+    const workspaceSnapshot = () => deps.workspace?.getSnapshot();
+    const workspaceMetadata = () => workspaceSnapshot()?.dataset.metadata ?? appState.metadata;
+    const workspaceViewport = () => workspaceSnapshot()?.viewport;
 
     const getSpectrogramWinCustomInput = () => document.getElementById('spectrogram-win-size-custom') as HTMLInputElement | null;
     const getSpectrogramHopCustomInput = () => document.getElementById('spectrogram-hop-size-custom') as HTMLInputElement | null;
@@ -819,7 +824,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     syncSpectrogramEmptyState('Pick a numeric column and click Compute to generate the spectrogram.');
                     return;
                 }
-                if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) {
+                const viewport = workspaceViewport();
+                const startMs = viewport?.xMin ?? appState.currentStart;
+                const endMs = viewport?.xMax ?? appState.currentEnd;
+                if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
                     return;
                 }
 
@@ -838,8 +846,6 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     spectrogramRenderError = null;
                     colorFilterRange = null;
 
-                    const startMs = appState.currentStart;
-                    const endMs = appState.currentEnd;
                     if (startMs == null || endMs == null || !Number.isFinite(startMs) || !Number.isFinite(endMs)) {
                         throw new Error('No time range available.');
                     }
@@ -881,7 +887,8 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             const maybeAutoComputeSpectrogram = () => {
                 if (autoComputeStarted || spectrogramResult) return;
                 if (!getDropdownValue('spectrogram-col-select')) return;
-                if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
+                const viewport = workspaceViewport();
+                if (!Number.isFinite(viewport?.xMin ?? appState.currentStart) || !Number.isFinite(viewport?.xMax ?? appState.currentEnd)) return;
                 autoComputeStarted = true;
                 if (!autoComputeExplained) {
                     autoComputeExplained = true;
@@ -894,8 +901,9 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             };
 
             // ── Column select population ───────────────────────────────────────
-            if (appState.metadata) {
-                setDropdownOptions('spectrogram-col-select', appState.metadata.numeric_columns.map((column) => ({
+            const metadata = workspaceMetadata();
+            if (metadata) {
+                setDropdownOptions('spectrogram-col-select', metadata.numeric_columns.map((column) => ({
                     value: column,
                     label: column,
                 })), {
@@ -966,9 +974,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             }
             syncSpectrogramCustomInputs();
             const colSelect = document.getElementById('spectrogram-col-select');
-            if (appState.metadata && colSelect) {
+            const metadata = workspaceMetadata();
+            if (metadata && colSelect) {
                 const currentOptions = new Set(getDropdownOptions('spectrogram-col-select').map((option) => option.value));
-                for (const column of appState.metadata.numeric_columns) {
+                for (const column of metadata.numeric_columns) {
                     currentOptions.add(column);
                 }
                 setDropdownOptions('spectrogram-col-select', Array.from(currentOptions).map((column) => ({

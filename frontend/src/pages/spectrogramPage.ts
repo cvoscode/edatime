@@ -3,9 +3,11 @@
  */
 import { createSpectrogramChartRuntime } from './spectrogramChartRuntime.js';
 import { __resetSpectrogramChartRuntimeForTests } from './spectrogramChartRuntime.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
+    workspace?: Pick<WorkspaceStore, 'getSnapshot'>;
 }
 
 let spectrogramRuntime: ReturnType<typeof createSpectrogramChartRuntime> | null = null;

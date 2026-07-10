@@ -82,7 +82,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         requiresMetadata: true,
         async load(deps) {
             const { createSpectrogramEntrypoint } = await import('../features/spectrogram/entrypoint.js');
-            return createSpectrogramEntrypoint({ setLoading: deps.setLoading });
+            return createSpectrogramEntrypoint({ setLoading: deps.setLoading, workspace: deps.workspace });
         },
     },
     {
