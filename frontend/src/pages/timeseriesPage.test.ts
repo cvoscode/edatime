@@ -15,6 +15,7 @@ import {
     setZoomHistory,
 } from '../store/index.js';
 import { setRefetchOnZoom } from '../store/runtimeState.js';
+import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 
 describe('createTimeseriesPageController', () => {
     beforeEach(() => {
@@ -66,6 +67,23 @@ describe('createTimeseriesPageController', () => {
         expect(appState.pendingYMode).toBe('restore');
         expect(appState.pendingRestoreY).toEqual({ min: 30, max: 70 });
         expect(chart.setXRange).toHaveBeenCalledWith(20, 80);
+    });
+
+    it('publishes chart gesture zooms to the workspace before a refetch can read intent', () => {
+        const workspace = createWorkspaceStore();
+        const controller = createTimeseriesPageController({
+            fetchData: vi.fn(),
+            buildRangeControls: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+            updateAnalysisZoom: vi.fn(),
+            getCurrentView: vi.fn(() => ({ xMin: 0, xMax: 100, yMin: null, yMax: null })),
+            fetchAndRenderAnalytics: vi.fn(),
+            workspace,
+        });
+
+        controller.onZoomRangeChange({ xMin: 20, xMax: 80, yMin: 30, yMax: 70 }, 'user');
+
+        expect(workspace.getSnapshot().viewport).toEqual({ xMin: 20, xMax: 80, yMin: 30, yMax: 70 });
     });
 
     it('builds series requests from workspace selection and viewport intent', async () => {

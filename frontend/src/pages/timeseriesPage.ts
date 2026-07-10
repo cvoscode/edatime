@@ -43,7 +43,7 @@ interface TimeseriesControllerDeps {
     getCurrentView: () => ViewSnapshot;
     fetchAndRenderAnalytics: () => Promise<void>;
     recoverFromColumnMismatch?: () => Promise<boolean>;
-    workspace?: Pick<WorkspaceStore, 'getSnapshot'>;
+    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setViewport'>;
 }
 
 let timeseriesEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
@@ -180,6 +180,13 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         const newEnd = Number(view.xMax);
         if (!Number.isFinite(newStart) || !Number.isFinite(newEnd) || newStart >= newEnd) return;
 
+        const workspaceViewport = {
+            xMin: newStart,
+            xMax: newEnd,
+            yMin: Number.isFinite(view.yMin) ? Number(view.yMin) : null,
+            yMax: Number.isFinite(view.yMax) ? Number(view.yMax) : null,
+        };
+        deps.workspace?.setViewport(workspaceViewport);
         setViewport(newStart, newEnd);
         appState.chart?.setXRange?.(newStart, newEnd);
         if (Number.isFinite(view.yMin) && Number.isFinite(view.yMax) && view.yMax! > view.yMin!) {
@@ -190,12 +197,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             setPendingYMode('fit');
             setPendingRestoreY(null);
         }
-        rememberAppliedViewport({
-            xMin: newStart,
-            xMax: newEnd,
-            yMin: Number.isFinite(view.yMin) ? Number(view.yMin) : null,
-            yMax: Number.isFinite(view.yMax) ? Number(view.yMax) : null,
-        });
+        rememberAppliedViewport(workspaceViewport);
 
         deps.updateAnalysisZoom(newStart, newEnd, sourceKind);
         emitChartRangeChange(sourceKind);
