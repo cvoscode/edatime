@@ -8,6 +8,7 @@ import {
     setMetadata,
     setSelectedCols,
 } from '../../store/index.js';
+import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 
 function buildModalDOM(): void {
     document.body.innerHTML = `
@@ -141,6 +142,23 @@ describe('initFilterModalController', () => {
             applyBtn.click();
 
             expect(appState.columnRanges['HUFL']).toEqual({ from: 0.3, to: 0.7 });
+        });
+
+        it('publishes edited bounds to workspace filters', () => {
+            const workspace = createWorkspaceStore();
+            workspace.setFilters({ columnRanges: {}, adaptiveLines: [] });
+            initFilterModalController({
+                renderCurrentData: vi.fn(),
+                updateAnalysisYRange: vi.fn(),
+                workspace,
+            });
+            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+
+            (document.getElementById('column-filter-min') as HTMLInputElement).value = '0.30';
+            (document.getElementById('column-filter-max') as HTMLInputElement).value = '0.70';
+            (document.getElementById('column-filter-apply-btn') as HTMLButtonElement).click();
+
+            expect(workspace.getSnapshot().filters.columnRanges).toEqual({ HUFL: { from: 0.3, to: 0.7 } });
         });
 
         it('calls renderCurrentData after apply', () => {

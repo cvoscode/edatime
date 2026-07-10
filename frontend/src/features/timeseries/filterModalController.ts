@@ -1,6 +1,6 @@
 import { formatAnalysisNumber } from '../../utils/format.js';
 import { computeBounds } from '../../services/timeseries/filtering.js';
-import { appStateComposite as appState } from '../../store/index.js';
+import { appStateComposite as appState, setColumnRanges } from '../../store/index.js';
 import { buildRangeControls } from './rangeControls.js';
 import { ColumnFilterModal } from '../../ui/composites/ColumnFilterModal.js';
 import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
@@ -56,6 +56,17 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
 
     function emitColumnFiltersChange() {
         window.dispatchEvent(new CustomEvent('edatime:column-filters-change'));
+    }
+
+    function setColumnRange(col: string, range: { from: number; to: number }): void {
+        if (deps.workspace) {
+            const filters = deps.workspace.getSnapshot().filters;
+            deps.workspace.setFilters({
+                ...filters,
+                columnRanges: { ...filters.columnRanges, [col]: range },
+            });
+        }
+        setColumnRanges({ ...appState.columnRanges, [col]: range });
     }
 
     function setHint(text: string) { hintEl.textContent = text || ''; }
@@ -233,7 +244,9 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
             setHint('No numeric range is available for this column.');
             return;
         }
-        const cur = appState.columnRanges[col] ?? { from: full.min, to: full.max };
+        const cur = deps.workspace?.getSnapshot().filters.columnRanges[col]
+            ?? appState.columnRanges[col]
+            ?? { from: full.min, to: full.max };
         updateSliderConfig(full);
         syncInputsFromValues(cur.from, cur.to);
         applyButton.disabled = false;
@@ -289,7 +302,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
                 return;
             }
             if (fromNum > toNum) { [fromNum, toNum] = [toNum, fromNum]; }
-            appState.columnRanges[col] = { from: fromNum, to: toNum };
+            setColumnRange(col, { from: fromNum, to: toNum });
             if (deps.workspace) buildRangeControls(deps.workspace);
             deps.renderCurrentData();
             appState.chart?.fitYToData?.();
@@ -311,7 +324,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
         const col = getDropdownValue('column-filter-col');
         const full = getFullBoundsForCol(col);
         if (!col || !full) return;
-        appState.columnRanges[col] = { from: full.min, to: full.max };
+        setColumnRange(col, { from: full.min, to: full.max });
         if (deps.workspace) buildRangeControls(deps.workspace);
         deps.renderCurrentData();
         appState.chart?.fitYToData?.();
