@@ -22,11 +22,22 @@ import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptySt
 import { isLinkedBrushEnabled, currentControls, getActiveScatterFilterColumns } from './state.js';
 import { defaultGpuPowerPreference, requestGpuAdapter } from '../utils/platform.js';
 import { getDropdownValue } from '../ui/primitives/Dropdown.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 /** Module-level runtime handle for the scatter page lifecycle. */
 let scatterRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 
 let scatterEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
+let workspace: Pick<WorkspaceStore, 'getSnapshot'> | null = null;
+
+/** Supplies the feature-owned workspace snapshot to scatter runtime UI. */
+export function configureScatterRuntime(nextWorkspace: Pick<WorkspaceStore, 'getSnapshot'> | null): void {
+    workspace = nextWorkspace;
+}
+
+function currentIntent() {
+    return workspace?.getSnapshot();
+}
 
 function syncScatterFilterBanner(): void {
     const banner = document.getElementById('scatter-filter-banner') as HTMLElement | null;
@@ -35,14 +46,19 @@ function syncScatterFilterBanner(): void {
     if (!banner || !text || !clearButton) return;
 
     const controls = currentControls();
+    const intent = currentIntent();
     const activeColumns = Array.from(new Set(getActiveScatterFilterColumns({
         x: controls.x,
         y: controls.y,
         colorColumn: controls.selectedColorColumn,
-    })));
+    }, intent)));
     const columnCount = activeColumns.length;
-    const adaptiveCount = Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters.length : 0;
-    const hasZoomRange = Number.isFinite(appState.currentStart) && Number.isFinite(appState.currentEnd);
+    const adaptiveCount = intent
+        ? intent.filters.adaptiveLines.length
+        : (Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters.length : 0);
+    const hasZoomRange = intent
+        ? intent.viewport?.xMin != null && intent.viewport?.xMax != null
+        : Number.isFinite(appState.currentStart) && Number.isFinite(appState.currentEnd);
     const hasFilters = hasZoomRange || columnCount > 0 || adaptiveCount > 0;
 
     banner.hidden = !hasFilters;
@@ -117,8 +133,11 @@ export function syncScatterEmptyState(message?: string): void {
     syncScatterFilterBadge();
     syncScatterFilterBanner();
 
+    const intent = currentIntent();
+    const start = intent?.viewport?.xMin ?? appState.currentStart;
+    const end = intent?.viewport?.xMax ?? appState.currentEnd;
     const linkedRangeOutside = isLinkedBrushEnabled()
-        && isRangeOutsideDataset(appState.metadata?.time_range, appState.currentStart, appState.currentEnd);
+        && isRangeOutsideDataset(appState.metadata?.time_range, start, end);
 
     let reason: string;
     if (_gpuUnavailable && !appState.scatter.chart) {
@@ -138,9 +157,11 @@ export function syncScatterEmptyState(message?: string): void {
         x: controls.x,
         y: controls.y,
         colorColumn: controls.selectedColorColumn,
-    });
+    }, intent);
     const scopedFilterCount = new Set(activeColumns).size;
-    const adaptiveFilterCount = Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters.length : 0;
+    const adaptiveFilterCount = intent
+        ? intent.filters.adaptiveLines.length
+        : (Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters.length : 0);
 
     const text = message
         || (_gpuUnavailable && !appState.scatter.chart
@@ -178,11 +199,12 @@ export function syncScatterFilterBadge(): void {
     const badge = document.getElementById('scatter-active-filter-badge');
     if (!badge) return;
     const controls = currentControls();
+    const intent = currentIntent();
     const columns = Array.from(new Set(getActiveScatterFilterColumns({
         x: controls.x,
         y: controls.y,
         colorColumn: controls.selectedColorColumn,
-    })));
+    }, intent)));
     if (columns.length === 0) {
         badge.hidden = true;
         badge.textContent = '';

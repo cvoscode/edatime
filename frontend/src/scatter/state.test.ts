@@ -124,6 +124,17 @@ describe('scatter query context builders', () => {
         expect(cols.sort()).toEqual(['color_bucket', 'x']);
     });
 
+    it('reads badge filters from explicit workspace intent', () => {
+        appState.columnRanges = { legacy: { from: 1, to: 2 } } as any;
+
+        const cols = getActiveScatterFilterColumns(
+            { x: 'workspace', y: 'other', colorColumn: '' },
+            { filters: { columnRanges: { workspace: { from: 3, to: 4 } }, adaptiveLines: [] } } as any,
+        );
+
+        expect(cols).toEqual(['workspace']);
+    });
+
     it('drops full-range filters that still match the dataset profile bounds', () => {
         appState.metadata = {
             total_rows: 3,

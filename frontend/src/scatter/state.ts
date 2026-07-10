@@ -172,8 +172,9 @@ export function buildScatterQueryContext(
 
 export function getActiveScatterFilterColumns(
     columns: { x?: string; y?: string; colorColumn?: string } = {},
+    intent?: Pick<WorkspaceSnapshot, 'filters'>,
 ): string[] {
-    const allFilters = collectColumnRangeFilters();
+    const allFilters = collectColumnRangeFilters(intent?.filters.columnRanges as Record<string, { from: number; to: number }> | undefined);
     const scoped = scopeFiltersToColumns(allFilters, [columns.x || '', columns.y || '', columns.colorColumn || '']);
     return scoped.map((f) => f.column);
 }

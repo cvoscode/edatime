@@ -63,6 +63,7 @@ import {
 } from './toolbarOverflow.js';
 import {
     initScatterPageRuntime,
+    configureScatterRuntime,
     syncScatterEmptyState,
     syncScatterFilterBadge,
     isGPUAvailable,
@@ -451,6 +452,7 @@ export async function initScatterPage(
     deps: { workspace?: Pick<WorkspaceStore, 'getSnapshot'> } = {},
 ): Promise<void> {
     workspace = deps.workspace ?? null;
+    configureScatterRuntime(workspace);
     const page = getEl('page-scatter');
     const xSelect = getEl('scatter-x-col');
     const ySelect = getEl('scatter-y-col');
