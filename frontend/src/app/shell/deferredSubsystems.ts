@@ -24,7 +24,7 @@ export interface DeferredShellDeps {
     resetZoom: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     registerCleanup: (cleanup: () => void) => void;
-    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'>;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>;
 }
 
 export interface DeferredSubsystemRegistry {
@@ -127,7 +127,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
 
     registerSubsystem('analysis-controls', async (deps) => {
         const { initAnalysisControls, initChartPageFilterGesture } = await import('../../ui/toolbar.js');
-        initAnalysisControls(deps.fetchAndRender, deps.zoomOut, deps.resetZoom);
+        initAnalysisControls(deps.fetchAndRender, deps.zoomOut, deps.resetZoom, deps.workspace);
         initChartPageFilterGesture();
     });
 

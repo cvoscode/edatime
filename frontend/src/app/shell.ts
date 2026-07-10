@@ -37,7 +37,7 @@ export interface AppShellDeps {
     resetZoom: () => void;
     refreshDatasetAfterMutation: (options?: RefreshDatasetOptions) => Promise<void>;
     registerCleanup: (cleanup: () => void) => void;
-    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'>;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>;
 }
 
 export interface AppShell {

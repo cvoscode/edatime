@@ -35,7 +35,7 @@ function createDeps(): DeferredShellDeps {
         resetZoom: vi.fn(),
         updateAnalysisYRange: vi.fn(),
         registerCleanup: vi.fn(),
-        workspace: { getSnapshot: vi.fn(), subscribe: vi.fn(() => vi.fn()) },
+        workspace: { getSnapshot: vi.fn(), setFilters: vi.fn(), subscribe: vi.fn(() => vi.fn()) },
     };
 }
 

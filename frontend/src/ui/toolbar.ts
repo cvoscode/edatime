@@ -47,6 +47,7 @@ import { initAnalyticsControls } from './analyticsControls.js';
 import { initQuickRangeControls, refreshQuickRangeControls } from './quickRange.js';
 
 import { exportChartFilteredData } from './exportControls.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 // ─── Bind chart events to analysis panel ────────────────────────────────────
 
@@ -102,13 +103,14 @@ export function initAnalysisControls(
     fetchAndRender: () => void,
     zoomOutAction: () => void = () => zoomOut(fetchAndRender),
     resetZoomAction: () => void = () => resetZoom(fetchAndRender),
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>,
 ): void {
     window.__edatime = window.__edatime || {};
     window.__edatime.exportChartFilteredData = exportChartFilteredData;
 
     bindInfoPopovers();
     initToolbarModals();
-    initDrawControls(fetchAndRender);
+    initDrawControls(fetchAndRender, workspace);
     initChartTextControls();
     initYRangeControls();
     initAnalyticsControls();
