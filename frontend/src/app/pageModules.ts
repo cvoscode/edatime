@@ -55,8 +55,8 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         name: 'heatmap',
         requiresMetadata: true,
         async load(deps) {
-            const { createHeatmapEntrypoint } = await import('../features/heatmap/entrypoint.js');
-            return createHeatmapEntrypoint({ showPage: deps.showPage });
+            const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+            return { init: () => initHeatmapPage({ showPage: deps.showPage }) };
         },
     },
     {

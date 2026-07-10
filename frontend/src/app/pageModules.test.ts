@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
     ensureStyleModule: vi.fn(),
     createFftEntrypoint: vi.fn(() => ({ init: vi.fn() })),
-    createHeatmapEntrypoint: vi.fn(() => ({ init: vi.fn() })),
+    initHeatmapPage: vi.fn(),
     createScatterEntrypoint: vi.fn(() => ({ init: vi.fn() })),
     createSpectrogramEntrypoint: vi.fn(() => ({ init: vi.fn() })),
     createCausalEntrypoint: vi.fn(() => ({ init: vi.fn() })),
@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../utils/pageStyles.js', () => ({ ensureStyleModule: mocks.ensureStyleModule }));
 vi.mock('../features/fft/entrypoint.js', () => ({ createFftEntrypoint: mocks.createFftEntrypoint }));
-vi.mock('../features/heatmap/entrypoint.js', () => ({ createHeatmapEntrypoint: mocks.createHeatmapEntrypoint }));
+vi.mock('../pages/heatmapPage.js', () => ({ initHeatmapPage: mocks.initHeatmapPage }));
 vi.mock('../features/scatter/entrypoint.js', () => ({ createScatterEntrypoint: mocks.createScatterEntrypoint }));
 vi.mock('../features/spectrogram/entrypoint.js', () => ({ createSpectrogramEntrypoint: mocks.createSpectrogramEntrypoint }));
 vi.mock('../features/causal/entrypoint.js', () => ({ createCausalEntrypoint: mocks.createCausalEntrypoint }));
@@ -60,6 +60,18 @@ describe('page module descriptors', () => {
             workspace: deps.workspace,
         }));
         expect(mocks.createScatterEntrypoint.mock.results[0].value.init).toHaveBeenCalledTimes(1);
+    });
+
+    it('loads Heatmap directly from its descriptor only on initialization', async () => {
+        const deps = createDeps();
+        const register = vi.fn();
+        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        const heatmap = register.mock.calls.find(([name]) => name === 'heatmap')?.[1];
+
+        expect(mocks.initHeatmapPage).not.toHaveBeenCalled();
+        await heatmap!.init();
+
+        expect(mocks.initHeatmapPage).toHaveBeenCalledWith({ showPage: deps.showPage });
     });
 
     it('injects the workspace boundary into causal initialization', async () => {
