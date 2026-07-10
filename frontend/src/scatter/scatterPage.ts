@@ -189,7 +189,12 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
     }
 
     if (!shouldRender) return;
-    if (nextView === 'matrix') { await renderScatterMatrixView(onMatrixCellClick); return; }
+    if (nextView === 'matrix') {
+        const intent = workspace?.getSnapshot();
+        if (intent) await renderScatterMatrixView(onMatrixCellClick, intent);
+        else await renderScatterMatrixView(onMatrixCellClick);
+        return;
+    }
     // Re-render the plot so the reset view is reflected immediately, even
     // if a fresh data fetch is not required. This is what fixes the
     // "empty plot after Matrix" complaint: switching back no longer leaves

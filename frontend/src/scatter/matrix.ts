@@ -23,6 +23,9 @@ import {
 } from './state.js';
 import { setDropdownValue } from '../ui/primitives/Dropdown.js';
 import { describeDistributionMode, renderMatrixGrid } from './matrixGrid.js';
+import type { WorkspaceSnapshot } from '../workspace/workspaceStore.js';
+
+type ScatterIntent = Pick<WorkspaceSnapshot, 'filters' | 'viewport'>;
 
 /* ── Column selection ─────────────────────────────────── */
 
@@ -205,6 +208,7 @@ export function buildMatrixFetchPairs(
 
 export async function renderScatterOverview(
     onCellClick: (x: string, y: string) => void,
+    intent?: ScatterIntent,
 ): Promise<void> {
     const columns = buildOverviewColumns();
     if (columns.length < 2) { renderMatrixGrid(columns, new Map(), onCellClick, null); return; }
@@ -219,7 +223,7 @@ export async function renderScatterOverview(
     const matrixContext = buildScatterQueryContext({
         colorColumn: controls.selectedColorColumn,
         scopeToColumns: false,
-    });
+    }, intent);
 
     const datasets = new Map<string, MatrixCellData>();
     const rerenderOrderedGrid = (nextColumns: string[]) => {
@@ -264,10 +268,11 @@ export async function renderScatterOverview(
 
 export async function renderScatterMatrixView(
     onCellClick: (x: string, y: string) => void,
+    intent?: ScatterIntent,
 ): Promise<void> {
-    await renderScatterOverview(onCellClick);
+    await renderScatterOverview(onCellClick, intent);
     requestAnimationFrame(() => {
-        void renderMatrixFftPanel();
+        void renderMatrixFftPanel(intent);
     });
 }
 
@@ -338,7 +343,7 @@ function drawMiniFftCanvas(canvas: HTMLCanvasElement, frequencies: number[], val
     ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
 }
 
-export async function renderMatrixFftPanel(): Promise<void> {
+export async function renderMatrixFftPanel(intent?: ScatterIntent): Promise<void> {
     const panel = getEl('scatter-matrix-fft-panel');
     const chartsContainer = getEl('scatter-matrix-fft-charts');
     if (!panel || !chartsContainer) return;
@@ -348,7 +353,7 @@ export async function renderMatrixFftPanel(): Promise<void> {
         x: controls.x,
         y: controls.y,
         colorColumn: controls.selectedColorColumn,
-    });
+    }, intent);
     if (!context.start || !context.end) {
         (panel as HTMLElement).hidden = true;
         return;
