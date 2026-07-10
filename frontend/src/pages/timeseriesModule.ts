@@ -194,6 +194,8 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         getDefaultTimeseriesColumns: (metadata: DatasetMetadata) => getDefaultTimeseriesColumns(metadata),
         rebuildTimeseriesColumns: () => feature.rebuildColumns(),
         clearPersistedFilters: () => {
+            const filters = deps.workspace.getSnapshot().filters;
+            deps.workspace.setFilters({ ...filters, columnRanges: {}, adaptiveLines: [] });
             setColumnRanges({});
             setAdaptiveLineFilters([]);
             clearScatterViewSnapshots();

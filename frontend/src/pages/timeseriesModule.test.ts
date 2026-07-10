@@ -174,6 +174,17 @@ describe('createTimeseriesModule', () => {
         }));
     });
 
+    it('clears workspace filters when the dataset bootstrap clears persisted filters', async () => {
+        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+        const deps = defaultDeps();
+        createTimeseriesModule(deps as any);
+
+        const bootstrapDeps = mockCreateDatasetBootstrap.mock.calls[0]?.[0];
+        bootstrapDeps.clearPersistedFilters();
+
+        expect(deps.workspace.setFilters).toHaveBeenCalledWith({ columnRanges: {}, adaptiveLines: [] });
+    });
+
     // -------------------------------------------------------------------------
     // Test 2: buildColumnToggles and buildRangeControls are exposed directly
     // -------------------------------------------------------------------------
