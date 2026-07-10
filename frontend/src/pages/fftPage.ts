@@ -17,9 +17,11 @@ import {
 } from '../utils/spectralScaling.js';
 import { formatCyclesPerDay, formatFrequencyInUnit, frequencyToPeriod, pickFrequencyUnit, useCyclesPerDayFrequencyAxis } from '../utils/spectralPresets.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 interface FftPageDeps {
     renderTimeseries: () => void;
+    workspace?: Pick<WorkspaceStore, 'getSnapshot'>;
 }
 
 const FFT_SELECTION_STORAGE_KEY = 'edatime_fft_selected_columns';
@@ -34,6 +36,7 @@ const fftTraceColors: Record<string, string> = {};
 let fftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let fftPageCleanup: (() => void) | null = null;
 let fftInitialSelectionSeeded = false;
+let workspace: Pick<WorkspaceStore, 'getSnapshot'> | null = null;
 
 function formatReciprocalInterval(hz: number): string {
     if (!Number.isFinite(hz) || hz <= 0) return '—';
@@ -67,6 +70,7 @@ function resetFftPageState(): void {
     fftChartReady = null;
     fftRuntime = null;
     fftInitialSelectionSeeded = false;
+    workspace = null;
     for (const key of Object.keys(fftTraceColors)) delete fftTraceColors[key];
 }
 
@@ -75,7 +79,7 @@ export function __resetFftPageForTests(): void {
 }
 
 function fftColumns(): string[] {
-    return getNumericColumns(appState.metadata);
+    return getNumericColumns(workspace?.getSnapshot().dataset.metadata ?? appState.metadata);
 }
 
 function fftColorFor(column: string, fallbackIndex: number): string {
@@ -246,9 +250,9 @@ async function ensureFftChartReady(): Promise<void> {
 }
 
 async function fetchAndAddTrace(column: string): Promise<void> {
-    if (!Number.isFinite(appState.currentStart) || !Number.isFinite(appState.currentEnd)) return;
-    const startMs = appState.currentStart;
-    const endMs = appState.currentEnd;
+    const viewport = workspace?.getSnapshot().viewport;
+    const startMs = viewport?.xMin ?? appState.currentStart;
+    const endMs = viewport?.xMax ?? appState.currentEnd;
     if (startMs == null || endMs == null || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
     const startIso = new Date(startMs).toISOString();
     const endIso = new Date(endMs).toISOString();
@@ -377,6 +381,7 @@ function renderChips(): void {
 }
 
 export async function initFftPage(deps: FftPageDeps): Promise<void> {
+    workspace = deps.workspace ?? null;
     resetFftPageState();
 
     const modeSelect = document.getElementById('fft-mode-select') as HTMLElement | null;
