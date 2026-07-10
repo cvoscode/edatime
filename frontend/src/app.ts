@@ -170,7 +170,7 @@ async function init(): Promise<void> {
         ensurePrimaryChartCtor,
         markMetadataReady: pageRegistry.markMetadataReady,
         isMetadataReady: pageRegistry.isMetadataReady,
-        sanitizeSelectedColumns,
+        sanitizeSelectedColumns: () => sanitizeSelectedColumns(workspace),
         clearLoadedPageModules: pageRegistry.clearLoadedPageModules,
         ensureSessionPersistenceStarted,
         getSelectedCols: () => uiState.selectedCols,

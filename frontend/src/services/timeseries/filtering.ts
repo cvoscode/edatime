@@ -238,7 +238,9 @@ export function applyColumnRanges(dataObj: DataObject): FilteredDataObject {
  * Remove selected columns that are time/dataset columns or don't exist
  * in the current metadata.
  */
-export function sanitizeSelectedColumns(): void {
+export function sanitizeSelectedColumns(
+    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection'>,
+): void {
     const blockedNames = new Set(['ts', 'timestamp', 'time']);
     const datetimeCols = new Set(
         (datasetState.metadata?.columns || [])
@@ -250,7 +252,9 @@ export function sanitizeSelectedColumns(): void {
         (datasetState.metadata?.columns || []).map((c) => String(c?.name || '').trim()),
     );
 
-    const filtered = (uiState.selectedCols || []).filter((col) => {
+    const intent = workspace?.getSnapshot();
+    const selectedColumns = intent ? intent.selection.columns : (uiState.selectedCols || []);
+    const filtered = selectedColumns.filter((col) => {
         const name = String(col || '').trim();
         if (!name) return false;
         const lower = name.toLowerCase();
@@ -260,5 +264,6 @@ export function sanitizeSelectedColumns(): void {
         if (!validColNames.has(name)) return false;
         return true;
     });
+    if (intent) workspace?.setSelection(filtered, intent.selection.colorColumn);
     setSelectedCols(filtered);
 }

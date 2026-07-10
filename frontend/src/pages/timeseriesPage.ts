@@ -43,7 +43,7 @@ interface TimeseriesControllerDeps {
     getCurrentView: () => ViewSnapshot;
     fetchAndRenderAnalytics: () => Promise<void>;
     recoverFromColumnMismatch?: () => Promise<boolean>;
-    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'setViewport'>;
+    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>;
 }
 
 let timeseriesEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
@@ -332,7 +332,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     }
 
     async function fetchAndRender(): Promise<void> {
-        sanitizeSelectedColumns();
+        sanitizeSelectedColumns(deps.workspace);
         const intent = getRequestIntent();
         if (!Number.isFinite(intent.start) || !Number.isFinite(intent.end)) return;
         const currentStart = intent.start;

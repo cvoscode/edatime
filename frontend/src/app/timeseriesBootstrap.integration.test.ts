@@ -221,7 +221,7 @@ describe('app -> timeseries bootstrap wiring', () => {
                 setViewport: expect.any(Function),
             }),
             markMetadataReady: markMetadataReadyMock,
-            sanitizeSelectedColumns: sanitizeSelectedColumnsMock,
+            sanitizeSelectedColumns: expect.any(Function),
             clearLoadedPageModules: clearLoadedPageModulesMock,
             ensureSessionPersistenceStarted: expect.any(Function),
             getSelectedCols: expect.any(Function),

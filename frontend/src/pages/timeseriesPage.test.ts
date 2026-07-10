@@ -104,6 +104,7 @@ describe('createTimeseriesPageController', () => {
                     selection: { columns: ['workspace'], colorColumn: 'group' },
                     viewport: { xMin: 10, xMax: 20, yMin: null, yMax: null },
                 }),
+                setSelection: vi.fn(),
             } as any,
         });
 
