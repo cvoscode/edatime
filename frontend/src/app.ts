@@ -217,6 +217,7 @@ async function init(): Promise<void> {
         numericColumns: () => getNumericColumns(datasetState.metadata),
         setLoading: setComputeLoading,
         initDriftPage: (metadata: unknown) => { void import('./drift/driftPage.js').then(m => m.initDriftPage(metadata)); },
+        workspace,
     });
 
     (window).__edatime = (window).__edatime || {};

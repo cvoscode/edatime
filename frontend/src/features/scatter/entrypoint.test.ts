@@ -23,6 +23,7 @@ describe('createScatterEntrypoint', () => {
         const { createScatterEntrypoint } = await import('./entrypoint.js');
         const deps = {
             getMetadata: vi.fn().mockReturnValue({} as any),
+            workspace: { getSnapshot: vi.fn() },
         };
         const entrypoint = createScatterEntrypoint(deps);
         expect(entrypoint.init).toBeTypeOf('function');
@@ -33,6 +34,7 @@ describe('createScatterEntrypoint', () => {
         const { createScatterEntrypoint } = await import('./entrypoint.js');
         const deps = {
             getMetadata: vi.fn().mockReturnValue({} as any),
+            workspace: { getSnapshot: vi.fn() },
         };
         createScatterEntrypoint(deps);
         expect(scatterPageImported.value).toBe(false);
@@ -43,11 +45,12 @@ describe('createScatterEntrypoint', () => {
         const metadata = { columns: [], timeRange: [0, 100] } as any;
         const deps = {
             getMetadata: vi.fn().mockReturnValue(metadata),
+            workspace: { getSnapshot: vi.fn() },
         };
         const entrypoint = createScatterEntrypoint(deps);
         await entrypoint.init();
         expect(scatterPageImported.value).toBe(true);
         expect(deps.getMetadata).toHaveBeenCalled();
-        expect(initScatterPageMock).toHaveBeenCalledWith(metadata);
+        expect(initScatterPageMock).toHaveBeenCalledWith(metadata, { workspace: deps.workspace });
     });
 });

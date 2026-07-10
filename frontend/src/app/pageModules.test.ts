@@ -30,6 +30,7 @@ function createDeps(): PageDescriptorInitDeps {
         numericColumns: vi.fn(() => []),
         setLoading: vi.fn(),
         initDriftPage: vi.fn(),
+        workspace: { getSnapshot: vi.fn() },
     };
 }
 
@@ -58,9 +59,10 @@ describe('page module descriptors', () => {
         await scatter!.init();
 
         expect(mocks.ensureStyleModule).toHaveBeenCalledWith('scatter');
-        expect(mocks.createScatterEntrypoint).toHaveBeenCalledWith({
+        expect(mocks.createScatterEntrypoint).toHaveBeenCalledWith(expect.objectContaining({
             getMetadata: expect.any(Function),
-        });
+            workspace: deps.workspace,
+        }));
         expect(mocks.createScatterEntrypoint.mock.results[0].value.init).toHaveBeenCalledTimes(1);
     });
 });

@@ -55,6 +55,30 @@ describe('scatter query context builders', () => {
         expect(result.end).toBe(200);
     });
 
+    it('uses explicit workspace filters and viewport ahead of legacy state', () => {
+        document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
+        appState.currentStart = 1;
+        appState.currentEnd = 2;
+        appState.columnRanges = { legacy: { from: 1, to: 2 } } as any;
+        appState.metadata = { time_column: 'timestamp', column_profiles: [], columns: [], numeric_columns: [], time_range: { min: 0, max: 100 } } as any;
+
+        const result = buildScatterQueryContext(
+            { x: 'workspace', y: 'other', scopeToColumns: false },
+            {
+                viewport: { xMin: 10, xMax: 20, yMin: null, yMax: null },
+                filters: {
+                    columnRanges: { workspace: { from: 3, to: 4 } },
+                    adaptiveLines: [{ id: 'line', column: 'workspace', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: true }],
+                },
+            } as any,
+        );
+
+        expect(result.start).toBe(10);
+        expect(result.end).toBe(20);
+        expect(result.filters).toEqual([{ column: 'workspace', from: 3, to: 4 }]);
+        expect(result.lineFilters).toEqual([expect.objectContaining({ column: 'workspace' })]);
+    });
+
     it('does not include linked time ranges when the dataset has no time column', () => {
         document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
         appState.currentStart = 100;

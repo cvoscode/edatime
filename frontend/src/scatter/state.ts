@@ -10,7 +10,8 @@
  */
 
 import { appState } from '../store/index.js';
-import { buildAdaptiveLineFiltersForQuery } from '../services/timeseries/filtering.js';
+import { buildAdaptiveLineFiltersForQuery, buildAdaptiveLineFiltersForQueryState } from '../services/timeseries/filtering.js';
+import type { WorkspaceSnapshot } from '../workspace/workspaceStore.js';
 import { getScatterPlotMetrics } from './layout.js';
 import { getDropdownValue, setDropdownOptions } from '../ui/primitives/Dropdown.js';
 export { appState } from '../store/index.js';
@@ -106,8 +107,8 @@ function getColumnProfileBounds(column: string): { min: number; max: number } | 
     return { min, max };
 }
 
-const collectColumnRangeFilters = (): Array<{ column: string; from: number; to: number }> => (
-    Object.entries(appState.columnRanges || {})
+const collectColumnRangeFilters = (columnRanges: Record<string, { from: number; to: number }> = appState.columnRanges || {}): Array<{ column: string; from: number; to: number }> => (
+    Object.entries(columnRanges)
         .map(([column, range]) => {
             const from = Number(range?.from);
             const to = Number(range?.to);
@@ -137,9 +138,10 @@ export function isLinkedBrushEnabled(): boolean {
 
 export function buildScatterQueryContext(
     columns: { x?: string; y?: string; colorColumn?: string; scopeToColumns?: boolean } = {},
+    intent?: Pick<WorkspaceSnapshot, 'filters' | 'viewport'>,
 ): ScatterQueryContext {
-    const start = Number(appState.currentStart);
-    const end = Number(appState.currentEnd);
+    const start = Number(intent?.viewport?.xMin ?? appState.currentStart);
+    const end = Number(intent?.viewport?.xMax ?? appState.currentEnd);
     const hasTimeColumn = !!String(appState.metadata?.time_column || '').trim();
     // The scatter page's setScatterView keeps `uiState.columnRanges` in
     // sync with the active view's snapshot, so reading from globals here
@@ -148,7 +150,7 @@ export function buildScatterQueryContext(
     // shared source for the toolbar/range-chip UI as well; the snapshot
     // exists purely to remember a view's filters while the user is on
     // the other view.
-    const allFilters = collectColumnRangeFilters();
+    const allFilters = collectColumnRangeFilters(intent?.filters.columnRanges as Record<string, { from: number; to: number }> | undefined);
     const filters = columns.scopeToColumns === false
         ? allFilters
         : scopeFiltersToColumns(allFilters, [columns.x || '', columns.y || '', columns.colorColumn || '']);
@@ -162,7 +164,9 @@ export function buildScatterQueryContext(
         start: linkedRangeValid ? start : undefined,
         end: linkedRangeValid ? end : undefined,
         filters,
-        lineFilters: buildAdaptiveLineFiltersForQuery(),
+        lineFilters: intent
+            ? buildAdaptiveLineFiltersForQueryState([...intent.filters.adaptiveLines])
+            : buildAdaptiveLineFiltersForQuery(),
     };
 }
 

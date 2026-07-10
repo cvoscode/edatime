@@ -77,6 +77,9 @@ import {
 import { computeInteractiveScatterLimit } from './renderLimit.js';
 
 import type { DatasetMetadata } from '../types.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+
+let workspace: Pick<WorkspaceStore, 'getSnapshot'> | null = null;
 
 /** Request task for scatter data fetching with abort-before-new semantics. */
 const scatterTask = createRequestTask({
@@ -257,7 +260,10 @@ async function renderScatter(): Promise<void> {
     await scatterTask.run(async (signal) => {
         const ctl = currentControls();
         const colorColumn = ctl.selectedColorColumn || null;
-        const queryContext = buildScatterQueryContext({ x: xValue, y: yValue, colorColumn: colorColumn || undefined });
+        const queryContext = buildScatterQueryContext(
+            { x: xValue, y: yValue, colorColumn: colorColumn || undefined },
+            workspace?.getSnapshot(),
+        );
         // The overview context key now also folds in x/y/colorColumn so a
         // navigation that mutates only the axes (heatmap cell click, home
         // top-pair row click) invalidates the scatter fast-path cache.
@@ -434,7 +440,11 @@ function bindControls(): Promise<void> {
 
 /* ── Public init ──────────────────────────────────────── */
 
-export async function initScatterPage(metadata: DatasetMetadata): Promise<void> {
+export async function initScatterPage(
+    metadata: DatasetMetadata,
+    deps: { workspace?: Pick<WorkspaceStore, 'getSnapshot'> } = {},
+): Promise<void> {
+    workspace = deps.workspace ?? null;
     const page = getEl('page-scatter');
     const xSelect = getEl('scatter-x-col');
     const ySelect = getEl('scatter-y-col');
