@@ -20,6 +20,7 @@ import {
     buildScatterQueryContext,
 } from './state.js';
 import { exportScatterParquet as exportScatterParquetBlob } from '../services/api/index.js';
+import type { WorkspaceSnapshot } from '../workspace/workspaceStore.js';
 import { scaleScatterPlotGrid } from './layout.js';
 import { getCorrelationModeBasisLabel, getCorrelationModeShortLabel, normalizeCorrelationMetric } from '../utils/correlationModes.js';
 import { getSetting } from '../utils/settings.js';
@@ -350,7 +351,7 @@ export async function exportScatterHTML(): Promise<void> {
     downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), 'edatime_scatter.html');
 }
 
-export async function exportScatterParquet(): Promise<boolean> {
+export async function exportScatterParquet(intent?: Pick<WorkspaceSnapshot, 'filters' | 'viewport'>): Promise<boolean> {
     const controls = currentControls();
     if (!controls.x || !controls.y) return false;
     const payload: any = { x: String(controls.x), y: String(controls.y), color: controls.selectedColorColumn || undefined, limit: 1_000_000 };
@@ -358,7 +359,7 @@ export async function exportScatterParquet(): Promise<boolean> {
         x: controls.x,
         y: controls.y,
         colorColumn: controls.selectedColorColumn,
-    });
+    }, intent);
     if (Number.isFinite(context.start) && Number.isFinite(context.end)) { payload.start = context.start; payload.end = context.end; }
     if (Array.isArray(context.filters) && context.filters.length > 0) payload.filters = JSON.stringify(context.filters);
     if (Array.isArray(context.lineFilters) && context.lineFilters.length > 0) payload.line_filters = JSON.stringify(context.lineFilters);

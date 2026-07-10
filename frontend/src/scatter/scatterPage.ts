@@ -425,6 +425,7 @@ function bindControls(): Promise<void> {
             rerenderScatterFromCache,
             renderScatterDebounced,
             syncScatterFilterBadge,
+            exportScatterParquet: () => exportScatterParquet(workspace?.getSnapshot()),
         }),
     ).then(() => {
         // Register the click handler for correlation pills. After a pill

@@ -75,6 +75,7 @@ export interface ScatterRenderCallbacks {
     rerenderScatterFromCache: (resetViewFlag?: boolean) => Promise<void>;
     renderScatterDebounced: () => void;
     syncScatterFilterBadge: () => void;
+    exportScatterParquet?: () => Promise<boolean>;
 }
 
 /**
@@ -201,7 +202,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     getEl('scatter-export-csv-btn')?.addEventListener('click', () => exportScatterData('csv'));
     getEl('scatter-export-json-btn')?.addEventListener('click', () => exportScatterData('json'));
     getEl('scatter-export-parquet-btn')?.addEventListener('click', async () => {
-        try { await exportScatterParquet(); } catch (error: any) { cb.handleErr(error); }
+        try { await (cb.exportScatterParquet?.() ?? exportScatterParquet()); } catch (error: any) { cb.handleErr(error); }
     });
 
     ySelect.addEventListener('change', async () => { updateCorrelationStats(); await cb.renderScatter(); });
