@@ -207,6 +207,7 @@ describe('app -> timeseries bootstrap wiring', () => {
 
         expect(createUploadEntrypointMock).not.toHaveBeenCalled();
         expect(uploadEntrypointInitMock).not.toHaveBeenCalled();
+        expect((window as any).__edatime.state).toBeUndefined();
 
         expect(createTimeseriesModuleMock).toHaveBeenCalledTimes(1);
         const deps = createTimeseriesModuleMock.mock.calls[0]?.[0];

@@ -53,7 +53,6 @@ import { configureExportControls, exportChartFilteredData, exportChartFilteredPa
 import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, ChartInstance, ViewSnapshot } from './types.js';
 
 import {
-    appStateComposite,
     chartState,
     datasetState,
     initChartStatePrefs,
@@ -67,24 +66,6 @@ import {
     runtimeState,
     uiState,
 } from './store/index.js';
-
-// ── Debugging hook ──────────────────────────────────────────────────────────
-// Expose appState on window.__edatime for interactive debugging from DevTools.
-// Using direct property assignment (not a getter) to avoid closure issues with
-// variable renaming across Vite's chunk bundling.
-const __edatime_state = appStateComposite;
-window.__edatime = window.__edatime || {};
-try {
-    Object.defineProperty(window.__edatime, 'state', {
-        get: () => __edatime_state,
-        set: (v) => { Object.assign(__edatime_state, v); },
-        configurable: true,
-        enumerable: true,
-    });
-} catch (_) {
-    // Already defined — leave it alone.
-}
-window.__edatime.DEBUG = true;
 
 const _appCleanups: Array<() => void> = [];
 const runtime = createAppRuntime();
