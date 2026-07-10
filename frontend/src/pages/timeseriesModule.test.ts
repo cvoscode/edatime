@@ -4,6 +4,7 @@
 // is implemented in Task 4.
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { setSelectedColorColumn } from '../store/index.js';
 
 // ── Hoisted mocks ─────────────────────────────────────────────────────────────
 // vi.hoisted ensures mocks are created before vi.mock() calls
@@ -121,6 +122,7 @@ const defaultDeps = () => ({
 describe('createTimeseriesModule', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        setSelectedColorColumn(null);
         // Reset all mock return values
         mockCreateTimeseriesPageController.mockReturnValue(mockPageController());
         mockCreateTimeseriesEntrypoint.mockReturnValue(mockFeatureEntrypoint());
@@ -183,6 +185,30 @@ describe('createTimeseriesModule', () => {
         bootstrapDeps.clearPersistedFilters();
 
         expect(deps.workspace.setFilters).toHaveBeenCalledWith({ columnRanges: {}, adaptiveLines: [] });
+    });
+
+    it('clears an invalid recovered color column in the workspace', async () => {
+        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+        const deps = defaultDeps();
+        deps.fetchMetadata.mockResolvedValue({
+            revision: 1,
+            numeric_columns: ['value'],
+            columns: [{ name: 'value', dtype: 'float64' }],
+        });
+        deps.getSelectedCols.mockReturnValue(['value']);
+        deps.workspace.getSnapshot.mockReturnValue({
+            dataset: { metadata: null, revision: 0 },
+            selection: { columns: ['value'], colorColumn: 'stale-bucket' },
+            filters: { columnRanges: {}, adaptiveLines: [] },
+            viewport: null,
+        } as any);
+        setSelectedColorColumn('stale-bucket');
+
+        createTimeseriesModule(deps as any);
+        const pageDeps = mockCreateTimeseriesPageController.mock.calls[0]?.[0];
+        await pageDeps.recoverFromColumnMismatch();
+
+        expect(deps.workspace.setSelection).toHaveBeenCalledWith(['value'], null);
     });
 
     // -------------------------------------------------------------------------

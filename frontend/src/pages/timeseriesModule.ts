@@ -117,6 +117,10 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
             deps.setAdaptiveFilterColumn(nextSelectedCols[0] || null);
 
             if (uiState.selectedColorColumn && !validNames.has(uiState.selectedColorColumn)) {
+                deps.workspace.setSelection(
+                    nextSelectedCols,
+                    null,
+                );
                 setSelectedColorColumn(null);
             }
 
