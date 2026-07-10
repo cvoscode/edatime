@@ -8,18 +8,26 @@ import type {
 import { datasetState } from '../../store/datasetState.js';
 import { uiState } from '../../store/uiState.js';
 import { setColumnRanges, setSelectedCols } from '../../store/uiState.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 /**
  * Ensure column ranges are populated from data for any selected column
  * that doesn't already have a range.
  */
-export function ensureRangeStateFromData(dataObj: DataObject): void {
+export function ensureRangeStateFromData(
+    dataObj: DataObject,
+    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'>,
+): void {
+    const intent = workspace?.getSnapshot();
     const next = ensureRangeStateFromDataState(
         dataObj,
-        uiState.selectedCols || [],
-        uiState.columnRanges || {},
+        intent ? [...intent.selection.columns] : (uiState.selectedCols || []),
+        intent ? intent.filters.columnRanges : (uiState.columnRanges || {}),
     );
-    if (next !== uiState.columnRanges) setColumnRanges(next);
+    const currentRanges = intent?.filters.columnRanges ?? uiState.columnRanges;
+    if (next === currentRanges) return;
+    if (intent) workspace?.setFilters({ ...intent.filters, columnRanges: next });
+    setColumnRanges(next);
 }
 
 export function computeBounds(values: ArrayLike<number>): { min: number; max: number } | null {

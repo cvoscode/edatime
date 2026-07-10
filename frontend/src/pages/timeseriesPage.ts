@@ -43,7 +43,7 @@ interface TimeseriesControllerDeps {
     getCurrentView: () => ViewSnapshot;
     fetchAndRenderAnalytics: () => Promise<void>;
     recoverFromColumnMismatch?: () => Promise<boolean>;
-    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setViewport'>;
+    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'setViewport'>;
 }
 
 let timeseriesEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
@@ -446,7 +446,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 }
             }
 
-            ensureRangeStateFromData(data);
+            ensureRangeStateFromData(data, deps.workspace);
             deps.buildRangeControls();
             appState.chart?.setXRange?.(currentStart, currentEnd);
             renderCurrentData();

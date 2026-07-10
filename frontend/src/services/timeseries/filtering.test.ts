@@ -1,15 +1,29 @@
 import { describe, expect, it } from 'vitest';
+import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import {
     applyColumnRangesToData,
     buildAdaptiveLineFiltersForQueryState,
     buildAdaptiveLineY,
     clipDataToViewport,
     computeBounds,
+    ensureRangeStateFromData,
 } from './filtering.js';
 
 describe('timeseries filtering helpers', () => {
     it('computes finite bounds from typed arrays', () => {
         expect(computeBounds(Float64Array.from([NaN, 4, 2, 8]))).toEqual({ min: 2, max: 8 });
+    });
+
+    it('publishes missing selected-column bounds to the workspace', () => {
+        const workspace = createWorkspaceStore();
+        workspace.setSelection(['value']);
+
+        ensureRangeStateFromData({
+            ts: Float64Array.from([0, 1, 2]),
+            values: { value: Float64Array.from([4, 2, 8]) },
+        } as any, workspace);
+
+        expect(workspace.getSnapshot().filters.columnRanges).toEqual({ value: { from: 2, to: 8 } });
     });
 
     it('normalizes adaptive line filters for query payloads', () => {
