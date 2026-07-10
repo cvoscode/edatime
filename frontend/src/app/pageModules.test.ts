@@ -27,7 +27,7 @@ function createDeps(): PageDescriptorInitDeps {
         showPage: vi.fn(),
         chipColor: vi.fn(() => '#fff'),
         setLoading: vi.fn(),
-        workspace: { getSnapshot: vi.fn(() => ({ dataset: { metadata: null } } as never)) },
+        workspace: { getSnapshot: vi.fn(() => ({ dataset: { metadata: null } } as never)), setFilters: vi.fn() },
     };
 }
 
@@ -44,7 +44,7 @@ describe('page module descriptors', () => {
 
     it('loads Scatter directly from its descriptor only on first page initialization', async () => {
         const metadata = { numeric_columns: [], columns: [] } as never;
-        const workspace = { getSnapshot: vi.fn(() => ({ dataset: { metadata } } as never)) };
+        const workspace = { getSnapshot: vi.fn(() => ({ dataset: { metadata } } as never)), setFilters: vi.fn() };
         const deps = { ...createDeps(), workspace };
         const register = vi.fn();
         await loadPageDescriptors({ register } as unknown as PageRegistry, deps);

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 
 const buildOptionMock = vi.fn((..._args: unknown[]) => ({}));
 const updateColorbarUIMock = vi.fn();
@@ -460,8 +461,13 @@ describe('bindScatterControls', () => {
             renderScatterDebounced: vi.fn(),
             syncScatterFilterBadge: vi.fn(),
         };
+        const workspace = createWorkspaceStore();
+        workspace.setFilters({
+            columnRanges: { HUFL: { from: 1, to: 2 } },
+            adaptiveLines: [{ id: 'line-1', column: 'HUFL', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: true }],
+        });
 
-        bindScatterControls(callbacks);
+        bindScatterControls({ ...callbacks, workspace });
         setColumnRangesMock.mockClear();
         setAdaptiveLineFiltersMock.mockClear();
 
@@ -471,6 +477,7 @@ describe('bindScatterControls', () => {
 
         expect(setColumnRangesMock).toHaveBeenCalledWith({});
         expect(setAdaptiveLineFiltersMock).toHaveBeenCalledWith([]);
+        expect(workspace.getSnapshot().filters).toEqual({ columnRanges: {}, adaptiveLines: [] });
         expect(callbacks.syncScatterFilterBadge).toHaveBeenCalled();
         expect(callbacks.refreshActiveScatterView).toHaveBeenCalled();
     });

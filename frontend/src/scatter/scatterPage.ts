@@ -80,7 +80,7 @@ import { computeInteractiveScatterLimit } from './renderLimit.js';
 import type { DatasetMetadata } from '../types.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
-let workspace: Pick<WorkspaceStore, 'getSnapshot'> | null = null;
+let workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'> | null = null;
 
 /** Request task for scatter data fetching with abort-before-new semantics. */
 const scatterTask = createRequestTask({
@@ -152,7 +152,6 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
             lineFilters: liveLineFilters,
         });
         const enteringSnapshot = getScatterViewSnapshot(nextViewName);
-        setColumnRanges(enteringSnapshot.columnRanges as Record<string, { from: number; to: number }>);
         // Adaptive line filters round-trip back through the Adaptive shape,
         // because that is what `uiState` and the controller storage expect.
         const storedAdaptive = (enteringSnapshot.lineFilters || []).map((spec) => {
@@ -165,6 +164,15 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
                 keepAbove: spec.keepAbove,
             };
         });
+        const filters = workspace?.getSnapshot().filters;
+        if (filters) {
+            workspace?.setFilters({
+                ...filters,
+                columnRanges: enteringSnapshot.columnRanges,
+                adaptiveLines: storedAdaptive as any,
+            });
+        }
+        setColumnRanges(enteringSnapshot.columnRanges as Record<string, { from: number; to: number }>);
         setAdaptiveLineFilters(storedAdaptive as any);
     }
 
@@ -426,6 +434,7 @@ function bindControls(): Promise<void> {
             rerenderScatterFromCache,
             renderScatterDebounced,
             syncScatterFilterBadge,
+            workspace: workspace ?? undefined,
             exportScatterParquet: () => exportScatterParquet(workspace?.getSnapshot()),
         }),
     ).then(() => {
@@ -449,7 +458,7 @@ function bindControls(): Promise<void> {
 
 export async function initScatterPage(
     metadata: DatasetMetadata,
-    deps: { workspace?: Pick<WorkspaceStore, 'getSnapshot'> } = {},
+    deps: { workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'> } = {},
 ): Promise<void> {
     workspace = deps.workspace ?? null;
     configureScatterRuntime(workspace);

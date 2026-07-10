@@ -41,6 +41,7 @@ const latestBindIndex = (): number => {
 
 import { appState, setColumnRanges, setAdaptiveLineFilters } from '../store/index.js';
 import type { DatasetMetadata } from '../types.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import { getEl, normalizeScatterSuggestionThreshold } from './helpers.js';
 import {
     currentControls,
@@ -76,6 +77,7 @@ export interface ScatterRenderCallbacks {
     renderScatterDebounced: () => void;
     syncScatterFilterBadge: () => void;
     exportScatterParquet?: () => Promise<boolean>;
+    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'>;
 }
 
 /**
@@ -223,6 +225,10 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     window.addEventListener('edatime:adaptive-filters-change', () => handleFilterEvent(false));
     window.addEventListener('edatime:clear-all-filters', async () => {
         if (bindIndex !== latestBindIndex()) return;
+        const filters = cb.workspace?.getSnapshot().filters;
+        if (filters) {
+            cb.workspace?.setFilters({ ...filters, columnRanges: {}, adaptiveLines: [] });
+        }
         setColumnRanges({});
         setAdaptiveLineFilters([]);
         try {
