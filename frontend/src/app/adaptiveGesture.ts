@@ -13,6 +13,7 @@ import {
 } from '../store/index.js';
 import type { AdaptiveLineFilter } from '../types.js';
 import { appState } from '../store/appStateCompat.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 export function buildAdaptiveFilterFromPoints(
     column: string,
@@ -69,6 +70,7 @@ export function applyAdaptiveFiltersLocally(sourceKind = 'adaptive'): void {
 
 export function initAdaptiveFilterGesture(
     deps: {
+        workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'>;
         buildColumnToggles: () => void;
         buildRangeControls: () => void;
         renderCurrentData: () => void;
@@ -108,6 +110,11 @@ export function initAdaptiveFilterGesture(
         setAdaptiveFilterColumn(column);
         const filter = buildAdaptiveFilterFromPoints(column, p1, p2);
         if (!filter) return;
+        const filters = deps.workspace.getSnapshot().filters;
+        deps.workspace.setFilters({
+            ...filters,
+            adaptiveLines: [...filters.adaptiveLines, filter],
+        });
         appendAdaptiveLineFilter(filter);
         // Apply locally: rebuild range controls + re-render chart
         deps.buildRangeControls();

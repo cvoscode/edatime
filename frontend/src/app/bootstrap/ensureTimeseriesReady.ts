@@ -97,6 +97,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     bindAnalysisChartEvents();
                     initYRangeControls();
                     initAdaptiveFilterGesture({
+                        workspace: deps.workspace,
                         buildColumnToggles: deps.buildColumnToggles,
                         buildRangeControls: deps.buildRangeControls,
                         renderCurrentData: deps.renderCurrentData,
