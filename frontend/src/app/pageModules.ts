@@ -20,14 +20,12 @@
  */
 
 import type { PageRegistry } from './pageRegistry.js';
-import type { DatasetMetadata } from '../types.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import { ensureStyleModule, type StyleModuleName } from '../utils/pageStyles.js';
 
 export interface PageDescriptorInitDeps {
     getRenderTimeseries: () => void;
     showPage: (name: string) => void;
-    getMetadata: () => DatasetMetadata | null;
     chipColor: (col: string, idx: number) => string;
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
     workspace: Pick<WorkspaceStore, 'getSnapshot'>;
@@ -70,7 +68,6 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         async load(deps) {
             const { createScatterEntrypoint } = await import('../features/scatter/entrypoint.js');
             return createScatterEntrypoint({
-                getMetadata: () => deps.getMetadata()!,
                 workspace: deps.workspace,
             });
         },

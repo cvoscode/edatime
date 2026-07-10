@@ -212,7 +212,6 @@ async function init(): Promise<void> {
     await loadPageDescriptors(pageRegistry, {
         getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
         showPage,
-        getMetadata: () => datasetState.metadata ?? null,
         chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
         setLoading: setComputeLoading,
         workspace,

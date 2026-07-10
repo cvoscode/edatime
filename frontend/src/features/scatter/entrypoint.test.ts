@@ -22,7 +22,6 @@ describe('createScatterEntrypoint', () => {
     it('returns an explicit init surface', async () => {
         const { createScatterEntrypoint } = await import('./entrypoint.js');
         const deps = {
-            getMetadata: vi.fn().mockReturnValue({} as any),
             workspace: { getSnapshot: vi.fn() },
         };
         const entrypoint = createScatterEntrypoint(deps);
@@ -33,24 +32,22 @@ describe('createScatterEntrypoint', () => {
     it('does not import scatterPage before init', async () => {
         const { createScatterEntrypoint } = await import('./entrypoint.js');
         const deps = {
-            getMetadata: vi.fn().mockReturnValue({} as any),
             workspace: { getSnapshot: vi.fn() },
         };
         createScatterEntrypoint(deps);
         expect(scatterPageImported.value).toBe(false);
     });
 
-    it('init reads metadata from getMetadata and forwards it to scatterPage', async () => {
+    it('init reads metadata from workspace and forwards it to scatterPage', async () => {
         const { createScatterEntrypoint } = await import('./entrypoint.js');
         const metadata = { columns: [], timeRange: [0, 100] } as any;
         const deps = {
-            getMetadata: vi.fn().mockReturnValue(metadata),
-            workspace: { getSnapshot: vi.fn() },
+            workspace: { getSnapshot: vi.fn().mockReturnValue({ dataset: { metadata } }) },
         };
         const entrypoint = createScatterEntrypoint(deps);
         await entrypoint.init();
         expect(scatterPageImported.value).toBe(true);
-        expect(deps.getMetadata).toHaveBeenCalled();
+        expect(deps.workspace.getSnapshot).toHaveBeenCalled();
         expect(initScatterPageMock).toHaveBeenCalledWith(metadata, { workspace: deps.workspace });
     });
 });
