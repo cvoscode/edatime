@@ -84,12 +84,14 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         name: 'causal',
         requiresMetadata: true,
         async load(deps) {
-            const { createCausalEntrypoint } = await import('../features/causal/entrypoint.js');
-            return createCausalEntrypoint({
-                workspace: deps.workspace,
-                chipColor: deps.chipColor,
-                setLoading: deps.setLoading,
-            });
+            const { initCausalPage } = await import('../causal/causalPage.js');
+            return {
+                init: () => initCausalPage({
+                    workspace: deps.workspace,
+                    chipColor: deps.chipColor,
+                    setLoading: deps.setLoading,
+                }),
+            };
         },
     },
     {

@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
     initHeatmapPage: vi.fn(),
     createScatterEntrypoint: vi.fn(() => ({ init: vi.fn() })),
     initSpectrogramPage: vi.fn(),
-    createCausalEntrypoint: vi.fn(() => ({ init: vi.fn() })),
+    initCausalPage: vi.fn(),
     initDriftPage: vi.fn(),
 }));
 
@@ -15,7 +15,7 @@ vi.mock('../pages/fftPage.js', () => ({ initFftPage: mocks.initFftPage }));
 vi.mock('../pages/heatmapPage.js', () => ({ initHeatmapPage: mocks.initHeatmapPage }));
 vi.mock('../features/scatter/entrypoint.js', () => ({ createScatterEntrypoint: mocks.createScatterEntrypoint }));
 vi.mock('../pages/spectrogramPage.js', () => ({ initSpectrogramPage: mocks.initSpectrogramPage }));
-vi.mock('../features/causal/entrypoint.js', () => ({ createCausalEntrypoint: mocks.createCausalEntrypoint }));
+vi.mock('../causal/causalPage.js', () => ({ initCausalPage: mocks.initCausalPage }));
 vi.mock('../drift/driftPage.js', () => ({ initDriftPage: mocks.initDriftPage }));
 
 import { loadPageDescriptors, type PageDescriptorInitDeps } from './pageModules.js';
@@ -114,17 +114,20 @@ describe('page module descriptors', () => {
         expect(mocks.initDriftPage).toHaveBeenCalledWith(null);
     });
 
-    it('injects the workspace boundary into causal initialization', async () => {
+    it('loads Causal directly from its descriptor only on initialization', async () => {
         const deps = createDeps();
         const register = vi.fn();
         await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
         const causal = register.mock.calls.find(([name]) => name === 'causal')?.[1];
 
+        expect(mocks.initCausalPage).not.toHaveBeenCalled();
         await causal!.init();
 
-        expect(mocks.createCausalEntrypoint).toHaveBeenCalledWith(expect.objectContaining({
+        expect(mocks.initCausalPage).toHaveBeenCalledWith({
             workspace: deps.workspace,
-        }));
+            chipColor: deps.chipColor,
+            setLoading: deps.setLoading,
+        });
     });
 
 });
