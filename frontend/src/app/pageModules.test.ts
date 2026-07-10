@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     ensureStyleModule: vi.fn(),
-    createFftEntrypoint: vi.fn(() => ({ init: vi.fn() })),
+    initFftPage: vi.fn(),
     initHeatmapPage: vi.fn(),
     createScatterEntrypoint: vi.fn(() => ({ init: vi.fn() })),
     createSpectrogramEntrypoint: vi.fn(() => ({ init: vi.fn() })),
@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../utils/pageStyles.js', () => ({ ensureStyleModule: mocks.ensureStyleModule }));
-vi.mock('../features/fft/entrypoint.js', () => ({ createFftEntrypoint: mocks.createFftEntrypoint }));
+vi.mock('../pages/fftPage.js', () => ({ initFftPage: mocks.initFftPage }));
 vi.mock('../pages/heatmapPage.js', () => ({ initHeatmapPage: mocks.initHeatmapPage }));
 vi.mock('../features/scatter/entrypoint.js', () => ({ createScatterEntrypoint: mocks.createScatterEntrypoint }));
 vi.mock('../features/spectrogram/entrypoint.js', () => ({ createSpectrogramEntrypoint: mocks.createSpectrogramEntrypoint }));
@@ -40,7 +40,6 @@ describe('page module descriptors', () => {
         expect(register.mock.calls.map(([name]) => name)).toEqual([
             'fft', 'heatmap', 'scatter', 'spectrogram', 'causal', 'drift',
         ]);
-        expect(mocks.createFftEntrypoint).not.toHaveBeenCalled();
         expect(mocks.createScatterEntrypoint).not.toHaveBeenCalled();
         expect(mocks.createDriftEntrypoint).not.toHaveBeenCalled();
     });
@@ -72,6 +71,21 @@ describe('page module descriptors', () => {
         await heatmap!.init();
 
         expect(mocks.initHeatmapPage).toHaveBeenCalledWith({ showPage: deps.showPage });
+    });
+
+    it('loads FFT directly from its descriptor only on initialization', async () => {
+        const deps = createDeps();
+        const register = vi.fn();
+        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        const fft = register.mock.calls.find(([name]) => name === 'fft')?.[1];
+
+        expect(mocks.initFftPage).not.toHaveBeenCalled();
+        await fft!.init();
+
+        expect(mocks.initFftPage).toHaveBeenCalledWith({
+            renderTimeseries: deps.getRenderTimeseries,
+            workspace: deps.workspace,
+        });
     });
 
     it('injects the workspace boundary into causal initialization', async () => {

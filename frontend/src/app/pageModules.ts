@@ -47,8 +47,8 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         name: 'fft',
         requiresMetadata: true,
         async load(deps) {
-            const { createFftEntrypoint } = await import('../features/fft/entrypoint.js');
-            return createFftEntrypoint({ getRenderTimeseries: deps.getRenderTimeseries, workspace: deps.workspace });
+            const { initFftPage } = await import('../pages/fftPage.js');
+            return { init: () => initFftPage({ renderTimeseries: deps.getRenderTimeseries, workspace: deps.workspace }) };
         },
     },
     {
