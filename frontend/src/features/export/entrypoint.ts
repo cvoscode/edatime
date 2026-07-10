@@ -4,10 +4,11 @@
  * UI layer (ui/*) only binds DOM to injected action interfaces.
  */
 
-import { appState } from '../../store/appStateCompat.js';
-import { applyColumnRanges, buildAdaptiveLineFiltersForQuery } from '../../services/timeseries/filtering.js';
+import { applyColumnRangesToData, buildAdaptiveLineFiltersForQueryState } from '../../services/timeseries/filtering.js';
 import { exportParquet } from '../../services/api/index.js';
 import { downloadBlob } from '../../utils/dom.js';
+import type { DataObject } from '../../types.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,6 +20,11 @@ export interface ExportActions {
 
 export type ExportFeature = ExportActions;
 
+export interface ExportFeatureDeps {
+    getData: () => DataObject | null;
+    workspace: Pick<WorkspaceStore, 'getSnapshot'>;
+}
+
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
 interface FilteredRow {
@@ -28,14 +34,22 @@ interface FilteredRow {
     value: number;
 }
 
-function buildFilteredSeriesRows(): FilteredRow[] {
-    if (!appState.lastFetchedData || !Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
+function buildFilteredSeriesRows(deps: ExportFeatureDeps): FilteredRow[] {
+    const data = deps.getData();
+    const snapshot = deps.workspace.getSnapshot();
+    const selectedColumns = snapshot.selection.columns;
+    if (!data || selectedColumns.length === 0) {
         return [];
     }
 
-    const filtered = applyColumnRanges(appState.lastFetchedData);
+    const filtered = applyColumnRangesToData(
+        data,
+        [...selectedColumns],
+        { ...snapshot.filters.columnRanges },
+        snapshot.filters.adaptiveLines,
+    );
     const rows: FilteredRow[] = [];
-    for (const column of appState.selectedCols) {
+    for (const column of selectedColumns) {
         const series = filtered.series?.[column];
         const xs = series?.x || new Float64Array(0);
         const ys = series?.y || new Float64Array(0);
@@ -59,8 +73,8 @@ function buildFilteredSeriesRows(): FilteredRow[] {
 
 // ── Transport calls ───────────────────────────────────────────────────────────
 
-function exportFilteredCsv(): boolean {
-    const rows = buildFilteredSeriesRows();
+function exportFilteredCsv(deps: ExportFeatureDeps): boolean {
+    const rows = buildFilteredSeriesRows(deps);
     if (rows.length === 0) return false;
 
     const lines = [
@@ -76,8 +90,8 @@ function exportFilteredCsv(): boolean {
     return true;
 }
 
-function exportFilteredJson(): boolean {
-    const rows = buildFilteredSeriesRows();
+function exportFilteredJson(deps: ExportFeatureDeps): boolean {
+    const rows = buildFilteredSeriesRows(deps);
     if (rows.length === 0) return false;
 
     downloadBlob(
@@ -87,21 +101,26 @@ function exportFilteredJson(): boolean {
     return true;
 }
 
-async function exportFilteredParquet(): Promise<boolean> {
-    if (!Number.isFinite(appState.currentStart as number) || !Number.isFinite(appState.currentEnd as number)) {
+async function exportFilteredParquet(deps: ExportFeatureDeps): Promise<boolean> {
+    const snapshot = deps.workspace.getSnapshot();
+    if (!snapshot.viewport) return false;
+    const start = Number(snapshot.viewport.xMin);
+    const end = Number(snapshot.viewport.xMax);
+    const selectedColumns = snapshot.selection.columns;
+    if (!Number.isFinite(start) || !Number.isFinite(end)) {
         return false;
     }
-    if (!Array.isArray(appState.selectedCols) || appState.selectedCols.length === 0) {
+    if (selectedColumns.length === 0) {
         return false;
     }
 
     const params = new URLSearchParams({
-        start: new Date(appState.currentStart as number).toISOString(),
-        end: new Date(appState.currentEnd as number).toISOString(),
-        columns: appState.selectedCols.join(','),
+        start: new Date(start).toISOString(),
+        end: new Date(end).toISOString(),
+        columns: selectedColumns.join(','),
     });
 
-    const filters = Object.entries(appState.columnRanges || {})
+    const filters = Object.entries(snapshot.filters.columnRanges)
         .map(([column, range]) => {
             const from = Number(range?.from);
             const to = Number(range?.to);
@@ -113,7 +132,7 @@ async function exportFilteredParquet(): Promise<boolean> {
         params.set('filters', JSON.stringify(filters));
     }
 
-    const lineFilters = buildAdaptiveLineFiltersForQuery();
+    const lineFilters = buildAdaptiveLineFiltersForQueryState([...snapshot.filters.adaptiveLines]);
     if (lineFilters.length > 0) {
         params.set('line_filters', JSON.stringify(lineFilters));
     }
@@ -125,10 +144,10 @@ async function exportFilteredParquet(): Promise<boolean> {
 
 // ── Entrypoint factory ────────────────────────────────────────────────────────
 
-export function createExportFeature(): ExportFeature {
+export function createExportFeature(deps: ExportFeatureDeps): ExportFeature {
     return {
-        exportFilteredCsv,
-        exportFilteredJson,
-        exportFilteredParquet,
+        exportFilteredCsv: () => exportFilteredCsv(deps),
+        exportFilteredJson: () => exportFilteredJson(deps),
+        exportFilteredParquet: () => exportFilteredParquet(deps),
     };
 }

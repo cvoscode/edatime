@@ -12,17 +12,23 @@
  * data for the new range, leaving the canvas empty).
  */
 
-import { createExportFeature } from '../features/export/entrypoint.js';
+import { createExportFeature, type ExportFeature, type ExportFeatureDeps } from '../features/export/entrypoint.js';
 
-const exportFeature = createExportFeature();
+let exportFeature: ExportFeature | null = null;
+
+/** Configures export actions with app-owned workspace intent and fetched data. */
+export function configureExportControls(deps: ExportFeatureDeps): void {
+    exportFeature = createExportFeature(deps);
+}
 
 export function exportChartFilteredData(format: 'csv' | 'json' = 'csv'): boolean {
+    if (!exportFeature) return false;
     if (format === 'json') return exportFeature.exportFilteredJson();
     return exportFeature.exportFilteredCsv();
 }
 
 export async function exportChartFilteredParquet(): Promise<boolean> {
-    return exportFeature.exportFilteredParquet();
+    return exportFeature?.exportFilteredParquet() ?? false;
 }
 
 function openToolbarModal(modalId: string): void {

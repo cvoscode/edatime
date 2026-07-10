@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DataObject } from '../../types.js';
-import { appState } from '../../store/appStateCompat.js';
 
 const { downloadBlobMock, exportParquetMock } = vi.hoisted(() => ({
     downloadBlobMock: vi.fn(),
@@ -40,39 +39,34 @@ function makeData(): DataObject {
     };
 }
 
-describe('export feature characterization', () => {
-    const initialState = {
-        lastFetchedData: appState.lastFetchedData,
-        selectedCols: [...(appState.selectedCols || [])],
-        columnRanges: { ...(appState.columnRanges || {}) },
-        adaptiveLineFilters: [...(appState.adaptiveLineFilters || [])],
-        currentStart: appState.currentStart,
-        currentEnd: appState.currentEnd,
-    };
+let currentData: DataObject | null = null;
+let workspaceSnapshot: unknown = null;
 
+function createFeature() {
+    return createExportFeature({
+        getData: () => currentData,
+        workspace: { getSnapshot: () => workspaceSnapshot as never },
+    });
+}
+
+describe('export feature characterization', () => {
     beforeEach(() => {
         downloadBlobMock.mockReset();
         exportParquetMock.mockReset();
-        appState.lastFetchedData = null;
-        appState.selectedCols = [];
-        appState.columnRanges = {};
-        appState.adaptiveLineFilters = [];
-        appState.currentStart = null;
-        appState.currentEnd = null;
+        currentData = null;
+        workspaceSnapshot = {
+            selection: { columns: [] },
+            filters: { columnRanges: {}, adaptiveLines: [] },
+            viewport: null,
+        };
     });
 
     afterEach(() => {
-        appState.lastFetchedData = initialState.lastFetchedData;
-        appState.selectedCols = [...initialState.selectedCols];
-        appState.columnRanges = { ...initialState.columnRanges };
-        appState.adaptiveLineFilters = [...initialState.adaptiveLineFilters];
-        appState.currentStart = initialState.currentStart;
-        appState.currentEnd = initialState.currentEnd;
         vi.restoreAllMocks();
     });
 
     it('returns false for CSV and JSON export when there is no filtered dataset to export', () => {
-        const feature = createExportFeature();
+        const feature = createFeature();
 
         expect(feature.exportFilteredCsv()).toBe(false);
         expect(feature.exportFilteredJson()).toBe(false);
@@ -80,12 +74,13 @@ describe('export feature characterization', () => {
     });
 
     it('exports filtered CSV rows in timestamp and series order', async () => {
-        const feature = createExportFeature();
-        appState.lastFetchedData = makeData();
-        appState.selectedCols = ['temp', 'humidity'];
-        appState.columnRanges = {
-            temp: { from: 15, to: 30 },
+        currentData = makeData();
+        workspaceSnapshot = {
+            selection: { columns: ['temp', 'humidity'] },
+            filters: { columnRanges: { temp: { from: 15, to: 30 } }, adaptiveLines: [] },
+            viewport: null,
         };
+        const feature = createFeature();
 
         expect(feature.exportFilteredCsv()).toBe(true);
         expect(downloadBlobMock).toHaveBeenCalledTimes(1);
@@ -104,12 +99,13 @@ describe('export feature characterization', () => {
     });
 
     it('exports the same filtered rows as JSON', async () => {
-        const feature = createExportFeature();
-        appState.lastFetchedData = makeData();
-        appState.selectedCols = ['temp'];
-        appState.columnRanges = {
-            temp: { from: 15, to: 25 },
+        currentData = makeData();
+        workspaceSnapshot = {
+            selection: { columns: ['temp'] },
+            filters: { columnRanges: { temp: { from: 15, to: 25 } }, adaptiveLines: [] },
+            viewport: null,
         };
+        const feature = createFeature();
 
         expect(feature.exportFilteredJson()).toBe(true);
         expect(downloadBlobMock).toHaveBeenCalledTimes(1);
@@ -128,25 +124,21 @@ describe('export feature characterization', () => {
     });
 
     it('exports parquet with the current viewport, range filters, and adaptive line filters', async () => {
-        const feature = createExportFeature();
         const parquetBlob = new Blob(['parquet']);
         exportParquetMock.mockResolvedValueOnce(parquetBlob);
 
-        appState.selectedCols = ['temp'];
-        appState.columnRanges = {
-            temp: { from: 15, to: 30 },
+        workspaceSnapshot = {
+            selection: { columns: ['temp'] },
+            filters: {
+                columnRanges: { temp: { from: 15, to: 30 } },
+                adaptiveLines: [{
+                    id: 'line-1', column: 'temp', x1: 1_000, y1: 12,
+                    x2: 3_000, y2: 28, keepAbove: true,
+                }],
+            },
+            viewport: { xMin: 1_000, xMax: 3_000, yMin: null, yMax: null },
         };
-        appState.adaptiveLineFilters = [{
-            id: 'line-1',
-            column: 'temp',
-            x1: 1_000,
-            y1: 12,
-            x2: 3_000,
-            y2: 28,
-            keepAbove: true,
-        }];
-        appState.currentStart = 1_000;
-        appState.currentEnd = 3_000;
+        const feature = createFeature();
 
         await expect(feature.exportFilteredParquet()).resolves.toBe(true);
 
@@ -171,7 +163,7 @@ describe('export feature characterization', () => {
     });
 
     it('returns false for parquet export without a viewport or selected series', async () => {
-        const feature = createExportFeature();
+        const feature = createFeature();
 
         await expect(feature.exportFilteredParquet()).resolves.toBe(false);
         expect(exportParquetMock).not.toHaveBeenCalled();

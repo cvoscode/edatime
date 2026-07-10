@@ -50,7 +50,7 @@ import {
     refreshZoomControlsState, getCurrentView,
     setComputeLoading,
 } from './ui/toolbar.js';
-import { exportChartFilteredData, exportChartFilteredParquet } from './ui/exportControls.js';
+import { configureExportControls, exportChartFilteredData, exportChartFilteredParquet } from './ui/exportControls.js';
 import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, ChartInstance, ViewSnapshot } from './types.js';
 
 import {
@@ -65,6 +65,7 @@ import {
     setNumericCols,
     setSelectedCols,
     setViewport,
+    runtimeState,
     uiState,
 } from './store/index.js';
 
@@ -160,6 +161,7 @@ async function init(): Promise<void> {
     initChartStatePrefs();
     // Load data transport first; chart rendering stays behind timeseries readiness.
     await ensureDataModules();
+    configureExportControls({ workspace, getData: () => runtimeState.lastFetchedData });
 
     timeseriesModule = createTimeseriesModule({
         fetchData: (start, end, width, columns, colorColumn, lookaroundMs, signal) => fetchData!(start, end, width, columns, colorColumn, lookaroundMs, signal),
