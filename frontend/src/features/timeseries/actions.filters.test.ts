@@ -7,6 +7,7 @@ import {
     setColumnRanges,
     setScatterViewSnapshot,
 } from '../../store/index.js';
+import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 
 function buildDom(): void {
     document.body.innerHTML = '';
@@ -46,6 +47,11 @@ describe('initTimeseriesActions clear-all-filters', () => {
     });
 
     it('clears both plot and matrix scatter filter snapshots when the global clear event fires', async () => {
+        const workspace = createWorkspaceStore();
+        workspace.setFilters({
+            columnRanges: { HUFL: { from: 1, to: 9 } },
+            adaptiveLines: [{ id: 'line-1', column: 'HUFL', x1: 1, y1: 2, x2: 3, y2: 4, keepAbove: true }],
+        });
         const deps = {
             rebuildColumnToggles: vi.fn(),
             renderColumnProfilesGrid: vi.fn(),
@@ -55,6 +61,7 @@ describe('initTimeseriesActions clear-all-filters', () => {
             updateAnalysisZoom: vi.fn(),
             emitChartRangeChange: vi.fn(),
             registerCleanup: vi.fn(),
+            workspace,
         };
 
         initTimeseriesActions(deps);
@@ -71,5 +78,6 @@ describe('initTimeseriesActions clear-all-filters', () => {
             columnRanges: {},
             lineFilters: [],
         });
+        expect(workspace.getSnapshot().filters).toEqual({ columnRanges: {}, adaptiveLines: [] });
     });
 });

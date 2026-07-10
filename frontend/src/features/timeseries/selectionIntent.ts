@@ -3,7 +3,7 @@ import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 export type SelectionWorkspace = Pick<WorkspaceStore, 'getSnapshot' | 'setSelection'>;
 export type FilterWorkspace = Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'>;
-export type TimeseriesWorkspace = SelectionWorkspace & FilterWorkspace;
+export type TimeseriesWorkspace = SelectionWorkspace & FilterWorkspace & Pick<WorkspaceStore, 'setViewport'>;
 
 /**
  * Updates the canonical workspace selection and mirrors it to the legacy

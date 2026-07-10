@@ -22,8 +22,10 @@ import {
     type ProfileFilterCategory,
 } from '../../store/index.js';
 import { debounce } from '../../utils/dom.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 export interface TimeseriesActionDeps {
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'setViewport'>;
     rebuildColumnToggles: () => void;
     renderColumnProfilesGrid: (force?: boolean) => void;
     buildRangeControls: () => void;
@@ -141,6 +143,7 @@ export function initTimeseriesActions(deps: TimeseriesActionDeps): void {
         const minMs = Number((datasetState.metadata as any)?.time_range?.min);
         const maxMs = Number((datasetState.metadata as any)?.time_range?.max);
         if (!Number.isFinite(minMs) || !Number.isFinite(maxMs) || minMs >= maxMs) return;
+        deps.workspace.setViewport({ xMin: minMs, xMax: maxMs, yMin: null, yMax: null });
         setViewport(minMs, maxMs);
         chartState.chart?.setXRange?.(minMs, maxMs);
         deps.updateAnalysisZoom(minMs, maxMs, source);
@@ -156,6 +159,8 @@ export function initTimeseriesActions(deps: TimeseriesActionDeps): void {
     (window as any).__edatime.resetChartRangeToDataset = () => void resetChartRangeToDataset('reset');
 
     const clearAllFilters = async (source = 'clear') => {
+        const filters = deps.workspace.getSnapshot().filters;
+        deps.workspace.setFilters({ ...filters, columnRanges: {}, adaptiveLines: [] });
         setColumnRanges({});
         setAdaptiveLineFilters([]);
         clearScatterViewSnapshots();

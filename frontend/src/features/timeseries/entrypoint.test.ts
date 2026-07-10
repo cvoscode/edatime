@@ -35,6 +35,7 @@ function selectionWorkspace() {
         getSnapshot: vi.fn(() => ({ selection: { columns: [], colorColumn: null } } as never)),
         setSelection: vi.fn(),
         setFilters: vi.fn(),
+        setViewport: vi.fn(),
     };
 }
 
