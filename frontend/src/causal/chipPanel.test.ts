@@ -50,16 +50,15 @@ describe('renderColumnChips', () => {
 
     it('renders non-numeric metadata chips as non-interactive labels', () => {
         const deps: CausalDeps = {
-            getMetadata: () => ({
+            workspace: { getSnapshot: () => ({ dataset: { metadata: {
                 numeric_columns: ['HUFL', 'OT'],
                 columns: [
                     { name: 'date', dtype: 'datetime64[ns]' },
                     { name: 'HUFL', dtype: 'float64' },
                     { name: 'OT', dtype: 'float64' },
                 ],
-            }),
+            } } } as never) },
             chipColor: () => '#00a8ff',
-            numericColumns: () => ['HUFL', 'OT'],
             setLoading: () => undefined,
         };
 
@@ -76,16 +75,15 @@ describe('renderColumnChips', () => {
 
     it('select-all toggles only numeric columns', () => {
         const deps: CausalDeps = {
-            getMetadata: () => ({
+            workspace: { getSnapshot: () => ({ dataset: { metadata: {
                 numeric_columns: ['HUFL', 'OT'],
                 columns: [
                     { name: 'date', dtype: 'datetime64[ns]' },
                     { name: 'HUFL', dtype: 'float64' },
                     { name: 'OT', dtype: 'float64' },
                 ],
-            }),
+            } } } as never) },
             chipColor: () => '#00a8ff',
-            numericColumns: () => ['HUFL', 'OT'],
             setLoading: () => undefined,
         };
 

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     toast: vi.fn(),
-    selectedCols: ['HUFL', 'HULL'],
 }));
 
 vi.mock('../services/api/index.js', () => ({
@@ -19,12 +18,6 @@ vi.mock('./causalComparison.js', async (importOriginal) => {
 
 vi.mock('../utils/toast.js', () => ({
     toast: mocks.toast,
-}));
-
-vi.mock('../store/index.js', () => ({
-    appState: {
-        selectedCols: mocks.selectedCols,
-    },
 }));
 
 class ResizeObserverMock {
@@ -62,6 +55,19 @@ function createCanvasContextMock() {
         createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
         getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4) })),
         putImageData: vi.fn(),
+    };
+}
+
+function causalDeps(metadata: unknown, selectedColumns: string[] = []) {
+    return {
+        workspace: {
+            getSnapshot: () => ({
+                dataset: { metadata },
+                selection: { columns: selectedColumns },
+            } as never),
+        },
+        chipColor: () => '#00d4ff',
+        setLoading: vi.fn(),
     };
 }
 
@@ -115,12 +121,7 @@ describe('causal page chart bootstrap', () => {
     it('waits for the causal page to become visible before creating the chart', async () => {
         const { initCausalPage } = await import('./causalPage.js');
 
-        initCausalPage({
-            getMetadata: () => ({ numeric_columns: ['a', 'b'] }),
-            chipColor: () => '#00d4ff',
-            numericColumns: () => ['a', 'b'],
-            setLoading: vi.fn(),
-        });
+        initCausalPage(causalDeps({ numeric_columns: ['a', 'b'] }));
 
         const echarts = await import('echarts');
         const chartEl = document.getElementById('causal-chart') as HTMLDivElement;
@@ -154,12 +155,7 @@ describe('causal page chart bootstrap', () => {
         _selectedColumns.add('a');
 
         await handleComputeClick(
-            {
-                getMetadata: () => ({ numeric_columns: ['a', 'b'], columns: [{ name: 'a', dtype: 'Float64' }, { name: 'b', dtype: 'Float64' }] }),
-                chipColor: () => '#00d4ff',
-                numericColumns: () => ['a', 'b'],
-                setLoading: vi.fn(),
-            },
+            causalDeps({ numeric_columns: ['a', 'b'], columns: [{ name: 'a', dtype: 'Float64' }, { name: 'b', dtype: 'Float64' }] }),
             document.getElementById('causal-method-select'),
             document.getElementById('causal-tau-max') as HTMLInputElement,
             document.getElementById('causal-alpha') as HTMLInputElement,
@@ -175,28 +171,23 @@ describe('causal page chart bootstrap', () => {
         expect(toastArgs).toBeDefined();
     });
 
-    it('preselects causal chips from the existing numeric selection when available', async () => {
+    it('preselects causal chips from the workspace numeric selection', async () => {
         const { initCausalPage } = await import('./causalPage.js');
         const { resetSelectionState } = await import('./selectionState.js');
         resetSelectionState();
 
-        initCausalPage({
-            getMetadata: () => ({
-                numeric_columns: ['HUFL', 'HULL', 'OT'],
-                columns: [
-                    { name: 'HUFL', dtype: 'Float64' },
-                    { name: 'HULL', dtype: 'Float64' },
-                    { name: 'OT', dtype: 'Float64' },
-                ],
-            }),
-            chipColor: () => '#00d4ff',
-            numericColumns: () => ['HUFL', 'HULL', 'OT'],
-            setLoading: vi.fn(),
-        });
+        initCausalPage(causalDeps({
+            numeric_columns: ['HUFL', 'HULL', 'OT'],
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+                { name: 'OT', dtype: 'Float64' },
+            ],
+        }, ['HULL', 'OT']));
 
-        expect(document.querySelector('[data-col="HUFL"]')?.getAttribute('aria-pressed')).toBe('true');
+        expect(document.querySelector('[data-col="HUFL"]')?.getAttribute('aria-pressed')).toBe('false');
         expect(document.querySelector('[data-col="HULL"]')?.getAttribute('aria-pressed')).toBe('true');
-        expect(document.querySelector('[data-col="OT"]')?.getAttribute('aria-pressed')).toBe('false');
+        expect(document.querySelector('[data-col="OT"]')?.getAttribute('aria-pressed')).toBe('true');
     });
 
     it('keeps graph-only actions disabled until a causal graph exists', async () => {
@@ -204,18 +195,13 @@ describe('causal page chart bootstrap', () => {
         const { resetSelectionState } = await import('./selectionState.js');
         resetSelectionState();
 
-        initCausalPage({
-            getMetadata: () => ({
-                numeric_columns: ['HUFL', 'HULL'],
-                columns: [
-                    { name: 'HUFL', dtype: 'Float64' },
-                    { name: 'HULL', dtype: 'Float64' },
-                ],
-            }),
-            chipColor: () => '#00d4ff',
-            numericColumns: () => ['HUFL', 'HULL'],
-            setLoading: vi.fn(),
-        });
+        initCausalPage(causalDeps({
+            numeric_columns: ['HUFL', 'HULL'],
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+            ],
+        }));
 
         expect((document.getElementById('causal-add-edge-btn') as HTMLButtonElement).disabled).toBe(true);
         expect((document.getElementById('causal-export-btn') as HTMLButtonElement).disabled).toBe(true);

@@ -91,9 +91,8 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         async load(deps) {
             const { createCausalEntrypoint } = await import('../features/causal/entrypoint.js');
             return createCausalEntrypoint({
-                getMetadata: deps.getMetadata,
+                workspace: deps.workspace,
                 chipColor: deps.chipColor,
-                numericColumns: deps.numericColumns,
                 setLoading: deps.setLoading,
             });
         },

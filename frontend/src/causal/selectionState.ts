@@ -5,6 +5,7 @@
  * tracking, and the live selection state for the causal page.
  */
 import type { CausalLink } from './causalComparison.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 export type { CausalLink };
 export interface MetadataColumn {
     name: string;
@@ -17,9 +18,8 @@ export interface CausalMetadata {
 }
 
 export interface CausalDeps {
-    getMetadata: () => CausalMetadata | null;
+    workspace: Pick<WorkspaceStore, 'getSnapshot'>;
     chipColor: (col: string, idx: number) => string;
-    numericColumns: () => string[];
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
 }
 
@@ -95,6 +95,15 @@ export function metadataColumns(meta: CausalMetadata | null): MetadataColumn[] {
     return meta.numeric_columns.map((name) => ({ name, dtype: 'numeric' }));
 }
 
+/** Reads dataset metadata from the app-owned workspace boundary. */
+export function workspaceMetadata(deps: CausalDeps): CausalMetadata | null {
+    return deps.workspace.getSnapshot().dataset.metadata as CausalMetadata | null;
+}
+
+export function workspaceNumericColumns(deps: CausalDeps): string[] {
+    return workspaceMetadata(deps)?.numeric_columns ?? [];
+}
+
 export function numericSet(meta: CausalMetadata | null): Set<string> {
     return new Set(meta?.numeric_columns ?? []);
 }
@@ -116,7 +125,7 @@ export function defaultChipColor(col: string, idx: number, numeric: boolean, dep
 
 export function ensureNodeMetadata(col: string, meta: CausalMetadata | null, deps: CausalDeps): void {
     const numeric = isNumericColumn(col, meta);
-    const idx = deps.numericColumns().indexOf(col);
+    const idx = workspaceNumericColumns(deps).indexOf(col);
     if (!_chipColors.has(col)) {
         _chipColors.set(col, defaultChipColor(col, idx, numeric, deps));
     }

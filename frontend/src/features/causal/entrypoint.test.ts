@@ -4,9 +4,8 @@ import { createCausalEntrypoint } from './entrypoint.js';
 describe('createCausalEntrypoint', () => {
     it('returns an explicit init surface', () => {
         const deps = {
-            getMetadata: vi.fn().mockReturnValue(null),
+            workspace: { getSnapshot: vi.fn() },
             chipColor: vi.fn(),
-            numericColumns: vi.fn().mockReturnValue([]),
             setLoading: vi.fn(),
         };
         const entrypoint = createCausalEntrypoint(deps);
@@ -15,15 +14,13 @@ describe('createCausalEntrypoint', () => {
 
     it('does not call any dep before init', () => {
         const deps = {
-            getMetadata: vi.fn().mockReturnValue(null),
+            workspace: { getSnapshot: vi.fn() },
             chipColor: vi.fn(),
-            numericColumns: vi.fn().mockReturnValue([]),
             setLoading: vi.fn(),
         };
         createCausalEntrypoint(deps);
-        expect(deps.getMetadata).not.toHaveBeenCalled();
+        expect(deps.workspace.getSnapshot).not.toHaveBeenCalled();
         expect(deps.chipColor).not.toHaveBeenCalled();
-        expect(deps.numericColumns).not.toHaveBeenCalled();
         expect(deps.setLoading).not.toHaveBeenCalled();
     });
 });

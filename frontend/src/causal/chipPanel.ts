@@ -10,6 +10,7 @@ import {
     metadataColumns,
     numericSet,
     ensureNodeMetadata,
+    workspaceMetadata,
     type CausalDeps,
     type CausalMetadata,
 } from './selectionState.js';
@@ -19,7 +20,7 @@ export function renderColumnChips(
     columnsBar: HTMLElement,
     openEditPanel: (target: { kind: 'node'; col: string }) => void,
 ): void {
-    const meta = deps.getMetadata();
+    const meta = workspaceMetadata(deps);
     if (!meta) return;
     const numeric = numericSet(meta);
     const cols = metadataColumns(meta);

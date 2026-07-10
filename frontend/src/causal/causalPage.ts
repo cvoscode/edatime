@@ -5,7 +5,6 @@
  * export to export.ts, workflow to workflow.ts, and runtime to runtime.ts.
  */
 import './runtime.js'; // bootstraps page lifecycle before first edatime:page-change event
-import { appState } from '../store/index.js';
 
 export type { CausalDeps } from './selectionState.js';
 export type { MetadataColumn, CausalMetadata } from './selectionState.js';
@@ -15,6 +14,9 @@ import {
     _currentLinks,
     _selectedColumns,
     _addEdgeMode,
+    workspaceMetadata,
+    workspaceNumericColumns,
+    type CausalDeps,
 } from './selectionState.js';
 
 import { renderColumnChips } from './chipPanel.js';
@@ -29,17 +31,17 @@ import { bindInfoPopovers } from '../ui/infoPopovers.js';
 
 let _chartEl: HTMLDivElement | null = null;
 
-function seedSelectedColumnsFromDataset(deps: any): void {
+function seedSelectedColumnsFromDataset(deps: CausalDeps): void {
     if (_selectedColumns.size > 0) return;
-    const numericSet = new Set(Array.isArray(deps?.numericColumns?.()) ? deps.numericColumns() : []);
-    const restored = Array.isArray(appState.selectedCols) ? appState.selectedCols.filter((col) => numericSet.has(col)) : [];
+    const numericSet = new Set(workspaceNumericColumns(deps));
+    const restored = deps.workspace.getSnapshot().selection.columns.filter((col) => numericSet.has(col));
     if (restored.length === 0) return;
     for (const col of restored) {
         _selectedColumns.add(col);
     }
 }
 
-export function initCausalPage(deps: any): void {
+export function initCausalPage(deps: CausalDeps): void {
     const methodSelect = document.getElementById('causal-method-select') as HTMLElement | null;
     const testSelect = document.getElementById('causal-test-select') as HTMLElement | null;
     const tauInput = document.getElementById('causal-tau-max') as HTMLInputElement | null;
@@ -110,7 +112,7 @@ export function initCausalPage(deps: any): void {
     });
 
     window.addEventListener('edatime:page-change', (event: any) => {
-        if (event?.detail?.page === 'causal' && deps.getMetadata()) {
+        if (event?.detail?.page === 'causal' && workspaceMetadata(deps)) {
             seedSelectedColumnsFromDataset(deps);
             renderColumnChips(deps, columnsBar, openEditPanel);
             scheduleCausalChartRefresh();

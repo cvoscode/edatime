@@ -19,6 +19,7 @@ import {
     setCurrentTauMax,
     isNumericColumn,
     ensureNodeMetadata,
+    workspaceMetadata,
 } from './selectionState.js';
 import { setProgress, hideProgress, setStatus } from './statusView.js';
 import { initChart, renderEChartsGraph } from './graphView.js';
@@ -105,7 +106,7 @@ export async function handleComputeClick(
     fdrSelect: HTMLElement | null,
     onComplete?: () => void,
 ): Promise<void> {
-    const meta = deps.getMetadata();
+    const meta = workspaceMetadata(deps);
     const allSelected = Array.from(_selectedColumns);
     const numericSelected = allSelected.filter((col) => isNumericColumn(col, meta));
     const manualOnly = allSelected.filter((col) => !isNumericColumn(col, meta));

@@ -65,4 +65,17 @@ describe('page module descriptors', () => {
         }));
         expect(mocks.createScatterEntrypoint.mock.results[0].value.init).toHaveBeenCalledTimes(1);
     });
+
+    it('injects the workspace boundary into causal initialization', async () => {
+        const deps = createDeps();
+        const register = vi.fn();
+        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        const causal = register.mock.calls.find(([name]) => name === 'causal')?.[1];
+
+        await causal!.init();
+
+        expect(mocks.createCausalEntrypoint).toHaveBeenCalledWith(expect.objectContaining({
+            workspace: deps.workspace,
+        }));
+    });
 });
