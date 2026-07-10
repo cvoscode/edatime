@@ -96,6 +96,52 @@ describe('createTimeseriesPageController', () => {
         );
     });
 
+    it('renders data through workspace selection and filter intent', () => {
+        const chart = {
+            updateDataMulti: vi.fn(),
+            setXRange: vi.fn(),
+            resetYRange: vi.fn(),
+            getYRange: vi.fn(),
+        };
+        setChartInstance(chart as any);
+        setLastFetchedData({
+            ts: new Float64Array([10, 20]),
+            values: {
+                legacy: new Float64Array([1, 2]),
+                workspace: new Float64Array([1, 3]),
+            },
+            series: {},
+            colorByColumn: {},
+        } as any);
+        appState.selectedCols = ['legacy'];
+        const controller = createTimeseriesPageController({
+            fetchData: vi.fn(),
+            buildRangeControls: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+            updateAnalysisZoom: vi.fn(),
+            getCurrentView: vi.fn(),
+            fetchAndRenderAnalytics: vi.fn(),
+            workspace: {
+                getSnapshot: () => ({
+                    selection: { columns: ['workspace'], colorColumn: null },
+                    filters: {
+                        columnRanges: { workspace: { from: 2, to: 4 } },
+                        adaptiveLines: [],
+                    },
+                    viewport: { xMin: 10, xMax: 20, yMin: null, yMax: null },
+                }),
+            } as any,
+        });
+
+        controller.renderCurrentData();
+
+        expect(chart.updateDataMulti).toHaveBeenCalledWith(expect.objectContaining({
+            series: expect.objectContaining({
+                workspace: expect.objectContaining({ y: Float64Array.from([3]) }),
+            }),
+        }), ['workspace']);
+    });
+
     it('stores the exact rendered viewport in zoom history instead of recomputing it from a live helper', async () => {
         document.body.innerHTML = '<div id="main-chart-loading" hidden></div><div id="main-chart" style="width:600px;"></div>';
         setMetadata({

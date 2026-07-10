@@ -74,7 +74,7 @@ export function buildAdaptiveLineY(filter: AdaptiveLineFilter, tsMs: number): nu
 function passesAdaptiveLineFilters(
     tsMs: number,
     valuesByColumn: Record<string, number | undefined>,
-    filters: AdaptiveLineFilter[],
+    filters: readonly AdaptiveLineFilter[],
 ): boolean {
     for (const filter of filters) {
         const column = String(filter?.column || '');
@@ -155,7 +155,7 @@ export function applyColumnRangesToData(
     dataObj: DataObject,
     selectedCols: string[],
     columnRanges: Record<string, ColumnRange>,
-    adaptiveLineFilters: AdaptiveLineFilter[],
+    adaptiveLineFilters: readonly AdaptiveLineFilter[],
 ): FilteredDataObject {
     const filtered: FilteredDataObject = { ...dataObj, series: {}, colorByColumn: {} };
     const lineFilters = Array.isArray(adaptiveLineFilters) ? adaptiveLineFilters : [];

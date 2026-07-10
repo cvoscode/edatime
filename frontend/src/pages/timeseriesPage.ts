@@ -1,6 +1,6 @@
 import { DEBUG, dbg, dbgGroup } from '../debug.js';
 import { appState } from '../store/appStateCompat.js';
-import { ensureRangeStateFromData, applyColumnRanges, clipDataToViewport, sanitizeSelectedColumns } from '../services/timeseries/filtering.js';
+import { ensureRangeStateFromData, applyColumnRanges, applyColumnRangesToData, clipDataToViewport, sanitizeSelectedColumns } from '../services/timeseries/filtering.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
 import { announceChartLoading, announceDataUpdate } from '../utils/a11y.js';
 import { computeFrontendRollingBands } from '../bootstrap/analyticsOverlay.js';
@@ -228,8 +228,21 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
     function renderCurrentData(): void {
         const emptyState = getTimeseriesEmptyStateController();
+        const workspace = deps.workspace?.getSnapshot();
+        const selectedColumns = workspace
+            ? [...workspace.selection.columns]
+            : (Array.isArray(appState.selectedCols) ? [...appState.selectedCols] : []);
+        const workspaceViewport = workspace?.viewport;
+        const viewportStart = workspaceViewport?.xMin != null && Number.isFinite(Number(workspaceViewport.xMin))
+            ? Number(workspaceViewport!.xMin)
+            : Number(appState.currentStart);
+        const viewportEnd = workspaceViewport?.xMax != null && Number.isFinite(Number(workspaceViewport.xMax))
+            ? Number(workspaceViewport!.xMax)
+            : Number(appState.currentEnd);
+        const columnRanges = workspace?.filters.columnRanges ?? appState.columnRanges;
+        const adaptiveLineFilters = workspace?.filters.adaptiveLines ?? appState.adaptiveLineFilters;
 
-        const hasSelection = Array.isArray(appState.selectedCols) && appState.selectedCols.length > 0;
+        const hasSelection = selectedColumns.length > 0;
         if (!hasSelection) {
             emptyState.update({
                 visible: true,
@@ -251,10 +264,8 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             emptyState.update({ visible: false, reason: '', title: '', message: '', showResetAction: false });
             return;
         }
-        const viewportStart = Number(appState.currentStart);
-        const viewportEnd = Number(appState.currentEnd);
         const viewportData = clipDataToViewport(appState.lastFetchedData, viewportStart, viewportEnd);
-        const filtered = applyColumnRanges(viewportData);
+        const filtered = applyColumnRangesToData(viewportData, selectedColumns, columnRanges, adaptiveLineFilters);
         const hasPoints = !!filtered?.ts && filtered.ts.length > 0;
         if (!hasPoints) {
             const start = Number(appState.currentStart);
@@ -283,7 +294,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         emptyState.update({ visible: false, reason: '', title: '', message: '', showResetAction: false });
 
         const preview = appState.spectralFilterPreview;
-        let displayCols = [...appState.selectedCols];
+        let displayCols = [...selectedColumns];
         if (preview && preview.ts && preview.values && preview.ts.length > 0) {
             const previewKey = `${preview.column} [filtered]`;
             (filtered as any).series = (filtered as any).series || {};
