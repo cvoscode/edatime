@@ -103,7 +103,7 @@ export function initAnalysisControls(
     fetchAndRender: () => void,
     zoomOutAction: () => void = () => zoomOut(fetchAndRender),
     resetZoomAction: () => void = () => resetZoom(fetchAndRender),
-    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>,
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'setViewport' | 'subscribe'>,
 ): void {
     window.__edatime = window.__edatime || {};
     window.__edatime.exportChartFilteredData = exportChartFilteredData;
@@ -115,7 +115,7 @@ export function initAnalysisControls(
     initYRangeControls();
     initAnalyticsControls();
 
-    initQuickRangeControls(fetchAndRender);
+    initQuickRangeControls(fetchAndRender, workspace);
 
     initResetZoomListener(resetZoomAction);
     initZoomOutListener(zoomOutAction);

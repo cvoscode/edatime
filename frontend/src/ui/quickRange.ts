@@ -10,6 +10,7 @@
 import { appState } from '../store/appStateCompat.js';
 import { applyViewport } from './viewport.js';
 import { store } from '../store/index.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 const PRESETS: Array<{ id: string; label: string; durationMs: number | null }> = [
     { id: 'quick-range-24h', label: '24h', durationMs: 24 * 60 * 60 * 1000 },
@@ -42,7 +43,11 @@ function updateButtonStates(): void {
     }
 }
 
-function applyPreset(durationMs: number | null, fetchAndRender: () => void): void {
+function applyPreset(
+    durationMs: number | null,
+    fetchAndRender: () => void,
+    workspace: Pick<WorkspaceStore, 'setViewport'>,
+): void {
     const range = getDatasetRange();
     if (!range) return;
     const endMs = range.max;
@@ -50,7 +55,12 @@ function applyPreset(durationMs: number | null, fetchAndRender: () => void): voi
     if (durationMs !== null) {
         startMs = Math.max(range.min, endMs - durationMs);
     }
-    applyViewport({ xMin: startMs, xMax: endMs, yMin: null, yMax: null }, fetchAndRender, 'quick-range');
+    applyViewport(
+        { xMin: startMs, xMax: endMs, yMin: null, yMax: null },
+        fetchAndRender,
+        'quick-range',
+        workspace,
+    );
 }
 
 /**
@@ -58,7 +68,10 @@ function applyPreset(durationMs: number | null, fetchAndRender: () => void): voi
  * Idempotent — repeated calls rebind the same handler without
  * accumulating listeners.
  */
-export function initQuickRangeControls(fetchAndRender: () => void): void {
+export function initQuickRangeControls(
+    fetchAndRender: () => void,
+    workspace: Pick<WorkspaceStore, 'setViewport'>,
+): void {
     for (const preset of PRESETS) {
         const btn = document.getElementById(preset.id) as HTMLButtonElement | null;
         if (!btn) continue;
@@ -66,7 +79,7 @@ export function initQuickRangeControls(fetchAndRender: () => void): void {
         // Easier than tracking + removing individual handlers.
         const clone = btn.cloneNode(true) as HTMLButtonElement;
         btn.parentNode?.replaceChild(clone, btn);
-        clone.addEventListener('click', () => applyPreset(preset.durationMs, fetchAndRender));
+        clone.addEventListener('click', () => applyPreset(preset.durationMs, fetchAndRender, workspace));
     }
     store.subscribe('dataset:metadata', () => updateButtonStates());
     updateButtonStates();

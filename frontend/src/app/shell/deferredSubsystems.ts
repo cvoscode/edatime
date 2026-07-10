@@ -24,7 +24,7 @@ export interface DeferredShellDeps {
     resetZoom: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     registerCleanup: (cleanup: () => void) => void;
-    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'setViewport' | 'subscribe'>;
 }
 
 export interface DeferredSubsystemRegistry {

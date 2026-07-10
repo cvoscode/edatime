@@ -14,6 +14,7 @@ import {
     initQuickRangeControls,
     refreshQuickRangeControls,
 } from './quickRange.js';
+import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 
 function resetDom(): void {
     document.body.innerHTML = `
@@ -25,13 +26,16 @@ function resetDom(): void {
 }
 
 describe('quickRange', () => {
+    let workspace: ReturnType<typeof createWorkspaceStore>;
+
     beforeEach(() => {
         resetDom();
         appState.metadata = null;
+        workspace = createWorkspaceStore();
     });
 
     it('disables all presets until a dataset with a time range is loaded', () => {
-        initQuickRangeControls(() => undefined);
+        initQuickRangeControls(() => undefined, workspace);
         refreshQuickRangeControls();
         for (const id of ['quick-range-24h', 'quick-range-7d', 'quick-range-30d', 'quick-range-all']) {
             const btn = document.getElementById(id) as HTMLButtonElement;
@@ -40,7 +44,7 @@ describe('quickRange', () => {
     });
 
     it('enables presets once a metadata range is set', () => {
-        initQuickRangeControls(() => undefined);
+        initQuickRangeControls(() => undefined, workspace);
         const start = Date.UTC(2024, 0, 1);
         const end = Date.UTC(2024, 6, 1); // ~6 months later
         appState.metadata = {
@@ -86,7 +90,7 @@ describe('quickRange', () => {
 
     it('initQuickRangeControls wires click handlers that call applyViewport', () => {
         const fetchAndRender = vi.fn();
-        initQuickRangeControls(fetchAndRender);
+        initQuickRangeControls(fetchAndRender, workspace);
         appState.metadata = {
             total_rows: 0,
             columns: [],
@@ -103,5 +107,29 @@ describe('quickRange', () => {
         expect(btn.disabled).toBe(false);
         btn.click();
         expect(fetchAndRender).not.toHaveBeenCalled();
+    });
+
+    it('publishes the selected quick range to the workspace before refreshing', () => {
+        const workspace = createWorkspaceStore();
+        const fetchAndRender = vi.fn();
+        initQuickRangeControls(fetchAndRender, workspace);
+        appState.metadata = {
+            total_rows: 0,
+            columns: [],
+            numeric_columns: [],
+            time_column: 'ts',
+            time_range: { min: 0, max: 7 * 24 * 60 * 60 * 1000 },
+            column_profiles: [],
+        };
+        refreshQuickRangeControls();
+
+        (document.getElementById('quick-range-24h') as HTMLButtonElement).click();
+
+        expect(workspace.getSnapshot().viewport).toEqual({
+            xMin: 6 * 24 * 60 * 60 * 1000,
+            xMax: 7 * 24 * 60 * 60 * 1000,
+            yMin: null,
+            yMax: null,
+        });
     });
 });

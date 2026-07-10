@@ -16,6 +16,7 @@ import {
 import { dbg, dbgGroup } from '../debug.js';
 import { updateAnalysisZoom, updateAnalysisYRange } from './analysisStatus.js';
 import type { ViewSnapshot } from '../types.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 // Keep the zoom-range badge in sync with the store regardless of which
 // path mutates `appState.currentStart/currentEnd` or `appState.initialView`.
@@ -74,10 +75,12 @@ export function applyViewport(
     view: ViewSnapshot,
     fetchAndRender: () => void,
     sourceKind = 'api',
+    workspace?: Pick<WorkspaceStore, 'setViewport'>,
 ): void {
     dbgGroup(`applyViewport (${sourceKind})`, () => {
         dbg('incoming view', view);
     });
+    workspace?.setViewport(view);
     setViewport(view.xMin, view.xMax);
     appState.chart?.setXRange?.(appState.currentStart as number, appState.currentEnd as number);
 
