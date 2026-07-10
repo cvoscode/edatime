@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
     createScatterEntrypoint: vi.fn(() => ({ init: vi.fn() })),
     initSpectrogramPage: vi.fn(),
     createCausalEntrypoint: vi.fn(() => ({ init: vi.fn() })),
-    createDriftEntrypoint: vi.fn(() => ({ init: vi.fn() })),
+    initDriftPage: vi.fn(),
 }));
 
 vi.mock('../utils/pageStyles.js', () => ({ ensureStyleModule: mocks.ensureStyleModule }));
@@ -16,7 +16,7 @@ vi.mock('../pages/heatmapPage.js', () => ({ initHeatmapPage: mocks.initHeatmapPa
 vi.mock('../features/scatter/entrypoint.js', () => ({ createScatterEntrypoint: mocks.createScatterEntrypoint }));
 vi.mock('../pages/spectrogramPage.js', () => ({ initSpectrogramPage: mocks.initSpectrogramPage }));
 vi.mock('../features/causal/entrypoint.js', () => ({ createCausalEntrypoint: mocks.createCausalEntrypoint }));
-vi.mock('../features/drift/entrypoint.js', () => ({ createDriftEntrypoint: mocks.createDriftEntrypoint }));
+vi.mock('../drift/driftPage.js', () => ({ initDriftPage: mocks.initDriftPage }));
 
 import { loadPageDescriptors, type PageDescriptorInitDeps } from './pageModules.js';
 import type { PageRegistry } from './pageRegistry.js';
@@ -27,7 +27,7 @@ function createDeps(): PageDescriptorInitDeps {
         showPage: vi.fn(),
         chipColor: vi.fn(() => '#fff'),
         setLoading: vi.fn(),
-        workspace: { getSnapshot: vi.fn() },
+        workspace: { getSnapshot: vi.fn(() => ({ dataset: { metadata: null } } as never)) },
     };
 }
 
@@ -41,7 +41,6 @@ describe('page module descriptors', () => {
             'fft', 'heatmap', 'scatter', 'spectrogram', 'causal', 'drift',
         ]);
         expect(mocks.createScatterEntrypoint).not.toHaveBeenCalled();
-        expect(mocks.createDriftEntrypoint).not.toHaveBeenCalled();
     });
 
     it('loads page-owned CSS and the page implementation only on first page initialization', async () => {
@@ -103,6 +102,18 @@ describe('page module descriptors', () => {
         });
     });
 
+    it('loads Drift directly from its descriptor only on initialization', async () => {
+        const deps = createDeps();
+        const register = vi.fn();
+        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        const drift = register.mock.calls.find(([name]) => name === 'drift')?.[1];
+
+        expect(mocks.initDriftPage).not.toHaveBeenCalled();
+        await drift!.init();
+
+        expect(mocks.initDriftPage).toHaveBeenCalledWith(null);
+    });
+
     it('injects the workspace boundary into causal initialization', async () => {
         const deps = createDeps();
         const register = vi.fn();
@@ -116,14 +127,4 @@ describe('page module descriptors', () => {
         }));
     });
 
-    it('injects the workspace boundary into drift initialization', async () => {
-        const deps = createDeps();
-        const register = vi.fn();
-        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
-        const drift = register.mock.calls.find(([name]) => name === 'drift')?.[1];
-
-        await drift!.init();
-
-        expect(mocks.createDriftEntrypoint).toHaveBeenCalledWith({ workspace: deps.workspace });
-    });
 });
