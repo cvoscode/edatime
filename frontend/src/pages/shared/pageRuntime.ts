@@ -8,6 +8,14 @@ import {
 export interface PageRuntimeOptions {
     page: string;
     emptyStateRootId?: string;
+    /**
+     * Optional ids of the `<strong id="…">` and `<span id="…">` elements
+     * inside the empty-state root. When provided, the runtime updates
+     * them in place so a brand-illustrated empty state (heading + body)
+     * can be wired up without re-rendering the surrounding markup.
+     */
+    emptyStateTitleId?: string;
+    emptyStateMessageId?: string;
     statusElId?: string;
     loadingElId?: string;
     init?: () => void | (() => void);
@@ -29,7 +37,11 @@ export function createPageRuntime(options: PageRuntimeOptions): PageRuntime {
 
     const getEmptyState = (): EmptyStateController => {
         if (!emptyStateController && options.emptyStateRootId) {
-            emptyStateController = createEmptyStateController({ rootId: options.emptyStateRootId });
+            emptyStateController = createEmptyStateController({
+                rootId: options.emptyStateRootId,
+                titleId: options.emptyStateTitleId,
+                messageId: options.emptyStateMessageId,
+            });
         }
         return emptyStateController!;
     };

@@ -213,8 +213,14 @@ describe('heatmapPage with clustering', () => {
         expect(positiveTick?.textContent).toBe('+1.0');
         expect(negativeTick?.textContent).toBe('-1.0');
         expect(headers.every((header) => header.classList.contains('heatmap-header--vertical'))).toBe(false);
-        expect(strongPositiveCell?.style.getPropertyValue('--heatmap-cell-bg')).toBeTruthy();
-        expect(negativeCell?.style.getPropertyValue('--heatmap-cell-bg')).toBeTruthy();
+        // Cells now carry `background` directly (inline) instead of
+        // `--heatmap-cell-bg`. The audit dropped the dead CSS variable,
+        // so we verify the inline background renders a colour.
+        expect(strongPositiveCell?.style.background).toBeTruthy();
+        expect(negativeCell?.style.background).toBeTruthy();
+        // C3: cells carry a sign prefix (`+` / `−` / `±`) so colour is
+        // not the only signal for direction.
+        expect(strongPositiveCell?.textContent).toMatch(/^[+±−]/);
     });
 
     it('fits the color axis to the strongest off-diagonal magnitude when requested', async () => {
@@ -378,7 +384,9 @@ describe('heatmapPage with clustering', () => {
 
         const cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="1"]') as HTMLElement | null;
         expect(fetchCorrelationMatrix).toHaveBeenCalledTimes(2);
-        expect(cell?.textContent).toBe('-0.33');
+        // C3: every cell carries a sign prefix; `−0.33` uses the
+        // Unicode minus in JS so it's accessible.
+        expect(cell?.textContent).toBe('−0.33');
     });
 
     it('stores the selected metric guide on the shared info icon', async () => {
@@ -447,7 +455,8 @@ describe('heatmapPage with clustering', () => {
         await activateHeatmap();
 
         let cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="1"]') as HTMLElement | null;
-        expect(cell?.textContent).toBe('0.40');
+        // C3: positive cells now carry an explicit `+` prefix.
+        expect(cell?.textContent).toBe('+0.40');
 
         const metric = document.getElementById('heatmap-metric') as HTMLSelectElement;
         metric.value = 'kendall_diff';
@@ -514,5 +523,209 @@ describe('heatmapPage with clustering', () => {
         expect(fitToggle.getAttribute('aria-pressed')).toBe('true');
         expect(fitToggle.classList.contains('is-active')).toBe(true);
         expect(ResizeObserverMock.instances).toHaveLength(1);
+    });
+});
+
+/* ─── C1–C11 follow-up audit tests ─────────────────────────────── */
+describe('heatmapPage audit follow-ups (C1–C11)', () => {
+    beforeEach(async () => {
+        vi.restoreAllMocks();
+        vi.clearAllMocks();
+        // Re-import the page so module-level flags (`heatmapClusterEnabled`,
+        // `metric`, `userColumnOrder`, etc.) reset to their module defaults.
+        // Without this, tests in the upper describe can leak state via the
+        // cluster toggle, fit toggle, or metric select into the tests here.
+        vi.resetModules();
+        window.localStorage.clear();
+        ResizeObserverMock.instances = [];
+        (globalThis as any).ResizeObserver = ResizeObserverMock;
+        const { fetchCorrelationMatrix } = await import('../services/api/index.js');
+        vi.mocked(fetchCorrelationMatrix).mockReset();
+        vi.mocked(fetchCorrelationMatrix).mockResolvedValue(structuredClone(DEFAULT_MATRIX_RESPONSE) as any);
+        // Run rAF callbacks synchronously so we don't have to wait for a real frame.
+        vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { cb(0); return 1; });
+        if (document.fonts) {
+            Object.defineProperty(document.fonts, 'ready', {
+                configurable: true,
+                get: () => Promise.resolve(),
+            });
+        }
+
+        document.body.innerHTML = `
+            <div id="heatmap-container"></div>
+            <div id="heatmap-empty-state" hidden>
+              <strong id="heatmap-empty-state-title"></strong>
+              <span id="heatmap-empty-state-message"></span>
+            </div>
+            <div id="heatmap-loading" hidden></div>
+            <span id="heatmap-metric-info" class="toolbar-info-icon" data-info-tip=""></span>
+            <select id="heatmap-metric">
+              <option value="pearson_raw" selected>Pearson (raw)</option>
+              <option value="kendall_diff">Kendall (diff)</option>
+            </select>
+            <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36" />
+            <span id="heatmap-cell-size-value">36</span>
+            <input id="heatmap-cluster-toggle" type="checkbox" checked />
+            <button id="heatmap-fit-toggle" type="button" aria-pressed="false"></button>
+            <button id="heatmap-axis-fit-toggle" type="button" aria-pressed="false"></button>
+            <select id="scatter-x-col"></select>
+            <select id="scatter-y-col"></select>
+            <section id="page-heatmap" hidden></section>
+            <section id="page-heatmap-page" class="page" hidden></section>
+            <div class="toolbar scatter-toolbar">
+              <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
+                <span class="scatter-toolbar__eyebrow">Display</span>
+                <div class="scatter-toolbar__fields">
+                  <div class="scatter-toolbar__field">field-a</div>
+                  <div class="scatter-toolbar__field">field-b</div>
+                  <details class="scatter-toolbar__overflow" data-overflow="false">
+                    <summary class="scatter-toolbar__overflow-btn">⋯</summary>
+                    <div class="scatter-toolbar__overflow-menu"></div>
+                  </details>
+                </div>
+              </div>
+            </div>`;
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    // C1 — corner carries X / Y axis glyph + active metric.
+    it('renders axis hints + active metric badge in the heatmap corner', async () => {
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const corner = document.querySelector('.heatmap-corner');
+        expect(corner).not.toBeNull();
+        expect(corner?.querySelector('.heatmap-corner__axis--x')?.textContent).toBe('X');
+        expect(corner?.querySelector('.heatmap-corner__axis--y')?.textContent).toBe('Y');
+        // Active metric is "Pearson (raw)" (mocked default).
+        expect(corner?.querySelector('.heatmap-corner__metric')?.textContent).toMatch(/Pearson/);
+    });
+
+    // C1 — cluster legend chips appear when clustering finds groups.
+    it('renders a cluster legend strip with one chip per detected cluster', async () => {
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const chips = document.querySelectorAll('.heatmap-cluster-legend__chip');
+        expect(chips.length).toBeGreaterThan(0);
+    });
+
+    // C1 — footer is visible after a successful render.
+    it('renders a status footer with the active metric + size + click hint', async () => {
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const footer = document.querySelector('.heatmap-footer');
+        expect(footer).not.toBeNull();
+        expect(footer?.textContent).toMatch(/6×6 matrix/);
+        expect(footer?.textContent).toMatch(/Click any cell/);
+    });
+
+    // C4 — row label height matches cell height under a small viewport.
+    it('keeps the row label in sync with the cell size when Auto-fit caps the height', async () => {
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const label = document.querySelector<HTMLElement>('.heatmap-row-label');
+        const grid = document.querySelector<HTMLElement>('.heatmap-grid');
+        expect(label).not.toBeNull();
+        expect(grid).not.toBeNull();
+        // The row label's inline height is set from JS using the same
+        // `responsiveCell` value the grid uses for its column widths.
+        // Assert it matches the cell-size part of the grid template.
+        const labelHeight = parseInt(label!.style.height, 10);
+        const colsAttr = grid!.style.gridTemplateColumns || '';
+        const cellCols = colsAttr.split(' ').slice(1).map((s) => parseInt(s, 10));
+        const expectedHeight = cellCols[0] ?? 0;
+        expect(labelHeight).toBe(expectedHeight);
+    });
+
+    // C5 — cluster separators appear via inline border styles.
+    it('marks cluster boundaries with an inline border-left / border-top', async () => {
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const clusterHeader = document.querySelector<HTMLElement>('.heatmap-header--cluster-start');
+        const clusterRow = document.querySelector<HTMLElement>('.heatmap-row-label--cluster-start');
+        expect(clusterHeader).not.toBeNull();
+        expect(clusterRow).not.toBeNull();
+        // Inline border style comes from the JS emitter; assert both are non-empty.
+        expect(clusterHeader!.style.borderLeft).toBeTruthy();
+        expect(clusterRow!.style.borderTop).toBeTruthy();
+    });
+
+    // C7 — Display segment is wired into initToolbarOverflow (segment exists with overflow popout).
+    it('does not crash when the heatmap page loads without an overflow popout', async () => {
+        // Strip the toolbar so initToolbarOverflow has nothing to register;
+        // the page should still render cleanly.
+        document.querySelector('.toolbar.scatter-toolbar')?.remove();
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await expect(initHeatmapPage({ showPage: vi.fn() })).resolves.not.toThrow();
+    });
+
+    // C10 — focusin on a row label paints every cell in that row.
+    it('highlights every cell in a row when the row label receives focus', async () => {
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const firstRowLabel = document.querySelector<HTMLElement>('.heatmap-row-label');
+        const rowIndex = firstRowLabel!.dataset.clusterRow;
+        firstRowLabel!.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+
+        // Give the focusin listener a microtask to process.
+        await new Promise((r) => setTimeout(r, 0));
+
+        const highlighted = document.querySelectorAll(`.heatmap-cell[data-row="${rowIndex}"].heatmap-row-highlight`);
+        expect(highlighted.length).toBeGreaterThan(0);
+        // The label itself gets the highlight class too.
+        expect(firstRowLabel!.classList.contains('heatmap-row-highlight')).toBe(true);
+    });
+
+    // C11 — drag a column header onto another column header; the matrix
+    // is re-rendered in the new order. We exercise the drop handler by
+    // dispatching drag events directly on the grid wrapper.
+    it('reorders columns when a header is dragged onto another header', async () => {
+        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const headers = Array.from(document.querySelectorAll<HTMLElement>('.heatmap-header[data-drag-axis="col"]'));
+        expect(headers.length).toBeGreaterThan(1);
+        const firstName = headers[0]!.getAttribute('data-drag-name');
+        const targetName = headers[headers.length - 1]!.getAttribute('data-drag-name');
+        const target = headers[headers.length - 1]!;
+
+        const dataTransfer = { setData: vi.fn(), effectAllowed: '' } as unknown as DataTransfer;
+        const start = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer });
+        headers[0]!.dispatchEvent(start);
+        // Use the captured name from `start.dataTransfer` would require a
+        // real DnD pipeline; happy-dom does not bubble `dataTransfer`
+        // through dragstart reliably. Re-derive it from the handler's
+        // captured state by reading the data on the handler source.
+        const dragging = headers[0]!.getAttribute('data-drag-name');
+
+        const drop = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer });
+        target.dispatchEvent(drop);
+        await new Promise((r) => setTimeout(r, 0));
+
+        const after = Array.from(document.querySelectorAll<HTMLElement>('.heatmap-header[data-drag-axis="col"]'));
+        const afterNames = after.map((h) => h.getAttribute('data-drag-name'));
+        // The dragged column should now sit at the drop target's index.
+        expect(afterNames[afterNames.length - 1]).toBe(dragging);
+        // Sanity: the dragged column is no longer first.
+        expect(afterNames[0]).not.toBe(dragging);
+        // First column name before drop should not be first now.
+        expect(afterNames[0]).not.toBe(firstName);
+        // Target was previously last; it should still be reachable.
+        expect(afterNames).toContain(targetName);
     });
 });

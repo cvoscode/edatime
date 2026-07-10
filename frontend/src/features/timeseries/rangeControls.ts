@@ -15,20 +15,24 @@ import {
     setPendingAdaptivePoint,
 } from '../../store/index.js';
 import { RangeControls, RangeControlItem } from '../../ui/composites/RangeControls.js';
+import type { FilterWorkspace } from './selectionIntent.js';
 
 /**
  * Render clickable range chips for selected columns and active adaptive filters.
  * Called whenever the selected column set or adaptive filter state changes.
  */
-export function buildRangeControls(): void {
+export function buildRangeControls(workspace: FilterWorkspace): void {
     const container = document.getElementById('column-range-controls');
     if (!container) return;
     container.innerHTML = '';
 
     const items: RangeControlItem[] = [];
+    const snapshot = workspace.getSnapshot();
+    const selectedColumns = snapshot.selection.columns;
+    const filters = snapshot.filters;
 
     // Adaptive filter target chip (static — not clickable)
-    if (appState.adaptiveFilterColumn && appState.selectedCols.includes(appState.adaptiveFilterColumn)) {
+    if (appState.adaptiveFilterColumn && selectedColumns.includes(appState.adaptiveFilterColumn)) {
         items.push({
             key: 'adaptive-target',
             name: 'Adaptive target',
@@ -38,8 +42,8 @@ export function buildRangeControls(): void {
     }
 
     // Per-column range chips — clickable, opens filter modal for that column
-    for (const col of appState.selectedCols) {
-        const range = appState.columnRanges[col];
+    for (const col of selectedColumns) {
+        const range = filters.columnRanges[col];
         if (!range) continue;
 
         const colCopy = col; // capture for closure
@@ -58,7 +62,7 @@ export function buildRangeControls(): void {
     }
 
     // Adaptive line-filter removal chips — clickable
-    for (const filter of appState.adaptiveLineFilters ?? []) {
+    for (const filter of filters.adaptiveLines) {
         const filterId = (filter as unknown as { id?: string }).id ?? '';
         const filterIdCopy = filterId; // capture for closure
         items.push({
@@ -69,20 +73,20 @@ export function buildRangeControls(): void {
             kind: 'filter-removal',
             ariaLabel: `Remove adaptive filter for ${filter.column}`,
             onActivate: () => {
-                setAdaptiveLineFilters(
-                    (appState.adaptiveLineFilters ?? []).filter(
+                const nextAdaptiveLines = filters.adaptiveLines.filter(
                         (item) => (item as unknown as { id?: string }).id !== filterIdCopy,
-                    ),
                 );
+                workspace.setFilters({ ...filters, adaptiveLines: nextAdaptiveLines });
+                setAdaptiveLineFilters(nextAdaptiveLines);
                 setPendingAdaptivePoint(null);
-                buildRangeControls();
+                buildRangeControls(workspace);
                 window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
             },
         });
     }
 
     // Clear-all chip when any adaptive filters are active
-    if ((appState.adaptiveLineFilters?.length ?? 0) > 0 || appState.pendingAdaptivePoint) {
+    if (filters.adaptiveLines.length > 0 || appState.pendingAdaptivePoint) {
         items.push({
             key: 'clear-all',
             name: 'Adaptive filters',
@@ -91,9 +95,10 @@ export function buildRangeControls(): void {
             kind: 'clear-all',
             ariaLabel: 'Clear adaptive filters',
             onActivate: () => {
+                workspace.setFilters({ ...filters, adaptiveLines: [] });
                 setAdaptiveLineFilters([]);
                 setPendingAdaptivePoint(null);
-                buildRangeControls();
+                buildRangeControls(workspace);
                 (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
                 window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
             },

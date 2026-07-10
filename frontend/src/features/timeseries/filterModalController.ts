@@ -4,10 +4,12 @@ import { appStateComposite as appState } from '../../store/index.js';
 import { buildRangeControls } from './rangeControls.js';
 import { ColumnFilterModal } from '../../ui/composites/ColumnFilterModal.js';
 import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
+import type { FilterWorkspace } from './selectionIntent.js';
 
 export interface FilterModalControllerDeps {
     renderCurrentData: () => void;
     updateAnalysisYRange: (min: number, max: number, source: string) => void;
+    workspace?: FilterWorkspace;
 }
 
 export function initFilterModalController(deps: FilterModalControllerDeps): void {
@@ -288,7 +290,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
             }
             if (fromNum > toNum) { [fromNum, toNum] = [toNum, fromNum]; }
             appState.columnRanges[col] = { from: fromNum, to: toNum };
-            buildRangeControls();
+            if (deps.workspace) buildRangeControls(deps.workspace);
             deps.renderCurrentData();
             appState.chart?.fitYToData?.();
             const yr = appState.chart?.getYRange?.();
@@ -310,7 +312,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
         const full = getFullBoundsForCol(col);
         if (!col || !full) return;
         appState.columnRanges[col] = { from: full.min, to: full.max };
-        buildRangeControls();
+        if (deps.workspace) buildRangeControls(deps.workspace);
         deps.renderCurrentData();
         appState.chart?.fitYToData?.();
         const yr = appState.chart?.getYRange?.();

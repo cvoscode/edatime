@@ -11,10 +11,10 @@ import {
     initColumnFilterModal,
 } from './columnsController.js';
 import { initDatasetSearchInputs, initTimeseriesActions, initTimeseriesExportButtons } from './actions.js';
-import type { SelectionWorkspace } from './selectionIntent.js';
+import type { TimeseriesWorkspace } from './selectionIntent.js';
 
 export interface TimeseriesFeatureDeps {
-    workspace: SelectionWorkspace;
+    workspace: TimeseriesWorkspace;
     fetchAndRender: () => Promise<void>;
     renderCurrentData: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
@@ -34,13 +34,14 @@ export interface TimeseriesFeatureDeps {
  * controls and actions through a single unified surface.
  */
 export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
+    const buildWorkspaceRangeControls = () => buildRangeControls(deps.workspace);
     const rebuildColumns = () => {
-        buildColumnToggles(deps.fetchAndRender, buildRangeControls, deps.renderCurrentData, deps.workspace);
+        buildColumnToggles(deps.fetchAndRender, buildWorkspaceRangeControls, deps.renderCurrentData, deps.workspace);
     };
 
     return {
         init() {
-            initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange);
+            initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange, deps.workspace);
             initDatasetSearchInputs({
                 rebuildColumnToggles: rebuildColumns,
                 renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => { }),
@@ -48,7 +49,7 @@ export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
             initTimeseriesActions({
                 ...deps,
                 rebuildColumnToggles: rebuildColumns,
-                buildRangeControls,
+                buildRangeControls: buildWorkspaceRangeControls,
                 renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => { }),
             });
             if (deps.chartExportPng && deps.chartExportSvg && deps.exportFilteredCsv
@@ -85,6 +86,6 @@ export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
             }
         },
         rebuildColumns,
-        buildRangeControls,
+        buildRangeControls: buildWorkspaceRangeControls,
     };
 }

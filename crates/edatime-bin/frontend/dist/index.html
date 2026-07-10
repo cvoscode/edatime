@@ -28,14 +28,27 @@
           return;
         }
 
-        navigator.serviceWorker.register('/sw.js').catch(function (err) {
+        navigator.serviceWorker.register('/sw.js').then(function (registration) {
+          // Ask the browser to check for a newer worker whenever a deployed
+          // page is loaded. Vite hashes application assets, so a new worker
+          // can safely take control and reload once into its matching graph.
+          registration.update();
+
+          navigator.serviceWorker.addEventListener('controllerchange', function () {
+            // A worker takeover can fire again after the reload. Keep the
+            // guard for the lifetime of this tab to avoid a reload loop.
+            if (sessionStorage.getItem('edatime-sw-reload')) return;
+            sessionStorage.setItem('edatime-sw-reload', 'true');
+            window.location.reload();
+          });
+        }).catch(function (err) {
           console.error('ServiceWorker registration failed: ', err);
         });
       });
     }
   </script>
-  <script type="module" crossorigin src="/assets/index-C1HZammj.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/settings-CTlJkUNd.js">
+  <script type="module" crossorigin src="/assets/index-BokKEGHc.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/settings-DkBT1xH3.js">
   <link rel="stylesheet" crossorigin href="/assets/index-Co8WROGp.css">
 </head>
 
@@ -910,6 +923,18 @@
                   </button>
                 </span>
               </div>
+              <!-- C7 — overflow popout for the Display segment. When the
+                   row is too narrow to fit "Cluster" + "Fit" + the two fit
+                   buttons, "Fit color axis" retreats into this details menu
+                   and a "⋯" pill takes its place. Without this popout the
+                   segment's content wraps onto a second row, lifting the
+                   matrix below the fold on tablet widths. -->
+              <details class="scatter-toolbar__overflow" data-overflow="false">
+                <summary class="scatter-toolbar__overflow-btn" aria-label="More display options">
+                  <span aria-hidden="true">⋯</span>
+                </summary>
+                <div class="scatter-toolbar__overflow-menu"></div>
+              </details>
             </div>
           </div>
 
@@ -933,8 +958,29 @@
         </div>
         <main class="main main--padded">
           <div id="heatmap-container" class="heatmap-container"></div>
+          <!-- C6 — brand-illustrated empty state. The previous version was
+               a single line of plain text ("Correlation heatmap will appear
+               here…"). The analysis pages (timeseries, FFT) ship a
+               heading + body + illustration; the heatmap now matches. -->
           <div id="heatmap-empty-state" class="plot-empty-state" data-empty-reason="no-data" hidden>
-            Correlation heatmap will appear here once the dataset is available.
+            <div class="plot-empty-illustration" aria-hidden="true">
+              <svg viewBox="0 0 96 96" width="96" height="96">
+                <defs>
+                  <linearGradient id="heatmap-empty-grad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#88aef2" stop-opacity="0.9" />
+                    <stop offset="100%" stop-color="#88aef2" stop-opacity="0.3" />
+                  </linearGradient>
+                </defs>
+                <rect x="8" y="8" width="80" height="80" rx="14" fill="none"
+                  stroke="url(#heatmap-empty-grad)" stroke-width="1.5" stroke-dasharray="4 4" />
+                <rect x="20" y="20" width="22" height="22" rx="3" fill="#88aef2" fill-opacity="0.85" />
+                <rect x="50" y="50" width="22" height="22" rx="3" fill="#88aef2" fill-opacity="0.35" />
+                <rect x="50" y="20" width="22" height="22" rx="3" fill="#88aef2" fill-opacity="0.55" />
+                <rect x="20" y="50" width="22" height="22" rx="3" fill="#88aef2" fill-opacity="0.15" />
+              </svg>
+            </div>
+            <strong id="heatmap-empty-state-title">Correlation heatmap unavailable</strong>
+            <span id="heatmap-empty-state-message">Pick a dataset with at least two numeric columns to populate the matrix.</span>
           </div>
           <div id="heatmap-loading" class="chart-loading-overlay" hidden>
             <div class="chart-loading-spinner"></div>
@@ -1118,7 +1164,7 @@
             <div class="causal-params-heading">
               <span class="scatter-toolbar__eyebrow">Parameters</span>
               <span id="causal-params-info" class="toolbar-info-icon" tabindex="0"
-                data-info-tip="τ max sets the longest lag to test. α is the final significance cutoff. PC α and Max conds only affect methods with a PC parent-selection stage (PCMCI, PCMCI+, LPCMCI). FDR optionally applies Benjamini-Hochberg correction across tested links.">ⓘ</span>
+                data-info-tip="Maximum time lag τ to test (1–128). τ max sets the longest lag to test. α is the final significance cutoff. PC α and Max conds only affect methods with a PC parent-selection stage (PCMCI, PCMCI+, LPCMCI). FDR optionally applies Benjamini-Hochberg correction across tested links.">ⓘ</span>
             </div>
             <div class="causal-parameter-grid">
               <div class="causal-parameter-row">

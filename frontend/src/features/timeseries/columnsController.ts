@@ -21,6 +21,7 @@ import { bindChipContextMenu } from './chipContextMenu.js';
 import { composeChipListItems, bindChipCtrlClick } from './chipComposition.js';
 import { initFilterModalController } from './filterModalController.js';
 import type { SelectionWorkspace } from './selectionIntent.js';
+import type { FilterWorkspace } from './selectionIntent.js';
 
 // ─── Column toggles (chips) ─────────────────────────────────────────────────
 
@@ -100,9 +101,11 @@ export { buildRangeControls } from './rangeControls.js';
 export function initColumnFilterModal(
     renderCurrentData: () => void,
     updateAnalysisYRange: (min: number, max: number, source: string) => void,
+    workspace: FilterWorkspace,
 ): void {
     initFilterModalController({
         renderCurrentData,
         updateAnalysisYRange,
+        workspace,
     });
 }

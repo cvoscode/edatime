@@ -148,7 +148,7 @@ function scheduleRebalance(): void {
  *  content is rebuilt.
  *
  *  Returns true if at least one segment was registered. */
-export function initScatterToolbarOverflow(toolbar: HTMLElement): boolean {
+export function initToolbarOverflow(toolbar: HTMLElement): boolean {
     if (segments.length > 0) return true;
     const list = toolbar.querySelectorAll<HTMLElement>('.scatter-toolbar__segment');
     let registered = false;
@@ -168,6 +168,11 @@ export function initScatterToolbarOverflow(toolbar: HTMLElement): boolean {
     scheduleRebalance();
     return true;
 }
+
+/** Legacy alias preserved so existing scatter / timeseries callers
+ *  continue to compile without churn. Prefer `initToolbarOverflow`
+ *  for any new page (e.g. the heatmap). */
+export const initScatterToolbarOverflow = initToolbarOverflow;
 
 /** Test/teardown helper — re-runs the rebalance pass over every
  *  registered segment. Used after the density sub-group or other

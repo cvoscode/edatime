@@ -921,6 +921,18 @@
                   </button>
                 </span>
               </div>
+              <!-- C7 — overflow popout for the Display segment. When the
+                   row is too narrow to fit "Cluster" + "Fit" + the two fit
+                   buttons, "Fit color axis" retreats into this details menu
+                   and a "⋯" pill takes its place. Without this popout the
+                   segment's content wraps onto a second row, lifting the
+                   matrix below the fold on tablet widths. -->
+              <details class="scatter-toolbar__overflow" data-overflow="false">
+                <summary class="scatter-toolbar__overflow-btn" aria-label="More display options">
+                  <span aria-hidden="true">⋯</span>
+                </summary>
+                <div class="scatter-toolbar__overflow-menu"></div>
+              </details>
             </div>
           </div>
 
@@ -944,8 +956,29 @@
         </div>
         <main class="main main--padded">
           <div id="heatmap-container" class="heatmap-container"></div>
+          <!-- C6 — brand-illustrated empty state. The previous version was
+               a single line of plain text ("Correlation heatmap will appear
+               here…"). The analysis pages (timeseries, FFT) ship a
+               heading + body + illustration; the heatmap now matches. -->
           <div id="heatmap-empty-state" class="plot-empty-state" data-empty-reason="no-data" hidden>
-            Correlation heatmap will appear here once the dataset is available.
+            <div class="plot-empty-illustration" aria-hidden="true">
+              <svg viewBox="0 0 96 96" width="96" height="96">
+                <defs>
+                  <linearGradient id="heatmap-empty-grad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#88aef2" stop-opacity="0.9" />
+                    <stop offset="100%" stop-color="#88aef2" stop-opacity="0.3" />
+                  </linearGradient>
+                </defs>
+                <rect x="8" y="8" width="80" height="80" rx="14" fill="none"
+                  stroke="url(#heatmap-empty-grad)" stroke-width="1.5" stroke-dasharray="4 4" />
+                <rect x="20" y="20" width="22" height="22" rx="3" fill="#88aef2" fill-opacity="0.85" />
+                <rect x="50" y="50" width="22" height="22" rx="3" fill="#88aef2" fill-opacity="0.35" />
+                <rect x="50" y="20" width="22" height="22" rx="3" fill="#88aef2" fill-opacity="0.55" />
+                <rect x="20" y="50" width="22" height="22" rx="3" fill="#88aef2" fill-opacity="0.15" />
+              </svg>
+            </div>
+            <strong id="heatmap-empty-state-title">Correlation heatmap unavailable</strong>
+            <span id="heatmap-empty-state-message">Pick a dataset with at least two numeric columns to populate the matrix.</span>
           </div>
           <div id="heatmap-loading" class="chart-loading-overlay" hidden>
             <div class="chart-loading-spinner"></div>

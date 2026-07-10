@@ -108,6 +108,20 @@ function buildUploadDom(): void {
     `;
 }
 
+/**
+ * Build a `File` whose reported `size` exceeds the 256 MB upload cap
+ * without actually allocating 256 MB in memory. `File.size` is normally
+ * derived from the underlying buffer, but happy-dom + jsdom both honour
+ * `Object.defineProperty` overrides on the instance, which is exactly
+ * what the production `validateFileSize` function reads. Using this
+ * helper keeps the test fast while still exercising the size branch.
+ */
+function makeOversizedFile(name: string, claimedSize = 256 * 1024 * 1024 + 1): File {
+    const tooBigFile = new File([''], name, { type: 'text/csv' });
+    Object.defineProperty(tooBigFile, 'size', { configurable: true, value: claimedSize });
+    return tooBigFile;
+}
+
 async function flushPromises(): Promise<void> {
     await Promise.resolve();
     await Promise.resolve();
@@ -504,11 +518,7 @@ describe('initUploadPanel database tab', () => {
         );
     });
 
-    // Skipped: mock timing issues with db load tests - load button state machine
-    // depends on multiple async ops that are hard to coordinate in test setup.
-    // Fix separately.
-    // eslint-disable-next-line vitest/expect-expect
-    it.skip('shows error toast when database load fails', async () => {
+    it('shows error toast when database load fails', async () => {
         mocks.loadDatabaseTable.mockRejectedValue(new Error('table not found'));
         mocks.fetchDatabaseStatus.mockResolvedValue({ connected: false });
 
@@ -520,7 +530,14 @@ describe('initUploadPanel database tab', () => {
         const tableInput = document.getElementById('db-table-input') as HTMLInputElement;
         tableInput.value = 'myschema.mytable';
 
-        document.getElementById('db-load-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        // `db-load-btn` is `disabled` in the test DOM by default; the
+        // user-visible flow requires a successful connection first.
+        // Enable it so the click handler actually fires (mirrors the
+        // production behaviour after `handleDatabaseConnect` succeeds).
+        const dbLoadBtn = document.getElementById('db-load-btn') as HTMLButtonElement | null;
+        if (dbLoadBtn) dbLoadBtn.disabled = false;
+
+        dbLoadBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         await flushPromises();
         await flushPromises();
         await flushPromises();
@@ -532,8 +549,7 @@ describe('initUploadPanel database tab', () => {
         );
     });
 
-    // eslint-disable-next-line vitest/expect-expect
-    it.skip('shows success toast after database load', async () => {
+    it('shows success toast after database load', async () => {
         mocks.loadDatabaseTable.mockResolvedValue({ rows: 5000 });
         mocks.fetchDatabaseStatus.mockResolvedValue({ connected: false });
 
@@ -545,13 +561,19 @@ describe('initUploadPanel database tab', () => {
         const tableInput = document.getElementById('db-table-input') as HTMLInputElement;
         tableInput.value = 'myschema.mytable';
 
-        document.getElementById('db-load-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        // Same reasoning as above — enable before clicking so the handler
+        // is reached. The production wiring does this after a successful
+        // `connectDatabase` resolves.
+        const dbLoadBtn = document.getElementById('db-load-btn') as HTMLButtonElement | null;
+        if (dbLoadBtn) dbLoadBtn.disabled = false;
+
+        dbLoadBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         await flushPromises();
         await flushPromises();
         await flushPromises();
 
         expect(mocks.toast).toHaveBeenCalledWith(
-            expect.stringContaining('5K'),
+            expect.stringContaining('5,000'),
             'success',
             expect.anything(),
         );
@@ -589,13 +611,8 @@ describe('initUploadPanel file choose and preview', () => {
         appState.previewTimeColumn = null;
     });
 
-    // Skipped: oversized file tests fail because validateFileSize runs BEFORE
-// the fileInput change event fires, but the DOM lookup for #upload-status happens
-// before initUploadPanel runs (statusEl is captured in closure at setup time).
-// The UI correctly shows the error - the test snapshot is wrong. Fix separately.
-// eslint-disable-next-line vitest/expect-expect
-it.skip('shows error status for oversized file via file input', async () => {
-        const tooBigFile = new File([''], 'big.csv', { type: 'text/csv' });
+    it('shows error status for oversized file via file input', async () => {
+        const tooBigFile = makeOversizedFile('big.csv');
 
         initUploadPanel(vi.fn(), vi.fn(), {
             buildColumnToggles: vi.fn(),
@@ -605,17 +622,16 @@ it.skip('shows error status for oversized file via file input', async () => {
         const fileInput = document.getElementById('file-upload') as HTMLInputElement;
         Object.defineProperty(fileInput, 'files', { configurable: true, value: [tooBigFile] });
         fileInput.dispatchEvent(new Event('change'));
-        // Validation error is set synchronously before any async preview can run
-        const statusEl = document.getElementById('upload-status');
-        expect(statusEl?.textContent).toContain('256 MB');
+        // `setUploadPreviewStatus` writes to `#upload-preview-status` (the
+        // visible status pill above the profile grid). `#upload-status`
+        // only holds the legacy global loading overlay text and is not
+        // touched by the size validation path.
+        const previewStatusEl = document.getElementById('upload-preview-status');
+        expect(previewStatusEl?.textContent).toContain('256 MB');
     });
 
-    // Skipped: oversized file tests fail - the test DOM lookup timing doesn't match
-// how initUploadPanel captures elements in closure. The UI behavior is correct.
-// Fix separately.
-// eslint-disable-next-line vitest/expect-expect
-it.skip('shows error status for oversized file via drop', async () => {
-        const tooBigFile = new File([''], 'big.csv', { type: 'text/csv' });
+    it('shows error status for oversized file via drop', async () => {
+        const tooBigFile = makeOversizedFile('big.csv');
 
         initUploadPanel(vi.fn(), vi.fn(), {
             buildColumnToggles: vi.fn(),
@@ -623,11 +639,20 @@ it.skip('shows error status for oversized file via drop', async () => {
         });
 
         const dropZone = document.getElementById('drop-zone')!;
-        const dt = { files: [tooBigFile] };
-        dropZone.dispatchEvent(new DragEvent('drop', { dataTransfer: dt as unknown as DataTransfer }));
-        // Validation error is set synchronously before any async preview can run
-        const statusEl = document.getElementById('upload-status');
-        expect(statusEl?.textContent).toContain('256 MB');
+        // happy-dom's `DragEvent` constructor ignores `dataTransfer` in
+        // the init dict, so we create the event and stamp `dataTransfer`
+        // onto the instance directly. The drop handler reads
+        // `e.dataTransfer?.files[0]`, so this minimal shim is enough.
+        const dropEvent = new Event('drop', { bubbles: true, cancelable: true }) as unknown as DragEvent;
+        Object.defineProperty(dropEvent, 'dataTransfer', {
+            configurable: true,
+            value: { files: [tooBigFile] },
+        });
+        dropZone.dispatchEvent(dropEvent);
+        // Same target as the change-event test above — see that test for
+        // why we read `#upload-preview-status`, not `#upload-status`.
+        const previewStatusEl = document.getElementById('upload-preview-status');
+        expect(previewStatusEl?.textContent).toContain('256 MB');
     });
 
     it('calls previewUpload on valid file selection', async () => {

@@ -5,6 +5,7 @@ import { getDropdownValue, setDropdownValue } from '../ui/primitives/Dropdown.js
 import { bindInfoPopovers } from '../ui/infoPopovers.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 import { clusterColumns, type Cluster } from '../utils/correlationClustering.js';
+import { initToolbarOverflow } from '../scatter/toolbarOverflow.js';
 import {
     getCorrelationModeGuide,
     getCorrelationModeLabel,
@@ -36,6 +37,10 @@ let metric: CorrelationMetric = 'pearson_raw';
 let matrixLoadSequence = 0;
 let heatmapRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let heatmapResizeObserver: ResizeObserver | null = null;
+/** User's manual column/row order from drag-reorder. Persists across
+ *  metric switches so users don't lose their custom sequence. Reset
+ *  whenever clustering is toggled or a new dataset loads. */
+let userColumnOrder: string[] | null = null;
 
 function readHeatmapFitPref(): boolean {
     try {
@@ -70,12 +75,12 @@ function updateRangeFill(input: HTMLInputElement | null): void {
     input.style.setProperty('--range-fill', `${pct.toFixed(2)}%`);
 }
 
-function syncHeatmapEmptyState(message: string, visible: boolean, reason = ''): void {
+function syncHeatmapEmptyState(message: string, visible: boolean, reason = '', title = ''): void {
     heatmapRuntime?.updateEmptyState({
         visible,
         reason: visible ? (reason || 'no-data') : '',
-        title: '',
-        message: '',
+        title: title || (visible ? 'Correlation heatmap unavailable' : ''),
+        message,
         fallbackText: message,
     });
     setHeatmapLoading(false);
@@ -186,6 +191,10 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         try {
             const response = await fetchCorrelationMatrix(nextMetric);
             if (loadSequence !== matrixLoadSequence) return;
+            // The previous dataset's manual order doesn't apply to the
+            // next one — clear it so the next render either clusters or
+            // shows the new columns in source order.
+            userColumnOrder = null;
             matrixData = response;
             if (typeof document !== 'undefined' && (document as any).fonts?.ready) {
                 await (document as any).fonts.ready;
@@ -203,6 +212,9 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                     : 'Correlation heatmap is unavailable for the current dataset.',
                 true,
                 isInsufficient ? 'no-columns-available' : 'render-failure',
+                isInsufficient
+                    ? 'Need at least two numeric columns'
+                    : 'Correlation matrix unavailable',
             );
             heatmapRuntime?.updateStatus(isInsufficient ? 'Not enough numeric columns' : `Error: ${message || 'failed'}`);
         }
@@ -212,7 +224,12 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         const container = document.getElementById('heatmap-container');
         if (!container) return;
         if (!matrixData) {
-            syncHeatmapEmptyState('Correlation heatmap will appear here once the dataset is available.', true);
+            syncHeatmapEmptyState(
+                'Correlation heatmap will appear here once the dataset is available.',
+                true,
+                'no-data',
+                'Awaiting dataset',
+            );
             return;
         }
 
@@ -221,12 +238,22 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         const size = columns.length;
         if (size === 0) {
             container.innerHTML = '';
-            syncHeatmapEmptyState('No numeric columns are available for the correlation heatmap.', true, 'no-columns-available');
+            syncHeatmapEmptyState(
+                'No numeric columns are available for the correlation heatmap.',
+                true,
+                'no-columns-available',
+                'No numeric columns',
+            );
             return;
         }
         if (!data) {
             container.innerHTML = '';
-            syncHeatmapEmptyState(getUnsupportedMetricMessage(metric), true, 'legacy-correlation-payload');
+            syncHeatmapEmptyState(
+                getUnsupportedMetricMessage(metric),
+                true,
+                'legacy-correlation-payload',
+                'Unsupported metric',
+            );
             heatmapRuntime?.updateStatus(`${getCorrelationModeLabel(metric)} unavailable on this server`);
             return;
         }
@@ -258,7 +285,14 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         const responsiveCell = heatmapFitToScreen
             ? Math.max(minCell, fitCell)
             : Math.max(minCell, Math.min(maxCell, fitCell));
-        const headerCellSize = heatmapFitToScreen ? responsiveCell : heatmapCellSize;
+        // Match the row label to the actual cell size instead of the
+        // slider value: at narrow viewports `headerCellSize` was driving a
+        // 72-px row height regardless of what the cells rendered at, which
+        // made the matrix 7 * 72 = 504 px tall on a 420-px screen. Aligning
+        // row and cell heights keeps the matrix compact and lets the
+        // viewport chrome (toolbar + status footer) fit inside the first
+        // fold on phones.
+        const headerCellSize = responsiveCell;
         const useVerticalHeaders = headerCellSize < 40;
 
         // Optionally reorder columns by cluster. The data arrays stay
@@ -267,7 +301,16 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         const orderToOriginal = new Map<number, number>();
         let clusters: Cluster[] = [];
         let renderOrder: string[] = columns;
-        if (heatmapClusterEnabled && size > 1) {
+        // Honor the user's manual drag-reorder if it still covers the
+        // current column set (datasets rarely change, but a partial
+        // upload can drop a column).
+        const savedOrder = userColumnOrder;
+        const userOrderStillValid = savedOrder !== null
+            && savedOrder.length === columns.length
+            && savedOrder.every((name) => columns.includes(name));
+        if (userOrderStillValid && savedOrder) {
+            renderOrder = savedOrder.slice();
+        } else if (heatmapClusterEnabled && size > 1) {
             const result = clusterColumns(columns, data, HEATMAP_CLUSTER_THRESHOLD);
             renderOrder = result.order;
             clusters = result.clusters;
@@ -293,8 +336,20 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         // Build the cell HTML. We use explicit grid-column / grid-row on
         // every cell so the layout is independent of the emit order.
         const cells: string[] = [];
-        // Top-left corner (label row + label column).
-        cells.push('<div class="heatmap-corner" style="grid-column:1;grid-row:1;"></div>');
+        // Top-left corner: axis hint + active metric badge. The previous
+        // version emitted an empty 1x1 cell, which left users guessing
+        // which axis was which. The corner now carries (a) a small
+        // "Y \ X" axis glyph and (b) the active metric so the screen
+        // reader (and the user) can confirm what the matrix is showing.
+        const metricLabel = getCorrelationModeLabel(metric);
+        cells.push(
+            `<div class="heatmap-corner" style="grid-column:1;grid-row:1;" aria-label="Rows are shown vertically, columns horizontally. Active metric: ${escapeAttr(metricLabel)}.">`
+            + `<span class="heatmap-corner__axis heatmap-corner__axis--y" aria-hidden="true">Y</span>`
+            + `<span class="heatmap-corner__sep" aria-hidden="true">/</span>`
+            + `<span class="heatmap-corner__axis heatmap-corner__axis--x" aria-hidden="true">X</span>`
+            + `<span class="heatmap-corner__metric" aria-hidden="true">${escapeAttr(metricLabel)}</span>`
+            + `</div>`,
+        );
         // Column headers in render order.
         for (let c = 0; c < size; c++) {
             const colName = renderOrder[c]!;
@@ -305,8 +360,13 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                 isFirstInCluster ? 'heatmap-header--cluster-start' : '',
                 useVerticalHeaders ? 'heatmap-header--vertical' : '',
             ].filter(Boolean).join(' ');
+            // Cluster separators get a left border so users can see
+            // where one cluster ends and the next begins, instead of
+            // relying on the slight text-color shift which was barely
+            // visible in dark mode.
+            const clusterStyle = isFirstInCluster ? 'border-left: 2px solid #88aef2; padding-left: 4px;' : '';
             cells.push(
-                `<div class="${headerClass}" style="grid-column:${colGridFor(c)};grid-row:1;--heatmap-header-cell:${headerCellSize}px;" title="${escapeAttr(colName)}" data-cluster-col="${colOriginal}">${escapeAttr(colName)}</div>`,
+                `<div class="${headerClass}" draggable="true" data-drag-axis="col" data-drag-name="${escapeAttr(colName)}" data-drag-original="${colOriginal}" style="grid-column:${colGridFor(c)};grid-row:1;${clusterStyle}--heatmap-header-cell:${headerCellSize}px;" title="${escapeAttr(colName)}" data-cluster-col="${colOriginal}">${escapeAttr(colName)}</div>`,
             );
         }
 
@@ -315,26 +375,53 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             const rowOriginal = orderToOriginal.get(r) ?? r;
             const isFirstInCluster = r > 0 && clusters.some((cl) => cl.startIndex === r);
             const labelClass = isFirstInCluster ? ' heatmap-row-label--cluster-start' : '';
+            // Cluster separator for the row at the same position.
+            const clusterStyle = isFirstInCluster ? 'border-top: 2px solid #88aef2;' : '';
             // Row label sits in column 1 of this row.
             cells.push(
-                `<div class="heatmap-row-label${labelClass}" style="grid-column:1;grid-row:${rowGridFor(r)};" title="${escapeAttr(rowName)}" data-cluster-row="${rowOriginal}">${escapeAttr(rowName)}</div>`,
+                `<div class="heatmap-row-label${labelClass}" draggable="true" data-drag-axis="row" data-drag-name="${escapeAttr(rowName)}" data-drag-original="${rowOriginal}" style="grid-column:1;grid-row:${rowGridFor(r)};${clusterStyle}min-height:${headerCellSize}px;height:${headerCellSize}px;" title="${escapeAttr(rowName)}" data-cluster-row="${rowOriginal}">${escapeAttr(rowName)}</div>`,
             );
             for (let c = 0; c < size; c++) {
                 const colName = renderOrder[c]!;
                 const colOriginal = orderToOriginal.get(c) ?? c;
                 const value = data[rowOriginal]?.[colOriginal] ?? null;
-                const displayValue = value !== null ? value.toFixed(2) : '—';
+                const toneClass = correlationToneClass(value);
+                // Sign prefix makes magnitude + direction readable
+                // without relying on color alone. Screen-reader users
+                // get the same prefix via the aria-label below.
+                let signedValue: string;
+                if (value === null || !Number.isFinite(value)) {
+                    signedValue = '—';
+                } else {
+                    const sign = value > 0 ? '+' : (value < 0 ? '−' : '±');
+                    signedValue = `${sign}${Math.abs(value).toFixed(2)}`;
+                }
                 const background = value !== null ? correlationColor(value, colorDomainMax) : 'transparent';
                 const textColor = correlationTextColor(value);
-                const toneClass = correlationToneClass(value);
-                const tooltip = `${rowName} × ${colName}: ${displayValue}${rowOriginal !== colOriginal ? ' — click to explore in Scatter' : ''}`;
+                const tooltip = `${rowName} × ${colName}: ${signedValue}${rowOriginal !== colOriginal ? ' — click to explore in Scatter' : ''}`;
                 cells.push(
-                    `<div class="heatmap-cell ${toneClass}" data-row="${rowOriginal}" data-col="${colOriginal}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};--heatmap-cell-bg:${background};color:${textColor};cursor:${rowOriginal !== colOriginal ? 'pointer' : 'default'};" title="${escapeAttr(tooltip)}">${displayValue}</div>`,
+                    `<div class="heatmap-cell ${toneClass}" data-row="${rowOriginal}" data-col="${colOriginal}" data-row-name="${escapeAttr(rowName)}" data-col-name="${escapeAttr(colName)}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};background:${background};color:${textColor};cursor:${rowOriginal !== colOriginal ? 'pointer' : 'default'};" aria-label="${escapeAttr(tooltip)}" title="${escapeAttr(tooltip)}" tabindex="${rowOriginal !== colOriginal ? '0' : '-1'}">${signedValue}</div>`,
                 );
             }
         }
 
         let html = '<div class="heatmap-shell">';
+        // Cluster legend strip: a horizontal row of chips showing how the
+        // clustering split the columns into groups. Helps users understand
+        // why HUFL/HULL sit next to each other even when they didn't ask
+        // for it. Width ≥1280 keeps the strip beside the matrix; it stays
+        // above the matrix on narrower viewports via CSS.
+        if (clusters.length > 0) {
+            html += '<div class="heatmap-cluster-legend" aria-label="Detected correlation clusters">';
+            clusters.forEach((cl, idx) => {
+                const memberNames = cl.members.map((m) => escapeAttr(m)).join(', ');
+                html += `<span class="heatmap-cluster-legend__chip" title="Cluster ${idx + 1}: ${memberNames}">`
+                    + `<span class="heatmap-cluster-legend__dot" aria-hidden="true"></span>`
+                    + `Cluster ${idx + 1} · ${cl.members.length}`
+                    + `</span>`;
+            });
+            html += '</div>';
+        }
         html += `<div class="heatmap-grid" style="display:grid;width:100%;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};">`;
         html += cells.join('');
         html += '</div>';
@@ -343,9 +430,24 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         html += '<div class="heatmap-scale__bar" aria-hidden="true"></div>';
         html += `<span class="heatmap-scale__tick heatmap-scale__tick--negative">-${formatScaleTick(colorDomainMax)}</span>`;
         html += '</div>';
+        // Status footer below the matrix and the color scale. Tells
+        // users what they're looking at and how to interact with it,
+        // without scrolling back up to the toolbar.
+        const clusterCount = heatmapClusterEnabled && clusters.length > 0 ? clusters.length : null;
+        const clusterSummary = clusterCount !== null ? `${clusterCount} clusters · ` : '';
+        html += `<div class="heatmap-footer" aria-label="Active correlation matrix summary">`
+            + `<span class="heatmap-footer__metric">${escapeAttr(metricLabel)}</span>`
+            + `<span class="heatmap-footer__sep" aria-hidden="true">·</span>`
+            + `<span class="heatmap-footer__size">${clusterSummary}${size}×${size} matrix</span>`
+            + `<span class="heatmap-footer__sep" aria-hidden="true">·</span>`
+            + `<span class="heatmap-footer__hint">Click any cell to open that pair in Scatter</span>`
+            + `</div>`;
         html += '</div>';
 
         container.innerHTML = html;
+        // Bind cell click: navigate to the scatter page with the chosen
+        // X/Y columns preselected. Already supported by the existing
+        // implementation; preserved here.
         container.onclick = (event: MouseEvent) => {
             const cell = (event.target as HTMLElement).closest<HTMLElement>('.heatmap-cell');
             if (!cell) return;
@@ -357,13 +459,147 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             deps.showPage('scatter');
         };
 
-        const clusterCount = heatmapClusterEnabled && clusters.length > 0 ? clusters.length : null;
+        // C10: Excel-style row/column hover highlight. When the user
+        // mouses over a row label, every cell in that row paints with a
+        // soft outline. Same affordance fires for column headers. The
+        // handlers use classList toggles instead of inline styles so the
+        // effect stays under the CSS theme and respects reduced-motion.
+        const shell = container.querySelector<HTMLElement>('.heatmap-shell');
+        const grid = container.querySelector<HTMLElement>('.heatmap-grid');
+        if (shell && grid) {
+            const clearHighlights = () => {
+                grid.querySelectorAll<HTMLElement>('.heatmap-row-highlight, .heatmap-col-highlight')
+                    .forEach((el) => el.classList.remove('heatmap-row-highlight', 'heatmap-col-highlight'));
+            };
+            shell.addEventListener('mouseover', (event) => {
+                const target = event.target as HTMLElement;
+                const rowLabel = target.closest<HTMLElement>('.heatmap-row-label');
+                const colHeader = target.closest<HTMLElement>('.heatmap-header');
+                clearHighlights();
+                if (rowLabel && grid) {
+                    const row = rowLabel.dataset.clusterRow;
+                    if (row !== undefined) {
+                        grid.querySelectorAll<HTMLElement>(`.heatmap-cell[data-row="${row}"]`)
+                            .forEach((el) => el.classList.add('heatmap-row-highlight'));
+                    }
+                    rowLabel.classList.add('heatmap-row-highlight');
+                } else if (colHeader && grid) {
+                    const col = colHeader.dataset.clusterCol;
+                    if (col !== undefined) {
+                        grid.querySelectorAll<HTMLElement>(`.heatmap-cell[data-col="${col}"]`)
+                            .forEach((el) => el.classList.add('heatmap-col-highlight'));
+                    }
+                    colHeader.classList.add('heatmap-col-highlight');
+                }
+            });
+            shell.addEventListener('mouseleave', clearHighlights);
+            // Keyboard accessibility: focus a header/label and the same
+            // highlight applies. `focusin` bubbles up to the shell.
+            shell.addEventListener('focusin', (event) => {
+                const target = event.target as HTMLElement;
+                const rowLabel = target.closest<HTMLElement>('.heatmap-row-label');
+                const colHeader = target.closest<HTMLElement>('.heatmap-header');
+                clearHighlights();
+                if (rowLabel && grid) {
+                    const row = rowLabel.dataset.clusterRow;
+                    if (row !== undefined) {
+                        grid.querySelectorAll<HTMLElement>(`.heatmap-cell[data-row="${row}"]`)
+                            .forEach((el) => el.classList.add('heatmap-row-highlight'));
+                    }
+                    rowLabel.classList.add('heatmap-row-highlight');
+                } else if (colHeader && grid) {
+                    const col = colHeader.dataset.clusterCol;
+                    if (col !== undefined) {
+                        grid.querySelectorAll<HTMLElement>(`.heatmap-cell[data-col="${col}"]`)
+                            .forEach((el) => el.classList.add('heatmap-col-highlight'));
+                    }
+                    colHeader.classList.add('heatmap-col-highlight');
+                }
+            });
+            shell.addEventListener('focusout', (event) => {
+                // Only clear when the focus leaves the shell entirely.
+                const next = event.relatedTarget as Element | null;
+                if (!next || !shell.contains(next)) clearHighlights();
+            });
+        }
+
+        // C11: drag-to-reorder rows/columns. Re-rendering with the new
+        // `renderOrder` array preserves the symmetric structure of the
+        // matrix (corr(X,Y) == corr(Y,X)) because both rows and cols
+        // follow the same order. Highlight the drop target with the
+        // same class as the matrix page's drop target.
+        let draggingAxis: 'col' | 'row' | null = null;
+        let draggingName: string | null = null;
+        const gridEl = container.querySelector<HTMLElement>('.heatmap-grid');
+        if (gridEl) {
+            gridEl.addEventListener('dragstart', (event) => {
+                const target = event.target as HTMLElement;
+                const handle = target.closest<HTMLElement>('[data-drag-axis]');
+                if (!handle) return;
+                const axis = handle.getAttribute('data-drag-axis');
+                if (axis !== 'col' && axis !== 'row') return;
+                draggingAxis = axis;
+                draggingName = handle.getAttribute('data-drag-name');
+                if (event.dataTransfer) {
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', draggingName || '');
+                }
+                handle.classList.add('is-dragging');
+            });
+            gridEl.addEventListener('dragend', () => {
+                draggingAxis = null;
+                draggingName = null;
+                gridEl.querySelectorAll<HTMLElement>('.scatter-matrix-drop-target')
+                    .forEach((el) => el.classList.remove('scatter-matrix-drop-target', 'is-dragging'));
+            });
+            gridEl.addEventListener('dragover', (event) => {
+                const target = event.target as HTMLElement;
+                const handle = target.closest<HTMLElement>('[data-drag-axis]');
+                if (!handle || !draggingAxis) return;
+                const axis = handle.getAttribute('data-drag-axis');
+                if (axis !== draggingAxis) return;
+                const handleName = handle.getAttribute('data-drag-name');
+                if (!handleName || handleName === draggingName) return;
+                event.preventDefault();
+                handle.classList.add('scatter-matrix-drop-target');
+            });
+            gridEl.addEventListener('dragleave', (event) => {
+                const target = event.target as HTMLElement;
+                const handle = target.closest<HTMLElement>('[data-drag-axis]');
+                if (handle) handle.classList.remove('scatter-matrix-drop-target');
+            });
+            gridEl.addEventListener('drop', (event) => {
+                const target = event.target as HTMLElement;
+                const handle = target.closest<HTMLElement>('[data-drag-axis]');
+                if (!handle || !draggingAxis || !draggingName) return;
+                const axis = handle.getAttribute('data-drag-axis');
+                if (axis !== draggingAxis) return;
+                const targetName = handle.getAttribute('data-drag-name');
+                if (!targetName || targetName === draggingName) return;
+                event.preventDefault();
+                // Apply the reorder at the data layer and re-render.
+                const next = renderOrder.slice();
+                const fromIdx = next.indexOf(draggingName);
+                const toIdx = next.indexOf(targetName);
+                if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+                next.splice(fromIdx, 1);
+                next.splice(toIdx, 0, draggingName);
+                renderOrder = next;
+                // Save the user's manual order so subsequent re-renders
+                // (e.g. after a metric switch) keep it.
+                userColumnOrder = renderOrder.slice();
+                renderHeatmap();
+            });
+        }
+
         heatmapRuntime?.updateStatus(`${getCorrelationModeLabel(metric)} · ${buildHeatmapStatus(clusterCount)}`);
     }
 
     heatmapRuntime = createAnalysisPageRuntime({
         page: 'heatmap',
         emptyStateRootId: 'heatmap-empty-state',
+        emptyStateTitleId: 'heatmap-empty-state-title',
+        emptyStateMessageId: 'heatmap-empty-state-message',
         exportConfig: {
             key: 'heatmap',
             png: { fn: exportElementPNG, filename: 'edatime_heatmap.png' },
@@ -426,6 +662,10 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             });
             clusterToggle?.addEventListener('change', () => {
                 heatmapClusterEnabled = !!clusterToggle.checked;
+                // Toggling clustering clears any manual drag-reorder so
+                // the next render reflects the new clustering state from
+                // scratch; users can drag again afterwards.
+                userColumnOrder = null;
                 renderHeatmap();
             });
             fitToggle?.addEventListener('click', () => {
@@ -448,6 +688,12 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                 });
                 heatmapResizeObserver.observe(container);
             }
+            // C7 — wire the heatmap toolbar into the shared overflow
+            // plumbing. The `Display` segment carries the only overflow
+            // candidate (`Fit color axis`), so the `… 1 hidden option`
+            // pill appears between 1024–1280px on this page.
+            const heatmapToolbar = document.querySelector<HTMLElement>('#page-heatmap .toolbar.scatter-toolbar');
+            if (heatmapToolbar) initToolbarOverflow(heatmapToolbar);
         },
         onVisible() {
             void loadMatrix(metric);

@@ -10,12 +10,15 @@ import {
     setPendingAdaptivePoint,
     setSelectedCols,
 } from '../../store/index.js';
+import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 
 function buildDom(): void {
     document.body.innerHTML = '<div id="column-range-controls"></div>';
 }
 
 describe('buildRangeControls', () => {
+    let workspace: { getSnapshot: () => never; setFilters: (filters: any) => void };
+
     beforeEach(() => {
         vi.restoreAllMocks();
         buildDom();
@@ -41,6 +44,16 @@ describe('buildRangeControls', () => {
         setAdaptiveLineFilters([]);
         setPendingAdaptivePoint(null);
         setColumnRanges({});
+        workspace = {
+            getSnapshot: () => ({
+                selection: { columns: appState.selectedCols, colorColumn: appState.selectedColorColumn },
+                filters: { columnRanges: appState.columnRanges, adaptiveLines: appState.adaptiveLineFilters },
+            } as never),
+            setFilters: (filters) => {
+                setColumnRanges(filters.columnRanges);
+                setAdaptiveLineFilters(filters.adaptiveLines);
+            },
+        };
 
         window.__edatime = { openFilterForCol: vi.fn() };
     });
@@ -49,7 +62,7 @@ describe('buildRangeControls', () => {
         setAdaptiveFilterColumn('HUFL');
         setSelectedCols(['HUFL', 'HULL']);
 
-        buildRangeControls();
+        buildRangeControls(workspace);
 
         const container = document.getElementById('column-range-controls')!;
         const chips = container.querySelectorAll<HTMLElement>('.range-chip');
@@ -62,7 +75,7 @@ describe('buildRangeControls', () => {
 
     it('emits no adaptive target chip when adaptiveFilterColumn is not set', () => {
         setAdaptiveFilterColumn(null);
-        buildRangeControls();
+        buildRangeControls(workspace);
         const container = document.getElementById('column-range-controls')!;
         const targetChip = Array.from(
             container.querySelectorAll<HTMLElement>('.range-chip'),
@@ -72,7 +85,7 @@ describe('buildRangeControls', () => {
 
     it('emits per-column range chips for each selected column with a stored range', () => {
         setColumnRanges({ HUFL: { from: 0.1, to: 0.9 }, HULL: { from: 0.2, to: 0.8 } });
-        buildRangeControls();
+        buildRangeControls(workspace);
         const container = document.getElementById('column-range-controls')!;
         const chips = container.querySelectorAll<HTMLElement>('.range-chip');
         const huflChip = Array.from(chips).find(
@@ -89,7 +102,7 @@ describe('buildRangeControls', () => {
 
     it('clickable range chip invokes window.__edatime.openFilterForCol with column name', () => {
         setColumnRanges({ HUFL: { from: 0.1, to: 0.9 } });
-        buildRangeControls();
+        buildRangeControls(workspace);
         const container = document.getElementById('column-range-controls')!;
         const huflChip = Array.from(
             container.querySelectorAll<HTMLElement>('.range-chip'),
@@ -100,7 +113,7 @@ describe('buildRangeControls', () => {
 
     it('emits adaptive filter removal chip when adaptive line filters are active', () => {
         setAdaptiveLineFilters([{ id: 'f1', column: 'HUFL', keepAbove: true }] as any);
-        buildRangeControls();
+        buildRangeControls(workspace);
         const container = document.getElementById('column-range-controls')!;
         const removalChip = Array.from(
             container.querySelectorAll<HTMLElement>('.range-chip'),
@@ -111,7 +124,7 @@ describe('buildRangeControls', () => {
 
     it('adaptive filter removal chip removes the filter', () => {
         setAdaptiveLineFilters([{ id: 'f1', column: 'HUFL', keepAbove: true }] as any);
-        buildRangeControls();
+        buildRangeControls(workspace);
         const container = document.getElementById('column-range-controls')!;
         const removalChip = Array.from(
             container.querySelectorAll<HTMLElement>('.range-chip'),
@@ -120,9 +133,24 @@ describe('buildRangeControls', () => {
         expect(appState.adaptiveLineFilters).toEqual([]);
     });
 
+    it('publishes adaptive filter removal to workspace intent', () => {
+        const workspace = createWorkspaceStore();
+        const filter = { id: 'f1', column: 'HUFL', keepAbove: true } as any;
+        workspace.setSelection(['HUFL', 'HULL']);
+        workspace.setFilters({ columnRanges: {}, adaptiveLines: [filter] });
+        setAdaptiveLineFilters([filter]);
+
+        buildRangeControls(workspace);
+        const removalChip = Array.from(document.querySelectorAll<HTMLElement>('.range-chip'))
+            .find((chip) => chip.querySelector('.name')?.textContent?.includes('Adaptive HUFL'))!;
+        removalChip.dispatchEvent(new MouseEvent('click'));
+
+        expect(workspace.getSnapshot().filters.adaptiveLines).toEqual([]);
+    });
+
     it('emits clear-all chip when adaptive line filters are active', () => {
         setAdaptiveLineFilters([{ id: 'f1', column: 'HUFL', keepAbove: true }] as any);
-        buildRangeControls();
+        buildRangeControls(workspace);
         const container = document.getElementById('column-range-controls')!;
         const clearChip = Array.from(
             container.querySelectorAll<HTMLElement>('.range-chip'),
@@ -133,7 +161,7 @@ describe('buildRangeControls', () => {
     it('clear-all chip resets adaptive filters and pending point', () => {
         setAdaptiveLineFilters([{ id: 'f1', column: 'HUFL', keepAbove: true }] as any);
         setPendingAdaptivePoint({ timestamp: 123 } as any);
-        buildRangeControls();
+        buildRangeControls(workspace);
         const container = document.getElementById('column-range-controls')!;
         const clearChip = Array.from(
             container.querySelectorAll<HTMLElement>('.range-chip'),
@@ -145,7 +173,7 @@ describe('buildRangeControls', () => {
 
     it('keyboard Enter on clickable chip triggers openFilterForCol', () => {
         setColumnRanges({ HUFL: { from: 0.1, to: 0.9 } });
-        buildRangeControls();
+        buildRangeControls(workspace);
         const container = document.getElementById('column-range-controls')!;
         const huflChip = Array.from(
             container.querySelectorAll<HTMLElement>('.range-chip'),
@@ -156,7 +184,7 @@ describe('buildRangeControls', () => {
 
     it('keyboard Space on clickable chip triggers openFilterForCol', () => {
         setColumnRanges({ HUFL: { from: 0.1, to: 0.9 } });
-        buildRangeControls();
+        buildRangeControls(workspace);
         const container = document.getElementById('column-range-controls')!;
         const huflChip = Array.from(
             container.querySelectorAll<HTMLElement>('.range-chip'),
@@ -167,7 +195,7 @@ describe('buildRangeControls', () => {
 
     it('emits no range chips when no column has a stored range', () => {
         setColumnRanges({});
-        buildRangeControls();
+        buildRangeControls(workspace);
         const container = document.getElementById('column-range-controls')!;
         expect(container.querySelectorAll<HTMLElement>('.range-chip').length).toBe(0);
     });

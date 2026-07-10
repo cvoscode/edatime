@@ -34,6 +34,7 @@ function selectionWorkspace() {
     return {
         getSnapshot: vi.fn(() => ({ selection: { columns: [], colorColumn: null } } as never)),
         setSelection: vi.fn(),
+        setFilters: vi.fn(),
     };
 }
 
@@ -76,7 +77,7 @@ describe('createTimeseriesEntrypoint', () => {
         expect(buildColumnTogglesMock).toHaveBeenCalledTimes(1);
         expect(buildColumnTogglesMock).toHaveBeenCalledWith(
             fetchAndRender,
-            buildRangeControlsMock,
+            expect.any(Function),
             renderCurrentData,
             expect.any(Object),
         );
@@ -97,18 +98,23 @@ describe('createTimeseriesEntrypoint', () => {
 
         feature.init();
 
-        expect(initColumnFilterModalMock).toHaveBeenCalledWith(deps.renderCurrentData, deps.updateAnalysisYRange);
+        expect(initColumnFilterModalMock).toHaveBeenCalledWith(
+            deps.renderCurrentData,
+            deps.updateAnalysisYRange,
+            deps.workspace,
+        );
         expect(initDatasetSearchInputsMock).toHaveBeenCalledTimes(1);
         expect(initTimeseriesActionsMock).toHaveBeenCalledTimes(1);
         expect(initTimeseriesActionsMock).toHaveBeenCalledWith(expect.objectContaining({
             fetchAndRender: deps.fetchAndRender,
             renderCurrentData: deps.renderCurrentData,
-            buildRangeControls: buildRangeControlsMock,
+            buildRangeControls: expect.any(Function),
             updateAnalysisZoom: deps.updateAnalysisZoom,
             emitChartRangeChange: deps.emitChartRangeChange,
             registerCleanup: deps.registerCleanup,
             rebuildColumnToggles: expect.any(Function),
             renderColumnProfilesGrid: deps.renderColumnProfilesGrid,
+            workspace: deps.workspace,
         }));
     });
 

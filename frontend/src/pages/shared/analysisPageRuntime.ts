@@ -27,6 +27,13 @@ export interface ExportConfig {
 export interface AnalysisPageRuntimeOptions {
     page: string;
     emptyStateRootId: string;
+    /**
+     * Optional ids of `<strong id>` / `<span id>` inside the empty-state
+     * root. When supplied, callers can populate the brand-illustrated
+     * empty state (heading + body) without re-rendering its markup.
+     */
+    emptyStateTitleId?: string;
+    emptyStateMessageId?: string;
     statusElId?: string;
     loadingElId?: string;
     exportConfig?: ExportConfig;
@@ -41,6 +48,8 @@ export function createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions) {
     const base = createPageRuntime({
         page: options.page,
         emptyStateRootId: options.emptyStateRootId,
+        emptyStateTitleId: options.emptyStateTitleId,
+        emptyStateMessageId: options.emptyStateMessageId,
         statusElId: options.statusElId,
         loadingElId: options.loadingElId,
         init: options.init,

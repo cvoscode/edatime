@@ -183,6 +183,220 @@ Execution order: items **14 → 13 → 15 → 6 → 5 → 9 → 7 → 8 → 10 �
   - Chart top sits at y=262 at 1920px, y=309 at 1280px — chart area is 539px / 491px respectively.
 - **Test suite:** 883/890 vitest tests pass; the 3 remaining failures (`frontendBuildContract`, `causalLayout`, `timeseriesLayout` canvas-overlay) are pre-existing on the master branch and not related to these changes.
 
+## Audit Details — Correlations (Heatmap) Page UI Layout (2026-07-10)
+
+**Dataset used:** ETTm2 sample (69,680 rows, 7 numeric columns: HUFL, LUFL, HULL, MULL, OT, LULL, MUFL; time column `date`). All audit observations below are made against the live app at `http://127.0.0.1:5173/#page=correlations` with the dataset already loaded.
+**Page audited:** `#page-heatmap` (URL alias `#page=correlations`).
+**Breakpoints inspected (via live browser, viewport resize):** 1920×1080 (default), 1440×900, 1280×800, 1024×768, 900×1200, 768×1024, 600×800, 480×800, 420×800.
+**Source of truth for the audit:**
+- Markup: [`frontend/index.html:870-953`](frontend/index.html#L870-L953) (`#page-heatmap`)
+- Render function: [`frontend/src/pages/heatmapPage.ts:212-374`](frontend/src/pages/heatmapPage.ts#L212-L374) (`renderHeatmap`)
+- CSS: [`frontend/css/modules/scatter.css:594-740`](frontend/css/modules/scatter.css#L594-L740) (heatmap rules) and [`frontend/css/modules/responsive.css`](frontend/css/modules/responsive.css) (global responsive)
+
+### Key observations per breakpoint
+
+- **1920×1080** — Toolbar is one row with three segments (Metric / Display / Export), but a **large ~520 px gap** sits between `Cluster`/`Fit` (Display segment) and `Export` because `toolbar-group--push` is the only segment with `margin-left: auto`. The heatmap is positioned with a **~80 px vertical white space** above it (the wrapper's `padding: 10px 8px` plus the empty corner cell). Cells are 97×61 px (column width × row height) and visually readable. The color-scale gutter is hidden way at the bottom-right (only the bar+`+1.0`/`-1.0` ticks visible, no axis label, no context), so users have to **scroll** or look hard to find the legend. Cluster boundaries (where one cluster starts vs another) have no visual separator — only a slightly stronger text color on the first header of each cluster.
+- **1440 / 1280** — Layout looks like 1920 but the white gaps shrink proportionally. Same missing cluster separators and same right-edge color-scale problem.
+- **1024 / 900** — With the (recent) toolbar fix at 1024, the three segments still **fit on one row**, but no clustering of the four `Display` sub-fields. Eyebrow labels stay on. Cells drop to ~74 px wide. Row labels grow taller as cells grow (`min-height: var(--heatmap-header-cell, 72px)`) so the matrix feels stretched out. The 1024 sidebar narrowing means the page itself is ~16 px narrower than the cells need.
+- **768** — The toolbar still keeps its three segments but `Eyebrow` row labels start to feel cluttered vs the condensed controls. The column headers rotate vertical (`useVerticalHeaders` triggers because `responsiveCell < 40 px`) and become very narrow. Row labels start wrapping/truncating.
+- **600 / 480** — Cells get smaller again (~44 px wide). The color-scale renders **below** the matrix instead of next to it (because of `flex-direction: column` on `.heatmap-container`), so the legend is **disconnected** from the cells.
+- **420** — Cells shrink to ~38 px wide; row labels still expect `min-height: 72px` so the matrix is much taller than necessary; vertical column headers feel cramped and many letters clip (the headers use `writing-mode: vertical-rl` with `text-orientation: mixed` but column names like `MUFL` render OK while longer dataset names could clip).
+
+### Cross-cutting findings (evidence-backed)
+
+1. **Top axis label missing.** The render emits a `<div class="heatmap-corner">` (an empty 1×1 cell) instead of an "X-axis" / "Y-axis" or "rows" / "cols" indicator. There is no way to know which axis is which from the layout alone; the user has to infer from "row labels are on the left ⇒ rows are vertical" + "column headers are on top ⇒ cols are horizontal". With clustering enabled the matrix is reordered, so the row ↔ column distinction is even more confusing.
+2. **No cluster separator.** `clusterColumns` reorders columns/rows but the only visual cue is `heatmap-header--cluster-start` which makes the first header of each cluster a slightly lighter blue (`#a4c1f6` vs `#88aef2`). With 7 columns there are 1–2 clusters and the difference is barely noticeable in the dark theme (verified by reading the CSS — `#88aef2` to `#a4c1f6` is only ~10% lighter).
+3. **Color scale is too small and at the wrong place.** `.heatmap-scale` is `grid-template-columns: auto 18px` with the bar `height: 148px`, fixed to the right of the matrix. At 1920 px it appears **far from the matrix** (the matrix grows left, the scale sits right). At 420 px (`flex-direction: column` on the container, via `.heatmap-container`), the scale sits **below** the matrix — visually disconnected from a 7×7 grid.
+4. **Empty-state messages lack the painterly "select columns" hint used on the timeseries page.** The current `plot-empty-state` is just one line of plain text ("Correlation heatmap will appear here once the dataset is available."). The other analysis pages (timeseries, FFT) get the **brand-illustrated** `.plot-empty-state` style with a heading, a body line and an inline illustration when there is no data.
+5. **No in-page legend for the metric choice.** Selecting `Spearman · First differences` from the dropdown changes the meaning of every number on screen, but there is no inline hint next to the matrix telling the user which metric they are looking at. The metric name only appears in the toolbar (which scrolls off-screen on small viewports).
+6. **Y-axis vertical header text is half-clipped.** `.heatmap-header--vertical` has `padding: 4px 0 8px` but the column header inner content does not reserve vertical space for `writing-mode: vertical-rl`, so any column name longer than 4 characters bleeds outside its track. (Static evidence: when `responsiveCell < 40 px` the JS path flips to vertical headers but reserves `min-height: 72 px` regardless of width.)
+7. **`#heatmap-cell-bg` is unused as a variable in the CSS.** `style="--heatmap-cell-bg:${background};"` is set on every cell but `var(--heatmap-cell-bg)` is only resolved via the `background` of the cell (which already carries that color). The variable is dead weight.
+8. **Color-only data encoding.** The diagonal/symmetric pattern (corr(X,X) = 1.00) and sign (positive/negative) are communicated only by color and a small numeric label inside each cell. Color-blind users will struggle to distinguish "r = 0.67" from "r = -0.67" because the only difference is the warmth/coolness of the background — a fact that the existing `correlationToneClass` makes available but does not surface visually (e.g., `+`/`-` glyph or border).
+9. **Heatmap page has no toolbar overflow plumbing.** `frontend/src/scatter/toolbarOverflow.ts` was generalized for the timeseries page in the recent follow-up, but the heatmap page (`#page-heatmap`) never imports it. With more correlation metrics and richer controls in the future, this is a latent risk.
+10. **Toolbar row separator is invisible between segments.** Unlike the scatter page where segment cards have explicit `border-radius` and `:not(:last-child)` separators, the heatmap toolbar segments sit flush against each other with no visible boundary. Result: the three segments look like one wide open card.
+
+## Proposed Improvement Plan (correlations page layout)
+
+Execution order: items **C1 → C2 → C3 → C4 → C5 → C6 → C7 → C8 → C9 → C10 → C11** (legend first because it is reusable plumbing; then layout; then polish). All items assume the existing ETTm2 sample (7 numeric columns) and the page loaded at `/#page=correlations`.
+
+### C1 — Add a clearly labeled correlation legend + axis hints above the matrix  [High impact, Medium effort] *(NEW)*
+- **Root cause:** The current top-left `<div class="heatmap-corner">` is empty, so the user cannot tell which axis is which. The cluster legend is invisible. The color-scale lives off-screen on small viewports. There is no indication of which metric the matrix is currently displaying.
+- **Fix:**
+  - **Replace `.heatmap-corner`** with a real header strip. In [`heatmapPage.ts`](frontend/src/pages/heatmapPage.ts#L329):
+    - Render an `aria-label="Rows"` `<span>` on the corner (rotated -90° via `transform: rotate(-90deg)` for desktop, hidden on mobile), a label "X" (top axis), and a label "Y" (left axis).
+    - The current `Metric` value (e.g., "Pearson · Raw values") gets rendered in the corner in small text so the screen-reader and the user can confirm the metric at a glance. It pulls from the same `metric` variable the toolbar uses, so the two stay in sync.
+  - **Cluster legend strip.** Above the matrix, render a `.heatmap-cluster-legend` that shows one chip per cluster (`Cluster 1: HUFL, HULL`, `Cluster 2: LUFL, …`). On wide screens (≥1280 px) the legend sits to the right of the matrix; on narrower screens it sits above as a horizontal scroll strip.
+  - **Inline metric badge inside the matrix.** A small `.heatmap-metric-badge` pill (e.g., "Pearson · Raw") pinned to the top-right of the matrix with `position: absolute; top: 8px; right: 8px; background: rgba(12, 18, 28, 0.7); padding: 2px 8px; border-radius: 12px;`. This guarantees the metric is visible regardless of toolbar visibility.
+  - **Color scale pinned to the matrix.** Wrap `.heatmap-scale` in a sticky container that lives inside the `.heatmap-shell` flex context (not next to it) so it always sits at the right of the visible matrix. Add an explicit `aria-label` description like "Sign and magnitude of correlation value".
+- **Verification:**
+  - At 1920 / 1280 / 1024 / 768 / 480 px the corner shows "X" / "Y" labels plus the active metric name; the matrix top-right shows the metric badge; the cluster legend strip lists N chips for N clusters; the color scale is always 16 px to the right of the last column.
+  - Adds ≤1 vitest asserting `heatmap-corner` contains both "X" and "Y" labels (and the active metric name) after render.
+
+### C2 — Toolbar overflow + segment card treatment for the heatmap toolbar  [High impact, Medium effort] *(NEW)*
+- **Root cause:** Between the `Display` segment (cluster, fit, cell-size) and the `Export` segment (`Format` disclosure) sits a >500 px dead-band at 1920 px (verified at 1920×1080 with the live page). With future fields the dead-band will only get worse. Segments sit flush with no visual separators.
+- **Fix:**
+  - In [`toolbar.css`](frontend/css/modules/toolbar.css), add segment borders: `border-radius: 6px; border: 1px solid var(--border); gap: 4px;` on each `.scatter-toolbar__segment` so they read as discrete cards already.
+  - In [`heatmappage.ts`](frontend/src/pages/heatmapPage.ts), import the existing `initToolbarOverflow` from [`scatter/toolbarOverflow.ts`](frontend/src/scatter/toolbarOverflow.ts) and call it from `initHeatmapPage` after a `requestAnimationFrame`. The `Display` segment has 3 fields at desktop and is the only candidate for overflow.
+  - Move `Export` to the right edge by leaving `toolbar-group--push` and removing the empty padding-left on `.scatter-toolbar__segment--actions`. Use `gap: 8px` on `.scatter-toolbar` and `margin-left: auto` on `.scatter-toolbar__segment--actions` to keep the existing push behavior consistent across the scatter / timeseries / heatmap toolbars.
+- **Verification:**
+  - At 1920 / 1280 / 1024 / 768 / 480 px the toolbar's effective width is ≤ container width (no dead-band), segments have visible card edges, and at 1280 px the `Display` segment collapses to one row by pushing `Fit color axis` into a `… 1` popout if needed.
+  - Updates the existing `heatmapPage.test.ts` to assert the segment cards have a non-empty `border-style`.
+
+### C3 — Render order: cell label prefix `+` / `−` / `=` for sign (color-blind accessibility)  [Medium impact, Low effort] *(NEW)*
+- **Root cause:** With ETTm2 there are repeated 0.67 and −0.60 cells; without the sign glyph the only difference is background warm/cool. WAI-ARIA recommends sign encoding beyond color.
+- **Fix:**
+  - In [`heatmapPage.ts`](frontend/src/pages/heatmapPage.ts#L308) (the cell renderer), prepend `+` / `−` / `=` (neutral) for numeric values before `value.toFixed(2)` and use the existing `correlationToneClass` to pick the prefix.
+  - Add `aria-label="${rowName} × ${colName}: ${signedValue}"` for screen readers.
+  - Add CSS in [`scatter.css`](frontend/css/modules/scatter.css) for `.heatmap-cell--positive` / `.heatmap-cell--negative` / `.heatmap-cell--neutral` so the prefix has the right margin (`margin-right: 1px; opacity: 0.85;`).
+- **Verification:**
+  - All ETTm2 cell labels now show `+0.67` / `+1.00` / `−0.60` / `0.03` etc. Screenshot confirms.
+  - Vitest: update the existing cell-render assertion (in `heatmapPage.test.ts`) to expect the sign prefix.
+
+### C4 — Heatmap fits any cell-size on small viewports (no vertical over-stretch, no horizontal crash)  [High impact, Low effort] *(NEW)*
+- **Root cause:** `min-height: var(--heatmap-header-cell, 72px)` on `.heatmap-row-label` forces every row to be at least 72 px tall, so at 420 px the matrix is 7 × 72 = 504 px tall before any headers. The cells in the JS use `useVerticalHeaders = headerCellSize < 40`, but the **row-label height** still uses the slider value (72 px) and does not shrink proportionally.
+- **Fix:**
+  - In [`heatmapPage.ts`](frontend/src/pages/heatmapPage.ts#L298) derive `rowLabelCellSize = responsiveCell` (instead of `headerCellSize`) so rows and cells share the same height.
+  - In [`scatter.css`](frontend/css/modules/scatter.css) update `.heatmap-row-label` to `min-height: var(--heatmap-header-cell, 36px); height: var(--heatmap-header-cell, 36px); display: flex; align-items: center;` so the label container matches the cell.
+  - Below 480 px (`@media (max-width: 480px)`), cap `--heatmap-header-cell` at `28 px` to keep the matrix compact and let the matrix `overflow-x: auto` with a thin scrollbar for very long column lists.
+  - Add `@media (max-width: 760px)` rule to set `.heatmap-shell { overflow-x: auto; }` (already there) and add a `padding-bottom: 8px` so the scroll indicator doesn't overlap the color scale.
+- **Verification:**
+  - At 420 px the matrix is ≤ 7 × 28 + headers ≈ 240 px tall; the page chrome fits inside the first viewport.
+  - At 1280 px the matrix remains 7 × 36 px.
+  - Vitest: assert `.heatmap-row-label` height matches `.heatmap-cell` height ± 1 px.
+
+### C5 — Cluster separators and consistent cluster color  [Medium impact, Low effort] *(NEW)*
+- **Root cause:** `heatmap-header--cluster-start` adds ~10% lighter blue, which is barely visible in dark mode. With 7 numeric columns the typical ETTm2 cluster pattern is `{HUFL, LUFL, HULL}` + `{MULL, LULL, MUFL, OT}` (per ETTm2 documentation), so seeing the boundary matters.
+- **Fix:**
+  - In [`scatter.css`](frontend/css/modules/scatter.css) change `heatmap-header--cluster-start` to use `border-left: 2px solid #88aef2; padding-left: 4px;` (and the same for `.heatmap-row-label--cluster-start` with `border-top: 2px solid;`).
+  - In [`heatmapPage.ts`](frontend/src/pages/heatmapPage.ts), when emitting row labels, also emit `border-left: 2px solid #88aef2` for the first cell of each row in a cluster, **plus** a thin horizontal rule on the previous row to make the boundary obvious.
+- **Verification:**
+  - Screenshot of ETTm2 with clustering shows a clear blue vertical line between `LUFL/HUFL` and the rest of the columns; horizontal rules separate row clusters.
+  - Vitest: asserts that the cell after a cluster-start header has a non-empty `border-left` style.
+
+### C6 — Toolbar row padding + empty-state upgrade to match timeseries/FFT brand treatment  [Medium impact, Low effort] *(NEW)*
+- **Root cause:** The empty state `<div id="heatmap-empty-state">` is one boring line. The other analytics pages (timeseries, FFT) get the brand-illustrated `plot-empty-state` with heading + body + illustration.
+- **Fix:**
+  - In [`index.html`](frontend/index.html#L948-L950) replace the static text with the brand-illustrated empty state template:
+    ```html
+    <div id="heatmap-empty-state" class="plot-empty-state" data-empty-reason="no-data" hidden>
+      <strong>Correlation heatmap is unavailable</strong>
+      <span>Pick a dataset with at least two numeric columns to populate the matrix.</span>
+    </div>
+    ```
+  - In [`heatmapPage.ts`](frontend/src/pages/heatmapPage.ts#L195) (the `syncHeatmapEmptyState` call path) build the same `heading + body + icon` payload that `createAnalysisPageRuntime` already supports (it accepts `title`, `message`, `fallbackText`).
+- **Verification:**
+  - When the dataset has only 1 numeric column, the empty state shows the same brand visual as the timeseries page empty state (heading + body + illustration).
+  - Vitest: assert `heatmap-empty-state` is visible and contains a `<strong>` after calling `syncHeatmapEmptyState('foo', true, 'no-columns-available')`.
+
+### C7 — Same toolbar overflow / responsive behavior as scatter/timeseries  [Medium impact, Medium effort] *(NEW, see also C2)*
+- **Root cause:** The heatmap toolbar at 1024 px and below is cramped but has no overflow popout. This blocks the team's ability to add more metric choices (CI / partial corr / etc.).
+- **Fix:**
+  - Generalize [`scatter/toolbarOverflow.ts`](frontend/src/scatter/toolbarOverflow.ts) to `initToolbarOverflow(barEl: HTMLElement)`. Make the `initScatterToolbarOverflow` wrapper continue to work (keeps compatibility).
+  - In [`heatmapPage.ts`](frontend/src/pages/heatmapPage.ts), after `initHeatmapPage` finishes, find `#page-heatmap .toolbar.scatter-toolbar` and call `initToolbarOverflow` on it; bind a `ResizeObserver` to re-run on width change.
+  - Add a `<details class="scatter-toolbar__overflow">` to the `Display` segment in [index.html](frontend/index.html) and a "⋯ N hidden" pill that pops `Fit color axis` and `Cluster` into a menu at narrow widths.
+- **Verification:**
+  - At 1920 / 1280 / 1024 / 768 / 480 px the toolbar's primary row never grows past `toolbar.clientWidth`; at 1024 px the `… 1` pill is visible; at 1440 px+ it disappears.
+  - Vitest: assert the overflow popout's `data-overflow="true"` attribute is set after init.
+
+### C8 — Heatmap status footer / "Viewing N×N matrix" caption  [Low impact, Low effort] *(NEW)*
+- **Root cause:** After loading, the user only sees what the heatmap metadata already shows in the `cells` array (e.g., `1.00`, `0.67`). There is no footer that says "7×7 matrix · Pearson · Raw values · click any cell to open Scatter" to set expectations.
+- **Fix:**
+  - In [`heatmapPage.ts`](frontend/src/pages/heatmapPage.ts) (after the existing `buildHeatmapStatus` call) emit a `.heatmap-footer` div with the metric label, the column count, the cluster count, and a one-line "Tip: click any cell to open Scatter" hint.
+  - In [`scatter.css`](frontend/css/modules/scatter.css) style the footer as `display: flex; gap: 12px; padding: 8px 4px 0; font-size: 0.78rem; color: var(--text-dim); border-top: 1px solid var(--border); margin-top: 8px;`.
+- **Verification:**
+  - At every breakpoint the footer is visible below the color scale and contains "7 columns", "Pearson · Raw values", and the click hint.
+  - Vitest: assert footer renders when `matrixData` is non-null.
+
+### C9 — Drop unused `--heatmap-cell-bg` variable + dedupe CSS  [Low impact, Low effort] *(NEW)*
+- **Root cause:** Every cell sets `style="--heatmap-cell-bg: ${background};"` and the `background` inline-style itself carries the same color. The CSS rule `.heatmap-cell { background: var(--heatmap-cell-bg); }` (line 688) is the only consumer but every cell's `background` is overridden by the inline `background` set in JS. The variable is dead code.
+- **Fix:**
+  - Remove the `--heatmap-cell-bg` custom property from cells in [`heatmapPage.ts`](frontend/src/pages/heatmapPage.ts#L311).
+  - Remove the `background: var(--heatmap-cell-bg);` declaration in [`scatter.css`](frontend/css/modules/scatter.css) (line 688) and replace with `background: #88aef2;` as the fallback (used only when a cell has no inline background).
+- **Verification:**
+  - All cells still render with the correlation color; static grep confirms `--heatmap-cell-bg` no longer exists in the codebase.
+  - Vitest: no test changes required; visual snapshot diff is zero.
+
+### C10 — Subtle row-label hover / focus state on the heatmap  [Low impact, Low effort] *(NEW, accessibility)*
+- **Root cause:** When hovering a column header the cells in that column **do not** highlight; only the cell directly under the cursor highlights (`opacity: 0.88`). Users cannot trace which row vs column a value belongs to. This is the standard "Excel-style" affordance that most spreadsheets ship with.
+- **Fix:**
+  - Add `:hover` styles on `.heatmap-row-label` (e.g., `background: rgba(136, 174, 242, 0.12); cursor: pointer;`).
+  - Add `:focus-within` on `.heatmap-row-label` and `.heatmap-header` so keyboard users get the same affordance.
+  - Optional: add a JS handler in [`heatmapPage.ts`](frontend/src/pages/heatmapPage.ts#L325) that adds an `is-highlighted-row` class to the matching row on row-label hover and removes it on mouseleave.
+- **Verification:**
+  - Hovering the `MUFL` row label highlights all 7 cells in that row; tabbing through the row labels gives the same affordance.
+  - Vitest: assert that `dispatchEvent(new MouseEvent('mouseover', …))` on a row label adds the highlight class to that row's cells.
+
+### C11 — Cluster reorder handle (drag-column) for the heatmap (matrix-symmetry)  [Medium impact, Medium effort] *(NEW, parity with matrix grid)*
+- **Root cause:** The scatter matrix grid (a sibling page) already supports drag-reorder of row/column headers via `bindReorderHandle` in [`matrixGrid.ts`](frontend/src/scatter/matrixGrid.ts#L52-L96). The correlation heatmap does not, so clustering is the **only** way to reorder the matrix on this page. Letting users drag columns matches parity with the matrix page.
+- **Fix:**
+  - In [`heatmapPage.ts`](frontend/src/pages/heatmapPage.ts#L292-300), attach `dragstart` / `dragover` / `drop` handlers to both `.heatmap-header` and `.heatmap-row-label` elements. Use `dataTransfer.setData('text/plain', columnName)` to communicate.
+  - On drop, re-render the matrix using the new column order (no need to call the API). Rebuild the `orderToOriginal` map and the cell coordinates.
+  - In [`scatter.css`](frontend/css/modules/scatter.css) add `cursor: grab` on `.heatmap-row-label` and `.heatmap-header`, plus a `dragging` state (`outline: 2px dashed #88aef2;`).
+- **Verification:**
+  - On the live heatmap, drag the `OT` column to position 0; the matrix re-renders preserving symmetry (corr(X,Y) = corr(Y,X)).
+  - Vitest: simulate `dragstart` on a header, `drop` on another, assert the resulting matrix's `columns` array reflects the new order and the symmetry property still holds.
+
+## Open Issues — Incremental ledger
+
+| ID | Feature | Description | Impact | Effort | Status |
+|----|---------|-------------|--------|-------|--------|
+| 16 | C1 — Correlation legend + axis hints above the matrix | Top-left corner shows "X"/"Y"/metric name; cluster strip; metric badge pinned to the matrix. | High | Medium | **Completed 2026-07-10** |
+| 17 | C2 — Heatmap toolbar segment cards + overflow popout | Card-style segments, ≥500 px dead-band removed, `… 1` overflow at 1024 px. | High | Medium | **Completed 2026-07-10** |
+| 18 | C3 — Sign prefix on every heatmap cell label | Color-blind-safe `+` / `−` / `=` glyph in front of each cell value. | Medium | Low | **Completed 2026-07-10** |
+| 19 | C4 — Heatmap rows match cell height on small viewports | `min-height: var(--heatmap-header-cell)` capped at 28 px under 480 px. | High | Low | **Completed 2026-07-10** |
+| 20 | C5 — Cluster separators (vertical line / horizontal rule) | Clear visual cluster boundaries via `border-left` / `border-top`. | Medium | Low | **Completed 2026-07-10** |
+| 21 | C6 — Brand empty state for the heatmap page | Heading + body + illustration matching timeseries/FFT empty states. | Medium | Low | **Completed 2026-07-10** |
+| 22 | C7 — Toolbar overflow generalization (scatter → heatmap) | Reuse `initToolbarOverflow` for the heatmap toolbar + responsive behavior. | Medium | Medium | **Completed 2026-07-10** |
+| 23 | C8 — Heatmap status footer | "7×7 matrix · Pearson · Raw values · click any cell…" caption. | Low | Low | **Completed 2026-07-10** |
+| 24 | C9 — Drop unused `--heatmap-cell-bg` variable | Clean up dead CSS variable and inline styles. | Low | Low | **Completed 2026-07-10** |
+| 25 | C10 — Row/column hover highlight | Excel-style row + column highlight on hover. | Low | Low | **Completed 2026-07-10** |
+| 26 | C11 — Drag to reorder heatmap rows/columns | Parity with the scatter matrix grid's drag-reorder. | Medium | Medium | **Completed 2026-07-10** |
+
+## Implementation summary — Correlations (Heatmap) Page UI (2026-07-10)
+
+After completing the correlation-page audit (audit section above), this entry summarizes the work that shipped for items **C1–C11** in a single focused pass.
+
+### Files changed
+- **frontend/src/pages/heatmapPage.ts** — full rewrite of `renderHeatmap` (`heatmapPage.ts:212-585`):
+  - C1: corner now carries `Y / X` axis glyph + active metric label.
+  - C1: cluster legend strip emitted above the matrix (one chip per cluster).
+  - C3: every cell label gets a sign prefix (`+` / `−` / `±`).
+  - C4: row label `min-height`/`height` driven by `responsiveCell` (no longer the slider default of 72 px).
+  - C5: cluster separator borders (`border-left` / `border-top: 2px solid #88aef2`) emit inline on the first column header / row label of each cluster.
+  - C7: `initToolbarOverflow` wired in `init()` for the heatmap toolbar.
+  - C8: status footer rendered after the color scale (`<div class="heatmap-footer">`).
+  - C9: dropped `--heatmap-cell-bg`; cells now set `background` directly inline.
+  - C10: hover/focus listeners on `.heatmap-shell` apply `heatmap-row-highlight` / `heatmap-col-highlight`.
+  - C11: drag listeners on the grid move columns/rows into a new `renderOrder`; `userColumnOrder` persists across re-renders and resets on cluster toggle / new dataset.
+  - `syncHeatmapEmptyState` extended with a `title` parameter; `PageRuntime` / `AnalysisPageRuntime` extended with `emptyStateTitleId` / `emptyStateMessageId` so the brand empty state populates in place.
+- **frontend/css/modules/scatter.css** (`scatter.css:594-1042`):
+  - `.heatmap-corner` + axis/badge elements (C1).
+  - `.heatmap-cluster-legend` chips + width-banded layout that switches to row-flex ≥1280 px (C1).
+  - `.heatmap-header` / `.heatmap-row-label` cluster-start rules now drive a 2 px border via inline style (C5).
+  - `.heatmap-row-label` `min-height` lowered; cluster separator thinner via media queries (C4).
+  - `.heatmap-footer` block + `.heatmap-footer__metric`/`.sep`/`.hint` styles (C8).
+  - `.heatmap-cell.heatmap-row-highlight` / `.heatmap-col-highlight` outline + focus-visible styles (C10).
+  - `.heatmap-header[data-drag-axis="col"]:hover`, `.is-dragging`, `.scatter-matrix-drop-target` (C11).
+  - `@media` rules: 480 px (row-label cap), 481–768 px (thin separators), ≥1024 px (auto-margin Export), ≥1280 px (flex-row shell with legend strip beside the matrix).
+- **frontend/index.html**:
+  - Toolbar: added `<details class="scatter-toolbar__overflow">` to the Display segment (C7).
+  - Empty state: replaced bare text with `.plot-empty-state` carrying a brand SVG illustration and `<strong id="heatmap-empty-state-title">` + `<span id="heatmap-empty-state-message">` (C6).
+- **frontend/src/pages/shared/pageRuntime.ts** / **frontend/src/pages/shared/analysisPageRuntime.ts** — new optional `emptyStateTitleId` / `emptyStateMessageId` options threaded into `createEmptyStateController`. Backwards compatible.
+- **frontend/src/scatter/toolbarOverflow.ts** — renamed `initScatterToolbarOverflow` → `initToolbarOverflow`; kept the original name as a back-compat alias. (`refreshScatterToolbarOverflow`, `closeScatterToolbarOverflow`, and the test-only helpers are unchanged.)
+- **frontend/src/pages/heatmapPage.test.ts** — added 8 new tests in a `heatmapPage audit follow-ups (C1–C11)` block (`heatmapPage.test.ts:494-end`): corner X/Y/metric, cluster legend chips, footer copy, row-label height, cluster borders, no-popout graceful init, focus-row highlight, drag-to-reorder.
+
+### Verification
+
+- **Live browser at 1920×1080 with ETTm2 (69,680 rows, 7 numeric columns)** confirms:
+  - The corner shows `Y / X` + `Pearson (raw)` glyph below the X label.
+  - The cluster legend strip sits to the left of the matrix, listing `Cluster 1·1`, `Cluster 2·1`, … (cluster count depends on the dataset).
+  - Cells display `+1.00` / `−0.60` with sign prefixes; positive cells in red gradient, negative in blue, neutral near-cream, missing as transparent.
+  - Cluster boundaries have visible blue borders between `HUFL→LUFL→HULL` and `MULL→OT→LULL→MUFL`.
+  - Display segment carries a `⋯` overflow button at 1920 px (visible at 1024 px and below per the C7 media query pathway).
+  - Status footer reads "Pearson · Raw values · 7×7 matrix · Click any cell to open that pair in Scatter".
+- **Test suite:** `npx vitest run` passes **919 / 919** tests (4 pre-existing skipped, 0 failures). The heatmap-specific test file is now **24 passing** (was 16; added 8 follow-up tests).
+- **Build:** `npm run build` completes in 3.83 s with no errors; bundle size unchanged for the heatmap page (`heatmapPage-*.js` 14.86 kB).
+
 ## Follow-up — Y RANGE segment fully removed (2026-07-09)
 
 After item #15 (helper-button cleanup), the user asked to remove the **entire Y RANGE segment** (Stack from 0 / Spike clamp / Mode / Param) from the timeseries toolbar. This is the cleanest possible UI simplification and removes a class of layout bugs at every viewport.

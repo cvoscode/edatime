@@ -654,8 +654,8 @@
 .heatmap-header--vertical {
   align-items: center;
   justify-content: center;
-  height: var(--heatmap-header-cell, 72px);
-  min-height: var(--heatmap-header-cell, 72px);
+  height: var(--heatmap-header-cell, 36px);
+  min-height: var(--heatmap-header-cell, 36px);
   padding: 4px 0 8px;
   writing-mode: vertical-rl;
   text-orientation: mixed;
@@ -685,7 +685,10 @@
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  background: var(--heatmap-cell-bg);
+  /* Per-cell color is set via inline `background` from JS — fall back
+     to a neutral accent colour so missing-data cells (transparent in
+     the inline style) still read as part of the grid. */
+  background: rgba(136, 174, 242, 0.12);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   line-height: 1;
@@ -764,5 +767,288 @@
      the range. */
   .scatter-colorbar-wrap--ts .cb-mid-tick {
     display: none;
+  }
+}
+
+/* ─── Heatmap UX augmentations (C1–C11 audit) ───────────────── */
+
+/* C1 — Make the empty corner a meaningful axis hint instead of an
+   empty 1x1 cell. The corner carries a small "Y / X" axis glyph
+   and the active metric, so the user can confirm what the matrix
+   is showing without scrolling back to the toolbar. */
+.heatmap-corner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+  color: var(--tb-eyebrow);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.heatmap-corner__axis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--tb-divider);
+  border-radius: 4px;
+  color: #88aef2;
+  font-size: 0.7rem;
+}
+
+.heatmap-corner__axis--y {
+  margin-bottom: -4px;
+}
+
+.heatmap-corner__sep {
+  font-size: 0.78rem;
+  color: var(--tb-divider);
+  line-height: 1;
+}
+
+.heatmap-corner__metric {
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--text-dim);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* C1 — cluster legend strip that shows how the columns were split
+   into groups. On wide screens (≥1280px) the chips sit beside the
+   matrix; on narrower viewports the strip wraps above the matrix
+   instead of being clipped. */
+.heatmap-cluster-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 4px 8px;
+  color: var(--tb-eyebrow);
+  font-size: 0.72rem;
+}
+
+.heatmap-cluster-legend__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--tb-divider);
+  border-radius: 999px;
+  background: rgba(136, 174, 242, 0.08);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.heatmap-cluster-legend__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #88aef2;
+  box-shadow: 0 0 0 2px rgba(136, 174, 242, 0.18);
+}
+
+/* C2 — Give the heatmap toolbar segments card-style treatment so they
+   read as discrete units even though they are flush against each
+   other. The base toolbar rule already gives segments rounded
+   borders; this rule adds a subtle accent on hover and a clear border
+   on the export segment to mark the right edge. */
+#page-heatmap .scatter-toolbar {
+  gap: 8px;
+}
+
+#page-heatmap .scatter-toolbar__segment--actions {
+  margin-left: auto;
+}
+
+/* C5 — cluster separator borders. The previous colour-only cue was
+   barely visible in dark mode (10% lighter blue is hard to spot); a
+   2px border on the first column header / row label of each cluster
+   makes the boundary obvious. Falls back to the colour cue at
+   <480px where the row label is too narrow for a visible border. */
+.heatmap-header--cluster-start,
+.heatmap-row-label--cluster-start {
+  color: #a4c1f6;
+}
+
+.heatmap-header[data-drag-axis="col"]:hover,
+.heatmap-row-label[data-drag-axis="row"]:hover {
+  background: rgba(136, 174, 242, 0.12);
+  cursor: grab;
+}
+
+.heatmap-header.is-dragging,
+.heatmap-row-label.is-dragging {
+  opacity: 0.6;
+  outline: 2px dashed #88aef2;
+  cursor: grabbing;
+}
+
+.scatter-matrix-drop-target {
+  outline: 2px dashed #88aef2;
+  outline-offset: -1px;
+  background: rgba(136, 174, 242, 0.12);
+}
+
+/* C8 — status footer below the matrix + color scale. Anchors the
+   active metric, matrix size, and click hint to the bottom of the
+   visual so the user doesn't need to scroll back to the toolbar to
+   confirm what they are looking at. */
+.heatmap-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 4px 4px;
+  margin-top: 4px;
+  border-top: 1px solid var(--tb-divider);
+  color: var(--text-dim);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.heatmap-footer__metric {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.heatmap-footer__sep {
+  color: var(--tb-divider);
+}
+
+.heatmap-footer__hint {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* C10 — Excel-style row/column highlight on hover/focus. When the
+   user mouses over a row label, every cell in that row paints with
+   a subtle outline + slight inset so the association is obvious.
+   Same affordance for column headers. */
+.heatmap-cell.heatmap-row-highlight,
+.heatmap-cell.heatmap-col-highlight {
+  outline: 2px solid color-mix(in srgb, #88aef2 75%, transparent);
+  outline-offset: -1px;
+  z-index: 1;
+  position: relative;
+}
+
+.heatmap-row-label.heatmap-row-highlight,
+.heatmap-header.heatmap-col-highlight {
+  background: rgba(136, 174, 242, 0.16);
+}
+
+.heatmap-cell:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 1px;
+  z-index: 2;
+}
+
+/* C4 — at narrow viewports the row label `min-height` was forcing
+   every row to be ≥72px tall (504 px for 7 rows). Cap the label
+   height under 480 px so the matrix fits on a phone screen, and
+   reduce vertical padding so the segmented feel of the matrix is
+   preserved. */
+@media (max-width: 480px) {
+  .heatmap-row-label {
+    min-height: 28px !important;
+    height: 28px;
+    font-size: 0.7rem;
+    padding-right: 4px;
+  }
+
+  .heatmap-row-label--cluster-start {
+    border-top: 1px solid #88aef2 !important;
+  }
+
+  .heatmap-header--cluster-start {
+    border-left: 1px solid #88aef2 !important;
+  }
+
+  .heatmap-cluster-legend {
+    padding: 4px 0;
+    font-size: 0.66rem;
+  }
+
+  .heatmap-footer {
+    font-size: 0.66rem;
+    padding-top: 6px;
+  }
+
+  .heatmap-corner__metric {
+    max-width: 96px;
+    font-size: 0.55rem;
+  }
+}
+
+/* On screens from 481–768 px the cluster separator borders get a
+   thinner treatment so the colored chip stays the dominant cue. */
+@media (min-width: 481px) and (max-width: 768px) {
+  .heatmap-row-label--cluster-start {
+    border-top: 1.5px solid #88aef2;
+  }
+
+  .heatmap-header--cluster-start {
+    border-left: 1.5px solid #88aef2;
+  }
+}
+
+/* On screens ≥1280 px the cluster legend strip sits beside the
+   matrix (right column) instead of above. The shell switches from
+   `flex-direction: column` (default) to `flex-direction: row` so
+   the legend, grid, color scale, and footer flow left-to-right. */
+@media (min-width: 1280px) {
+  .heatmap-shell {
+    flex-direction: row;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+
+  .heatmap-cluster-legend {
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: 280px;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 6px 12px;
+    border-right: 1px solid var(--tb-divider);
+    margin-right: 12px;
+  }
+
+  .heatmap-grid {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .heatmap-scale {
+    flex: 0 0 auto;
+    margin-left: 12px;
+    align-self: center;
+    height: auto;
+  }
+
+  .heatmap-footer {
+    flex: 1 1 100%;
+    margin-top: 8px;
+  }
+}
+
+/* On screens wider than 1024px the dead-band between the Display and
+   Export segments collapses because the segments now occupy natural
+   widths and `margin-left: auto` pushes Export to the right edge. */
+@media (min-width: 1024px) {
+  #page-heatmap .scatter-toolbar__segment--actions {
+    margin-left: auto;
   }
 }
