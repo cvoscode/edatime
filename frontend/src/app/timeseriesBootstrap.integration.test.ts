@@ -216,6 +216,7 @@ describe('app -> timeseries bootstrap wiring', () => {
                 commitDataset: expect.any(Function),
                 setSelection: expect.any(Function),
                 setFilters: expect.any(Function),
+                setViewport: expect.any(Function),
             }),
             markMetadataReady: markMetadataReadyMock,
             sanitizeSelectedColumns: sanitizeSelectedColumnsMock,

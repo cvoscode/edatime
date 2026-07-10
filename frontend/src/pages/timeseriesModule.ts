@@ -33,7 +33,7 @@ export interface TimeseriesModuleDeps {
         signal?: AbortSignal,
     ) => Promise<import('../types.js').DataObject>;
     fetchMetadata: () => Promise<DatasetMetadata>;
-    workspace: Pick<WorkspaceStore, 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters'>;
+    workspace: Pick<WorkspaceStore, 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters' | 'setViewport'>;
     ensurePrimaryChartCtor: () => Promise<new (
         containerId: string,
         onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
@@ -170,6 +170,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         const start = Number(timeRange.min);
         const end = Number(timeRange.max);
         deps.setViewport(start, end);
+        deps.workspace.setViewport({ xMin: start, xMax: end, yMin: null, yMax: null });
         deps.updateAnalysisZoom(start, end, 'initial');
         pageController.emitChartRangeChange('initial');
     };

@@ -90,6 +90,7 @@ const defaultDeps = () => ({
         commitDataset: vi.fn(() => true),
         setSelection: vi.fn(),
         setFilters: vi.fn(),
+        setViewport: vi.fn(),
     },
     DataChartCtor: class {} as any,
     ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class {}),
@@ -151,6 +152,7 @@ describe('createTimeseriesModule', () => {
         // not placeholder no-op functions created inside the module.
         expect(mockCreateDatasetBootstrap).toHaveBeenCalledWith(expect.objectContaining({
             fetchMetadata: deps.fetchMetadata,
+            workspace: deps.workspace,
             markMetadataReady: deps.markMetadataReady,
             sanitizeSelectedColumns: deps.sanitizeSelectedColumns,
             clearLoadedPageModules: deps.clearLoadedPageModules,
