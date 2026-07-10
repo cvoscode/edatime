@@ -175,6 +175,7 @@ vi.mock('../store/index.js', () => ({
     setStackFromZero: vi.fn(),
     setViewport: setViewportMock,
     uiState: { selectedCols: [] },
+    store: { subscribe: vi.fn(() => vi.fn()) },
 }));
 
 describe('app -> timeseries bootstrap wiring', () => {

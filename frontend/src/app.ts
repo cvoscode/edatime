@@ -31,6 +31,7 @@ import { initGlobalShortcuts } from './app/bootstrap/globalShortcuts.js';
 import { initTimeseriesShortcuts } from './app/bootstrap/timeseriesShortcuts.js';
 import { createAppRuntime } from './app/runtime.js';
 import { createWorkspaceStore } from './workspace/workspaceStore.js';
+import { bridgeLegacyIntent } from './workspace/legacyIntentBridge.js';
 import { markAppReady, resetAppReady } from './app/bootState.js';
 import { upgradeSelects } from './ui/primitives/Dropdown.js';
 import { upgradeFlexibleNumberInputs } from './ui/primitives/FlexibleNumberInput.js';
@@ -89,7 +90,9 @@ const _appCleanups: Array<() => void> = [];
 const runtime = createAppRuntime();
 const pageRegistry = createPageRegistry();
 const workspace = createWorkspaceStore();
+const legacyIntentBridge = bridgeLegacyIntent(workspace);
 runtime.registerCleanup(() => workspace.dispose());
+runtime.registerCleanup(() => legacyIntentBridge.dispose());
 let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
 
 /* ── Lazy-loaded modules ──────────────────────────────── */
