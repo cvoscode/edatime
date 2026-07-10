@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
     initFftPage: vi.fn(),
     initHeatmapPage: vi.fn(),
     createScatterEntrypoint: vi.fn(() => ({ init: vi.fn() })),
-    createSpectrogramEntrypoint: vi.fn(() => ({ init: vi.fn() })),
+    initSpectrogramPage: vi.fn(),
     createCausalEntrypoint: vi.fn(() => ({ init: vi.fn() })),
     createDriftEntrypoint: vi.fn(() => ({ init: vi.fn() })),
 }));
@@ -14,7 +14,7 @@ vi.mock('../utils/pageStyles.js', () => ({ ensureStyleModule: mocks.ensureStyleM
 vi.mock('../pages/fftPage.js', () => ({ initFftPage: mocks.initFftPage }));
 vi.mock('../pages/heatmapPage.js', () => ({ initHeatmapPage: mocks.initHeatmapPage }));
 vi.mock('../features/scatter/entrypoint.js', () => ({ createScatterEntrypoint: mocks.createScatterEntrypoint }));
-vi.mock('../features/spectrogram/entrypoint.js', () => ({ createSpectrogramEntrypoint: mocks.createSpectrogramEntrypoint }));
+vi.mock('../pages/spectrogramPage.js', () => ({ initSpectrogramPage: mocks.initSpectrogramPage }));
 vi.mock('../features/causal/entrypoint.js', () => ({ createCausalEntrypoint: mocks.createCausalEntrypoint }));
 vi.mock('../features/drift/entrypoint.js', () => ({ createDriftEntrypoint: mocks.createDriftEntrypoint }));
 
@@ -84,6 +84,21 @@ describe('page module descriptors', () => {
 
         expect(mocks.initFftPage).toHaveBeenCalledWith({
             renderTimeseries: deps.getRenderTimeseries,
+            workspace: deps.workspace,
+        });
+    });
+
+    it('loads Spectrogram directly from its descriptor only on initialization', async () => {
+        const deps = createDeps();
+        const register = vi.fn();
+        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        const spectrogram = register.mock.calls.find(([name]) => name === 'spectrogram')?.[1];
+
+        expect(mocks.initSpectrogramPage).not.toHaveBeenCalled();
+        await spectrogram!.init();
+
+        expect(mocks.initSpectrogramPage).toHaveBeenCalledWith({
+            setLoading: deps.setLoading,
             workspace: deps.workspace,
         });
     });
