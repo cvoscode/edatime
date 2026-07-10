@@ -1,4 +1,4 @@
-import { appState } from '../store/index.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
 import { toast } from '../utils/toast.js';
 
@@ -42,6 +42,11 @@ interface WorkflowPrefs {
     visitedPagesByDataset?: Record<string, string[]>;
 }
 
+export interface GuidedWorkflowDeps {
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'>;
+    registerCleanup: (cleanup: () => void) => void;
+}
+
 const STORAGE_KEY = 'edatime-guided-workflow';
 const WORKFLOW_STEPS: Array<{ id: WorkflowStepId; label: string; page: string }> = [
     { id: 'upload', label: 'Upload', page: 'upload' },
@@ -54,6 +59,12 @@ const WORKFLOW_STEPS: Array<{ id: WorkflowStepId; label: string; page: string }>
 let _initialized = false;
 let _currentNavPage = 'home';
 let _renderTimer: number | null = null;
+let _workspace: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'> | null = null;
+
+function workspaceSnapshot() {
+    if (!_workspace) throw new Error('Guided workflow must be initialized with a workspace.');
+    return _workspace.getSnapshot();
+}
 
 function sanitizeVisitedPages(value: unknown): string[] {
     if (!Array.isArray(value)) return [];
@@ -71,13 +82,14 @@ function sanitizeVisitedPagesByDataset(value: unknown): Record<string, string[]>
 }
 
 function currentDatasetKey(): string {
-    const metadata = appState.metadata;
+    const snapshot = workspaceSnapshot();
+    const metadata = snapshot.dataset.metadata;
     const rows = Number(metadata?.total_rows || 0);
     const rangeStart = Number(metadata?.time_range?.min);
     const rangeEnd = Number(metadata?.time_range?.max);
     if (!rows || !Number.isFinite(rangeStart) || !Number.isFinite(rangeEnd)) return 'no-dataset';
 
-    const revision = Number(appState.datasetRevision ?? metadata?.revision ?? 0);
+    const revision = Number(snapshot.dataset.revision || metadata?.revision || 0);
     const numericColumns = Array.isArray(metadata?.numeric_columns) ? metadata.numeric_columns.join('|') : '';
     return [
         Number.isFinite(revision) ? revision : 0,
@@ -152,10 +164,12 @@ function collectSnapshot(): WorkflowSnapshot {
     const graph = (window as any).__edatimeCausalGraph;
     const prefs = readPrefs();
     const visited = getVisitedPagesForCurrentDataset(prefs);
+    const snapshot = workspaceSnapshot();
+    const metadata = snapshot.dataset.metadata;
     return {
         currentPage: currentPage(),
-        hasDataset: !!appState.metadata?.time_range && Number(appState.metadata?.total_rows || 0) > 0,
-        selectedSeriesCount: Array.isArray(appState.selectedCols) ? appState.selectedCols.length : 0,
+        hasDataset: !!metadata?.time_range && Number(metadata.total_rows || 0) > 0,
+        selectedSeriesCount: snapshot.selection.columns.length,
         visitedPages: visited,
         scatterX: readSelectValue('scatter-x-col'),
         scatterY: readSelectValue('scatter-y-col'),
@@ -395,14 +409,21 @@ function markVisited(page: string): void {
     savePrefs(prefs);
 }
 
-function bindStaticEvents(): void {
-    document.getElementById('workflow-toggle-btn')?.addEventListener('click', () => {
+function bindStaticEvents(): () => void {
+    const cleanups: Array<() => void> = [];
+    const listen = (target: EventTarget, type: string, listener: EventListener): void => {
+        target.addEventListener(type, listener);
+        cleanups.push(() => target.removeEventListener(type, listener));
+    };
+
+    const toggleButton = document.getElementById('workflow-toggle-btn');
+    if (toggleButton) listen(toggleButton, 'click', () => {
         const prefs = readPrefs();
         setEnabled(!prefs.enabled);
     });
 
     const panel = document.getElementById('workflow-panel');
-    panel?.addEventListener('click', (event) => {
+    if (panel) listen(panel, 'click', ((event: Event) => {
         const target = event.target as HTMLElement | null;
         const action = target?.closest<HTMLElement>('[data-workflow-action]')?.dataset.workflowAction;
         const page = target?.closest<HTMLElement>('[data-workflow-page]')?.dataset.workflowPage || null;
@@ -420,22 +441,24 @@ function bindStaticEvents(): void {
         if (action === 'next') {
             goToNextGuidedStep();
         }
-    });
+    }) as EventListener);
 
-    document.addEventListener('change', (event) => {
+    listen(document, 'change', ((event: Event) => {
         const target = event.target as HTMLElement | null;
         const id = target?.id || '';
         if (id === 'scatter-x-col' || id === 'scatter-y-col') scheduleGuidedWorkflowRender();
-    });
+    }) as EventListener);
 
-    window.addEventListener('edatime:page-change', (event: any) => {
-        const nextPage = event?.detail?.navPage || event?.detail?.page || currentPage();
+    listen(window, 'edatime:page-change', ((event: Event) => {
+        const detail = (event as CustomEvent).detail;
+        const nextPage = detail?.navPage || detail?.page || currentPage();
         _currentNavPage = nextPage;
         markVisited(nextPage);
         scheduleGuidedWorkflowRender();
-    });
-    window.addEventListener('edatime:session-restored', () => scheduleGuidedWorkflowRender());
-    window.addEventListener('edatime:workflow-refresh', () => scheduleGuidedWorkflowRender());
+    }) as EventListener);
+    listen(window, 'edatime:session-restored', (() => scheduleGuidedWorkflowRender()) as EventListener);
+    listen(window, 'edatime:workflow-refresh', (() => scheduleGuidedWorkflowRender()) as EventListener);
+    return () => cleanups.splice(0).reverse().forEach((cleanup) => cleanup());
 }
 
 function scheduleGuidedWorkflowRender(delayMs = 50): void {
@@ -558,12 +581,14 @@ export function goToNextGuidedStep(): void {
     navigateToPage(suggestion.actionPage);
 }
 
-export function initGuidedWorkflow(): void {
+export function initGuidedWorkflow(deps: GuidedWorkflowDeps): void {
     if (_initialized) return;
     _initialized = true;
+    _workspace = deps.workspace;
     _currentNavPage = currentPage();
     markVisited(_currentNavPage);
-    bindStaticEvents();
+    const unbindEvents = bindStaticEvents();
+    const unsubscribeWorkspace = deps.workspace.subscribe(() => scheduleGuidedWorkflowRender());
     renderGuidedWorkflow();
 
     (window as any).__edatime = (window as any).__edatime || {};
@@ -573,4 +598,16 @@ export function initGuidedWorkflow(): void {
         next: goToNextGuidedStep,
         render: renderGuidedWorkflow,
     };
+
+    deps.registerCleanup(() => {
+        unbindEvents();
+        unsubscribeWorkspace();
+        if (_renderTimer !== null) {
+            clearTimeout(_renderTimer);
+            _renderTimer = null;
+        }
+        _initialized = false;
+        _workspace = null;
+        delete (window as any).__edatime?.guidedWorkflow;
+    });
 }

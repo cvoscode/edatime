@@ -1,6 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildWorkflowSuggestion, computeWorkflowProgress, type WorkflowSnapshot } from './guidedWorkflow';
 
+function workflowDeps(metadata: unknown = null, columns: string[] = []) {
+    return {
+        workspace: {
+            getSnapshot: () => ({
+                dataset: { metadata, revision: 1 },
+                selection: { columns },
+            } as never),
+            subscribe: vi.fn(() => vi.fn()),
+        },
+        registerCleanup: vi.fn(),
+    };
+}
+
 function snapshot(overrides: Partial<WorkflowSnapshot> = {}): WorkflowSnapshot {
     return {
         currentPage: 'home',
@@ -127,7 +140,7 @@ describe('initGuidedWorkflow', () => {
     it('delays workflow panel updates on page-change so stale copy does not flash through', async () => {
         const { initGuidedWorkflow } = await import('./guidedWorkflow.js');
 
-        initGuidedWorkflow();
+        initGuidedWorkflow(workflowDeps());
         expect(document.getElementById('workflow-panel')?.textContent).toContain('Open Upload');
 
         const home = document.querySelector('.sidebar .nav-item[data-page="home"]') as HTMLButtonElement;
@@ -154,17 +167,31 @@ describe('initGuidedWorkflow', () => {
         expect(document.querySelector('.workflow_step')).toBeNull();
     });
 
+    it('releases its workspace subscription through the shell cleanup hook', async () => {
+        vi.resetModules();
+        const unsubscribe = vi.fn();
+        const deps = workflowDeps();
+        deps.workspace.subscribe.mockReturnValue(unsubscribe);
+        const { initGuidedWorkflow } = await import('./guidedWorkflow.js');
+
+        initGuidedWorkflow(deps);
+        expect(deps.workspace.subscribe).toHaveBeenCalledTimes(1);
+        expect(deps.registerCleanup).toHaveBeenCalledTimes(1);
+
+        const cleanup = deps.registerCleanup.mock.calls[0]?.[0] as (() => void);
+        cleanup();
+        expect(unsubscribe).toHaveBeenCalledTimes(1);
+    });
+
     it('omits the automatic completed-count summary in compact mode', async () => {
         vi.resetModules();
 
-        const { appState } = await import('../store/index.js');
-        appState.metadata = {
+        const metadata = {
             total_rows: 69_680,
             time_column: 'date',
             time_range: { min: 1, max: 2 },
             numeric_columns: ['HUFL', 'HULL', 'OT'],
-        } as any;
-        appState.selectedCols = ['HUFL', 'HULL', 'OT'];
+        };
 
         document.body.innerHTML = `
             <nav class="sidebar">
@@ -181,8 +208,8 @@ describe('initGuidedWorkflow', () => {
             visitedPages: ['home', 'timeseries', 'correlations'],
         }));
 
-        const { renderGuidedWorkflow } = await import('./guidedWorkflow.js');
-        renderGuidedWorkflow();
+        const { initGuidedWorkflow } = await import('./guidedWorkflow.js');
+        initGuidedWorkflow(workflowDeps(metadata, ['HUFL', 'HULL', 'OT']));
 
         expect(document.getElementById('workflow-panel')?.textContent).not.toContain('completed');
         expect(document.getElementById('workflow-panel')?.classList.contains('workflow-panel--compact-shell')).toBe(true);

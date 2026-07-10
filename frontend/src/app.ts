@@ -204,6 +204,7 @@ async function init(): Promise<void> {
         resetZoom: () => timeseriesModule.resetZoom(),
         refreshDatasetAfterMutation: (opts) => timeseriesModule.refreshAfterMutation(opts),
         registerCleanup: runtime.registerCleanup,
+        workspace,
     });
 
     // Register lazy-loaded page modules. Each descriptor resolves its own

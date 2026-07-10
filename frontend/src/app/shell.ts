@@ -18,6 +18,7 @@
 
 import { initShellCore } from './shell/core.js';
 import { createDeferredSubsystemRegistry, type DeferredShellDeps } from './shell/deferredSubsystems.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 interface RefreshDatasetOptions {
     selectedColumn?: string;
@@ -36,6 +37,7 @@ export interface AppShellDeps {
     resetZoom: () => void;
     refreshDatasetAfterMutation: (options?: RefreshDatasetOptions) => Promise<void>;
     registerCleanup: (cleanup: () => void) => void;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'>;
 }
 
 export interface AppShell {
@@ -58,6 +60,7 @@ export function initAppShell(deps: AppShellDeps): AppShell {
         resetZoom: deps.resetZoom,
         updateAnalysisYRange: deps.updateAnalysisYRange,
         registerCleanup: deps.registerCleanup,
+        workspace: deps.workspace,
     };
     const deferredSubsystems = createDeferredSubsystemRegistry();
     const ensureSubsystem = async (name: string): Promise<void> => {

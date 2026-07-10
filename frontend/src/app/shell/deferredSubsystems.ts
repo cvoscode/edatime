@@ -7,6 +7,8 @@
  * between independently mounted app roots and makes the lazy boundary explicit.
  */
 
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+
 export interface RefreshDatasetOptions {
     selectedColumn?: string;
 }
@@ -22,6 +24,7 @@ export interface DeferredShellDeps {
     resetZoom: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     registerCleanup: (cleanup: () => void) => void;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'>;
 }
 
 export interface DeferredSubsystemRegistry {
@@ -100,9 +103,9 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         initAnnotationPanel();
     });
 
-    registerSubsystem('guided-workflow', async () => {
+    registerSubsystem('guided-workflow', async (deps) => {
         const { initGuidedWorkflow } = await import('../../ui/guidedWorkflow.js');
-        initGuidedWorkflow();
+        initGuidedWorkflow({ workspace: deps.workspace, registerCleanup: deps.registerCleanup });
     });
 
     registerSubsystem('workflow-modals', async (deps) => {
