@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { appState } from '../store/appStateCompat.js';
 import { applySession, type SessionSnapshot } from './session.js';
+import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 
 vi.mock('./toast.js', () => ({
     toast: vi.fn(),
@@ -111,5 +112,28 @@ describe('session restore safeguards', () => {
 
         expect(appState.selectedCols).toEqual(['HUFL', 'HULL']);
         expect(appState.selectedColorColumn).toBeNull();
+    });
+
+    it('publishes restored analysis intent to the workspace before rendering resumes', () => {
+        const workspace = createWorkspaceStore();
+        const snapshot = buildSnapshot({
+            selectedCols: ['value', 'other'],
+            selectedColorColumn: 'bucket',
+            columnRanges: { value: { from: 1, to: 2 } },
+            adaptiveLineFilters: [{ column: 'value', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: true }],
+            currentStart: 25,
+            currentEnd: 75,
+        });
+
+        applySession(snapshot, { workspace, announceAdjustments: false });
+
+        expect(workspace.getSnapshot()).toMatchObject({
+            selection: { columns: ['value', 'other'], colorColumn: 'bucket' },
+            filters: {
+                columnRanges: { value: { from: 1, to: 2 } },
+                adaptiveLines: [expect.objectContaining({ column: 'value' })],
+            },
+            viewport: { xMin: 25, xMax: 75, yMin: null, yMax: null },
+        });
     });
 });

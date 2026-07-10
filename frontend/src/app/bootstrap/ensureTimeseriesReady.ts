@@ -17,6 +17,7 @@ import { initAdaptiveFilterGesture } from '../adaptiveGesture.js';
 import { restoreSessionAfterChartReady } from '../../bootstrap/sessionBootstrap.js';
 import { initYRangeControls } from '../../ui/yRangeControls.js';
 import { dbg, dbgGroup } from '../../debug.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 export interface TimeseriesBootstrapCallbacks {
     onZoom: (view: ViewSnapshot, sourceKind: string) => void;
     onYRange: (min: number, max: number, sourceKind: string) => void;
@@ -38,6 +39,7 @@ export interface TimeseriesBootstrapDeps {
     renderCurrentData: () => void;
     fetchAndRender: () => Promise<void>;
     refreshZoomControlsState: () => void;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>;
 }
 
 export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
@@ -127,6 +129,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                         buildRangeControls: deps.buildRangeControls,
                         renderCurrentData: deps.renderCurrentData,
                         fetchAndRender: deps.fetchAndRender,
+                        workspace: deps.workspace,
                     });
 
                     ready = true;

@@ -144,7 +144,7 @@ async function fetchAndRenderAnalytics(): Promise<void> {
 
 function ensureSessionPersistenceStarted(): void {
     if (_sessionPersistenceStarted) return;
-    startSessionPersistence();
+    startSessionPersistence(workspace);
     _sessionPersistenceStarted = true;
 }
 

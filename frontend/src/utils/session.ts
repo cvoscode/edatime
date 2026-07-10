@@ -27,8 +27,15 @@ import {
 import { toast } from './toast.js';
 import { getHashPage } from './router.js';
 import { getDropdownValue, setDropdownValue } from '../ui/primitives/Dropdown.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 const STORAGE_KEY = 'edatime-session';
+type SessionWorkspace = Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>;
+let configuredWorkspace: SessionWorkspace | null = null;
+
+export function configureSessionWorkspace(workspace: SessionWorkspace | null): void {
+    configuredWorkspace = workspace;
+}
 
 /** The serialisable subset of appState. */
 export interface SessionSnapshot {
@@ -64,6 +71,7 @@ export interface ApplySessionOptions {
     metadataTimeRange?: { min: number; max: number } | null;
     currentDatasetRevision?: number;
     announceAdjustments?: boolean;
+    workspace?: SessionWorkspace;
 }
 
 export interface ApplySessionResult {
@@ -84,17 +92,18 @@ function readSelect(id: string): string {
 
 /** Capture the current analysis state as a serialisable snapshot. */
 export function captureSession(): SessionSnapshot {
+    const intent = configuredWorkspace?.getSnapshot();
     return {
         version: 1,
         timestamp: Date.now(),
         page: currentPage(),
-        selectedCols: [...uiState.selectedCols],
+        selectedCols: intent ? [...intent.selection.columns] : [...uiState.selectedCols],
         seriesColors: { ...uiState.seriesColors },
-        columnRanges: { ...uiState.columnRanges },
-        adaptiveLineFilters: uiState.adaptiveLineFilters.map((f) => ({ ...f })),
-        currentStart: chartState.currentStart,
-        currentEnd: chartState.currentEnd,
-        selectedColorColumn: uiState.selectedColorColumn,
+        columnRanges: intent ? { ...intent.filters.columnRanges } : { ...uiState.columnRanges },
+        adaptiveLineFilters: intent ? intent.filters.adaptiveLines.map((f) => ({ ...f })) : uiState.adaptiveLineFilters.map((f) => ({ ...f })),
+        currentStart: intent?.viewport?.xMin ?? chartState.currentStart,
+        currentEnd: intent?.viewport?.xMax ?? chartState.currentEnd,
+        selectedColorColumn: intent?.selection.colorColumn ?? uiState.selectedColorColumn,
         chartText: { ...chartState.chartText },
         rollingEnabled: analyticsState.rollingEnabled,
         rollingWindow: analyticsState.rollingWindow,
@@ -118,6 +127,7 @@ export function applySession(
     snap: SessionSnapshot,
     options: ApplySessionOptions = {},
 ): ApplySessionResult {
+    const workspace = options.workspace ?? configuredWorkspace;
     const result: ApplySessionResult = {
         revisionMismatch: false,
         rangeAdjusted: false,
@@ -166,20 +176,32 @@ export function applySession(
             return true;
         });
 
-    setSelectedCols(nextSelectedCols.length > 0 ? nextSelectedCols : [...uiState.selectedCols]);
+    const appliedSelectedCols = nextSelectedCols.length > 0 ? nextSelectedCols : [...uiState.selectedCols];
+    const requestedColorColumn = String(snap.selectedColorColumn ?? '').trim();
+    const validColorColumn = !requestedColorColumn || validMetadataNames.size === 0 || validMetadataNames.has(requestedColorColumn);
+    const appliedColorColumn = snap.selectedColorColumn !== undefined && validColorColumn
+        ? snap.selectedColorColumn
+        : (snap.selectedColorColumn !== undefined ? null : uiState.selectedColorColumn);
+
+    workspace?.setSelection(appliedSelectedCols, appliedColorColumn);
+    setSelectedCols(appliedSelectedCols);
     if (snap.seriesColors) setSeriesColors({ ...snap.seriesColors });
 
     if (revisionMismatch) {
         const staleRanges = Object.keys(snap.columnRanges || {}).length;
         const staleLines = Array.isArray(snap.adaptiveLineFilters) ? snap.adaptiveLineFilters.length : 0;
         result.droppedFilterCount = staleRanges + staleLines;
+        workspace?.setFilters({ columnRanges: {}, adaptiveLines: [] });
         setColumnRanges({});
         setAdaptiveLineFilters([]);
     } else {
-        if (snap.columnRanges) setColumnRanges({ ...snap.columnRanges });
-        if (Array.isArray(snap.adaptiveLineFilters)) {
-            setAdaptiveLineFilters(snap.adaptiveLineFilters.map((f: any) => ({ ...f, id: f.id ?? `restored-${Date.now()}` })));
-        }
+        const restoredAdaptiveLines = Array.isArray(snap.adaptiveLineFilters)
+            ? snap.adaptiveLineFilters.map((f: any) => ({ ...f, id: f.id ?? `restored-${Date.now()}` }))
+            : [...uiState.adaptiveLineFilters];
+        const restoredRanges = snap.columnRanges ? { ...snap.columnRanges } : { ...uiState.columnRanges };
+        workspace?.setFilters({ columnRanges: restoredRanges, adaptiveLines: restoredAdaptiveLines });
+        if (snap.columnRanges) setColumnRanges(restoredRanges);
+        if (Array.isArray(snap.adaptiveLineFilters)) setAdaptiveLineFilters(restoredAdaptiveLines);
     }
 
     if (!revisionMismatch) {
@@ -216,14 +238,13 @@ export function applySession(
                 }
             }
 
+            workspace?.setViewport({ xMin: nextStart, xMax: nextEnd, yMin: null, yMax: null });
             setViewport(nextStart, nextEnd);
         }
     }
 
     if (snap.selectedColorColumn !== undefined) {
-        const colorColumn = String(snap.selectedColorColumn ?? '').trim();
-        const validColorColumn = !colorColumn || validMetadataNames.size === 0 || validMetadataNames.has(colorColumn);
-        setSelectedColorColumn(validColorColumn ? snap.selectedColorColumn : null);
+        setSelectedColorColumn(appliedColorColumn);
     }
     if (snap.chartText) setChartText({ ...snap.chartText });
     if (snap.rollingEnabled !== undefined) setRollingEnabled(snap.rollingEnabled);

@@ -219,6 +219,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         renderCurrentData: () => pageController.renderCurrentData(),
         fetchAndRender: () => pageController.fetchAndRender(),
         refreshZoomControlsState: deps.refreshZoomControlsState,
+        workspace: deps.workspace,
     });
 
     // 4. Create the runtime (owns page lifecycle via createPageRuntime)

@@ -145,6 +145,7 @@ describe('createTimeseriesBootstrap', () => {
             renderCurrentData: vi.fn(),
             fetchAndRender: vi.fn().mockResolvedValue(undefined),
             refreshZoomControlsState: vi.fn(),
+            workspace: { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn() },
         });
 
         await bootstrap.ensureReady();
@@ -193,6 +194,7 @@ describe('createTimeseriesBootstrap', () => {
             renderCurrentData: vi.fn(),
             fetchAndRender: vi.fn().mockResolvedValue(undefined),
             refreshZoomControlsState: vi.fn(),
+            workspace: { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn() },
         });
 
         await bootstrap.ensureReady();
@@ -229,6 +231,7 @@ describe('createTimeseriesBootstrap', () => {
             renderCurrentData: vi.fn(),
             fetchAndRender: vi.fn().mockResolvedValue(undefined),
             refreshZoomControlsState: vi.fn(),
+            workspace: { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn() },
         });
 
         await bootstrap.ensureReady();

@@ -3,9 +3,11 @@ import {
     applySession,
     autoRestoreSession,
     exportSessionToFile,
+    configureSessionWorkspace,
     importSessionFromFile,
     initAutoSave,
 } from '../utils/session.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 interface RestoreSessionDeps {
     metadataTimeRange: { min: number; max: number } | null;
@@ -14,6 +16,7 @@ interface RestoreSessionDeps {
     buildRangeControls: () => void;
     renderCurrentData: () => void;
     fetchAndRender: () => Promise<void>;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>;
 }
 
 export async function restoreSessionAfterChartReady(deps: RestoreSessionDeps): Promise<void> {
@@ -24,6 +27,7 @@ export async function restoreSessionAfterChartReady(deps: RestoreSessionDeps): P
         metadataTimeRange: deps.metadataTimeRange,
         currentDatasetRevision: deps.currentDatasetRevision,
         preferHashPage: !!getHashPage(),
+        workspace: deps.workspace,
     });
     deps.buildColumnToggles();
     deps.buildRangeControls();
@@ -31,7 +35,8 @@ export async function restoreSessionAfterChartReady(deps: RestoreSessionDeps): P
     await deps.fetchAndRender();
 }
 
-export function startSessionPersistence(): void {
+export function startSessionPersistence(workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>): void {
+    configureSessionWorkspace(workspace);
     initAutoSave();
     (window as any).__edatime = (window as any).__edatime || {};
     (window as any).__edatime.exportSession = exportSessionToFile;
