@@ -1,10 +1,11 @@
 /**
  * Tests for frontend/src/utils/dom.ts
  *
- * Validates DOM utility functions: escaping, downloads, element lookup, debounce.
+ * Validates DOM utility functions: escaping, downloads, and element lookup.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { escapeHtml, getEl, debounce } from '../utils/dom';
+import { escapeHtml, getEl } from '../utils/dom';
+import { debounce } from '../utils/function';
 
 describe('escapeHtml', () => {
     it('escapes ampersands', () => {

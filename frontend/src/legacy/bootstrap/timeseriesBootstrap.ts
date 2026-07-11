@@ -6,7 +6,7 @@ import {
     setProfileFilterText,
     setViewport,
 } from '../store/index.js';
-import { debounce } from '../utils/dom.js';
+import { debounce } from '../utils/function.js';
 
 interface TimeseriesBootstrapDeps {
     rebuildColumnToggles: () => void;

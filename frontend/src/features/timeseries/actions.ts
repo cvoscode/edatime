@@ -21,7 +21,7 @@ import {
     setViewport,
     type ProfileFilterCategory,
 } from '../../store/index.js';
-import { debounce } from '../../utils/dom.js';
+import { debounce } from '../../utils/function.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 export interface TimeseriesActionDeps {
