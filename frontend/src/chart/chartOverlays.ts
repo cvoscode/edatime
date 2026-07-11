@@ -8,6 +8,7 @@ import { appState } from '../store/index.js';
 import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 import { getChartPalette } from '../utils/theme.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
+import { getAnnotationsForPage } from './annotations.js';
 
 interface ChartOverlayOptions {
     getXMin: () => number | null;
@@ -290,10 +291,7 @@ export class ChartOverlays {
     }
 
     private _renderAnnotationsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
-        const annotations = (window as any).__edatimeAnnotations;
-        if (!annotations || typeof annotations.getAnnotationsForPage !== 'function') return;
-
-        const timeAnnotations = annotations.getAnnotationsForPage('timeseries');
+        const timeAnnotations = getAnnotationsForPage('timeseries');
         if (!timeAnnotations || timeAnnotations.length === 0) return;
 
         const xMin = this._opts.getXMin();

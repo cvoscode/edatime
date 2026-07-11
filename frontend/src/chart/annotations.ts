@@ -225,10 +225,4 @@ export function createScatterCallout(
 /** Initialize annotations from storage */
 export function initAnnotations(): void {
     loadAnnotations();
-    // Expose to window for DataChart overlay rendering
-    (window as any).__edatimeAnnotations = {
-        getAnnotationsForPage,
-        getAnnotationsInRange,
-        getAnnotations,
-    };
 }

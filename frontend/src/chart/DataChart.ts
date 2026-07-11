@@ -11,6 +11,7 @@ import { formatTwoDecimals } from '../formatUtils.js';
 import { appState } from '../store/index.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
 import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
+import { getAnnotationsForPage } from './annotations.js';
 import type {
     AdaptiveLineFilter,
     ChartTextOverlays,
@@ -1570,11 +1571,7 @@ export class DataChart {
 
     /** Render annotations (notes, bookmarks) on the overlay. */
     private _renderAnnotationsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
-        // Import annotations module dynamically to avoid circular dependencies
-        const annotations = (window as any).__edatimeAnnotations;
-        if (!annotations || typeof annotations.getAnnotationsForPage !== 'function') return;
-
-        const timeAnnotations = annotations.getAnnotationsForPage('timeseries');
+        const timeAnnotations = getAnnotationsForPage('timeseries');
         if (!timeAnnotations || timeAnnotations.length === 0) return;
         if (!this._container) return;
 
