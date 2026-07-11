@@ -19,7 +19,6 @@ import {
     DEFAULT_SETTINGS,
 } from '../utils/settings.js';
 import { SERIES_COLORS } from '../utils/seriesColors.js';
-import { appState } from '../store/appStateCompat.js';
 import { createModalController } from './shell/createModalController';
 import { getDropdownValue, setDropdownValue } from './primitives/Dropdown.js';
 

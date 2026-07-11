@@ -8,11 +8,13 @@ import { SERIES_COLORS } from '../utils/seriesColors.js';
 import { applyFilterIntentToData, buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 import {
     appendAdaptiveLineFilter,
+    chartState,
+    runtimeState,
     setAdaptiveFilterColumn,
     setPendingAdaptivePoint,
+    uiState,
 } from '../store/index.js';
 import type { AdaptiveLineFilter } from '../types.js';
-import { appState } from '../store/appStateCompat.js';
 import type { WorkspaceStore, WorkspaceSnapshot } from '../workspace/workspaceStore.js';
 
 export function buildAdaptiveFilterFromPoints(
@@ -22,8 +24,8 @@ export function buildAdaptiveFilterFromPoints(
     intent: Pick<WorkspaceSnapshot, 'selection' | 'filters'>,
 ): AdaptiveLineFilter | null {
     if (!column || !firstPoint || !secondPoint) return null;
-    if (!appState.lastFetchedData) return null;
-    const filtered = applyFilterIntentToData(appState.lastFetchedData, intent);
+    if (!runtimeState.lastFetchedData) return null;
+    const filtered = applyFilterIntentToData(runtimeState.lastFetchedData, intent);
     const columnData = filtered.series?.[column] || filtered.values?.[column];
     const xs = columnData?.x;
     const ys = columnData?.y;
@@ -81,18 +83,18 @@ export function initAdaptiveFilterGesture(
         _firstPoint = null;
         _secondPoint = null;
         setPendingAdaptivePoint(null);
-        appState.chart?.requestOverlayRender?.();
+        chartState.chart?.requestOverlayRender?.();
     };
 
     const updateOverlay = () => {
         if (!_firstPoint) { setPendingAdaptivePoint(null); return; }
-        const col = appState.adaptiveFilterColumn ?? (appState.selectedCols?.[0] ?? '');
+        const col = uiState.adaptiveFilterColumn ?? (uiState.selectedCols[0] ?? '');
         if (_secondPoint) {
             setPendingAdaptivePoint({ column: col, x: _firstPoint.x, y: _firstPoint.y, x2: _secondPoint.x, y2: _secondPoint.y });
         } else {
             setPendingAdaptivePoint({ column: col, x: _firstPoint.x, y: _firstPoint.y });
         }
-        appState.chart?.requestOverlayRender?.();
+        chartState.chart?.requestOverlayRender?.();
     };
 
     const applyFilterForColumn = (column: string, p1: { x: number; y: number }, p2: { x: number; y: number }) => {
@@ -109,15 +111,15 @@ export function initAdaptiveFilterGesture(
         // Apply locally: rebuild range controls + re-render chart
         deps.buildRangeControls();
         deps.renderCurrentData();
-        appState.chart?.requestOverlayRender?.();
-        appState.chart?.fitYToData?.();
-        const yr = appState.chart?.getYRange?.();
+        chartState.chart?.requestOverlayRender?.();
+        chartState.chart?.fitYToData?.();
+        const yr = chartState.chart?.getYRange?.();
         if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'adaptive');
         deps.buildColumnToggles();
     };
 
     const showTracePicker = (p1: { x: number; y: number }, p2: { x: number; y: number }) => {
-        const cols = appState.selectedCols;
+        const cols = uiState.selectedCols;
         if (!cols?.length) return;
         if (cols.length === 1) { applyFilterForColumn(cols[0], p1, p2); return; }
 
@@ -133,8 +135,8 @@ export function initAdaptiveFilterGesture(
         picker.appendChild(label);
 
         cols.forEach((col, idx) => {
-            const color = appState.seriesColors?.[col] ?? SERIES_COLORS[idx % SERIES_COLORS.length];
-            const isCurrentTarget = col === appState.adaptiveFilterColumn;
+            const color = uiState.seriesColors[col] ?? SERIES_COLORS[idx % SERIES_COLORS.length];
+            const isCurrentTarget = col === uiState.adaptiveFilterColumn;
             const btn = document.createElement('button');
             btn.className = 'adaptive-trace-picker__option' + (isCurrentTarget ? ' current' : '');
             btn.type = 'button';
@@ -162,9 +164,9 @@ export function initAdaptiveFilterGesture(
 
     const clickHandler = (event: MouseEvent) => {
         if (!event.ctrlKey || event.button !== 0) return;
-        const cols = appState.selectedCols;
+        const cols = uiState.selectedCols;
         if (!cols?.length) return;
-        const point = appState.chart?.cssPointToData?.(event.clientX, event.clientY) ?? null;
+        const point = chartState.chart?.cssPointToData?.(event.clientX, event.clientY) ?? null;
         if (!point) return;
         event.preventDefault(); event.stopPropagation();
         _lastClickX = event.clientX;
@@ -181,10 +183,10 @@ export function initAdaptiveFilterGesture(
         else { cancelPending(); }
     };
     const onAdaptiveChange = () => {
-        if (!appState.lastFetchedData) return;
+        if (!runtimeState.lastFetchedData) return;
         deps.buildRangeControls(); deps.renderCurrentData();
-        appState.chart?.requestOverlayRender?.(); appState.chart?.fitYToData?.();
-        const yr = appState.chart?.getYRange?.();
+        chartState.chart?.requestOverlayRender?.(); chartState.chart?.fitYToData?.();
+        const yr = chartState.chart?.getYRange?.();
         if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'adaptive');
     };
 
