@@ -11,7 +11,7 @@
  *   charts/registry.ts — pluggable chart-type registry
  *   charts/fallback.ts — Canvas 2D fallback chart
  *   chart/DataChart.ts — DataChart (ChartGPU WebGPU adapter)
- *   dataClient.ts   — Arrow IPC fetch + aggregate fetch
+ *   services/api/   — Arrow IPC fetch + aggregate fetch
  *   scatter/scatterPage.ts — full scatter page with plot/matrix views
  */
 

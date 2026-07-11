@@ -1,7 +1,7 @@
 /**
  * datasetState — metadata, column profiles, numeric columns, revision.
  *
- * Consumed by dataClient.ts, app.ts, columns.ts, profile.ts, upload.ts.
+ * Consumed by services/api, app.ts, columns.ts, profile.ts, upload.ts.
  */
 
 import type { DatasetMetadata, ProfileRow } from '../types.js';

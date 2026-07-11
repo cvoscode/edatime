@@ -1,5 +1,5 @@
 /**
- * Tests for frontend/src/dataClient.ts
+ * Characterization tests for the services/api public surface.
  *
  * Validates the data transport layer: fetch helpers, metadata validation,
  * scatter response guards, and URL construction.
@@ -43,7 +43,7 @@ vi.mock('apache-arrow', () => ({
     },
 }));
 
-describe('dataClient fetch helpers', () => {
+describe('API client fetch helpers', () => {
     beforeEach(() => {
         mockFetch.mockReset();
         arrowMockState.fields = [
@@ -62,7 +62,7 @@ describe('dataClient fetch helpers', () => {
 
     describe('fetchMetadata', () => {
         it('fetches and validates metadata response', async () => {
-            const { fetchMetadata } = await import('./dataClient');
+            const { fetchMetadata } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -85,7 +85,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('throws on non-object metadata', async () => {
-            const { fetchMetadata } = await import('./dataClient');
+            const { fetchMetadata } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -96,7 +96,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('throws on missing total_rows', async () => {
-            const { fetchMetadata } = await import('./dataClient');
+            const { fetchMetadata } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -107,7 +107,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('throws on HTTP error', async () => {
-            const { fetchMetadata } = await import('./dataClient');
+            const { fetchMetadata } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: false,
@@ -121,7 +121,7 @@ describe('dataClient fetch helpers', () => {
 
     describe('fetchData', () => {
         it('rejects stale data responses after the dataset request scope is invalidated', async () => {
-            const { fetchData } = await import('./dataClient');
+            const { fetchData } = await import('./services/api/index.js');
             const { invalidateDatasetRequestScope, __resetApiRequestStateForTests } = await import('./services/api/http.js');
 
             __resetApiRequestStateForTests();
@@ -151,7 +151,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('reads the original timestamp column from the Arrow schema', async () => {
-            const { fetchData } = await import('./dataClient');
+            const { fetchData } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -171,7 +171,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('constructs correct URL with parameters', async () => {
-            const { fetchData } = await import('./dataClient');
+            const { fetchData } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -194,7 +194,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('includes color_column when specified', async () => {
-            const { fetchData } = await import('./dataClient');
+            const { fetchData } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -209,7 +209,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('includes lookaround_ms when specified', async () => {
-            const { fetchData } = await import('./dataClient');
+            const { fetchData } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -224,7 +224,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('populates data.color_column and data.color when a color column is present in the Arrow table', async () => {
-            const { fetchData } = await import('./dataClient');
+            const { fetchData } = await import('./services/api/index.js');
 
             arrowMockState.fields = [
                 { name: 'event_time', type: 'Int64' },
@@ -255,7 +255,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('sets downsampleKnown to false when x-edatime-downsampled header is absent', async () => {
-            const { fetchData } = await import('./dataClient');
+            const { fetchData } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -273,7 +273,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('reads x-edatime-returned-rows and x-edatime-target-points into _meta', async () => {
-            const { fetchData } = await import('./dataClient');
+            const { fetchData } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -294,7 +294,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('interprets timestamps below 1e11 as seconds (epoch seconds → ms)', async () => {
-            const { fetchData } = await import('./dataClient');
+            const { fetchData } = await import('./services/api/index.js');
 
             arrowMockState.fields = [
                 { name: 'ts', type: 'Int64' },
@@ -323,7 +323,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('interprets timestamps between 1e11 and 1e14 as milliseconds (passthrough)', async () => {
-            const { fetchData } = await import('./dataClient');
+            const { fetchData } = await import('./services/api/index.js');
 
             arrowMockState.fields = [
                 { name: 'ts', type: 'Int64' },
@@ -351,7 +351,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('interprets timestamps between 1e14 and 1e17 as microseconds (÷ 1000)', async () => {
-            const { fetchData } = await import('./dataClient');
+            const { fetchData } = await import('./services/api/index.js');
 
             arrowMockState.fields = [
                 { name: 'ts', type: 'Int64' },
@@ -379,7 +379,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('interprets timestamps ≥ 1e17 as nanoseconds (÷ 1e6)', async () => {
-            const { fetchData } = await import('./dataClient');
+            const { fetchData } = await import('./services/api/index.js');
 
             arrowMockState.fields = [
                 { name: 'ts', type: 'Int64' },
@@ -409,7 +409,7 @@ describe('dataClient fetch helpers', () => {
 
     describe('fetchScatterCorrelations', () => {
         it('validates the correlations response shape', async () => {
-            const { fetchScatterCorrelations } = await import('./dataClient');
+            const { fetchScatterCorrelations } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -432,7 +432,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('passes the configured threshold and mode in the query string', async () => {
-            const { fetchScatterCorrelations } = await import('./dataClient');
+            const { fetchScatterCorrelations } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -451,7 +451,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('throws if correlations array is missing', async () => {
-            const { fetchScatterCorrelations } = await import('./dataClient');
+            const { fetchScatterCorrelations } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -464,7 +464,7 @@ describe('dataClient fetch helpers', () => {
 
     describe('fetchScatterPoints', () => {
         it('sends POST with correct body', async () => {
-            const { fetchScatterPoints } = await import('./dataClient');
+            const { fetchScatterPoints } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -492,7 +492,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('omits adaptive filter ids from scatter line filter payloads', async () => {
-            const { fetchScatterPoints } = await import('./dataClient');
+            const { fetchScatterPoints } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -525,7 +525,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('reads scatter Arrow responses using the declared axis columns', async () => {
-            const { fetchScatterPoints } = await import('./dataClient');
+            const { fetchScatterPoints } = await import('./services/api/index.js');
 
             arrowMockState.fields = [
                 { name: 'LULL', type: 'Float64' },
@@ -562,7 +562,7 @@ describe('dataClient fetch helpers', () => {
 
     describe('fetchScatterMatrix', () => {
         it('sends one POST with the matrix batch payload', async () => {
-            const { fetchScatterMatrix } = await import('./dataClient');
+            const { fetchScatterMatrix } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -608,7 +608,7 @@ describe('dataClient fetch helpers', () => {
         });
 
         it('decodes Arrow rows into per-cell datasets using matrix metadata headers', async () => {
-            const { fetchScatterMatrix } = await import('./dataClient');
+            const { fetchScatterMatrix } = await import('./services/api/index.js');
 
             arrowMockState.fields = [
                 { name: 'cell_id', type: 'Utf8' },
