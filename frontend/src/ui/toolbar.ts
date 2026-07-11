@@ -3,8 +3,7 @@
  * Thin orchestrator that delegates to focused sub-modules.
  */
 
-import { appState } from '../store/appStateCompat.js';
-import { setAnalysisBound } from '../store/index.js';
+import { chartState, runtimeState, setAnalysisBound } from '../store/index.js';
 import { DEBUG, dbg } from '../debug.js';
 import {
     updateAnalysisZoom,
@@ -49,32 +48,34 @@ import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 // ─── Bind chart events to analysis panel ────────────────────────────────────
 
-export function bindAnalysisChartEvents(): void {
-    if (!appState.chart || appState.analysisBound) return;
+let debugLastCrosshairLogTs = 0;
 
-    appState.chart.onCrosshairMove?.((payload: any) => {
+export function bindAnalysisChartEvents(): void {
+    if (!chartState.chart || runtimeState.analysisBound) return;
+
+    chartState.chart.onCrosshairMove?.((payload: any) => {
         let x = Number(payload?.x);
         if (Number.isFinite(x) && x < 100_000_000_000) {
-            const dom = appState.chart?.getXDomain?.();
+            const dom = chartState.chart?.getXDomain?.();
             if (dom?.min && Number.isFinite(dom.min)) x = dom.min + x;
         }
         updateAnalysisCursor(x);
 
         if (DEBUG) {
             const now = Date.now();
-            const last = (appState as any)._debugLastCrosshairLogTs ?? 0;
+            const last = debugLastCrosshairLogTs;
             if (now - last >= 500) {
-                (appState as any)._debugLastCrosshairLogTs = now;
-                dbg('crosshair-debug', { payload, xAbs: x, chartYRange: appState.chart?.getYRange?.() });
+                debugLastCrosshairLogTs = now;
+                dbg('crosshair-debug', { payload, xAbs: x, chartYRange: chartState.chart?.getYRange?.() });
             }
         }
     });
 
-    appState.chart.onClick?.((payload: any) => {
+    chartState.chart.onClick?.((payload: any) => {
         if (payload?.value && payload.value.length >= 2) {
             const x0 = Number(payload.value[0]);
             if (Number.isFinite(x0) && x0 < 100_000_000_000) {
-                const dom = appState.chart?.getXDomain?.();
+                const dom = chartState.chart?.getXDomain?.();
                 if (dom?.min && Number.isFinite(dom.min)) {
                     payload = { ...payload, value: [dom.min + x0, payload.value[1]] };
                 }
