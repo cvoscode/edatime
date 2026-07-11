@@ -2,7 +2,11 @@
 .app-layout {
   height: 100vh;
   display: grid;
-  grid-template-columns: 220px 1fr;
+  /* Allow the sidebar to shrink at narrow viewports so the nav-text
+     ellipsis kicks in instead of overflowing mid-word. The min 220px
+     preserves the desktop layout; the auto minimum lets the column
+     collapse gracefully when space is tight. */
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 4fr);
   overflow: hidden;
 }
 
@@ -11,6 +15,7 @@
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  min-width: 0;
 }
 
 .page {
@@ -51,8 +56,16 @@
 }
 
 .main--analysis-chart {
-  flex: 1 0 360px;
-  min-height: 360px;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.main--analysis-chart > #fft-chart,
+.main--analysis-chart > #spectrogram-chart {
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 /* Spectrogram: side-by-side chart + DOM colorbar.
@@ -71,7 +84,7 @@
 .spectrogram-chart-row #spectrogram-colorbar {
   align-self: stretch;
   flex-shrink: 0;
-  width: 72px;
+  width: 84px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -122,8 +135,8 @@
 .spectrogram-chart-row #spectrogram-colorbar .cb-handle {
   position: absolute;
   left: 50%;
-  width: 22px;
-  height: 10px;
+  width: 24px;
+  height: 12px;
   background: #f7faff;
   border: 1px solid rgba(0, 212, 255, 0.9);
   border-radius: 3px;
@@ -240,6 +253,7 @@
     width: 100%;
     height: 56px;
     padding: 0 8px;
+    gap: 6px;
   }
   .spectrogram-chart-row #spectrogram-colorbar .cb-range-track {
     width: auto;
@@ -270,7 +284,7 @@
   }
   .spectrogram-chart-row #spectrogram-colorbar .cb-handle {
     top: 50%;
-    width: 10px;
+    width: 12px;
     height: 22px;
   }
   .spectrogram-chart-row #spectrogram-colorbar .cb-handle--high {
@@ -288,6 +302,104 @@
     transform: none;
     max-height: none;
     margin-top: 0;
-    margin-left: 8px;
+    margin-left: 4px;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
+  .spectrogram-chart-row #spectrogram-colorbar .scatter-colorbar-vtick {
+    flex: 0 0 auto;
+  }
+}
+
+/* Compact tick labels at very narrow viewports — show "Hi/Lo" only,
+   keep numeric values inside the slider aria-valuenow / tooltip. */
+@media (max-width: 480px) {
+  .spectrogram-chart-row #spectrogram-colorbar .scatter-colorbar-vtick {
+    font-size: 0.55rem;
+  }
+  .spectrogram-chart-row #spectrogram-colorbar .scatter-colorbar-vname {
+    font-size: 0.55rem;
+  }
+}
+
+/* ─── Spectrogram results context overlay ─────────────────────── */
+/* Floating info card anchored to the top-right of the spectrogram
+   chart area. The summary lives as a sibling of the chart-row inside
+   `<main>` because ECharts wipes the chart container's children when
+   it initializes — so the summary cannot be a child of `#spectrogram-chart`.
+   `pointer-events: none` keeps it out of the zoom/brush path.
+   The 96px right offset leaves room for the 84px colorbar + a gap. */
+.spectrogram-spectral-info {
+  position: absolute;
+  top: 10px;
+  right: 96px;
+  z-index: 4;
+  pointer-events: none;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  background: rgba(8, 12, 20, 0.72);
+  border: 1px solid var(--shell-border-strong, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  font-size: 0.65rem;
+  line-height: 1.35;
+  color: var(--text-dim, #9fb1d1);
+  max-width: min(60%, 320px);
+  backdrop-filter: blur(4px);
+}
+
+.spectrogram-spectral-info[hidden] {
+  display: none;
+}
+
+.spectrogram-spectral-info__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.spectrogram-spectral-info__label {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tb-eyebrow, rgba(255, 255, 255, 0.55));
+  white-space: nowrap;
+}
+
+.spectrogram-spectral-info__value {
+  color: var(--text, #eef4ff);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* On narrow viewports the overlay collapses to a denser layout so
+   it does not cover the chart's top axis labels. */
+@media (max-width: 720px) {
+  .spectrogram-spectral-info {
+    top: 6px;
+    right: 6px;
+    padding: 4px 8px;
+    font-size: 0.6rem;
+    max-width: calc(100% - 12px);
+  }
+  .spectrogram-spectral-info__row {
+    gap: 8px;
+  }
+}
+
+/* ─── Spectrogram empty state icon ────────────────────────────── */
+.plot-empty-state__icon {
+  width: 44px;
+  height: 44px;
+  color: var(--text-dim, #9fb1d1);
+  margin-bottom: 8px;
+  opacity: 0.85;
 }

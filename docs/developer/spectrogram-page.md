@@ -195,4 +195,82 @@ Response: {
 
 - Unlike FFT (which can show multiple traces overlaid), Spectrogram is always single-column.
 - Window size affects frequency resolution: larger windows give finer frequency resolution but coarser time resolution, and vice versa.
+
+---
+
+## Layout notes (2026-07-11 refactor)
+
+The spectrogram toolbar was refactored to fit a single row at ≥1280 px and
+to mirror patterns already proven on the FFT page. See
+`superpowers/plans/2026-07-11-spectrogram-ui-improvements.md` for the full
+plan, before/after measurements, and verification matrix.
+
+### Toolbar
+
+- **Eyebrows hidden.** The segment-level labels (`Display`, `Export`, `Zoom`)
+  are removed because each field already carries its own label (`Column`,
+  `Window`, `Hop`, `Scale`, `Normalize`, `Clip`). Reclaiming ~120 px of
+  horizontal space lets the toolbar fit one row from 1280 px upward.
+- **Inline export icons.** The Export disclosure menu (`Format → Image + HTML`)
+  was replaced with three flat buttons (PNG / SVG / HTML) inside the
+  `.fft-export-icons` group. The pattern is shared verbatim with the FFT
+  page; do not reintroduce a disclosure here without also reconsidering FFT.
+- **Inline clip band.** `Clip method` and `Clip %` live inside
+  `#spectrogram-clip-band` and the `.is-hidden` class is toggled by
+  `syncClipEnabled()` in `spectrogramChartRuntime.ts`. Mirrors the FFT
+  `.fft-filter-band` pattern.
+- **Right-aligned actions cluster.** The actions segment carries the
+  `toolbar-group--push` modifier so `Reset`, the export icons, and `Compute`
+  stay grouped on the right edge at every viewport.
+
+### Results context panel
+
+`#spectrogram-summary` is a floating info card anchored to the top-right
+of the chart. It cannot live inside `#spectrogram-chart` because ECharts
+overwrites the chart container's children when it initializes; it lives
+as a sibling of `.spectrogram-chart-row` inside `<main>` instead. The
+runtime populates four fields:
+
+- **Sample rate** — derived from `(times.length - 1) * 1000 / span`.
+- **Nyquist** — half the sample rate.
+- **Time points** — `times.length` formatted with `toLocaleString()`.
+- **Freq bins** — `frequencies.length` formatted with `toLocaleString()`.
+
+The pre-existing single-line summary text ("Spectrogram of HUFL · Window
+96 · Hop 48 · z-score → [0,1] · Peak 11.57 µHz") is preserved on
+`aria-label` for screen readers and tooltip-style disclosure.
+
+### Colorbar
+
+- Width increased from 72 px to **84 px** to keep `High / Low` tick
+  labels readable at 1280–1600 px.
+- Touch targets enlarged to 24 × 12 px (vertical) / 12 × 22 px (mobile)
+  so the slider handles clear WCAG 2.5.5 baseline (≥24 × 24 in either
+  dimension).
+- The `Z-SCORE → [0,1]` annotation uses `text-overflow: ellipsis` at
+  ≤720 px so it never overflows the colorbar track on small screens.
+
+### Responsive ladder
+
+| Width | Toolbar rows | Clip band | Colorbar | Sidebar |
+|-------|--------------|-----------|----------|---------|
+| ≥1280 px | 1 | inline (collapsed) | right side, 84 px | full labels |
+| 1024–1279 px | 1 (some selects truncate) | inline | right side, 84 px | ellipsis |
+| 720–1023 px | 2 | inline | right side, 84 px | ellipsis |
+| 480–719 px | 2 | inline | below chart, horizontal | ellipsis |
+| ≤480 px | 2 (stacked) | inline | below chart, compact | icons only |
+
+### Conventions to preserve
+
+- **No new dependencies, no Tailwind / CSS-in-JS.** All new rules are
+  scoped under `#page-spectrogram` selectors and live in
+  `frontend/css/modules/{layout,toolbar,chart,sidebar}.css`.
+- **Inline Export icons are the standard.** Any new analysis page should
+  use `.fft-export-icons` rather than re-introducing a disclosure.
+- **Inline clip band is the standard.** `.fft-filter-band` (FFT) and
+  `.spectrogram-clip-band` share the same `is-hidden` toggle pattern.
+- **App-shell grid uses `minmax(220px, 1fr) minmax(0, 4fr)`.** This lets
+  the sidebar collapse to its minimum without overflowing mid-word.
+  See `frontend/css/modules/layout.css` `.app-layout` and the matching
+  tablet overrides in `responsive.css`.
 - Log scale on the power (color intensity) axis helps visualize wide dynamic ranges.

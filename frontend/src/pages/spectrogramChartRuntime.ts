@@ -453,6 +453,11 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 const clipParamField = liveClipParam?.closest('label, .toolbar-field') as HTMLElement | null;
                 if (clipMethodField) clipMethodField.hidden = !enabled;
                 if (clipParamField) clipParamField.hidden = !enabled;
+                // Also toggle the wrapping .spectrogram-clip-band so the inline
+                // Method/% inputs disappear entirely when Outliers is off —
+                // keeps the toolbar single-row at narrow desktop widths.
+                const clipBand = document.getElementById('spectrogram-clip-band');
+                if (clipBand) clipBand.classList.toggle('is-hidden', !enabled);
             };
 
             const syncClipParamLabel = () => {
@@ -467,6 +472,44 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     spectrogramAppliedClipMode,
                     spectrogramAppliedClipParam,
                 );
+            };
+
+            // Populate the floating results context panel anchored to the
+            // top-right of the spectrogram chart. Mirrors the FFT page's
+            // `.fft-spectral-info` overlay so the user can interpret the
+            // rendered result without opening the timeseries or settings.
+            const syncSpectrogramSummary = () => {
+                if (!summaryEl) return;
+                const result = spectrogramResult;
+                const rateEl = document.getElementById('spectrogram-summary-rate');
+                const nyquistEl = document.getElementById('spectrogram-summary-nyquist');
+                const pointsEl = document.getElementById('spectrogram-summary-points');
+                const binsEl = document.getElementById('spectrogram-summary-bins');
+                if (!result) {
+                    summaryEl.hidden = true;
+                    return;
+                }
+                const times = result.times_ms;
+                const freqs = result.frequencies;
+                const spanMs = Math.max(
+                    0,
+                    Number(times[times.length - 1] ?? 0) - Number(times[0] ?? 0),
+                );
+                const sampleRateHz = spanMs > 0 && times.length > 1
+                    ? ((times.length - 1) * 1000) / spanMs
+                    : NaN;
+                const nyquistHz = Number.isFinite(sampleRateHz) ? sampleRateHz / 2 : NaN;
+                const formatHz = (hz: number): string => {
+                    if (!Number.isFinite(hz)) return '—';
+                    if (hz >= 1000) return `${(hz / 1000).toFixed(2)} kHz`;
+                    if (hz >= 1) return `${hz.toFixed(2)} Hz`;
+                    return `${(hz * 1000).toFixed(2)} mHz`;
+                };
+                if (rateEl) rateEl.textContent = formatHz(sampleRateHz);
+                if (nyquistEl) nyquistEl.textContent = formatHz(nyquistHz);
+                if (pointsEl) pointsEl.textContent = times.length.toLocaleString();
+                if (binsEl) binsEl.textContent = freqs.length.toLocaleString();
+                summaryEl.hidden = false;
             };
 
             const formatSpectrogramColorbarNumber = (value: number): string => {
@@ -792,6 +835,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
 
                 const dominantBand = findDominantFrequencyBand(spectrogramResult);
                 if (summaryEl) {
+                    // Populate the structured context panel with derived
+                    // metrics (sample rate, Nyquist, time points, frequency
+                    // bins). The existing single-line summary text is
+                    // preserved in `aria-label` for screen readers.
                     const summaryParts = [
                         `Spectrogram of ${spectrogramResult.column}`,
                         `Window ${resolveSpectrogramWindowSize()}`,
@@ -801,7 +848,8 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     if (dominantBand) {
                         summaryParts.push(`Peak ${formatFrequencyForAxis(dominantBand.dominantHz)}`);
                     }
-                    summaryEl.textContent = summaryParts.join(' · ');
+                    summaryEl.setAttribute('aria-label', summaryParts.join(' · '));
+                    syncSpectrogramSummary();
                 }
                 if (autoFitToggle?.checked && dominantBand && freqAxis.length > 1) {
                     const denom = Math.max(1, freqAxis.length - 1);
@@ -815,6 +863,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
 
                 initColorbarInteraction();
                 updateSpectrogramColorbar(minValue, maxValue, logScale ? 'log10' : scaleLabel);
+                syncSpectrogramSummary();
                 syncSpectrogramEmptyState();
             };
 
@@ -877,6 +926,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     console.error('[edatime:spectrogram] render failed', error);
                     spectrogramResult = null;
                     spectrogramRenderError = `Spectrogram generation failed: ${String(error?.message ?? error)}`;
+                    syncSpectrogramSummary();
                     syncSpectrogramEmptyState();
                     toast(spectrogramRenderError, 'error', { duration: 6000 });
                 } finally {
@@ -914,6 +964,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             syncClipEnabled();
             syncClipParamLabel();
             syncSpectrogramCustomInputs();
+            syncSpectrogramSummary();
 
             // ── Compute button ─────────────────────────────────────────────────
             document.getElementById('spectrogram-compute-btn')?.addEventListener('click', async () => {

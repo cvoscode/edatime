@@ -520,6 +520,19 @@
   background: var(--panel-bg);
   min-height: 34px;
   flex-shrink: 0;
+  scrollbar-width: thin;
+}
+
+@media (max-width: 767px) {
+  .fft-traces-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-right: 16px;
+  }
+  .fft-traces-bar > * {
+    flex: 0 0 auto;
+  }
 }
 
 .fft-traces-bar .series-chip {
@@ -589,6 +602,47 @@
   opacity: 0.9;
 }
 
+.fft-spectral-info {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px 14px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--shell-border, rgba(255, 255, 255, 0.08));
+  background:
+    linear-gradient(180deg, rgba(12, 17, 28, 0.92), rgba(11, 16, 26, 0.88)),
+    radial-gradient(circle at right center, rgba(32, 226, 215, 0.06), transparent 32%);
+  flex-shrink: 0;
+}
+
+.fft-spectral-info__row {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fft-spectral-info__label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.fft-spectral-info__value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.78rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 36ch;
+}
+
 .fft-spectral-info__peak-table {
   display: inline-grid;
   gap: 2px;
@@ -597,13 +651,55 @@
 
 .fft-spectral-info__peak-row {
   display: grid;
-  grid-template-columns: 32px minmax(110px, auto) minmax(72px, auto) minmax(72px, auto);
+  grid-template-columns: 28px minmax(96px, auto) minmax(72px, auto) minmax(72px, auto);
   gap: 8px;
   align-items: baseline;
 }
 
 .fft-spectral-info__peak-cell {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+@media (max-width: 899px) {
+  .fft-spectral-info {
+    padding: 6px 10px;
+    gap: 6px 10px;
+  }
+  .fft-spectral-info__value {
+    max-width: 22ch;
+  }
+  .fft-spectral-info__peak-table {
+    flex-basis: 100%;
+    margin-top: 2px;
+  }
+}
+
+@media (max-width: 559px) {
+  .fft-spectral-info {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px 0;
+  }
+  .fft-spectral-info__row {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .fft-spectral-info__value {
+    max-width: 60vw;
+  }
+  .fft-spectral-info__peak-table {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 4px;
+  }
+  .fft-spectral-info__peak-row {
+    grid-template-columns: 22px minmax(80px, auto) minmax(56px, auto) minmax(56px, auto);
+    gap: 6px;
+  }
 }
 
 /* ─── Adaptive-filter trace picker popup ─────────────────────── */

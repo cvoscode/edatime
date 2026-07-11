@@ -185,7 +185,12 @@ describe('spectrogramPage colorbar filter', () => {
         toastMock.mockReset();
         document.body.innerHTML = `
             <section id="page-spectrogram">
-              <div id="spectrogram-summary"></div>
+              <div id="spectrogram-summary" aria-live="polite" hidden>
+                <span id="spectrogram-summary-rate"></span>
+                <span id="spectrogram-summary-nyquist"></span>
+                <span id="spectrogram-summary-points"></span>
+                <span id="spectrogram-summary-bins"></span>
+              </div>
               <label><input id="spectrogram-auto-fit-toggle" type="checkbox" checked />Auto-fit</label>
               <div id="spectrogram-chart"></div>
               <div class="spectrogram-chart-row">
@@ -279,10 +284,20 @@ describe('spectrogramPage colorbar filter', () => {
             action?.type === 'dataZoom' && action?.dataZoomIndex === 1
         );
 
-        expect(document.getElementById('spectrogram-summary')?.textContent).toContain('Spectrogram of test_col');
-        expect(document.getElementById('spectrogram-summary')?.textContent).toContain('Window 96');
-        expect(document.getElementById('spectrogram-summary')?.textContent).toContain('Hop 48');
-        expect(document.getElementById('spectrogram-summary')?.textContent).toMatch(/(z-score|min-max|robust|raw)/i);
+        // The summary panel keeps the single-line "Spectrogram of …" text
+        // as an aria-label for screen readers and populates the four
+        // structured fields (sample rate, Nyquist, time points, freq bins)
+        // for sighted users. See plan 2026-07-11-spectrogram-ui-improvements.
+        const summary = document.getElementById('spectrogram-summary');
+        expect(summary?.getAttribute('aria-label')).toContain('Spectrogram of test_col');
+        expect(summary?.getAttribute('aria-label')).toContain('Window 96');
+        expect(summary?.getAttribute('aria-label')).toContain('Hop 48');
+        expect(summary?.getAttribute('aria-label')).toMatch(/(z-score|min-max|robust|raw)/i);
+        // Structured fields must be populated.
+        expect(document.getElementById('spectrogram-summary-points')?.textContent).toMatch(/[0-9]/);
+        expect(document.getElementById('spectrogram-summary-bins')?.textContent).toMatch(/[0-9]/);
+        expect(document.getElementById('spectrogram-summary-rate')?.textContent).not.toBe('—');
+        expect(document.getElementById('spectrogram-summary-nyquist')?.textContent).not.toBe('—');
         expect(yZoomCalls.some(([action]: any[]) => action.start > 0 || action.end < 100)).toBe(true);
     });
 

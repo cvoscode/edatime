@@ -48,7 +48,7 @@ export function createPageRuntime(options: PageRuntimeOptions): PageRuntime {
 
     return {
         mount(): () => void {
-            if (mounted) return () => {};
+            if (mounted) return () => { };
             mounted = true;
 
             const unregister = createPageLifecycle({

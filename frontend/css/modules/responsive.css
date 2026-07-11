@@ -61,9 +61,11 @@
      desktop. The previous 180px column truncated "Timeseries",
      "Correlations" and "Spectrogram" to "Times…", "Corre…",
      "Spec…". Bumping to 200px plus allowing label wrap keeps
-     every label readable without losing the kbd shortcut badge. */
+     every label readable without losing the kbd shortcut badge.
+     The minmax pattern lets the column shrink further if the kbd
+     shortcut badge still doesn't fit, falling back to ellipsis. */
   .app-layout {
-    grid-template-columns: 200px 1fr;
+    grid-template-columns: minmax(180px, 200px) minmax(0, 1fr);
   }
 
   .nav-item {
@@ -74,9 +76,10 @@
   }
 
   .nav-text {
-    white-space: normal;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     line-height: 1.2;
-    word-break: break-word;
   }
 
   .nav-shortcut {
@@ -87,7 +90,7 @@
 
 @media (max-width: 1024px) {
   .app-layout {
-    grid-template-columns: 180px 1fr;
+    grid-template-columns: minmax(160px, 180px) minmax(0, 1fr);
   }
 
   .timeseries-command-bar {

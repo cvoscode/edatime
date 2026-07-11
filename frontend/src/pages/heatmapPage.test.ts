@@ -7,9 +7,9 @@ class ResizeObserverMock {
         ResizeObserverMock.instances.push(this);
     }
 
-    observe(): void {}
+    observe(): void { }
 
-    disconnect(): void {}
+    disconnect(): void { }
 
     trigger(target: Element): void {
         this.callback([

@@ -39,6 +39,7 @@
 
 .nav-item {
   width: 100%;
+  min-width: 0;
   height: 40px;
   padding: 0 12px;
   border-radius: var(--radius);
@@ -57,6 +58,7 @@
     background var(--transition),
     border-color var(--transition),
     color var(--transition);
+  overflow: hidden;
 }
 
 .nav-item:hover {

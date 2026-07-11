@@ -1953,6 +1953,205 @@ body.drawer-open::after {
   max-width: none;
 }
 
+/* ─── Spectrogram page toolbar ──────────────────────────────── */
+/* Hide segment eyebrows on the spectrogram page only — the
+   per-field labels (Column, Window, Hop, Scale, …) already convey
+   the segment purpose, and dropping the eyebrows reclaims ~120 px
+   of horizontal space so the toolbar fits a single row at 1280 px+.
+   Mirrors the same pattern used for the FFT page at <940 px. */
+#page-spectrogram .scatter-toolbar__eyebrow {
+  display: none;
+}
+
+#page-spectrogram .scatter-toolbar__segment {
+  padding: 6px 10px;
+  gap: 8px;
+}
+
+#page-spectrogram .scatter-toolbar__segment--actions.toolbar-group--push {
+  /* Keep the Export/Reset/Compute cluster right-aligned even when the
+     Display segment wraps. */
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Inline Clip method/% band — mirrors the FFT `.fft-filter-band`
+   pattern so the Outliers toggle alone controls visibility. */
+#page-spectrogram .spectrogram-clip-band {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+#page-spectrogram .spectrogram-clip-band.is-hidden {
+  display: none;
+}
+
+#page-spectrogram .spectrogram-clip-band .scatter-toolbar__field {
+  max-width: none;
+}
+
+#page-spectrogram .spectrogram-clip-band .toolbar-field__label {
+  /* Shortened label inside the compact band so Method / % stay
+     visually compact next to the Outliers toggle. */
+  min-width: 0;
+}
+
+#page-spectrogram .spectrogram-clip-band .modal-select,
+#page-spectrogram .spectrogram-clip-band .modal-input {
+  min-width: 64px;
+  max-width: 96px;
+}
+
+/* Reuse the FFT export-icons pattern for the spectrogram page so
+   format selection is one click away instead of behind a disclosure. */
+#page-spectrogram .fft-export-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#page-spectrogram .fft-export-icons .btn {
+  min-width: 38px;
+  padding: 4px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Single-row toolbar target: at ≥1280 px the Display segment, Export
+   icons, Reset, and Compute should all fit on one row. Below 1280 px
+   the actions cluster is allowed to wrap onto a second row. */
+@media (min-width: 1280px) {
+  #page-spectrogram .scatter-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  #page-spectrogram .scatter-toolbar__segment--display {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  #page-spectrogram .scatter-toolbar__segment--display .scatter-toolbar__fields {
+    flex-wrap: nowrap;
+  }
+}
+
+/* ─── FFT page responsive toolbar ────────────────────────────── */
+/* When the spectral filter is "Off"/"Low-pass"/"High-pass" the
+   Low/High Hz inputs add visual noise and waste horizontal space.
+   The TS layer toggles `.is-hidden` on the wrapper to collapse them. */
+.fft-filter-band {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.fft-filter-band.is-hidden {
+  display: none;
+}
+
+/* Inline group so Preview never lands alone on its own toolbar row. */
+.fft-filter-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+/* Flat icon buttons for the Export segment (replaces the disclosure). */
+.fft-export-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fft-export-icons .btn {
+  min-width: 38px;
+  padding: 4px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hide the legacy Format disclosure on FFT — replaced by icon buttons. */
+#page-fft .scatter-toolbar__segment--actions .toolbar-disclosure {
+  display: none;
+}
+
+@media (max-width: 1199px) {
+  #page-fft .scatter-toolbar {
+    row-gap: 6px;
+  }
+  #page-fft .scatter-toolbar__segment--display .scatter-toolbar__fields,
+  #page-fft .scatter-toolbar__segment--refine .scatter-toolbar__fields {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+}
+
+@media (max-width: 899px) {
+  #page-fft .scatter-toolbar__segment--display .scatter-toolbar__fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 6px 10px;
+  }
+  #page-fft .scatter-toolbar__segment--refine .scatter-toolbar__fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 6px 10px;
+  }
+  #page-fft .scatter-toolbar__segment--refine .fft-filter-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+  #page-fft .scatter-toolbar__segment--display .scatter-toolbar__field,
+  #page-fft .scatter-toolbar__segment--refine .scatter-toolbar__field {
+    max-width: none;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 599px) {
+  #page-fft .scatter-toolbar__segment {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    width: 100%;
+  }
+  #page-fft .scatter-toolbar__eyebrow {
+    width: auto;
+    padding-right: 0;
+  }
+  #page-fft .scatter-toolbar__segment--display .scatter-toolbar__fields,
+  #page-fft .scatter-toolbar__segment--refine .scatter-toolbar__fields {
+    grid-template-columns: 1fr;
+  }
+  #page-fft .fft-export-icons {
+    width: 100%;
+    justify-content: stretch;
+  }
+  #page-fft .fft-export-icons .btn {
+    flex: 1 1 0;
+  }
+}
+
+@media (max-width: 379px) {
+  #page-fft .fft-export-icons .btn .fft-export-icons__label {
+    display: none;
+  }
+}
+
+/* ─── Reduced motion ─────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .fft-trace-chip.loading,
+  .fft-trace-chip.active {
+    animation: none;
+    transition: none;
+  }
+}
+
 .scatter-toolbar-group-inline {
   display: inline-flex;
   align-items: center;

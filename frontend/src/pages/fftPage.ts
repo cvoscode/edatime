@@ -550,11 +550,14 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
             const filterTypeSelect = document.getElementById('fft-filter-type') as HTMLElement | null;
             // Centralised sync helper so the initial render and every
             // change both end up with the right Low Hz / High Hz enabled
-            // state plus a hint title attribute for screen readers.
+            // state plus a hint title attribute for screen readers. It also
+            // collapses the wrapper group when neither cutoff is meaningful
+            // (single-edge filters don't expose both fields at once).
             const syncFilterCutoffInputs = (): void => {
                 const filterType = String(getDropdownValue('fft-filter-type') || 'none').toLowerCase();
                 const lowEl = document.getElementById('fft-filter-low-hz') as HTMLInputElement | null;
                 const highEl = document.getElementById('fft-filter-high-hz') as HTMLInputElement | null;
+                const bandEl = document.getElementById('fft-filter-band');
                 const lowHint = filterType === 'none'
                     ? 'Set Filter type to Highpass or Bandpass to use the Low Hz cutoff.'
                     : filterType === 'lowpass'
@@ -575,12 +578,37 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
                     highEl.title = highHint;
                     setFieldHidden(highEl, filterType === 'none' || filterType === 'highpass');
                 }
+                // The wrapper is only useful when at least one cutoff is
+                // editable — keep it visible for lowpass (high only),
+                // highpass (low only), and band* (both).
+                if (bandEl) {
+                    const bandVisible = filterType !== 'none';
+                    bandEl.classList.toggle('is-hidden', !bandVisible);
+                }
             };
             filterTypeSelect?.addEventListener('change', syncFilterCutoffInputs);
             syncFilterCutoffInputs();
 
             rerenderOrClear();
-            void seedInitialFftSelection();
+            void seedInitialFftSelection().then(() => {
+                // Surface persisted selections so users understand why the
+                // chip bar is pre-populated after a page reload.
+                const stored = loadStoredFftSelection();
+                if (stored && stored.length > 0 && fftTraces.length > 0) {
+                    const sessionFlag = 'edatime_fft_restored_toast';
+                    try {
+                        if (window.sessionStorage.getItem(sessionFlag) === '1') return;
+                        window.sessionStorage.setItem(sessionFlag, '1');
+                    } catch {
+                        // sessionStorage may be unavailable in private mode;
+                        // that's fine — the toast is purely informational.
+                    }
+                    toast(
+                        `Restored ${stored.length} FFT trace${stored.length === 1 ? '' : 's'} from last session.`,
+                        'info',
+                    );
+                }
+            });
 
             // Deferred export binding so csv dataCheck captures the current fftTraces
             // reference rather than a stale closure from mount time.

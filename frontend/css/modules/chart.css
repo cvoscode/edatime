@@ -138,7 +138,16 @@
 
 #fft-chart,
 #spectrogram-chart {
-  min-height: 360px;
+  min-height: clamp(260px, 46vh, 560px);
+  position: relative;
+}
+
+/* When the parent .main--analysis-chart uses flex column layout, the
+   chart fills the remaining space and the spectral-info footer sits
+   naturally beneath it. */
+.main--analysis-chart #fft-chart,
+.main--analysis-chart #spectrogram-chart {
+  min-height: 0;
 }
 
 .plot-empty-state {

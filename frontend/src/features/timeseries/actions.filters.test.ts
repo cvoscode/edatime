@@ -65,6 +65,8 @@ describe('initTimeseriesActions clear-all-filters', () => {
         };
 
         initTimeseriesActions(deps);
+        expect((window as any).__edatime.clearAllFilters).toBeUndefined();
+        expect((window as any).__edatime.resetChartRangeToDataset).toBeUndefined();
 
         window.dispatchEvent(new CustomEvent('edatime:clear-all-filters'));
         await Promise.resolve();

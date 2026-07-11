@@ -156,7 +156,6 @@ export function initTimeseriesActions(deps: TimeseriesActionDeps): void {
     };
     window.addEventListener('edatime:request-chart-range-reset', onRequestResetRange);
     deps.registerCleanup(() => window.removeEventListener('edatime:request-chart-range-reset', onRequestResetRange));
-    (window as any).__edatime.resetChartRangeToDataset = () => void resetChartRangeToDataset('reset');
 
     const clearAllFilters = async (source = 'clear') => {
         const filters = deps.workspace.getSnapshot().filters;
@@ -176,5 +175,4 @@ export function initTimeseriesActions(deps: TimeseriesActionDeps): void {
     };
     window.addEventListener('edatime:clear-all-filters', onClearAllFilters);
     deps.registerCleanup(() => window.removeEventListener('edatime:clear-all-filters', onClearAllFilters));
-    (window as any).__edatime.clearAllFilters = () => void clearAllFilters('clear');
 }
