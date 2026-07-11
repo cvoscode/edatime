@@ -11,7 +11,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-    appStateMock,
+    chartStateMock,
+    runtimeStateMock,
     storeHandlers,
     setViewportMock,
     setInitialViewMock,
@@ -22,23 +23,25 @@ const {
 } = vi.hoisted(() => {
     const handlers: Record<string, Set<(payload: any) => void>> = {};
     return {
-        appStateMock: {
+        chartStateMock: {
             chart: null as any,
             currentStart: 0 as number | null,
             currentEnd: 100 as number | null,
             initialView: null as any,
             zoomHistory: [] as any[],
-            fetchDebounceId: 0 as any,
             chartText: null as any,
+        },
+        runtimeStateMock: {
+            fetchDebounceId: 0 as any,
         },
         storeHandlers: handlers,
         setViewportMock: vi.fn((start: number | null, end: number | null) => {
-            appStateMock.currentStart = start;
-            appStateMock.currentEnd = end;
+            chartStateMock.currentStart = start;
+            chartStateMock.currentEnd = end;
             for (const h of handlers['chart:viewport'] ?? []) h({ next: { start, end } });
         }),
         setInitialViewMock: vi.fn((view: any) => {
-            appStateMock.initialView = view;
+            chartStateMock.initialView = view;
             for (const h of handlers['chart:initialView'] ?? []) h({ next: view });
         }),
         setFetchDebounceIdMock: vi.fn(),
@@ -48,11 +51,9 @@ const {
     };
 });
 
-vi.mock('../store/appStateCompat.js', () => ({
-    appState: appStateMock,
-}));
-
 vi.mock('../store/index.js', () => ({
+    chartState: chartStateMock,
+    runtimeState: runtimeStateMock,
     setFetchDebounceId: setFetchDebounceIdMock,
     setPendingRestoreY: setPendingRestoreYMock,
     setPendingYMode: setPendingYModeMock,
@@ -102,10 +103,11 @@ describe('updateZoomRangeBadge', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        appStateMock.currentStart = 0;
-        appStateMock.currentEnd = 100;
-        appStateMock.initialView = null;
-        appStateMock.zoomHistory = [];
+        chartStateMock.currentStart = 0;
+        chartStateMock.currentEnd = 100;
+        chartStateMock.initialView = null;
+        chartStateMock.zoomHistory = [];
+        runtimeStateMock.fetchDebounceId = 0;
         badge = makeBadge();
     });
 
@@ -114,9 +116,9 @@ describe('updateZoomRangeBadge', () => {
     });
 
     it('renders the placeholder when initial view has not been captured', () => {
-        appStateMock.currentStart = 0;
-        appStateMock.currentEnd = 100;
-        appStateMock.initialView = null;
+        chartStateMock.currentStart = 0;
+        chartStateMock.currentEnd = 100;
+        chartStateMock.initialView = null;
 
         updateZoomRangeBadge();
 
@@ -127,9 +129,9 @@ describe('updateZoomRangeBadge', () => {
         // Simulate: badge was updated to "—" while initialView was still null,
         // then setInitialView() populated the snapshot, then refreshZoomControlsState()
         // was called by the bootstrap. The badge should now show 100%.
-        appStateMock.currentStart = 0;
-        appStateMock.currentEnd = 100;
-        appStateMock.initialView = { xMin: 0, xMax: 100, yMin: null, yMax: null };
+        chartStateMock.currentStart = 0;
+        chartStateMock.currentEnd = 100;
+        chartStateMock.initialView = { xMin: 0, xMax: 100, yMin: null, yMax: null };
 
         refreshZoomControlsState();
 
@@ -142,9 +144,9 @@ describe('updateZoomRangeBadge', () => {
         // badge must update on its own without anyone calling
         // refreshZoomControlsState() — this is the path that the
         // timeseries page onZoomRangeChange uses.
-        appStateMock.currentStart = 0;
-        appStateMock.currentEnd = 100;
-        appStateMock.initialView = { xMin: 0, xMax: 100, yMin: null, yMax: null };
+        chartStateMock.currentStart = 0;
+        chartStateMock.currentEnd = 100;
+        chartStateMock.initialView = { xMin: 0, xMax: 100, yMin: null, yMax: null };
 
         // Bootstrap calls refreshZoomControlsState once to wire the
         // subscription and render the initial 100%.
@@ -162,16 +164,16 @@ describe('updateZoomRangeBadge', () => {
     it('auto-updates when the initial view changes', () => {
         // E.g. a dataset reload sets a new initialView. The badge should
         // re-render even if the viewport is unchanged.
-        appStateMock.currentStart = 0;
-        appStateMock.currentEnd = 100;
-        appStateMock.initialView = { xMin: 0, xMax: 100, yMin: null, yMax: null };
+        chartStateMock.currentStart = 0;
+        chartStateMock.currentEnd = 100;
+        chartStateMock.initialView = { xMin: 0, xMax: 100, yMin: null, yMax: null };
 
         refreshZoomControlsState();
         expect(badge.textContent).toBe('Viewing 100%');
 
         // Simulate dataset reload with a smaller range.
-        appStateMock.currentStart = 50;
-        appStateMock.currentEnd = 100;
+        chartStateMock.currentStart = 50;
+        chartStateMock.currentEnd = 100;
         setInitialViewMock({ xMin: 50, xMax: 100, yMin: null, yMax: null });
 
         expect(badge.textContent).toBe('Viewing 100%');
