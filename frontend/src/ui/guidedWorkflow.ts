@@ -591,14 +591,6 @@ export function initGuidedWorkflow(deps: GuidedWorkflowDeps): void {
     const unsubscribeWorkspace = deps.workspace.subscribe(() => scheduleGuidedWorkflowRender());
     renderGuidedWorkflow();
 
-    (window as any).__edatime = (window as any).__edatime || {};
-    (window as any).__edatime.guidedWorkflow = {
-        enable: enableGuidedWorkflow,
-        disable: disableGuidedWorkflow,
-        next: goToNextGuidedStep,
-        render: renderGuidedWorkflow,
-    };
-
     deps.registerCleanup(() => {
         unbindEvents();
         unsubscribeWorkspace();
@@ -608,6 +600,5 @@ export function initGuidedWorkflow(deps: GuidedWorkflowDeps): void {
         }
         _initialized = false;
         _workspace = null;
-        delete (window as any).__edatime?.guidedWorkflow;
     });
 }

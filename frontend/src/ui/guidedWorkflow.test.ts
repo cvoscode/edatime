@@ -183,6 +183,19 @@ describe('initGuidedWorkflow', () => {
         expect(unsubscribe).toHaveBeenCalledTimes(1);
     });
 
+    it('keeps the workflow controller internal instead of publishing a window API', async () => {
+        vi.resetModules();
+        const deps = workflowDeps();
+        const { initGuidedWorkflow } = await import('./guidedWorkflow.js');
+
+        initGuidedWorkflow(deps);
+        expect((window as any).__edatime?.guidedWorkflow).toBeUndefined();
+
+        const cleanup = deps.registerCleanup.mock.calls[0]?.[0] as (() => void);
+        cleanup();
+        expect((window as any).__edatime?.guidedWorkflow).toBeUndefined();
+    });
+
     it('omits the automatic completed-count summary in compact mode', async () => {
         vi.resetModules();
 
