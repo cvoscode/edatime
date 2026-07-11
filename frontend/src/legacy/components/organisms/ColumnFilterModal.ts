@@ -1,2 +1,0 @@
-// DEPRECATED: import from 'ui/' directly. Will be removed after verifying no internal imports remain.
-export { ColumnFilterModal, type ColumnFilterModalProps } from '../../ui/composites/ColumnFilterModal.js';

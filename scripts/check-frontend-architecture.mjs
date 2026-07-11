@@ -96,11 +96,7 @@ for (const file of files) {
   const text = await readFile(file, 'utf8');
   const isTest = /\.test\.ts$/.test(file);
   const isLegacyState = rel === 'frontend/src/store/index.ts';
-  const isLegacy = rel.startsWith('frontend/src/legacy/');
   const staticImportRe = /(^|\n)\s*import\s+(type\s+)?[^'"\n]+from\s+['"]([^'"]+)['"]/g;
-
-  // Skip files in the legacy archive tree.
-  if (isLegacy) continue;
 
   if (!isTest && !isLegacyState) {
     const directWrite = /appState\.[A-Za-z0-9_]+\s*=(?!=)/g;
