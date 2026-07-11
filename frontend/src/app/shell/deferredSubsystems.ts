@@ -17,6 +17,7 @@ export interface DeferredShellDeps {
     showPage: (pageName: string) => void;
     ensurePageModuleLoaded: (page: string) => Promise<void>;
     fetchAndRender: () => void;
+    fetchAndRenderAnalytics: () => Promise<void>;
     refreshDatasetAfterMutation: (options?: RefreshDatasetOptions) => Promise<void>;
     buildTimeseriesColumns: () => void;
     buildTimeseriesRanges: () => void;
@@ -91,9 +92,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
 
     registerSubsystem('analytics-listeners', async (deps) => {
         const { initAnalyticsListeners } = await import('../../bootstrap/analyticsOverlay.js');
-        initAnalyticsListeners(() => Promise.resolve(
-            (window as unknown as { __edatime?: { runAnalytics?: () => Promise<void> } }).__edatime?.runAnalytics?.(),
-        ), deps.workspace);
+        initAnalyticsListeners(deps.fetchAndRenderAnalytics, deps.workspace);
     });
 
     registerSubsystem('annotation-subsystems', async () => {

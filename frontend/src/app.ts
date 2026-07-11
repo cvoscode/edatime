@@ -176,6 +176,7 @@ async function init(): Promise<void> {
         ensureDatasetReady: () => timeseriesModule.ensureDatasetReady(),
         showPage,
         fetchAndRender: () => timeseriesModule.fetchAndRender(),
+        fetchAndRenderAnalytics,
         renderCurrentData: () => timeseriesModule.renderCurrentData(),
         updateAnalysisYRange,
         buildTimeseriesColumns: () => timeseriesModule.buildColumnToggles(),
@@ -201,7 +202,6 @@ async function init(): Promise<void> {
     (window).__edatime = (window).__edatime || {};
     (window).__edatime.ensureDatasetReady = () => timeseriesModule.ensureDatasetReady();
     (window).__edatime.ensureReady = () => timeseriesModule.ensureReady();
-    (window).__edatime.runAnalytics = () => fetchAndRenderAnalytics();
 
     initGlobalShortcuts({
         showPage,
