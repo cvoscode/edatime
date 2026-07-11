@@ -47,6 +47,7 @@ import {
     loadedRowCountFromResponse,
 } from './upload';
 import { appState } from '../store/appStateCompat';
+import { datasetState, uiState } from '../store/index.js';
 import type { DatasetMetadata } from '../types';
 
 function makeMetadata(overrides: Partial<DatasetMetadata> = {}): DatasetMetadata {
@@ -297,6 +298,37 @@ describe('initUploadPanel upload button state', () => {
         expect(uploadBtn.disabled).toBe(false);
         expect(uploadBtn.getAttribute('aria-disabled')).toBe('false');
         expect(uploadBtn.title).toBe('');
+    });
+});
+
+describe('initUploadPanel column selection helpers', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        buildUploadDom();
+        appState.metadata = null;
+        appState.columnProfiles = [];
+        appState.previewSelectedColumns = [];
+        appState.previewTimeColumn = null;
+    });
+
+    it('select-all keeps the preview time column while reading profiles from store slices', () => {
+        appState.columnProfiles = [
+            { name: 'timestamp', dtype: 'datetime64[ms]' } as any,
+            { name: 'value', dtype: 'float64' } as any,
+            { name: 'other', dtype: 'float64' } as any,
+        ];
+        appState.previewTimeColumn = 'timestamp';
+
+        initUploadPanel(vi.fn(), vi.fn(), {
+            buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(),
+        });
+
+        document.getElementById('profile-select-all-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+        expect(datasetState.columnProfiles).toHaveLength(3);
+        expect(uiState.previewSelectedColumns).toEqual(['timestamp', 'value', 'other']);
+        expect(uiState.previewTimeColumn).toBe('timestamp');
     });
 });
 

@@ -11,7 +11,6 @@ export { setProfileMode } from '../features/upload/preview.js';
 export { applyPartialTimeRangeFromMetadata } from '../features/upload/partialLoadControls.js';
 export { formatUploadRowCountValue as formatUploadRowCount, loadedRowCountFromResponse } from '../features/upload/preview.js';
 
-import { appState } from '../store/index.js';
 import {
     setUploadPreviewStatus,
     setProfileMode,
@@ -36,10 +35,12 @@ import {
 } from '../features/upload/partialLoadControls.js';
 import { submitFileUpload } from '../features/upload/fileSource.js';
 import {
+    datasetState,
     setDatasetRevision,
     setMetadata,
     setPreviewSelectedColumns,
     setPreviewTimeColumn,
+    uiState,
 } from '../store/index.js';
 import { toast } from '../utils/toast.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
@@ -212,11 +213,11 @@ export function initUploadPanel(
         nRowsDisp.textContent = formatUploadRowCountLocal(defaultRows);
     }
 
-    applyTimeRangeFromMetadata(appState.metadata, false);
+    applyTimeRangeFromMetadata(datasetState.metadata, false);
     syncUploadButtonState();
 
     // If no preview is active and we have no metadata yet, fetch existing dataset state
-    if (!appState.metadata) {
+    if (!datasetState.metadata) {
         void import('../services/api/index.js').then(async ({ fetchMetadata }) => {
             try {
                 const freshMetadata = await fetchMetadata();
@@ -240,11 +241,11 @@ export function initUploadPanel(
     });
 
     function setSelectionMode(mode: 'all' | 'none') {
-        const columns = Array.isArray(appState.columnProfiles)
-            ? appState.columnProfiles.map((profile) => profile.name)
+        const columns = Array.isArray(datasetState.columnProfiles)
+            ? datasetState.columnProfiles.map((profile) => profile.name)
             : [];
         const next = new Set<string>();
-        if (appState.previewTimeColumn) next.add(appState.previewTimeColumn);
+        if (uiState.previewTimeColumn) next.add(uiState.previewTimeColumn);
         if (mode === 'all') {
             for (const name of columns) next.add(name);
         }
