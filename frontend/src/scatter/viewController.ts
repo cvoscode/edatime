@@ -6,11 +6,10 @@
  * may call openScatterPairInCausal). They are also imported by scatterPage.ts
  * for co-located use in the render pipeline.
  */
-import { appState } from '../store/appStateCompat.js';
+import { scatterState } from '../store/index.js';
 import { syncModeUI } from './rendering.js';
 import { renderScatterMatrixView, selectMatrixPair } from './matrix.js';
 import { getEl } from './helpers.js';
-import { normalizeAnalyticsView } from './state.js';
 import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 
 export function setSidebarAnalyticsSelection(viewName: string): void {
@@ -38,7 +37,7 @@ export async function setScatterView(
 ): Promise<void> {
     const nextView = viewName || 'plot';
     const shouldRender = options.render !== false;
-    appState.scatter.activeView = nextView;
+    scatterState.activeView = nextView;
     setSidebarAnalyticsSelection(nextView);
     syncScatterViewButtons(nextView);
     syncModeUI();
@@ -56,11 +55,11 @@ export async function setScatterView(
         );
         return;
     }
-    requestAnimationFrame(() => appState.scatter.chart?.resize?.());
+    requestAnimationFrame(() => scatterState.chart?.resize?.());
 }
 
 export async function refreshActiveScatterView(): Promise<void> {
-    return setScatterView(appState.scatter.activeView, { render: true });
+    return setScatterView(scatterState.activeView, { render: true });
 }
 
 export async function onMatrixCellClick(
