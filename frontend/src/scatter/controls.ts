@@ -114,9 +114,6 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
 
     if (!xSelect || !ySelect || !binSizeInput || !binSizeValue || !normalizationSelect || !renderModeSelect) return;
 
-    (window as any).__edatime = (window as any).__edatime || {};
-    (window as any).__edatime.exportScatterData = exportScatterData;
-
     binSizeValue.textContent = binSizeInput.value;
     updateRangeFill(binSizeInput);
     if (suggestionThresholdInput) {

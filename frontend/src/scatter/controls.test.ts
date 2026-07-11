@@ -172,6 +172,25 @@ describe('bindScatterControls', () => {
         expect(updateMarginalPlotsMock).toHaveBeenCalledTimes(1);
     });
 
+    it('does not publish scatter export helpers on the window bridge', async () => {
+        const { bindScatterControls } = await import('./controls.js');
+        (window as Window & { __edatime?: Record<string, unknown> }).__edatime = {};
+
+        bindScatterControls({
+            initScatterPage: vi.fn(async () => { }),
+            renderScatter: vi.fn(async () => { }),
+            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
+            refreshActiveScatterView: vi.fn(async () => { }),
+            setScatterView: vi.fn(async () => { }),
+            handleErr: vi.fn(),
+            rerenderScatterFromCache: vi.fn(async () => { }),
+            renderScatterDebounced: vi.fn(),
+            syncScatterFilterBadge: vi.fn(),
+        });
+
+        expect((window as any).__edatime.exportScatterData).toBeUndefined();
+    });
+
     it('updates marginal plots when diagonal mode changes on the main plot', async () => {
         const { bindScatterControls } = await import('./controls.js');
 

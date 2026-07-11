@@ -523,7 +523,6 @@ declare global {
             DEBUG?: boolean;
             debugYSnapshot?: unknown;
             keyboardShortcutsBound?: boolean;
-            exportScatterData?: (format: string) => void;
             ensureDatasetReady?: (page?: string) => Promise<void>;
             [key: string]: unknown;
         };
