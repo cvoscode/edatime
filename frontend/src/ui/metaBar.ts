@@ -6,13 +6,13 @@
  *   - `setMetaText()` for the live status line under the chart
  *   - `buildMetaBar()` for the static row/series counters in the header
  *
- * Both helpers read from the composite `appState` via `store/appStateCompat.js`
+ * Both helpers read from focused store slices
  * and write to the well-known DOM ids:
  *   - `#stat-rows`            (live status line)
  *   - `#header-meta`          (rows counter)
  *   - `#timeseries-meta-bar`  (numeric series counter)
  */
-import { appState } from '../store/appStateCompat.js';
+import { datasetState } from '../store/index.js';
 
 export function setMetaText(text: string): void {
     const el = document.getElementById('stat-rows');
@@ -28,7 +28,7 @@ export function buildMetaBar(metadata: MetaBarMetadata | null): void {
         ? Number(metadata.total_rows).toLocaleString()
         : '—';
     const cols = metadata
-        ? String(appState.numericCols?.length ?? 0)
+        ? String(datasetState.numericCols.length)
         : '—';
     const markup = `
       <div class="meta-stat live"><strong>${rows}</strong> rows</div>

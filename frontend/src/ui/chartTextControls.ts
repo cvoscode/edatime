@@ -3,8 +3,7 @@
  * Extracted from toolbar.ts to reduce its size and improve maintainability.
  */
 
-import { appState } from '../store/appStateCompat.js';
-import { setChartText } from '../store/index.js';
+import { chartState, setChartText } from '../store/index.js';
 
 export function initChartTextControls(): void {
     const titleInput = document.getElementById('chart-title-input') as HTMLInputElement | null;
@@ -13,25 +12,25 @@ export function initChartTextControls(): void {
 
     const applyChartText = () => {
         setChartText({
-            title: titleInput?.value ?? appState.chartText.title,
-            xLabel: xLabelInput?.value ?? appState.chartText.xLabel,
-            yLabel: yLabelInput?.value ?? appState.chartText.yLabel,
+            title: titleInput?.value ?? chartState.chartText.title,
+            xLabel: xLabelInput?.value ?? chartState.chartText.xLabel,
+            yLabel: yLabelInput?.value ?? chartState.chartText.yLabel,
         });
-        appState.chart?.setChartText?.(appState.chartText.title, appState.chartText.xLabel, appState.chartText.yLabel);
+        chartState.chart?.setChartText?.(chartState.chartText.title, chartState.chartText.xLabel, chartState.chartText.yLabel);
     };
 
     if (titleInput && !titleInput.dataset.bound) {
-        titleInput.value = appState.chartText.title || '';
+        titleInput.value = chartState.chartText.title || '';
         titleInput.addEventListener('input', applyChartText);
         titleInput.dataset.bound = '1';
     }
     if (xLabelInput && !xLabelInput.dataset.bound) {
-        xLabelInput.value = appState.chartText.xLabel || '';
+        xLabelInput.value = chartState.chartText.xLabel || '';
         xLabelInput.addEventListener('input', applyChartText);
         xLabelInput.dataset.bound = '1';
     }
     if (yLabelInput && !yLabelInput.dataset.bound) {
-        yLabelInput.value = appState.chartText.yLabel || '';
+        yLabelInput.value = chartState.chartText.yLabel || '';
         yLabelInput.addEventListener('input', applyChartText);
         yLabelInput.dataset.bound = '1';
     }
