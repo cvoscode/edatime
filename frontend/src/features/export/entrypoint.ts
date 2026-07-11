@@ -107,18 +107,22 @@ async function exportFilteredParquet(deps: ExportFeatureDeps): Promise<boolean> 
     const start = Number(snapshot.viewport.xMin);
     const end = Number(snapshot.viewport.xMax);
     const selectedColumns = snapshot.selection.columns;
-    if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) {
         return false;
     }
     if (selectedColumns.length === 0) {
         return false;
     }
 
-    const params = new URLSearchParams({
-        start: new Date(start).toISOString(),
-        end: new Date(end).toISOString(),
-        columns: selectedColumns.join(','),
-    });
+    let startIso: string;
+    let endIso: string;
+    try {
+        startIso = new Date(start).toISOString();
+        endIso = new Date(end).toISOString();
+    } catch {
+        return false;
+    }
+    const params = new URLSearchParams({ start: startIso, end: endIso, columns: selectedColumns.join(',') });
 
     const filters = Object.entries(snapshot.filters.columnRanges)
         .map(([column, range]) => {
@@ -127,7 +131,7 @@ async function exportFilteredParquet(deps: ExportFeatureDeps): Promise<boolean> 
             if (!column || !Number.isFinite(from) || !Number.isFinite(to)) return null;
             return { column, from, to };
         })
-        .filter(Boolean);
+        .filter((filter): filter is { column: string; from: number; to: number } => filter !== null);
     if (filters.length > 0) {
         params.set('filters', JSON.stringify(filters));
     }

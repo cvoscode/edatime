@@ -169,4 +169,17 @@ describe('export feature characterization', () => {
         expect(exportParquetMock).not.toHaveBeenCalled();
         expect(downloadBlobMock).not.toHaveBeenCalled();
     });
+
+    it('returns false instead of throwing for a finite viewport outside the JavaScript Date range', async () => {
+        workspaceSnapshot = {
+            selection: { columns: ['temp'] },
+            filters: { columnRanges: {}, adaptiveLines: [] },
+            viewport: { xMin: 1e30, xMax: 2e30, yMin: null, yMax: null },
+        };
+        const feature = createFeature();
+
+        await expect(feature.exportFilteredParquet()).resolves.toBe(false);
+        expect(exportParquetMock).not.toHaveBeenCalled();
+        expect(downloadBlobMock).not.toHaveBeenCalled();
+    });
 });
