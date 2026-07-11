@@ -1,12 +1,11 @@
-import { getJson, postJson } from './http.js';
+import { readApiError } from './http.js';
 
 // ── Export ─────────────────────────────────────────────────────────────────
 
 export async function exportParquet(params: URLSearchParams): Promise<Blob> {
     const res = await globalThis.fetch(`/api/export/parquet?${params.toString()}`);
     if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Parquet export failed (${res.status}) ${text}`);
+        throw await readApiError(res, 'Parquet export');
     }
     return res.blob();
 }
@@ -18,8 +17,7 @@ export async function exportScatterParquet(payload: unknown): Promise<Blob> {
         body: JSON.stringify(payload),
     });
     if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Scatter parquet export failed (${res.status}) ${text}`);
+        throw await readApiError(res, 'Scatter parquet export');
     }
     return res.blob();
 }
