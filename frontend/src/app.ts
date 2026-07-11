@@ -177,6 +177,8 @@ async function init(): Promise<void> {
         showPage,
         fetchAndRender: () => timeseriesModule.fetchAndRender(),
         fetchAndRenderAnalytics,
+        exportFilteredCsv: () => exportChartFilteredData('csv'),
+        exportFilteredJson: () => exportChartFilteredData('json'),
         renderCurrentData: () => timeseriesModule.renderCurrentData(),
         updateAnalysisYRange,
         buildTimeseriesColumns: () => timeseriesModule.buildColumnToggles(),
@@ -215,8 +217,8 @@ async function init(): Promise<void> {
         zoomOut: () => timeseriesModule.zoomOut(),
         resetZoom: () => timeseriesModule.resetZoom(),
         chartExportPng: () => chartState.chart?.exportPNG?.(),
-        exportFilteredCsv: () => (window as any).__edatime?.exportChartFilteredData?.('csv'),
-        exportFilteredJson: () => (window as any).__edatime?.exportChartFilteredData?.('json'),
+        exportFilteredCsv: () => exportChartFilteredData('csv'),
+        exportFilteredJson: () => exportChartFilteredData('json'),
         registerCleanup: runtime.registerCleanup,
     });
 

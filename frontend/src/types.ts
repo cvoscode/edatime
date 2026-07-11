@@ -523,7 +523,6 @@ declare global {
             DEBUG?: boolean;
             debugYSnapshot?: unknown;
             keyboardShortcutsBound?: boolean;
-            exportChartFilteredData?: (format?: 'csv' | 'json') => boolean;
             exportScatterData?: (format: string) => void;
             ensureDatasetReady?: (page?: string) => Promise<void>;
             [key: string]: unknown;

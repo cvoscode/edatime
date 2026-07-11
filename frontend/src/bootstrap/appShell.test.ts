@@ -85,9 +85,14 @@ describe('appShell helpers', () => {
         const zoomOut = vi.fn();
         const resetZoom = vi.fn();
         const exportChartFilteredData = vi.fn();
-        (window as any).__edatime.exportChartFilteredData = exportChartFilteredData;
 
-        await registerAppCommands({ showPage, zoomOut, resetZoom });
+        await registerAppCommands({
+            showPage,
+            zoomOut,
+            resetZoom,
+            exportFilteredCsv: () => exportChartFilteredData('csv'),
+            exportFilteredJson: () => exportChartFilteredData('json'),
+        });
 
         expect(mocks.registerCommands).toHaveBeenCalledTimes(1);
         const commands = mocks.registerCommands.mock.calls[0][0] as Array<{ id: string; action: () => void }>;
@@ -115,13 +120,14 @@ describe('appShell helpers', () => {
         const exportChartFilteredData = vi.fn();
         const adaptiveClear = vi.fn();
 
-        (window as any).__edatime.exportChartFilteredData = exportChartFilteredData;
         document.getElementById('adaptive-clear-btn')?.addEventListener('click', adaptiveClear);
 
         initKeyboardShortcuts({
             showPage,
             zoomOut,
             resetZoom,
+            exportFilteredCsv: () => exportChartFilteredData('csv'),
+            exportFilteredJson: () => exportChartFilteredData('json'),
             registerCleanup: (cleanup: () => void) => {
                 cleanupFns.push(cleanup);
                 cleanups.push(cleanup);
@@ -159,6 +165,8 @@ describe('appShell helpers', () => {
             showPage,
             zoomOut,
             resetZoom,
+            exportFilteredCsv: vi.fn(),
+            exportFilteredJson: vi.fn(),
             registerCleanup: (cleanup: () => void) => cleanups.push(cleanup),
         }, APP_COMMAND_DEFINITIONS);
 

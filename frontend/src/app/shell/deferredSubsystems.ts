@@ -18,6 +18,8 @@ export interface DeferredShellDeps {
     ensurePageModuleLoaded: (page: string) => Promise<void>;
     fetchAndRender: () => void;
     fetchAndRenderAnalytics: () => Promise<void>;
+    exportFilteredCsv: () => void;
+    exportFilteredJson: () => void;
     refreshDatasetAfterMutation: (options?: RefreshDatasetOptions) => Promise<void>;
     buildTimeseriesColumns: () => void;
     buildTimeseriesRanges: () => void;
@@ -47,7 +49,7 @@ interface SubsystemEntry {
     pending: Promise<void> | null;
 }
 
-type CommandDeps = Pick<DeferredShellDeps, 'showPage' | 'zoomOut' | 'resetZoom'>;
+type CommandDeps = Pick<DeferredShellDeps, 'showPage' | 'zoomOut' | 'resetZoom' | 'exportFilteredCsv' | 'exportFilteredJson'>;
 
 export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     const subsystems: Record<string, SubsystemEntry> = {};
@@ -147,6 +149,8 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
             showPage: deps.showPage,
             zoomOut: deps.zoomOut,
             resetZoom: deps.resetZoom,
+            exportFilteredCsv: deps.exportFilteredCsv,
+            exportFilteredJson: deps.exportFilteredJson,
         };
         await registerAppCommands(commandDeps);
     });

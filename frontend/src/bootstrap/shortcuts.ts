@@ -20,19 +20,21 @@ export interface ShortcutDeps {
     showPage: (pageName: string) => void;
     zoomOut: () => void;
     resetZoom: () => void;
+    exportFilteredCsv: () => void;
+    exportFilteredJson: () => void;
     registerCleanup: (cleanup: () => void) => void;
 }
 
 const KEYBOARD_ONLY_SHORTCUTS: ReadonlyArray<ShortcutDefinition> = [
-    { key: 'e', shift: true, action: () => triggerActivePageCsvExport() },
+    { key: 'e', shift: true, action: () => {} },
 ];
 
-function triggerActivePageCsvExport(): void {
+function triggerActivePageCsvExport(deps: Pick<ShortcutDeps, 'exportFilteredCsv'>): void {
     if (currentPageName() === 'scatter') {
         document.getElementById('scatter-export-csv-btn')?.click?.();
         return;
     }
-    (window as any).__edatime?.exportChartFilteredData?.('csv');
+    deps.exportFilteredCsv();
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -77,7 +79,12 @@ export function findMatchingShortcut(
             action: () => commandShortcut.action(deps),
         };
     }
-    return KEYBOARD_ONLY_SHORTCUTS.find((shortcut) => matchesKeyboardShortcut(shortcut, key, pageName, options));
+    const keyboardOnly = KEYBOARD_ONLY_SHORTCUTS.find((shortcut) => matchesKeyboardShortcut(shortcut, key, pageName, options));
+    if (!keyboardOnly) return undefined;
+    return {
+        ...keyboardOnly,
+        action: () => triggerActivePageCsvExport(deps),
+    };
 }
 
 let _bound = false;

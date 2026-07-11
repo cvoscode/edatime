@@ -10,6 +10,8 @@ export type CommandDeps = {
     showPage: (pageName: string) => void;
     zoomOut: () => void;
     resetZoom: () => void;
+    exportFilteredCsv: () => void;
+    exportFilteredJson: () => void;
 };
 
 export interface CommandDefinition {
@@ -19,10 +21,6 @@ export interface CommandDefinition {
     category: PaletteCommand['category'];
     action: (deps: CommandDeps) => void | Promise<void>;
     keyboard?: { key: string; alt?: boolean; shift?: boolean; page?: string };
-}
-
-function exportChartFilteredData(format: 'csv' | 'json'): void {
-    (window as any).__edatime?.exportChartFilteredData?.(format);
 }
 
 function triggerAdaptiveFilterClear(): void {
@@ -56,8 +54,8 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
     { id: 'chart-reset', label: 'Reset zoom', shortcut: 'Shift+R', category: 'Chart', action: (deps) => deps.resetZoom(), keyboard: { key: 'r', shift: true, page: 'timeseries' } },
     { id: 'chart-zoomout', label: 'Zoom out one level', shortcut: 'Shift+Z', category: 'Chart', action: (deps) => deps.zoomOut(), keyboard: { key: 'z', shift: true, page: 'timeseries' } },
     { id: 'chart-clear-af', label: 'Clear adaptive filters', shortcut: 'Shift+C', category: 'Chart', action: () => triggerAdaptiveFilterClear(), keyboard: { key: 'c', shift: true, page: 'timeseries' } },
-    { id: 'export-csv', label: 'Export chart data as CSV', shortcut: 'Shift+E', category: 'Export', action: () => exportChartFilteredData('csv') },
-    { id: 'export-json', label: 'Export chart data as JSON', category: 'Export', action: () => exportChartFilteredData('json') },
+    { id: 'export-csv', label: 'Export chart data as CSV', shortcut: 'Shift+E', category: 'Export', action: (deps) => deps.exportFilteredCsv() },
+    { id: 'export-json', label: 'Export chart data as JSON', category: 'Export', action: (deps) => deps.exportFilteredJson() },
     { id: 'export-png', label: 'Export chart as PNG', category: 'Export', action: () => (window as any).__edatime?.chart?.exportPNG?.() },
     { id: 'export-parquet', label: 'Export filtered data as Parquet', category: 'Export', action: () => document.getElementById('export-data-parquet-btn')?.click?.() },
     {

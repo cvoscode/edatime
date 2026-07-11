@@ -30,6 +30,8 @@ export interface AppShellDeps {
     showPage: (pageName: string) => void;
     fetchAndRender: () => void;
     fetchAndRenderAnalytics: () => Promise<void>;
+    exportFilteredCsv: () => void;
+    exportFilteredJson: () => void;
     renderCurrentData: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     buildTimeseriesColumns: () => void;
@@ -55,6 +57,8 @@ export function initAppShell(deps: AppShellDeps): AppShell {
         ensurePageModuleLoaded: deps.ensurePageModuleLoaded,
         fetchAndRender: deps.fetchAndRender,
         fetchAndRenderAnalytics: deps.fetchAndRenderAnalytics,
+        exportFilteredCsv: deps.exportFilteredCsv,
+        exportFilteredJson: deps.exportFilteredJson,
         refreshDatasetAfterMutation: deps.refreshDatasetAfterMutation,
         buildTimeseriesColumns: deps.buildTimeseriesColumns,
         buildTimeseriesRanges: deps.buildTimeseriesRanges,
