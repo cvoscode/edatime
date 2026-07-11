@@ -17,6 +17,7 @@ import { dbg, dbgGroup } from '../debug.js';
 import { updateAnalysisZoom, updateAnalysisYRange } from './analysisStatus.js';
 import type { ViewSnapshot } from '../types.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+import { hasFilterModalOpener, openFilterForColumn } from '../features/timeseries/filterModalService.js';
 
 // Keep the zoom-range badge in sync with the store regardless of which
 // path mutates `appState.currentStart/currentEnd` or `appState.initialView`.
@@ -143,8 +144,7 @@ export function initChartPageFilterGesture(): void {
     pageChart.addEventListener('contextmenu', (e: MouseEvent) => {
         const inPlot = (e.target as HTMLElement)?.closest?.('#main-chart');
         if (inPlot) return;
-        const open = (window as any).__edatime?.openFilterForCol;
-        if (typeof open !== 'function') return;
+        if (!hasFilterModalOpener()) return;
         e.preventDefault();
 
         const now = performance.now();
@@ -153,7 +153,7 @@ export function initChartPageFilterGesture(): void {
         if (!isDoubleContext) return;
 
         lastContextTs = 0;
-        open(null);
+        openFilterForColumn(null);
     });
 
     pageChart.dataset.filterCtxBound = '1';

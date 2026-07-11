@@ -15,6 +15,7 @@ import {
 } from '../../store/index.js';
 import { ensureAdaptiveTargetStillValid } from './columnSelection.js';
 import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace } from './selectionIntent.js';
+import { openFilterForColumn } from './filterModalService.js';
 
 export interface ChipCompositionOptions {
     workspace: SelectionWorkspace;
@@ -80,8 +81,7 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
                 renderCurrentDataFn?.();
             },
             onMenuClick: () => {
-                const open = window.__edatime?.openFilterForCol;
-                if (typeof open === 'function') open(col);
+                openFilterForColumn(col);
             },
             menuLabel: `Filter range for ${col}`,
         };

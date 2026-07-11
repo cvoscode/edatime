@@ -5,6 +5,8 @@
  * reusable without being tied to chip-list composition itself.
  */
 
+import { openFilterForColumn } from './filterModalService.js';
+
 let _lastContextTs = 0;
 let _lastContextCol = '';
 
@@ -29,8 +31,6 @@ export function bindChipContextMenu(container: HTMLElement): void {
 
         _lastContextTs = 0;
         _lastContextCol = '';
-        const open = window.__edatime?.openFilterForCol;
-        if (typeof open !== 'function') return;
-        open(col);
+        openFilterForColumn(col);
     });
 }

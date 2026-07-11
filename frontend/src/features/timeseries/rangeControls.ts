@@ -16,6 +16,7 @@ import {
 } from '../../store/index.js';
 import { RangeControls, RangeControlItem } from '../../ui/composites/RangeControls.js';
 import type { FilterWorkspace } from './selectionIntent.js';
+import { openFilterForColumn } from './filterModalService.js';
 
 /**
  * Render clickable range chips for selected columns and active adaptive filters.
@@ -54,10 +55,7 @@ export function buildRangeControls(workspace: FilterWorkspace): void {
             className: 'range-chip range-chip--clickable',
             kind: 'column-range',
             ariaLabel: `Filter ${col}`,
-            onActivate: () => {
-                const fn = window.__edatime?.openFilterForCol;
-                if (typeof fn === 'function') fn(colCopy);
-            },
+            onActivate: () => { openFilterForColumn(colCopy); },
         });
     }
 

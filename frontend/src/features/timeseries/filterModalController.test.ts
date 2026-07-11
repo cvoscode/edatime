@@ -9,6 +9,7 @@ import {
     setSelectedCols,
 } from '../../store/index.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
+import { __resetFilterModalOpenerForTests, openFilterForColumn } from './filterModalService.js';
 
 function buildModalDOM(): void {
     document.body.innerHTML = `
@@ -33,6 +34,7 @@ function buildModalDOM(): void {
 describe('initFilterModalController', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
+        __resetFilterModalOpenerForTests();
         buildModalDOM();
 
         setMetadata({
@@ -71,16 +73,17 @@ describe('initFilterModalController', () => {
         } as any;
     });
 
-    describe('openFilterForCol', () => {
+    describe('filter modal opener', () => {
         it('shows the modal when opened', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
 
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             const modal = document.getElementById('column-filter-modal')!;
             expect(modal.hidden).toBe(false);
+            expect((window as any).__edatime?.openFilterForCol).toBeUndefined();
         });
 
         it('populates column select with available columns', () => {
@@ -88,7 +91,7 @@ describe('initFilterModalController', () => {
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
 
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             const select = document.getElementById('column-filter-col') as HTMLSelectElement;
             const options = Array.from(select.options).map((o) => o.value);
@@ -102,7 +105,7 @@ describe('initFilterModalController', () => {
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
 
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             const minInput = document.getElementById('column-filter-min') as HTMLInputElement;
             const maxInput = document.getElementById('column-filter-max') as HTMLInputElement;
@@ -116,7 +119,7 @@ describe('initFilterModalController', () => {
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
 
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             const minInput = document.getElementById('column-filter-min') as HTMLInputElement;
             const maxInput = document.getElementById('column-filter-max') as HTMLInputElement;
@@ -131,7 +134,7 @@ describe('initFilterModalController', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             const minInput = document.getElementById('column-filter-min') as HTMLInputElement;
             const maxInput = document.getElementById('column-filter-max') as HTMLInputElement;
@@ -152,7 +155,7 @@ describe('initFilterModalController', () => {
                 updateAnalysisYRange: vi.fn(),
                 workspace,
             });
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             (document.getElementById('column-filter-min') as HTMLInputElement).value = '0.30';
             (document.getElementById('column-filter-max') as HTMLInputElement).value = '0.70';
@@ -165,7 +168,7 @@ describe('initFilterModalController', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             const applyBtn = document.getElementById('column-filter-apply-btn') as HTMLButtonElement;
             applyBtn.click();
@@ -177,7 +180,7 @@ describe('initFilterModalController', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             const applyBtn = document.getElementById('column-filter-apply-btn') as HTMLButtonElement;
             applyBtn.click();
@@ -190,7 +193,7 @@ describe('initFilterModalController', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             const applyBtn = document.getElementById('column-filter-apply-btn') as HTMLButtonElement;
             applyBtn.click();
@@ -205,7 +208,7 @@ describe('initFilterModalController', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             const clearBtn = document.getElementById('column-filter-clear-btn') as HTMLButtonElement;
             clearBtn.click();
@@ -218,7 +221,7 @@ describe('initFilterModalController', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             const clearBtn = document.getElementById('column-filter-clear-btn') as HTMLButtonElement;
             clearBtn.click();
@@ -233,7 +236,7 @@ describe('initFilterModalController', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             const minInput = document.getElementById('column-filter-min') as HTMLInputElement;
             minInput.value = '0.35';
@@ -252,7 +255,7 @@ describe('initFilterModalController', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
 
@@ -266,7 +269,7 @@ describe('initFilterModalController', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             const modal = document.getElementById('column-filter-modal')!;
             modal.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -280,7 +283,7 @@ describe('initFilterModalController', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             const minInput = document.getElementById('column-filter-min') as HTMLInputElement;
             minInput.value = '0.50';
@@ -294,7 +297,7 @@ describe('initFilterModalController', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
-            ((window.__edatime as any) ?? { openFilterForCol: () => {} }).openFilterForCol!('HUFL');
+            openFilterForColumn('HUFL');
 
             const minRangeInput = document.getElementById('column-filter-min-range') as HTMLInputElement;
             minRangeInput.value = '0.50';

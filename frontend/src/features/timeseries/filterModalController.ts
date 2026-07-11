@@ -5,6 +5,7 @@ import { buildRangeControls } from './rangeControls.js';
 import { ColumnFilterModal } from '../../ui/composites/ColumnFilterModal.js';
 import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
 import type { FilterWorkspace } from './selectionIntent.js';
+import { registerFilterModalOpener } from './filterModalService.js';
 
 export interface FilterModalControllerDeps {
     renderCurrentData: () => void;
@@ -266,8 +267,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
         setHint('');
     }
 
-    window.__edatime = window.__edatime || {};
-    window.__edatime.openFilterForCol = openModalForCol;
+    registerFilterModalOpener(openModalForCol);
 
     for (const btn of openBtns) {
         btn.addEventListener('click', () => openModalForCol(null));
