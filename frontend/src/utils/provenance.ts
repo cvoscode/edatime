@@ -6,7 +6,7 @@
  * Toggleable via button in the header.
  */
 
-import { appState } from '../store/index.js';
+import { analyticsState, chartState, datasetState, uiState } from '../store/index.js';
 import { formatAnalysisTime, formatAnalysisNumber } from '../utils/format.js';
 
 let _panel: HTMLElement | null = null;
@@ -57,8 +57,8 @@ function renderContent(): void {
     const sections: string[] = [];
 
     // Dataset info
-    if (appState.metadata) {
-        const m = appState.metadata as any;
+    if (datasetState.metadata) {
+        const m = datasetState.metadata as any;
         const rows = m.total_rows?.toLocaleString() ?? '—';
         const cols = m.columns?.length ?? 0;
         const timeCol = m.time_column ?? '—';
@@ -73,39 +73,39 @@ function renderContent(): void {
     }
 
     // Time range
-    if (Number.isFinite(appState.currentStart) && Number.isFinite(appState.currentEnd)) {
+    if (Number.isFinite(chartState.currentStart) && Number.isFinite(chartState.currentEnd)) {
         sections.push(`
             <div class="provenance-section">
                 <div class="provenance-section-title">Time Range</div>
-                <div class="provenance-row"><span class="provenance-key">Start</span><span class="provenance-val">${formatAnalysisTime(appState.currentStart!)}</span></div>
-                <div class="provenance-row"><span class="provenance-key">End</span><span class="provenance-val">${formatAnalysisTime(appState.currentEnd!)}</span></div>
+                <div class="provenance-row"><span class="provenance-key">Start</span><span class="provenance-val">${formatAnalysisTime(chartState.currentStart!)}</span></div>
+                <div class="provenance-row"><span class="provenance-key">End</span><span class="provenance-val">${formatAnalysisTime(chartState.currentEnd!)}</span></div>
             </div>
         `);
     }
 
     // Selected columns
-    if (appState.selectedCols.length > 0) {
-        const chips = appState.selectedCols.map((c) => `<span class="provenance-chip">${escapeText(c)}</span>`).join('');
+    if (uiState.selectedCols.length > 0) {
+        const chips = uiState.selectedCols.map((c) => `<span class="provenance-chip">${escapeText(c)}</span>`).join('');
         sections.push(`
             <div class="provenance-section">
-                <div class="provenance-section-title">Selected Series (${appState.selectedCols.length})</div>
+                <div class="provenance-section-title">Selected Series (${uiState.selectedCols.length})</div>
                 <div class="provenance-chips">${chips}</div>
             </div>
         `);
     }
 
     // Color encoding
-    if (appState.selectedColorColumn) {
+    if (uiState.selectedColorColumn) {
         sections.push(`
             <div class="provenance-section">
                 <div class="provenance-section-title">Color Encoding</div>
-                <div class="provenance-row"><span class="provenance-key">Column</span><span class="provenance-val">${escapeText(appState.selectedColorColumn)}</span></div>
+                <div class="provenance-row"><span class="provenance-key">Column</span><span class="provenance-val">${escapeText(uiState.selectedColorColumn)}</span></div>
             </div>
         `);
     }
 
     // Numeric range filters
-    const rangeEntries = Object.entries(appState.columnRanges || {});
+    const rangeEntries = Object.entries(uiState.columnRanges);
     if (rangeEntries.length > 0) {
         const rows = rangeEntries.map(([col, r]) =>
             `<div class="provenance-row"><span class="provenance-key">${escapeText(col)}</span><span class="provenance-val">${formatAnalysisNumber(r.from)} → ${formatAnalysisNumber(r.to)}</span></div>`,
@@ -119,13 +119,13 @@ function renderContent(): void {
     }
 
     // Adaptive line filters
-    if (appState.adaptiveLineFilters.length > 0) {
-        const rows = appState.adaptiveLineFilters.map((f) =>
+    if (uiState.adaptiveLineFilters.length > 0) {
+        const rows = uiState.adaptiveLineFilters.map((f) =>
             `<div class="provenance-row"><span class="provenance-key">${escapeText(f.column)}</span><span class="provenance-val">${f.keepAbove ? 'above' : 'below'} line</span></div>`,
         ).join('');
         sections.push(`
             <div class="provenance-section">
-                <div class="provenance-section-title">Adaptive Filters (${appState.adaptiveLineFilters.length})</div>
+                <div class="provenance-section-title">Adaptive Filters (${uiState.adaptiveLineFilters.length})</div>
                 ${rows}
             </div>
         `);
@@ -133,8 +133,8 @@ function renderContent(): void {
 
     // Analytics overlays
     const overlays: string[] = [];
-    if (appState.rollingEnabled) overlays.push(`Rolling mean (window ${appState.rollingWindow})`);
-    if (appState.anomalyEnabled) overlays.push(`Anomaly detection (${appState.anomalyMethod}, σ=${appState.anomalyThreshold})`);
+    if (analyticsState.rollingEnabled) overlays.push(`Rolling mean (window ${analyticsState.rollingWindow})`);
+    if (analyticsState.anomalyEnabled) overlays.push(`Anomaly detection (${analyticsState.anomalyMethod}, σ=${analyticsState.anomalyThreshold})`);
     if (overlays.length > 0) {
         sections.push(`
             <div class="provenance-section">
@@ -159,6 +159,12 @@ export function toggleProvenance(): void {
 
 export function refreshProvenance(): void {
     if (_panel && !_panel.hidden) renderContent();
+}
+
+export function __resetProvenanceForTests(): void {
+    _panel?.remove();
+    _panel = null;
+    _content = null;
 }
 
 export function initProvenance(): void {
