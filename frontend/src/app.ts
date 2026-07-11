@@ -202,10 +202,6 @@ async function init(): Promise<void> {
         workspace,
     });
 
-    (window).__edatime = (window).__edatime || {};
-    (window).__edatime.ensureDatasetReady = () => timeseriesModule.ensureDatasetReady();
-    (window).__edatime.ensureReady = () => timeseriesModule.ensureReady();
-
     initGlobalShortcuts({
         showPage,
         openCommands: shell.openCommands,

@@ -10,10 +10,10 @@
  *     guided workflow, transform / outlier modals, provenance, command
  *     palette, keyboard shortcuts, sample dataset cards, etc.).
  *
- * `initAppShell` only wires the always-on layer plus a `window.__edatime`
- * bridge. All deferred subsystems are pulled in via the small `ensure*`
- * helpers from `deferredSubsystems.ts`. The shell never imports the
- * underlying heavy modules directly; it only knows their contracts.
+ * `initAppShell` only wires the always-on layer plus the small deferred
+ * subsystem contract used by navigation and command surfaces. The shell never
+ * imports the underlying heavy modules directly; it only knows their
+ * contracts.
  */
 
 import { initShellCore } from './shell/core.js';
@@ -88,29 +88,7 @@ export function initAppShell(deps: AppShellDeps): AppShell {
         }
     };
 
-    // Lightweight global bridge used by command palette, tests, and
-    // utility hooks. We intentionally do not import the heavy
-    // subsystems here; they remain behind deferred loaders.
-    //
-    // IMPORTANT: this bridge MUST be installed BEFORE `initShellCore`
-    // runs. `initShellCore` calls `initPages()` which immediately
-    // invokes `showPage(getHashPage() ?? 'home')`. The very first
-    // `showPage('home')` calls `ensureSubsystem('home')`, which wires
-    // the home-page sample-dataset click handlers. If we attach the
-    // bridge after `initShellCore` returns, that first `ensureSubsystem`
-    // call no-ops via the optional chain, and the sample-dataset cards
-    // stay unbound on first paint. (See audit issue 1.1.)
-    const win = window as unknown as {
-        __edatime: Record<string, unknown> & {
-            ensurePageModuleLoaded?: typeof deps.ensurePageModuleLoaded;
-            ensureSubsystem?: (name: string) => Promise<void>;
-            showPage?: typeof deps.showPage;
-        };
-    };
-    win.__edatime = win.__edatime || {};
-    win.__edatime.ensureSubsystem = ensureSubsystem;
-
-    // Always-on bridge. Keep this cheap — see `shell/core.ts` for details.
+    // Keep this layer cheap — see `shell/core.ts` for details.
     initShellCore({
         showPage: deps.showPage,
         navigation: {

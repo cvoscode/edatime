@@ -53,8 +53,6 @@ describe('shell bootstrap', () => {
         const { initAnalyticsDrawer } = await import('../ui/analyticsDrawer.js');
         expect(initUploadPanel).not.toHaveBeenCalled();
         expect(initAnalyticsDrawer).not.toHaveBeenCalled();
-
-        expect((window as any).__edatime.ensureSubsystem).toBeTypeOf('function');
     });
 
     it('delegates to core shell modules without eagerly wiring deferred subsystems', async () => {
@@ -85,7 +83,7 @@ describe('shell bootstrap', () => {
         initAppShell(deps as any);
         const bridge = (window as any).__edatime;
         expect(bridge).toBeTruthy();
-        expect(bridge.ensureSubsystem).toBeTypeOf('function');
+        expect(bridge.ensureSubsystem).toBeUndefined();
         expect(bridge.ensurePageModuleLoaded).toBeUndefined();
         expect(bridge.showPage).toBeUndefined();
     });
