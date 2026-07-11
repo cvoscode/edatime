@@ -361,13 +361,13 @@ describe('initScatterPage view toggles', () => {
             });
 
         const { initScatterPage, setScatterView } = await import('./scatterPage.js');
-        const { appState, setScatterViewSnapshot } = await import('../store/index.js');
+        const { setColumnRanges, setScatterViewSnapshot } = await import('../store/index.js');
 
         // Stage a filter globally and seed the plot-view snapshot so
         // the matrix swap re-installs it on the way back. The snapshot
         // is the only thing the round-trip matrix → plot needs to
         // carry the filter through the view switch.
-        appState.columnRanges = { HUFL: { from: 0, to: 1 } } as any;
+        setColumnRanges({ HUFL: { from: 0, to: 1 } } as any);
         setScatterViewSnapshot('plot', {
             columnRanges: { HUFL: { from: 0, to: 1 } },
             lineFilters: [],

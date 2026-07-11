@@ -23,7 +23,9 @@ describe('scatter query context builders', () => {
         appState.currentStart = null;
         appState.currentEnd = null;
         appState.columnRanges = {};
+        appState.adaptiveLineFilters = [];
         appState.metadata = null;
+        appState.scatter.activeView = 'plot';
         primePlotSnapshot();
     });
 
@@ -110,6 +112,18 @@ describe('scatter query context builders', () => {
             { column: 'x', from: 1, to: 9 },
             { column: 'y', from: 2, to: 8 },
         ]);
+    });
+
+    it('reads adaptive line filters from the active scatter view snapshot when no workspace intent is passed', () => {
+        appState.adaptiveLineFilters = [{ id: 'legacy', column: 'legacy', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: true }] as any;
+        setScatterViewSnapshot('plot', {
+            columnRanges: {},
+            lineFilters: [{ column: 'snapshot', x1: 0, y1: 0, x2: 2, y2: 2, keepAbove: true }],
+        });
+
+        const result = buildScatterQueryContext();
+
+        expect(result.lineFilters).toEqual([expect.objectContaining({ column: 'snapshot' })]);
     });
 
     it('reports only active scoped filter columns for badge summaries', () => {
