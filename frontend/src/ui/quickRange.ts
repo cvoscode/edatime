@@ -7,9 +7,8 @@
  * enable/disable themselves again when the dataset range changes.
  */
 
-import { appState } from '../store/appStateCompat.js';
 import { applyViewport } from './viewport.js';
-import { store } from '../store/index.js';
+import { datasetState, store } from '../store/index.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 const PRESETS: Array<{ id: string; label: string; durationMs: number | null }> = [
@@ -20,7 +19,7 @@ const PRESETS: Array<{ id: string; label: string; durationMs: number | null }> =
 ];
 
 function getDatasetRange(): { min: number; max: number } | null {
-    const range = appState.metadata?.time_range;
+    const range = datasetState.metadata?.time_range;
     if (!range) return null;
     const min = Number(range.min);
     const max = Number(range.max);

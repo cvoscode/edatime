@@ -3,7 +3,7 @@
  * Lives in ui/* since it deals with DOM event dispatch.
  */
 
-import { appState } from '../store/appStateCompat.js';
+import { uiState } from '../store/index.js';
 
 /**
  * Dispatch edatime:adaptive-filters-change whenever the adaptive
@@ -11,6 +11,6 @@ import { appState } from '../store/appStateCompat.js';
  */
 export function emitAdaptiveFiltersChange(): void {
     window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change', {
-        detail: { count: (appState.adaptiveLineFilters || []).length },
+        detail: { count: uiState.adaptiveLineFilters.length },
     }));
 }

@@ -3,9 +3,8 @@
  * Updated on zoom, Y-range, cursor, and click events from the chart.
  */
 
-import { appState } from '../store/appStateCompat.js';
 import { formatAnalysisTime, formatAnalysisNumber } from '../utils/format.js';
-import { setPendingRestoreY, setPendingYMode } from '../store/index.js';
+import { chartState, runtimeState, setPendingRestoreY, setPendingYMode } from '../store/index.js';
 
 function setText(id: string, text: string): void {
     const el = document.getElementById(id);
@@ -17,11 +16,11 @@ export function updateAnalysisZoom(startMs: number, endMs: number, sourceKind = 
 }
 
 export function updateAnalysisYRange(min: number, max: number, sourceKind = 'user'): void {
-    if (appState.pendingYMode === 'restore' && appState.pendingRestoreY) {
-        const savedY = appState.pendingRestoreY;
+    if (runtimeState.pendingYMode === 'restore' && runtimeState.pendingRestoreY) {
+        const savedY = runtimeState.pendingRestoreY;
         setPendingYMode(null);
         setPendingRestoreY(null);
-        appState.chart?.setYRange(savedY.min, savedY.max);
+        chartState.chart?.setYRange(savedY.min, savedY.max);
         setText('analysis-y', `Y: ${formatAnalysisNumber(savedY.min)} → ${formatAnalysisNumber(savedY.max)} (restore)`);
         return;
     }
