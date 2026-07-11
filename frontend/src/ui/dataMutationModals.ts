@@ -1,4 +1,4 @@
-import { appState } from '../store/index.js';
+import { uiState } from '../store/index.js';
 import { createModalController } from './shell/createModalController';
 import { createDataMutationFeature } from '../features/dataMutation/entrypoint.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
@@ -102,7 +102,7 @@ export function initOutlierModal(deps: DataMutationModalDeps): void {
             }
 
             const result = await dataMutationFeature.removeOutliers({
-                columns: appState.selectedCols.length > 0 ? appState.selectedCols : null,
+                columns: uiState.selectedCols.length > 0 ? uiState.selectedCols : null,
                 method,
                 threshold,
                 window: windowSize > 0 ? windowSize : undefined,
