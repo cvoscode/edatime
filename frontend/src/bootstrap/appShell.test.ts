@@ -167,6 +167,7 @@ describe('appShell helpers', () => {
         expect(zoomOut).toHaveBeenCalledTimes(1);
         expect(adaptiveClear).toHaveBeenCalledTimes(1);
         expect(exportChartFilteredData).toHaveBeenCalledWith('csv');
+        expect((window as any).__edatime?.keyboardShortcutsBound).toBeUndefined();
         expect(cleanupFns).toHaveLength(1);
     });
 

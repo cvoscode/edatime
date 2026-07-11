@@ -30,10 +30,11 @@ export interface TimeseriesShortcutsDeps {
     registerCleanup: (cleanup: () => void) => void;
 }
 
+let shortcutsBound = false;
+
 export function initTimeseriesShortcuts(deps: TimeseriesShortcutsDeps): void {
-    const win = window as Window & typeof globalThis;
-    if (win.__edatime?.timeseriesShortcutsBound) return;
-    if (!win.__edatime) win.__edatime = {};
+    if (shortcutsBound) return;
+    shortcutsBound = true;
 
     const onKeydown = (event: KeyboardEvent) => {
         if (event.defaultPrevented || isTypingTarget(event.target)) return;
@@ -75,7 +76,13 @@ export function initTimeseriesShortcuts(deps: TimeseriesShortcutsDeps): void {
         }
     };
 
-    win.addEventListener('keydown', onKeydown);
-    deps.registerCleanup(() => win.removeEventListener('keydown', onKeydown));
-    win.__edatime.timeseriesShortcutsBound = true;
+    window.addEventListener('keydown', onKeydown);
+    deps.registerCleanup(() => {
+        window.removeEventListener('keydown', onKeydown);
+        shortcutsBound = false;
+    });
+}
+
+export function __resetTimeseriesShortcutsForTest(): void {
+    shortcutsBound = false;
 }

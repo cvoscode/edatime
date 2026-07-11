@@ -95,7 +95,6 @@ export function initKeyboardShortcuts(
 ): void {
     if (_bound) return;
     _bound = true;
-    (window as any).__edatime = (window as any).__edatime || {};
 
     const onKeydown = (event: KeyboardEvent) => {
         if (event.defaultPrevented || isTypingTarget(event.target)) return;
@@ -121,7 +120,6 @@ export function initKeyboardShortcuts(
 
     window.addEventListener('keydown', onKeydown);
     deps.registerCleanup(() => window.removeEventListener('keydown', onKeydown));
-    (window as any).__edatime.keyboardShortcutsBound = true;
 }
 
 export function __resetKeyboardShortcutsForTest(): void {

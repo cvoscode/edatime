@@ -522,7 +522,6 @@ declare global {
             state?: AppStateType;
             DEBUG?: boolean;
             debugYSnapshot?: unknown;
-            keyboardShortcutsBound?: boolean;
             [key: string]: unknown;
         };
     }
