@@ -121,6 +121,37 @@ describe('export feature characterization', () => {
         ]);
     });
 
+    it('escapes commas, quotes, and newlines in CSV series names through the shared csv helper', async () => {
+        currentData = {
+            ts: Float64Array.from([1_000]),
+            values: {
+                'temp,"indoor"\nzone': Float64Array.from([10]),
+            },
+            color: null,
+            color_column: null,
+            _meta: {
+                downsampled: false,
+                downsampleKnown: true,
+                returnedRows: 1,
+                targetPoints: 1,
+            },
+        } as DataObject;
+        workspaceSnapshot = makeWorkspaceSnapshot({
+            selection: { columns: ['temp,"indoor"\nzone'] },
+            filters: { columnRanges: {}, adaptiveLines: [] },
+        });
+        const feature = createFeature();
+
+        expect(feature.exportFilteredCsv()).toBe(true);
+        const csvBlob = downloadBlobMock.mock.calls[0]?.[0] as Blob;
+        const csv = await csvBlob.text();
+
+        expect(csv).toBe([
+            'ts_ms,ts_iso,series,value',
+            '1000,"1970-01-01T00:00:01.000Z","temp,""indoor""\nzone",10',
+        ].join('\n'));
+    });
+
     it('exports parquet with the current viewport, range filters, and adaptive line filters', async () => {
         const parquetBlob = new Blob(['parquet']);
         exportParquetMock.mockResolvedValueOnce(parquetBlob);

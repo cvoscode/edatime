@@ -7,6 +7,7 @@
 import { applyColumnRangesToData, buildAdaptiveLineFiltersForQueryState } from '../../services/timeseries/filtering.js';
 import { exportParquet } from '../../services/api/index.js';
 import { downloadBlob } from '../../utils/dom.js';
+import { escapeCsvField } from '../../utils/csv.js';
 import type { DataObject } from '../../types.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
@@ -80,7 +81,7 @@ function exportFilteredCsv(deps: ExportFeatureDeps): boolean {
     const lines = [
         'ts_ms,ts_iso,series,value',
         ...rows.map((row) =>
-            `${row.ts_ms},"${row.ts_iso}","${String(row.series).replaceAll('"', '""')}",${row.value}`,
+            `${row.ts_ms},${escapeCsvField(row.ts_iso)},${escapeCsvField(row.series)},${row.value}`,
         ),
     ];
     downloadBlob(
