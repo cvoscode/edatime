@@ -32,6 +32,13 @@ export interface WorkspaceStore {
     dispose(): void;
 }
 
+export interface WorkspaceSnapshotFixture {
+    dataset?: Partial<WorkspaceSnapshot['dataset']>;
+    selection?: Partial<WorkspaceSnapshot['selection']>;
+    filters?: Partial<WorkspaceSnapshot['filters']>;
+    viewport?: ViewSnapshot | null;
+}
+
 function cloneSnapshot(snapshot: WorkspaceSnapshot): WorkspaceSnapshot {
     return {
         dataset: { ...snapshot.dataset },
@@ -44,17 +51,26 @@ function cloneSnapshot(snapshot: WorkspaceSnapshot): WorkspaceSnapshot {
     };
 }
 
+/** Build a complete, cloned workspace snapshot for tests and feature fixtures. */
+export function makeWorkspaceSnapshot(fixture: WorkspaceSnapshotFixture = {}): WorkspaceSnapshot {
+    return cloneSnapshot({
+        dataset: { metadata: null, revision: 0, ...fixture.dataset },
+        selection: { columns: [], colorColumn: null, ...fixture.selection },
+        filters: {
+            columnRanges: {},
+            adaptiveLines: [],
+            ...fixture.filters,
+        },
+        viewport: fixture.viewport ?? null,
+    });
+}
+
 function normalizeColumns(columns: readonly string[]): string[] {
     return [...new Set(columns.map((column) => String(column).trim()).filter(Boolean))];
 }
 
 export function createWorkspaceStore(): WorkspaceStore {
-    let snapshot: WorkspaceSnapshot = {
-        dataset: { metadata: null, revision: 0 },
-        selection: { columns: [], colorColumn: null },
-        filters: { columnRanges: {}, adaptiveLines: [] },
-        viewport: null,
-    };
+    let snapshot = makeWorkspaceSnapshot();
     let nextSessionId = 0;
     let activeSession: { id: number; controller: AbortController } | null = null;
     const listeners = new Set<(snapshot: WorkspaceSnapshot) => void>();

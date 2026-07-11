@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DataObject } from '../../types.js';
+import { makeWorkspaceSnapshot, type WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 
 const { downloadBlobMock, exportParquetMock } = vi.hoisted(() => ({
     downloadBlobMock: vi.fn(),
@@ -40,12 +41,12 @@ function makeData(): DataObject {
 }
 
 let currentData: DataObject | null = null;
-let workspaceSnapshot: unknown = null;
+let workspaceSnapshot: WorkspaceSnapshot = makeWorkspaceSnapshot();
 
 function createFeature() {
     return createExportFeature({
         getData: () => currentData,
-        workspace: { getSnapshot: () => workspaceSnapshot as never },
+        workspace: { getSnapshot: () => workspaceSnapshot },
     });
 }
 
@@ -54,11 +55,10 @@ describe('export feature characterization', () => {
         downloadBlobMock.mockReset();
         exportParquetMock.mockReset();
         currentData = null;
-        workspaceSnapshot = {
+        workspaceSnapshot = makeWorkspaceSnapshot({
             selection: { columns: [] },
             filters: { columnRanges: {}, adaptiveLines: [] },
-            viewport: null,
-        };
+        });
     });
 
     afterEach(() => {
@@ -75,11 +75,10 @@ describe('export feature characterization', () => {
 
     it('exports filtered CSV rows in timestamp and series order', async () => {
         currentData = makeData();
-        workspaceSnapshot = {
+        workspaceSnapshot = makeWorkspaceSnapshot({
             selection: { columns: ['temp', 'humidity'] },
             filters: { columnRanges: { temp: { from: 15, to: 30 } }, adaptiveLines: [] },
-            viewport: null,
-        };
+        });
         const feature = createFeature();
 
         expect(feature.exportFilteredCsv()).toBe(true);
@@ -100,11 +99,10 @@ describe('export feature characterization', () => {
 
     it('exports the same filtered rows as JSON', async () => {
         currentData = makeData();
-        workspaceSnapshot = {
+        workspaceSnapshot = makeWorkspaceSnapshot({
             selection: { columns: ['temp'] },
             filters: { columnRanges: { temp: { from: 15, to: 25 } }, adaptiveLines: [] },
-            viewport: null,
-        };
+        });
         const feature = createFeature();
 
         expect(feature.exportFilteredJson()).toBe(true);
@@ -127,7 +125,7 @@ describe('export feature characterization', () => {
         const parquetBlob = new Blob(['parquet']);
         exportParquetMock.mockResolvedValueOnce(parquetBlob);
 
-        workspaceSnapshot = {
+        workspaceSnapshot = makeWorkspaceSnapshot({
             selection: { columns: ['temp'] },
             filters: {
                 columnRanges: { temp: { from: 15, to: 30 } },
@@ -137,7 +135,7 @@ describe('export feature characterization', () => {
                 }],
             },
             viewport: { xMin: 1_000, xMax: 3_000, yMin: null, yMax: null },
-        };
+        });
         const feature = createFeature();
 
         await expect(feature.exportFilteredParquet()).resolves.toBe(true);
@@ -171,11 +169,11 @@ describe('export feature characterization', () => {
     });
 
     it('returns false instead of throwing for a finite viewport outside the JavaScript Date range', async () => {
-        workspaceSnapshot = {
+        workspaceSnapshot = makeWorkspaceSnapshot({
             selection: { columns: ['temp'] },
             filters: { columnRanges: {}, adaptiveLines: [] },
             viewport: { xMin: 1e30, xMax: 2e30, yMin: null, yMax: null },
-        };
+        });
         const feature = createFeature();
 
         await expect(feature.exportFilteredParquet()).resolves.toBe(false);

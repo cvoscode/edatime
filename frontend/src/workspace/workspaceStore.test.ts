@@ -1,8 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createWorkspaceStore } from './workspaceStore.js';
+import { createWorkspaceStore, makeWorkspaceSnapshot } from './workspaceStore.js';
 
 describe('workspace store', () => {
+    it('builds complete cloned snapshots from concise test fixtures', () => {
+        const snapshot = makeWorkspaceSnapshot({
+            selection: { columns: ['value'], colorColumn: 'bucket' },
+            filters: { columnRanges: { value: { from: 1, to: 2 } } },
+        });
+        (snapshot.selection.columns as string[]).push('mutated');
+
+        expect(makeWorkspaceSnapshot({ selection: { columns: ['value'] } }).selection.columns).toEqual(['value']);
+        expect(snapshot).toMatchObject({
+            dataset: { metadata: null, revision: 0 },
+            selection: { colorColumn: 'bucket' },
+            filters: { columnRanges: { value: { from: 1, to: 2 } }, adaptiveLines: [] },
+            viewport: null,
+        });
+    });
+
     it('keeps state instance-scoped and returns immutable snapshots', () => {
         const first = createWorkspaceStore();
         const second = createWorkspaceStore();
