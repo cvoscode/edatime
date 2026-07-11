@@ -21,6 +21,16 @@ function jsonResponse(body: unknown): Response {
     } as unknown as Response;
 }
 
+function jsonErrorResponse(status: number, body: unknown): Response {
+    return {
+        ok: false,
+        status,
+        headers: { get: () => 'application/json' },
+        json: vi.fn().mockResolvedValue(body),
+        text: vi.fn().mockResolvedValue(JSON.stringify(body)),
+    } as unknown as Response;
+}
+
 describe('analytics api helpers', () => {
     const fetchMock = vi.fn();
 
@@ -67,6 +77,29 @@ describe('analytics api helpers', () => {
         expect(requestUrl.pathname).toBe('/api/analytics/anomalies');
         expect(requestUrl.searchParams.get('method')).toBe('mad');
         expect(requestUrl.searchParams.get('threshold')).toBeNull();
+    });
+
+    it('propagates structured errors from analytics routes', async () => {
+        fetchMock.mockResolvedValueOnce(jsonErrorResponse(422, {
+            message: 'invalid analysis range',
+            code: 'invalid_range',
+            correlation_id: 'analytics-123',
+        }));
+
+        await expect(fetchRollingBands('start', 'end', 'value')).rejects.toMatchObject({
+            status: 422,
+            code: 'invalid_range',
+            correlationId: 'analytics-123',
+        });
+    });
+
+    it('forwards cancellation signals to analytics requests', async () => {
+        const controller = new AbortController();
+        fetchMock.mockResolvedValueOnce(jsonResponse({ bands: [] }));
+
+        await fetchRollingBands('start', 'end', 'value', 50, controller.signal);
+
+        expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ signal: controller.signal });
     });
 
     it('fetchFft forwards max_points through the query string', async () => {
