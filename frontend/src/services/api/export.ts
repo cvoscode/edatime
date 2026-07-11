@@ -1,23 +1,11 @@
-import { readApiError } from './http.js';
+import { getBlob, postBlob } from './http.js';
 
 // ── Export ─────────────────────────────────────────────────────────────────
 
 export async function exportParquet(params: URLSearchParams): Promise<Blob> {
-    const res = await globalThis.fetch(`/api/export/parquet?${params.toString()}`);
-    if (!res.ok) {
-        throw await readApiError(res, 'Parquet export');
-    }
-    return res.blob();
+    return getBlob(`/api/export/parquet?${params.toString()}`, 'Parquet export');
 }
 
 export async function exportScatterParquet(payload: unknown): Promise<Blob> {
-    const res = await globalThis.fetch('/api/scatter/export/parquet', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-        throw await readApiError(res, 'Scatter parquet export');
-    }
-    return res.blob();
+    return postBlob('/api/scatter/export/parquet', payload, 'Scatter parquet export');
 }

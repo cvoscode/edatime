@@ -231,6 +231,32 @@ function getJson<T>(
     });
 }
 
+function getBlob(
+    url: string,
+    label: string,
+    signalOrOptions?: AbortSignal | ApiRequestOptions,
+): Promise<Blob> {
+    const options = normalizeOptions(signalOrOptions);
+    dbg(`GET (${label})`, url);
+    const scope = options.datasetScoped === false ? null : captureDatasetRequestScope();
+    const dedupeKey = options.datasetScoped === false
+        ? `GET_BLOB:unscoped:${url}`
+        : `GET_BLOB:${scope}:${url}`;
+    return dedupe(dedupeKey, async () => {
+        const res = await globalThis.fetch(
+            url,
+            options.signal ? { signal: options.signal, cache: 'no-store' } : { cache: 'no-store' },
+        );
+        if (scope !== null) assertDatasetRequestScopeActive(scope);
+        if (!res.ok) {
+            throw await readApiError(res, label);
+        }
+        const blob = await res.blob();
+        if (scope !== null) assertDatasetRequestScopeActive(scope);
+        return blob;
+    });
+}
+
 function postJson<T>(
     url: string,
     body: unknown,
@@ -260,12 +286,52 @@ function postJson<T>(
     });
 }
 
+function postBlob(
+    url: string,
+    body: unknown,
+    label: string,
+    signalOrOptions?: AbortSignal | ApiRequestOptions,
+): Promise<Blob> {
+    const options = normalizeOptions(signalOrOptions);
+    dbg(`POST (${label})`, { url, body });
+    const scope = options.datasetScoped === false ? null : captureDatasetRequestScope();
+    const dedupeKey = options.datasetScoped === false
+        ? `POST_BLOB:unscoped:${url}:${JSON.stringify(body)}`
+        : `POST_BLOB:${scope}:${url}:${JSON.stringify(body)}`;
+    return dedupe(dedupeKey, async () => {
+        const res = await globalThis.fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            ...(options.signal ? { signal: options.signal } : {}),
+        });
+        if (scope !== null) assertDatasetRequestScopeActive(scope);
+        if (!res.ok) {
+            throw await readApiError(res, label);
+        }
+        const blob = await res.blob();
+        if (scope !== null) assertDatasetRequestScopeActive(scope);
+        return blob;
+    });
+}
+
 // Aliases for backward compatibility with files that import from http.ts
 const getJsonForApi = getJson;
+const getBlobForApi = getBlob;
 const postJsonForApi = postJson;
+const postBlobForApi = postBlob;
 
 // Re-exported under stable names so facade files (http.ts, metadata.ts, etc.) keep working
-export { getJson, postJson, getJsonForApi, postJsonForApi };
+export {
+    getJson,
+    getBlob,
+    postJson,
+    postBlob,
+    getJsonForApi,
+    getBlobForApi,
+    postJsonForApi,
+    postBlobForApi,
+};
 
 // Also export dbg and DEBUG for route-family modules
 export { dbg, DEBUG };
