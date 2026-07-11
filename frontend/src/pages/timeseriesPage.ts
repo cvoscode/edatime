@@ -480,7 +480,6 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
             if (DEBUG) {
                 const snapshot = computeRenderedYDebugSnapshot(getFilterIntent());
-                (window as any).__edatime.debugYSnapshot = snapshot;
                 dbg('post-render renderedSnapshot', snapshot);
             }
 

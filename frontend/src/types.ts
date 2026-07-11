@@ -521,7 +521,6 @@ declare global {
         __edatime: {
             state?: AppStateType;
             DEBUG?: boolean;
-            debugYSnapshot?: unknown;
             [key: string]: unknown;
         };
     }

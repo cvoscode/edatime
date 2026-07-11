@@ -159,6 +159,7 @@ describe('createTimeseriesPageController', () => {
                 workspace: expect.objectContaining({ y: Float64Array.from([3]) }),
             }),
         }), ['workspace']);
+        expect((window as any).__edatime?.debugYSnapshot).toBeUndefined();
     });
 
     it('stores the exact rendered viewport in zoom history instead of recomputing it from a live helper', async () => {
