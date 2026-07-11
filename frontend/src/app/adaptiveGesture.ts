@@ -57,18 +57,6 @@ export function buildAdaptiveFilterFromPoints(
     };
 }
 
-export function applyAdaptiveFiltersLocally(sourceKind = 'adaptive'): void {
-    const { buildRangeControls, renderCurrentData, updateAnalysisYRange } = (window as any).__edatime ?? {};
-    if (!appState.lastFetchedData) return;
-    appState.chart?.requestOverlayRender?.();
-    appState.chart?.fitYToData?.();
-    const yr = appState.chart?.getYRange?.();
-    if (yr) updateAnalysisYRange?.(yr.min, yr.max, sourceKind);
-    window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change', {
-        detail: { count: (appState.adaptiveLineFilters || []).length },
-    }));
-}
-
 export function initAdaptiveFilterGesture(
     deps: {
         workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'>;

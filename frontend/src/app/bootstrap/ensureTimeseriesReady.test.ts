@@ -238,4 +238,39 @@ describe('createTimeseriesBootstrap', () => {
 
         expect(initYRangeControlsMock).toHaveBeenCalledTimes(1);
     });
+
+    it('passes explicit adaptive gesture dependencies into chart bootstrap setup', async () => {
+        checkWebGPUMock.mockResolvedValue(null);
+
+        const buildColumnToggles = vi.fn();
+        const buildRangeControls = vi.fn();
+        const renderCurrentData = vi.fn();
+        const onYRange = vi.fn();
+        const workspace = { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn() };
+
+        const { createTimeseriesBootstrap } = await import('./ensureTimeseriesReady.js');
+
+        const bootstrap = createTimeseriesBootstrap({
+            ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class { }),
+            onZoom: vi.fn(),
+            onYRange,
+            onZoomOut: vi.fn(),
+            buildColumnToggles,
+            buildRangeControls,
+            renderCurrentData,
+            fetchAndRender: vi.fn().mockResolvedValue(undefined),
+            refreshZoomControlsState: vi.fn(),
+            workspace,
+        });
+
+        await bootstrap.ensureReady();
+
+        expect(initAdaptiveFilterGestureMock).toHaveBeenCalledWith({
+            workspace,
+            buildColumnToggles,
+            buildRangeControls,
+            renderCurrentData,
+            updateAnalysisYRange: onYRange,
+        });
+    });
 });

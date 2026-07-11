@@ -69,4 +69,31 @@ describe('adaptive filter gesture', () => {
 
         expect(workspace.getSnapshot().filters.adaptiveLines).toHaveLength(1);
     });
+
+    it('applies the gesture through explicit deps instead of a window bridge', () => {
+        const workspace = createWorkspaceStore();
+        workspace.setSelection(['value']);
+        const buildColumnToggles = vi.fn();
+        const buildRangeControls = vi.fn();
+        const renderCurrentData = vi.fn();
+        const updateAnalysisYRange = vi.fn();
+
+        initAdaptiveFilterGesture({
+            workspace,
+            buildColumnToggles,
+            buildRangeControls,
+            renderCurrentData,
+            updateAnalysisYRange,
+        } as any);
+        const chart = document.getElementById('main-chart')!;
+
+        chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
+        chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
+        window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control' }));
+
+        expect(buildRangeControls).toHaveBeenCalledTimes(1);
+        expect(renderCurrentData).toHaveBeenCalledTimes(1);
+        expect(buildColumnToggles).toHaveBeenCalledTimes(1);
+        expect((window as any).__edatime).toBeUndefined();
+    });
 });
