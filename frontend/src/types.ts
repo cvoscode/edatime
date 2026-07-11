@@ -514,16 +514,9 @@ export interface ScatterFetchOptions {
     lineFilters?: ScatterLineFilterSpec[];
 }
 
-// ── Augment window for debug namespace ─────────────────────────────────────
+// ── Augment navigator for optional WebGPU surface ─────────────────────────
 
 declare global {
-    interface Window {
-        __edatime: {
-            state?: AppStateType;
-            DEBUG?: boolean;
-            [key: string]: unknown;
-        };
-    }
     interface Navigator {
         gpu?: {
             requestAdapter(): Promise<any | null>;
