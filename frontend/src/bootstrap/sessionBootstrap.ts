@@ -2,9 +2,7 @@ import { getHashPage } from '../utils/router.js';
 import {
     applySession,
     autoRestoreSession,
-    exportSessionToFile,
     configureSessionWorkspace,
-    importSessionFromFile,
     initAutoSave,
 } from '../utils/session.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
@@ -38,7 +36,4 @@ export async function restoreSessionAfterChartReady(deps: RestoreSessionDeps): P
 export function startSessionPersistence(workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>): void {
     configureSessionWorkspace(workspace);
     initAutoSave();
-    (window as any).__edatime = (window as any).__edatime || {};
-    (window as any).__edatime.exportSession = exportSessionToFile;
-    (window as any).__edatime.importSession = importSessionFromFile;
 }
