@@ -1,4 +1,5 @@
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+import { getCurrentCausalGraph } from '../causal/causalComparison.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
 import { toast } from '../utils/toast.js';
 
@@ -161,7 +162,7 @@ function readSelectValue(id: string): string {
 }
 
 function collectSnapshot(): WorkflowSnapshot {
-    const graph = (window as any).__edatimeCausalGraph;
+    const graph = getCurrentCausalGraph();
     const prefs = readPrefs();
     const visited = getVisitedPagesForCurrentDataset(prefs);
     const snapshot = workspaceSnapshot();

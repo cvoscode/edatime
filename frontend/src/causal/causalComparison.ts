@@ -40,6 +40,7 @@ const STORAGE_KEY = 'edatime-causal-runs';
 const NUMERIC_CHANGE_EPSILON = 1e-6;
 let _savedRuns: SavedCausalRun[] = [];
 let _comparisonBound = false;
+let _currentGraph: { columns: string[]; links: CausalLink[] } | null = null;
 
 function generateId(): string {
     return `run_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -55,6 +56,14 @@ export function loadSavedRuns(): SavedCausalRun[] {
         _savedRuns = [];
     }
     return _savedRuns;
+}
+
+export function getCurrentCausalGraph(): { columns: string[]; links: CausalLink[] } | null {
+    if (!_currentGraph) return null;
+    return {
+        columns: [..._currentGraph.columns],
+        links: _currentGraph.links.map((link) => ({ ...link })),
+    };
 }
 
 function persistRuns(): void {
@@ -217,8 +226,7 @@ export function initCausalComparison(): void {
         const tauMax = parseInt((document.getElementById('causal-tau-max') as HTMLInputElement)?.value || '3', 10);
         const alpha = parseFloat((document.getElementById('causal-alpha') as HTMLInputElement)?.value || '0.05');
 
-        // Read current graph from a globally-exposed state
-        const graphState = (window as any).__edatimeCausalGraph;
+        const graphState = getCurrentCausalGraph();
         if (!graphState || !graphState.links || graphState.links.length === 0) {
             toast('No causal graph to save. Run Compute first.', 'warning');
             return;
@@ -284,5 +292,16 @@ function refreshCompareUI(): void {
 
 /** Expose current graph to the comparison module. Called by causalPage after each compute. */
 export function notifyCausalGraphUpdated(columns: string[], links: CausalLink[]): void {
-    (window as any).__edatimeCausalGraph = { columns, links };
+    _currentGraph = {
+        columns: [...columns],
+        links: links.map((link) => ({ ...link })),
+    };
+}
+
+export function __resetCausalComparisonForTests(): void {
+    _savedRuns = [];
+    _comparisonBound = false;
+    _compareRunAId = null;
+    _compareRunBId = null;
+    _currentGraph = null;
 }
