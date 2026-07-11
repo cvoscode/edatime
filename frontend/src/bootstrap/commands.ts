@@ -12,6 +12,10 @@ export type CommandDeps = {
     resetZoom: () => void;
     exportFilteredCsv: () => void;
     exportFilteredJson: () => void;
+    exportChartPng?: () => void;
+    openCommands?: () => void | Promise<void>;
+    openSettings?: () => void | Promise<void>;
+    ensureTimeseriesShell?: () => void | Promise<void>;
 };
 
 export interface CommandDefinition {
@@ -25,10 +29,6 @@ export interface CommandDefinition {
 
 function triggerAdaptiveFilterClear(): void {
     document.getElementById('adaptive-clear-btn')?.click?.();
-}
-
-async function ensureSubsystem(name: string): Promise<void> {
-    await (window as unknown as { __edatime?: { ensureSubsystem?: (subsystem: string) => Promise<void> } }).__edatime?.ensureSubsystem?.(name);
 }
 
 async function exportSession(): Promise<void> {
@@ -56,7 +56,7 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
     { id: 'chart-clear-af', label: 'Clear adaptive filters', shortcut: 'Shift+C', category: 'Chart', action: () => triggerAdaptiveFilterClear(), keyboard: { key: 'c', shift: true, page: 'timeseries' } },
     { id: 'export-csv', label: 'Export chart data as CSV', shortcut: 'Shift+E', category: 'Export', action: (deps) => deps.exportFilteredCsv() },
     { id: 'export-json', label: 'Export chart data as JSON', category: 'Export', action: (deps) => deps.exportFilteredJson() },
-    { id: 'export-png', label: 'Export chart as PNG', category: 'Export', action: () => (window as any).__edatime?.chart?.exportPNG?.() },
+    { id: 'export-png', label: 'Export chart as PNG', category: 'Export', action: (deps) => deps.exportChartPng?.() },
     { id: 'export-parquet', label: 'Export filtered data as Parquet', category: 'Export', action: () => document.getElementById('export-data-parquet-btn')?.click?.() },
     {
         id: 'session-save',
@@ -75,8 +75,8 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         label: 'Show analysis context panel',
         shortcut: 'Ctrl+I',
         category: 'Analysis',
-        action: async () => {
-            await ensureSubsystem('timeseries-shell');
+        action: async (deps) => {
+            await deps.ensureTimeseriesShell?.();
             const { toggleProvenance } = await import('../utils/provenance.js');
             toggleProvenance();
         },
@@ -86,9 +86,8 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         label: 'Open command palette',
         shortcut: 'Ctrl+K',
         category: 'Analysis',
-        action: async () => {
-            await ensureSubsystem('commands');
-            (window as unknown as { __edatime?: { openPalette?: () => void } }).__edatime?.openPalette?.();
+        action: async (deps) => {
+            await deps.openCommands?.();
         },
     },
     {
@@ -96,17 +95,16 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         label: 'Open settings',
         shortcut: 'Ctrl+,',
         category: 'Analysis',
-        action: async () => {
-            await ensureSubsystem('settings');
-            (window as unknown as { __edatime?: { openSettingsModal?: () => void } }).__edatime?.openSettingsModal?.();
+        action: async (deps) => {
+            await deps.openSettings?.();
         },
     },
     {
         id: 'workflow-enable',
         label: 'Enable guided workflow',
         category: 'Analysis',
-        action: async () => {
-            await ensureSubsystem('timeseries-shell');
+        action: async (deps) => {
+            await deps.ensureTimeseriesShell?.();
             const { enableGuidedWorkflow } = await import('../ui/guidedWorkflow.js');
             enableGuidedWorkflow();
         },
@@ -115,8 +113,8 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         id: 'workflow-disable',
         label: 'Hide guided workflow',
         category: 'Analysis',
-        action: async () => {
-            await ensureSubsystem('timeseries-shell');
+        action: async (deps) => {
+            await deps.ensureTimeseriesShell?.();
             const { disableGuidedWorkflow } = await import('../ui/guidedWorkflow.js');
             disableGuidedWorkflow();
         },
@@ -125,8 +123,8 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         id: 'workflow-next',
         label: 'Go to next guided step',
         category: 'Analysis',
-        action: async () => {
-            await ensureSubsystem('timeseries-shell');
+        action: async (deps) => {
+            await deps.ensureTimeseriesShell?.();
             const { goToNextGuidedStep } = await import('../ui/guidedWorkflow.js');
             goToNextGuidedStep();
         },

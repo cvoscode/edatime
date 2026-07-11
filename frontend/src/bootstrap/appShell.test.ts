@@ -85,6 +85,10 @@ describe('appShell helpers', () => {
         const zoomOut = vi.fn();
         const resetZoom = vi.fn();
         const exportChartFilteredData = vi.fn();
+        const exportChartPng = vi.fn();
+        const openCommands = vi.fn(async () => { });
+        const openSettings = vi.fn(async () => { });
+        const ensureTimeseriesShell = vi.fn(async () => { });
 
         await registerAppCommands({
             showPage,
@@ -92,6 +96,10 @@ describe('appShell helpers', () => {
             resetZoom,
             exportFilteredCsv: () => exportChartFilteredData('csv'),
             exportFilteredJson: () => exportChartFilteredData('json'),
+            exportChartPng,
+            openCommands,
+            openSettings,
+            ensureTimeseriesShell,
         });
 
         expect(mocks.registerCommands).toHaveBeenCalledTimes(1);
@@ -101,12 +109,26 @@ describe('appShell helpers', () => {
         commands.find((command) => command.id === 'chart-reset')?.action();
         commands.find((command) => command.id === 'chart-zoomout')?.action();
         commands.find((command) => command.id === 'export-csv')?.action();
-        commands.find((command) => command.id === 'session-save')?.action();
+        commands.find((command) => command.id === 'export-png')?.action();
+        await commands.find((command) => command.id === 'provenance')?.action();
+        await commands.find((command) => command.id === 'workflow-enable')?.action();
+        await commands.find((command) => command.id === 'workflow-disable')?.action();
+        await commands.find((command) => command.id === 'workflow-next')?.action();
+        await commands.find((command) => command.id === 'cmd-palette')?.action();
+        await commands.find((command) => command.id === 'settings')?.action();
+        await commands.find((command) => command.id === 'session-save')?.action();
+        await commands.find((command) => command.id === 'session-load')?.action();
 
-        // session-save uses dynamic import; verify command exists and action is a function
-        const sessionCmd = commands.find((command) => command.id === 'session-save');
-        expect(sessionCmd).toBeDefined();
-        expect(typeof sessionCmd?.action).toBe('function');
+        expect(exportChartPng).toHaveBeenCalledTimes(1);
+        expect(ensureTimeseriesShell).toHaveBeenCalledTimes(4);
+        expect(mocks.toggleProvenance).toHaveBeenCalledTimes(1);
+        expect(mocks.enableGuidedWorkflow).toHaveBeenCalledTimes(1);
+        expect(mocks.disableGuidedWorkflow).toHaveBeenCalledTimes(1);
+        expect(mocks.goToNextGuidedStep).toHaveBeenCalledTimes(1);
+        expect(openCommands).toHaveBeenCalledTimes(1);
+        expect(openSettings).toHaveBeenCalledTimes(1);
+        expect(mocks.exportSessionToFile).toHaveBeenCalledTimes(1);
+        expect(mocks.importSessionFromFile).toHaveBeenCalledTimes(1);
     });
 
     it('binds navigation and timeseries keyboard shortcuts', async () => {

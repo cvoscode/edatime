@@ -179,6 +179,7 @@ async function init(): Promise<void> {
         fetchAndRenderAnalytics,
         exportFilteredCsv: () => exportChartFilteredData('csv'),
         exportFilteredJson: () => exportChartFilteredData('json'),
+        exportChartPng: () => chartState.chart?.exportPNG?.(),
         renderCurrentData: () => timeseriesModule.renderCurrentData(),
         updateAnalysisYRange,
         buildTimeseriesColumns: () => timeseriesModule.buildColumnToggles(),

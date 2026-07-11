@@ -32,6 +32,7 @@ export interface AppShellDeps {
     fetchAndRenderAnalytics: () => Promise<void>;
     exportFilteredCsv: () => void;
     exportFilteredJson: () => void;
+    exportChartPng: () => void;
     renderCurrentData: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     buildTimeseriesColumns: () => void;
@@ -59,6 +60,7 @@ export function initAppShell(deps: AppShellDeps): AppShell {
         fetchAndRenderAnalytics: deps.fetchAndRenderAnalytics,
         exportFilteredCsv: deps.exportFilteredCsv,
         exportFilteredJson: deps.exportFilteredJson,
+        exportChartPng: deps.exportChartPng,
         refreshDatasetAfterMutation: deps.refreshDatasetAfterMutation,
         buildTimeseriesColumns: deps.buildTimeseriesColumns,
         buildTimeseriesRanges: deps.buildTimeseriesRanges,

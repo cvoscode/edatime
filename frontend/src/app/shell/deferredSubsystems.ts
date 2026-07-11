@@ -20,6 +20,7 @@ export interface DeferredShellDeps {
     fetchAndRenderAnalytics: () => Promise<void>;
     exportFilteredCsv: () => void;
     exportFilteredJson: () => void;
+    exportChartPng: () => void;
     refreshDatasetAfterMutation: (options?: RefreshDatasetOptions) => Promise<void>;
     buildTimeseriesColumns: () => void;
     buildTimeseriesRanges: () => void;
@@ -49,7 +50,14 @@ interface SubsystemEntry {
     pending: Promise<void> | null;
 }
 
-type CommandDeps = Pick<DeferredShellDeps, 'showPage' | 'zoomOut' | 'resetZoom' | 'exportFilteredCsv' | 'exportFilteredJson'>;
+type CommandDeps = Pick<
+    DeferredShellDeps,
+    'showPage' | 'zoomOut' | 'resetZoom' | 'exportFilteredCsv' | 'exportFilteredJson' | 'exportChartPng'
+> & {
+    openCommands: () => Promise<void>;
+    openSettings: () => Promise<void>;
+    ensureTimeseriesShell: () => Promise<void>;
+};
 
 export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     const subsystems: Record<string, SubsystemEntry> = {};
@@ -151,6 +159,10 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
             resetZoom: deps.resetZoom,
             exportFilteredCsv: deps.exportFilteredCsv,
             exportFilteredJson: deps.exportFilteredJson,
+            exportChartPng: deps.exportChartPng,
+            openCommands: () => openCommands(deps),
+            openSettings: () => openSettings(deps),
+            ensureTimeseriesShell: () => ensureTimeseriesShell(deps),
         };
         await registerAppCommands(commandDeps);
     });

@@ -55,6 +55,7 @@ function createDeps(): DeferredShellDeps {
         fetchAndRenderAnalytics: vi.fn(async () => {}),
         exportFilteredCsv: vi.fn(),
         exportFilteredJson: vi.fn(),
+        exportChartPng: vi.fn(),
         refreshDatasetAfterMutation: vi.fn(async () => {}),
         buildTimeseriesColumns: vi.fn(),
         buildTimeseriesRanges: vi.fn(),
@@ -119,6 +120,10 @@ describe('deferred shell subsystems', () => {
             resetZoom: deps.resetZoom,
             exportFilteredCsv: deps.exportFilteredCsv,
             exportFilteredJson: deps.exportFilteredJson,
+            exportChartPng: deps.exportChartPng,
+            openCommands: expect.any(Function),
+            openSettings: expect.any(Function),
+            ensureTimeseriesShell: expect.any(Function),
         });
         expect(mocks.openPalette).toHaveBeenCalledTimes(2);
     });
