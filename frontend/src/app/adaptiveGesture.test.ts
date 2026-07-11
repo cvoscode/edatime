@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initAdaptiveFilterGesture } from './adaptiveGesture.js';
 import {
+    setColumnRanges,
     setAdaptiveLineFilters,
     setChartInstance,
     setLastFetchedData,
@@ -12,6 +13,7 @@ describe('adaptive filter gesture', () => {
     beforeEach(() => {
         document.body.innerHTML = '<div id="main-chart"></div>';
         setAdaptiveLineFilters([]);
+        setColumnRanges({});
         setSelectedCols(['value']);
         setLastFetchedData({
             ts: Float64Array.from([0, 10]),
@@ -45,5 +47,26 @@ describe('adaptive filter gesture', () => {
 
         expect(workspace.getSnapshot().filters.adaptiveLines).toHaveLength(1);
         expect(workspace.getSnapshot().filters.adaptiveLines[0]).toMatchObject({ column: 'value', x1: 0, x2: 10 });
+    });
+
+    it('builds the adaptive line from workspace filter intent instead of global ui state', () => {
+        const workspace = createWorkspaceStore();
+        workspace.setSelection(['value']);
+        setColumnRanges({ value: { from: 100, to: 200 } });
+
+        initAdaptiveFilterGesture({
+            workspace,
+            buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(),
+            renderCurrentData: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+        } as any);
+        const chart = document.getElementById('main-chart')!;
+
+        chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
+        chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
+        window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control' }));
+
+        expect(workspace.getSnapshot().filters.adaptiveLines).toHaveLength(1);
     });
 });

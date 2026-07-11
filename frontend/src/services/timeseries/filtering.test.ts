@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
+import { createWorkspaceStore, makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 import { appState } from '../../store/appStateCompat.js';
 import {
+    applyFilterIntentToData,
     applyColumnRangesToData,
     buildAdaptiveLineFiltersForQueryState,
     buildAdaptiveLineY,
@@ -77,6 +78,37 @@ describe('timeseries filtering helpers', () => {
         expect(Array.from(filtered.series.value.y)).toEqual([1, 9]);
         expect(filtered.colorByColumn.value).toEqual(['a', 'c']);
         expect(buildAdaptiveLineY({ id: 'x1', column: 'x', x1: 0, y1: 0, x2: 10, y2: 20, keepAbove: true }, 5)).toBe(10);
+    });
+
+    it('applies workspace filter intent without consulting global ui state', () => {
+        const filtered = applyFilterIntentToData(
+            {
+                ts: Float64Array.from([0, 5, 10]),
+                values: {
+                    value: Float64Array.from([1, 5, 9]),
+                    guard: Float64Array.from([10, 1, 10]),
+                },
+                color: ['a', 'b', 'c'],
+                color_column: 'label',
+                _meta: {
+                    downsampled: false,
+                    downsampleKnown: true,
+                    returnedRows: 3,
+                    targetPoints: 10,
+                },
+            },
+            makeWorkspaceSnapshot({
+                selection: { columns: ['value'] },
+                filters: {
+                    columnRanges: { value: { from: 0, to: 10 } },
+                    adaptiveLines: [{ id: 'g1', column: 'guard', x1: 0, y1: 5, x2: 10, y2: 5, keepAbove: true }],
+                },
+            }),
+        );
+
+        expect(Array.from(filtered.series.value.x)).toEqual([0, 10]);
+        expect(Array.from(filtered.series.value.y)).toEqual([1, 9]);
+        expect(filtered.colorByColumn.value).toEqual(['a', 'c']);
     });
 
     it('clips buffered data to the visible x viewport before downstream rendering', () => {

@@ -11,9 +11,10 @@
  *   setAnomalyOverlayCallback     — for ChartGPU wiring
  */
 
-import { applyColumnRanges } from '../services/timeseries/filtering.js';
+import { applyFilterIntentToData, type TimeseriesFilterIntent } from '../services/timeseries/filtering.js';
 import { analyticsState, chartState, runtimeState, setAnomalyRegions, setAnomalySummaryStats, setRollingBands, uiState } from '../store/index.js';
 import type { AnomalyResponse, AdaptiveLineFilter } from '../types.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -106,6 +107,23 @@ function requestOverlayRender(): void {
     _overlayCallback?.();
 }
 
+function getFilterIntent(
+    workspace?: Pick<WorkspaceStore, 'getSnapshot'>,
+): TimeseriesFilterIntent {
+    const snapshot = workspace?.getSnapshot();
+    if (snapshot) return snapshot;
+    return {
+        selection: {
+            columns: [...uiState.selectedCols],
+            colorColumn: uiState.selectedColorColumn,
+        },
+        filters: {
+            columnRanges: { ...uiState.columnRanges },
+            adaptiveLines: uiState.adaptiveLineFilters.map((filter) => ({ ...filter })),
+        },
+    };
+}
+
 /**
  * Fetch anomaly regions from the backend and update appState.
  * Returns early if currentStart / currentEnd are not finite.
@@ -152,13 +170,17 @@ export async function fetchAnomalyRegions(
 }
 
 /** Compute rolling bands from lastFetchedData + column ranges; update appState. */
-export function computeAndSetRollingBands(windowSize: number): void {
+export function computeAndSetRollingBands(
+    windowSize: number,
+    workspace?: Pick<WorkspaceStore, 'getSnapshot'>,
+): void {
     if (!analyticsState.rollingEnabled) {
         setRollingBands(null);
         return;
     }
-    const filtered = applyColumnRanges(runtimeState.lastFetchedData!);
-    setRollingBands(computeFrontendRollingBands(filtered, uiState.selectedCols, windowSize));
+    const intent = getFilterIntent(workspace);
+    const filtered = applyFilterIntentToData(runtimeState.lastFetchedData!, intent);
+    setRollingBands(computeFrontendRollingBands(filtered, [...intent.selection.columns], windowSize));
 }
 
 /** Stop any in-flight anomaly request. */
@@ -180,14 +202,18 @@ export const isAnalyticsControllerActive = (): boolean =>
  *
  * Exported so app.ts can call this during shell init without inlining the callback.
  */
-export function initAnalyticsListeners(fetchAndRenderAnalytics: () => Promise<void>): () => void {
+export function initAnalyticsListeners(
+    fetchAndRenderAnalytics: () => Promise<void>,
+    workspace?: Pick<WorkspaceStore, 'getSnapshot'>,
+): () => void {
     const handler = () => {
         if (runtimeState.lastFetchedData) {
             if (analyticsState.rollingEnabled) {
-                const filtered = applyColumnRanges(runtimeState.lastFetchedData);
+                const intent = getFilterIntent(workspace);
+                const filtered = applyFilterIntentToData(runtimeState.lastFetchedData, intent);
                 setRollingBands(computeFrontendRollingBands(
-                    filtered as any,
-                    uiState.selectedCols,
+                    filtered,
+                    [...intent.selection.columns],
                     analyticsState.rollingWindow || 50,
                 ));
             } else {

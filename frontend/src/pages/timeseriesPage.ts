@@ -1,6 +1,13 @@
 import { DEBUG, dbg, dbgGroup } from '../debug.js';
 import { appState } from '../store/appStateCompat.js';
-import { ensureRangeStateFromData, applyColumnRanges, applyColumnRangesToData, clipDataToViewport, sanitizeSelectedColumns } from '../services/timeseries/filtering.js';
+import {
+    ensureRangeStateFromData,
+    applyFilterIntentToData,
+    applyColumnRangesToData,
+    clipDataToViewport,
+    sanitizeSelectedColumns,
+    type TimeseriesFilterIntent,
+} from '../services/timeseries/filtering.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
 import { announceChartLoading, announceDataUpdate } from '../utils/a11y.js';
 import { computeFrontendRollingBands } from '../bootstrap/analyticsOverlay.js';
@@ -71,14 +78,14 @@ function isColumnMismatchError(error: unknown): boolean {
     return message.includes('column_not_found') || message.includes('Unknown column');
 }
 
-function computeRenderedYDebugSnapshot() {
+function computeRenderedYDebugSnapshot(intent: TimeseriesFilterIntent) {
     if (!appState.lastFetchedData) return null;
-    const filtered = applyColumnRanges(appState.lastFetchedData);
+    const filtered = applyFilterIntentToData(appState.lastFetchedData, intent);
     let globalMin = Number.POSITIVE_INFINITY;
     let globalMax = Number.NEGATIVE_INFINITY;
     const perSeries: Array<{ name: string; points: number; yMin: number | null; yMax: number | null }> = [];
 
-    for (const col of appState.selectedCols || []) {
+    for (const col of intent.selection.columns) {
         const seriesData = (filtered as any).series?.[col];
         const yValues = seriesData ? seriesData.y : (filtered as any).values?.[col];
         if (!yValues) continue;
@@ -134,6 +141,21 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             columns,
             colorColumn,
             key: `${columns.join(',')}|${colorColumn}`,
+        };
+    }
+
+    function getFilterIntent(): TimeseriesFilterIntent {
+        const workspace = deps.workspace?.getSnapshot();
+        if (workspace) return workspace;
+        return {
+            selection: {
+                columns: Array.isArray(appState.selectedCols) ? [...appState.selectedCols] : [],
+                colorColumn: appState.selectedColorColumn || null,
+            },
+            filters: {
+                columnRanges: { ...appState.columnRanges },
+                adaptiveLines: (appState.adaptiveLineFilters || []).map((filter) => ({ ...filter })),
+            },
         };
     }
 
@@ -323,7 +345,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         }
 
         if (appState.rollingEnabled) {
-            setRollingBands(computeFrontendRollingBands(filtered as any, appState.selectedCols, (appState as any).rollingWindow || 50));
+            setRollingBands(computeFrontendRollingBands(filtered as any, selectedColumns, (appState as any).rollingWindow || 50));
             appState.chart?.requestOverlayRender?.();
         }
         rememberRenderedViewport();
@@ -457,7 +479,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             }
 
             if (DEBUG) {
-                const snapshot = computeRenderedYDebugSnapshot();
+                const snapshot = computeRenderedYDebugSnapshot(getFilterIntent());
                 (window as any).__edatime.debugYSnapshot = snapshot;
                 dbg('post-render renderedSnapshot', snapshot);
             }

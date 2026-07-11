@@ -5,7 +5,7 @@
  */
 
 import { SERIES_COLORS } from '../utils/seriesColors.js';
-import { applyColumnRanges, buildAdaptiveLineY } from '../services/timeseries/filtering.js';
+import { applyFilterIntentToData, buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 import {
     appendAdaptiveLineFilter,
     setAdaptiveFilterColumn,
@@ -13,16 +13,17 @@ import {
 } from '../store/index.js';
 import type { AdaptiveLineFilter } from '../types.js';
 import { appState } from '../store/appStateCompat.js';
-import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+import type { WorkspaceStore, WorkspaceSnapshot } from '../workspace/workspaceStore.js';
 
 export function buildAdaptiveFilterFromPoints(
     column: string,
     firstPoint: { x: number; y: number },
     secondPoint: { x: number; y: number },
+    intent: Pick<WorkspaceSnapshot, 'selection' | 'filters'>,
 ): AdaptiveLineFilter | null {
     if (!column || !firstPoint || !secondPoint) return null;
     if (!appState.lastFetchedData) return null;
-    const filtered = applyColumnRanges(appState.lastFetchedData);
+    const filtered = applyFilterIntentToData(appState.lastFetchedData, intent);
     const columnData = filtered.series?.[column] || filtered.values?.[column];
     const xs = columnData?.x;
     const ys = columnData?.y;
@@ -108,9 +109,10 @@ export function initAdaptiveFilterGesture(
 
     const applyFilterForColumn = (column: string, p1: { x: number; y: number }, p2: { x: number; y: number }) => {
         setAdaptiveFilterColumn(column);
-        const filter = buildAdaptiveFilterFromPoints(column, p1, p2);
+        const snapshot = deps.workspace.getSnapshot();
+        const filter = buildAdaptiveFilterFromPoints(column, p1, p2, snapshot);
         if (!filter) return;
-        const filters = deps.workspace.getSnapshot().filters;
+        const filters = snapshot.filters;
         deps.workspace.setFilters({
             ...filters,
             adaptiveLines: [...filters.adaptiveLines, filter],

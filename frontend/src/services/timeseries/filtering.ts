@@ -8,7 +8,9 @@ import type {
 import { datasetState } from '../../store/datasetState.js';
 import { uiState } from '../../store/uiState.js';
 import { setColumnRanges, setSelectedCols } from '../../store/uiState.js';
-import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import type { WorkspaceSnapshot, WorkspaceStore } from '../../workspace/workspaceStore.js';
+
+export type TimeseriesFilterIntent = Pick<WorkspaceSnapshot, 'selection' | 'filters'>;
 
 /**
  * Ensure column ranges are populated from data for any selected column
@@ -213,25 +215,24 @@ export function applyColumnRangesToData(
     return filtered;
 }
 
+export function applyFilterIntentToData(
+    dataObj: DataObject,
+    intent: TimeseriesFilterIntent,
+): FilteredDataObject {
+    return applyColumnRangesToData(
+        dataObj,
+        [...intent.selection.columns],
+        { ...intent.filters.columnRanges },
+        [...intent.filters.adaptiveLines],
+    );
+}
+
 /**
  * Returns adaptive line filters with non-finite values stripped.
  * Reads from uiState.adaptiveLineFilters.
  */
 export function buildAdaptiveLineFiltersForQuery(): ScatterLineFilterSpec[] {
     return buildAdaptiveLineFiltersForQueryState(uiState.adaptiveLineFilters || []);
-}
-
-/**
- * Apply column ranges and adaptive line filters to a data object.
- * Reads selected columns and ranges from appState.
- */
-export function applyColumnRanges(dataObj: DataObject): FilteredDataObject {
-    return applyColumnRangesToData(
-        dataObj,
-        uiState.selectedCols || [],
-        uiState.columnRanges || {},
-        uiState.adaptiveLineFilters || [],
-    );
 }
 
 /**
