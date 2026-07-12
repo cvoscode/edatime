@@ -9,11 +9,14 @@
   - Opens the settings modal and populates form. Resets `hasUnsavedChanges`.
 - `closeSettingsModal(): void`
   - Closes the settings modal. Resets `hasUnsavedChanges`.
-- `initSettingsPanel(): void`
-  - Initializes settings modal event handlers. Wires `markUnsavedChanges()` to all listed form controls. When any control changes, `syncApplyIndicator()` shows/hides `#settings-apply-indicator`.
+- `initSettingsPanel(): void` [deps: [initSettingsHelp][1]]
+  - Initializes settings modal event handlers. Wires `markUnsavedChanges()` to all listed form controls. When any control changes, `syncApplyIndicator()` shows/hides `#settings-apply-indicator`. Also wires the page-level `?` help button via `initSettingsHelp`.
 - `syncApplyIndicator(): void`
   - Shows/hides the `#settings-apply-indicator` dot based on `hasUnsavedChanges`.
 - `markUnsavedChanges(): void`
   - Sets `hasUnsavedChanges = true` and calls `syncApplyIndicator()`.
 - `clearUnsavedChanges(): void`
   - Sets `hasUnsavedChanges = false` and calls `syncApplyIndicator()`.
+
+---
+[1]: ./settingsHelp.md#initSettingsHelp

@@ -19,9 +19,10 @@
   - Routes empty-state visibility through the shared analysis runtime.
 - `buildHeatmapStatus(clusterCount: number | null): string`
   - Formats the status line for the current matrix layout.
-- `initHeatmapPage(deps: HeatmapPageDeps): Promise<void>` [deps: [fetchCorrelationMatrix][1], [createAnalysisPageRuntime][2]]
-  - Boots heatmap controls, reloads matrices by metric, toggles clustering and Auto-fit, and renders click-through cells that forward X/Y to the Scatter page. Uses `ResizeObserver` to re-fit on container resize.
+- `initHeatmapPage(deps: HeatmapPageDeps): Promise<void>` [deps: [fetchCorrelationMatrix][1], [createAnalysisPageRuntime][2], [initHeatmapHelp][3]]
+  - Boots heatmap controls, reloads matrices by metric, toggles clustering and Auto-fit, and renders click-through cells that forward X/Y to the Scatter page. Uses `ResizeObserver` to re-fit on container resize. Also wires the page-level `?` help button via `initHeatmapHelp`.
 
 ---
 [1]: ../services/api/analytics.md#fetchCorrelationMatrix
 [2]: ./shared/analysisPageRuntime.md#createAnalysisPageRuntime
+[3]: ./heatmapHelp.md#initHeatmapHelp

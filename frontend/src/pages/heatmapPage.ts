@@ -3,6 +3,7 @@ import type { CorrelationMatrixResponse } from '../services/api/analytics.js';
 import { exportElementPNG, exportElementSVG, exportElementHTML, exportMatrixCSV } from '../utils/chartExport.js';
 import { getDropdownValue, setDropdownValue } from '../ui/primitives/Dropdown.js';
 import { bindInfoPopovers } from '../ui/infoPopovers.js';
+import { initHeatmapHelp } from './heatmapHelp.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
 import { clusterColumns, type Cluster } from '../utils/correlationClustering.js';
 import { initToolbarOverflow } from '../scatter/toolbarOverflow.js';
@@ -629,6 +630,9 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             setDropdownValue('heatmap-metric', metric);
             syncMetricGuide();
             bindInfoPopovers();
+            // Page-level "?" help button. The helper is idempotent so
+            // calling it on every init is safe.
+            initHeatmapHelp();
 
             // Sync initial control state with module-level defaults.
             if (clusterToggle) clusterToggle.checked = heatmapClusterEnabled;

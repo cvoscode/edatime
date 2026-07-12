@@ -16,6 +16,7 @@ import {
 } from '../utils/spectralScaling.js';
 import { formatCyclesPerDay, formatFrequencyInUnit, frequencyToPeriod, pickFrequencyUnit, useCyclesPerDayFrequencyAxis } from '../utils/spectralPresets.js';
 import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
+import { initFftHelp } from './fftHelp.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 interface FftPageDeps {
@@ -417,6 +418,9 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
         init() {
             // one-time setup
             void ensureFftChartReady();
+            // Page-level "?" help button. Idempotent so safe to call
+            // on every page init.
+            initFftHelp();
 
             modeSelect?.addEventListener('change', () => {
                 fftMode = getDropdownValue('fft-mode-select') || 'magnitude';

@@ -1,4 +1,4 @@
-import { uiState } from '../store/index.js';
+import { uiState } from '../store/uiState.js';
 import { createModalController } from './shell/createModalController';
 import { createDataMutationFeature } from '../features/dataMutation/entrypoint.js';
 import { getDropdownValue } from './primitives/Dropdown.js';

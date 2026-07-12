@@ -57,12 +57,21 @@ scatterTask = createRequestTask({
 ### `bindControls(): Promise<void>`
 - Lazily imports `controls.js` and calls `bindScatterControls` once. Registers the `activeApplyHandler` closure for correlation pills. Installs toolbar overflow helper.
 
-### `initScatterPage(metadata: DatasetMetadata): Promise<void>`
+### `initScatterPage(metadata: DatasetMetadata): Promise<void>` [deps: [initScatterHelp][7]]
 - Populates `appState.scatter.metadata` and `columnTypes` from metadata.
 - Always populates or clears X/Y selects (even with zero numeric columns) so controls are deterministically initialized.
-- On first call (`!appState.scatter.initialized`): calls `bindControls()`, installs toolbar overflow, sets `initialized = true`.
+- On first call (`!appState.scatter.initialized`): calls `bindControls()`, installs toolbar overflow, wires the page-level `?` help button via `initScatterHelp`, sets `initialized = true`.
 - On first page visit (`!appState.scatter.pageInitialized`): triggers `refreshCorrelationsAndSuggestions({ preferTopPairOnFirstLoad: true })` and `renderScatter`; sets `pageInitialized = true`.
 - Subsequent calls do nothing (early return).
 
 ## Public Re-exports for `controls.ts` and `viewController.ts`
 - `renderScatter`, `rerenderScatterFromCache`, `refreshActiveScatterView`, `setScatterView`, `refreshCorrelationsAndSuggestions`
+
+---
+[1]: ./rendering.md
+[2]: ./controls.md
+[3]: ./matrix.md
+[4]: ./runtime.md
+[5]: ./state.md
+[6]: ./rendering.md
+[7]: ../pages/scatterHelp.md#initScatterHelp

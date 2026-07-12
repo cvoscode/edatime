@@ -2028,10 +2028,12 @@ body.drawer-open::after {
     flex-wrap: nowrap;
     overflow-x: auto;
   }
+
   #page-spectrogram .scatter-toolbar__segment--display {
     flex: 1 1 auto;
     min-width: 0;
   }
+
   #page-spectrogram .scatter-toolbar__segment--display .scatter-toolbar__fields {
     flex-wrap: nowrap;
   }
@@ -2084,6 +2086,7 @@ body.drawer-open::after {
   #page-fft .scatter-toolbar {
     row-gap: 6px;
   }
+
   #page-fft .scatter-toolbar__segment--display .scatter-toolbar__fields,
   #page-fft .scatter-toolbar__segment--refine .scatter-toolbar__fields {
     flex-wrap: wrap;
@@ -2097,15 +2100,18 @@ body.drawer-open::after {
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 6px 10px;
   }
+
   #page-fft .scatter-toolbar__segment--refine .scatter-toolbar__fields {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 6px 10px;
   }
+
   #page-fft .scatter-toolbar__segment--refine .fft-filter-actions {
     grid-column: 1 / -1;
     justify-content: flex-end;
   }
+
   #page-fft .scatter-toolbar__segment--display .scatter-toolbar__field,
   #page-fft .scatter-toolbar__segment--refine .scatter-toolbar__field {
     max-width: none;
@@ -2120,18 +2126,22 @@ body.drawer-open::after {
     gap: 6px;
     width: 100%;
   }
+
   #page-fft .scatter-toolbar__eyebrow {
     width: auto;
     padding-right: 0;
   }
+
   #page-fft .scatter-toolbar__segment--display .scatter-toolbar__fields,
   #page-fft .scatter-toolbar__segment--refine .scatter-toolbar__fields {
     grid-template-columns: 1fr;
   }
+
   #page-fft .fft-export-icons {
     width: 100%;
     justify-content: stretch;
   }
+
   #page-fft .fft-export-icons .btn {
     flex: 1 1 0;
   }
@@ -2145,6 +2155,7 @@ body.drawer-open::after {
 
 /* ─── Reduced motion ─────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
+
   .fft-trace-chip.loading,
   .fft-trace-chip.active {
     animation: none;

@@ -88,6 +88,10 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
             buildRangeControls: deps.buildTimeseriesRanges,
             refreshDatasetAfterMutation: () => deps.refreshDatasetAfterMutation(),
         });
+        // Page-level "?" help button. The helper is idempotent so it's
+        // safe to call from inside the upload-panel subsystem.
+        const { initUploadHelp } = await import('../../pages/uploadPage.js');
+        initUploadHelp();
     });
 
     registerSubsystem('column-profiles', async () => {
@@ -138,6 +142,10 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         const { initAnalysisControls, initChartPageFilterGesture } = await import('../../ui/toolbar.js');
         initAnalysisControls(deps.fetchAndRender, deps.zoomOut, deps.resetZoom, deps.workspace);
         initChartPageFilterGesture();
+        // Page-level "?" help button. The helper is idempotent so it's
+        // safe to call from inside the analysis-controls subsystem.
+        const { initTimeseriesHelp } = await import('../../pages/timeseriesHelp.js');
+        initTimeseriesHelp();
     });
 
     registerSubsystem('command-palette', async () => {
@@ -149,6 +157,16 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     registerSubsystem('sample-datasets', async (deps) => {
         const { wireSampleDatasetCards } = await import('./sampleDatasets.js');
         wireSampleDatasetCards(deps.showPage, () => deps.refreshDatasetAfterMutation());
+    });
+
+    registerSubsystem('page-help', async () => {
+        // Page-level "?" help buttons. The home page is wired here; the
+        // other pages opt in by adding a "<pageId>-help-btn" trigger
+        // and importing initPageHelp from their own page module. The
+        // `initPageHelp` helper is idempotent, so calling it from
+        // multiple subsystem loaders is safe.
+        const { initHomePage } = await import('../../pages/homePage.js');
+        initHomePage();
     });
 
     registerSubsystem('app-commands', async (deps) => {
@@ -203,6 +221,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
 
     async function ensureHomeSubsystems(deps: DeferredShellDeps): Promise<void> {
         await ensureSubsystem('sample-datasets', deps);
+        await ensureSubsystem('page-help', deps);
     }
 
     async function ensureAll(deps: DeferredShellDeps): Promise<void> {

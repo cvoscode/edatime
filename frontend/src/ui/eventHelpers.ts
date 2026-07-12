@@ -3,7 +3,7 @@
  * Lives in ui/* since it deals with DOM event dispatch.
  */
 
-import { uiState } from '../store/index.js';
+import { uiState } from '../store/uiState.js';
 
 /**
  * Dispatch edatime:adaptive-filters-change whenever the adaptive

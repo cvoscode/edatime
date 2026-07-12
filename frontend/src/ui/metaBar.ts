@@ -12,7 +12,7 @@
  *   - `#header-meta`          (rows counter)
  *   - `#timeseries-meta-bar`  (numeric series counter)
  */
-import { datasetState } from '../store/index.js';
+import { datasetState } from '../store/datasetState.js';
 
 export function setMetaText(text: string): void {
     const el = document.getElementById('stat-rows');

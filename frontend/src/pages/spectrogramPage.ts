@@ -3,6 +3,7 @@
  */
 import { createSpectrogramChartRuntime } from './spectrogramChartRuntime.js';
 import { __resetSpectrogramChartRuntimeForTests } from './spectrogramChartRuntime.js';
+import { initSpectrogramHelp } from './spectrogramHelp.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 interface SpectrogramPageDeps {
@@ -15,6 +16,9 @@ let spectrogramRuntime: ReturnType<typeof createSpectrogramChartRuntime> | null 
 export async function initSpectrogramPage(deps: SpectrogramPageDeps): Promise<void> {
     spectrogramRuntime = createSpectrogramChartRuntime(deps);
     spectrogramRuntime.mount();
+    // Page-level "?" help button. Idempotent so safe to call on every
+    // page init.
+    initSpectrogramHelp();
 }
 
 export function __resetSpectrogramPageForTests(): void {

@@ -16,6 +16,7 @@ import { EchartsScatterChart } from '../chart/EchartsScatterChart.js';
 import { fetchScatterPoints } from '../services/api/index.js';
 import { getScatterViewSnapshot, scatterState, setScatterViewSnapshot } from '../store/scatterState.js';
 import { setAdaptiveLineFilters, setColumnRanges, uiState } from '../store/uiState.js';
+import { initScatterHelp } from '../pages/scatterHelp.js';
 import { buildAdaptiveLineFiltersForQueryState } from '../services/timeseries/filtering.js';
 import {
     getEl,
@@ -513,6 +514,9 @@ export async function initScatterPage(
         if (toolbar) {
             try { initScatterToolbarOverflow(toolbar); } catch { /* noop */ }
         }
+        // Page-level "?" help button. The helper is idempotent so
+        // calling it on every first init is safe.
+        initScatterHelp();
         scatterState.initialized = true;
     }
     if (scatterState.pageInitialized) return;

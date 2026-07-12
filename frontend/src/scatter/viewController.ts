@@ -6,7 +6,7 @@
  * may call openScatterPairInCausal). They are also imported by scatterPage.ts
  * for co-located use in the render pipeline.
  */
-import { scatterState } from '../store/index.js';
+import { scatterState } from '../store/scatterState.js';
 import { syncModeUI } from './rendering.js';
 import { renderScatterMatrixView, selectMatrixPair } from './matrix.js';
 import { getEl } from './helpers.js';

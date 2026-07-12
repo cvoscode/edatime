@@ -22,6 +22,7 @@ import {
 import { renderColumnChips } from './chipPanel.js';
 import { scheduleCausalChartRefresh, setChartEl } from './graphView.js';
 import { syncCausalEmptyState } from './statusView.js';
+import { initCausalHelp } from '../pages/causalHelp.js';
 import { openEditPanel, bindEditPanelEvents } from './editPanel.js';
 import { handleExport } from './export.js';
 import { initCausalComparison } from './causalComparison.js';
@@ -64,6 +65,9 @@ export function initCausalPage(deps: CausalDeps): void {
     renderColumnChips(deps, columnsBar, openEditPanel);
     syncCausalEmptyState(_selectedColumns.size);
     bindInfoPopovers();
+    // Page-level "?" help button. Idempotent so safe to call on every
+    // page init.
+    initCausalHelp();
     applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci');
     syncCausalGraphActionState(_currentLinks.length > 0 && _currentColumns.length >= 2);
     scheduleCausalChartRefresh();

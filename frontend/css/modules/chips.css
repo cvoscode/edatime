@@ -530,7 +530,8 @@
     overflow-y: hidden;
     padding-right: 16px;
   }
-  .fft-traces-bar > * {
+
+  .fft-traces-bar>* {
     flex: 0 0 auto;
   }
 }
@@ -668,9 +669,11 @@
     padding: 6px 10px;
     gap: 6px 10px;
   }
+
   .fft-spectral-info__value {
     max-width: 22ch;
   }
+
   .fft-spectral-info__peak-table {
     flex-basis: 100%;
     margin-top: 2px;
@@ -683,19 +686,23 @@
     align-items: stretch;
     gap: 4px 0;
   }
+
   .fft-spectral-info__row {
     flex-direction: row;
     align-items: baseline;
     justify-content: space-between;
     gap: 8px;
   }
+
   .fft-spectral-info__value {
     max-width: 60vw;
   }
+
   .fft-spectral-info__peak-table {
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     padding-top: 4px;
   }
+
   .fft-spectral-info__peak-row {
     grid-template-columns: 22px minmax(80px, auto) minmax(56px, auto) minmax(56px, auto);
     gap: 6px;

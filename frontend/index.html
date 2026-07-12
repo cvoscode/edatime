@@ -288,6 +288,12 @@
       <section id="workflow-panel" class="workflow-panel"></section>
 
       <section class="page page--analysis-scroll" id="page-timeseries" data-page-name="timeseries" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">Timeseries</h1>
+          <button id="timeseries-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Timeseries page"
+            title="Show help for the Timeseries page (?)">?</button>
+        </div>
         <div class="toolbar toolbar--series timeseries-command-bar">
           <div class="timeseries-command-bar__left toolbar-group" role="group" aria-label="Series selection tools">
             <span class="toolbar-label">Series</span>
@@ -496,6 +502,12 @@
       </section>
 
       <section class="page" id="page-scatter" data-page-name="scatter" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">Scatter</h1>
+          <button id="scatter-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Scatter page"
+            title="Show help for the Scatter page (?)">?</button>
+        </div>
         <div class="toolbar scatter-toolbar">
           <div id="scatter-analytics-group" class="scatter-toolbar__cluster">
             <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
@@ -727,6 +739,12 @@
       </section>
 
       <section class="page page--analysis-scroll" id="page-fft" data-page-name="fft" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">FFT / PSD</h1>
+          <button id="fft-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the FFT page"
+            title="Show help for the FFT page (?)">?</button>
+        </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
             <span class="scatter-toolbar__eyebrow">Display</span>
@@ -802,8 +820,9 @@
                 <label class="toolbar-field scatter-toolbar__field" for="fft-filter-high-hz"
                   title="High frequency cutoff (Hz)">
                   <span class="toolbar-field__label">High Hz</span>
-                  <input id="fft-filter-high-hz" type="number" class="modal-input" min="0" step="0.001" placeholder="auto"
-                    title="High frequency cutoff (Hz)" name="fft-filter-high-hz" aria-label="High Hz">
+                  <input id="fft-filter-high-hz" type="number" class="modal-input" min="0" step="0.001"
+                    placeholder="auto" title="High frequency cutoff (Hz)" name="fft-filter-high-hz"
+                    aria-label="High Hz">
                 </label>
               </div>
               <div class="fft-filter-actions">
@@ -850,10 +869,14 @@
                   <span class="toolbar-disclosure__value">Image + CSV</span>
                 </summary>
                 <div class="toolbar-disclosure__menu">
-                  <button id="fft-export-png-btn-fallback" class="btn btn-ghost btn-sm" type="button" disabled>PNG</button>
-                  <button id="fft-export-svg-btn-fallback" class="btn btn-ghost btn-sm" type="button" disabled>SVG</button>
-                  <button id="fft-export-html-btn-fallback" class="btn btn-ghost btn-sm" type="button" disabled>HTML</button>
-                  <button id="fft-export-csv-btn-fallback" class="btn btn-ghost btn-sm" type="button" disabled>CSV</button>
+                  <button id="fft-export-png-btn-fallback" class="btn btn-ghost btn-sm" type="button"
+                    disabled>PNG</button>
+                  <button id="fft-export-svg-btn-fallback" class="btn btn-ghost btn-sm" type="button"
+                    disabled>SVG</button>
+                  <button id="fft-export-html-btn-fallback" class="btn btn-ghost btn-sm" type="button"
+                    disabled>HTML</button>
+                  <button id="fft-export-csv-btn-fallback" class="btn btn-ghost btn-sm" type="button"
+                    disabled>CSV</button>
                 </div>
               </details>
             </div>
@@ -888,6 +911,12 @@
       </section>
 
       <section class="page" id="page-heatmap" data-page-name="heatmap" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">Correlations</h1>
+          <button id="heatmap-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Correlations page"
+            title="Show help for the Correlations page (?)">?</button>
+        </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
             <span class="scatter-toolbar__eyebrow">Metric</span>
@@ -1009,6 +1038,12 @@
       </section>
 
       <section class="page page--analysis-scroll" id="page-spectrogram" data-page-name="spectrogram" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">Spectrogram</h1>
+          <button id="spectrogram-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Spectrogram page"
+            title="Show help for the Spectrogram page (?)">?</button>
+        </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
             <div class="scatter-toolbar__fields">
@@ -1147,9 +1182,10 @@
           </div>
           <div id="spectrogram-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <svg class="plot-empty-state__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M2 14h2v6H2zm4-4h2v10H6zm4 2h2v8h-2zm4-6h2v14h-2zm4 4h2v10h-2zm4-2h2v12h-2z" fill="currentColor" opacity="0.55"/>
-              <path d="M2 14 L6 10 L10 12 L14 6 L18 10 L22 8" fill="none" stroke="currentColor"
-                stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>
+              <path d="M2 14h2v6H2zm4-4h2v10H6zm4 2h2v8h-2zm4-6h2v14h-2zm4 4h2v10h-2zm4-2h2v12h-2z" fill="currentColor"
+                opacity="0.55" />
+              <path d="M2 14 L6 10 L10 12 L14 6 L18 10 L22 8" fill="none" stroke="currentColor" stroke-width="1.5"
+                stroke-linejoin="round" stroke-linecap="round" opacity="0.9" />
             </svg>
             <strong>No spectrogram yet</strong>
             <span>Pick a numeric column, keep the current time range, and click Compute.</span>
@@ -1162,6 +1198,12 @@
       </section>
 
       <section class="page" id="page-causal" data-page-name="causal" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">Causal</h1>
+          <button id="causal-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Causal page"
+            title="Show help for the Causal page (?)">?</button>
+        </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
             <span class="scatter-toolbar__eyebrow"
@@ -1315,6 +1357,12 @@
 
       <!-- ── Drift Analysis page ───────────────────────── -->
       <section class="page" id="page-drift" data-page-name="drift" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">Drift</h1>
+          <button id="drift-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Drift page"
+            title="Show help for the Drift page (?)">?</button>
+        </div>
         <div class="toolbar scatter-toolbar drift-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
             <span class="scatter-toolbar__eyebrow">Data</span>
@@ -1557,6 +1605,12 @@
 
       <!-- ── Home page ───────────────────────────────────── -->
       <section class="page page-home" id="page-home" data-page-name="home" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">Home</h1>
+          <button id="home-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Home page"
+            title="Show help for the Home page (?)">?</button>
+        </div>
         <div class="home-hero">
           <div class="home-hero-icon">
             <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
@@ -1825,6 +1879,12 @@
       </section>
 
       <section class="page page-upload" id="page-upload" data-page-name="upload">
+        <div class="page-header">
+          <h1 class="page-header__title">Upload</h1>
+          <button id="upload-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Upload page"
+            title="Show help for the Upload page (?)">?</button>
+        </div>
         <div id="upload-panel" class="open">
           <div class="upload-inner">
             <div class="upload-source-tabs" role="tablist" aria-label="Upload source">
@@ -2337,6 +2397,9 @@
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
           <div class="modal-header">
             <div class="modal-title" id="settings-title">Settings</div>
+            <button id="settings-help-btn" class="page-help-trigger" type="button"
+              aria-label="Show help for the Settings panel"
+              title="Show help for the Settings panel (?)">?</button>
             <button class="btn btn-ghost" id="settings-close-btn" type="button">Close</button>
           </div>
 

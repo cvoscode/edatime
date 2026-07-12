@@ -17,11 +17,12 @@
   - Formats timestamp as locale datetime string.
 - `formatSpectrogramFrequency(frequency: number): string`
   - Formats frequency in Hz/kHz/mHz based on magnitude.
-- `initSpectrogramPage(deps: SpectrogramPageDeps): Promise<void>` [deps: [createAnalysisPageRuntime][1], [exportEChartsPNG][2], [exportEChartsSVG][3], [exportEChartsHTML][4]]
-  - Initializes spectrogram page, ECharts chart, drag-to-zoom selection box, and export bindings.
+- `initSpectrogramPage(deps: SpectrogramPageDeps): Promise<void>` [deps: [createAnalysisPageRuntime][1], [exportEChartsPNG][2], [exportEChartsSVG][3], [exportEChartsHTML][4], [initSpectrogramHelp][5]]
+  - Initializes spectrogram page, ECharts chart, drag-to-zoom selection box, and export bindings. Also wires the page-level `?` help button via `initSpectrogramHelp`.
 
 ---
 [1]: ./shared/analysisPageRuntime.md#createAnalysisPageRuntime
 [2]: ../../utils/chartExport.md#exportEChartsPNG
 [3]: ../../utils/chartExport.md#exportEChartsSVG
 [4]: ../../utils/chartExport.md#exportEChartsHTML
+[5]: ./spectrogramHelp.md#initSpectrogramHelp

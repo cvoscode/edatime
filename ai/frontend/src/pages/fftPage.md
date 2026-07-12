@@ -23,10 +23,11 @@
   - Loads the stored trace selection or, on first visit, fetches the first two numeric columns.
 - `renderChips(): void` [deps: [renderSeriesChipList][2]]
   - Renders FFT trace chips with preserved loading state and shared color updates.
-- `initFftPage(deps: FftPageDeps): Promise<void>` [deps: [createAnalysisPageRuntime][3], [fetchSpectralFilter][1]]
-  - Boots the FFT page shell, control listeners, exports, chip rail, first-load selection, and spectral-filter preview flow.
+- `initFftPage(deps: FftPageDeps): Promise<void>` [deps: [createAnalysisPageRuntime][3], [fetchSpectralFilter][1], [initFftHelp][4]]
+  - Boots the FFT page shell, control listeners, exports, chip rail, first-load selection, and spectral-filter preview flow. Also wires the page-level `?` help button via `initFftHelp`.
 
 ---
 [1]: ../services/api/analytics.md
 [2]: ../ui/seriesChipList.md#renderSeriesChipList
 [3]: ./shared/analysisPageRuntime.md#createAnalysisPageRuntime
+[4]: ./fftHelp.md#initFftHelp

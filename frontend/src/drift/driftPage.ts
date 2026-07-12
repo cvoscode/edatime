@@ -11,6 +11,7 @@ import { bindDriftControls, getSelectedColumns } from './controls.js';
 import { toast } from '../utils/toast.js';
 import { createAnalysisPageRuntime } from '../pages/shared/analysisPageRuntime.js';
 import { createRequestTask } from '../pages/shared/requestTask.js';
+import { initDriftHelp } from '../pages/driftHelp.js';
 import type { EChartLike } from './types.js';
 import {
     buildColumnSummary,
@@ -866,4 +867,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
         },
     });
     driftPageCleanup = driftRuntime.mount();
+    // Page-level "?" help button. Idempotent so safe to call on every
+    // page init.
+    initDriftHelp();
 }

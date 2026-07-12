@@ -21,6 +21,7 @@ import {
 import { SERIES_COLORS } from '../utils/seriesColors.js';
 import { createModalController } from './shell/createModalController';
 import { getDropdownValue, setDropdownValue } from './primitives/Dropdown.js';
+import { initSettingsHelp } from './settingsHelp.js';
 
 let currentSettings: AppSettings | null = null;
 let draftSettings: AppSettings | null = null;
@@ -229,6 +230,9 @@ function getCheckboxValue(id: string): boolean {
 
 /** Initialize the settings panel event handlers. */
 export function initSettingsPanel(): void {
+    // Page-level "?" help button. Idempotent so safe to call on every
+    // settings-panel init.
+    initSettingsHelp();
     // Apply button
     document.getElementById('settings-apply-btn')?.addEventListener('click', applySettings);
 

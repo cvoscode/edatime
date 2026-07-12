@@ -294,6 +294,7 @@
   color: var(--text-dim);
   font-size: 0.8125rem;
 }
+
 /* Item #11 — empty-state gets cramped on narrow phones. Reduce
    padding and illustration size so the message fits one column. */
 @media (max-width: 480px) {

@@ -24,9 +24,14 @@
   flex: 1;
   min-height: 0;
 }
-[hidden] { display: none !important; }
 
-.page[hidden] { display: none !important; }
+[hidden] {
+  display: none !important;
+}
+
+.page[hidden] {
+  display: none !important;
+}
 
 .page--analysis-scroll {
   overflow: auto;
@@ -62,8 +67,8 @@
   flex-direction: column;
 }
 
-.main--analysis-chart > #fft-chart,
-.main--analysis-chart > #spectrogram-chart {
+.main--analysis-chart>#fft-chart,
+.main--analysis-chart>#spectrogram-chart {
   flex: 1 1 0;
   min-height: 0;
 }
@@ -248,6 +253,7 @@
   .spectrogram-chart-row {
     flex-direction: column;
   }
+
   .spectrogram-chart-row #spectrogram-colorbar {
     flex-direction: row;
     width: 100%;
@@ -255,12 +261,14 @@
     padding: 0 8px;
     gap: 6px;
   }
+
   .spectrogram-chart-row #spectrogram-colorbar .cb-range-track {
     width: auto;
     height: 12px;
     min-height: 12px;
     flex: 1 1 auto;
   }
+
   .spectrogram-chart-row #spectrogram-colorbar .scatter-colorbar-vbar {
     top: 50%;
     bottom: auto;
@@ -271,6 +279,7 @@
     height: 12px;
     background: linear-gradient(to right, #440154, #414487, #2a788e, #22a884, #7ad151, #fde725) !important;
   }
+
   .spectrogram-chart-row #spectrogram-colorbar .cb-range-fill {
     top: 50%;
     left: 0;
@@ -282,21 +291,25 @@
     border-top: 1px solid rgba(0, 212, 255, 0.55);
     border-bottom: 1px solid rgba(0, 212, 255, 0.55);
   }
+
   .spectrogram-chart-row #spectrogram-colorbar .cb-handle {
     top: 50%;
     width: 12px;
     height: 22px;
   }
+
   .spectrogram-chart-row #spectrogram-colorbar .cb-handle--high {
     transform: translate(-50%, -50%);
     /* overridden by JS via left% */
     left: 0;
   }
+
   .spectrogram-chart-row #spectrogram-colorbar .cb-handle--low {
     transform: translate(50%, -50%);
     right: 0;
     left: auto;
   }
+
   .spectrogram-chart-row #spectrogram-colorbar .scatter-colorbar-vname {
     writing-mode: horizontal-tb;
     transform: none;
@@ -308,6 +321,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
   .spectrogram-chart-row #spectrogram-colorbar .scatter-colorbar-vtick {
     flex: 0 0 auto;
   }
@@ -319,6 +333,7 @@
   .spectrogram-chart-row #spectrogram-colorbar .scatter-colorbar-vtick {
     font-size: 0.55rem;
   }
+
   .spectrogram-chart-row #spectrogram-colorbar .scatter-colorbar-vname {
     font-size: 0.55rem;
   }
@@ -390,6 +405,7 @@
     font-size: 0.6rem;
     max-width: calc(100% - 12px);
   }
+
   .spectrogram-spectral-info__row {
     gap: 8px;
   }

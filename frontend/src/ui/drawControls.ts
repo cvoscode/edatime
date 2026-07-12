@@ -4,7 +4,7 @@
  */
 
 import { chartState } from '../store/chartState.js';
-import { setAdaptiveLineFilters, setPendingAdaptivePoint } from '../store/index.js';
+import { setAdaptiveLineFilters, setPendingAdaptivePoint } from '../store/uiState.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 

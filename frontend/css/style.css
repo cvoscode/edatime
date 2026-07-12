@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   EdaTime — CSS import manifest  v40
+   EdaTime — CSS import manifest  v41
    ─────────────────────────────────────────────────────────────
    Layer order (foundation → primitive/component → shell → feature):
      foundation   — design tokens, reset, scrollbars, animations, a11y
@@ -74,6 +74,9 @@
 
 /* 26. What's new modal */
 @import "modules/whats-new.css";
+
+/* 27. Page help modal — contextual "?" help for each page */
+@import "modules/page-help.css";
 
 /* ── Shell / Layout ───────────────────────────────────────── */
 
