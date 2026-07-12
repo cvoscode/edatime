@@ -41,6 +41,7 @@ import { resolveSpectrogramHopSize, resolveSpectrogramWindowSize } from './spect
 import { buildSpectrogramChartOptions } from './spectrogramChartOptions.js';
 import { createSpectrogramColorbar } from './spectrogramColorbar.js';
 import { buildSpectrogramRequest } from './spectrogramRequest.js';
+import { buildSpectrogramSummaryLabel, renderSpectrogramSummary } from './spectrogramSummary.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
@@ -357,43 +358,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 );
             };
 
-            // Populate the floating results context panel anchored to the
-            // top-right of the spectrogram chart. Mirrors the FFT page's
-            // `.fft-spectral-info` overlay so the user can interpret the
-            // rendered result without opening the timeseries or settings.
-            const syncSpectrogramSummary = () => {
-                if (!summaryEl) return;
-                const result = spectrogramResult;
-                const rateEl = document.getElementById('spectrogram-summary-rate');
-                const nyquistEl = document.getElementById('spectrogram-summary-nyquist');
-                const pointsEl = document.getElementById('spectrogram-summary-points');
-                const binsEl = document.getElementById('spectrogram-summary-bins');
-                if (!result) {
-                    summaryEl.hidden = true;
-                    return;
-                }
-                const times = result.times_ms;
-                const freqs = result.frequencies;
-                const spanMs = Math.max(
-                    0,
-                    Number(times[times.length - 1] ?? 0) - Number(times[0] ?? 0),
-                );
-                const sampleRateHz = spanMs > 0 && times.length > 1
-                    ? ((times.length - 1) * 1000) / spanMs
-                    : NaN;
-                const nyquistHz = Number.isFinite(sampleRateHz) ? sampleRateHz / 2 : NaN;
-                const formatHz = (hz: number): string => {
-                    if (!Number.isFinite(hz)) return '—';
-                    if (hz >= 1000) return `${(hz / 1000).toFixed(2)} kHz`;
-                    if (hz >= 1) return `${hz.toFixed(2)} Hz`;
-                    return `${(hz * 1000).toFixed(2)} mHz`;
-                };
-                if (rateEl) rateEl.textContent = formatHz(sampleRateHz);
-                if (nyquistEl) nyquistEl.textContent = formatHz(nyquistHz);
-                if (pointsEl) pointsEl.textContent = times.length.toLocaleString();
-                if (binsEl) binsEl.textContent = freqs.length.toLocaleString();
-                summaryEl.hidden = false;
-            };
+            const syncSpectrogramSummary = () => renderSpectrogramSummary(summaryEl, spectrogramResult);
 
             const renderSpectrogramChart = async () => {
                 if (!spectrogramResult) return;
@@ -425,20 +390,17 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
 
                 const dominantBand = findDominantFrequencyBand(spectrogramResult);
                 if (summaryEl) {
-                    // Populate the structured context panel with derived
-                    // metrics (sample rate, Nyquist, time points, frequency
-                    // bins). The existing single-line summary text is
-                    // preserved in `aria-label` for screen readers.
-                    const summaryParts = [
-                        `Spectrogram of ${spectrogramResult.column}`,
-                        `Window ${getResolvedSpectrogramWindowSize()}`,
-                        `Hop ${getResolvedSpectrogramHopSize(getResolvedSpectrogramWindowSize())}`,
-                        scaleModeLabel(spectrogramAppliedScaleMode, spectrogramAppliedClipMode, spectrogramAppliedClipParam),
-                    ];
-                    if (dominantBand) {
-                        summaryParts.push(`Peak ${formatFrequency(dominantBand.dominantHz)}`);
-                    }
-                    summaryEl.setAttribute('aria-label', summaryParts.join(' · '));
+                    summaryEl.setAttribute('aria-label', buildSpectrogramSummaryLabel({
+                        result: spectrogramResult,
+                        windowSize: getResolvedSpectrogramWindowSize(),
+                        hopSize: getResolvedSpectrogramHopSize(getResolvedSpectrogramWindowSize()),
+                        scaleLabel: scaleModeLabel(
+                            spectrogramAppliedScaleMode,
+                            spectrogramAppliedClipMode,
+                            spectrogramAppliedClipParam,
+                        ),
+                        peakLabel: dominantBand ? formatFrequency(dominantBand.dominantHz) : undefined,
+                    }));
                     syncSpectrogramSummary();
                 }
                 if (autoFitToggle?.checked && dominantBand && freqAxis.length > 1) {

@@ -192,7 +192,8 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Extracted the pure ECharts heatmap option/view-model builder into `spectrogramChartOptions`; it owns palette application, axes, zoom defaults, progressive rendering, and compact tooltip formatting, while the runtime retains data/cache and page-state orchestration.
 - Extracted colorbar presentation and pointer-range interaction into `spectrogramColorbar`; it owns global-palette display, selected-range handles, RAF-coalesced drag updates, reset, and disposal while the runtime supplies filtered data and redraws.
 - Extracted `spectrogramRequest` as the authoritative frontend-side analytics request builder, covering finite viewport validation, resolved window/hop values, the `131072` point budget, normalize mode, and clip semantics before the API call.
-- Next, separate chart lifecycle and compute/control orchestration from the remaining runtime rendering flow.
+- Extracted `spectrogramSummary` for structured result metrics and its accessible result description, leaving the runtime to provide current result, resolved controls, scale state, and peak formatting.
+- Next, separate chart lifecycle and remaining page-control orchestration from the runtime rendering flow.
 
 ### Completed: global continuous color-scale ownership
 
