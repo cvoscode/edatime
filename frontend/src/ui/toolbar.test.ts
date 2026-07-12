@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { chartState, setAnalysisBound, setChartInstance } from '../store/index.js';
+import { chartState, setChartInstance } from '../store/chartState.js';
+import { setAnalysisBound } from '../store/runtimeState.js';
 import { bindAnalysisChartEvents } from './toolbar.js';
 
 describe('toolbar', () => {

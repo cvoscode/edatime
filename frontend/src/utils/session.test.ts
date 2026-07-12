@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { chartState, datasetState, uiState } from '../store/index.js';
+import { chartState } from '../store/chartState.js';
+import { datasetState } from '../store/datasetState.js';
+import { uiState } from '../store/uiState.js';
 import { applySession, type SessionSnapshot } from './session.js';
 import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 

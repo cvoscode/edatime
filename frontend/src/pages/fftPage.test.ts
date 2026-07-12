@@ -108,7 +108,9 @@ describe('initFftPage', () => {
             }],
         }));
 
-        const { chartState, datasetState } = await import('../store/index.js');
+        const [{ chartState }, { datasetState }] = await Promise.all([
+            import('../store/chartState.js'), import('../store/datasetState.js'),
+        ]);
         datasetState.metadata = {
             total_rows: 10,
             columns: [],
@@ -154,7 +156,9 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { chartState, datasetState } = await import('../store/index.js');
+        const [{ chartState }, { datasetState }] = await Promise.all([
+            import('../store/chartState.js'), import('../store/datasetState.js'),
+        ]);
         datasetState.metadata = {
             total_rows: 10,
             columns: [],
@@ -196,7 +200,9 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { chartState, datasetState } = await import('../store/index.js');
+        const [{ chartState }, { datasetState }] = await Promise.all([
+            import('../store/chartState.js'), import('../store/datasetState.js'),
+        ]);
         datasetState.metadata = {
             total_rows: 10,
             columns: [],
@@ -246,7 +252,9 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { chartState, datasetState } = await import('../store/index.js');
+        const [{ chartState }, { datasetState }] = await Promise.all([
+            import('../store/chartState.js'), import('../store/datasetState.js'),
+        ]);
         datasetState.metadata = {
             total_rows: 10,
             columns: [],
@@ -292,7 +300,9 @@ describe('initFftPage', () => {
     it('falls back to ECharts when the WebGPU FFT chart cannot initialize', async () => {
         fftChartInstance.init.mockRejectedValueOnce(new Error('No WebGPU adapter found'));
 
-        const { chartState, datasetState } = await import('../store/index.js');
+        const [{ chartState }, { datasetState }] = await Promise.all([
+            import('../store/chartState.js'), import('../store/datasetState.js'),
+        ]);
         datasetState.metadata = {
             total_rows: 10,
             columns: [],
@@ -314,7 +324,9 @@ describe('initFftPage', () => {
     });
 
     it('enables clip method and param when fft outliers toggle is checked (input event)', async () => {
-        const { chartState, datasetState } = await import('../store/index.js');
+        const [{ chartState }, { datasetState }] = await Promise.all([
+            import('../store/chartState.js'), import('../store/datasetState.js'),
+        ]);
         datasetState.metadata = {
             total_rows: 10,
             columns: [],
@@ -358,7 +370,9 @@ describe('initFftPage', () => {
     });
 
     it('hides advanced clip controls until outlier clipping is enabled', async () => {
-        const { chartState, datasetState } = await import('../store/index.js');
+        const [{ chartState }, { datasetState }] = await Promise.all([
+            import('../store/chartState.js'), import('../store/datasetState.js'),
+        ]);
         datasetState.metadata = {
             total_rows: 10,
             columns: [],
@@ -389,7 +403,9 @@ describe('initFftPage', () => {
     });
 
     it('hides inactive spectral cutoff inputs until the selected filter uses them', async () => {
-        const { chartState, datasetState } = await import('../store/index.js');
+        const [{ chartState }, { datasetState }] = await Promise.all([
+            import('../store/chartState.js'), import('../store/datasetState.js'),
+        ]);
         datasetState.metadata = {
             total_rows: 10,
             columns: [],
@@ -437,7 +453,9 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { chartState, datasetState } = await import('../store/index.js');
+        const [{ chartState }, { datasetState }] = await Promise.all([
+            import('../store/chartState.js'), import('../store/datasetState.js'),
+        ]);
         datasetState.metadata = {
             total_rows: 10,
             columns: [],

@@ -1,21 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-    chartState,
-    datasetState,
-    scatterState,
-    store,
-    uiState,
-} from './index.js';
-import { setChartInstance } from './chartState.js';
+import { chartState, setChartInstance } from './chartState.js';
+import { datasetState } from './datasetState.js';
+import { clearSubscribers, subscribe } from './events.js';
+import { scatterState } from './scatterState.js';
 import {
     setColumnRange,
     setPreviewSelectedColumns,
     setSelectedCols,
+    uiState,
 } from './uiState.js';
 
 describe('store contract', () => {
     beforeEach(() => {
-        store.clearSubscribers();
+        clearSubscribers();
         setSelectedCols([]);
         setColumnRange('value', { from: 0, to: 1 });
         uiState.columnRanges = {};
@@ -29,7 +26,7 @@ describe('store contract', () => {
 
     it('subscribes, emits, and unsubscribes typed store events', () => {
         const handler = vi.fn();
-        const unsubscribe = store.subscribe('ui:selectedCols', handler);
+        const unsubscribe = subscribe('ui:selectedCols', handler);
 
         setSelectedCols(['temperature']);
 

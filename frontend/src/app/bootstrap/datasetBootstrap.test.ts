@@ -31,7 +31,7 @@ const {
     };
 });
 
-vi.mock('../../store/index.js', () => ({
+vi.mock('../../store/datasetState.js', () => ({
     setMetadata: setMetadataMock,
     setDatasetRevision: setDatasetRevisionMock,
 }));
