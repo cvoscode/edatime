@@ -63,6 +63,7 @@ import { buildTimeSeriesChartOptions } from './timeSeriesChartOptions.js';
 import { getChartExportDomains, getChartExportViewport, type ChartExportDomains, type ChartExportViewport } from './chartExportLayout.js';
 import { renderExportLineSeries } from './chartExportSeriesRenderer.js';
 import { renderExportAxes } from './chartExportAxesRenderer.js';
+import { renderExportDecorations } from './chartExportDecorationsRenderer.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
@@ -902,9 +903,6 @@ export class DataChart {
         const plotBottom = Math.max(plotTop + 1, height - grid.bottom);
         const plotWidth = Math.max(1, plotRight - plotLeft);
         const plotHeight = Math.max(1, plotBottom - plotTop);
-        const xSpan = domains.xMax - domains.xMin;
-        const ySpan = domains.yMax - domains.yMin;
-
         ctx.save();
         ctx.beginPath();
         ctx.rect(plotLeft, plotTop, plotWidth, plotHeight);
@@ -927,52 +925,16 @@ export class DataChart {
             { border, borderHi, textDim },
         );
 
-        // Title + axis names
-        const title = String(this._chartTitle ?? '').trim();
-        if (title) {
-            ctx.save(); ctx.fillStyle = text; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-            ctx.font = `${Math.max(12, Math.round(14 * scale))}px Inter, system-ui, -apple-system, sans-serif`;
-            ctx.fillText(title, width / 2, Math.max(2 * scale, (plotTop - (Math.max(12, Math.round(14 * scale)) + 2 * scale)) / 2));
-            ctx.restore();
-        }
-        const xAxisName = String(this._xAxisLabel ?? '').trim();
-        if (xAxisName) {
-            ctx.save(); ctx.fillStyle = textDim; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-            ctx.fillText(xAxisName, width / 2, height - fontSize - 2 * scale); ctx.restore();
-        }
-        const yAxisName = String(this._yAxisLabel ?? '').trim();
-        if (yAxisName) {
-            ctx.save(); ctx.fillStyle = textDim;
-            ctx.translate(Math.max(10 * scale, fontSize), (plotTop + plotBottom) / 2);
-            ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-            ctx.fillText(yAxisName, 0, 0); ctx.restore();
-        }
-
-        // Legend
-        const legendEntries = this._getLegendEntries().filter((entry) => entry.visible);
-        if (legendEntries.length > 0) {
-            const pad2 = 8 * scale;
-            const gap = 6 * scale;
-            const sw = 18 * scale;
-            const lh = Math.max(14 * scale, fontSize + 2 * scale);
-            let maxTextW = 0;
-            for (const e of legendEntries) maxTextW = Math.max(maxTextW, ctx.measureText(e.name).width);
-            const boxW = pad2 * 2 + sw + gap + maxTextW;
-            const boxH = pad2 * 2 + legendEntries.length * lh;
-            const x0 = Math.max(plotLeft, plotRight - boxW - 6 * scale);
-            const y0 = plotTop + 6 * scale;
-            ctx.save(); ctx.globalAlpha = 0.9; ctx.fillStyle = surface2; ctx.fillRect(x0, y0, boxW, boxH);
-            ctx.globalAlpha = 1; ctx.strokeStyle = border; ctx.lineWidth = 1 * scale; ctx.strokeRect(x0, y0, boxW, boxH);
-            ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = text;
-            for (let i = 0; i < legendEntries.length; i++) {
-                const e = legendEntries[i];
-                const cy = y0 + pad2 + i * lh + lh / 2;
-                ctx.strokeStyle = e.color; ctx.lineWidth = 2 * scale;
-                ctx.beginPath(); ctx.moveTo(x0 + pad2, cy); ctx.lineTo(x0 + pad2 + sw, cy); ctx.stroke();
-                ctx.fillText(e.name, x0 + pad2 + sw + gap, cy);
-            }
-            ctx.restore();
-        }
+        renderExportDecorations(
+            ctx,
+            { width, height },
+            { left: plotLeft, top: plotTop, width: plotWidth, height: plotHeight },
+            scale,
+            fontSize,
+            { surface: surface2, border, text, textDim },
+            { title: this._chartTitle, xAxis: this._xAxisLabel, yAxis: this._yAxisLabel },
+            this._getLegendEntries(),
+        );
 
         if (includeDrawings) {
             this._renderDrawingsToCtx(ctx, { x: width / cssWidth, y: height / cssHeight });

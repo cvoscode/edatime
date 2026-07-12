@@ -171,6 +171,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted export viewport sizing and padded export-domain policy into `chartExportLayout`, with direct boundary coverage; `DataChart` now delegates this non-rendering export setup.
 - Extracted export line-series painting into `chartExportSeriesRenderer`, including visibility, finite-point filtering, coordinate projection, and stroke policy.
 - Extracted export axes, grid lines, ticks, and numeric/time labels into `chartExportAxesRenderer`, keeping `DataChart` export composition focused on orchestration.
+- Extracted export title/axis-label and legend composition into `chartExportDecorationsRenderer`, including visible-entry filtering and layout policy.
 
 ### Next: DataChart renderer seams
 
