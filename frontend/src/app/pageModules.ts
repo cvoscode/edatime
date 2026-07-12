@@ -75,7 +75,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         name: 'spectrogram',
         requiresMetadata: true,
         async load(deps) {
-            const { initSpectrogramPage } = await import('../pages/spectrogramPage.js');
+            const { initSpectrogramPage } = await import('../features/spectrogram/page.js');
             return { init: () => initSpectrogramPage({ setLoading: deps.setLoading, workspace: deps.workspace }) };
         },
     },

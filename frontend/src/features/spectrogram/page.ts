@@ -1,9 +1,9 @@
 /**
  * Spectrogram page — thin delegator to spectrogramChartRuntime.
  */
-import { createSpectrogramChartRuntime, __resetSpectrogramChartRuntimeForTests } from '../features/spectrogram/runtime.js';
-import { initSpectrogramHelp } from '../features/spectrogram/help.js';
-import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+import { createSpectrogramChartRuntime, __resetSpectrogramChartRuntimeForTests } from './runtime.js';
+import { initSpectrogramHelp } from './help.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;

@@ -19,10 +19,6 @@ The implementation is deliberately sequential: each milestone starts by writing 
 
 Verified after each milestone with the full frontend test suite, TypeScript, architecture, bundle-budget, and packaged asset-graph gates. The last facade-retirement verification passed 1,018 frontend tests.
 
-### Next: feature directory ownership
-
-Move each page controller/runtime under its owning `features/<name>/` directory, beginning with timeseries. Preserve the public lifecycle contract and its current characterization tests while removing page-to-feature trampolines only when the new owner directly composes the controller, view, and lifecycle.
-
 ### Completed: timeseries feature ownership
 
 - Moved the timeseries controller, lifecycle, composition module, page help, and their characterization tests under `features/timeseries/`.
@@ -30,6 +26,16 @@ Move each page controller/runtime under its owning `features/<name>/` directory,
 - Removed the retired `pages/timeseriesPage.ts`, `pages/timeseriesModule.ts`, `pages/timeseriesRuntime.ts`, and `pages/timeseriesHelp.ts` owners.
 
 The next feature-directory migration should apply the same controller/runtime/help ownership model to a self-contained analysis feature, starting with FFT or spectrogram.
+
+### Completed: spectrogram feature ownership
+
+- Moved the spectrogram page controller, chart runtime, help binding, and their characterization tests under `features/spectrogram/`.
+- Updated the page registry to lazy-load the feature-owned page surface directly and removed the retired `pages/spectrogramPage.ts` owner.
+- Kept the existing public initialization contract intact while eliminating the last page-to-feature trampoline for spectrogram.
+
+### Next: FFT feature ownership
+
+Move the FFT page controller and its help/runtime dependencies under `features/fft/`. Preserve the current lazy page-registry contract and characterization tests, then remove the corresponding `pages/` owners only after the feature directly composes them.
 
 ## Target Architecture
 

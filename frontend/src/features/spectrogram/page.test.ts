@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { chartState } from '../store/chartState.js';
+import { chartState } from '../../store/chartState.js';
 
 // Mock shared dependencies
-vi.mock('../services/api/index.js', () => ({
+vi.mock('../../services/api/index.js', () => ({
     fetchSpectrogram: vi.fn().mockResolvedValue({
         result: {
             column: 'test_col',
@@ -14,18 +14,18 @@ vi.mock('../services/api/index.js', () => ({
     }),
 }));
 
-vi.mock('../utils/chartExport.js', () => ({
+vi.mock('../../utils/chartExport.js', () => ({
     exportEChartsPNG: vi.fn(),
     exportEChartsSVG: vi.fn(),
     exportEChartsHTML: vi.fn(),
 }));
 
-vi.mock('../utils/bindExportButtons.js', () => ({
+vi.mock('../../utils/bindExportButtons.js', () => ({
     bindExportButtons: vi.fn(),
 }));
 
 const toastMock = vi.fn();
-vi.mock('../utils/toast.js', () => ({
+vi.mock('../../utils/toast.js', () => ({
     toast: (...args: unknown[]) => toastMock(...args),
 }));
 
@@ -53,7 +53,7 @@ vi.mock('echarts', () => ({
     init: (...args: unknown[]) => echartsInitMock(...(args as Parameters<typeof echartsInitMock>)),
 }));
 
-vi.mock('../app/pageLifecycle.js', () => ({
+vi.mock('../../app/pageLifecycle.js', () => ({
     createPageLifecycle: vi.fn(({ page, init, onVisible, onEveryPageChange }) => {
         try { init?.(); } catch (error) { console.error('init threw:', error); }
         return () => {
@@ -116,12 +116,12 @@ describe('spectrogramPage', () => {
     });
 
     it('initializes without throwing', async () => {
-        const { initSpectrogramPage } = await import('../pages/spectrogramPage.js');
+        const { initSpectrogramPage } = await import('./page.js');
         await initSpectrogramPage({ setLoading: vi.fn() });
     });
 
     it('enables clip method and param when the outliers toggle is checked via input', async () => {
-        const { initSpectrogramPage } = await import('../pages/spectrogramPage.js');
+        const { initSpectrogramPage } = await import('./page.js');
         await initSpectrogramPage({ setLoading: vi.fn() });
 
         const toggle = document.getElementById('spectrogram-clip-toggle') as HTMLInputElement;
@@ -141,10 +141,10 @@ describe('spectrogramPage', () => {
     });
 
     it('enables clip method via change after upgradeSelects replaces the native select', async () => {
-        const { upgradeSelects } = await import('../ui/primitives/Dropdown.js');
+        const { upgradeSelects } = await import('../../ui/primitives/Dropdown.js');
         upgradeSelects(document);
 
-        const { initSpectrogramPage } = await import('../pages/spectrogramPage.js');
+        const { initSpectrogramPage } = await import('./page.js');
         await initSpectrogramPage({ setLoading: vi.fn() });
 
         const toggle = document.getElementById('spectrogram-clip-toggle') as HTMLInputElement;
@@ -237,14 +237,14 @@ describe('spectrogramPage colorbar filter', () => {
     });
 
     afterEach(async () => {
-        const { __resetSpectrogramPageForTests } = await import('../pages/spectrogramPage.js');
+        const { __resetSpectrogramPageForTests } = await import('./page.js');
         __resetSpectrogramPageForTests();
     });
 
     async function mountAndCompute(): Promise<void> {
         chartState.currentStart = 0;
         chartState.currentEnd = 1e6;
-        const { initSpectrogramPage } = await import('../pages/spectrogramPage.js');
+        const { initSpectrogramPage } = await import('./page.js');
         await initSpectrogramPage({ setLoading: vi.fn() });
         for (let i = 0; i < 30; i += 1) {
             await new Promise((resolve) => setTimeout(resolve, 0));
@@ -302,12 +302,12 @@ describe('spectrogramPage colorbar filter', () => {
     });
 
     it('auto-computes on first load when a default column is already selected', async () => {
-        const { fetchSpectrogram } = await import('../services/api/index.js');
+        const { fetchSpectrogram } = await import('../../services/api/index.js');
         const beforeCalls = vi.mocked(fetchSpectrogram).mock.calls.length;
         chartState.currentStart = 0;
         chartState.currentEnd = 1e6;
 
-        const { initSpectrogramPage } = await import('../pages/spectrogramPage.js');
+        const { initSpectrogramPage } = await import('./page.js');
         await initSpectrogramPage({ setLoading: vi.fn() });
         for (let i = 0; i < 30; i += 1) {
             await new Promise((resolve) => setTimeout(resolve, 0));
@@ -324,8 +324,8 @@ describe('spectrogramPage colorbar filter', () => {
     it('treats normalize as a staged control and only applies it after Compute', async () => {
         await mountAndCompute();
 
-        const { fetchSpectrogram } = await import('../services/api/index.js');
-        const { setDropdownValue } = await import('../ui/primitives/Dropdown.js');
+        const { fetchSpectrogram } = await import('../../services/api/index.js');
+        const { setDropdownValue } = await import('../../ui/primitives/Dropdown.js');
         const fetchMock = vi.mocked(fetchSpectrogram);
         const computeButton = document.getElementById('spectrogram-compute-btn') as HTMLButtonElement;
         const instance = echartsInstances[echartsInstances.length - 1];
@@ -349,12 +349,12 @@ describe('spectrogramPage colorbar filter', () => {
     });
 
     it('reveals custom window and hop inputs and sends absolute sample values on Compute', async () => {
-        const { fetchSpectrogram } = await import('../services/api/index.js');
-        const { setDropdownValue } = await import('../ui/primitives/Dropdown.js');
+        const { fetchSpectrogram } = await import('../../services/api/index.js');
+        const { setDropdownValue } = await import('../../ui/primitives/Dropdown.js');
         chartState.currentStart = 0;
         chartState.currentEnd = 1e6;
 
-        const { initSpectrogramPage } = await import('../pages/spectrogramPage.js');
+        const { initSpectrogramPage } = await import('./page.js');
         await initSpectrogramPage({ setLoading: vi.fn() });
         for (let i = 0; i < 10; i += 1) {
             await new Promise((resolve) => setTimeout(resolve, 0));
@@ -388,13 +388,13 @@ describe('spectrogramPage colorbar filter', () => {
     });
 
     it('renders normalized spectrogram values even when log scale remains checked', async () => {
-        const { fetchSpectrogram } = await import('../services/api/index.js');
-        const { setDropdownValue } = await import('../ui/primitives/Dropdown.js');
+        const { fetchSpectrogram } = await import('../../services/api/index.js');
+        const { setDropdownValue } = await import('../../ui/primitives/Dropdown.js');
         chartState.currentStart = 0;
         chartState.currentEnd = 1e6;
 
         const fetchMock = vi.mocked(fetchSpectrogram);
-        const { initSpectrogramPage } = await import('../pages/spectrogramPage.js');
+        const { initSpectrogramPage } = await import('./page.js');
         await initSpectrogramPage({ setLoading: vi.fn() });
         for (let i = 0; i < 20; i += 1) {
             await new Promise((resolve) => setTimeout(resolve, 0));

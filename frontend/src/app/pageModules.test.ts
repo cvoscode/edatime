@@ -14,7 +14,7 @@ vi.mock('../utils/pageStyles.js', () => ({ ensureStyleModule: mocks.ensureStyleM
 vi.mock('../pages/fftPage.js', () => ({ initFftPage: mocks.initFftPage }));
 vi.mock('../pages/heatmapPage.js', () => ({ initHeatmapPage: mocks.initHeatmapPage }));
 vi.mock('../scatter/scatterPage.js', () => ({ initScatterPage: mocks.initScatterPage }));
-vi.mock('../pages/spectrogramPage.js', () => ({ initSpectrogramPage: mocks.initSpectrogramPage }));
+vi.mock('../features/spectrogram/page.js', () => ({ initSpectrogramPage: mocks.initSpectrogramPage }));
 vi.mock('../causal/causalPage.js', () => ({ initCausalPage: mocks.initCausalPage }));
 vi.mock('../drift/driftPage.js', () => ({ initDriftPage: mocks.initDriftPage }));
 
