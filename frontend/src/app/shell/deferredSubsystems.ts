@@ -144,7 +144,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         initChartPageFilterGesture();
         // Page-level "?" help button. The helper is idempotent so it's
         // safe to call from inside the analysis-controls subsystem.
-        const { initTimeseriesHelp } = await import('../../pages/timeseriesHelp.js');
+        const { initTimeseriesHelp } = await import('../../features/timeseries/help.js');
         initTimeseriesHelp();
     });
 

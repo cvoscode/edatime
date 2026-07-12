@@ -29,7 +29,7 @@ describe('timeseries page help button', () => {
     });
 
     it('initTimeseriesHelp binds the button and opens the modal on click', async () => {
-        const { initTimeseriesHelp } = await import('./timeseriesHelp.js');
+        const { initTimeseriesHelp } = await import('./help.js');
         initTimeseriesHelp();
 
         const trigger = document.getElementById('timeseries-help-btn') as HTMLButtonElement;
@@ -50,7 +50,7 @@ describe('timeseries page help button', () => {
     });
 
     it('initTimeseriesHelp is safe to call twice (idempotent)', async () => {
-        const { initTimeseriesHelp } = await import('./timeseriesHelp.js');
+        const { initTimeseriesHelp } = await import('./help.js');
         initTimeseriesHelp();
         initTimeseriesHelp();
         const trigger = document.getElementById('timeseries-help-btn') as HTMLButtonElement;

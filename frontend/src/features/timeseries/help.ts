@@ -8,7 +8,7 @@
  * onto it.
  */
 
-import { initPageHelp, type PageHelpContent } from '../ui/pageHelp.js';
+import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 
 /**
  * Content of the Timeseries help modal. Walks through each part of
