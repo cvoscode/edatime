@@ -99,7 +99,7 @@ import {
     initCtrlPan,
 } from './chartInteractions.js';
 import { ChartOverlays } from './chartOverlays.js';
-import { clampLegendPosition, isShiftOnlyGesture } from './legendInteraction.js';
+import { buildLegendEntries, clampLegendPosition, isShiftOnlyGesture } from './legendInteraction.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
@@ -969,38 +969,7 @@ export class DataChart {
 
     private _getLegendEntries(): { name: string; color: string; visible: boolean }[] {
         const seriesList = Array.isArray(this._lastSeriesList) ? this._lastSeriesList : [];
-        // Group all series for the same base name. A base name can have
-        // multiple series (e.g. raw line + colorized segments + marker
-        // overlays). Visibility is "true if any segment for this name is
-        // visible" — finalizing after the loop avoids the previous
-        // collapse bug where toggling deterministically flipped behavior.
-        const byName = new Map<string, { name: string; color: string; anyVisible: boolean }>();
-        const fallbackPalette = this._getChartColorPalette();
-        for (const series of seriesList) {
-            if (!series || series.type !== 'line') continue;
-            const rawName = typeof series.name === 'string' ? series.name : '';
-            if (!rawName || rawName.endsWith('__markers')) continue;
-            const name = baseSeriesName(rawName);
-            if (!name) continue;
-            const visible = series.visible !== false;
-            const existing = byName.get(name);
-            if (existing) {
-                existing.anyVisible = existing.anyVisible || visible;
-                // First encountered color wins; later segments rarely carry
-                // a meaningful color and would otherwise clobber the swatch.
-                continue;
-            }
-            byName.set(name, {
-                name,
-                color: series.color || fallbackPalette[byName.size % fallbackPalette.length],
-                anyVisible: visible,
-            });
-        }
-        return Array.from(byName.values()).map(({ name, color, anyVisible }) => ({
-            name,
-            color,
-            visible: anyVisible,
-        }));
+        return buildLegendEntries(seriesList, this._getChartColorPalette(), baseSeriesName);
     }
 
     private _toggleLegendTrace(name: string): void {

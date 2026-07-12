@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampLegendPosition, isShiftOnlyGesture } from './legendInteraction.js';
+import { buildLegendEntries, clampLegendPosition, isShiftOnlyGesture } from './legendInteraction.js';
 
 describe('legend interaction policy', () => {
     it('clamps legend placement inside the chart margins', () => {
@@ -10,5 +10,13 @@ describe('legend interaction policy', () => {
     it('allows only an unmodified Shift gesture to move the legend', () => {
         expect(isShiftOnlyGesture({ shiftKey: true, ctrlKey: false, metaKey: false, altKey: false })).toBe(true);
         expect(isShiftOnlyGesture({ shiftKey: true, ctrlKey: true, metaKey: false, altKey: false })).toBe(false);
+    });
+
+    it('groups colorized segments into one toggleable trace entry', () => {
+        expect(buildLegendEntries([
+            { type: 'line', name: 'temperature', color: '#f00', visible: false },
+            { type: 'line', name: 'temperature__segment', visible: true },
+            { type: 'line', name: 'temperature__markers', visible: true },
+        ], ['#000'], (name) => name.replace(/__.*$/, ''))).toEqual([{ name: 'temperature', color: '#f00', visible: true }]);
     });
 });

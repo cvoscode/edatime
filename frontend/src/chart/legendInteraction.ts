@@ -3,6 +3,25 @@ export interface LegendPosition {
     top: number;
 }
 
+export interface LegendEntry { name: string; color: string; visible: boolean }
+
+export function buildLegendEntries(
+    series: readonly { type?: string; name?: string; color?: string; visible?: boolean }[],
+    palette: readonly string[],
+    baseName: (name: string) => string,
+): LegendEntry[] {
+    const byName = new Map<string, { name: string; color: string; visible: boolean }>();
+    for (const item of series) {
+        if (item.type !== 'line' || !item.name || item.name.endsWith('__markers')) continue;
+        const name = baseName(item.name);
+        if (!name) continue;
+        const existing = byName.get(name);
+        if (existing) { existing.visible ||= item.visible !== false; continue; }
+        byName.set(name, { name, color: item.color || palette[byName.size % palette.length] || '#000000', visible: item.visible !== false });
+    }
+    return [...byName.values()];
+}
+
 export function clampLegendPosition(
     position: LegendPosition,
     container: Pick<HTMLElement, 'clientWidth' | 'clientHeight'> | null,
