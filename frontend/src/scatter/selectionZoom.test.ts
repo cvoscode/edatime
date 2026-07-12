@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { appState } from '../store/index.js';
+import { scatterState } from '../store/index.js';
 import { initSelectionZoom, applyView, resetView } from './rendering.js';
 import { SCATTER_PLOT_GRID, getScatterPlotMetrics } from './layout.js';
 
@@ -24,12 +24,12 @@ function bindRect(element: HTMLElement, width: number, height: number) {
 }
 
 function resetState(): void {
-    appState.scatter.selectionBox = null;
-    appState.scatter.drag = null;
-    appState.scatter.zoomHistory = [];
-    appState.scatter.view = { xMin: -2.16, xMax: 110.05, yMin: -30.63, yMax: 37.75 };
-    appState.scatter.full = { ...appState.scatter.view };
-    appState.scatter.chart = { setOption: vi.fn(), resize: vi.fn() } as any;
+    scatterState.selectionBox = null;
+    scatterState.drag = null;
+    scatterState.zoomHistory = [];
+    scatterState.view = { xMin: -2.16, xMax: 110.05, yMin: -30.63, yMax: 37.75 };
+    scatterState.full = { ...scatterState.view };
+    scatterState.chart = { setOption: vi.fn(), resize: vi.fn() } as any;
 }
 
 function dispatchPointer(target: HTMLElement, type: string, opts: { clientX: number; clientY: number; pointerId?: number }): void {
@@ -83,10 +83,10 @@ describe('scatter selection zoom (initSelectionZoom)', () => {
 
         // Full-plot drag covers the full view — applying it on top of the
         // current view should leave the bounds essentially unchanged.
-        expect(appState.scatter.view.xMin).toBeCloseTo(appState.scatter.full.xMin, 6);
-        expect(appState.scatter.view.xMax).toBeCloseTo(appState.scatter.full.xMax, 6);
-        expect(appState.scatter.view.yMin).toBeCloseTo(appState.scatter.full.yMin, 6);
-        expect(appState.scatter.view.yMax).toBeCloseTo(appState.scatter.full.yMax, 6);
+        expect(scatterState.view.xMin).toBeCloseTo(scatterState.full.xMin, 6);
+        expect(scatterState.view.xMax).toBeCloseTo(scatterState.full.xMax, 6);
+        expect(scatterState.view.yMin).toBeCloseTo(scatterState.full.yMin, 6);
+        expect(scatterState.view.yMax).toBeCloseTo(scatterState.full.yMax, 6);
     });
 
     it('does not skew the zoom by the SCATTER_PLOT_GRID padding', () => {
@@ -111,17 +111,17 @@ describe('scatter selection zoom (initSelectionZoom)', () => {
         });
 
         // xMin must be exactly the current xMin — no left-padding offset.
-        expect(appState.scatter.view.xMin).toBeCloseTo(appState.scatter.full.xMin, 6);
+        expect(scatterState.view.xMin).toBeCloseTo(scatterState.full.xMin, 6);
         // y should be mapped from the plot grid, not the full container.
-        const ySpan = appState.scatter.full.yMax - appState.scatter.full.yMin;
-        const expectedYMin = appState.scatter.full.yMax - (metrics.plotHeight / 2 / metrics.plotHeight) * ySpan;
-        expect(appState.scatter.view.yMin).toBeCloseTo(expectedYMin, 6);
-        expect(appState.scatter.view.yMax).toBeCloseTo(appState.scatter.full.yMax, 6);
+        const ySpan = scatterState.full.yMax - scatterState.full.yMin;
+        const expectedYMin = scatterState.full.yMax - (metrics.plotHeight / 2 / metrics.plotHeight) * ySpan;
+        expect(scatterState.view.yMin).toBeCloseTo(expectedYMin, 6);
+        expect(scatterState.view.yMax).toBeCloseTo(scatterState.full.yMax, 6);
         // xMax should advance by (50 / plotWidth) of the x span, not the
         // container width.
-        const xSpan = appState.scatter.full.xMax - appState.scatter.full.xMin;
-        const expected = appState.scatter.full.xMin + (50 / metrics.plotWidth) * xSpan;
-        expect(appState.scatter.view.xMax).toBeCloseTo(expected, 6);
+        const xSpan = scatterState.full.xMax - scatterState.full.xMin;
+        const expected = scatterState.full.xMin + (50 / metrics.plotWidth) * xSpan;
+        expect(scatterState.view.xMax).toBeCloseTo(expected, 6);
     });
 
     it('clamps a drag that starts outside the plot area to the plot area', () => {
@@ -133,8 +133,8 @@ describe('scatter selection zoom (initSelectionZoom)', () => {
 
         // Drag is below the 8px threshold relative to the plot area, so no
         // zoom should be applied.
-        expect(appState.scatter.view.xMin).toBe(appState.scatter.full.xMin);
-        expect(appState.scatter.view.xMax).toBe(appState.scatter.full.xMax);
+        expect(scatterState.view.xMin).toBe(scatterState.full.xMin);
+        expect(scatterState.view.xMax).toBe(scatterState.full.xMax);
     });
 
     it('ignores drags shorter than 8 pixels in either dimension', () => {
@@ -154,7 +154,7 @@ describe('scatter selection zoom (initSelectionZoom)', () => {
             clientY: metrics.plotTop + 200,
         });
 
-        expect(appState.scatter.view).toEqual(appState.scatter.full);
+        expect(scatterState.view).toEqual(scatterState.full);
     });
 
     it('requires a real box selection before zooming density plots', () => {
@@ -179,8 +179,8 @@ describe('scatter selection zoom (initSelectionZoom)', () => {
             clientY: metrics.plotTop + 123,
         });
 
-        expect(appState.scatter.view).toEqual(appState.scatter.full);
-        expect(appState.scatter.zoomHistory).toEqual([]);
+        expect(scatterState.view).toEqual(scatterState.full);
+        expect(scatterState.zoomHistory).toEqual([]);
     });
 
     it('pushes the prior view onto the zoom history on each successful zoom', () => {
@@ -201,8 +201,8 @@ describe('scatter selection zoom (initSelectionZoom)', () => {
             clientY: metrics.plotBottom,
         });
 
-        expect(appState.scatter.zoomHistory.length).toBe(1);
-        expect(appState.scatter.zoomHistory[0]).toEqual(appState.scatter.full);
+        expect(scatterState.zoomHistory.length).toBe(1);
+        expect(scatterState.zoomHistory[0]).toEqual(scatterState.full);
     });
 });
 
@@ -245,8 +245,8 @@ describe('scatter non-box gestures (initSelectionZoom)', () => {
         const cy = metrics.plotTop + metrics.plotHeight / 2;
         dispatchWheel(container, { deltaY: -100, clientX: cx, clientY: cy });
 
-        expect(appState.scatter.view).toEqual(appState.scatter.full);
-        expect(appState.scatter.zoomHistory).toEqual([]);
+        expect(scatterState.view).toEqual(scatterState.full);
+        expect(scatterState.zoomHistory).toEqual([]);
     });
 });
 
@@ -268,21 +268,21 @@ describe('scatter view reset / history pop', () => {
     });
 
     it('resetView restores the full data domain and clears history by default', () => {
-        appState.scatter.view = { xMin: 0, xMax: 50, yMin: 0, yMax: 50 };
-        appState.scatter.zoomHistory = [{ xMin: 0, xMax: 25, yMin: 0, yMax: 25 }];
+        scatterState.view = { xMin: 0, xMax: 50, yMin: 0, yMax: 50 };
+        scatterState.zoomHistory = [{ xMin: 0, xMax: 25, yMin: 0, yMax: 25 }];
         resetView();
-        expect(appState.scatter.view).toEqual(appState.scatter.full);
-        expect(appState.scatter.zoomHistory.length).toBe(0);
+        expect(scatterState.view).toEqual(scatterState.full);
+        expect(scatterState.zoomHistory.length).toBe(0);
     });
 
     it('applyView with pushHistory=true records the previous view for undo', () => {
-        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 100 };
-        appState.scatter.view = { ...appState.scatter.full };
-        appState.scatter.zoomHistory = [];
+        scatterState.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 100 };
+        scatterState.view = { ...scatterState.full };
+        scatterState.zoomHistory = [];
 
         applyView({ xMin: 10, xMax: 90, yMin: 10, yMax: 90 }, true);
-        expect(appState.scatter.zoomHistory.length).toBe(1);
-        expect(appState.scatter.zoomHistory[0]).toEqual({ xMin: 0, xMax: 100, yMin: 0, yMax: 100 });
-        expect(appState.scatter.view).toEqual({ xMin: 10, xMax: 90, yMin: 10, yMax: 90 });
+        expect(scatterState.zoomHistory.length).toBe(1);
+        expect(scatterState.zoomHistory[0]).toEqual({ xMin: 0, xMax: 100, yMin: 0, yMax: 100 });
+        expect(scatterState.view).toEqual({ xMin: 10, xMax: 90, yMin: 10, yMax: 90 });
     });
 });

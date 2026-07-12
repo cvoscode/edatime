@@ -1,10 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { appState } from '../store/index.js';
+import {
+    scatterState,
+    setAdaptiveLineFilters,
+    setColumnRanges,
+    setMetadata,
+    setViewport,
+    uiState,
+} from '../store/index.js';
 import { buildOverviewContextKey, buildScatterQueryContext, getActiveScatterFilterColumns } from './state.js';
-import { setScatterViewSnapshot } from '../store/scatterState.js';
+import { setScatterActiveView, setScatterViewSnapshot } from '../store/scatterState.js';
 
 /**
- * Mirror the in-app behaviour: tests that stage `appState.columnRanges`
+ * Mirror the in-app behaviour: tests that stage `uiState.columnRanges`
  * should also push them into the active view's filter snapshot so the
  * scatter query context picks them up. The page controller keeps the two
  * in sync via event listeners; here we just call the setter directly
@@ -12,7 +19,7 @@ import { setScatterViewSnapshot } from '../store/scatterState.js';
  */
 function primePlotSnapshot(): void {
     setScatterViewSnapshot('plot', {
-        columnRanges: (appState.columnRanges as Record<string, { from: number; to: number }>) || {},
+        columnRanges: uiState.columnRanges as Record<string, { from: number; to: number }>,
         lineFilters: [],
     });
 }
@@ -20,19 +27,17 @@ function primePlotSnapshot(): void {
 describe('scatter query context builders', () => {
     beforeEach(() => {
         document.body.innerHTML = '';
-        appState.currentStart = null;
-        appState.currentEnd = null;
-        appState.columnRanges = {};
-        appState.adaptiveLineFilters = [];
-        appState.metadata = null;
-        appState.scatter.activeView = 'plot';
+        setViewport(null, null);
+        setColumnRanges({});
+        setAdaptiveLineFilters([]);
+        setMetadata(null);
+        setScatterActiveView('plot');
         primePlotSnapshot();
     });
 
     it('returns undefined start/end for invalid linked ranges in scatter queries', () => {
         document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
-        appState.currentStart = 100;
-        appState.currentEnd = 50;
+        setViewport(100, 50);
 
         const result = buildScatterQueryContext();
         expect(result.start).toBeUndefined();
@@ -41,16 +46,15 @@ describe('scatter query context builders', () => {
 
     it('returns valid start/end when the linked brush range is valid', () => {
         document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
-        appState.currentStart = 100;
-        appState.currentEnd = 200;
-        appState.metadata = {
+        setViewport(100, 200);
+        setMetadata({
             total_rows: 3,
             columns: [],
             numeric_columns: [],
             time_column: 'timestamp',
             time_range: { min: 0, max: 200 },
             column_profiles: [],
-        };
+        } as any);
 
         const result = buildScatterQueryContext();
         expect(result.start).toBe(100);
@@ -59,10 +63,9 @@ describe('scatter query context builders', () => {
 
     it('uses explicit workspace filters and viewport ahead of legacy state', () => {
         document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
-        appState.currentStart = 1;
-        appState.currentEnd = 2;
-        appState.columnRanges = { legacy: { from: 1, to: 2 } } as any;
-        appState.metadata = { time_column: 'timestamp', column_profiles: [], columns: [], numeric_columns: [], time_range: { min: 0, max: 100 } } as any;
+        setViewport(1, 2);
+        setColumnRanges({ legacy: { from: 1, to: 2 } } as any);
+        setMetadata({ time_column: 'timestamp', column_profiles: [], columns: [], numeric_columns: [], time_range: { min: 0, max: 100 } } as any);
 
         const result = buildScatterQueryContext(
             { x: 'workspace', y: 'other', scopeToColumns: false },
@@ -83,16 +86,15 @@ describe('scatter query context builders', () => {
 
     it('does not include linked time ranges when the dataset has no time column', () => {
         document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
-        appState.currentStart = 100;
-        appState.currentEnd = 200;
-        appState.metadata = {
+        setViewport(100, 200);
+        setMetadata({
             total_rows: 3,
             columns: [],
             numeric_columns: [],
             time_column: null,
             time_range: null,
             column_profiles: [],
-        };
+        } as any);
 
         const result = buildScatterQueryContext();
         expect(result.start).toBeUndefined();
@@ -100,11 +102,11 @@ describe('scatter query context builders', () => {
     });
 
     it('scopes column-range filters to active scatter columns', () => {
-        appState.columnRanges = {
+        setColumnRanges({
             x: { from: 1, to: 9 },
             y: { from: 2, to: 8 },
             unrelated: { from: 5, to: 6 },
-        } as any;
+        } as any);
         primePlotSnapshot();
 
         const result = buildScatterQueryContext({ x: 'x', y: 'y', colorColumn: '' });
@@ -115,7 +117,7 @@ describe('scatter query context builders', () => {
     });
 
     it('reads adaptive line filters from the active scatter view snapshot when no workspace intent is passed', () => {
-        appState.adaptiveLineFilters = [{ id: 'legacy', column: 'legacy', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: true }] as any;
+        setAdaptiveLineFilters([{ id: 'legacy', column: 'legacy', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: true }] as any);
         setScatterViewSnapshot('plot', {
             columnRanges: {},
             lineFilters: [{ column: 'snapshot', x1: 0, y1: 0, x2: 2, y2: 2, keepAbove: true }],
@@ -127,11 +129,11 @@ describe('scatter query context builders', () => {
     });
 
     it('reports only active scoped filter columns for badge summaries', () => {
-        appState.columnRanges = {
+        setColumnRanges({
             x: { from: 1, to: 9 },
             color_bucket: { from: 0, to: 1 },
             ignored: { from: 5, to: 6 },
-        } as any;
+        } as any);
         primePlotSnapshot();
 
         const cols = getActiveScatterFilterColumns({ x: 'x', y: 'y', colorColumn: 'color_bucket' });
@@ -139,7 +141,7 @@ describe('scatter query context builders', () => {
     });
 
     it('reads badge filters from explicit workspace intent', () => {
-        appState.columnRanges = { legacy: { from: 1, to: 2 } } as any;
+        setColumnRanges({ legacy: { from: 1, to: 2 } } as any);
 
         const cols = getActiveScatterFilterColumns(
             { x: 'workspace', y: 'other', colorColumn: '' },
@@ -150,7 +152,7 @@ describe('scatter query context builders', () => {
     });
 
     it('drops full-range filters that still match the dataset profile bounds', () => {
-        appState.metadata = {
+        setMetadata({
             total_rows: 3,
             columns: [],
             numeric_columns: ['x', 'y'],
@@ -160,11 +162,11 @@ describe('scatter query context builders', () => {
                 { name: 'x', dtype: 'float64', min: 1, max: 9, count: 3, non_null_count: 3, null_count: 0, mean: 5, median: 5, std: 2, unique: 3, top: null, freq: null, histogram: null },
                 { name: 'y', dtype: 'float64', min: 2, max: 8, count: 3, non_null_count: 3, null_count: 0, mean: 5, median: 5, std: 2, unique: 3, top: null, freq: null, histogram: null },
             ],
-        } as any;
-        appState.columnRanges = {
+        } as any);
+        setColumnRanges({
             x: { from: 1, to: 9 },
             y: { from: 3, to: 8 },
-        } as any;
+        } as any);
         primePlotSnapshot();
 
         const result = buildScatterQueryContext({ x: 'x', y: 'y', colorColumn: '' });
