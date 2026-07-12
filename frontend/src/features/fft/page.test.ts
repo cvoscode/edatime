@@ -13,7 +13,7 @@ const echartsInitMock = vi.fn();
 const fetchFftMock = vi.fn();
 const toastMock = vi.fn();
 
-vi.mock('../chart/FftChart.js', () => ({
+vi.mock('../../chart/FftChart.js', () => ({
     FftChart: class {
         init = fftChartInstance.init;
         clear = fftChartInstance.clear;
@@ -24,7 +24,7 @@ vi.mock('../chart/FftChart.js', () => ({
     },
 }));
 
-vi.mock('../services/api/index.js', () => ({
+vi.mock('../../services/api/index.js', () => ({
     fetchFft: (...args: unknown[]) => fetchFftMock(...args),
 }));
 
@@ -32,14 +32,14 @@ vi.mock('echarts', () => ({
     init: (...args: unknown[]) => echartsInitMock(...args),
 }));
 
-vi.mock('../utils/chartExport.js', () => ({
+vi.mock('../../utils/chartExport.js', () => ({
     exportContainerCanvasPNG: vi.fn(),
     exportContainerCanvasSVG: vi.fn(),
     exportContainerCanvasHTML: vi.fn(),
     exportTraceCSV: vi.fn(),
 }));
 
-vi.mock('../utils/toast.js', () => ({
+vi.mock('../../utils/toast.js', () => ({
     toast: (...args: unknown[]) => toastMock(...args),
 }));
 
@@ -93,7 +93,7 @@ describe('initFftPage', () => {
     });
 
     afterEach(async () => {
-        const module = await import('./fftPage');
+        const module = await import('./page');
         module.__resetFftPageForTests();
     });
 
@@ -109,7 +109,7 @@ describe('initFftPage', () => {
         }));
 
         const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../store/chartState.js'), import('../store/datasetState.js'),
+            import('../../store/chartState.js'), import('../../store/datasetState.js'),
         ]);
         datasetState.metadata = {
             total_rows: 10,
@@ -122,7 +122,7 @@ describe('initFftPage', () => {
         chartState.currentStart = 0;
         chartState.currentEnd = 1000;
 
-        const { initFftPage } = await import('./fftPage');
+        const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
 
@@ -157,7 +157,7 @@ describe('initFftPage', () => {
         });
 
         const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../store/chartState.js'), import('../store/datasetState.js'),
+            import('../../store/chartState.js'), import('../../store/datasetState.js'),
         ]);
         datasetState.metadata = {
             total_rows: 10,
@@ -171,7 +171,7 @@ describe('initFftPage', () => {
         chartState.currentEnd = 1000;
         window.localStorage.setItem('edatime_fft_selected_columns', JSON.stringify([]));
 
-        const { initFftPage } = await import('./fftPage');
+        const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
 
@@ -201,7 +201,7 @@ describe('initFftPage', () => {
         });
 
         const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../store/chartState.js'), import('../store/datasetState.js'),
+            import('../../store/chartState.js'), import('../../store/datasetState.js'),
         ]);
         datasetState.metadata = {
             total_rows: 10,
@@ -215,7 +215,7 @@ describe('initFftPage', () => {
         chartState.currentEnd = 1000;
         window.localStorage.setItem('edatime_fft_selected_columns', JSON.stringify([]));
 
-        const { initFftPage } = await import('./fftPage');
+        const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
 
@@ -253,7 +253,7 @@ describe('initFftPage', () => {
         });
 
         const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../store/chartState.js'), import('../store/datasetState.js'),
+            import('../../store/chartState.js'), import('../../store/datasetState.js'),
         ]);
         datasetState.metadata = {
             total_rows: 10,
@@ -267,7 +267,7 @@ describe('initFftPage', () => {
         chartState.currentEnd = 1000;
         window.localStorage.setItem('edatime_fft_selected_columns', JSON.stringify([]));
 
-        const { initFftPage } = await import('./fftPage');
+        const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
 
@@ -301,7 +301,7 @@ describe('initFftPage', () => {
         fftChartInstance.init.mockRejectedValueOnce(new Error('No WebGPU adapter found'));
 
         const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../store/chartState.js'), import('../store/datasetState.js'),
+            import('../../store/chartState.js'), import('../../store/datasetState.js'),
         ]);
         datasetState.metadata = {
             total_rows: 10,
@@ -314,7 +314,7 @@ describe('initFftPage', () => {
         chartState.currentStart = 0;
         chartState.currentEnd = 1000;
 
-        const { initFftPage } = await import('./fftPage');
+        const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
         await Promise.resolve();
@@ -325,7 +325,7 @@ describe('initFftPage', () => {
 
     it('enables clip method and param when fft outliers toggle is checked (input event)', async () => {
         const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../store/chartState.js'), import('../store/datasetState.js'),
+            import('../../store/chartState.js'), import('../../store/datasetState.js'),
         ]);
         datasetState.metadata = {
             total_rows: 10,
@@ -338,7 +338,7 @@ describe('initFftPage', () => {
         chartState.currentStart = 0;
         chartState.currentEnd = 1000;
 
-        const { initFftPage } = await import('./fftPage');
+        const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
         await Promise.resolve();
@@ -371,7 +371,7 @@ describe('initFftPage', () => {
 
     it('hides advanced clip controls until outlier clipping is enabled', async () => {
         const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../store/chartState.js'), import('../store/datasetState.js'),
+            import('../../store/chartState.js'), import('../../store/datasetState.js'),
         ]);
         datasetState.metadata = {
             total_rows: 10,
@@ -384,7 +384,7 @@ describe('initFftPage', () => {
         chartState.currentStart = 0;
         chartState.currentEnd = 1000;
 
-        const { initFftPage } = await import('./fftPage');
+        const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
 
@@ -404,7 +404,7 @@ describe('initFftPage', () => {
 
     it('hides inactive spectral cutoff inputs until the selected filter uses them', async () => {
         const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../store/chartState.js'), import('../store/datasetState.js'),
+            import('../../store/chartState.js'), import('../../store/datasetState.js'),
         ]);
         datasetState.metadata = {
             total_rows: 10,
@@ -417,7 +417,7 @@ describe('initFftPage', () => {
         chartState.currentStart = 0;
         chartState.currentEnd = 1000;
 
-        const { initFftPage } = await import('./fftPage');
+        const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
 
@@ -454,7 +454,7 @@ describe('initFftPage', () => {
         });
 
         const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../store/chartState.js'), import('../store/datasetState.js'),
+            import('../../store/chartState.js'), import('../../store/datasetState.js'),
         ]);
         datasetState.metadata = {
             total_rows: 10,
@@ -468,7 +468,7 @@ describe('initFftPage', () => {
         chartState.currentEnd = 1000;
         window.localStorage.setItem('edatime_fft_selected_columns', JSON.stringify([]));
 
-        const { initFftPage } = await import('./fftPage');
+        const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
         window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
 

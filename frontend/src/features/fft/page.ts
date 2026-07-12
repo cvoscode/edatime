@@ -1,26 +1,26 @@
-import { fetchFft, fetchSpectralFilter } from '../services/api/index.js';
-import { FftChart, type FftTrace } from '../chart/FftChart.js';
-import { EchartsLineChart } from '../chart/EchartsLineChart.js';
-import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanvasHTML, exportTraceCSV } from '../utils/chartExport.js';
-import { toast } from '../utils/toast.js';
-import { getAnalyticsChipColor, getNumericColumns } from './analyticsPageUtils.js';
-import { analyticsState, setSpectralFilterPreview } from '../store/analyticsState.js';
-import { chartState } from '../store/chartState.js';
-import { datasetState } from '../store/datasetState.js';
-import { uiState } from '../store/uiState.js';
-import { renderSeriesChipList } from '../ui/index.js';
-import { getDropdownValue, setDropdownDisabled } from '../ui/primitives/Dropdown.js';
-import { setSeriesColor } from '../utils/seriesColors.js';
+import { fetchFft, fetchSpectralFilter } from '../../services/api/index.js';
+import { FftChart, type FftTrace } from '../../chart/FftChart.js';
+import { EchartsLineChart } from '../../chart/EchartsLineChart.js';
+import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanvasHTML, exportTraceCSV } from '../../utils/chartExport.js';
+import { toast } from '../../utils/toast.js';
+import { getAnalyticsChipColor, getNumericColumns } from '../../pages/analyticsPageUtils.js';
+import { analyticsState, setSpectralFilterPreview } from '../../store/analyticsState.js';
+import { chartState } from '../../store/chartState.js';
+import { datasetState } from '../../store/datasetState.js';
+import { uiState } from '../../store/uiState.js';
+import { renderSeriesChipList } from '../../ui/index.js';
+import { getDropdownValue, setDropdownDisabled } from '../../ui/primitives/Dropdown.js';
+import { setSeriesColor } from '../../utils/seriesColors.js';
 import {
     DEFAULT_SPECTRAL_SCALE,
     type ClipMode,
     type ScaleMode,
     type SpectralScaleOptions,
-} from '../utils/spectralScaling.js';
-import { formatCyclesPerDay, formatFrequencyInUnit, frequencyToPeriod, pickFrequencyUnit, useCyclesPerDayFrequencyAxis } from '../utils/spectralPresets.js';
-import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
-import { initFftHelp } from './fftHelp.js';
-import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+} from '../../utils/spectralScaling.js';
+import { formatCyclesPerDay, formatFrequencyInUnit, frequencyToPeriod, pickFrequencyUnit, useCyclesPerDayFrequencyAxis } from '../../utils/spectralPresets.js';
+import { createAnalysisPageRuntime } from '../../pages/shared/analysisPageRuntime.js';
+import { initFftHelp } from './help.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 interface FftPageDeps {
     renderTimeseries: () => void;

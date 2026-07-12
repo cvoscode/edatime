@@ -29,7 +29,7 @@ describe('FFT page help button', () => {
     });
 
     it('initFftHelp binds the button and opens the modal on click', async () => {
-        const { initFftHelp } = await import('./fftHelp.js');
+        const { initFftHelp } = await import('./help.js');
         initFftHelp();
 
         const trigger = document.getElementById('fft-help-btn') as HTMLButtonElement;
@@ -50,7 +50,7 @@ describe('FFT page help button', () => {
     });
 
     it('initFftHelp is safe to call twice (idempotent)', async () => {
-        const { initFftHelp } = await import('./fftHelp.js');
+        const { initFftHelp } = await import('./help.js');
         initFftHelp();
         initFftHelp();
         const trigger = document.getElementById('fft-help-btn') as HTMLButtonElement;
