@@ -1,6 +1,6 @@
 /** Timeseries feature lifecycle and page-activation owner. */
 
-import { createPageRuntime } from '../../pages/shared/pageRuntime.js';
+import { createPageRuntime } from '../../platform/pageRuntime.js';
 
 export interface TimeseriesLifecycleDeps {
     initFeature: () => void;

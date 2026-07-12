@@ -7,7 +7,7 @@
  *   - Status/progress wiring (delegated to statusView)
  */
 
-import { createAnalysisPageRuntime } from '../../pages/shared/analysisPageRuntime.js';
+import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { syncCausalEmptyState } from './statusView.js';
 import { _selectedColumns } from './selectionState.js';
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createAnalysisPageRuntime } from './analysisPageRuntime.js';
+import { createAnalysisPageRuntime } from './analysisRuntime.js';
 
 describe('createAnalysisPageRuntime', () => {
     afterEach(() => {
@@ -21,7 +21,7 @@ describe('createAnalysisPageRuntime', () => {
     });
 
     it('mount() wires exportConfig when provided', async () => {
-        const bindExportButtonsModule = await import('../../utils/bindExportButtons.js');
+        const bindExportButtonsModule = await import('../utils/bindExportButtons.js');
         const spy = vi.spyOn(bindExportButtonsModule, 'bindExportButtons' as keyof typeof bindExportButtonsModule);
         const runtime = createAnalysisPageRuntime({
             page: 'fft',
@@ -111,7 +111,7 @@ describe('createAnalysisPageRuntime', () => {
     });
 
     it('bindExportsOnInit defaults to true (binds exports in init)', async () => {
-        const bindExportButtonsModule = await import('../../utils/bindExportButtons.js');
+        const bindExportButtonsModule = await import('../utils/bindExportButtons.js');
         const spy = vi.spyOn(bindExportButtonsModule, 'bindExportButtons' as keyof typeof bindExportButtonsModule);
         const runtime = createAnalysisPageRuntime({
             page: 'fft',
@@ -178,7 +178,7 @@ describe('createAnalysisPageRuntime', () => {
     });
 
     it('bindExports() calls bindExportButtons with the configured exportConfig', async () => {
-        const bindExportButtonsModule = await import('../../utils/bindExportButtons.js');
+        const bindExportButtonsModule = await import('../utils/bindExportButtons.js');
         const spy = vi.spyOn(bindExportButtonsModule, 'bindExportButtons' as keyof typeof bindExportButtonsModule);
         const runtime = createAnalysisPageRuntime({
             page: 'fft',
@@ -197,7 +197,7 @@ describe('createAnalysisPageRuntime', () => {
     });
 
     it('bindExports() is idempotent (calls bindExportButtons only once across multiple calls)', async () => {
-        const bindExportButtonsModule = await import('../../utils/bindExportButtons.js');
+        const bindExportButtonsModule = await import('../utils/bindExportButtons.js');
         const spy = vi.spyOn(bindExportButtonsModule, 'bindExportButtons' as keyof typeof bindExportButtonsModule);
         const runtime = createAnalysisPageRuntime({
             page: 'fft',

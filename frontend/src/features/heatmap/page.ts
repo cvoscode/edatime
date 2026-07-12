@@ -4,7 +4,7 @@ import { exportElementPNG, exportElementSVG, exportElementHTML, exportMatrixCSV 
 import { getDropdownValue, setDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { bindInfoPopovers } from '../../ui/infoPopovers.js';
 import { initHeatmapHelp } from './help.js';
-import { createAnalysisPageRuntime } from '../../pages/shared/analysisPageRuntime.js';
+import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { clusterColumns, type Cluster } from '../../utils/correlationClustering.js';
 import { initToolbarOverflow } from '../../features/scatter/toolbarOverflow.js';
 import {

@@ -26,7 +26,7 @@ import {
     formatFrequencyInUnit,
     pickFrequencyAxisUnit,
 } from '../../utils/spectralPresets.js';
-import { createAnalysisPageRuntime } from '../../pages/shared/analysisPageRuntime.js';
+import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { toast } from '../../utils/toast.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 

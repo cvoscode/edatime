@@ -1,5 +1,5 @@
 import { createPageRuntime } from './pageRuntime.js';
-import { bindExportButtons } from '../../utils/bindExportButtons.js';
+import { bindExportButtons } from '../utils/bindExportButtons.js';
 
 export interface ExportConfig {
     key: string;
@@ -74,7 +74,7 @@ export function createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions) {
             }
             return unregister;
         },
-        updateEmptyState(model: import('../../ui/emptyState.js').EmptyStateViewModel) {
+        updateEmptyState(model: import('../ui/emptyState.js').EmptyStateViewModel) {
             base.updateEmptyState(model);
         },
         updateStatus(text: string) {

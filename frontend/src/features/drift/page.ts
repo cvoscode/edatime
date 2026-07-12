@@ -9,8 +9,8 @@ import { DEBUG } from '../../debug.js';
 import { fetchDriftInvestigation, fetchDriftStats } from '../../services/api/index.js';
 import { bindDriftControls, getSelectedColumns } from './controls.js';
 import { toast } from '../../utils/toast.js';
-import { createAnalysisPageRuntime } from '../../pages/shared/analysisPageRuntime.js';
-import { createRequestTask } from '../../pages/shared/requestTask.js';
+import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
+import { createRequestTask } from '../../platform/requestTask.js';
 import { initDriftHelp } from './help.js';
 import type { EChartLike } from './types.js';
 import {

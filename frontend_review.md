@@ -63,9 +63,15 @@ The next feature-directory migration should apply the same controller/runtime/he
 - Updated the lazy page registry, dataset-bootstrap test wiring, ECharts scatter adapter, and Heatmap toolbar-overflow dependency to use the feature-owned surfaces directly; removed the retired top-level `scatter/` and `pages/scatterHelp.ts` owners.
 - Preserved scatter, density, matrix, linked-filter, GPU fallback, responsive layout, export, and correlation characterization coverage while moving the feature as a cohesive unit.
 
-### Next: shared analysis platform ownership
+### Completed: shared analysis platform ownership
 
-Move the remaining shared page lifecycle, request-task, and analytics helper surfaces out of `pages/shared/` and `pages/` into feature-neutral platform modules. Update feature imports in small, independently verified steps, then retire the old page-oriented owners.
+- Moved the shared page runtime, analysis runtime, abortable request-task helper, and their characterization tests from `pages/shared/` to `platform/`.
+- Updated every feature consumer—timeseries, FFT, spectrogram, heatmap, scatter, causal, and drift—to depend on the feature-neutral platform surface.
+- Preserved lifecycle registration, empty/loading state behavior, deferred export binding, and stale-request cancellation characterization coverage while removing the retired page-oriented shared owner.
+
+### Next: application lifecycle platform ownership
+
+Move the remaining page-lifecycle primitive from `app/` into `platform/`, update the platform runtime and its tests, and then review the remaining `pages/` utilities for actual shared-platform versus feature ownership.
 
 ## Target Architecture
 

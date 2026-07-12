@@ -18,7 +18,7 @@ import {
     type SpectralScaleOptions,
 } from '../../utils/spectralScaling.js';
 import { formatCyclesPerDay, formatFrequencyInUnit, frequencyToPeriod, pickFrequencyUnit, useCyclesPerDayFrequencyAxis } from '../../utils/spectralPresets.js';
-import { createAnalysisPageRuntime } from '../../pages/shared/analysisPageRuntime.js';
+import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { initFftHelp } from './help.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 

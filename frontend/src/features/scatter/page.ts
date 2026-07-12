@@ -58,7 +58,7 @@ import {
     renderScatterMatrixView,
     selectMatrixPair,
 } from './matrix.js';
-import { createRequestTask } from '../../pages/shared/requestTask.js';
+import { createRequestTask } from '../../platform/requestTask.js';
 import {
     initScatterToolbarOverflow,
     refreshScatterToolbarOverflow,

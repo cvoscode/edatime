@@ -1,9 +1,9 @@
-import { createPageLifecycle } from '../../app/pageLifecycle.js';
+import { createPageLifecycle } from '../app/pageLifecycle.js';
 import {
     createEmptyStateController,
     type EmptyStateController,
     type EmptyStateViewModel,
-} from '../../ui/emptyState.js';
+} from '../ui/emptyState.js';
 
 export interface PageRuntimeOptions {
     page: string;

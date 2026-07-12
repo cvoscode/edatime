@@ -7,8 +7,8 @@
  *   - _setEchartsModule() — test isolation hook for ECharts mock reset
  */
 
-import { createAnalysisPageRuntime } from '../../pages/shared/analysisPageRuntime.js';
-import { createRequestTask } from '../../pages/shared/requestTask.js';
+import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
+import { createRequestTask } from '../../platform/requestTask.js';
 import { exportEChartsPNG } from '../../utils/chartExport.js';
 
 /** Module-level runtime handle for the drift page lifecycle. */

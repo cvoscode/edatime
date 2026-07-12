@@ -9,7 +9,7 @@
  *   - refreshActiveScatterView() — re-renders the active view (plot or matrix)
  */
 
-import { createAnalysisPageRuntime } from '../../pages/shared/analysisPageRuntime.js';
+import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import {
     exportScatterPNG,
     exportScatterSVG,
