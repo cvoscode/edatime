@@ -1019,7 +1019,7 @@ export class DataChart {
 
     private _startLegendDrag(event: PointerEvent): void {
         if (event.button !== 0 || !this._legendEl) return;
-        if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+        if (!isShiftOnlyGesture(event)) return;
         const target = event.target as HTMLElement | null;
         if (target?.closest?.('.timeseries-legend-overlay__row')) return;
         event.preventDefault();
