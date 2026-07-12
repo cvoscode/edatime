@@ -69,7 +69,6 @@ fn test_app_with_dataframe(df: DataFrame) -> Router {
     let state = AppState::new(df, config);
 
     Router::new()
-        .nest("/api", routes::api_router())
         .nest("/api/v1", routes::api_router())
         .layer(DefaultBodyLimit::max(max_upload))
         .with_state(state)
@@ -81,7 +80,7 @@ fn test_app_with_dataframe(df: DataFrame) -> Router {
 async fn health_returns_ok() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/health")
+        .uri("/api/v1/health")
         .body(Body::empty())
         .unwrap();
 
@@ -111,7 +110,7 @@ async fn health_v1_alias_works() {
 async fn metadata_returns_dataset_info() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/metadata")
+        .uri("/api/v1/metadata")
         .body(Body::empty())
         .unwrap();
 
@@ -132,7 +131,7 @@ async fn metadata_returns_dataset_info() {
 async fn metadata_includes_column_profiles() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/metadata")
+        .uri("/api/v1/metadata")
         .body(Body::empty())
         .unwrap();
 
@@ -149,40 +148,47 @@ async fn metadata_includes_column_profiles() {
     assert!(first["non_null_count"].as_u64().is_some());
 }
 
-/// The /api/v1/* compatibility alias must return the same response body
-/// as /api/* for any GET endpoint that does not have query-string
-/// nondeterminism. This catches future drift where someone adds a route
-/// under /api/* but forgets to also expose it under /api/v1/*.
+/// `/api/v1/metadata` is the canonical dataset metadata endpoint. After the
+/// cutover it is the only mount; the response must carry the dataset
+/// profile fields the frontend renders.
 #[tokio::test(flavor = "multi_thread")]
-async fn metadata_v1_alias_returns_byte_equal_body() {
+async fn metadata_v1_returns_well_formed_profile() {
     let app = test_app();
-    let canonical = Request::builder()
-        .method(Method::GET)
-        .uri("/api/metadata")
-        .body(Body::empty())
-        .unwrap();
-    let v1 = Request::builder()
+    let req = Request::builder()
         .method(Method::GET)
         .uri("/api/v1/metadata")
         .body(Body::empty())
         .unwrap();
 
-    let canonical_resp = app.clone().oneshot(canonical).await.unwrap();
-    let v1_resp = app.oneshot(v1).await.unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let ct = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert!(
+        ct.starts_with("application/json"),
+        "metadata must return JSON, got {ct}"
+    );
 
-    assert_eq!(canonical_resp.status(), StatusCode::OK);
-    assert_eq!(v1_resp.status(), StatusCode::OK);
-
-    let canonical_bytes = canonical_resp
-        .into_body()
-        .collect()
-        .await
-        .unwrap()
-        .to_bytes();
-    let v1_bytes = v1_resp.into_body().collect().await.unwrap().to_bytes();
-    assert_eq!(
-        canonical_bytes, v1_bytes,
-        "/api/metadata and /api/v1/metadata must return byte-equal bodies"
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let value: serde_json::Value = serde_json::from_slice(&bytes)
+        .expect("metadata body must be valid JSON");
+    assert!(
+        value.get("columns").and_then(|v| v.as_array()).is_some(),
+        "metadata must expose a `columns` array"
+    );
+    assert!(
+        value
+            .get("numeric_columns")
+            .and_then(|v| v.as_array())
+            .is_some(),
+        "metadata must expose a `numeric_columns` array"
+    );
+    assert!(
+        value.get("total_rows").and_then(|v| v.as_u64()).is_some(),
+        "metadata must expose `total_rows` as a number"
     );
 }
 
@@ -193,7 +199,7 @@ async fn data_returns_arrow_ipc() {
     let app = test_app();
     let req = Request::builder()
         .uri(
-            "/api/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=500&columns=col_a",
+            "/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=500&columns=col_a",
         )
         .body(Body::empty())
         .unwrap();
@@ -223,7 +229,7 @@ async fn data_rejects_invalid_time_window() {
     // end before start
     let req = Request::builder()
         .uri(
-            "/api/data?start=2024-01-30T00:00:00Z&end=2024-01-01T00:00:00Z&width=500&columns=col_a",
+            "/api/v1/data?start=2024-01-30T00:00:00Z&end=2024-01-01T00:00:00Z&width=500&columns=col_a",
         )
         .body(Body::empty())
         .unwrap();
@@ -240,7 +246,7 @@ async fn data_rejects_invalid_time_window() {
 async fn data_rejects_zero_width() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=0&columns=col_a")
+        .uri("/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=0&columns=col_a")
         .body(Body::empty())
         .unwrap();
 
@@ -256,7 +262,7 @@ async fn data_rejects_zero_width() {
 async fn data_rejects_unknown_column() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=500&columns=nonexistent")
+        .uri("/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=500&columns=nonexistent")
         .body(Body::empty())
         .unwrap();
 
@@ -272,7 +278,7 @@ async fn data_rejects_unknown_column() {
 async fn data_rejects_missing_columns_without_hardcoded_default() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=500")
+        .uri("/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=500")
         .body(Body::empty())
         .unwrap();
 
@@ -295,7 +301,7 @@ async fn data_sets_downsample_headers() {
     let app = test_app();
     let req = Request::builder()
         .uri(
-            "/api/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=100&columns=col_a",
+            "/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=100&columns=col_a",
         )
         .body(Body::empty())
         .unwrap();
@@ -312,7 +318,7 @@ async fn data_sets_downsample_headers() {
 async fn data_multiple_columns() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=500&columns=col_a,col_b")
+        .uri("/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=500&columns=col_a,col_b")
         .body(Body::empty())
         .unwrap();
 
@@ -324,14 +330,14 @@ async fn data_multiple_columns() {
 async fn data_downsampled_response_is_non_empty_with_epoch_timestamps() {
     // Regression test: epoch-millisecond timestamps (1_704_067_200_000…)
     // previously caused downsample_indices() to return an empty
-    // selection, which made /api/data return an empty Arrow IPC body and
+    // selection, which made /api/v1/data return an empty Arrow IPC body and
     // the timeseries page fall into the empty state. The fix decouples
     // LTTB's coordinate axis from the caller's real x so the lookup is
     // bounded and the selection stays non-empty.
     let app = test_app();
     let req = Request::builder()
         .uri(
-            "/api/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=100&columns=col_a",
+            "/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=100&columns=col_a",
         )
         .body(Body::empty())
         .unwrap();
@@ -402,7 +408,7 @@ async fn data_downsampled_response_is_non_empty_with_narrow_width() {
     // the timeseries empty state.
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=10&columns=col_a")
+        .uri("/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=10&columns=col_a")
         .body(Body::empty())
         .unwrap();
 
@@ -439,7 +445,7 @@ async fn data_downsampled_response_is_non_empty_with_narrow_width() {
 async fn metrics_returns_counters() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/metrics")
+        .uri("/api/v1/metrics")
         .body(Body::empty())
         .unwrap();
 
@@ -457,7 +463,7 @@ async fn metrics_returns_counters() {
 async fn scatter_correlations_returns_suggestions() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/scatter/correlations")
+        .uri("/api/v1/scatter/correlations")
         .body(Body::empty())
         .unwrap();
 
@@ -474,7 +480,7 @@ async fn scatter_correlations_returns_suggestions() {
 async fn correlation_matrix_returns_ok_with_empty_payload_when_no_numeric_columns_exist() {
     let app = test_app_with_dataframe(non_numeric_dataframe());
     let req = Request::builder()
-        .uri("/api/scatter/correlations/matrix")
+        .uri("/api/v1/scatter/correlations/matrix")
         .body(Body::empty())
         .unwrap();
 
@@ -499,7 +505,7 @@ async fn scatter_points_post() {
 
     let req = Request::builder()
         .method(Method::POST)
-        .uri("/api/scatter/points")
+        .uri("/api/v1/scatter/points")
         .header("content-type", "application/json")
         .body(Body::from(serde_json::to_vec(&body_json).unwrap()))
         .unwrap();
@@ -537,7 +543,7 @@ async fn scatter_points_post() {
 async fn analytics_fft() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/analytics/fft?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&columns=col_a")
+        .uri("/api/v1/analytics/fft?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&columns=col_a")
         .body(Body::empty())
         .unwrap();
 
@@ -553,7 +559,7 @@ async fn analytics_fft() {
 async fn analytics_rolling() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/analytics/rolling?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&columns=col_a&window=10")
+        .uri("/api/v1/analytics/rolling?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&columns=col_a&window=10")
         .body(Body::empty())
         .unwrap();
 
@@ -565,7 +571,7 @@ async fn analytics_rolling() {
 async fn analytics_anomalies() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/analytics/anomalies?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&columns=col_a&method=zscore&threshold=3.0")
+        .uri("/api/v1/analytics/anomalies?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&columns=col_a&method=zscore&threshold=3.0")
         .body(Body::empty())
         .unwrap();
 
@@ -577,7 +583,7 @@ async fn analytics_anomalies() {
 async fn analytics_spectrogram_default() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64")
+        .uri("/api/v1/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64")
         .body(Body::empty())
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -599,7 +605,7 @@ async fn analytics_spectrogram_default() {
 async fn analytics_spectrogram_normalize_minmax() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&normalize=minmax")
+        .uri("/api/v1/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&normalize=minmax")
         .body(Body::empty())
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -626,7 +632,7 @@ async fn analytics_spectrogram_clip_percentile() {
     // 10% per-tail clip should be a no-op on this signal but the response
     // must still be valid. We mainly assert status 200 and shape.
     let req = Request::builder()
-        .uri("/api/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&clip=percentile&clip_param=10")
+        .uri("/api/v1/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&clip=percentile&clip_param=10")
         .body(Body::empty())
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -645,7 +651,7 @@ async fn analytics_spectrogram_clip_percentile() {
 async fn analytics_spectrogram_clip_iqr_with_k() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&normalize=minmax&clip=iqr&clip_param=1.5")
+        .uri("/api/v1/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&normalize=minmax&clip=iqr&clip_param=1.5")
         .body(Body::empty())
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -672,7 +678,7 @@ async fn analytics_spectrogram_clip_iqr_with_k() {
 async fn analytics_spectrogram_invalid_normalize_returns_400() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&normalize=bogus")
+        .uri("/api/v1/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&normalize=bogus")
         .body(Body::empty())
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -683,7 +689,7 @@ async fn analytics_spectrogram_invalid_normalize_returns_400() {
 async fn analytics_spectrogram_invalid_clip_returns_400() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&clip=bogus")
+        .uri("/api/v1/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&clip=bogus")
         .body(Body::empty())
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -698,7 +704,7 @@ async fn upload_requires_multipart() {
     // Sending a non-multipart body should fail
     let req = Request::builder()
         .method(Method::POST)
-        .uri("/api/upload")
+        .uri("/api/v1/upload")
         .header("content-type", "application/json")
         .body(Body::from("{}"))
         .unwrap();
@@ -746,7 +752,7 @@ async fn upload_parses_csv_file() {
 
     let req = Request::builder()
         .method(Method::POST)
-        .uri("/api/upload")
+        .uri("/api/v1/upload")
         .header(
             "content-type",
             format!("multipart/form-data; boundary={}", boundary),
@@ -792,7 +798,7 @@ async fn upload_preview_returns_metadata() {
 
     let req = Request::builder()
         .method(Method::POST)
-        .uri("/api/upload/preview")
+        .uri("/api/v1/upload/preview")
         .header(
             "content-type",
             format!("multipart/form-data; boundary={}", boundary),
@@ -819,7 +825,7 @@ async fn upload_preview_returns_metadata() {
 async fn aggregate_returns_json_by_default() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/aggregate?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&columns=col_a&buckets=10")
+        .uri("/api/v1/aggregate?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&columns=col_a&buckets=10")
         .body(Body::empty())
         .unwrap();
 
@@ -833,7 +839,7 @@ async fn aggregate_returns_json_by_default() {
 async fn export_parquet_returns_data() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/export/parquet?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&columns=col_a,col_b")
+        .uri("/api/v1/export/parquet?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&columns=col_a,col_b")
         .body(Body::empty())
         .unwrap();
 
@@ -858,12 +864,12 @@ async fn second_data_request_hits_cache() {
     let state = AppState::new(test_dataframe(), config);
 
     let app = Router::new()
-        .nest("/api", routes::api_router())
+        .nest("/api/v1", routes::api_router())
         .layer(DefaultBodyLimit::max(max_upload))
         .with_state(state.clone());
 
     let uri =
-        "/api/data?start=2024-01-01T00:00:00Z&end=2024-01-15T00:00:00Z&width=200&columns=col_a";
+        "/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-15T00:00:00Z&width=200&columns=col_a";
 
     // First request — miss
     let req = Request::builder().uri(uri).body(Body::empty()).unwrap();
@@ -890,7 +896,7 @@ async fn second_data_request_hits_cache() {
 async fn database_status_without_connection() {
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/database/status")
+        .uri("/api/v1/database/status")
         .body(Body::empty())
         .unwrap();
 

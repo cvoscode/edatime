@@ -70,7 +70,6 @@ async fn main() {
         });
 
     let app = Router::new()
-        .nest("/api", routes::api_router())
         .nest("/api/v1", routes::api_router())
         .fallback_service(ServeDir::new(frontend_dir))
         .layer(from_fn(frontend_cache_control_middleware))
