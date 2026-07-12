@@ -154,6 +154,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.
 - Added direct unit coverage for this policy while retaining the existing DataChart legend characterization tests.
 - Extracted legend entry grouping so DataChart no longer owns segment-to-trace visibility policy.
+- Extracted legend window-listener registration and disposal into a scoped lifecycle helper with direct cleanup coverage.
 - Extracted robust Y-range normalization, bounds calculation, and spike-detection suggestion policy with direct tests; rendering ownership remains in DataChart.
 - Extracted viewport-to-percent zoom conversion with direct boundary tests; chart rendering continues to own application of the computed range.
 - Extracted display Y-range padding and non-negative floor policy with direct tests; DataChart now only applies the resulting axis option.

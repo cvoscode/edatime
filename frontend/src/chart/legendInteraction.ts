@@ -5,6 +5,20 @@ export interface LegendPosition {
 
 export interface LegendEntry { name: string; color: string; visible: boolean }
 
+export class LegendWindowListenerScope {
+    private listeners: { type: string; handler: EventListener }[] = [];
+
+    add(type: string, handler: EventListener): void {
+        this.listeners.push({ type, handler });
+        window.addEventListener(type, handler);
+    }
+
+    dispose(): void {
+        for (const { type, handler } of this.listeners) window.removeEventListener(type, handler);
+        this.listeners = [];
+    }
+}
+
 export function buildLegendEntries(
     series: readonly { type?: string; name?: string; color?: string; visible?: boolean }[],
     palette: readonly string[],

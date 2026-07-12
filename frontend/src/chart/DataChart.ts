@@ -76,12 +76,6 @@ interface LegendDragState {
  * Stored so destroy()/deepDispose() can remove them — without tracking, every
  * re-init of the chart would leak three listeners on `window`.
  */
-interface LegendWindowListener {
-    type: string;
-    handler: EventListener;
-    options?: AddEventListenerOptions | boolean;
-}
-
 import {
     analyzeColorValues, baseSeriesName,
     buildColorizedSeries, categoryColorFor, colorForScaleValue,
@@ -99,7 +93,7 @@ import {
     initCtrlPan,
 } from './chartInteractions.js';
 import { ChartOverlays } from './chartOverlays.js';
-import { buildLegendEntries, clampLegendPosition, isShiftOnlyGesture } from './legendInteraction.js';
+import { buildLegendEntries, clampLegendPosition, isShiftOnlyGesture, LegendWindowListenerScope } from './legendInteraction.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
@@ -171,7 +165,7 @@ export class DataChart {
     _legendEl: HTMLElement | null = null;
     _legendPosition: LegendPosition | null = null;
     _legendDragState: LegendDragState | null = null;
-    _legendWindowListeners: LegendWindowListener[] = [];
+    _legendWindowListeners = new LegendWindowListenerScope();
 
     constructor(
         containerId: string,
@@ -943,15 +937,11 @@ export class DataChart {
     private _addLegendWindowListener(type: string, handler: EventListener): void {
         // Reuse the same handler instance across re-inits so removal works
         // even if destroy()/init() cycle fires more than once.
-        this._legendWindowListeners.push({ type, handler });
-        window.addEventListener(type, handler);
+        this._legendWindowListeners.add(type, handler);
     }
 
     private _removeLegendWindowListeners(): void {
-        for (const { type, handler } of this._legendWindowListeners) {
-            window.removeEventListener(type, handler);
-        }
-        this._legendWindowListeners = [];
+        this._legendWindowListeners.dispose();
     }
 
     private _syncLegendShiftHint(event: Event, legend?: HTMLElement | null): void {

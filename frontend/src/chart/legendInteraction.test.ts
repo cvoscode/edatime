@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { buildLegendEntries, clampLegendPosition, isShiftOnlyGesture } from './legendInteraction.js';
+import { describe, expect, it, vi } from 'vitest';
+import { buildLegendEntries, clampLegendPosition, isShiftOnlyGesture, LegendWindowListenerScope } from './legendInteraction.js';
 
 describe('legend interaction policy', () => {
     it('clamps legend placement inside the chart margins', () => {
@@ -18,5 +18,15 @@ describe('legend interaction policy', () => {
             { type: 'line', name: 'temperature__segment', visible: true },
             { type: 'line', name: 'temperature__markers', visible: true },
         ], ['#000'], (name) => name.replace(/__.*$/, ''))).toEqual([{ name: 'temperature', color: '#f00', visible: true }]);
+    });
+
+    it('removes every tracked window listener on disposal', () => {
+        const scope = new LegendWindowListenerScope();
+        const listener = vi.fn();
+        scope.add('legend-test', listener);
+        window.dispatchEvent(new Event('legend-test'));
+        scope.dispose();
+        window.dispatchEvent(new Event('legend-test'));
+        expect(listener).toHaveBeenCalledTimes(1);
     });
 });
