@@ -9,15 +9,14 @@ import { createTimeseriesEntrypoint } from '../features/timeseries/entrypoint.js
 import { createTimeseriesRuntime } from './timeseriesRuntime.js';
 import { createDatasetBootstrap } from '../app/bootstrap/datasetBootstrap.js';
 import { createTimeseriesBootstrap } from '../app/bootstrap/ensureTimeseriesReady.js';
+import { setDatasetRevision, setMetadata } from '../store/datasetState.js';
+import { clearScatterViewSnapshots } from '../store/scatterState.js';
 import {
-    clearScatterViewSnapshots,
     setAdaptiveLineFilters,
     setColumnRanges,
-    setDatasetRevision,
-    setMetadata,
     setSelectedColorColumn,
     uiState,
-} from '../store/index.js';
+} from '../store/uiState.js';
 import { getNumericColumns, getDefaultTimeseriesColumns } from './analyticsPageUtils.js';
 import type { DatasetMetadata, ViewSnapshot } from '../types.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
