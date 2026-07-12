@@ -7,14 +7,14 @@
  * `./state.js`.
  */
 
-import { chartState } from '../store/chartState.js';
-import { datasetState } from '../store/datasetState.js';
-import { getScatterViewSnapshot, scatterState } from '../store/scatterState.js';
-import { uiState } from '../store/uiState.js';
-import { buildAdaptiveLineFiltersForQueryState } from '../services/timeseries/filtering.js';
-import type { WorkspaceSnapshot } from '../workspace/workspaceStore.js';
+import { chartState } from '../../store/chartState.js';
+import { datasetState } from '../../store/datasetState.js';
+import { getScatterViewSnapshot, scatterState } from '../../store/scatterState.js';
+import { uiState } from '../../store/uiState.js';
+import { buildAdaptiveLineFiltersForQueryState } from '../../services/timeseries/filtering.js';
+import type { WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 import { getScatterPlotMetrics } from './layout.js';
-import { getDropdownValue, setDropdownOptions } from '../ui/primitives/Dropdown.js';
+import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
 
 // Import scatterState locally as `state` for use in helper functions defined
 // in this module, and re-export it so external callers can also use it as `state`.
@@ -30,8 +30,8 @@ export type {
     DensityTooltipMeta,
     DensityTooltipCache,
     MatrixCellData,
-} from '../store/scatterState.js';
-import type { ScatterView } from '../store/scatterState.js';
+} from '../../store/scatterState.js';
+import type { ScatterView } from '../../store/scatterState.js';
 
 // Re-export helpers that the helpers module provides (used in this file's functions)
 export { getEl, fmt, computeColorExtent, computeDomains } from './helpers.js';

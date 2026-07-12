@@ -7,12 +7,12 @@
  *   - openScatterPairInCausal() — dispatches causal page preselect event
  */
 
-import { fetchScatterCorrelations } from '../services/api/index.js';
-import { scatterState } from '../store/scatterState.js';
-import type { ScatterState } from '../store/scatterState.js';
-import { getDropdownValue, setDropdownOptions, setDropdownValue } from '../ui/primitives/Dropdown.js';
-import { normalizeCorrelationMetric } from '../utils/correlationModes.js';
-import { getSetting } from '../utils/settings.js';
+import { fetchScatterCorrelations } from '../../services/api/index.js';
+import { scatterState } from '../../store/scatterState.js';
+import type { ScatterState } from '../../store/scatterState.js';
+import { getDropdownValue, setDropdownOptions, setDropdownValue } from '../../ui/primitives/Dropdown.js';
+import { normalizeCorrelationMetric } from '../../utils/correlationModes.js';
+import { getSetting } from '../../utils/settings.js';
 import { getEl } from './helpers.js';
 import { ensureOptions } from './state.js';
 import { updateCorrelationStats, updateColorbarUI } from './rendering.js';

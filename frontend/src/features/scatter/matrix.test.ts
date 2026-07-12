@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import * as api from '../services/api/index.js';
-import { setViewport } from '../store/chartState.js';
-import { setMetadata } from '../store/datasetState.js';
-import { scatterState } from '../store/scatterState.js';
-import { setColumnRanges, uiState } from '../store/uiState.js';
-import { setScatterViewSnapshot } from '../store/scatterState.js';
+import * as api from '../../services/api/index.js';
+import { setViewport } from '../../store/chartState.js';
+import { setMetadata } from '../../store/datasetState.js';
+import { scatterState } from '../../store/scatterState.js';
+import { setColumnRanges, uiState } from '../../store/uiState.js';
+import { setScatterViewSnapshot } from '../../store/scatterState.js';
 import {
     __resetMatrixRenderControllerForTests,
     buildMatrixFetchPairs,

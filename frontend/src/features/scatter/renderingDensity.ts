@@ -1,6 +1,6 @@
-import { formatTwoDecimals } from '../formatUtils.js';
-import { scatterState } from '../store/scatterState.js';
-import { getChartPalette } from '../utils/theme.js';
+import { formatTwoDecimals } from '../../formatUtils.js';
+import { scatterState } from '../../store/scatterState.js';
+import { getChartPalette } from '../../utils/theme.js';
 import {
     escapeHtml,
     fmt,

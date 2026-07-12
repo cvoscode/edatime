@@ -1,5 +1,5 @@
 import * as echarts from 'echarts';
-import { SCATTER_PLOT_GRID } from '../scatter/layout.js';
+import { SCATTER_PLOT_GRID } from '../features/scatter/layout.js';
 
 export class EchartsScatterChart {
     private _containerId: string;

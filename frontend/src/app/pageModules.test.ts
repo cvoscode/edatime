@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../utils/pageStyles.js', () => ({ ensureStyleModule: mocks.ensureStyleModule }));
 vi.mock('../features/fft/page.js', () => ({ initFftPage: mocks.initFftPage }));
 vi.mock('../features/heatmap/page.js', () => ({ initHeatmapPage: mocks.initHeatmapPage }));
-vi.mock('../scatter/scatterPage.js', () => ({ initScatterPage: mocks.initScatterPage }));
+vi.mock('../features/scatter/page.js', () => ({ initScatterPage: mocks.initScatterPage }));
 vi.mock('../features/spectrogram/page.js', () => ({ initSpectrogramPage: mocks.initSpectrogramPage }));
 vi.mock('../features/causal/page.js', () => ({ initCausalPage: mocks.initCausalPage }));
 vi.mock('../features/drift/page.js', () => ({ initDriftPage: mocks.initDriftPage }));

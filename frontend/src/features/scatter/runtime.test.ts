@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { chartState } from '../store/chartState.js';
-import { datasetState } from '../store/datasetState.js';
-import { scatterState } from '../store/scatterState.js';
-import { uiState } from '../store/uiState.js';
+import { chartState } from '../../store/chartState.js';
+import { datasetState } from '../../store/datasetState.js';
+import { scatterState } from '../../store/scatterState.js';
+import { uiState } from '../../store/uiState.js';
 import {
     getScatterEmptyStateController,
     syncScatterEmptyState,
@@ -18,12 +18,12 @@ import {
 
 const emptyStateUpdateMock = vi.fn();
 
-vi.mock('../ui/emptyState.js', () => ({
+vi.mock('../../ui/emptyState.js', () => ({
     createEmptyStateController: vi.fn(() => ({ update: emptyStateUpdateMock })),
     isRangeOutsideDataset: vi.fn(() => false),
 }));
 
-vi.mock('../utils/platform.js', () => ({
+vi.mock('../../utils/platform.js', () => ({
     defaultGpuPowerPreference: vi.fn(() => null),
     requestGpuAdapter: vi.fn(async () => null),
 }));
@@ -95,7 +95,7 @@ describe('getScatterEmptyStateController', () => {
     it('creates and returns an empty state controller with correct config', async () => {
         const controller = getScatterEmptyStateController();
         expect(controller).toBeDefined();
-        const { createEmptyStateController } = await import('../ui/emptyState.js');
+        const { createEmptyStateController } = await import('../../ui/emptyState.js');
         expect(createEmptyStateController).toHaveBeenCalledOnce();
         expect(createEmptyStateController).toHaveBeenCalledWith({
             rootId: 'scatter-empty-state',

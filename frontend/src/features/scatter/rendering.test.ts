@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { scatterState } from '../store/scatterState.js';
+import { scatterState } from '../../store/scatterState.js';
 import { applyView, buildOption, updateCorrelationStats, updateMarginalPlots } from './rendering.js';
 import { buildDensitySeries, buildDensityTooltipCache, densityTooltipFormatterFactory } from './renderingDensity.js';
 

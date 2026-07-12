@@ -8,16 +8,16 @@
  *   viewController.ts   — active view management
  */
 
-import { createChart } from '../../libs/chartgpu/dist/index.js';
-import { defaultGpuPowerPreference } from '../utils/platform.js';
-import { toast, dismissAllToasts } from '../utils/toast.js';
-import { getDropdownValue } from '../ui/primitives/Dropdown.js';
-import { EchartsScatterChart } from '../chart/EchartsScatterChart.js';
-import { fetchScatterPoints } from '../services/api/index.js';
-import { getScatterViewSnapshot, scatterState, setScatterViewSnapshot } from '../store/scatterState.js';
-import { setAdaptiveLineFilters, setColumnRanges, uiState } from '../store/uiState.js';
-import { initScatterHelp } from '../pages/scatterHelp.js';
-import { buildAdaptiveLineFiltersForQueryState } from '../services/timeseries/filtering.js';
+import { createChart } from '../../../libs/chartgpu/dist/index.js';
+import { defaultGpuPowerPreference } from '../../utils/platform.js';
+import { toast, dismissAllToasts } from '../../utils/toast.js';
+import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
+import { EchartsScatterChart } from '../../chart/EchartsScatterChart.js';
+import { fetchScatterPoints } from '../../services/api/index.js';
+import { getScatterViewSnapshot, scatterState, setScatterViewSnapshot } from '../../store/scatterState.js';
+import { setAdaptiveLineFilters, setColumnRanges, uiState } from '../../store/uiState.js';
+import { initScatterHelp } from './help.js';
+import { buildAdaptiveLineFiltersForQueryState } from '../../services/timeseries/filtering.js';
 import {
     getEl,
     fmt,
@@ -58,7 +58,7 @@ import {
     renderScatterMatrixView,
     selectMatrixPair,
 } from './matrix.js';
-import { createRequestTask } from '../pages/shared/requestTask.js';
+import { createRequestTask } from '../../pages/shared/requestTask.js';
 import {
     initScatterToolbarOverflow,
     refreshScatterToolbarOverflow,
@@ -79,8 +79,8 @@ import {
 } from './correlationsPanel.js';
 import { computeInteractiveScatterLimit } from './renderLimit.js';
 
-import type { DatasetMetadata } from '../types.js';
-import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+import type { DatasetMetadata } from '../../types.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 let workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'> | null = null;
 

@@ -2,7 +2,7 @@
  * Scatter series building, option construction, tooltips, colorbar, marginals, and view management.
  */
 
-import { formatTwoDecimals, formatTimestamp } from '../formatUtils.js';
+import { formatTwoDecimals, formatTimestamp } from '../../formatUtils.js';
 import { refreshScatterToolbarOverflow } from './toolbarOverflow.js';
 import {
     getEl,
@@ -20,9 +20,9 @@ import {
     lowerBoundByX,
     upperBoundByX,
 } from './helpers.js';
-import { scatterState } from '../store/scatterState.js';
-import { getCorrelationModeBasisLabel, normalizeCorrelationMetric } from '../utils/correlationModes.js';
-import { getSetting } from '../utils/settings.js';
+import { scatterState } from '../../store/scatterState.js';
+import { getCorrelationModeBasisLabel, normalizeCorrelationMetric } from '../../utils/correlationModes.js';
+import { getSetting } from '../../utils/settings.js';
 import {
     currentControls,
     clampView,
@@ -37,9 +37,9 @@ import {
     getScatterMarginalXMetrics,
     getScatterMarginalYMetrics,
 } from './layout.js';
-import { getDropdownValue } from '../ui/primitives/Dropdown.js';
-import { getChartPalette } from '../utils/theme.js';
-import { dragToViewport, type DragState } from '../chart/chartInteractions.js';
+import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
+import { getChartPalette } from '../../utils/theme.js';
+import { dragToViewport, type DragState } from '../../chart/chartInteractions.js';
 import {
     buildDensityMarginalCounts,
     buildDensitySeries,

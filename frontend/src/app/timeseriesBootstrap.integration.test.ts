@@ -63,7 +63,7 @@ vi.mock('../services/timeseries/filtering.js', () => ({
     sanitizeSelectedColumns: sanitizeSelectedColumnsMock,
 }));
 
-vi.mock('../scatter/scatterPage.js', () => ({
+vi.mock('../features/scatter/page.js', () => ({
     initScatterPage: vi.fn(),
 }));
 

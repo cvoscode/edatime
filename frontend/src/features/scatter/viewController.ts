@@ -6,11 +6,11 @@
  * may call openScatterPairInCausal). They are also imported by scatterPage.ts
  * for co-located use in the render pipeline.
  */
-import { scatterState } from '../store/scatterState.js';
+import { scatterState } from '../../store/scatterState.js';
 import { syncModeUI } from './rendering.js';
 import { renderScatterMatrixView, selectMatrixPair } from './matrix.js';
 import { getEl } from './helpers.js';
-import { getDropdownValue } from '../ui/primitives/Dropdown.js';
+import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 
 export function setSidebarAnalyticsSelection(viewName: string): void {
     const navPage = viewName === 'matrix' ? 'scattermatrix' : 'scatter';
@@ -49,7 +49,7 @@ export async function setScatterView(
     if (!shouldRender) return;
     if (nextView === 'matrix') {
         // matrix.js selectMatrixPair needs the render callbacks — import locally
-        const { refreshCorrelationsAndSuggestions, renderScatter } = await import('./scatterPage.js');
+        const { refreshCorrelationsAndSuggestions, renderScatter } = await import('./page.js');
         await renderScatterMatrixView(
             async (x: string, y: string) => onMatrixCellClick(x, y, refreshCorrelationsAndSuggestions, renderScatter),
         );
@@ -74,7 +74,7 @@ export async function onMatrixCellClick(
         await selectMatrixPair(x, y, refreshCorrelationsAndSuggestions, renderScatter, setScatterView);
     } catch (error: any) {
         console.error(error);
-        const { handleErr } = await import('./scatterPage.js');
+        const { handleErr } = await import('./page.js');
         handleErr(error);
     } finally {
         if (matrixLoading) matrixLoading.hidden = true;

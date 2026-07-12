@@ -29,7 +29,7 @@ describe('scatter page help button', () => {
     });
 
     it('initScatterHelp binds the button and opens the modal on click', async () => {
-        const { initScatterHelp } = await import('./scatterHelp.js');
+        const { initScatterHelp } = await import('./help.js');
         initScatterHelp();
 
         const trigger = document.getElementById('scatter-help-btn') as HTMLButtonElement;
@@ -52,7 +52,7 @@ describe('scatter page help button', () => {
     });
 
     it('initScatterHelp is safe to call twice (idempotent)', async () => {
-        const { initScatterHelp } = await import('./scatterHelp.js');
+        const { initScatterHelp } = await import('./help.js');
         initScatterHelp();
         initScatterHelp();
         const trigger = document.getElementById('scatter-help-btn') as HTMLButtonElement;

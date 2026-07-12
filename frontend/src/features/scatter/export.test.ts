@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { scatterState } from '../store/scatterState.js';
+import { scatterState } from '../../store/scatterState.js';
 
 const { downloadBlobMock, exportScatterParquetMock, formatValueForColumnMock } = vi.hoisted(() => ({
     downloadBlobMock: vi.fn(),
@@ -35,7 +35,7 @@ vi.mock('./state.js', () => ({
     buildScatterQueryContext: vi.fn(() => ({ start: undefined, end: undefined, filters: [], lineFilters: [] })),
 }));
 
-vi.mock('../services/api/index.js', () => ({
+vi.mock('../../services/api/index.js', () => ({
     exportScatterParquet: exportScatterParquetMock,
 }));
 

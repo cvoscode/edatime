@@ -2,7 +2,7 @@
  * Scatter matrix view: pairwise grid with mini scatter canvases and diagonal distributions.
  */
 
-import { fetchScatterMatrix, fetchFft } from '../services/api/index.js';
+import { fetchScatterMatrix, fetchFft } from '../../services/api/index.js';
 import {
     getEl,
     fmt,
@@ -20,10 +20,10 @@ import {
     type MatrixCellData,
     type ScatterControls,
 } from './state.js';
-import { scatterState } from '../store/scatterState.js';
-import { setDropdownValue } from '../ui/primitives/Dropdown.js';
+import { scatterState } from '../../store/scatterState.js';
+import { setDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { describeDistributionMode, renderMatrixGrid } from './matrixGrid.js';
-import type { WorkspaceSnapshot } from '../workspace/workspaceStore.js';
+import type { WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 
 type ScatterIntent = Pick<WorkspaceSnapshot, 'filters' | 'viewport'>;
 

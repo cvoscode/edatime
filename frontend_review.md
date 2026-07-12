@@ -57,9 +57,15 @@ The next feature-directory migration should apply the same controller/runtime/he
 - Updated the lazy page registry and the guided-workflow causal graph consumer to use the feature-owned surfaces directly, removing the retired top-level `causal/` and `pages/causalHelp.ts` owners.
 - Preserved causal graph request, editing, comparison, status, layout, and chip-panel characterization coverage while moving the feature as a cohesive unit.
 
-### Next: scatter feature ownership
+### Completed: scatter feature ownership
 
-Move the remaining top-level Scatter feature below `features/scatter/`, preserve its lazy page-registry and matrix/runtime characterization contracts, then consolidate the shared analysis lifecycle helper behind a feature-neutral platform surface.
+- Moved the complete Scatter feature module set—page controller, runtime, controls, rendering, density/matrix/correlation views, state, export helpers, toolbar behavior, page help, and tests—under `features/scatter/`.
+- Updated the lazy page registry, dataset-bootstrap test wiring, ECharts scatter adapter, and Heatmap toolbar-overflow dependency to use the feature-owned surfaces directly; removed the retired top-level `scatter/` and `pages/scatterHelp.ts` owners.
+- Preserved scatter, density, matrix, linked-filter, GPU fallback, responsive layout, export, and correlation characterization coverage while moving the feature as a cohesive unit.
+
+### Next: shared analysis platform ownership
+
+Move the remaining shared page lifecycle, request-task, and analytics helper surfaces out of `pages/shared/` and `pages/` into feature-neutral platform modules. Update feature imports in small, independently verified steps, then retire the old page-oriented owners.
 
 ## Target Architecture
 

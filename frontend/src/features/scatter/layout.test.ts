@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { buildOption } from './rendering.js';
 import { getPlotMetrics } from './state.js';
 import { getScatterMarginalXMetrics, getScatterMarginalYMetrics } from './layout.js';
-import { scatterState } from '../store/scatterState.js';
+import { scatterState } from '../../store/scatterState.js';
 
 const EXPECTED_GRID = { left: 72, right: 72, top: 24, bottom: 50 };
 

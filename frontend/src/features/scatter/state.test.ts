@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
     scatterState,
-} from '../store/scatterState.js';
+} from '../../store/scatterState.js';
 import {
     setAdaptiveLineFilters,
     setColumnRanges,
     uiState,
-} from '../store/uiState.js';
-import { setMetadata } from '../store/datasetState.js';
-import { setViewport } from '../store/chartState.js';
+} from '../../store/uiState.js';
+import { setMetadata } from '../../store/datasetState.js';
+import { setViewport } from '../../store/chartState.js';
 import { buildOverviewContextKey, buildScatterQueryContext, getActiveScatterFilterColumns } from './state.js';
-import { setScatterActiveView, setScatterViewSnapshot } from '../store/scatterState.js';
+import { setScatterActiveView, setScatterViewSnapshot } from '../../store/scatterState.js';
 
 /**
  * Mirror the in-app behaviour: tests that stage `uiState.columnRanges`

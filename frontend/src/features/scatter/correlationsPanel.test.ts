@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { scatterState } from '../store/scatterState.js';
+import { scatterState } from '../../store/scatterState.js';
 
-vi.mock('../ui/primitives/Dropdown.js', () => ({
+vi.mock('../../ui/primitives/Dropdown.js', () => ({
     getDropdownValue: vi.fn((id: string) => {
         if (id === 'scatter-x-col') return 'HUFL';
         if (id === 'scatter-y-col') return 'HULL';
@@ -11,7 +11,7 @@ vi.mock('../ui/primitives/Dropdown.js', () => ({
     setDropdownValue: vi.fn(),
 }));
 
-vi.mock('../utils/settings.js', () => ({
+vi.mock('../../utils/settings.js', () => ({
     getSetting: vi.fn(() => 'pearson_raw'),
 }));
 

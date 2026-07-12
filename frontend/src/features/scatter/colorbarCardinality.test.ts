@@ -11,7 +11,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { scatterState } from '../store/scatterState.js';
+import { scatterState } from '../../store/scatterState.js';
 import { updateColorbarUI } from './rendering.js';
 
 function setupDom() {

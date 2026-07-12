@@ -9,7 +9,7 @@
  *   - refreshActiveScatterView() — re-renders the active view (plot or matrix)
  */
 
-import { createAnalysisPageRuntime } from '../pages/shared/analysisPageRuntime.js';
+import { createAnalysisPageRuntime } from '../../pages/shared/analysisPageRuntime.js';
 import {
     exportScatterPNG,
     exportScatterSVG,
@@ -17,15 +17,15 @@ import {
     exportScatterData,
 } from './rendering.js';
 import { getEl } from './helpers.js';
-import { chartState } from '../store/chartState.js';
-import { datasetState } from '../store/datasetState.js';
-import { scatterState } from '../store/scatterState.js';
-import { uiState } from '../store/uiState.js';
-import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
+import { chartState } from '../../store/chartState.js';
+import { datasetState } from '../../store/datasetState.js';
+import { scatterState } from '../../store/scatterState.js';
+import { uiState } from '../../store/uiState.js';
+import { createEmptyStateController, isRangeOutsideDataset } from '../../ui/emptyState.js';
 import { isLinkedBrushEnabled, currentControls, getActiveScatterFilterColumns } from './state.js';
-import { defaultGpuPowerPreference, requestGpuAdapter } from '../utils/platform.js';
-import { getDropdownValue } from '../ui/primitives/Dropdown.js';
-import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+import { defaultGpuPowerPreference, requestGpuAdapter } from '../../utils/platform.js';
+import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 /** Module-level runtime handle for the scatter page lifecycle. */
 let scatterRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createWorkspaceStore } from '../workspace/workspaceStore.js';
+import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 
 const buildOptionMock = vi.fn((..._args: unknown[]) => ({}));
 const updateColorbarUIMock = vi.fn();
@@ -44,11 +44,11 @@ const appStateMock = {
 const setColumnRangesMock = vi.fn();
 const setAdaptiveLineFiltersMock = vi.fn();
 
-vi.mock('../store/scatterState.js', () => ({
+vi.mock('../../store/scatterState.js', () => ({
     scatterState: appStateMock.scatter,
 }));
 
-vi.mock('../store/uiState.js', () => ({
+vi.mock('../../store/uiState.js', () => ({
     uiState: {
         get columnRanges() { return appStateMock.columnRanges; },
         set columnRanges(value) { appStateMock.columnRanges = value as Record<string, { from: number; to: number }>; },
@@ -59,7 +59,7 @@ vi.mock('../store/uiState.js', () => ({
     setAdaptiveLineFilters: (...args: unknown[]) => setAdaptiveLineFiltersMock(...args),
 }));
 
-vi.mock('../store/datasetState.js', () => ({
+vi.mock('../../store/datasetState.js', () => ({
     datasetState: {
         get metadata() { return appStateMock.metadata; },
         set metadata(value) { appStateMock.metadata = value; },

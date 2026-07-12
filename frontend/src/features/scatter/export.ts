@@ -2,8 +2,8 @@
  * Scatter export rendering: canvas pipeline, PNG/SVG/HTML/Parquet/CSV/JSON export.
  */
 
-import { formatTwoDecimals } from '../formatUtils.js';
-import { escapeCsvField } from '../utils/csv.js';
+import { formatTwoDecimals } from '../../formatUtils.js';
+import { escapeCsvField } from '../../utils/csv.js';
 import {
     getEl,
     paletteForScale,
@@ -19,12 +19,12 @@ import {
     type ScatterControls,
     buildScatterQueryContext,
 } from './state.js';
-import { scatterState } from '../store/scatterState.js';
-import { exportScatterParquet as exportScatterParquetBlob } from '../services/api/index.js';
-import type { WorkspaceSnapshot } from '../workspace/workspaceStore.js';
+import { scatterState } from '../../store/scatterState.js';
+import { exportScatterParquet as exportScatterParquetBlob } from '../../services/api/index.js';
+import type { WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 import { scaleScatterPlotGrid } from './layout.js';
-import { getCorrelationModeBasisLabel, getCorrelationModeShortLabel, normalizeCorrelationMetric } from '../utils/correlationModes.js';
-import { getSetting } from '../utils/settings.js';
+import { getCorrelationModeBasisLabel, getCorrelationModeShortLabel, normalizeCorrelationMetric } from '../../utils/correlationModes.js';
+import { getSetting } from '../../utils/settings.js';
 
 /* ── Linear tick helper ───────────────────────────────── */
 

@@ -65,16 +65,16 @@ const freshScatterState = vi.hoisted(() => ({
     scatterRequestId: 0,
 }));
 
-vi.mock('../store/chartState.js', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../store/chartState.js')>();
+vi.mock('../../store/chartState.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../../store/chartState.js')>();
     return {
         ...actual,
         chartState: freshChartState,
     };
 });
 
-vi.mock('../store/uiState.js', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../store/uiState.js')>();
+vi.mock('../../store/uiState.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../../store/uiState.js')>();
     return {
         ...actual,
         uiState: freshUiState,
@@ -87,16 +87,16 @@ vi.mock('../store/uiState.js', async (importOriginal) => {
     };
 });
 
-vi.mock('../store/datasetState.js', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../store/datasetState.js')>();
+vi.mock('../../store/datasetState.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../../store/datasetState.js')>();
     return {
         ...actual,
         datasetState: freshDatasetState,
     };
 });
 
-vi.mock('../store/scatterState.js', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../store/scatterState.js')>();
+vi.mock('../../store/scatterState.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../../store/scatterState.js')>();
     return {
         ...actual,
         scatterState: freshScatterState,
@@ -120,7 +120,7 @@ vi.mock('../store/scatterState.js', async (importOriginal) => {
     };
 });
 
-vi.mock('../../libs/chartgpu/dist/index.js', () => ({
+vi.mock('../../../libs/chartgpu/dist/index.js', () => ({
     createChart: (...args: unknown[]) => createChartMock(...args),
 }));
 
@@ -128,23 +128,23 @@ vi.mock('echarts', () => ({
     init: (...args: unknown[]) => echartsInitMock(...args),
 }));
 
-vi.mock('../utils/platform.js', () => ({
+vi.mock('../../utils/platform.js', () => ({
     defaultGpuPowerPreference: () => null,
     requestGpuAdapter: (...args: unknown[]) => requestGpuAdapterMock(...args),
 }));
 
-vi.mock('../services/api/index.js', () => ({
+vi.mock('../../services/api/index.js', () => ({
     fetchScatterCorrelations: (...args: unknown[]) => fetchScatterCorrelationsMock(...args),
     fetchScatterPoints: (...args: unknown[]) => fetchScatterPointsMock(...args),
 }));
 
-vi.mock('../ui/emptyState.js', () => ({
+vi.mock('../../ui/emptyState.js', () => ({
     createEmptyStateController: () => ({ update: emptyStateUpdateMock }),
     isRangeOutsideDataset: () => false,
 }));
 
 const dismissAllToastsMock = vi.fn();
-vi.mock('../utils/toast.js', () => ({
+vi.mock('../../utils/toast.js', () => ({
     toast: (...args: unknown[]) => toastMock(...args),
     dismissAllToasts: (...args: unknown[]) => dismissAllToastsMock(...args),
 }));
@@ -318,7 +318,7 @@ describe('initScatterPage view toggles', () => {
     });
 
     it('switches into matrix mode when the matrix toggle is clicked', async () => {
-        const { initScatterPage } = await import('./scatterPage.js');
+        const { initScatterPage } = await import('./page.js');
 
         await initScatterPage({
             total_rows: 2,
@@ -349,7 +349,7 @@ describe('initScatterPage view toggles', () => {
         // returned from the matrix view. Cause: a stale `view` from a
         // zoom/pan session was kept across the view switch and clamped
         // to zero because the underlying data had been replaced.
-        const { initScatterPage, setScatterView, renderScatter } = await import('./scatterPage.js');
+        const { initScatterPage, setScatterView, renderScatter } = await import('./page.js');
 
         await initScatterPage({
             total_rows: 2,
@@ -400,9 +400,9 @@ describe('initScatterPage view toggles', () => {
                 color: '',
             });
 
-        const { initScatterPage, setScatterView } = await import('./scatterPage.js');
-        const { setColumnRanges } = await import('../store/uiState.js');
-        const { setScatterViewSnapshot } = await import('../store/scatterState.js');
+        const { initScatterPage, setScatterView } = await import('./page.js');
+        const { setColumnRanges } = await import('../../store/uiState.js');
+        const { setScatterViewSnapshot } = await import('../../store/scatterState.js');
 
         // Stage a filter globally and seed the plot-view snapshot so
         // the matrix swap re-installs it on the way back. The snapshot
@@ -444,7 +444,7 @@ describe('initScatterPage view toggles', () => {
             resolveScatter = resolve;
         }));
 
-        const { initScatterPage } = await import('./scatterPage.js');
+        const { initScatterPage } = await import('./page.js');
 
         const initPromise = initScatterPage({
             total_rows: 2,
@@ -480,7 +480,7 @@ describe('initScatterPage view toggles', () => {
     it('falls back to ECharts when WebGPU is unavailable', async () => {
         requestGpuAdapterMock.mockResolvedValueOnce(null);
 
-        const { initScatterPage } = await import('./scatterPage.js');
+        const { initScatterPage } = await import('./page.js');
 
         await initScatterPage({
             total_rows: 2,
@@ -513,7 +513,7 @@ describe('initScatterPage view toggles', () => {
         (document.getElementById('scatter-x-col') as HTMLSelectElement).innerHTML = '<option value="HUFL" selected>HUFL</option>';
         (document.getElementById('scatter-y-col') as HTMLSelectElement).innerHTML = '<option value="HULL" selected>HULL</option>';
 
-        const { renderScatter } = await import('./scatterPage.js');
+        const { renderScatter } = await import('./page.js');
 
         await renderScatter();
 
@@ -533,7 +533,7 @@ describe('initScatterPage view toggles', () => {
         (document.getElementById('scatter-x-col') as HTMLSelectElement).innerHTML = '<option value="HUFL" selected>HUFL</option>';
         (document.getElementById('scatter-y-col') as HTMLSelectElement).innerHTML = '<option value="HULL" selected>HULL</option>';
 
-        const { renderScatter } = await import('./scatterPage.js');
+        const { renderScatter } = await import('./page.js');
 
         await renderScatter();
 
@@ -541,7 +541,7 @@ describe('initScatterPage view toggles', () => {
     });
 
     it('does not render twice on first scatter navigation when linked brush is checked but unchanged', async () => {
-        const { initScatterPage } = await import('./scatterPage.js');
+        const { initScatterPage } = await import('./page.js');
 
         await initScatterPage({
             total_rows: 2,
@@ -567,7 +567,7 @@ describe('initScatterPage view toggles', () => {
     });
 
     it('renders on scatter page-change when the linked brush range changed since the last scatter render', async () => {
-        const { initScatterPage } = await import('./scatterPage.js');
+        const { initScatterPage } = await import('./page.js');
         const { computeInteractiveScatterLimit } = await import('./renderLimit.js');
 
         const metadata = {
@@ -612,7 +612,7 @@ describe('initScatterPage view toggles', () => {
     });
 
     it('populates X/Y dropdowns deterministically when numeric columns are present', async () => {
-        const { initScatterPage } = await import('./scatterPage.js');
+        const { initScatterPage } = await import('./page.js');
 
         await initScatterPage({
             total_rows: 3,
@@ -650,7 +650,7 @@ describe('initScatterPage view toggles', () => {
             top_pairs: [{ x: 'HULL', y: 'MULL', correlation: 0.91, count: 256 }],
         });
 
-        const { initScatterPage } = await import('./scatterPage.js');
+        const { initScatterPage } = await import('./page.js');
 
         await initScatterPage({
             total_rows: 3,
@@ -682,7 +682,7 @@ describe('initScatterPage view toggles', () => {
     });
 
     it('keeps the dropdowns empty but does not fetch when no numeric columns exist', async () => {
-        const { initScatterPage } = await import('./scatterPage.js');
+        const { initScatterPage } = await import('./page.js');
 
         await initScatterPage({
             total_rows: 0,
@@ -709,7 +709,7 @@ describe('initScatterPage view toggles', () => {
     });
 
     it('records scatter.metadata on every init call so a later page-change can read it', async () => {
-        const { initScatterPage } = await import('./scatterPage.js');
+        const { initScatterPage } = await import('./page.js');
 
         const metadata = {
             total_rows: 2,
@@ -792,7 +792,7 @@ describe('scatter render scheduling', () => {
         const applySpy = vi.spyOn(stateModule, 'applyScatterStateFromCache');
 
         // Make sure the helpers we use exist on the module under test.
-        const scatterPage = await import('./scatterPage.js');
+        const scatterPage = await import('./page.js');
         expect(typeof scatterPage.renderScatterDebounced).toBe('function');
         expect(typeof (scheduleHelper as any).__scatterScheduleRender).toBe('function');
 
@@ -835,7 +835,7 @@ describe('scatter render scheduling', () => {
         // the pending debounced render. We detect the timer via the
         // setTimeout/clearTimeout pair that scatterPage uses for its
         // 32 ms debounce.
-        const scatterPage = await import('./scatterPage.js');
+        const scatterPage = await import('./page.js');
         const { setScatterView, renderScatterDebounced } = scatterPage;
 
         // Spy on setTimeout/clearTimeout so we can capture the timer handle
