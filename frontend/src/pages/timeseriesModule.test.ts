@@ -4,7 +4,7 @@
 // is implemented in Task 4.
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { setSelectedColorColumn } from '../store/index.js';
+import { setSelectedColorColumn } from '../store/uiState.js';
 
 // ── Hoisted mocks ─────────────────────────────────────────────────────────────
 // vi.hoisted ensures mocks are created before vi.mock() calls

@@ -3,23 +3,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTimeseriesPageController } from './timeseriesPage.js';
 import {
     chartState,
-    runtimeState,
     setChartInstance,
-    setFetchDebounceId,
-    setFetchedWindow,
     setInitialView,
-    setLastFetchedData,
-    setMetadata,
-    setPendingRestoreY,
-    setPendingYMode,
-    setSelectedColorColumn,
-    setSelectedCols,
-    setColumnRanges,
-    setAdaptiveLineFilters,
     setViewport,
     setZoomHistory,
-} from '../store/index.js';
-import { setRefetchOnZoom } from '../store/runtimeState.js';
+} from '../store/chartState.js';
+import { setMetadata } from '../store/datasetState.js';
+import {
+    runtimeState,
+    setFetchDebounceId,
+    setFetchedWindow,
+    setLastFetchedData,
+    setPendingRestoreY,
+    setPendingYMode,
+    setRefetchOnZoom,
+} from '../store/runtimeState.js';
+import {
+    setAdaptiveLineFilters,
+    setColumnRanges,
+    setSelectedColorColumn,
+    setSelectedCols,
+} from '../store/uiState.js';
 import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 
 describe('createTimeseriesPageController', () => {
