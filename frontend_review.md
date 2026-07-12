@@ -164,6 +164,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - `DataChart` retains only composition of chart-specific overlay layers with the drawing surface. Direct controller tests characterize gesture coordinates, enabled/disabled input, committed drawings, and redraw requests.
 - Extracted title and axis-label DOM ownership into `TextOverlayController`; it now creates, synchronizes, hides, and disposes text overlays independently of chart rendering state.
 - Direct controller tests cover normalized content, empty-label visibility, and cleanup. `DataChart` retains only the chart text values and forwards them to this controller.
+- Removed the unreachable duplicate rolling-band, anomaly, adaptive-filter, and annotation renderers from `DataChart`. `ChartOverlays` is now the sole owner of those live overlay behaviors.
 
 ### Next: DataChart renderer seams
 
