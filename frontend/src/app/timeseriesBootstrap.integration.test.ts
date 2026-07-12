@@ -160,7 +160,6 @@ vi.mock('../bootstrap/sessionBootstrap.js', () => ({
 }));
 
 vi.mock('../store/index.js', () => ({
-    appStateComposite: { metadata: null, chart: null, selectedCols: [] },
     chartState: { chart: null, stackFromZero: false },
     datasetState: { metadata: null },
     initChartStatePrefs: vi.fn(),

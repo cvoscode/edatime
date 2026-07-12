@@ -45,7 +45,6 @@ const setColumnRangesMock = vi.fn();
 const setAdaptiveLineFiltersMock = vi.fn();
 
 vi.mock('../store/index.js', () => ({
-    appState: appStateMock,
     setColumnRanges: setColumnRangesMock,
     setAdaptiveLineFilters: setAdaptiveLineFiltersMock,
 }));

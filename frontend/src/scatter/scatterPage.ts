@@ -225,7 +225,7 @@ let _warnOnEmptyPlotAfterMatrix = false;
 
 /**
  * When set, the next `renderScatter()` invocation will preserve the current
- * `appState.scatter.view` instead of resetting it to the full extent.
+ * `scatterState.view` instead of resetting it to the full extent.
  *
  * The density-mode zoom path in `rendering.ts` triggers a re-render through
  * `globalThis.__scatterScheduleRender` after `applyView` has already updated
@@ -338,7 +338,7 @@ async function renderScatter(): Promise<void> {
             _warnOnEmptyPlotAfterMatrix = false;
         }
         // When this render was triggered by a density-mode zoom, the caller
-        // has already updated `appState.scatter.view` to the new bounds.
+        // has already updated `scatterState.view` to the new bounds.
         // Resetting the view here would clobber the zoom and the user would
         // see the heatmap snap back to the full extent. In every other case
         // (initial load, column change, color change, …) we keep the

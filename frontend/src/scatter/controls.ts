@@ -239,7 +239,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     });
 
     // The page-change fast path compares the freshly-computed
-    // query-context key against `appState.scatter.lastQueryContextKey`,
+    // query-context key against `scatterState.lastQueryContextKey`,
     // which `renderScatter` updates after every successful render.
     //
     // Only the LATEST bound listener processes the dispatch. Older
@@ -271,11 +271,11 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
         inFlight = true;
         try {
             // The scatter page now treats itself as the authoritative owner of
-            // `appState.scatter.metadata`: initScatterPage is the single place
+            // `scatterState.metadata`: initScatterPage is the single place
             // where it gets written. If a page-change fires before init ran (for
             // example when the user navigates to scatter on a cold dataset), we
             // bounce via a single dedicated init call rather than reading from
-            // `appState.metadata` here. That keeps the page-change handler
+            // `datasetState.metadata` here. That keeps the page-change handler
             // strictly an effect, not a side-channel metadata source.
             if (!scatterState.metadata && datasetState.metadata) {
                 await cb.initScatterPage(datasetState.metadata as DatasetMetadata);

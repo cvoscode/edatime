@@ -140,7 +140,7 @@ describe('updateZoomRangeBadge', () => {
 
     it('auto-updates when the chart viewport changes (zoom-in interaction)', () => {
         // Regression: a chart zoom-in (e.g. mouse wheel / selection zoom)
-        // mutates appState.currentStart/currentEnd via setViewport(). The
+        // mutates chartState.currentStart/currentEnd via setViewport(). The
         // badge must update on its own without anyone calling
         // refreshZoomControlsState() — this is the path that the
         // timeseries page onZoomRangeChange uses.

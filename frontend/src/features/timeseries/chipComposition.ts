@@ -1,7 +1,7 @@
 /**
- * features/timeseries/chipComposition — compose chip-list items from app state.
+ * features/timeseries/chipComposition — compose chip-list items from store slices.
  *
- * Transforms current appState into the `SeriesChipListItem[]` shape consumed
+ * Transforms current selection/filter store slices into the `SeriesChipListItem[]` shape consumed
  * by `renderSeriesChipList`. Encapsulates the state→item mapping so callers
  * don't need to know about store shape details. Extracted from buildColumnToggles
  * so the domain-to-item transformation stays testable and isolated.

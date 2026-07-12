@@ -37,7 +37,7 @@ export function configureSessionWorkspace(workspace: SessionWorkspace | null): v
     configuredWorkspace = workspace;
 }
 
-/** The serialisable subset of appState. */
+/** The serialisable subset of the focused frontend store. */
 export interface SessionSnapshot {
     version: 1;
     timestamp: number;
@@ -122,7 +122,7 @@ export function captureSession(): SessionSnapshot {
     };
 }
 
-/** Restore appState from a snapshot. Does NOT trigger re-renders — caller should. */
+/** Restore the focused store from a snapshot. Does NOT trigger re-renders — caller should. */
 export function applySession(
     snap: SessionSnapshot,
     options: ApplySessionOptions = {},

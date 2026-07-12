@@ -125,7 +125,7 @@ function getFilterIntent(
 }
 
 /**
- * Fetch anomaly regions from the backend and update appState.
+ * Fetch anomaly regions from the backend and update analytics state.
  * Returns early if currentStart / currentEnd are not finite.
  */
 export async function fetchAnomalyRegions(
@@ -169,7 +169,7 @@ export async function fetchAnomalyRegions(
     requestOverlayRender();
 }
 
-/** Compute rolling bands from lastFetchedData + column ranges; update appState. */
+/** Compute rolling bands from lastFetchedData + column ranges; update analytics state. */
 export function computeAndSetRollingBands(
     windowSize: number,
     workspace?: Pick<WorkspaceStore, 'getSnapshot'>,

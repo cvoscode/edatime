@@ -5,7 +5,7 @@
  * and dataset-search input initialization.
  *
  * All functions here are side-effect-only (DOM + window events) and take
- * dependency hooks rather than importing from appState directly.
+ * dependency hooks rather than reaching through a composite store facade.
  */
 
 import {

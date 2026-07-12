@@ -4,7 +4,7 @@
  *
  * The backend collapses the long tail of a categorical color
  * column into a single "Other" bucket and reports the breakdown via
- * `appState.scatter.colorCardinality`. The rendering layer must
+ * `scatterState.colorCardinality`. The rendering layer must
  * surface the bucketed count as a small hint under the colorbar
  * name so the user knows the legend is truncated.
  */

@@ -2,7 +2,7 @@
  * timeseriesShortcuts — page-specific keyboard shortcuts for the timeseries view.
  *
  * Extracted from app.ts because these handlers depend on timeseries-specific
- * closures (fetchAndRender, zoomOut, resetZoom, appState.chart, etc.) that
+ * closures (fetchAndRender, zoomOut, resetZoom, chart access, etc.) that
  * cannot be centralized in globalShortcuts.ts without creating a circular
  * dependency on app.ts lifecycle.
  *
