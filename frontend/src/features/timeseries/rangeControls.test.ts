@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildRangeControls } from './rangeControls.js';
 import {
-    appStateComposite as appState,
     datasetState,
+    uiState,
     setAdaptiveFilterColumn,
     setAdaptiveLineFilters,
     setColumnRanges,
@@ -49,8 +49,8 @@ describe('buildRangeControls', () => {
         setColumnRanges({});
         workspace = {
             getSnapshot: () => makeWorkspaceSnapshot({
-                selection: { columns: appState.selectedCols, colorColumn: appState.selectedColorColumn },
-                filters: { columnRanges: appState.columnRanges, adaptiveLines: appState.adaptiveLineFilters },
+                selection: { columns: uiState.selectedCols, colorColumn: uiState.selectedColorColumn },
+                filters: { columnRanges: uiState.columnRanges, adaptiveLines: uiState.adaptiveLineFilters },
             }),
             setFilters: (filters) => {
                 setColumnRanges(filters.columnRanges);
@@ -133,7 +133,7 @@ describe('buildRangeControls', () => {
             container.querySelectorAll<HTMLElement>('.range-chip'),
         ).find((c) => c.querySelector('.name')?.textContent?.includes('Adaptive HUFL'))!;
         removalChip.dispatchEvent(new MouseEvent('click'));
-        expect(appState.adaptiveLineFilters).toEqual([]);
+        expect(uiState.adaptiveLineFilters).toEqual([]);
     });
 
     it('publishes adaptive filter removal to workspace intent', () => {
@@ -170,8 +170,8 @@ describe('buildRangeControls', () => {
             container.querySelectorAll<HTMLElement>('.range-chip'),
         ).find((c) => c.querySelector('.range')?.textContent === 'Clear all')!;
         clearChip.dispatchEvent(new MouseEvent('click'));
-        expect(appState.adaptiveLineFilters).toEqual([]);
-        expect(appState.pendingAdaptivePoint).toBeNull();
+        expect(uiState.adaptiveLineFilters).toEqual([]);
+        expect(uiState.pendingAdaptivePoint).toBeNull();
     });
 
     it('keyboard Enter on clickable chip triggers the filter modal opener', () => {
