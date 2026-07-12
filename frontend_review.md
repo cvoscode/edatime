@@ -165,6 +165,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted title and axis-label DOM ownership into `TextOverlayController`; it now creates, synchronizes, hides, and disposes text overlays independently of chart rendering state.
 - Direct controller tests cover normalized content, empty-label visibility, and cleanup. `DataChart` retains only the chart text values and forwards them to this controller.
 - Removed the unreachable duplicate rolling-band, anomaly, adaptive-filter, and annotation renderers from `DataChart`. `ChartOverlays` is now the sole owner of those live overlay behaviors.
+- Extracted the pure Timeseries tooltip formatter and color-scale legend DOM rendering from `updateDataMulti`, giving the data-update path explicit presentation seams with direct tests.
 
 ### Next: DataChart renderer seams
 

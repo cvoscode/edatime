@@ -5,7 +5,7 @@
 
 import { createChart } from '../../libs/chartgpu/dist/index.js';
 import { DEBUG, dbg } from '../debug.js';
-import { escapeHtml, downloadUrl, downloadBlob } from '../utils/dom.js';
+import { downloadUrl, downloadBlob } from '../utils/dom.js';
 import { defaultGpuPowerPreference } from '../utils/platform.js';
 import { formatTwoDecimals } from '../formatUtils.js';
 import { datasetState } from '../store/datasetState.js';
@@ -46,13 +46,12 @@ interface ChartInstanceAPI {
 
 import {
     analyzeColorValues, baseSeriesName,
-    buildColorizedSeries, categoryColorFor,
+    buildColorizedSeries,
 } from './colorScale.js';
 import { CHART_PALETTES, getSetting } from '../utils/settings.js';
-import type { ColorScaleName } from '../utils/settings.js';
 import { getChartPalette, getResolvedTheme, onThemeChange, type ResolvedTheme } from '../utils/theme.js';
 import {
-    niceLinearTicks, niceTimeTicks, formatTimeTick, formatTimeTooltip,
+    niceLinearTicks, niceTimeTicks, formatTimeTick,
 } from './ticks.js';
 import {
     type GridLayout,
@@ -65,6 +64,8 @@ import { buildLegendEntries } from './legendInteraction.js';
 import { LegendOverlayController } from './legendOverlayController.js';
 import { DrawingController } from './drawingController.js';
 import { TextOverlayController } from './textOverlayController.js';
+import { formatTimeSeriesTooltip } from './timeSeriesTooltip.js';
+import { renderColorScaleLegend } from './colorScaleLegend.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
@@ -504,11 +505,6 @@ export class DataChart {
 
         const colorColumn = uiState.selectedColorColumn;
         const colorDecoratedSeries: SeriesConfig[] = [];
-        const colorbarWrap = document.getElementById('timeseries-colorbar-wrap');
-        const categoricalWrap = document.getElementById('timeseries-categorical-wrap');
-        if (colorbarWrap) { colorbarWrap.hidden = true; colorbarWrap.style.display = 'none'; }
-        if (categoricalWrap) { categoricalWrap.hidden = true; categoricalWrap.style.display = 'none'; }
-
         const colorCandidates: ColorCandidateEntry[] = [];
         const baseSeriesList: SeriesConfig[] = [];
         for (const entry of seriesList.flat()) {
@@ -528,38 +524,8 @@ export class DataChart {
                 seriesAnnotations.push(...colorAnnotations);
             }
 
-            if (scaleInfo.isNumeric) {
-                if (colorbarWrap) {
-                    colorbarWrap.hidden = false;
-                    colorbarWrap.style.display = 'grid';
-                    document.getElementById('timeseries-colorbar-name')!.textContent = colorColumn;
-                    document.getElementById('timeseries-colorbar-min')!.textContent = formatTwoDecimals(scaleInfo.min);
-                    document.getElementById('timeseries-colorbar-max')!.textContent = formatTwoDecimals(scaleInfo.max);
-                    const scaleName = getSetting('colorScale') as ColorScaleName;
-                    const scaleColors = {
-                        viridis: ['#440154', '#482878', '#3e4a89', '#31688e', '#26838f', '#1f9d89', '#35b779', '#6ece58', '#b5de2b', '#fde725'],
-                        plasma: ['#0d0887', '#5302a3', '#8b0aa5', '#b83289', '#e16462', '#fca636', '#f0f921'],
-                        magma: ['#000004', '#1b0c41', '#4a0c6b', '#781c6d', '#a52c60', '#cf4446', '#f26b1d', '#fca50a', '#fca636', '#fde725'],
-                        coolwarm: ['#3b4cc0', '#6786d1', '#9eb2de', '#c9d3e8', '#f7f7f7', '#f4a582', '#d6605a', '#b2182b'],
-                        inferno: ['#000004', '#1b0c41', '#4a0c6b', '#781c6d', '#a52c60', '#cf4446', '#fca636', '#fca50a', '#fde725'],
-                    } as const;
-                    const gradient = scaleColors[scaleName] ?? scaleColors.viridis;
-                    document.getElementById('timeseries-colorbar')!.style.background = `linear-gradient(90deg, ${gradient.join(',')})`;
-                }
-            } else if (categoricalWrap) {
-                categoricalWrap.hidden = false;
-                categoricalWrap.style.display = 'grid';
-                document.getElementById('timeseries-categorical-name')!.textContent = colorColumn;
-                const legend = document.getElementById('timeseries-categorical-legend')!;
-                legend.innerHTML = '';
-                scaleInfo.categories.forEach((category) => {
-                    const item = document.createElement('div');
-                    item.className = 'scatter-distribution-legend-item';
-                    item.innerHTML = `<span class="scatter-distribution-legend-swatch" style="background: ${categoryColorFor(category, scaleInfo.categories)}"></span><span>${String(category)}</span>`;
-                    legend.appendChild(item);
-                });
-            }
         }
+        renderColorScaleLegend(colorColumn, colorCandidates.length > 0 ? scaleInfo : null);
 
         const flattenedSeriesList = [...baseSeriesList, ...colorDecoratedSeries];
         this._lastSeriesList = flattenedSeriesList;
@@ -574,31 +540,10 @@ export class DataChart {
         }
 
         if (flattenedSeriesList.length > 0) {
-            const tooltipFormatter = (params: unknown): string => {
-                type TooltipEntry = { seriesName?: string; value?: [number, number] };
-                const rawList: unknown[] = Array.isArray(params) ? params : [params];
-                const seen = new Set<string>();
-                const list = rawList.filter((p): p is TooltipEntry => {
-                    const pp = p as TooltipEntry;
-                    const base = baseSeriesName(pp?.seriesName ?? '');
-                    if (!base || seen.has(base)) return false;
-                    seen.add(base);
-                    return true;
-                });
-                if (list.length === 0) return '';
-                const first = list[0] as TooltipEntry;
-                const x = Number(first?.value?.[0]);
-                const spanMs = Number.isFinite(xDomainMin) && Number.isFinite(xDomainMax)
-                    ? Math.max(1, xDomainMax - xDomainMin) : 86400_000;
-                const header = Number.isFinite(x) ? formatTimeTooltip(x, spanMs) : '';
-                const rows = list.map((p) => {
-                    const pp = p as TooltipEntry;
-                    const name = escapeHtml(baseSeriesName(pp?.seriesName ?? 'series') || 'series');
-                    const y = formatTwoDecimals(pp?.value?.[1] ?? NaN);
-                    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span><span style="font-variant-numeric:tabular-nums;white-space:nowrap;">${escapeHtml(y)}</span></div>`;
-                }).join('');
-                return header ? `<div style="opacity:0.8;margin-bottom:6px;">${escapeHtml(header)}</div>${rows}` : rows;
-            };
+            const tooltipFormatter = (params: unknown): string => formatTimeSeriesTooltip(params, {
+                min: xDomainMin,
+                max: xDomainMax,
+            });
 
             const nextOption = {
                 animation: false,
