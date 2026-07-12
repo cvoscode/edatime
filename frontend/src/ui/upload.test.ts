@@ -46,7 +46,7 @@ import {
     formatUploadRowCount,
     loadedRowCountFromResponse,
 } from './upload';
-import { appState, datasetState, uiState } from '../store/index.js';
+import { datasetState, uiState } from '../store/index.js';
 import type { DatasetMetadata } from '../types';
 
 function makeMetadata(overrides: Partial<DatasetMetadata> = {}): DatasetMetadata {
@@ -193,10 +193,10 @@ describe('initUploadPanel notifications', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         buildUploadDom();
-        appState.metadata = null;
-        appState.columnProfiles = [];
-        appState.previewSelectedColumns = [];
-        appState.previewTimeColumn = null;
+        datasetState.metadata = null;
+        datasetState.columnProfiles = [];
+        uiState.previewSelectedColumns = [];
+        uiState.previewTimeColumn = null;
     });
 
     it('shows a success toast after upload completes and metadata refreshes', async () => {
@@ -263,10 +263,10 @@ describe('initUploadPanel upload button state', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         buildUploadDom();
-        appState.metadata = null;
-        appState.columnProfiles = [];
-        appState.previewSelectedColumns = [];
-        appState.previewTimeColumn = null;
+        datasetState.metadata = null;
+        datasetState.columnProfiles = [];
+        uiState.previewSelectedColumns = [];
+        uiState.previewTimeColumn = null;
     });
 
     it('keeps Upload & Ingest disabled until a valid file is selected', async () => {
@@ -304,19 +304,19 @@ describe('initUploadPanel column selection helpers', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         buildUploadDom();
-        appState.metadata = null;
-        appState.columnProfiles = [];
-        appState.previewSelectedColumns = [];
-        appState.previewTimeColumn = null;
+        datasetState.metadata = null;
+        datasetState.columnProfiles = [];
+        uiState.previewSelectedColumns = [];
+        uiState.previewTimeColumn = null;
     });
 
     it('select-all keeps the preview time column while reading profiles from store slices', () => {
-        appState.columnProfiles = [
+        datasetState.columnProfiles = [
             { name: 'timestamp', dtype: 'datetime64[ms]' } as any,
             { name: 'value', dtype: 'float64' } as any,
             { name: 'other', dtype: 'float64' } as any,
         ];
-        appState.previewTimeColumn = 'timestamp';
+        uiState.previewTimeColumn = 'timestamp';
 
         initUploadPanel(vi.fn(), vi.fn(), {
             buildColumnToggles: vi.fn(),
@@ -459,10 +459,10 @@ describe('initUploadPanel database tab', () => {
         mocks.loadDatabaseTable.mockReset();
         mocks.toast.mockReset();
         buildUploadDom();
-        appState.metadata = null;
-        appState.columnProfiles = [];
-        appState.previewSelectedColumns = [];
-        appState.previewTimeColumn = null;
+        datasetState.metadata = null;
+        datasetState.columnProfiles = [];
+        uiState.previewSelectedColumns = [];
+        uiState.previewTimeColumn = null;
     });
 
     it('refreshes db tables on connect success', async () => {
@@ -484,7 +484,7 @@ describe('initUploadPanel database tab', () => {
     });
 
     it('does not refresh db tables on init while the file tab is active', () => {
-        appState.metadata = { total_rows: 0 } as any;
+        datasetState.metadata = { total_rows: 0 } as any;
 
         initUploadPanel(vi.fn(), vi.fn(), {
             buildColumnToggles: vi.fn(),
@@ -636,10 +636,10 @@ describe('initUploadPanel file choose and preview', () => {
         mocks.previewUpload.mockReset();
         mocks.toast.mockReset();
         buildUploadDom();
-        appState.metadata = null;
-        appState.columnProfiles = [];
-        appState.previewSelectedColumns = [];
-        appState.previewTimeColumn = null;
+        datasetState.metadata = null;
+        datasetState.columnProfiles = [];
+        uiState.previewSelectedColumns = [];
+        uiState.previewTimeColumn = null;
     });
 
     it('shows error status for oversized file via file input', async () => {
@@ -721,15 +721,15 @@ describe('initUploadPanel upload submission', () => {
         });
         mocks.fetchMetadata.mockResolvedValue(makeMetadata());
         buildUploadDom();
-        appState.metadata = null;
-        appState.columnProfiles = [];
-        appState.previewSelectedColumns = [];
-        appState.previewTimeColumn = 'timestamp';
+        datasetState.metadata = null;
+        datasetState.columnProfiles = [];
+        uiState.previewSelectedColumns = [];
+        uiState.previewTimeColumn = 'timestamp';
     });
 
     it('shows error toast when no time column selected on upload', async () => {
-        appState.previewTimeColumn = null;
-        appState.metadata = null;
+        uiState.previewTimeColumn = null;
+        datasetState.metadata = null;
 
         initUploadPanel(vi.fn(), vi.fn(), {
             buildColumnToggles: vi.fn(),
@@ -741,8 +741,8 @@ describe('initUploadPanel upload submission', () => {
         Object.defineProperty(fileInput, 'files', { configurable: true, value: [file] });
         fileInput.dispatchEvent(new Event('change'));
         await flushPromises();
-        appState.previewTimeColumn = null;
-        appState.metadata = null;
+        uiState.previewTimeColumn = null;
+        datasetState.metadata = null;
 
         document.getElementById('upload-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         await flushPromises();

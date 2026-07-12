@@ -11,7 +11,7 @@ import {
     renderColumnProfilesGrid,
     sortProfileRows,
 } from './profile';
-import { appState, datasetState, uiState } from '../store/index.js';
+import { datasetState, uiState } from '../store/index.js';
 import type { DatasetMetadata } from '../types';
 
 function makeMeta(overrides: Partial<DatasetMetadata> = {}): DatasetMetadata {
@@ -28,7 +28,7 @@ function makeMeta(overrides: Partial<DatasetMetadata> = {}): DatasetMetadata {
 
 describe('hydrateColumnProfiles', () => {
     beforeEach(() => {
-        appState.columnProfiles = [];
+        datasetState.columnProfiles = [];
     });
 
     it('populates columnProfiles from column_profiles', () => {
@@ -54,8 +54,8 @@ describe('hydrateColumnProfiles', () => {
         });
         hydrateColumnProfiles(meta);
 
-        expect(appState.columnProfiles).toHaveLength(1);
-        const p = appState.columnProfiles[0];
+        expect(datasetState.columnProfiles).toHaveLength(1);
+        const p = datasetState.columnProfiles[0];
         expect(p.name).toBe('temperature');
         expect(p.dtype).toBe('Float64');
         expect(p.nonNullCount).toBe(95);
@@ -75,11 +75,11 @@ describe('hydrateColumnProfiles', () => {
         });
         hydrateColumnProfiles(meta);
 
-        expect(appState.columnProfiles).toHaveLength(2);
-        expect(appState.columnProfiles[0].name).toBe('col_a');
-        expect(appState.columnProfiles[0].nonNullCount).toBe(0);
-        expect(appState.columnProfiles[0].histCounts).toEqual([]);
-        expect(appState.columnProfiles[1].name).toBe('col_b');
+        expect(datasetState.columnProfiles).toHaveLength(2);
+        expect(datasetState.columnProfiles[0].name).toBe('col_a');
+        expect(datasetState.columnProfiles[0].nonNullCount).toBe(0);
+        expect(datasetState.columnProfiles[0].histCounts).toEqual([]);
+        expect(datasetState.columnProfiles[1].name).toBe('col_b');
     });
 
     it('prefers column_profiles over columns when both exist', () => {
@@ -106,14 +106,14 @@ describe('hydrateColumnProfiles', () => {
         });
         hydrateColumnProfiles(meta);
 
-        expect(appState.columnProfiles).toHaveLength(1);
-        expect(appState.columnProfiles[0].dtype).toBe('Float64');
-        expect(appState.columnProfiles[0].min).toBe(1);
+        expect(datasetState.columnProfiles).toHaveLength(1);
+        expect(datasetState.columnProfiles[0].dtype).toBe('Float64');
+        expect(datasetState.columnProfiles[0].min).toBe(1);
     });
 
     it('handles empty metadata', () => {
         hydrateColumnProfiles(makeMeta());
-        expect(appState.columnProfiles).toEqual([]);
+        expect(datasetState.columnProfiles).toEqual([]);
     });
 
     it('normalises negative histogram counts to zero', () => {
@@ -138,7 +138,7 @@ describe('hydrateColumnProfiles', () => {
             ],
         });
         hydrateColumnProfiles(meta);
-        expect(appState.columnProfiles[0].histCounts).toEqual([0, 7]);
+        expect(datasetState.columnProfiles[0].histCounts).toEqual([0, 7]);
     });
 
     it('treats non-finite min/max as null', () => {
@@ -163,8 +163,8 @@ describe('hydrateColumnProfiles', () => {
             ],
         });
         hydrateColumnProfiles(meta);
-        expect(appState.columnProfiles[0].min).toBeNull();
-        expect(appState.columnProfiles[0].max).toBeNull();
+        expect(datasetState.columnProfiles[0].min).toBeNull();
+        expect(datasetState.columnProfiles[0].max).toBeNull();
     });
 
     it('skips profiles with empty names', () => {
@@ -189,7 +189,7 @@ describe('hydrateColumnProfiles', () => {
             ],
         });
         hydrateColumnProfiles(meta);
-        expect(appState.columnProfiles).toEqual([]);
+        expect(datasetState.columnProfiles).toEqual([]);
     });
 
     it('handles multiple profiles + columns without duplicates', () => {
@@ -219,13 +219,13 @@ describe('hydrateColumnProfiles', () => {
             ],
         });
         hydrateColumnProfiles(meta);
-        expect(appState.columnProfiles).toHaveLength(3);
-        const names = appState.columnProfiles.map((p) => p.name);
+        expect(datasetState.columnProfiles).toHaveLength(3);
+        const names = datasetState.columnProfiles.map((p) => p.name);
         expect(names).toEqual(['a', 'b', 'c']);
         // 'a' should come from column_profiles (has stats)
-        expect(appState.columnProfiles[0].nonNullCount).toBe(99);
+        expect(datasetState.columnProfiles[0].nonNullCount).toBe(99);
         // 'b' and 'c' should be stubs from columns
-        expect(appState.columnProfiles[1].nonNullCount).toBe(0);
+        expect(datasetState.columnProfiles[1].nonNullCount).toBe(0);
     });
 });
 
@@ -289,18 +289,18 @@ describe('renderColumnProfilesGrid', () => {
                 </div>
             </div>
         `;
-        appState.previewSelectedColumns = [];
-        appState.previewTimeColumn = null;
-        appState.profileFilterText = '';
-        appState.profileFilterCategory = 'all';
-        appState.profileGridSort = { key: null, dir: 'asc' };
+        uiState.previewSelectedColumns = [];
+        uiState.previewTimeColumn = null;
+        uiState.profileFilterText = '';
+        uiState.profileFilterCategory = 'all';
+        uiState.profileGridSort = { key: null, dir: 'asc' };
         invalidateProfileGridViewModel();
     });
 
     it('renders UTC ISO datetime titles for min/max cells', () => {
-        appState.previewTimeColumn = 'timestamp';
-        appState.previewSelectedColumns = ['timestamp'];
-        appState.columnProfiles = [{
+        uiState.previewTimeColumn = 'timestamp';
+        uiState.previewSelectedColumns = ['timestamp'];
+        datasetState.columnProfiles = [{
             name: 'timestamp',
             dtype: 'datetime64[ms]',
             nonNullCount: 2,
@@ -323,8 +323,8 @@ describe('renderColumnProfilesGrid', () => {
     });
 
     it('filters the grid to datetime columns when the datetime category is active', () => {
-        appState.profileFilterCategory = 'datetime';
-        appState.columnProfiles = [
+        uiState.profileFilterCategory = 'datetime';
+        datasetState.columnProfiles = [
             {
                 name: 'timestamp',
                 dtype: 'datetime64[ms]',
@@ -355,9 +355,9 @@ describe('renderColumnProfilesGrid', () => {
     });
 
     it('updates preview selection through uiState when a non-time column checkbox is toggled', () => {
-        appState.previewTimeColumn = 'timestamp';
-        appState.previewSelectedColumns = ['timestamp'];
-        appState.columnProfiles = [
+        uiState.previewTimeColumn = 'timestamp';
+        uiState.previewSelectedColumns = ['timestamp'];
+        datasetState.columnProfiles = [
             {
                 name: 'timestamp',
                 dtype: 'datetime64[ms]',

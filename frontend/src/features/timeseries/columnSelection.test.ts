@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { sanitizeSelectedColumns, ensureAdaptiveTargetStillValid } from './columnSelection.js';
 import {
-    appState,
     datasetState,
     setAdaptiveFilterColumn,
     setMetadata,
+    uiState,
 } from '../../store/index.js';
 import { createWorkspaceStore, type WorkspaceStore } from '../../workspace/workspaceStore.js';
 
@@ -35,31 +35,31 @@ describe('columnSelection', () => {
         it('removes columns not present in metadata', () => {
             workspace.setSelection(['HUFL', 'NOTACOLUMN', 'HULL']);
             sanitizeSelectedColumns(workspace);
-            expect([...appState.selectedCols]).toEqual(['HUFL', 'HULL']);
+            expect([...uiState.selectedCols]).toEqual(['HUFL', 'HULL']);
         });
 
         it('removes blocked time-like column names regardless of case', () => {
             workspace.setSelection(['HUFL', 'ts', 'HULL', 'TIMESTAMP', 'time']);
             sanitizeSelectedColumns(workspace);
-            expect([...appState.selectedCols]).toEqual(['HUFL', 'HULL']);
+            expect([...uiState.selectedCols]).toEqual(['HUFL', 'HULL']);
         });
 
         it('removes datetime-typed columns by dtype pattern', () => {
             workspace.setSelection(['HUFL', 'ts', 'HULL']);
             sanitizeSelectedColumns(workspace);
-            expect([...appState.selectedCols]).toEqual(['HUFL', 'HULL']);
+            expect([...uiState.selectedCols]).toEqual(['HUFL', 'HULL']);
         });
 
         it('keeps valid numeric columns', () => {
             workspace.setSelection(['HUFL', 'HULL', 'MUFL']);
             sanitizeSelectedColumns(workspace);
-            expect([...appState.selectedCols]).toEqual(['HUFL', 'HULL', 'MUFL']);
+            expect([...uiState.selectedCols]).toEqual(['HUFL', 'HULL', 'MUFL']);
         });
 
         it('handles empty selectedCols gracefully', () => {
             workspace.setSelection([]);
             expect(() => sanitizeSelectedColumns(workspace)).not.toThrow();
-            expect([...appState.selectedCols]).toEqual([]);
+            expect([...uiState.selectedCols]).toEqual([]);
         });
 
         it('handles null/undefined column names gracefully', () => {
@@ -73,21 +73,21 @@ describe('columnSelection', () => {
             workspace.setSelection(['HUFL', 'HULL']);
             setAdaptiveFilterColumn('HUFL');
             ensureAdaptiveTargetStillValid(workspace);
-            expect(appState.adaptiveFilterColumn).toBe('HUFL');
+            expect(uiState.adaptiveFilterColumn).toBe('HUFL');
         });
 
         it('falls back to first selected column when adaptive target was removed', () => {
             workspace.setSelection(['HUFL', 'HULL']);
             setAdaptiveFilterColumn('NOTACOLUMN');
             ensureAdaptiveTargetStillValid(workspace);
-            expect(appState.adaptiveFilterColumn).toBe('HUFL');
+            expect(uiState.adaptiveFilterColumn).toBe('HUFL');
         });
 
         it('sets to null when selectedCols is empty', () => {
             workspace.setSelection([]);
             setAdaptiveFilterColumn('HUFL');
             ensureAdaptiveTargetStillValid(workspace);
-            expect(appState.adaptiveFilterColumn).toBeNull();
+            expect(uiState.adaptiveFilterColumn).toBeNull();
         });
 
         it('does nothing when adaptiveFilterColumn is already null', () => {

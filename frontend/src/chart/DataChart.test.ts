@@ -11,7 +11,7 @@
  *          fitYToData, resetYRange, zoomY, destroy, supportsZoomControls.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { appState } from '../store/index.js';
+import { datasetState, uiState } from '../store/index.js';
 import { DataChart } from './DataChart';
 import type { ViewSnapshot } from '../types.js';
 
@@ -453,15 +453,15 @@ describe('supportsZoomControls', () => {
 describe('updateDataMulti', () => {
     beforeEach(() => {
         document.body.innerHTML = '';
-        appState.numericCols = ['temperature'];
-        appState.selectedColorColumn = null;
-        appState.seriesColors = {};
+        datasetState.numericCols = ['temperature'];
+        uiState.selectedColorColumn = null;
+        uiState.seriesColors = {};
     });
 
     afterEach(() => {
-        appState.numericCols = [];
-        appState.selectedColorColumn = null;
-        appState.seriesColors = {};
+        datasetState.numericCols = [];
+        uiState.selectedColorColumn = null;
+        uiState.seriesColors = {};
     });
 
     it('disables ChartGPU animation for timeseries option updates', () => {

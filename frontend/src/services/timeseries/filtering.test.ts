@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createWorkspaceStore, makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
-import { appState } from '../../store/index.js';
+import { datasetState } from '../../store/index.js';
 import {
     applyFilterIntentToData,
     applyColumnRangesToData,
@@ -31,7 +31,7 @@ describe('timeseries filtering helpers', () => {
 
     it('publishes sanitized selections to the workspace', () => {
         const workspace = createWorkspaceStore();
-        appState.metadata = {
+        datasetState.metadata = {
             columns: [{ name: 'timestamp', dtype: 'datetime[ms]' }, { name: 'value', dtype: 'float64' }],
         } as any;
         workspace.setSelection(['timestamp', 'value'], 'bucket');
