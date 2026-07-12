@@ -45,7 +45,7 @@ interface ChartInstanceAPI {
 import { baseSeriesName } from './colorScale.js';
 import { CHART_PALETTES, getSetting } from '../utils/settings.js';
 import { getChartPalette, getResolvedTheme, onThemeChange, type ResolvedTheme } from '../utils/theme.js';
-import { niceLinearTicks, niceTimeTicks, formatTimeTick } from './ticks.js';
+import { niceLinearTicks } from './ticks.js';
 import {
     type GridLayout,
     createCanvasOverlay, ensureRelativePosition,
@@ -62,6 +62,7 @@ import { buildTimeSeriesDataModel } from './timeSeriesDataModel.js';
 import { buildTimeSeriesChartOptions } from './timeSeriesChartOptions.js';
 import { getChartExportDomains, getChartExportViewport, type ChartExportDomains, type ChartExportViewport } from './chartExportLayout.js';
 import { renderExportLineSeries } from './chartExportSeriesRenderer.js';
+import { renderExportAxes } from './chartExportAxesRenderer.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
@@ -918,46 +919,13 @@ export class DataChart {
         );
         ctx.restore();
 
-        // Axes
-        const fontSize = Math.max(10, Math.round(12 * scale));
-        ctx.font = `${fontSize}px Inter, system-ui, -apple-system, sans-serif`;
-        ctx.strokeStyle = border;
-        ctx.lineWidth = 1 * scale;
-        ctx.beginPath();
-        ctx.moveTo(plotLeft, plotTop);
-        ctx.lineTo(plotLeft, plotBottom);
-        ctx.lineTo(plotRight, plotBottom);
-        ctx.stroke();
-
-        const tickLen = 6 * scale;
-        const labelPad = 4 * scale;
-
-        // Y ticks
-        const yTicks = niceLinearTicks(domains.yMin, domains.yMax, 6);
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = textDim;
-        for (const y of yTicks) {
-            const py = plotBottom - ((y - domains.yMin) / ySpan) * plotHeight;
-            ctx.strokeStyle = borderHi; ctx.globalAlpha = 0.35;
-            ctx.beginPath(); ctx.moveTo(plotLeft, py); ctx.lineTo(plotRight, py); ctx.stroke();
-            ctx.globalAlpha = 1; ctx.strokeStyle = border;
-            ctx.beginPath(); ctx.moveTo(plotLeft - tickLen, py); ctx.lineTo(plotLeft, py); ctx.stroke();
-            ctx.fillText(formatTwoDecimals(y), plotLeft - tickLen - labelPad, py);
-        }
-
-        // X ticks
-        const xTicks = niceTimeTicks(domains.xMin, domains.xMax, 6);
-        const spanMs = domains.xMax - domains.xMin;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillStyle = textDim;
-        for (const x of xTicks) {
-            const px = plotLeft + ((x - domains.xMin) / xSpan) * plotWidth;
-            ctx.strokeStyle = borderHi; ctx.globalAlpha = 0.25;
-            ctx.beginPath(); ctx.moveTo(px, plotTop); ctx.lineTo(px, plotBottom); ctx.stroke();
-            ctx.globalAlpha = 1; ctx.strokeStyle = border;
-            ctx.beginPath(); ctx.moveTo(px, plotBottom); ctx.lineTo(px, plotBottom + tickLen); ctx.stroke();
-            ctx.fillText(formatTimeTick(x, spanMs), px, plotBottom + tickLen + labelPad);
-        }
+        const fontSize = renderExportAxes(
+            ctx,
+            domains,
+            { left: plotLeft, top: plotTop, width: plotWidth, height: plotHeight },
+            scale,
+            { border, borderHi, textDim },
+        );
 
         // Title + axis names
         const title = String(this._chartTitle ?? '').trim();
