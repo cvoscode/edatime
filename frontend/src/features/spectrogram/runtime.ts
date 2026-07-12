@@ -40,6 +40,7 @@ import {
 import { resolveSpectrogramHopSize, resolveSpectrogramWindowSize } from './spectrogramControls.js';
 import { buildSpectrogramChartOptions } from './spectrogramChartOptions.js';
 import { createSpectrogramColorbar } from './spectrogramColorbar.js';
+import { buildSpectrogramRequest } from './spectrogramRequest.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
@@ -468,10 +469,6 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 const viewport = workspaceViewport();
                 const startMs = viewport?.xMin ?? chartState.currentStart;
                 const endMs = viewport?.xMax ?? chartState.currentEnd;
-                if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
-                    return;
-                }
-
                 const winSize = getResolvedSpectrogramWindowSize();
                 const hopSize = getResolvedSpectrogramHopSize(winSize);
                 const normalize = (getDropdownValue('spectrogram-normalize') || 'zscore') as ScaleMode;
@@ -480,36 +477,41 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 const clipParam = Number.parseFloat(
                     (document.getElementById('spectrogram-clip-param') as HTMLInputElement | null)?.value || '0.5',
                 );
-                const appliedClipMode: ClipMode = clipEnabled ? clipMethod : 'none';
-                const appliedClipParam = Number.isFinite(clipParam) ? clipParam : 0.5;
+                const request = buildSpectrogramRequest({
+                    column,
+                    startMs,
+                    endMs,
+                    windowSize: winSize,
+                    hopSize,
+                    normalize,
+                    clipEnabled,
+                    clipMethod,
+                    clipParam,
+                });
+                if (!request) return;
                 try {
                     deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', true);
                     spectrogramRenderError = null;
                     colorbar.resetFilter();
 
-                    if (startMs == null || endMs == null || !Number.isFinite(startMs) || !Number.isFinite(endMs)) {
-                        throw new Error('No time range available.');
-                    }
-                    const startIso = new Date(startMs).toISOString();
-                    const endIso = new Date(endMs).toISOString();
                     const response = await fetchSpectrogram(
-                        startIso,
-                        endIso,
-                        column,
-                        winSize,
-                        hopSize,
-                        131072,
+                        request.start,
+                        request.end,
+                        request.column,
+                        request.windowSize,
+                        request.hopSize,
+                        request.maxPoints,
                         undefined,
                         {
-                            normalize,
-                            clip: appliedClipMode,
-                            clipParam: appliedClipParam,
+                            normalize: request.normalize,
+                            clip: request.clip,
+                            clipParam: request.clipParam,
                         },
                     );
 
-                    spectrogramAppliedScaleMode = normalize;
-                    spectrogramAppliedClipMode = appliedClipMode;
-                    spectrogramAppliedClipParam = appliedClipParam;
+                    spectrogramAppliedScaleMode = request.normalize;
+                    spectrogramAppliedClipMode = request.clip;
+                    spectrogramAppliedClipParam = request.clipParam;
                     spectrogramResult = response.result;
                     await renderSpectrogramChart();
                     spectrogramRenderError = null;
