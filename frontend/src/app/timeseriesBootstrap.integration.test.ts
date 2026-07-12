@@ -2,8 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
     createTimeseriesModuleMock,
-    createUploadEntrypointMock,
-    uploadEntrypointInitMock,
     ensureDatasetReadyMock,
     initAppShellMock,
     markMetadataReadyMock,
@@ -17,8 +15,6 @@ const {
     setViewportMock,
 } = vi.hoisted(() => ({
     createTimeseriesModuleMock: vi.fn(),
-    createUploadEntrypointMock: vi.fn(),
-    uploadEntrypointInitMock: vi.fn(),
     ensureDatasetReadyMock: vi.fn().mockResolvedValue(undefined),
     initAppShellMock: vi.fn(() => ({
         openCommands: vi.fn().mockResolvedValue(undefined),
@@ -47,10 +43,6 @@ vi.mock('../debug.js', () => ({
 
 vi.mock('../ui/errorUI.js', () => ({
     showBootstrapError: vi.fn(),
-}));
-
-vi.mock('../features/upload/entrypoint.js', () => ({
-    createUploadEntrypoint: createUploadEntrypointMock,
 }));
 
 vi.mock('../ui/profile.js', () => ({
@@ -188,7 +180,6 @@ describe('app -> timeseries bootstrap wiring', () => {
         vi.resetModules();
         vi.clearAllMocks();
         (window as any).__edatime = undefined;
-        createUploadEntrypointMock.mockReturnValue({ init: uploadEntrypointInitMock });
         createTimeseriesModuleMock.mockReturnValue({
             mount: vi.fn(() => vi.fn()),
             ensureDatasetReady: ensureDatasetReadyMock,
@@ -210,8 +201,6 @@ describe('app -> timeseries bootstrap wiring', () => {
     it('passes the real bootstrap collaborators into createTimeseriesModule and shell without publishing ready aliases on window', async () => {
         await import('../app.js');
 
-        expect(createUploadEntrypointMock).not.toHaveBeenCalled();
-        expect(uploadEntrypointInitMock).not.toHaveBeenCalled();
         expect((window as any).__edatime?.state).toBeUndefined();
         expect((window as any).__edatime?.runAnalytics).toBeUndefined();
 
