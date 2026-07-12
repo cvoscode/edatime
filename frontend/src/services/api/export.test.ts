@@ -84,6 +84,18 @@ describe('Parquet export API', () => {
         await expect(freshRequest).resolves.toBeInstanceOf(Blob);
     });
 
+    it('allows unscoped parquet exports to survive dataset scope invalidation', async () => {
+        const deferred = createDeferredResponse();
+        fetchMock.mockReturnValueOnce(deferred.promise);
+
+        const request = exportParquet(new URLSearchParams({ columns: 'value' }), { datasetScoped: false });
+
+        invalidateDatasetRequestScope();
+
+        deferred.resolve(blobResponse('fresh'));
+        await expect(request).resolves.toBeInstanceOf(Blob);
+    });
+
     it('rejects stale in-flight scatter parquet exports after dataset scope invalidation', async () => {
         const first = createDeferredResponse();
         const second = createDeferredResponse();
@@ -104,5 +116,18 @@ describe('Parquet export API', () => {
 
         second.resolve(blobResponse('fresh'));
         await expect(freshRequest).resolves.toBeInstanceOf(Blob);
+    });
+
+    it('forwards request option signals to scatter parquet exports', async () => {
+        const controller = new AbortController();
+        fetchMock.mockResolvedValueOnce(blobResponse('ok'));
+
+        await exportScatterParquet({ filters: { columnRanges: {} } }, { signal: controller.signal });
+
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/scatter/export/parquet');
+        expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+            method: 'POST',
+            signal: controller.signal,
+        });
     });
 });

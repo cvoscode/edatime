@@ -1,4 +1,5 @@
 import { getJson, postJson } from './http.js';
+import type { ApiRequestOptions } from './http.js';
 
 // ── Analytics ───────────────────────────────────────────────────────────────
 
@@ -23,11 +24,11 @@ export async function fetchRollingBands(
     end: string,
     columns: string,
     window = 50,
-    signal?: AbortSignal,
+    signalOrOptions?: AbortSignal | ApiRequestOptions,
 ): Promise<RollingResponse> {
     const params = new URLSearchParams({ start, end, columns, window: String(window) });
     const url = `/api/analytics/rolling?${params.toString()}`;
-    return getJson<RollingResponse>(url, 'Rolling bands', signal);
+    return getJson<RollingResponse>(url, 'Rolling bands', signalOrOptions);
 }
 
 // ── Anomalies ───────────────────────────────────────────────────────────────
@@ -60,12 +61,12 @@ export async function fetchAnomalies(
     columns: string,
     method = 'zscore',
     threshold?: number,
-    signal?: AbortSignal,
+    signalOrOptions?: AbortSignal | ApiRequestOptions,
 ): Promise<AnomalyResponse> {
     const params = new URLSearchParams({ start, end, columns, method });
     if (threshold !== undefined) params.set('threshold', String(threshold));
     const url = `/api/analytics/anomalies?${params.toString()}`;
-    return getJson<AnomalyResponse>(url, 'Anomaly detection', signal);
+    return getJson<AnomalyResponse>(url, 'Anomaly detection', signalOrOptions);
 }
 
 // ── FFT ────────────────────────────────────────────────────────────────────
@@ -100,11 +101,11 @@ export async function fetchFft(
     end: string,
     columns: string,
     maxPoints = 8192,
-    signal?: AbortSignal,
+    signalOrOptions?: AbortSignal | ApiRequestOptions,
 ): Promise<FftResponse> {
     const params = new URLSearchParams({ start, end, columns, max_points: String(maxPoints) });
     const url = `/api/analytics/fft?${params.toString()}`;
-    return getJson<FftResponse>(url, 'FFT', signal);
+    return getJson<FftResponse>(url, 'FFT', signalOrOptions);
 }
 
 // ── Spectrogram (STFT) ─────────────────────────────────────────────────────
@@ -137,7 +138,7 @@ export async function fetchSpectrogram(
     windowSize = 96,
     hopSize?: number,
     maxPoints = 32768,
-    signal?: AbortSignal,
+    signalOrOptions?: AbortSignal | ApiRequestOptions,
     scaleOptions?: SpectrogramScaleOptions,
 ): Promise<SpectrogramResponse> {
     const params = new URLSearchParams({
@@ -152,7 +153,7 @@ export async function fetchSpectrogram(
         params.set('clip_param', String(scaleOptions.clipParam));
     }
     const url = `/api/analytics/spectrogram?${params.toString()}`;
-    return getJson<SpectrogramResponse>(url, 'Spectrogram', signal);
+    return getJson<SpectrogramResponse>(url, 'Spectrogram', signalOrOptions);
 }
 
 // ── Causal Graph (Tigramite) ────────────────────────────────────────────────
@@ -181,7 +182,7 @@ export async function fetchCausalGraph(
     alpha = 0.05,
     method = 'pcmci',
     maxPoints = 5000,
-    signal?: AbortSignal,
+    signalOrOptions?: AbortSignal | ApiRequestOptions,
     pcAlpha = 0.2,
     test = 'par_corr',
     maxCondsDim?: number,
@@ -199,7 +200,7 @@ export async function fetchCausalGraph(
         fdr_method: fdrMethod,
     };
     if (maxCondsDim != null) body.max_conds_dim = maxCondsDim;
-    return postJson<CausalGraphResponse>(url, body, 'Causal graph', signal);
+    return postJson<CausalGraphResponse>(url, body, 'Causal graph', signalOrOptions);
 }
 
 // ── Transform ────────────────────────────────────────────────────────────────
@@ -272,6 +273,13 @@ export interface SpectralFilterResponse {
     high_hz?: number;
 }
 
-export async function fetchSpectralFilter(params: URLSearchParams, signal?: AbortSignal): Promise<SpectralFilterResponse> {
-    return getJson<SpectralFilterResponse>(`/api/analytics/spectral-filter?${params.toString()}`, 'Spectral filter', signal);
+export async function fetchSpectralFilter(
+    params: URLSearchParams,
+    signalOrOptions?: AbortSignal | ApiRequestOptions,
+): Promise<SpectralFilterResponse> {
+    return getJson<SpectralFilterResponse>(
+        `/api/analytics/spectral-filter?${params.toString()}`,
+        'Spectral filter',
+        signalOrOptions,
+    );
 }

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { __resetApiRequestStateForTests } from './http.js';
+import { __resetApiRequestStateForTests, invalidateDatasetRequestScope } from './http.js';
 import {
     fetchAnomalies,
     fetchCausalGraph,
@@ -19,6 +19,22 @@ function jsonResponse(body: unknown): Response {
         status: 200,
         json: vi.fn().mockResolvedValue(body),
     } as unknown as Response;
+}
+
+interface DeferredResponse {
+    promise: Promise<Response>;
+    resolve: (response: Response) => void;
+    reject: (error: unknown) => void;
+}
+
+function createDeferredResponse(): DeferredResponse {
+    let resolve!: (response: Response) => void;
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<Response>((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
+    return { promise, resolve, reject };
 }
 
 function jsonErrorResponse(status: number, body: unknown): Response {
@@ -93,13 +109,25 @@ describe('analytics api helpers', () => {
         });
     });
 
-    it('forwards cancellation signals to analytics requests', async () => {
+    it('forwards request option signals to analytics requests', async () => {
         const controller = new AbortController();
         fetchMock.mockResolvedValueOnce(jsonResponse({ bands: [] }));
 
-        await fetchRollingBands('start', 'end', 'value', 50, controller.signal);
+        await fetchRollingBands('start', 'end', 'value', 50, { signal: controller.signal });
 
         expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ signal: controller.signal });
+    });
+
+    it('allows unscoped analytics GET requests to survive dataset invalidation', async () => {
+        const deferred = createDeferredResponse();
+        fetchMock.mockReturnValueOnce(deferred.promise);
+
+        const request = fetchRollingBands('start', 'end', 'value', 50, { datasetScoped: false });
+
+        invalidateDatasetRequestScope();
+
+        deferred.resolve(jsonResponse({ bands: [] }));
+        await expect(request).resolves.toEqual({ bands: [] });
     });
 
     it('fetchFft forwards max_points through the query string', async () => {
@@ -142,6 +170,27 @@ describe('analytics api helpers', () => {
         expect(requestUrl.searchParams.get('normalize')).toBe('zscore');
         expect(requestUrl.searchParams.get('clip')).toBe('percentile');
         expect(requestUrl.searchParams.get('clip_param')).toBeNull();
+    });
+
+    it('fetchSpectrogram preserves finite clip parameters including zero', async () => {
+        fetchMock.mockResolvedValueOnce(jsonResponse({
+            sample_count: 0,
+            result: { column: 'value', times_ms: [], frequencies: [], magnitudes: [] },
+        }));
+
+        await fetchSpectrogram(
+            '2025-01-01T00:00:00.000Z',
+            '2025-01-02T00:00:00.000Z',
+            'value',
+            320,
+            undefined,
+            4096,
+            undefined,
+            { clip: 'percentile', clipParam: 0 },
+        );
+
+        const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://localhost');
+        expect(requestUrl.searchParams.get('clip_param')).toBe('0');
     });
 
     it('fetchCausalGraph posts the current causal payload shape', async () => {
