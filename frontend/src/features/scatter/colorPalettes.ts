@@ -1,6 +1,7 @@
 /**
  * colorPalettes — categorical color scales, gradient sampling, and color math.
  */
+import { isColorScaleName, paletteForColorScale } from '../../utils/colorScales.js';
 
 export const DISTRIBUTION_GROUP_COLORS = [
     '#4e79a7', '#f28e2c', '#e15759', '#76b7b2',
@@ -91,15 +92,8 @@ export function buildCategoricalColorGroups(labels?: unknown[] | null): Categori
 }
 
 export function paletteForScale(scale: string): string[] {
+    if (isColorScaleName(scale)) return [...paletteForColorScale(scale)];
     switch (scale) {
-        case 'viridis':
-            return ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'];
-        case 'plasma':
-            return ['#0d0887', '#7e03a8', '#cc4778', '#f89540', '#f0f921'];
-        case 'inferno':
-            return ['#000004', '#420a68', '#932667', '#dd513a', '#fca50a'];
-        case 'magma':
-            return ['#000004', '#3b0f70', '#8c2981', '#de4968', '#fe9fa6'];
         case 'blues':
             return ['#f7fbff', '#c6dbef', '#6baed6', '#2171b5', '#08306b'];
         case 'oranges':

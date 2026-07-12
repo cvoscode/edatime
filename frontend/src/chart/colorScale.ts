@@ -4,8 +4,9 @@
  * segments to avoid creating thousands of individual ChartGPU series.
  */
 
-import { getSetting, COLOR_SCALES, type ColorScaleName } from '../utils/settings.js';
-export { COLOR_SCALES as VIRIDIS } from '../utils/settings.js';
+import { getSetting } from '../utils/settings.js';
+import { COLOR_SCALES, type ColorScaleName } from '../utils/colorScales.js';
+export { COLOR_SCALES as VIRIDIS } from '../utils/colorScales.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
 
 /** Build RGB arrays for each scale from COLOR_SCALES. */

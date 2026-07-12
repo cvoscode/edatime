@@ -6,6 +6,7 @@ import { SERIES_COLORS } from '../../utils/seriesColors.js';
 import { isTemporalDtype } from '../../utils/format.js';
 import { formatTwoDecimals, formatTimestamp } from '../../formatUtils.js';
 import { escapeHtml, downloadUrl, downloadBlob, getEl } from '../../utils/dom.js';
+import { paletteForColorScale } from '../../utils/colorScales.js';
 
 export const MATRIX_POINT_LIMIT = 8_000;
 export const MATRIX_MAX_COLUMNS = 8;
@@ -71,9 +72,7 @@ export function normalizeScatterSuggestionThreshold(value: unknown): number {
 /* ── Color palettes ───────────────────────────────────── */
 
 export function paletteForScale(scale: string): string[] {
-    if (scale === 'plasma') return ['#0d0887', '#6a00a8', '#b12a90', '#e16462', '#fca636', '#f0f921'];
-    if (scale === 'inferno') return ['#000004', '#420a68', '#932667', '#dd513a', '#fba40a', '#fcffa4'];
-    return ['#440154', '#414487', '#2a788e', '#22a884', '#7ad151', '#fde725'];
+    return [...paletteForColorScale(scale)];
 }
 
 function normalizeHexColor(hex: string): string {

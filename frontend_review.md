@@ -185,6 +185,11 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Extracted pure dominant-frequency-band detection and timestamp formatting into `spectrogramAnalysis`, with direct coverage for dominant-band and empty-axis behavior.
 - Next, move the cached spectrogram grid/point model out of the runtime so rendering, control wiring, and data transformation have independent owners.
 
+### Completed: global continuous color-scale ownership
+
+- Added `utils/colorScales.ts` as the canonical owner of the shared Viridis, Plasma, Magma, Coolwarm, and Inferno palettes and interpolation policy.
+- Migrated Settings, Timeseries color-by rendering, and Scatter continuous palettes to consume that source. Scatter-only `blues` and `oranges` remain explicit feature extensions rather than competing copies of the shared scales.
+
 ## Target Architecture
 
 ```text

@@ -1,5 +1,6 @@
 import { formatTwoDecimals } from '../formatUtils.js';
-import { COLOR_SCALES, getSetting, type ColorScaleName } from '../utils/settings.js';
+import { getSetting } from '../utils/settings.js';
+import { COLOR_SCALES, type ColorScaleName } from '../utils/colorScales.js';
 import { categoryColorFor, type ColorScaleInfo } from './colorScale.js';
 
 export function renderColorScaleLegend(column: string | null, scaleInfo: ColorScaleInfo | null): void {
