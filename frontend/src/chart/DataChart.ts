@@ -10,7 +10,6 @@ import { defaultGpuPowerPreference } from '../utils/platform.js';
 import { formatTwoDecimals } from '../formatUtils.js';
 import { datasetState } from '../store/datasetState.js';
 import { uiState } from '../store/uiState.js';
-import { getSeriesColor } from '../utils/seriesColors.js';
 import type {
     ChartTextOverlays,
     DataObject,
@@ -23,7 +22,6 @@ import {
     type ChartGPUOptions,
     type ChartGPUCrosshairMovePayload,
     type SeriesConfig,
-    type AnnotationConfig,
 } from '../../libs/chartgpu/dist/index.js';
 
 /* ── Typed wrapper for ChartGPUInstance methods we actually use ── */
@@ -44,10 +42,7 @@ interface ChartInstanceAPI {
     getInteractionX?(): number | null;
 }
 
-import {
-    analyzeColorValues, baseSeriesName,
-    buildColorizedSeries,
-} from './colorScale.js';
+import { baseSeriesName } from './colorScale.js';
 import { CHART_PALETTES, getSetting } from '../utils/settings.js';
 import { getChartPalette, getResolvedTheme, onThemeChange, type ResolvedTheme } from '../utils/theme.js';
 import {
@@ -66,6 +61,7 @@ import { DrawingController } from './drawingController.js';
 import { TextOverlayController } from './textOverlayController.js';
 import { formatTimeSeriesTooltip } from './timeSeriesTooltip.js';
 import { renderColorScaleLegend } from './colorScaleLegend.js';
+import { buildTimeSeriesDataModel } from './timeSeriesDataModel.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
@@ -435,111 +431,29 @@ export class DataChart {
 
     updateDataMulti(dataObj: FilteredDataObject, columns: string[]): void {
         if (!this.chartInstance) return;
-        const showMarkers = dataObj._meta?.downsampled === false;
-        const prevVisibility = this._getVisibilityByBaseNameFromChart();
+        const model = buildTimeSeriesDataModel({
+            data: dataObj,
+            columns,
+            visibilityByName: this._getVisibilityByBaseNameFromChart(),
+            selectedColorColumn: uiState.selectedColorColumn,
+            numericColumns: datasetState.numericCols,
+            showMarkers: dataObj._meta?.downsampled === false,
+        });
+        this._lastSeriesList = model.series;
+        this._lastDisplayYValues = model.displayYValues;
+        this._lastXDomainMin = model.xDomainMin;
+        this._lastXDomainMax = model.xDomainMax;
+        renderColorScaleLegend(uiState.selectedColorColumn, model.hasColorCandidates ? model.colorScaleInfo : null);
 
-        let dataYMin = Number.POSITIVE_INFINITY;
-        let dataYMax = Number.NEGATIVE_INFINITY;
-        let xDomainMin = Number.POSITIVE_INFINITY;
-        let xDomainMax = Number.NEGATIVE_INFINITY;
-        const displayYValues: number[] = [];
-        /* Internal intermediate types for series building */
-        interface ColorCandidateEntry {
-            readonly __colorCandidate: true;
-            readonly colName: string;
-            readonly idx: number;
-            readonly visible: boolean;
-            readonly points: [number, number][];
-            readonly colorValues: unknown[];
+        if (model.dataYMin !== null && model.dataYMax !== null) {
+            this._lastDataYMin = model.dataYMin;
+            this._lastDataYMax = model.dataYMax;
+            this.onYRangeCallback?.(model.dataYMin, model.dataYMax, 'data');
         }
 
-        const seriesAnnotations: AnnotationConfig[] = [];
-
-        const seriesList = columns
-            .filter((colName) => {
-                const name = String(colName || '').toLowerCase();
-                if (name === 'ts' || name === 'timestamp' || name === 'time') return false;
-                return dataObj.values?.[colName] || dataObj.series?.[colName];
-            })
-            .map((colName, idx) => {
-                const seriesData = dataObj.series?.[colName];
-                const yValues: Float64Array = seriesData ? seriesData.y : (dataObj.values?.[colName] ?? null as unknown as Float64Array);
-                const xValues: Float64Array = seriesData ? seriesData.x : (dataObj.ts ?? null as unknown as Float64Array);
-
-                const points: [number, number][] = [];
-                const n = Math.min(xValues?.length ?? 0, yValues?.length ?? 0);
-                for (let i = 0; i < n; i++) {
-                    const x = Number(xValues[i]);
-                    const y = Number(yValues[i]);
-                    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-                    points.push([x, y]);
-                    displayYValues.push(y);
-                    if (x < xDomainMin) xDomainMin = x;
-                    if (x > xDomainMax) xDomainMax = x;
-                    if (y < dataYMin) dataYMin = y;
-                    if (y > dataYMax) dataYMax = y;
-                }
-
-                const visible = prevVisibility.get(colName) !== false;
-                const seriesColors = Array.isArray(dataObj.colorByColumn?.[colName])
-                    ? dataObj.colorByColumn[colName]
-                    : dataObj.color;
-                const wantsColorBy = !!uiState.selectedColorColumn
-                    && Array.isArray(seriesColors)
-                    && seriesColors.length === points.length;
-
-                if (wantsColorBy) {
-                    return [{ __colorCandidate: true, colName, idx, visible, points, colorValues: seriesColors }];
-                }
-
-                const numColIdx = datasetState.numericCols.indexOf(colName);
-                const color = getSeriesColor(colName, numColIdx >= 0 ? numColIdx : idx);
-                const lineSeries = { type: 'line' as const, name: colName, color, visible, data: points };
-                if (showMarkers && visible) {
-                    for (const pt of points) {
-                        seriesAnnotations.push({ type: 'point', x: pt[0], y: pt[1], layer: 'aboveSeries', marker: { symbol: 'circle', size: 5, style: { color } } });
-                    }
-                }
-                return [lineSeries];
-            });
-
-        const colorColumn = uiState.selectedColorColumn;
-        const colorDecoratedSeries: SeriesConfig[] = [];
-        const colorCandidates: ColorCandidateEntry[] = [];
-        const baseSeriesList: SeriesConfig[] = [];
-        for (const entry of seriesList.flat()) {
-            if ((entry as ColorCandidateEntry)?.__colorCandidate) colorCandidates.push(entry as ColorCandidateEntry);
-            else baseSeriesList.push(entry as SeriesConfig);
-        }
-
-        const displayedColorValues = colorCandidates.flatMap((e) => e.colorValues || []);
-        const scaleInfo = colorColumn ? analyzeColorValues(displayedColorValues) : null;
-
-        if (colorColumn && scaleInfo && colorCandidates.length > 0) {
-            for (const entry of colorCandidates) {
-                const { series: colorSeries, annotations: colorAnnotations } = buildColorizedSeries(
-                    entry.colName, entry.points, entry.colorValues, scaleInfo, entry.visible, showMarkers,
-                );
-                colorDecoratedSeries.push(...colorSeries);
-                seriesAnnotations.push(...colorAnnotations);
-            }
-
-        }
-        renderColorScaleLegend(colorColumn, colorCandidates.length > 0 ? scaleInfo : null);
-
-        const flattenedSeriesList = [...baseSeriesList, ...colorDecoratedSeries];
-        this._lastSeriesList = flattenedSeriesList;
-        this._lastDisplayYValues = displayYValues;
-        this._lastXDomainMin = Number.isFinite(xDomainMin) ? xDomainMin : null;
-        this._lastXDomainMax = Number.isFinite(xDomainMax) ? xDomainMax : null;
-
-        if (Number.isFinite(dataYMin) && Number.isFinite(dataYMax)) {
-            this._lastDataYMin = dataYMin;
-            this._lastDataYMax = dataYMax;
-            if (this.onYRangeCallback) this.onYRangeCallback(dataYMin, dataYMax, 'data');
-        }
-
-        if (flattenedSeriesList.length > 0) {
+        if (model.series.length > 0 && model.xDomainMin !== null && model.xDomainMax !== null) {
+            const xDomainMin = model.xDomainMin;
+            const xDomainMax = model.xDomainMax;
             const tooltipFormatter = (params: unknown): string => formatTimeSeriesTooltip(params, {
                 min: xDomainMin,
                 max: xDomainMax,
@@ -552,19 +466,18 @@ export class DataChart {
                 palette: this._getChartColorPalette(),
                 xAxis: {
                     type: 'time' as const,
-                    min: Number.isFinite(xDomainMin) ? xDomainMin : undefined,
-                    max: Number.isFinite(xDomainMax) ? xDomainMax : undefined,
+                    min: xDomainMin,
+                    max: xDomainMax,
                     tickFormatter: (value: number) => formatTimeTick(
                         value,
-                        Number.isFinite(xDomainMin) && Number.isFinite(xDomainMax)
-                            ? Math.max(1, xDomainMax - xDomainMin) : 86400_000,
+                        Math.max(1, xDomainMax - xDomainMin),
                     ),
                 },
                 yAxis: this._buildYAxisOption(),
                 legend: { show: false },
                 tooltip: { show: true, trigger: 'axis', formatter: tooltipFormatter },
-                series: flattenedSeriesList,
-                annotations: seriesAnnotations,
+                series: model.series,
+                annotations: model.annotations,
             };
             try {
                 this._lastChartOptions = nextOption as ChartGPUOptions;

@@ -166,6 +166,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Direct controller tests cover normalized content, empty-label visibility, and cleanup. `DataChart` retains only the chart text values and forwards them to this controller.
 - Removed the unreachable duplicate rolling-band, anomaly, adaptive-filter, and annotation renderers from `DataChart`. `ChartOverlays` is now the sole owner of those live overlay behaviors.
 - Extracted the pure Timeseries tooltip formatter and color-scale legend DOM rendering from `updateDataMulti`, giving the data-update path explicit presentation seams with direct tests.
+- Extracted finite-point filtering, visibility preservation, colorized-series expansion, marker annotations, and data-domain calculation into `timeSeriesDataModel`; `DataChart` now consumes an explicit model when applying ChartGPU options.
 
 ### Next: DataChart renderer seams
 
