@@ -30,6 +30,12 @@ import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { toast } from '../../utils/toast.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { findDominantFrequencyBand, formatSpectrogramTime } from './spectrogramAnalysis.js';
+import {
+    fillVisibleSpectrogramPoints,
+    isSpectrogramColorFilterActive,
+    type SpectrogramMode,
+    type SpectrogramPoint,
+} from './spectrogramPointFilter.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
@@ -295,9 +301,6 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             // avoidable redraw costs:
             // - rebuilding every point tuple on log toggles
             // - allocating a fresh filtered series array on each drag
-            type SpectrogramPoint = [number, number, number, number];
-            type SpectrogramMode = 'linear' | 'log';
-
             let cachedGrid: {
                 result: SpectrogramResult;
                 log: Float64Array;
@@ -482,29 +485,6 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 return value.toFixed(3);
             };
 
-            const isColorFilterActive = (
-                range: { min: number; max: number } | null,
-                bounds: { min: number; max: number } | null,
-            ): range is { min: number; max: number } => {
-                if (!range || !bounds) return false;
-                return !(range.min <= bounds.min && range.max >= bounds.max);
-            };
-
-            const fillVisiblePoints = (
-                source: SpectrogramPoint[],
-                target: SpectrogramPoint[],
-                range: { min: number; max: number },
-            ): SpectrogramPoint[] => {
-                let writeIndex = 0;
-                for (const point of source) {
-                    const display = Number(point[2]);
-                    if (display < range.min || display > range.max) continue;
-                    target[writeIndex++] = point;
-                }
-                target.length = writeIndex;
-                return target;
-            };
-
             const getVisiblePointsForMode = (
                 cache: NonNullable<typeof cachedGrid>,
                 mode: SpectrogramMode,
@@ -512,7 +492,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 bounds: { min: number; max: number },
             ): SpectrogramPoint[] => {
                 const source = mode === 'log' ? cache.logPoints : cache.linearPoints;
-                if (!isColorFilterActive(range, bounds)) return source;
+                if (!isSpectrogramColorFilterActive(range, bounds)) return source;
 
                 const key = `${mode}:${range.min}:${range.max}`;
                 const target = mode === 'log' ? cache.visibleLogPoints : cache.visibleLinearPoints;
@@ -521,7 +501,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 }
                 cache.lastVisibleMode = mode;
                 cache.lastVisibleRangeKey = key;
-                return fillVisiblePoints(source, target, range);
+                return fillVisibleSpectrogramPoints(source, target, range);
             };
 
             const updateColorbarHandles = () => {

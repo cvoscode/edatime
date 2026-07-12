@@ -183,6 +183,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 ### In progress: Spectrogram runtime decomposition
 
 - Extracted pure dominant-frequency-band detection and timestamp formatting into `spectrogramAnalysis`, with direct coverage for dominant-band and empty-axis behavior.
+- Extracted visible-point range filtering and reusable filtered-buffer behavior into `spectrogramPointFilter`, preserving the colorbar-drag performance contract.
 - Next, move the cached spectrogram grid/point model out of the runtime so rendering, control wiring, and data transformation have independent owners.
 
 ### Completed: global continuous color-scale ownership
