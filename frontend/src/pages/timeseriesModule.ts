@@ -6,7 +6,7 @@
 
 import { createTimeseriesPageController } from './timeseriesPage.js';
 import { createTimeseriesEntrypoint } from '../features/timeseries/entrypoint.js';
-import { createTimeseriesRuntime } from './timeseriesRuntime.js';
+import { createTimeseriesLifecycle } from '../features/timeseries/lifecycle.js';
 import { createDatasetBootstrap } from '../app/bootstrap/datasetBootstrap.js';
 import { createTimeseriesBootstrap } from '../app/bootstrap/ensureTimeseriesReady.js';
 import { setDatasetRevision, setMetadata } from '../store/datasetState.js';
@@ -232,7 +232,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         await bootstrap.ensureDatasetReady();
         await chartBootstrap.ensureReady();
     };
-    const runtime = createTimeseriesRuntime({
+    const runtime = createTimeseriesLifecycle({
         initFeature: () => feature.init(),
         ensureReady,
     });

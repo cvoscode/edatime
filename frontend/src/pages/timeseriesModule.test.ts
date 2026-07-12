@@ -39,9 +39,9 @@ vi.mock('../features/timeseries/entrypoint.js', () => ({
     createTimeseriesEntrypoint: mockCreateTimeseriesEntrypoint,
 }));
 
-// Mock createTimeseriesRuntime from ./timeseriesRuntime.js
-vi.mock('./timeseriesRuntime.js', () => ({
-    createTimeseriesRuntime: mockCreateTimeseriesRuntime,
+// Mock the feature-owned lifecycle module.
+vi.mock('../features/timeseries/lifecycle.js', () => ({
+    createTimeseriesLifecycle: mockCreateTimeseriesRuntime,
 }));
 
 // Mock createDatasetBootstrap from ../app/bootstrap/datasetBootstrap.js

@@ -3,7 +3,7 @@
 // and owns Timeseries activation.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createTimeseriesRuntime } from './timeseriesRuntime.js';
+import { createTimeseriesLifecycle as createTimeseriesRuntime } from '../features/timeseries/lifecycle.js';
 
 // Shared helper to dispatch a page-change event
 function dispatchPageChange(page: string) {
