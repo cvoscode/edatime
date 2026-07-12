@@ -4,22 +4,22 @@
  * Replaces the per-page trampolines currently in app.ts.
  */
 
-import { createTimeseriesPageController } from '../features/timeseries/controller.js';
-import { createTimeseriesEntrypoint } from '../features/timeseries/entrypoint.js';
-import { createTimeseriesLifecycle } from '../features/timeseries/lifecycle.js';
-import { createDatasetBootstrap } from '../app/bootstrap/datasetBootstrap.js';
-import { createTimeseriesBootstrap } from '../app/bootstrap/ensureTimeseriesReady.js';
-import { setDatasetRevision, setMetadata } from '../store/datasetState.js';
-import { clearScatterViewSnapshots } from '../store/scatterState.js';
+import { createTimeseriesPageController } from './controller.js';
+import { createTimeseriesEntrypoint } from './entrypoint.js';
+import { createTimeseriesLifecycle } from './lifecycle.js';
+import { createDatasetBootstrap } from '../../app/bootstrap/datasetBootstrap.js';
+import { createTimeseriesBootstrap } from '../../app/bootstrap/ensureTimeseriesReady.js';
+import { setDatasetRevision, setMetadata } from '../../store/datasetState.js';
+import { clearScatterViewSnapshots } from '../../store/scatterState.js';
 import {
     setAdaptiveLineFilters,
     setColumnRanges,
     setSelectedColorColumn,
     uiState,
-} from '../store/uiState.js';
-import { getNumericColumns, getDefaultTimeseriesColumns } from './analyticsPageUtils.js';
-import type { DatasetMetadata, ViewSnapshot } from '../types.js';
-import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+} from '../../store/uiState.js';
+import { getNumericColumns, getDefaultTimeseriesColumns } from '../../pages/analyticsPageUtils.js';
+import type { DatasetMetadata, ViewSnapshot } from '../../types.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 export interface TimeseriesModuleDeps {
     fetchData: (
@@ -30,7 +30,7 @@ export interface TimeseriesModuleDeps {
         colorColumn?: string | null,
         lookaroundMs?: number,
         signal?: AbortSignal,
-    ) => Promise<import('../types.js').DataObject>;
+    ) => Promise<import('../../types.js').DataObject>;
     fetchMetadata: () => Promise<DatasetMetadata>;
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters' | 'setViewport'>;
     ensurePrimaryChartCtor: () => Promise<new (
@@ -38,7 +38,7 @@ export interface TimeseriesModuleDeps {
         onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
         onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null,
         onZoomOutCb: (() => void) | null,
-    ) => import('../types.js').ChartInstance>;
+    ) => import('../../types.js').ChartInstance>;
     markMetadataReady: () => void;
     isMetadataReady: () => boolean;
     sanitizeSelectedColumns: () => void;
@@ -65,19 +65,19 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     let datasetUiReady = false;
     let feature!: ReturnType<typeof createTimeseriesEntrypoint>;
     let datasetUiModulesPromise: Promise<{
-        hydrateColumnProfiles: typeof import('../ui/profile.js').hydrateColumnProfiles;
-        renderColumnProfilesGrid: typeof import('../ui/profile.js').renderColumnProfilesGrid;
-        applyPartialTimeRangeFromMetadata: typeof import('../features/upload/partialLoadControls.js').applyPartialTimeRangeFromMetadata;
-        setProfileMode: typeof import('../features/upload/preview.js').setProfileMode;
-        setUploadPreviewStatus: typeof import('../features/upload/preview.js').setUploadPreviewStatus;
+        hydrateColumnProfiles: typeof import('../../ui/profile.js').hydrateColumnProfiles;
+        renderColumnProfilesGrid: typeof import('../../ui/profile.js').renderColumnProfilesGrid;
+        applyPartialTimeRangeFromMetadata: typeof import('../upload/partialLoadControls.js').applyPartialTimeRangeFromMetadata;
+        setProfileMode: typeof import('../upload/preview.js').setProfileMode;
+        setUploadPreviewStatus: typeof import('../upload/preview.js').setUploadPreviewStatus;
     }> | null = null;
 
     function ensureDatasetUiModules() {
         if (!datasetUiModulesPromise) {
             datasetUiModulesPromise = Promise.all([
-                import('../ui/profile.js'),
-                import('../features/upload/preview.js'),
-                import('../features/upload/partialLoadControls.js'),
+                import('../../ui/profile.js'),
+                import('../upload/preview.js'),
+                import('../upload/partialLoadControls.js'),
             ]).then(([profileModule, previewModule, partialLoadModule]) => ({
                 hydrateColumnProfiles: profileModule.hydrateColumnProfiles,
                 renderColumnProfilesGrid: profileModule.renderColumnProfilesGrid,

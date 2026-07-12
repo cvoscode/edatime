@@ -4,7 +4,7 @@
 // is implemented in Task 4.
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { setSelectedColorColumn } from '../store/uiState.js';
+import { setSelectedColorColumn } from '../../store/uiState.js';
 
 // ── Hoisted mocks ─────────────────────────────────────────────────────────────
 // vi.hoisted ensures mocks are created before vi.mock() calls
@@ -30,26 +30,26 @@ const {
 });
 
 // Mock the feature-owned timeseries controller.
-vi.mock('../features/timeseries/controller.js', () => ({
+vi.mock('./controller.js', () => ({
     createTimeseriesPageController: mockCreateTimeseriesPageController,
 }));
 
 // Mock createTimeseriesEntrypoint from ../features/timeseries/entrypoint.js
-vi.mock('../features/timeseries/entrypoint.js', () => ({
+vi.mock('./entrypoint.js', () => ({
     createTimeseriesEntrypoint: mockCreateTimeseriesEntrypoint,
 }));
 
 // Mock the feature-owned lifecycle module.
-vi.mock('../features/timeseries/lifecycle.js', () => ({
+vi.mock('./lifecycle.js', () => ({
     createTimeseriesLifecycle: mockCreateTimeseriesRuntime,
 }));
 
 // Mock createDatasetBootstrap from ../app/bootstrap/datasetBootstrap.js
-vi.mock('../app/bootstrap/datasetBootstrap.js', () => ({
+vi.mock('../../app/bootstrap/datasetBootstrap.js', () => ({
     createDatasetBootstrap: mockCreateDatasetBootstrap,
 }));
 
-vi.mock('../app/bootstrap/ensureTimeseriesReady.js', () => ({
+vi.mock('../../app/bootstrap/ensureTimeseriesReady.js', () => ({
     createTimeseriesBootstrap: mockCreateTimeseriesBootstrap,
 }));
 
@@ -135,7 +135,7 @@ describe('createTimeseriesModule', () => {
     // Test 1: Page controller and feature entrypoint are composed together once
     // -------------------------------------------------------------------------
     it('composes page controller and feature entrypoint together once', async () => {
-        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+        const { createTimeseriesModule } = await import('./module.js');
 
         const deps = defaultDeps();
         const mod = createTimeseriesModule(deps as any);
@@ -177,7 +177,7 @@ describe('createTimeseriesModule', () => {
     });
 
     it('clears workspace filters when the dataset bootstrap clears persisted filters', async () => {
-        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+        const { createTimeseriesModule } = await import('./module.js');
         const deps = defaultDeps();
         createTimeseriesModule(deps as any);
 
@@ -188,7 +188,7 @@ describe('createTimeseriesModule', () => {
     });
 
     it('clears an invalid recovered color column in the workspace', async () => {
-        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+        const { createTimeseriesModule } = await import('./module.js');
         const deps = defaultDeps();
         deps.fetchMetadata.mockResolvedValue({
             revision: 1,
@@ -218,7 +218,7 @@ describe('createTimeseriesModule', () => {
         const feature = mockFeatureEntrypoint();
         mockCreateTimeseriesEntrypoint.mockReturnValue(feature);
 
-        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+        const { createTimeseriesModule } = await import('./module.js');
 
         const mod = createTimeseriesModule(defaultDeps());
 
@@ -240,7 +240,7 @@ describe('createTimeseriesModule', () => {
     // Test 3: Module provides a single stable interface — no direct access to internals
     // -------------------------------------------------------------------------
     it('provides a single stable interface with no direct access to page/feature internals', async () => {
-        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+        const { createTimeseriesModule } = await import('./module.js');
 
         const mod = createTimeseriesModule(defaultDeps());
 
@@ -279,7 +279,7 @@ describe('createTimeseriesModule', () => {
         runtime.mount.mockReturnValue(unregisterMock);
         mockCreateTimeseriesRuntime.mockReturnValue(runtime);
 
-        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+        const { createTimeseriesModule } = await import('./module.js');
 
         const mod = createTimeseriesModule(defaultDeps());
         const cleanup = mod.mount();
@@ -293,7 +293,7 @@ describe('createTimeseriesModule', () => {
         const bootstrap = mockBootstrap();
         mockCreateDatasetBootstrap.mockReturnValue(bootstrap);
 
-        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+        const { createTimeseriesModule } = await import('./module.js');
 
         const mod = createTimeseriesModule(defaultDeps());
         const result = mod.ensureDatasetReady();
@@ -309,7 +309,7 @@ describe('createTimeseriesModule', () => {
         mockCreateDatasetBootstrap.mockReturnValue(datasetBootstrap);
         mockCreateTimeseriesBootstrap.mockReturnValue(chartBootstrap);
 
-        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+        const { createTimeseriesModule } = await import('./module.js');
 
         createTimeseriesModule(defaultDeps());
         const runtimeDeps = mockCreateTimeseriesRuntime.mock.calls[0]?.[0];
@@ -329,7 +329,7 @@ describe('createTimeseriesModule', () => {
         mockCreateDatasetBootstrap.mockReturnValue(datasetBootstrap);
         mockCreateTimeseriesBootstrap.mockReturnValue(chartBootstrap);
 
-        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+        const { createTimeseriesModule } = await import('./module.js');
 
         const mod = createTimeseriesModule(defaultDeps());
 
@@ -350,7 +350,7 @@ describe('createTimeseriesModule', () => {
         mockCreateDatasetBootstrap.mockReturnValue(datasetBootstrap);
         mockCreateTimeseriesBootstrap.mockReturnValue(chartBootstrap);
 
-        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+        const { createTimeseriesModule } = await import('./module.js');
 
         const mod = createTimeseriesModule(defaultDeps());
 
@@ -368,7 +368,7 @@ describe('createTimeseriesModule', () => {
         const bootstrap = mockBootstrap();
         mockCreateDatasetBootstrap.mockReturnValue(bootstrap);
 
-        const { createTimeseriesModule } = await import('./timeseriesModule.js');
+        const { createTimeseriesModule } = await import('./module.js');
 
         const mod = createTimeseriesModule(defaultDeps());
 

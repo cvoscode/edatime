@@ -42,7 +42,7 @@ import {
 } from './app/bootstrap/chartBootstrap.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
-import { createTimeseriesModule } from './pages/timeseriesModule.js';
+import { createTimeseriesModule } from './features/timeseries/module.js';
 import { startSessionPersistence } from './bootstrap/sessionBootstrap.js';
 import {
     updateAnalysisZoom, updateAnalysisYRange,
