@@ -19,7 +19,7 @@ vi.mock('./matrix.js', () => ({
     selectMatrixPair: selectMatrixPairMock,
 }));
 
-import { scatterState } from '../store/index.js';
+import { scatterState } from '../store/scatterState.js';
 import { setScatterView } from './viewController.js';
 
 describe('viewController', () => {

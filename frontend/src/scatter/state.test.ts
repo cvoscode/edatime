@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
     scatterState,
+} from '../store/scatterState.js';
+import {
     setAdaptiveLineFilters,
     setColumnRanges,
-    setMetadata,
-    setViewport,
     uiState,
-} from '../store/index.js';
+} from '../store/uiState.js';
+import { setMetadata } from '../store/datasetState.js';
+import { setViewport } from '../store/chartState.js';
 import { buildOverviewContextKey, buildScatterQueryContext, getActiveScatterFilterColumns } from './state.js';
 import { setScatterActiveView, setScatterViewSnapshot } from '../store/scatterState.js';
 

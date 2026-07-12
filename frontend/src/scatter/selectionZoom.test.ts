@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { scatterState } from '../store/index.js';
+import { scatterState } from '../store/scatterState.js';
 import { initSelectionZoom, applyView, resetView } from './rendering.js';
 import { SCATTER_PLOT_GRID, getScatterPlotMetrics } from './layout.js';
 

@@ -44,11 +44,6 @@ const appStateMock = {
 const setColumnRangesMock = vi.fn();
 const setAdaptiveLineFiltersMock = vi.fn();
 
-vi.mock('../store/index.js', () => ({
-    setColumnRanges: setColumnRangesMock,
-    setAdaptiveLineFilters: setAdaptiveLineFiltersMock,
-}));
-
 vi.mock('../store/scatterState.js', () => ({
     scatterState: appStateMock.scatter,
 }));
