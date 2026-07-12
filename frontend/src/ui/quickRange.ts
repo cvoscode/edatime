@@ -8,7 +8,8 @@
  */
 
 import { applyViewport } from './viewport.js';
-import { datasetState, store } from '../store/index.js';
+import { datasetState } from '../store/datasetState.js';
+import { subscribe } from '../store/events.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 const PRESETS: Array<{ id: string; label: string; durationMs: number | null }> = [
@@ -80,7 +81,7 @@ export function initQuickRangeControls(
         btn.parentNode?.replaceChild(clone, btn);
         clone.addEventListener('click', () => applyPreset(preset.durationMs, fetchAndRender, workspace));
     }
-    store.subscribe('dataset:metadata', () => updateButtonStates());
+    subscribe('dataset:metadata', () => updateButtonStates());
     updateButtonStates();
 }
 

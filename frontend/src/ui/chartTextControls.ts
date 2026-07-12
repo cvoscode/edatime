@@ -3,7 +3,7 @@
  * Extracted from toolbar.ts to reduce its size and improve maintainability.
  */
 
-import { chartState, setChartText } from '../store/index.js';
+import { chartState, setChartText } from '../store/chartState.js';
 
 export function initChartTextControls(): void {
     const titleInput = document.getElementById('chart-title-input') as HTMLInputElement | null;

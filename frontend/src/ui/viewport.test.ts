@@ -51,20 +51,24 @@ const {
     };
 });
 
-vi.mock('../store/index.js', () => ({
+vi.mock('../store/chartState.js', () => ({
     chartState: chartStateMock,
+    setViewport: setViewportMock,
+    setZoomHistory: setZoomHistoryMock,
+}));
+
+vi.mock('../store/runtimeState.js', () => ({
     runtimeState: runtimeStateMock,
     setFetchDebounceId: setFetchDebounceIdMock,
     setPendingRestoreY: setPendingRestoreYMock,
     setPendingYMode: setPendingYModeMock,
-    setViewport: setViewportMock,
-    setZoomHistory: setZoomHistoryMock,
-    store: {
-        subscribe: (event: string, handler: (payload: any) => void) => {
-            if (!storeHandlers[event]) storeHandlers[event] = new Set();
-            storeHandlers[event].add(handler);
-            return () => { storeHandlers[event]?.delete(handler); };
-        },
+}));
+
+vi.mock('../store/events.js', () => ({
+    subscribe: (event: string, handler: (payload: any) => void) => {
+        if (!storeHandlers[event]) storeHandlers[event] = new Set();
+        storeHandlers[event].add(handler);
+        return () => { storeHandlers[event]?.delete(handler); };
     },
 }));
 

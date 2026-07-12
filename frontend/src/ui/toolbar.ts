@@ -3,7 +3,8 @@
  * Thin orchestrator that delegates to focused sub-modules.
  */
 
-import { chartState, runtimeState, setAnalysisBound } from '../store/index.js';
+import { chartState } from '../store/chartState.js';
+import { runtimeState, setAnalysisBound } from '../store/runtimeState.js';
 import { DEBUG, dbg } from '../debug.js';
 import {
     updateAnalysisZoom,

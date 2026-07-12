@@ -6,14 +6,11 @@
 
 import {
     chartState,
-    runtimeState,
-    setFetchDebounceId,
-    setPendingRestoreY,
-    setPendingYMode,
     setViewport,
     setZoomHistory,
-    store,
-} from '../store/index.js';
+} from '../store/chartState.js';
+import { subscribe } from '../store/events.js';
+import { runtimeState, setFetchDebounceId, setPendingRestoreY, setPendingYMode } from '../store/runtimeState.js';
 import { dbg, dbgGroup } from '../debug.js';
 import { updateAnalysisZoom, updateAnalysisYRange } from './analysisStatus.js';
 import type { ViewSnapshot } from '../types.js';
@@ -30,8 +27,8 @@ let zoomBadgeSubscriptionsInstalled = false;
 function installZoomBadgeSubscriptions(): void {
     if (zoomBadgeSubscriptionsInstalled) return;
     zoomBadgeSubscriptionsInstalled = true;
-    store.subscribe('chart:viewport', () => updateZoomRangeBadge());
-    store.subscribe('chart:initialView', () => updateZoomRangeBadge());
+    subscribe('chart:viewport', () => updateZoomRangeBadge());
+    subscribe('chart:initialView', () => updateZoomRangeBadge());
 }
 
 export function refreshZoomControlsState(): void {

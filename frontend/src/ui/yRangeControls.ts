@@ -6,7 +6,8 @@
  * without a refetch.
  */
 
-import { chartState, setStackFromZero, store } from '../store/index.js';
+import { chartState, setStackFromZero } from '../store/chartState.js';
+import { subscribe } from '../store/events.js';
 import type { RobustDisplayRangeOptions } from '../types.js';
 
 const Y_RANGE_TOGGLE_ID = 'y-stack-from-zero';
@@ -117,7 +118,7 @@ export function initYRangeControls(): void {
 
     // Keep the toggle in sync if a future path mutates the chart state
     // programmatically (e.g. a "Reset chart defaults" command).
-    store.subscribe('chart:stackFromZero', ({ next }) => {
+    subscribe('chart:stackFromZero', ({ next }) => {
         const value = !!next;
         if (toggle.checked !== value) toggle.checked = value;
     });

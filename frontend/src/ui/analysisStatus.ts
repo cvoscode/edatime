@@ -4,7 +4,8 @@
  */
 
 import { formatAnalysisTime, formatAnalysisNumber } from '../utils/format.js';
-import { chartState, runtimeState, setPendingRestoreY, setPendingYMode } from '../store/index.js';
+import { chartState } from '../store/chartState.js';
+import { runtimeState, setPendingRestoreY, setPendingYMode } from '../store/runtimeState.js';
 
 function setText(id: string, text: string): void {
     const el = document.getElementById(id);
