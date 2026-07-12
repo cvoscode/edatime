@@ -8,22 +8,22 @@
 
 import {
     analyticsState,
-    chartState,
-    datasetState,
-    setAdaptiveLineFilters,
     setAnomalyEnabled,
     setAnomalyMethod,
     setAnomalyThreshold,
-    setChartText,
-    setColumnRanges,
     setRollingEnabled,
     setRollingWindow,
+} from '../store/analyticsState.js';
+import { chartState, setChartText, setViewport } from '../store/chartState.js';
+import { datasetState } from '../store/datasetState.js';
+import {
+    setAdaptiveLineFilters,
+    setColumnRanges,
     setSelectedColorColumn,
     setSelectedCols,
     setSeriesColors,
-    setViewport,
     uiState,
-} from '../store/index.js';
+} from '../store/uiState.js';
 import { toast } from './toast.js';
 import { getHashPage } from './router.js';
 import { getDropdownValue, setDropdownValue } from '../ui/primitives/Dropdown.js';
