@@ -180,6 +180,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 Continue this behavior-preserving split with the remaining renderer-owned seams: text overlays, drawings/annotations, ChartGPU option construction, and export composition. For each seam, first preserve its existing `DataChart` characterization coverage, add direct module coverage for its extracted behavior, run the full gates, then commit before moving to the next seam.
 
+### In progress: Spectrogram runtime decomposition
+
+- Extracted pure dominant-frequency-band detection and timestamp formatting into `spectrogramAnalysis`, with direct coverage for dominant-band and empty-axis behavior.
+- Next, move the cached spectrogram grid/point model out of the runtime so rendering, control wiring, and data transformation have independent owners.
+
 ## Target Architecture
 
 ```text

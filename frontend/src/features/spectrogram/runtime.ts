@@ -29,6 +29,7 @@ import {
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { toast } from '../../utils/toast.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import { findDominantFrequencyBand, formatSpectrogramTime } from './spectrogramAnalysis.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
@@ -58,45 +59,6 @@ export function __resetSpectrogramChartRuntimeForTests(): void {
     spectrogramAppliedScaleMode = 'none';
     spectrogramAppliedClipMode = 'none';
     spectrogramAppliedClipParam = 0.5;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function formatSpectrogramTime(timestampMs: number): string {
-    return new Date(timestampMs).toLocaleString([], {
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-    });
-}
-
-function findDominantFrequencyBand(result: SpectrogramResult): { lowerIndex: number; upperIndex: number; dominantHz: number } | null {
-    const freqs = result.frequencies;
-    if (!Array.isArray(freqs) || freqs.length === 0) return null;
-    const totals = freqs.map(() => 0);
-    result.magnitudes.forEach((row) => {
-        freqs.forEach((_, index) => {
-            const value = Number(row?.[index] ?? NaN);
-            if (Number.isFinite(value)) totals[index] += Math.abs(value);
-        });
-    });
-    let dominantIndex = 0;
-    for (let i = 1; i < totals.length; i += 1) {
-        if (totals[i] > totals[dominantIndex]!) dominantIndex = i;
-    }
-    const dominantTotal = totals[dominantIndex] ?? 0;
-    const threshold = dominantTotal * 0.75;
-    let lowerIndex = dominantIndex;
-    let upperIndex = dominantIndex;
-    while (lowerIndex > 0 && (totals[lowerIndex - 1] ?? 0) >= threshold) lowerIndex -= 1;
-    while (upperIndex < totals.length - 1 && (totals[upperIndex + 1] ?? 0) >= threshold) upperIndex += 1;
-    if (lowerIndex === upperIndex && totals.length > 1) {
-        if (dominantIndex === totals.length - 1) lowerIndex = dominantIndex - 1;
-        else upperIndex = dominantIndex + 1;
-    }
-    return {
-        lowerIndex,
-        upperIndex,
-        dominantHz: Number(freqs[dominantIndex] ?? 0),
-    };
 }
 
 // ── Runtime factory ───────────────────────────────────────────────────────────
