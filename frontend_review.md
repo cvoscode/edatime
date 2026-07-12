@@ -194,6 +194,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Extracted `spectrogramRequest` as the authoritative frontend-side analytics request builder, covering finite viewport validation, resolved window/hop values, the `131072` point budget, normalize mode, and clip semantics before the API call.
 - Extracted `spectrogramSummary` for structured result metrics and its accessible result description, leaving the runtime to provide current result, resolved controls, scale state, and peak formatting.
 - Extracted `spectrogramChartController` for ECharts initialization, readiness waits, resize observation, selection-box zoom, reset, and disposal. The runtime now treats it as a chart adapter instead of owning ECharts DOM lifecycle details.
+- Consolidated clip-toggle enablement, field visibility, explanatory hints, and method-label policy into `spectrogramClipControls`, removing duplicate init and visibility behavior.
 - Next, review the smaller remaining page-control orchestration seam against the target architecture before deciding whether another extraction improves ownership.
 
 ### Completed: global continuous color-scale ownership

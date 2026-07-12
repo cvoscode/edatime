@@ -14,7 +14,6 @@ import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../../uti
 import {
     getDropdownOptions,
     getDropdownValue,
-    setDropdownDisabled,
     setDropdownOptions,
 } from '../../ui/primitives/Dropdown.js';
 import {
@@ -43,6 +42,7 @@ import { createSpectrogramColorbar } from './spectrogramColorbar.js';
 import { buildSpectrogramRequest } from './spectrogramRequest.js';
 import { buildSpectrogramSummaryLabel, renderSpectrogramSummary } from './spectrogramSummary.js';
 import { createSpectrogramChartController, type SpectrogramChartController } from './spectrogramChartController.js';
+import { syncSpectrogramClipControls, syncSpectrogramClipLabel } from './spectrogramClipControls.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
@@ -187,33 +187,18 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             });
 
             const syncClipEnabled = () => {
-                const enabled = clipToggle?.checked ?? false;
-                const hint = enabled
-                    ? ''
-                    : "Enable the 'Outliers' toggle above to change the clip method";
-                const liveClipMethod = document.getElementById('spectrogram-clip-method');
+                const liveClipMethod = document.getElementById('spectrogram-clip-method') as HTMLElement | null;
                 const liveClipParam = document.getElementById('spectrogram-clip-param') as HTMLInputElement | null;
-                setDropdownDisabled('spectrogram-clip-method', !enabled);
-                if (liveClipMethod) liveClipMethod.title = hint;
-                if (liveClipParam) {
-                    liveClipParam.disabled = !enabled;
-                    liveClipParam.title = hint;
-                }
-                const clipMethodField = liveClipMethod?.closest('label, .toolbar-field') as HTMLElement | null;
-                const clipParamField = liveClipParam?.closest('label, .toolbar-field') as HTMLElement | null;
-                if (clipMethodField) clipMethodField.hidden = !enabled;
-                if (clipParamField) clipParamField.hidden = !enabled;
-                // Also toggle the wrapping .spectrogram-clip-band so the inline
-                // Method/% inputs disappear entirely when Outliers is off —
-                // keeps the toolbar single-row at narrow desktop widths.
-                const clipBand = document.getElementById('spectrogram-clip-band');
-                if (clipBand) clipBand.classList.toggle('is-hidden', !enabled);
+                syncSpectrogramClipControls({
+                    enabled: clipToggle?.checked ?? false,
+                    methodRoot: liveClipMethod,
+                    parameter: liveClipParam,
+                    band: document.getElementById('spectrogram-clip-band'),
+                });
             };
 
             const syncClipParamLabel = () => {
-                if (!clipParamLabel) return;
-                const method = getDropdownValue('spectrogram-clip-method') || 'percentile';
-                clipParamLabel.textContent = method === 'iqr' ? 'Clip k' : 'Clip %';
+                syncSpectrogramClipLabel(clipParamLabel, getDropdownValue('spectrogram-clip-method') || 'percentile');
             };
 
             const activeScaleLabel = () => {
@@ -428,28 +413,15 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
         onVisible() {
             const visibleClipToggle = document.getElementById('spectrogram-clip-toggle') as HTMLInputElement | null;
             const visibleClipParam = document.getElementById('spectrogram-clip-param') as HTMLInputElement | null;
-            const visibleClipMethod = document.getElementById('spectrogram-clip-method');
+            const visibleClipMethod = document.getElementById('spectrogram-clip-method') as HTMLElement | null;
             const visibleClipMethodValue = getDropdownValue('spectrogram-clip-method') || 'percentile';
-            const visibleClipParamLabel = document.getElementById('spectrogram-clip-param-label');
-            if (visibleClipParamLabel) {
-                visibleClipParamLabel.textContent = visibleClipMethodValue === 'iqr' ? 'Clip k' : 'Clip %';
-            }
-            if (visibleClipToggle) {
-                const enabled = visibleClipToggle.checked;
-                const hint = enabled
-                    ? ''
-                    : "Enable the 'Outliers' toggle above to change the clip method";
-                setDropdownDisabled('spectrogram-clip-method', !enabled);
-                if (visibleClipMethod) visibleClipMethod.title = hint;
-                if (visibleClipParam) {
-                    visibleClipParam.disabled = !enabled;
-                    visibleClipParam.title = hint;
-                }
-                const clipMethodField = visibleClipMethod?.closest('label, .toolbar-field') as HTMLElement | null;
-                const clipParamField = visibleClipParam?.closest('label, .toolbar-field') as HTMLElement | null;
-                if (clipMethodField) clipMethodField.hidden = !enabled;
-                if (clipParamField) clipParamField.hidden = !enabled;
-            }
+            syncSpectrogramClipLabel(document.getElementById('spectrogram-clip-param-label'), visibleClipMethodValue);
+            syncSpectrogramClipControls({
+                enabled: visibleClipToggle?.checked ?? false,
+                methodRoot: visibleClipMethod,
+                parameter: visibleClipParam,
+                band: document.getElementById('spectrogram-clip-band'),
+            });
             syncSpectrogramCustomInputs();
             const colSelect = document.getElementById('spectrogram-col-select');
             const metadata = workspaceMetadata();
