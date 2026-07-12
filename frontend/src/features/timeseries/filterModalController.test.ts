@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initFilterModalController } from './filterModalController.js';
 import {
-    appStateComposite as appState,
+    setChartInstance,
     datasetState,
+    uiState,
     setColumnRanges,
     setLastFetchedData,
     setMetadata,
@@ -66,11 +67,11 @@ describe('initFilterModalController', () => {
         } as any);
 
         // Mock chart
-        appState.chart = {
+        setChartInstance({
             fitYToData: vi.fn(),
             getYRange: vi.fn().mockReturnValue({ min: 0, max: 1 }),
             requestOverlayRender: vi.fn(),
-        } as any;
+        } as any);
     });
 
     describe('filter modal opener', () => {
@@ -130,7 +131,7 @@ describe('initFilterModalController', () => {
     });
 
     describe('apply button', () => {
-        it('writes edited bounds to appState.columnRanges', () => {
+        it('writes edited bounds to uiState.columnRanges', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
@@ -144,7 +145,7 @@ describe('initFilterModalController', () => {
             const applyBtn = document.getElementById('column-filter-apply-btn') as HTMLButtonElement;
             applyBtn.click();
 
-            expect(appState.columnRanges['HUFL']).toEqual({ from: 0.3, to: 0.7 });
+            expect(uiState.columnRanges['HUFL']).toEqual({ from: 0.3, to: 0.7 });
         });
 
         it('publishes edited bounds to workspace filters', () => {
@@ -213,7 +214,7 @@ describe('initFilterModalController', () => {
             const clearBtn = document.getElementById('column-filter-clear-btn') as HTMLButtonElement;
             clearBtn.click();
 
-            expect(appState.columnRanges['HUFL']).toEqual({ from: 0.0, to: 1.0 });
+            expect(uiState.columnRanges['HUFL']).toEqual({ from: 0.0, to: 1.0 });
         });
 
         it('calls renderCurrentData after clear', () => {
@@ -246,7 +247,7 @@ describe('initFilterModalController', () => {
             const modal = document.getElementById('column-filter-modal')!;
             expect(modal.hidden).toBe(true);
             // Original stored range unchanged
-            expect(appState.columnRanges['HUFL']).toEqual({ from: 0.2, to: 0.8 });
+            expect(uiState.columnRanges['HUFL']).toEqual({ from: 0.2, to: 0.8 });
         });
     });
 
