@@ -138,20 +138,6 @@ vi.mock('../services/api/index.js', () => ({
     fetchScatterPoints: (...args: unknown[]) => fetchScatterPointsMock(...args),
 }));
 
-// scatterPage imports the canonical store; mirror the focused slices so
-// the page test can stage chart/ui/dataset/scatter state without touching
-// the real singleton instances.
-vi.mock('../store/index.js', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../store/index.js')>();
-    return {
-        ...actual,
-        chartState: freshChartState,
-        uiState: freshUiState,
-        datasetState: freshDatasetState,
-        scatterState: freshScatterState,
-    };
-});
-
 vi.mock('../ui/emptyState.js', () => ({
     createEmptyStateController: () => ({ update: emptyStateUpdateMock }),
     isRangeOutsideDataset: () => false,
@@ -415,7 +401,8 @@ describe('initScatterPage view toggles', () => {
             });
 
         const { initScatterPage, setScatterView } = await import('./scatterPage.js');
-        const { setColumnRanges, setScatterViewSnapshot } = await import('../store/index.js');
+        const { setColumnRanges } = await import('../store/uiState.js');
+        const { setScatterViewSnapshot } = await import('../store/scatterState.js');
 
         // Stage a filter globally and seed the plot-view snapshot so
         // the matrix swap re-installs it on the way back. The snapshot
