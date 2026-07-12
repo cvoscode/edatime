@@ -45,9 +45,7 @@ interface ChartInstanceAPI {
 import { baseSeriesName } from './colorScale.js';
 import { CHART_PALETTES, getSetting } from '../utils/settings.js';
 import { getChartPalette, getResolvedTheme, onThemeChange, type ResolvedTheme } from '../utils/theme.js';
-import {
-    niceLinearTicks, niceTimeTicks, formatTimeTick,
-} from './ticks.js';
+import { niceLinearTicks, niceTimeTicks, formatTimeTick } from './ticks.js';
 import {
     type GridLayout,
     createCanvasOverlay, ensureRelativePosition,
@@ -59,9 +57,9 @@ import { buildLegendEntries } from './legendInteraction.js';
 import { LegendOverlayController } from './legendOverlayController.js';
 import { DrawingController } from './drawingController.js';
 import { TextOverlayController } from './textOverlayController.js';
-import { formatTimeSeriesTooltip } from './timeSeriesTooltip.js';
 import { renderColorScaleLegend } from './colorScaleLegend.js';
 import { buildTimeSeriesDataModel } from './timeSeriesDataModel.js';
+import { buildTimeSeriesChartOptions } from './timeSeriesChartOptions.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
@@ -454,31 +452,15 @@ export class DataChart {
         if (model.series.length > 0 && model.xDomainMin !== null && model.xDomainMax !== null) {
             const xDomainMin = model.xDomainMin;
             const xDomainMax = model.xDomainMax;
-            const tooltipFormatter = (params: unknown): string => formatTimeSeriesTooltip(params, {
-                min: xDomainMin,
-                max: xDomainMax,
-            });
-
-            const nextOption = {
-                animation: false,
+            const nextOption = buildTimeSeriesChartOptions({
                 grid: { ...this._updateCurrentGrid() },
                 theme: this._buildChartGpuTheme(),
                 palette: this._getChartColorPalette(),
-                xAxis: {
-                    type: 'time' as const,
-                    min: xDomainMin,
-                    max: xDomainMax,
-                    tickFormatter: (value: number) => formatTimeTick(
-                        value,
-                        Math.max(1, xDomainMax - xDomainMin),
-                    ),
-                },
+                xDomain: { min: xDomainMin, max: xDomainMax },
                 yAxis: this._buildYAxisOption(),
-                legend: { show: false },
-                tooltip: { show: true, trigger: 'axis', formatter: tooltipFormatter },
                 series: model.series,
                 annotations: model.annotations,
-            };
+            });
             try {
                 this._lastChartOptions = nextOption as ChartGPUOptions;
                 this._lastAppliedTheme = getResolvedTheme();
