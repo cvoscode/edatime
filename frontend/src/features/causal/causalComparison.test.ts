@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
     toast: vi.fn(),
 }));
 
-vi.mock('../utils/toast.js', () => ({
+vi.mock('../../utils/toast.js', () => ({
     toast: mocks.toast,
 }));
 

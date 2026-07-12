@@ -5,8 +5,8 @@
  * and compare them side-by-side, highlighting added/removed/changed edges.
  */
 
-import { toast } from '../utils/toast.js';
-import { getDropdownValue, setDropdownOptions } from '../ui/primitives/Dropdown.js';
+import { toast } from '../../utils/toast.js';
+import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
 
 export interface CausalLink {
     source: string;

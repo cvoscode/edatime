@@ -26,7 +26,7 @@ import type { PairEdgeGroup } from './selectionState.js';
 import type { CausalLink } from './causalComparison.js';
 import { showCtxMenu, openEditPanel, type EditTarget } from './editPanel.js';
 import { setStatus } from './statusView.js';
-import { getPaletteColor, getChartPalette } from '../utils/theme.js';
+import { getPaletteColor, getChartPalette } from '../../utils/theme.js';
 
 export let _eChart: any = null;
 export let _chartEl: HTMLDivElement | null = null;

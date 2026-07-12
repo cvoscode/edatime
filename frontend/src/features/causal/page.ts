@@ -22,13 +22,13 @@ import {
 import { renderColumnChips } from './chipPanel.js';
 import { scheduleCausalChartRefresh, setChartEl } from './graphView.js';
 import { syncCausalEmptyState } from './statusView.js';
-import { initCausalHelp } from '../pages/causalHelp.js';
+import { initCausalHelp } from './help.js';
 import { openEditPanel, bindEditPanelEvents } from './editPanel.js';
 import { handleExport } from './export.js';
 import { initCausalComparison } from './causalComparison.js';
 import { applyMethodControlState, toggleAddEdgeMode, cancelAddEdgeMode, handleComputeClick, syncCausalGraphActionState } from './workflow.js';
-import { getDropdownValue } from '../ui/primitives/Dropdown.js';
-import { bindInfoPopovers } from '../ui/infoPopovers.js';
+import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
+import { bindInfoPopovers } from '../../ui/infoPopovers.js';
 
 let _chartEl: HTMLDivElement | null = null;
 

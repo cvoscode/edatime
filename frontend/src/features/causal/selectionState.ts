@@ -5,7 +5,7 @@
  * tracking, and the live selection state for the causal page.
  */
 import type { CausalLink } from './causalComparison.js';
-import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 export type { CausalLink };
 export interface MetadataColumn {
     name: string;

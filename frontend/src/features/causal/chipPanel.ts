@@ -2,7 +2,7 @@
  * causal/chipPanel — column chip rendering for the causal page.
  * Uses renderSeriesChipList; does not own chart state.
  */
-import { renderSeriesChipList } from '../ui/index.js';
+import { renderSeriesChipList } from '../../ui/index.js';
 import { syncCausalEmptyState } from './statusView.js';
 import {
     _chipColors,

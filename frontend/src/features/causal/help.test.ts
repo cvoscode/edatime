@@ -29,7 +29,7 @@ describe('causal page help button', () => {
     });
 
     it('initCausalHelp binds the button and opens the modal on click', async () => {
-        const { initCausalHelp } = await import('./causalHelp.js');
+        const { initCausalHelp } = await import('./help.js');
         initCausalHelp();
 
         const trigger = document.getElementById('causal-help-btn') as HTMLButtonElement;
@@ -48,7 +48,7 @@ describe('causal page help button', () => {
     });
 
     it('initCausalHelp is safe to call twice (idempotent)', async () => {
-        const { initCausalHelp } = await import('./causalHelp.js');
+        const { initCausalHelp } = await import('./help.js');
         initCausalHelp();
         initCausalHelp();
         const trigger = document.getElementById('causal-help-btn') as HTMLButtonElement;

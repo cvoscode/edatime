@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../ui/index.js', () => ({
+vi.mock('../../ui/index.js', () => ({
     renderSeriesChipList: ({ container, items, chipClass, postChipClass, postChipAttributes }: any) => {
         container.innerHTML = '';
         for (const item of items) {
@@ -37,7 +37,7 @@ vi.mock('../ui/index.js', () => ({
 
 import { renderColumnChips } from './chipPanel.js';
 import { resetSelectionState, _selectedColumns, type CausalDeps } from './selectionState.js';
-import { makeWorkspaceSnapshot } from '../workspace/workspaceStore.js';
+import { makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 
 describe('renderColumnChips', () => {
     beforeEach(() => {

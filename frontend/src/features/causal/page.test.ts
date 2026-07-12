@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { makeWorkspaceSnapshot } from '../workspace/workspaceStore.js';
+import { makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 
 const mocks = vi.hoisted(() => ({
     toast: vi.fn(),
 }));
 
-vi.mock('../services/api/index.js', () => ({
+vi.mock('../../services/api/index.js', () => ({
     fetchCausalGraph: vi.fn(),
 }));
 
@@ -17,7 +17,7 @@ vi.mock('./causalComparison.js', async (importOriginal) => {
     };
 });
 
-vi.mock('../utils/toast.js', () => ({
+vi.mock('../../utils/toast.js', () => ({
     toast: mocks.toast,
 }));
 
@@ -120,7 +120,7 @@ describe('causal page chart bootstrap', () => {
     });
 
     it('waits for the causal page to become visible before creating the chart', async () => {
-        const { initCausalPage } = await import('./causalPage.js');
+        const { initCausalPage } = await import('./page.js');
 
         initCausalPage(causalDeps({ numeric_columns: ['a', 'b'] }));
 
@@ -173,7 +173,7 @@ describe('causal page chart bootstrap', () => {
     });
 
     it('preselects causal chips from the workspace numeric selection', async () => {
-        const { initCausalPage } = await import('./causalPage.js');
+        const { initCausalPage } = await import('./page.js');
         const { resetSelectionState } = await import('./selectionState.js');
         resetSelectionState();
 
@@ -192,7 +192,7 @@ describe('causal page chart bootstrap', () => {
     });
 
     it('keeps graph-only actions disabled until a causal graph exists', async () => {
-        const { initCausalPage } = await import('./causalPage.js');
+        const { initCausalPage } = await import('./page.js');
         const { resetSelectionState } = await import('./selectionState.js');
         resetSelectionState();
 

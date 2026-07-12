@@ -7,7 +7,7 @@
  *   - Compute button request/response flow
  */
 
-import { fetchCausalGraph } from '../services/api/index.js';
+import { fetchCausalGraph } from '../../services/api/index.js';
 import { notifyCausalGraphUpdated } from './causalComparison.js';
 import {
     _selectedColumns,
@@ -24,7 +24,7 @@ import {
 import { setProgress, hideProgress, setStatus } from './statusView.js';
 import { initChart, renderEChartsGraph } from './graphView.js';
 import type { CausalDeps } from './selectionState.js';
-import { getDropdownValueFromElement, setDropdownDisabledForElement } from '../ui/primitives/Dropdown.js';
+import { getDropdownValueFromElement, setDropdownDisabledForElement } from '../../ui/primitives/Dropdown.js';
 
 export const METHOD_PC_STAGE = new Set(['pcmci', 'pcmciplus', 'lpcmci']);
 

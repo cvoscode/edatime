@@ -51,9 +51,15 @@ The next feature-directory migration should apply the same controller/runtime/he
 - Updated the lazy page registry to import the feature-owned page directly and removed the retired top-level `drift/` and `pages/driftHelp.ts` owners.
 - Preserved the Drift request, visibility, selection, chart-rendering, export, and payload characterization coverage while moving the feature as a cohesive unit.
 
-### Next: remaining feature-directory ownership
+### Completed: causal feature ownership
 
-Move the remaining top-level feature directories (beginning with causal, then scatter) below `features/`, preserving the current lazy page-registry and characterization contracts. Once page ownership is complete, consolidate the shared analysis lifecycle helper behind a feature-neutral platform surface.
+- Moved the complete Causal Discovery feature module set—controller, runtime, workflow, graph/edit/chip/status views, selection state, comparison/export helpers, page help, and tests—under `features/causal/`.
+- Updated the lazy page registry and the guided-workflow causal graph consumer to use the feature-owned surfaces directly, removing the retired top-level `causal/` and `pages/causalHelp.ts` owners.
+- Preserved causal graph request, editing, comparison, status, layout, and chip-panel characterization coverage while moving the feature as a cohesive unit.
+
+### Next: scatter feature ownership
+
+Move the remaining top-level Scatter feature below `features/scatter/`, preserve its lazy page-registry and matrix/runtime characterization contracts, then consolidate the shared analysis lifecycle helper behind a feature-neutral platform surface.
 
 ## Target Architecture
 

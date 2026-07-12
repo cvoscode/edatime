@@ -8,7 +8,7 @@
  * user interaction during compute).
  */
 
-import { toast, type ToastKind } from '../utils/toast.js';
+import { toast, type ToastKind } from '../../utils/toast.js';
 
 const PROGRESS_OVERLAY_ID = 'causal-loading';
 const PROGRESS_LABEL_ID = 'causal-progress-label';
