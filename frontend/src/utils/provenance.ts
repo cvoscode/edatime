@@ -6,7 +6,10 @@
  * Toggleable via button in the header.
  */
 
-import { analyticsState, chartState, datasetState, uiState } from '../store/index.js';
+import { analyticsState } from '../store/analyticsState.js';
+import { chartState } from '../store/chartState.js';
+import { datasetState } from '../store/datasetState.js';
+import { uiState } from '../store/uiState.js';
 import { formatAnalysisTime, formatAnalysisNumber } from '../utils/format.js';
 
 let _panel: HTMLElement | null = null;

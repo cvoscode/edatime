@@ -4,7 +4,8 @@
  * Extracted from DataChart.ts to reduce its size and improve maintainability.
  */
 
-import { analyticsState, uiState } from '../store/index.js';
+import { analyticsState } from '../store/analyticsState.js';
+import { uiState } from '../store/uiState.js';
 import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 import { getChartPalette } from '../utils/theme.js';
 import { getSeriesColor } from '../utils/seriesColors.js';

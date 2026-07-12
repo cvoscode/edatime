@@ -12,7 +12,15 @@
  */
 
 import { applyFilterIntentToData, type TimeseriesFilterIntent } from '../services/timeseries/filtering.js';
-import { analyticsState, chartState, runtimeState, setAnomalyRegions, setAnomalySummaryStats, setRollingBands, uiState } from '../store/index.js';
+import {
+    analyticsState,
+    setAnomalyRegions,
+    setAnomalySummaryStats,
+    setRollingBands,
+} from '../store/analyticsState.js';
+import { chartState } from '../store/chartState.js';
+import { runtimeState } from '../store/runtimeState.js';
+import { uiState } from '../store/uiState.js';
 import type { AnomalyResponse, AdaptiveLineFilter } from '../types.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import { getSeriesColor } from '../utils/seriesColors.js';

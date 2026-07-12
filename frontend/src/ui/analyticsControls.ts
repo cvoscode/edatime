@@ -6,7 +6,7 @@ import {
     setAnomalyThreshold,
     setRollingEnabled,
     setRollingWindow,
-} from '../store/index.js';
+} from '../store/analyticsState.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
 
 export function initAnalyticsControls(): void {
