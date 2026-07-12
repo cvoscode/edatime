@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as api from '../services/api/index.js';
-import { appState } from '../store/index.js';
+import { scatterState, setColumnRanges, setMetadata, setViewport, uiState } from '../store/index.js';
 import { setScatterViewSnapshot } from '../store/scatterState.js';
 import {
     __resetMatrixRenderControllerForTests,
@@ -30,17 +30,16 @@ describe('buildMatrixFetchPairs', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
         __resetMatrixRenderControllerForTests();
-        appState.scatter.matrixCache = new Map();
-        appState.scatter.matrixBatchCache = new Map();
-        appState.scatter.matrixColumnOrder = [];
-        appState.scatter.lastSuggestions = [];
-        appState.scatter.colorLabels = null;
-        appState.scatter.overviewRequestId = 0;
-        appState.scatter.metadata = { numeric_columns: ['HUFL', 'HULL'] } as any;
-        appState.metadata = { time_column: '' } as any;
-        appState.currentStart = null;
-        appState.currentEnd = null;
-        appState.columnRanges = {};
+        scatterState.matrixCache = new Map();
+        scatterState.matrixBatchCache = new Map();
+        scatterState.matrixColumnOrder = [];
+        scatterState.lastSuggestions = [];
+        scatterState.colorLabels = null;
+        scatterState.overviewRequestId = 0;
+        scatterState.metadata = { numeric_columns: ['HUFL', 'HULL'] } as any;
+        setMetadata({ time_column: '' } as any);
+        setViewport(null, null);
+        setColumnRanges({});
         Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
             configurable: true,
             value: () => new MockCanvasContext2D(),
@@ -161,18 +160,18 @@ describe('buildMatrixFetchPairs', () => {
     });
 
     it('builds per-cell query contexts so column filters match each matrix pair', async () => {
-        appState.columnRanges = {
+        setColumnRanges({
             HUFL: { from: 1, to: 9 },
             HULL: { from: 2, to: 8 },
             OT: { from: 3, to: 7 },
-        } as any;
-        appState.scatter.metadata = { numeric_columns: ['HUFL', 'HULL', 'OT'] } as any;
-        appState.scatter.activeView = 'matrix';
+        } as any);
+        scatterState.metadata = { numeric_columns: ['HUFL', 'HULL', 'OT'] } as any;
+        scatterState.activeView = 'matrix';
         // Push the staged column ranges into the matrix view's snapshot
         // so each per-cell fetch picks them up; the production scatter
         // page mirrors globals into the snapshot on view-entry.
         setScatterViewSnapshot('matrix', {
-            columnRanges: appState.columnRanges as Record<string, { from: number; to: number }>,
+            columnRanges: uiState.columnRanges as Record<string, { from: number; to: number }>,
             lineFilters: [],
         });
 
@@ -209,8 +208,8 @@ describe('buildMatrixFetchPairs', () => {
             ]),
         });
 
-        appState.scatter.metadata = { numeric_columns: ['HUFL', 'HULL'] } as any;
-        appState.scatter.lastSuggestions = [];
+        scatterState.metadata = { numeric_columns: ['HUFL', 'HULL'] } as any;
+        scatterState.lastSuggestions = [];
 
         await renderScatterOverview(() => { });
 
@@ -236,8 +235,8 @@ describe('buildMatrixFetchPairs', () => {
         }
 
         const fetchSpy = vi.spyOn(api, 'fetchScatterMatrix').mockResolvedValue({ cells });
-        appState.scatter.metadata = { numeric_columns: columns } as any;
-        appState.scatter.lastSuggestions = [];
+        scatterState.metadata = { numeric_columns: columns } as any;
+        scatterState.lastSuggestions = [];
 
         await renderScatterOverview(() => { });
 
@@ -256,7 +255,7 @@ describe('buildMatrixFetchPairs', () => {
             ]),
         });
 
-        appState.scatter.metadata = { numeric_columns: ['HUFL', 'HULL'] } as any;
+        scatterState.metadata = { numeric_columns: ['HUFL', 'HULL'] } as any;
 
         await renderScatterOverview(() => { });
         await renderScatterOverview(() => { });

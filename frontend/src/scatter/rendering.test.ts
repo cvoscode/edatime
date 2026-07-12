@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { appState } from '../store/index.js';
+import { scatterState } from '../store/index.js';
 import { applyView, buildOption, updateCorrelationStats, updateMarginalPlots } from './rendering.js';
 import { buildDensitySeries, buildDensityTooltipCache, densityTooltipFormatterFactory } from './renderingDensity.js';
 
@@ -110,11 +110,11 @@ describe('scatter marginal rendering modes', () => {
         bindRect(document.getElementById('scatter-marginal-x') as HTMLElement, 1308, 64);
         bindRect(document.getElementById('scatter-marginal-y') as HTMLElement, 72, 712);
 
-        appState.scatter.activeView = 'plot';
-        appState.scatter.points = [
+        scatterState.activeView = 'plot';
+        scatterState.points = [
             [10, 2], [12, 4], [14, 8], [18, 16], [22, 12], [28, 9], [34, 5], [40, 3],
         ] as [number, number][];
-        appState.scatter.view = { xMin: 8, xMax: 42, yMin: 0, yMax: 20 };
+        scatterState.view = { xMin: 8, xMax: 42, yMin: 0, yMax: 20 };
     });
 
     it('uses different drawing paths for histogram, kde, and boxplot marginals', () => {
@@ -199,11 +199,11 @@ describe('scatter marginal rendering modes', () => {
         renderMode.value = 'density';
         binSize.value = '10';
 
-        appState.scatter.points = Array.from({ length: 120 }, (_, i) => [10 + i * 0.25, 2 + (i % 6)] as [number, number]);
-        appState.scatter.view = { xMin: 10, xMax: 40, yMin: 0, yMax: 12 };
+        scatterState.points = Array.from({ length: 120 }, (_, i) => [10 + i * 0.25, 2 + (i % 6)] as [number, number]);
+        scatterState.view = { xMin: 10, xMax: 40, yMin: 0, yMax: 12 };
 
         const container = document.getElementById('scatter-chart') as HTMLElement;
-        buildOption(appState.scatter.points, container);
+        buildOption(scatterState.points, container);
         updateMarginalPlots();
 
         const xBars = fillRects('scatter-marginal-x');
@@ -215,11 +215,11 @@ describe('scatter marginal rendering modes', () => {
         const renderMode = document.getElementById('scatter-render-mode') as HTMLSelectElement;
         renderMode.value = 'density';
 
-        appState.scatter.points = [
+        scatterState.points = [
             [5, 5],
             [10, 5],
         ] as [number, number][];
-        appState.scatter.view = { xMin: 0, xMax: 10, yMin: 0, yMax: 10 };
+        scatterState.view = { xMin: 0, xMax: 10, yMin: 0, yMax: 10 };
 
         const container = document.getElementById('scatter-chart') as HTMLElement;
         const controls = {
@@ -236,7 +236,7 @@ describe('scatter marginal rendering modes', () => {
             matrixMode: 'scatter',
             matrixCellSize: 160,
         };
-        const series = buildDensitySeries(appState.scatter.points, controls);
+        const series = buildDensitySeries(scatterState.points, controls);
         const cache = buildDensityTooltipCache(series, controls, container);
         const total = Array.from(cache?.binsBySeriesIndex.get(0)?.values() || []).reduce((sum, count) => sum + count, 0);
 
@@ -247,8 +247,8 @@ describe('scatter marginal rendering modes', () => {
         const renderMode = document.getElementById('scatter-render-mode') as HTMLSelectElement;
         renderMode.value = 'density';
 
-        appState.scatter.points = Array.from({ length: 80 }, (_, i) => [10 + i * 0.2, 2 + (i % 8)] as [number, number]);
-        appState.scatter.view = { xMin: 10, xMax: 26, yMin: 0, yMax: 12 };
+        scatterState.points = Array.from({ length: 80 }, (_, i) => [10 + i * 0.2, 2 + (i % 8)] as [number, number]);
+        scatterState.view = { xMin: 10, xMax: 26, yMin: 0, yMax: 12 };
 
         const container = document.getElementById('scatter-chart') as HTMLElement;
         const controls = {
@@ -266,7 +266,7 @@ describe('scatter marginal rendering modes', () => {
             matrixCellSize: 160,
         };
 
-        const series = buildDensitySeries(appState.scatter.points, controls);
+        const series = buildDensitySeries(scatterState.points, controls);
         const cache = buildDensityTooltipCache(series, controls, container) as any;
 
         expect(cache.marginalCountsX).toBeDefined();
@@ -276,7 +276,7 @@ describe('scatter marginal rendering modes', () => {
     });
 
     it('builds marginal histograms from points inside both visible axes', () => {
-        appState.scatter.points = [
+        scatterState.points = [
             [1, 1],
             [9, 9],
             [1, 99],
@@ -286,7 +286,7 @@ describe('scatter marginal rendering modes', () => {
             [99, 1],
             [99, 1],
         ] as [number, number][];
-        appState.scatter.view = { xMin: 0, xMax: 10, yMin: 0, yMax: 10 };
+        scatterState.view = { xMin: 0, xMax: 10, yMin: 0, yMax: 10 };
 
         updateMarginalPlots();
 
@@ -308,10 +308,10 @@ describe('updateCorrelationStats', () => {
             <div id="scatter-pearson"></div>
             <div id="scatter-spearman"></div>
         `;
-        appState.scatter.correlationsByColumn = new Map([
+        scatterState.correlationsByColumn = new Map([
             ['HULL', { column: 'HULL', value: 0.671, count: 42 }],
         ]);
-        (appState.scatter as any).currentPairStats = { pearsonRaw: 0.671, spearmanRaw: 0.642, count: 42 };
+        (scatterState as any).currentPairStats = { pearsonRaw: 0.671, spearmanRaw: 0.642, count: 42 };
     });
 
     it('renders Pearson and Spearman values for the active pair', () => {
@@ -377,13 +377,13 @@ describe('density series zoom', () => {
             [25, 25], [35, 30], [45, 35], [55, 40],
             [65, 45], [75, 50], [85, 55], [95, 60],
         ];
-        appState.scatter.points = fullPoints;
-        appState.scatter.allPoints = fullPoints;
-        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
-        appState.scatter.view = { xMin: 20, xMax: 60, yMin: 20, yMax: 50 };
+        scatterState.points = fullPoints;
+        scatterState.allPoints = fullPoints;
+        scatterState.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+        scatterState.view = { xMin: 20, xMax: 60, yMin: 20, yMax: 50 };
 
         const container = document.getElementById('scatter-chart') as HTMLElement;
-        const series = buildDensitySeries(appState.scatter.points, {
+        const series = buildDensitySeries(scatterState.points, {
             x: 'HUFL',
             y: 'HULL',
             binSize: 10,
@@ -407,7 +407,7 @@ describe('density series zoom', () => {
         expect(series[0].rawBounds).toEqual({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 });
 
         // buildOption composes a full ECharts option around the density series.
-        const option = buildOption(appState.scatter.points, container);
+        const option = buildOption(scatterState.points, container);
         expect(option.series).toHaveLength(1);
         expect(option.series[0].mode).toBe('density');
         expect(option.series[0].rawData).toEqual(fullPoints);
@@ -418,13 +418,13 @@ describe('density series zoom', () => {
         const fullPoints: [number, number][] = [
             [0, 0], [10, 10], [20, 20],
         ];
-        appState.scatter.points = fullPoints;
-        appState.scatter.allPoints = fullPoints;
-        appState.scatter.allColorValues = [2, 4, 6];
-        appState.scatter.colorValues = [2, 4, 6];
-        appState.scatter.colorMin = 2;
-        appState.scatter.colorMax = 6;
-        appState.scatter.view = { xMin: 0, xMax: 20, yMin: 0, yMax: 20 };
+        scatterState.points = fullPoints;
+        scatterState.allPoints = fullPoints;
+        scatterState.allColorValues = [2, 4, 6];
+        scatterState.colorValues = [2, 4, 6];
+        scatterState.colorMin = 2;
+        scatterState.colorMax = 6;
+        scatterState.view = { xMin: 0, xMax: 20, yMin: 0, yMax: 20 };
         const colorSelect = document.getElementById('scatter-color-column') as HTMLSelectElement;
         colorSelect.innerHTML = '<option value="temperature" selected>temperature</option>';
 
@@ -459,13 +459,13 @@ describe('density series zoom', () => {
             [25, 25], [35, 30], [45, 35], [55, 40],
             [65, 45], [75, 50], [85, 55], [95, 60],
         ];
-        appState.scatter.points = fullPoints;
-        appState.scatter.allPoints = fullPoints;
-        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+        scatterState.points = fullPoints;
+        scatterState.allPoints = fullPoints;
+        scatterState.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
 
         // First zoom: narrow to half the data range.
-        appState.scatter.view = { xMin: 25, xMax: 75, yMin: 10, yMax: 60 };
-        const first = buildDensitySeries(appState.scatter.points, {
+        scatterState.view = { xMin: 25, xMax: 75, yMin: 10, yMax: 60 };
+        const first = buildDensitySeries(scatterState.points, {
             x: 'HUFL',
             y: 'HULL',
             binSize: 10,
@@ -483,8 +483,8 @@ describe('density series zoom', () => {
         expect(first[0].rawBounds).toEqual({ xMin: 25, xMax: 75, yMin: 10, yMax: 60 });
 
         // Second zoom: zoom in further on a sub-region.
-        appState.scatter.view = { xMin: 40, xMax: 60, yMin: 25, yMax: 45 };
-        const second = buildDensitySeries(appState.scatter.points, {
+        scatterState.view = { xMin: 40, xMax: 60, yMin: 25, yMax: 45 };
+        const second = buildDensitySeries(scatterState.points, {
             x: 'HUFL',
             y: 'HULL',
             binSize: 10,
@@ -570,21 +570,21 @@ describe('density chart re-bin on view change', () => {
         // Simulate an existing density chart and pretend a view zoom happened.
         const setOptionSpy = vi.fn();
         const resizeSpy = vi.fn();
-        appState.scatter.chart = { setOption: setOptionSpy, resize: resizeSpy } as any;
-        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
-        appState.scatter.view = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+        scatterState.chart = { setOption: setOptionSpy, resize: resizeSpy } as any;
+        scatterState.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+        scatterState.view = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
 
         applyView({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 }, true);
 
         // The chart must be disposed so the next renderScatter() recreates
         // it against the new view (the ChartGPU density renderer does not
         // re-bin when only rawBounds change otherwise).
-        expect(appState.scatter.chart).toBeNull();
+        expect(scatterState.chart).toBeNull();
         // The view itself was updated.
-        expect(appState.scatter.view).toEqual({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 });
+        expect(scatterState.view).toEqual({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 });
         // The previous view was pushed onto the zoom history.
-        expect(appState.scatter.zoomHistory).toHaveLength(1);
-        expect(appState.scatter.zoomHistory[0]).toEqual({ xMin: 0, xMax: 100, yMin: 0, yMax: 70 });
+        expect(scatterState.zoomHistory).toHaveLength(1);
+        expect(scatterState.zoomHistory[0]).toEqual({ xMin: 0, xMax: 100, yMin: 0, yMax: 70 });
         // The density-mode zoom path must signal `preserveView: true` to
         // the scheduled renderScatter(), otherwise the default
         // `applyScatterStateFromCache(true)` call inside renderScatter
@@ -599,14 +599,14 @@ describe('density chart re-bin on view change', () => {
         const secondScheduler = vi.fn();
         (globalThis as { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void }).__scatterScheduleRender = firstScheduler;
 
-        appState.scatter.chart = { setOption: vi.fn(), resize: vi.fn() } as any;
-        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
-        appState.scatter.view = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+        scatterState.chart = { setOption: vi.fn(), resize: vi.fn() } as any;
+        scatterState.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+        scatterState.view = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
         applyView({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 }, true);
         expect(firstScheduler).toHaveBeenCalledWith({ preserveView: true, immediate: true });
 
         (globalThis as { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void }).__scatterScheduleRender = secondScheduler;
-        appState.scatter.chart = { setOption: vi.fn(), resize: vi.fn() } as any;
+        scatterState.chart = { setOption: vi.fn(), resize: vi.fn() } as any;
         applyView({ xMin: 30, xMax: 50, yMin: 25, yMax: 45 }, true);
         expect(secondScheduler).toHaveBeenCalledWith({ preserveView: true, immediate: true });
     });
@@ -617,16 +617,16 @@ describe('density chart re-bin on view change', () => {
         renderModeSelect.value = 'scatter';
 
         const setOptionSpy = vi.fn();
-        appState.scatter.chart = { setOption: setOptionSpy, resize: vi.fn() } as any;
-        appState.scatter.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
-        appState.scatter.view = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+        scatterState.chart = { setOption: setOptionSpy, resize: vi.fn() } as any;
+        scatterState.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
+        scatterState.view = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
 
         applyView({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 }, true);
 
         // In scatter mode the regular setOption path is enough — the chart
         // must stay alive (and we should have called setOption to update
         // the axis labels).
-        expect(appState.scatter.chart).not.toBeNull();
+        expect(scatterState.chart).not.toBeNull();
         expect(setOptionSpy).toHaveBeenCalled();
     });
 });
