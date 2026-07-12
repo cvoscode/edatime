@@ -8,7 +8,8 @@
  * exposes the same interface as other analysis page runtimes.
  */
 import { fetchSpectrogram, type SpectrogramResult } from '../services/api/index.js';
-import { chartState, datasetState } from '../store/index.js';
+import { chartState } from '../store/chartState.js';
+import { datasetState } from '../store/datasetState.js';
 import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../utils/chartExport.js';
 import {
     getDropdownOptions,
