@@ -47,7 +47,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         name: 'fft',
         requiresMetadata: true,
         async load(deps) {
-            const { initFftPage } = await import('../features/fft/page.js');
+            const { initFftPage } = await import('../features/fft/index.js');
             return { init: () => initFftPage({ renderTimeseries: deps.getRenderTimeseries, workspace: deps.workspace }) };
         },
     },
@@ -55,7 +55,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         name: 'heatmap',
         requiresMetadata: true,
         async load(deps) {
-            const { initHeatmapPage } = await import('../features/heatmap/page.js');
+            const { initHeatmapPage } = await import('../features/heatmap/index.js');
             return { init: () => initHeatmapPage({ showPage: deps.showPage }) };
         },
     },
@@ -75,7 +75,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         name: 'spectrogram',
         requiresMetadata: true,
         async load(deps) {
-            const { initSpectrogramPage } = await import('../features/spectrogram/page.js');
+            const { initSpectrogramPage } = await import('../features/spectrogram/index.js');
             return { init: () => initSpectrogramPage({ setLoading: deps.setLoading, workspace: deps.workspace }) };
         },
     },
@@ -98,7 +98,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         requiresMetadata: true,
         cssModules: ['drift'],
         async load(deps) {
-            const { initDriftPage } = await import('../features/drift/page.js');
+            const { initDriftPage } = await import('../features/drift/index.js');
             const metadata = deps.workspace.getSnapshot().dataset.metadata;
             return { init: () => initDriftPage(metadata) };
         },

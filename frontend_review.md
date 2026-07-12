@@ -111,6 +111,13 @@ Complete: FFT and Timeseries layout/lifecycle tests now live with their features
 
 ### Next: platform and feature-boundary consolidation
 
+### Completed: analysis feature registry surfaces
+
+- Added public index surfaces for FFT, Heatmap, Spectrogram, and Drift.
+- Updated the lazy page registry to import every analysis feature through its public index, matching the Causal and Scatter composition contract.
+
+### Next: platform and feature-boundary consolidation
+
 Continue replacing cross-feature deep imports with small public surfaces, then strengthen architecture checks once the remaining direct seams have been migrated.
 
 ## Target Architecture

@@ -11,12 +11,12 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../utils/pageStyles.js', () => ({ ensureStyleModule: mocks.ensureStyleModule }));
-vi.mock('../features/fft/page.js', () => ({ initFftPage: mocks.initFftPage }));
-vi.mock('../features/heatmap/page.js', () => ({ initHeatmapPage: mocks.initHeatmapPage }));
+vi.mock('../features/fft/index.js', () => ({ initFftPage: mocks.initFftPage }));
+vi.mock('../features/heatmap/index.js', () => ({ initHeatmapPage: mocks.initHeatmapPage }));
 vi.mock('../features/scatter/index.js', () => ({ initScatterPage: mocks.initScatterPage }));
-vi.mock('../features/spectrogram/page.js', () => ({ initSpectrogramPage: mocks.initSpectrogramPage }));
+vi.mock('../features/spectrogram/index.js', () => ({ initSpectrogramPage: mocks.initSpectrogramPage }));
 vi.mock('../features/causal/index.js', () => ({ initCausalPage: mocks.initCausalPage }));
-vi.mock('../features/drift/page.js', () => ({ initDriftPage: mocks.initDriftPage }));
+vi.mock('../features/drift/index.js', () => ({ initDriftPage: mocks.initDriftPage }));
 
 import { loadPageDescriptors, type PageDescriptorInitDeps } from './pageModules.js';
 import type { PageRegistry } from './pageRegistry.js';
