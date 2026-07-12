@@ -13,21 +13,18 @@ import { computeFrontendRollingBands } from '../bootstrap/analyticsOverlay.js';
 import { createRequestTask } from './shared/requestTask.js';
 import type { ViewSnapshot } from '../types.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+import { analyticsState, setRollingBands } from '../store/analyticsState.js';
+import { chartState, setViewport, setZoomHistory } from '../store/chartState.js';
+import { datasetState } from '../store/datasetState.js';
 import {
-    analyticsState,
-    chartState,
-    datasetState,
     runtimeState,
     setFetchDebounceId,
     setFetchedWindow,
     setLastFetchedData,
     setPendingRestoreY,
     setPendingYMode,
-    setRollingBands,
-    setViewport,
-    setZoomHistory,
-    uiState,
-} from '../store/index.js';
+} from '../store/runtimeState.js';
+import { uiState } from '../store/uiState.js';
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
 const CONSECUTIVE_ZOOM_OUT_RESET_COUNT = 5;
