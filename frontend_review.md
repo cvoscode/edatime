@@ -23,6 +23,14 @@ Verified after each milestone with the full frontend test suite, TypeScript, arc
 
 Move each page controller/runtime under its owning `features/<name>/` directory, beginning with timeseries. Preserve the public lifecycle contract and its current characterization tests while removing page-to-feature trampolines only when the new owner directly composes the controller, view, and lifecycle.
 
+### Completed: timeseries feature ownership
+
+- Moved the timeseries controller, lifecycle, composition module, page help, and their characterization tests under `features/timeseries/`.
+- Updated `app.ts` and the deferred shell loader to consume feature-owned surfaces directly.
+- Removed the retired `pages/timeseriesPage.ts`, `pages/timeseriesModule.ts`, `pages/timeseriesRuntime.ts`, and `pages/timeseriesHelp.ts` owners.
+
+The next feature-directory migration should apply the same controller/runtime/help ownership model to a self-contained analysis feature, starting with FFT or spectrogram.
+
 ## Target Architecture
 
 ```text
