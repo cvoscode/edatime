@@ -41,6 +41,7 @@ import {
     getVisibleSpectrogramPoints,
     type SpectrogramGridModel,
 } from './spectrogramGridModel.js';
+import { resolveSpectrogramHopSize, resolveSpectrogramWindowSize } from './spectrogramControls.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
@@ -108,35 +109,16 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
         }
     };
 
-    const parseCustomInteger = (
-        input: HTMLInputElement | null,
-        fallback: number,
-        min: number,
-        max: number,
-    ): number => {
-        const raw = Number.parseInt(input?.value || '', 10);
-        if (!Number.isFinite(raw)) return fallback;
-        return Math.max(min, Math.min(max, raw));
-    };
+    const getResolvedSpectrogramWindowSize = (): number => resolveSpectrogramWindowSize(
+        getDropdownValue('spectrogram-win-size') || '96',
+        getSpectrogramWinCustomInput()?.value,
+    );
 
-    const resolveSpectrogramWindowSize = (): number => {
-        const selected = getDropdownValue('spectrogram-win-size') || '96';
-        if (selected === 'custom') {
-            return parseCustomInteger(getSpectrogramWinCustomInput(), 96, 16, 4096);
-        }
-        const parsed = Number.parseInt(selected, 10);
-        return Number.isFinite(parsed) ? Math.max(16, Math.min(4096, parsed)) : 96;
-    };
-
-    const resolveSpectrogramHopSize = (winSize: number): number => {
-        const selected = getDropdownValue('spectrogram-hop-size') || '0.5';
-        if (selected === 'custom') {
-            return parseCustomInteger(getSpectrogramHopCustomInput(), Math.max(1, Math.round(winSize * 0.5)), 1, winSize);
-        }
-        const hopRatioRaw = Number.parseFloat(selected);
-        const hopRatio = Number.isFinite(hopRatioRaw) && hopRatioRaw > 0 && hopRatioRaw < 1 ? hopRatioRaw : 0.5;
-        return Math.max(1, Math.min(winSize, Math.round(winSize * hopRatio)));
-    };
+    const getResolvedSpectrogramHopSize = (winSize: number): number => resolveSpectrogramHopSize(
+        getDropdownValue('spectrogram-hop-size') || '0.5',
+        getSpectrogramHopCustomInput()?.value,
+        winSize,
+    );
 
     function syncSpectrogramEmptyState(message?: string): void {
         // If a fetch/render failure is recorded, prefer that message over
@@ -671,8 +653,8 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     // preserved in `aria-label` for screen readers.
                     const summaryParts = [
                         `Spectrogram of ${spectrogramResult.column}`,
-                        `Window ${resolveSpectrogramWindowSize()}`,
-                        `Hop ${resolveSpectrogramHopSize(resolveSpectrogramWindowSize())}`,
+                        `Window ${getResolvedSpectrogramWindowSize()}`,
+                        `Hop ${getResolvedSpectrogramHopSize(getResolvedSpectrogramWindowSize())}`,
                         scaleModeLabel(spectrogramAppliedScaleMode, spectrogramAppliedClipMode, spectrogramAppliedClipParam),
                     ];
                     if (dominantBand) {
@@ -710,8 +692,8 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     return;
                 }
 
-                const winSize = resolveSpectrogramWindowSize();
-                const hopSize = resolveSpectrogramHopSize(winSize);
+                const winSize = getResolvedSpectrogramWindowSize();
+                const hopSize = getResolvedSpectrogramHopSize(winSize);
                 const normalize = (getDropdownValue('spectrogram-normalize') || 'zscore') as ScaleMode;
                 const clipEnabled = !!clipToggle?.checked;
                 const clipMethod = (getDropdownValue('spectrogram-clip-method') || 'percentile') as ClipMode;

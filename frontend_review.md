@@ -187,6 +187,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Extracted the cached raw/log grid buffers, point arrays, display ranges, and per-range buffer reuse into `spectrogramGridModel`; runtime rendering now consumes that model.
 - Spectrogram visual-map and colorbar palettes now consume the global continuous color-scale setting instead of hard-coded Viridis stops.
 - Added an owned abort scope and selection-overlay teardown for Spectrogram chart gestures, preventing pointer listeners and overlay nodes from surviving chart re-initialization or test/runtime disposal.
+- Extracted window/hop-size normalization and preset resolution into `spectrogramControls`, so custom-value bounds and fractional-hop semantics are directly tested independently of DOM wiring.
 - Next, separate chart lifecycle and control wiring from the remaining runtime rendering orchestration.
 
 ### Completed: global continuous color-scale ownership
