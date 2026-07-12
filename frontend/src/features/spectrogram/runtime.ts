@@ -28,14 +28,19 @@ import {
 } from '../../utils/spectralPresets.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { toast } from '../../utils/toast.js';
+import { getSetting } from '../../utils/settings.js';
+import { paletteForColorScale } from '../../utils/colorScales.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { findDominantFrequencyBand, formatSpectrogramTime } from './spectrogramAnalysis.js';
 import {
-    fillVisibleSpectrogramPoints,
-    isSpectrogramColorFilterActive,
     type SpectrogramMode,
-    type SpectrogramPoint,
 } from './spectrogramPointFilter.js';
+import {
+    buildSpectrogramGridModel,
+    getSpectrogramDisplayBounds,
+    getVisibleSpectrogramPoints,
+    type SpectrogramGridModel,
+} from './spectrogramGridModel.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
@@ -301,106 +306,12 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             // avoidable redraw costs:
             // - rebuilding every point tuple on log toggles
             // - allocating a fresh filtered series array on each drag
-            let cachedGrid: {
-                result: SpectrogramResult;
-                log: Float64Array;
-                raw: Float64Array;
-                linearPoints: SpectrogramPoint[];
-                logPoints: SpectrogramPoint[];
-                visibleLinearPoints: SpectrogramPoint[];
-                visibleLogPoints: SpectrogramPoint[];
-                logMin: number;
-                logMax: number;
-                linearMin: number;
-                linearMax: number;
-                lastVisibleMode: SpectrogramMode | null;
-                lastVisibleRangeKey: string | null;
-            } | null = null;
+            let cachedGrid: SpectrogramGridModel | null = null;
 
             let currentScaleBounds: { min: number; max: number } | null = null;
             let colorFilterRange: { min: number; max: number } | null = null;
             let colorbarInteractionInitialized = false;
             let colorbarDragRaf = 0;
-
-            const buildPointsFromDisplay = (
-                result: SpectrogramResult,
-                displayValues: Float64Array,
-                rawValues: Float64Array,
-            ): SpectrogramPoint[] => {
-                const timeAxis = result.times_ms;
-                const freqAxis = result.frequencies;
-                const total = displayValues.length;
-                const points: SpectrogramPoint[] = new Array(total);
-                let writeIndex = 0;
-                for (let t = 0; t < timeAxis.length; t += 1) {
-                    const tBase = t * freqAxis.length;
-                    for (let f = 0; f < freqAxis.length; f += 1) {
-                        const idx = tBase + f;
-                        const display = displayValues[idx];
-                        if (!Number.isFinite(display)) continue;
-                        points[writeIndex++] = [t, f, display, rawValues[idx]];
-                    }
-                }
-                points.length = writeIndex;
-                return points;
-            };
-
-            const buildCachedGrid = (result: SpectrogramResult) => {
-                const timeAxis = result.times_ms;
-                const freqAxis = result.frequencies;
-                const total = timeAxis.length * freqAxis.length;
-                const log = new Float64Array(total);
-                const raw = new Float64Array(total);
-                const linearDisplay = new Float64Array(total);
-                let logMin = Number.POSITIVE_INFINITY;
-                let logMax = Number.NEGATIVE_INFINITY;
-                let linearMin = Number.POSITIVE_INFINITY;
-                let linearMax = Number.NEGATIVE_INFINITY;
-                for (let t = 0; t < timeAxis.length; t += 1) {
-                    const row = result.magnitudes[t] || [];
-                    const tBase = t * freqAxis.length;
-                    for (let f = 0; f < freqAxis.length; f += 1) {
-                        const idx = tBase + f;
-                        const v = Number(row[f] ?? NaN);
-                        raw[idx] = v;
-                        linearDisplay[idx] = v;
-                        if (Number.isFinite(v)) {
-                            if (v < linearMin) linearMin = v;
-                            if (v > linearMax) linearMax = v;
-                        }
-                        const display = Number.isFinite(v) && v > 0 ? Math.log10(v) : NaN;
-                        log[idx] = display;
-                        if (Number.isFinite(display)) {
-                            if (display < logMin) logMin = display;
-                            if (display > logMax) logMax = display;
-                        }
-                    }
-                }
-                if (!Number.isFinite(logMin) || !Number.isFinite(logMax)) {
-                    logMin = 0;
-                    logMax = 1;
-                }
-                if (!Number.isFinite(linearMin) || !Number.isFinite(linearMax)) {
-                    linearMin = 0;
-                    linearMax = 1;
-                }
-                if (!(logMax > logMin)) logMax = logMin + 1;
-                if (!(linearMax > linearMin)) linearMax = linearMin + 1;
-                const linearPoints = buildPointsFromDisplay(result, linearDisplay, raw);
-                const logPoints = buildPointsFromDisplay(result, log, raw);
-                return {
-                    log,
-                    raw,
-                    linearPoints,
-                    logPoints,
-                    visibleLinearPoints: linearPoints.slice(),
-                    visibleLogPoints: logPoints.slice(),
-                    logMin,
-                    logMax,
-                    linearMin,
-                    linearMax,
-                };
-            };
 
             const syncClipEnabled = () => {
                 const enabled = clipToggle?.checked ?? false;
@@ -485,25 +396,6 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 return value.toFixed(3);
             };
 
-            const getVisiblePointsForMode = (
-                cache: NonNullable<typeof cachedGrid>,
-                mode: SpectrogramMode,
-                range: { min: number; max: number } | null,
-                bounds: { min: number; max: number },
-            ): SpectrogramPoint[] => {
-                const source = mode === 'log' ? cache.logPoints : cache.linearPoints;
-                if (!isSpectrogramColorFilterActive(range, bounds)) return source;
-
-                const key = `${mode}:${range.min}:${range.max}`;
-                const target = mode === 'log' ? cache.visibleLogPoints : cache.visibleLinearPoints;
-                if (cache.lastVisibleMode === mode && cache.lastVisibleRangeKey === key) {
-                    return target;
-                }
-                cache.lastVisibleMode = mode;
-                cache.lastVisibleRangeKey = key;
-                return fillVisibleSpectrogramPoints(source, target, range);
-            };
-
             const updateColorbarHandles = () => {
                 const wrap = document.getElementById('spectrogram-colorbar');
                 if (!wrap || !currentScaleBounds) return;
@@ -550,7 +442,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 const low = wrap.querySelector<HTMLElement>('[data-role="cb-low"]');
                 const name = wrap.querySelector<HTMLElement>('.scatter-colorbar-vname');
                 if (vbar) {
-                    vbar.style.background = 'linear-gradient(to top, #440154, #414487, #2a788e, #22a884, #7ad151, #fde725)';
+                    vbar.style.background = `linear-gradient(to top, ${[...paletteForColorScale(getSetting('colorScale'))].reverse().join(', ')})`;
                 }
                 if (high) high.textContent = `High · ${formatSpectrogramColorbarNumber(max)}`;
                 if (low) low.textContent = `Low · ${formatSpectrogramColorbarNumber(min)}`;
@@ -644,29 +536,13 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 const mode: SpectrogramMode = logScale ? 'log' : 'linear';
 
                 if (!cachedGrid || cachedGrid.result !== spectrogramResult) {
-                    const built = buildCachedGrid(spectrogramResult);
-                    cachedGrid = {
-                        result: spectrogramResult,
-                        log: built.log,
-                        raw: built.raw,
-                        linearPoints: built.linearPoints,
-                        logPoints: built.logPoints,
-                        visibleLinearPoints: built.visibleLinearPoints,
-                        visibleLogPoints: built.visibleLogPoints,
-                        logMin: built.logMin,
-                        logMax: built.logMax,
-                        linearMin: built.linearMin,
-                        linearMax: built.linearMax,
-                        lastVisibleMode: null,
-                        lastVisibleRangeKey: null,
-                    };
+                    cachedGrid = buildSpectrogramGridModel(spectrogramResult);
                 }
 
-                const minValue = mode === 'log' ? cachedGrid.logMin : cachedGrid.linearMin;
-                const maxValue = mode === 'log' ? cachedGrid.logMax : cachedGrid.linearMax;
-                currentScaleBounds = { min: minValue, max: maxValue };
+                currentScaleBounds = getSpectrogramDisplayBounds(cachedGrid, mode);
+                const { min: minValue, max: maxValue } = currentScaleBounds;
                 const scaleLabel = activeScaleLabel();
-                const points = getVisiblePointsForMode(cachedGrid, mode, colorFilterRange, currentScaleBounds);
+                const points = getVisibleSpectrogramPoints(cachedGrid, mode, colorFilterRange, currentScaleBounds);
 
                 const xTickInterval = Math.max(0, Math.ceil(timeAxis.length / 8) - 1);
                 const yTickInterval = Math.max(0, Math.floor(freqAxis.length / 10) - 1);
@@ -747,7 +623,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         max: maxValue,
                         calculable: false,
                         inRange: {
-                            color: ['#440154', '#414487', '#2a788e', '#22a884', '#7ad151', '#fde725'],
+                            color: [...paletteForColorScale(getSetting('colorScale'))],
                         },
                     },
                     dataZoom: [
