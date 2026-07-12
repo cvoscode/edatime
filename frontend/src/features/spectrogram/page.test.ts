@@ -260,6 +260,29 @@ describe('spectrogramPage colorbar filter', () => {
         expect(wrap?.querySelector('.scatter-colorbar-vname')?.textContent).toContain('[0,1]');
     });
 
+    it('releases control listeners when the page runtime unmounts', async () => {
+        const { createSpectrogramChartRuntime } = await import('./runtime.js');
+        const runtime = createSpectrogramChartRuntime({
+            setLoading: vi.fn(),
+            workspace: {
+                getSnapshot: () => ({
+                    dataset: { metadata: null },
+                    viewport: { xMin: Number.NaN, xMax: Number.NaN },
+                }) as any,
+            },
+        });
+        const unmount = runtime.mount();
+        const toggle = document.getElementById('spectrogram-clip-toggle') as HTMLInputElement;
+        const method = document.getElementById('spectrogram-clip-method') as HTMLSelectElement;
+
+        expect(method.disabled).toBe(true);
+        unmount();
+        toggle.checked = true;
+        toggle.dispatchEvent(new Event('input', { bubbles: true }));
+
+        expect(method.disabled).toBe(true);
+    });
+
     it('renders spectrogram axes with extra padding so titles cannot collide with ticks', async () => {
         await mountAndCompute();
         const instance = echartsInstances[echartsInstances.length - 1];

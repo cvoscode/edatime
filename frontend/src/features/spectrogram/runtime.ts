@@ -84,6 +84,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
     let spectrogramRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
     let autoComputeStarted = false;
     let autoComputeExplained = false;
+    let controlAbort: AbortController | null = null;
     const workspaceSnapshot = () => deps.workspace?.getSnapshot();
     const workspaceMetadata = () => workspaceSnapshot()?.dataset.metadata ?? datasetState.metadata;
     const workspaceViewport = () => workspaceSnapshot()?.viewport;
@@ -146,6 +147,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             html: { fn: exportEChartsHTML, filename: 'edatime_spectrogram.html' },
         },
         init() {
+            controlAbort?.abort();
+            const listenerAbort = new AbortController();
+            controlAbort = listenerAbort;
+            const listenerOptions = { signal: listenerAbort.signal };
             const colSelect = document.getElementById('spectrogram-col-select') as HTMLElement | null;
             const logCheck = document.getElementById('spectrogram-log-scale') as HTMLInputElement | null;
             const clipToggle = document.getElementById('spectrogram-clip-toggle') as HTMLInputElement | null;
@@ -155,7 +160,12 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             const summaryEl = document.getElementById('spectrogram-summary') as HTMLElement | null;
             const chartEl = document.getElementById('spectrogram-chart') as HTMLDivElement | null;
 
-            if (!chartEl || !colSelect) return;
+            if (!chartEl || !colSelect) {
+                return () => {
+                    listenerAbort.abort();
+                    if (controlAbort === listenerAbort) controlAbort = null;
+                };
+            }
 
             // ── Chart readiness helpers ────────────────────────────────────────
             const ensureSpectrogramChartDimensions = () => {
@@ -502,20 +512,20 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         if (spectrogramResult) void renderSpectrogramChart();
                     };
 
-                    target.addEventListener('pointermove', onMove);
-                    target.addEventListener('pointerup', onUp);
-                    target.addEventListener('pointercancel', onUp);
+                    target.addEventListener('pointermove', onMove, listenerOptions);
+                    target.addEventListener('pointerup', onUp, listenerOptions);
+                    target.addEventListener('pointercancel', onUp, listenerOptions);
                 };
 
-                handleHigh.addEventListener('pointerdown', onHandlePointerDown('high'));
-                handleLow.addEventListener('pointerdown', onHandlePointerDown('low'));
+                handleHigh.addEventListener('pointerdown', onHandlePointerDown('high'), listenerOptions);
+                handleLow.addEventListener('pointerdown', onHandlePointerDown('low'), listenerOptions);
 
                 wrap.addEventListener('dblclick', () => {
                     if (!colorFilterRange) return;
                     colorFilterRange = null;
                     updateColorbarHandles();
                     if (spectrogramResult) void renderSpectrogramChart();
-                });
+                }, listenerOptions);
             };
 
             const renderSpectrogramChart = async () => {
@@ -782,33 +792,40 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             document.getElementById('spectrogram-compute-btn')?.addEventListener('click', async () => {
                 autoComputeStarted = true;
                 await computeSpectrogram();
-            });
+            }, listenerOptions);
 
             logCheck?.addEventListener('change', () => {
                 if (spectrogramResult) void renderSpectrogramChart();
-            });
-            document.getElementById('spectrogram-win-size')?.addEventListener('change', syncSpectrogramCustomInputs);
-            document.getElementById('spectrogram-win-size')?.addEventListener('input', syncSpectrogramCustomInputs);
-            document.getElementById('spectrogram-hop-size')?.addEventListener('change', syncSpectrogramCustomInputs);
-            document.getElementById('spectrogram-hop-size')?.addEventListener('input', syncSpectrogramCustomInputs);
+            }, listenerOptions);
+            document.getElementById('spectrogram-win-size')?.addEventListener('change', syncSpectrogramCustomInputs, listenerOptions);
+            document.getElementById('spectrogram-win-size')?.addEventListener('input', syncSpectrogramCustomInputs, listenerOptions);
+            document.getElementById('spectrogram-hop-size')?.addEventListener('change', syncSpectrogramCustomInputs, listenerOptions);
+            document.getElementById('spectrogram-hop-size')?.addEventListener('input', syncSpectrogramCustomInputs, listenerOptions);
             const onClipToggleChange = () => {
                 syncClipEnabled();
             };
-            clipToggle?.addEventListener('change', onClipToggleChange);
-            clipToggle?.addEventListener('input', onClipToggleChange);
+            clipToggle?.addEventListener('change', onClipToggleChange, listenerOptions);
+            clipToggle?.addEventListener('input', onClipToggleChange, listenerOptions);
             document.getElementById('spectrogram-clip-method')?.addEventListener('change', () => {
                 syncClipParamLabel();
-            });
+            }, listenerOptions);
             autoFitToggle?.addEventListener('change', () => {
                 if (spectrogramResult) void renderSpectrogramChart();
-            });
+            }, listenerOptions);
             resetZoomBtn?.addEventListener('click', () => {
                 if (!spectrogramChart) return;
                 spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 0, start: 0, end: 100 });
                 spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 1, start: 0, end: 100 });
-            });
+            }, listenerOptions);
 
             maybeAutoComputeSpectrogram();
+            return () => {
+                listenerAbort.abort();
+                if (controlAbort === listenerAbort) controlAbort = null;
+                if (colorbarDragRaf) cancelAnimationFrame(colorbarDragRaf);
+                colorbarDragRaf = 0;
+                colorbarInteractionInitialized = false;
+            };
         },
         onVisible() {
             const visibleClipToggle = document.getElementById('spectrogram-clip-toggle') as HTMLInputElement | null;
