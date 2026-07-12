@@ -7,28 +7,28 @@
  *   runtime.mount();
  * exposes the same interface as other analysis page runtimes.
  */
-import { fetchSpectrogram, type SpectrogramResult } from '../services/api/index.js';
-import { chartState } from '../store/chartState.js';
-import { datasetState } from '../store/datasetState.js';
-import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../utils/chartExport.js';
+import { fetchSpectrogram, type SpectrogramResult } from '../../services/api/index.js';
+import { chartState } from '../../store/chartState.js';
+import { datasetState } from '../../store/datasetState.js';
+import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../../utils/chartExport.js';
 import {
     getDropdownOptions,
     getDropdownValue,
     setDropdownDisabled,
     setDropdownOptions,
-} from '../ui/primitives/Dropdown.js';
+} from '../../ui/primitives/Dropdown.js';
 import {
     scaleModeLabel,
     type ClipMode,
     type ScaleMode,
-} from '../utils/spectralScaling.js';
+} from '../../utils/spectralScaling.js';
 import {
     formatFrequencyInUnit,
     pickFrequencyAxisUnit,
-} from '../utils/spectralPresets.js';
-import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
-import { toast } from '../utils/toast.js';
-import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+} from '../../utils/spectralPresets.js';
+import { createAnalysisPageRuntime } from '../../pages/shared/analysisPageRuntime.js';
+import { toast } from '../../utils/toast.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
