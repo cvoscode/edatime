@@ -61,15 +61,12 @@ import { renderColorScaleLegend } from './colorScaleLegend.js';
 import { buildTimeSeriesDataModel } from './timeSeriesDataModel.js';
 import { buildTimeSeriesChartOptions } from './timeSeriesChartOptions.js';
 import { getChartExportDomains, getChartExportViewport, type ChartExportDomains, type ChartExportViewport } from './chartExportLayout.js';
-import { renderExportLineSeries } from './chartExportSeriesRenderer.js';
-import { renderExportAxes } from './chartExportAxesRenderer.js';
-import { renderExportDecorations } from './chartExportDecorationsRenderer.js';
+import { renderChartExportCanvas } from './chartExportCanvasRenderer.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
     DEFAULT_CHART_GRID,
     computeChartGrid,
-    scaleGridLayout,
 } from './gridLayout.js';
 import {
     exportDataChartHTML,
@@ -879,71 +876,16 @@ export class DataChart {
         domains: ChartExportDomains,
         includeDrawings: boolean,
     ): void {
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        const { cssWidth, cssHeight, width, height } = viewport;
-        const scale = width / cssWidth;
-        const palette = getChartPalette();
-        const bg = palette.background;
-        const surface2 = palette.surfaceElevated;
-        const border = palette.border;
-        const borderHi = palette.borderHi;
-        const text = palette.text;
-        const textDim = palette.textDim;
-        const accentStroke = palette.accent;
-
-        ctx.save();
-        ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, width, height);
-
-        const grid = scaleGridLayout(this._updateCurrentGrid(), scale);
-        const plotLeft = grid.left;
-        const plotTop = grid.top;
-        const plotRight = Math.max(plotLeft + 1, width - grid.right);
-        const plotBottom = Math.max(plotTop + 1, height - grid.bottom);
-        const plotWidth = Math.max(1, plotRight - plotLeft);
-        const plotHeight = Math.max(1, plotBottom - plotTop);
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(plotLeft, plotTop, plotWidth, plotHeight);
-        ctx.clip();
-        renderExportLineSeries(
-            ctx,
-            Array.isArray(this._lastSeriesList) ? this._lastSeriesList : [],
+        renderChartExportCanvas({
+            canvas,
+            viewport,
             domains,
-            { left: plotLeft, top: plotTop, width: plotWidth, height: plotHeight },
-            scale,
-            accentStroke,
-        );
-        ctx.restore();
-
-        const fontSize = renderExportAxes(
-            ctx,
-            domains,
-            { left: plotLeft, top: plotTop, width: plotWidth, height: plotHeight },
-            scale,
-            { border, borderHi, textDim },
-        );
-
-        renderExportDecorations(
-            ctx,
-            { width, height },
-            { left: plotLeft, top: plotTop, width: plotWidth, height: plotHeight },
-            scale,
-            fontSize,
-            { surface: surface2, border, text, textDim },
-            { title: this._chartTitle, xAxis: this._xAxisLabel, yAxis: this._yAxisLabel },
-            this._getLegendEntries(),
-        );
-
-        if (includeDrawings) {
-            this._renderDrawingsToCtx(ctx, { x: width / cssWidth, y: height / cssHeight });
-        }
-        ctx.restore();
-    }
-
-    private _renderDrawingsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
-        this._drawingController?.render(ctx, scale);
+            grid: this._updateCurrentGrid(),
+            series: this._lastSeriesList ?? [],
+            labels: { title: this._chartTitle, xAxis: this._xAxisLabel, yAxis: this._yAxisLabel },
+            legendEntries: this._getLegendEntries(),
+            renderDrawings: includeDrawings ? (ctx, scale) => this._drawingController?.render(ctx, scale) : undefined,
+        });
     }
 
 }
