@@ -6,7 +6,7 @@ import { bindInfoPopovers } from '../../ui/infoPopovers.js';
 import { initHeatmapHelp } from './help.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { clusterColumns, type Cluster } from '../../utils/correlationClustering.js';
-import { initToolbarOverflow } from '../../features/scatter/toolbarOverflow.js';
+import { initToolbarOverflow } from '../scatter/index.js';
 import {
     getCorrelationModeGuide,
     getCorrelationModeLabel,

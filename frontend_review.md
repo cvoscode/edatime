@@ -104,6 +104,13 @@ Complete: FFT and Timeseries layout/lifecycle tests now live with their features
 
 ### Next: platform and feature-boundary consolidation
 
+### Completed: Scatter public feature surface
+
+- Added `features/scatter/index.ts` for page initialization and the two supported shared Scatter capabilities: grid metrics and toolbar overflow setup.
+- Updated page composition, the dataset bootstrap test seam, the ECharts adapter, and Heatmap to consume Scatter through that public surface rather than internal modules.
+
+### Next: platform and feature-boundary consolidation
+
 Continue replacing cross-feature deep imports with small public surfaces, then strengthen architecture checks once the remaining direct seams have been migrated.
 
 ## Target Architecture

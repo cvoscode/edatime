@@ -66,7 +66,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         // an unsightly flash of unstyled content on first navigation.
         cssModules: ['scatter'],
         async load(deps) {
-            const { initScatterPage } = await import('../features/scatter/page.js');
+            const { initScatterPage } = await import('../features/scatter/index.js');
             const metadata = deps.workspace.getSnapshot().dataset.metadata;
             return { init: () => metadata ? initScatterPage(metadata, { workspace: deps.workspace }) : undefined };
         },
