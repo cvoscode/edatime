@@ -155,6 +155,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Added direct unit coverage for this policy while retaining the existing DataChart legend characterization tests.
 - Extracted robust Y-range normalization, bounds calculation, and spike-detection suggestion policy with direct tests; rendering ownership remains in DataChart.
 - Extracted viewport-to-percent zoom conversion with direct boundary tests; chart rendering continues to own application of the computed range.
+- Extracted display Y-range padding and non-negative floor policy with direct tests; DataChart now only applies the resulting axis option.
 
 ## Target Architecture
 

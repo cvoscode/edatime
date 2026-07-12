@@ -101,6 +101,7 @@ import {
 import { ChartOverlays } from './chartOverlays.js';
 import { clampLegendPosition, isShiftOnlyGesture } from './legendInteraction.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
+import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
     DEFAULT_CHART_GRID,
     computeChartGrid,
@@ -768,29 +769,9 @@ export class DataChart {
             type: 'value',
             tickFormatter: (value: number) => formatTwoDecimals(value),
         };
-        const hasUserY = Number.isFinite(this._yMin) && Number.isFinite(this._yMax) && this._yMax! > this._yMin!;
-        if (hasUserY) {
-            const span = this._yMax! - this._yMin!;
-            const padding = span === 0 ? Math.max(1, Math.abs(this._yMax!) * 0.05) : span * 0.05;
-            const lower = this._stackFromZero ? Math.max(0, this._yMin!) : this._yMin!;
-            option.min = lower - (this._stackFromZero ? 0 : padding);
-            option.max = this._yMax! + padding;
-            return option;
-        }
         const displayBounds = this._computeRobustDisplayBounds();
-        const baseMin = displayBounds?.min ?? this._lastDataYMin;
-        const baseMax = displayBounds?.max ?? this._lastDataYMax;
-        if (Number.isFinite(baseMin) && Number.isFinite(baseMax) && baseMax! > baseMin!) {
-            const span = baseMax! - baseMin!;
-            const padding = span === 0 ? Math.max(1, Math.abs(this._lastDataYMax!) * 0.05) : span * 0.05;
-            const lower = this._stackFromZero ? Math.max(0, baseMin!) : baseMin!;
-            const shouldClampToNonNegativeFloor = this._stackFromZero
-                || (baseMin! >= 0 && (this._lastDataYMin ?? baseMin!) >= 0);
-            option.min = shouldClampToNonNegativeFloor
-                ? Math.max(0, lower - (this._stackFromZero ? 0 : padding))
-                : lower - padding;
-            option.max = baseMax! + padding;
-        }
+        const range = computeDisplayYRange({ userMin: this._yMin, userMax: this._yMax, dataMin: this._lastDataYMin, dataMax: this._lastDataYMax, robustMin: displayBounds?.min ?? null, robustMax: displayBounds?.max ?? null, stackFromZero: this._stackFromZero });
+        if (range) { option.min = range.min; option.max = range.max; }
         return option;
     }
 
