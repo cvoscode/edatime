@@ -190,7 +190,8 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Bound Spectrogram page controls and dynamically attached colorbar-drag listeners to the page runtime's teardown scope; the runtime now releases them on unmount, with regression coverage for detached controls.
 - Extracted window/hop-size normalization and preset resolution into `spectrogramControls`, so custom-value bounds and fractional-hop semantics are directly tested independently of DOM wiring.
 - Extracted the pure ECharts heatmap option/view-model builder into `spectrogramChartOptions`; it owns palette application, axes, zoom defaults, progressive rendering, and compact tooltip formatting, while the runtime retains data/cache and page-state orchestration.
-- Next, separate chart lifecycle and control wiring from the remaining runtime rendering orchestration.
+- Extracted colorbar presentation and pointer-range interaction into `spectrogramColorbar`; it owns global-palette display, selected-range handles, RAF-coalesced drag updates, reset, and disposal while the runtime supplies filtered data and redraws.
+- Next, separate chart lifecycle and compute/control orchestration from the remaining runtime rendering flow.
 
 ### Completed: global continuous color-scale ownership
 
