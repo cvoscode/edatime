@@ -58,11 +58,6 @@ interface DrawItem {
     endY: number;
 }
 
-interface LegendPosition {
-    left: number;
-    top: number;
-}
-
 interface LegendDragState {
     pointerId: number;
     startClientX: number;
@@ -93,7 +88,7 @@ import {
     initCtrlPan,
 } from './chartInteractions.js';
 import { ChartOverlays } from './chartOverlays.js';
-import { buildLegendEntries, clampLegendPosition, isShiftOnlyGesture, LegendWindowListenerScope } from './legendInteraction.js';
+import { buildLegendEntries, clampLegendPosition, isShiftOnlyGesture, LegendWindowListenerScope, type LegendPosition } from './legendInteraction.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
