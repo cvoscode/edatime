@@ -89,7 +89,7 @@ vi.mock('../../utils/bindExportButtons.js', () => ({
     bindExportButtons: vi.fn(),
 }));
 
-vi.mock('../../app/pageLifecycle.js', () => ({
+vi.mock('../../platform/pageLifecycle.js', () => ({
     createPageLifecycle: vi.fn(({ page, init, onVisible, onEveryPageChange }) => {
         // Track the handler so tests can clean it up between runs.
         const handler = (event: Event) => {

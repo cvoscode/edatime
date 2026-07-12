@@ -1,3 +1,5 @@
+import { createLifecycleScope } from './lifecycleScope.js';
+
 // Shared page lifecycle wiring.
 //
 // Replaces repeated patterns like:
@@ -95,4 +97,3 @@ export function createPageLifecycle(options: PageLifecycleOptions): () => void {
     scope.listen(window, 'edatime:page-change', handler);
     return () => scope.dispose();
 }
-import { createLifecycleScope } from '../platform/lifecycleScope.js';

@@ -53,7 +53,7 @@ vi.mock('echarts', () => ({
     init: (...args: unknown[]) => echartsInitMock(...(args as Parameters<typeof echartsInitMock>)),
 }));
 
-vi.mock('../../app/pageLifecycle.js', () => ({
+vi.mock('../../platform/pageLifecycle.js', () => ({
     createPageLifecycle: vi.fn(({ page, init, onVisible, onEveryPageChange }) => {
         try { init?.(); } catch (error) { console.error('init threw:', error); }
         return () => {

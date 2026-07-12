@@ -1,4 +1,4 @@
-import { createPageLifecycle } from '../app/pageLifecycle.js';
+import { createPageLifecycle } from './pageLifecycle.js';
 import {
     createEmptyStateController,
     type EmptyStateController,

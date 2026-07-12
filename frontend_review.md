@@ -69,9 +69,15 @@ The next feature-directory migration should apply the same controller/runtime/he
 - Updated every feature consumer—timeseries, FFT, spectrogram, heatmap, scatter, causal, and drift—to depend on the feature-neutral platform surface.
 - Preserved lifecycle registration, empty/loading state behavior, deferred export binding, and stale-request cancellation characterization coverage while removing the retired page-oriented shared owner.
 
-### Next: application lifecycle platform ownership
+### Completed: application lifecycle platform ownership
 
-Move the remaining page-lifecycle primitive from `app/` into `platform/`, update the platform runtime and its tests, and then review the remaining `pages/` utilities for actual shared-platform versus feature ownership.
+- Moved the page-change lifecycle primitive and its characterization tests from `app/` to `platform/`.
+- Updated the platform runtime and the page-level test doubles to use the platform-owned lifecycle surface.
+- Kept listener disposal, one-time initialization, visibility callbacks, and every-page callback semantics covered while removing the lifecycle dependency from application composition.
+
+### Next: shared utility ownership review
+
+Review the remaining `pages/` utilities and move only true shared platform helpers out of that directory; feature-specific code must move to its owning feature. For each seam, preserve the current contract and characterization coverage before deleting the retired owner.
 
 ## Target Architecture
 
