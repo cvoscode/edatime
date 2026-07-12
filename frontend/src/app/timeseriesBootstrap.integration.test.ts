@@ -159,20 +159,28 @@ vi.mock('../bootstrap/sessionBootstrap.js', () => ({
     startSessionPersistence: startSessionPersistenceMock,
 }));
 
-vi.mock('../store/index.js', () => ({
+vi.mock('../store/chartState.js', () => ({
     chartState: { chart: null, stackFromZero: false },
-    datasetState: { metadata: null },
     initChartStatePrefs: vi.fn(),
-    setAdaptiveFilterColumn: setAdaptiveFilterColumnMock,
     setChartInstance: vi.fn(),
+    setViewport: setViewportMock,
+}));
+
+vi.mock('../store/datasetState.js', () => ({
+    datasetState: { metadata: null },
     setDatasetRevision: vi.fn(),
     setMetadata: vi.fn(),
     setNumericCols: setNumericColsMock,
+}));
+
+vi.mock('../store/runtimeState.js', () => ({
+    runtimeState: {},
+}));
+
+vi.mock('../store/uiState.js', () => ({
+    setAdaptiveFilterColumn: setAdaptiveFilterColumnMock,
     setSelectedCols: setSelectedColsMock,
-    setStackFromZero: vi.fn(),
-    setViewport: setViewportMock,
     uiState: { selectedCols: [] },
-    store: { subscribe: vi.fn(() => vi.fn()) },
 }));
 
 describe('app -> timeseries bootstrap wiring', () => {

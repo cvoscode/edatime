@@ -52,20 +52,10 @@ import {
 import { configureExportControls, exportChartFilteredData, exportChartFilteredParquet } from './ui/exportControls.js';
 import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, ChartInstance, ViewSnapshot } from './types.js';
 
-import {
-    chartState,
-    datasetState,
-    initChartStatePrefs,
-    setAdaptiveFilterColumn,
-    setChartInstance,
-    setDatasetRevision,
-    setMetadata,
-    setNumericCols,
-    setSelectedCols,
-    setViewport,
-    runtimeState,
-    uiState,
-} from './store/index.js';
+import { chartState, initChartStatePrefs, setChartInstance, setViewport } from './store/chartState.js';
+import { datasetState, setDatasetRevision, setMetadata, setNumericCols } from './store/datasetState.js';
+import { runtimeState } from './store/runtimeState.js';
+import { setAdaptiveFilterColumn, setSelectedCols, uiState } from './store/uiState.js';
 
 const _appCleanups: Array<() => void> = [];
 const runtime = createAppRuntime();
