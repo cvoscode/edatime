@@ -19,7 +19,7 @@ import { DEBUG, dbg, dbgGroup } from './debug.js';
 import { showBootstrapError } from './ui/errorUI.js';
 import { installWindowsWebGpuRequestAdapterWorkaround } from './utils/platform.js';
 import { getAnalyticsChipColor } from './platform/analyticsColumns.js';
-import { sanitizeSelectedColumns } from './features/timeseries/columnSelection.js';
+import { sanitizeSelectedColumns, createTimeseriesModule } from './features/timeseries/index.js';
 // `initScatterPage` lives behind the scatter feature entrypoint and is
 // dynamically imported on first navigation. Keeping the import out of
 // app.ts ensures scatter's heavy chunks (echarts, chartgpu, apache-arrow)
@@ -42,7 +42,6 @@ import {
 } from './app/bootstrap/chartBootstrap.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
-import { createTimeseriesModule } from './features/timeseries/module.js';
 import { startSessionPersistence } from './bootstrap/sessionBootstrap.js';
 import {
     updateAnalysisZoom, updateAnalysisYRange,

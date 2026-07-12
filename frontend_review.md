@@ -118,6 +118,13 @@ Complete: FFT and Timeseries layout/lifecycle tests now live with their features
 
 ### Next: platform and feature-boundary consolidation
 
+### Completed: Timeseries public feature surface
+
+- Added `features/timeseries/index.ts` as the only Timeseries surface needed by application composition: module creation and selected-column sanitation.
+- Updated the application shell and its bootstrap characterization test to use the public surface instead of deep Timeseries imports.
+
+### Next: platform and feature-boundary consolidation
+
 Continue replacing cross-feature deep imports with small public surfaces, then strengthen architecture checks once the remaining direct seams have been migrated.
 
 ## Target Architecture

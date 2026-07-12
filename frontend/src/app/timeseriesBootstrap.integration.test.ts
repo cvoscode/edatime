@@ -133,7 +133,7 @@ vi.mock('../utils/pageBootstrap.js', () => ({
     pageNeedsDatasetBootstrap: vi.fn(() => false),
 }));
 
-vi.mock('../features/timeseries/module.js', () => ({
+vi.mock('../features/timeseries/index.js', () => ({
     createTimeseriesModule: createTimeseriesModuleMock,
 }));
 
