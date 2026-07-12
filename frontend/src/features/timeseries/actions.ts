@@ -9,18 +9,17 @@
  */
 
 import {
-    clearScatterViewSnapshots,
-    chartState,
-    datasetState,
+    type ProfileFilterCategory,
     setAdaptiveLineFilters,
     setColumnRanges,
     setFilterText,
     setProfileFilterCategory,
     setProfileFilterText,
-    setViewport,
-    type ProfileFilterCategory,
     uiState,
-} from '../../store/index.js';
+} from '../../store/uiState.js';
+import { chartState, setViewport } from '../../store/chartState.js';
+import { datasetState } from '../../store/datasetState.js';
+import { clearScatterViewSnapshots } from '../../store/scatterState.js';
 import { debounce } from '../../utils/function.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 

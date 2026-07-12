@@ -10,11 +10,11 @@
  */
 import { formatAnalysisNumber } from '../../utils/format.js';
 import {
-    chartState,
     setAdaptiveLineFilters,
     setPendingAdaptivePoint,
     uiState,
-} from '../../store/index.js';
+} from '../../store/uiState.js';
+import { chartState } from '../../store/chartState.js';
 import { RangeControls, RangeControlItem } from '../../ui/composites/RangeControls.js';
 import type { FilterWorkspace } from './selectionIntent.js';
 import { openFilterForColumn } from './filterModalService.js';

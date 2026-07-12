@@ -7,14 +7,14 @@
  * so the domain-to-item transformation stays testable and isolated.
  */
 import {
-    chartState,
-    datasetState,
     getSeriesColor,
     setAdaptiveFilterColumn,
     setPendingAdaptivePoint,
     setSeriesColor,
     uiState,
-} from '../../store/index.js';
+} from '../../store/uiState.js';
+import { chartState } from '../../store/chartState.js';
+import { datasetState } from '../../store/datasetState.js';
 import { ensureAdaptiveTargetStillValid } from './columnSelection.js';
 import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace } from './selectionIntent.js';
 import { openFilterForColumn } from './filterModalService.js';

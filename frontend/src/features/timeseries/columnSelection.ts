@@ -5,10 +5,10 @@
  * presentation and event wiring, while selection logic lives here.
  */
 import {
-    datasetState,
     setAdaptiveFilterColumn,
     uiState,
-} from '../../store/index.js';
+} from '../../store/uiState.js';
+import { datasetState } from '../../store/datasetState.js';
 import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace } from './selectionIntent.js';
 
 /**

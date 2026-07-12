@@ -5,7 +5,8 @@
  * Delegated from buildColumnToggles so the chip-list and color-control
  * concerns stay cleanly separated.
  */
-import { datasetState, setSelectedColorColumn, uiState } from '../../store/index.js';
+import { datasetState } from '../../store/datasetState.js';
+import { setSelectedColorColumn, uiState } from '../../store/uiState.js';
 import { ColorBySelect } from '../../ui/composites/ColorBySelect.js';
 
 export interface ColorByControlOptions {

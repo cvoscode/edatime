@@ -1,6 +1,9 @@
 import { formatAnalysisNumber } from '../../utils/format.js';
 import { computeBounds } from '../../services/timeseries/filtering.js';
-import { chartState, datasetState, runtimeState, setColumnRanges, uiState } from '../../store/index.js';
+import { chartState } from '../../store/chartState.js';
+import { datasetState } from '../../store/datasetState.js';
+import { runtimeState } from '../../store/runtimeState.js';
+import { setColumnRanges, uiState } from '../../store/uiState.js';
 import { buildRangeControls } from './rangeControls.js';
 import { ColumnFilterModal } from '../../ui/composites/ColumnFilterModal.js';
 import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';

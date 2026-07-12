@@ -1,4 +1,4 @@
-import { setSelectedCols } from '../../store/index.js';
+import { setSelectedCols } from '../../store/uiState.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 export type SelectionWorkspace = Pick<WorkspaceStore, 'getSnapshot' | 'setSelection'>;

@@ -12,9 +12,9 @@
  */
 
 import {
-    datasetState,
     uiState,
-} from '../../store/index.js';
+} from '../../store/uiState.js';
+import { datasetState } from '../../store/datasetState.js';
 import { renderSeriesChipList } from '../../ui/index.js';
 import { sanitizeSelectedColumns, ensureAdaptiveTargetStillValid } from './columnSelection.js';
 import { buildRangeControls } from './rangeControls.js';
