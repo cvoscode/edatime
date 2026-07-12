@@ -169,6 +169,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted finite-point filtering, visibility preservation, colorized-series expansion, marker annotations, and data-domain calculation into `timeSeriesDataModel`; `DataChart` now consumes an explicit model when applying ChartGPU options.
 - Extracted deterministic ChartGPU option assembly into `timeSeriesChartOptions`, including the x-domain/tick contract, tooltip hook, legend policy, and series/annotation hand-off.
 - Extracted export viewport sizing and padded export-domain policy into `chartExportLayout`, with direct boundary coverage; `DataChart` now delegates this non-rendering export setup.
+- Extracted export line-series painting into `chartExportSeriesRenderer`, including visibility, finite-point filtering, coordinate projection, and stroke policy.
 
 ### Next: DataChart renderer seams
 

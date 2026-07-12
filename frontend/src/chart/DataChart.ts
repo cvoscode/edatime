@@ -61,6 +61,7 @@ import { renderColorScaleLegend } from './colorScaleLegend.js';
 import { buildTimeSeriesDataModel } from './timeSeriesDataModel.js';
 import { buildTimeSeriesChartOptions } from './timeSeriesChartOptions.js';
 import { getChartExportDomains, getChartExportViewport, type ChartExportDomains, type ChartExportViewport } from './chartExportLayout.js';
+import { renderExportLineSeries } from './chartExportSeriesRenderer.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
@@ -907,28 +908,14 @@ export class DataChart {
         ctx.beginPath();
         ctx.rect(plotLeft, plotTop, plotWidth, plotHeight);
         ctx.clip();
-        const seriesList = Array.isArray(this._lastSeriesList) ? this._lastSeriesList : [];
-        for (const s of seriesList) {
-            if (!s || s.type !== 'line') continue;
-            if (s.visible === false) continue;
-            const pts = Array.isArray(s.data) ? s.data : [];
-            if (pts.length === 0) continue;
-            ctx.beginPath();
-            ctx.strokeStyle = s.color || accentStroke;
-            ctx.lineWidth = 1.5 * scale;
-            ctx.lineJoin = 'round';
-            ctx.lineCap = 'round';
-            let started = false;
-            for (const p of pts) {
-                const x = Number(p?.[0]);
-                const y = Number(p?.[1]);
-                if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-                const px = plotLeft + ((x - domains.xMin) / xSpan) * plotWidth;
-                const py = plotBottom - ((y - domains.yMin) / ySpan) * plotHeight;
-                if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
-            }
-            if (started) ctx.stroke();
-        }
+        renderExportLineSeries(
+            ctx,
+            Array.isArray(this._lastSeriesList) ? this._lastSeriesList : [],
+            domains,
+            { left: plotLeft, top: plotTop, width: plotWidth, height: plotHeight },
+            scale,
+            accentStroke,
+        );
         ctx.restore();
 
         // Axes
