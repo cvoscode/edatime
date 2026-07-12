@@ -22,16 +22,12 @@ import {
     type ClipMode,
     type ScaleMode,
 } from '../../utils/spectralScaling.js';
-import {
-    formatFrequencyInUnit,
-    pickFrequencyAxisUnit,
-} from '../../utils/spectralPresets.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { toast } from '../../utils/toast.js';
 import { getSetting } from '../../utils/settings.js';
 import { paletteForColorScale } from '../../utils/colorScales.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
-import { findDominantFrequencyBand, formatSpectrogramTime } from './spectrogramAnalysis.js';
+import { findDominantFrequencyBand } from './spectrogramAnalysis.js';
 import {
     type SpectrogramMode,
 } from './spectrogramPointFilter.js';
@@ -42,6 +38,7 @@ import {
     type SpectrogramGridModel,
 } from './spectrogramGridModel.js';
 import { resolveSpectrogramHopSize, resolveSpectrogramWindowSize } from './spectrogramControls.js';
+import { buildSpectrogramChartOptions } from './spectrogramChartOptions.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
@@ -547,113 +544,15 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 const scaleLabel = activeScaleLabel();
                 const points = getVisibleSpectrogramPoints(cachedGrid, mode, colorFilterRange, currentScaleBounds);
 
-                const xTickInterval = Math.max(0, Math.ceil(timeAxis.length / 8) - 1);
-                const yTickInterval = Math.max(0, Math.floor(freqAxis.length / 10) - 1);
-                const maxFrequency = freqAxis.reduce((max, value) => Math.max(max, Number(value) || 0), 0);
-                const frequencyUnit = pickFrequencyAxisUnit(maxFrequency);
-                const formatFrequencyForAxis = (value: number) => formatFrequencyInUnit(value, frequencyUnit);
-                const totalSpanMs = Math.max(0, Number(timeAxis[timeAxis.length - 1] ?? 0) - Number(timeAxis[0] ?? 0));
-
-                chart.setOption({
-                    backgroundColor: 'transparent',
-                    animation: false,
-                    grid: { left: 104, right: 40, top: 36, bottom: 88 },
-                    toolbox: {
-                        right: 12,
-                        feature: {
-                            restore: { title: 'Reset zoom' },
-                            saveAsImage: { title: 'Save image' },
-                        },
-                    },
-                    tooltip: {
-                        trigger: 'item',
-                        backgroundColor: 'rgba(8, 12, 20, 0.94)',
-                        borderColor: 'rgba(126, 158, 212, 0.28)',
-                        textStyle: { color: '#eef4ff' },
-                        formatter: (params: any) => {
-                            const value = params?.value || [];
-                            const xIndex = Number(value[0]);
-                            const yIndex = Number(value[1]);
-                            const displayMagnitude = Number(value[2]);
-                            const rawMagnitude = Number(value[3]);
-                            const timeMs = Number(timeAxis[xIndex]);
-                            const freq = Number(freqAxis[yIndex]);
-                            return [
-                                `<strong>${spectrogramResult?.column || 'Spectrogram'}</strong>`,
-                                `Time: ${formatSpectrogramTime(timeMs)}`,
-                                `Frequency: ${formatFrequencyForAxis(freq)}`,
-                                `Intensity: ${displayMagnitude.toFixed(4)}${logScale ? ' log10' : ` (${scaleLabel})`}`,
-                                `Raw magnitude: ${rawMagnitude.toExponential(4)}`,
-                            ].join('<br>');
-                        },
-                    },
-                    xAxis: {
-                        type: 'category',
-                        data: timeAxis,
-                        name: 'Time',
-                        nameLocation: 'middle',
-                        nameGap: 48,
-                        axisLabel: {
-                            color: '#9fb1d1',
-                            rotate: totalSpanMs > 48 * 60 * 60_000 ? 0 : 15,
-                            interval: xTickInterval,
-                            formatter: (value: string | number) => {
-                                const date = new Date(Number(value));
-                                if (totalSpanMs > 48 * 60 * 60_000) {
-                                    return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
-                                }
-                                return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-                            },
-                        },
-                        splitLine: { show: false },
-                    },
-                    yAxis: {
-                        type: 'category',
-                        data: freqAxis,
-                        name: `Frequency (${frequencyUnit})`,
-                        nameLocation: 'middle',
-                        nameGap: 84,
-                        axisLabel: {
-                            color: '#9fb1d1',
-                            interval: yTickInterval,
-                            formatter: (value: string | number) => formatFrequencyForAxis(Number(value)),
-                        },
-                        splitLine: { show: false },
-                    },
-                    visualMap: {
-                        show: false,
-                        min: minValue,
-                        max: maxValue,
-                        calculable: false,
-                        inRange: {
-                            color: [...paletteForColorScale(getSetting('colorScale'))],
-                        },
-                    },
-                    dataZoom: [
-                        {
-                            type: 'inside', xAxisIndex: 0, filterMode: 'none',
-                            zoomOnMouseWheel: false, moveOnMouseMove: false, moveOnMouseWheel: false,
-                        },
-                        {
-                            type: 'inside', yAxisIndex: 0, filterMode: 'none',
-                            zoomOnMouseWheel: false, moveOnMouseMove: false, moveOnMouseWheel: false,
-                        },
-                    ],
-                    series: [{
-                        name: spectrogramResult.column,
-                        type: 'heatmap',
-                        // Chunked rendering keeps the heatmap responsive
-                        // during a visualMap drag and on large datasets.
-                        // The default (`progressive: 0`) does a single
-                        // synchronous draw of every cell, which is the
-                        // main cause of the perceived "sluggish" feel
-                        // when dragging the colorscale handles.
-                        progressive: 4000,
-                        progressiveThreshold: 8000,
-                        emphasis: { itemStyle: { borderColor: '#ffffff', borderWidth: 1 } },
-                        data: points,
-                    }],
+                const { option, formatFrequency } = buildSpectrogramChartOptions({
+                    result: spectrogramResult,
+                    points,
+                    bounds: currentScaleBounds,
+                    logScale,
+                    scaleLabel,
+                    palette: paletteForColorScale(getSetting('colorScale')),
                 });
+                chart.setOption(option);
 
                 const dominantBand = findDominantFrequencyBand(spectrogramResult);
                 if (summaryEl) {
@@ -668,7 +567,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         scaleModeLabel(spectrogramAppliedScaleMode, spectrogramAppliedClipMode, spectrogramAppliedClipParam),
                     ];
                     if (dominantBand) {
-                        summaryParts.push(`Peak ${formatFrequencyForAxis(dominantBand.dominantHz)}`);
+                        summaryParts.push(`Peak ${formatFrequency(dominantBand.dominantHz)}`);
                     }
                     summaryEl.setAttribute('aria-label', summaryParts.join(' · '));
                     syncSpectrogramSummary();
