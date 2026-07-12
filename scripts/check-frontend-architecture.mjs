@@ -140,6 +140,8 @@ for (const file of files) {
         add(file, 'import from components/ is deprecated — use ui/ instead', lineOf(text, match.index ?? 0));
       } else if (/store\/appStateCompat(\.js)?$/.test(src) && !ALLOWED_APP_STATE_COMPAT_IMPORTS.has(rel)) {
         add(file, 'import from store/appStateCompat.ts requires an explicit architecture-check allowlist entry', lineOf(text, match.index ?? 0));
+      } else if (!isLegacyState && /store\/index(\.js)?$/.test(src)) {
+        add(file, 'production modules must import focused store slices instead of store/index.js', lineOf(text, match.index ?? 0));
       }
     }
   }
