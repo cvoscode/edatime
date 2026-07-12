@@ -139,6 +139,14 @@ Complete: FFT and Timeseries layout/lifecycle tests now live with their features
 
 ### Next: platform and feature-boundary consolidation
 
+### Completed: UI feature-boundary guard
+
+- Added public surfaces for Data Mutation and Export, and expanded the Timeseries surface for its supported filter-modal capability.
+- Updated shared UI consumers to use feature indexes only.
+- Added an architecture rule rejecting production `ui/*` imports of feature internals, preventing this dependency direction from returning.
+
+### Next: platform and feature-boundary consolidation
+
 Continue replacing cross-feature deep imports with small public surfaces, then extend the architecture checker once the remaining direct seams have been migrated.
 
 ## Target Architecture

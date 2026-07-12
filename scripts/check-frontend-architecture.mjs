@@ -186,6 +186,19 @@ for (const file of files) {
     }
   }
 
+  // Rule 13: shared UI may compose a feature only through that feature's
+  // public index. UI components are reused across features, so importing an
+  // internal controller would make the feature boundary directional again.
+  if (/^frontend\/src\/ui\//.test(rel) && !isTest) {
+    const importRe = /from\s+['"]([^'"]+)['"]/g;
+    for (const match of text.matchAll(importRe)) {
+      const src = match[1];
+      if (/^\.\.\/features\//.test(src) && !/\/index(?:\.js)?$/.test(src)) {
+        add(file, 'ui/* must consume features through their public index surface', lineOf(text, match.index ?? 0));
+      }
+    }
+  }
+
   // Rule 10: app/* must not import from services/api/* except for approved bootstrap helpers.
   // app/* is the composition root — it should not own transport.
   // Approved bootstrap helpers legitimately use services/api for lazy loading and init coordination.

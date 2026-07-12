@@ -1,6 +1,6 @@
 import { uiState } from '../store/uiState.js';
 import { createModalController } from './shell/createModalController';
-import { createDataMutationFeature } from '../features/dataMutation/entrypoint.js';
+import { createDataMutationFeature } from '../features/dataMutation/index.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
 
 const dataMutationFeature = createDataMutationFeature();

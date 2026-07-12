@@ -12,7 +12,7 @@
  * data for the new range, leaving the canvas empty).
  */
 
-import { createExportFeature, type ExportFeature, type ExportFeatureDeps } from '../features/export/entrypoint.js';
+import { createExportFeature, type ExportFeature, type ExportFeatureDeps } from '../features/export/index.js';
 
 let exportFeature: ExportFeature | null = null;
 

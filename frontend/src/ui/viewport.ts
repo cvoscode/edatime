@@ -15,7 +15,7 @@ import { dbg, dbgGroup } from '../debug.js';
 import { updateAnalysisZoom, updateAnalysisYRange } from './analysisStatus.js';
 import type { ViewSnapshot } from '../types.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
-import { hasFilterModalOpener, openFilterForColumn } from '../features/timeseries/filterModalService.js';
+import { hasFilterModalOpener, openFilterForColumn } from '../features/timeseries/index.js';
 
 // Keep the zoom-range badge in sync with the store regardless of which
 // path mutates `chartState.currentStart/currentEnd` or `chartState.initialView`.
