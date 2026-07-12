@@ -50,6 +50,8 @@ interface SpectrogramPageDeps {
 // ── Module-level chart state ─────────────────────────────────────────────────
 let spectrogramChart: any = null;
 let spectrogramResizeObserver: ResizeObserver | null = null;
+let spectrogramInteractionAbort: AbortController | null = null;
+let spectrogramSelectionBox: HTMLElement | null = null;
 let spectrogramResult: SpectrogramResult | null = null;
 let spectrogramRenderError: string | null = null;
 let spectrogramAppliedScaleMode: ScaleMode = 'none';
@@ -57,6 +59,10 @@ let spectrogramAppliedClipMode: ClipMode = 'none';
 let spectrogramAppliedClipParam = 0.5;
 
 export function __resetSpectrogramChartRuntimeForTests(): void {
+    spectrogramInteractionAbort?.abort();
+    spectrogramInteractionAbort = null;
+    spectrogramSelectionBox?.remove();
+    spectrogramSelectionBox = null;
     spectrogramResizeObserver?.disconnect();
     spectrogramResizeObserver = null;
     try {
@@ -206,6 +212,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 }
                 const echarts = await import('echarts');
                 spectrogramChart = echarts.init(chartEl, undefined, { renderer: 'canvas' });
+                spectrogramInteractionAbort?.abort();
+                spectrogramInteractionAbort = new AbortController();
+                const interactionOptions = { signal: spectrogramInteractionAbort.signal };
+                spectrogramSelectionBox?.remove();
                 spectrogramResizeObserver?.disconnect();
                 spectrogramResizeObserver = new ResizeObserver(() => spectrogramChart?.resize());
                 spectrogramResizeObserver.observe(chartEl);
@@ -220,6 +230,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     + 'border:1px solid rgba(0,212,255,0.9);background:rgba(0,212,255,0.15);'
                     + 'pointer-events:none;display:none;z-index:5';
                 chartEl.appendChild(selectionBox);
+                spectrogramSelectionBox = selectionBox;
 
                 let dragStart: { x: number; y: number; pid: number } | null = null;
                 let dragEnd = { x: 0, y: 0 };
@@ -234,7 +245,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     dragStart = { x, y, pid: event.pointerId };
                     dragEnd = { x, y };
                     try { chartEl.setPointerCapture(event.pointerId); } catch { }
-                });
+                }, interactionOptions);
 
                 chartEl.addEventListener('pointermove', (event: PointerEvent) => {
                     if (!dragStart || event.pointerId !== dragStart.pid) return;
@@ -247,7 +258,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     selectionBox.style.width = `${Math.abs(dragEnd.x - dragStart.x)}px`;
                     selectionBox.style.height = `${Math.abs(dragEnd.y - dragStart.y)}px`;
                     selectionBox.style.display = 'block';
-                });
+                }, interactionOptions);
 
                 const finishDrag = (event: PointerEvent) => {
                     if (!dragStart || event.pointerId !== dragStart.pid) return;
@@ -277,18 +288,18 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 1, start: yStartPct, end: yEndPct });
                 };
 
-                chartEl.addEventListener('pointerup', finishDrag);
+                chartEl.addEventListener('pointerup', finishDrag, interactionOptions);
                 chartEl.addEventListener('pointercancel', (event: PointerEvent) => {
                     if (dragStart?.pid === event.pointerId) {
                         dragStart = null;
                         selectionBox.style.display = 'none';
                     }
-                });
+                }, interactionOptions);
                 chartEl.addEventListener('dblclick', () => {
                     if (!spectrogramChart) return;
                     spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 0, start: 0, end: 100 });
                     spectrogramChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 1, start: 0, end: 100 });
-                });
+                }, interactionOptions);
 
                 return spectrogramChart;
             };
