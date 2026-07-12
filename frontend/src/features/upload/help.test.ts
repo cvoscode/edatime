@@ -31,7 +31,7 @@ describe('upload page help button', () => {
     });
 
     it('initUploadHelp binds the button and opens the modal on click', async () => {
-        const { initUploadHelp } = await import('./uploadPage.js');
+        const { initUploadHelp } = await import('./help.js');
         initUploadHelp();
 
         const trigger = document.getElementById('upload-help-btn') as HTMLButtonElement;
@@ -51,7 +51,7 @@ describe('upload page help button', () => {
     });
 
     it('initUploadHelp is safe to call twice (idempotent)', async () => {
-        const { initUploadHelp } = await import('./uploadPage.js');
+        const { initUploadHelp } = await import('./help.js');
         initUploadHelp();
         initUploadHelp();
         const trigger = document.getElementById('upload-help-btn') as HTMLButtonElement;

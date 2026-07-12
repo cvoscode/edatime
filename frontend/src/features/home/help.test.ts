@@ -31,7 +31,7 @@ describe('home page help button', () => {
     });
 
     it('initHomePage binds the button and opens the modal on click', async () => {
-        const { initHomePage } = await import('./homePage.js');
+        const { initHomePage } = await import('./help.js');
         initHomePage();
 
         const trigger = document.getElementById('home-help-btn') as HTMLButtonElement;
@@ -49,7 +49,7 @@ describe('home page help button', () => {
     });
 
     it('initHomePage is safe to call twice (idempotent)', async () => {
-        const { initHomePage } = await import('./homePage.js');
+        const { initHomePage } = await import('./help.js');
         const focusSpy = vi.spyOn(
             document.getElementById('home-help-btn') as HTMLButtonElement,
             'focus',

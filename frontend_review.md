@@ -75,9 +75,15 @@ The next feature-directory migration should apply the same controller/runtime/he
 - Updated the platform runtime and the page-level test doubles to use the platform-owned lifecycle surface.
 - Kept listener disposal, one-time initialization, visibility callbacks, and every-page callback semantics covered while removing the lifecycle dependency from application composition.
 
+### Completed: Home and Upload help ownership
+
+- Moved the Home and Upload page-help modules and their characterization tests into `features/home/` and `features/upload/`.
+- Updated the deferred shell loader to load feature-owned help modules directly, removing the corresponding `pages/` owners.
+- Preserved the current page-help content, idempotent event binding, and lazy subsystem behavior while moving these feature-local seams.
+
 ### Next: shared utility ownership review
 
-Review the remaining `pages/` utilities and move only true shared platform helpers out of that directory; feature-specific code must move to its owning feature. For each seam, preserve the current contract and characterization coverage before deleting the retired owner.
+Move the shared analytics-column utility and timeseries toolbar-overflow behavior out of `pages/` into their actual platform or feature owners. Preserve existing contracts and characterization coverage before deleting the retired owner.
 
 ## Target Architecture
 

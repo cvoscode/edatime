@@ -12,7 +12,7 @@
  * subsystems that live in `app/shell/`.
  */
 
-import { initPageHelp, type PageHelpContent } from '../ui/pageHelp.js';
+import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 
 /**
  * Content of the Home help modal. Kept terse + bullet-driven to match

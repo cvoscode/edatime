@@ -11,7 +11,7 @@
  * panel is initialized. The helper is idempotent so re-entry is safe.
  */
 
-import { initPageHelp, type PageHelpContent } from '../ui/pageHelp.js';
+import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 
 /**
  * Content of the Upload help modal. Two main sections walk through
