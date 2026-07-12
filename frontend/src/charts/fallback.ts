@@ -13,7 +13,7 @@ export class FallbackChart implements ChartInstance {
     private canvas: HTMLCanvasElement | null = null;
     private ctx: CanvasRenderingContext2D | null = null;
     private resizeObserver: ResizeObserver | null = null;
-    private selectionBox: HTMLElement | null = null;
+    private selectionBox: (HTMLElement & { dispose?: () => void }) | null = null;
     private onZoomCallback: ((view: ViewSnapshot, sourceKind: string) => void) | null;
     private onYRangeCallback: ((min: number, max: number, sourceKind: string) => void) | null;
     private onZoomOutCallback: (() => void) | null;
@@ -44,6 +44,8 @@ export class FallbackChart implements ChartInstance {
         const container = document.getElementById(this.containerId);
         if (!container) throw new Error('Fallback chart container not found');
 
+        this.selectionBox?.dispose?.();
+        this.selectionBox = null;
         container.innerHTML = '';
         const canvas = document.createElement('canvas');
         canvas.style.width = '100%';
@@ -254,7 +256,7 @@ export class FallbackChart implements ChartInstance {
     destroy(): void {
         this.resizeObserver?.disconnect();
         this.resizeObserver = null;
-        this.selectionBox?.remove();
+        this.selectionBox?.dispose?.();
         this.selectionBox = null;
         this.ctx = null;
         this.canvas = null;

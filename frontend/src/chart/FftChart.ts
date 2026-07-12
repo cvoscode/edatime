@@ -61,6 +61,7 @@ export class FftChart {
     private _chart: any = null;
     private _overlayCanvas: HTMLCanvasElement | null = null;
     private _overlayObserver: ResizeObserver | null = null;
+    private _selectionBox: (HTMLElement & { dispose?: () => void }) | null = null;
 
     private _xMin = 0;
     private _xMax = 0;   // 0 = "use full range"
@@ -88,6 +89,8 @@ export class FftChart {
     async init(): Promise<void> {
         const container = document.getElementById(this._containerId);
         if (!container) return;
+        this._selectionBox?.dispose?.();
+        this._selectionBox = null;
         this._container = container;
         ensureRelativePosition(container);
 
@@ -399,6 +402,8 @@ export class FftChart {
     }
 
     destroy(): void {
+        this._selectionBox?.dispose?.();
+        this._selectionBox = null;
         this._overlayObserver?.disconnect();
         this._overlayObserver = null;
         this._chart?.dispose?.();
@@ -467,7 +472,7 @@ export class FftChart {
         const container = this._container;
         if (!container) return;
 
-        initBoxZoom({
+        this._selectionBox = initBoxZoom({
             container,
             grid: FFT_GRID,
             getXRange: () => ({ min: this._getXMin(), max: this._getXMax() }),
