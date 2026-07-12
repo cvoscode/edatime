@@ -36,8 +36,8 @@ const appStateMock = {
         points: [] as [number, number][],
         lastQueryContextKey: 'current-query',
     },
-    columnRanges: {},
-    adaptiveLineFilters: [],
+    columnRanges: {} as Record<string, { from: number; to: number }>,
+    adaptiveLineFilters: [] as any[],
     metadata: null as any,
 };
 
@@ -48,6 +48,28 @@ vi.mock('../store/index.js', () => ({
     appState: appStateMock,
     setColumnRanges: setColumnRangesMock,
     setAdaptiveLineFilters: setAdaptiveLineFiltersMock,
+}));
+
+vi.mock('../store/scatterState.js', () => ({
+    scatterState: appStateMock.scatter,
+}));
+
+vi.mock('../store/uiState.js', () => ({
+    uiState: {
+        get columnRanges() { return appStateMock.columnRanges; },
+        set columnRanges(value) { appStateMock.columnRanges = value as Record<string, { from: number; to: number }>; },
+        get adaptiveLineFilters() { return appStateMock.adaptiveLineFilters; },
+        set adaptiveLineFilters(value) { appStateMock.adaptiveLineFilters = value as any[]; },
+    },
+    setColumnRanges: (...args: unknown[]) => setColumnRangesMock(...args),
+    setAdaptiveLineFilters: (...args: unknown[]) => setAdaptiveLineFiltersMock(...args),
+}));
+
+vi.mock('../store/datasetState.js', () => ({
+    datasetState: {
+        get metadata() { return appStateMock.metadata; },
+        set metadata(value) { appStateMock.metadata = value; },
+    },
 }));
 
 vi.mock('./helpers.js', () => ({

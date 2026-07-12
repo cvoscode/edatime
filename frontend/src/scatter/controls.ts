@@ -39,7 +39,9 @@ const latestBindIndex = (): number => {
     return slot.__scatterBindIndex ?? 0;
 };
 
-import { appState, setColumnRanges, setAdaptiveLineFilters } from '../store/index.js';
+import { datasetState } from '../store/datasetState.js';
+import { scatterState } from '../store/scatterState.js';
+import { setAdaptiveLineFilters, setColumnRanges, uiState } from '../store/uiState.js';
 import type { DatasetMetadata } from '../types.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import { getEl, normalizeScatterSuggestionThreshold } from './helpers.js';
@@ -117,13 +119,13 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     binSizeValue.textContent = binSizeInput.value;
     updateRangeFill(binSizeInput);
     if (suggestionThresholdInput) {
-        appState.scatter.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
-        suggestionThresholdInput.value = appState.scatter.suggestionThreshold.toFixed(2);
+        scatterState.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
+        suggestionThresholdInput.value = scatterState.suggestionThreshold.toFixed(2);
     }
-    if (suggestionThresholdValue) suggestionThresholdValue.textContent = appState.scatter.suggestionThreshold.toFixed(2);
-    if (suggestionThresholdLabel) suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${appState.scatter.suggestionThreshold.toFixed(2)})`;
+    if (suggestionThresholdValue) suggestionThresholdValue.textContent = scatterState.suggestionThreshold.toFixed(2);
+    if (suggestionThresholdLabel) suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${scatterState.suggestionThreshold.toFixed(2)})`;
     syncModeUI();
-    void cb.setScatterView(appState.scatter.activeView, { render: false });
+    void cb.setScatterView(scatterState.activeView, { render: false });
 
     const scatterViewButtons = document.querySelectorAll<HTMLButtonElement>('[data-scatter-view]');
     scatterViewButtons.forEach((btn) => {
@@ -135,8 +137,8 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
 
     const rerender = () => {
         const container = getEl('scatter-chart');
-        if (!appState.scatter.chart) return;
-        appState.scatter.chart.setOption(buildOption(appState.scatter.points, container));
+        if (!scatterState.chart) return;
+        scatterState.chart.setOption(buildOption(scatterState.points, container));
         updateColorbarUI();
         updateBinnedReadout();
         updateMarginalPlots();
@@ -146,7 +148,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     normalizationSelect.addEventListener('change', rerender);
     renderModeSelect.addEventListener('change', () => { syncModeUI(); rerender(); });
     diagonalModeSelect?.addEventListener('change', () => {
-        if (appState.scatter.activeView === 'matrix') {
+        if (scatterState.activeView === 'matrix') {
             void cb.refreshActiveScatterView();
             return;
         }
@@ -155,11 +157,11 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     colorColumnSelect?.addEventListener('change', () => { void cb.renderScatter(); });
     colorScaleSelect?.addEventListener('change', () => { rerender(); updateColorbarUI(); });
     suggestionThresholdInput?.addEventListener('input', () => {
-        appState.scatter.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
-        suggestionThresholdInput.value = appState.scatter.suggestionThreshold.toFixed(2);
-        if (suggestionThresholdValue) suggestionThresholdValue.textContent = appState.scatter.suggestionThreshold.toFixed(2);
+        scatterState.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
+        suggestionThresholdInput.value = scatterState.suggestionThreshold.toFixed(2);
+        if (suggestionThresholdValue) suggestionThresholdValue.textContent = scatterState.suggestionThreshold.toFixed(2);
         if (suggestionThresholdLabel) {
-            suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${appState.scatter.suggestionThreshold.toFixed(2)})`;
+            suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${scatterState.suggestionThreshold.toFixed(2)})`;
         }
     });
     suggestionThresholdInput?.addEventListener('change', async () => {
@@ -191,7 +193,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     matrixSizeInput?.addEventListener('input', () => {
         if (matrixSizeValue) matrixSizeValue.textContent = matrixSizeInput.value;
         updateRangeFill(matrixSizeInput);
-        if (appState.scatter.activeView === 'matrix') void cb.refreshActiveScatterView();
+        if (scatterState.activeView === 'matrix') void cb.refreshActiveScatterView();
     });
 
     // Export buttons
@@ -206,7 +208,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
 
     ySelect.addEventListener('change', async () => { updateCorrelationStats(); await cb.renderScatter(); });
     xSelect.addEventListener('change', async () => { await cb.refreshCorrelationsAndSuggestions(); await cb.renderScatter(); });
-    window.addEventListener('resize', () => { appState.scatter.chart?.resize?.(); });
+    window.addEventListener('resize', () => { scatterState.chart?.resize?.(); });
 
     const handleFilterEvent = async (requireLinkedBrush: boolean) => {
         const page = getEl('page-scatter');
@@ -275,8 +277,8 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
             // bounce via a single dedicated init call rather than reading from
             // `appState.metadata` here. That keeps the page-change handler
             // strictly an effect, not a side-channel metadata source.
-            if (!appState.scatter.metadata && appState.metadata) {
-                await cb.initScatterPage(appState.metadata as DatasetMetadata);
+            if (!scatterState.metadata && datasetState.metadata) {
+                await cb.initScatterPage(datasetState.metadata as DatasetMetadata);
             }
 
             const nextView = normalizeAnalyticsView(ev?.detail?.analyticsView);
@@ -300,23 +302,23 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
                 colorColumn: ctl.selectedColorColumn || undefined,
             });
             if (
-                appState.scatter.pageInitialized
-                && appState.scatter.activeView === nextView
-                && appState.scatter.lastQueryContextKey === queryContextKey
+                scatterState.pageInitialized
+                && scatterState.activeView === nextView
+                && scatterState.lastQueryContextKey === queryContextKey
             ) {
                 return;
             }
-            appState.scatter.lastQueryContextKey = queryContextKey;
-            appState.scatter.activeView = nextView;
-            await cb.setScatterView(appState.scatter.activeView, { render: false });
-            if (!appState.scatter.pageInitialized) {
+            scatterState.lastQueryContextKey = queryContextKey;
+            scatterState.activeView = nextView;
+            await cb.setScatterView(scatterState.activeView, { render: false });
+            if (!scatterState.pageInitialized) {
                 cb.refreshCorrelationsAndSuggestions()
                     .then(() => (nextView === 'matrix' ? cb.refreshActiveScatterView() : cb.renderScatter()))
-                    .then(() => { appState.scatter.pageInitialized = true; })
+                    .then(() => { scatterState.pageInitialized = true; })
                     .catch((err: any) => { cb.handleErr(err); });
             } else {
                 try {
-                    if (isLinkedBrushEnabled() || Object.keys(appState.columnRanges || {}).length > 0 || (appState.adaptiveLineFilters || []).length > 0) {
+                    if (isLinkedBrushEnabled() || Object.keys(uiState.columnRanges || {}).length > 0 || (uiState.adaptiveLineFilters || []).length > 0) {
                         await cb.renderScatter();
                     } else {
                         await cb.rerenderScatterFromCache(true);

@@ -9,7 +9,11 @@
  * still owned by this module as they are scatter-page specific.
  */
 
-import { appState, getScatterViewSnapshot } from '../store/index.js';
+import { appState } from '../store/index.js';
+import { chartState } from '../store/chartState.js';
+import { datasetState } from '../store/datasetState.js';
+import { getScatterViewSnapshot, scatterState } from '../store/scatterState.js';
+import { uiState } from '../store/uiState.js';
 import { buildAdaptiveLineFiltersForQueryState } from '../services/timeseries/filtering.js';
 import type { WorkspaceSnapshot } from '../workspace/workspaceStore.js';
 import { getScatterPlotMetrics } from './layout.js';
@@ -18,7 +22,6 @@ export { appState } from '../store/index.js';
 
 // Import scatterState locally as `state` for use in helper functions defined
 // in this module, and re-export it so external callers can also use it as `state`.
-import { scatterState } from '../store/index.js';
 export const state = scatterState;
 
 // Also export scatterState by its own name for new code
@@ -99,7 +102,7 @@ function isNearlyEqual(left: number, right: number): boolean {
 }
 
 function getColumnProfileBounds(column: string): { min: number; max: number } | null {
-    const profiles = Array.isArray(appState.metadata?.column_profiles) ? appState.metadata.column_profiles : [];
+    const profiles = Array.isArray(datasetState.metadata?.column_profiles) ? datasetState.metadata.column_profiles : [];
     const profile = profiles.find((entry) => entry?.name === column);
     const min = Number(profile?.min);
     const max = Number(profile?.max);
@@ -107,7 +110,7 @@ function getColumnProfileBounds(column: string): { min: number; max: number } | 
     return { min, max };
 }
 
-const collectColumnRangeFilters = (columnRanges: Record<string, { from: number; to: number }> = appState.columnRanges || {}): Array<{ column: string; from: number; to: number }> => (
+const collectColumnRangeFilters = (columnRanges: Record<string, { from: number; to: number }> = uiState.columnRanges || {}): Array<{ column: string; from: number; to: number }> => (
     Object.entries(columnRanges)
         .map(([column, range]) => {
             const from = Number(range?.from);
@@ -142,10 +145,10 @@ export function buildScatterQueryContext(
 ): ScatterQueryContext {
     const activeSnapshot = intent
         ? null
-        : getScatterViewSnapshot(appState.scatter.activeView === 'matrix' ? 'matrix' : 'plot');
-    const start = Number(intent?.viewport?.xMin ?? appState.currentStart);
-    const end = Number(intent?.viewport?.xMax ?? appState.currentEnd);
-    const hasTimeColumn = !!String(appState.metadata?.time_column || '').trim();
+        : getScatterViewSnapshot(scatterState.activeView === 'matrix' ? 'matrix' : 'plot');
+    const start = Number(intent?.viewport?.xMin ?? chartState.currentStart);
+    const end = Number(intent?.viewport?.xMax ?? chartState.currentEnd);
+    const hasTimeColumn = !!String(datasetState.metadata?.time_column || '').trim();
     const allFilters = collectColumnRangeFilters(
         intent?.filters.columnRanges as Record<string, { from: number; to: number }> | undefined
             ?? activeSnapshot?.columnRanges,
@@ -187,7 +190,7 @@ export function buildRenderSignature(controls: ScatterControls): string {
     // re-create on zoom in density mode. Including the view in the signature
     // makes the scatter page's `renderScatter` flow detect the change and
     // dispose/recreate the chart.
-    const view = appState.scatter.view;
+    const view = scatterState.view;
     return [
         controls.x || '',
         controls.y || '',
@@ -235,7 +238,7 @@ export function buildOverviewContextKey(context: Partial<ScatterQueryContext> & 
 /* ── View / zoom helpers ──────────────────────────────── */
 
 export function clampView(view: ScatterView): ScatterView {
-    const f = appState.scatter.full;
+    const f = scatterState.full;
     let xMin = Math.max(f.xMin, Math.min(f.xMax, Number(view.xMin)));
     let xMax = Math.max(f.xMin, Math.min(f.xMax, Number(view.xMax)));
     let yMin = Math.max(f.yMin, Math.min(f.yMax, Number(view.yMin)));
@@ -248,28 +251,28 @@ export function clampView(view: ScatterView): ScatterView {
 }
 
 export function applyScatterStateFromCache(resetView = true): void {
-    appState.scatter.points = Array.isArray(appState.scatter.allPoints) ? appState.scatter.allPoints : [];
+    scatterState.points = Array.isArray(scatterState.allPoints) ? scatterState.allPoints : [];
     // Note: colorValues / colorLabels are kept as-is here (may contain NaN/Infinity).
     // Filtering of non-finite color values happens in buildNormalScatterSeries so
     // that array indices stay aligned with the points array.
-    appState.scatter.colorValues = Array.isArray(appState.scatter.allColorValues) ? appState.scatter.allColorValues : null;
-    appState.scatter.colorLabels = Array.isArray(appState.scatter.allColorLabels) ? appState.scatter.allColorLabels : null;
+    scatterState.colorValues = Array.isArray(scatterState.allColorValues) ? scatterState.allColorValues : null;
+    scatterState.colorLabels = Array.isArray(scatterState.allColorLabels) ? scatterState.allColorLabels : null;
 
-    const colorExtent = computeColorExtent(appState.scatter.colorValues);
-    appState.scatter.colorMin = colorExtent?.min ?? null;
-    appState.scatter.colorMax = colorExtent?.max ?? null;
+    const colorExtent = computeColorExtent(scatterState.colorValues);
+    scatterState.colorMin = colorExtent?.min ?? null;
+    scatterState.colorMax = colorExtent?.max ?? null;
 
-    const domains = computeDomains(appState.scatter.points);
-    appState.scatter.full = { xMin: domains.xMin, xMax: domains.xMax, yMin: domains.yMin, yMax: domains.yMax };
+    const domains = computeDomains(scatterState.points);
+    scatterState.full = { xMin: domains.xMin, xMax: domains.xMax, yMin: domains.yMin, yMax: domains.yMax };
 
     if (resetView) {
-        appState.scatter.view = { ...appState.scatter.full };
-        appState.scatter.zoomHistory = [];
+        scatterState.view = { ...scatterState.full };
+        scatterState.zoomHistory = [];
     } else {
-        appState.scatter.view = clampView(appState.scatter.view);
+        scatterState.view = clampView(scatterState.view);
     }
 
-    setStats({ totalPoints: fmt.format(Number(appState.scatter.totalPoints ?? appState.scatter.points.length)) });
+    setStats({ totalPoints: fmt.format(Number(scatterState.totalPoints ?? scatterState.points.length)) });
 }
 
 /* ── Stats display ────────────────────────────────────── */
