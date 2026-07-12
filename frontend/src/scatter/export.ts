@@ -3,6 +3,7 @@
  */
 
 import { formatTwoDecimals } from '../formatUtils.js';
+import { escapeCsvField } from '../utils/csv.js';
 import {
     getEl,
     paletteForScale,
@@ -268,6 +269,8 @@ export function renderScatterExportToCanvas(canvas: HTMLCanvasElement): boolean 
 
 /* ── Data export (CSV / JSON) ─────────────────────────── */
 
+const MAX_INLINE_SCATTER_EXPORT_ROWS = 100_000;
+
 export function buildVisibleScatterRows() {
     const controls = currentControls();
     const rows: any[] = [];
@@ -298,7 +301,7 @@ export function buildVisibleScatterRows() {
 export function exportScatterData(format = 'csv'): boolean {
     const controls = currentControls();
     const rows = buildVisibleScatterRows();
-    if (rows.length === 0) return false;
+    if (rows.length === 0 || rows.length > MAX_INLINE_SCATTER_EXPORT_ROWS) return false;
 
     if (format === 'json') {
         downloadBlob(
@@ -312,8 +315,8 @@ export function exportScatterData(format = 'csv'): boolean {
     if (controls.selectedColorColumn) header.push('color');
     const lines = [header.join(',')];
     for (const row of rows) {
-        const values = [row.x, row.y, `"${String(row.x_label).replaceAll('"', '""')}"`, `"${String(row.y_label).replaceAll('"', '""')}"`];
-        if (controls.selectedColorColumn) values.push(row.color == null ? '' : String(row.color));
+        const values = [row.x, row.y, escapeCsvField(row.x_label), escapeCsvField(row.y_label)];
+        if (controls.selectedColorColumn) values.push(row.color == null ? '' : escapeCsvField(row.color));
         lines.push(values.join(','));
     }
     downloadBlob(new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }), 'edatime_scatter_filtered.csv');
