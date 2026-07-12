@@ -2,17 +2,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
     setAdaptiveLineFilters,
-    setAnomalyEnabled,
-    setAnomalyMethod,
-    setAnomalyThreshold,
     setColumnRanges,
-    setMetadata,
-    setRollingEnabled,
-    setRollingWindow,
     setSelectedColorColumn,
     setSelectedCols,
-    setViewport,
-} from '../store/index.js';
+} from '../store/uiState.js';
+import { setAnomalyEnabled, setAnomalyMethod, setAnomalyThreshold, setRollingEnabled, setRollingWindow } from '../store/analyticsState.js';
+import { setMetadata } from '../store/datasetState.js';
+import { setViewport } from '../store/chartState.js';
 import { __resetProvenanceForTests, toggleProvenance } from './provenance.js';
 
 describe('provenance', () => {

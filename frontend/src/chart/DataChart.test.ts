@@ -11,7 +11,8 @@
  *          fitYToData, resetYRange, zoomY, destroy, supportsZoomControls.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { datasetState, uiState } from '../store/index.js';
+import { datasetState } from '../store/datasetState.js';
+import { uiState } from '../store/uiState.js';
 import { DataChart } from './DataChart';
 import type { ViewSnapshot } from '../types.js';
 

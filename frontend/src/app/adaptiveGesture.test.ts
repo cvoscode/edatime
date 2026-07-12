@@ -3,10 +3,10 @@ import { initAdaptiveFilterGesture } from './adaptiveGesture.js';
 import {
     setColumnRanges,
     setAdaptiveLineFilters,
-    setChartInstance,
-    setLastFetchedData,
     setSelectedCols,
-} from '../store/index.js';
+} from '../store/uiState.js';
+import { setChartInstance } from '../store/chartState.js';
+import { setLastFetchedData } from '../store/runtimeState.js';
 import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 
 describe('adaptive filter gesture', () => {
