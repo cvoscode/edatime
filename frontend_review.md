@@ -125,7 +125,14 @@ Complete: FFT and Timeseries layout/lifecycle tests now live with their features
 
 ### Next: platform and feature-boundary consolidation
 
-Continue replacing cross-feature deep imports with small public surfaces, then strengthen architecture checks once the remaining direct seams have been migrated.
+### Completed: public composition guard
+
+- Added a source-level regression test that requires every analysis page descriptor to load a feature `index.ts` surface and keeps application composition on the Timeseries public surface.
+- This guard makes future reintroduction of the retired page-controller deep imports a test failure.
+
+### Next: platform and feature-boundary consolidation
+
+Continue replacing cross-feature deep imports with small public surfaces, then extend the architecture checker once the remaining direct seams have been migrated.
 
 ## Target Architecture
 
