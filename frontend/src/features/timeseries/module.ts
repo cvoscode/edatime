@@ -17,7 +17,7 @@ import {
     setSelectedColorColumn,
     uiState,
 } from '../../store/uiState.js';
-import { getNumericColumns, getDefaultTimeseriesColumns } from '../../pages/analyticsPageUtils.js';
+import { getNumericColumns, getDefaultTimeseriesColumns } from '../../platform/analyticsColumns.js';
 import type { DatasetMetadata, ViewSnapshot } from '../../types.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 

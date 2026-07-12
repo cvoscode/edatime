@@ -54,7 +54,7 @@ vi.mock('../utils/platform.js', () => ({
     installWindowsWebGpuRequestAdapterWorkaround: vi.fn(),
 }));
 
-vi.mock('../pages/analyticsPageUtils.js', () => ({
+vi.mock('../platform/analyticsColumns.js', () => ({
     getAnalyticsChipColor: vi.fn(() => '#fff'),
     getNumericColumns: vi.fn(() => []),
 }));

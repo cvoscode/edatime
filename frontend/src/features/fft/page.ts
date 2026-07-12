@@ -3,7 +3,7 @@ import { FftChart, type FftTrace } from '../../chart/FftChart.js';
 import { EchartsLineChart } from '../../chart/EchartsLineChart.js';
 import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanvasHTML, exportTraceCSV } from '../../utils/chartExport.js';
 import { toast } from '../../utils/toast.js';
-import { getAnalyticsChipColor, getNumericColumns } from '../../pages/analyticsPageUtils.js';
+import { getAnalyticsChipColor, getNumericColumns } from '../../platform/analyticsColumns.js';
 import { analyticsState, setSpectralFilterPreview } from '../../store/analyticsState.js';
 import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';

@@ -81,9 +81,15 @@ The next feature-directory migration should apply the same controller/runtime/he
 - Updated the deferred shell loader to load feature-owned help modules directly, removing the corresponding `pages/` owners.
 - Preserved the current page-help content, idempotent event binding, and lazy subsystem behavior while moving these feature-local seams.
 
-### Next: shared utility ownership review
+### Completed: shared utility ownership review
 
-Move the shared analytics-column utility and timeseries toolbar-overflow behavior out of `pages/` into their actual platform or feature owners. Preserve existing contracts and characterization coverage before deleting the retired owner.
+- Added direct characterization tests for numeric-column filtering, stable analytics colors, and target-aware Timeseries defaults before moving the utility.
+- Moved the shared analytics-column utility and its tests from `pages/` to `platform/`, then updated the application, FFT, Timeseries, and bootstrap-test consumers.
+- Preserved target-aware default selection and cross-feature color consistency while removing the retired page-oriented owner.
+
+### Next: timeseries toolbar-overflow ownership
+
+Move the Timeseries toolbar-overflow behavior out of `pages/` into `features/timeseries/`, preserve its lazy controller import and layout contracts, then delete the retired page-oriented owner.
 
 ## Target Architecture
 
