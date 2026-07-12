@@ -93,7 +93,11 @@ Move complete: the Timeseries toolbar-overflow controller now lives in `features
 
 ### Next: remaining page-layout test ownership
 
-Review the remaining `pages/` layout-only tests and co-locate them with their feature or stylesheet owner; do not move tests that are intentionally cross-feature layout contracts.
+Complete: FFT and Timeseries layout/lifecycle tests now live with their features, while the intentionally cross-feature spectral-toolbar layout contract lives with shared UI. The retired `pages/` directory has no remaining source or test owner.
+
+### Next: platform and feature-boundary consolidation
+
+Review current cross-feature imports and introduce small public feature surfaces where needed. Strengthen architecture checks so application composition can load feature entrypoints without deep imports, while preserving lazy-loading and the existing characterization suite.
 
 ## Target Architecture
 
