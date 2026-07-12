@@ -8,12 +8,8 @@
 import {
     uploadDataset,
 } from '../../services/api/index.js';
-import { datasetState } from '../../store/datasetState.js';
+import { datasetState, setDatasetRevision, setMetadata } from '../../store/datasetState.js';
 import { uiState } from '../../store/uiState.js';
-import {
-    setMetadata,
-    setDatasetRevision,
-} from '../../store/index.js';
 import { setProfileMode } from './preview.js';
 import { formatCount } from '../../utils/format.js';
 import { toast } from '../../utils/toast.js';

@@ -7,13 +7,8 @@
 import {
     previewUpload,
 } from '../../services/api/index.js';
-import {
-    setMetadata,
-    setPreviewSelectedColumns,
-    setPreviewTimeColumn,
-} from '../../store/index.js';
-import { datasetState } from '../../store/datasetState.js';
-import { uiState } from '../../store/uiState.js';
+import { datasetState, setMetadata } from '../../store/datasetState.js';
+import { setPreviewSelectedColumns, setPreviewTimeColumn, uiState } from '../../store/uiState.js';
 import { formatCount, formatAnalysisTime, formatToDatetimeLocal } from '../../utils/format.js';
 import { getPartialTimeRangeInputs } from './partialLoadControls.js';
 import { toast } from '../../utils/toast.js';

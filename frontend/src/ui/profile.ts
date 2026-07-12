@@ -17,16 +17,15 @@ import {
     normalizeDtypeLabel,
     toFiniteNumberOrNull,
 } from '../utils/format.js';
+import { datasetState, setColumnProfiles } from '../store/datasetState.js';
 import {
-    datasetState,
-    setColumnProfiles,
     setPreviewSelectedColumns,
     setProfileGridBound,
     setProfileGridColWidths,
     setProfileGridHeaderBound,
     setProfileGridSort,
     uiState,
-} from '../store/index.js';
+} from '../store/uiState.js';
 import type { DatasetMetadata, ProfileRow } from '../types.js';
 
 function createProfileRow(raw: any): ProfileRow | null {

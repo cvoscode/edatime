@@ -34,14 +34,8 @@ import {
     UI_MAX_UPLOAD_BYTES,
 } from '../features/upload/partialLoadControls.js';
 import { submitFileUpload } from '../features/upload/fileSource.js';
-import {
-    datasetState,
-    setDatasetRevision,
-    setMetadata,
-    setPreviewSelectedColumns,
-    setPreviewTimeColumn,
-    uiState,
-} from '../store/index.js';
+import { datasetState, setDatasetRevision, setMetadata } from '../store/datasetState.js';
+import { setPreviewSelectedColumns, setPreviewTimeColumn, uiState } from '../store/uiState.js';
 import { toast } from '../utils/toast.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
 import type { DatasetMetadata } from '../types.js';
