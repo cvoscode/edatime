@@ -10,7 +10,7 @@ import {
     setPendingAdaptivePoint,
     setSelectedCols,
 } from '../../store/index.js';
-import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
+import { createWorkspaceStore, makeWorkspaceSnapshot, type WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { __resetFilterModalOpenerForTests, registerFilterModalOpener } from './filterModalService.js';
 
 function buildDom(): void {
@@ -18,7 +18,7 @@ function buildDom(): void {
 }
 
 describe('buildRangeControls', () => {
-    let workspace: { getSnapshot: () => never; setFilters: (filters: any) => void };
+    let workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'>;
     let openFilterForColumn: ReturnType<typeof vi.fn<(column: string | null) => void>>;
 
     beforeEach(() => {
@@ -48,13 +48,13 @@ describe('buildRangeControls', () => {
         setPendingAdaptivePoint(null);
         setColumnRanges({});
         workspace = {
-            getSnapshot: () => ({
+            getSnapshot: () => makeWorkspaceSnapshot({
                 selection: { columns: appState.selectedCols, colorColumn: appState.selectedColorColumn },
                 filters: { columnRanges: appState.columnRanges, adaptiveLines: appState.adaptiveLineFilters },
-            } as never),
+            }),
             setFilters: (filters) => {
                 setColumnRanges(filters.columnRanges);
-                setAdaptiveLineFilters(filters.adaptiveLines);
+                setAdaptiveLineFilters([...filters.adaptiveLines]);
             },
         };
         openFilterForColumn = vi.fn<(column: string | null) => void>();

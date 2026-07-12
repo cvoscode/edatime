@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 
 const {
     buildColumnTogglesMock,
@@ -32,7 +33,7 @@ import { createTimeseriesEntrypoint } from './entrypoint.js';
 
 function selectionWorkspace() {
     return {
-        getSnapshot: vi.fn(() => ({ selection: { columns: [], colorColumn: null } } as never)),
+        getSnapshot: vi.fn(() => makeWorkspaceSnapshot()),
         setSelection: vi.fn(),
         setFilters: vi.fn(),
         setViewport: vi.fn(),

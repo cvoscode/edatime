@@ -20,6 +20,7 @@ vi.mock('../drift/driftPage.js', () => ({ initDriftPage: mocks.initDriftPage }))
 
 import { loadPageDescriptors, type PageDescriptorInitDeps } from './pageModules.js';
 import type { PageRegistry } from './pageRegistry.js';
+import { makeWorkspaceSnapshot } from '../workspace/workspaceStore.js';
 
 function createDeps(): PageDescriptorInitDeps {
     return {
@@ -27,7 +28,7 @@ function createDeps(): PageDescriptorInitDeps {
         showPage: vi.fn(),
         chipColor: vi.fn(() => '#fff'),
         setLoading: vi.fn(),
-        workspace: { getSnapshot: vi.fn(() => ({ dataset: { metadata: null } } as never)), setFilters: vi.fn() },
+        workspace: { getSnapshot: vi.fn(() => makeWorkspaceSnapshot()), setFilters: vi.fn() },
     };
 }
 
@@ -43,8 +44,11 @@ describe('page module descriptors', () => {
     });
 
     it('loads Scatter directly from its descriptor only on first page initialization', async () => {
-        const metadata = { numeric_columns: [], columns: [] } as never;
-        const workspace = { getSnapshot: vi.fn(() => ({ dataset: { metadata } } as never)), setFilters: vi.fn() };
+        const metadata = { total_rows: 0, numeric_columns: [], columns: [], column_profiles: [], time_column: '', time_range: { min: 0, max: 1 } } as any;
+        const workspace = {
+            getSnapshot: vi.fn(() => makeWorkspaceSnapshot({ dataset: { metadata } })),
+            setFilters: vi.fn(),
+        };
         const deps = { ...createDeps(), workspace };
         const register = vi.fn();
         await loadPageDescriptors({ register } as unknown as PageRegistry, deps);

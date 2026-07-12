@@ -1,13 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildWorkflowSuggestion, computeWorkflowProgress, type WorkflowSnapshot } from './guidedWorkflow';
+import { makeWorkspaceSnapshot } from '../workspace/workspaceStore.js';
 
 function workflowDeps(metadata: unknown = null, columns: string[] = []) {
     return {
         workspace: {
-            getSnapshot: () => ({
-                dataset: { metadata, revision: 1 },
+            getSnapshot: () => makeWorkspaceSnapshot({
+                dataset: { metadata: metadata as any, revision: 1 },
                 selection: { columns },
-            } as never),
+            }),
             subscribe: vi.fn(() => vi.fn()),
         },
         registerCleanup: vi.fn(),

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { makeWorkspaceSnapshot } from '../workspace/workspaceStore.js';
 
 const mocks = vi.hoisted(() => ({
     toast: vi.fn(),
@@ -61,10 +62,10 @@ function createCanvasContextMock() {
 function causalDeps(metadata: unknown, selectedColumns: string[] = []) {
     return {
         workspace: {
-            getSnapshot: () => ({
-                dataset: { metadata },
+            getSnapshot: () => makeWorkspaceSnapshot({
+                dataset: { metadata: metadata as any },
                 selection: { columns: selectedColumns },
-            } as never),
+            }),
         },
         chipColor: () => '#00d4ff',
         setLoading: vi.fn(),

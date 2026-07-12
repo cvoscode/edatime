@@ -37,6 +37,7 @@ vi.mock('../ui/index.js', () => ({
 
 import { renderColumnChips } from './chipPanel.js';
 import { resetSelectionState, _selectedColumns, type CausalDeps } from './selectionState.js';
+import { makeWorkspaceSnapshot } from '../workspace/workspaceStore.js';
 
 describe('renderColumnChips', () => {
     beforeEach(() => {
@@ -50,14 +51,18 @@ describe('renderColumnChips', () => {
 
     it('renders non-numeric metadata chips as non-interactive labels', () => {
         const deps: CausalDeps = {
-            workspace: { getSnapshot: () => ({ dataset: { metadata: {
+            workspace: { getSnapshot: () => makeWorkspaceSnapshot({ dataset: { metadata: {
+                total_rows: 0,
                 numeric_columns: ['HUFL', 'OT'],
                 columns: [
                     { name: 'date', dtype: 'datetime64[ns]' },
                     { name: 'HUFL', dtype: 'float64' },
                     { name: 'OT', dtype: 'float64' },
                 ],
-            } } } as never) },
+                column_profiles: [],
+                time_column: '',
+                time_range: { min: 0, max: 1 },
+            } as any } }) },
             chipColor: () => '#00a8ff',
             setLoading: () => undefined,
         };
@@ -75,14 +80,18 @@ describe('renderColumnChips', () => {
 
     it('select-all toggles only numeric columns', () => {
         const deps: CausalDeps = {
-            workspace: { getSnapshot: () => ({ dataset: { metadata: {
+            workspace: { getSnapshot: () => makeWorkspaceSnapshot({ dataset: { metadata: {
+                total_rows: 0,
                 numeric_columns: ['HUFL', 'OT'],
                 columns: [
                     { name: 'date', dtype: 'datetime64[ns]' },
                     { name: 'HUFL', dtype: 'float64' },
                     { name: 'OT', dtype: 'float64' },
                 ],
-            } } } as never) },
+                column_profiles: [],
+                time_column: '',
+                time_range: { min: 0, max: 1 },
+            } as any } }) },
             chipColor: () => '#00a8ff',
             setLoading: () => undefined,
         };
