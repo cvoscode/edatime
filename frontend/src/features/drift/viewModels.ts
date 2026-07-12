@@ -6,8 +6,8 @@
  */
 
 import type { EChartLike } from './types.js';
-import { getChartPalette, getPaletteColor } from '../utils/theme.js';
-import { formatUtcDatetimeInputValue } from '../utils/datetimeInput.js';
+import { getChartPalette, getPaletteColor } from '../../utils/theme.js';
+import { formatUtcDatetimeInputValue } from '../../utils/datetimeInput.js';
 
 // ── Color constants (mirrored from driftPage for co-location) ─────────────────────
 

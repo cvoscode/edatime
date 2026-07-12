@@ -13,11 +13,11 @@
  * All drift chart functions and state are passed as callbacks.
  */
 
-import { getDropdownValue } from '../ui/primitives/Dropdown.js';
-import { renderSeriesChipList } from '../ui/seriesChipList.js';
-import { chartState } from '../store/chartState.js';
-import { formatUtcDatetimeInputValue } from '../utils/datetimeInput.js';
-import { getSeriesColor } from '../utils/seriesColors.js';
+import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
+import { renderSeriesChipList } from '../../ui/seriesChipList.js';
+import { chartState } from '../../store/chartState.js';
+import { formatUtcDatetimeInputValue } from '../../utils/datetimeInput.js';
+import { getSeriesColor } from '../../utils/seriesColors.js';
 
 export interface DriftControlCallbacks {
     getSelectedColumns: () => string[];

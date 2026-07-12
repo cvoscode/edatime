@@ -98,7 +98,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         requiresMetadata: true,
         cssModules: ['drift'],
         async load(deps) {
-            const { initDriftPage } = await import('../drift/driftPage.js');
+            const { initDriftPage } = await import('../features/drift/page.js');
             const metadata = deps.workspace.getSnapshot().dataset.metadata;
             return { init: () => initDriftPage(metadata) };
         },

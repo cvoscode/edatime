@@ -16,7 +16,7 @@ vi.mock('../features/heatmap/page.js', () => ({ initHeatmapPage: mocks.initHeatm
 vi.mock('../scatter/scatterPage.js', () => ({ initScatterPage: mocks.initScatterPage }));
 vi.mock('../features/spectrogram/page.js', () => ({ initSpectrogramPage: mocks.initSpectrogramPage }));
 vi.mock('../causal/causalPage.js', () => ({ initCausalPage: mocks.initCausalPage }));
-vi.mock('../drift/driftPage.js', () => ({ initDriftPage: mocks.initDriftPage }));
+vi.mock('../features/drift/page.js', () => ({ initDriftPage: mocks.initDriftPage }));
 
 import { loadPageDescriptors, type PageDescriptorInitDeps } from './pageModules.js';
 import type { PageRegistry } from './pageRegistry.js';

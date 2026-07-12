@@ -5,13 +5,13 @@
  * interactive detail views (box, violin-density proxy, ECDF, histogram).
  */
 
-import { DEBUG } from '../debug.js';
-import { fetchDriftInvestigation, fetchDriftStats } from '../services/api/index.js';
+import { DEBUG } from '../../debug.js';
+import { fetchDriftInvestigation, fetchDriftStats } from '../../services/api/index.js';
 import { bindDriftControls, getSelectedColumns } from './controls.js';
-import { toast } from '../utils/toast.js';
-import { createAnalysisPageRuntime } from '../pages/shared/analysisPageRuntime.js';
-import { createRequestTask } from '../pages/shared/requestTask.js';
-import { initDriftHelp } from '../pages/driftHelp.js';
+import { toast } from '../../utils/toast.js';
+import { createAnalysisPageRuntime } from '../../pages/shared/analysisPageRuntime.js';
+import { createRequestTask } from '../../pages/shared/requestTask.js';
+import { initDriftHelp } from './help.js';
 import type { EChartLike } from './types.js';
 import {
     buildColumnSummary,
@@ -30,7 +30,7 @@ import type {
     DriftRelationshipRank,
     DriftResponse,
 } from './viewModels.js';
-import { exportEChartsPNG } from '../utils/chartExport.js';
+import { exportEChartsPNG } from '../../utils/chartExport.js';
 import {
     getECharts,
     getEChartsModule,
@@ -70,7 +70,7 @@ import {
     setDropdownDisabled,
     setDropdownOptions,
     setDropdownValue,
-} from '../ui/primitives/Dropdown.js';
+} from '../../ui/primitives/Dropdown.js';
 
 // Re-export for test isolation
 export { _setEchartsModule };

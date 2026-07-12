@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../debug.js', () => ({ DEBUG: false }));
-vi.mock('../utils/toast.js', () => ({ toast: vi.fn() }));
+vi.mock('../../debug.js', () => ({ DEBUG: false }));
+vi.mock('../../utils/toast.js', () => ({ toast: vi.fn() }));
 
 class ResizeObserverMock {
     observe() { }
@@ -94,7 +94,7 @@ describe('drift page chart bootstrap', () => {
     });
 
     it('waits for the drift page to become visible before creating charts', async () => {
-        const { initDriftPage } = await import('./driftPage.js');
+        const { initDriftPage } = await import('./page.js');
 
         await initDriftPage({
             numeric_columns: ['value'],

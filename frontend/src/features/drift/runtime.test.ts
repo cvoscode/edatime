@@ -24,7 +24,7 @@ vi.mock('echarts', () => ({
 
 // Mock chartExport so we can verify exportTimelinePNG/exportDetailPNG call it.
 const exportEChartsPNGSpy = vi.hoisted(() => vi.fn());
-vi.mock('../utils/chartExport.js', () => ({
+vi.mock('../../utils/chartExport.js', () => ({
     exportEChartsPNG: exportEChartsPNGSpy,
 }));
 

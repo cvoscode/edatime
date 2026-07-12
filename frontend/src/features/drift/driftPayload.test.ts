@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../debug.js', () => ({ DEBUG: false, dbg: vi.fn() }));
-vi.mock('../utils/toast.js', () => ({ toast: vi.fn() }));
+vi.mock('../../debug.js', () => ({ DEBUG: false, dbg: vi.fn() }));
+vi.mock('../../utils/toast.js', () => ({ toast: vi.fn() }));
 
 class ResizeObserverMock {
     observe() { }
@@ -173,7 +173,7 @@ describe('drift compute payload', () => {
     });
 
     it('posts camelCase investigation fields expected by the backend', async () => {
-        const { initDriftPage } = await import('./driftPage.js');
+        const { initDriftPage } = await import('./page.js');
         await initDriftPage({
             numeric_columns: ['value'],
             columns: [{ name: 'value', dtype: 'Float64' }, { name: 'segment', dtype: 'String' }],
@@ -206,7 +206,7 @@ describe('drift compute payload', () => {
     });
 
     it('renders inline drift column chips and updates the selection summary after bulk-selecting all columns', async () => {
-        const { initDriftPage } = await import('./driftPage.js');
+        const { initDriftPage } = await import('./page.js');
         await initDriftPage({
             numeric_columns: ['HUFL', 'HULL', 'OT'],
             time_range: { min: 0, max: 1_000 },
@@ -220,7 +220,7 @@ describe('drift compute payload', () => {
     });
 
     it('explains why Latest N is disabled until the matching evaluation mode is selected', async () => {
-        const { initDriftPage } = await import('./driftPage.js');
+        const { initDriftPage } = await import('./page.js');
         await initDriftPage({
             numeric_columns: ['value'],
             time_range: { min: 0, max: 1_000 },
@@ -241,7 +241,7 @@ describe('drift compute payload', () => {
     });
 
     it('fills the reference datetime inputs from UTC timestamps without a browser-local offset', async () => {
-        const { initDriftPage } = await import('./driftPage.js');
+        const { initDriftPage } = await import('./page.js');
         await initDriftPage({
             numeric_columns: ['value'],
             time_range: {
@@ -255,7 +255,7 @@ describe('drift compute payload', () => {
     });
 
     it('posts optional threshold controls using camelCase backend fields', async () => {
-        const { initDriftPage } = await import('./driftPage.js');
+        const { initDriftPage } = await import('./page.js');
         await initDriftPage({
             numeric_columns: ['value'],
             columns: [{ name: 'value', dtype: 'Float64' }, { name: 'segment', dtype: 'String' }],
@@ -288,7 +288,7 @@ describe('drift compute payload', () => {
     });
 
     it('posts optional segmentBy when selected and renders investigation tabs', async () => {
-        const { initDriftPage } = await import('./driftPage.js');
+        const { initDriftPage } = await import('./page.js');
         await initDriftPage({
             numeric_columns: ['value'],
             columns: [{ name: 'value', dtype: 'Float64' }, { name: 'segment', dtype: 'String' }],

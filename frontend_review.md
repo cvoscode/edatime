@@ -45,9 +45,15 @@ The next feature-directory migration should apply the same controller/runtime/he
 - Updated the lazy page registry to load the feature-owned page directly and removed the retired `pages/heatmapPage.ts` and `pages/heatmapHelp.ts` owners.
 - Preserved correlation-matrix loading, clustering, metric selection, fit preferences, scatter hand-off, and all export behavior while moving ownership.
 
-### Next: page-runtime consolidation
+### Completed: drift feature ownership
 
-Move the remaining page controllers that still own a feature directly (beginning with drift), then consolidate the shared analysis lifecycle helper behind a feature-neutral platform surface. Do this incrementally, retaining the current lazy page-registry and characterization contracts at each migration.
+- Moved the complete Drift feature module set—controller, lifecycle runtime, controls, selection state, chart views, view models, page help, and tests—under `features/drift/`.
+- Updated the lazy page registry to import the feature-owned page directly and removed the retired top-level `drift/` and `pages/driftHelp.ts` owners.
+- Preserved the Drift request, visibility, selection, chart-rendering, export, and payload characterization coverage while moving the feature as a cohesive unit.
+
+### Next: remaining feature-directory ownership
+
+Move the remaining top-level feature directories (beginning with causal, then scatter) below `features/`, preserving the current lazy page-registry and characterization contracts. Once page ownership is complete, consolidate the shared analysis lifecycle helper behind a feature-neutral platform surface.
 
 ## Target Architecture
 

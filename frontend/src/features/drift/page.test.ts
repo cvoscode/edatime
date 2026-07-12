@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../debug.js', () => ({ DEBUG: true, dbg: vi.fn() }));
+vi.mock('../../debug.js', () => ({ DEBUG: true, dbg: vi.fn() }));
 const chartHandlers = new Map<string, (params: any) => void>();
 const chartMock = {
     setOption: vi.fn(),
@@ -19,7 +19,7 @@ vi.mock('echarts', () => ({
     init: vi.fn(() => chartMock),
 }));
 
-vi.mock('../utils/toast.js', () => ({
+vi.mock('../../utils/toast.js', () => ({
     toast: vi.fn(),
 }));
 
@@ -54,7 +54,7 @@ describe('drift page accessibility and debug metadata', () => {
         // Clear the module-level _echartsModule cache in driftPage.ts so that
         // the next import('echarts') goes through Vitest's mock registry instead
         // of returning the real echarts singleton that vitest doesn't control.
-        const driftPageModule = await import('./driftPage.js');
+        const driftPageModule = await import('./page.js');
         driftPageModule._setEchartsModule(null);
 
         // Build the fetch mock HERE in beforeEach (not inside it()) so that any
@@ -297,7 +297,7 @@ describe('drift page accessibility and debug metadata', () => {
     it('renders keyboard-selectable drift window rows with option semantics', async () => {
         const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
 
-        const { initDriftPage } = await import('./driftPage.js');
+        const { initDriftPage } = await import('./page.js');
         await initDriftPage({
             numeric_columns: ['value'],
             columns: [{ name: 'value', dtype: 'Float64' }],
@@ -334,7 +334,7 @@ describe('drift page accessibility and debug metadata', () => {
     });
 
     it('renders summary cards and trigger reasons after compute', async () => {
-        const { initDriftPage } = await import('./driftPage.js');
+        const { initDriftPage } = await import('./page.js');
         await initDriftPage({
             numeric_columns: ['value'],
             columns: [{ name: 'value', dtype: 'Float64' }],
@@ -355,7 +355,7 @@ describe('drift page accessibility and debug metadata', () => {
     });
 
     it('replaces the instructional drift status with a compute summary and all-flagged hint', async () => {
-        const { initDriftPage } = await import('./driftPage.js');
+        const { initDriftPage } = await import('./page.js');
         await initDriftPage({
             numeric_columns: ['value'],
             columns: [{ name: 'value', dtype: 'Float64' }],
@@ -378,7 +378,7 @@ describe('drift page accessibility and debug metadata', () => {
     });
 
     it('restores the instructional drift status after the selection changes', async () => {
-        const { initDriftPage } = await import('./driftPage.js');
+        const { initDriftPage } = await import('./page.js');
         await initDriftPage({
             numeric_columns: ['value', 'other'],
             columns: [
@@ -405,7 +405,7 @@ describe('drift page accessibility and debug metadata', () => {
     });
 
     it('opens the timeline plots tab after compute so charts are visible', async () => {
-        const { initDriftPage } = await import('./driftPage.js');
+        const { initDriftPage } = await import('./page.js');
         await initDriftPage({
             numeric_columns: ['value'],
             columns: [{ name: 'value', dtype: 'Float64' }],
@@ -500,7 +500,7 @@ describe('drift page accessibility and debug metadata', () => {
                 }),
             });
 
-        const { initDriftPage } = await import('./driftPage.js');
+        const { initDriftPage } = await import('./page.js');
         await initDriftPage({
             numeric_columns: ['value'],
             columns: [{ name: 'value', dtype: 'Float64' }],

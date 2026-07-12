@@ -29,7 +29,7 @@ describe('drift page help button', () => {
     });
 
     it('initDriftHelp binds the button and opens the modal on click', async () => {
-        const { initDriftHelp } = await import('./driftHelp.js');
+        const { initDriftHelp } = await import('./help.js');
         initDriftHelp();
 
         const trigger = document.getElementById('drift-help-btn') as HTMLButtonElement;
@@ -49,7 +49,7 @@ describe('drift page help button', () => {
     });
 
     it('initDriftHelp is safe to call twice (idempotent)', async () => {
-        const { initDriftHelp } = await import('./driftHelp.js');
+        const { initDriftHelp } = await import('./help.js');
         initDriftHelp();
         initDriftHelp();
         const trigger = document.getElementById('drift-help-btn') as HTMLButtonElement;
