@@ -221,8 +221,10 @@ export interface CtrlPanOptions {
  * y range is known). Pixels are converted to data via the current
  * visible ranges so the result is range-agnostic.
  */
-export function initCtrlPan(opts: CtrlPanOptions): void {
+export function initCtrlPan(opts: CtrlPanOptions): () => void {
     const { container, grid, getXRange, getYRange, onPan, shouldIgnore, minDragPx = 4 } = opts;
+    const abortController = new AbortController();
+    const listenerOptions = { signal: abortController.signal };
     let drag: DragState | null = null;
     let lastClientX = 0;
     let lastClientY = 0;
@@ -261,7 +263,7 @@ export function initCtrlPan(opts: CtrlPanOptions): void {
         };
         try { container.setPointerCapture(e.pointerId); } catch { /* ignored */ }
         container.style.cursor = 'grabbing';
-    });
+    }, listenerOptions);
 
     container.addEventListener('pointermove', (e) => {
         if (!drag || e.pointerId !== drag.pointerId) return;
@@ -310,7 +312,7 @@ export function initCtrlPan(opts: CtrlPanOptions): void {
             onPan(pending);
             pending = null;
         });
-    });
+    }, listenerOptions);
 
     const finish = (e: PointerEvent) => {
         if (!drag || e.pointerId !== drag.pointerId) return;
@@ -353,8 +355,16 @@ export function initCtrlPan(opts: CtrlPanOptions): void {
         };
         inertiaRaf = requestAnimationFrame(step);
     };
-    container.addEventListener('pointerup', finish);
-    container.addEventListener('pointercancel', finish);
+    container.addEventListener('pointerup', finish, listenerOptions);
+    container.addEventListener('pointercancel', finish, listenerOptions);
+    return () => {
+        abortController.abort();
+        if (panRaf != null) cancelAnimationFrame(panRaf);
+        cancelInertia();
+        drag = null;
+        pending = null;
+        container.style.cursor = '';
+    };
 }
 
 /* ── Composed box-zoom wiring ──────────────────────────── */
@@ -388,8 +398,12 @@ export type BoxZoomOptions = XOnlyBoxZoomOptions | ViewportBoxZoomOptions;
  * Wire up the full box-selection-zoom pattern on a chart container.
  * Returns the selection box element for external reference.
  */
-export function initBoxZoom(opts: BoxZoomOptions): HTMLElement {
+export type BoxZoomHandle = HTMLElement & { dispose(): void };
+
+export function initBoxZoom(opts: BoxZoomOptions): BoxZoomHandle {
     const { container, grid, getXRange, shouldIgnore, onClick, onDblClick } = opts;
+    const abortController = new AbortController();
+    const listenerOptions = { signal: abortController.signal };
     ensureRelativePosition(container);
     const selectionBox = createSelectionBox(container);
     let drag: DragState | null = null;
@@ -398,14 +412,14 @@ export function initBoxZoom(opts: BoxZoomOptions): HTMLElement {
         if (e.button !== 0) return;
         if (shouldIgnore?.(e)) return;
         drag = startDrag(e, container);
-    });
+    }, listenerOptions);
 
     container.addEventListener('pointermove', (e) => {
         if (!drag || e.pointerId !== drag.pointerId) return;
         moveDrag(e, drag, container);
         const rect = container.getBoundingClientRect();
         updateSelectionBox(selectionBox, drag, rect.width, rect.height);
-    });
+    }, listenerOptions);
 
     const finishDrag = (e: PointerEvent) => {
         if (!drag || e.pointerId !== drag.pointerId) return;
@@ -437,22 +451,28 @@ export function initBoxZoom(opts: BoxZoomOptions): HTMLElement {
         }
     };
 
-    container.addEventListener('pointerup', finishDrag);
+    container.addEventListener('pointerup', finishDrag, listenerOptions);
     container.addEventListener('pointercancel', (e) => {
         if (drag?.pointerId === e.pointerId) {
             drag = null;
             hideSelectionBox(selectionBox);
         }
-    });
+    }, listenerOptions);
 
     if (onDblClick) {
         container.addEventListener('dblclick', (e) => {
             if ((e as MouseEvent).shiftKey || (e as MouseEvent).ctrlKey) return;
             onDblClick();
-        });
+        }, listenerOptions);
     }
 
-    return selectionBox;
+    const handle = selectionBox as BoxZoomHandle;
+    handle.dispose = () => {
+        abortController.abort();
+        drag = null;
+        selectionBox.remove();
+    };
+    return handle;
 }
 
 /* ── Wheel zoom ────────────────────────────────────────── */

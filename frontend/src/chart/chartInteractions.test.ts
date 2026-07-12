@@ -70,6 +70,19 @@ describe('initBoxZoom', () => {
         });
     });
 
+    it('disposes listeners and removes the selection box', () => {
+        const container = document.getElementById('chart') as HTMLElement;
+        const handle = initBoxZoom({
+            container,
+            grid: { left: 10, right: 10, top: 10, bottom: 10 },
+            getXRange: () => ({ min: 0, max: 1 }),
+            onZoom: vi.fn(),
+        });
+        expect(handle.isConnected).toBe(true);
+        handle.dispose();
+        expect(handle.isConnected).toBe(false);
+    });
+
     it('treats a horizontal-only drag as a full x-zoom with the full y-range', () => {
         const container = document.getElementById('chart') as HTMLElement & {
             setPointerCapture?: (pointerId: number) => void;
@@ -390,6 +403,22 @@ describe('initWheelZoomViewport', () => {
 describe('initCtrlPan', () => {
     beforeEach(() => {
         document.body.innerHTML = '<div id="chart"></div>';
+    });
+
+    it('returns a disposer that removes pan listeners', () => {
+        const container = document.getElementById('chart') as HTMLElement;
+        const onPan = vi.fn();
+        const dispose = initCtrlPan({
+            container,
+            grid: { left: 10, right: 10, top: 10, bottom: 10 },
+            getXRange: () => ({ min: 0, max: 1 }),
+            getYRange: () => null,
+            onPan,
+        });
+        dispose();
+        container.dispatchEvent(new PointerEvent('pointerdown', { button: 0, ctrlKey: true, pointerId: 1 }));
+        container.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, ctrlKey: true, clientX: 20 }));
+        expect(onPan).not.toHaveBeenCalled();
     });
 
     it('shifts xMin/xMax opposite to the cursor when Ctrl is held', async () => {

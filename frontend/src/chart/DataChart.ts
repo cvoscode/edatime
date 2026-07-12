@@ -89,6 +89,8 @@ export class DataChart {
     _xMax: number | null = null;
     _container: HTMLElement | null = null;
     _selectionBox: HTMLElement | null = null;
+    _disposeBoxZoom: (() => void) | null = null;
+    _disposeCtrlPan: (() => void) | null = null;
     _yMin: number | null = null;
     _yMax: number | null = null;
     _yAuto = true;
@@ -140,6 +142,7 @@ export class DataChart {
     /* ── Public surface ─────────────────────────────────── */
 
     destroy(): void {
+        this._disposeInteractions();
         this._drawingController?.detach();
         this._drawingResizeObserver?.disconnect();
         this._drawingResizeObserver = null;
@@ -161,6 +164,7 @@ export class DataChart {
      * container is being removed from the DOM.
      */
     deepDispose(): void {
+        this._disposeInteractions();
         this._drawingController?.detach();
         this._drawingResizeObserver?.disconnect();
         this._drawingResizeObserver = null;
@@ -248,6 +252,7 @@ export class DataChart {
     async init(): Promise<void> {
         const container = document.getElementById(this.containerId);
         if (!container) throw new Error(`Chart container not found: ${this.containerId}`);
+        this._disposeInteractions();
         container.replaceChildren();
         this._container = container;
         const chartGrid = { ...this._updateCurrentGrid() };
@@ -764,7 +769,7 @@ export class DataChart {
         if (!this._container) return;
         const container = this._container;
 
-        this._selectionBox = initBoxZoom({
+        const zoom = initBoxZoom({
             container,
             grid: this._currentGrid,
             getXRange: () => ({ min: this._xMin ?? 0, max: this._xMax ?? 0 }),
@@ -783,6 +788,8 @@ export class DataChart {
                 || this._isLegendPointerTarget(e.target as Element | null),
             onDblClick: () => this.onZoomOutCallback?.(),
         });
+        this._selectionBox = zoom;
+        this._disposeBoxZoom = zoom.dispose;
     }
 
     /**
@@ -809,7 +816,7 @@ export class DataChart {
     private _initCtrlPan(): void {
         if (!this._container) return;
         const container = this._container;
-        initCtrlPan({
+        this._disposeCtrlPan = initCtrlPan({
             container,
             grid: this._currentGrid,
             getXRange: () => ({ min: this._xMin ?? 0, max: this._xMax ?? 0 }),
@@ -838,6 +845,14 @@ export class DataChart {
                 this.onZoomCallback?.(snapshot, 'pan');
             },
         });
+    }
+
+    private _disposeInteractions(): void {
+        this._disposeBoxZoom?.();
+        this._disposeBoxZoom = null;
+        this._disposeCtrlPan?.();
+        this._disposeCtrlPan = null;
+        this._selectionBox = null;
     }
 
     /* ── Export internals ───────────────────────────────── */
