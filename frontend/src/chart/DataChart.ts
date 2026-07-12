@@ -60,6 +60,7 @@ import { TextOverlayController } from './textOverlayController.js';
 import { renderColorScaleLegend } from './colorScaleLegend.js';
 import { buildTimeSeriesDataModel } from './timeSeriesDataModel.js';
 import { buildTimeSeriesChartOptions } from './timeSeriesChartOptions.js';
+import { getChartExportDomains, getChartExportViewport, type ChartExportDomains, type ChartExportViewport } from './chartExportLayout.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
@@ -841,25 +842,20 @@ export class DataChart {
 
     /* ── Export internals ───────────────────────────────── */
 
-    private _getExportViewport() {
-        const dpr = window.devicePixelRatio || 1;
-        const rect = this._container?.getBoundingClientRect?.();
-        const cssWidth = Math.max(1, Math.round(rect?.width ?? this._overlayCanvas?.width ?? 1));
-        const cssHeight = Math.max(1, Math.round(rect?.height ?? this._overlayCanvas?.height ?? 1));
-        return { cssWidth, cssHeight, width: Math.max(1, Math.round(cssWidth * dpr)), height: Math.max(1, Math.round(cssHeight * dpr)), dpr };
+    private _getExportViewport(): ChartExportViewport {
+        return getChartExportViewport(
+            this._container?.getBoundingClientRect?.(),
+            this._overlayCanvas,
+            window.devicePixelRatio,
+        );
     }
 
-    private _getExportDomains() {
-        const xMin = Number.isFinite(this._xMin) ? this._xMin! : this._lastXDomainMin;
-        const xMax = Number.isFinite(this._xMax) ? this._xMax! : this._lastXDomainMax;
-        const yRange = this.getYRange();
-        const yMin = yRange?.min;
-        const yMax = yRange?.max;
-        if (!Number.isFinite(xMin!) || !Number.isFinite(xMax!) || xMax! <= xMin!) return null;
-        if (!Number.isFinite(yMin!) || !Number.isFinite(yMax!) || yMax! <= yMin!) return null;
-        const ySpan = yMax! - yMin!;
-        const pad = ySpan * 0.04;
-        return { xMin: xMin!, xMax: xMax!, yMin: yMin! - pad, yMax: yMax! + pad };
+    private _getExportDomains(): ChartExportDomains | null {
+        return getChartExportDomains(
+            { min: this._xMin, max: this._xMax },
+            { min: this._lastXDomainMin, max: this._lastXDomainMax },
+            this.getYRange(),
+        );
     }
 
     private async _getCombinedExportCanvas(includeDrawings: boolean): Promise<HTMLCanvasElement | null> {
@@ -876,8 +872,8 @@ export class DataChart {
 
     private _renderExportChartToCanvas(
         canvas: HTMLCanvasElement,
-        viewport: { cssWidth: number; cssHeight: number; width: number; height: number },
-        domains: { xMin: number; xMax: number; yMin: number; yMax: number },
+        viewport: ChartExportViewport,
+        domains: ChartExportDomains,
         includeDrawings: boolean,
     ): void {
         const ctx = canvas.getContext('2d');

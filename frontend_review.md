@@ -168,6 +168,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted the pure Timeseries tooltip formatter and color-scale legend DOM rendering from `updateDataMulti`, giving the data-update path explicit presentation seams with direct tests.
 - Extracted finite-point filtering, visibility preservation, colorized-series expansion, marker annotations, and data-domain calculation into `timeSeriesDataModel`; `DataChart` now consumes an explicit model when applying ChartGPU options.
 - Extracted deterministic ChartGPU option assembly into `timeSeriesChartOptions`, including the x-domain/tick contract, tooltip hook, legend policy, and series/annotation hand-off.
+- Extracted export viewport sizing and padded export-domain policy into `chartExportLayout`, with direct boundary coverage; `DataChart` now delegates this non-rendering export setup.
 
 ### Next: DataChart renderer seams
 
