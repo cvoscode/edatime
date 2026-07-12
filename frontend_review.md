@@ -39,9 +39,15 @@ The next feature-directory migration should apply the same controller/runtime/he
 - Updated the lazy page registry to load the feature-owned page directly and removed the retired `pages/fftPage.ts` and `pages/fftHelp.ts` owners.
 - Preserved the FFT initialization contract, WebGPU-to-ECharts fallback, shared spectral-filter preview, and persisted trace-selection behavior while moving ownership.
 
-### Next: heatmap feature ownership
+### Completed: heatmap feature ownership
 
-Move the heatmap page controller and its page-local dependencies under `features/heatmap/`. Preserve the lazy page-registry contract and characterization tests, then remove the corresponding `pages/` owner after the feature directly composes it.
+- Moved the correlation heatmap page controller, page help, and their characterization tests under `features/heatmap/`.
+- Updated the lazy page registry to load the feature-owned page directly and removed the retired `pages/heatmapPage.ts` and `pages/heatmapHelp.ts` owners.
+- Preserved correlation-matrix loading, clustering, metric selection, fit preferences, scatter hand-off, and all export behavior while moving ownership.
+
+### Next: page-runtime consolidation
+
+Move the remaining page controllers that still own a feature directly (beginning with drift), then consolidate the shared analysis lifecycle helper behind a feature-neutral platform surface. Do this incrementally, retaining the current lazy page-registry and characterization contracts at each migration.
 
 ## Target Architecture
 

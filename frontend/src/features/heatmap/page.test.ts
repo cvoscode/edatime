@@ -74,22 +74,22 @@ const DEFAULT_MATRIX_RESPONSE = {
 };
 
 // Mock shared dependencies
-vi.mock('../services/api/index.js', () => ({
+vi.mock('../../services/api/index.js', () => ({
     fetchCorrelationMatrix: vi.fn(),
 }));
 
-vi.mock('../utils/chartExport.js', () => ({
+vi.mock('../../utils/chartExport.js', () => ({
     exportElementPNG: vi.fn(),
     exportElementSVG: vi.fn(),
     exportElementHTML: vi.fn(),
     exportMatrixCSV: vi.fn(),
 }));
 
-vi.mock('../utils/bindExportButtons.js', () => ({
+vi.mock('../../utils/bindExportButtons.js', () => ({
     bindExportButtons: vi.fn(),
 }));
 
-vi.mock('../app/pageLifecycle.js', () => ({
+vi.mock('../../app/pageLifecycle.js', () => ({
     createPageLifecycle: vi.fn(({ page, init, onVisible, onEveryPageChange }) => {
         // Track the handler so tests can clean it up between runs.
         const handler = (event: Event) => {
@@ -131,7 +131,7 @@ describe('heatmapPage with clustering', () => {
         window.localStorage.clear();
         ResizeObserverMock.instances = [];
         (globalThis as any).ResizeObserver = ResizeObserverMock;
-        const { fetchCorrelationMatrix } = await import('../services/api/index.js');
+        const { fetchCorrelationMatrix } = await import('../../services/api/index.js');
         vi.mocked(fetchCorrelationMatrix).mockReset();
         vi.mocked(fetchCorrelationMatrix).mockResolvedValue(structuredClone(DEFAULT_MATRIX_RESPONSE) as any);
         // happy-dom does not always fire requestAnimationFrame in a
@@ -188,7 +188,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('initializes and renders a 6x6 grid', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
         const cells = document.querySelectorAll('.heatmap-cell');
@@ -196,7 +196,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('renders the compact seaborn-style heatmap frame and color scale', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -224,7 +224,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('fits the color axis to the strongest off-diagonal magnitude when requested', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -238,7 +238,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('switches narrow heatmap headers into a vertical label mode', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -256,7 +256,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('reorders columns by cluster when enabled', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -284,7 +284,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('preserves original column indices in data-row / data-col', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -296,7 +296,7 @@ describe('heatmapPage with clustering', () => {
 
     it('navigates to scatter with original column names on click', async () => {
         const showPage = vi.fn();
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage });
         await activateHeatmap();
 
@@ -318,7 +318,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('marks cluster boundaries on the first header/label of each cluster', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -338,7 +338,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('disables clustering when toggle is unchecked', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -354,7 +354,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('refetches the selected first-difference matrix mode on metric change', async () => {
-        const { fetchCorrelationMatrix } = await import('../services/api/index.js');
+        const { fetchCorrelationMatrix } = await import('../../services/api/index.js');
         vi.mocked(fetchCorrelationMatrix)
             .mockResolvedValueOnce({
                 columns: ['a1', 'a2'],
@@ -371,7 +371,7 @@ describe('heatmapPage with clustering', () => {
                 ],
             } as any);
 
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -390,7 +390,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('stores the selected metric guide on the shared info icon', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -406,13 +406,13 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('shows a loading overlay while switching to a slow metric', async () => {
-        const { fetchCorrelationMatrix } = await import('../services/api/index.js');
+        const { fetchCorrelationMatrix } = await import('../../services/api/index.js');
         const pending = deferredPromise<any>();
         vi.mocked(fetchCorrelationMatrix)
             .mockResolvedValueOnce(structuredClone(DEFAULT_MATRIX_RESPONSE) as any)
             .mockReturnValueOnce(pending.promise);
 
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -437,7 +437,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('falls back to legacy raw payloads and shows a clear message for unsupported modes', async () => {
-        const { fetchCorrelationMatrix } = await import('../services/api/index.js');
+        const { fetchCorrelationMatrix } = await import('../../services/api/index.js');
         vi.mocked(fetchCorrelationMatrix).mockResolvedValue({
             columns: ['a1', 'a2'],
             pearson: [
@@ -450,7 +450,7 @@ describe('heatmapPage with clustering', () => {
             ],
         } as any);
 
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -468,7 +468,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('fills the available shell width so cells do not squish against the left edge', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -488,7 +488,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('snaps to panel width when the Auto-fit toggle is on, regardless of slider value', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -515,7 +515,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     it('defaults Auto-fit on and watches the container with ResizeObserver', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -539,7 +539,7 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
         window.localStorage.clear();
         ResizeObserverMock.instances = [];
         (globalThis as any).ResizeObserver = ResizeObserverMock;
-        const { fetchCorrelationMatrix } = await import('../services/api/index.js');
+        const { fetchCorrelationMatrix } = await import('../../services/api/index.js');
         vi.mocked(fetchCorrelationMatrix).mockReset();
         vi.mocked(fetchCorrelationMatrix).mockResolvedValue(structuredClone(DEFAULT_MATRIX_RESPONSE) as any);
         // Run rAF callbacks synchronously so we don't have to wait for a real frame.
@@ -593,7 +593,7 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
 
     // C1 — corner carries X / Y axis glyph + active metric.
     it('renders axis hints + active metric badge in the heatmap corner', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -607,7 +607,7 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
 
     // C1 — cluster legend chips appear when clustering finds groups.
     it('renders a cluster legend strip with one chip per detected cluster', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -617,7 +617,7 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
 
     // C1 — footer is visible after a successful render.
     it('renders a status footer with the active metric + size + click hint', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -629,7 +629,7 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
 
     // C4 — row label height matches cell height under a small viewport.
     it('keeps the row label in sync with the cell size when Auto-fit caps the height', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -649,7 +649,7 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
 
     // C5 — cluster separators appear via inline border styles.
     it('marks cluster boundaries with an inline border-left / border-top', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -667,13 +667,13 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
         // Strip the toolbar so initToolbarOverflow has nothing to register;
         // the page should still render cleanly.
         document.querySelector('.toolbar.scatter-toolbar')?.remove();
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await expect(initHeatmapPage({ showPage: vi.fn() })).resolves.not.toThrow();
     });
 
     // C10 — focusin on a row label paints every cell in that row.
     it('highlights every cell in a row when the row label receives focus', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
@@ -694,7 +694,7 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
     // is re-rendered in the new order. We exercise the drop handler by
     // dispatching drag events directly on the grid wrapper.
     it('reorders columns when a header is dragged onto another header', async () => {
-        const { initHeatmapPage } = await import('../pages/heatmapPage.js');
+        const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 

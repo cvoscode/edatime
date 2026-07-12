@@ -1,19 +1,19 @@
-import { fetchCorrelationMatrix } from '../services/api/index.js';
-import type { CorrelationMatrixResponse } from '../services/api/analytics.js';
-import { exportElementPNG, exportElementSVG, exportElementHTML, exportMatrixCSV } from '../utils/chartExport.js';
-import { getDropdownValue, setDropdownValue } from '../ui/primitives/Dropdown.js';
-import { bindInfoPopovers } from '../ui/infoPopovers.js';
-import { initHeatmapHelp } from './heatmapHelp.js';
-import { createAnalysisPageRuntime } from './shared/analysisPageRuntime.js';
-import { clusterColumns, type Cluster } from '../utils/correlationClustering.js';
-import { initToolbarOverflow } from '../scatter/toolbarOverflow.js';
+import { fetchCorrelationMatrix } from '../../services/api/index.js';
+import type { CorrelationMatrixResponse } from '../../services/api/analytics.js';
+import { exportElementPNG, exportElementSVG, exportElementHTML, exportMatrixCSV } from '../../utils/chartExport.js';
+import { getDropdownValue, setDropdownValue } from '../../ui/primitives/Dropdown.js';
+import { bindInfoPopovers } from '../../ui/infoPopovers.js';
+import { initHeatmapHelp } from './help.js';
+import { createAnalysisPageRuntime } from '../../pages/shared/analysisPageRuntime.js';
+import { clusterColumns, type Cluster } from '../../utils/correlationClustering.js';
+import { initToolbarOverflow } from '../../scatter/toolbarOverflow.js';
 import {
     getCorrelationModeGuide,
     getCorrelationModeLabel,
     normalizeCorrelationMetric,
     type CorrelationMetric,
-} from '../utils/correlationModes.js';
-import { getSetting, updateSetting } from '../utils/settings.js';
+} from '../../utils/correlationModes.js';
+import { getSetting, updateSetting } from '../../utils/settings.js';
 
 interface HeatmapPageDeps {
     showPage: (pageName: string) => void;

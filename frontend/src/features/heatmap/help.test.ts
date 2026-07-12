@@ -29,7 +29,7 @@ describe('heatmap (Correlations) page help button', () => {
     });
 
     it('initHeatmapHelp binds the button and opens the modal on click', async () => {
-        const { initHeatmapHelp } = await import('./heatmapHelp.js');
+        const { initHeatmapHelp } = await import('./help.js');
         initHeatmapHelp();
 
         const trigger = document.getElementById('heatmap-help-btn') as HTMLButtonElement;
@@ -52,7 +52,7 @@ describe('heatmap (Correlations) page help button', () => {
     });
 
     it('initHeatmapHelp is safe to call twice (idempotent)', async () => {
-        const { initHeatmapHelp } = await import('./heatmapHelp.js');
+        const { initHeatmapHelp } = await import('./help.js');
         initHeatmapHelp();
         initHeatmapHelp();
         const trigger = document.getElementById('heatmap-help-btn') as HTMLButtonElement;

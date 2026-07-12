@@ -11,7 +11,7 @@
  * user navigates to the page (lazy via `pageModules`).
  */
 
-import { initPageHelp, type PageHelpContent } from '../ui/pageHelp.js';
+import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 
 export const HEATMAP_HELP: PageHelpContent = {
     pageName: 'Correlations',
