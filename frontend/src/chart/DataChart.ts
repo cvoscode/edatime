@@ -48,16 +48,6 @@ interface ChartInstanceAPI {
     getInteractionX?(): number | null;
 }
 
-interface DrawItem {
-    type: string;
-    color: string;
-    width: number;
-    startX: number;
-    startY: number;
-    endX: number;
-    endY: number;
-}
-
 import {
     analyzeColorValues, baseSeriesName,
     buildColorizedSeries, categoryColorFor, colorForScaleValue,
@@ -77,6 +67,7 @@ import {
 import { ChartOverlays } from './chartOverlays.js';
 import { buildLegendEntries } from './legendInteraction.js';
 import { LegendOverlayController } from './legendOverlayController.js';
+import { DrawingController } from './drawingController.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
@@ -134,12 +125,7 @@ export class DataChart {
     _overlayCtx: CanvasRenderingContext2D | null = null;
     _drawingResizeObserver: ResizeObserver | null = null;
     _chartResizeObserver: ResizeObserver | null = null;
-    _drawings: DrawItem[] = [];
-    _currentDraw: DrawItem | null = null;
-    _drawMode: string = 'none';
-    _drawColor = '#ff0055';
-    _drawWidth = 2;
-    _drawingRafId: number | null = null;
+    _drawingController: DrawingController | null = null;
     _overlays: ChartOverlays | null = null;
     _lastChartOptions: ChartGPUOptions | null = null;
     _lastAppliedTheme: ResolvedTheme | null = null;
@@ -163,10 +149,7 @@ export class DataChart {
     /* ── Public surface ─────────────────────────────────── */
 
     destroy(): void {
-        if (this._drawingRafId !== null) {
-            cancelAnimationFrame(this._drawingRafId);
-            this._drawingRafId = null;
-        }
+        this._drawingController?.detach();
         this._drawingResizeObserver?.disconnect();
         this._drawingResizeObserver = null;
         this._chartResizeObserver?.disconnect();
@@ -185,10 +168,7 @@ export class DataChart {
      * container is being removed from the DOM.
      */
     deepDispose(): void {
-        if (this._drawingRafId !== null) {
-            cancelAnimationFrame(this._drawingRafId);
-            this._drawingRafId = null;
-        }
+        this._drawingController?.detach();
         this._drawingResizeObserver?.disconnect();
         this._drawingResizeObserver = null;
         this._chartResizeObserver?.disconnect();
@@ -218,11 +198,8 @@ export class DataChart {
         this.chartInstance = null;
 
         // Clear drawing state.
-        this._drawings = [];
-        this._currentDraw = null;
-        this._drawMode = 'none';
-        this._drawColor = '#ff0055';
-        this._drawWidth = 2;
+        this._drawingController?.reset();
+        this._drawingController = null;
 
         // Reset bounds.
         this._xMin = null;
@@ -252,18 +229,11 @@ export class DataChart {
     }
 
     setDrawMode(mode: string, color?: string, width?: number): void {
-        this._drawMode = mode;
-        if (color) this._drawColor = color;
-        if (width) this._drawWidth = width;
-        if (this._overlayCanvas) {
-            this._overlayCanvas.style.pointerEvents = mode === 'none' ? 'none' : 'auto';
-        }
+        this._getDrawingController().setMode(mode, color, width);
     }
 
     clearDrawings(): void {
-        this._drawings = [];
-        this._currentDraw = null;
-        this._renderDrawings();
+        this._drawingController?.clear();
     }
 
     requestOverlayRender(): void {
@@ -274,15 +244,6 @@ export class DataChart {
         this.chartInstance?.resize?.();
         this._legendOverlay?.reflow();
         this._renderDrawings();
-    }
-
-    /** Schedule a drawing render on the next animation frame (coalesces rapid calls). */
-    private _scheduleDrawingRender(): void {
-        if (this._drawingRafId !== null) return;
-        this._drawingRafId = requestAnimationFrame(() => {
-            this._drawingRafId = null;
-            this._renderDrawings();
-        });
     }
 
     setXRange(minMs: number, maxMs: number): void {
@@ -897,6 +858,13 @@ export class DataChart {
         try { setter.call(chart, null, 'legend-drag'); } catch { /* ignored */ }
     }
 
+    private _getDrawingController(): DrawingController {
+        if (!this._drawingController) {
+            this._drawingController = new DrawingController(() => this._renderDrawings());
+        }
+        return this._drawingController;
+    }
+
     /* ── Text overlays ──────────────────────────────────── */
 
     private _initTextOverlays(): void {
@@ -939,6 +907,7 @@ export class DataChart {
         this._drawingResizeObserver = observer;
         this._overlayCanvas = canvas;
         this._overlayCtx = canvas.getContext('2d');
+        this._getDrawingController().attach(canvas);
 
         this._overlays = new ChartOverlays({
             getXMin: () => this._xMin,
@@ -950,66 +919,16 @@ export class DataChart {
             getPendingAdaptivePoint: () => uiState.pendingAdaptivePoint,
         });
 
-        canvas.addEventListener('pointerdown', (e) => {
-            if (e.button !== 0 || this._drawMode === 'none') return;
-            const rect = canvas.getBoundingClientRect();
-            this._currentDraw = { type: this._drawMode, color: this._drawColor, width: this._drawWidth, startX: e.clientX - rect.left, startY: e.clientY - rect.top, endX: e.clientX - rect.left, endY: e.clientY - rect.top };
-            canvas.setPointerCapture(e.pointerId);
-        });
-        canvas.addEventListener('pointermove', (e) => {
-            if (!this._currentDraw || this._drawMode === 'none') return;
-            const rect = canvas.getBoundingClientRect();
-            this._currentDraw.endX = e.clientX - rect.left;
-            this._currentDraw.endY = e.clientY - rect.top;
-            this._scheduleDrawingRender();
-        });
-        canvas.addEventListener('pointerup', (e) => {
-            if (!this._currentDraw || this._drawMode === 'none') return;
-            this._drawings.push(this._currentDraw);
-            this._currentDraw = null;
-            canvas.releasePointerCapture(e.pointerId);
-            this._renderDrawings();
-            if (getSetting('drawAutoReset')) {
-                this._drawings = [];
-                this._renderDrawings();
-            }
-        });
-        canvas.addEventListener('pointercancel', () => { this._currentDraw = null; this._renderDrawings(); });
     }
 
     /* ── Drawing render ─────────────────────────────────── */
-
-    private _drawArrow(ctx: CanvasRenderingContext2D, sx: number, sy: number, ex: number, ey: number): void {
-        const headlen = 10;
-        const angle = Math.atan2(ey - sy, ex - sx);
-        ctx.beginPath();
-        ctx.moveTo(sx, sy);
-        ctx.lineTo(ex, ey);
-        ctx.lineTo(ex - headlen * Math.cos(angle - Math.PI / 6), ey - headlen * Math.sin(angle - Math.PI / 6));
-        ctx.moveTo(ex, ey);
-        ctx.lineTo(ex - headlen * Math.cos(angle + Math.PI / 6), ey - headlen * Math.sin(angle + Math.PI / 6));
-        ctx.stroke();
-    }
 
     private _renderDrawings(): void {
         if (!this._overlayCtx || !this._overlayCanvas) return;
         const ctx = this._overlayCtx;
         ctx.clearRect(0, 0, this._overlayCanvas.width, this._overlayCanvas.height);
         this._overlays?.renderAll(ctx, { x: 1, y: 1 });
-        const allDraws = [...this._drawings];
-        if (this._currentDraw) allDraws.push(this._currentDraw);
-        for (const item of allDraws) {
-            ctx.strokeStyle = item.color;
-            ctx.lineWidth = item.width;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            if (item.type === 'arrow') this._drawArrow(ctx, item.startX, item.startY, item.endX, item.endY);
-            else if (item.type === 'box') {
-                ctx.beginPath();
-                ctx.rect(Math.min(item.startX, item.endX), Math.min(item.startY, item.endY), Math.abs(item.endX - item.startX), Math.abs(item.endY - item.startY));
-                ctx.stroke();
-            }
-        }
+        this._drawingController?.render(ctx);
     }
 
     private _renderRollingBandsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
@@ -1376,7 +1295,7 @@ export class DataChart {
             // with a plain left-click, we ignore pointer events whose
             // target sits inside the floating legend overlay.
             shouldIgnore: (e) =>
-                this._drawMode !== 'none'
+                this._drawingController?.isEnabled === true
                 || e.ctrlKey
                 || this._container?.classList.contains('is-shift-active') === true
                 || this._isLegendPointerTarget(e.target as Element | null),
@@ -1418,7 +1337,7 @@ export class DataChart {
             // the overlay (and so future legend interactions still
             // work).
             shouldIgnore: (e: PointerEvent) =>
-                this._drawMode !== 'none'
+                this._drawingController?.isEnabled === true
                 || this._isLegendPointerTarget(e.target as Element | null),
             onPan: (view) => {
                 const xMin = Number(view.xMin);
@@ -1630,32 +1549,7 @@ export class DataChart {
     }
 
     private _renderDrawingsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
-        const allDraws = [...this._drawings];
-        if (this._currentDraw) allDraws.push(this._currentDraw);
-        const strokeScale = Math.min(scale.x, scale.y);
-        for (const item of allDraws) {
-            ctx.strokeStyle = item.color;
-            ctx.lineWidth = item.width * strokeScale;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            const sx = item.startX * scale.x;
-            const sy = item.startY * scale.y;
-            const ex = item.endX * scale.x;
-            const ey = item.endY * scale.y;
-            if (item.type === 'arrow') {
-                const headlen = 10 * strokeScale;
-                const angle = Math.atan2(ey - sy, ex - sx);
-                ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey);
-                ctx.lineTo(ex - headlen * Math.cos(angle - Math.PI / 6), ey - headlen * Math.sin(angle - Math.PI / 6));
-                ctx.moveTo(ex, ey);
-                ctx.lineTo(ex - headlen * Math.cos(angle + Math.PI / 6), ey - headlen * Math.sin(angle + Math.PI / 6));
-                ctx.stroke();
-            } else if (item.type === 'box') {
-                ctx.beginPath();
-                ctx.rect(Math.min(sx, ex), Math.min(sy, ey), Math.abs(ex - sx), Math.abs(ey - sy));
-                ctx.stroke();
-            }
-        }
+        this._drawingController?.render(ctx, scale);
     }
 
 }

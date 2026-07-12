@@ -89,54 +89,24 @@ describe('setChartText', () => {
 // ── setDrawMode ──────────────────────────────────────────────────────────────
 
 describe('setDrawMode', () => {
-    it('sets _drawMode', () => {
+    it('delegates drawing mode changes to the drawing controller', () => {
         const chart = makeChart();
-        chart.setDrawMode('line');
-        expect((chart as any)._drawMode).toBe('line');
-    });
-
-    it('sets _drawColor when provided', () => {
-        const chart = makeChart();
-        chart.setDrawMode('line', '#00ff00');
-        expect((chart as any)._drawColor).toBe('#00ff00');
-    });
-
-    it('sets _drawWidth when provided', () => {
-        const chart = makeChart();
-        chart.setDrawMode('line', undefined, 5);
-        expect((chart as any)._drawWidth).toBe(5);
-    });
-
-    it('does not overwrite _drawColor when not provided', () => {
-        const chart = makeChart();
-        (chart as any)._drawColor = '#ff0000';
-        chart.setDrawMode('line');
-        expect((chart as any)._drawColor).toBe('#ff0000');
-    });
-
-    it('does not overwrite _drawWidth when not provided', () => {
-        const chart = makeChart();
-        (chart as any)._drawWidth = 3;
-        chart.setDrawMode('line');
-        expect((chart as any)._drawWidth).toBe(3);
+        const setMode = vi.fn();
+        (chart as any)._drawingController = { setMode };
+        chart.setDrawMode('line', '#00ff00', 5);
+        expect(setMode).toHaveBeenCalledWith('line', '#00ff00', 5);
     });
 });
 
 // ── clearDrawings ────────────────────────────────────────────────────────────
 
 describe('clearDrawings', () => {
-    it('empties _drawings array', () => {
+    it('clears its drawing controller when one has been initialized', () => {
         const chart = makeChart();
-        (chart as any)._drawings = [{ type: 'line', points: [] }];
+        const clear = vi.fn();
+        (chart as any)._drawingController = { clear };
         chart.clearDrawings();
-        expect((chart as any)._drawings).toHaveLength(0);
-    });
-
-    it('clears _currentDraw', () => {
-        const chart = makeChart();
-        (chart as any)._currentDraw = { type: 'line', points: [] };
-        chart.clearDrawings();
-        expect((chart as any)._currentDraw).toBeNull();
+        expect(clear).toHaveBeenCalledOnce();
     });
 });
 
@@ -422,15 +392,12 @@ describe('destroy', () => {
         expect((chart as any)._chartResizeObserver).toBeNull();
     });
 
-    it('clears _drawingRafId and cancels any pending animation frame', () => {
+    it('detaches the drawing controller and releases its pending listeners', () => {
         const chart = makeChart();
-        const rafId = 42;
-        (chart as any)._drawingRafId = rafId;
-        const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame');
+        const detach = vi.fn();
+        (chart as any)._drawingController = { detach };
         chart.destroy();
-        expect(cancelSpy).toHaveBeenCalledWith(rafId);
-        expect((chart as any)._drawingRafId).toBeNull();
-        cancelSpy.mockRestore();
+        expect(detach).toHaveBeenCalledOnce();
     });
 });
 

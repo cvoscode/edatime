@@ -160,6 +160,8 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted display Y-range padding and non-negative floor policy with direct tests; DataChart now only applies the resulting axis option.
 - Extracted the legend DOM lifecycle into `LegendOverlayController`: element creation/removal, listener disposal, Shift hint state, drag positioning, and hover suppression are now owned outside `DataChart`.
 - Kept series visibility and export-entry decisions in `DataChart`; controller callbacks make that boundary explicit. Direct controller tests cover rendering, delegation, Shift-only dragging, clamping, hover suppression, and removal cleanup.
+- Extracted user drawing ownership into `DrawingController`: draw mode/state, pointer lifecycle, animation-frame coalescing, listener cleanup, and screen/export shape rendering no longer live in `DataChart`.
+- `DataChart` retains only composition of chart-specific overlay layers with the drawing surface. Direct controller tests characterize gesture coordinates, enabled/disabled input, committed drawings, and redraw requests.
 
 ### Next: DataChart renderer seams
 
