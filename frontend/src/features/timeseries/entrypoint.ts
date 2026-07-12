@@ -73,7 +73,7 @@ export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
                     // Late-imported to keep the initial bundle small
                     // and to avoid a static dependency cycle with
                     // the timeseries page module.
-                    void import('../../pages/timeseriesToolbarOverflow.js')
+                    void import('./toolbarOverflow.js')
                         .then(({ initTimeseriesToolbarOverflow, refreshTimeseriesToolbarOverflow }) => {
                             try { initTimeseriesToolbarOverflow(shelf); } catch { /* noop */ }
                             // One extra refresh after a frame so the

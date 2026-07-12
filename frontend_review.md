@@ -89,7 +89,11 @@ The next feature-directory migration should apply the same controller/runtime/he
 
 ### Next: timeseries toolbar-overflow ownership
 
-Move the Timeseries toolbar-overflow behavior out of `pages/` into `features/timeseries/`, preserve its lazy controller import and layout contracts, then delete the retired page-oriented owner.
+Move complete: the Timeseries toolbar-overflow controller now lives in `features/timeseries/`, and its lazy entrypoint import and layout characterization coverage remain intact.
+
+### Next: remaining page-layout test ownership
+
+Review the remaining `pages/` layout-only tests and co-locate them with their feature or stylesheet owner; do not move tests that are intentionally cross-feature layout contracts.
 
 ## Target Architecture
 
