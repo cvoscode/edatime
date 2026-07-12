@@ -2,14 +2,11 @@
  * Scatter-page local query-context builders and DOM helpers.
  *
  * The canonical scatter state lives in `store/scatterState.ts` as `scatterState`.
- * This module re-exports it for backward compatibility so that existing imports
- * from `./state.js` (e.g. `import { state }`) continue to work.
- *
- * Helper functions here (controls readers, query builders, view utilities) are
- * still owned by this module as they are scatter-page specific.
+ * This module owns the scatter-specific query builders and DOM helpers, and
+ * re-exports `scatterState` as `state` for callers that still import through
+ * `./state.js`.
  */
 
-import { appState } from '../store/index.js';
 import { chartState } from '../store/chartState.js';
 import { datasetState } from '../store/datasetState.js';
 import { getScatterViewSnapshot, scatterState } from '../store/scatterState.js';
@@ -18,7 +15,6 @@ import { buildAdaptiveLineFiltersForQueryState } from '../services/timeseries/fi
 import type { WorkspaceSnapshot } from '../workspace/workspaceStore.js';
 import { getScatterPlotMetrics } from './layout.js';
 import { getDropdownValue, setDropdownOptions } from '../ui/primitives/Dropdown.js';
-export { appState } from '../store/index.js';
 
 // Import scatterState locally as `state` for use in helper functions defined
 // in this module, and re-export it so external callers can also use it as `state`.

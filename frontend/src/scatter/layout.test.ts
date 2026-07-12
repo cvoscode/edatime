@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { buildOption } from './rendering.js';
-import { appState, getPlotMetrics } from './state.js';
+import { getPlotMetrics } from './state.js';
 import { getScatterMarginalXMetrics, getScatterMarginalYMetrics } from './layout.js';
+import { scatterState } from '../store/scatterState.js';
 
 const EXPECTED_GRID = { left: 72, right: 72, top: 24, bottom: 50 };
 
@@ -40,10 +41,10 @@ function buildDom(): HTMLDivElement {
 
 describe('scatter plot layout geometry', () => {
     beforeEach(() => {
-        appState.scatter.view = { xMin: 0, xMax: 10, yMin: 0, yMax: 20 };
-        appState.scatter.columnTypes = new Map();
-        appState.scatter.lastOptionSeries = null;
-        appState.scatter.densityTooltipCache = null;
+        scatterState.view = { xMin: 0, xMax: 10, yMin: 0, yMax: 20 };
+        scatterState.columnTypes = new Map();
+        scatterState.lastOptionSeries = null;
+        scatterState.densityTooltipCache = null;
     });
 
     it('keeps the chart option grid aligned with the marginal plot metrics', () => {
