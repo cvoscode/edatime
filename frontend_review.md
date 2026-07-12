@@ -132,6 +132,13 @@ Complete: FFT and Timeseries layout/lifecycle tests now live with their features
 
 ### Next: platform and feature-boundary consolidation
 
+### Completed: Home and Upload public feature surfaces
+
+- Added public indexes for Home and Upload.
+- Updated deferred shell loading and shared upload UI wiring to consume those public surfaces instead of internal feature modules.
+
+### Next: platform and feature-boundary consolidation
+
 Continue replacing cross-feature deep imports with small public surfaces, then extend the architecture checker once the remaining direct seams have been migrated.
 
 ## Target Architecture

@@ -6,10 +6,7 @@
  */
 
 // Re-export shared utilities and status setters from feature modules
-export { setUploadPreviewStatus } from '../features/upload/preview.js';
-export { setProfileMode } from '../features/upload/preview.js';
-export { applyPartialTimeRangeFromMetadata } from '../features/upload/partialLoadControls.js';
-export { formatUploadRowCountValue as formatUploadRowCount, loadedRowCountFromResponse } from '../features/upload/preview.js';
+export { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata, formatUploadRowCountValue as formatUploadRowCount, loadedRowCountFromResponse } from '../features/upload/index.js';
 
 import {
     setUploadPreviewStatus,
@@ -17,7 +14,7 @@ import {
     runFilePreview,
     applyPreviewColumnSelection,
     applyTimeRangeFromMetadata,
-} from '../features/upload/preview.js';
+} from '../features/upload/index.js';
 import {
     handleDatabaseConnect,
     handleDatabaseDisconnect,
@@ -25,15 +22,15 @@ import {
     refreshDbTables,
     resetDatabaseStatusLoaded,
     syncDatabaseStatus as doSyncDatabaseStatus,
-} from '../features/upload/databaseSource.js';
+} from '../features/upload/index.js';
 import {
     validateFileSize,
     getPartialTimeRangeInputs,
     clearPartialTimeRangeInputs,
     setPartialTimeRangeInputs,
     UI_MAX_UPLOAD_BYTES,
-} from '../features/upload/partialLoadControls.js';
-import { submitFileUpload } from '../features/upload/fileSource.js';
+} from '../features/upload/index.js';
+import { submitFileUpload } from '../features/upload/index.js';
 import { datasetState, setDatasetRevision, setMetadata } from '../store/datasetState.js';
 import { setPreviewSelectedColumns, setPreviewTimeColumn, uiState } from '../store/uiState.js';
 import { toast } from '../utils/toast.js';

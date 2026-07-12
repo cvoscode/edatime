@@ -90,7 +90,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         });
         // Page-level "?" help button. The helper is idempotent so it's
         // safe to call from inside the upload-panel subsystem.
-        const { initUploadHelp } = await import('../../features/upload/help.js');
+        const { initUploadHelp } = await import('../../features/upload/index.js');
         initUploadHelp();
     });
 
@@ -165,7 +165,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         // and importing initPageHelp from their own page module. The
         // `initPageHelp` helper is idempotent, so calling it from
         // multiple subsystem loaders is safe.
-        const { initHomePage } = await import('../../features/home/help.js');
+        const { initHomePage } = await import('../../features/home/index.js');
         initHomePage();
     });
 
