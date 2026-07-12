@@ -86,6 +86,17 @@ debug = true
 opt-level = 3
 lto = true
 
+# Workaround for https://github.com/rust-lang/rust/issues/157363.
+#
+# `ethnum` 1.5.2 contains `unsafe { mem::transmute(()) }` to construct a
+# `TryFromIntError`, which stops compiling on rustc >= 1.97 because the
+# error type's layout grew. `ethnum` 1.5.3 replaces the transmute with a
+# safe `try_from(-1).unwrap_err()` call. We pull it in via polars-arrow
+# transitively; pin it via git so the workspace builds against modern
+# toolchains without waiting for polars to bump the dependency.
+[patch.crates-io]
+ethnum = { git = "https://github.com/nlordell/ethnum-rs", tag = "v1.5.3" }
+
 
 
 

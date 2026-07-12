@@ -402,13 +402,15 @@ async fn data_downsampled_response_is_non_empty_with_epoch_timestamps() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn data_downsampled_response_is_non_empty_with_narrow_width() {
-    // Companion to the epoch-timestamps test: a very narrow chart width
-    // forces aggressive downsampling. The selection must still be
+    // Companion to the epoch-timestamps test: a chart width at the lower
+    // bound forces aggressive downsampling. The selection must still be
     // non-empty and the body must contain data, otherwise the user sees
-    // the timeseries empty state.
+    // the timeseries empty state. We use `width=50` (the configured
+    // `min_viewport_width`) because widths below the bound are rejected
+    // by validation (audit issue 1.2).
     let app = test_app();
     let req = Request::builder()
-        .uri("/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=10&columns=col_a")
+        .uri("/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=50&columns=col_a")
         .body(Body::empty())
         .unwrap();
 
@@ -490,8 +492,10 @@ async fn correlation_matrix_returns_ok_with_empty_payload_when_no_numeric_column
     let body = resp.into_body().collect().await.unwrap().to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["columns"], serde_json::json!([]));
-    assert_eq!(json["pearson"], serde_json::json!([]));
-    assert_eq!(json["spearman"], serde_json::json!([]));
+    // Backend returns canonical `*_raw` / `*_diff` keys; the legacy
+    // `pearson` / `spearman` aliases are no longer serialized.
+    assert_eq!(json["pearson_raw"], serde_json::json!([]));
+    assert_eq!(json["spearman_raw"], serde_json::json!([]));
 }
 
 #[tokio::test(flavor = "multi_thread")]

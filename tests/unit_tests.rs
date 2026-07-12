@@ -112,8 +112,12 @@ fn validate_time_window_rejects_equal() {
 #[test]
 fn validate_width_ok() {
     let limits = AppConfig::default().validation;
+    // `width=1` was the legacy raw-data escape hatch (audit issue 1.2).
+    // The backend now enforces a lower bound equal to the configured
+    // `min_viewport_width`, so `width=1` must be rejected.
     assert!(validate_width(500, &limits).is_ok());
-    assert!(validate_width(1, &limits).is_ok());
+    assert!(validate_width(limits.min_viewport_width, &limits).is_ok());
+    assert!(validate_width(1, &limits).is_err());
 }
 
 #[test]
