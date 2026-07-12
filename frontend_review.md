@@ -152,7 +152,8 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 ### In progress: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.
-- Added direct unit coverage for this policy while retaining the existing DataChart legend characterization tests; the next extraction moves legend DOM lifecycle ownership.
+- Added direct unit coverage for this policy while retaining the existing DataChart legend characterization tests.
+- Extracted robust Y-range normalization, bounds calculation, and spike-detection suggestion policy with direct tests; rendering ownership remains in DataChart.
 
 ## Target Architecture
 

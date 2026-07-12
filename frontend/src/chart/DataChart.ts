@@ -22,7 +22,7 @@ import type {
     RobustDisplayRangeOptions,
     ViewSnapshot,
 } from '../types.js';
-import { quantileSorted } from '../utils/spectralScaling.js';
+import { computeRobustDisplayBounds, normalizeRobustDisplayRange, suggestRobustDisplayRange } from './yRangePolicy.js';
 import {
     type ChartGPUOptions,
     type ChartGPUCrosshairMovePayload,
@@ -442,15 +442,7 @@ export class DataChart {
             this._applyDisplayYRangeToChart();
             return;
         }
-        const mode = options.mode === 'iqr' ? 'iqr' : 'percentile';
-        const fallbackParam = mode === 'iqr' ? 1.5 : 1;
-        const param = Number.isFinite(options.param) ? Number(options.param) : fallbackParam;
-        this._robustDisplayRange = {
-            mode,
-            param: mode === 'iqr'
-                ? Math.max(0.1, param)
-                : Math.min(25, Math.max(0, param)),
-        };
+        this._robustDisplayRange = normalizeRobustDisplayRange(options);
         this._applyDisplayYRangeToChart();
     }
 
@@ -470,17 +462,7 @@ export class DataChart {
     }
 
     getRobustDisplayRangeSuggestion(): RobustDisplayRangeOptions | null {
-        if (!Number.isFinite(this._lastDataYMin) || !Number.isFinite(this._lastDataYMax)) return null;
-        const sorted = this._lastDisplayYValues
-            .filter((value) => Number.isFinite(value))
-            .sort((a, b) => a - b);
-        if (sorted.length < 4) return null;
-        const q1 = quantileSorted(sorted, 0.25);
-        const q3 = quantileSorted(sorted, 0.75);
-        if (!Number.isFinite(q1) || !Number.isFinite(q3) || q3 <= q1) return null;
-        const rawSpan = this._lastDataYMax! - this._lastDataYMin!;
-        const robustSpan = q3 - q1;
-        return rawSpan > robustSpan * 3 ? { mode: 'percentile', param: 1 } : null;
+        return suggestRobustDisplayRange(this._lastDisplayYValues, this._lastDataYMin, this._lastDataYMax);
     }
 
     cssPointToData(clientX: number, clientY: number): { x: number; y: number } | null {
@@ -856,27 +838,7 @@ export class DataChart {
     }
 
     private _computeRobustDisplayBounds(): { min: number; max: number } | null {
-        if (!this._robustDisplayRange) return null;
-        const sorted = this._lastDisplayYValues
-            .filter((value) => Number.isFinite(value))
-            .sort((a, b) => a - b);
-        if (sorted.length < 4) return null;
-
-        if (this._robustDisplayRange.mode === 'percentile') {
-            const pct = Math.min(25, Math.max(0, this._robustDisplayRange.param));
-            const min = quantileSorted(sorted, pct / 100);
-            const max = quantileSorted(sorted, 1 - (pct / 100));
-            return Number.isFinite(min) && Number.isFinite(max) && max > min ? { min, max } : null;
-        }
-
-        const q1 = quantileSorted(sorted, 0.25);
-        const q3 = quantileSorted(sorted, 0.75);
-        if (!Number.isFinite(q1) || !Number.isFinite(q3) || q3 <= q1) return null;
-        const iqr = q3 - q1;
-        const k = Math.max(0.1, this._robustDisplayRange.param);
-        const min = q1 - (k * iqr);
-        const max = q3 + (k * iqr);
-        return Number.isFinite(min) && Number.isFinite(max) && max > min ? { min, max } : null;
+        return computeRobustDisplayBounds(this._lastDisplayYValues, this._robustDisplayRange);
     }
 
     private _computeChartZoomPercentRange(
