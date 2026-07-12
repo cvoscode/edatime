@@ -35,12 +35,19 @@ interface FilteredRow {
     value: number;
 }
 
-function buildFilteredSeriesRows(deps: ExportFeatureDeps): FilteredRow[] {
+const MAX_INLINE_EXPORT_ROWS = 100_000;
+
+interface FilteredRowsResult {
+    rows: FilteredRow[];
+    limitExceeded: boolean;
+}
+
+function buildFilteredSeriesRows(deps: ExportFeatureDeps, maxRows = Number.POSITIVE_INFINITY): FilteredRowsResult {
     const data = deps.getData();
     const snapshot = deps.workspace.getSnapshot();
     const selectedColumns = snapshot.selection.columns;
     if (!data || selectedColumns.length === 0) {
-        return [];
+        return { rows: [], limitExceeded: false };
     }
 
     const filtered = applyColumnRangesToData(
@@ -65,18 +72,21 @@ function buildFilteredSeriesRows(deps: ExportFeatureDeps): FilteredRow[] {
                 series: column,
                 value,
             });
+            if (rows.length > maxRows) {
+                return { rows: [], limitExceeded: true };
+            }
         }
     }
 
     rows.sort((a, b) => a.ts_ms - b.ts_ms || a.series.localeCompare(b.series));
-    return rows;
+    return { rows, limitExceeded: false };
 }
 
 // ── Transport calls ───────────────────────────────────────────────────────────
 
 function exportFilteredCsv(deps: ExportFeatureDeps): boolean {
-    const rows = buildFilteredSeriesRows(deps);
-    if (rows.length === 0) return false;
+    const { rows, limitExceeded } = buildFilteredSeriesRows(deps, MAX_INLINE_EXPORT_ROWS);
+    if (limitExceeded || rows.length === 0) return false;
 
     const lines = [
         'ts_ms,ts_iso,series,value',
@@ -92,8 +102,8 @@ function exportFilteredCsv(deps: ExportFeatureDeps): boolean {
 }
 
 function exportFilteredJson(deps: ExportFeatureDeps): boolean {
-    const rows = buildFilteredSeriesRows(deps);
-    if (rows.length === 0) return false;
+    const { rows, limitExceeded } = buildFilteredSeriesRows(deps, MAX_INLINE_EXPORT_ROWS);
+    if (limitExceeded || rows.length === 0) return false;
 
     downloadBlob(
         new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json;charset=utf-8' }),

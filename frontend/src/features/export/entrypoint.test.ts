@@ -40,6 +40,23 @@ function makeData(): DataObject {
     };
 }
 
+function makeLargeData(rowCount: number): DataObject {
+    return {
+        ts: Float64Array.from({ length: rowCount }, (_, index) => index + 1),
+        values: {
+            temp: Float64Array.from({ length: rowCount }, (_, index) => index),
+        },
+        color: null,
+        color_column: null,
+        _meta: {
+            downsampled: false,
+            downsampleKnown: true,
+            returnedRows: rowCount,
+            targetPoints: rowCount,
+        },
+    };
+}
+
 let currentData: DataObject | null = null;
 let workspaceSnapshot: WorkspaceSnapshot = makeWorkspaceSnapshot();
 
@@ -119,6 +136,19 @@ describe('export feature characterization', () => {
                 value: 20,
             },
         ]);
+    });
+
+    it('returns false for CSV and JSON exports when filters remove every row', () => {
+        currentData = makeData();
+        workspaceSnapshot = makeWorkspaceSnapshot({
+            selection: { columns: ['temp'] },
+            filters: { columnRanges: { temp: { from: 100, to: 200 } }, adaptiveLines: [] },
+        });
+        const feature = createFeature();
+
+        expect(feature.exportFilteredCsv()).toBe(false);
+        expect(feature.exportFilteredJson()).toBe(false);
+        expect(downloadBlobMock).not.toHaveBeenCalled();
     });
 
     it('escapes commas, quotes, and newlines in CSV series names through the shared csv helper', async () => {
@@ -209,6 +239,30 @@ describe('export feature characterization', () => {
 
         await expect(feature.exportFilteredParquet()).resolves.toBe(false);
         expect(exportParquetMock).not.toHaveBeenCalled();
+        expect(downloadBlobMock).not.toHaveBeenCalled();
+    });
+
+    it('returns false for CSV export when the filtered row set exceeds the export cap', () => {
+        currentData = makeLargeData(100_001);
+        workspaceSnapshot = makeWorkspaceSnapshot({
+            selection: { columns: ['temp'] },
+            filters: { columnRanges: {}, adaptiveLines: [] },
+        });
+        const feature = createFeature();
+
+        expect(feature.exportFilteredCsv()).toBe(false);
+        expect(downloadBlobMock).not.toHaveBeenCalled();
+    });
+
+    it('returns false for JSON export when the filtered row set exceeds the export cap', () => {
+        currentData = makeLargeData(100_001);
+        workspaceSnapshot = makeWorkspaceSnapshot({
+            selection: { columns: ['temp'] },
+            filters: { columnRanges: {}, adaptiveLines: [] },
+        });
+        const feature = createFeature();
+
+        expect(feature.exportFilteredJson()).toBe(false);
         expect(downloadBlobMock).not.toHaveBeenCalled();
     });
 });
