@@ -6,7 +6,6 @@ import type {
     ScatterLineFilterSpec,
 } from '../../types.js';
 import { datasetState } from '../../store/datasetState.js';
-import { uiState } from '../../store/uiState.js';
 import { setColumnRanges, setSelectedCols } from '../../store/uiState.js';
 import type { WorkspaceSnapshot, WorkspaceStore } from '../../workspace/workspaceStore.js';
 
@@ -18,17 +17,17 @@ export type TimeseriesFilterIntent = Pick<WorkspaceSnapshot, 'selection' | 'filt
  */
 export function ensureRangeStateFromData(
     dataObj: DataObject,
-    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'>,
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'>,
 ): void {
-    const intent = workspace?.getSnapshot();
+    const intent = workspace.getSnapshot();
     const next = ensureRangeStateFromDataState(
         dataObj,
-        intent ? [...intent.selection.columns] : (uiState.selectedCols || []),
-        intent ? intent.filters.columnRanges : (uiState.columnRanges || {}),
+        [...intent.selection.columns],
+        intent.filters.columnRanges,
     );
-    const currentRanges = intent?.filters.columnRanges ?? uiState.columnRanges;
+    const currentRanges = intent.filters.columnRanges;
     if (next === currentRanges) return;
-    if (intent) workspace?.setFilters({ ...intent.filters, columnRanges: next });
+    workspace.setFilters({ ...intent.filters, columnRanges: next });
     setColumnRanges(next);
 }
 
@@ -228,19 +227,11 @@ export function applyFilterIntentToData(
 }
 
 /**
- * Returns adaptive line filters with non-finite values stripped.
- * Reads from uiState.adaptiveLineFilters.
- */
-export function buildAdaptiveLineFiltersForQuery(): ScatterLineFilterSpec[] {
-    return buildAdaptiveLineFiltersForQueryState(uiState.adaptiveLineFilters || []);
-}
-
-/**
  * Remove selected columns that are time/dataset columns or don't exist
  * in the current metadata.
  */
 export function sanitizeSelectedColumns(
-    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection'>,
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection'>,
 ): void {
     const blockedNames = new Set(['ts', 'timestamp', 'time']);
     const datetimeCols = new Set(
@@ -253,8 +244,8 @@ export function sanitizeSelectedColumns(
         (datasetState.metadata?.columns || []).map((c) => String(c?.name || '').trim()),
     );
 
-    const intent = workspace?.getSnapshot();
-    const selectedColumns = intent ? intent.selection.columns : (uiState.selectedCols || []);
+    const intent = workspace.getSnapshot();
+    const selectedColumns = intent.selection.columns;
     const filtered = selectedColumns.filter((col) => {
         const name = String(col || '').trim();
         if (!name) return false;
@@ -265,6 +256,6 @@ export function sanitizeSelectedColumns(
         if (!validColNames.has(name)) return false;
         return true;
     });
-    if (intent) workspace?.setSelection(filtered, intent.selection.colorColumn);
+    workspace.setSelection(filtered, intent.selection.colorColumn);
     setSelectedCols(filtered);
 }

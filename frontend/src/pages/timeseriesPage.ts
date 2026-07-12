@@ -358,7 +358,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     }
 
     async function fetchAndRender(): Promise<void> {
-        sanitizeSelectedColumns(deps.workspace);
+        if (deps.workspace) sanitizeSelectedColumns(deps.workspace);
         const intent = getRequestIntent();
         if (!Number.isFinite(intent.start) || !Number.isFinite(intent.end)) return;
         const currentStart = intent.start;
@@ -472,7 +472,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 }
             }
 
-            ensureRangeStateFromData(data, deps.workspace);
+            if (deps.workspace) ensureRangeStateFromData(data, deps.workspace);
             deps.buildRangeControls();
             chartState.chart?.setXRange?.(currentStart, currentEnd);
             renderCurrentData();
