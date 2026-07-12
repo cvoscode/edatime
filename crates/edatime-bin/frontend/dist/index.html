@@ -47,9 +47,9 @@
       });
     }
   </script>
-  <script type="module" crossorigin src="/assets/index-BokKEGHc.js"></script>
+  <script type="module" crossorigin src="/assets/index-GWlPa__f.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/settings-DkBT1xH3.js">
-  <link rel="stylesheet" crossorigin href="/assets/index-Co8WROGp.css">
+  <link rel="stylesheet" crossorigin href="/assets/index-ChKhUg-o.css">
 </head>
 
 <body>
@@ -290,6 +290,12 @@
       <section id="workflow-panel" class="workflow-panel"></section>
 
       <section class="page page--analysis-scroll" id="page-timeseries" data-page-name="timeseries" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">Timeseries</h1>
+          <button id="timeseries-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Timeseries page"
+            title="Show help for the Timeseries page (?)">?</button>
+        </div>
         <div class="toolbar toolbar--series timeseries-command-bar">
           <div class="timeseries-command-bar__left toolbar-group" role="group" aria-label="Series selection tools">
             <span class="toolbar-label">Series</span>
@@ -498,6 +504,12 @@
       </section>
 
       <section class="page" id="page-scatter" data-page-name="scatter" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">Scatter</h1>
+          <button id="scatter-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Scatter page"
+            title="Show help for the Scatter page (?)">?</button>
+        </div>
         <div class="toolbar scatter-toolbar">
           <div id="scatter-analytics-group" class="scatter-toolbar__cluster">
             <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
@@ -729,6 +741,12 @@
       </section>
 
       <section class="page page--analysis-scroll" id="page-fft" data-page-name="fft" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">FFT / PSD</h1>
+          <button id="fft-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the FFT page"
+            title="Show help for the FFT page (?)">?</button>
+        </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
             <span class="scatter-toolbar__eyebrow">Display</span>
@@ -794,19 +812,22 @@
                   <option value="bandstop">Band-stop</option>
                 </select>
               </label>
-              <label class="toolbar-field scatter-toolbar__field" for="fft-filter-low-hz"
-                title="Low frequency cutoff (Hz)">
-                <span class="toolbar-field__label">Low Hz</span>
-                <input id="fft-filter-low-hz" type="number" class="modal-input" min="0" step="0.001" placeholder="0"
-                  title="Low frequency cutoff (Hz)" name="fft-filter-low-hz" aria-label="Low Hz">
-              </label>
-              <label class="toolbar-field scatter-toolbar__field" for="fft-filter-high-hz"
-                title="High frequency cutoff (Hz)">
-                <span class="toolbar-field__label">High Hz</span>
-                <input id="fft-filter-high-hz" type="number" class="modal-input" min="0" step="0.001" placeholder="auto"
-                  title="High frequency cutoff (Hz)" name="fft-filter-high-hz" aria-label="High Hz">
-              </label>
-              <div class="scatter-toolbar__actions">
+              <div class="fft-filter-band is-hidden" id="fft-filter-band" data-band="bandpass,bandstop">
+                <label class="toolbar-field scatter-toolbar__field" for="fft-filter-low-hz"
+                  title="Low frequency cutoff (Hz)">
+                  <span class="toolbar-field__label">Low Hz</span>
+                  <input id="fft-filter-low-hz" type="number" class="modal-input" min="0" step="0.001" placeholder="0"
+                    title="Low frequency cutoff (Hz)" name="fft-filter-low-hz" aria-label="Low Hz">
+                </label>
+                <label class="toolbar-field scatter-toolbar__field" for="fft-filter-high-hz"
+                  title="High frequency cutoff (Hz)">
+                  <span class="toolbar-field__label">High Hz</span>
+                  <input id="fft-filter-high-hz" type="number" class="modal-input" min="0" step="0.001"
+                    placeholder="auto" title="High frequency cutoff (Hz)" name="fft-filter-high-hz"
+                    aria-label="High Hz">
+                </label>
+              </div>
+              <div class="fft-filter-actions">
                 <button id="fft-filter-apply-btn" class="btn btn-ghost btn-sm" type="button"
                   title="Preview filtered signal on timeseries page">Preview</button>
                 <span id="fft-filter-status" class="scatter-panel-status"></span>
@@ -826,16 +847,38 @@
           <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
             <span class="scatter-toolbar__eyebrow">Export</span>
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <details class="toolbar-disclosure toolbar-disclosure--end">
+              <div class="fft-export-icons" role="group" aria-label="FFT export formats">
+                <button id="fft-export-png-btn" class="btn btn-ghost btn-sm" type="button"
+                  title="Export FFT as PNG image" aria-label="Export PNG">
+                  <span class="fft-export-icons__label">PNG</span>
+                </button>
+                <button id="fft-export-svg-btn" class="btn btn-ghost btn-sm" type="button"
+                  title="Export FFT as SVG image" aria-label="Export SVG">
+                  <span class="fft-export-icons__label">SVG</span>
+                </button>
+                <button id="fft-export-html-btn" class="btn btn-ghost btn-sm" type="button"
+                  title="Export FFT as standalone HTML" aria-label="Export HTML">
+                  <span class="fft-export-icons__label">HTML</span>
+                </button>
+                <button id="fft-export-csv-btn" class="btn btn-ghost btn-sm" type="button"
+                  title="Export FFT data as CSV" aria-label="Export CSV">
+                  <span class="fft-export-icons__label">CSV</span>
+                </button>
+              </div>
+              <details class="toolbar-disclosure toolbar-disclosure--end" hidden>
                 <summary class="toolbar-disclosure__summary">
                   <span class="toolbar-label">Format</span>
                   <span class="toolbar-disclosure__value">Image + CSV</span>
                 </summary>
                 <div class="toolbar-disclosure__menu">
-                  <button id="fft-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
-                  <button id="fft-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
-                  <button id="fft-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
-                  <button id="fft-export-csv-btn" class="btn btn-ghost btn-sm" type="button">CSV</button>
+                  <button id="fft-export-png-btn-fallback" class="btn btn-ghost btn-sm" type="button"
+                    disabled>PNG</button>
+                  <button id="fft-export-svg-btn-fallback" class="btn btn-ghost btn-sm" type="button"
+                    disabled>SVG</button>
+                  <button id="fft-export-html-btn-fallback" class="btn btn-ghost btn-sm" type="button"
+                    disabled>HTML</button>
+                  <button id="fft-export-csv-btn-fallback" class="btn btn-ghost btn-sm" type="button"
+                    disabled>CSV</button>
                 </div>
               </details>
             </div>
@@ -870,6 +913,12 @@
       </section>
 
       <section class="page" id="page-heatmap" data-page-name="heatmap" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">Correlations</h1>
+          <button id="heatmap-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Correlations page"
+            title="Show help for the Correlations page (?)">?</button>
+        </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
             <span class="scatter-toolbar__eyebrow">Metric</span>
@@ -971,8 +1020,8 @@
                     <stop offset="100%" stop-color="#88aef2" stop-opacity="0.3" />
                   </linearGradient>
                 </defs>
-                <rect x="8" y="8" width="80" height="80" rx="14" fill="none"
-                  stroke="url(#heatmap-empty-grad)" stroke-width="1.5" stroke-dasharray="4 4" />
+                <rect x="8" y="8" width="80" height="80" rx="14" fill="none" stroke="url(#heatmap-empty-grad)"
+                  stroke-width="1.5" stroke-dasharray="4 4" />
                 <rect x="20" y="20" width="22" height="22" rx="3" fill="#88aef2" fill-opacity="0.85" />
                 <rect x="50" y="50" width="22" height="22" rx="3" fill="#88aef2" fill-opacity="0.35" />
                 <rect x="50" y="20" width="22" height="22" rx="3" fill="#88aef2" fill-opacity="0.55" />
@@ -980,7 +1029,8 @@
               </svg>
             </div>
             <strong id="heatmap-empty-state-title">Correlation heatmap unavailable</strong>
-            <span id="heatmap-empty-state-message">Pick a dataset with at least two numeric columns to populate the matrix.</span>
+            <span id="heatmap-empty-state-message">Pick a dataset with at least two numeric columns to populate the
+              matrix.</span>
           </div>
           <div id="heatmap-loading" class="chart-loading-overlay" hidden>
             <div class="chart-loading-spinner"></div>
@@ -990,9 +1040,14 @@
       </section>
 
       <section class="page page--analysis-scroll" id="page-spectrogram" data-page-name="spectrogram" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">Spectrogram</h1>
+          <button id="spectrogram-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Spectrogram page"
+            title="Show help for the Spectrogram page (?)">?</button>
+        </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
-            <span class="scatter-toolbar__eyebrow">Display</span>
             <div class="scatter-toolbar__fields">
               <label class="toolbar-field scatter-toolbar__field" for="spectrogram-col-select">
                 <span class="toolbar-field__label">Column</span>
@@ -1052,48 +1107,41 @@
                   <span>Outliers</span>
                 </span>
               </label>
-              <label class="toolbar-field scatter-toolbar__field" for="spectrogram-clip-method">
-                <span class="toolbar-field__label">Clip&nbsp;method</span>
-                <select id="spectrogram-clip-method" class="modal-select" aria-label="Clip method" disabled>
-                  <option value="percentile" selected>Percentile</option>
-                  <option value="iqr">IQR (k)</option>
-                </select>
-              </label>
-              <label class="toolbar-field scatter-toolbar__field" for="spectrogram-clip-param">
-                <span class="toolbar-field__label" id="spectrogram-clip-param-label">Clip&nbsp;%</span>
-                <input id="spectrogram-clip-param" class="modal-input" type="number" min="0" step="0.1" value="0.5"
-                  aria-label="Clip threshold" disabled>
-              </label>
+              <div class="spectrogram-clip-band is-hidden" id="spectrogram-clip-band">
+                <label class="toolbar-field scatter-toolbar__field" for="spectrogram-clip-method">
+                  <span class="toolbar-field__label">Method</span>
+                  <select id="spectrogram-clip-method" class="modal-select" aria-label="Clip method" disabled>
+                    <option value="percentile" selected>Percentile</option>
+                    <option value="iqr">IQR (k)</option>
+                  </select>
+                </label>
+                <label class="toolbar-field scatter-toolbar__field" for="spectrogram-clip-param">
+                  <span class="toolbar-field__label" id="spectrogram-clip-param-label">%</span>
+                  <input id="spectrogram-clip-param" class="modal-input" type="number" min="0" step="0.1" value="0.5"
+                    aria-label="Clip threshold" disabled>
+                </label>
+              </div>
             </div>
           </div>
 
           <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
-            <span class="scatter-toolbar__eyebrow">Export</span>
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <details class="toolbar-disclosure toolbar-disclosure--end">
-                <summary class="toolbar-disclosure__summary">
-                  <span class="toolbar-label">Format</span>
-                  <span class="toolbar-disclosure__value">Image + HTML</span>
-                </summary>
-                <div class="toolbar-disclosure__menu">
-                  <button id="spectrogram-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
-                  <button id="spectrogram-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
-                  <button id="spectrogram-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
-                </div>
-              </details>
-            </div>
-          </div>
-
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
-            <span class="scatter-toolbar__eyebrow">Zoom</span>
-            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <button id="spectrogram-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button">↩ Reset
-                zoom</button>
-            </div>
-          </div>
-
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
-            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <button id="spectrogram-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button"
+                title="Reset zoom to the full time/frequency range">↩ Reset</button>
+              <div class="fft-export-icons" role="group" aria-label="Spectrogram export formats">
+                <button id="spectrogram-export-png-btn" class="btn btn-ghost btn-sm" type="button"
+                  title="Export spectrogram as PNG image" aria-label="Export PNG">
+                  <span class="fft-export-icons__label">PNG</span>
+                </button>
+                <button id="spectrogram-export-svg-btn" class="btn btn-ghost btn-sm" type="button"
+                  title="Export spectrogram as SVG image" aria-label="Export SVG">
+                  <span class="fft-export-icons__label">SVG</span>
+                </button>
+                <button id="spectrogram-export-html-btn" class="btn btn-ghost btn-sm" type="button"
+                  title="Export spectrogram as standalone HTML" aria-label="Export HTML">
+                  <span class="fft-export-icons__label">HTML</span>
+                </button>
+              </div>
               <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">▶
                 Compute</button>
             </div>
@@ -1116,7 +1164,31 @@
               <span class="scatter-colorbar-vname">scaled</span>
             </div>
           </div>
+          <div id="spectrogram-summary" class="spectrogram-spectral-info" hidden aria-live="polite">
+            <span class="spectrogram-spectral-info__row">
+              <span class="spectrogram-spectral-info__label">Sample&nbsp;rate</span>
+              <span id="spectrogram-summary-rate" class="spectrogram-spectral-info__value">—</span>
+            </span>
+            <span class="spectrogram-spectral-info__row">
+              <span class="spectrogram-spectral-info__label">Nyquist</span>
+              <span id="spectrogram-summary-nyquist" class="spectrogram-spectral-info__value">—</span>
+            </span>
+            <span class="spectrogram-spectral-info__row">
+              <span class="spectrogram-spectral-info__label">Time&nbsp;points</span>
+              <span id="spectrogram-summary-points" class="spectrogram-spectral-info__value">—</span>
+            </span>
+            <span class="spectrogram-spectral-info__row">
+              <span class="spectrogram-spectral-info__label">Freq&nbsp;bins</span>
+              <span id="spectrogram-summary-bins" class="spectrogram-spectral-info__value">—</span>
+            </span>
+          </div>
           <div id="spectrogram-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
+            <svg class="plot-empty-state__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M2 14h2v6H2zm4-4h2v10H6zm4 2h2v8h-2zm4-6h2v14h-2zm4 4h2v10h-2zm4-2h2v12h-2z" fill="currentColor"
+                opacity="0.55" />
+              <path d="M2 14 L6 10 L10 12 L14 6 L18 10 L22 8" fill="none" stroke="currentColor" stroke-width="1.5"
+                stroke-linejoin="round" stroke-linecap="round" opacity="0.9" />
+            </svg>
             <strong>No spectrogram yet</strong>
             <span>Pick a numeric column, keep the current time range, and click Compute.</span>
           </div>
@@ -1128,6 +1200,12 @@
       </section>
 
       <section class="page" id="page-causal" data-page-name="causal" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">Causal</h1>
+          <button id="causal-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Causal page"
+            title="Show help for the Causal page (?)">?</button>
+        </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
             <span class="scatter-toolbar__eyebrow"
@@ -1281,6 +1359,12 @@
 
       <!-- ── Drift Analysis page ───────────────────────── -->
       <section class="page" id="page-drift" data-page-name="drift" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">Drift</h1>
+          <button id="drift-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Drift page"
+            title="Show help for the Drift page (?)">?</button>
+        </div>
         <div class="toolbar scatter-toolbar drift-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
             <span class="scatter-toolbar__eyebrow">Data</span>
@@ -1523,6 +1607,12 @@
 
       <!-- ── Home page ───────────────────────────────────── -->
       <section class="page page-home" id="page-home" data-page-name="home" hidden>
+        <div class="page-header">
+          <h1 class="page-header__title">Home</h1>
+          <button id="home-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Home page"
+            title="Show help for the Home page (?)">?</button>
+        </div>
         <div class="home-hero">
           <div class="home-hero-icon">
             <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
@@ -1791,6 +1881,12 @@
       </section>
 
       <section class="page page-upload" id="page-upload" data-page-name="upload">
+        <div class="page-header">
+          <h1 class="page-header__title">Upload</h1>
+          <button id="upload-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Upload page"
+            title="Show help for the Upload page (?)">?</button>
+        </div>
         <div id="upload-panel" class="open">
           <div class="upload-inner">
             <div class="upload-source-tabs" role="tablist" aria-label="Upload source">
@@ -2303,6 +2399,9 @@
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
           <div class="modal-header">
             <div class="modal-title" id="settings-title">Settings</div>
+            <button id="settings-help-btn" class="page-help-trigger" type="button"
+              aria-label="Show help for the Settings panel"
+              title="Show help for the Settings panel (?)">?</button>
             <button class="btn btn-ghost" id="settings-close-btn" type="button">Close</button>
           </div>
 

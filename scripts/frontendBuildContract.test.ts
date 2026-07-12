@@ -60,22 +60,27 @@ describe('frontend build contract', () => {
     it('runs architecture + budget checks in order for --prod builds', () => {
         const buildScript = readRepoFile('scripts/build-frontend.mjs');
         const budgetScript = readRepoFile('scripts/check-frontend-budgets.mjs');
+        const assetGraphScript = readRepoFile('scripts/check-frontend-asset-graph.mjs');
         const archIdx = buildScript.indexOf('check-frontend-architecture.mjs');
         const budgetIdx = buildScript.indexOf('check-frontend-budgets.mjs');
+        const assetGraphIdx = buildScript.indexOf('check-frontend-asset-graph.mjs');
         const prodGuard = buildScript.match(/if\s*\(\s*isProd\s*\)/g) ?? [];
 
         expect(archIdx).toBeGreaterThan(-1);
         expect(budgetIdx).toBeGreaterThan(-1);
+        expect(assetGraphIdx).toBeGreaterThan(-1);
+        expect(assetGraphIdx).toBeLessThan(archIdx);
         // Budget check must run *after* architecture check
         expect(budgetIdx).toBeGreaterThan(archIdx);
         // The budget block must be guarded by isProd
         expect(prodGuard.length).toBeGreaterThanOrEqual(2);
         expect(budgetScript).toContain('Packaged frontend dist is stale or incomplete');
+        expect(assetGraphScript).toContain('manifest entry');
     });
 
     it('keeps check:frontend:budgets wired into check:frontend:all', () => {
         const pkg = readRepoFile('package.json');
-        expect(pkg).toMatch(/"check:frontend:all"\s*:\s*"npm run check:frontend && npm run check:frontend:arch && npm run check:frontend:budgets"/);
+        expect(pkg).toMatch(/"check:frontend:all"\s*:\s*"npm run check:frontend && npm run check:frontend:arch && npm run check:frontend:budgets && npm run check:frontend:assets"/);
     });
 
     it('uses Vite for the default dev workflow so CSS updates are served live', () => {

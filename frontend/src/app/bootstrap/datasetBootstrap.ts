@@ -60,20 +60,29 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
     function syncDatasetSelection(metadata: DatasetMetadata, selectedColumn?: string): void {
         deps.setNumericCols(deps.getNumericColumns(metadata));
 
-        if (!deps.getSelectedCols().length) {
-            deps.setSelectedCols(deps.getDefaultTimeseriesColumns(metadata));
-        }
+        const writeSelection = (columns: readonly string[]) => {
+            const next = [...new Set(columns.map((column) => String(column).trim()).filter(Boolean))];
+            deps.setSelectedCols(next);
+            // Column sanitation reads workspace selection as canonical. Seed it
+            // before sanitation so a fresh dataset's default series cannot be
+            // erased by the still-empty workspace snapshot.
+            deps.workspace.setSelection(next);
+        };
+
+        let nextSelection = deps.getSelectedCols();
+        if (!nextSelection.length) nextSelection = deps.getDefaultTimeseriesColumns(metadata);
 
         if (selectedColumn) {
-            const next = new Set(deps.getSelectedCols());
+            const next = new Set(nextSelection);
             next.add(selectedColumn);
-            deps.setSelectedCols(Array.from(next));
+            nextSelection = Array.from(next);
         }
 
+        writeSelection(nextSelection);
         deps.sanitizeSelectedColumns();
 
         if (!deps.getSelectedCols().length) {
-            deps.setSelectedCols(deps.getDefaultTimeseriesColumns(metadata));
+            writeSelection(deps.getDefaultTimeseriesColumns(metadata));
             deps.sanitizeSelectedColumns();
         }
 

@@ -112,6 +112,14 @@ if (result.status !== 0) {
     process.exit(0);
   }
 
+  const assetGraphCheck = spawnSync('node', ['scripts/check-frontend-asset-graph.mjs'], {
+    stdio: 'inherit',
+    cwd: ROOT,
+  });
+  if (assetGraphCheck.status !== 0) {
+    process.exit(assetGraphCheck.status ?? 1);
+  }
+
   const archCheck = spawnSync('node', ['scripts/check-frontend-architecture.mjs'], {
     stdio: 'inherit',
     cwd: ROOT,

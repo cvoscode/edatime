@@ -134,6 +134,34 @@ describe('createDatasetBootstrap', () => {
         expect(deps.workspace.setSelection).toHaveBeenCalledWith(['value']);
     });
 
+    it('seeds the workspace before sanitation so default series survive a fresh dataset bootstrap', async () => {
+        let workspaceSelection: string[] = [];
+        const setSelection = vi.fn((columns: readonly string[]) => {
+            workspaceSelection = [...columns];
+        });
+        const deps = createDeps({
+            workspace: {
+                beginDatasetSession: vi.fn(() => ({ id: 1, signal: new AbortController().signal })),
+                commitDataset: vi.fn(() => true),
+                setSelection,
+                setFilters: vi.fn(),
+            },
+        });
+        deps.sanitizeSelectedColumns = vi.fn(() => {
+            // The real sanitizer treats workspace selection as canonical and
+            // mirrors it back to the legacy rendering state.
+            deps.setSelectedCols([...workspaceSelection]);
+        });
+        const createDatasetBootstrap = await importCreateDatasetBootstrap();
+        const bootstrap = createDatasetBootstrap(deps);
+
+        await bootstrap.ensureDatasetReady();
+
+        expect(workspaceSelection).toEqual(['value']);
+        expect(fakeState.selectedCols).toEqual(['value']);
+        expect(deps.setAdaptiveFilterColumn).toHaveBeenCalledWith('value');
+    });
+
     it('uses the injected initializeDatasetUi callback instead of hardcoding UI hydration internally', async () => {
         const createDatasetBootstrap = await importCreateDatasetBootstrap();
         const deps = createDeps();
@@ -161,6 +189,32 @@ describe('createDatasetBootstrap', () => {
         expect(deps.clearPersistedFilters).toHaveBeenCalledTimes(1);
         expect(deps.workspace.setFilters).toHaveBeenCalledWith({ columnRanges: {}, adaptiveLines: [] });
         expect(deps.initializeDatasetUi).toHaveBeenCalledWith(baseMetadata);
+        expect(deps.refreshVisibleData).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps default series selected after an upload refresh when sanitation uses workspace state', async () => {
+        let workspaceSelection: string[] = [];
+        const deps = createDeps({
+            workspace: {
+                beginDatasetSession: vi.fn(() => ({ id: 1, signal: new AbortController().signal })),
+                commitDataset: vi.fn(() => true),
+                setSelection: vi.fn((columns: readonly string[]) => {
+                    workspaceSelection = [...columns];
+                }),
+                setFilters: vi.fn(),
+            },
+        });
+        deps.sanitizeSelectedColumns = vi.fn(() => {
+            deps.setSelectedCols([...workspaceSelection]);
+        });
+        const createDatasetBootstrap = await importCreateDatasetBootstrap();
+        const bootstrap = createDatasetBootstrap(deps);
+        isMetadataReadyMock.mockReturnValue(true);
+
+        await bootstrap.refreshAfterMutation();
+
+        expect(workspaceSelection).toEqual(['value']);
+        expect(fakeState.selectedCols).toEqual(['value']);
         expect(deps.refreshVisibleData).toHaveBeenCalledTimes(1);
     });
 
