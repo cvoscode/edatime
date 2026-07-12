@@ -6,6 +6,23 @@ Replace `frontend_review.md` with this plan. Reimplement the application as a va
 
 The implementation is deliberately sequential: each milestone starts by writing behavior tests against the current application, then replaces that seam, then proves the new implementation passes both the pre-existing characterization tests and new architecture/contract tests.
 
+## Implementation Progress
+
+### Completed: explicit state ownership and facade retirement
+
+- Split all production imports away from the mutable `store/index.ts` barrel into focused chart, dataset, runtime, analytics, scatter, UI, and event modules.
+- Added an architecture rule that rejects future production imports of the retired barrel.
+- Migrated the characterization tests to the same direct state modules and deleted `frontend/src/store/index.ts`.
+- Removed the unused upload feature entrypoint; the real upload panel/workflow remains the owner.
+- Added packaged frontend asset-graph validation so the emitted HTML must reference the current Vite manifest assets.
+- Fixed the upload-to-timeseries regression: default series are now seeded into the workspace before sanitation, so a fresh upload renders selected data.
+
+Verified after each milestone with the full frontend test suite, TypeScript, architecture, bundle-budget, and packaged asset-graph gates. The last facade-retirement verification passed 1,018 frontend tests.
+
+### Next: feature directory ownership
+
+Move each page controller/runtime under its owning `features/<name>/` directory, beginning with timeseries. Preserve the public lifecycle contract and its current characterization tests while removing page-to-feature trampolines only when the new owner directly composes the controller, view, and lifecycle.
+
 ## Target Architecture
 
 ```text
