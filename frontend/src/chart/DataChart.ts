@@ -100,6 +100,7 @@ import {
 } from './chartInteractions.js';
 import { ChartOverlays } from './chartOverlays.js';
 import { clampLegendPosition, isShiftOnlyGesture } from './legendInteraction.js';
+import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import {
     DEFAULT_CHART_GRID,
     computeChartGrid,
@@ -845,22 +846,7 @@ export class DataChart {
         domainMin: number,
         domainMax: number,
     ): { start: number; end: number } {
-        if (!Number.isFinite(domainMin) || !Number.isFinite(domainMax) || domainMax <= domainMin) {
-            return { start: 0, end: 100 };
-        }
-        if (!Number.isFinite(this._xMin) || !Number.isFinite(this._xMax) || this._xMax! <= this._xMin!) {
-            return { start: 0, end: 100 };
-        }
-
-        const span = domainMax - domainMin;
-        const clampedMin = Math.min(domainMax, Math.max(domainMin, this._xMin!));
-        const clampedMax = Math.min(domainMax, Math.max(domainMin, this._xMax!));
-        if (clampedMax <= clampedMin) return { start: 0, end: 100 };
-
-        return {
-            start: Math.max(0, Math.min(100, ((clampedMin - domainMin) / span) * 100)),
-            end: Math.max(0, Math.min(100, ((clampedMax - domainMin) / span) * 100)),
-        };
+        return computeZoomPercentRange(domainMin, domainMax, this._xMin, this._xMax);
     }
 
     private _getChartColorPalette(): string[] {
