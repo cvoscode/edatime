@@ -5,8 +5,7 @@
  * Delegated from buildColumnToggles so the chip-list and color-control
  * concerns stay cleanly separated.
  */
-import { appStateComposite as appState } from '../../store/index.js';
-import { setSelectedColorColumn } from '../../store/index.js';
+import { datasetState, setSelectedColorColumn, uiState } from '../../store/index.js';
 import { ColorBySelect } from '../../ui/composites/ColorBySelect.js';
 
 export interface ColorByControlOptions {
@@ -26,13 +25,13 @@ export function renderColorByControl(options: ColorByControlOptions): void {
     if (!slot) return;
     slot.innerHTML = '';
 
-    const metadataCols = (appState.metadata?.columns ?? [])
+    const metadataCols = (datasetState.metadata?.columns ?? [])
         .map((column) => String(column?.name ?? '').trim())
         .filter(Boolean);
 
     slot.appendChild(ColorBySelect({
         columns: metadataCols,
-        value: appState.selectedColorColumn,
+        value: uiState.selectedColorColumn,
         onChange: (value) => {
             setSelectedColorColumn(value || null);
             onColorColumnChange();

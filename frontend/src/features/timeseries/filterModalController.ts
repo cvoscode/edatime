@@ -1,6 +1,6 @@
 import { formatAnalysisNumber } from '../../utils/format.js';
 import { computeBounds } from '../../services/timeseries/filtering.js';
-import { appStateComposite as appState, setColumnRanges } from '../../store/index.js';
+import { chartState, datasetState, runtimeState, setColumnRanges, uiState } from '../../store/index.js';
 import { buildRangeControls } from './rangeControls.js';
 import { ColumnFilterModal } from '../../ui/composites/ColumnFilterModal.js';
 import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
@@ -67,7 +67,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
                 columnRanges: { ...filters.columnRanges, [col]: range },
             });
         }
-        setColumnRanges({ ...appState.columnRanges, [col]: range });
+        setColumnRanges({ ...uiState.columnRanges, [col]: range });
     }
 
     function setHint(text: string) { hintEl.textContent = text || ''; }
@@ -192,13 +192,13 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
     }
 
     function getFullBoundsForCol(col: string): { min: number; max: number } | null {
-        const rawValues = appState.lastFetchedData?.values?.[col];
-        const filteredSeries = (appState.lastFetchedData as unknown as { series?: Record<string, { y?: Float64Array }> })?.series;
+        const rawValues = runtimeState.lastFetchedData?.values?.[col];
+        const filteredSeries = (runtimeState.lastFetchedData as unknown as { series?: Record<string, { y?: Float64Array }> })?.series;
         const filteredValues = filteredSeries?.[col]?.y;
         const dataBounds = computeBounds(rawValues || filteredValues || new Float64Array(0));
         if (dataBounds) return dataBounds;
 
-        const profile = (appState.metadata?.column_profiles || []).find((item) => item?.name === col);
+        const profile = (datasetState.metadata?.column_profiles || []).find((item) => item?.name === col);
         const min = Number(profile?.min);
         const max = Number(profile?.max);
         if (Number.isFinite(min) && Number.isFinite(max)) return { min, max };
@@ -207,7 +207,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
     }
 
     function populateColumns(selectedCol: string | null = null) {
-        const cols = appState.selectedCols || [];
+        const cols = uiState.selectedCols || [];
         if (cols.length === 0) {
             setDropdownOptions('column-filter-col', [
                 { value: '', label: 'No series selected' },
@@ -230,7 +230,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
             setHint('Select a column to filter.');
             return;
         }
-        if (!appState.lastFetchedData) {
+        if (!runtimeState.lastFetchedData) {
             updateSliderConfig(null);
             applyButton.disabled = true;
             clearButton.disabled = true;
@@ -246,7 +246,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
             return;
         }
         const cur = deps.workspace?.getSnapshot().filters.columnRanges[col]
-            ?? appState.columnRanges[col]
+            ?? uiState.columnRanges[col]
             ?? { from: full.min, to: full.max };
         updateSliderConfig(full);
         syncInputsFromValues(cur.from, cur.to);
@@ -256,7 +256,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
     }
 
     function openModalForCol(col: string | null) {
-        populateColumns(col || getDropdownValue('column-filter-col') || appState.selectedCols?.[0] || null);
+        populateColumns(col || getDropdownValue('column-filter-col') || uiState.selectedCols?.[0] || null);
         refreshInputsForCol(getDropdownValue('column-filter-col'));
         modalEl.hidden = false;
         try { minTextInput.focus(); } catch { }
@@ -305,8 +305,8 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
             setColumnRange(col, { from: fromNum, to: toNum });
             if (deps.workspace) buildRangeControls(deps.workspace);
             deps.renderCurrentData();
-            appState.chart?.fitYToData?.();
-            const yr = appState.chart?.getYRange?.();
+            chartState.chart?.fitYToData?.();
+            const yr = chartState.chart?.getYRange?.();
             if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'filter');
             emitColumnFiltersChange();
             closeModal();
@@ -327,8 +327,8 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
         setColumnRange(col, { from: full.min, to: full.max });
         if (deps.workspace) buildRangeControls(deps.workspace);
         deps.renderCurrentData();
-        appState.chart?.fitYToData?.();
-        const yr = appState.chart?.getYRange?.();
+        chartState.chart?.fitYToData?.();
+        const yr = chartState.chart?.getYRange?.();
         if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'filter');
         emitColumnFiltersChange();
         refreshInputsForCol(col);

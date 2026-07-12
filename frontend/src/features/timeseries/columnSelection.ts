@@ -5,8 +5,9 @@
  * presentation and event wiring, while selection logic lives here.
  */
 import {
-    appStateComposite as appState,
+    datasetState,
     setAdaptiveFilterColumn,
+    uiState,
 } from '../../store/index.js';
 import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace } from './selectionIntent.js';
 
@@ -17,12 +18,12 @@ import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace
 export function sanitizeSelectedColumns(workspace: SelectionWorkspace): void {
     const blockedNames = new Set(['ts', 'timestamp', 'time']);
     const datetimeCols = new Set(
-        (appState.metadata?.columns ?? [])
+        (datasetState.metadata?.columns ?? [])
             .filter((col) => /date|time/i.test(String(col?.dtype ?? '')))
             .map((col) => String(col?.name ?? '').toLowerCase()),
     );
     const validColNames = new Set(
-        (appState.metadata?.columns ?? []).map((col) => String(col?.name ?? '').trim()),
+        (datasetState.metadata?.columns ?? []).map((col) => String(col?.name ?? '').trim()),
     );
 
     setTimeseriesSelection(
@@ -43,8 +44,8 @@ export function sanitizeSelectedColumns(workspace: SelectionWorkspace): void {
  * Called after sanitizeSelectedColumns inside buildColumnToggles.
  */
 export function ensureAdaptiveTargetStillValid(workspace: SelectionWorkspace): void {
-    if (!appState.adaptiveFilterColumn) return;
+    if (!uiState.adaptiveFilterColumn) return;
     const selection = getTimeseriesSelection(workspace);
-    if (selection.includes(appState.adaptiveFilterColumn)) return;
+    if (selection.includes(uiState.adaptiveFilterColumn)) return;
     setAdaptiveFilterColumn(selection[0] ?? null);
 }

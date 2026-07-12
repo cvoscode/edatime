@@ -7,11 +7,13 @@
  * so the domain-to-item transformation stays testable and isolated.
  */
 import {
-    appStateComposite as appState,
+    chartState,
+    datasetState,
     getSeriesColor,
     setAdaptiveFilterColumn,
     setPendingAdaptivePoint,
     setSeriesColor,
+    uiState,
 } from '../../store/index.js';
 import { ensureAdaptiveTargetStillValid } from './columnSelection.js';
 import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace } from './selectionIntent.js';
@@ -41,7 +43,7 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
     const { filterText, buildRangeControlsFn, fetchAndRender, renderCurrentDataFn, workspace } = options;
     const selection = getTimeseriesSelection(workspace);
 
-    const visibleCols = appState.numericCols.filter((col) => {
+    const visibleCols = datasetState.numericCols.filter((col) => {
         if (!filterText) return true;
         return col.toLowerCase().includes(filterText.toLowerCase());
     });
@@ -49,10 +51,10 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
     if (visibleCols.length === 0) return [];
 
     return visibleCols.map((col) => {
-        const colIdx = appState.numericCols.indexOf(col);
+        const colIdx = datasetState.numericCols.indexOf(col);
         const color = getSeriesColor(col, colIdx >= 0 ? colIdx : 0);
         const isActive = selection.includes(col);
-        const isAdaptiveTarget = isActive && appState.adaptiveFilterColumn === col;
+        const isAdaptiveTarget = isActive && uiState.adaptiveFilterColumn === col;
 
         const chipTitle = isAdaptiveTarget
             ? `Adaptive filter target: ${col}`
@@ -72,7 +74,7 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
                 }
                 ensureAdaptiveTargetStillValid(workspace);
                 buildRangeControlsFn();
-                (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
+                (chartState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
                 fetchAndRender();
             },
             onColorInput: (nextColor: string) => {
@@ -116,7 +118,7 @@ export function bindChipCtrlClick(
                 setPendingAdaptivePoint(null);
 
                 rebuildAndRender();
-                (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
+                (chartState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
 
                 if (!hadColumn) fetchAndRender();
             },

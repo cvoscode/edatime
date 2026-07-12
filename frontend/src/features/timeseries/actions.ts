@@ -9,7 +9,6 @@
  */
 
 import {
-    appState,
     clearScatterViewSnapshots,
     chartState,
     datasetState,
@@ -20,6 +19,7 @@ import {
     setProfileFilterText,
     setViewport,
     type ProfileFilterCategory,
+    uiState,
 } from '../../store/index.js';
 import { debounce } from '../../utils/function.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
@@ -126,7 +126,7 @@ export function initDatasetSearchInputs(
             }
         };
         // Initial state mirrors the store default so the UI never lies.
-        setActiveCategoryButton(appState.profileFilterCategory);
+        setActiveCategoryButton(uiState.profileFilterCategory);
         for (const button of categoryButtons) {
             button.addEventListener('click', () => {
                 const category = (button.dataset.category || 'all') as ProfileFilterCategory;

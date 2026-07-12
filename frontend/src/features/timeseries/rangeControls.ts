@@ -10,9 +10,10 @@
  */
 import { formatAnalysisNumber } from '../../utils/format.js';
 import {
-    appStateComposite as appState,
+    chartState,
     setAdaptiveLineFilters,
     setPendingAdaptivePoint,
+    uiState,
 } from '../../store/index.js';
 import { RangeControls, RangeControlItem } from '../../ui/composites/RangeControls.js';
 import type { FilterWorkspace } from './selectionIntent.js';
@@ -33,11 +34,11 @@ export function buildRangeControls(workspace: FilterWorkspace): void {
     const filters = snapshot.filters;
 
     // Adaptive filter target chip (static — not clickable)
-    if (appState.adaptiveFilterColumn && selectedColumns.includes(appState.adaptiveFilterColumn)) {
+    if (uiState.adaptiveFilterColumn && selectedColumns.includes(uiState.adaptiveFilterColumn)) {
         items.push({
             key: 'adaptive-target',
             name: 'Adaptive target',
-            range: appState.adaptiveFilterColumn,
+            range: uiState.adaptiveFilterColumn,
             kind: 'static',
         });
     }
@@ -84,7 +85,7 @@ export function buildRangeControls(workspace: FilterWorkspace): void {
     }
 
     // Clear-all chip when any adaptive filters are active
-    if (filters.adaptiveLines.length > 0 || appState.pendingAdaptivePoint) {
+    if (filters.adaptiveLines.length > 0 || uiState.pendingAdaptivePoint) {
         items.push({
             key: 'clear-all',
             name: 'Adaptive filters',
@@ -97,7 +98,7 @@ export function buildRangeControls(workspace: FilterWorkspace): void {
                 setAdaptiveLineFilters([]);
                 setPendingAdaptivePoint(null);
                 buildRangeControls(workspace);
-                (appState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
+                (chartState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
                 window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
             },
         });

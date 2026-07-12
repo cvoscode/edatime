@@ -12,7 +12,8 @@
  */
 
 import {
-    appStateComposite as appState,
+    datasetState,
+    uiState,
 } from '../../store/index.js';
 import { renderSeriesChipList } from '../../ui/index.js';
 import { sanitizeSelectedColumns, ensureAdaptiveTargetStillValid } from './columnSelection.js';
@@ -43,7 +44,7 @@ export function buildColumnToggles(
 
     const items = composeChipListItems({
         workspace,
-        filterText: appState.filterText ?? '',
+        filterText: uiState.filterText ?? '',
         buildRangeControlsFn,
         fetchAndRender,
         renderCurrentDataFn,
@@ -71,7 +72,7 @@ export function buildColumnToggles(
     // Annotate the rail container with the active / total counts so the
     // information previously shown in the removed chip-status summary row
     // is still available via the native tooltip on hover/focus.
-    const total = Array.isArray(appState.numericCols) ? appState.numericCols.length : 0;
+    const total = Array.isArray(datasetState.numericCols) ? datasetState.numericCols.length : 0;
     const active = workspace.getSnapshot().selection.columns.length;
     const summaryText = total > 0
         ? `${active} of ${total} active. Click chips to add more.`
