@@ -108,8 +108,8 @@ describe('initFftPage', () => {
             }],
         }));
 
-        const { appState } = await import('../store/index.js');
-        appState.metadata = {
+        const { chartState, datasetState } = await import('../store/index.js');
+        datasetState.metadata = {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value', 'temp', 'pressure'],
@@ -117,8 +117,8 @@ describe('initFftPage', () => {
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any;
-        appState.currentStart = 0;
-        appState.currentEnd = 1000;
+        chartState.currentStart = 0;
+        chartState.currentEnd = 1000;
 
         const { initFftPage } = await import('./fftPage');
         await initFftPage({ renderTimeseries: vi.fn() });
@@ -154,8 +154,8 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { appState } = await import('../store/index.js');
-        appState.metadata = {
+        const { chartState, datasetState } = await import('../store/index.js');
+        datasetState.metadata = {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
@@ -163,8 +163,8 @@ describe('initFftPage', () => {
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any;
-        appState.currentStart = 0;
-        appState.currentEnd = 1000;
+        chartState.currentStart = 0;
+        chartState.currentEnd = 1000;
         window.localStorage.setItem('edatime_fft_selected_columns', JSON.stringify([]));
 
         const { initFftPage } = await import('./fftPage');
@@ -196,8 +196,8 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { appState } = await import('../store/index.js');
-        appState.metadata = {
+        const { chartState, datasetState } = await import('../store/index.js');
+        datasetState.metadata = {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
@@ -205,8 +205,8 @@ describe('initFftPage', () => {
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any;
-        appState.currentStart = 0;
-        appState.currentEnd = 1000;
+        chartState.currentStart = 0;
+        chartState.currentEnd = 1000;
         window.localStorage.setItem('edatime_fft_selected_columns', JSON.stringify([]));
 
         const { initFftPage } = await import('./fftPage');
@@ -246,8 +246,8 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { appState } = await import('../store/index.js');
-        appState.metadata = {
+        const { chartState, datasetState } = await import('../store/index.js');
+        datasetState.metadata = {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
@@ -255,8 +255,8 @@ describe('initFftPage', () => {
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any;
-        appState.currentStart = 0;
-        appState.currentEnd = 1000;
+        chartState.currentStart = 0;
+        chartState.currentEnd = 1000;
         window.localStorage.setItem('edatime_fft_selected_columns', JSON.stringify([]));
 
         const { initFftPage } = await import('./fftPage');
@@ -271,7 +271,7 @@ describe('initFftPage', () => {
         expect((document.getElementById('fft-empty-state') as HTMLElement).hidden).toBe(true);
 
         buildDom();
-        appState.metadata = {
+        datasetState.metadata = {
             total_rows: 8,
             columns: [],
             numeric_columns: ['value', 'temp'],
@@ -292,8 +292,8 @@ describe('initFftPage', () => {
     it('falls back to ECharts when the WebGPU FFT chart cannot initialize', async () => {
         fftChartInstance.init.mockRejectedValueOnce(new Error('No WebGPU adapter found'));
 
-        const { appState } = await import('../store/index.js');
-        appState.metadata = {
+        const { chartState, datasetState } = await import('../store/index.js');
+        datasetState.metadata = {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
@@ -301,8 +301,8 @@ describe('initFftPage', () => {
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any;
-        appState.currentStart = 0;
-        appState.currentEnd = 1000;
+        chartState.currentStart = 0;
+        chartState.currentEnd = 1000;
 
         const { initFftPage } = await import('./fftPage');
         await initFftPage({ renderTimeseries: vi.fn() });
@@ -314,8 +314,8 @@ describe('initFftPage', () => {
     });
 
     it('enables clip method and param when fft outliers toggle is checked (input event)', async () => {
-        const { appState } = await import('../store/index.js');
-        appState.metadata = {
+        const { chartState, datasetState } = await import('../store/index.js');
+        datasetState.metadata = {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
@@ -323,8 +323,8 @@ describe('initFftPage', () => {
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any;
-        appState.currentStart = 0;
-        appState.currentEnd = 1000;
+        chartState.currentStart = 0;
+        chartState.currentEnd = 1000;
 
         const { initFftPage } = await import('./fftPage');
         await initFftPage({ renderTimeseries: vi.fn() });
@@ -358,8 +358,8 @@ describe('initFftPage', () => {
     });
 
     it('hides advanced clip controls until outlier clipping is enabled', async () => {
-        const { appState } = await import('../store/index.js');
-        appState.metadata = {
+        const { chartState, datasetState } = await import('../store/index.js');
+        datasetState.metadata = {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
@@ -367,8 +367,8 @@ describe('initFftPage', () => {
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any;
-        appState.currentStart = 0;
-        appState.currentEnd = 1000;
+        chartState.currentStart = 0;
+        chartState.currentEnd = 1000;
 
         const { initFftPage } = await import('./fftPage');
         await initFftPage({ renderTimeseries: vi.fn() });
@@ -389,8 +389,8 @@ describe('initFftPage', () => {
     });
 
     it('hides inactive spectral cutoff inputs until the selected filter uses them', async () => {
-        const { appState } = await import('../store/index.js');
-        appState.metadata = {
+        const { chartState, datasetState } = await import('../store/index.js');
+        datasetState.metadata = {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
@@ -398,8 +398,8 @@ describe('initFftPage', () => {
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any;
-        appState.currentStart = 0;
-        appState.currentEnd = 1000;
+        chartState.currentStart = 0;
+        chartState.currentEnd = 1000;
 
         const { initFftPage } = await import('./fftPage');
         await initFftPage({ renderTimeseries: vi.fn() });
@@ -437,8 +437,8 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { appState } = await import('../store/index.js');
-        appState.metadata = {
+        const { chartState, datasetState } = await import('../store/index.js');
+        datasetState.metadata = {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
@@ -446,8 +446,8 @@ describe('initFftPage', () => {
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any;
-        appState.currentStart = 0;
-        appState.currentEnd = 1000;
+        chartState.currentStart = 0;
+        chartState.currentEnd = 1000;
         window.localStorage.setItem('edatime_fft_selected_columns', JSON.stringify([]));
 
         const { initFftPage } = await import('./fftPage');

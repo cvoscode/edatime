@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createTimeseriesPageController } from './timeseriesPage.js';
-import { appState } from '../store/index.js';
 import {
+    chartState,
+    runtimeState,
     setChartInstance,
     setFetchDebounceId,
     setFetchedWindow,
@@ -11,6 +12,10 @@ import {
     setMetadata,
     setPendingRestoreY,
     setPendingYMode,
+    setSelectedColorColumn,
+    setSelectedCols,
+    setColumnRanges,
+    setAdaptiveLineFilters,
     setViewport,
     setZoomHistory,
 } from '../store/index.js';
@@ -30,10 +35,10 @@ describe('createTimeseriesPageController', () => {
         setRefetchOnZoom(false);
         setLastFetchedData(null);
         setFetchedWindow(null);
-        appState.columnRanges = {};
-        appState.adaptiveLineFilters = [];
-        appState.selectedCols = [];
-        appState.selectedColorColumn = null;
+        setColumnRanges({});
+        setAdaptiveLineFilters([]);
+        setSelectedCols([]);
+        setSelectedColorColumn(null);
     });
 
     it('preserves x and y ranges when zooming into a boxed viewport', () => {
@@ -61,11 +66,11 @@ describe('createTimeseriesPageController', () => {
             yMax: 70,
         } as any, 'user' as any);
 
-        expect(appState.zoomHistory).toEqual([{ xMin: 0, xMax: 100, yMin: 10, yMax: 90 }]);
-        expect(appState.currentStart).toBe(20);
-        expect(appState.currentEnd).toBe(80);
-        expect(appState.pendingYMode).toBe('restore');
-        expect(appState.pendingRestoreY).toEqual({ min: 30, max: 70 });
+        expect(chartState.zoomHistory).toEqual([{ xMin: 0, xMax: 100, yMin: 10, yMax: 90 }]);
+        expect(chartState.currentStart).toBe(20);
+        expect(chartState.currentEnd).toBe(80);
+        expect(runtimeState.pendingYMode).toBe('restore');
+        expect(runtimeState.pendingRestoreY).toEqual({ min: 30, max: 70 });
         expect(chart.setXRange).toHaveBeenCalledWith(20, 80);
     });
 
@@ -88,8 +93,8 @@ describe('createTimeseriesPageController', () => {
 
     it('builds series requests from workspace selection and viewport intent', async () => {
         document.body.innerHTML = '<div id="main-chart-loading" hidden></div><div id="main-chart"></div>';
-        appState.selectedCols = ['legacy'];
-        appState.selectedColorColumn = 'legacy-color';
+        setSelectedCols(['legacy']);
+        setSelectedColorColumn('legacy-color');
         setViewport(0, 100);
         const fetchData = vi.fn().mockResolvedValue({ ts: [], values: {}, series: {}, colorByColumn: {} });
         const controller = createTimeseriesPageController({
@@ -132,7 +137,7 @@ describe('createTimeseriesPageController', () => {
             series: {},
             colorByColumn: {},
         } as any);
-        appState.selectedCols = ['legacy'];
+        setSelectedCols(['legacy']);
         const controller = createTimeseriesPageController({
             fetchData: vi.fn(),
             buildRangeControls: vi.fn(),
@@ -176,7 +181,7 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 4_000 },
             column_profiles: [],
         } as any);
-        appState.selectedCols = ['value'];
+        setSelectedCols(['value']);
         setViewport(1_000, 3_000);
 
         const chart = {
@@ -216,7 +221,7 @@ describe('createTimeseriesPageController', () => {
             yMax: 35,
         } as any, 'user' as any);
 
-        expect(appState.zoomHistory).toEqual([{ xMin: 1_000, xMax: 3_000, yMin: 20, yMax: 40 }]);
+        expect(chartState.zoomHistory).toEqual([{ xMin: 1_000, xMax: 3_000, yMin: 20, yMax: 40 }]);
         expect(getCurrentView).not.toHaveBeenCalled();
     });
 
@@ -268,7 +273,7 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 100 },
             column_profiles: [],
         } as any);
-        appState.selectedCols = ['temperature'];
+        setSelectedCols(['temperature']);
 
         const chart = {
             setXRange: vi.fn(),
@@ -304,7 +309,7 @@ describe('createTimeseriesPageController', () => {
                 time_range: { min: 0, max: 100 },
                 column_profiles: [],
             } as any);
-            appState.selectedCols = ['value'];
+            setSelectedCols(['value']);
             return true;
         });
 
@@ -346,8 +351,8 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any);
-        appState.selectedCols = ['value'];
-        appState.selectedColorColumn = 'value';
+        setSelectedCols(['value']);
+        setSelectedColorColumn('value');
         setViewport(100, 900);
 
         const chart = {
@@ -410,8 +415,8 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any);
-        appState.selectedCols = ['value'];
-        appState.selectedColorColumn = null;
+        setSelectedCols(['value']);
+        setSelectedColorColumn(null);
         setViewport(0, 1000);
 
         const chart = {
@@ -461,8 +466,8 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 4_000 },
             column_profiles: [],
         } as any);
-        appState.selectedCols = ['HUFL', 'OT'];
-        appState.selectedColorColumn = null;
+        setSelectedCols(['HUFL', 'OT']);
+        setSelectedColorColumn(null);
         setViewport(0, 4_000);
 
         const fetchedOt = new Float64Array([12.1, 12.1, 12.2, 12.2, 113.76]);
@@ -521,8 +526,8 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 4_000 },
             column_profiles: [],
         } as any);
-        appState.selectedCols = ['value'];
-        appState.selectedColorColumn = null;
+        setSelectedCols(['value']);
+        setSelectedColorColumn(null);
         setViewport(1_000, 3_000);
 
         const chart = {
@@ -578,8 +583,8 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 4_000 },
             column_profiles: [],
         } as any);
-        appState.selectedCols = ['value'];
-        appState.selectedColorColumn = null;
+        setSelectedCols(['value']);
+        setSelectedColorColumn(null);
         setViewport(0, 4_000);
 
         const chart = {
@@ -658,8 +663,8 @@ describe('createTimeseriesPageController', () => {
                 time_range: { min: 0, max: 4_000 },
                 column_profiles: [],
             } as any);
-            appState.selectedCols = ['value'];
-            appState.selectedColorColumn = null;
+            setSelectedCols(['value']);
+            setSelectedColorColumn(null);
             setViewport(0, 4_000);
             setRefetchOnZoom(true);
 
@@ -704,7 +709,7 @@ describe('createTimeseriesPageController', () => {
                 yMin: 25,
                 yMax: 35,
             } as any, 'user' as any);
-            expect(appState.zoomHistory).toEqual([
+            expect(chartState.zoomHistory).toEqual([
                 { xMin: 0, xMax: 4_000, yMin: 10, yMax: 50 },
                 { xMin: 1_000, xMax: 3_000, yMin: 20, yMax: 40 },
             ]);
@@ -727,8 +732,8 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 4_000 },
             column_profiles: [],
         } as any);
-        appState.selectedCols = ['value'];
-        appState.selectedColorColumn = null;
+        setSelectedCols(['value']);
+        setSelectedColorColumn(null);
         setViewport(0, 4_000);
 
         let currentY = { min: 10, max: 50 };
@@ -782,8 +787,8 @@ describe('createTimeseriesPageController', () => {
         chart.updateDataMulti.mockClear();
         controller.zoomOut();
 
-        expect(appState.currentStart).toBe(0);
-        expect(appState.currentEnd).toBe(4_000);
+        expect(chartState.currentStart).toBe(0);
+        expect(chartState.currentEnd).toBe(4_000);
         expect(currentY).toEqual({ min: 10, max: 50 });
         expect(chart.updateDataMulti).toHaveBeenCalledOnce();
         const rendered = chart.updateDataMulti.mock.calls[0]?.[0];
@@ -807,8 +812,8 @@ describe('createTimeseriesPageController', () => {
                 time_range: { min: 0, max: 4_000 },
                 column_profiles: [],
             } as any);
-            appState.selectedCols = ['value'];
-            appState.selectedColorColumn = null;
+            setSelectedCols(['value']);
+            setSelectedColorColumn(null);
             setViewport(0, 4_000);
 
             let dataY = { min: 0, max: 100 };
@@ -835,8 +840,8 @@ describe('createTimeseriesPageController', () => {
             setChartInstance(chart as any);
 
             const updateAnalysisYRange = vi.fn((min: number, max: number, _sourceKind?: string) => {
-                if (appState.pendingYMode === 'restore' && appState.pendingRestoreY) {
-                    const savedY = appState.pendingRestoreY;
+                if (runtimeState.pendingYMode === 'restore' && runtimeState.pendingRestoreY) {
+                    const savedY = runtimeState.pendingRestoreY;
                     setPendingYMode(null);
                     setPendingRestoreY(null);
                     chart.setYRange(savedY.min, savedY.max);
@@ -878,8 +883,8 @@ describe('createTimeseriesPageController', () => {
             controller.zoomOut();
             await vi.runOnlyPendingTimersAsync();
 
-            expect(appState.currentStart).toBe(1_500);
-            expect(appState.currentEnd).toBe(2_500);
+            expect(chartState.currentStart).toBe(1_500);
+            expect(chartState.currentEnd).toBe(2_500);
             expect(currentY).toEqual({ min: 20, max: 80 });
             expect(chart.resetYRange).not.toHaveBeenCalled();
             expect(fetchData).toHaveBeenCalledTimes(4);
@@ -922,10 +927,10 @@ describe('createTimeseriesPageController', () => {
             controller.zoomOut();
             controller.zoomOut();
 
-            expect(appState.currentStart).toBe(0);
-            expect(appState.currentEnd).toBe(10_000);
+            expect(chartState.currentStart).toBe(0);
+            expect(chartState.currentEnd).toBe(10_000);
             expect(currentY).toEqual({ min: 0, max: 100 });
-            expect(appState.zoomHistory).toEqual([]);
+            expect(chartState.zoomHistory).toEqual([]);
             expect(chart.setXRange).toHaveBeenLastCalledWith(0, 10_000);
         } finally {
             vi.useRealTimers();
