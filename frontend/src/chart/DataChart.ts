@@ -58,14 +58,6 @@ interface DrawItem {
     endY: number;
 }
 
-interface LegendDragState {
-    pointerId: number;
-    startClientX: number;
-    startClientY: number;
-    startLeft: number;
-    startTop: number;
-}
-
 /**
  * Tracked window-level event listeners attached by the legend overlay.
  * Stored so destroy()/deepDispose() can remove them — without tracking, every
@@ -88,7 +80,7 @@ import {
     initCtrlPan,
 } from './chartInteractions.js';
 import { ChartOverlays } from './chartOverlays.js';
-import { buildLegendEntries, clampLegendPosition, isShiftOnlyGesture, LegendWindowListenerScope, type LegendPosition } from './legendInteraction.js';
+import { buildLegendEntries, clampLegendPosition, isShiftOnlyGesture, LegendWindowListenerScope, type LegendDragState, type LegendPosition } from './legendInteraction.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {

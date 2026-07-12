@@ -3,6 +3,14 @@ export interface LegendPosition {
     top: number;
 }
 
+export interface LegendDragState {
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    startLeft: number;
+    startTop: number;
+}
+
 export interface LegendEntry { name: string; color: string; visible: boolean }
 
 export class LegendWindowListenerScope {
