@@ -15,7 +15,7 @@ vi.mock('../features/fft/page.js', () => ({ initFftPage: mocks.initFftPage }));
 vi.mock('../features/heatmap/page.js', () => ({ initHeatmapPage: mocks.initHeatmapPage }));
 vi.mock('../features/scatter/page.js', () => ({ initScatterPage: mocks.initScatterPage }));
 vi.mock('../features/spectrogram/page.js', () => ({ initSpectrogramPage: mocks.initSpectrogramPage }));
-vi.mock('../features/causal/page.js', () => ({ initCausalPage: mocks.initCausalPage }));
+vi.mock('../features/causal/index.js', () => ({ initCausalPage: mocks.initCausalPage }));
 vi.mock('../features/drift/page.js', () => ({ initDriftPage: mocks.initDriftPage }));
 
 import { loadPageDescriptors, type PageDescriptorInitDeps } from './pageModules.js';

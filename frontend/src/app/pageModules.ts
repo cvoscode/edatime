@@ -83,7 +83,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         name: 'causal',
         requiresMetadata: true,
         async load(deps) {
-            const { initCausalPage } = await import('../features/causal/page.js');
+            const { initCausalPage } = await import('../features/causal/index.js');
             return {
                 init: () => initCausalPage({
                     workspace: deps.workspace,

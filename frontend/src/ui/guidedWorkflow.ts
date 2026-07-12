@@ -1,5 +1,5 @@
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
-import { getCurrentCausalGraph } from '../features/causal/causalComparison.js';
+import { getCurrentCausalGraph } from '../features/causal/index.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
 import { toast } from '../utils/toast.js';
 

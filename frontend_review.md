@@ -97,7 +97,14 @@ Complete: FFT and Timeseries layout/lifecycle tests now live with their features
 
 ### Next: platform and feature-boundary consolidation
 
-Review current cross-feature imports and introduce small public feature surfaces where needed. Strengthen architecture checks so application composition can load feature entrypoints without deep imports, while preserving lazy-loading and the existing characterization suite.
+### Completed: Causal public feature surface
+
+- Added `features/causal/index.ts` as the explicit Causal composition surface.
+- Updated the page registry and guided workflow to consume Causal through that public surface instead of reaching into its page controller or comparison internals.
+
+### Next: platform and feature-boundary consolidation
+
+Continue replacing cross-feature deep imports with small public surfaces, then strengthen architecture checks once the remaining direct seams have been migrated.
 
 ## Target Architecture
 
